@@ -3,6 +3,7 @@ export const preferencesTabs = [
   { id: "general", label: "General" },
   { id: "addons", label: "Addons" },
   { id: "shortcuts", label: "Shortcuts" },
+  { id: "experimental", label: "Experimental" },
 ] as const
 export type PreferencesTab = (typeof preferencesTabs)[number]["id"]
 

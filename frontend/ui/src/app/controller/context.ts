@@ -8,6 +8,7 @@ import { createContext, useContext, type RefObject } from "react"
 
 import type { CanvasHandle } from "../../layouts/canvas/types"
 import type { WorkspaceCommands } from "../commands/workspace"
+import type { FeatureFlag } from "../feature-flags"
 import type { WorkspaceNavigator } from "../routing"
 import type { UiState, UiStore } from "../ui-store"
 import { useStoreSelector } from "./useStoreSelector"
@@ -47,3 +48,7 @@ export const useWorkspaceState = <T>(
 // Subscribes a section to one derived value of the UI store.
 export const useUiState = <T>(select: (state: UiState) => T, equal?: (a: T, b: T) => boolean): T =>
   useStoreSelector(useWorkspaceServices().ui, select, equal)
+
+// Whether a feature flag is on, as the UI store keeps it.
+export const useFeatureFlag = (flag: FeatureFlag): boolean =>
+  useUiState((state) => state.flags[flag])

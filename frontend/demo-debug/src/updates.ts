@@ -179,13 +179,13 @@ export const updatesGroup = (launch: DemoLaunch, controls: DemoUpdates): DemoAct
     actions: [
       ...scenarios,
       {
-        label: "Early builds on",
-        hint: "Shows in Preferences once reopened",
+        label: "Experimental on",
+        hint: "Takes effect once Preferences is reopened",
         run: () => controls.updates.channel?.set("early"),
       },
       {
-        label: "Early builds off",
-        hint: "Shows in Preferences once reopened",
+        label: "Experimental off",
+        hint: "Takes effect once Preferences is reopened",
         run: () => controls.updates.channel?.set("stable"),
       },
       {

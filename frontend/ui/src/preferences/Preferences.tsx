@@ -103,7 +103,7 @@ export const Preferences = ({
   agents,
   voice,
   murmur,
-  updates,
+  experimental,
   version,
   logs,
   uninstall,
@@ -138,11 +138,11 @@ export const Preferences = ({
   voice?: VoiceAddon
   // Murmur, as the backend has it; absent where it has none.
   murmur?: MurmurAddonValue
-  // Which releases the desktop app follows; absent where it doesn't offer the choice.
-  // `early` is undefined until the app has said.
-  updates?: {
-    readonly early: boolean | undefined
-    readonly onChange: (early: boolean) => void
+  // Whether the desktop app follows early builds, which also shows the Experimental tab;
+  // absent where it doesn't offer the choice. `on` is undefined until the app has said.
+  experimental?: {
+    readonly on: boolean | undefined
+    readonly onChange: (on: boolean) => void
   }
   // The desktop app's version; absent where the backend has none to give.
   version?: string
@@ -161,10 +161,27 @@ export const Preferences = ({
     setOpenSelect(null)
     if (panels.current) panels.current.scrollTop = 0
   }
-  // The Addons are the chat view, voice input and murmur; a backend with none of them,
-  // as the website's demo, has no tab for them, though a URL can still name the section.
-  const hasAddons = chat || voice !== undefined || murmur !== undefined
-  const shown = !hasAddons && tab === "addons" ? "general" : tab
+  // The Addons are voice input and murmur; a backend with neither, as the website's demo,
+  // has no tab for them, though a URL can still name the section.
+  const hasAddons = voice !== undefined || murmur !== undefined
+  // The Experimental tab, with the chat view, is there only while its switch is on.
+  const hasExperimental = experimental?.on === true
+  const hidden = (id: PreferencesTab): boolean =>
+    (id === "addons" && !hasAddons) || (id === "experimental" && !hasExperimental)
+  const shown = hidden(tab) ? "general" : tab
+  // The Experimental tab's switches, one row each.
+  const experimentalToggles = [
+    {
+      id: "chat-view",
+      label: "Chat view",
+      description: chat
+        ? "Read and reply to agents in a chat instead of their terminal. When the chat can't handle something, answer in the terminal."
+        : "Not available here.",
+      checked: value.chatView,
+      onToggle: (chatView: boolean) => onChange({ ...value, chatView }),
+      disabled: !chat,
+    },
+  ]
   const lastView = value.enabledViews.length === 1
   const { appearance } = value
   const theme: ThemeEntry<ThemeId> =
@@ -210,7 +227,7 @@ export const Preferences = ({
             indicatorClassName="bottom-[-1px] h-0.5"
           >
             {preferencesTabs
-              .filter(({ id }) => hasAddons || id !== "addons")
+              .filter(({ id }) => !hidden(id))
               .map(({ id, label }) => (
                 <Tab key={id} value={id} className="relative min-h-9 px-0.5 text-left text-body">
                   {label}
@@ -412,22 +429,22 @@ export const Preferences = ({
                 <AgentSwitches agents={agents.list} onChange={agents.onChange} />
               </Section>
             )}
-            {updates && (
+            {experimental && (
               <Section title="Updates">
                 <div className={settingsCardClasses}>
                   <div className={`preference-row ${settingRowClasses}`}>
                     <SettingText
-                      id="early-builds-label"
-                      label="Early builds"
-                      description="Get new releases as soon as they're published, before they're promoted to stable. Turning this off doesn't go back to an older version."
-                      descriptionId="early-builds-description"
+                      id="experimental-label"
+                      label="Experimental"
+                      description="Get new releases as soon as they're published, before they're promoted to stable, and try features that are still being built in the Experimental tab. Turning this off doesn't go back to an older version."
+                      descriptionId="experimental-description"
                     />
                     <Switch
-                      checked={updates.early === true}
-                      onChange={updates.onChange}
-                      labelledBy="early-builds-label"
-                      describedBy="early-builds-description"
-                      disabled={updates.early === undefined}
+                      checked={experimental.on === true}
+                      onChange={experimental.onChange}
+                      labelledBy="experimental-label"
+                      describedBy="experimental-description"
+                      disabled={experimental.on === undefined}
                     />
                   </div>
                 </div>
@@ -468,32 +485,6 @@ export const Preferences = ({
           </TabPanel>
           {hasAddons && (
             <TabPanel value="addons" className={panelClasses}>
-              <Section
-                title="Chat view"
-                description="Show agents as a conversation instead of their terminal."
-              >
-                <div className={settingsCardClasses}>
-                  <div className={`preference-row ${settingRowClasses}`}>
-                    <SettingText
-                      id="chat-view-label"
-                      label="Open agents in chat"
-                      description={
-                        chat
-                          ? "Every terminal running a supported agent shows its chat. Answer there, or in the terminal when the chat can't."
-                          : "Not available here."
-                      }
-                      descriptionId="chat-view-description"
-                    />
-                    <Switch
-                      checked={value.chatView}
-                      onChange={(chatView) => onChange({ ...value, chatView })}
-                      labelledBy="chat-view-label"
-                      describedBy="chat-view-description"
-                      disabled={!chat}
-                    />
-                  </div>
-                </div>
-              </Section>
               <Section
                 title="Voice input"
                 description="Speak prompts into agent terminals. Speech is transcribed on this computer and never leaves it."
@@ -540,6 +531,31 @@ export const Preferences = ({
               </Section>
             ))}
           </TabPanel>
+          {hasExperimental && (
+            <TabPanel value="experimental" className={panelClasses}>
+              <div className={settingsCardClasses}>
+                {experimentalToggles.map(
+                  ({ id, label, description, checked, onToggle, disabled }) => (
+                    <div key={id} className={`preference-row ${settingRowClasses}`}>
+                      <SettingText
+                        id={`${id}-label`}
+                        label={label}
+                        description={description}
+                        descriptionId={`${id}-description`}
+                      />
+                      <Switch
+                        checked={checked}
+                        onChange={onToggle}
+                        labelledBy={`${id}-label`}
+                        describedBy={`${id}-description`}
+                        disabled={disabled}
+                      />
+                    </div>
+                  ),
+                )}
+              </div>
+            </TabPanel>
+          )}
         </div>
       </Tabs>
     </Dialog>

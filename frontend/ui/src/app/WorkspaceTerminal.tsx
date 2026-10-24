@@ -38,6 +38,7 @@ import {
   windowedDestination,
 } from "./selectors"
 import { useTerminalBar } from "./terminal-bar"
+import { chatViewOn } from "./ui-store"
 
 // What every window in the current view takes from the workspace, a terminal's or one
 // undocked from a companion: its header, its menu, and the controls its layout offers.
@@ -231,9 +232,9 @@ export const WorkspaceTerminal = memo(
     // keeps its dimensions and its emulator its state. The content is inert beneath, where
     // neither focus nor typing can reach it, and the chat's box takes keyboard focus.
     const conversations = backend.conversations
-    // A terminal whose agent has a conversation to show, with the chat view on, on a backend
-    // that reads it.
-    const chatView = useUiState((state) => state.preferences.chatView)
+    // A terminal whose agent has a conversation to show, with the chat view on (an
+    // experimental feature), on a backend that reads it.
+    const chatView = useUiState(chatViewOn)
     const showChat = useChat(
       chat,
       (state) =>
