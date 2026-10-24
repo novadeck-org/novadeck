@@ -183,7 +183,9 @@ describe.each(bundles)("the DOM renderer's width measurements in lib/%s", (bundl
 
   it("keep what screens still draw, however many screens there are", async () => {
     // Three screens of 1500 distinct wide characters each: more than the table held before it
-    // was made to keep what is in use, and every one of them drawn again and again.
+    // was made to keep what is in use, and every one of them drawn again and again. Counted from
+    // the start: xterm may draw some rows on its own before the first pass.
+    const start = reads
     const screens = await Promise.all(
       [0, 1, 2].map(async (n) => {
         const { terminal } = await open({ cols: 110, rows: 30 })
@@ -201,7 +203,8 @@ describe.each(bundles)("the DOM renderer's width measurements in lib/%s", (bundl
       screens.forEach((terminal) => renderService(terminal)["_renderRows"](0, terminal.rows - 1))
       return reads - before
     }
-    expect(pass()).toBeGreaterThan(4000)
+    pass()
+    expect(reads - start).toBeGreaterThan(4000)
     expect([pass(), pass(), pass()]).toEqual([0, 0, 0])
   })
 
