@@ -3,9 +3,11 @@
    it.
 
    Hooks on `.terminal-tab`: data-terminal-phase="idle" | "done" | "running" | "waiting" |
-   "starting" | "attention" | "unheard" | "ended", data-terminal-wait="job" | "wake" and
-   data-terminal-wake-fill="0" | "1" | "2" | "3" (a waiting agent's glyph: a drip for jobs
-   it left running, a mark that fills as the wake-up it set comes near), data-terminal-attention="question" | "permission",
+   "starting" | "attention" | "unheard" | "ended", data-terminal-wait="job" | "wake" (what
+   a waiting agent waits on; its glyph, a `.terminal-tab-wait`, holds data-wait the same and
+   data-wake-fill="0" | "1" | "2" | "3": a drip for jobs it left running, a mark that fills
+   as the wake-up it set comes near),
+   data-terminal-attention="question" | "permission",
    data-terminal-hidden="true" | "false", data-terminal-failed="true" (a done tab whose turn
    ended on an error), data-terminal-subagents="working" | "background" (its agent runs
    subagents, working on while they do, or they run on without it), data-team="lead" |
@@ -25,6 +27,7 @@
    `.terminal-tab-subagents-more`), `.terminal-tab-branches` (its subagents under its line,
    unfolded while it's selected: `.terminal-tab-branches-fold`, each row's
    `.terminal-tab-branch` and mark),
+   `.terminal-tab-wait` (the phase glyph while it waits, and each mark below),
    `.terminal-tab-waits` (what a waiting agent waits on, in the same place and fold: each
    row's `.terminal-tab-wait` glyph and `.terminal-tab-wait-trail`), `.terminal-tab-passed`
    (the trace of a wake-up that passed), `.terminal-tab-peek` (the card over a waiting tab:
@@ -241,7 +244,6 @@
    glyph shows, and the column steps up a line every 80ms. Moving it is a transform, which
    the compositor runs alone, where changing `content` would repaint each frame. */
 .terminal-tab[data-terminal-phase="running"] .terminal-glyph,
-.terminal-tab[data-terminal-phase="waiting"][data-terminal-wait="job"] .terminal-glyph,
 .terminal-tab-wait[data-wait="job"],
 .terminal-tab[data-terminal-subagents="working"] .terminal-tab-subagent {
   height: 1lh;
@@ -262,32 +264,28 @@
    colour, not as working: a slow drip for a job it left running, five steps over two
    seconds (the column of braille steps up as the spinner's does, ending on a blank), and a
    still mark for a wake-up it set, which fills a quarter at a time as the time nears.
-   Its program and @handle stay where they are. The rows under the tab mark each the same
-   way. Reduced motion holds the drip on its first step. */
-.terminal-tab[data-terminal-phase="waiting"] .terminal-glyph,
+   Its program and @handle stay where they are. The glyph is a `.terminal-tab-wait`, as are
+   the marks of the rows under the tab and in the window's bar. Reduced motion holds the
+   drip on its first step. */
+.terminal-tab-wait,
 .terminal-tab-waits {
   color: var(--tab-waiting-fg, var(--color-muted));
 }
-.terminal-tab[data-terminal-phase="waiting"][data-terminal-wait="job"] .terminal-glyph::before,
 .terminal-tab-wait[data-wait="job"]::before {
   display: block;
   white-space: pre;
   content: "⠉\A⠒\A⠤\A⣀\A\00a0";
   animation: terminal-spin 2s steps(5) infinite;
 }
-.terminal-tab[data-terminal-phase="waiting"][data-terminal-wait="wake"] .terminal-glyph::before,
 .terminal-tab-wait[data-wait="wake"]::before {
   content: "⣀";
 }
-.terminal-tab[data-terminal-wait="wake"][data-terminal-wake-fill="1"] .terminal-glyph::before,
 .terminal-tab-wait[data-wake-fill="1"]::before {
   content: "⣤";
 }
-.terminal-tab[data-terminal-wait="wake"][data-terminal-wake-fill="2"] .terminal-glyph::before,
 .terminal-tab-wait[data-wake-fill="2"]::before {
   content: "⣶";
 }
-.terminal-tab[data-terminal-wait="wake"][data-terminal-wake-fill="3"] .terminal-glyph::before,
 .terminal-tab-wait[data-wake-fill="3"]::before {
   content: "⣿";
 }

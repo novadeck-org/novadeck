@@ -1,16 +1,15 @@
 import { sightTurnEnd } from "./agent-finish"
 import {
   clockTime,
-  minutesWaited,
   nextWaitingChange,
   wakeFill,
   wakeGraceMs,
-  wakeIn,
   wakePassed,
   waitingLine,
   waitingOf,
   waitingText,
 } from "./agent-waiting"
+import { minutesWaited, wakeIn } from "./agent-waiting-clock"
 import { terminalPhase } from "./terminal-ending"
 import { context, describe, expect, it } from "./test"
 import type { AgentStatus, AgentWaiting, TerminalMetadata } from "./types"
@@ -117,6 +116,13 @@ describe("an agent that waits", () => {
       })
       expect(waitingText(several, now)).toBe(
         "Waiting on Watch CI checks for PR #436 and 1 other job, 4 minutes",
+      )
+    })
+
+    it("names a job with neither description nor command a background job", () => {
+      const bare = { ...job(now), description: null, command: "" }
+      expect(waitingText(agent({ jobs: [bare], wake: null }), now)).toBe(
+        "Waiting on a background job, less than a minute",
       )
     })
 

@@ -122,7 +122,6 @@ const positional = (words: readonly string[]): string[] =>
 
 /** Whether one command serves or watches until stopped. */
 const runsForEver = (segment: string): boolean => {
-  if (/^while\s+(?:true|:)$/.test(segment)) return true
   const words = segment.replace(wrappers, "").split(/\s+/)
   const program = words[0]?.split("/").pop() ?? ""
   const rest = words.slice(1)
@@ -172,6 +171,8 @@ const runsForEver = (segment: string): boolean => {
     if (args[0] === "port-forward") return true
     if (args[0] === "logs") return flags.has("-f") || flags.has("--follow")
     if (args[0] === "get") return flags.has("-w") || flags.has("--watch")
+    // A rollout's status ends with the rollout, watched or not.
+    if (args[0] === "rollout") return false
   }
   if (programs.has(program)) return true
   if (program === "bun" && flags.has("--hot")) return true
@@ -186,4 +187,10 @@ const runsForEver = (segment: string): boolean => {
  * A command that runs one of them anywhere in its script counts, whatever else it does,
  * unless a `timeout` bounds it.
  */
-export const endless = (command: string): boolean => segments(command).some(runsForEver)
+export const endless = (command: string): boolean => {
+  // A loop that never ends by its condition is endless unless the script leaves it.
+  const leaves = /\b(?:break|exit)\b/.test(command)
+  return segments(command).some((segment) =>
+    /^while\s+(?:true|:)$/.test(segment) ? !leaves : runsForEver(segment),
+  )
+}

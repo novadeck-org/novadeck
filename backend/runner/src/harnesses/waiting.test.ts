@@ -262,6 +262,61 @@ describe("what a Claude Code agent does not wait on", () => {
     expect(after.waiting?.jobs[0]!.description).toBe("ab c")
   })
 
+  it("lists only shell jobs, not a dream or a teammate", () => {
+    const after = hooks([
+      ["UserPromptSubmit", { prompt: "go" }],
+      [
+        "Stop",
+        {
+          background_tasks: [
+            { id: "d1", type: "dream", status: "running", description: "dreaming" },
+            { id: "t1", type: "teammate", status: "running", description: "reviewer" },
+            job("b1", "sleep 5"),
+          ],
+        },
+      ],
+    ])
+    expect(after.waiting?.jobs.map(({ id }) => id)).toEqual(["b1"])
+    expect(
+      hooks([
+        ["UserPromptSubmit", { prompt: "go" }],
+        ["Stop", { background_tasks: [{ id: "d1", type: "dream", status: "running" }] }],
+      ]).waiting,
+    ).toBeNull()
+  })
+
+  it("drops a description that is the command itself", () => {
+    const after = hooks([
+      ["UserPromptSubmit", { prompt: "go" }],
+      ["Stop", { background_tasks: [{ ...job("b1", "sleep 5"), description: "sleep 5" }] }],
+    ])
+    expect(after.waiting?.jobs[0]!.description).toBeNull()
+  })
+
+  it("keeps waiting on the jobs of a turn that ends with no Stop, less those a notification named", () => {
+    const wait = [
+      ["UserPromptSubmit", { prompt: "go" }],
+      ["Stop", { background_tasks: [job("b1", "sleep 5"), job("b2", "sleep 6")] }],
+    ] as [string, Report["payload"]][]
+    const ids = (events: [string, Report["payload"]][]) =>
+      hooks([...wait, ...events]).waiting?.jobs.map(({ id }) => id)
+    expect(
+      ids([
+        ["UserPromptSubmit", { prompt: "again" }],
+        ["StopFailure", {}],
+      ]),
+    ).toEqual(["b1", "b2"])
+    expect(
+      ids([
+        [
+          "UserPromptSubmit",
+          { prompt: "<task-notification>\n<task-id>b1</task-id>\n</task-notification>" },
+        ],
+        ["StopFailure", {}],
+      ]),
+    ).toEqual(["b2"])
+  })
+
   it("takes a wake-up's time from its delay where the result gives none", () => {
     const after = hooks([
       ["UserPromptSubmit", { prompt: "go" }],

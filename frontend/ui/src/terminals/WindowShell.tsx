@@ -7,13 +7,12 @@ import { ContextMenu, type ContextMenuItem } from "@novadeck/toolkit/ContextMenu
 import { HandleChip } from "@novadeck/toolkit/HandleChip"
 import { Tooltip } from "@novadeck/toolkit/Tooltip"
 import { Minimize2, FoldHorizontal, UnfoldHorizontal, Maximize2, Mic, X } from "lucide-react"
-import { useRef, type ReactNode } from "react"
+import { lazy, Suspense, useRef, type ReactNode } from "react"
 
 import { shortcutBindings } from "../interaction/shortcuts"
 import { isProjectWindow } from "./project-window"
 import { TerminalRenameInput, type TerminalRename } from "./TerminalRenameInput"
 import { useRenderAt } from "./use-render-at"
-import { WindowWait } from "./WindowWait"
 
 // What a layout contributes to each terminal it places.
 export type TerminalLayoutControls = {
@@ -24,6 +23,11 @@ export type TerminalLayoutControls = {
   // False while the layout holds the terminal out of the person's sight. Absent means in sight.
   readonly onScreen?: boolean
 }
+
+// The bar's words on what a waiting agent waits on load when one does.
+const WindowWait = lazy(() =>
+  import("./WindowWait").then((module) => ({ default: module.WindowWait })),
+)
 
 const headerActionClasses = "icon-button dim"
 
@@ -272,7 +276,11 @@ export const WindowShell = ({
             )}
           </span>
           {!renaming && titleExtra}
-          {!renaming && !compact && phase === "waiting" && shell && <WindowWait terminal={shell} />}
+          {!renaming && !compact && phase === "waiting" && shell && (
+            <Suspense fallback={null}>
+              <WindowWait terminal={shell} />
+            </Suspense>
+          )}
           {rename && (
             <TerminalRenameInput
               id={terminal.id}

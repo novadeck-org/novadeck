@@ -25,16 +25,26 @@ import { HandleChip } from "@novadeck/toolkit/HandleChip"
 import { SidebarItem } from "@novadeck/toolkit/SidebarItem"
 import { Tooltip } from "@novadeck/toolkit/Tooltip"
 import { Check, Eye, EyeOff, Pencil, X, type LucideIcon } from "lucide-react"
-import type { ReactNode } from "react"
+import { lazy, Suspense, type ReactNode } from "react"
 
 import { workspaceShortcutBindings } from "../interaction/shortcuts"
 import { isProjectWindow } from "./project-window"
 import { SubagentBranches, SubagentLine } from "./TabSubagents"
-import { WaitingBranches, WaitingPeek, WakePassed } from "./TabWaiting"
 import { TerminalRenameInput, type TerminalRename } from "./TerminalRenameInput"
 import { tabInstructionsId } from "./TerminalTabs"
 import { useRenderAt } from "./use-render-at"
 import { windowMenu, type DockTarget } from "./window-menu"
+
+// What a waiting agent's tab draws beyond its glyph loads when one waits, as most never do.
+const WaitingBranches = lazy(() =>
+  import("./TabWaiting").then((module) => ({ default: module.WaitingBranches })),
+)
+const WakePassed = lazy(() =>
+  import("./TabWaiting").then((module) => ({ default: module.WakePassed })),
+)
+const WaitingPeek = lazy(() =>
+  import("./TabWaiting").then((module) => ({ default: module.WaitingPeek })),
+)
 
 // A sentence of the description, its first letter a capital.
 const capital = (text: string) => `${text[0]!.toUpperCase()}${text.slice(1)}`
@@ -129,8 +139,9 @@ export const TerminalTab = ({
   // harness only counts has no kinds to name, so its count says it all.
   const counted = shell?.state === "running" && shell.agent?.background !== undefined
   // Work with no subagents in it, as commands left running, has no mark but still counts.
+  // The wait names a command it left running, so its count adds nothing.
   const kinds =
-    subagents && shell
+    subagents && shell && !(waits && !marks)
       ? marks && !counted
         ? `${subagents}: ${subagentsDetail(shell)}`
         : subagents
@@ -173,7 +184,13 @@ export const TerminalTab = ({
             {/* One glyph wide in every phase, so the text beside it never shifts. */}
             <span
               aria-hidden
-              className="terminal-glyph inline-block w-[1ch] shrink-0 text-center"
+              className={`terminal-glyph inline-block w-[1ch] shrink-0 text-center${waits ? " terminal-tab-wait" : ""}`}
+              {...(waits && shell
+                ? {
+                    "data-wait": waits.jobs.length > 0 ? "job" : "wake",
+                    "data-wake-fill": wakeFill(shell),
+                  }
+                : {})}
             />
             {phase === "starting" ? (
               <span className="terminal-tab-starting truncate italic">starting…</span>
@@ -205,13 +222,21 @@ export const TerminalTab = ({
               below: (
                 <>
                   {marks && <SubagentBranches marks={marks} />}
-                  {waits && shell && <WaitingBranches terminal={shell} waiting={waits} />}
-                  {passed && <WakePassed time={passed} />}
+                  <Suspense fallback={null}>
+                    {waits && shell && <WaitingBranches terminal={shell} waiting={waits} />}
+                    {passed && <WakePassed time={passed} />}
+                  </Suspense>
                 </>
               ),
             }
           : {})}
-        {...(waits ? { peek: <WaitingPeek waiting={waits} /> } : {})}
+        peek={
+          waits ? (
+            <Suspense fallback={null}>
+              <WaitingPeek waiting={waits} />
+            </Suspense>
+          ) : null
+        }
         selected={selected}
         emphasized={phase === "done"}
         selectLabel={`Select ${label}${hidden ? " (hidden)" : ""}`}
@@ -225,12 +250,7 @@ export const TerminalTab = ({
         {...(phase === "attention" && shell?.state === "running" && shell.agent?.attention
           ? { "data-terminal-attention": shell.agent.attention.kind }
           : {})}
-        {...(waits && shell
-          ? {
-              "data-terminal-wait": waits.jobs.length > 0 ? "job" : "wake",
-              "data-terminal-wake-fill": wakeFill(shell),
-            }
-          : {})}
+        {...(waits ? { "data-terminal-wait": waits.jobs.length > 0 ? "job" : "wake" } : {})}
         {...(marks ? { "data-terminal-subagents": marks.working ? "working" : "background" } : {})}
         data-terminal-hidden={hidden}
         {...(team ? { "data-team": team } : {})}

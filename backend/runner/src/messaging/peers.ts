@@ -83,8 +83,9 @@ export type Peer = {
   /** What its agent waits on the person for; its work is blocked until they answer. */
   readonly waiting: Waiting | null
   /**
-   * What its idle agent waits on to wake it, with no word from anyone: its job's
-   * description, else its command, cut short, and how many more; or a wake-up it set.
+   * What its idle agent waits on to wake it, with no word from anyone: its job's own
+   * description, cut short, or "a job it started" where it gave none (never its command,
+   * which may carry a secret), and how many more; or a wake-up it set.
    */
   readonly waitsOn: string | null
   readonly activeAt: number | null

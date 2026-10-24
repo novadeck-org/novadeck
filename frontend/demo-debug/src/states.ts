@@ -558,13 +558,13 @@ export const createDemoStates = (verbs: DemoAgentVerbs): DemoStates => {
         ),
         verb(
           "Waiting on a job",
-          "Turn over; waits on a command it started, no ✓",
+          "Turn over; waits on a command it started",
           (v, k, t) => v.finish(k, t, "completed", { after: turnMs, waiting: waitingOnJob }),
           verbs,
         ),
         verb(
           "Waiting for a wake-up",
-          "Turn over; waits for a wake-up it set, no ✓",
+          "Turn over; waits for a wake-up it set",
           (v, k, t) => v.finish(k, t, "completed", { after: turnMs, waiting: waitingForWake }),
           verbs,
         ),

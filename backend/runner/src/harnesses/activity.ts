@@ -292,14 +292,30 @@ const counted = (background: Background): Background | null =>
  * and the wake-up it set. A job runs for ever when it is no Monitor on a timeout and its
  * command is a server or a watch mode (see `endless`), or a Monitor told to persist.
  */
-const waitsOn = (activity: Activity, jobs: Background["jobs"], endedAt: number): Waiting | null => {
-  const waited = (jobs ?? []).flatMap(({ id, description, command }) => {
+const waitsOn = (
+  activity: Activity,
+  jobs: Background["jobs"] | undefined,
+  endedAt: number,
+): Waiting | null => {
+  // An end that lists none (an Escape, a record of the Stop) leaves the jobs of the turn
+  // before it running, as they do.
+  if (jobs === undefined) {
+    const kept = activity.waits?.jobs ?? []
+    return kept.length > 0 || activity.wake ? { jobs: kept, wake: activity.wake } : null
+  }
+  const waited = jobs.flatMap(({ id, description, command }) => {
     const task = activity.tasks.find((each) => each.id === id)
     if (task?.persistent || (!task?.until && endless(command))) return []
     return [{ id, description, command, since: task?.at ?? endedAt, until: task?.until ?? null }]
   })
   const { wake } = activity
   return waited.length > 0 || wake ? { jobs: waited.slice(0, maxJobs), wake } : null
+}
+
+/** What a turn's start leaves of what the last one waited on: its jobs, less those done. */
+const carried = (waits: Waiting | null, done: readonly string[] = []): Waiting | null => {
+  const jobs = (waits?.jobs ?? []).filter(({ id }) => !done.includes(id))
+  return jobs.length > 0 ? { jobs, wake: null } : null
 }
 
 const end = (ended: Activity["ended"], ids: readonly string[], at: number): Activity["ended"] =>
@@ -421,7 +437,11 @@ const turnEnded = (activity: Activity, event: TurnEnded): Activity | undefined =
     continued: false,
     listed: false,
     running: 0,
-    waits: waitsOn(activity, event.background?.jobs, event.startedAt),
+    waits: waitsOn(
+      activity,
+      event.background ? (event.background.jobs ?? []) : undefined,
+      event.startedAt,
+    ),
     lastTurn: {
       outcome: event.outcome,
       reply: event.reply ?? null,
@@ -737,7 +757,8 @@ export const apply = (
         idled: false,
         background: null,
         wake: null,
-        waits: null,
+        // The jobs it waited on run on, but for the ones this turn's notification names.
+        waits: carried(activity.waits, event.tasks),
         running: 0,
         turn: event.turn ?? null,
         continued: false,

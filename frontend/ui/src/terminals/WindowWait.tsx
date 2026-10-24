@@ -1,22 +1,8 @@
-import {
-  clockTime,
-  minutesWaited,
-  waitingLine,
-  wakeIn,
-  wakeFill,
-} from "@novadeck/core/agent-waiting"
+import { clockTime, waitingLine, wakeFill } from "@novadeck/core/agent-waiting"
+import { minutesWaited, wakeIn } from "@novadeck/core/agent-waiting-clock"
 import type { TerminalMetadata } from "@novadeck/core/types"
-import { useEffect, useState } from "react"
 
-// Renders the component again every second while `ticking`, for a wake-up's countdown.
-const useSecond = (ticking: boolean): void => {
-  const [, setTick] = useState(0)
-  useEffect(() => {
-    if (!ticking) return undefined
-    const timer = setInterval(() => setTick((tick) => tick + 1), 1000)
-    return () => clearInterval(timer)
-  }, [ticking])
-}
+import { useSecond } from "./use-second"
 
 // What a waiting agent waits on, in its window's bar after the name: how long first, so
 // the cut keeps it, then the agent's own description cut to fit with an ellipsis ("4m ·
@@ -32,11 +18,7 @@ export const WindowWait = ({
   useSecond(line?.kind === "wake")
   if (!line) return null
   return (
-    <span
-      aria-hidden
-      className="window-wait nodrag nopan flex items-center gap-1.5"
-      data-wait={line.kind}
-    >
+    <span aria-hidden className="window-wait nodrag nopan flex items-center gap-1.5">
       <span
         className="terminal-tab-wait inline-block w-[1ch] shrink-0 text-center"
         data-wait={line.kind}
@@ -49,11 +31,9 @@ export const WindowWait = ({
           <strong className="truncate font-medium">{line.label}</strong>
         </>
       ) : (
-        <>
-          <span className="truncate tabular-nums">
-            wakes at {clockTime(line.at)} · {wakeIn(line.at)}
-          </span>
-        </>
+        <span className="truncate tabular-nums">
+          wakes at {clockTime(line.at)} · {wakeIn(line.at)}
+        </span>
       )}
     </span>
   )

@@ -87,6 +87,7 @@ describe("a command that may run for ever", () => {
     "ng build --watch",
     "tail --follow=name log",
     "while true; do sleep 5; done",
+    "while :; do date; sleep 1; done",
   ])("%s", (command) => {
     expect(endless(command)).toBe(true)
   })
@@ -132,6 +133,9 @@ describe("a command that ends", () => {
     "pnpm pnpm pnpm",
     "docker compose -f dev.yml up -d",
     "kubectl get pods",
+    "while true; do gh run view 123 --json status -q .status | grep -q completed && break; sleep 30; done",
+    "while true; do check || exit 1; sleep 5; done",
+    "kubectl rollout status deploy/api --watch",
   ])("%s", (command) => {
     expect(endless(command)).toBe(false)
   })

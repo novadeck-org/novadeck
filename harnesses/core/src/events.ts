@@ -109,6 +109,8 @@ export type ActivityEvent = {
       readonly nonce?: string
       /** The turn's id, where the harness names one, as Codex does. */
       readonly turn?: string
+      /** The background tasks a harness-started turn's notification names as done. */
+      readonly tasks?: readonly string[]
     }
   | {
       readonly type: "turn-ended"

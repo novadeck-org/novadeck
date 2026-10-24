@@ -542,9 +542,9 @@ const agents: Tool<Listing> = {
   name: "agents",
   description:
     "List the other terminals in this Novadeck project and session, each with what Novadeck " +
-    "knows of it: its handle, its agent and whether that is busy, idle, or waiting on " +
-    "something that wakes it by itself when that ends (a background command, a wake-up " +
-    "it set); a message still reaches it, and it needn't be left alone, its title (the user's, " +
+    "knows of it: its handle, its agent and whether that is busy, idle, or idle but " +
+    "waiting on something that wakes it by itself when that ends (a background command, " +
+    "a wake-up it set; a message still reaches it), its title (the user's, " +
     "else Novadeck's, else the opening agent's, which it says), the summary its agent " +
     "gave of its work, its folder and git " +
     "branch, the user's first and latest prompts there, its plan, the folders it writes in most, and the latest " +

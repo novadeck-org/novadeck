@@ -44,7 +44,7 @@ export const SidebarItem = ({
   // On hover, where a row has more to say than it shows.
   tooltip?: string
   // A card over the row, for the pointer, where it has more to say than a line: it takes
-  // the place of the tooltip.
+  // the place of the tooltip. Null for a row that has none now, which keeps the row as it is.
   peek?: ReactNode
   description?: string
   // Before the name, such as a terminal's handle.
@@ -107,8 +107,10 @@ export const SidebarItem = ({
       className={`${sidebarItemClasses} ${editing ? "flex-col" : ""} ${className}`}
       data-selected={selected}
     >
-      {peek && !editing ? (
-        <HoverCard trigger={select} className="sidebar-item-peek">
+      {peek !== undefined ? (
+        // The row is the same element whether or not it has a card to show, so keyboard focus
+        // on it stays where it is as the card comes and goes.
+        <HoverCard trigger={select} className="sidebar-item-peek" disabled={!peek || editing}>
           {peek}
         </HoverCard>
       ) : tooltip ? (

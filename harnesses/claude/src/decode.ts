@@ -87,7 +87,12 @@ const decodeHook = ({ event, seq, instance, env, payload }: Report): readonly Ha
       // result starts a turn by itself, as a task notification.
       if (actor) return []
       const prompt = text(payload.prompt) ?? ""
-      return [promptStart(base, prompt, notification.test(prompt))]
+      return [
+        {
+          ...promptStart(base, prompt, notification.test(prompt)),
+          ...(notification.test(prompt) && { tasks: finished(prompt) }),
+        } as HarnessEvent,
+      ]
     case "Stop":
       return actor
         ? []
@@ -245,13 +250,16 @@ const decodeHook = ({ event, seq, instance, env, payload }: Report): readonly Ha
 // The prompt of a turn Claude Code starts by itself once a background task finishes.
 const notification = /^\s*<task-notification>/
 
+// The ids of the tasks a notification names, as `<task-id>` elements.
+const finished = (prompt: string): string[] =>
+  [...prompt.matchAll(/<task-id>([^<\s]{1,256})<\/task-id>/g)].map(([, id]) => id!)
+
 // The most a wake-up may be set out, as ScheduleWakeup clamps it: a minute to an hour.
 const wakeDelayMs = { least: 60_000, most: 3_600_000 } as const
 
 // The longest id, description and reason the protocol takes.
 const maxJobText = 256
 const maxDescription = 512
-const maxCommand = 4096
 
 // The first line of what the agent wrote, cut to what the protocol takes; undefined if blank.
 const firstLine = (value: unknown): string | undefined => {
@@ -310,7 +318,7 @@ const started = (
  * The background tasks a Stop lists still running, each of which starts a turn by itself
  * once done, with a task notification (probed 2026-10-04, 2.1.289: a background subagent
  * and a background command each did): its subagents, by their type, and the rest, as
- * commands. Each names its status, and only a running one counts.
+ * commands, of which only the shell jobs are listed. Each names its status, and only a running one counts.
  */
 const running = (tasks: unknown): Background => {
   const listed = Array.isArray(tasks) ? (tasks as unknown[]) : []
@@ -325,14 +333,13 @@ const running = (tasks: unknown): Background => {
   const jobs = live.flatMap((task): BackgroundJob[] => {
     const { type, id, description, command } = task as Record<string, unknown>
     const named = shortName(id, maxJobText)
-    if (type === "subagent" || named === undefined) return []
-    return [
-      {
-        id: named,
-        description: firstLine(description) ?? null,
-        command: errorText(command)?.slice(0, maxCommand) ?? "",
-      },
-    ]
+    // Only a shell job carries a command; the other kinds Claude Code lists (dreaming, a
+    // teammate, a workflow) have none to tell whether they end.
+    if (type !== "shell" || named === undefined) return []
+    // The command, as Claude Code cut it, and `errorText` cuts it again.
+    const run = errorText(command) ?? ""
+    const said = firstLine(description)
+    return [{ id: named, description: said === run.trim() ? null : (said ?? null), command: run }]
   })
   return { agents, tasks: live.length - agents, ...(jobs.length > 0 && { jobs }) }
 }

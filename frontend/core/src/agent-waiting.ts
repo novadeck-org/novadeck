@@ -40,7 +40,7 @@ export const waitingOf = (terminal: TerminalMetadata, now = Date.now()): Waiting
     .filter((job) => job.until === null || job.until + wakeGraceMs > now)
     .map(({ description, ...job }) => ({
       ...job,
-      label: description ?? job.command,
+      label: description ?? (job.command || "a background job"),
     }))
     .toSorted((a, b) => a.since - b.since)
   const wake = waiting.wake && waiting.wake.at + wakeGraceMs > now ? waiting.wake : null
@@ -72,27 +72,6 @@ export const wakeFill = (terminal: TerminalMetadata, now = Date.now()): number =
   const fraction = (now - start) / (wake.at - start)
   return Math.min(wakeSteps - 1, Math.max(0, Math.floor(fraction * wakeSteps)))
 }
-
-// How long a job has run, short, for its tab: "<1m", "4m", then "2h".
-export const minutesWaited = (since: number, now = Date.now()): string => {
-  const elapsed = Math.max(0, now - since)
-  if (elapsed < minute) return "<1m"
-  return elapsed < hour ? `${Math.floor(elapsed / minute)}m` : `${Math.floor(elapsed / hour)}h`
-}
-
-// "8:14", the time left to `at`, for a window's countdown.
-const countdown = (at: number, now: number): string => {
-  const left = Math.max(0, Math.ceil((at - now) / second))
-  const seconds = String(left % 60).padStart(2, "0")
-  return left >= 3600
-    ? `${Math.floor(left / 3600)}:${String(Math.floor((left % 3600) / 60)).padStart(2, "0")}:${seconds}`
-    : `${Math.floor(left / 60)}:${seconds}`
-}
-
-// How a wake-up's time left reads, for a window and its card: "in 8:14", or "due" once its
-// time has come and the agent hasn't yet taken its turn.
-export const wakeIn = (at: number, now = Date.now()): string =>
-  at <= now ? "due" : `in ${countdown(at, now)}`
 
 // What a waiting agent's tab and window say in a line each: the job waited on longest, in
 // the agent's words, with how many more there are and how long it has run; or, with no

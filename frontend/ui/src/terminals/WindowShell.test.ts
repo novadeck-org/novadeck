@@ -3,7 +3,7 @@ import type { AgentWaiting, Tile } from "@novadeck/core/types"
 import { render } from "@novadeck/test-kit/render"
 import { Portal } from "@novadeck/toolkit/Portal"
 import { createElement } from "react"
-import { afterEach } from "vitest"
+import { afterEach, vi } from "vitest"
 
 import { context, describe, expect, it } from "../test"
 import { WindowShell, type WindowShellProps } from "./WindowShell"
@@ -161,11 +161,14 @@ describe("terminal frame bar", () => {
         }),
       )
 
-    it("reads waiting, minutes first and then the agent's own description", () => {
+    it("reads waiting, minutes first and then the agent's own description", async () => {
       const window = frame()
       expect(window.querySelector("section")?.getAttribute("data-terminal-phase")).toBe("waiting")
-      expect(window.querySelector(".window-wait")?.textContent).toBe(
-        "4m·Watch CI checks for PR #436",
+      // Its words load when an agent waits.
+      await vi.waitFor(() =>
+        expect(window.querySelector(".window-wait")?.textContent).toBe(
+          "4m·Watch CI checks for PR #436",
+        ),
       )
     })
 
@@ -190,11 +193,13 @@ describe("terminal frame bar", () => {
   })
 
   context("while the agent waits for a wake-up", () => {
-    it("names its time and counts down to it", () => {
+    it("names its time and counts down to it", async () => {
       const at = Date.now() + 8 * 60_000 + 14_000
       const window = renderFrame(waiting({ jobs: [], wake: { at, reason: "Check the deploy" } }))
-      expect(window.querySelector(".window-wait")?.textContent).toMatch(
-        /^wakes at \d\d:\d\d · in 8:1\d$/,
+      await vi.waitFor(() =>
+        expect(window.querySelector(".window-wait")?.textContent).toMatch(
+          /^wakes at \d\d:\d\d · in 8:1\d$/,
+        ),
       )
     })
   })
