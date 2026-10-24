@@ -96,9 +96,10 @@ describe.skipIf(!hasWebgl)("xterm's WebGL renderer", () => {
       opened.push(() => (HTMLCanvasElement.prototype.getContext = getContext))
     }
 
-    const frame = (): Promise<unknown> => new Promise((resolve) => requestAnimationFrame(resolve))
+    const frame = (): Promise<void> =>
+      new Promise((resolve) => requestAnimationFrame(() => resolve()))
     // A few frames: xterm draws in one, and the pool's moment comes before it.
-    const frames = (): Promise<unknown> => frame().then(frame).then(frame)
+    const frames = (): Promise<void> => frame().then(frame).then(frame)
     const write = (xterm: Terminal, data: string): Promise<void> =>
       new Promise<void>((resolve) => xterm.write(data, resolve)).then(frames)
 
