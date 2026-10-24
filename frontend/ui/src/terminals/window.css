@@ -28,8 +28,8 @@
    --window-header-bg (the window's bg), --window-header-border-color (line): the header
    and its hairline. --window-header-icon-fg (muted): the icons in it.
    --window-selected-header-bg (the header's bg): the selected window's header.
-   --window-team-bg (the strong colour at 4%): a wash over the whole of each window the
-   selected terminal's team's lead leads, in Grid and Canvas. --window-team-border-color
+   --window-team-bg (the strong colour at 4%): a wash over the whole of each of the
+   selected terminal's teammates' windows, in Grid and Canvas. --window-team-border-color
    (the strong colour at 4% in the window's outline, its chroma tripled): its outline.
    --window-metadata-fg (muted), --window-metadata-font (mono): what the agent runs on,
    over its terminal.
@@ -322,18 +322,17 @@
     var(--window-header-bg, var(--window-bg, var(--color-paper)))
   );
 }
-/* The selected terminal's team in Grid and Canvas: the windows its lead leads lie under a
-   wash of the strong colour, fainter than its tabs take on the rail as it covers far more,
-   beside the wire that joins them, laid in the glass so it covers their output too. The
-   lead stays plain, so it reads apart from those it leads, and the selected window keeps
-   its own look. */
-:is(.grid-terminal, .canvas-node)[data-team="worker"]:not(.selected) .terminal-window::after {
+/* The selected terminal's team in Grid and Canvas: its other windows, its lead's or its
+   workers', lie under a wash of the strong colour, as its other tabs do on the rail but
+   fainter, as it covers far more, beside the wire that joins them. It lies in the glass,
+   so it covers their output too. The selected window keeps its own look. */
+:is(.grid-terminal, .canvas-node)[data-team]:not(.selected) .terminal-window::after {
   background-color: var(--window-team-bg, color-mix(in srgb, var(--color-strong) 4%, transparent));
 }
 /* Its outline takes the wash's hue too: the same mix of the strong colour into the outline
    it has, which moves it as far as the wash moves the window, so it keeps the contrast it
    had, then more of that hue at the same lightness, so a line one pixel wide reads tinted. */
-:is(.grid-terminal, .canvas-node)[data-team="worker"]:not(.selected) .terminal-window {
+:is(.grid-terminal, .canvas-node)[data-team]:not(.selected) .terminal-window {
   --_border-color: var(
     --window-team-border-color,
     oklch(

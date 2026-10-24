@@ -912,7 +912,7 @@ describe("Canvas's team wire", () => {
     expect(lit()).toBe(0)
   })
 
-  it("tints the windows the lead leads, never the lead, while one of its team is selected", async () => {
+  it("tints the selected terminal's teammates' windows, as their tabs, its lead's too", async () => {
     const tinted = (name: string) =>
       getComputedStyle(terminal(name).element(), "::after").backgroundColor !== "rgba(0, 0, 0, 0)"
     const outline = (name: string) => getComputedStyle(terminal(name).element()).borderTopColor
@@ -923,10 +923,15 @@ describe("Canvas's team wire", () => {
     expect(outline("Checkout review")).not.toBe(outline("Dev server"))
     expect(tinted("Checkout implementation")).toBe(false)
     expect(tinted("Dev server")).toBe(false)
-    // Its worker selected keeps its own look, and the lead stays plain.
+    // Its worker selected keeps its own look, and its lead takes the tint.
     await terminalTab("Checkout review").click()
-    await expect.poll(() => tinted("Checkout review")).toBe(false)
-    expect(tinted("Checkout implementation")).toBe(false)
-    expect(outline("Checkout implementation")).toBe(outline("Dev server"))
+    await expect.poll(() => tinted("Checkout implementation")).toBe(true)
+    expect(outline("Checkout implementation")).not.toBe(outline("Dev server"))
+    expect(tinted("Checkout review")).toBe(false)
+    expect(tinted("Dev server")).toBe(false)
+    // A terminal in no team selected: none is tinted.
+    await terminalTab("Dev server").click()
+    await expect.poll(() => tinted("Checkout implementation")).toBe(false)
+    expect(tinted("Checkout review")).toBe(false)
   })
 })
