@@ -256,6 +256,23 @@ describe("what an Antigravity agent does not wait on", () => {
     expect(hooks[4]!.background).toEqual({ agents: 0, tasks: 0 })
   })
 
+  it("counts no daemon among the tasks, so its end leaves the count of a job beside it", () => {
+    const c = session()
+    const daemon = { ...sleep, IsDaemon: true }
+    const hooks = replay([
+      c.prompt(),
+      c.pre(2, "run_command", daemon),
+      c.pre(3, "run_command", sleep),
+      c.stop(false),
+      c.line("idle", 2),
+      c.post(2, "run_command", daemon),
+      c.post(3, "run_command", sleep),
+    ])
+    expect(hooks[3]!.background).toEqual({ agents: 0, tasks: 1 })
+    expect(hooks[5]!.background).toEqual({ agents: 0, tasks: 1 })
+    expect(hooks[6]!.background).toEqual({ agents: 0, tasks: 0 })
+  })
+
   it("keeps the agent's reason when its first line is only escapes", () => {
     const c = session()
     const [idle] = idles([

@@ -123,7 +123,7 @@ export type Activity = {
   readonly background: Background | null
   readonly tasks: readonly Task[]
   readonly wake: { readonly at: number; readonly reason: string | null } | null
-  /** The task whose end sets the wake-up off, where its harness names one. */
+  /** The task whose end sets the wake-up off. */
   readonly wakeId: string | null
   readonly waits: Waiting | null
   /**
@@ -315,11 +315,9 @@ const waitsOn = (
   return waited.length > 0 || wake ? { jobs: waited.slice(0, maxJobs), wake } : null
 }
 
-/** What a turn's start leaves of what the last one waited on: its jobs, less those done. */
-const carried = (waits: Waiting | null, done: readonly string[] = []): Waiting | null => {
-  const jobs = (waits?.jobs ?? []).filter(({ id }) => !done.includes(id))
-  return jobs.length > 0 ? { jobs, wake: null } : null
-}
+/** What a turn's start leaves of what the last one waited on: its jobs. */
+const carried = (waits: Waiting | null): Waiting | null =>
+  waits && waits.jobs.length > 0 ? { jobs: waits.jobs, wake: null } : null
 
 const end = (ended: Activity["ended"], ids: readonly string[], at: number): Activity["ended"] =>
   [...ended.filter(({ id }) => !ids.includes(id)), ...ids.map((id) => ({ id, at }))].slice(
@@ -671,16 +669,25 @@ export const apply = (
       const { waits, wake, background } = activity
       const jobs = (waits?.jobs ?? []).filter(({ id }) => id !== event.id)
       const done = (waits?.jobs.length ?? 0) - jobs.length
-      const goneOff = event.wake === true && event.id === activity.wakeId
+      const goneOff = event.id === activity.wakeId
       const kept = goneOff ? null : (waits?.wake ?? null)
-      // The tasks a Stop counted running are one fewer, a server it left running too.
-      const listed = !event.wake && !event.unlisted && background && background.tasks > 0
+      // The tasks a Stop counted running are one fewer for a job it listed, a server it
+      // left running too.
+      const listed = background?.jobs?.find(({ id }) => id === event.id)
       if (done === 0 && !goneOff && !listed) return undefined
+      const left =
+        background && listed
+          ? counted({
+              ...background,
+              tasks: Math.max(0, background.tasks - 1),
+              jobs: background.jobs!.filter(({ id }) => id !== event.id),
+            })
+          : background
       return {
         ...activity,
         wake: goneOff ? null : wake,
         wakeId: goneOff ? null : activity.wakeId,
-        background: listed ? counted({ ...background, tasks: background.tasks - 1 }) : background,
+        background: left,
         waits: jobs.length > 0 || kept ? { jobs, wake: kept } : null,
       }
     }
@@ -690,7 +697,7 @@ export const apply = (
       return {
         ...activity,
         wake: { at: event.at, reason: event.reason },
-        wakeId: event.id ?? null,
+        wakeId: event.id,
       }
     case "mode-observed":
       if (event.startedAt < activity.planningAt) return undefined
@@ -783,8 +790,8 @@ export const apply = (
         background: null,
         wake: null,
         wakeId: null,
-        // The jobs it waited on run on, but for the ones this turn's notification names.
-        waits: carried(activity.waits, event.tasks),
+        // The jobs it waited on run on, but for the ones a task end has told done.
+        waits: carried(activity.waits),
         running: 0,
         turn: event.turn ?? null,
         continued: false,
