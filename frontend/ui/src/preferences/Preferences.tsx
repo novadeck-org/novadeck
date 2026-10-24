@@ -164,10 +164,15 @@ export const Preferences = ({
   // The Addons are voice input and murmur; a backend with neither, as the website's demo,
   // has no tab for them, though a URL can still name the section.
   const hasAddons = voice !== undefined || murmur !== undefined
+  // About is the app itself: its version, updates, logs and removal; a backend with none of
+  // them has no tab for it.
+  const hasAbout = version !== undefined || experimental !== undefined || !!logs || !!uninstall
   // The Experimental tab, with the chat view, is there only while its switch is on.
   const hasExperimental = experimental?.on === true
   const hidden = (id: PreferencesTab): boolean =>
-    (id === "addons" && !hasAddons) || (id === "experimental" && !hasExperimental)
+    (id === "addons" && !hasAddons) ||
+    (id === "about" && !hasAbout) ||
+    (id === "experimental" && !hasExperimental)
   const shown = hidden(tab) ? "general" : tab
   // The Experimental tab's switches, one row each.
   const experimentalToggles = [
@@ -429,59 +434,6 @@ export const Preferences = ({
                 <AgentSwitches agents={agents.list} onChange={agents.onChange} />
               </Section>
             )}
-            {experimental && (
-              <Section title="Updates">
-                <div className={settingsCardClasses}>
-                  <div className={`preference-row ${settingRowClasses}`}>
-                    <SettingText
-                      id="experimental-label"
-                      label="Experimental"
-                      description="Get new releases as soon as they're published, before they're promoted to stable, and try features that are still being built in the Experimental tab. Turning this off doesn't go back to an older version."
-                      descriptionId="experimental-description"
-                    />
-                    <Switch
-                      checked={experimental.on === true}
-                      onChange={experimental.onChange}
-                      labelledBy="experimental-label"
-                      describedBy="experimental-description"
-                      disabled={experimental.on === undefined}
-                    />
-                  </div>
-                </div>
-              </Section>
-            )}
-            {(version || logs || uninstall) && (
-              <Section title="About">
-                {version && (
-                  <dl className={`${settingsCardClasses} m-0`}>
-                    <div className={`preference-row ${settingRowClasses}`}>
-                      <dt className="m-0">Version</dt>
-                      <dd className="m-0 select-text">{versionText(version)}</dd>
-                    </div>
-                  </dl>
-                )}
-                {logs && (
-                  <div className={settingsCardClasses}>
-                    <AddonRow
-                      scope="about"
-                      id="logs"
-                      label="Logs"
-                      description="What Novadeck recorded of its recent runs, without anything your terminals showed. Attach them to a bug report."
-                    >
-                      <button
-                        type="button"
-                        className="button min-h-8 shrink-0 px-3 text-control"
-                        aria-describedby="about-logs-description"
-                        onClick={logs}
-                      >
-                        Open logs folder
-                      </button>
-                    </AddonRow>
-                  </div>
-                )}
-                {uninstall && <UninstallApp uninstall={uninstall} />}
-              </Section>
-            )}
           </TabPanel>
           {hasAddons && (
             <TabPanel value="addons" className={panelClasses}>
@@ -531,6 +483,63 @@ export const Preferences = ({
               </Section>
             ))}
           </TabPanel>
+          {hasAbout && (
+            <TabPanel value="about" className={panelClasses}>
+              {version && (
+                <dl className={`${settingsCardClasses} m-0`}>
+                  <div className={`preference-row ${settingRowClasses}`}>
+                    <dt className="m-0">Version</dt>
+                    <dd className="m-0 select-text">{versionText(version)}</dd>
+                  </div>
+                </dl>
+              )}
+              {experimental && (
+                <Section title="Updates">
+                  <div className={settingsCardClasses}>
+                    <div className={`preference-row ${settingRowClasses}`}>
+                      <SettingText
+                        id="experimental-label"
+                        label="Experimental"
+                        description="Get new releases as soon as they're published, before they're promoted to stable, and try features that are still being built in the Experimental tab. Turning this off doesn't go back to an older version."
+                        descriptionId="experimental-description"
+                      />
+                      <Switch
+                        checked={experimental.on === true}
+                        onChange={experimental.onChange}
+                        labelledBy="experimental-label"
+                        describedBy="experimental-description"
+                        disabled={experimental.on === undefined}
+                      />
+                    </div>
+                  </div>
+                </Section>
+              )}
+              {(logs || uninstall) && (
+                <div className="flex flex-col gap-2.5">
+                  {logs && (
+                    <div className={settingsCardClasses}>
+                      <AddonRow
+                        scope="about"
+                        id="logs"
+                        label="Logs"
+                        description="What Novadeck recorded of its recent runs, without anything your terminals showed. Attach them to a bug report."
+                      >
+                        <button
+                          type="button"
+                          className="button min-h-8 shrink-0 px-3 text-control"
+                          aria-describedby="about-logs-description"
+                          onClick={logs}
+                        >
+                          Open logs folder
+                        </button>
+                      </AddonRow>
+                    </div>
+                  )}
+                  {uninstall && <UninstallApp uninstall={uninstall} />}
+                </div>
+              )}
+            </TabPanel>
+          )}
           {hasExperimental && (
             <TabPanel value="experimental" className={panelClasses}>
               <div className={settingsCardClasses}>
