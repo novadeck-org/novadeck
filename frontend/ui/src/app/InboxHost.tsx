@@ -3,6 +3,7 @@ import { useEffect, useMemo, type ReactNode } from "react"
 
 import { InboxProvider, useInboxContext } from "../inbox/InboxProvider"
 import { InboxSheet } from "../inbox/InboxSheet"
+import { InboxToasts } from "../inbox/InboxToasts"
 import { anyAgentWorking } from "../projects/project-status"
 import { useDesktop } from "../shell/desktop"
 import { useWorkspaceServices, useWorkspaceState } from "./controller/context"
@@ -37,12 +38,12 @@ export const InboxHost = ({
   readonly active: boolean
   readonly children: ReactNode
 }): React.JSX.Element => {
-  const { backend, commands } = useWorkspaceServices()
+  const { backend, commands, ui } = useWorkspaceServices()
   const desktop = useDesktop()
   const inbox = backend.inbox ?? noInbox
   // Whether an agent is at work in any project, for the empty Inbox to say.
   const working = useWorkspaceState((workspace) => anyAgentWorking(workspace.projects))
-  const { hideSidebar, toggleSidebar, reveal } = commands
+  const { hideSidebar, toggleSidebar, reveal, showInbox } = commands
   const phone = useMemo(
     () => (desktop ? undefined : { hideList: hideSidebar, showList: () => toggleSidebar("inbox") }),
     [desktop, hideSidebar, toggleSidebar],
@@ -52,6 +53,7 @@ export const InboxHost = ({
       {children}
       <NoticeClicks inbox={inbox} />
       <InboxSheet active={active} />
+      <InboxToasts inbox={inbox} ui={ui} showInbox={showInbox} />
     </InboxProvider>
   )
 }

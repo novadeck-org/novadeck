@@ -1,0 +1,197 @@
+/* The toast recipe: the stack of `Toast.tsx`, in the manner of Sonner. `.toasts` is the
+   region, fixed at the top right; each `.toast` (also a `.floating`, which gives it its
+   surface) sits in it with `data-rank` 0 for the newest up, and holds the caller's content,
+   a `.toast-close`, a `.toast-countdown` line along its foot and, on the ones that end the
+   row, a `.toast-more` pill (data-fan="rest" | "fanned") that counts what is past the shown
+   few.
+
+   At rest (Ark's data-overlap) the front toast shows and the next two peek out behind it,
+   smaller and tinted, their content hidden; while the pointer is over the stack (data-stack)
+   they spread into a list. A toast past the shown few (data-beyond) never shows. Ark sets
+   data-state="open" | "closed", data-mounted once it has entered, data-paused while its
+   timer is held, and the --offset, --index, --first-height and --initial-height this reads.
+   A toast that replaced its key's older one (data-replaced) flashes its border instead of
+   sliding in. The content may key on `.toast:hover` and `.toast:focus-within`, as a close
+   button does.
+
+   Tokens, each optional (its fallback in brackets):
+   --toast-top (7px), --toast-right (12px): where the region sits from the window's top and
+   right edge. --toast-width (360px), --toast-gutter (12px): its width, which never leaves
+   the gutters on a narrow screen.
+   --toast-peek (12px): how far each toast behind peeks out below the front one.
+   --toast-motion (the layout motion x 1.5): how long the stack takes to move.
+   --toast-behind-bg (the ink at 11% on the floating bg), --toast-behind-border-color
+   (line-strong): the toasts behind the front one.
+   --toast-hover-border-color (line-strong): a toast under the pointer.
+   --toast-close-fg (muted), --toast-close-hover-fg (ink), --toast-close-hover-bg (soft).
+   --toast-countdown-bg (line-strong): the line that runs out as the toast's time does.
+   --toast-more-fg (muted), --toast-more-hover-fg (ink): the pill. */
+.toasts {
+  width: var(--toast-width, 360px);
+  max-width: calc(100vw - 2 * var(--toast-gutter, 12px));
+}
+.toast {
+  --_motion: var(--toast-motion, calc(var(--motion-layout) * 1.5));
+  --_lift: 0px;
+  --_scale: 1;
+  --_alpha: 1;
+  --_height: auto;
+  right: 0;
+  left: 0;
+  z-index: var(--z-index);
+  height: var(--_height);
+  cursor: pointer;
+  opacity: var(--_alpha);
+  transform: translateY(var(--_lift)) scale(var(--_scale));
+  transform-origin: 50% 0;
+  transition:
+    transform var(--_motion) var(--ease-interface),
+    opacity var(--_motion) var(--ease-interface),
+    height var(--_motion) var(--ease-interface),
+    background-color var(--_motion) var(--ease-interface),
+    translate var(--_motion) var(--ease-interface),
+    visibility var(--_motion) step-end;
+}
+/* It slides in from above; one that replaced another stays where it is. */
+.toast:not([data-mounted]) {
+  --_lift: -24px;
+  --_alpha: 0;
+}
+.toast[data-replaced]:not([data-mounted]) {
+  --_lift: 0px;
+  --_alpha: 1;
+}
+.toast[data-replaced] {
+  animation: toast-replaced 900ms var(--ease-interface);
+}
+@keyframes toast-replaced {
+  30% {
+    border-color: var(--color-strong);
+  }
+}
+.toast[data-mounted][data-overlap] {
+  --_lift: calc(min(var(--toast-rank), 2) * var(--toast-peek, 12px));
+  --_scale: calc(1 - min(var(--toast-rank), 3) * 0.045);
+}
+.toast[data-mounted][data-stack] {
+  --_lift: var(--offset);
+  --_height: var(--initial-height);
+}
+.toast[data-beyond] {
+  --_alpha: 0;
+  visibility: hidden;
+}
+.toast[data-mounted][data-stack][data-beyond] {
+  --_lift: calc(var(--offset) - 8px);
+}
+/* Behind the front one a toast is an edge: its height, its tint, its content out of sight. */
+.toast[data-overlap]:not([data-rank="0"]) {
+  --_height: var(--first-height);
+  --_bg: var(
+    --toast-behind-bg,
+    color-mix(in srgb, var(--color-ink) 11%, var(--floating-bg, var(--color-paper)))
+  );
+  --_border-color: var(--toast-behind-border-color, var(--color-line-strong));
+  overflow: hidden;
+  cursor: default;
+}
+.toast > * {
+  transition: opacity var(--_motion) var(--ease-interface);
+}
+.toast[data-overlap]:not([data-rank="0"]) > * {
+  opacity: 0;
+  pointer-events: none;
+}
+.toast[data-state="closed"] {
+  --_alpha: 0;
+  translate: 0 -10px;
+  visibility: hidden;
+}
+.toast:hover {
+  --_border-color: var(--toast-hover-border-color, var(--color-line-strong));
+}
+
+.toast-close {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  display: inline-flex;
+  width: 22px;
+  height: 22px;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--radius-control);
+  background-color: var(--floating-bg, var(--color-paper));
+  color: var(--toast-close-fg, var(--color-muted));
+  opacity: 0;
+}
+.toast:is(:hover, :focus-within) .toast-close {
+  opacity: 1;
+}
+.toast-close:hover {
+  background-color: var(--toast-close-hover-bg, var(--color-soft));
+  color: var(--toast-close-hover-fg, var(--color-ink));
+}
+
+/* The line along the foot runs out in the toast's own time, and holds with its timer. */
+.toast-countdown {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  width: 100%;
+  height: 2px;
+  border-bottom-left-radius: var(--_radius);
+  background-color: var(--toast-countdown-bg, var(--color-line-strong));
+  animation: toast-countdown var(--toast-life, 8s) linear forwards;
+}
+@keyframes toast-countdown {
+  to {
+    width: 0;
+  }
+}
+.toast[data-paused] .toast-countdown {
+  animation-play-state: paused;
+}
+.toast[data-stack] .toast-countdown {
+  opacity: 0;
+}
+
+/* What is past the shown few: one quiet pill under the stack, at rest or spread out. */
+.toast-more {
+  position: absolute;
+  right: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 10px;
+  border: var(--border-width) solid var(--color-line);
+  border-radius: 999px;
+  background-color: var(--floating-bg, var(--color-paper));
+  box-shadow: var(--shadow-control);
+  color: var(--toast-more-fg, var(--color-muted));
+  font-size: var(--text-caption);
+  white-space: nowrap;
+  opacity: 0;
+  pointer-events: none;
+}
+.toast-more[data-fan="rest"] {
+  top: calc(100% + 2 * var(--toast-peek, 12px) + 8px);
+}
+.toast-more[data-fan="fanned"] {
+  top: calc(100% + 8px);
+}
+.toast[data-overlap] .toast-more[data-fan="rest"],
+.toast[data-stack] .toast-more[data-fan="fanned"] {
+  opacity: 1;
+  pointer-events: auto;
+}
+.toast-more:hover {
+  color: var(--toast-more-hover-fg, var(--color-ink));
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .toast,
+  .toast > * {
+    transition: none;
+  }
+}
