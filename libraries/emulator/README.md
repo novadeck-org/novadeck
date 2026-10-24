@@ -56,6 +56,19 @@ release fixes what it fixes.
   position short of the bottom, which xterm took for the person scrolling up: the screen stopped
   following its program until they scrolled down or typed. Upstream reports the same stale
   height as [#6117](https://github.com/xtermjs/xterm.js/issues/6117).
+- `@xterm/xterm` 6.0.0, the same two bundles: the DOM renderer's `WidthCache` shares its
+  measurements. Each renderer kept its own, so a screen drawn fresh (after the WebGL renderer
+  hands a screen back, or when a view opens) measured every glyph again, a forced layout each:
+  about 1300 of them, 220 ms, when ten terminals switched to the Canvas view. Now the measurements
+  live on the `document`, under `Symbol.for("novadeck.xterm.widths")`, one entry per font family,
+  size, weight, bold weight and device pixel ratio, each with its flat and bold/italic tables. A
+  screen takes the entry its font names when it sets its font, and measures only what the entry
+  lacks. `clear()`, which xterm calls on a change of character size or pixel ratio, empties the
+  entry for the screen's current font, and the document's `fonts` `loadingdone` empties them all,
+  so a web font that arrives after widths were measured with the fallback leaves none behind for
+  the next screen. A width of 0 (an element with no layout) is still never kept. Widths and
+  letter-spacing come out as before. Like the viewport fix, this is made again on xterm 6.1: the
+  same class, in both bundles, unless 6.1 shares its widths itself. `src/widths.test.ts` pins it.
 
 ## Bundling the headless emulator
 
