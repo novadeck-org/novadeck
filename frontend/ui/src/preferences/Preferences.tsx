@@ -34,7 +34,10 @@ const schemeItems = [
   { label: "Light", value: "light" },
   { label: "Dark", value: "dark" },
 ] as const
-const fontSizes = [12, 13, 15].map((size) => ({ label: `${size}px`, value: String(size) }))
+const fontSizes = [12, 13, 15].map((size) => ({
+  label: `${size}px`,
+  value: String(size),
+}))
 
 // Section titles match the sidebar's panel titles.
 const sectionTitleClasses = "section-label m-0 text-label font-medium"
@@ -255,7 +258,10 @@ export const Preferences = ({
                   onValueChange={(id) => {
                     const chosen = themes.find((entry) => entry.id === id)
                     if (chosen)
-                      onChange({ ...value, appearance: { ...appearance, theme: chosen.id } })
+                      onChange({
+                        ...value,
+                        appearance: { ...appearance, theme: chosen.id },
+                      })
                   }}
                   open={open && shown === "general" && openSelect === "theme"}
                   onOpenChange={(expanded) => setOpenSelect(expanded ? "theme" : null)}
@@ -287,7 +293,11 @@ export const Preferences = ({
                     value={onlyScheme ?? appearance.scheme}
                     onValueChange={(next) => {
                       const scheme = schemeItems.find((item) => item.value === next)?.value
-                      if (scheme) onChange({ ...value, appearance: { ...appearance, scheme } })
+                      if (scheme)
+                        onChange({
+                          ...value,
+                          appearance: { ...appearance, scheme },
+                        })
                     }}
                     className="flex shrink-0 gap-1"
                     itemClassName="flex h-7 min-w-14 items-center justify-center px-2.5 text-control data-disabled:cursor-not-allowed"
@@ -395,8 +405,8 @@ export const Preferences = ({
                     label="Notify when an agent needs you"
                     description={
                       notices
-                        ? "A desktop notification while Novadeck is in the background, for a question, an approval or trouble that stopped an agent. Clicking it opens the Inbox."
-                        : "Only in the desktop app."
+                        ? "A toast in the corner while you're in Novadeck, or a desktop notification while it's in the background, for a question, an approval or trouble that stopped an agent. Clicking either opens the Inbox."
+                        : "A toast in the corner for a question, an approval or trouble that stopped an agent. Clicking it opens the Inbox."
                     }
                     descriptionId="notify-needs-description"
                   />
@@ -405,7 +415,6 @@ export const Preferences = ({
                     onChange={(notifyNeeds) => onChange({ ...value, notifyNeeds })}
                     labelledBy="notify-needs-label"
                     describedBy="notify-needs-description"
-                    disabled={!notices}
                   />
                 </div>
                 <div className={`preference-row ${settingRowClasses}`}>
