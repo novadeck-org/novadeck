@@ -333,6 +333,13 @@ export const Grid = ({
                     key={terminal.id}
                     data-grid-terminal={terminal.id}
                     data-preview={preview === terminal.id}
+                    data-team={
+                      team?.lead === terminal.id
+                        ? "lead"
+                        : team?.workers.includes(terminal.id)
+                          ? "worker"
+                          : undefined
+                    }
                     inert={hidden[terminal.id] ?? false}
                     aria-hidden={hidden[terminal.id] ?? false}
                     onContextMenu={(event) => event.stopPropagation()}

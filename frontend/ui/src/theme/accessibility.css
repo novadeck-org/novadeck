@@ -30,7 +30,7 @@
   /* The teams' wires (tabs.css, team-wire.css; grid-team-wire.css and canvas.css in Grid
      and Canvas): a resting wire, its cursor and ticks in the grey of disabled text, the
      selected terminal's team's in the highlight, and an outline in place of the tint the
-     selected terminal's other tabs take. */
+     selected terminal's other tabs and its led windows take. */
   :is(.team-wire-shape, .grid-team-wire-shape, .canvas-team-wire-shape) > i {
     forced-color-adjust: none;
     box-shadow: none;
@@ -39,7 +39,8 @@
   :is(.team-wire-shape, .grid-team-wire-shape, .canvas-team-wire-shape)[data-lit] > i {
     background: Highlight;
   }
-  .terminal-tab[data-team]:not(.selected) {
+  .terminal-tab[data-team]:not(.selected),
+  :is(.grid-terminal, .canvas-node)[data-team="worker"]:not(.selected) .terminal-window {
     outline: 1px solid Highlight;
     outline-offset: -1px;
   }

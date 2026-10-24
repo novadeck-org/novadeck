@@ -911,4 +911,22 @@ describe("Canvas's team wire", () => {
     await expect.poll(wire).toBe(1)
     expect(lit()).toBe(0)
   })
+
+  it("tints the windows the lead leads, never the lead, while one of its team is selected", async () => {
+    const tinted = (name: string) =>
+      getComputedStyle(terminal(name).element(), "::after").backgroundColor !== "rgba(0, 0, 0, 0)"
+    const outline = (name: string) => getComputedStyle(terminal(name).element()).borderTopColor
+    await openMessagesDemo()
+    await terminalTab("Checkout implementation").click()
+    await chooseView("Canvas")
+    await expect.poll(() => tinted("Checkout review")).toBe(true)
+    expect(outline("Checkout review")).not.toBe(outline("Dev server"))
+    expect(tinted("Checkout implementation")).toBe(false)
+    expect(tinted("Dev server")).toBe(false)
+    // Its worker selected keeps its own look, and the lead stays plain.
+    await terminalTab("Checkout review").click()
+    await expect.poll(() => tinted("Checkout review")).toBe(false)
+    expect(tinted("Checkout implementation")).toBe(false)
+    expect(outline("Checkout implementation")).toBe(outline("Dev server"))
+  })
 })
