@@ -4,7 +4,8 @@ import type { Backend, Notice } from "@novadeck/core/port"
 
 import { needing } from "../inbox/inbox-state"
 import { fromNovadeck, labelOf, subjectOf } from "../inbox/inbox-text"
-import { modalOpen } from "./selectors"
+import { isDesktop } from "../shell/desktop"
+import { heldForToast, modalOpen } from "./selectors"
 import type { UiStore } from "./ui-store"
 
 // How long a new item that needs the person waits before it pings: one the person or the
@@ -208,13 +209,13 @@ export const followNeeds = (
 }
 
 // Follows the Inbox for the person who isn't looking at it. A new item that needs them
-// pings once (see `followNeeds`), only if the page still hasn't their focus, and the person
-// wants them (`notifyNeeds`); an item that pinged and then leaves the Inbox takes its notification
-// back. While the page has their focus a toast rings instead, in inbox-toasts.ts; an item
-// that rang behind a modal dialog there goes to whichever comes first: this ping if the person
-// leaves the app with the dialog open, else the toast once it closes. The app
-// icon's `badge` follows the bell's count, drawn as an image where `image` says the platform
-// takes one, and clears when this stops. Returns the stop.
+// pings once (see `followNeeds`), only if the page still hasn't their focus and the person
+// wants them (`notifyNeeds`); an item that pinged and then leaves the Inbox takes its
+// notification back. While the page has their focus a toast rings instead, in
+// inbox-toasts.ts. An item whose toast waits behind a modal dialog there goes to whichever
+// comes first: this ping if the person leaves the app with the dialog open, else the toast
+// once it closes. The app icon's `badge` follows the bell's count, drawn as an image where
+// `image` says the platform takes one, and clears when this stops. Returns the stop.
 export const watchInboxPings = (
   inbox: Pick<Inbox, "state">,
   ui: UiStore,
@@ -223,11 +224,14 @@ export const watchInboxPings = (
     badge,
     graceMs = needGraceMs,
     image = onWindows() ? drawBadge : () => null,
+    desktop = isDesktop,
   }: {
     board?: NoticeBoard | undefined
     badge?: Backend["badge"] | undefined
     graceMs?: number
     image?: (count: number) => string | null
+    // Whether the window is wide enough for the resizable sidebar, as the shell asks.
+    desktop?: () => boolean
   } = {},
 ): (() => void) => {
   let counted: number | undefined
@@ -252,7 +256,7 @@ export const watchInboxPings = (
       const state = ui.getSnapshot()
       if (!state.preferences.notifyNeeds || !board) return false
       if (state.pageFocused) {
-        if (!modalOpen(state)) return false
+        if (!heldForToast(item, state, desktop)) return false
         deferred.set(keyOf(item), item)
         return true
       }

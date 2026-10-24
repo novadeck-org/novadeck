@@ -45,7 +45,7 @@ const update = (id: string): InboxItem => ({
   update: { type: "told", subject: "Done", body: "" },
 })
 
-const setup = (items: InboxItem[] = []) => {
+const setup = (items: InboxItem[] = [], pings = true) => {
   const inbox = createStore<InboxState>({ ...emptyInbox, items })
   const ui = createUiStore(
     initialUi({
@@ -79,7 +79,7 @@ const setup = (items: InboxItem[] = []) => {
     show: (item: InboxItem) => void shown.push(`${item.source.terminalId}:${item.id}`),
     close: (terminalId: string, itemId: string) => void closed.push(`${terminalId}:${itemId}`),
   }
-  const stop = watchInboxToasts({ state: inbox }, ui, board)
+  const stop = watchInboxToasts({ state: inbox }, ui, board, { pings, desktop: () => true })
   const set = (next: InboxItem[]) => inbox.update((state) => ({ ...state, items: next }))
   const change = (patch: (state: UiState) => UiState) => ui.update(patch)
   const route = (patch: Partial<UiState["location"]["route"]>) =>
@@ -272,6 +272,24 @@ describe("toasts for what needs the person", () => {
     })
   })
 
+  context(
+    "while the person leaves the app with the dialog open and no ping can take the item",
+    () => {
+      it("keeps it held until they return and the dialog is closed", () => {
+        const { set, route, change, shown, stop } = setup([], false)
+        route({ dialog: "search" })
+        set([ask("a")])
+        vi.advanceTimersByTime(2000)
+        change((state) => ({ ...state, pageFocused: false }))
+        route({ dialog: null })
+        expect(shown).toEqual([])
+        change((state) => ({ ...state, pageFocused: true }))
+        expect(shown).toEqual(["t1:a"])
+        stop()
+      })
+    },
+  )
+
   context("while another modal dialog is open as the item rings", () => {
     it("holds the toast for the close confirmation, the crash-loop question and the switcher", () => {
       const { set, change, shown, stop } = setup()
@@ -463,7 +481,7 @@ describe("toasts and desktop notifications together", () => {
       close: () => {},
       onClick: () => () => {},
     })
-    const stop = watchInboxPings({ state: inbox }, ui, { board })
+    const stop = watchInboxPings({ state: inbox }, ui, { board, desktop: () => true })
     return { set, change, shown, pings, stop }
   }
 
@@ -506,7 +524,7 @@ describe("an item held behind a modal dialog", () => {
       close: () => {},
       onClick: () => () => {},
     })
-    const stop = watchInboxPings({ state: inbox }, ui, { board })
+    const stop = watchInboxPings({ state: inbox }, ui, { board, desktop: () => true })
     route({ dialog: "search" })
     set([ask("a")])
     vi.advanceTimersByTime(2000)
@@ -537,6 +555,26 @@ describe("an item held behind a modal dialog", () => {
   it("is forgotten by the ping once its item leaves", () => {
     const { set, change, pings, stop } = held()
     set([])
+    vi.advanceTimersByTime(2000)
+    change((state) => ({ ...state, pageFocused: false }))
+    expect(pings).toEqual([])
+    stop()
+  })
+})
+
+describe("an item that no toast waits for", () => {
+  it("is not deferred to the ping either: it never pings behind a dialog", () => {
+    const { inbox, ui, set, change, route } = setup()
+    const pings: Notice[] = []
+    const board = noticeBoard({
+      show: (notice) => void pings.push(notice),
+      close: () => {},
+      onClick: () => () => {},
+    })
+    const stop = watchInboxPings({ state: inbox }, ui, { board, desktop: () => true })
+    // The item is of the terminal the person is typing in, so no toast would wait for it.
+    route({ dialog: "preferences", terminal: "t1" })
+    set([ask("a", "t1")])
     vi.advanceTimersByTime(2000)
     change((state) => ({ ...state, pageFocused: false }))
     expect(pings).toEqual([])

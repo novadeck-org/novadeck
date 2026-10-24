@@ -49,7 +49,12 @@ export const InboxHost = ({
     () => (desktop ? undefined : { hideList: hideSidebar, showList: () => toggleSidebar("inbox") }),
     [desktop, hideSidebar, toggleSidebar],
   )
-  const follow = useCallback((board: ToastBoard) => watchInboxToasts(inbox, ui, board), [inbox, ui])
+  // Only a host that shows notices has a ping to take an item held as the person leaves.
+  const pings = backend.notices !== undefined
+  const follow = useCallback(
+    (board: ToastBoard) => watchInboxToasts(inbox, ui, board, { pings }),
+    [inbox, ui, pings],
+  )
   return (
     <InboxProvider inbox={inbox} reveal={reveal} phone={phone} working={working}>
       {children}
