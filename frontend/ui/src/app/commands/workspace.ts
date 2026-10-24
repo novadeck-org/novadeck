@@ -20,6 +20,7 @@ import {
   togglePin,
   type ProjectArrangement,
 } from "../../projects/project-arrangement"
+import type { FeatureFlag } from "../feature-flags"
 import {
   currentContext,
   currentState,
@@ -27,7 +28,7 @@ import {
   sameTarget,
   windowedDestination,
 } from "../selectors"
-import { notePortableCardShown } from "../ui-store"
+import { chatViewOn, notePortableCardShown, type UiState } from "../ui-store"
 import { createChatCommands, type ChatCommands } from "./chat"
 import { createCompanionCommands, type CompanionCommands } from "./companion"
 import type { CommandContext } from "./context"
@@ -73,6 +74,8 @@ export type WorkspaceCommands = ShellCommands &
     readonly select: (id: string, fit?: boolean) => void
     readonly setSelected: (terminal: string) => void
     readonly updatePreferences: (next: PreferencesValue) => void
+    // Turns a feature flag on or off; IS_EXPERIMENTAL also shows or hides the chat view.
+    readonly setFeatureFlag: (flag: FeatureFlag, on: boolean) => void
     readonly changeView: (next: ViewMode) => void
     // From Focus, back to the windowed view with this terminal selected.
     readonly openWindowed: (id: string) => void
@@ -148,6 +151,17 @@ export const createWorkspaceCommands = (ctx: CommandContext): WorkspaceCommands 
     })
 
   const preferences = (): PreferencesValue => ui.getSnapshot().preferences
+  // Changes the UI state, starting every terminal afresh on the chat view where the change
+  // turns it on or off. It and the terminals answered in are two stores, and no one may see
+  // a terminal's chat shown with the old answers: turned off, the UI state goes first, so
+  // nothing is shown; turned on, the answers go first, so nothing is shown meanwhile.
+  const changeChatView = (change: (state: UiState) => UiState): void => {
+    const before = chatViewOn(ui.getSnapshot())
+    const after = chatViewOn(change(ui.getSnapshot()))
+    if (after && !before) resetAnswering(chat)
+    ui.update(change)
+    if (before && !after) resetAnswering(chat)
+  }
 
   const setSelected = (terminal: string): void => go({ terminal })
   const select = (id: string, fit = false): void => {
@@ -308,15 +322,7 @@ export const createWorkspaceCommands = (ctx: CommandContext): WorkspaceCommands 
       const snapshot = workspace.getSnapshot()
       const { view } = currentState(snapshot)
       effects.cancelTransition()
-      // Turning the chat view on or off starts every terminal afresh on it. The preference
-      // and the terminals answered in are two stores, and no one may see a terminal's chat
-      // shown with the old answers: turned off, the preference goes first, so nothing is
-      // shown; turned on, the answers go first, so nothing is shown meanwhile.
-      const turningOn = next.chatView && !ui.getSnapshot().preferences.chatView
-      const turningOff = !next.chatView && ui.getSnapshot().preferences.chatView
-      if (turningOn) resetAnswering(chat)
-      ui.update((state) => ({ ...state, preferences: next }))
-      if (turningOff) resetAnswering(chat)
+      changeChatView((state) => ({ ...state, preferences: next }))
       workspace.dispatch({
         type: "preferences/reconcile",
         target: currentTarget(snapshot),
@@ -326,6 +332,10 @@ export const createWorkspaceCommands = (ctx: CommandContext): WorkspaceCommands 
         set("revealCanvas", false)
         set("sidebar", false)
       }
+    },
+    setFeatureFlag: (flag, on) => {
+      if (ui.getSnapshot().flags[flag] === on) return
+      changeChatView((state) => ({ ...state, flags: { ...state.flags, [flag]: on } }))
     },
     changeView: (next) => {
       const { enabledViews } = preferences()

@@ -4,6 +4,7 @@ import type { AgentStatus } from "@novadeck/core/types"
 
 import { context, describe, expect, it } from "../../test"
 import { openCommands } from "../../test/commands"
+import { chatViewOn } from "../ui-store"
 
 const target = { projectId: "project", workspaceSessionId: "initial" }
 
@@ -11,7 +12,11 @@ const waiting: AgentStatus = { working: true, attention: { kind: "permission", c
 
 const open = (agent?: AgentStatus, conversations?: Conversations, chatView = true) => {
   const app = openCommands({ conversations })
-  app.ui.update((state) => ({ ...state, preferences: { ...state.preferences, chatView } }))
+  app.ui.update((state) => ({
+    ...state,
+    preferences: { ...state.preferences, chatView },
+    flags: { ...state.flags, IS_EXPERIMENTAL: true },
+  }))
   const status = (next: AgentStatus | undefined) =>
     app.workspace.dispatch({
       type: "terminal/status",
@@ -24,12 +29,11 @@ const open = (agent?: AgentStatus, conversations?: Conversations, chatView = tru
     ...app,
     status,
     on: () => {
-      const { preferences } = app.ui.getSnapshot()
       const { answering } = app.chat.store.getSnapshot()
       const terminal = app.workspace
         .getSnapshot()
         .projects[0]!.history[0]!.state.roster.terminals.find((each) => each.id === "01")!
-      return chatShown(preferences.chatView, answering, "project/initial", terminal)
+      return chatShown(chatViewOn(app.ui.getSnapshot()), answering, "project/initial", terminal)
     },
   }
 }
@@ -119,6 +123,20 @@ describe("chat commands", () => {
       // No frame shows the chat of a terminal still answered in; the last shows it afresh.
       // The answers are gone before the preference flips, so the first frame has none.
       expect(seen).toEqual([
+        { shown: false, answered: false },
+        { shown: true, answered: false },
+      ])
+    })
+
+    it("shows no chat once IS_EXPERIMENTAL turns off, and every chat afresh once it is back", () => {
+      const app = open(waiting)
+      app.commands.showTerminal("01")
+      const off = frames(app, () => app.commands.setFeatureFlag("IS_EXPERIMENTAL", false))
+      expect(off.every((frame) => !frame.shown)).toBe(true)
+      expect(app.chat.store.getSnapshot().answering).toEqual({})
+      app.commands.showTerminal("01")
+      const on = frames(app, () => app.commands.setFeatureFlag("IS_EXPERIMENTAL", true))
+      expect(on).toEqual([
         { shown: false, answered: false },
         { shown: true, answered: false },
       ])

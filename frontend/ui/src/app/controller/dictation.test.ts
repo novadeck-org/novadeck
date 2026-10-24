@@ -54,7 +54,11 @@ const ui = (): UiStore =>
   )
 
 const chatOn = (store: UiStore): void => {
-  store.update((state) => ({ ...state, preferences: { ...state.preferences, chatView: true } }))
+  store.update((state) => ({
+    ...state,
+    preferences: { ...state.preferences, chatView: true },
+    flags: { ...state.flags, IS_EXPERIMENTAL: true },
+  }))
 }
 
 describe("dictated words", () => {

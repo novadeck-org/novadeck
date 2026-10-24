@@ -29,7 +29,8 @@ the same validated owner and repository from that file (`update-release.ts`).
 
 ## Channels
 
-A build follows one channel, which the person picks in Preferences and the host keeps
+A build follows one channel, which the person picks with Preferences' Experimental switch
+(on is `early`, which also turns on the IS_EXPERIMENTAL flag) and the host keeps
 across launches in `update.json` in the data folder. The same file keeps what the card of what is
 new needs (see "What is new"): `lastRunVersion`, `whatsNewPending`, `whatsNewFrom`,
 `whatsNewSettled` and `whatsNewCheckedAt`.

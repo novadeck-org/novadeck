@@ -49,10 +49,38 @@ describe("the preferences of a backend with no addons", () => {
     expect(document.querySelector('[role="tabpanel"][aria-labelledby$="addons"]')).toBeNull()
   })
 
-  it("still opens Addons where the backend reads conversations", async () => {
+  it("has no Addons tab for the chat view, which is in Experimental", async () => {
     await show({ chat: true })
 
-    expect(selected()).toBe("Addons")
-    expect(document.querySelector('[role="tabpanel"][aria-labelledby$="addons"]')).not.toBeNull()
+    expect(tabs()).not.toContain("Addons")
+    expect(selected()).toBe("General")
+  })
+})
+
+describe("the Experimental tab", () => {
+  const experimental = (on: boolean | undefined) => ({ on, onChange: () => {} })
+
+  it("is absent while the Experimental switch is off, and a URL naming it opens General", async () => {
+    await show({ tab: "experimental", experimental: experimental(false) })
+
+    expect(tabs()).not.toContain("Experimental")
+    expect(selected()).toBe("General")
+  })
+
+  it("is absent until the app has said whether the switch is on", async () => {
+    await show({ tab: "experimental", experimental: experimental(undefined) })
+
+    expect(tabs()).not.toContain("Experimental")
+  })
+
+  it("shows, last, while the switch is on, with the chat view", async () => {
+    await show({ tab: "experimental", chat: true, experimental: experimental(true) })
+
+    expect(tabs().at(-1)).toBe("Experimental")
+    expect(selected()).toBe("Experimental")
+    const panel = document.querySelector('[role="tabpanel"][aria-labelledby$="experimental"]')
+    expect(
+      panel?.querySelector('[role="switch"][aria-labelledby="chat-view-label"]'),
+    ).not.toBeNull()
   })
 })

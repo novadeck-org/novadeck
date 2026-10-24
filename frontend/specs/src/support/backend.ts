@@ -43,15 +43,23 @@ const requestedUpdate = (): UpdateScenario | undefined => {
     : undefined
 }
 
+// Specs open the demo on a host that follows early builds, which turns IS_EXPERIMENTAL on
+// (the chat view still needs its own switch), with `?channel=early`, beside any other variant.
+const earlyRequested = (): boolean =>
+  new URLSearchParams(window.location.hash.split("?")[1] ?? "").get("channel") === "early"
+
 // The updates a spec asks for: an explicit `?update=` wins, else the release a portable
-// scenario has waiting (as the debug panel offers it).
+// scenario has waiting (as the debug panel offers it); `?channel=early` alone has a host
+// with no update waiting.
 const demoWithUpdate = (
   scenario: UpdateScenario | undefined,
   portable: DemoPortable | undefined,
   demo: ReturnType<typeof createDemoBackend>,
 ): ReturnType<typeof createDemoBackend> => {
-  if (!scenario && !portable?.offer) return demo
+  const early = earlyRequested()
+  if (!scenario && !portable?.offer && !early) return demo
   const controls = createDemoUpdates()
+  if (early) controls.updates?.channel?.set("early")
   if (scenario) scenario.play(controls, "0.0.80")
   else if (portable?.offer) controls.offer(portable.offer)
   made.push(controls)
