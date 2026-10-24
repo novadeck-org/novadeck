@@ -64,8 +64,7 @@ export const needNotice = (item: InboxItem): Notice => {
 }
 
 // What a click on a terminal's notification does: the Inbox opens on that terminal's item
-// when it has one standing, else the terminal shows, as a click on a finish notice has always
-// done.
+// when it has one standing, a finish's Update too, else the terminal shows.
 export const clickNotice = (
   terminalId: string,
   items: readonly InboxItem[],
