@@ -7,7 +7,7 @@ import {
   type ToastStatusChangeDetails,
 } from "@ark-ui/react/toast"
 import { ChevronRight, X } from "lucide-react"
-import { useEffect, useSyncExternalStore, type ReactNode } from "react"
+import { useEffect, useLayoutEffect, useSyncExternalStore, type ReactNode } from "react"
 
 import { createArrival, ignoresClick, moreOf } from "./toast-rules"
 
@@ -16,8 +16,10 @@ import { createArrival, ignoresClick, moreOf } from "./toast-rules"
 // pointer is over them. The machine keeps the timers, their pause and each toast's life;
 // the stack adds what Ark has not: a toast per key that a newer one replaces and brings to
 // the front, a cap on what shows with the rest counted rather than queued (Ark's `max` holds
-// extras back until room frees, and a toast that rings late is wrong), the countdown, and
-// the two guards (a click as a toast lands, a pointer resting where it lands).
+// extras back until room frees; here they stand hidden, their timers running, and come into
+// view as the front ones leave, so none rings late), the countdown, and the guards (a click
+// as a toast lands or moves under the pointer, a pointer resting where a toast lands, focus
+// kept where it was).
 
 // How many toasts show; any more are counted in a pill.
 export const shownToasts = 3
@@ -36,6 +38,10 @@ type Snapshot<T> = {
   readonly order: readonly string[]
   // The toasts to draw, those leaving included.
   readonly entries: ReadonlyMap<string, Entry<T>>
+  // Where a toast that is leaving stood, so it fades out as it was.
+  readonly left: ReadonlyMap<string, number>
+  // When each last took another place, which may put it under the pointer.
+  readonly moved: ReadonlyMap<string, number>
 }
 
 export type Toasts<T> = {
@@ -52,9 +58,22 @@ export type Toasts<T> = {
     readonly subscribe: (listener: () => void) => () => void
     readonly snapshot: () => Snapshot<T>
     readonly arrival: ReturnType<typeof createArrival>
+    // The element holding the stack, to ask whether the pointer or focus is on it.
+    readonly attach: (element: HTMLElement | null) => void
+    // Whether the pointer is on the pill that counts the rest, which it may press where it
+    // stands: that pill doesn't spread the stack as the pointer reaches it.
+    readonly pill: { readonly enter: () => void; readonly leave: () => void }
     // Holds every timer while the page is hidden, and lets them go once it is shown (unless
     // the pointer holds them).
     readonly hold: (held: boolean) => void
+    // Where focus was before it came into the stack, to give back.
+    readonly focus: {
+      readonly enter: (from: EventTarget | null) => void
+      readonly leave: (to: EventTarget | null) => void
+      readonly restore: () => void
+      // Gives focus back if the toast that had it is gone.
+      readonly recover: () => void
+    }
   }
 }
 
@@ -81,18 +100,34 @@ export const createToasts = <T,>({ duration = 8000 }: { duration?: number } = {}
     },
   })
   const arrival = createArrival()
+  const region: { current: HTMLElement | null } = { current: null }
+  let overPill = false
+  // Whether the stack is really under the pointer or holds focus.
+  const onStack = (): boolean => {
+    try {
+      return region.current?.matches(":hover, :focus-within") ?? false
+    } catch {
+      return false
+    }
+  }
   // Whether the pointer (or focus) has paused the stack. Zag pauses and spreads on every
   // mouse event over it, one a browser sends for a pointer resting where a toast has
   // appeared included; they get through only after the pointer has really moved (see
   // `createArrival`). Spreading is asked for when the pause begins, for Zag asks for it only
   // as the pointer enters from rest, and the entering one may be the blocked.
   let engaged = false
+  const release = (): void => {
+    if (!engaged) return
+    engaged = false
+    arrival.reset()
+    store.resume()
+  }
   const gated: typeof store = {
     ...store,
     pause: (id) => {
       if (id !== undefined) return store.pause(id)
       if (!engaged) {
-        if (!arrival.arrived()) return
+        if (overPill || !arrival.arrived()) return
         engaged = true
         store.expand()
       }
@@ -103,8 +138,7 @@ export const createToasts = <T,>({ duration = 8000 }: { duration?: number } = {}
     },
     resume: (id) => {
       if (id !== undefined) return store.resume(id)
-      engaged = false
-      arrival.reset()
+      release()
       store.resume()
     },
   }
@@ -112,26 +146,67 @@ export const createToasts = <T,>({ duration = 8000 }: { duration?: number } = {}
   let serial = 0
   let order: readonly string[] = []
   let entries: ReadonlyMap<string, Entry<T>> = new Map()
+  let left: ReadonlyMap<string, number> = new Map()
   const current = new Map<string, string>()
   const listeners = new Set<() => void>()
-  let snapshot: Snapshot<T> = { order, entries }
+  let moved: ReadonlyMap<string, number> = new Map()
+  let snapshot: Snapshot<T> = { order, entries, left, moved }
   const emit = (): void => {
-    snapshot = { order, entries }
+    const places = new Map(moved)
+    for (const [rank, id] of order.entries())
+      if (snapshot.order.indexOf(id) !== rank) places.set(id, performance.now())
+    moved = places
+    snapshot = { order, entries, left, moved }
+    // A toast closed or clicked away from under the pointer sends no leave, and the stack
+    // that empties is no longer held.
+    if (order.length === 0) release()
     listeners.forEach((listener) => listener())
   }
   const standing = (id: string): void => {
+    const rank = order.indexOf(id)
+    if (rank >= 0) left = new Map(left).set(id, rank)
     order = order.filter((each) => each !== id)
-    for (const [key, held] of current) if (held === id) current.delete(key)
+    for (const [key, standingId] of current) if (standingId === id) current.delete(key)
   }
   const forget = (id: string): void => {
     standing(id)
     const next = new Map(entries)
     next.delete(id)
     entries = next
+    const gone = new Map(left)
+    gone.delete(id)
+    left = gone
+  }
+
+  // Focus, kept where it was: a toast is no place to leave it.
+  let returnTo: HTMLElement | null = null
+  let inside = false
+  const focus: Toasts<T>["view"]["focus"] = {
+    enter: (from) => {
+      if (inside) return
+      inside = true
+      returnTo =
+        from instanceof HTMLElement && !region.current?.contains(from) && from !== document.body
+          ? from
+          : null
+    },
+    leave: (to) => {
+      if (to instanceof Element && !region.current?.contains(to)) inside = false
+    },
+    restore: () => {
+      inside = false
+      if (returnTo?.isConnected) returnTo.focus({ preventScroll: true })
+      returnTo = null
+    },
+    recover: () => {
+      if (inside && document.activeElement === document.body) focus.restore()
+    },
   }
 
   const toasts: Toasts<T> = {
     show: (key, data) => {
+      // One that lands as the pointer is no longer on the stack doesn't join its pause.
+      if (engaged && !onStack()) release()
       const previous = current.get(key)
       if (previous !== undefined) {
         // It leaves as the new one lands. (`remove` would skip Ark's cleanup of its height.)
@@ -158,8 +233,11 @@ export const createToasts = <T,>({ duration = 8000 }: { duration?: number } = {}
           emit()
         },
       })
-      // One that lands while the pointer holds the stack joins the pause.
-      if (engaged) requestAnimationFrame(() => engaged && store.pause(id))
+      // One that lands while the pointer holds the stack joins the spread list and the pause.
+      if (engaged) {
+        store.expand()
+        requestAnimationFrame(() => engaged && store.pause(id))
+      }
     },
     close: (key) => {
       const id = current.get(key)
@@ -175,10 +253,22 @@ export const createToasts = <T,>({ duration = 8000 }: { duration?: number } = {}
       },
       snapshot: () => snapshot,
       arrival,
-      hold: (held) => {
-        if (held) store.pause()
+      attach: (element) => {
+        region.current = element
+      },
+      pill: {
+        enter: () => {
+          overPill = true
+        },
+        leave: () => {
+          overPill = false
+        },
+      },
+      hold: (hold) => {
+        if (hold) store.pause()
         else if (!engaged) store.resume()
       },
+      focus,
     },
   }
   return toasts
@@ -186,6 +276,116 @@ export const createToasts = <T,>({ duration = 8000 }: { duration?: number } = {}
 
 const defaultMore = (count: number): string => `+${count} more`
 const defaultFanned = (count: number): string => `${count} more`
+
+type ItemProps<T> = {
+  readonly entry: Entry<T>
+  readonly rank: number
+  // When it last took another place in the stack.
+  readonly movedAt: number
+  readonly more: number
+  readonly toasts: Toasts<T>
+  readonly children: (data: T) => ReactNode
+  readonly onSelect: (data: T) => void
+  readonly onMore: () => void
+  readonly moreLabel: (count: number) => string
+  readonly fannedLabel: (count: number) => string
+}
+
+// One toast: Ark's root with the caller's content, its close button, countdown and pills.
+const ToastItem = <T,>({
+  entry,
+  rank,
+  movedAt,
+  more,
+  toasts,
+  children,
+  onSelect,
+  onMore,
+  moreLabel,
+  fannedLabel,
+}: ItemProps<T>): React.JSX.Element => {
+  // When it landed or last moved to another place in the stack, which may put it under the
+  // pointer: a click is not meant for what has just come there.
+  const { duration, focus, pill } = toasts.view
+  const select = (): void => {
+    onSelect(entry.data)
+    toasts.close(entry.key)
+    focus.restore()
+  }
+  const pressed = (event: React.MouseEvent): void => {
+    onMore()
+    toasts.clear()
+    if (event.detail === 0) focus.restore()
+  }
+  return (
+    <Toast.Root
+      className="toast floating"
+      role="group"
+      aria-atomic="false"
+      data-rank={rank}
+      data-beyond={rank >= shownToasts ? "" : undefined}
+      data-replaced={entry.replaced ? "" : undefined}
+      style={{ "--toast-life": `${duration}ms`, "--toast-rank": rank } as React.CSSProperties}
+      // A pointer press takes no focus from where the person is typing.
+      onMouseDown={(event) => event.preventDefault()}
+      onClickCapture={(event) => {
+        const target = event.target as Element
+        // One that is leaving, its ghost layer, or one a moment old at its place does nothing,
+        // whatever it was aimed at.
+        if (
+          event.currentTarget.getAttribute("data-state") !== "open" ||
+          target.closest("[data-ghost]") ||
+          ignoresClick(Math.max(entry.landedAt, movedAt), performance.now())
+        ) {
+          event.stopPropagation()
+          event.preventDefault()
+        }
+      }}
+      onClick={(event) => {
+        // Its close button and pills act for themselves.
+        if ((event.target as Element).closest("button")) return
+        select()
+      }}
+      onKeyDown={(event) => {
+        if (event.key === "Escape") queueMicrotask(focus.restore)
+        if (event.target !== event.currentTarget) return
+        if (event.key === "Enter" || event.key === " ") {
+          event.preventDefault()
+          select()
+        }
+      }}
+    >
+      {children(entry.data)}
+      <Toast.CloseTrigger
+        className="toast-close"
+        onClick={(event) => {
+          if (event.detail === 0) focus.restore()
+        }}
+      >
+        <X size={13} strokeWidth={2} />
+      </Toast.CloseTrigger>
+      <span className="toast-countdown" aria-hidden="true" />
+      {more > 0 && rank === 0 ? (
+        <button
+          type="button"
+          className="toast-more"
+          data-fan="rest"
+          onPointerEnter={pill.enter}
+          onPointerLeave={pill.leave}
+          onClick={pressed}
+        >
+          {moreLabel(more)}
+        </button>
+      ) : null}
+      {more > 0 && rank === shownToasts - 1 ? (
+        <button type="button" className="toast-more" data-fan="fanned" onClick={pressed}>
+          {fannedLabel(more)}
+          <ChevronRight size={11} strokeWidth={2} />
+        </button>
+      ) : null}
+    </Toast.Root>
+  )
+}
 
 // The stack's place and look are the toast recipe's (toast.css). `children` draws one
 // toast's content; a click on a toast (after the guard) or Enter on it calls `onSelect` and
@@ -208,94 +408,61 @@ export const ToastRegion = <T,>({
   readonly moreLabel?: (count: number) => string
   readonly fannedLabel?: (count: number) => string
 }): React.JSX.Element => {
-  const { toaster, subscribe, snapshot, arrival, duration, hold } = toasts.view
-  const { order, entries } = useSyncExternalStore(subscribe, snapshot)
+  const { toaster, subscribe, snapshot, arrival, hold, attach, focus } = toasts.view
+  const { order, entries, left, moved } = useSyncExternalStore(subscribe, snapshot)
   const more = moreOf(order.length, shownToasts)
   useEffect(() => {
-    const moved = (event: MouseEvent): void =>
+    const travel = (event: MouseEvent): void =>
       arrival.moved({ x: event.movementX, y: event.movementY })
     // Before Zag's own handlers, which are React's, at the root.
-    document.addEventListener("mousemove", moved, { capture: true })
+    document.addEventListener("mousemove", travel, { capture: true })
     // A hidden page holds the timers (Ark means to, but has no handler for it).
     const visibility = (): void => hold(document.hidden)
     document.addEventListener("visibilitychange", visibility)
     return () => {
-      document.removeEventListener("mousemove", moved, { capture: true })
+      document.removeEventListener("mousemove", travel, { capture: true })
       document.removeEventListener("visibilitychange", visibility)
     }
   }, [arrival, hold])
+  // A toast that had focus and is gone gives it back.
+  useLayoutEffect(() => focus.recover())
   return (
-    <Toaster
-      toaster={toaster}
-      label={label}
-      aria-label={label}
-      className="toasts"
-      onFocusCapture={() => arrival.moved(true)}
-    >
-      {(toast: ToastOptions) => {
-        const id = toast.id
-        const entry = id === undefined ? undefined : entries.get(id)
-        if (id === undefined || !entry) return null
-        const rank = Math.max(0, order.indexOf(id))
-        const select = (): void => {
-          onSelect(entry.data)
-          toasts.close(entry.key)
-        }
-        return (
-          <Toast.Root
-            className="toast floating"
-            data-rank={rank}
-            data-beyond={rank >= shownToasts ? "" : undefined}
-            data-replaced={entry.replaced ? "" : undefined}
-            style={{ "--toast-life": `${duration}ms`, "--toast-rank": rank } as React.CSSProperties}
-            onClick={(event) => {
-              // Its close button and pill act for themselves.
-              if ((event.target as Element).closest("button")) return
-              if (!ignoresClick(entry.landedAt, performance.now())) select()
-            }}
-            onKeyDown={(event) => {
-              if (event.target !== event.currentTarget) return
-              if (event.key === "Enter" || event.key === " ") {
-                event.preventDefault()
-                select()
-              }
-            }}
-          >
-            {children(entry.data)}
-            <Toast.CloseTrigger className="toast-close">
-              <X size={13} strokeWidth={2} />
-            </Toast.CloseTrigger>
-            <span className="toast-countdown" aria-hidden="true" />
-            {more > 0 && rank === 0 ? (
-              <button
-                type="button"
-                className="toast-more"
-                data-fan="rest"
-                onClick={() => {
-                  onMore()
-                  toasts.clear()
-                }}
-              >
-                {moreLabel(more)}
-              </button>
-            ) : null}
-            {more > 0 && rank === shownToasts - 1 ? (
-              <button
-                type="button"
-                className="toast-more"
-                data-fan="fanned"
-                onClick={() => {
-                  onMore()
-                  toasts.clear()
-                }}
-              >
-                {fannedLabel(more)}
-                <ChevronRight size={11} strokeWidth={2} />
-              </button>
-            ) : null}
-          </Toast.Root>
-        )
-      }}
-    </Toaster>
+    <div className="toast-layer" ref={(element) => attach(element)}>
+      <Toaster
+        toaster={toaster}
+        label={label}
+        aria-label={label}
+        // Each toast is announced once as it arrives, not again as its text changes.
+        aria-relevant="additions"
+        className="toasts"
+        onFocusCapture={(event) => {
+          arrival.moved(true)
+          focus.enter(event.relatedTarget)
+        }}
+        onBlurCapture={(event) => focus.leave(event.relatedTarget)}
+      >
+        {(toast: ToastOptions) => {
+          const id = toast.id
+          const entry = id === undefined ? undefined : entries.get(id)
+          if (id === undefined || !entry) return null
+          const at = order.indexOf(id)
+          return (
+            <ToastItem
+              entry={entry}
+              rank={at >= 0 ? at : (left.get(id) ?? 0)}
+              movedAt={moved.get(id) ?? entry.landedAt}
+              more={more}
+              toasts={toasts}
+              onSelect={onSelect}
+              onMore={onMore}
+              moreLabel={moreLabel}
+              fannedLabel={fannedLabel}
+            >
+              {children}
+            </ToastItem>
+          )
+        }}
+      </Toaster>
+    </div>
   )
 }

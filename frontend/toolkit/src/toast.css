@@ -15,6 +15,8 @@
    button does.
 
    Tokens, each optional (its fallback in brackets):
+   --toast-layer (35): the region's z-index, above the app's chrome (the rail's 30) and
+   under the popovers, sheets (40) and dialogs and menus (50).
    --toast-top (7px), --toast-right (12px): where the region sits from the window's top and
    right edge. --toast-width (360px), --toast-gutter (12px): its width, which never leaves
    the gutters on a narrow screen.
@@ -26,6 +28,12 @@
    --toast-close-fg (muted), --toast-close-hover-fg (ink), --toast-close-hover-bg (soft).
    --toast-countdown-bg (line-strong): the line that runs out as the toast's time does.
    --toast-more-fg (muted), --toast-more-hover-fg (ink): the pill. */
+/* Ark puts the region at the highest z-index there is; inside this layer, which makes a
+   stacking context of its own, that is only the top of the layer. */
+.toast-layer {
+  position: relative;
+  z-index: var(--toast-layer, 35);
+}
 .toasts {
   width: var(--toast-width, 360px);
   max-width: calc(100vw - 2 * var(--toast-gutter, 12px));
@@ -107,6 +115,13 @@
   translate: 0 -10px;
   visibility: hidden;
 }
+/* The surface recipe takes the outline off floating content; a toast is focused to be read. */
+.toast.floating:focus-visible,
+.toast-close:focus-visible,
+.toast-more:focus-visible {
+  outline: var(--focus-ring-width) solid var(--focus-ring-color, var(--color-strong));
+  outline-offset: var(--focus-ring-offset);
+}
 .toast:hover {
   --_border-color: var(--toast-hover-border-color, var(--color-line-strong));
 }
@@ -124,9 +139,12 @@
   background-color: var(--floating-bg, var(--color-paper));
   color: var(--toast-close-fg, var(--color-muted));
   opacity: 0;
+  /* Nothing to press until the toast is under the pointer or holds focus. */
+  pointer-events: none;
 }
 .toast:is(:hover, :focus-within) .toast-close {
   opacity: 1;
+  pointer-events: auto;
 }
 .toast-close:hover {
   background-color: var(--toast-close-hover-bg, var(--color-soft));
