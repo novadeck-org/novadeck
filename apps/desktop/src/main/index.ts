@@ -143,6 +143,7 @@ import {
 import { quitOnShutdown, saveBeforeClose, saveOnSessionEnd, savePages } from "./quit.js"
 import { startRunner, type RunnerEvents, type RunnerHost } from "./runner.js"
 import { registerSandboxIpc, sandboxState } from "./sandbox.js"
+import { keepSpellcheckOffline } from "./spellcheck.js"
 import { loadTranscriptKey } from "./transcript-key.js"
 import { registerUninstallIpc, startRemovalAfterExit, uninstaller } from "./uninstall.js"
 import {
@@ -1661,6 +1662,7 @@ const launch = async (): Promise<void> => {
 }
 
 app.setAppUserModelId(appId)
+keepSpellcheckOffline(app)
 
 // Any of the app's processes ending, the runner's utility process included: why, and its
 // exit code, as a crash or the system's OOM killer leaves them.
