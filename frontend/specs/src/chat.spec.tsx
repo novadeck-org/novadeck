@@ -2,7 +2,14 @@ import { describe as context, describe, expect, it, vi } from "vitest"
 import { page, userEvent } from "vitest/browser"
 
 import { chatOf, composer, conversation, openChat, openChatDemo, requestCard } from "./support/chat"
-import { chooseView, commandInput, terminal, terminalTab, terminalText } from "./support/workspace"
+import {
+  chooseView,
+  commandInput,
+  expectStaysAbsent,
+  terminal,
+  terminalTab,
+  terminalText,
+} from "./support/workspace"
 
 // The scenario's answer and settlement delays. Specs use the selected backend through
 // the app, so they keep their timing expectations here rather than importing its adapter.
@@ -35,6 +42,27 @@ describe("The chat view", () => {
     await terminalTab("Build").click()
     await expect.element(commandInput("Build")).toBeVisible()
     await expect.element(chatOf("Build")).not.toBeInTheDocument()
+  })
+
+  it("shows no chat without Experimental, though it was turned on", async () => {
+    await openChatDemo("/", { experimental: false })
+    await terminalTab("Build").click()
+    await expect.element(commandInput("Build")).toBeVisible()
+    await expectStaysAbsent(chatOf("Build"))
+  })
+
+  it("goes back to the terminal's output once Experimental is turned off", async () => {
+    await openChatDemo()
+    await openChat("Build")
+    await page.getByRole("button", { name: "Workspace preferences" }).click()
+    const dialog = page.getByRole("dialog", { name: "Preferences" })
+    const experimental = dialog.getByRole("switch", { name: "Experimental" })
+    await expect.element(experimental).toHaveAttribute("aria-checked", "true")
+    await experimental.click()
+    await expect.element(dialog.getByRole("tab", { name: "Experimental" })).not.toBeInTheDocument()
+    await userEvent.keyboard("{Escape}")
+    await expect.element(chatOf("Build")).not.toBeInTheDocument()
+    await expect.poll(() => terminalText("Build")).toContain("Added the order summary")
   })
 
   it("turns on from Preferences → Experimental, and off again back to the terminal's output", async () => {

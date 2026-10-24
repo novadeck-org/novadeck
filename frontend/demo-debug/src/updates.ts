@@ -180,12 +180,12 @@ export const updatesGroup = (launch: DemoLaunch, controls: DemoUpdates): DemoAct
       ...scenarios,
       {
         label: "Experimental on",
-        hint: "Shows in Preferences once reopened",
+        hint: "Takes effect once Preferences is reopened",
         run: () => controls.updates.channel?.set("early"),
       },
       {
         label: "Experimental off",
-        hint: "Shows in Preferences once reopened",
+        hint: "Takes effect once Preferences is reopened",
         run: () => controls.updates.channel?.set("stable"),
       },
       {

@@ -9,6 +9,7 @@ import {
   useEffect,
   useLayoutEffect,
   useMemo,
+  useRef,
   useState,
   useSyncExternalStore,
 } from "react"
@@ -116,12 +117,16 @@ const useExperimental = (
   const { setFeatureFlag } = useWorkspaceServices().commands
   const flag = useFeatureFlag("IS_EXPERIMENTAL")
   const [known, setKnown] = useState(false)
+  // How many times the person flipped the switch: a read asked before the latest flip may
+  // answer with the channel from before it, so it is not taken.
+  const flips = useRef(0)
   useEffect(() => {
     if (!open || !channel) return undefined
     let current = true
+    const asked = flips.current
     channel.get().then(
       (value) => {
-        if (!current) return
+        if (!current || flips.current !== asked) return
         setFeatureFlag("IS_EXPERIMENTAL", value === "early")
         setKnown(true)
       },
@@ -135,6 +140,7 @@ const useExperimental = (
     channel && {
       on: known ? flag : undefined,
       onChange: (next) => {
+        flips.current += 1
         setFeatureFlag("IS_EXPERIMENTAL", next)
         setKnown(true)
         channel.set(next ? "early" : "stable")
