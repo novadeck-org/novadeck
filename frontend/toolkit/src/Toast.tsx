@@ -485,8 +485,8 @@ export const ToastRegion = <T,>({
         className="toasts"
         // Focus is the stack's own to follow: Zag takes it back to where it came from when
         // it leaves, even for another field the person chose. Its handlers, which React builds
-        // from the native event once these have run, are told nothing came from anywhere;
-        // the page's own listeners still hear the event.
+        // from the native event once these have run, are told nothing came from anywhere.
+        // The page's own listeners still hear the event, with no relatedTarget either.
         onFocusCapture={(event) => {
           focus.enter(event.relatedTarget)
           focus.into()
