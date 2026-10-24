@@ -216,6 +216,52 @@ describe("what a Claude Code agent does not wait on", () => {
     expect(after.waiting).toBeNull()
   })
 
+  it("waits after a failed turn that lists running jobs", () => {
+    const after = hooks([
+      ["UserPromptSubmit", { prompt: "go" }],
+      ["StopFailure", { error: "unknown", background_tasks: [job("b1", "sleep 5")] }],
+    ])
+    expect(after.waiting?.jobs.map(({ id }) => id)).toEqual(["b1"])
+  })
+
+  it("starts a task from a command the harness backgrounded itself", () => {
+    const after = hooks([
+      ["UserPromptSubmit", { prompt: "go" }],
+      [
+        "PostToolUse",
+        {
+          tool_name: "Bash",
+          tool_input: { command: "sleep 5" },
+          tool_response: { backgroundTaskId: "b1" },
+        },
+      ],
+      ["Stop", { background_tasks: [job("b1", "sleep 5")] }],
+    ])
+    expect(after.waiting?.jobs[0]!.since).toBe(at(1))
+  })
+
+  it("keeps control characters and escapes out of what the agent wrote", () => {
+    const after = hooks([
+      ["UserPromptSubmit", { prompt: "go" }],
+      [
+        "PostToolUse",
+        {
+          tool_name: "ScheduleWakeup",
+          tool_input: { delaySeconds: 60, reason: "\u001b[31mred\u202e\nsecond" },
+          tool_response: { scheduledFor: 5_000_000 },
+        },
+      ],
+      [
+        "Stop",
+        {
+          background_tasks: [{ ...job("b1", "sleep 5"), description: "a\u001b]0;x\u0007b\u202ec" }],
+        },
+      ],
+    ])
+    expect(after.waiting?.wake?.reason).toBe("red")
+    expect(after.waiting?.jobs[0]!.description).toBe("ab c")
+  })
+
   it("takes a wake-up's time from its delay where the result gives none", () => {
     const after = hooks([
       ["UserPromptSubmit", { prompt: "go" }],

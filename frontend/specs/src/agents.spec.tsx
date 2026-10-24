@@ -164,6 +164,8 @@ describe("An agent whose turn left work running", () => {
     await expect.element(window).toHaveAttribute("data-terminal-phase", "waiting")
     await expect.element(window.getByText("Build the docs site")).toBeVisible()
     await expect.element(page.getByText("1 waiting")).toBeVisible()
+    // Not counted as running too.
+    await expect.element(page.getByText("5 running")).toBeVisible()
   })
 })
 

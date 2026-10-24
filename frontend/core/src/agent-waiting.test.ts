@@ -1,11 +1,11 @@
 import { sightTurnEnd } from "./agent-finish"
 import {
   clockTime,
-  countdown,
   minutesWaited,
   nextWaitingChange,
   wakeFill,
   wakeGraceMs,
+  wakeIn,
   wakePassed,
   waitingLine,
   waitingOf,
@@ -44,13 +44,17 @@ const onWake = (at: number, extra: Partial<AgentStatus> = {}) =>
   agent({ jobs: [], wake: { at, reason: "Check the deploy" } }, extra)
 
 describe("an agent that waits", () => {
-  it("reads as waiting, not idle or done, once its turn ended on a job", () => {
+  it("reads as waiting, not idle, once its turn ended on a job and the finish is seen", () => {
     expect(terminalPhase(onJob, false, now)).toBe("waiting")
-    expect(terminalPhase(onJob, true, now)).toBe("waiting")
     expect(terminalPhase(agent(undefined), false, now)).toBe("idle")
   })
 
   context("against what else the tab shows", () => {
+    it("yields to a finish not yet seen, then shows as waiting", () => {
+      expect(terminalPhase(onJob, true, now)).toBe("done")
+      expect(terminalPhase(onJob, false, now)).toBe("waiting")
+    })
+
     it("yields to a request of the person and to work", () => {
       const attention = { kind: "question" as const, count: 1 }
       expect(
@@ -61,11 +65,14 @@ describe("an agent that waits", () => {
       ).toBe("running")
     })
 
-    it("is no finish, so its turn's end raises no check", () => {
-      const lastTurn = { outcome: "completed" as const, at: now - minute }
-      expect(sightTurnEnd(null, agent({ jobs: [job(now)], wake: null }, { lastTurn }))).toEqual({
-        seen: now - minute,
-      })
+    it("still finishes a turn that ended waiting, whatever its outcome", () => {
+      for (const outcome of ["completed", "failed"] as const) {
+        const lastTurn = { outcome, at: now - minute }
+        expect(sightTurnEnd(null, agent({ jobs: [job(now)], wake: null }, { lastTurn }))).toEqual({
+          seen: now - minute,
+          finish: { failed: outcome === "failed" },
+        })
+      }
     })
   })
 
@@ -140,6 +147,43 @@ describe("an agent that waits", () => {
   })
 })
 
+describe("a job its harness gives up on", () => {
+  const until = now + minute
+  const limited = agent({ jobs: [{ ...job(now - 4 * minute), until }], wake: null })
+
+  it("is waited on until then and the grace after, like a wake-up", () => {
+    expect(terminalPhase(limited, false, until + wakeGraceMs - 1)).toBe("waiting")
+    expect(terminalPhase(limited, false, until + wakeGraceMs)).toBe("idle")
+    expect(nextWaitingChange(limited, now)).toBe(now + minute)
+    expect(nextWaitingChange(limited, until)).toBe(until + minute)
+    expect(nextWaitingChange(limited, until + 59_000)).toBe(until + minute)
+  })
+})
+
+describe("what shows between jobs and clocks", () => {
+  it("renders again at the soonest minute among all the jobs", () => {
+    const two = agent({
+      jobs: [job(now - 4 * minute), job(now - 90_000, "Other")],
+      wake: null,
+    })
+    expect(nextWaitingChange(two, now)).toBe(now - 90_000 + 2 * minute)
+  })
+
+  it("counts hours in words once past the first, as the tab shows them", () => {
+    const long = agent({ jobs: [job(now - 130 * minute)], wake: null })
+    expect(waitingText(long, now)).toBe("Waiting on Watch CI checks for PR #436, 2 hours")
+    expect(waitingText(agent({ jobs: [job(now - 20_000)], wake: null }), now)).toBe(
+      "Waiting on Watch CI checks for PR #436, less than a minute",
+    )
+  })
+
+  it("says due, not a zero countdown, once a wake-up's time has come", () => {
+    expect(wakeIn(now + 8 * minute, now)).toBe("in 8:00")
+    expect(wakeIn(now, now)).toBe("due")
+    expect(wakeIn(now - minute, now)).toBe("due")
+  })
+})
+
 describe("time waited", () => {
   it("counts minutes, then hours", () => {
     expect(minutesWaited(now - 20_000, now)).toBe("<1m")
@@ -148,7 +192,6 @@ describe("time waited", () => {
   })
 
   it("counts down to a wake-up", () => {
-    expect(countdown(now + 8 * minute + 14_000, now)).toBe("8:14")
-    expect(countdown(now - 1000, now)).toBe("0:00")
+    expect(wakeIn(now + 8 * minute + 14_000, now)).toBe("in 8:14")
   })
 })

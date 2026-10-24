@@ -216,7 +216,7 @@ export class TerminalPeers {
             working: terminal.summary.activity?.state === "working",
             waiting: waitingOf(terminal.activity),
             waitsOn: terminal.summary.activity?.waiting
-              ? waitsOnNote(terminal.summary.activity.waiting)
+              ? waitsOnNote(terminal.summary.activity.waiting, Date.now())
               : null,
             place: (path) => {
               const shown = place(path)

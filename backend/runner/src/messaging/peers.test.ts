@@ -438,7 +438,7 @@ describe("a peer whose agent waits to be woken", () => {
   ): string =>
     read(
       listing({
-        where: whereabouts({ waitsOn: waitsOnNote(waiting) }),
+        where: whereabouts({ waitsOn: waitsOnNote(waiting, now) }),
         ...fields,
       }),
     )[0]!
@@ -471,11 +471,20 @@ describe("a peer whose agent waits to be woken", () => {
     )
   })
 
+  it("leaves out a wait whose time has passed", () => {
+    const dead = { ...job("x", "y"), until: now - 1 }
+    expect(waitsOnNote({ jobs: [dead], wake: null }, now)).toBeNull()
+    expect(waitsOnNote({ jobs: [dead, job("live", "z")], wake: null }, now)).toBe("live")
+    const wake = (at: number) => ({ jobs: [], wake: { at, reason: null } })
+    expect(waitsOnNote(wake(now - 119_000), now)).toBe("a wake-up it set")
+    expect(waitsOnNote(wake(now - 121_000), now)).toBeNull()
+  })
+
   it("says nothing of a busy agent, and the person's request comes first", () => {
     const waiting = { jobs: [job("x", "y")], wake: null }
     expect(waits(waiting, { busy: true })).toBe("- @fox: Claude Code, busy")
     const asking = whereabouts({
-      waitsOn: waitsOnNote(waiting),
+      waitsOn: waitsOnNote(waiting, now),
       waiting: { kind: "question", tool: "AskUserQuestion", subject: null, more: 0 },
     })
     expect(read(listing({ where: asking }))[0]).toContain("waiting on the user: a question")

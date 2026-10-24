@@ -58,7 +58,7 @@ export const WorkspaceFooter = memo((): React.JSX.Element => {
   const { count, running, waiting, waitingChange } = useWorkspaceState((workspace) => {
     const { terminals } = currentState(workspace).roster
     const now = Date.now()
-    // Agents that ended their turn to wait on something count apart, never as working; a
+    // Agents that ended their turn to wait on something count apart, never as running; a
     // wake-up passing makes one idle again, so the count is read again then.
     const waits = terminals.filter((terminal) => terminalPhase(terminal, false, now) === "waiting")
     return {
@@ -69,7 +69,8 @@ export const WorkspaceFooter = memo((): React.JSX.Element => {
       }, undefined),
       // Windows undocked from a terminal's companion aren't terminals.
       count: terminals.length,
-      running: terminals.filter((terminal) => terminal.state === "running").length,
+      // Not those that wait, which are counted apart.
+      running: terminals.filter((terminal) => terminal.state === "running").length - waits.length,
     }
   }, shallowEqual)
   useRenderAt(waitingChange)

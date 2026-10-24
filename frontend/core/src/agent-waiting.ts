@@ -35,7 +35,9 @@ export type Waiting = {
 export const waitingOf = (terminal: TerminalMetadata, now = Date.now()): Waiting | undefined => {
   const waiting = waitingIn(terminal)
   if (!waiting) return undefined
+  // A job its harness gives up on is waited on until then and the grace after, as a wake-up is.
   const jobs = waiting.jobs
+    .filter((job) => job.until === null || job.until + wakeGraceMs > now)
     .map(({ description, ...job }) => ({
       ...job,
       label: description ?? job.command,
@@ -79,13 +81,18 @@ export const minutesWaited = (since: number, now = Date.now()): string => {
 }
 
 // "8:14", the time left to `at`, for a window's countdown.
-export const countdown = (at: number, now = Date.now()): string => {
+const countdown = (at: number, now: number): string => {
   const left = Math.max(0, Math.ceil((at - now) / second))
   const seconds = String(left % 60).padStart(2, "0")
   return left >= 3600
     ? `${Math.floor(left / 3600)}:${String(Math.floor((left % 3600) / 60)).padStart(2, "0")}:${seconds}`
     : `${Math.floor(left / 60)}:${seconds}`
 }
+
+// How a wake-up's time left reads, for a window and its card: "in 8:14", or "due" once its
+// time has come and the agent hasn't yet taken its turn.
+export const wakeIn = (at: number, now = Date.now()): string =>
+  at <= now ? "due" : `in ${countdown(at, now)}`
 
 // What a waiting agent's tab and window say in a line each: the job waited on longest, in
 // the agent's words, with how many more there are and how long it has run; or, with no
@@ -124,6 +131,16 @@ export const waitingLine = (
 
 const counted = (count: number, one: string): string => `${count} ${one}${count === 1 ? "" : "s"}`
 
+// How long a job has run in words, as `minutesWaited` counts it: "less than a minute",
+// "4 minutes", then "2 hours".
+const waitedWords = (since: number, now: number): string => {
+  const elapsed = Math.max(0, now - since)
+  if (elapsed < minute) return "less than a minute"
+  return elapsed < hour
+    ? counted(Math.floor(elapsed / minute), "minute")
+    : counted(Math.floor(elapsed / hour), "hour")
+}
+
 // What a waiting agent waits on, in words for its tab's description and assistive
 // technology: "Waiting on Watch CI checks, 4 minutes", or "Waits to wake at 14:32".
 // Undefined when it waits on nothing.
@@ -131,9 +148,8 @@ export const waitingText = (terminal: TerminalMetadata, now = Date.now()): strin
   const line = waitingLine(terminal, now)
   if (!line) return undefined
   if (line.kind === "wake") return `Waits to wake at ${clockTime(line.at)}`
-  const minutes = Math.floor(Math.max(0, now - line.since) / minute)
   const what = line.more > 0 ? `${line.label} and ${counted(line.more, "other job")}` : line.label
-  return `Waiting on ${what}, ${counted(minutes, "minute")}`
+  return `Waiting on ${what}, ${waitedWords(line.since, now)}`
 }
 
 // When what a waiting tab shows next changes, so a view can render it again: the minutes
@@ -145,12 +161,14 @@ export const nextWaitingChange = (
 ): number | undefined => {
   const waiting = waitingOf(terminal, now)
   if (!waiting) return undefined
+  // Each job's minutes (hours past the first) change on their own, and a job its harness
+  // gives up on stops counting after the grace.
   const times: number[] = []
-  const oldest = waiting.jobs[0]
-  if (oldest) {
-    const elapsed = Math.max(0, now - oldest.since)
+  for (const job of waiting.jobs) {
+    const elapsed = Math.max(0, now - job.since)
     const unit = elapsed < hour ? minute : hour
-    times.push(oldest.since + (Math.floor(elapsed / unit) + 1) * unit)
+    times.push(job.since + (Math.floor(elapsed / unit) + 1) * unit)
+    if (job.until !== null) times.push(job.until + wakeGraceMs)
   }
   const wake = waitingIn(terminal)?.wake
   if (wake && waiting.wake) {

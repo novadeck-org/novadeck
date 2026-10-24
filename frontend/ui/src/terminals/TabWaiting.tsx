@@ -1,4 +1,10 @@
-import { clockTime, minutesWaited, wakeFill, type Waiting } from "@novadeck/core/agent-waiting"
+import {
+  clockTime,
+  minutesWaited,
+  wakeFill,
+  wakeIn,
+  type Waiting,
+} from "@novadeck/core/agent-waiting"
 import type { TerminalMetadata } from "@novadeck/core/types"
 
 // How many rows a tab's waiting lists before it counts the rest on the last.
@@ -117,7 +123,9 @@ export const WaitingPeek = ({ waiting }: { waiting: Waiting }): React.JSX.Elemen
     ))}
     {waiting.wake && (
       <div className="flex flex-col gap-0.5">
-        <strong>Waiting · wakes at {clockTime(waiting.wake.at)}</strong>
+        <strong>
+          Wakes at {clockTime(waiting.wake.at)} · {wakeIn(waiting.wake.at)}
+        </strong>
         {waiting.wake.reason && <span>{waiting.wake.reason}</span>}
         <span className="terminal-tab-peek-note">A wake-up it set.</span>
       </div>

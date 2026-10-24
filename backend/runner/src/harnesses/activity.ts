@@ -288,7 +288,7 @@ const counted = (background: Background): Background | null =>
   background.agents + background.tasks > 0 || background.more ? background : null
 
 /**
- * What a completed turn's end waits on: the jobs it left running that end by themselves,
+ * What a turn's end waits on, however it ended, as Claude Code wakes the agent all the same: the jobs it left running that end by themselves,
  * and the wake-up it set. A job runs for ever when it is no Monitor on a timeout and its
  * command is a server or a watch mode (see `endless`), or a Monitor told to persist.
  */
@@ -421,10 +421,7 @@ const turnEnded = (activity: Activity, event: TurnEnded): Activity | undefined =
     continued: false,
     listed: false,
     running: 0,
-    waits:
-      event.outcome === "completed"
-        ? waitsOn(activity, event.background?.jobs, event.startedAt)
-        : null,
+    waits: waitsOn(activity, event.background?.jobs, event.startedAt),
     lastTurn: {
       outcome: event.outcome,
       reply: event.reply ?? null,

@@ -1,8 +1,8 @@
 import {
   clockTime,
-  countdown,
   minutesWaited,
   waitingLine,
+  wakeIn,
   wakeFill,
 } from "@novadeck/core/agent-waiting"
 import type { TerminalMetadata } from "@novadeck/core/types"
@@ -34,7 +34,7 @@ export const WindowWait = ({
   return (
     <span
       aria-hidden
-      className="window-wait nodrag nopan flex min-w-0 items-center gap-1.5"
+      className="window-wait nodrag nopan flex items-center gap-1.5"
       data-wait={line.kind}
     >
       <span
@@ -50,9 +50,9 @@ export const WindowWait = ({
         </>
       ) : (
         <>
-          <span className="shrink-0">wakes at {clockTime(line.at)}</span>
-          <span className="shrink-0">·</span>
-          <span className="shrink-0 tabular-nums">in {countdown(line.at)}</span>
+          <span className="truncate tabular-nums">
+            wakes at {clockTime(line.at)} · {wakeIn(line.at)}
+          </span>
         </>
       )}
     </span>

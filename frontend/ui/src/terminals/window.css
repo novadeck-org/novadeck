@@ -189,11 +189,15 @@
   line-height: 1rem;
 }
 /* What a waiting agent waits on, after its name (WindowWait.tsx): the glyph the tab has,
-   how long, and the agent's description, which is cut to fit before the name is, or the
-   wake-up's time and the time left. Not in Grid and Canvas, whose headers show no phase
+   how long, and the agent's description, or the wake-up's time and the time left. It
+   gives way first, to nothing, so the name is cut last. Not in Grid and Canvas, whose headers show no phase
    but the line. */
 .window-wait {
-  flex: 0 1 auto;
+  /* It takes only the room the name leaves, as much as it needs, so the name is cut last. */
+  flex: 1 1 0;
+  max-width: max-content;
+  min-width: 0;
+  overflow: hidden;
   margin-left: 0.75rem;
   color: var(--window-metadata-fg, var(--color-muted));
   font-family: var(--window-metadata-font, var(--font-mono));

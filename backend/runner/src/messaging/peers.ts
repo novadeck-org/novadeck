@@ -209,20 +209,25 @@ const waitingNote = ({ kind, tool, subject, more }: Waiting): string => {
   return `waiting on the user: ${what}${more > 0 ? ` (and ${more} more)` : ""}`
 }
 
+// How long past its time a wake-up still counts as coming, as the app allows it.
+const wakeGraceMs = 120_000
+
 /**
- * What an idle agent waits on, shortly. A command is shown cut short, as the agent's own
- * description is preferred to it.
+ * What an idle agent waits on, shortly, at `now`: a job still within its timeout, or a
+ * wake-up not long past; null when nothing is left to wake it. Its own words only: a
+ * command may carry a secret (`KEY=… cmd`), as a permission's subject may, so peers never
+ * read one.
  */
-export const waitsOnNote = (waiting: NonNullable<AgentActivity["waiting"]>): string | null => {
-  const [first, ...rest] = waiting.jobs
+export const waitsOnNote = (
+  waiting: NonNullable<AgentActivity["waiting"]>,
+  now: number,
+): string | null => {
+  const [first, ...rest] = waiting.jobs.filter(({ until }) => until === null || until > now)
+  const wake = waiting.wake && waiting.wake.at + wakeGraceMs > now ? waiting.wake : null
   const more = rest.length > 0 ? ` (and ${rest.length} more)` : ""
-  // Its own words only: a command may carry a secret (`KEY=… cmd`), as a permission's
-  // subject may, so peers never read one.
   if (first)
     return `${first.description ? shorten(first.description, 80) : "a job it started"}${more}`
-  return waiting.wake
-    ? `a wake-up it set${waiting.wake.reason ? `: ${shorten(waiting.wake.reason, 80)}` : ""}`
-    : null
+  return wake ? `a wake-up it set${wake.reason ? `: ${shorten(wake.reason, 80)}` : ""}` : null
 }
 
 /** One peer as agents read it: a short block, each fact left out when unknown. */

@@ -116,6 +116,10 @@ const decodeHook = ({ event, seq, instance, env, payload }: Report): readonly Ha
           outcome: "failed",
           ...(error && { error }),
           ...(payload.error === "rate_limit" && { limited: true as const }),
+          // What a failed turn left running wakes the agent all the same, where it lists it.
+          ...(Array.isArray(payload.background_tasks) && {
+            background: running(payload.background_tasks),
+          }),
         },
       ]
     }
@@ -251,7 +255,7 @@ const maxCommand = 4096
 
 // The first line of what the agent wrote, cut to what the protocol takes; undefined if blank.
 const firstLine = (value: unknown): string | undefined => {
-  const line = oneLine(text(value) ?? "").slice(0, maxDescription)
+  const line = oneLine(errorText(value) ?? "").slice(0, maxDescription)
   return line === "" ? undefined : line
 }
 
@@ -283,11 +287,7 @@ const started = (
     return at === undefined ? [] : [{ type: "wake-scheduled", ...base, at, reason: reason ?? null }]
   }
   const id =
-    tool === "Bash" && fields.run_in_background === true
-      ? result.backgroundTaskId
-      : tool === "Monitor"
-        ? result.taskId
-        : undefined
+    tool === "Bash" ? result.backgroundTaskId : tool === "Monitor" ? result.taskId : undefined
   const named = shortName(id, maxJobText)
   if (named === undefined) return []
   const timeout = result.timeoutMs
@@ -330,7 +330,7 @@ const running = (tasks: unknown): Background => {
       {
         id: named,
         description: firstLine(description) ?? null,
-        command: text(command)?.slice(0, maxCommand) ?? "",
+        command: errorText(command)?.slice(0, maxCommand) ?? "",
       },
     ]
   })

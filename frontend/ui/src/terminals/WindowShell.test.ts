@@ -194,7 +194,7 @@ describe("terminal frame bar", () => {
       const at = Date.now() + 8 * 60_000 + 14_000
       const window = renderFrame(waiting({ jobs: [], wake: { at, reason: "Check the deploy" } }))
       expect(window.querySelector(".window-wait")?.textContent).toMatch(
-        /^wakes at \d\d:\d\d·in 8:1\d$/,
+        /^wakes at \d\d:\d\d · in 8:1\d$/,
       )
     })
   })
