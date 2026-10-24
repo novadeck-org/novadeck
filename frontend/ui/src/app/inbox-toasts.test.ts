@@ -258,6 +258,88 @@ describe("toasts for what needs the person", () => {
     })
   })
 
+  context("while the page lacks focus when the dialog closes", () => {
+    it("keeps the toast held until the focus returns", () => {
+      const { set, route, change, shown, stop } = setup()
+      route({ dialog: "search" })
+      set([ask("a")])
+      vi.advanceTimersByTime(2000)
+      change((state) => ({ ...state, pageFocused: false }))
+      route({ dialog: null })
+      expect(shown).toEqual([])
+      change((state) => ({ ...state, pageFocused: true }))
+      expect(shown).toEqual(["t1:a"])
+      stop()
+    })
+  })
+
+  context("while another modal dialog is open as the item rings", () => {
+    it("holds the toast for the close confirmation, the crash-loop question and the switcher", () => {
+      const { set, change, shown, stop } = setup()
+      const open = [
+        (state: UiState): UiState => ({ ...state, closing: { context: "c", id: "t1" } }),
+        (state: UiState): UiState => ({ ...state, crashLoop: 3 }),
+        (state: UiState): UiState => ({
+          ...state,
+          recent: { ...state.recent, switcher: { mode: "pinned" } as never },
+        }),
+      ]
+      const shut = (state: UiState): UiState => ({
+        ...state,
+        closing: null,
+        crashLoop: 0,
+        recent: { ...state.recent, switcher: null },
+      })
+      for (const [index, hold] of open.entries()) {
+        change(hold)
+        set([ask(`a${index}`)])
+        vi.advanceTimersByTime(2000)
+        expect(shown).toHaveLength(index)
+        change(shut)
+        expect(shown).toHaveLength(index + 1)
+      }
+      stop()
+    })
+  })
+
+  context("when a held item leaves and returns", () => {
+    it("shows its toast once, not again when its new grace ends", () => {
+      const { set, route, shown, stop } = setup()
+      const item = ask("a")
+      route({ dialog: "search" })
+      set([item])
+      vi.advanceTimersByTime(2000)
+      set([])
+      vi.advanceTimersByTime(2000)
+      set([item])
+      vi.advanceTimersByTime(1000)
+      route({ dialog: null })
+      vi.advanceTimersByTime(5000)
+      expect(shown).toEqual(["t1:a"])
+      stop()
+    })
+  })
+
+  context("when the person gets to what a toast says", () => {
+    it("closes every toast as the Inbox opens", () => {
+      const { set, route, closed, stop } = setup()
+      set([ask("a", "t1"), ask("b", "t2")])
+      vi.advanceTimersByTime(2000)
+      route({ panel: "inbox" })
+      expect(closed).toEqual(["t1:a", "t2:b"])
+      stop()
+    })
+
+    it("closes the one of a terminal as it is selected, and no other", () => {
+      const { set, route, closed, stop } = setup()
+      set([ask("a", "t1"), ask("b", "t2")])
+      vi.advanceTimersByTime(2000)
+      route({ terminal: "t2" })
+      expect(closed).toEqual(["t2:b"])
+      stop()
+    })
+  })
+
   context("when a terminal gets a newer item", () => {
     it("shows it for the same terminal, which the board puts in place of the older", () => {
       const { set, shown, stop } = setup()
