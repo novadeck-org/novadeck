@@ -280,7 +280,7 @@ describe("toasts for what needs the person", () => {
         (state: UiState): UiState => ({ ...state, crashLoop: 3 }),
         (state: UiState): UiState => ({
           ...state,
-          recent: { ...state.recent, switcher: { mode: "pinned" } as never },
+          recent: { ...state.recent, switcher: { mode: "click" } as never },
         }),
       ]
       const shut = (state: UiState): UiState => ({
@@ -327,6 +327,57 @@ describe("toasts for what needs the person", () => {
       route({ dialog: "search" })
       expect(closed).toEqual(["t1:a", "t2:b"])
       expect(inbox.getSnapshot().items).toHaveLength(2)
+      stop()
+    })
+  })
+
+  context("when the switcher is held open by Ctrl+Tab", () => {
+    it("leaves standing toasts up, and holds none that ring", () => {
+      const { set, change, closed, shown, stop } = setup()
+      const first = ask("a", "t1")
+      set([first])
+      vi.advanceTimersByTime(2000)
+      change((state) => ({
+        ...state,
+        recent: { ...state.recent, switcher: { mode: "held" } as never },
+      }))
+      set([first, ask("b", "t2")])
+      vi.advanceTimersByTime(2000)
+      expect(closed).toEqual([])
+      expect(shown).toEqual(["t1:a", "t2:b"])
+      stop()
+    })
+  })
+
+  context("when a dialog closes standing toasts", () => {
+    const closing = (state: UiState): UiState => ({ ...state, closing: { context: "c", id: "t1" } })
+    const crashing = (state: UiState): UiState => ({ ...state, crashLoop: 3 })
+    it.each([
+      ["the close confirmation", closing],
+      ["the crash-loop question", crashing],
+    ])("does so for %s, and they do not return as it closes", (_name, open) => {
+      const { set, change, closed, shown, stop } = setup()
+      set([ask("a", "t1")])
+      vi.advanceTimersByTime(2000)
+      change(open)
+      expect(closed).toEqual(["t1:a"])
+      change((state) => ({ ...state, closing: null, crashLoop: 0 }))
+      vi.advanceTimersByTime(5000)
+      expect(shown).toEqual(["t1:a"])
+      stop()
+    })
+
+    it("still shows an item held meanwhile once it closes", () => {
+      const { set, route, closed, shown, stop } = setup()
+      const first = ask("a", "t1")
+      set([first])
+      vi.advanceTimersByTime(2000)
+      route({ dialog: "search" })
+      expect(closed).toEqual(["t1:a"])
+      set([first, ask("b", "t2")])
+      vi.advanceTimersByTime(2000)
+      route({ dialog: null })
+      expect(shown).toEqual(["t1:a", "t2:b"])
       stop()
     })
   })

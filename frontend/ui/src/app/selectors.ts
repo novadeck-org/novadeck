@@ -88,9 +88,10 @@ export const alertOpen = (ui: UiState, workspace: Workspace): boolean =>
   closeQuestion(ui, workspace) !== undefined || crashLoopQuestion(ui) > 0
 
 // Whether a modal dialog covers the page, which a doorbell waits out: Search or Preferences
-// (the route's), the close confirmation, the crash-loop question, or the terminal switcher.
+// (the route's), the close confirmation, the crash-loop question, or the terminal switcher opened by click (the held one, from Ctrl+Tab, takes no pointer and
+// blocks nothing).
 export const modalOpen = (ui: UiState): boolean =>
   ui.location.route.dialog !== null ||
   ui.closing !== null ||
   crashLoopQuestion(ui) > 0 ||
-  ui.recent.switcher !== null
+  ui.recent.switcher?.mode === "click"
