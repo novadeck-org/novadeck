@@ -43,8 +43,8 @@ const requestedUpdate = (): UpdateScenario | undefined => {
     : undefined
 }
 
-// Specs open the demo on a host that follows early builds, which turns IS_EXPERIMENTAL and
-// with it the chat view on, with `?channel=early`, beside any other variant.
+// Specs open the demo on a host that follows early builds, which turns IS_EXPERIMENTAL on
+// (the chat view still needs its own switch), with `?channel=early`, beside any other variant.
 const earlyRequested = (): boolean =>
   new URLSearchParams(window.location.hash.split("?")[1] ?? "").get("channel") === "early"
 

@@ -1025,7 +1025,8 @@ App:
   reboots the demo, as the card is asked for once at launch.
   For specs, `?update=` opens any of these by key (`download`, `held`, `failed`, `available`,
   `allow`, `ready`, `whatsNew`, `whatsNewMarkup`, `whatsNewLong`, `noHighlights`). Both panels and the spec keys come from one record, `frontend/demo-debug/src/scenarios.ts`.
-  `?channel=early` opens a host on the early channel, so IS_EXPERIMENTAL and the chat view are on.
+  Specs also take `?channel=early`, a host on the early channel, so IS_EXPERIMENTAL is on (the
+  chat view still needs its own switch on); only specs read it, not `dev:web` or the try demo.
 
 ### Visitor build
 

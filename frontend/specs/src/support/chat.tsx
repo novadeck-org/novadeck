@@ -9,8 +9,8 @@ import { openWorkspace, terminal, terminalTab } from "./workspace"
 /**
  * Opens the agents demo, whose agents have conversations, past the first-run welcome, on a
  * host that follows early builds, so the experimental chat view is there; with it on, as
- * Preferences → Experimental turns it on, unless `chatView` is false; on a stable host with
- * `experimental` false.
+ * Preferences → Experimental turns it on, unless `chatView` is false. With `experimental`
+ * false, the host has no update channel, as the browser's, so the flag stays off.
  */
 export const openChatDemo = async (
   route = "/",
