@@ -59,7 +59,7 @@ release fixes what it fixes.
 - `@xterm/xterm` 6.0.0, the same two bundles: the DOM renderer's `WidthCache` shares its
   measurements. Each renderer kept its own, so a screen drawn fresh (after the WebGL renderer
   hands a screen back, or when a view opens) measured every glyph again, a forced layout each:
-  about 1300 of them, 220 ms, when ten terminals switched to the Canvas view. Now the measurements
+  about 1,360 of them, 203 ms on a real GPU, when ten terminals switched to the Canvas view. Now the measurements
   live on the `document`, under `Symbol.for("novadeck.xterm.widths")`, one entry per font family,
   size, weight, bold weight and device pixel ratio, each with its flat and bold/italic tables. A
   screen takes the entry its font names, and measures only what the entry lacks. The entry also
@@ -69,8 +69,12 @@ release fixes what it fixes.
   entry only when that differs, so an opening screen leaves its siblings' widths alone while a
   font that loaded after the fallback was measured is measured afresh. The document's `fonts`
   `loadingdone` empties every entry, for fonts that load with the same metrics as their
-  fallback. A width of 0 (an element with no layout) is still never kept, and the table of bold,
-  italic and wide strings is emptied past 2048 entries so it can't grow with the document.
+  fallback. A width of 0 (an element with no layout) is still never kept. The table of bold, italic and
+  wide strings is kept in two generations of 8192: when the current one fills, it becomes the
+  second and a fresh one starts, and a string found in the second moves to the current without
+  measuring. What a screen still draws is never dropped, so any set of strings up to a generation
+  stays measured (a full screen is 2 to 7 thousand cells, several screens mostly share theirs),
+  and the memory is bounded at two generations. A set larger than a generation keeps measuring part of it.
   Widths and letter-spacing are what they were, apart from sharing a screen's measurements with
   the others. Like the viewport fix, this is made again on xterm 6.1: the same class, in both
   bundles, unless 6.1 shares its widths itself. `src/widths.test.ts` pins it.

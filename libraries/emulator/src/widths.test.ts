@@ -1,6 +1,12 @@
 // @vitest-environment jsdom
-import { Terminal } from "@xterm/xterm"
-import { afterEach, describe, expect, it, vi } from "vitest"
+import type { Terminal as XTerminal } from "@xterm/xterm"
+import { afterEach, beforeAll, describe, expect, it, vi } from "vitest"
+
+// The app's bundler loads xterm's ES bundle and Node loads the CommonJS one; the patch is made
+// in both, so the tests run against each.
+type Terminal = XTerminal
+let Terminal: typeof XTerminal
+const bundles = ["xterm.js", "xterm.mjs"]
 
 // jsdom has no canvas or media queries; xterm opens without them.
 vi.hoisted(() => {
@@ -56,7 +62,7 @@ type Renderer = {
   _rowContainer: HTMLElement
   _widthCache: {
     get(chars: string, bold: boolean, italic: boolean): number
-    _shared: { holey: Map<string, number> }
+    _shared: { holey: Map<string, number>; prev?: Map<string, number> }
   }
 }
 type Core = {
@@ -98,7 +104,15 @@ afterEach(() => {
   Reflect.deleteProperty(document, Symbol.for("novadeck.xterm.widths"))
 })
 
-describe("the DOM renderer's width measurements", () => {
+describe.each(bundles)("the DOM renderer's width measurements in lib/%s", (bundle) => {
+  beforeAll(async () => {
+    Terminal = (
+      (await import(/* @vite-ignore */ `@xterm/xterm/lib/${bundle}`)) as {
+        Terminal: typeof XTerminal
+      }
+    ).Terminal
+  })
+
   it("are shared: a screen opened after another has drawn measures next to nothing", async () => {
     const first = await open()
     expect(first.reads).toBeGreaterThan(5)
@@ -167,13 +181,45 @@ describe("the DOM renderer's width measurements", () => {
     expect(parseFloat(renderer(later.terminal)["_rowContainer"].style.letterSpacing)).toBe(0)
   })
 
-  it("keep the table of bold, italic and wide strings bounded", async () => {
+  it("keep what screens still draw, however many screens there are", async () => {
+    // Three screens of 1500 distinct wide characters each: more than the table held before it
+    // was made to keep what is in use, and every one of them drawn again and again.
+    const screens = await Promise.all(
+      [0, 1, 2].map(async (n) => {
+        const { terminal } = await open({ cols: 110, rows: 30 })
+        let text = ""
+        for (let i = 0; i < 1500; i += 1) {
+          text += String.fromCodePoint(0x4e00 + n * 1500 + i)
+          if ((i + 1) % 50 === 0) text += "\r\n"
+        }
+        await new Promise<void>((done) => terminal.write(text, done))
+        return terminal
+      }),
+    )
+    const pass = (): number => {
+      const before = reads
+      screens.forEach((terminal) => renderService(terminal)["_renderRows"](0, terminal.rows - 1))
+      return reads - before
+    }
+    expect(pass()).toBeGreaterThan(4000)
+    expect([pass(), pass(), pass()]).toEqual([0, 0, 0])
+  })
+
+  it("keep a string in use across the table's turning over, and stay bounded", async () => {
     const { terminal } = await open()
     const cache = renderer(terminal)["_widthCache"]
-    for (let i = 0; i < 5000; i += 1) cache.get(`字${i}`, false, false)
-    expect(cache["_shared"].holey.size).toBeLessThanOrEqual(2048)
-    // What was dropped is measured again, not lost.
-    expect(cache.get("字0", false, false)).toBe(16)
+    cache.get("hot字", false, false)
+    for (let i = 0; i < 9000; i += 1) cache.get(`字${i}`, false, false)
+    // The table turned over once: "hot字" went with the old generation to the second table.
+    expect(cache["_shared"].holey.has("hot字")).toBe(false)
+    const before = reads
+    expect(cache.get("hot字", false, false)).toBe(32)
+    expect(reads).toBe(before)
+    expect(cache["_shared"].holey.has("hot字")).toBe(true)
+    // However many strings come, the two tables stay within two generations.
+    for (let i = 9000; i < 40000; i += 1) cache.get(`字${i}`, false, false)
+    const { holey, prev } = cache["_shared"]
+    expect(holey.size + (prev?.size ?? 0)).toBeLessThanOrEqual(2 * 8192)
   })
 
   it("never keep a width that read as 0", async () => {
