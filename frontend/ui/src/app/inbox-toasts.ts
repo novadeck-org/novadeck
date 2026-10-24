@@ -1,17 +1,10 @@
 import type { Inbox, InboxItem } from "@novadeck/core/inbox"
 
-import { followNeeds, keyOf, needGraceMs } from "../app/inbox-pings"
-import type { UiState, UiStore } from "../app/ui-store"
+import { needing } from "../inbox/inbox-state"
+import type { ToastBoard } from "../inbox/InboxToasts"
 import { isDesktop } from "../shell/desktop"
-import { needing } from "./inbox-state"
-
-// What shows the Inbox's toasts: one per terminal.
-export type ToastBoard = {
-  // Shows the item's toast, replacing (in place, moved to the front) any its terminal shows.
-  readonly show: (item: InboxItem) => void
-  // Takes the terminal's toast away if it still shows that item.
-  readonly close: (terminalId: string, itemId: string) => void
-}
+import { followNeeds, keyOf, needGraceMs } from "./inbox-pings"
+import type { UiState, UiStore } from "./ui-store"
 
 // Whether the sidebar shows the Inbox's panel, as the app's shell draws it: on a phone the
 // open drawer, else the sidebar not collapsed, and never in Zen.

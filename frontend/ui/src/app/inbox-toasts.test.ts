@@ -4,10 +4,10 @@ import { createStore } from "@novadeck/core/store"
 import { appearance } from "@novadeck/core/testing"
 import { afterEach, beforeEach, vi } from "vitest"
 
-import { noticeBoard, watchInboxPings } from "../app/inbox-pings"
-import { createUiStore, initialUi, type UiState } from "../app/ui-store"
 import { context, describe, expect, it } from "../test"
+import { noticeBoard, watchInboxPings } from "./inbox-pings"
 import { watchInboxToasts } from "./inbox-toasts"
+import { createUiStore, initialUi, type UiState } from "./ui-store"
 
 const sourceOf = (terminalId: string): InboxItem["source"] => ({
   projectId: "p",

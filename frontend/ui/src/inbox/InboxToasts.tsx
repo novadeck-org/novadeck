@@ -1,4 +1,4 @@
-import type { Inbox, InboxItem } from "@novadeck/core/inbox"
+import type { InboxItem } from "@novadeck/core/inbox"
 import { HandleChip } from "@novadeck/toolkit/HandleChip"
 import { NovaMark } from "@novadeck/toolkit/NovaLogo"
 import { createToasts, ToastRegion } from "@novadeck/toolkit/Toast"
@@ -6,9 +6,16 @@ import { Folder, Terminal } from "lucide-react"
 import { useEffect, useMemo } from "react"
 
 import { icons } from "./inbox-icons"
-import { watchInboxToasts, type ToastBoard } from "./inbox-toasts"
 import { useInboxContext } from "./InboxProvider"
 import { toastText } from "./toast-text"
+
+// What shows the Inbox's toasts: one per terminal.
+export type ToastBoard = {
+  // Shows the item's toast, replacing (in place, moved to the front) any its terminal shows.
+  readonly show: (item: InboxItem) => void
+  // Takes the terminal's toast away if it still shows that item.
+  readonly close: (terminalId: string, itemId: string) => void
+}
 
 // One toast: the type's icon in its tone; who wants what, and how long ago; the ask, a
 // command in mono; and where it comes from, the terminal at the left and the project at the
@@ -48,17 +55,17 @@ const InboxToast = ({
 }
 
 // The toasts of the Inbox's items that need the person while the app has their focus: it
-// follows the Inbox by `watchInboxToasts`, which decides what rings and when, and draws them
+// follows the Inbox by `follow` (the app's `watchInboxToasts`), which decides what rings and
+// when, on the board it's given, and draws them
 // as a stack over the header's right end. A click on one shows the Inbox on its item; the
 // pill that counts the rest shows the Inbox. Closing a toast or letting it run out leaves
 // its item in the Inbox.
 export const InboxToasts = ({
-  inbox,
-  ui,
+  follow,
   showInbox,
 }: {
-  readonly inbox: Inbox
-  readonly ui: Parameters<typeof watchInboxToasts>[1]
+  // Rings the Inbox's toasts on the board until the returned stop.
+  readonly follow: (board: ToastBoard) => () => void
   readonly showInbox: () => void
 }): React.JSX.Element => {
   const { open, now } = useInboxContext()
@@ -77,12 +84,12 @@ export const InboxToasts = ({
         toasts.close(terminalId)
       },
     }
-    const stop = watchInboxToasts(inbox, ui, board)
+    const stop = follow(board)
     return () => {
       stop()
       toasts.clear()
     }
-  }, [inbox, ui, toasts])
+  }, [follow, toasts])
   return (
     <ToastRegion
       toasts={toasts}

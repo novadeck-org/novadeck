@@ -1,13 +1,14 @@
 import { noInbox, type Inbox } from "@novadeck/core/inbox"
-import { useEffect, useMemo, type ReactNode } from "react"
+import { useCallback, useEffect, useMemo, type ReactNode } from "react"
 
 import { InboxProvider, useInboxContext } from "../inbox/InboxProvider"
 import { InboxSheet } from "../inbox/InboxSheet"
-import { InboxToasts } from "../inbox/InboxToasts"
+import { InboxToasts, type ToastBoard } from "../inbox/InboxToasts"
 import { anyAgentWorking } from "../projects/project-status"
 import { useDesktop } from "../shell/desktop"
 import { useWorkspaceServices, useWorkspaceState } from "./controller/context"
 import { clickNotice } from "./inbox-pings"
+import { watchInboxToasts } from "./inbox-toasts"
 
 // The Inbox: the backend's, read from the backend the app runs on, or, where it has none,
 // one that lists nothing.
@@ -48,12 +49,13 @@ export const InboxHost = ({
     () => (desktop ? undefined : { hideList: hideSidebar, showList: () => toggleSidebar("inbox") }),
     [desktop, hideSidebar, toggleSidebar],
   )
+  const follow = useCallback((board: ToastBoard) => watchInboxToasts(inbox, ui, board), [inbox, ui])
   return (
     <InboxProvider inbox={inbox} reveal={reveal} phone={phone} working={working}>
       {children}
       <NoticeClicks inbox={inbox} />
       <InboxSheet active={active} />
-      <InboxToasts inbox={inbox} ui={ui} showInbox={showInbox} />
+      <InboxToasts follow={follow} showInbox={showInbox} />
     </InboxProvider>
   )
 }
