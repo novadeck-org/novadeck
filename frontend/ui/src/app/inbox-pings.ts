@@ -207,8 +207,8 @@ export const followNeeds = (
 }
 
 // Follows the Inbox for the person who isn't looking at it. A new item that needs them
-// pings once (see `followNeeds`), only if the page still hasn't their focus, where they want
-// it (`notifyNeeds`); an item that pinged and then leaves the Inbox takes its notification
+// pings once (see `followNeeds`), only if the page still hasn't their focus, and the person
+// wants them (`notifyNeeds`); an item that pinged and then leaves the Inbox takes its notification
 // back. While the page has their focus a toast rings instead, in inbox-toasts.ts. The app
 // icon's `badge` follows the bell's count, drawn as an image where `image` says the platform
 // takes one, and clears when this stops. Returns the stop.
