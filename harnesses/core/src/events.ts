@@ -215,6 +215,8 @@ export type ActivityEvent = {
       readonly type: "task-ended"
       readonly id: string
       readonly wake?: true
+      /** No Stop listed it among the tasks running, so no count of them holds it. */
+      readonly unlisted?: true
     }
   /**
    * The agent set a wake-up for itself, to run its next turn at `at`, epoch milliseconds,

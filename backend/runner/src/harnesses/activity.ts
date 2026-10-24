@@ -673,16 +673,14 @@ export const apply = (
       const done = (waits?.jobs.length ?? 0) - jobs.length
       const goneOff = event.wake === true && event.id === activity.wakeId
       const kept = goneOff ? null : (waits?.wake ?? null)
-      if (done === 0 && !goneOff) return undefined
+      // The tasks a Stop counted running are one fewer, a server it left running too.
+      const listed = !event.wake && !event.unlisted && background && background.tasks > 0
+      if (done === 0 && !goneOff && !listed) return undefined
       return {
         ...activity,
         wake: goneOff ? null : wake,
         wakeId: goneOff ? null : activity.wakeId,
-        // The tasks it counted running are one fewer for each.
-        background:
-          done > 0 && background
-            ? counted({ ...background, tasks: Math.max(0, background.tasks - done) })
-            : background,
+        background: listed ? counted({ ...background, tasks: background.tasks - 1 }) : background,
         waits: jobs.length > 0 || kept ? { jobs, wake: kept } : null,
       }
     }

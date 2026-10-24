@@ -197,17 +197,74 @@ describe("what an Antigravity agent does not wait on", () => {
     expect(idle!.waiting).toBeNull()
   })
 
-  it("is a timer of no sane length", () => {
+  it("is a timer of more than a day, which sets no wake-up", () => {
     const c = session()
     const [idle] = idles([
       c.prompt(),
-      c.pre(2, "schedule", { DurationSeconds: Infinity, Prompt: "check" }),
-      c.pre(3, "schedule", { DurationSeconds: 1e300, Prompt: "check" }),
+      c.pre(2, "schedule", { DurationSeconds: 1e300, Prompt: "check" }),
+      c.pre(3, "schedule", { DurationSeconds: 86_401, Prompt: "check" }),
       c.stop(false),
       c.line("idle", 2),
     ])
-    // The one that is finite is cut to a day, from its PreToolUse (the third hook).
-    expect(idle!.waiting?.wake).toEqual({ at: at(2) + 86_400_000, reason: "check" })
+    expect(idle!.waiting).toBeNull()
+  })
+
+  it("is a call a denial ended after a job it started in the same turn, which stays", () => {
+    const c = session()
+    const [, idle] = idles([
+      c.prompt(),
+      c.pre(2, "run_command", sleep),
+      c.pre(3, "run_command", { ...sleep, toolSummary: "Denied" }),
+      c.line("idle", 1),
+      c.prompt(),
+      c.stop(false),
+      c.line("idle", 1),
+    ])
+    expect(idle!.waiting?.jobs).toEqual([
+      expect.objectContaining({ id: expect.stringMatching(/:2$/), description: "Sleep a bit" }),
+    ])
+  })
+
+  it("is nothing once the agent kills a task, whichever", () => {
+    const c = session()
+    const kill = { Action: "kill", TaskId: "x/task-2" }
+    const [before, after] = idles([
+      c.prompt(),
+      c.pre(2, "run_command", sleep),
+      c.stop(false),
+      c.line("idle", 1),
+      c.prompt(),
+      c.pre(4, "manage_task", kill),
+      c.stop(true),
+      c.line("idle", 1),
+    ])
+    expect(before!.waiting?.jobs).toHaveLength(1)
+    expect(after!.waiting).toBeNull()
+  })
+
+  it("counts a server it left running among the tasks until it ends", () => {
+    const c = session()
+    const server = { ...sleep, CommandLine: "pnpm dev" }
+    const hooks = replay([
+      c.prompt(),
+      c.pre(2, "run_command", server),
+      c.stop(false),
+      c.line("idle", 1),
+      c.post(2, "run_command", server),
+    ])
+    expect(hooks[3]!.background).toEqual({ agents: 0, tasks: 1 })
+    expect(hooks[4]!.background).toEqual({ agents: 0, tasks: 0 })
+  })
+
+  it("keeps the agent's reason when its first line is only escapes", () => {
+    const c = session()
+    const [idle] = idles([
+      c.prompt(),
+      c.pre(2, "schedule", { DurationSeconds: 60, Prompt: "\u001b[31m\ncheck CI" }),
+      c.stop(false),
+      c.line("idle", 1),
+    ])
+    expect(idle!.waiting?.wake?.reason).toBe("check CI")
   })
 
   it("is a call a denial or an Escape ended, though a daemon keeps the status line counting", () => {
