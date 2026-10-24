@@ -260,14 +260,16 @@ mod tests {
 
     #[test]
     fn ends_a_command_still_running_at_the_deadline_and_shows_what_it_printed() {
+        // Long enough for a slow shell to start and print (Git Bash on a busy Windows runner
+        // took over 300 ms), far short of the command's own end.
         let began = Instant::now();
         let printed = run(
             "printf partly; sleep 30",
             b"",
-            began + Duration::from_millis(300),
+            began + Duration::from_secs(3),
         );
         assert_eq!(printed, "partly");
-        assert!(began.elapsed() < Duration::from_secs(5));
+        assert!(began.elapsed() < Duration::from_secs(10));
     }
 
     #[test]

@@ -56,14 +56,15 @@ const markup = /[*~\\`[<>]/
 const autolinked = /\S+@\S+\.\w+|#\d+/
 const structural = /^\s*(?:#|\d+\. )/
 
-// What is not for the notes: the chat view ships behind a flag, early builds are for
-// contributors and never offered to people, and the demo, the website and the pipeline are
-// not the app. A line that mentions one is dropped, the rest stands.
+// What is not for the notes: the chat view ships behind a flag, early builds and the
+// Experimental switch that turns them on, with its tab, are for contributors and never
+// offered to people, and the demo, the website and the pipeline are not the app. A line that mentions one is dropped, the rest stands.
 const excluded: readonly RegExp[] = [
   chat,
   /\b(?:early|beta|nightly|canary)\s+(?:access\s+)?(?:builds?|channels?|releases?|updates?|versions?)\b/i,
   /\bupdate channels?\b/i,
   /\bprereleases?\b/i,
+  /\bexperimental\b/i,
   demo,
   /try\.novadeck/i,
   /\bwebsite\b/i,

@@ -139,30 +139,46 @@ const openPreferences = async (): Promise<void> => {
   await page.getByRole("button", { name: "Workspace preferences" }).click()
   await expect.element(preferencesDialog()).toBeVisible()
 }
-const early = () => preferencesDialog().getByRole("switch", { name: "Early builds" })
+const experimental = () => preferencesDialog().getByRole("switch", { name: "Experimental" })
+const experimentalTab = () => preferencesDialog().getByRole("tab", { name: "Experimental" })
 
-describe("Preferences' early builds", () => {
-  it("is absent where the host has no updates", async () => {
+describe("Preferences' Experimental switch", () => {
+  it("is absent where the host has no updates, and so is its tab", async () => {
     await openWorkspace()
     await openPreferences()
     await expect
       .element(preferencesDialog().getByRole("heading", { name: "Updates" }))
       .not.toBeInTheDocument()
-    expect(early().query()).toBeNull()
+    expect(experimental().query()).toBeNull()
+    expect(experimentalTab().query()).toBeNull()
   })
 
   it("starts off, and stays on once turned on, also when Preferences opens again", async () => {
     await openWorkspace("/?update=ready")
     await openPreferences()
-    await expect.element(early()).toBeEnabled()
-    await expect.element(early()).toHaveAttribute("aria-checked", "false")
-    await early().click()
-    await expect.element(early()).toHaveAttribute("aria-checked", "true")
+    await expect.element(experimental()).toBeEnabled()
+    await expect.element(experimental()).toHaveAttribute("aria-checked", "false")
+    await experimental().click()
+    await expect.element(experimental()).toHaveAttribute("aria-checked", "true")
     await preferencesDialog().getByRole("button", { name: "Close preferences" }).click()
     await expect.element(preferencesDialog()).not.toBeInTheDocument()
     await openPreferences()
-    await expect.element(early()).toHaveAttribute("aria-checked", "true")
-    await early().click()
-    await expect.element(early()).toHaveAttribute("aria-checked", "false")
+    await expect.element(experimental()).toHaveAttribute("aria-checked", "true")
+    await experimental().click()
+    await expect.element(experimental()).toHaveAttribute("aria-checked", "false")
+  })
+
+  it("shows the Experimental tab, with the chat view, while it is on", async () => {
+    await openWorkspace("/?update=ready")
+    await openPreferences()
+    expect(experimentalTab().query()).toBeNull()
+    await experimental().click()
+    await experimentalTab().click()
+    await expect
+      .element(preferencesDialog().getByRole("switch", { name: "Chat view" }))
+      .toBeVisible()
+    await preferencesDialog().getByRole("tab", { name: "General" }).click()
+    await experimental().click()
+    await expect.element(experimentalTab()).not.toBeInTheDocument()
   })
 })

@@ -21,7 +21,9 @@ demo and the try.novadeck.dev deploy, docs, and tooling for contributors. If a c
 visible effect, leave it out. If every change is like that, answer with empty lists. The chat
 view is behind a flag and is never announced: leave out anything about it. The Messages pane,
 where a conversation reads as a chat, is not the chat view, and is announced. Early builds and
-the update channels are for contributors only: describe updates without naming them.
+the update channels are for contributors only: describe updates without naming them. So are
+Preferences' Experimental switch, its Experimental tab and every feature behind them: leave
+them out.
 
 Name a feature by what a person sees in the app, not by the code that makes it: not "the
 Saves module" but "terminals come back after a restart". If you cannot tell what a person
