@@ -40,6 +40,7 @@ import {
   type Unread,
   type Viewing,
 } from "../terminals/unread-state"
+import { noFeatureFlags, type FeatureFlag, type FeatureFlags } from "./feature-flags"
 import type { WorkspaceRoute } from "./routing"
 import { currentContext, currentState } from "./selectors"
 
@@ -93,6 +94,9 @@ export type UiState = {
   readonly projectArrangement: ProjectArrangement
   // The size the person last gave a window on Canvas, which new windows open at.
   readonly canvasWindowSize: WindowSize
+  // Which of the app's unfinished parts the person turned on; never persisted, as the host
+  // remembers them.
+  readonly flags: FeatureFlags
 }
 
 export type UiLocation = {
@@ -141,6 +145,7 @@ export const initialUi = ({
   unread: noUnread,
   projectArrangement,
   canvasWindowSize,
+  flags: noFeatureFlags,
 })
 
 export const updateShell = (ui: UiStore, change: (shell: ShellState) => ShellState): void =>
@@ -272,6 +277,38 @@ export const watchUpdates = (updates: Backend["updates"], ui: UiStore): (() => v
       portableCardOpen: current.portableCardOpen || raise,
     }))
   }) ?? (() => {})
+
+// Whether terminals show their agents' chat: the person turned the chat view on, and it is
+// one of the experimental features, so it shows only while IS_EXPERIMENTAL is on.
+export const chatViewOn = (state: Pick<UiState, "preferences" | "flags">): boolean =>
+  state.flags.IS_EXPERIMENTAL && state.preferences.chatView
+
+// Turns one feature flag on or off, as is: `setFeatureFlag` of the workspace's commands also
+// starts terminals afresh on the chat view where the flag turns it on or off.
+export const setFeatureFlag = (ui: UiStore, flag: FeatureFlag, on: boolean): void => {
+  ui.update((state) =>
+    state.flags[flag] === on ? state : { ...state, flags: { ...state.flags, [flag]: on } },
+  )
+}
+
+// Asks the backend once, as the workspace comes up, whether the desktop app follows early
+// builds, which is what turns IS_EXPERIMENTAL on, through `set`. A host that fails to say
+// leaves it off.
+export const watchExperimental = (
+  updates: Backend["updates"],
+  set: (on: boolean) => void,
+): (() => void) => {
+  let live = true
+  void updates?.channel?.get().then(
+    (channel) => {
+      if (live) set(channel === "early")
+    },
+    () => undefined,
+  )
+  return () => {
+    live = false
+  }
+}
 
 // Asks the backend once, as the workspace comes up, what is new in the version the app
 // updated to, and keeps the answer for the footer's card. Whether the card is due at all

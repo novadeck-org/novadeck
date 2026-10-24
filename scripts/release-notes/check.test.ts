@@ -234,7 +234,7 @@ describe("the checks on a model's answer", () => {
     expect(droppedFor(title)).toEqual(["a markup character"])
   })
 
-  it("drops lines about early, beta or other pre-release channels, but not a preview of an image", () => {
+  it("drops lines about early, beta or other pre-release channels, or Experimental, but not a preview of an image", () => {
     for (const line of [
       "Pick the beta update channel in Preferences.",
       "Stable and early build channels are listed.",
@@ -244,6 +244,8 @@ describe("the checks on a model's answer", () => {
       "Early builds are listed in Preferences.",
       "Choose an update channel.",
       "A prerelease is offered.",
+      "Turn on Experimental in Preferences.",
+      "Try it from the Experimental tab.",
     ])
       expect(droppedFor(withChange(line)), line).toHaveLength(1)
     for (const line of [

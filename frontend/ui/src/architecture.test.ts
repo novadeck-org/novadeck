@@ -40,6 +40,8 @@ const rules: Record<string, readonly string[]> = {
     "app/routing.ts",
     "app/ui-store.ts",
     "app/selectors.ts",
+    // The feature flags' names, which commands turn on and off.
+    "app/feature-flags.ts",
     "core/",
     // The keymap's types only: commands never touch the DOM contracts in interaction/dom.ts.
     "interaction/keymap.ts",

@@ -3,17 +3,20 @@ import { clearPortableCardRaised } from "@novadeck/core/portable-card-raised"
 import { createWorkspaceStore } from "@novadeck/core/store"
 import { appearance, workspaceFixture } from "@novadeck/core/testing"
 import type { AgentStatus } from "@novadeck/core/types"
-import type { UpdateOffer, WhatsNew } from "@novadeck/core/update"
+import type { UpdateChannel, UpdateOffer, WhatsNew } from "@novadeck/core/update"
 import { afterEach, beforeEach, vi } from "vitest"
 
 import { context, describe, expect, it } from "../test"
 import {
+  chatViewOn,
   createUiStore,
   dismissWhatsNew,
   initialUi,
   notePortableCardShown,
   persist,
+  setFeatureFlag,
   trackRecent,
+  watchExperimental,
   watchFinishes,
   watchPortable,
   watchPresentation,
@@ -687,6 +690,61 @@ describe("the sandbox", () => {
     watchSandbox(() => Promise.resolve({ sandboxed: true }), ui)()
     await Promise.resolve()
     expect(ui.getSnapshot().sandbox).toBeNull()
+  })
+})
+
+describe("the IS_EXPERIMENTAL flag", () => {
+  const updates = (channel: Promise<UpdateChannel>) => ({
+    onOffer: () => () => {},
+    openPage: () => {},
+    channel: { get: () => channel, set: () => {} },
+  })
+  const flag = (ui: ReturnType<typeof createUiStore>): boolean =>
+    ui.getSnapshot().flags.IS_EXPERIMENTAL
+  const into = (ui: ReturnType<typeof createUiStore>) => (on: boolean) =>
+    setFeatureFlag(ui, "IS_EXPERIMENTAL", on)
+
+  it("is on where the desktop app follows early builds", async () => {
+    const ui = createUiStore(initial())
+    watchExperimental(updates(Promise.resolve("early")), into(ui))
+    expect(flag(ui)).toBe(false)
+    await vi.waitFor(() => expect(flag(ui)).toBe(true))
+  })
+
+  it("stays off on stable, where the app offers no choice, or fails to say", async () => {
+    const ui = createUiStore(initial())
+    watchExperimental(updates(Promise.resolve("stable")), into(ui))
+    watchExperimental(undefined, into(ui))
+    watchExperimental(updates(Promise.reject(new Error("no"))), into(ui))
+    await Promise.resolve()
+    await Promise.resolve()
+    expect(flag(ui)).toBe(false)
+  })
+
+  it("is not set once the watch is stopped", async () => {
+    const ui = createUiStore(initial())
+    watchExperimental(updates(Promise.resolve("early")), into(ui))()
+    await Promise.resolve()
+    expect(flag(ui)).toBe(false)
+  })
+
+  it("turns on and off, and leaves the state as it was when it doesn't change", () => {
+    const ui = createUiStore(initial())
+    const before = ui.getSnapshot()
+    setFeatureFlag(ui, "IS_EXPERIMENTAL", false)
+    expect(ui.getSnapshot()).toBe(before)
+    setFeatureFlag(ui, "IS_EXPERIMENTAL", true)
+    expect(flag(ui)).toBe(true)
+    setFeatureFlag(ui, "IS_EXPERIMENTAL", false)
+    expect(flag(ui)).toBe(false)
+  })
+
+  it("holds the chat view back while it is off", () => {
+    const { preferences } = initial()
+    const on = { ...preferences, chatView: true }
+    expect(chatViewOn({ preferences: on, flags: { IS_EXPERIMENTAL: false } })).toBe(false)
+    expect(chatViewOn({ preferences: on, flags: { IS_EXPERIMENTAL: true } })).toBe(true)
+    expect(chatViewOn({ preferences, flags: { IS_EXPERIMENTAL: true } })).toBe(false)
   })
 })
 
