@@ -69,8 +69,9 @@ export const phase = (page: Page, n: number) =>
   )
 
 // A screen's text is its rows' in the page, as xterm's DOM renderer draws them. A renderer
-// that draws on a canvas, as the profile's WebGL build does, leaves a `profileText` on the
-// screen's host that reads the rows it shows from the buffer instead.
+// that draws on a canvas, as the WebGL renderer does, has none there, so the profile's builds
+// leave a `profileText` on the screen's host that reads the rows it shows from the buffer
+// instead (see ../profile/patches.ts).
 
 /** Whether a visible screen shows `text`. */
 const shown = (page: Page, text: string) =>
