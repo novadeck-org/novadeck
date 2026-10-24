@@ -75,10 +75,11 @@ export const watchInboxToasts = (
       if (standing.has(keyOf(item)) && mayToast(item, state, desktopNow())) show(item)
   }
   // The person has got to what the toasts say: all of them if the Inbox shows, else the one
-  // of the terminal they selected.
+  // of the terminal they selected. A modal dialog opening takes them all away too, as it
+  // would not stop clicks reaching them; their items stay in the Inbox.
   const arrive = (state: UiState): void => {
-    const gone =
-      inboxShown(state, desktopNow()) || inDialog(state)
+    const all = inboxShown(state, desktopNow()) || inDialog(state)
+    const gone = all
       ? [...shown.values()]
       : [shown.get(state.location.route.terminal)].filter((item) => item !== undefined)
     for (const item of gone) {
