@@ -49,6 +49,8 @@
     "./Tabs": "./src/Tabs.tsx",
     "./terminal-status.css": "./src/terminal-status.css",
     "./TerminalStatus": "./src/TerminalStatus.tsx",
+    "./Toast": "./src/Toast.tsx",
+    "./toast.css": "./src/toast.css",
     "./toggle.css": "./src/toggle.css",
     "./ToggleGroup": "./src/ToggleGroup.tsx",
     "./tone.css": "./src/tone.css",
