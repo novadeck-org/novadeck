@@ -9,6 +9,7 @@ import {
   renderPeer,
   unknownHandle,
   type Waiting,
+  waitsOnNote,
   type Whereabouts,
 } from "./peers.js"
 
@@ -44,6 +45,7 @@ const whereabouts = (overrides: Partial<Whereabouts> = {}): Whereabouts => ({
   openedBy: null,
   working: false,
   waiting: null,
+  waitsOn: null,
   place: (path) => path,
   ...overrides,
 })
@@ -419,5 +421,72 @@ describe("what agents and a refused send say", () => {
     expect(ago(now - 59 * 60_000, now)).toBe("59 min ago")
     expect(ago(now - 47 * 60 * 60_000, now)).toBe("47 h ago")
     expect(ago(now - 72 * 60 * 60_000, now)).toBe("3 days ago")
+  })
+})
+
+describe("a peer whose agent waits to be woken", () => {
+  const job = (description: string | null, command: string) => ({
+    id: "b1",
+    description,
+    command,
+    since: now,
+    until: null,
+  })
+  const waits = (
+    waiting: Parameters<typeof waitsOnNote>[0],
+    fields: Partial<PeerInput> = {},
+  ): string =>
+    read(
+      listing({
+        where: whereabouts({ waitsOn: waitsOnNote(waiting, now) }),
+        ...fields,
+      }),
+    )[0]!
+
+  it("says what it waits on in the agent's own words, and that it wakes by itself", () => {
+    expect(waits({ jobs: [job("PR #436 checks", "gh pr checks 436 --watch")], wake: null })).toBe(
+      "- @fox: Claude Code, waiting on PR #436 checks, will wake by itself",
+    )
+  })
+
+  it("never shows a command, which may carry a secret, and counts the rest", () => {
+    const line = waits({
+      jobs: [job(null, `API_KEY=hunter2 gh run watch 1`), job("b", "c")],
+      wake: null,
+    })
+    expect(line).toBe(
+      "- @fox: Claude Code, waiting on a job it started (and 1 more), will wake by itself",
+    )
+  })
+
+  it("cuts a long description short", () => {
+    const line = waits({ jobs: [job("w".repeat(200), "c")], wake: null })
+    expect(line).toMatch(/^- @fox: Claude Code, waiting on w+…, will wake/)
+    expect(line.length).toBeLessThan(160)
+  })
+
+  it("says a wake-up it set", () => {
+    expect(waits({ jobs: [], wake: { at: now, reason: "check the deploy" } })).toBe(
+      "- @fox: Claude Code, waiting on a wake-up it set: check the deploy, will wake by itself",
+    )
+  })
+
+  it("leaves out a wait whose time has passed", () => {
+    const dead = { ...job("x", "y"), until: now - 1 }
+    expect(waitsOnNote({ jobs: [dead], wake: null }, now)).toBeNull()
+    expect(waitsOnNote({ jobs: [dead, job("live", "z")], wake: null }, now)).toBe("live")
+    const wake = (at: number) => ({ jobs: [], wake: { at, reason: null } })
+    expect(waitsOnNote(wake(now - 119_000), now)).toBe("a wake-up it set")
+    expect(waitsOnNote(wake(now - 121_000), now)).toBeNull()
+  })
+
+  it("says nothing of a busy agent, and the person's request comes first", () => {
+    const waiting = { jobs: [job("x", "y")], wake: null }
+    expect(waits(waiting, { busy: true })).toBe("- @fox: Claude Code, busy")
+    const asking = whereabouts({
+      waitsOn: waitsOnNote(waiting, now),
+      waiting: { kind: "question", tool: "AskUserQuestion", subject: null, more: 0 },
+    })
+    expect(read(listing({ where: asking }))[0]).toContain("waiting on the user: a question")
   })
 })

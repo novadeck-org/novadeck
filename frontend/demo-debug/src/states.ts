@@ -4,7 +4,7 @@ import { terminalKeyId } from "@novadeck/core/registry"
 import { createStore } from "@novadeck/core/store"
 import { terminalAsks } from "@novadeck/core/terminal-ending"
 import type { TerminalMetadata, Workspace } from "@novadeck/core/types"
-import type { DemoAgentVerbs } from "@novadeck/demo/agent-link"
+import type { DemoAgentVerbs, DemoWaiting } from "@novadeck/demo/agent-link"
 import type { DemoScreenState } from "@novadeck/demo/runtime"
 import { terminalOf } from "@novadeck/demo/terminals"
 
@@ -157,6 +157,16 @@ const failingTerminal = (label: string, hint: string, message: string, wait = 0)
   },
 })
 
+// What the waiting states wait on: a CI watch that has run 4 minutes, and a wake-up due in 8.
+const waitingOnJob: DemoWaiting = {
+  job: { description: "Watch CI checks for PR #436", command: "gh pr checks 436 --watch" },
+  minutes: 4,
+}
+const waitingForWake: DemoWaiting = {
+  wake: { reason: "Check the deploy" },
+  inMinutes: 8,
+}
+
 // One terminal per state, named after it, so every tab and window shows one at a time.
 // The last stays selected; a done mark needs the person to be looking elsewhere, so the
 // finished ones come first, ending their turns a moment later. An agent's state is its
@@ -194,6 +204,16 @@ const gallery: readonly {
   {
     name: "3 permissions",
     agent: (verbs, key) => verbs.ask(key, undefined, "permission", 3),
+  },
+  {
+    name: "Waiting on a job",
+    agent: (verbs, key) =>
+      verbs.finish(key, undefined, "completed", { after: turnMs, waiting: waitingOnJob }),
+  },
+  {
+    name: "Waiting for a wake-up",
+    agent: (verbs, key) =>
+      verbs.finish(key, undefined, "completed", { after: turnMs, waiting: waitingForWake }),
   },
   { name: "Unheard agent", state: (key) => unheardAgent(key, "claude") },
   { name: "Running a program", state: (key) => runProgram(key, "sleep") },
@@ -534,6 +554,18 @@ export const createDemoStates = (verbs: DemoAgentVerbs): DemoStates => {
           "Works on until its 2 subagents finish",
           (v, k, t) =>
             v.finish(k, t, "completed", { after: turnMs, background: { agents: 2, tasks: 0 } }),
+          verbs,
+        ),
+        verb(
+          "Waiting on a job",
+          "Turn over; waits on a command it started",
+          (v, k, t) => v.finish(k, t, "completed", { after: turnMs, waiting: waitingOnJob }),
+          verbs,
+        ),
+        verb(
+          "Waiting for a wake-up",
+          "Turn over; waits for a wake-up it set",
+          (v, k, t) => v.finish(k, t, "completed", { after: turnMs, waiting: waitingForWake }),
           verbs,
         ),
         verb(

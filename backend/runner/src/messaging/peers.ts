@@ -1,4 +1,4 @@
-import type { AgentName, TitleSource } from "@novadeck/protocol"
+import type { AgentActivity, AgentName, TitleSource } from "@novadeck/protocol"
 
 import { mention } from "../terminals/handles.js"
 import { busiestFolders, firstFrom, shorten, type Work } from "../terminals/work.js"
@@ -24,6 +24,8 @@ export type Whereabouts = {
   readonly working: boolean
   /** What its agent waits on the person for, if anything; null otherwise. */
   readonly waiting: Waiting | null
+  /** What its idle agent waits on to wake it, if anything: see `Peer.waitsOn`. */
+  readonly waitsOn: string | null
   readonly place: (path: string) => string
 }
 
@@ -80,6 +82,12 @@ export type Peer = {
   readonly state: "busy" | "idle" | null
   /** What its agent waits on the person for; its work is blocked until they answer. */
   readonly waiting: Waiting | null
+  /**
+   * What its idle agent waits on to wake it, with no word from anyone: its job's own
+   * description, cut short, or "a job it started" where it gave none (never its command,
+   * which may carry a secret), and how many more; or a wake-up it set.
+   */
+  readonly waitsOn: string | null
   readonly activeAt: number | null
 }
 
@@ -155,6 +163,7 @@ export const peerOf = (input: {
     withYou: input.withYou,
     state: agent ? (input.busy ? "busy" : "idle") : null,
     waiting: agent ? (where?.waiting ?? null) : null,
+    waitsOn: agent && !input.busy ? (where?.waitsOn ?? null) : null,
     activeAt: work?.activeAt ?? null,
   }
 }
@@ -201,12 +210,33 @@ const waitingNote = ({ kind, tool, subject, more }: Waiting): string => {
   return `waiting on the user: ${what}${more > 0 ? ` (and ${more} more)` : ""}`
 }
 
+// How long past its time a wake-up still counts as coming, as the app allows it.
+const wakeGraceMs = 120_000
+
+/**
+ * What an idle agent waits on, shortly, at `now`: a job still within its timeout, or a
+ * wake-up not long past; null when nothing is left to wake it. Its own words only: a
+ * command may carry a secret (`KEY=… cmd`), as a permission's subject may, so peers never
+ * read one.
+ */
+export const waitsOnNote = (
+  waiting: NonNullable<AgentActivity["waiting"]>,
+  now: number,
+): string | null => {
+  const [first, ...rest] = waiting.jobs.filter(({ until }) => until === null || until > now)
+  const wake = waiting.wake && waiting.wake.at + wakeGraceMs > now ? waiting.wake : null
+  const more = rest.length > 0 ? ` (and ${rest.length} more)` : ""
+  if (first)
+    return `${first.description ? shorten(first.description, 80) : "a job it started"}${more}`
+  return wake ? `a wake-up it set${wake.reason ? `: ${shorten(wake.reason, 80)}` : ""}` : null
+}
+
 /** One peer as agents read it: a short block, each fact left out when unknown. */
 export const renderPeer = (peer: Peer, now: number, viewer: Viewer): readonly string[] =>
   [
     `- ${mention(peer.handle)}: ${
       peer.agent
-        ? `${agentLabel(peer.agent)}, ${peer.waiting ? waitingNote(peer.waiting) : peer.state}${peer.activeAt === null ? "" : `, last active ${ago(peer.activeAt, now)}`}`
+        ? `${agentLabel(peer.agent)}, ${peer.waiting ? waitingNote(peer.waiting) : peer.waitsOn ? `waiting on ${peer.waitsOn}, will wake by itself` : peer.state}${peer.activeAt === null ? "" : `, last active ${ago(peer.activeAt, now)}`}`
         : peer.untrusted
           ? `no agent Novadeck can deliver to: ${untrustedNote(peer.untrusted)}`
           : peer.expecting

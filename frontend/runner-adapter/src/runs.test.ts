@@ -245,6 +245,7 @@ const idle = {
   subagents: [],
   planning: false,
   background: null,
+  waiting: null,
   lastTurn: null,
 }
 const telemetry = (occupied: number) => ({

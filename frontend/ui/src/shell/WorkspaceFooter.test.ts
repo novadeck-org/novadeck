@@ -79,6 +79,25 @@ describe("workspace footer", () => {
     })
   })
 
+  context("with agents that wait on something they started", () => {
+    it("counts them apart from the running, and says nothing without any", () => {
+      const page = render(
+        createElement(WorkspaceFooter, {
+          hidden: false,
+          count: 3,
+          running: 3,
+          waiting: 2,
+          status: "ok",
+        }),
+      )
+      mounted.push(page)
+      const text = page.container.querySelector("footer")!.textContent
+      expect(text).toContain("3 running")
+      expect(text).toContain("2 waiting")
+      expect(show("ok").bar().textContent).not.toContain("waiting")
+    })
+  })
+
   context("while the runner reconnects", () => {
     it("tones the whole bar as a warning and says so", () => {
       const { bar, said } = show("reconnecting")

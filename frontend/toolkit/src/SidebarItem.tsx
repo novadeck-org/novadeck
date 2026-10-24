@@ -1,5 +1,6 @@
 import { useId, type ComponentPropsWithoutRef, type ReactNode, type Ref } from "react"
 
+import { HoverCard } from "./HoverCard"
 import { Tooltip } from "./Tooltip"
 
 export const sidebarListClasses =
@@ -18,6 +19,7 @@ export const SidebarItem = ({
   selected,
   selectLabel,
   tooltip,
+  peek,
   description,
   tag,
   badge,
@@ -41,6 +43,9 @@ export const SidebarItem = ({
   selectLabel: string
   // On hover, where a row has more to say than it shows.
   tooltip?: string
+  // A card over the row, for the pointer, where it has more to say than a line: it takes
+  // the place of the tooltip. Null for a row that has none now, which keeps the row as it is.
+  peek?: ReactNode
   description?: string
   // Before the name, such as a terminal's handle.
   tag?: ReactNode
@@ -102,7 +107,13 @@ export const SidebarItem = ({
       className={`${sidebarItemClasses} ${editing ? "flex-col" : ""} ${className}`}
       data-selected={selected}
     >
-      {tooltip ? (
+      {peek !== undefined ? (
+        // The row is the same element whether or not it has a card to show, so keyboard focus
+        // on it stays where it is as the card comes and goes.
+        <HoverCard trigger={select} className="sidebar-item-peek" disabled={!peek || editing}>
+          {peek}
+        </HoverCard>
+      ) : tooltip ? (
         <Tooltip content={tooltip} placement="right-start" disabled={editing}>
           {select}
         </Tooltip>

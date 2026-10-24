@@ -197,6 +197,33 @@ describe("demo turns", () => {
       expect(done.lastTurn).toEqual(lastTurn)
     })
 
+    it("rests waiting on a job it left running, or a wake-up it set", async () => {
+      const { turns, held, agent } = open()
+      turns.finish(key("06"), held(key("06")), "completed", {
+        after: 100,
+        waiting: { job: { description: "Watch CI", command: "gh pr checks --watch" }, minutes: 4 },
+      })
+      await vi.advanceTimersByTimeAsync(100)
+      const { lastTurn } = agent(key("06"))!
+      expect(agent(key("06"))).toMatchObject({
+        working: false,
+        waiting: {
+          jobs: [{ description: "Watch CI", since: lastTurn!.at - 4 * 60_000, until: null }],
+          wake: null,
+        },
+      })
+      turns.finish(key("06"), held(key("06")), "completed", {
+        after: 100,
+        waiting: { wake: { reason: "Check the deploy" }, inMinutes: 8 },
+      })
+      await vi.advanceTimersByTimeAsync(100)
+      const ended = agent(key("06"))!.lastTurn!.at
+      expect(agent(key("06"))?.waiting).toEqual({
+        jobs: [],
+        wake: { at: ended + 8 * 60_000, reason: "Check the deploy" },
+      })
+    })
+
     it("rests at once with commands, which no subagent wakes it for", async () => {
       const { turns, held, agent } = open()
       turns.finish(key("06"), held(key("06")), "completed", {

@@ -1,8 +1,8 @@
 /* The window recipe: the terminal window, its header, selection bar and phase line, and
    the content area the backends draw into.
 
-   Hooks: data-terminal-phase="idle" | "done" | "running" | "starting" | "attention" |
-   "unheard" | "ended", data-terminal-failed="true" (done on an error) and
+   Hooks: data-terminal-phase="idle" | "done" | "running" | "waiting" | "starting" |
+   "attention" | "unheard" | "ended", data-terminal-failed="true" (done on an error) and
    data-new="true" on `.terminal-window`; `.terminal-focused` (Focus) and
    `.terminal-compact` (Grid, Canvas); a selected window is `.terminal-focused`, or sits
    in a `.grid-terminal.selected` or `.canvas-node.selected`. Parts: `.terminal-header`,
@@ -183,6 +183,21 @@
    name them. */
 .terminal-lead {
   flex: none;
+  color: var(--window-metadata-fg, var(--color-muted));
+  font-family: var(--window-metadata-font, var(--font-mono));
+  font-size: var(--text-caption);
+  line-height: 1rem;
+}
+/* What a waiting agent waits on, after its name (WindowWait.tsx): the glyph the tab has,
+   how long, and the agent's description, or the wake-up's time and the time left. It takes
+   only the room the name leaves, as much as it needs, so the name is cut last. Not in Grid
+   and Canvas, whose headers show no phase but the line. */
+.window-wait {
+  flex: 1 1 0;
+  max-width: max-content;
+  min-width: 0;
+  overflow: hidden;
+  margin-left: 0.75rem;
   color: var(--window-metadata-fg, var(--color-muted));
   font-family: var(--window-metadata-font, var(--font-mono));
   font-size: var(--text-caption);

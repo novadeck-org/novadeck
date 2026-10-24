@@ -1141,6 +1141,7 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))("bash shell i
       subagents: [],
       planning: false,
       background: null,
+      waiting: null,
       lastTurn: {
         outcome: "interrupted",
         reply: null,
@@ -1337,6 +1338,7 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))("bash shell i
         subagents: [],
         planning: false,
         background: null,
+        waiting: null,
         lastTurn: null,
       })
     expect(manager.reportedSession(terminal.id, "claude")).toBe("s2")

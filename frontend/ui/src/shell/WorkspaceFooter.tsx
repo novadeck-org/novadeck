@@ -36,6 +36,7 @@ export const WorkspaceFooter = ({
   hidden,
   count,
   running,
+  waiting = 0,
   status,
   navigate = false,
   onRetry,
@@ -53,6 +54,8 @@ export const WorkspaceFooter = ({
   readonly navigate?: boolean
   readonly count: number
   readonly running: number
+  // Agents that ended their turn to wait on something, counted apart from those at work.
+  readonly waiting?: number
   readonly status: FooterStatus
   // Offered while the runner keeps crashing: starts the terminals over.
   readonly onRetry?: (() => void) | undefined
@@ -115,6 +118,9 @@ export const WorkspaceFooter = ({
           {count} {count === 1 ? "terminal" : "terminals"}
         </span>
         <span className="footer-running max-[701px]:hidden ml-2 pl-3">{running} running</span>
+        {waiting > 0 && (
+          <span className="footer-running max-[701px]:hidden ml-2 pl-3">{waiting} waiting</span>
+        )}
         {navigate && (
           <span role="status" className="footer-navigate ml-2 flex items-center gap-1.5 pl-3">
             <span className="font-bold">Navigating</span>
