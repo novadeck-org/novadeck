@@ -1,11 +1,11 @@
 import { describe, expect, it } from "vitest"
 
-import { createAdmission, perFrame, type Frames } from "./admission"
+import { createAdmission, perBatch, type Yield } from "./admission"
 
 const setup = () => {
   const pending = new Map<number, () => void>()
   let next = 1
-  const frames: Frames = {
+  const yields: Yield = {
     request: (callback) => {
       pending.set(next, callback)
       return next++
@@ -13,19 +13,19 @@ const setup = () => {
     cancel: (handle) => void pending.delete(handle),
   }
   const turns: string[][] = []
-  const admission = createAdmission((ids) => turns.push([...ids]), frames)
-  const frame = (): void => {
+  const admission = createAdmission((ids) => turns.push([...ids]), yields)
+  const batch = (): void => {
     const [handle, callback] = [...pending][0] ?? []
     if (handle === undefined) return
     pending.delete(handle)
     callback?.()
   }
-  return { admission, turns, pending, frame }
+  return { admission, turns, pending, batch }
 }
 
 describe("admitting nodes to their screens", () => {
-  it("admits the selected node at once and the rest nearest first, a few per frame", () => {
-    const { admission, turns, frame } = setup()
+  it("admits the selected node at once and the rest nearest first, a batch at a time", () => {
+    const { admission, turns, batch } = setup()
     admission.select("c")
     for (const [id, distance] of [
       ["a", 50],
@@ -37,10 +37,10 @@ describe("admitting nodes to their screens", () => {
       admission.want(id, distance)
     expect(turns).toEqual([["c"]])
     expect(admission.admitted("b")).toBe(false)
-    frame()
-    expect(turns.slice(1)).toEqual([["b", "d"].slice(0, perFrame)])
-    frame()
-    frame()
+    batch()
+    expect(turns.slice(1)).toEqual([["b", "d"].slice(0, perBatch)])
+    batch()
+    batch()
     expect(turns.flat()).toEqual(["c", "b", "d", "a", "e"])
     expect(admission.admitted("e")).toBe(true)
   })
@@ -52,24 +52,24 @@ describe("admitting nodes to their screens", () => {
     expect(turns).toEqual([["a"]])
   })
 
-  it("drops a node that leaves before its turn, and stops asking for frames", () => {
-    const { admission, turns, pending, frame } = setup()
+  it("drops a node that leaves before its turn, and stops asking for yields", () => {
+    const { admission, turns, pending, batch } = setup()
     admission.want("a", 1)
     admission.drop("a")
     expect(pending.size).toBe(0)
-    frame()
+    batch()
     expect(turns).toEqual([])
     expect(admission.admitted("a")).toBe(false)
   })
 
   it("takes an admitted node back when it leaves, and queues it again on return", () => {
-    const { admission, turns, frame } = setup()
+    const { admission, turns, batch } = setup()
     admission.want("a", 1)
-    frame()
+    batch()
     admission.drop("a")
     expect(admission.admitted("a")).toBe(false)
     admission.want("a", 1)
-    frame()
+    batch()
     expect(turns).toEqual([["a"], ["a"]])
   })
 })
