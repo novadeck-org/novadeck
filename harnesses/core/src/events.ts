@@ -109,8 +109,6 @@ export type ActivityEvent = {
       readonly nonce?: string
       /** The turn's id, where the harness names one, as Codex does. */
       readonly turn?: string
-      /** The background tasks a harness-started turn's notification names as done. */
-      readonly tasks?: readonly string[]
     }
   | {
       readonly type: "turn-ended"
@@ -195,10 +193,14 @@ export type ActivityEvent = {
       readonly background?: true
     }
   /**
-   * A background task the agent started got its id, and with it a timeout where the
-   * harness gives up on it, in `until`, epoch milliseconds, as Claude Code's Monitor does;
-   * a `persistent` one runs until stopped. Told by the call's result, with the task's
-   * `startedAt`; a Stop's list of what runs names the task by this id.
+   * A background task the agent started is known by an id a Stop's list of what runs
+   * names it by, with `startedAt` the time it began, and the timeout where the harness
+   * gives up on it, in `until`, epoch milliseconds, as Claude Code's Monitor has; a
+   * `persistent` one runs until stopped, as a Monitor told to or a command run as a daemon.
+   * It tells when and how long the task runs, not whether the agent waits on it: that is
+   * the runner's to judge. Claude Code tells it by the call's result, with the task's own
+   * id; Antigravity, whose hooks give a call no id of the task, tells it with the Stop that
+   * finds the call still running, by an id of its own making and the time the call began.
    */
   | {
       readonly type: "task-started"
@@ -208,26 +210,25 @@ export type ActivityEvent = {
     }
   /**
    * A background task is over, by the id its start gave: a job the agent waited on no longer
-   * waits, or, with `wake`, the wake-up it set has gone off. Told by the hook that ends it,
-   * where the harness has one, as Antigravity's PostToolUse for a command it backgrounded.
+   * waits, nor is it among the tasks the last Stop counted running, and the wake-up of
+   * that id, if the agent set one, has gone off. Told by what ends it where the harness has
+   * one: Antigravity's PostToolUse for a command it backgrounded, or the task notification
+   * Claude Code starts a turn with, which names every task it reports done.
    */
   | {
       readonly type: "task-ended"
       readonly id: string
-      readonly wake?: true
-      /** No Stop listed it among the tasks running, so no count of them holds it. */
-      readonly unlisted?: true
     }
   /**
    * The agent set a wake-up for itself, to run its next turn at `at`, epoch milliseconds,
-   * for the `reason` it gave, as Claude Code's ScheduleWakeup does.
+   * for the `reason` it gave, as Claude Code's ScheduleWakeup does. Its `id` is the call's
+   * own; a `task-ended` of it says the wake-up has gone off, where the harness says so.
    */
   | {
       readonly type: "wake-scheduled"
+      readonly id: string
       readonly at: number
       readonly reason: string | null
-      /** The task that sets it off, where the harness ends it by a `task-ended` of that id. */
-      readonly id?: string
     }
   | {
       readonly type: "file-touched"
@@ -325,7 +326,10 @@ export type Background = {
   readonly agents: number
   readonly tasks: number
   readonly more?: true
-  /** The tasks' own account of each, where the harness lists them (Claude Code's Stop does). */
+  /**
+   * The tasks' own account of each, where the harness lists them; one that runs for good
+   * (`persistent`) may be listed and left out of `tasks`, as Antigravity's daemons are.
+   */
   readonly jobs?: readonly BackgroundJob[]
 }
 

@@ -120,13 +120,15 @@ const decodeEvent = ({ event, seq, instance, payload }: Report): readonly Harnes
       const { jobs, wake } = running(id)
       return [
         observed,
-        // Each job's start, as its call told it, for the time it has waited since.
-        ...jobs.map(({ id: task, at }): HarnessEvent => ({
+        // Each job's start, as its call told it, for the time it has waited since; a daemon's
+        // is told now, as none is waited for, so a turn after its call keeps it.
+        ...jobs.map(({ id: task, at, daemon }): HarnessEvent => ({
           type: "task-started",
           ...base,
-          startedAt: at,
+          startedAt: daemon ? base.startedAt : at,
           id: task,
           until: null,
+          ...(daemon && { persistent: true as const }),
         })),
         // A timer of an earlier turn is still the wake-up of this one.
         ...(wake ? [{ type: "wake-scheduled" as const, ...base, ...wake }] : []),
@@ -141,7 +143,8 @@ const decodeEvent = ({ event, seq, instance, payload }: Report): readonly Harnes
           // are those (probed 2026-10-24, 1.4.6).
           background: {
             agents: 0,
-            tasks: jobs.length,
+            // A daemon is listed but not counted: it never wakes the agent.
+            tasks: jobs.filter(({ daemon }) => !daemon).length,
             ...(payload.fullyIdle === false && { more: true }),
             ...(jobs.length > 0 && {
               jobs: jobs.map(({ id: task, description, command }): BackgroundJob => ({
@@ -272,15 +275,17 @@ const firstLine = (value: unknown): string | undefined => {
 /**
  * A call that may outlive its turn, and that Antigravity counts a background task while it
  * does: a command, with the agent's words for it, or a timer, with the wake-up it sets;
- * neither, as a daemon, a cron or a timer too long, is none of the activity's wait but
- * holds a place in that count. Told by its PreToolUse, at `at`, and over when its
+ * a daemon, a cron or a timer too long is no wait of the activity's, which judges that, but
+ * all hold a place in that count. Told by its PreToolUse, at `at`, and over when its
  * PostToolUse comes, which for these fires when they end (probed 2026-10-24, 1.4.6).
  */
 type Pending = {
   readonly id: string
   readonly at: number
-  /** Whether it is a command that ends by itself, as a job the agent waits on. */
+  /** Whether it is a command, a job a Stop lists. */
   readonly job: boolean
+  /** Whether it runs for good (`IsDaemon`), which no end of its own wakes the agent for. */
+  readonly daemon: boolean
   readonly description: string | null
   readonly command: string
   readonly wake: { at: number; reason: string | null } | null
@@ -307,19 +312,17 @@ const awaiting = (conversation: string): Map<string, Pending> => {
   return calls
 }
 
-// A call over, as the activity learns it: a job that no Stop listed, or no job at all, is
-// in no count of the tasks running.
+// A call over, as the activity learns it.
 const over = (base: Base, call: Pending): HarnessEvent => ({
   type: "task-ended",
   ...base,
   id: call.id,
-  ...(call.wake && { wake: true as const }),
-  ...(!(call.seen && call.job) && { unlisted: true as const }),
 })
 
-// A command it runs for good (`IsDaemon`) ends no turn of its own, nor does a cron or a
-// timer that repeats: none is a wait. The rest are told here whether they end in the
-// background or not, by whether their PostToolUse comes before the turn's Stop. Killing a
+// A command it runs for good (`IsDaemon`) is told as a persistent job, as the activity
+// judges what is no wait; a cron or a timer that repeats is no job or wake-up at all. The
+// rest are told here whether they end in the background or not, by whether their
+// PostToolUse comes before the turn's Stop. Killing a
 // task names it by an id no hook gives, so it ends every call of the conversation: a wait
 // missed beats one that never ends.
 const pending = (base: Base, conversation: string, payload: Report["payload"]): HarnessEvent[] => {
@@ -352,7 +355,8 @@ const pending = (base: Base, conversation: string, payload: Report["payload"]): 
   calls.set(id, {
     id,
     at: base.startedAt,
-    job: name === "run_command" && !daemon,
+    job: name === "run_command",
+    daemon,
     description: said === command.trim() ? null : (said ?? null),
     command,
     wake,

@@ -88,10 +88,15 @@ const decodeHook = ({ event, seq, instance, env, payload }: Report): readonly Ha
       if (actor) return []
       const prompt = text(payload.prompt) ?? ""
       return [
-        {
-          ...promptStart(base, prompt, notification.test(prompt)),
-          ...(notification.test(prompt) && { tasks: finished(prompt) }),
-        } as HarnessEvent,
+        // The tasks it names are done before the turn it starts.
+        ...(notification.test(prompt)
+          ? finished(prompt).map((task): HarnessEvent => ({
+              type: "task-ended",
+              ...base,
+              id: task,
+            }))
+          : []),
+        promptStart(base, prompt, notification.test(prompt)),
       ]
     case "Stop":
       return actor
@@ -223,10 +228,7 @@ const decodeHook = ({ event, seq, instance, env, payload }: Report): readonly Ha
         ...drafted(base, actor, tool, payload),
         // A write that failed wrote nothing, and a task that failed to start runs nowhere.
         ...(event === "PostToolUse"
-          ? [
-              ...touched(base, actor, tool, payload.tool_input),
-              ...started(base, tool, payload.tool_input, payload.tool_response),
-            ]
+          ? [...touched(base, actor, tool, payload.tool_input), ...started(base, tool, payload)]
           : []),
         {
           type: "tool-called",
@@ -277,11 +279,10 @@ const firstLine = (value: unknown): string | undefined => {
 const started = (
   base: { agent: "claude"; sessionId: string; instance: string | null; startedAt: number },
   tool: string,
-  input: unknown,
-  response: unknown,
+  payload: Report["payload"],
 ): HarnessEvent[] => {
-  const fields = isFields(input) ? input : {}
-  const result = isFields(response) ? response : {}
+  const fields = isFields(payload.tool_input) ? payload.tool_input : {}
+  const result = isFields(payload.tool_response) ? payload.tool_response : {}
   if (tool === "ScheduleWakeup") {
     const scheduled = result.scheduledFor
     const delay = fields.delaySeconds
@@ -292,7 +293,11 @@ const started = (
           ? base.startedAt + Math.min(wakeDelayMs.most, Math.max(wakeDelayMs.least, delay * 1000))
           : undefined
     const reason = firstLine(fields.reason)
-    return at === undefined ? [] : [{ type: "wake-scheduled", ...base, at, reason: reason ?? null }]
+    // Named by its call, as a result with no id of its own is.
+    const id = shortName(payload.tool_use_id, maxJobText) ?? `${tool}:${base.startedAt}`
+    return at === undefined
+      ? []
+      : [{ type: "wake-scheduled", ...base, id, at, reason: reason ?? null }]
   }
   const id =
     tool === "Bash" ? result.backgroundTaskId : tool === "Monitor" ? result.taskId : undefined
