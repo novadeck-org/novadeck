@@ -207,6 +207,16 @@ export type ActivityEvent = {
       readonly persistent?: true
     }
   /**
+   * A background task is over, by the id its start gave: a job the agent waited on no longer
+   * waits, or, with `wake`, the wake-up it set has gone off. Told by the hook that ends it,
+   * where the harness has one, as Antigravity's PostToolUse for a command it backgrounded.
+   */
+  | {
+      readonly type: "task-ended"
+      readonly id: string
+      readonly wake?: true
+    }
+  /**
    * The agent set a wake-up for itself, to run its next turn at `at`, epoch milliseconds,
    * for the `reason` it gave, as Claude Code's ScheduleWakeup does.
    */

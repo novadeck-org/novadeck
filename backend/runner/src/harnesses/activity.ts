@@ -663,6 +663,24 @@ export const apply = (
       const task = { id, at, until, persistent: persistent === true }
       return { ...activity, tasks: [...activity.tasks, task].slice(-maxTasks) }
     }
+    case "task-ended": {
+      // In any state: a job done is no wait, nor is a wake-up gone off.
+      const { waits, wake } = activity
+      const jobs = (waits?.jobs ?? []).filter(({ id }) => id !== event.id)
+      const left = event.wake ? null : wake
+      const kept = event.wake ? null : (waits?.wake ?? null)
+      if (
+        jobs.length === (waits?.jobs.length ?? 0) &&
+        left === wake &&
+        kept === (waits?.wake ?? null)
+      )
+        return undefined
+      return {
+        ...activity,
+        wake: left,
+        waits: jobs.length > 0 || kept ? { jobs, wake: kept } : null,
+      }
+    }
     case "wake-scheduled":
       // Only the turn running sets one; a later one replaces it.
       if (activity.state !== "working" || event.startedAt < activity.turnAt) return undefined

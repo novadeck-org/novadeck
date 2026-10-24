@@ -1,0 +1,427 @@
+{
+  "harness": "agy",
+  "version": "1.4.6",
+  "source": "captured against a fake Gemini API (2026-10-24); the hooks and status line of interactive sessions, ids and paths replaced, fields the decoder never reads left out",
+  "how": "Three interactive sessions, each ended its turn with something left to wake it: a run_command that did not finish within WaitMsBeforeAsync (sleep 3; echo BG_DONE), a schedule timer of 3 seconds, and a run_command with IsDaemon. The PostToolUse of a backgrounded run_command or a timer fires when it ends, with the PreToolUse's stepIdx and no result, not at the hand-off; the status line says task_count while one runs and drops the key once none does. When the job or timer ends, Antigravity starts a turn by itself (PreInvocation with invocationNum 0). The daemon's Stop says fullyIdle true while it runs; its session is cut at its first PostToolUse.",
+  "scenarios": {
+    "background-command": {
+      "events": [
+        {
+          "event": "PreInvocation",
+          "payload": {
+            "artifactDirectoryPath": "/home/user/.gemini/antigravity-cli/brain/60000000-0000-4000-8000-000000000001",
+            "conversationId": "60000000-0000-4000-8000-000000000001",
+            "initialNumSteps": 1,
+            "invocationNum": 0,
+            "modelName": "gemini-3.1-pro-low",
+            "transcriptPath": "/home/user/.gemini/antigravity-cli/brain/60000000-0000-4000-8000-000000000001/.system_generated/logs/transcript_full.jsonl",
+            "workspacePaths": ["/home/user/project"]
+          }
+        },
+        {
+          "event": "PreToolUse",
+          "payload": {
+            "artifactDirectoryPath": "/home/user/.gemini/antigravity-cli/brain/60000000-0000-4000-8000-000000000001",
+            "conversationId": "60000000-0000-4000-8000-000000000001",
+            "modelName": "gemini-3.1-pro-low",
+            "stepIdx": 2,
+            "toolCall": {
+              "args": {
+                "CommandLine": "sleep 3; echo BG_DONE",
+                "WaitMsBeforeAsync": 500,
+                "toolSummary": "Sleep then echo"
+              },
+              "name": "run_command"
+            },
+            "transcriptPath": "/home/user/.gemini/antigravity-cli/brain/60000000-0000-4000-8000-000000000001/.system_generated/logs/transcript_full.jsonl",
+            "workspacePaths": ["/home/user/project"]
+          }
+        },
+        {
+          "event": "StatusLine",
+          "payload": {
+            "agent_state": "working",
+            "conversation_id": "60000000-0000-4000-8000-000000000001",
+            "session_id": "60000000-0000-4000-8000-000000000001",
+            "cwd": "/home/user/project"
+          }
+        },
+        {
+          "event": "StatusLine",
+          "payload": {
+            "agent_state": "working",
+            "conversation_id": "60000000-0000-4000-8000-000000000001",
+            "session_id": "60000000-0000-4000-8000-000000000001",
+            "cwd": "/home/user/project"
+          }
+        },
+        {
+          "event": "PreInvocation",
+          "payload": {
+            "artifactDirectoryPath": "/home/user/.gemini/antigravity-cli/brain/60000000-0000-4000-8000-000000000001",
+            "conversationId": "60000000-0000-4000-8000-000000000001",
+            "initialNumSteps": 3,
+            "invocationNum": 1,
+            "modelName": "gemini-3.1-pro-low",
+            "transcriptPath": "/home/user/.gemini/antigravity-cli/brain/60000000-0000-4000-8000-000000000001/.system_generated/logs/transcript_full.jsonl",
+            "workspacePaths": ["/home/user/project"]
+          }
+        },
+        {
+          "event": "Stop",
+          "payload": {
+            "artifactDirectoryPath": "/home/user/.gemini/antigravity-cli/brain/60000000-0000-4000-8000-000000000001",
+            "conversationId": "60000000-0000-4000-8000-000000000001",
+            "error": "",
+            "executionNum": 0,
+            "fullyIdle": false,
+            "modelName": "gemini-3.1-pro-low",
+            "terminationReason": "NO_TOOL_CALL",
+            "transcriptPath": "/home/user/.gemini/antigravity-cli/brain/60000000-0000-4000-8000-000000000001/.system_generated/logs/transcript_full.jsonl",
+            "workspacePaths": ["/home/user/project"]
+          }
+        },
+        {
+          "event": "StatusLine",
+          "payload": {
+            "agent_state": "idle",
+            "task_count": 1,
+            "conversation_id": "60000000-0000-4000-8000-000000000001",
+            "session_id": "60000000-0000-4000-8000-000000000001",
+            "cwd": "/home/user/project"
+          }
+        },
+        {
+          "event": "PostToolUse",
+          "payload": {
+            "artifactDirectoryPath": "/home/user/.gemini/antigravity-cli/brain/60000000-0000-4000-8000-000000000001",
+            "conversationId": "60000000-0000-4000-8000-000000000001",
+            "error": "",
+            "modelName": "gemini-3.1-pro-low",
+            "stepIdx": 2,
+            "toolCall": {
+              "args": {
+                "CommandLine": "sleep 3; echo BG_DONE",
+                "WaitMsBeforeAsync": 500,
+                "toolSummary": "Sleep then echo"
+              },
+              "name": "run_command"
+            },
+            "transcriptPath": "/home/user/.gemini/antigravity-cli/brain/60000000-0000-4000-8000-000000000001/.system_generated/logs/transcript_full.jsonl",
+            "workspacePaths": ["/home/user/project"]
+          }
+        },
+        {
+          "event": "StatusLine",
+          "payload": {
+            "agent_state": "idle",
+            "task_count": 1,
+            "conversation_id": "60000000-0000-4000-8000-000000000001",
+            "session_id": "60000000-0000-4000-8000-000000000001",
+            "cwd": "/home/user/project"
+          }
+        },
+        {
+          "event": "PreInvocation",
+          "payload": {
+            "artifactDirectoryPath": "/home/user/.gemini/antigravity-cli/brain/60000000-0000-4000-8000-000000000001",
+            "conversationId": "60000000-0000-4000-8000-000000000001",
+            "initialNumSteps": 4,
+            "invocationNum": 0,
+            "modelName": "gemini-3.1-pro-low",
+            "transcriptPath": "/home/user/.gemini/antigravity-cli/brain/60000000-0000-4000-8000-000000000001/.system_generated/logs/transcript_full.jsonl",
+            "workspacePaths": ["/home/user/project"]
+          }
+        },
+        {
+          "event": "Stop",
+          "payload": {
+            "artifactDirectoryPath": "/home/user/.gemini/antigravity-cli/brain/60000000-0000-4000-8000-000000000001",
+            "conversationId": "60000000-0000-4000-8000-000000000001",
+            "error": "",
+            "executionNum": 0,
+            "fullyIdle": true,
+            "modelName": "gemini-3.1-pro-low",
+            "terminationReason": "NO_TOOL_CALL",
+            "transcriptPath": "/home/user/.gemini/antigravity-cli/brain/60000000-0000-4000-8000-000000000001/.system_generated/logs/transcript_full.jsonl",
+            "workspacePaths": ["/home/user/project"]
+          }
+        },
+        {
+          "event": "StatusLine",
+          "payload": {
+            "agent_state": "idle",
+            "conversation_id": "60000000-0000-4000-8000-000000000001",
+            "session_id": "60000000-0000-4000-8000-000000000001",
+            "cwd": "/home/user/project"
+          }
+        }
+      ]
+    },
+    "timer": {
+      "events": [
+        {
+          "event": "PreInvocation",
+          "payload": {
+            "artifactDirectoryPath": "/home/user/.gemini/antigravity-cli/brain/60000000-0000-4000-8000-000000000002",
+            "conversationId": "60000000-0000-4000-8000-000000000002",
+            "initialNumSteps": 1,
+            "invocationNum": 0,
+            "modelName": "gemini-3.1-pro-low",
+            "transcriptPath": "/home/user/.gemini/antigravity-cli/brain/60000000-0000-4000-8000-000000000002/.system_generated/logs/transcript_full.jsonl",
+            "workspacePaths": ["/home/user/project"]
+          }
+        },
+        {
+          "event": "PreToolUse",
+          "payload": {
+            "artifactDirectoryPath": "/home/user/.gemini/antigravity-cli/brain/60000000-0000-4000-8000-000000000002",
+            "conversationId": "60000000-0000-4000-8000-000000000002",
+            "modelName": "gemini-3.1-pro-low",
+            "stepIdx": 2,
+            "toolCall": {
+              "args": {
+                "DurationSeconds": 3,
+                "Prompt": "TIMER_WAKE: check the timer"
+              },
+              "name": "schedule"
+            },
+            "transcriptPath": "/home/user/.gemini/antigravity-cli/brain/60000000-0000-4000-8000-000000000002/.system_generated/logs/transcript_full.jsonl",
+            "workspacePaths": ["/home/user/project"]
+          }
+        },
+        {
+          "event": "PreInvocation",
+          "payload": {
+            "artifactDirectoryPath": "/home/user/.gemini/antigravity-cli/brain/60000000-0000-4000-8000-000000000002",
+            "conversationId": "60000000-0000-4000-8000-000000000002",
+            "initialNumSteps": 3,
+            "invocationNum": 1,
+            "modelName": "gemini-3.1-pro-low",
+            "transcriptPath": "/home/user/.gemini/antigravity-cli/brain/60000000-0000-4000-8000-000000000002/.system_generated/logs/transcript_full.jsonl",
+            "workspacePaths": ["/home/user/project"]
+          }
+        },
+        {
+          "event": "Stop",
+          "payload": {
+            "artifactDirectoryPath": "/home/user/.gemini/antigravity-cli/brain/60000000-0000-4000-8000-000000000002",
+            "conversationId": "60000000-0000-4000-8000-000000000002",
+            "error": "",
+            "executionNum": 0,
+            "fullyIdle": false,
+            "modelName": "gemini-3.1-pro-low",
+            "terminationReason": "NO_TOOL_CALL",
+            "transcriptPath": "/home/user/.gemini/antigravity-cli/brain/60000000-0000-4000-8000-000000000002/.system_generated/logs/transcript_full.jsonl",
+            "workspacePaths": ["/home/user/project"]
+          }
+        },
+        {
+          "event": "StatusLine",
+          "payload": {
+            "agent_state": "idle",
+            "task_count": 1,
+            "conversation_id": "60000000-0000-4000-8000-000000000002",
+            "session_id": "60000000-0000-4000-8000-000000000002",
+            "cwd": "/home/user/project"
+          }
+        },
+        {
+          "event": "StatusLine",
+          "payload": {
+            "agent_state": "idle",
+            "task_count": 1,
+            "conversation_id": "60000000-0000-4000-8000-000000000002",
+            "session_id": "60000000-0000-4000-8000-000000000002",
+            "cwd": "/home/user/project"
+          }
+        },
+        {
+          "event": "PostToolUse",
+          "payload": {
+            "artifactDirectoryPath": "/home/user/.gemini/antigravity-cli/brain/60000000-0000-4000-8000-000000000002",
+            "conversationId": "60000000-0000-4000-8000-000000000002",
+            "error": "",
+            "modelName": "gemini-3.1-pro-low",
+            "stepIdx": 2,
+            "toolCall": {
+              "args": {
+                "DurationSeconds": 3,
+                "Prompt": "TIMER_WAKE: check the timer"
+              },
+              "name": "schedule"
+            },
+            "transcriptPath": "/home/user/.gemini/antigravity-cli/brain/60000000-0000-4000-8000-000000000002/.system_generated/logs/transcript_full.jsonl",
+            "workspacePaths": ["/home/user/project"]
+          }
+        },
+        {
+          "event": "StatusLine",
+          "payload": {
+            "agent_state": "working",
+            "task_count": 1,
+            "conversation_id": "60000000-0000-4000-8000-000000000002",
+            "session_id": "60000000-0000-4000-8000-000000000002",
+            "cwd": "/home/user/project"
+          }
+        },
+        {
+          "event": "PreInvocation",
+          "payload": {
+            "artifactDirectoryPath": "/home/user/.gemini/antigravity-cli/brain/60000000-0000-4000-8000-000000000002",
+            "conversationId": "60000000-0000-4000-8000-000000000002",
+            "initialNumSteps": 4,
+            "invocationNum": 0,
+            "modelName": "gemini-3.1-pro-low",
+            "transcriptPath": "/home/user/.gemini/antigravity-cli/brain/60000000-0000-4000-8000-000000000002/.system_generated/logs/transcript_full.jsonl",
+            "workspacePaths": ["/home/user/project"]
+          }
+        },
+        {
+          "event": "Stop",
+          "payload": {
+            "artifactDirectoryPath": "/home/user/.gemini/antigravity-cli/brain/60000000-0000-4000-8000-000000000002",
+            "conversationId": "60000000-0000-4000-8000-000000000002",
+            "error": "",
+            "executionNum": 0,
+            "fullyIdle": true,
+            "modelName": "gemini-3.1-pro-low",
+            "terminationReason": "NO_TOOL_CALL",
+            "transcriptPath": "/home/user/.gemini/antigravity-cli/brain/60000000-0000-4000-8000-000000000002/.system_generated/logs/transcript_full.jsonl",
+            "workspacePaths": ["/home/user/project"]
+          }
+        },
+        {
+          "event": "StatusLine",
+          "payload": {
+            "agent_state": "idle",
+            "conversation_id": "60000000-0000-4000-8000-000000000002",
+            "session_id": "60000000-0000-4000-8000-000000000002",
+            "cwd": "/home/user/project"
+          }
+        }
+      ]
+    },
+    "daemon": {
+      "events": [
+        {
+          "event": "PreInvocation",
+          "payload": {
+            "artifactDirectoryPath": "/home/user/.gemini/antigravity-cli/brain/60000000-0000-4000-8000-000000000003",
+            "conversationId": "60000000-0000-4000-8000-000000000003",
+            "initialNumSteps": 1,
+            "invocationNum": 0,
+            "modelName": "gemini-3.1-pro-low",
+            "transcriptPath": "/home/user/.gemini/antigravity-cli/brain/60000000-0000-4000-8000-000000000003/.system_generated/logs/transcript_full.jsonl",
+            "workspacePaths": ["/home/user/project"]
+          }
+        },
+        {
+          "event": "PreToolUse",
+          "payload": {
+            "artifactDirectoryPath": "/home/user/.gemini/antigravity-cli/brain/60000000-0000-4000-8000-000000000003",
+            "conversationId": "60000000-0000-4000-8000-000000000003",
+            "modelName": "gemini-3.1-pro-low",
+            "stepIdx": 2,
+            "toolCall": {
+              "args": {
+                "CommandLine": "sleep 5; echo DAEMON_DONE",
+                "IsDaemon": true,
+                "WaitMsBeforeAsync": 500,
+                "toolSummary": "Daemon sleep test"
+              },
+              "name": "run_command"
+            },
+            "transcriptPath": "/home/user/.gemini/antigravity-cli/brain/60000000-0000-4000-8000-000000000003/.system_generated/logs/transcript_full.jsonl",
+            "workspacePaths": ["/home/user/project"]
+          }
+        },
+        {
+          "event": "StatusLine",
+          "payload": {
+            "agent_state": "working",
+            "conversation_id": "60000000-0000-4000-8000-000000000003",
+            "session_id": "60000000-0000-4000-8000-000000000003",
+            "cwd": "/home/user/project"
+          }
+        },
+        {
+          "event": "StatusLine",
+          "payload": {
+            "agent_state": "working",
+            "conversation_id": "60000000-0000-4000-8000-000000000003",
+            "session_id": "60000000-0000-4000-8000-000000000003",
+            "cwd": "/home/user/project"
+          }
+        },
+        {
+          "event": "PreInvocation",
+          "payload": {
+            "artifactDirectoryPath": "/home/user/.gemini/antigravity-cli/brain/60000000-0000-4000-8000-000000000003",
+            "conversationId": "60000000-0000-4000-8000-000000000003",
+            "initialNumSteps": 3,
+            "invocationNum": 1,
+            "modelName": "gemini-3.1-pro-low",
+            "transcriptPath": "/home/user/.gemini/antigravity-cli/brain/60000000-0000-4000-8000-000000000003/.system_generated/logs/transcript_full.jsonl",
+            "workspacePaths": ["/home/user/project"]
+          }
+        },
+        {
+          "event": "Stop",
+          "payload": {
+            "artifactDirectoryPath": "/home/user/.gemini/antigravity-cli/brain/60000000-0000-4000-8000-000000000003",
+            "conversationId": "60000000-0000-4000-8000-000000000003",
+            "error": "",
+            "executionNum": 0,
+            "fullyIdle": true,
+            "modelName": "gemini-3.1-pro-low",
+            "terminationReason": "NO_TOOL_CALL",
+            "transcriptPath": "/home/user/.gemini/antigravity-cli/brain/60000000-0000-4000-8000-000000000003/.system_generated/logs/transcript_full.jsonl",
+            "workspacePaths": ["/home/user/project"]
+          }
+        },
+        {
+          "event": "StatusLine",
+          "payload": {
+            "agent_state": "idle",
+            "task_count": 1,
+            "conversation_id": "60000000-0000-4000-8000-000000000003",
+            "session_id": "60000000-0000-4000-8000-000000000003",
+            "cwd": "/home/user/project"
+          }
+        },
+        {
+          "event": "StatusLine",
+          "payload": {
+            "agent_state": "idle",
+            "task_count": 1,
+            "conversation_id": "60000000-0000-4000-8000-000000000003",
+            "session_id": "60000000-0000-4000-8000-000000000003",
+            "cwd": "/home/user/project"
+          }
+        },
+        {
+          "event": "PostToolUse",
+          "payload": {
+            "artifactDirectoryPath": "/home/user/.gemini/antigravity-cli/brain/60000000-0000-4000-8000-000000000003",
+            "conversationId": "60000000-0000-4000-8000-000000000003",
+            "error": "",
+            "modelName": "gemini-3.1-pro-low",
+            "stepIdx": 2,
+            "toolCall": {
+              "args": {
+                "CommandLine": "sleep 5; echo DAEMON_DONE",
+                "IsDaemon": true,
+                "WaitMsBeforeAsync": 500,
+                "toolSummary": "Daemon sleep test"
+              },
+              "name": "run_command"
+            },
+            "transcriptPath": "/home/user/.gemini/antigravity-cli/brain/60000000-0000-4000-8000-000000000003/.system_generated/logs/transcript_full.jsonl",
+            "workspacePaths": ["/home/user/project"]
+          }
+        }
+      ]
+    }
+  }
+}
