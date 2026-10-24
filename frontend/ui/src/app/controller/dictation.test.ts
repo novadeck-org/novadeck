@@ -45,6 +45,7 @@ const ui = (): UiStore =>
         fontSize: 13,
         enabledViews: ["focus"],
         appearance,
+        notifyNeeds: true,
         notifyFinished: true,
         ligatures: false,
         chatView: false,

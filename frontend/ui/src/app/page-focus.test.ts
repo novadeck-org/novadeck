@@ -46,6 +46,7 @@ const ui = () =>
         fontSize: 13,
         enabledViews: ["focus"],
         appearance,
+        notifyNeeds: true,
         notifyFinished: true,
         ligatures: false,
         chatView: false,
@@ -94,5 +95,64 @@ describe("the page's focus", () => {
     document.visibilityState = "visible"
     document.dispatchEvent(new Event("visibilitychange"))
     expect(store.getSnapshot().pageFocused).toBe(false)
+  })
+})
+
+describe("the page's focus where the host reports its window's", () => {
+  // A host that tells the window's focus at once and on each change.
+  const host = (initial: boolean) => {
+    const listeners = new Set<(focused: boolean) => void>()
+    return {
+      listen: (listener: (focused: boolean) => void) => {
+        listeners.add(listener)
+        listener(initial)
+        return () => void listeners.delete(listener)
+      },
+      report: (focused: boolean) => listeners.forEach((listener) => listener(focused)),
+      listeners,
+    }
+  }
+
+  it("follows the host, not the document", () => {
+    const store = ui()
+    const { view, document, settle } = page()
+    const { listen, report } = host(true)
+    // The document loses focus to a frame of the page and never gets it back.
+    document.focused = false
+    const stop = watchPageFocus(store, view, listen)
+    view.dispatchEvent(new Event("blur"))
+    settle()
+    expect(store.getSnapshot().pageFocused).toBe(true)
+    report(false)
+    expect(store.getSnapshot().pageFocused).toBe(false)
+    report(true)
+    expect(store.getSnapshot().pageFocused).toBe(true)
+    stop()
+  })
+
+  it("starts from the host's state", () => {
+    const store = ui()
+    const { view } = page()
+    const stop = watchPageFocus(store, view, host(false).listen)
+    expect(store.getSnapshot().pageFocused).toBe(false)
+    stop()
+  })
+
+  it("is lost while the page doesn't show, whatever the host says", () => {
+    const store = ui()
+    const { view, document } = page()
+    const stop = watchPageFocus(store, view, host(true).listen)
+    document.visibilityState = "hidden"
+    document.dispatchEvent(new Event("visibilitychange"))
+    expect(store.getSnapshot().pageFocused).toBe(false)
+    stop()
+  })
+
+  it("stops listening to the host with the watch", () => {
+    const store = ui()
+    const { view } = page()
+    const { listen, listeners } = host(true)
+    watchPageFocus(store, view, listen)()
+    expect(listeners.size).toBe(0)
   })
 })

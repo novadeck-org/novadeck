@@ -9,8 +9,10 @@ import {
   apiUrlArgumentPrefix,
   appearanceChannel,
   installAppChannel,
+  badgeChannel,
   noticeChannel,
   noticeClickChannel,
+  noticeCloseChannel,
   dismissWhatsNewChannel,
   whatsNewChannel,
   openUpdatePageChannel,
@@ -28,6 +30,8 @@ import {
   updateOfferChannel,
   updateRequestChannel,
   versionChannel,
+  windowFocusChannel,
+  windowFocusRequestChannel,
 } from "../bridge.js"
 import { context, describe, expect, it } from "../test"
 
@@ -290,6 +294,36 @@ describe("a notice about a terminal", () => {
     stop()
     electron.renderer.emit(noticeClickChannel, {}, "03")
     expect(clicks).toEqual(["01"])
+  })
+})
+
+describe("closing a notice and the icon's badge", () => {
+  it("send the terminal id, and only a valid badge", () => {
+    electron.exposed.closeNotice?.("01")
+    electron.exposed.setBadge?.({ count: 3, image: null, extra: 1 } as never)
+    electron.exposed.setBadge?.({ count: 1000, image: null })
+    expect(electron.messages).toEqual([
+      [noticeCloseChannel, "01"],
+      [badgeChannel, { count: 3, image: null }],
+    ])
+  })
+})
+
+describe("the window's focus", () => {
+  it("is asked for once the page listens", () => {
+    electron.exposed.onWindowFocus!(() => {})
+    expect(electron.sent).toEqual([windowFocusRequestChannel])
+  })
+
+  it("comes back as a boolean, and only that, until the page stops", () => {
+    const states: boolean[] = []
+    const stop = electron.exposed.onWindowFocus!((focused) => states.push(focused))
+    electron.renderer.emit(windowFocusChannel, {}, true)
+    electron.renderer.emit(windowFocusChannel, {}, "yes")
+    electron.renderer.emit(windowFocusChannel, {}, false)
+    stop()
+    electron.renderer.emit(windowFocusChannel, {}, true)
+    expect(states).toEqual([true, false])
   })
 })
 

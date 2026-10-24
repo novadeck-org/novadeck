@@ -2,7 +2,7 @@ import { EventEmitter } from "node:events"
 
 import type { IpcMainEvent } from "electron"
 
-import { noticeChannel } from "../bridge.js"
+import { noticeChannel, noticeCloseChannel } from "../bridge.js"
 import { context, describe, expect, it } from "../test"
 import {
   desktopNoticeOf,
@@ -56,15 +56,19 @@ describe("a notice from the page", () => {
 const registered = (own: boolean) => {
   const listeners = new Map<string, (event: IpcMainEvent, value: unknown) => void>()
   const shown: [string, unknown][] = []
+  const closed: string[] = []
   registerNoticeIpc(
     { on: (channel, listener) => void listeners.set(channel, listener) },
     {
       window: () => (own ? "window" : undefined),
       show: (window, value) => void shown.push([window, value]),
+      close: (id) => void closed.push(id),
     },
   )
   const send = (value: unknown): void => listeners.get(noticeChannel)?.({} as IpcMainEvent, value)
-  return { send, shown }
+  const close = (value: unknown): void =>
+    listeners.get(noticeCloseChannel)?.({} as IpcMainEvent, value)
+  return { send, close, shown, closed }
 }
 
 describe("taking the page's notices", () => {
@@ -87,6 +91,26 @@ describe("taking the page's notices", () => {
   })
 })
 
+describe("taking the page's requests to close a notice", () => {
+  it("closes by a valid terminal id", () => {
+    const { close, closed } = registered(true)
+    close("t1")
+    expect(closed).toEqual(["t1"])
+  })
+
+  it("drops anything but a terminal id", () => {
+    const { close, closed } = registered(true)
+    for (const value of [undefined, 1, { id: "t1" }, "", "../x", "x".repeat(65)]) close(value)
+    expect(closed).toEqual([])
+  })
+
+  it("drops a request from any other sender", () => {
+    const { close, closed } = registered(false)
+    close("t1")
+    expect(closed).toEqual([])
+  })
+})
+
 // Electron's Notification as showing uses it: what it was made with, shown, closed.
 class FakeNotification extends EventEmitter implements NotificationLike {
   shown = false
@@ -106,7 +130,7 @@ class FakeNotification extends EventEmitter implements NotificationLike {
 const notifying = (supported = true) => {
   const made: FakeNotification[] = []
   const clicks: [string, string][] = []
-  const show = showNotices<string>({
+  const { show, close, closeAll } = showNotices<string>({
     supported,
     create: (options) => {
       const notification = new FakeNotification(options)
@@ -115,7 +139,7 @@ const notifying = (supported = true) => {
     },
     clicked: (window, id) => void clicks.push([window, id]),
   })
-  return { show, made, clicks }
+  return { show, close, closeAll, made, clicks }
 }
 
 describe("showing notices as the system's notifications", () => {
@@ -140,6 +164,44 @@ describe("showing notices as the system's notifications", () => {
     show("window", notice)
     made[0]!.emit("click")
     expect(clicks).toEqual([["window", notice.id]])
+  })
+
+  it("closes the one showing for a terminal by its id, and forgets it", () => {
+    const { show, close, made } = notifying()
+    show("window", notice)
+    show("window", { ...notice, id: "other" })
+    close(notice.id)
+    close(notice.id)
+    close("unknown")
+    expect(made.map(({ closed }) => closed)).toEqual([true, false])
+    show("window", notice)
+    expect(made.map(({ closed }) => closed)).toEqual([true, false, false])
+  })
+
+  it("keeps one whose toast timed out, so it can still be taken away", () => {
+    const { show, close, made } = notifying()
+    show("window", notice)
+    made[0]!.emit("close", { reason: "timedOut" })
+    close(notice.id)
+    expect(made[0]!.closed).toBe(true)
+  })
+
+  it("forgets one the person dismissed", () => {
+    const { show, close, made } = notifying()
+    show("window", notice)
+    made[0]!.emit("close", { reason: "userCanceled" })
+    made[0]!.closed = false
+    close(notice.id)
+    expect(made[0]!.closed).toBe(false)
+  })
+
+  it("closes every one still showing, as when the page that showed them goes", () => {
+    const { show, closeAll, made } = notifying()
+    show("window", notice)
+    show("window", { ...notice, id: "other" })
+    made[1]!.emit("click")
+    closeAll()
+    expect(made.map(({ closed }) => closed)).toEqual([true, false])
   })
 
   it("shows none where the system has none", () => {
