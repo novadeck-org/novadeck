@@ -30,7 +30,7 @@
    --window-selected-header-bg (the header's bg): the selected window's header.
    --window-team-bg (the strong colour at 4%): a wash over the whole of each of the
    selected terminal's teammates' windows, in Grid and Canvas. --window-team-border-color
-   (the strong colour at 4% in the window's outline, its chroma tripled): its outline.
+   (the strong colour at 4% in the window's outline): its outline.
    --window-metadata-fg (muted), --window-metadata-font (mono): what the agent runs on,
    over its terminal.
    --window-indicator-bg (the sidebar item's --item-selected-indicator-bg, then strong):
@@ -331,14 +331,11 @@
 }
 /* Its outline takes the wash's hue too: the same mix of the strong colour into the outline
    it has, which moves it as far as the wash moves the window, so it keeps the contrast it
-   had, then more of that hue at the same lightness, so a line one pixel wide reads tinted. */
+   had. A theme may give it more of that hue, so a line one pixel wide reads tinted. */
 :is(.grid-terminal, .canvas-node)[data-team]:not(.selected) .terminal-window {
   --_border-color: var(
     --window-team-border-color,
-    oklch(
-      from color-mix(in srgb, var(--color-strong) 4%, var(--window-border-color, var(--color-line)))
-        l calc(c * 3) h
-    )
+    color-mix(in srgb, var(--color-strong) 4%, var(--window-border-color, var(--color-line)))
   );
 }
 /* The selection bar is one size in every view, centred on the header whatever its
