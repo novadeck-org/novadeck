@@ -57,6 +57,35 @@ describe("the preferences of a backend with no addons", () => {
   })
 })
 
+describe("the About tab", () => {
+  it("is absent where the backend has no version, updates, logs or removal", async () => {
+    await show({ tab: "about" })
+
+    expect(tabs()).not.toContain("About")
+    expect(selected()).toBe("General")
+  })
+
+  it("holds the version, the Experimental switch and the logs, which General doesn't", async () => {
+    await show({
+      tab: "about",
+      version: "0.4.2",
+      logs: () => {},
+      experimental: { on: false, onChange: () => {} },
+    })
+
+    expect(selected()).toBe("About")
+    const panel = document.querySelector('[role="tabpanel"][aria-labelledby$="about"]')
+    expect(panel?.textContent).toContain("0.4.2")
+    expect(
+      panel?.querySelector('[role="switch"][aria-labelledby="experimental-label"]'),
+    ).not.toBeNull()
+    expect(panel?.textContent).toContain("Open logs folder")
+    const general = document.querySelector('[role="tabpanel"][aria-labelledby$="general"]')
+    expect(general?.textContent).not.toContain("0.4.2")
+    expect(general?.textContent).not.toContain("Experimental")
+  })
+})
+
 describe("the Experimental tab", () => {
   const experimental = (on: boolean | undefined) => ({ on, onChange: () => {} })
 

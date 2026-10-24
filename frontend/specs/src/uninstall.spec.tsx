@@ -4,12 +4,16 @@ import { page, type Locator } from "vitest/browser"
 import { expectFocusWithin, preferencesDialog } from "./support/keyboard"
 import { expectStaysAbsent, openWorkspace } from "./support/workspace"
 
+const tab = (name: "General" | "About"): Locator => preferencesDialog().getByRole("tab", { name })
+
+// Opens Preferences on its About tab, where Uninstall is.
 const openPreferences = async (): Promise<void> => {
   await page.getByRole("button", { name: "Workspace preferences" }).click()
   await expectFocusWithin(preferencesDialog())
+  await tab("About").click()
 }
 
-const about = (): Locator => preferencesDialog().getByRole("region", { name: "About" })
+const about = (): Locator => preferencesDialog().getByRole("tabpanel", { name: "About" })
 const row = (): Locator => about().getByRole("button", { name: "Uninstall…" })
 const dialog = (): Locator => page.getByRole("alertdialog")
 const slow = { timeout: 6000 }
@@ -58,9 +62,11 @@ describe("Preferences' Uninstall Novadeck", () => {
     it("disconnects the connected agents, shows Removing…, then offers Quit", async () => {
       await openWorkspace("/?uninstall=removed")
       await openPreferences()
+      await tab("General").click()
       const claude = preferencesDialog().getByRole("switch", { name: "Claude Code" })
       await claude.click()
       await expect.element(claude, slow).toHaveAttribute("aria-checked", "true")
+      await tab("About").click()
       await row().click()
       await expect.element(dialog().getByText(/disconnected from Claude Code\./)).toBeVisible()
       await dialog().getByRole("button", { name: "Uninstall", exact: true }).click()

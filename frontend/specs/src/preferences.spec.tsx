@@ -22,7 +22,7 @@ const closePreferences = async (): Promise<void> => {
   await expect.element(preferencesDialog()).not.toBeInTheDocument()
 }
 
-const tab = (name: "General" | "Addons" | "Shortcuts"): Locator =>
+const tab = (name: "General" | "Addons" | "Shortcuts" | "About"): Locator =>
   preferencesDialog().getByRole("tab", { name })
 
 const viewModeChoice = (name: "Focus" | "Grid" | "Canvas"): Locator =>
@@ -88,7 +88,8 @@ describe("Preferences' version", () => {
   it("shows the version the backend gives, to copy", async () => {
     await openWorkspace()
     await openPreferences()
-    const about = preferencesDialog().getByRole("region", { name: "About" })
+    await tab("About").click()
+    const about = preferencesDialog().getByRole("tabpanel", { name: "About" })
     await expect.element(about.getByText("Version")).toBeVisible()
     await expect.element(about.getByText("0.0.79")).toBeVisible()
     expect(getComputedStyle(about.getByText("0.0.79").element()).userSelect).toBe("text")
@@ -97,7 +98,8 @@ describe("Preferences' version", () => {
   it("names a build that carries 0.0.0 a development build", async () => {
     await openWorkspace("/?version=dev")
     await openPreferences()
-    const about = preferencesDialog().getByRole("region", { name: "About" })
+    await tab("About").click()
+    const about = preferencesDialog().getByRole("tabpanel", { name: "About" })
     await expect.element(about.getByText("Development build")).toBeVisible()
     await expect.element(about.getByText("0.0.0")).not.toBeInTheDocument()
   })
@@ -105,7 +107,8 @@ describe("Preferences' version", () => {
   it("offers the logs folder, which the backend opens", async () => {
     await openWorkspace()
     await openPreferences()
-    const about = preferencesDialog().getByRole("region", { name: "About" })
+    await tab("About").click()
+    const about = preferencesDialog().getByRole("tabpanel", { name: "About" })
     await expect.element(about.getByText("Logs", { exact: true })).toBeVisible()
     await expect
       .element(about.getByRole("button", { name: "Open logs folder" }))
@@ -116,9 +119,7 @@ describe("Preferences' version", () => {
     await openWorkspace("/?version=none")
     await openPreferences()
     await expect.element(preferencesDialog().getByText("Appearance")).toBeVisible()
-    await expect
-      .element(preferencesDialog().getByRole("region", { name: "About" }))
-      .not.toBeInTheDocument()
+    await expect.element(tab("About")).not.toBeInTheDocument()
   })
 })
 
