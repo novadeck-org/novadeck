@@ -5,7 +5,7 @@
 //! the runner can't be reached, as from a terminal multiplexer that outlived Novadeck.
 
 use std::path::{Path, PathBuf};
-use std::time::Instant;
+use std::time::{Duration, Instant};
 
 use serde_json::Value;
 
@@ -57,6 +57,11 @@ pub fn own_command(
 /// The most of its output kept.
 pub const MOST: usize = 65_536;
 
+/// How long, once the deadline ended it, what it printed has to come through the pipe: it
+/// closes as soon as everything it started has ended, so this is spent only on a command
+/// that outlives its end.
+const SETTLE: Duration = Duration::from_millis(100);
+
 /// What the command printed by the time it ended, or by `deadline`, when it and whatever
 /// it started are ended.
 pub fn run(command: &str, input: &[u8], deadline: Instant) -> String {
@@ -102,6 +107,8 @@ pub fn run(command: &str, input: &[u8], deadline: Instant) -> String {
         .is_ok();
     if !finished {
         end(&started);
+        // What it printed just before may still be on its way from the pipe.
+        let _ = closed.recv_timeout(SETTLE);
     }
     thread::spawn(move || child.wait());
     let mut kept = Vec::new();
@@ -244,7 +251,6 @@ mod lookup {
 
 #[cfg(test)]
 mod tests {
-    use std::time::Duration;
 
     use super::*;
 
@@ -260,16 +266,22 @@ mod tests {
 
     #[test]
     fn ends_a_command_still_running_at_the_deadline_and_shows_what_it_printed() {
-        // Long enough for a slow shell to start and print (Git Bash on a busy Windows runner
-        // took over 300 ms), far short of the command's own end.
-        let began = Instant::now();
-        let printed = run(
-            "printf partly; sleep 30",
-            b"",
-            began + Duration::from_secs(3),
-        );
-        assert_eq!(printed, "partly");
-        assert!(began.elapsed() < Duration::from_secs(10));
+        // A shell can be slow to start (Git Bash on a busy Windows runner took over 300 ms),
+        // and a deadline that comes before it printed shows nothing: each such run is tried
+        // again with a longer deadline, all far short of the command's own end.
+        for wait in [300, 1_000, 3_000, 10_000].map(Duration::from_millis) {
+            let began = Instant::now();
+            let printed = run("printf partly; sleep 30", b"", began + wait);
+            assert!(began.elapsed() < wait + Duration::from_secs(5));
+            if printed == "partly" {
+                return;
+            }
+            assert_eq!(
+                printed, "",
+                "what it printed is shown whole, or not yet at all"
+            );
+        }
+        panic!("the command printed nothing by any deadline");
     }
 
     #[test]
