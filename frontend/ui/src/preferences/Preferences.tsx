@@ -369,11 +369,30 @@ export const Preferences = ({
                 )}
                 <div className={`preference-row ${settingRowClasses}`}>
                   <SettingText
+                    id="notify-needs-label"
+                    label="Notify when an agent needs you"
+                    description={
+                      notices
+                        ? "A desktop notification while Novadeck is in the background, for a question, an approval or trouble that stopped an agent. Clicking it opens the Inbox."
+                        : "Only in the desktop app."
+                    }
+                    descriptionId="notify-needs-description"
+                  />
+                  <Switch
+                    checked={value.notifyNeeds}
+                    onChange={(notifyNeeds) => onChange({ ...value, notifyNeeds })}
+                    labelledBy="notify-needs-label"
+                    describedBy="notify-needs-description"
+                    disabled={!notices}
+                  />
+                </div>
+                <div className={`preference-row ${settingRowClasses}`}>
+                  <SettingText
                     id="notify-finished-label"
                     label="Notify when an agent finishes"
                     description={
                       notices
-                        ? "A desktop notification with the start of its reply, when you're looking elsewhere."
+                        ? "A desktop notification with the start of its reply, while Novadeck is in the background."
                         : "Only in the desktop app."
                     }
                     descriptionId="notify-finished-description"

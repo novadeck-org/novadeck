@@ -98,6 +98,9 @@ export type RunnerBackendOptions = {
   readonly showAppearance?: Backend["showAppearance"]
   // Where the host shows desktop notifications.
   readonly notices?: Backend["notices"]
+  // Where the host shows the Inbox count on the app icon.
+  readonly badge?: Backend["badge"]
+  readonly windowFocus?: Backend["windowFocus"]
   // Where the host offers the update it has downloaded.
   readonly updates?: Backend["updates"]
   readonly version?: Backend["version"]
@@ -1525,6 +1528,8 @@ export const runnerBackend = (
     ...(options.pickDirectory ? { pickDirectory: options.pickDirectory } : {}),
     ...(options.showAppearance ? { showAppearance: options.showAppearance } : {}),
     ...(options.notices ? { notices: options.notices } : {}),
+    ...(options.badge ? { badge: options.badge } : {}),
+    ...(options.windowFocus ? { windowFocus: options.windowFocus } : {}),
     ...(options.updates ? { updates: options.updates } : {}),
     ...(options.version ? { version: options.version } : {}),
     ...(options.openLogs ? { openLogs: options.openLogs } : {}),

@@ -19,7 +19,7 @@ import { basename, dirname, join, win32 } from "node:path"
 import { fileURLToPath, pathToFileURL } from "node:url"
 
 import { consoleLogger, logPath, openSession, type Logger, type Session } from "@novadeck/log"
-import type { UpdateChannel } from "@novadeck/protocol/bridge"
+import type { DesktopBadge, UpdateChannel } from "@novadeck/protocol/bridge"
 import { pagesPartition } from "@novadeck/protocol/pages"
 import { startHttpServer, type HttpServer } from "@novadeck/runner/http"
 import {
@@ -44,6 +44,7 @@ import {
   dialog,
   ipcMain,
   Menu,
+  nativeImage,
   nativeTheme,
   net,
   Notification,
@@ -66,6 +67,7 @@ import {
   portableStateChannel,
   runnerPortChannel,
   versionChannel,
+  windowFocusChannel,
 } from "../bridge.js"
 import { openProcessLog, saltFileIn, type LogSetup } from "../logging.js"
 import { keepAppearance, registerAppearanceIpc } from "./appearance.js"
@@ -77,6 +79,7 @@ import {
   recoverBundles,
   relaunchIntoCopy,
 } from "./applications-folder.js"
+import { applyBadge, registerBadgeIpc } from "./badge.js"
 import { dataFolderName, logsFolder } from "./data-folder.js"
 import { detectSoftwareGraphics } from "./graphics.js"
 import {
@@ -164,6 +167,7 @@ import {
   type UpdaterKind,
 } from "./updater.js"
 import { keepWhatsNew, registerWhatsNewIpc, whatsNewAtLaunch } from "./whats-new.js"
+import { registerWindowFocusIpc } from "./window-focus.js"
 
 const appId = "dev.mzpk.novadeck"
 // Where the app keeps its data; a development launch keeps its own (see ./data-folder.ts).
@@ -849,6 +853,19 @@ const quitOnSessionEnd = quitWithoutInstalling(
   () => app.quit(),
 )
 
+// The page's Inbox count on the app's icon, as this platform shows one.
+const badgeOf = (window: BrowserWindow, badge: DesktopBadge): void =>
+  applyBadge({ platform: process.platform, app, nativeImage, window }, badge)
+
+// Tells a window's page whether the window has the system's focus; the page tracks it
+// itself only while its own document does, not while focus is inside a frame of it.
+const tellWindowFocus = (window: BrowserWindow): void => {
+  if (window.isDestroyed()) return
+  const contents = window.webContents
+  if (contents.isDestroyed() || !isAppPage(contents.getURL())) return
+  contents.send(windowFocusChannel, window.isFocused())
+}
+
 const createWindow = (origin: string): BrowserWindow => {
   const apiUrl = new URL("/api/", origin).href
   const window = new BrowserWindow({
@@ -871,6 +888,8 @@ const createWindow = (origin: string): BrowserWindow => {
   })
 
   window.once("ready-to-show", () => window.show())
+  window.on("focus", () => tellWindowFocus(window))
+  window.on("blur", () => tellWindowFocus(window))
   // Closing the last window quits, which ends the shells, except on macOS; either way
   // the page saves first.
   saveBeforeClose(
@@ -1411,21 +1430,53 @@ const launch = async (): Promise<void> => {
   })
   // The page's notices about its terminals, as the system's notifications; a click brings
   // the window to the front and tells its page which terminal to show.
+  const notices = showNotices({
+    supported: Notification.isSupported(),
+    create: (notice) => new Notification(notificationText(notice, process.platform)),
+    clicked: (window: BrowserWindow, id) => {
+      if (window.isDestroyed()) return
+      if (window.isMinimized()) window.restore()
+      window.show()
+      if (process.platform === "darwin") app.focus({ steal: true })
+      window.focus()
+      window.webContents.send(noticeClickChannel, id)
+    },
+  })
+  // A window whose page shows notices or a badge takes them away with it when that page
+  // goes, as it closes, crashes or loads again, since no page is left to take them back.
+  const tended = new WeakSet<BrowserWindow>()
+  const tend = (window: BrowserWindow): void => {
+    if (tended.has(window)) return
+    tended.add(window)
+    const reset = (): void => {
+      notices.closeAll()
+      badgeOf(window, { count: 0, image: null })
+    }
+    window.on("closed", reset)
+    window.webContents.on("render-process-gone", reset)
+    // Once a new page commits, as a reload: a navigation `will-navigate` cancels, as a file
+    // dropped on the window, leaves the page and what it showed.
+    window.webContents.on("did-navigate", reset)
+  }
   registerNoticeIpc(ipcMain, {
     window: appWindow,
-    show: showNotices({
-      supported: Notification.isSupported(),
-      create: (notice) => new Notification(notificationText(notice, process.platform)),
-      clicked: (window: BrowserWindow, id) => {
-        if (window.isDestroyed()) return
-        if (window.isMinimized()) window.restore()
-        window.show()
-        if (process.platform === "darwin") app.focus({ steal: true })
-        window.focus()
-        window.webContents.send(noticeClickChannel, id)
-      },
-    }),
+    show: (window, notice) => {
+      tend(window)
+      notices.show(window, notice)
+    },
+    close: notices.close,
   })
+  // The page's Inbox count on the app's icon: the dock or launcher badge, or on Windows
+  // the taskbar overlay.
+  registerBadgeIpc(ipcMain, {
+    window: appWindow,
+    apply: (window: BrowserWindow, badge) => {
+      tend(window)
+      badgeOf(window, badge)
+    },
+  })
+  // The page asks for its window's focus when it starts listening, as when it loads again.
+  registerWindowFocusIpc(ipcMain, { window: appWindow, request: tellWindowFocus })
   // The page learns of an update, can open the page of one it must install itself, and
   // chooses the releases the build follows.
   registerUpdateIpc(ipcMain, {

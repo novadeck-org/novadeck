@@ -10,6 +10,7 @@ const preferences: PreferencesValue = {
   fontSize: 13,
   enabledViews: ["focus", "grid", "canvas"],
   appearance,
+  notifyNeeds: true,
   notifyFinished: true,
   ligatures: false,
   chatView: false,

@@ -399,7 +399,16 @@ the runner and the other to the page as a window message carrying the same ID
 (`@novadeck/protocol/bridge` defines the contract). Every connection, including a
 reconnection, asks for a fresh port. `window.novadeck.pickDirectory()` opens a folder
 picker attached to the page's window, with the same sender checks, and resolves the
-chosen path or `null` when cancelled. If the runner process dies, the host starts a
+chosen path or `null` when cancelled. `showNotice(notice)` shows a desktop notification for
+a terminal, `closeNotice(id)` takes away the one still showing for it, and
+`setBadge({ count, image })` puts the Inbox count on the app's icon (macOS dock text,
+Linux launcher count, and on Windows a taskbar overlay drawn from `image`, a small PNG
+data URL); all three are checked on both sides and dropped when invalid.
+`onWindowFocus(listener)` tells the page whether its window has the system's focus (at once, then on
+each change, as a boolean): the page's own `document.hasFocus()` misses focus inside a
+`<webview>` and the window losing focus to another app while it is there. The page asks on
+`novadeck:window-focus-request` each time it listens, so a page that loaded again learns the
+current state, and only the app's own page is answered. If the runner process dies, the host starts a
 new one on the next request; shells end with it, and metadata remains. Quitting the
 app, or closing a window, first asks the pages involved to finish their saves, through
 the callback each registered with `window.novadeck.beforeQuit(save)`. It waits up to

@@ -14,6 +14,7 @@ import { websocket, type Transport } from "@novadeck/wire/client"
 
 import { runnerBackend, type RunnerBackend } from "./backend"
 import {
+  desktopBadge,
   desktopHost,
   desktopNotices,
   desktopPortable,
@@ -22,6 +23,7 @@ import {
   desktopUpdates,
   desktopVersion,
   desktopWhatsNew,
+  desktopWindowFocus,
 } from "./desktop-host"
 import type { RunnerListing } from "./seed"
 
@@ -161,6 +163,8 @@ export const connectRunnerBackend = async (
     const beforeQuit = desktopHost()?.beforeQuit
     const showAppearance = desktopHost()?.showAppearance
     const notices = desktopNotices(desktopHost())
+    const badge = desktopBadge(desktopHost())
+    const windowFocus = desktopWindowFocus(desktopHost())
     const updates = desktopUpdates(desktopHost())
     const whatsNew = desktopWhatsNew(desktopHost())
     const version = desktopVersion(desktopHost())
@@ -181,6 +185,8 @@ export const connectRunnerBackend = async (
           ...(beforeQuit ? { beforeQuit: (save) => beforeQuit(save) } : {}),
           ...(showAppearance ? { showAppearance: (look) => showAppearance(look) } : {}),
           ...(notices ? { notices } : {}),
+          ...(badge ? { badge } : {}),
+          ...(windowFocus ? { windowFocus } : {}),
           ...(updates ? { updates } : {}),
           ...(whatsNew ? { whatsNew } : {}),
           ...(version ? { version } : {}),

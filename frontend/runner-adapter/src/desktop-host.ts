@@ -8,6 +8,7 @@ import {
   type UninstallResult,
 } from "@novadeck/core/uninstall"
 import {
+  desktopBadgeOf,
   noticeBodyLength,
   noticeIdPattern,
   noticeTitleLength,
@@ -53,16 +54,46 @@ export const desktopNotices = (host: DesktopHost | undefined): Backend["notices"
   const show = host?.showNotice
   const listen = host?.onNoticeClick
   if (!show || !listen) return undefined
+  const close = host?.closeNotice
   return {
     show: (notice) => {
       const shown = hostNotice(notice)
       if (shown) show(shown)
     },
+    ...(close
+      ? {
+          close: (terminalId: string) => {
+            if (typeof terminalId === "string" && noticeIdPattern.test(terminalId)) {
+              close(terminalId)
+            }
+          },
+        }
+      : {}),
     onClick: (listener) =>
       listen((id) => {
         if (typeof id === "string" && noticeIdPattern.test(id)) listener(id)
       }),
   }
+}
+
+// The host's icon badge, where it has one: only a badge the contract allows crosses.
+export const desktopBadge = (host: DesktopHost | undefined): Backend["badge"] => {
+  const set = host?.setBadge
+  if (!set) return undefined
+  return (badge) => {
+    const checked = desktopBadgeOf(badge)
+    if (checked) set(checked)
+  }
+}
+
+// The host's report of its window's focus, where it has one: only a boolean crosses.
+export const desktopWindowFocus = (host: DesktopHost | undefined): Backend["windowFocus"] => {
+  const listen = host?.onWindowFocus
+  if (!listen) return undefined
+  return (listener) =>
+    listen((focused) => {
+      if (typeof focused === "boolean") listener(focused)
+    })
 }
 
 // The host's self-updates, where it has them: what crosses the bridge is checked, so the

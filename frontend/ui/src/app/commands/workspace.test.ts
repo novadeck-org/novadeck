@@ -551,6 +551,7 @@ describe("workspace commands", () => {
         fontSize: 13,
         enabledViews: ["focus", "canvas"],
         appearance,
+        notifyNeeds: true,
         notifyFinished: true,
         ligatures: false,
         chatView: false,
