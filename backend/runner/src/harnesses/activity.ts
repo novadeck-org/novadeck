@@ -306,9 +306,9 @@ const waitsOn = (
     const kept = activity.waits?.jobs ?? []
     return kept.length > 0 || activity.wake ? { jobs: kept, wake: activity.wake } : null
   }
-  const waited = jobs.flatMap(({ id, description, command }) => {
+  const waited = jobs.flatMap(({ id, description, command, persistent }) => {
     const task = activity.tasks.find((each) => each.id === id)
-    if (task?.persistent || (!task?.until && endless(command))) return []
+    if (persistent || task?.persistent || (!task?.until && endless(command))) return []
     return [{ id, description, command, since: task?.at ?? endedAt, until: task?.until ?? null }]
   })
   const { wake } = activity
@@ -672,18 +672,17 @@ export const apply = (
       const goneOff = event.id === activity.wakeId
       const kept = goneOff ? null : (waits?.wake ?? null)
       // The tasks a Stop counted running are one fewer for a job it listed, a server it
-      // left running too, but not for one that runs for good, which it never counted.
-      const listed = background?.jobs?.some(({ id }) => id === event.id) ?? false
+      // left running too, but not for one it left out of the count.
+      const listed = background?.jobs?.find(({ id }) => id === event.id)
       if (done === 0 && !goneOff && !listed) return undefined
-      let left = background
-      if (background?.jobs && listed) {
-        const counts = activity.tasks.every((task) => task.id !== event.id || !task.persistent)
-        left = counted({
-          ...background,
-          tasks: counts ? Math.max(0, background.tasks - 1) : background.tasks,
-          jobs: background.jobs.filter(({ id }) => id !== event.id),
-        })
-      }
+      const left =
+        background && listed
+          ? counted({
+              ...background,
+              tasks: listed.uncounted ? background.tasks : Math.max(0, background.tasks - 1),
+              jobs: background.jobs!.filter(({ id }) => id !== event.id),
+            })
+          : background
       return {
         ...activity,
         wake: goneOff ? null : wake,

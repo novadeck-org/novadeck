@@ -210,7 +210,8 @@ export type ActivityEvent = {
     }
   /**
    * A background task is over, by the id its start gave: a job the agent waited on no longer
-   * waits, nor is it among the tasks the last Stop counted running, and the wake-up of
+   * waits, nor is it among the tasks the last Stop counted running, unless that left it
+   * out (`uncounted`), and the wake-up of
    * that id, if the agent set one, has gone off. Told by what ends it where the harness has
    * one: Antigravity's PostToolUse for a command it backgrounded, or the task notification
    * Claude Code starts a turn with, which names every task it reports done.
@@ -327,8 +328,9 @@ export type Background = {
   readonly tasks: number
   readonly more?: true
   /**
-   * The tasks' own account of each, where the harness lists them; one that runs for good
-   * (`persistent`) may be listed and left out of `tasks`, as Antigravity's daemons are.
+   * The tasks' own account of each, where the harness lists them. `tasks` counts the listed
+   * jobs but those marked `uncounted`, and the other tasks a harness counts without
+   * listing.
    */
   readonly jobs?: readonly BackgroundJob[]
 }
@@ -338,6 +340,10 @@ export type BackgroundJob = {
   readonly id: string
   readonly description: string | null
   readonly command: string
+  /** It runs until stopped, so the agent doesn't wait on it, as a daemon of Antigravity's. */
+  readonly persistent?: true
+  /** The harness's count of tasks leaves it out: no end of it lowers `tasks`. */
+  readonly uncounted?: true
 }
 
 /** Where a plan is: a file the harness wrote it to, or its text when it named no file. */

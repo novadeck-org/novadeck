@@ -120,12 +120,11 @@ const decodeEvent = ({ event, seq, instance, payload }: Report): readonly Harnes
       const { jobs, wake } = running(id)
       return [
         observed,
-        // Each job's start, as its call told it, for the time it has waited since; a daemon's
-        // is told now, as none is waited for, so a turn after its call keeps it.
+        // Each job's start, as its call told it, for the time it has waited since.
         ...jobs.map(({ id: task, at, daemon }): HarnessEvent => ({
           type: "task-started",
           ...base,
-          startedAt: daemon ? base.startedAt : at,
+          startedAt: at,
           id: task,
           until: null,
           ...(daemon && { persistent: true as const }),
@@ -143,14 +142,15 @@ const decodeEvent = ({ event, seq, instance, payload }: Report): readonly Harnes
           // are those (probed 2026-10-24, 1.4.6).
           background: {
             agents: 0,
-            // A daemon is listed but not counted: it never wakes the agent.
+            // A daemon is listed, as persistent, but not counted: it never wakes the agent.
             tasks: jobs.filter(({ daemon }) => !daemon).length,
             ...(payload.fullyIdle === false && { more: true }),
             ...(jobs.length > 0 && {
-              jobs: jobs.map(({ id: task, description, command }): BackgroundJob => ({
+              jobs: jobs.map(({ id: task, description, command, daemon }): BackgroundJob => ({
                 id: task,
                 description,
                 command,
+                ...(daemon && { persistent: true as const, uncounted: true as const }),
               })),
             }),
           },
