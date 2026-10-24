@@ -268,12 +268,36 @@ mod tests {
     fn ends_a_command_still_running_at_the_deadline_and_shows_what_it_printed() {
         // A shell can be slow to start (Git Bash on a busy Windows runner took over 300 ms),
         // and a deadline that comes before it printed shows nothing: each such run is tried
-        // again with a longer deadline, all far short of the command's own end.
-        for wait in [300, 1_000, 3_000, 10_000].map(Duration::from_millis) {
+        // again with a longer deadline. The command leaves a mark at twice the deadline, which
+        // it never reaches if the deadline ended it.
+        for (round, wait) in [300, 1_000, 3_000, 10_000]
+            .map(Duration::from_millis)
+            .into_iter()
+            .enumerate()
+        {
+            let mark = std::env::temp_dir().join(format!(
+                "novadeck-status-line-{}-{round}",
+                std::process::id()
+            ));
+            let _ = std::fs::remove_file(&mark);
+            let command = format!(
+                "printf partly; sleep {:.1}; touch '{}'",
+                (wait * 2).as_secs_f64(),
+                mark.to_string_lossy().replace('\\', "/")
+            );
             let began = Instant::now();
-            let printed = run("printf partly; sleep 30", b"", began + wait);
+            let printed = run(&command, b"", began + wait);
             assert!(began.elapsed() < wait + Duration::from_secs(5));
             if printed == "partly" {
+                // It printed before the deadline, so had it lived it would have left the mark
+                // before three times the deadline.
+                std::thread::sleep(
+                    (began + wait * 3 + Duration::from_millis(500))
+                        .saturating_duration_since(Instant::now()),
+                );
+                let left = mark.exists();
+                let _ = std::fs::remove_file(&mark);
+                assert!(!left, "the command outlived its deadline");
                 return;
             }
             assert_eq!(
