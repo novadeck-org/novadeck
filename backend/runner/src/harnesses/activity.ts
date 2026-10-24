@@ -672,14 +672,14 @@ export const apply = (
       const goneOff = event.id === activity.wakeId
       const kept = goneOff ? null : (waits?.wake ?? null)
       // The tasks a Stop counted running are one fewer for a job it listed, a server it
-      // left running too, but not for one it left out of the count.
+      // left running too.
       const listed = background?.jobs?.find(({ id }) => id === event.id)
       if (done === 0 && !goneOff && !listed) return undefined
       const left =
         background && listed
           ? counted({
               ...background,
-              tasks: listed.uncounted ? background.tasks : Math.max(0, background.tasks - 1),
+              tasks: Math.max(0, background.tasks - 1),
               jobs: background.jobs!.filter(({ id }) => id !== event.id),
             })
           : background

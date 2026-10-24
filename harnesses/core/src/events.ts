@@ -211,10 +211,11 @@ export type ActivityEvent = {
   /**
    * A background task is over, by the id its start gave: a job the agent waited on no longer
    * waits, and the wake-up of that id, if the agent set one, has gone off. A job the
-   * current `background` lists is also dropped from it and, unless `uncounted`, from its
-   * `tasks`. Told by what ends it where the harness has one: Antigravity's PostToolUse for
-   * a command it backgrounded, or the task notification Claude Code starts a turn with,
-   * which names every task it reports done.
+   * current `background` lists is also dropped from it and from its `tasks`. The runner
+   * applies it whatever its time, with no fence against a stale one, as `wake-scheduled` and
+   * `turn-started` have. Told by what ends it where the harness has one: Antigravity's
+   * PostToolUse for a command it backgrounded, or the task notification Claude Code starts
+   * a turn with, which names every task it reports done.
    */
   | {
       readonly type: "task-ended"
@@ -223,7 +224,8 @@ export type ActivityEvent = {
   /**
    * The agent set a wake-up for itself, to run its next turn at `at`, epoch milliseconds,
    * for the `reason` it gave, as Claude Code's ScheduleWakeup does. Its `id` is the call's
-   * own; a `task-ended` of it says the wake-up has gone off, where the harness says so.
+   * own (Claude Code's `tool_use_id`, or `ScheduleWakeup:` and the time where its hook names
+   * none); a `task-ended` of it says the wake-up has gone off, where the harness says so.
    */
   | {
       readonly type: "wake-scheduled"
@@ -328,9 +330,8 @@ export type Background = {
   readonly tasks: number
   readonly more?: true
   /**
-   * The tasks' own account of each, where the harness lists them. `tasks` counts the listed
-   * jobs but those marked `uncounted`, and the other tasks a harness counts without
-   * listing.
+   * The tasks' own account of each, where the harness lists them: `tasks` counts them, and
+   * the other tasks a harness counts without listing.
    */
   readonly jobs?: readonly BackgroundJob[]
 }
@@ -340,12 +341,6 @@ export type BackgroundJob = {
   readonly id: string
   readonly description: string | null
   readonly command: string
-  /**
-   * The decoder leaves it out of `tasks`, so no end of it lowers them: a daemon of
-   * Antigravity's never wakes the agent, unlike Claude Code's persistent Monitor, which
-   * delivers events and stays counted.
-   */
-  readonly uncounted?: true
 }
 
 /** Where a plan is: a file the harness wrote it to, or its text when it named no file. */
