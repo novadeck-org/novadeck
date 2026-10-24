@@ -95,7 +95,7 @@ describe("the commits a release is written from", () => {
     })
   })
 
-  it("drops a sentence naming the chat view after \"a\", as #282's did", () => {
+  it('drops a sentence naming the chat view after "a", as #282\'s did', () => {
     const what = whatOf(
       [
         "## What",
