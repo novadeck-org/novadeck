@@ -78,18 +78,21 @@ the release page, the portable install and the engine downloads read them.
 What the app adds to a check through the website is `x-novadeck-check` (`launch`,
 `interval`, `switch` or `retry`), `x-novadeck-version` and `x-novadeck-build` (`installed`
 or `portable`), and no more: it reads nothing else off the computer to send, as sending
-that only for statistics would need the person's consent. Nor does any check, here or against
-GitHub, send anything that tells one copy from another: electron-updater's own
+that only for statistics would need the person's consent. Nor does any check, here or
+against GitHub, send anything that tells one copy from another: electron-updater's own
 `x-user-staging-id`, a per-install UUID, is patched out of its checks
 (`apps/desktop/patches/electron-updater@6.8.9.patch`); its staged-rollout decision still
-reads the ID locally. A new electron-updater needs the patch carried over. The headers belong to the check: they are cleared before the download starts.
+reads the ID locally, and its update log still names it. A new electron-updater needs the
+patch carried over. The headers belong to the check: they are cleared before the download
+starts.
 
 The request itself says more, as any request does. The name of the update file it asks
 for (`latest.yml`, `latest-mac.yml`, `latest-linux.yml` or `latest-linux-arm64.yml`)
 tells the website the system and, on Linux, the architecture. It carries electron-updater's
 `User-Agent` (`electron-builder`), `Cache-Control` and a `noCache` query, and the
-website's network sees the address; whether Chromium's network stack adds an
-`Accept-Language` is not verified. What the website keeps of it is in novadeck-website's
+website's network sees the address. Chromium's network stack adds the system's language as
+`Accept-Language` (seen on Electron 44.9: `pl` under `LANG=pl_PL`), which the website does
+not keep. What the website keeps of it is in novadeck-website's
 README, "Counts".
 
 A site that can't be reached or fails never blocks updating: a check through it that

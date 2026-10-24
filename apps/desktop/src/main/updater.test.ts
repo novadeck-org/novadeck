@@ -1,5 +1,5 @@
 import { EventEmitter } from "node:events"
-import { existsSync } from "node:fs"
+import { existsSync, readdirSync, readFileSync } from "node:fs"
 import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises"
 import { createRequire } from "node:module"
 import { tmpdir } from "node:os"
@@ -1363,6 +1363,14 @@ describe("the update feed", () => {
 
     expect(await sent(checkHeaders("launch", facts))).toEqual(checkHeaders("launch", facts))
     expect(await sent(null)).toEqual({})
+    // Nor does the header appear anywhere else in the library, to be sent by another path.
+    const files = readdirSync(out, { recursive: true, encoding: "utf8" }).filter((file) =>
+      file.endsWith(".js"),
+    )
+    expect(files.length).toBeGreaterThan(0)
+    for (const file of files) {
+      expect(readFileSync(join(out, file), "utf8"), file).not.toContain("x-user-staging-id")
+    }
   })
 })
 
