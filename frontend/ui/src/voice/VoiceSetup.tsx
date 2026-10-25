@@ -9,7 +9,7 @@ import type { DictationController, VoiceSetup } from "./dictation"
 
 const failurePrefix = "Voice input didn't install:"
 const offerText = "Talk to your agents. Voice input runs on this computer"
-const preferencesNote = "You can turn it on later in Preferences → Addons."
+const preferencesNote = "You can install it later in Preferences → Addons."
 
 // A button of the strip or the overlay: it takes the pointer but never focus, so typing
 // stays in the terminal.

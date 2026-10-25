@@ -41,6 +41,15 @@ const labels = (container: HTMLElement): string[] =>
   )
 
 describe("voice input's card in Addons", () => {
+  it("shows the switch off and disabled before an install, though voice input is wanted", () => {
+    const view = render(card({ ...base, wanted: true }))
+    const toggle = view.container.querySelector<HTMLButtonElement>("[role=switch]")
+    expect(toggle?.getAttribute("aria-checked")).toBe("false")
+    expect(toggle?.disabled).toBe(true)
+    expect(view.container.textContent).toContain("Turns on when you install it.")
+    view.unmount()
+  })
+
   it("offers Install, not a bare switch, for a model a cancel left on disk unchecked", () => {
     const view = render(card({ ...base, installed: ["small"] }))
     expect(labels(view.container)).toContain("Install")
