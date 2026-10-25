@@ -363,8 +363,8 @@ export class Reports {
 
   /**
    * A prompt-time hook's answer, with Novadeck's notices when any is due (see
-   * `nudges.ts`): the bar beside the terminal, for a session that begins or lost its
-   * context, which a `summarize` never clears, and a nudge to summarize the terminal's
+   * `nudges.ts`): the bar beside the terminal and the Inbox, for a session that begins or
+   * lost its context, which a `summarize` never clears, and a nudge to summarize the terminal's
    * work, when a trigger fired since the last `summarize`; only at the person's prompt, as
    * a paragraph each, never in an answer that carries messages or another notice, nor at
    * Stop. Each of the person's prompts counts toward the backstop, and where nothing else
