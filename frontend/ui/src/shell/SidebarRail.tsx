@@ -3,7 +3,7 @@ import { ToggleGroup, ToggleGroupItem } from "@novadeck/toolkit/ToggleGroup"
 import { FolderGit2, History, Inbox, Terminal as TerminalIcon } from "lucide-react"
 
 import { shortcutBindings } from "../interaction/shortcuts"
-import { BellCount } from "./BellCount"
+import { BellDot } from "./BellDot"
 import type { BellBadge } from "./inbox-badge"
 
 export const SidebarRail = ({
@@ -56,7 +56,9 @@ export const SidebarRail = ({
               tooltip={
                 id === "terminals"
                   ? `Terminals · ${shortcutBindings().terminals.display.join(" ")}`
-                  : label
+                  : status
+                    ? `${label} · ${status.count} waiting`
+                    : label
               }
               value={id}
               id={`${mobile ? "mobile-" : ""}${id}-toggle`}
@@ -65,7 +67,7 @@ export const SidebarRail = ({
               data-project-status={status?.status}
             >
               <Icon size={16} />
-              {status && <BellCount text={status.text} />}
+              {status && <BellDot count={status.count} />}
             </ToggleGroupItem>
           )
         })}

@@ -16,6 +16,8 @@ type Props = Omit<ComponentProps<typeof TerminalTabs>, "terminals"> & {
   workspaceSessionId: string
   workspaceSessions: WorkspaceSession[]
   terminalCount: number
+  // How many in the Inbox wait on the person, while any do.
+  inboxCount: number | undefined
   ordered: readonly Tile[]
   sidebarPanel: PanelId
   sidebarVisible: boolean
@@ -44,6 +46,7 @@ export const WorkspaceSidebar = ({
   workspaceSessionId,
   workspaceSessions,
   terminalCount,
+  inboxCount,
   ordered,
   sidebarPanel,
   sidebarVisible,
@@ -131,6 +134,7 @@ export const WorkspaceSidebar = ({
     <SidebarPanel
       id="inbox-panel"
       title="Inbox"
+      count={inboxCount}
       titleExtra={<HeldPill />}
       active={sidebarPanel === "inbox"}
       onClose={onHide}

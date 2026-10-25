@@ -6,7 +6,7 @@ import { Bell, ChevronLeft, Plus, X } from "lucide-react"
 import { useEffect, useId, useRef, useState } from "react"
 
 import { shortcutBindings } from "../interaction/shortcuts"
-import { BellCount } from "./BellCount"
+import { BellDot } from "./BellDot"
 import type { BellBadge } from "./inbox-badge"
 
 export const ZenDock = ({
@@ -72,7 +72,7 @@ export const ZenDock = ({
         </button>
       </Tooltip>
       {badge && (
-        <Tooltip content="Inbox">
+        <Tooltip content={`Inbox · ${badge.count} waiting`}>
           <button
             className="icon-button zen-inbox relative"
             aria-label={badge.label}
@@ -80,7 +80,7 @@ export const ZenDock = ({
             onClick={onInbox}
           >
             <Bell size={16} />
-            <BellCount text={badge.text} />
+            <BellDot count={badge.count} />
           </button>
         </Tooltip>
       )}
