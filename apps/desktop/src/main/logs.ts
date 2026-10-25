@@ -277,14 +277,25 @@ export const registerLogIpc = (
       { err: uiErrorAsError(report) },
     )
   })
-  let lastPool = ""
+  // The last report logged for each page, by its web contents: a window's, until it
+  // navigates or closes, which starts its counts afresh.
+  const lastPool = new Map<number, string>()
   ipc.on(rendererPoolChannel, (event, value: unknown) => {
     if (!options.window(event)) return
     const report = rendererPoolOf(value)
-    // A report the same as the last one says nothing new.
+    if (!report) return
+    const { sender } = event
+    // A report the same as the last one from the page says nothing new.
     const text = JSON.stringify(report)
-    if (!report || text === lastPool) return
-    lastPool = text
+    if (lastPool.get(sender.id) === text) return
+    if (!lastPool.has(sender.id)) {
+      const forget = (): void => void lastPool.delete(sender.id)
+      sender.on("did-start-navigation", (details) => {
+        if (details.isMainFrame && !details.isSameDocument) forget()
+      })
+      sender.once("destroyed", forget)
+    }
+    lastPool.set(sender.id, text)
     options.log.info("ui.renderer-pool", "The page's WebGL pool, counted.", { data: report })
   })
 }

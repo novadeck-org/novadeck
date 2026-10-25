@@ -319,6 +319,33 @@ describe("the renderer budget", () => {
       state.failing = false
     })
 
+    it("leave idle screens out of onDom, whether they lost the context or never had it", () => {
+      const first = setup({ cap: 1 })
+      const [a, b] = ["a", "b"].map((name) => first.pool.screen(name))
+      a!.take()
+      a!.idle()
+      b!.take()
+      first.settle()
+      expect(first.pool.stats().onDom).toBe(0)
+      const second = setup({ cap: 1 })
+      const [c, d] = ["c", "d"].map((name) => second.pool.screen(name))
+      c!.take()
+      d!.take()
+      d!.idle()
+      expect(second.pool.stats().onDom).toBe(0)
+    })
+
+    it("count a wait again after ligatures went on and off", () => {
+      const { pool, ligatures } = setup({ cap: 1 })
+      const [a, b] = ["a", "b"].map((name) => pool.screen(name))
+      a!.take()
+      b!.take()
+      expect(pool.stats().waits).toBe(1)
+      ligatures(true)
+      ligatures(false)
+      expect(pool.stats().waits).toBe(2)
+    })
+
     it("tell a watcher when the screens on the DOM change in number", () => {
       const { pool } = setup({ cap: 1 })
       const heard = vi.fn<() => void>()
@@ -359,7 +386,7 @@ describe("the renderer budget", () => {
       b!.take()
       settle()
       expect(live("b")).toBe(true)
-      expect(pool.stats()).toMatchObject({ waits: 1, steals: 1, swaps: 3, onDom: 1 })
+      expect(pool.stats()).toMatchObject({ waits: 1, steals: 1, swaps: 3, onDom: 0 })
     })
 
     it("count contexts lost and loads that failed", () => {

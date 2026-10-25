@@ -128,7 +128,7 @@ export const createRenderers = <Target>(deps: RendererDeps<Target>) => {
   // Whether a shown screen wanting WebGL lacks a context, as nothing here is holding it back
   // (an idle one is let go first) but the pool's cap or a context that did not load.
   const bare = (member: Member<Target>): boolean =>
-    member.shown && member.webgl && !member.drawing && member.losses < lossesAllowed
+    member.shown && !member.idle && member.webgl && !member.drawing && member.losses < lossesAllowed
   let lastOnDom = 0
   const domCount = (): number => (usable() ? [...members].filter(bare).length : 0)
   // Tells the watchers when the screens on the DOM for lack of a context changed in number.
@@ -278,6 +278,8 @@ export const createRenderers = <Target>(deps: RendererDeps<Target>) => {
 
   const changed = (): void => {
     if (usable()) return fill()
+    // Off, and on again, is a new episode for whoever has to wait then.
+    for (const member of members) member.waiting = false
     for (const member of members) drop(member)
     settled()
   }

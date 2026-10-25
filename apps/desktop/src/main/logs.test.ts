@@ -249,6 +249,21 @@ describe("logNewDumps", () => {
 })
 
 describe("the page's logs and errors", () => {
+  // A page's web contents: an id, and the events it can be told of.
+  const contents = (id: number) => {
+    const handlers = new Map<string, (...args: never[]) => void>()
+    const known = {
+      id,
+      on: (name: string, handler: (...args: never[]) => void) => void handlers.set(name, handler),
+      once: (name: string, handler: (...args: never[]) => void) => void handlers.set(name, handler),
+      emit: (name: string, ...args: unknown[]) =>
+        (handlers.get(name) as ((...args: unknown[]) => void) | undefined)?.(...args),
+    }
+    return known
+  }
+  const first = contents(1)
+  const page = () => first
+
   // An ipcMain that keeps its listeners, to call as the page would.
   const ipc = () => {
     const listeners = new Map<string, (event: unknown, value?: unknown) => void>()
@@ -256,8 +271,8 @@ describe("the page's logs and errors", () => {
       on: (channel: string, listener: (event: unknown, value?: unknown) => void) => {
         listeners.set(channel, listener)
       },
-      send: (channel: string, own: boolean, value?: unknown) =>
-        listeners.get(channel)?.({ own }, value),
+      send: (channel: string, own: boolean, value?: unknown, sender: unknown = page()) =>
+        listeners.get(channel)?.({ own, sender }, value),
     }
   }
 
@@ -315,6 +330,34 @@ describe("the page's logs and errors", () => {
     expect(written[0]).toEqual(
       expect.objectContaining({ proc: "ui", evt: "ui.renderer-pool", level: "info", data: counts }),
     )
+  })
+
+  context("for a pool report the same as the last one", () => {
+    const counts = { waits: 2, steals: 1, swaps: 9, lost: 0, failed: 0, resizes: 3, onDom: 1 }
+
+    it("logs it once for a page, and again from another window", () => {
+      const { logger, lines, send } = setup()
+      send(rendererPoolChannel, true, counts)
+      send(rendererPoolChannel, true, counts)
+      send(rendererPoolChannel, true, counts, contents(2))
+      logger.close()
+      expect(lines()).toHaveLength(2)
+    })
+
+    it("logs it again once the page navigated, or closed", () => {
+      const { logger, lines, send } = setup()
+      const other = contents(2)
+      send(rendererPoolChannel, true, counts)
+      send(rendererPoolChannel, true, counts, other)
+      first.emit("did-start-navigation", { isMainFrame: false, isSameDocument: false })
+      send(rendererPoolChannel, true, counts)
+      first.emit("did-start-navigation", { isMainFrame: true, isSameDocument: false })
+      send(rendererPoolChannel, true, counts)
+      other.emit("destroyed")
+      send(rendererPoolChannel, true, counts, other)
+      logger.close()
+      expect(lines()).toHaveLength(4)
+    })
   })
 
   context("for a rejected promise whose reason quotes what it parsed", () => {
