@@ -12,7 +12,7 @@ import { isSortable, useSortable } from "@dnd-kit/react/sortable"
 import { sidebarPanels, type SidebarPanel } from "@novadeck/core/types"
 import { ToggleGroup, ToggleGroupItem } from "@novadeck/toolkit/ToggleGroup"
 import { FolderGit2, History, Inbox, Terminal as TerminalIcon } from "lucide-react"
-import { useLayoutEffect, useRef, useState, type ComponentProps } from "react"
+import { useCallback, useLayoutEffect, useRef, useState, type ComponentProps } from "react"
 
 import { shortcutBindings } from "../interaction/shortcuts"
 import { BellCount } from "./BellCount"
@@ -85,6 +85,8 @@ export const SidebarRail = ({
   // The toggle that takes the focus after a keyboard move or a drag, as moving its button
   // among the others loses the focus it had; a new object asks again.
   const [focusRequest, setFocusRequest] = useState<{ id: SidebarPanel } | null>(null)
+  // The same each render, so only a new request or a drop restarts the toggle's wait.
+  const focused = useCallback(() => setFocusRequest(null), [])
   const move = (from: number, to: number): void => onOrder?.(movedPanel(order, shown, from, to))
   return (
     <DragDropProvider
@@ -124,7 +126,7 @@ export const SidebarRail = ({
             badge={id === "inbox" ? badge : undefined}
             dragging={dragging}
             focusRequest={focusRequest}
-            onFocused={() => setFocusRequest(null)}
+            onFocused={focused}
             onStep={(by) => {
               setFocusRequest({ id })
               move(index, index + by)
