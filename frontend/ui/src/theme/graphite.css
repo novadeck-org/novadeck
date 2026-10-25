@@ -149,6 +149,12 @@
   --window-selected-border-color: #bbb6ad;
   --window-selected-shadow: var(--shadow-floating);
   --window-phase-ended-border-color: var(--color-ink);
+  /* The selected terminal's teammates' outline: the recipe's mix of the strong colour, with
+     its chroma tripled at the same lightness, so the line reads as tinted as the window it
+     edges and keeps its contrast. In both schemes, from each one's outline. */
+  --window-team-border-color: oklch(
+    from color-mix(in srgb, var(--color-strong) 4%, var(--window-border-color)) l calc(c * 3) h
+  );
 
   /* Outlines: what sits on another ground (a sidebar row, a card or button on the
      shell) takes the window's outline rather than the line, so its edge reads as
