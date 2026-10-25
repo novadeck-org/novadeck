@@ -4,6 +4,7 @@
   "private": true,
   "description": "A cross-platform desktop application.",
   "homepage": "https://github.com/novadeck-org/novadeck",
+  "license": "GPL-3.0-or-later",
   "author": "mzpkdev",
   "type": "module",
   "scripts": {

@@ -3,6 +3,7 @@
   "version": "0.0.0",
   "private": true,
   "description": "The Claude Code harness adapter: hooks, transcripts, dialogs and input box.",
+  "license": "GPL-3.0-or-later",
   "author": "mzpkdev",
   "type": "module",
   "sideEffects": false,

@@ -4,6 +4,7 @@ version = "0.0.0"
 edition = "2024"
 rust-version = "1.85"
 description = "Carries an agent's MCP messages and hooks between it and its Novadeck terminal's runner."
+license = "GPL-3.0-or-later"
 publish = false
 
 [dependencies]

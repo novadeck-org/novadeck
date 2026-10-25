@@ -3,6 +3,7 @@
   "version": "0.0.0",
   "private": true,
   "description": "RPC calls and streams between processes over a WebSocket or a MessagePort: channels, a client generic over its contract, its transports, a connection that keeps itself alive and the streams it follows, the server's streams of state, and its errors.",
+  "license": "GPL-3.0-or-later",
   "type": "module",
   "sideEffects": false,
   "exports": {

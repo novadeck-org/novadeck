@@ -3,6 +3,7 @@
   "version": "0.0.0",
   "private": true,
   "description": "A map of what Novadeck is built of, generated from the code. Dev-only; never shipped.",
+  "license": "GPL-3.0-or-later",
   "author": "mzpkdev",
   "type": "module",
   "scripts": {

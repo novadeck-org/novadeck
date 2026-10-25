@@ -3,6 +3,7 @@
   "version": "0.0.0",
   "private": true,
   "description": "The contract every agent harness adapter fills in, and the helpers they share: hook reports, events, dialogs, transcripts and plugin files.",
+  "license": "GPL-3.0-or-later",
   "author": "mzpkdev",
   "type": "module",
   "sideEffects": false,

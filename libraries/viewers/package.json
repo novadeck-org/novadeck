@@ -3,6 +3,7 @@
   "version": "0.0.0",
   "private": true,
   "description": "Content viewers behind one contract: code, image, markdown and web pages, each mounted into an element, keeping its scroll and place across remounts through state its host stores.",
+  "license": "GPL-3.0-or-later",
   "type": "module",
   "sideEffects": [
     "*.css"

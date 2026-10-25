@@ -3,6 +3,7 @@
   "version": "0.0.0",
   "private": true,
   "description": "An isolated environment for tests and benchmarks that run real shells and programs: a scrubbed environment with a throwaway home, reaping what it started, and a tripwire over writes outside it.",
+  "license": "GPL-3.0-or-later",
   "type": "module",
   "sideEffects": false,
   "exports": {

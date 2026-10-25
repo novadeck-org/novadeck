@@ -3,6 +3,7 @@
   "version": "0.0.0",
   "private": true,
   "description": "The apps' Vite helpers: the Content Security Policy's sources, hosting headers, noindex and the font rule.",
+  "license": "GPL-3.0-or-later",
   "type": "module",
   "exports": {
     "./bundle-checks": "./src/bundle-checks.ts",
