@@ -35,12 +35,13 @@ type Found = {
 // (`.`, `,`, `:`, `;`, `!`, `?`) is not part of it.
 const pathTail = String.raw`[^\s"'` + "`" + String.raw`<>()\[\]{}|]*`
 // A home directory: Linux, macOS, Silverblue's `/var/home` and WSL's view of a Windows one.
-const home =
-  String.raw`(?:/var/home|/home|/mnt/[a-z]/Users|/Users)/[^\s/"'` + "`" + String.raw`<>()\[\]{}|]+`
-// A Windows user name may hold spaces ("Alice Smith"): up to three words that a backslash
-// follows, else one word.
+const home = String.raw`(?:/var/home|/home|/Users)/[^\s/"'` + "`" + String.raw`<>()\[\]{}|]+`
+// A user name under `Users` may hold spaces ("Alice Smith"): up to three words that a
+// separator and more path follow, else one word.
 const word = String.raw`[^\s\\/:,;"'` + "`" + String.raw`<>()\[\]{}|]+`
-const winUser = String.raw`(?:${word}(?: ${word}){0,2}(?=[\\/])|${word})`
+const spaced = (separator: string): string =>
+  String.raw`(?:${word}(?: ${word}){0,2}(?=${separator}\S)|${word})`
+const unsafe = String.raw`"'` + "`" + String.raw`<>()\[\]{}|`
 const patterns: readonly { readonly kind: StrikeKind; readonly pattern: RegExp }[] = [
   // `~/notes`, `~\notes`.
   { kind: "path", pattern: new RegExp(String.raw`(?<![\w/~.\\-])~[/\\]${pathTail}`, "g") },
@@ -51,7 +52,23 @@ const patterns: readonly { readonly kind: StrikeKind; readonly pattern: RegExp }
   {
     kind: "path",
     pattern: new RegExp(
-      String.raw`(?<![\w])[A-Za-z]:[\\/]+Users[\\/]+${winUser}(?:[\\/]${pathTail})?`,
+      String.raw`(?<![\w])[A-Za-z]:[\\/]+Users[\\/]+${spaced(String.raw`[\\/]`)}(?:[\\/]${pathTail})?`,
+      "gi",
+    ),
+  },
+  // WSL's view of a Windows home: `/mnt/c/Users/Alice Smith/x`.
+  {
+    kind: "path",
+    pattern: new RegExp(
+      String.raw`(?<![\w.~\\-])/mnt/[a-z]/Users/${spaced("/")}(?:/${pathTail})?`,
+      "g",
+    ),
+  },
+  // A Windows machine's share of its WSL: `\\wsl$\Ubuntu\home\alice\x`.
+  {
+    kind: "path",
+    pattern: new RegExp(
+      String.raw`(?<![\w\\])\\\\wsl(?:\$|\.localhost)\\[^\s\\]+\\home\\[^\s\\${unsafe}]+(?:\\${pathTail})?`,
       "gi",
     ),
   },
@@ -67,12 +84,34 @@ const email =
 // and `alice@laptop project %`, fish's `alice@laptop ~/dir>`: a user and a host only where a
 // shell prompt prints them, else `pnpm@11` or `react@latest` would be struck.
 const prompt =
-  /(?<![\w.@-])\[?([A-Za-z_][\w-]{0,31})@([A-Za-z0-9][A-Za-z0-9-]*)(?=:[~/\\]|\s+[^\s]*\]\s*[$#%](?:\s|$)|(?:\s+[\w.~/-][^\s]*)?\s*[$#%](?:\s|$)|\s+[~/][^\s]*>(?:\s|$))/g
+  /(?<![\w.@-])\[?([A-Za-z_][\w-]{0,31})@([A-Za-z0-9][A-Za-z0-9-]*)(?=:[~/\\]|\s+[^\s]*\]\s*[$#%](?:\s|$)|(?:\s+[\w.~/-][^\s]*)?\s*[$#%](?:\s|$)|\s+[~/][^\s]*>(?:\s|$)|\s+[A-Z][A-Z0-9]+\s+[~/])/g
 
-// `ssh alice@devbox`, `scp f alice@host:/tmp`: a login is a user and a host wherever the line
-// has such a command.
+// Kali's `┌──(alice㉿kali)-[~]`.
+const kali = /(?<=\()([A-Za-z_][\w-]*)㉿([A-Za-z0-9][\w-]*)(?=\))/g
+
+// `ssh alice@devbox`, `scp f alice@host:/tmp`: a login is a user and a host in the arguments
+// right after such a command: its options (and what they take), paths and logins, up to the
+// first word of prose.
 const remoteCommand = /(?<![\w-])(?:ssh|scp|sftp|mosh)\b[^\n]*/g
-const login = /(?<![\w.%+-])([A-Za-z_][\w.-]*)@([A-Za-z0-9][A-Za-z0-9.-]*[A-Za-z0-9])/g
+const login = /^([A-Za-z_][\w.-]*)@([A-Za-z0-9][A-Za-z0-9.-]*[A-Za-z0-9])/
+
+// The logins among a command's arguments.
+const logins = (args: string): { index: number; user: string; host: string }[] => {
+  const found: { index: number; user: string; host: string }[] = []
+  let skip = false
+  for (const token of args.matchAll(/\S+/g)) {
+    const text = token[0]
+    const match = login.exec(text)
+    if (skip) {
+      skip = false
+      if (!match) continue
+    }
+    if (text.startsWith("-")) skip = true
+    else if (match) found.push({ index: token.index, user: match[1]!, host: match[2]! })
+    else if (!/[/.:\d~]/.test(text)) break
+  }
+  return found
+}
 
 const find = (text: string): Found[] => {
   const found: Found[] = []
@@ -94,15 +133,22 @@ const find = (text: string): Found[] => {
     found.push({ start: userStart, end: userStart + user.length, kind: "user" })
     found.push({ start: hostStart, end: hostStart + match[2]!.length, kind: "host" })
   }
-  for (const command of text.matchAll(remoteCommand))
-    for (const match of command[0].matchAll(login)) {
-      const user = match[1]!
+  for (const command of text.matchAll(remoteCommand)) {
+    const name = /^\w+/.exec(command[0])![0]
+    for (const { index, user, host } of logins(command[0].slice(name.length))) {
       if (impersonal.has(user.toLowerCase())) continue
-      const userStart = command.index + match.index
+      const userStart = command.index + name.length + index
       const hostStart = userStart + user.length + 1
       found.push({ start: userStart, end: userStart + user.length, kind: "user", rank: 0 })
-      found.push({ start: hostStart, end: hostStart + match[2]!.length, kind: "host", rank: 0 })
+      found.push({ start: hostStart, end: hostStart + host.length, kind: "host", rank: 0 })
     }
+  }
+  for (const match of text.matchAll(kali)) {
+    const userStart = match.index
+    const hostStart = userStart + match[1]!.length + 1
+    found.push({ start: userStart, end: userStart + match[1]!.length, kind: "user" })
+    found.push({ start: hostStart, end: hostStart + match[2]!.length, kind: "host" })
+  }
   // Earliest first, a login first and then the longer where they start together; one that overlaps an earlier is
   // part of it (an email address inside a path is the path).
   found.sort((a, b) => a.start - b.start || (a.rank ?? 1) - (b.rank ?? 1) || b.end - a.end)

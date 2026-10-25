@@ -139,4 +139,34 @@ describe("scrubbing a feedback draft", () => {
       expect(scrub("typescript@5.0.0-dev.ab pkg@1.2.3 @novadeck/core @moth").total).toBe(0)
     })
   })
+
+  context("more shells and places", () => {
+    it("reads Git Bash's and Kali's prompts", () => {
+      expect(struck("alice@DESKTOP-ABC123 MINGW64 ~/work (main)")).toEqual([
+        "user:alice",
+        "host:DESKTOP-ABC123",
+        "path:~/work",
+      ])
+      expect(struck("┌──(alice㉿kali)-[~]")).toEqual(["user:alice", "host:kali"])
+    })
+
+    it("reads WSL homes from both sides, with a spaced name", () => {
+      expect(struck(String.raw`\\wsl$\Ubuntu\home\alice\x`)).toEqual([
+        String.raw`path:\\wsl$\Ubuntu\home\alice\x`,
+      ])
+      expect(struck(String.raw`\\wsl.localhost\Ubuntu\home\alice\x`)).toHaveLength(1)
+      expect(struck("/mnt/c/Users/Alice Smith/x")).toEqual(["path:/mnt/c/Users/Alice Smith/x"])
+    })
+
+    it("takes a login only where the command's arguments put it", () => {
+      expect(scrub("ssh setup broke after I bumped pnpm@11.22.0 and react@18.3.1").total).toBe(0)
+      expect(struck("ssh -p 22 -i key alice@devbox ls")).toEqual(["user:alice", "host:devbox"])
+    })
+
+    it("ends a spaced Windows name at a separator with more path after it", () => {
+      expect(struck(String.raw`C:\Users\alice went home/ later`)).toEqual([
+        String.raw`path:C:\Users\alice`,
+      ])
+    })
+  })
 })

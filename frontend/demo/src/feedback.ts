@@ -177,8 +177,11 @@ export const createDemoFeedback = (
   }
 
   turns.watch((event) => {
-    if (event.type !== "end" && event.type !== "rest") return
     const id = terminalKeyId(event.key)
+    // Another turn begun over the one writing cuts it short, and it writes nothing.
+    if (event.type === "begin" && writing.get(id)?.epoch !== turns.epoch(event.key))
+      writing.delete(id)
+    if (event.type !== "end" && event.type !== "rest") return
     const mine = writing.get(id)
     if (mine) {
       writing.delete(id)
@@ -220,7 +223,9 @@ export const createDemoFeedback = (
       if (!terminal || terminal.state !== "running" || !chatAgent(terminal))
         return Promise.reject(new Error("No agent runs in that window."))
       const id = terminalKeyId(key)
-      const busy = terminal.agent?.working || terminal.agent?.attention || turns.working(key)
+      // A status of working with no turn of the demo's behind it, as the seeds give some
+      // agents, has no end to wait for: the writing turn takes the status over.
+      const busy = terminal.agent?.attention || turns.working(key)
       if (busy || writing.has(id)) waiting.set(id, [...(waiting.get(id) ?? []), { key, hint }])
       else write(key, hint)
       return Promise.resolve()

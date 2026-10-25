@@ -38,6 +38,15 @@ const button = (name: string) =>
     (each) => each.textContent?.trim() === name,
   )!
 
+// The terminal's input, where focus returns to when the card closes.
+const terminal = () => {
+  const area = document.createElement("div")
+  area.setAttribute("data-workspace-area", "")
+  area.innerHTML = '<div data-terminal="t1"><input data-terminal-input></div>'
+  document.body.append(area)
+  return { input: area.querySelector("input")!, remove: () => area.remove() }
+}
+
 afterEach(() => closeAskAgent())
 
 describe("The card that asks an agent for feedback", () => {
@@ -118,5 +127,33 @@ describe("The card that asks an agent for feedback", () => {
     expect(asked).toEqual([])
     await nextFrame()
     view.unmount()
+  })
+
+  it("returns focus to the terminal however it closes", async () => {
+    const { input, remove } = terminal()
+    const { view } = mount()
+    const open = async () => {
+      act(() => openAskAgent({ key, handle: "moth" }))
+      await nextFrame()
+      expect(document.activeElement).not.toBe(input)
+    }
+    await open()
+    act(() => card()!.querySelector<HTMLButtonElement>('button[aria-label="Close"]')!.click())
+    expect(document.activeElement).toBe(input)
+    input.blur()
+    await open()
+    act(() => {
+      card()!
+        .querySelector("textarea")!
+        .dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true }))
+    })
+    await nextFrame()
+    expect(document.activeElement).toBe(input)
+    input.blur()
+    await open()
+    await act(async () => button("Ask").click())
+    expect(document.activeElement).toBe(input)
+    view.unmount()
+    remove()
   })
 })

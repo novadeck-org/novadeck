@@ -193,7 +193,6 @@ export const FeedbackSheet = (props: SheetContentProps): React.JSX.Element | nul
       <p
         id={noteId}
         className="inbox-feedback-struck-line text-control"
-        role="status"
         data-struck={scrubbed.total > 0 || undefined}
       >
         <ShieldCheck size={14} strokeWidth={1.75} aria-hidden="true" />

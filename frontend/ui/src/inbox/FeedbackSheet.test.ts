@@ -26,7 +26,7 @@ const draftText =
   "The toast hides the footer.\nLog at ~/Workspace/app/out.log, from me@mail.dev, in frontend/ui/src/a.ts."
 
 let count = 0
-const mount = (text = draftText) => {
+const mount = (text = draftText, failOnce = false) => {
   // A draft's edits are kept by its id, so each test has its own.
   const item: InboxItem = {
     id: `fb${count++}`,
@@ -47,10 +47,16 @@ const mount = (text = draftText) => {
   }
   const state = createStore<InboxState>({ ...emptyInbox, items: [item] })
   const sent: InboxAnswer[] = []
+  let failing = failOnce
   const inbox: Inbox = {
     state,
     answer: (id, answer) => {
       sent.push(answer)
+      if (failing) {
+        failing = false
+        state.update((current) => ({ ...current, failed: { [id]: "Couldn't send." } }))
+        return
+      }
       state.update((current) => ({ ...current, answering: { [id]: true } }))
     },
     see: () => {},
@@ -151,6 +157,37 @@ describe("A feedback draft in the Inbox", () => {
     expect(send.disabled).toBe(true)
     sheet.press("Discard")
     expect(sheet.sent).toEqual([{ kind: "feedback", answer: { type: "discard" } }])
+    await nextFrame()
+    sheet.view.unmount()
+  })
+
+  it("keeps the person's edits when the answer doesn't take", async () => {
+    const sheet = mount(draftText, true)
+    sheet.type("Edited, then sent.")
+    sheet.press("Send")
+    expect(document.querySelector(".inbox-failure")?.textContent).toBe("Couldn't send.")
+    expect(sheet.field().value).toBe("Edited, then sent.")
+    act(() => document.querySelector<HTMLButtonElement>('button[aria-label="Close"]')!.click())
+    await nextFrame()
+    act(() => document.querySelector<HTMLElement>(".inbox-row-select")!.click())
+    await nextFrame()
+    expect(sheet.field().value).toBe("Edited, then sent.")
+    sheet.view.unmount()
+  })
+
+  it("won't send more than the card's limit, and says by how much", async () => {
+    const sheet = mount()
+    sheet.type("a".repeat(2001))
+    expect(document.querySelector(".inbox-failure")?.textContent).toContain(
+      "1 over the 2,000 character limit",
+    )
+    const send = Array.from(document.querySelectorAll<HTMLButtonElement>("button")).find(
+      (button) => button.textContent === "Send",
+    )!
+    expect(send.disabled).toBe(true)
+    sheet.type("a".repeat(2000))
+    expect(document.querySelector(".inbox-failure")).toBeNull()
+    expect(send.disabled).toBe(false)
     await nextFrame()
     sheet.view.unmount()
   })

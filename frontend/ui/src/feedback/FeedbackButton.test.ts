@@ -68,6 +68,54 @@ const show = (feedback: Feedback = fake()) => {
   return { button, card, field, sendButton, open, type, key, settle }
 }
 
+describe("where focus goes when the card closes", () => {
+  // The card opened by pointer from a terminal, which had focus.
+  const openFromTerminal = async () => {
+    const terminal = document.createElement("button")
+    document.body.append(terminal)
+    terminal.focus()
+    const view = show()
+    act(() => {
+      view.button().dispatchEvent(new MouseEvent("mousedown", { bubbles: true }))
+      view.button().dispatchEvent(new MouseEvent("click", { bubbles: true, detail: 1 }))
+    })
+    await nextFrame()
+    expect(document.activeElement).not.toBe(terminal)
+    return { view, terminal }
+  }
+  const back = async (terminal: HTMLElement) => {
+    await nextFrame()
+    await nextFrame()
+    expect(document.activeElement).toBe(terminal)
+    terminal.remove()
+  }
+
+  it("returns to it after ×", async () => {
+    const { view, terminal } = await openFromTerminal()
+    act(() => view.card()!.querySelector<HTMLButtonElement>(".icon-button")!.click())
+    await back(terminal)
+  })
+
+  it("returns to it after Esc", async () => {
+    const { view, terminal } = await openFromTerminal()
+    act(
+      () =>
+        void view
+          .field()
+          .dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true })),
+    )
+    await back(terminal)
+  })
+
+  it("returns to it after a send", async () => {
+    const { view, terminal } = await openFromTerminal()
+    view.type("thanks")
+    view.key({ key: "Enter" })
+    await view.settle()
+    await back(terminal)
+  })
+})
+
 describe("the footer's feedback button", () => {
   context("on a new install", () => {
     it("shows the word until the card is first opened, and never after", async () => {
@@ -225,6 +273,44 @@ describe("the footer's feedback button", () => {
       await view.settle()
       expect(backend.sent).toEqual([{ kind: null, text: "offline" }])
       expect(view.button().textContent).toBe("Sent · thanks")
+    })
+
+    it("sends once for two online events in a row", async () => {
+      const backend = fake()
+      backend.failing = true
+      const view = show(backend)
+      await view.open()
+      view.type("offline")
+      act(() => view.sendButton().click())
+      await view.settle()
+      backend.failing = false
+      act(() => {
+        window.dispatchEvent(new Event("online"))
+        window.dispatchEvent(new Event("online"))
+      })
+      await view.settle()
+      expect(backend.sent).toEqual([{ kind: null, text: "offline" }])
+    })
+
+    it("does not move focus when a retry in the background succeeds", async () => {
+      const backend = fake()
+      backend.failing = true
+      const view = show(backend)
+      await view.open()
+      view.type("offline")
+      act(() => view.sendButton().click())
+      await view.settle()
+      act(() => view.card()!.querySelector<HTMLButtonElement>(".icon-button")!.click())
+      await nextFrame()
+      const elsewhere = document.createElement("button")
+      document.body.append(elsewhere)
+      elsewhere.focus()
+      backend.failing = false
+      act(() => void window.dispatchEvent(new Event("online")))
+      await view.settle()
+      await nextFrame()
+      expect(document.activeElement).toBe(elsewhere)
+      elsewhere.remove()
     })
 
     it("holds the text box read-only while the note goes", async () => {

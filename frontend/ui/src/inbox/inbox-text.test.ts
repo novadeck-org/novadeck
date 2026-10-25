@@ -135,6 +135,9 @@ describe("An item's subject", () => {
     )
     expect(subjectOf(draft("x".repeat(100)))).toBe(`Feedback draft from @moth: ${"x".repeat(71)}…`)
     expect(subjectOf(draft(""))).toBe("Feedback draft from @moth")
+    expect(subjectOf(draft("Crash in ~/Work/app/a.ts on start"))).toBe(
+      "Feedback draft from @moth: Crash in [path] on start",
+    )
     expect(labelOf(draft("a"))).toBe("Drafted feedback")
   })
 

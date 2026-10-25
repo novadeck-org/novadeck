@@ -277,6 +277,25 @@ const firstChoice = (item: InboxItem | undefined): InboxAnswer => {
 }
 
 describe("the agents demo's Inbox", () => {
+  it("shows a feedback draft only where its terminal waits on nothing else", () => {
+    const { inbox, itemOn, terminalOf } = boot()
+    const draft = demoInboxItemsAll(now).find((each) => each.id === demoInboxIds.feedback)!
+    const draftFor = (id: string, terminalId: string): InboxItem => ({
+      ...draft,
+      id,
+      source: { ...draft.source, terminalId, projectId: "storefront" },
+    })
+    // Terminal 4 of storefront asks for a permission: the request shows, the draft waits.
+    const asking = terminalOf("storefront", 4)!.id
+    inbox.add(draftFor("draft-asking", asking))
+    expect(itemOn("storefront", 4)?.kind).toBe("request")
+    expect(ids(inbox)).not.toContain("draft-asking")
+    // One that waits on nothing shows its draft.
+    const quiet = terminalOf("storefront", 6)!.id
+    inbox.add(draftFor("draft-quiet", quiet))
+    expect(ids(inbox)).toContain("draft-quiet")
+  })
+
   it("lists what each of its agents waits on, as their terminals say", () => {
     const { itemOn, inbox } = boot()
     for (const [project, slot, kind] of [

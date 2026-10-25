@@ -183,17 +183,32 @@ describe("the demo's feedback", () => {
     it("waits for an agent mid-turn to end its turn first", async () => {
       const { feedback, terminals, resting, turns, feedbackItems } = boot()
       const found = terminals.find(resting)!
-      turns.work(found.key, found.terminal)
+      turns.prompt("keep going", found.terminal, found.key)
       await vi.advanceTimersByTimeAsync(10)
       await feedback.ask(found.key, "")
-      await vi.advanceTimersByTimeAsync(10_000)
+      await vi.advanceTimersByTimeAsync(1000)
       expect(feedbackItems()).toEqual([])
       // The turn ends, and only then the agent takes its own to write the feedback.
-      turns.rest(found.key, found.terminal)
-      await vi.advanceTimersByTimeAsync(10)
+      await vi.advanceTimersByTimeAsync(600)
       expect(feedbackItems()).toEqual([])
       await vi.advanceTimersByTimeAsync(writeMs)
       expect(feedbackItems()).toHaveLength(1)
+    })
+
+    it("writes for an agent seeded as working, which has no turn to wait for", async () => {
+      const { feedback, terminals, feedbackItems } = boot()
+      const found = terminals.find(
+        ({ terminal }) =>
+          terminal.state === "running" &&
+          terminal.agent?.working &&
+          !terminal.agent.attention &&
+          chatAgent(terminal),
+      )!
+      expect(found).toBeDefined()
+      await feedback.ask(found.key, "")
+      await feedback.ask(found.key, "")
+      await vi.advanceTimersByTimeAsync(2 * writeMs + 100)
+      expect(feedbackItems()).toHaveLength(2)
     })
 
     it("writes one draft for each request, in order, and none for a later turn", async () => {

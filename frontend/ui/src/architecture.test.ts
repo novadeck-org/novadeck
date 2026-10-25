@@ -40,16 +40,7 @@ const rules: Record<string, readonly string[]> = {
   ...Object.fromEntries(features.map((layer) => [layer, [...base, layer]])),
   "terminals/": [...base, "terminals/"],
   "layouts/": [...base, "layouts/", "terminals/"],
-  "shell/": [
-    ...base,
-    "shell/",
-    "sidebar/",
-    "terminals/",
-    "layouts/",
-    "projects/",
-    "inbox/",
-    "feedback/",
-  ],
+  "shell/": [...base, "shell/", "sidebar/", "terminals/", "layouts/", "projects/", "inbox/"],
   "app/": ["app/", ...base, ...features, "terminals/", "layouts/", "shell/"],
   // Commands are plain functions over the stores: no React, no DOM libraries.
   "app/commands/": [

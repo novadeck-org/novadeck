@@ -960,12 +960,11 @@ App:
   runner). "Next send fails" makes the next note Not sent, so the card keeps it and the footer's
   button reads "Not sent · Retry". "Next ask fails" makes the next Ask from an agent window's card
   fail, so the card says no agent is running there. "Show the button's word again" clears
-  `novadeck.feedback-opened` and boots the demo again, so the button shows "Feedback" as on a
-  new install. "A feedback draft
-  from the selected agent" asks the selected terminal's agent to write feedback, as the window
-  menu does: it works a moment (after its current turn, if it is in one), then a Feedback item
-  from it joins the Inbox with a path under the home folder to strike. The demo's card says
-  version 0.0.219 and the browser's OS.
+  `novadeck.feedback-opened` and boots the demo again, so the button shows "Feedback" as on a new
+  install. "A feedback draft from the selected agent" asks the selected terminal's agent to write
+  feedback, as the window menu does: it works a moment (after its current turn, if it is in one),
+  then a Feedback item from it joins the Inbox with a path under the home folder to strike. The
+  demo's card says version 0.0.219 and the browser's OS.
 - **Voice input:** the demo starts with it installed and on, as the try demo shows it, and
   never offers it. `&voice=uninstalled` in the address starts it without, and
   `&voice=failing` starts it without and makes its first install fail. Voice input's setup

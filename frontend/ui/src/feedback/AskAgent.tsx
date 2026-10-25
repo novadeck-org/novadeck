@@ -73,7 +73,10 @@ const Card = ({
             type="button"
             className="icon-button small"
             aria-label="Close"
-            onClick={closeAskAgent}
+            onClick={() => {
+              closeAskAgent()
+              focusTerminalInput(target.key.terminalId)
+            }}
           >
             <X size={14} strokeWidth={1.75} aria-hidden="true" />
           </button>

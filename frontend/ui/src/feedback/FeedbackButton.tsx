@@ -52,6 +52,11 @@ export const FeedbackButton = ({
   // What had focus before the card opened, which gets it back when the card closes.
   const before = useRef<Element | null>(null)
   const trigger = useRef<HTMLButtonElement>(null)
+  // Whether the card is open now, for a send that ends later; whether one is on its way,
+  // so two nudges to send cannot make two; and the latest `submit`, for the online listener.
+  const isOpen = useRef(false)
+  const inFlight = useRef(false)
+  const latestSubmit = useRef<() => void>(() => {})
   const titleId = useId()
   useEffect(() => {
     alive.current = true
@@ -93,26 +98,40 @@ export const FeedbackButton = ({
     })
   }
   const submit = (): void => {
-    if (send === "sending" || !sendable(text)) return
+    if (inFlight.current || send === "sending" || !sendable(text)) return
+    inFlight.current = true
     setSend((now) => nextSend(now, "send"))
     feedback.send({ kind, text: text.trim() }).then(
       () => {
+        inFlight.current = false
         if (!alive.current) return
         setSend((now) => nextSend(now, "resolved"))
-        setOpen(false)
-        giveFocusBack()
+        // A retry in the background leaves the focus where it is.
+        if (isOpen.current) {
+          setOpen(false)
+          giveFocusBack()
+        }
         setKind(null)
         setText("")
       },
-      () => alive.current && setSend((now) => nextSend(now, "rejected")),
+      () => {
+        inFlight.current = false
+        if (alive.current) setSend((now) => nextSend(now, "rejected"))
+      },
     )
   }
-  // A note that did not go is sent again by itself once the network is back.
   useEffect(() => {
-    if (send !== "failed" || !sendable(text)) return
-    window.addEventListener("online", submit)
-    return () => window.removeEventListener("online", submit)
+    isOpen.current = open
+    latestSubmit.current = submit
   })
+  // A note that did not go is sent again by itself once the network is back.
+  const retrying = send === "failed" && sendable(text)
+  useEffect(() => {
+    if (!retrying) return
+    const retry = (): void => latestSubmit.current()
+    window.addEventListener("online", retry)
+    return () => window.removeEventListener("online", retry)
+  }, [retrying])
   const change = (next: boolean): void => {
     setOpen(next)
     if (!next) giveFocusBack()
@@ -178,7 +197,7 @@ export const FeedbackButton = ({
                 type="button"
                 className="icon-button small"
                 aria-label="Close"
-                onClick={() => setOpen(false)}
+                onClick={() => change(false)}
               >
                 <X size={14} strokeWidth={1.75} aria-hidden="true" />
               </button>
