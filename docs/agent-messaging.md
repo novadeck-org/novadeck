@@ -475,14 +475,17 @@ A third kind of letter is the runner's own, not an agent's: a **finished turn**
 gist and the files written). The runner records one for each turn end it sees, in
 `terminals/turn-ends.ts`. A failed end is recorded at once; a completed one after 700 ms
 (`finishGraceMs`, mirrored in the client), once the agent is not working and the person's
-Escape, if any, has had its verdict window (`escapeVerdictMs`), so an end its harness
-then corrects to an interruption is never stored. An end whose session ends inside that
-grace (`claude -p`, `codex exec`, `/exit`, a shell exit) is stored all the same, by the
-flush in `Bindings.unwatch`. Nothing is recorded for an interrupted, unknown or limited end,
-an end shown while a request waits on the person, or an agent with no Inbox owner. The same
-end told again updates its row in place; turning interrupted or limited removes it. The
-reply and error go through the transcript redactor before they are stored (null where it
-fails, never the unmasked text). A turn row never reaches Messages and is not mail; it stays until
+Escape, if any, has had its verdict window (`escapeVerdictMs`), so an end its harness corrects
+to an interruption within that window is never stored. A completed end followed by another
+end or a new turn within the 700 ms gets no row, as on the client. An end whose session ends
+inside the grace (`claude -p`, `codex exec`, `/exit`, a shell exit) is stored all the same, by
+the flush in `Bindings.unwatch`; so is one a shutdown flushes, though a later end had
+replaced it. Nothing is recorded for an interrupted, unknown or limited end, an end shown while a
+request waits on the person, or an agent with no Inbox owner. The same end told again updates
+its row in place; an end that turns limited removes it (an Escape's correction is a new end,
+which never had a row). The reply, error and gist go through the transcript redactor before
+they are stored (null where it fails, never the unmasked text); file paths are kept as the
+activity has them. A turn row never reaches Messages and is not mail; it stays until
 read, which removes it, up to fifty unread per terminal (the oldest goes first), and it goes with
 its terminal. A usage limit is no row: it is derived from `lastTurn.limited` and the
 limit window, and leaves when the agent works again.

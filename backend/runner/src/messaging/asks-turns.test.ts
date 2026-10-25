@@ -199,9 +199,43 @@ describe("finished turns across a restart", () => {
       error: "e".repeat(2048),
       files: Array.from({ length: 16 }, (_, index) => `/f${index}`),
     })
-    // The clamped letter is saved back, and the unreadable one is gone.
+    // Clamped in memory only: the records keep what a newer runner wrote, and the unreadable
+    // letter, with no content at all, is dropped without stopping Asks from starting.
     expect(records.letters()).toHaveLength(1)
-    expect(records.letters()[0]!.content).toEqual(run.turns()[0]!.content)
+    expect(records.letters()[0]!.content).toHaveProperty("later")
+  })
+
+  it("drops a stored letter with no content and still constructs", () => {
+    const records = memoryAsks()
+    records.saveLetter(stored(undefined))
+    records.saveLetter(stored(null))
+    const run = setup(records)
+    expect(run.asks.list()).toEqual([])
+    expect(records.letters()).toEqual([])
+  })
+
+  it("looks a terminal up once per listing", () => {
+    const lookups = vi.fn<(terminalId: string) => boolean>(() => true)
+    const asks = new Asks(
+      {
+        owner: () => owner,
+        reply: () => {},
+        replyState: () => undefined,
+        forgetReplies: () => {},
+        changed: () => {},
+        exists: lookups,
+      },
+      memoryAsks(),
+      () => 1000,
+      { sweepMs: 0 },
+    )
+    for (let at = 1; at <= 5; at += 1) asks.recordTurn(owner, at, fields())
+    lookups.mockClear()
+    expect(asks.list()).toHaveLength(5)
+    expect(lookups).toHaveBeenCalledTimes(1)
+    lookups.mockClear()
+    asks.prune()
+    expect(lookups.mock.calls.length).toBeLessThanOrEqual(1)
   })
 
   it("lists turns saved through the workspace store again for a new Asks over it", ({

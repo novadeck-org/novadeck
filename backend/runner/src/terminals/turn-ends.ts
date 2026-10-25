@@ -1,4 +1,4 @@
-import { replyPreviewLength } from "@novadeck/protocol"
+import { murmurGistLength, replyPreviewLength } from "@novadeck/protocol"
 import type { AgentActivity } from "@novadeck/protocol"
 
 import { escapeVerdictMs, summary as activitySummary } from "../harnesses/activity.js"
@@ -51,8 +51,11 @@ type Seen = {
   row: boolean
   timer: ReturnType<typeof setTimeout> | undefined
   /** The text as last redacted, with what it was redacted from. */
-  masked: { reply: string | null; error: string | null; from: string } | undefined
+  masked: (Text & { from: string }) | undefined
 }
+
+/** The text of an end that is stored: all of it redacted. */
+type Text = { reply: string | null; error: string | null; gist: string | null }
 
 type Ends = {
   readonly seen: Map<number, Seen>
@@ -64,7 +67,7 @@ type Ends = {
 // eslint-disable-next-line no-control-regex -- Control characters are what it removes.
 const plain = (text: string): string => text.replace(/[\u0000-\u001f\u007f-\u009f]+/gu, " ").trim()
 
-const key = (seen: Seen): string => JSON.stringify([seen.reply, seen.error])
+const key = (seen: Seen): string => JSON.stringify([seen.reply, seen.error, seen.gist])
 const raw = (seen: Seen): string =>
   JSON.stringify([seen.outcome, seen.reply, seen.gist, seen.error, seen.files])
 
@@ -110,7 +113,7 @@ export class TurnEnds {
         seen.timer = undefined
         seen.flushed = true
         if (!asks.accepts(terminalId)) continue
-        this.write(seen, { reply: null, error: null })
+        this.write(seen, { reply: null, error: null, gist: null })
         // The text follows once redacted, if Asks is still open then.
         if (!seen.settling) void this.settle(seen)
       }
@@ -138,8 +141,9 @@ export class TurnEnds {
     // Another end replaces one still in its grace, as the Escape's correction does.
     for (const seen of ends.seen.values())
       if (seen.at !== at && this.waiting(seen)) this.retire(seen)
+    // Older ends stored, or given up with nothing stored, are not kept: `considered` holds the rest.
     for (const seen of ends.seen.values())
-      if (seen.at < at && seen.row && !seen.settling) ends.seen.delete(seen.at)
+      if (seen.at < at && (seen.row || seen.corrected) && !seen.settling) ends.seen.delete(seen.at)
     const known = ends.seen.get(at)
     if (known) {
       this.update(known, last, ok, id, asks)
@@ -259,12 +263,12 @@ export class TurnEnds {
     }
   }
 
-  private write(seen: Seen, text: { reply: string | null; error: string | null }): void {
+  private write(seen: Seen, text: Text): void {
     const { asks } = this.host.turns()
     const fields: TurnFields = {
       outcome: seen.outcome,
       reply: text.reply,
-      gist: seen.gist,
+      gist: seen.gist === null ? null : text.gist,
       error: seen.error === null ? null : text.error,
       files: [...seen.files],
     }
@@ -274,7 +278,7 @@ export class TurnEnds {
   }
 
   /** The end's text with its secrets masked; null where it could not be, never the text unmasked. */
-  private async masked(seen: Seen): Promise<{ reply: string | null; error: string | null }> {
+  private async masked(seen: Seen): Promise<Text> {
     const from = key(seen)
     if (seen.masked?.from === from) return seen.masked
     const { redactor } = this.host.turns()
@@ -299,7 +303,8 @@ export class TurnEnds {
     }
     const reply = await one(seen.reply, replyPreviewLength)
     const error = await one(seen.error, 2048)
-    seen.masked = { reply, error, from }
+    const gist = await one(seen.gist, murmurGistLength)
+    seen.masked = { reply, error, gist, from }
     return seen.masked
   }
 }

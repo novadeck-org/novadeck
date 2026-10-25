@@ -280,20 +280,16 @@ export class Asks {
     this.save(() => {
       stored = records.letters()
     })
-    const clamped: Letter[] = []
     for (const letter of stored) {
-      if (letter.content.kind === "turn") {
+      if (letter?.content?.kind === "turn") {
+        // Clamped in memory only: a newer runner's fields stay in the records until the
+        // letter is next amended.
         const content = clampedTurn(letter.content)
         if (!content) stale.push(letter.id)
-        else {
-          const next = { ...letter, state: "open" as const, content }
-          if (JSON.stringify(content) !== JSON.stringify(letter.content)) clamped.push(next)
-          this.keep(next)
-        }
-      } else if (inboxLetter.shape.content.safeParse(letter.content).success) this.keep(letter)
-      else stale.push(letter.id)
+        else this.keep({ ...letter, state: "open" as const, content })
+      } else if (inboxLetter.shape.content.safeParse(letter?.content).success) this.keep(letter)
+      else if (letter?.id) stale.push(letter.id)
     }
-    if (clamped.length > 0) this.save(() => records.saveLetters(clamped))
     if (stale.length > 0) this.save(() => records.removeLetters(stale))
     this.prune()
     if (sweepMs > 0) {
@@ -417,13 +413,14 @@ export class Asks {
   }
 
   list(): InboxLetter[] {
+    const exists = this.existence()
     return [...this.open.values()]
       .filter(
         (each) =>
           each.state === "open" &&
           (each.content.kind === "ask"
             ? same(each, this.host.owner(each.terminalId))
-            : this.host.exists(each.terminalId)),
+            : exists(each.terminalId)),
       )
       .map(({ state: _state, ...letter }) => letter)
   }
@@ -612,7 +609,8 @@ export class Asks {
     if (this.closed) return
     const owner = this.host.owner(terminalId)
     if (!owner) this.guesses.delete(terminalId)
-    if (!this.host.exists(terminalId)) {
+    const exists = this.existence()
+    if (!exists(terminalId)) {
       const turns = [...(this.byTerminal.get(terminalId)?.values() ?? [])].filter(isTurn)
       if (turns.length > 0) this.save(() => this.records.removeLetters(turns.map(({ id }) => id)))
       this.forgetTurns(turns)
@@ -630,7 +628,7 @@ export class Asks {
         letter.state === "open" &&
         (letter.content.kind === "ask"
           ? !same(letter, owner) && (!owner || !this.guesses.has(terminalId))
-          : !this.host.exists(terminalId))
+          : !exists(terminalId))
       )
         this.put({ ...letter, state: "gone" })
     }
@@ -715,6 +713,7 @@ export class Asks {
       ? [...this.byTerminal].filter(([id]) => id === terminalId)
       : [...this.byTerminal]
     this.abandon(groups, at)
+    const exists = this.existence()
     for (const [, letters] of groups) {
       const resolved = [...letters.values()]
         .filter((letter) => letter.state !== "open")
@@ -742,7 +741,7 @@ export class Asks {
       for (const letter of letters.values())
         if (
           ids.has(letter.id) ||
-          (!this.host.exists(letter.terminalId) &&
+          (!exists(letter.terminalId) &&
             at - (letter.settledAt ?? letter.at) >= retentionMs &&
             !this.host.replyState(letter.id))
         )
@@ -855,6 +854,15 @@ export class Asks {
       changed.add(letter.terminalId)
     }
     for (const id of changed) this.changed(id)
+  }
+  /** `host.exists`, looked up once per terminal for as long as the returned function is used. */
+  private existence(): (terminalId: string) => boolean {
+    const known = new Map<string, boolean>()
+    return (terminalId) => {
+      let found = known.get(terminalId)
+      if (found === undefined) known.set(terminalId, (found = this.host.exists(terminalId)))
+      return found
+    }
   }
   private turnAt(terminalId: string, at: number): Letter | undefined {
     for (const letter of this.byTerminal.get(terminalId)?.values() ?? [])

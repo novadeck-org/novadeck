@@ -370,6 +370,36 @@ describe("the text of a stored turn", () => {
     })
   })
 
+  it("masks the gist too, and stores none where the redaction fails", async () => {
+    const run = setup({ redactor: redactor() })
+    const gisted = {
+      ...end(begin(run.record.bound!.activity, 1), 100, { outcome: "failed", error: "x" }),
+    }
+    gisted.lastTurn = { ...gisted.lastTurn!, gist: "Rotated hunter2" }
+    run.show(gisted)
+    await settle()
+    expect(run.turns()[0]!.content).toMatchObject({ gist: "Rotated *******" })
+    const failing = setup({ redactor: redactor(() => null) })
+    const other = end(begin(failing.record.bound!.activity, 1), 100, { outcome: "failed" })
+    other.lastTurn = { ...other.lastTurn!, gist: "Rotated hunter2" }
+    failing.show(other)
+    await settle()
+    expect(failing.turns()[0]!.content).toMatchObject({ gist: null })
+  })
+
+  it("keeps no record of ends given up, across many quick ends", async () => {
+    const run = setup()
+    let activity = run.record.bound!.activity
+    for (let at = 100; at < 140; at += 10) {
+      activity = end(begin(activity, at - 5), at)
+      run.show(activity)
+      await wait(100)
+    }
+    await wait(finishGraceMs * 2)
+    const held = (run.ends as unknown as { ends: Map<string, { seen: Map<number, unknown> }> }).ends
+    expect(held.get(terminalId)!.seen.size).toBeLessThanOrEqual(2)
+  })
+
   it("stores null where the redaction fails, never the text", async () => {
     const run = setup({ redactor: redactor(() => null) })
     run.show(end(begin(run.record.bound!.activity, 1), 100, { reply: "secret hunter2" }))
