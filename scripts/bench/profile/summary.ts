@@ -1,5 +1,7 @@
 import { percentile, type Switch } from "../timing/report.ts"
 import type { PhaseName, ScenarioName } from "./drive.ts"
+import type { GlReport } from "./gpu.ts"
+import type { MemorySample } from "./memory.ts"
 import type { Breakdown } from "./trace.ts"
 
 // The profile's numbers: each phase's, from its trace and what the page recorded, each run's
@@ -7,10 +9,10 @@ import type { Breakdown } from "./trace.ts"
 // the JSON keeps them and the markdown shows them.
 
 /**
- * The app's build a run ran: the package's own, one with React DOM's profiling build, or one
- * whose screens draw with xterm's WebGL renderer.
+ * The app's build a run ran: the production build (with the profile's bench-only patches,
+ * which change none of its work), or the same with React DOM's profiling build.
  */
-export type Variant = "production" | "profiling" | "webgl"
+export type Variant = "production" | "profiling"
 
 /** One phase of one run. */
 export type PhaseResult = {
@@ -29,12 +31,18 @@ export type PhaseResult = {
   readonly switches: readonly Switch[]
   readonly visible: boolean
   readonly focused: boolean
+  /** The page's screens at the phase's end (see gpu.ts). */
+  readonly gl?: GlReport
 }
 
 export type RunResult = {
   readonly scenario: ScenarioName
   readonly variant: Variant
   readonly run: number
+  /** Terminals the session opened. */
+  readonly terminals?: number
+  /** The memory sampled at the start and after each phase (see memory.ts). */
+  readonly memory?: readonly MemorySample[]
   readonly agentPhases: readonly (string | null)[]
   /** Whether the build's source maps split its script; no split's numbers count otherwise. */
   readonly attributed: boolean
@@ -58,7 +66,7 @@ const median = (values: readonly number[]): number => {
   return sorted.length % 2 === 1 ? sorted[middle]! : (sorted[middle - 1]! + sorted[middle]!) / 2
 }
 
-const spread = (values: readonly number[]): Spread | undefined =>
+export const spread = (values: readonly number[]): Spread | undefined =>
   values.length === 0
     ? undefined
     : {
@@ -141,6 +149,10 @@ export const metrics = {
     one.phase === "switches"
       ? one.switches.filter((each) => each.ms === undefined).length
       : undefined,
+  mounted: (one: PhaseResult) => one.gl?.mounted,
+  inView: (one: PhaseResult) => one.gl?.inView,
+  withContext: (one: PhaseResult) => one.gl?.withContext,
+  contextLost: (one: PhaseResult) => one.gl?.contextLost,
 } as const
 
 export type Metric = keyof typeof metrics
@@ -324,8 +336,7 @@ export const summarize = (runs: readonly RunResult[]): Summary => {
 
 /**
  * Each phase's `metric`, the main thread's busy share by default, its median on the
- * production build and on `variant`, and the difference: what React's profiling build costs,
- * or what xterm's WebGL renderer saves.
+ * production build and on `variant`, and the difference: what React's profiling build costs.
  */
 export const compared = (
   summary: Summary,
@@ -400,6 +411,10 @@ const labels: Readonly<Record<Metric, string>> = {
   switchP50Ms: "Switch p50 (ms)",
   switchP90Ms: "Switch p90 (ms)",
   switchesTimedOut: "Switches timed out",
+  mounted: "Terminals mounted (screens in the page)",
+  inView: "Terminals in view (half or more of the screen)",
+  withContext: "Screens holding a WebGL context",
+  contextLost: "Of those, contexts lost",
 }
 
 const counts = new Set<string>([
@@ -411,6 +426,10 @@ const counts = new Set<string>([
   "switchP90Ms",
   "switchesTimedOut",
   "busyMsPerFrame",
+  "mounted",
+  "inView",
+  "withContext",
+  "contextLost",
 ])
 
 const shown = (metric: string, value: number) =>
@@ -428,33 +447,6 @@ const cell = (metric: string, found: Spread | undefined) =>
 const builds: Readonly<Record<Variant, string>> = {
   production: "production build",
   profiling: "React's profiling build",
-  webgl: "xterm's WebGL renderer",
-}
-
-const percent = (value: number | undefined) => (value === undefined ? "–" : `${value.toFixed(1)}%`)
-
-/** How much less, in percent, a comparison's variant took than the production build. */
-const cut = (each: { production: number; points: number } | undefined) =>
-  each && each.production > 0 ? (-each.points / each.production) * 100 : undefined
-
-// A main thread this busy has no time to give back: what it saves goes to more frames.
-const saturated = 95
-
-/**
- * Grid's busy share with the DOM renderer and with WebGL, and how much less WebGL takes,
- * relatively: of the window, and of each frame, which still moves once the main thread is
- * saturated; and whether either side was.
- */
-const webglCut = (summary: Summary, scenario: ScenarioName) => {
-  const share = compared(summary, "webgl")[scenario]?.grid
-  const perFrame = compared(summary, "webgl", "busyMsPerFrame")[scenario]?.grid
-  return {
-    production: share?.production,
-    webgl: share?.variant,
-    shareCut: cut(share),
-    frameCut: cut(perFrame),
-    saturated: Boolean(share && Math.max(share.production, share.variant) >= saturated),
-  }
 }
 
 /**
@@ -473,14 +465,13 @@ export const markdown = (
   out.push(
     "## Triggers",
     "",
-    "Each run's phases together, as shares of the main thread's busy (non-idle) time; Grid's busy time is of its window.",
+    "Each run's phases together, as shares of the main thread's busy (non-idle) time.",
     "",
-    "| | State propagation | React render + commit (work loop) | React's own frames (self time) | React render + commit (React's tracks) | Store listener spans | Transport | Grid busy, DOM renderer | Grid busy, WebGL renderer | WebGL's cut, of the window | WebGL's cut, a frame |",
-    "|---|---|---|---|---|---|---|---|---|---|---|",
+    "| | State propagation | React render + commit (work loop) | React's own frames (self time) | React render + commit (React's tracks) | Store listener spans | Transport |",
+    "|---|---|---|---|---|---|---|",
     ...scenarios.map((scenario) => {
       const production = summary.production?.[scenario]?.triggers
       const profiling = summary.profiling?.[scenario]?.triggers
-      const webgl = webglCut(summary, scenario)
       return `| ${scenario} | ${[
         cell("statePropagationOfBusy", production?.statePropagationOfBusy),
         cell("reactOfBusy", production?.reactOfBusy),
@@ -488,10 +479,6 @@ export const markdown = (
         cell("reactTracksOfBusy", profiling?.reactTracksOfBusy),
         cell("storeSpansOfBusy", profiling?.storeSpansOfBusy),
         cell("transportOfBusy", production?.transportOfBusy),
-        percent(webgl.production),
-        percent(webgl.webgl),
-        `${percent(webgl.shareCut)}${webgl.saturated ? " (saturated)" : ""}`,
-        percent(webgl.frameCut),
       ].join(" | ")} |`
     }),
     "",
@@ -501,7 +488,6 @@ export const markdown = (
     "- React render + commit (React's tracks): the time React's profiling build logs as its render and commit phases, from that build's runs; what the build costs is below.",
     "- Store listener spans: from React's profiling build's runs, the time from the first listener a task wakes to the end of the task's script, measured through the stores' hook once step 1.3a has added it; – until then.",
     "- Transport: oRPC, the runner client and the UI's handling of a terminal's events, by the nearest frame; T7 runs if it is over 5%.",
-    "- WebGL's cut: how much less, relatively, the main thread is busy in Grid with xterm's WebGL renderer loaded, medians, of the window and of each animation frame; E4 runs if it is 20% or more in the heavy scenario. A main thread busy 95% or more on either build is marked saturated: what it saves goes to more frames, so the cut of the window reads low, and the cut a frame is the one to read.",
     "",
   )
   const costs = compared(summary, "profiling")

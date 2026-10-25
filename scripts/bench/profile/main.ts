@@ -18,7 +18,18 @@ import { createGzip } from "node:zlib"
 
 import { openApp, packaged, type AppRun, type Machine } from "./app.ts"
 import { sourceMapped } from "./attribute.ts"
-import { play, scenarios, shared, traceConfig, type Recorded, type ScenarioName } from "./drive.ts"
+import {
+  defaultTerminals,
+  play,
+  scenarioFor,
+  scenarioNames,
+  shared,
+  switchTargetsFor,
+  traceConfig,
+  type Recorded,
+  type ScenarioName,
+} from "./drive.ts"
+import { memoryMarkdown, type MemorySample } from "./memory.ts"
 import {
   compared,
   markdown,
@@ -33,14 +44,15 @@ import {
 import { breakdown, type Attribution, type TraceEvent } from "./trace.ts"
 
 // `pnpm bench:profile [--machine <name>] [--runs <n>] [--scenario timing|heavy]…
-// [--variant production|profiling|webgl]… [--output <folder>] [--switch <chromium switch>]…
+// [--variant production|profiling]… [--terminals <n>] [--window <width>x<height>]
+// [--contexts <n>] [--software-webgl] [--output <folder>] [--switch <chromium switch>]…
 // [--note <text>]`: the real-hardware profile (rule 18). It runs the packaged desktop app,
 // GPU on, in the timing run's sandbox with its fake agents, through each scenario (drive.ts)
-// `--runs` times, 3 by default, on each build: the package's own (production), the same with
-// React DOM's profiling build (profiling), whose performance tracks give React's own record
-// of its render and commit, and the same with xterm's WebGL renderer in every screen
-// (webgl; see build.ts). Runs take turns by scenario and build, and keep each
-// phase's Chromium trace. It writes profile.json and profile.md to the output folder,
+// `--runs` times, 3 by default, on each build: the production build (the package's UI built
+// again with the profile's bench-only patches, patches.ts), and the same with React DOM's
+// profiling build (profiling), whose performance tracks give React's own record of its render
+// and commit. Runs take turns by scenario and build, and keep each phase's Chromium trace,
+// and the memory sampled around the phases (memory.ts). It writes profile.json and profile.md to the output folder,
 // .cache/bench/profile/<machine> by default, with the traces gzipped under traces/. The
 // machine is named by `--machine`, this computer's host name by default. It exits 1 should
 // any run fail or the sandbox leak, having written what it got. Linux and macOS.
@@ -56,6 +68,10 @@ const { values } = parseArgs({
     output: { type: "string" },
     switch: { type: "string", multiple: true },
     note: { type: "string" },
+    terminals: { type: "string", default: String(defaultTerminals) },
+    window: { type: "string" },
+    contexts: { type: "string" },
+    "software-webgl": { type: "boolean", default: false },
   },
 })
 const machineName = values.machine ?? hostname()
@@ -64,11 +80,32 @@ if (!/\w/.test(machineName)) throw new Error(`--machine needs a letter or a digi
 const runs = Number(values.runs)
 if (!Number.isInteger(runs) || runs < 1)
   throw new Error(`--runs takes a whole number: ${values.runs}`)
-const chosen = (values.scenario ?? Object.keys(scenarios)) as ScenarioName[]
+const chosen = (values.scenario ?? scenarioNames) as ScenarioName[]
 for (const name of chosen)
-  if (!(name in scenarios))
-    throw new Error(`no scenario ${name}: ${Object.keys(scenarios).join(", ")}`)
-const known: readonly Variant[] = ["production", "profiling", "webgl"]
+  if (!scenarioNames.includes(name))
+    throw new Error(`no scenario ${name}: ${scenarioNames.join(", ")}`)
+// At least two, as the switches press terminals other than the first.
+const terminals = Number(values.terminals)
+if (!Number.isInteger(terminals) || terminals < 2)
+  throw new Error(`--terminals takes a whole number, 2 or more: ${values.terminals}`)
+// The window's content, 1440×900 unless told. The Grid puts two tiles across and a row of them
+// takes 432 px under 161 px of header, so 20 in view need about 4500 px of height (README).
+const size = (() => {
+  if (values.window === undefined) return shared.window
+  const found = /^(\d+)x(\d+)$/.exec(values.window)
+  if (!found) throw new Error(`--window takes <width>x<height>: ${values.window}`)
+  return { width: Number(found[1]), height: Number(found[2]) }
+})()
+// Chromium's cap on contexts a renderer keeps, raised with the page's pool (patches.ts).
+const contexts = values.contexts === undefined ? undefined : Number(values.contexts)
+if (contexts !== undefined && (!Number.isInteger(contexts) || contexts < 3))
+  throw new Error(`--contexts takes a whole number, 3 or more: ${values.contexts}`)
+// The flag's switch first, so one given with `--switch` after it has the last word.
+const switches = [
+  ...(contexts === undefined ? [] : [`--max-active-webgl-contexts=${contexts}`]),
+  ...(values.switch ?? []),
+]
+const known: readonly Variant[] = ["production", "profiling"]
 const variants = (values.variant ?? known) as Variant[]
 for (const name of variants)
   if (!known.includes(name)) throw new Error(`no variant ${name}: ${known.join(", ")}`)
@@ -89,18 +126,18 @@ const commit = (() => {
 const describe = (cause: unknown) =>
   cause instanceof Error ? (cause.stack ?? cause.message) : String(cause)
 
-// Attributes no frame, so scripting isn't split.
-const none: Attribution = { kind: () => undefined, group: () => "unmapped" }
-
 /** Builds the UI into `folder` with hidden source maps (build.ts), as `variant`; whether it built. */
-const buildUi = (folder: string, variant: Variant): boolean =>
+const buildUi = (folder: string, variant: Variant | "plain"): boolean =>
   spawnSync(
     process.execPath,
     [
       join(import.meta.dirname, "build.ts"),
       "--out",
       folder,
-      ...(variant === "production" ? [] : [`--${variant}`]),
+      ...(variant === "profiling" ? ["--profiling"] : []),
+      ...(variant === "plain" ? ["--plain"] : []),
+      ...(contexts === undefined ? [] : ["--contexts", String(contexts)]),
+      ...(values["software-webgl"] ? ["--software-webgl"] : []),
     ],
     { cwd: root, stdio: ["ignore", "ignore", "inherit"] },
   ).status === 0
@@ -120,30 +157,30 @@ const differing = (folder: string, shipped: string): string[] =>
 type Build = { readonly executable: string; readonly attribution: Attribution }
 
 /**
- * The production build: the package itself, its frames attributed by the maps of the UI
- * built again, should every script match the packaged one; nothing is attributed otherwise,
- * and the reason is in `problem`.
+ * Whether the packaged UI is the UI built now, which the profile's builds are made of: the
+ * UI built again, without the patches, must match every script of the package byte for byte.
+ * The reason it doesn't is in the result.
  */
-const production = (): Build & { problem?: string } => {
+const packagedIsCurrent = (): string | undefined => {
   const app = packaged()
-  const maps = join(output, "maps", "production")
-  if (!buildUi(maps, "production"))
-    return { executable: app.executable, attribution: none, problem: "the UI's build failed" }
-  const changed = differing(maps, join(app.resources, "ui"))
-  if (changed.length > 0)
-    return {
-      executable: app.executable,
-      attribution: none,
-      problem: `the packaged UI isn't the UI built now (${changed.join(", ")}): script isn't split; package again`,
-    }
-  return { executable: app.executable, attribution: sourceMapped(join(maps, "assets")) }
+  const plain = join(output, "maps", "plain")
+  try {
+    if (!buildUi(plain, "plain")) return "the UI's plain build failed"
+    const changed = differing(plain, join(app.resources, "ui"))
+    return changed.length > 0
+      ? `the packaged UI isn't the UI built now (${changed.join(", ")}): the profile's builds aren't the package's; package again`
+      : undefined
+  } finally {
+    rmSync(plain, { recursive: true, force: true })
+  }
 }
 
 /**
- * Another build: a copy of the package whose UI is built as `variant` (build.ts), its maps
- * kept apart. On macOS the copy's bundle is signed again, ad hoc.
+ * A build of the app: a copy of the package whose UI is built as `variant` (build.ts) with
+ * the profile's bench-only patches, its maps kept apart and the script split by them. On
+ * macOS the copy's bundle is signed again, ad hoc.
  */
-const variantBuild = (variant: Exclude<Variant, "production">): Build => {
+const variantBuild = (variant: Variant): Build => {
   const app = packaged()
   const maps = join(output, "maps", variant)
   if (!buildUi(maps, variant)) throw new Error(`the UI's ${variant} build failed`)
@@ -186,6 +223,7 @@ const analyze = async (
       trace: relative(output, `${one.trace}.gz`),
       ...pageNumbers(one.frameGaps, one.longTasks),
       switches: one.switches,
+      gl: one.gl,
       visible: one.visible,
       focused: one.focused,
     }
@@ -241,7 +279,15 @@ const write = (complete: boolean) => {
       chromium: seen.metadata,
       electron: machine,
     },
-    scenarios: Object.fromEntries(chosen.map((name) => [name, scenarios[name]])),
+    scenarios: Object.fromEntries(chosen.map((name) => [name, scenarioFor(name, terminals)])),
+    options: {
+      terminals,
+      window: size,
+      contexts: contexts ?? null,
+      softwareWebgl: values["software-webgl"],
+      switches,
+      switchTargets: switchTargetsFor(terminals),
+    },
     variants,
     shared,
     traceConfig,
@@ -250,10 +296,6 @@ const write = (complete: boolean) => {
     profilingOverhead: {
       busyShare: compared(summary, "profiling"),
       busyMsPerFrame: compared(summary, "profiling", "busyMsPerFrame"),
-    },
-    webgl: {
-      busyShare: compared(summary, "webgl"),
-      busyMsPerFrame: compared(summary, "webgl", "busyMsPerFrame"),
     },
     runs: results,
     problems,
@@ -276,6 +318,7 @@ const write = (complete: boolean) => {
     `- CPU: ${report.machine.cpu} (${report.machine.cpus} threads), ${report.machine.memoryGB} GB, ${report.machine.os}`,
     `- GPU: ${String(seen.metadata?.["gpu-gl-renderer"] ?? "unknown")}; GPU compositing ${machine?.gpuFeatures.gpu_compositing ?? "unknown"}`,
     `- Display: ${display ? `${display.size.width}×${display.size.height} at ${display.scaleFactor}×, ${display.frequency || "?"} Hz` : "unknown"}; window ${machine?.window.width ?? "?"}×${machine?.window.height ?? "?"}`,
+    `- Terminals: ${terminals} opened${contexts === undefined ? "" : `; Chromium's cap raised to ${contexts} contexts (\`--max-active-webgl-contexts\`) and the page's pool to ${contexts - 2}`}${values["software-webgl"] ? "; software WebGL allowed in the pool" : ""}. Memory is reported against the terminals mounted, time against the terminals in view, both in the tables below.`,
     `- Runs: ${runs} of each scenario on each build (${variants.join(", ")}); cells are the median (min–max) across runs; shares are of the phase's window unless they say "of busy".`,
     ...(throttledPhases(results).length > 0
       ? [
@@ -299,7 +342,8 @@ const write = (complete: boolean) => {
   ]
   writeFileSync(
     join(output, "profile.md"),
-    markdown(summary, { title: `Real-hardware profile: ${machineName}`, lines }),
+    markdown(summary, { title: `Real-hardware profile: ${machineName}`, lines }) +
+      memoryMarkdown(results),
   )
   if (complete)
     console.log(
@@ -324,24 +368,25 @@ if (process.platform === "win32") throw new Error("the profile needs Linux or ma
 rmSync(traces, { recursive: true, force: true })
 mkdirSync(traces, { recursive: true })
 const builds: Partial<Record<Variant, Build>> = {}
-if (variants.includes("production")) {
-  const { problem, ...build } = production()
-  if (problem) problems.push(problem)
-  builds.production = build
+try {
+  const stale = packagedIsCurrent()
+  if (stale) problems.push(stale)
+} catch (cause) {
+  problems.push(`the UI's plain build couldn't be compared: ${describe(cause)}`)
 }
 for (const variant of variants)
-  if (variant !== "production")
-    try {
-      builds[variant] = variantBuild(variant)
-    } catch (cause) {
-      problems.push(`no ${variant} build: ${describe(cause)}`)
-    }
+  try {
+    builds[variant] = variantBuild(variant)
+  } catch (cause) {
+    problems.push(`no ${variant} build: ${describe(cause)}`)
+  }
 for (let run = 1; run <= runs; run += 1)
   for (const scenario of chosen)
     for (const variant of variants) {
       const build = builds[variant]
       if (stoppedBy || !build) continue
       const recorded: Recorded[] = []
+      const memory: MemorySample[] = []
       const agentPhases: (string | null)[] = []
       let error: string | undefined
       let leaked: readonly string[] = []
@@ -350,7 +395,7 @@ for (let run = 1; run <= runs; run += 1)
         current = appRun
         try {
           // eslint-disable-next-line no-await-in-loop -- One run at a time, alone on the machine.
-          const opened = await appRun.start(shared.window, values.switch ?? [])
+          const opened = await appRun.start(size, switches)
           machine ??= opened.machine
           // eslint-disable-next-line no-await-in-loop -- As above.
           await play(
@@ -359,7 +404,8 @@ for (let run = 1; run <= runs; run += 1)
             join(traces, `${scenario}-${variant}-${run}`),
             recorded,
             agentPhases,
-            variant === "webgl",
+            memory,
+            { terminals, raisedCap: contexts !== undefined },
           )
           // The GPU status right after a launch may be from before the GPU process came up:
           // the first run to finish that can read it records the one it ran with.
@@ -389,7 +435,9 @@ for (let run = 1; run <= runs; run += 1)
         variant,
         run,
         agentPhases,
-        attributed: build.attribution !== none,
+        terminals,
+        memory,
+        attributed: true,
         // eslint-disable-next-line no-await-in-loop -- As above.
         phases: await analyze(recorded, build.attribution, seen),
         problems: leaked,
