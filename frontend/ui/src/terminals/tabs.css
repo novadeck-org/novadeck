@@ -30,8 +30,7 @@
    `.terminal-tab-wait` (the phase glyph while it waits, and each mark below),
    `.terminal-tab-waits` (what a waiting agent waits on, in the same place and fold: each
    row's `.terminal-tab-wait` glyph and `.terminal-tab-wait-trail`), `.terminal-tab-passed`
-   (the trace of a wake-up that passed), `.terminal-tab-peek` (the card over a waiting tab:
-   `.terminal-tab-peek-command`, `.terminal-tab-peek-note`),
+   (the trace of a wake-up that passed),
    `.terminal-tab-rename`, `.terminal-tab-empty`.
 
    Tokens, each optional (its fallback in brackets):
@@ -40,7 +39,6 @@
    --tab-unheard-fg (muted): the glyph while Novadeck can't hear from an agent.
    --tab-waiting-fg (muted): the glyph while an agent waits on something that wakes it, and
    the rows under the tab. --tab-passed-opacity (0.6): the trace of a wake-up that passed.
-   --tab-peek-command-bg (soft): the command in the card over a waiting tab.
    --tab-done-fg (success-fg): the glyph while an agent's reply waits unread.
    --tab-failed-fg (danger-fg): the same, where its turn ended on an error.
    --tab-age-fg (muted): how long ago it finished.
@@ -296,27 +294,6 @@
 }
 .terminal-tab-passed {
   opacity: var(--tab-passed-opacity, 0.6);
-}
-/* The card over a waiting tab (SidebarItem's peek): the longest line is the command, set
-   in mono on a soft ground and cut to the card's width. */
-.sidebar-item-peek {
-  max-width: 20rem;
-  padding: 10px 12px;
-  font-size: var(--text-caption);
-  line-height: 1.4;
-}
-.terminal-tab-peek-command {
-  display: block;
-  overflow: hidden;
-  padding: 2px 6px;
-  border-radius: var(--radius-control);
-  background-color: var(--tab-peek-command-bg, var(--color-soft));
-  font-family: var(--font-mono);
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.terminal-tab-peek-note {
-  color: var(--color-muted);
 }
 /* The subagents its agent runs, marked after its program as its phase is before it: a
    spinner each, a step quieter than the phase glyph, while the agent works on until they

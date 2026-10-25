@@ -42,9 +42,6 @@ const WaitingBranches = lazy(() =>
 const WakePassed = lazy(() =>
   import("./TabWaiting").then((module) => ({ default: module.WakePassed })),
 )
-const WaitingPeek = lazy(() =>
-  import("./TabWaiting").then((module) => ({ default: module.WaitingPeek })),
-)
 
 // A sentence of the description, its first letter a capital.
 const capital = (text: string) => `${text[0]!.toUpperCase()}${text.slice(1)}`
@@ -230,13 +227,6 @@ export const TerminalTab = ({
               ),
             }
           : {})}
-        peek={
-          waits ? (
-            <Suspense fallback={null}>
-              <WaitingPeek waiting={waits} />
-            </Suspense>
-          ) : null
-        }
         selected={selected}
         emphasized={phase === "done"}
         selectLabel={`Select ${label}${hidden ? " (hidden)" : ""}`}
