@@ -261,6 +261,7 @@ export const demoInboxIds = {
   text: "demo-text-ask",
   plainDeny: "demo-plain-deny",
   waits: "demo-waits",
+  feedback: "demo-feedback",
   letterTell: "demo-letter-tell",
   letterAsk: "demo-letter-ask",
 } as const
@@ -459,6 +460,21 @@ const extraFixtures: readonly Fixture[] = [
     minutes: 1,
     stopped: true,
     content: { kind: "request", request: plainDenyRequest },
+  },
+  {
+    id: demoInboxIds.feedback,
+    project: "infra",
+    terminal: 2,
+    agent: "claude",
+    minutes: 3,
+    stopped: false,
+    content: {
+      kind: "feedback",
+      draft: {
+        kind: "bug",
+        text: "The terminal froze for a few seconds after I split a window while a build was streaming output.\n\nWhat I did: ran the build in ~/Workspace/infra/terraform, then split the window. The new pane stayed blank until the build ended.\n\nExpected the new pane to start right away.",
+      },
+    },
   },
 ]
 

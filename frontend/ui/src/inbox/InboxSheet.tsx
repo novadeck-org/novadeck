@@ -7,6 +7,7 @@ import { useEffect, useRef, useState } from "react"
 
 import { ApproveSheet } from "./ApproveSheet"
 import { AskSheet } from "./AskSheet"
+import { FeedbackSheet } from "./FeedbackSheet"
 import { nextRowButton, rowOf, sheetControls } from "./inbox-dom"
 import { icons } from "./inbox-icons"
 import { nextItem } from "./inbox-state"
@@ -115,6 +116,7 @@ const SheetBody = ({ item }: { readonly item: InboxItem }): React.JSX.Element =>
       {type === "ask" && <AskSheet {...content} />}
       {type === "trouble" && <TroubleSheet {...content} />}
       {type === "update" && <UpdateSheet {...content} />}
+      {type === "feedback" && <FeedbackSheet {...content} />}
     </div>
   )
 }

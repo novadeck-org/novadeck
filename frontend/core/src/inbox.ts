@@ -183,7 +183,9 @@ export type InboxAnswer =
   | { readonly kind: "update"; readonly action: "read" }
   | {
       readonly kind: "feedback"
-      readonly answer: { readonly type: "send"; readonly text: string } | { readonly type: "discard" }
+      readonly answer:
+        | { readonly type: "send"; readonly text: string }
+        | { readonly type: "discard" }
     }
 
 // Every item, waiting ones first by how long they waited. `answering` the items whose
@@ -226,11 +228,12 @@ export type Inbox = {
 // How urgent an item is, most urgent first: trouble that stopped the agent, then
 // anything else that stopped it (a limit that waits for the person among them), then what
 // asks while the agent works on, then trouble that handles itself (a limit Novadeck
-// resumes from) or that only holds its messages (whose own question, if any, comes first),
-// then updates.
+// resumes from) or that only holds its messages (whose own question, if any, comes first)
+// or a feedback draft, which waits on the person but not the agent, then updates.
 export const urgency = (item: InboxItem): number => {
   const type = inboxType(item)
   if (type === "update") return 4
+  if (type === "feedback") return 3
   if (item.kind === "trouble" && item.trouble.type === "waits") return 3
   if (type === "trouble") {
     if (!item.stopped) return 3

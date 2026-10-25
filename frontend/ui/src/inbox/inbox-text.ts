@@ -99,6 +99,13 @@ const troubleSubject = (trouble: Trouble, source: InboxSource): string => {
     : "Seems stuck: the same failure again"
 }
 
+// A feedback draft's subject: who drafted it and how its text starts, cut at a line's end.
+const feedbackSubject = (text: string, source: InboxSource): string => {
+  const first = text.trim().split("\n")[0]!.trim()
+  const head = first.length > 72 ? `${first.slice(0, 71).trimEnd()}…` : first
+  return `Feedback draft from @${source.handle}${head ? `: ${head}` : ""}`
+}
+
 // The row's subject, as the person reads it first: what is asked, or what happened.
 export const subjectOf = (item: InboxItem): string => {
   switch (item.kind) {
@@ -112,6 +119,8 @@ export const subjectOf = (item: InboxItem): string => {
       return troubleSubject(item.trouble, item.source)
     case "update":
       return item.update.subject
+    case "feedback":
+      return feedbackSubject(item.draft.text, item.source)
   }
 }
 
@@ -163,6 +172,8 @@ export const labelOf = (item: InboxItem): string => {
       return "Novadeck noticed"
     case "update":
       return item.update.type === "finished" ? "Finished" : "Heads-up"
+    case "feedback":
+      return "Drafted feedback"
   }
 }
 
@@ -280,7 +291,8 @@ export type Standing = {
 }
 export const standingOf = (item: InboxItem, now: number, answered: boolean): Standing => {
   if (answered) return { status: "answered", tone: "done" }
-  if (inboxType(item) === "update") {
+  // Neither stops the agent: they say how long they have waited, calmly.
+  if (inboxType(item) === "update" || inboxType(item) === "feedback") {
     const ago = waitLabel(item.at, now)
     return { status: ago === "now" ? "just now" : `${ago} ago`, tone: "calm" }
   }

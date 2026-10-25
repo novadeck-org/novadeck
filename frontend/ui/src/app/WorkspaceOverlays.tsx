@@ -14,6 +14,7 @@ import {
   useSyncExternalStore,
 } from "react"
 
+import { AskAgent } from "../feedback/AskAgent"
 import { terminalElement } from "../interaction/dom"
 import type { MurmurAddonValue } from "../preferences/MurmurAddon"
 import { disconnectAgent, runUninstall } from "../preferences/uninstall"
@@ -288,6 +289,7 @@ export const WorkspaceOverlays = memo((): React.JSX.Element => {
         }
       />
       <NameOffer />
+      {backend.feedback && <AskAgent feedback={backend.feedback} />}
       {switcher && (
         <TerminalSwitcher
           mode={switcher.mode}

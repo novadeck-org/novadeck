@@ -63,6 +63,16 @@ const update = (id: string, at = Date.now()): InboxItem => ({
   update: { type: "told", subject: "Done", body: "" },
 })
 
+const draft = (id: string, at = Date.now()): InboxItem => ({
+  id,
+  source,
+  at,
+  stopped: false,
+  seen: false,
+  kind: "feedback",
+  draft: { kind: "bug", text: "It broke." },
+})
+
 const backgrounded = (notifyNeeds = true) => {
   const base = initialUi({
     location: {
@@ -176,6 +186,14 @@ describe("pings for what needs the person", () => {
     it("sends none for an update, which doesn't need them", () => {
       const { set, shown, stop } = setup()
       set([update("u")])
+      vi.advanceTimersByTime(5000)
+      expect(shown).toEqual([])
+      stop()
+    })
+
+    it("sends none for a feedback draft, which waits in the Inbox without calling", () => {
+      const { set, shown, stop } = setup()
+      set([draft("f")])
       vi.advanceTimersByTime(5000)
       expect(shown).toEqual([])
       stop()
@@ -371,6 +389,14 @@ describe("what a notification says of an item", () => {
 })
 
 describe("the app icon's count", () => {
+  it("counts a feedback draft, as the bell does, though it sends no ping", () => {
+    const { shown, badges, stop } = setup({ items: [draft("f")] })
+    vi.advanceTimersByTime(5000)
+    expect(badges).toEqual([{ count: 1, image: "data:image/png;base64,1" }])
+    expect(shown).toEqual([])
+    stop()
+  })
+
   it("follows the bell's count: what isn't an update, from the start, and 0 once none waits", () => {
     const { set, badges, stop } = setup({ items: [ask("a"), update("u")] })
     expect(badges).toEqual([{ count: 1, image: "data:image/png;base64,1" }])

@@ -22,6 +22,7 @@ import {
 } from "../terminals/WindowShell"
 import { WindowStats } from "../terminals/WindowStats"
 import { DictationStrip } from "../voice/DictationStrip"
+import { useAskFeedback } from "./ask-feedback"
 import { useUiState, useWorkspaceServices, useWorkspaceState } from "./controller/context"
 import { DictationContext, useMicButton } from "./controller/dictation"
 import { useDockTarget } from "./dock-target"
@@ -73,6 +74,7 @@ const useWindowFrame = (
   const destination = windowedDestination(windowedView, enabledViews)
   const windowedLabel = destination === "canvas" ? "Canvas" : "Grid"
   const dockIn = useDockTarget(tile)
+  const askFeedback = useAskFeedback(tile)
   return {
     terminal: tile,
     active,
@@ -88,6 +90,7 @@ const useWindowFrame = (
       onRename: () => startRename(tile, "header"),
       onResetTitle: backend.resetTitle ? () => resetTitle(id) : undefined,
       dockIn,
+      askFeedback,
       onClose: () => close(id),
     }),
     compact,

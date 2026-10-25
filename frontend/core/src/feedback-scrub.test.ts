@@ -1,0 +1,142 @@
+import { scrub, strikeSummary, textToSend } from "./feedback-scrub"
+import { context, describe, expect, it } from "./test"
+
+const struck = (text: string): string[] =>
+  scrub(text)
+    .segments.filter((segment) => segment.struck)
+    .map((segment) => `${segment.struck}:${segment.text}`)
+
+describe("scrubbing a feedback draft", () => {
+  context("paths", () => {
+    it("strikes a path under a home directory, on each OS", () => {
+      expect(struck("It failed in ~/Workspace/app/src/a.ts at once.")).toEqual([
+        "path:~/Workspace/app/src/a.ts",
+      ])
+      expect(struck("Opened /home/alice/Work/app.log, then /Users/bob/x.")).toEqual([
+        "path:/home/alice/Work/app.log",
+        "path:/Users/bob/x",
+      ])
+      expect(struck(String.raw`See C:\Users\Carol\AppData\Local\n.log.`)).toEqual([
+        String.raw`path:C:\Users\Carol\AppData\Local\n.log`,
+      ])
+      expect(struck("cd /home/alice")).toEqual(["path:/home/alice"])
+    })
+
+    it("leaves a path's closing punctuation and quotes out", () => {
+      expect(struck("(see `~/a/b.ts`), or ~/c.")).toEqual(["path:~/a/b.ts", "path:~/c"])
+    })
+
+    it("keeps repo-relative paths, system paths and urls", () => {
+      const text =
+        "frontend/toolkit/src/Toast.tsx and ./a/b.ts, /usr/bin/env, https://x.dev/home/alice/y"
+      expect(scrub(text).total).toBe(0)
+    })
+  })
+
+  context("names", () => {
+    it("strikes the user and host of a shell prompt, leaving the @", () => {
+      const scrubbed = scrub("alice@laptop:~/work$ pnpm test")
+      expect(scrubbed.segments.map((segment) => `${segment.struck}:${segment.text}`)).toEqual([
+        "user:alice",
+        "null:@",
+        "host:laptop",
+        "null::",
+        "path:~/work$",
+        "null: pnpm test",
+      ])
+      expect(scrubbed.counts).toMatchObject({ user: 1, host: 1, path: 1 })
+    })
+
+    it("reads the bracketed and the bare prompt too", () => {
+      expect(struck("[alice@laptop work]$ ls")).toEqual(["user:alice", "host:laptop"])
+      expect(struck("alice@laptop $ ls")).toEqual(["user:alice", "host:laptop"])
+    })
+
+    it("does not take versions, tags and handles for names", () => {
+      expect(scrub("pnpm@11.2 react@latest @moth @novadeck/core git@github.com:o/r").total).toBe(0)
+    })
+  })
+
+  context("email addresses", () => {
+    it("strikes an address", () => {
+      expect(struck("Write to a.b+c@mail.example.org, please.")).toEqual([
+        "email:a.b+c@mail.example.org",
+      ])
+    })
+
+    it("keeps the mailboxes tools write for themselves", () => {
+      expect(scrub("noreply@anthropic.com").total).toBe(0)
+    })
+
+    it("counts an address inside a path as the path", () => {
+      expect(struck("/home/al/x@y.com")).toEqual(["path:/home/al/x@y.com"])
+    })
+  })
+
+  it("counts by kind and says them", () => {
+    const { counts } = scrub("~/a, ~/b, me@mail.dev")
+    expect(counts).toEqual({ path: 2, user: 0, host: 0, email: 1 })
+    expect(strikeSummary(counts)).toBe("2 paths, 1 email address")
+    expect(strikeSummary(scrub("nothing here").counts)).toBeNull()
+  })
+
+  context("the text to send", () => {
+    it("puts a placeholder by kind where a part was struck", () => {
+      expect(textToSend(scrub("It broke in ~/a/b.ts today."))).toBe("It broke in [path] today.")
+      expect(textToSend(scrub("Mail me@mail.dev."))).toBe("Mail [email].")
+      expect(textToSend(scrub("alice@laptop:~/w$ pnpm test"))).toBe(
+        "[user]@[host]:[path] pnpm test",
+      )
+    })
+
+    it("is the text itself where nothing is struck", () => {
+      const text = "Plain\n\ntext, with frontend/ui/src/a.ts."
+      expect(textToSend(scrub(text))).toBe(text)
+      expect(scrub(text).segments).toEqual([{ text, struck: null }])
+    })
+  })
+
+  context("other prompts and places", () => {
+    it("reads zsh's and fish's prompts", () => {
+      expect(struck("alice@Alices-MacBook-Pro ~ % ls")).toEqual([
+        "user:alice",
+        "host:Alices-MacBook-Pro",
+      ])
+      expect(struck("alice@host project % ls")).toEqual(["user:alice", "host:host"])
+      expect(struck("alice@host ~/dir> ls")).toEqual(["user:alice", "host:host", "path:~/dir"])
+    })
+
+    it("strikes a Windows user name with spaces, up to the backslash", () => {
+      expect(struck(String.raw`C:\Users\Alice Smith\proj`)).toEqual([
+        String.raw`path:C:\Users\Alice Smith\proj`,
+      ])
+      expect(struck(String.raw`In C:\Users\alice and then D:\x`)).toEqual([
+        String.raw`path:C:\Users\alice`,
+      ])
+    })
+
+    it("strikes a Linux user name with spaces' first word at least", () => {
+      expect(struck("/home/alice/My Projects/x")[0]).toBe("path:/home/alice/My")
+    })
+
+    it("reads file urls, Silverblue and WSL homes", () => {
+      expect(struck("file:///home/alice/a.txt")).toEqual(["path:/home/alice/a.txt"])
+      expect(struck("/var/home/alice/a")).toEqual(["path:/var/home/alice/a"])
+      expect(struck("/mnt/c/Users/alice/a")).toEqual(["path:/mnt/c/Users/alice/a"])
+      expect(scrub("$HOME %USERPROFILE% /root/x src/home/alice/y").total).toBe(0)
+    })
+
+    it("strikes the user and host of a remote login", () => {
+      expect(struck("ssh alice@devbox")).toEqual(["user:alice", "host:devbox"])
+      expect(struck("scp f.txt alice@host.example.com:/tmp")).toEqual([
+        "user:alice",
+        "host:host.example.com",
+      ])
+      expect(scrub("ssh git@github.com").total).toBe(0)
+    })
+
+    it("does not take a version for a domain", () => {
+      expect(scrub("typescript@5.0.0-dev.ab pkg@1.2.3 @novadeck/core @moth").total).toBe(0)
+    })
+  })
+})

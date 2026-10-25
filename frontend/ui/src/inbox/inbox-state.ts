@@ -86,15 +86,20 @@ export const release = (view: InboxView, items: readonly InboxItem[]): InboxView
 export const clearArrived = (view: InboxView): InboxView =>
   view.arrived.length === 0 ? view : { ...view, arrived: [] }
 
-// What the person is asked for next: the most urgent item that is not an update, other
-// than `from` and those whose answer is on its way.
+// What the person is asked for next: the most urgent item that is not an update or a feedback
+// draft (which asks nothing of them now), other than `from` and those whose answer is on its
+// way.
 export const nextItem = (
   items: readonly InboxItem[],
   from: string | null,
   state: Pick<InboxState, "answering">,
 ): InboxItem | undefined =>
   ordered(items).find(
-    (item) => item.id !== from && !state.answering[item.id] && inboxType(item) !== "update",
+    (item) =>
+      item.id !== from &&
+      !state.answering[item.id] &&
+      inboxType(item) !== "update" &&
+      inboxType(item) !== "feedback",
   )
 
 // The item `step` rows from `from` in the list (1 down, -1 up), within its ends; the
@@ -111,6 +116,12 @@ export const stepFrom = (
 // What the rail's badge counts: everything that isn't an update.
 export const needing = (items: readonly InboxItem[]): InboxItem[] =>
   items.filter((item) => inboxType(item) !== "update")
+
+// What rings the person (a toast, the OS ping): what needs them, except a feedback draft.
+// It waits in the Inbox and the badge counts it, but the person asked for it and nothing is
+// urgent about it, so it never interrupts.
+export const ringing = (items: readonly InboxItem[]): InboxItem[] =>
+  needing(items).filter((item) => inboxType(item) !== "feedback")
 
 export const hasUpdates = (items: readonly InboxItem[]): boolean =>
   items.some((item) => inboxType(item) === "update")

@@ -31,9 +31,11 @@ describe("the demo Inbox's items", () => {
   it("covers every type, each kind and every ask shape", () => {
     // The list starts with most of them; the debug panel adds the rest.
     const items = demoInboxItemsAll(now)
-    expect(new Set(items.map(inboxType))).toEqual(new Set(["approve", "ask", "trouble", "update"]))
+    expect(new Set(items.map(inboxType))).toEqual(
+      new Set(["approve", "ask", "trouble", "update", "feedback"]),
+    )
     expect(new Set(items.map((each) => each.kind))).toEqual(
-      new Set(["request", "held", "ask", "trouble", "update"]),
+      new Set(["request", "held", "ask", "trouble", "update", "feedback"]),
     )
     const shapes = items.flatMap((each) => (each.kind === "ask" ? [each.ask.shape.type] : []))
     expect(new Set(shapes)).toEqual(new Set(["options", "action", "text"]))
@@ -163,6 +165,52 @@ describe("the demo Inbox", () => {
       const waiting = demoInboxItems(now).filter((each) => each.kind !== "update")
       inbox.readAll()
       expect(ids(inbox)).toEqual(ordered(waiting).map((each) => each.id))
+    })
+  })
+
+  context("when a feedback draft is answered", () => {
+    const sent = { kind: "feedback", answer: { type: "send", text: "edited" } } as const
+    const discarded = { kind: "feedback", answer: { type: "discard" } } as const
+
+    it("removes it after the answer delay on Send, recording what was sent", () => {
+      const record = vi.fn<Parameters<typeof createDemoInbox>[2] & {}>()
+      const inbox = createDemoInbox(now, [], record)
+      const draft = demoInboxItemsAll(now).find((each) => each.id === demoInboxIds.feedback)
+      inbox.add(draft!)
+      record.mockClear()
+      inbox.answer(demoInboxIds.feedback, sent)
+      expect(inbox.state.getSnapshot().answering).toEqual({ [demoInboxIds.feedback]: true })
+      expect(ids(inbox)).toContain(demoInboxIds.feedback)
+      vi.advanceTimersByTime(answerMs)
+      expect(ids(inbox)).toEqual([])
+      expect(record).toHaveBeenCalledWith(draft, sent, undefined)
+    })
+
+    it("removes it the same way on Discard", () => {
+      const inbox = createDemoInbox(now, [])
+      inbox.add(demoInboxItemsAll(now).find((each) => each.id === demoInboxIds.feedback)!)
+      inbox.answer(demoInboxIds.feedback, discarded)
+      vi.advanceTimersByTime(answerMs)
+      expect(ids(inbox)).toEqual([])
+    })
+
+    it("keeps it, saying why, when the answer is made to fail, and refuses another kind's", () => {
+      const inbox = createDemoInbox(now, [])
+      inbox.add(demoInboxItemsAll(now).find((each) => each.id === demoInboxIds.feedback)!)
+      inbox.failNext()
+      inbox.answer(demoInboxIds.feedback, sent)
+      expect(inbox.state.getSnapshot().failed[demoInboxIds.feedback]).toMatch(/Try again/)
+      inbox.answer(demoInboxIds.feedback, { kind: "update", action: "read" })
+      expect(inbox.state.getSnapshot().failed[demoInboxIds.feedback]).toMatch(/isn't for this/)
+      vi.advanceTimersByTime(answerMs)
+      expect(ids(inbox)).toContain(demoInboxIds.feedback)
+    })
+
+    it("stays when every update is read", () => {
+      const inbox = createDemoInbox(now, [])
+      inbox.add(demoInboxItemsAll(now).find((each) => each.id === demoInboxIds.feedback)!)
+      inbox.readAll()
+      expect(ids(inbox)).toEqual([demoInboxIds.feedback])
     })
   })
 
