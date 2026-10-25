@@ -20,10 +20,11 @@ export const keyOf = ({ source }: InboxItem): ConversationKey => ({
   terminalId: source.terminalId,
 })
 
-// Whether a failed-trouble item is a stored turn row (read by id), not the failed row derived
-// from a limited end, which no read touches.
+// Whether an item is a stored turn row (read by id), as its `stored` mark says, not the failed
+// row derived from a limited end, which no read touches.
 export const isTurnRow = (item: InboxItem): boolean =>
-  item.kind === "trouble" && item.trouble.type === "failed" && !item.id.startsWith("limit:")
+  (item.kind === "trouble" && item.trouble.type === "failed" && item.trouble.stored === true) ||
+  (item.kind === "update" && item.update.type === "finished" && item.update.stored === true)
 
 // The finish an update stands for, as the app reads it.
 export const finishOf = ({ source }: InboxItem): InboxFinish => ({
@@ -254,7 +255,7 @@ export const answerItem = (
     const { action } = given
     const settles = { settles: true }
     if (action.type === "read") {
-      if (!isTurnRow(item) || item.stopped) return tracker.fail(id, "That one isn't read yet.")
+      if (!isTurnRow(item)) return tracker.fail(id, "That answer isn't for this item.")
       tracker.forgive(id)
       return actions.read([id])
     }

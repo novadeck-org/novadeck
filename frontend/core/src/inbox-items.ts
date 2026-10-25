@@ -302,7 +302,7 @@ export const inboxItems = (inputs: InboxInputs): InboxItem[] => {
         project.id === row.projectId &&
         session.id === row.workspaceSessionId &&
         terminal.id === row.terminalId &&
-        terminal.handle === row.handle,
+        (terminal.handle ?? "") === row.handle,
     )
     if (!here) continue
     const source = sourceOf(here, row.agent)
@@ -320,6 +320,7 @@ export const inboxItems = (inputs: InboxInputs): InboxItem[] => {
           subject: row.gist ?? row.reply ?? "Finished its turn",
           reply: row.reply ?? "",
           files: row.files.map((file) => relative(here.project.directory, file, inputs.caseless)),
+          stored: true,
         },
       })
       continue
@@ -336,7 +337,7 @@ export const inboxItems = (inputs: InboxInputs): InboxItem[] => {
       stopped: current,
       seen: false,
       kind: "trouble",
-      trouble: { type: "failed", error: row.error },
+      trouble: { type: "failed", error: row.error, stored: true },
     })
   }
 

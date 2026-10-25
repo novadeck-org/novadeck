@@ -443,7 +443,12 @@ describe("Answering an item", () => {
     })
 
     describe("a stored failed turn", () => {
-      const row = (stopped: boolean): InboxItem => ({ ...trouble, id: "row-1", stopped })
+      const row = (stopped: boolean): InboxItem => ({
+        ...trouble,
+        id: "row-1",
+        stopped,
+        trouble: { type: "failed", error: "boom", stored: true },
+      })
       const nudge = { kind: "trouble", action: { type: "nudge", text: "fix" } } as const
 
       it("is nudged while it is current and the agent rests, then read without waiting", async () => {
@@ -478,14 +483,17 @@ describe("Answering an item", () => {
         expect(done.forget).not.toHaveBeenCalled()
       })
 
-      it("is marked read by its id once it only informs, never while it is current", () => {
+      it("is marked read by its id, current or not, but a derived failed item is not", () => {
         const { tracker } = setup()
         const done = actions()
         answerItem(tracker, row(false), { kind: "trouble", action: { type: "read" } }, done)
         expect(done.read).toHaveBeenCalledWith(["row-1"])
 
         answerItem(tracker, row(true), { kind: "trouble", action: { type: "read" } }, done)
-        expect(done.read).toHaveBeenCalledTimes(1)
+        expect(done.read).toHaveBeenCalledTimes(2)
+
+        answerItem(tracker, trouble, { kind: "trouble", action: { type: "read" } }, done)
+        expect(done.read).toHaveBeenCalledTimes(2)
       })
     })
 

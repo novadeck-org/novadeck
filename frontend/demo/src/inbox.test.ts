@@ -8,7 +8,7 @@ import {
 } from "@novadeck/core/inbox"
 import { workspaceFromSeed } from "@novadeck/core/seed"
 import { createWorkspaceStore } from "@novadeck/core/store"
-import type { TerminalMetadata } from "@novadeck/core/types"
+import type { AgentTurnEnd, TerminalMetadata } from "@novadeck/core/types"
 import { afterEach, beforeEach, vi } from "vitest"
 
 import { answerMs as chatAnswerMs, answeredMs } from "./chat"
@@ -264,6 +264,7 @@ const boot = (variant: PlainVariant = "agents") => {
     projectId: string,
     slot: number,
     outcome: "completed" | "failed" = "completed",
+    more: Partial<AgentTurnEnd> = {},
   ): Promise<readonly InboxTurn[]> => {
     const before = new Set(inbox.turns?.getSnapshot()?.map((row) => row.id))
     const terminal = terminalOf(projectId, slot)
@@ -284,6 +285,7 @@ const boot = (variant: PlainVariant = "agents") => {
               reply: `Reply ${ends}`,
               ...(outcome === "failed" ? { error: "stream disconnected" } : {}),
               at: Date.now() + ends,
+              ...more,
             },
           },
         },
@@ -428,6 +430,16 @@ describe("the agents demo's Inbox", () => {
       inbox.answer(item!.id, { kind: "update", action: "read" })
       expect(inbox.turns?.getSnapshot()?.some((each) => each.id === row!.id)).toBe(false)
       expect(itemWith(inbox, row!.id)).toBeUndefined()
+    })
+
+    it("records no row for an end that hit a usage limit", async () => {
+      const { finish } = boot()
+      await vi.advanceTimersByTimeAsync(10_000)
+
+      expect(await finish("design-system", 1, "failed", { limited: true })).toEqual([])
+      expect(
+        await finish("design-system", 1, "failed", { limit: { minutes: 60, resetsAt: 9e12 } }),
+      ).toEqual([])
     })
 
     it("lists every end as its own row, and records one only after the grace", async () => {

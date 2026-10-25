@@ -585,7 +585,7 @@ describe("The runner's Inbox", () => {
       expect(inbox.state.getSnapshot().answering).toEqual({})
     })
 
-    it("reads a failed row that only informs, but not the current one", async () => {
+    it("reads a failed row by its id, current or not", async () => {
       const ws = workspaceOf(
         agentTerminal(1, {
           working: false,
@@ -607,8 +607,10 @@ describe("The runner's Inbox", () => {
       inbox.answer("trouble:01:200", { kind: "trouble", action: { type: "read" } })
       await settle()
 
-      expect(streams.asks.read).toHaveBeenCalledExactlyOnceWith(["old-row"])
-      expect(inbox.state.getSnapshot().failed).toHaveProperty("trouble:01:200")
+      expect(streams.asks.read.mock.calls.map(([batch]) => batch)).toEqual([
+        ["old-row"],
+        ["trouble:01:200"],
+      ])
       void marks
     })
 
@@ -892,6 +894,7 @@ describe("Inbox letters", () => {
     letters.push([told()])
     await settle()
     inbox.readAll()
+    await settle()
     expect(streams.asks.read).toHaveBeenCalledExactlyOnceWith(["told-1"])
   })
 
@@ -1181,6 +1184,7 @@ describe("Inbox letters", () => {
     expect(ids()).toHaveLength(1002)
     expect(ids()[0]).toBe("letter-1")
     inbox.readAll()
+    await settle()
     expect(streams.asks.read.mock.calls.map(([batch]) => batch.length)).toEqual([1000, 1])
     expect(streams.asks.answer).not.toHaveBeenCalled()
     // Submitted tells stay listed, answering, until the runner drops them.
@@ -1327,5 +1331,45 @@ describe("Turn rows", () => {
 
     expect(ids()).toEqual([])
     expect(inbox.turns.getSnapshot()?.map(({ id }) => id)).toEqual(["update:02:200"])
+  })
+
+  it("publishes the latest when a turns subscriber reads inside the notification", async () => {
+    const { inbox, ids } = setup(ws(), { "p/s": { "01": "failed" } })
+    inbox.turns.subscribe(() => {
+      if (inbox.turns.getSnapshot()?.length) inbox.readFinishes([finish])
+    })
+    await settle()
+
+    expect(inbox.turns.getSnapshot()).toEqual([])
+    expect(ids()).toEqual([])
+  })
+
+  it("lets a batch go again after its read threw before returning a promise", async () => {
+    const { inbox, streams } = setup(ws(), both)
+    await settle()
+    streams.asks.read.mockImplementationOnce(() => {
+      throw new Error("sync")
+    })
+    inbox.readFinishes([finish])
+    await settle()
+    await vi.advanceTimersByTimeAsync(retryMs)
+
+    expect(streams.asks.read).toHaveBeenCalledTimes(2)
+  })
+
+  it("shows a row of a terminal without a handle, and reads it with mark all read", async () => {
+    const bare: TerminalMetadata = {
+      ...agentTerminal(1, { working: false, lastTurn: turn({ reply: "a" }) }),
+    }
+    delete (bare as { handle?: string }).handle
+    const ws2 = workspaceOf(bare)
+    const { inbox, streams, letters, ids } = setup(ws2)
+    letters.push([{ ...turnLettersOf(ws2, done)[0]!, handle: "" }])
+    await settle()
+    expect(ids()).toEqual(["update:01:100"])
+
+    inbox.readAll()
+    await settle()
+    expect(streams.asks.read).toHaveBeenCalledExactlyOnceWith(["update:01:100"])
   })
 })

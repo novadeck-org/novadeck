@@ -77,6 +77,8 @@ const scoped = (key: TerminalKey, id: string): string => `${terminalKeyId(key)}/
 const turnOf = ({ context, terminal, finish, at }: FollowedFinish): InboxTurn | undefined => {
   if (terminal.state !== "running" || !terminal.agent) return undefined
   const end = terminal.agent.lastTurn?.at === at ? terminal.agent.lastTurn : undefined
+  // A usage limit is a state, not a row: the runner never records one.
+  if (end?.limit || end?.limited) return undefined
   const slash = context.indexOf("/")
   return {
     id: `turn:${context}/${terminal.id}:${at}`,

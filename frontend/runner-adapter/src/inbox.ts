@@ -262,7 +262,7 @@ export const createRunnerInbox = (
     for (let start = 0; start < fresh.length; start += 1000) {
       const batch = fresh.slice(start, start + 1000)
       for (const id of batch) inflight.add(id)
-      track(streams.asks.read(batch)).then(
+      track(Promise.resolve().then(() => streams.asks.read(batch))).then(
         () => {
           if (binding !== next) return
           for (const id of batch) inflight.delete(id)
@@ -304,7 +304,27 @@ export const createRunnerInbox = (
     recompute()
   }
 
+  // A change that a subscriber to `turns` answers with a read (the UI's view-read) recomputes
+  // inside this one: it is run again after, not nested, so what publishes is the latest.
+  let computing = false
+  let dirty = false
   const recompute = (): void => {
+    if (computing) {
+      dirty = true
+      return
+    }
+    computing = true
+    try {
+      do {
+        dirty = false
+        compute()
+      } while (dirty)
+    } finally {
+      computing = false
+    }
+  }
+
+  const compute = (): void => {
     if (!binding || ended) return
     const workspace = binding.workspace.getSnapshot()
     const visible = listed?.filter(({ id }) => !hidden.has(id))
@@ -457,7 +477,7 @@ export const createRunnerInbox = (
       const live = tracker.guard()
       for (let start = 0; start < ids.length; start += 1000) {
         const batch = ids.slice(start, start + 1000)
-        track(streams.asks.read(batch)).catch((error: unknown) => {
+        track(Promise.resolve().then(() => streams.asks.read(batch))).catch((error: unknown) => {
           if (!live()) return
           for (const id of batch) tracker.fail(id, answerFailure(error))
         })

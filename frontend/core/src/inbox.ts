@@ -115,7 +115,9 @@ export type Trouble =
       readonly autoResume: boolean | null
       readonly evidence: readonly EvidenceLine[]
     }
-  | { readonly type: "failed"; readonly error: string | null }
+  // `stored` where it is a stored turn row (read by id), not a state derived from the
+  // terminal's current end.
+  | { readonly type: "failed"; readonly error: string | null; readonly stored?: true }
   | { readonly type: "waits"; readonly waits: MailWaits | null; readonly count: number }
 
 // A finished turn, with the start of the agent's last reply (or murmur's gist of it) and
@@ -126,6 +128,8 @@ export type Update =
       readonly subject: string
       readonly reply: string
       readonly files: readonly string[]
+      // Set where it is a stored turn row (read by id).
+      readonly stored?: true
     }
   | { readonly type: "told"; readonly subject: string; readonly body: string }
 
