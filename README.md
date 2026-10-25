@@ -244,8 +244,8 @@ with the same "✓". Only a `done` call makes a finish: a turn that ends without
 with only a question, marks no state. The tab stays idle and its program name brightens
 ("Reply unread" in the tooltip) until you look. A turn that ended on an error is marked
 the same way in red, "✗" and "Stopped with an error · reply unread". Looking means that
-terminal is the selected one of the session on screen while Novadeck's window has focus,
-for about a second: a glance while passing doesn't read a report. Starting another turn
+terminal is the selected one of the session on screen while Novadeck's window has focus
+(on a narrow window, not while the Inbox list covers the screen). Starting another turn
 clears the unread mark of a reply. The desktop app also shows one system notification for
 a `done` report, "@moth is done: <its name>" with the report's subject, and one for a
 failed turn, "@moth stopped with an error: <its name>"; clicking one brings Novadeck to
@@ -334,12 +334,16 @@ there after the reset.
 
 One rule decides when an item lands in the list: what concerns the terminal you are looking at
 (the selected one, while Novadeck has your focus, in every view) doesn't land while you look,
-since the agent is right there. If it is still unresolved when you look away it lands, quietly,
-counted on the bell but with no toast or system ping, because you saw it where it happened. An
-update (a `done` report or a `tell`) is read by being seen, never landing. On a narrow window,
-while the Inbox list covers the screen, no terminal counts as looked at. Opening an item by its
-id, as Answer in Messages or a click on a notification does, lands it at once. If a read fails,
-the update lands so you can read it by hand. The tabs and windows read the Inbox's raw items,
+since the agent is right there. If it is still unresolved when you look away it lands. Had you
+looked at it for about a second, it lands quietly, counted on the bell but with no toast or
+system ping, because you saw it where it happened; looked at for less, it lands and rings as any
+item does. An update (a `done` report or a `tell`) is read once you have looked at its terminal
+for about a second, never landing; a glance while passing reads nothing, and the update lands
+when you look away. This second applies to Inbox updates and quiet landings only: the tab's
+unread marks of replies and failed turns clear as soon as you look. On a narrow window, while
+the Inbox list covers the screen, no terminal counts as looked at, for either. Opening an item
+by its id, as Answer in Messages or a click on a notification does, lands it at once, even while
+its read is under way. If a read fails, the update lands so you can read it by hand. The tabs and windows read the Inbox's raw items,
 so their "!" and "?" show at once, before the list lists them.
 
 While Novadeck has your focus, a new item that needs you (an approval, a question, or trouble

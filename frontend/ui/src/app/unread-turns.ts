@@ -4,8 +4,10 @@ import { leadHearsOf } from "@novadeck/core/inbox-items"
 import type { Store } from "@novadeck/core/store"
 import type { TerminalMetadata, Workspace } from "@novadeck/core/types"
 
+import { isDesktop } from "../shell/desktop"
 import { sameUnread, turnContext, unreadEnd, unreadOfTurns } from "../terminals/unread-state"
-import { viewing, type UiStore } from "./ui-store"
+import { viewedTerminal } from "./inbox-landing"
+import type { UiStore } from "./ui-store"
 
 // How long before this started a row may have ended and still be new: the same slack as the
 // Inbox pings'.
@@ -55,7 +57,7 @@ const letterContext = (item: InboxItem): string =>
 // report is no turn: the tab reads it from the Inbox's items itself.
 //
 // Looking reads: the rows of the terminal the person views (the selected one while the page
-// has their focus), as they come in and, on a focused launch, as they were stored.
+// has their focus, but on a phone not while the Inbox list covers the screen), as they come in and, on a focused launch, as they were stored.
 //
 // What is new tells `notify`, where given, once, only while the page hasn't their focus and
 // not for a worker whose lead's agent runs, as that lead hears of it: a done report, where
@@ -76,10 +78,13 @@ export const watchUnreadTurns = (
     notify,
     clear,
     gist,
+    desktop = isDesktop,
   }: {
     notify?: FinishNotify | undefined
     clear?: ((terminalId: string) => void) | undefined
     gist?: ((terminalId: string, at: number) => void) | undefined
+    // Whether the window is wide enough for the sidebar beside the terminal.
+    desktop?: () => boolean
   } = {},
 ): (() => void) => {
   const { turns, readFinishes, state: items } = inbox
@@ -111,7 +116,7 @@ export const watchUnreadTurns = (
       sweep([], [])
       return
     }
-    const looking = viewing(snapshot, state)
+    const looking = viewedTerminal(snapshot, state, desktop)
     const viewed = (turn: InboxTurn): boolean =>
       looking?.context === turnContext(turn) && looking.id === turn.terminalId
     const before = listed

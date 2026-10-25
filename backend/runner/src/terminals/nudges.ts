@@ -244,9 +244,10 @@ export const inboxNotice =
   "a service or repo, or a key put in place, that is an ask with the action shape, not " +
   "just words in your reply; never ask for a secret value. When the task you were given " +
   "is finished, report it with Novadeck's done tool, your own short report, not when you " +
-  "answer a question or finish a step. With a lead, your questions go to it with send " +
-  "instead, and done reports to it too; approvals of actions, such as opening a pull " +
-  "request, still go through ask, and you tell your lead you're waiting. If they answer " +
+  "answer a question or finish a step. With a lead, send your questions to it with send " +
+  "instead of ask, and report tells and done to it too; approvals of actions, such as " +
+  "opening a pull request, are still the user's, asked with ask, and you tell your lead " +
+  "you're waiting. If they answer " +
   "here instead, withdraw the ask. This notice needs no reply."
 
 /**

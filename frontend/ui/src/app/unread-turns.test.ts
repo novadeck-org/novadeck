@@ -39,6 +39,8 @@ const row = (
 
 // A workspace whose terminal 01 is selected and 02 runs a resting agent, and an Inbox whose
 // stored rows the test sets and whose reads drop them as the adapter does.
+let wide = true
+
 const setup = ({
   rows,
   notifyFinished = true,
@@ -138,6 +140,7 @@ const setup = ({
       },
       clear: (terminalId) => cleared.push(terminalId),
       gist: (terminalId, at) => gists.push([terminalId, at]),
+      desktop: () => wide,
     })
   return {
     workspace,
@@ -257,6 +260,24 @@ describe("unread turns", () => {
       expect(app.readCalls).toEqual([[{ context: "project/initial", terminalId: "02" }]])
       expect(app.unread()).toEqual({})
       stop()
+    })
+
+    it("reads nothing on a phone while the Inbox list covers the screen", () => {
+      wide = false
+      try {
+        const app = setup({ rows: [row("a", 10)] })
+        app.ui.update((current) => ({
+          ...current,
+          location: { ...current.location, route: { ...current.location.route, panel: "inbox" } },
+          shell: { ...current.shell, sidebar: true },
+        }))
+        app.select("02")
+        const stop = app.watch()
+        expect(app.readCalls).toEqual([])
+        stop()
+      } finally {
+        wide = true
+      }
     })
 
     it("reads a row that lands while the person views its terminal", () => {

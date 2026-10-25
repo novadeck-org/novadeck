@@ -55,6 +55,41 @@ describe("The landing rule", () => {
     })
   })
 
+  context("when the person looked at the terminal long enough to see its ask", () => {
+    it("lands quietly: on the bell, with no toast", async () => {
+      await open(storefront)
+
+      hostWindow.arrive(demoInboxIds.preview)
+      await nothingLands()
+      await terminalTab("Checkout review").click()
+
+      await expect.element(bell()).toHaveAccessibleName("Inbox, 1 waiting")
+      await expectStaysAbsent(
+        { shown: () => document.querySelector(".toast") !== null, name: "a toast" },
+        { ms: 3_000 },
+      )
+    })
+  })
+
+  context("when the person looks away from a done report before the dwell is over", () => {
+    it("leaves it unread and lands it", async () => {
+      await open(docs)
+
+      hostWindow.arrive(demoInboxIds.done)
+      await page
+        .getByRole("button", { name: /^Select / })
+        .first()
+        .click()
+
+      await expectStaysAbsent(
+        { shown: () => !hostWindow.itemIds().includes(demoInboxIds.done), name: "a read" },
+        { ms: 2_500 },
+      )
+      await sidebarPanel("Inbox").click()
+      await expect.element(inboxRow("Search index rebuilt")).toBeVisible()
+    })
+  })
+
   context("when an agent reports it is done to the terminal the person looks at", () => {
     it("reads it by being seen, so it never lands, however they look away", async () => {
       await open(docs)

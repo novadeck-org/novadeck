@@ -2,9 +2,10 @@ import { noInbox, type Inbox, type InboxItem, type InboxState } from "@novadeck/
 import { createStore, type Store } from "@novadeck/core/store"
 import type { Workspace } from "@novadeck/core/types"
 
-import { isDesktop } from "../shell/desktop"
+import { isDesktop, subscribeDesktop } from "../shell/desktop"
+import type { Viewing } from "../terminals/unread-state"
 import { inboxShown } from "./selectors"
-import { viewing, type UiStore } from "./ui-store"
+import { viewing, type UiState, type UiStore } from "./ui-store"
 
 // The landing rule: the Inbox the app's list, bell, toasts, OS pings and app badge consume.
 // Items for the terminal the person is looking at (see `viewing`: the selected terminal while
@@ -41,32 +42,53 @@ const quiets = new WeakMap<object, Set<string>>()
 export const landedQuietly = (inbox: Pick<Inbox, "state">, item: InboxItem): boolean =>
   quiets.get(inbox.state)?.has(keyOf(item)) ?? false
 
+// What the shell says of its width: whether the window is wide enough for the sidebar beside
+// the terminal, and a way to hear it change.
+export type DesktopSource = {
+  readonly is: () => boolean
+  readonly subscribe: (notify: () => void) => () => void
+}
+
+export const pageDesktop: DesktopSource = { is: isDesktop, subscribe: subscribeDesktop }
+
+// The terminal the person looks at: `viewing`, except that on a phone, while the Inbox list
+// covers the screen, none is.
+export const viewedTerminal = (
+  workspace: Workspace,
+  ui: UiState,
+  desktop: () => boolean = isDesktop,
+): Viewing => (inboxShown(ui, desktop) && !desktop() ? null : viewing(workspace, ui))
+
 // Wraps `raw`, following the workspace and the UI store for what the person is viewing.
 // Returns the Inbox the app consumes and the stop. Everything but `state` is the raw Inbox's.
-// `desktop` says whether the window is wide enough for the sidebar beside the terminal: on a
-// phone the Inbox list covers the terminal, which then isn't viewed.
+// `desktop` says whether the window is wide enough for the sidebar beside the terminal, and
+// when that changes: on a phone the Inbox list covers the terminal, which then isn't viewed.
 export const landInbox = (
   raw: Inbox,
   workspace: WorkspaceSource,
   ui: Pick<UiStore, "getSnapshot" | "subscribe">,
-  desktop: () => boolean = isDesktop,
+  desktop: DesktopSource = pageDesktop,
 ): {
   readonly inbox: Inbox
   readonly stop: () => void
-  // Lands the raw item `id` now, even while its terminal is viewed; none that is not there.
+  // Lands the raw item `id` now, even while its terminal is viewed or its read is under
+  // way; none that is not there.
   readonly reveal: (id: string) => void
 } => {
-  // The items that landed, by key; the updates read by being seen, which never land; the
-  // ones kept unread while viewed, because the person asked for them or a read failed; the
-  // ones that arrived held, which land quietly; and the reads under way.
+  // The ids of the items that landed and of those kept unread while viewed (because the
+  // person asked for them or a read failed), which an item keeps through a new `at`; and by
+  // key: the updates read by being seen, which never land, the held items viewed long enough
+  // to land quietly, and the reads under way.
   const landed = new Set<string>()
-  const read = new Set<string>()
   const kept = new Set<string>()
+  const read = new Set<string>()
   const quiet = new Set<string>()
   const reading = new Set<string>()
-  // Per update seen in its viewed terminal, the dwell it waits out before it is read.
+  // Per item viewed in its terminal that waits on being seen for the dwell, the timer, and
+  // those that have waited it out.
   const dwelling = new Map<string, ReturnType<typeof setTimeout>>()
   const ripe = new Set<string>()
+  let stopped = false
   const store = createStore<InboxState>(raw.state.getSnapshot())
   const landedState: Inbox["state"] = {
     getSnapshot: store.getSnapshot,
@@ -74,12 +96,14 @@ export const landInbox = (
   }
   quiets.set(landedState, quiet)
   const sync = (): void => {
+    if (stopped) return
     const state = raw.state.getSnapshot()
-    const page = ui.getSnapshot()
-    const looking =
-      !desktop() && inboxShown(page, desktop) ? null : viewing(workspace.getSnapshot(), page)
+    const looking = viewedTerminal(workspace.getSnapshot(), ui.getSnapshot(), desktop.is)
     const standing = new Set(state.items.map(keyOf))
-    for (const set of [landed, read, kept, quiet, reading, ripe])
+    const ids = new Set(state.items.map((item) => item.id))
+    for (const id of landed) if (!ids.has(id)) landed.delete(id)
+    for (const id of kept) if (!ids.has(id)) kept.delete(id)
+    for (const set of [read, quiet, reading, ripe])
       for (const key of set) if (!standing.has(key)) set.delete(key)
     for (const [key, timer] of dwelling)
       if (!standing.has(key)) {
@@ -96,7 +120,7 @@ export const landInbox = (
         looking !== null &&
         looking.id === source.terminalId &&
         looking.context === `${source.projectId}/${source.workspaceSessionId}`
-      if (!here) kept.delete(key)
+      if (!here) kept.delete(item.id)
       if (read.has(key)) {
         // A read that failed, or that left the item standing once it settled, mustn't hide
         // it for good: it lands, to be read by hand.
@@ -106,37 +130,40 @@ export const landInbox = (
         ) {
           read.delete(key)
           reading.delete(key)
-          kept.add(key)
-          landed.add(key)
+          kept.add(item.id)
+          landed.add(item.id)
         } else {
           if (state.answering[item.id]) reading.add(key)
           continue
         }
       }
-      // Looking at its terminal for a while reads an update, landed or not.
-      if (here && item.kind === "update" && !kept.has(key)) {
+      const held = !landed.has(item.id) && item.kind !== "feedback"
+      // Looking at its terminal for the dwell reads an update, landed or not, and makes a
+      // held item land quietly when it does: the person saw it there.
+      if (here && !kept.has(item.id) && (item.kind === "update" || (held && !quiet.has(key)))) {
         if (ripe.has(key)) {
           ripe.delete(key)
-          read.add(key)
-          toRead.push(item)
-          continue
+          if (item.kind === "update") {
+            read.add(key)
+            toRead.push(item)
+            continue
+          }
+          quiet.add(key)
+        } else {
+          stillDwelling.add(key)
+          if (!dwelling.has(key))
+            dwelling.set(
+              key,
+              setTimeout(() => {
+                dwelling.delete(key)
+                ripe.add(key)
+                sync()
+              }, readDwellMs),
+            )
         }
-        stillDwelling.add(key)
-        if (!dwelling.has(key))
-          dwelling.set(
-            key,
-            setTimeout(() => {
-              dwelling.delete(key)
-              ripe.add(key)
-              sync()
-            }, readDwellMs),
-          )
       }
-      if (!landed.has(key) && here && item.kind !== "feedback") {
-        quiet.add(key)
-        continue
-      }
-      landed.add(key)
+      if (held && here) continue
+      landed.add(item.id)
       items.push(item)
     }
     for (const [key, timer] of dwelling)
@@ -155,17 +182,27 @@ export const landInbox = (
     for (const item of toRead) raw.answer(item.id, { kind: "update", action: "read" })
   }
   const reveal = (id: string): void => {
+    if (stopped) return
     const item = raw.state.getSnapshot().items.find((each) => each.id === id)
-    if (!item || read.has(keyOf(item))) return
-    landed.add(keyOf(item))
-    kept.add(keyOf(item))
+    if (!item) return
+    // A read in flight gives way: the item shows until the read completes.
+    read.delete(keyOf(item))
+    reading.delete(keyOf(item))
+    landed.add(id)
+    kept.add(id)
     sync()
   }
   sync()
-  const stops = [raw.state.subscribe(sync), workspace.subscribe(sync), ui.subscribe(sync)]
+  const stops = [
+    raw.state.subscribe(sync),
+    workspace.subscribe(sync),
+    ui.subscribe(sync),
+    desktop.subscribe(sync),
+  ]
   return {
     inbox: { ...raw, state: landedState },
     stop: () => {
+      stopped = true
       stops.forEach((stop) => stop())
       dwelling.forEach(clearTimeout)
       dwelling.clear()

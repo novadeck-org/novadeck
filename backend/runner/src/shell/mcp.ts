@@ -824,8 +824,9 @@ const instructions =
   "when they're elsewhere: a pull request " +
   "opened, its checks done, a merge, or that you now wait on someone else. Its done is " +
   "your own short report when the task you were given is finished, not when you answer a " +
-  "question or finish a step. With a lead, ask, tell and done go to it instead, except " +
-  "approvals of actions, which are always the user's."
+  "question or finish a step. With a lead, send your questions to it with send instead of " +
+  "ask, and report tells and done to it too; approvals of actions are still the user's, " +
+  "asked with ask."
 
 const respond = async (line: string, call?: McpCall): Promise<Reply | undefined> => {
   if (line.trim() === "") return undefined

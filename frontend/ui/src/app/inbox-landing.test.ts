@@ -46,7 +46,9 @@ const done = (id: string, terminalId: string): InboxItem => ({
 })
 
 // A workspace whose terminal 01 is selected, and a raw Inbox the test fills and answers.
-const setup = (wide = true) => {
+const setup = (initiallyWide = true) => {
+  let wide = initiallyWide
+  const widthListeners = new Set<() => void>()
   const workspace = createWorkspaceStore(workspaceFixture())
   workspace.dispatch({ type: "terminal/select", target, terminalId: "01" })
   const ui = createUiStore(
@@ -84,7 +86,13 @@ const setup = (wide = true) => {
     see: () => {},
     readAll: () => {},
   }
-  const { inbox, stop, reveal } = landInbox(raw, workspace, ui, () => wide)
+  const { inbox, stop, reveal } = landInbox(raw, workspace, ui, {
+    is: () => wide,
+    subscribe: (notify) => {
+      widthListeners.add(notify)
+      return () => void widthListeners.delete(notify)
+    },
+  })
   return {
     inbox,
     stop,
@@ -93,6 +101,10 @@ const setup = (wide = true) => {
     set: (items: InboxItem[]) => void state.update((current) => ({ ...current, items })),
     patch: (patch: Partial<InboxState>) =>
       void state.update((current) => ({ ...current, ...patch })),
+    resize: (next: boolean) => {
+      wide = next
+      widthListeners.forEach((notify) => notify())
+    },
     showList: () =>
       void ui.update((current) => ({
         ...current,
@@ -257,14 +269,30 @@ describe("the landing rule", () => {
   })
 
   context("an item that arrived while its terminal was viewed", () => {
-    it("lands quietly: no toast or ping rings for it, though it stays on the bell", () => {
+    beforeEach(() => void vi.useFakeTimers())
+    afterEach(() => void vi.useRealTimers())
+
+    it("lands quietly once viewed for the dwell: no toast or ping, though it stays on the bell", () => {
       const { set, select, inbox, ids, stop } = setup()
       set([ask("a", "01"), ask("b", "02")])
+      vi.advanceTimersByTime(readDwellMs)
       select("02")
       expect(ids()).toEqual(["a", "b"])
       const [a, b] = inbox.state.getSnapshot().items
       expect(landedQuietly(inbox, a!)).toBe(true)
       expect(landedQuietly(inbox, b!)).toBe(false)
+      stop()
+    })
+
+    it("lands as any other if the person looked away within the dwell", () => {
+      const { set, select, inbox, ids, stop } = setup()
+      set([ask("a", "01")])
+      vi.advanceTimersByTime(readDwellMs - 1)
+      select("02")
+      expect(ids()).toEqual(["a"])
+      expect(landedQuietly(inbox, inbox.state.getSnapshot().items[0]!)).toBe(false)
+      vi.advanceTimersByTime(readDwellMs * 3)
+      expect(landedQuietly(inbox, inbox.state.getSnapshot().items[0]!)).toBe(false)
       stop()
     })
   })
@@ -273,23 +301,100 @@ describe("the landing rule", () => {
     beforeEach(() => void vi.useFakeTimers())
     afterEach(() => void vi.useRealTimers())
 
-    it("skips the one that arrived viewed, and rings the one that arrived elsewhere", () => {
-      const { set, select, inbox, stop } = setup()
+    const follow = () => {
+      const made = setup()
       const rung: string[] = []
-      const unfollow = followNeeds(inbox, {
+      const unfollow = followNeeds(made.inbox, {
         graceMs: 100,
         ring: (item) => rung.push(item.id) > 0,
         leave: () => {},
       })
+      return { ...made, rung, unfollow }
+    }
+
+    it("skips the one viewed for the dwell, and rings the one that arrived elsewhere", () => {
+      const { set, select, rung, unfollow, stop } = follow()
       const now = Date.now()
       set([
         { ...ask("a", "01"), at: now },
         { ...ask("b", "02"), at: now },
       ])
+      vi.advanceTimersByTime(readDwellMs)
       select("02")
       vi.advanceTimersByTime(500)
       expect(rung).toEqual(["b"])
       unfollow()
+      stop()
+    })
+
+    it("rings the one the person left within the dwell", () => {
+      const { set, select, rung, unfollow, stop } = follow()
+      set([{ ...ask("a", "01"), at: Date.now() }])
+      vi.advanceTimersByTime(readDwellMs / 2)
+      select("02")
+      vi.advanceTimersByTime(500)
+      expect(rung).toEqual(["a"])
+      unfollow()
+      stop()
+    })
+  })
+
+  context("a landed row", () => {
+    it("stays landed when its item is re-keyed while its terminal is viewed", () => {
+      const { set, select, ids, stop } = setup()
+      set([ask("a", "02")])
+      expect(ids()).toEqual(["a"])
+      select("02")
+      select("01")
+      set([{ ...ask("a", "02"), at: 2 }])
+      select("02")
+      select("01")
+      expect(ids()).toEqual(["a"])
+      stop()
+    })
+
+    it("lands again and stays through a re-key even while viewed", () => {
+      const { set, select, ids, stop } = setup()
+      set([ask("a", "01")])
+      select("02")
+      expect(ids()).toEqual(["a"])
+      select("01")
+      set([{ ...ask("a", "01"), at: 2 }])
+      expect(ids()).toEqual(["a"])
+      stop()
+    })
+  })
+
+  context("once stopped", () => {
+    beforeEach(() => void vi.useFakeTimers())
+    afterEach(() => void vi.useRealTimers())
+
+    it("arms no timer and sends no read", () => {
+      const { set, reveal, answers, stop } = setup()
+      set([done("d", "01")])
+      stop()
+      reveal("d")
+      set([done("e", "01")])
+      vi.advanceTimersByTime(readDwellMs * 5)
+      expect(answers).toEqual([])
+      expect(vi.getTimerCount()).toBe(0)
+    })
+  })
+
+  context("an item opened by its id while its read is in flight", () => {
+    beforeEach(() => void vi.useFakeTimers())
+    afterEach(() => void vi.useRealTimers())
+
+    it("lands anyway, and goes when the read completes", () => {
+      const { set, patch, reveal, ids, stop } = setup()
+      set([done("d", "01")])
+      vi.advanceTimersByTime(readDwellMs)
+      patch({ answering: { d: true } })
+      expect(ids()).toEqual([])
+      reveal("d")
+      expect(ids()).toEqual(["d"])
+      set([])
+      expect(ids()).toEqual([])
       stop()
     })
   })
@@ -300,6 +405,16 @@ describe("the landing rule", () => {
       set([ask("a", "01")])
       expect(ids()).toEqual([])
       showList()
+      expect(ids()).toEqual(["a"])
+      stop()
+    })
+
+    it("follows the window crossing the breakpoint", () => {
+      const { set, showList, resize, ids, stop } = setup(true)
+      showList()
+      set([ask("a", "01")])
+      expect(ids()).toEqual([])
+      resize(false)
       expect(ids()).toEqual(["a"])
       stop()
     })

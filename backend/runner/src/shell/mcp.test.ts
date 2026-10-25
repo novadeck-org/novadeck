@@ -383,7 +383,7 @@ describe("Novadeck's MCP server", () => {
       )
       expect(instructions).toContain("not when you answer a question or finish a step")
       expect(instructions).toContain(
-        "With a lead, ask, tell and done go to it instead, except approvals of actions, which are always the user's",
+        "With a lead, send your questions to it with send instead of ask, and report tells and done to it too; approvals of actions are still the user's, asked with ask",
       )
       for (const native of ["AskUserQuestion", "request_user_input", "ask_question"])
         expect(instructions).not.toContain(native)

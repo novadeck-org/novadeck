@@ -202,15 +202,14 @@ describe("a nudge", () => {
       "unless it is already an open ask",
       "a closing offer such as 'anything else?' isn't one",
       "nor is an action your harness is already prompting them for",
-      "With a lead, your questions go to it with send instead",
-      "approvals of actions, such as opening a pull request, still go through ask",
+      "With a lead, send your questions to it with send instead of ask, and report tells and done to it too",
+      "approvals of actions, such as opening a pull request, are still the user's, asked with ask",
       "tell your lead you're waiting",
       "put the full question in your reply too",
       "that is an ask with the action shape, not just words in your reply",
       "never ask for a secret value",
       "report it with Novadeck's done tool, your own short report",
       "not when you answer a question or finish a step",
-      "done reports to it too",
       "If they answer here instead, withdraw the ask",
     ])
       expect(inboxNotice).toContain(words)
