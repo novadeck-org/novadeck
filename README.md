@@ -324,8 +324,8 @@ read. Asks, tells and your replies remain in that terminal's Messages pane, in t
 Each turn that finishes or fails is its own stored row: it stays, across a reload and a runner restart,
 until you read it (viewing its terminal reads it, or mark it read), and clears with its terminal.
 A failed turn is trouble that counts only while it is the agent's latest end and the agent isn't working;
-an older failed row is a plain update with Mark read. Other rows clear once answered, or once you view
-the terminal. A count badge on the bell, and on
+an older failed row is a plain update with Mark read. A dialog or held messages clear once answered or
+released, here or in the terminal. A count badge on the bell, and on
 Zen's dock, tells how many wait on you; finishes, older failures and tells are not counted. A usage limit is
 a state, not a stored row: it stays until the agent's next turn, so Continue is there after the reset.
 With Murmur on, a finish you haven't seen leads with a short gist of its reply in place of the reply's start.

@@ -479,8 +479,9 @@ Escape, if any, has had its verdict window (`escapeVerdictMs`), so an end its ha
 to an interruption within that window is never stored. A completed end followed by another
 end or a new turn within the 700 ms gets no row, as on the client. An end whose session ends
 inside the grace (`claude -p`, `codex exec`, `/exit`, a shell exit) is stored all the same, by
-the flush in `Bindings.unwatch`; so is one a shutdown flushes, though a later end had
-replaced it. Nothing is recorded for an interrupted, unknown or limited end, an end shown while a
+the flush in `Bindings.unwatch`, which every way a binding ends passes through; that flush
+doesn't look at the live binding, so an end the agent had already followed with a new turn
+inside the grace is stored too. Nothing is recorded for an interrupted, unknown or limited end, an end shown while a
 request waits on the person, or an agent with no Inbox owner. The same end told again updates
 its row in place; an end that turns limited removes it (an Escape's correction is a new end,
 which never had a row). The reply, error and gist go through the transcript redactor before
