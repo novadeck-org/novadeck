@@ -47,6 +47,18 @@ export type DesktopBridge = {
    */
   closeNotice?(id: string): void
   /**
+   * Resolves true while the system holds notifications back, as Do Not Disturb, Focus or
+   * Focus Assist does, and false when it does not or the host cannot tell. Resolves within
+   * a fraction of a second and never rejects. Absent from hosts that came before it.
+   */
+  notificationsQuiet?(): Promise<boolean>
+  /**
+   * True where the host's own notifications play Novadeck's sound, as on macOS, whose
+   * system mutes it under Focus; the page then plays none of its own for them. Absent or
+   * false where the host's notifications are silent. Absent from hosts that came before it.
+   */
+  readonly notificationsSound?: boolean
+  /**
    * Shows how many items wait in the Inbox on the app's icon: the dock or launcher badge,
    * and on Windows the taskbar overlay `image`. A `count` of 0 clears it. The host drops a
    * badge that breaks `desktopBadgeOf`. Absent from hosts that came before it.
@@ -480,6 +492,13 @@ export type DesktopNotice = {
   readonly id: string
   readonly title: string
   readonly body: string
+  /**
+   * True when this notification should make no sound: the person turned Novadeck's sound
+   * off, or it sounded just now for another. Absent or false leaves it to the host, which
+   * plays one only where its notifications play Novadeck's sound (see
+   * `DesktopBridge.notificationsSound`).
+   */
+  readonly silent?: boolean
 }
 
 /** The longest notice title the host shows: a handle, a few words and a terminal's title. */

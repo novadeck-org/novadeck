@@ -5,9 +5,13 @@ import { appearance } from "@novadeck/core/testing"
 import { afterEach, beforeEach, vi } from "vitest"
 
 import { context, describe, expect, it } from "../test"
+import { createDing } from "./ding"
 import { noticeBoard, watchInboxPings } from "./inbox-pings"
 import { watchInboxToasts } from "./inbox-toasts"
 import { createUiStore, initialUi, type UiState } from "./ui-store"
+
+// A ding that sounds nothing: the board under test is about its notices.
+const testDing = createDing({ sound: () => ({ on: false, volume: 0 }) })
 
 const sourceOf = (terminalId: string): InboxItem["source"] => ({
   projectId: "p",
@@ -78,6 +82,8 @@ const setup = (items: InboxItem[] = [], pings = true) => {
         appearance,
         notifyNeeds: true,
         notifyFinished: true,
+        sound: true,
+        soundVolume: 0.6,
         ligatures: false,
         chatView: false,
       },
@@ -89,7 +95,12 @@ const setup = (items: InboxItem[] = [], pings = true) => {
     show: (item: InboxItem) => void shown.push(`${item.source.terminalId}:${item.id}`),
     close: (terminalId: string, itemId: string) => void closed.push(`${terminalId}:${itemId}`),
   }
-  const stop = watchInboxToasts({ state: inbox }, ui, board, { pings, desktop: () => true })
+  const dings: string[] = []
+  const stop = watchInboxToasts({ state: inbox }, ui, board, {
+    pings,
+    ding: (terminalId) => void dings.push(terminalId),
+    desktop: () => true,
+  })
   const set = (next: InboxItem[]) => inbox.update((state) => ({ ...state, items: next }))
   const change = (patch: (state: UiState) => UiState) => ui.update(patch)
   const route = (patch: Partial<UiState["location"]["route"]>) =>
@@ -100,7 +111,7 @@ const setup = (items: InboxItem[] = [], pings = true) => {
         route: { ...state.location.route, ...patch },
       },
     }))
-  return { inbox, ui, set, change, route, shown, closed, stop }
+  return { inbox, ui, set, change, route, shown, closed, dings, stop }
 }
 
 beforeEach(() => {
@@ -118,6 +129,17 @@ describe("toasts for what needs the person", () => {
       expect(shown).toEqual([])
       vi.advanceTimersByTime(1)
       expect(shown).toEqual(["t1:a"])
+      stop()
+    })
+
+    it("sounds the ding with the toast, and none for an item that shows none", () => {
+      const { set, shown, dings, stop } = setup()
+      set([ask("a"), update("u")])
+      vi.advanceTimersByTime(1999)
+      expect(dings).toEqual([])
+      vi.advanceTimersByTime(1)
+      expect(shown).toEqual(["t1:a"])
+      expect(dings).toEqual(["t1"])
       stop()
     })
 
@@ -494,11 +516,14 @@ describe("toasts and desktop notifications together", () => {
     const { inbox, ui, set, change, shown } = setup()
     change((state) => ({ ...state, pageFocused: focused }))
     const pings: Notice[] = []
-    const board = noticeBoard({
-      show: (notice) => void pings.push(notice),
-      close: () => {},
-      onClick: () => () => {},
-    })
+    const board = noticeBoard(
+      {
+        show: (notice) => void pings.push(notice),
+        close: () => {},
+        onClick: () => () => {},
+      },
+      testDing,
+    )
     const stop = watchInboxPings({ state: inbox }, ui, { board, desktop: () => true })
     return { set, change, shown, pings, stop }
   }
@@ -537,11 +562,14 @@ describe("an item held behind a modal dialog", () => {
   const held = () => {
     const { inbox, ui, set, change, route, shown } = setup()
     const pings: Notice[] = []
-    const board = noticeBoard({
-      show: (notice) => void pings.push(notice),
-      close: () => {},
-      onClick: () => () => {},
-    })
+    const board = noticeBoard(
+      {
+        show: (notice) => void pings.push(notice),
+        close: () => {},
+        onClick: () => () => {},
+      },
+      testDing,
+    )
     const stop = watchInboxPings({ state: inbox }, ui, { board, desktop: () => true })
     route({ dialog: "search" })
     set([ask("a")])
@@ -584,11 +612,14 @@ describe("an item that no toast waits for", () => {
   it("is not deferred to the ping either: it never pings behind a dialog", () => {
     const { inbox, ui, set, change, route } = setup()
     const pings: Notice[] = []
-    const board = noticeBoard({
-      show: (notice) => void pings.push(notice),
-      close: () => {},
-      onClick: () => () => {},
-    })
+    const board = noticeBoard(
+      {
+        show: (notice) => void pings.push(notice),
+        close: () => {},
+        onClick: () => () => {},
+      },
+      testDing,
+    )
     const stop = watchInboxPings({ state: inbox }, ui, { board, desktop: () => true })
     // The item is of the terminal the person is typing in, so no toast would wait for it.
     route({ dialog: "preferences", terminal: "t1" })

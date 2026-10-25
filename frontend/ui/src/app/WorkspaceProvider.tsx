@@ -20,6 +20,7 @@ import { connectBackend } from "./controller/backend-connection"
 import { WorkspaceServicesContext, type WorkspaceServices } from "./controller/context"
 import { domEffects } from "./controller/effects"
 import { dialogDepthOf, useRouteSync } from "./controller/useRouteSync"
+import { dingOf } from "./ding"
 import { noticeBoard, watchBellRings, watchInboxPings } from "./inbox-pings"
 import { nameFinished, watchFinishes } from "./murmur-offer"
 import { watchPageFocus } from "./page-focus"
@@ -164,7 +165,7 @@ export const WorkspaceProvider = ({
   useEffect(() => watchPageFocus(services.ui, window, services.backend.windowFocus), [services])
   useEffect(() => {
     const { backend, workspace, ui } = services
-    const board = noticeBoard(backend.notices)
+    const board = noticeBoard(backend.notices, dingOf(backend, ui))
     const stops = [watchFinishes(workspace, nameFinished(services))]
     if (backend.inbox)
       stops.push(

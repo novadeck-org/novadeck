@@ -12,6 +12,7 @@
    after the first under a hairline. `.settings-fieldset`: a fieldset that draws no box.
    `.settings-command`: a command to run or a path to read, in the mono face, selected
    whole by one click, breaking at spaces only.
+   `.settings-range`: a slider in the strong fill, muted when disabled.
    `.choice-card`: a choice drawn as a card that is checked or not, muted at rest, with
    an optional `.choice-card-tile` holding its icon, which takes the brand tile once
    checked. `.choice-card.solid`: a choice at full strength at rest that fills under the
@@ -38,7 +39,8 @@
    --choice-card-tile-bg (shell), --choice-card-tile-fg (ink),
    --choice-card-tile-border-color (line): the icon tile at rest. Checked, it takes
    --brand-tile-bg, --brand-tile-fg and --brand-tile-border-color.
-   --choice-card-tile-disabled-opacity (0.7). */
+   --choice-card-tile-disabled-opacity (0.7).
+   --settings-range-disabled-opacity (0.5). */
 
 .preferences-panels {
   background-color: var(--region-settings-bg, var(--color-shell));
@@ -94,6 +96,13 @@
 }
 .settings-fieldset {
   border: 0;
+}
+
+.settings-range {
+  accent-color: var(--color-strong);
+}
+.settings-range:disabled {
+  opacity: var(--settings-range-disabled-opacity, 0.5);
 }
 
 .choice-card {

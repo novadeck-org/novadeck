@@ -51,6 +51,12 @@ export const noticeChannel = "novadeck:notice"
 export const noticeCloseChannel = "novadeck:notice-close"
 
 /**
+ * Renderer-to-main question whether the system holds notifications back (Do Not Disturb,
+ * Focus), answered with a boolean; see main/quiet.ts.
+ */
+export const notificationsQuietChannel = "novadeck:notifications-quiet"
+
+/**
  * Renderer-to-main report of the Inbox count for the app icon, `{ count, image }`; see
  * main/badge.ts.
  */

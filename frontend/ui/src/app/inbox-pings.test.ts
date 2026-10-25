@@ -5,6 +5,7 @@ import { appearance } from "@novadeck/core/testing"
 import { afterEach, beforeEach, vi } from "vitest"
 
 import { context, describe, expect, it } from "../test"
+import { createDing } from "./ding"
 import {
   clickNotice,
   needNotice,
@@ -13,6 +14,9 @@ import {
   watchInboxPings,
 } from "./inbox-pings"
 import { createUiStore, initialUi } from "./ui-store"
+
+// A ding that sounds nothing: the board under test is about its notices.
+const testDing = createDing({ sound: () => ({ on: false, volume: 0 }) })
 
 const source: InboxItem["source"] = {
   projectId: "p",
@@ -100,6 +104,8 @@ const backgrounded = (notifyNeeds = true) => {
       appearance,
       notifyNeeds,
       notifyFinished: true,
+      sound: true,
+      soundVolume: 0.6,
       ligatures: false,
       chatView: false,
     },
@@ -121,11 +127,14 @@ const setup = (
   const shown: Notice[] = []
   const closed: string[] = []
   const badges: { count: number; image: string | null }[] = []
-  const board = noticeBoard({
-    show: (notice) => void shown.push(notice),
-    close: (terminalId) => void closed.push(terminalId),
-    onClick: () => () => {},
-  })!
+  const board = noticeBoard(
+    {
+      show: (notice) => void shown.push(notice),
+      close: (terminalId) => void closed.push(terminalId),
+      onClick: () => () => {},
+    },
+    testDing,
+  )!
   const images: number[] = []
   const stop = watchInboxPings({ state: inbox }, ui, {
     board,
@@ -158,7 +167,12 @@ describe("pings for what needs the person", () => {
       expect(shown).toEqual([])
       vi.advanceTimersByTime(1)
       expect(shown).toEqual([
-        { id: "t1", title: "@moth wants to run a command: Checkout", body: "Run pnpm test?" },
+        {
+          id: "t1",
+          title: "@moth wants to run a command: Checkout",
+          body: "Run pnpm test?",
+          silent: true,
+        },
       ])
       stop()
     })
@@ -483,13 +497,60 @@ describe("the app icon's count", () => {
 })
 
 describe("the board of notifications", () => {
+  context("with a ding", () => {
+    const withDing = (on: boolean, sounds?: boolean) => {
+      const shown: Notice[] = []
+      const rung: string[] = []
+      const taken: string[] = []
+      const board = noticeBoard(
+        {
+          show: (notice) => void shown.push(notice),
+          onClick: () => () => {},
+          ...(sounds && { sounds }),
+        },
+        {
+          on: () => on,
+          take: (key) => {
+            taken.push(key)
+            return on && key !== "again"
+          },
+          play: () => {},
+          ring: (key) => void rung.push(key),
+          preview: () => {},
+        },
+      )!
+      for (const id of ["t", "u", "again"]) board.show("a", { id, title: "", body: "" })
+      return { shown, rung, taken }
+    }
+
+    it("sounds it by the notice's terminal", () => {
+      expect(withDing(true).rung).toEqual(["t", "u", "again"])
+    })
+
+    it("leaves the sound to the host where its notifications play it, keeping it to the ding's rules", () => {
+      const { rung, taken, shown } = withDing(true, true)
+      expect(rung).toEqual([])
+      expect(taken).toEqual(["t", "u", "again"])
+      expect(shown.map((notice) => notice.silent)).toEqual([false, false, true])
+    })
+
+    it("marks the notice silent when the person turned the sound off", () => {
+      expect(withDing(false).shown.map((notice) => notice.silent)).toEqual([true, true, true])
+      expect(withDing(true).shown.map((notice) => notice.silent)).toEqual([false, false, false])
+      expect(withDing(false, true).shown.map((notice) => notice.silent)).toEqual([true, true, true])
+    })
+  })
+
   it("closes a terminal's notification only for the source that showed the latest", () => {
     const closed: string[] = []
-    const board = noticeBoard({
-      show: () => {},
-      close: (id) => void closed.push(id),
-      onClick: () => () => {},
-    })!
+    const board = noticeBoard(
+      {
+        show: () => {},
+        close: (id) => void closed.push(id),
+        onClick: () => () => {},
+      },
+      testDing,
+    )!
     board.show("a", { id: "t", title: "", body: "" })
     board.show("b", { id: "t", title: "", body: "" })
     board.close("a", "t")
@@ -501,15 +562,15 @@ describe("the board of notifications", () => {
 
   it("remembers the item of a terminal's latest notice, one board per backend", () => {
     const notices = { show: () => {}, close: () => {}, onClick: () => () => {} }
-    noticeBoard(notices)!.show("a", { id: "t", title: "", body: "" }, "first")
-    noticeBoard(notices)!.show("b", { id: "t", title: "", body: "" }, "second")
-    expect(noticeBoard(notices)!.itemOf("t")).toBe("second")
-    noticeBoard(notices)!.close("b", "t")
-    expect(noticeBoard(notices)!.itemOf("t")).toBeUndefined()
+    noticeBoard(notices, testDing)!.show("a", { id: "t", title: "", body: "" }, "first")
+    noticeBoard(notices, testDing)!.show("b", { id: "t", title: "", body: "" }, "second")
+    expect(noticeBoard(notices, testDing)!.itemOf("t")).toBe("second")
+    noticeBoard(notices, testDing)!.close("b", "t")
+    expect(noticeBoard(notices, testDing)!.itemOf("t")).toBeUndefined()
   })
 
   it("is none where there are no notifications", () => {
-    expect(noticeBoard(undefined)).toBeUndefined()
+    expect(noticeBoard(undefined, testDing)).toBeUndefined()
   })
 })
 

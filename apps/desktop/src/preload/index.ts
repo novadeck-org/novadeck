@@ -41,6 +41,7 @@ import {
   noticeChannel,
   noticeClickChannel,
   noticeCloseChannel,
+  notificationsQuietChannel,
   openLogsChannel,
   openUpdatePageChannel,
   pagePictureChannel,
@@ -206,11 +207,22 @@ const bridge = {
       id: notice?.id,
       title: notice?.title,
       body: notice?.body,
+      silent: notice?.silent,
     })
   },
   // Only a terminal id crosses; the main process checks it.
   closeNotice: (id) => {
     ipcRenderer.send(noticeCloseChannel, id)
+  },
+  // Only macOS plays Novadeck's sound from the notification itself.
+  notificationsSound: process.platform === "darwin",
+  // Only a boolean comes back, and anything else, or a failure, is false.
+  notificationsQuiet: async () => {
+    try {
+      return (await ipcRenderer.invoke(notificationsQuietChannel)) === true
+    } catch {
+      return false
+    }
   },
   // Only a valid badge crosses; the main process checks it again.
   setBadge: (badge) => {

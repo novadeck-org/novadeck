@@ -33,6 +33,7 @@ import {
 } from "./controller/context"
 import { useRouteDialog, type RouteDialog } from "./controller/useRouteDialog"
 import { Preferences, TerminalSearch } from "./deferred-views"
+import { dingOf } from "./ding"
 import { NameOffer } from "./NameOffer"
 import {
   closeQuestion,
@@ -216,7 +217,7 @@ const useUninstall = (
 
 // Dialogs and the terminal switcher, above the workspace.
 export const WorkspaceOverlays = memo((): React.JSX.Element => {
-  const { backend, commands, navigation } = useWorkspaceServices()
+  const { backend, commands, navigation, ui } = useWorkspaceServices()
   const transcripts = useTranscripts(backend.transcripts)
   const agents = useAgents(backend.agents)
   const voice = useVoice(backend.voice)
@@ -329,6 +330,7 @@ export const WorkspaceOverlays = memo((): React.JSX.Element => {
           onClose={closeDialog}
           {...(transcripts ? { transcripts } : {})}
           notices={backend.notices !== undefined}
+          hearSound={dingOf(backend, ui).preview}
           chat={backend.conversations !== undefined}
           {...(voice ? { voice } : {})}
           {...(murmur ? { murmur } : {})}

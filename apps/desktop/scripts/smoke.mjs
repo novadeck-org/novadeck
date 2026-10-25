@@ -54,6 +54,14 @@ if (process.platform === "win32") {
   }
 }
 
+// koffi reads Focus Assist on Windows, from its x64 binary unpacked beside node-pty's; without
+// it the notification sound plays through Focus Assist. No other build carries it.
+const koffi = join(resources, "app.asar.unpacked", "node_modules", "@koromix")
+const ffi = join(koffi, `koffi-win32-${process.arch}`, `win32_${process.arch}`, "koffi.node")
+if (process.platform === "win32") {
+  if (!existsSync(ffi)) fail(`koffi's binary is missing: ${ffi}`)
+} else if (existsSync(koffi)) fail(`koffi is packaged outside Windows: ${koffi}`)
+
 // The relay agents start for Novadeck's MCP server and hooks ships beside the UI, and answers the
 // handshake by itself outside Novadeck's terminals.
 const relay = join(

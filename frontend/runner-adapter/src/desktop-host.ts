@@ -39,11 +39,12 @@ export const noticeText = (text: string, length: number): string => {
 
 // A notice as the host takes it, or undefined for one it would drop: an id that is no
 // terminal's, or nothing to say.
-export const hostNotice = ({ id, title, body }: Notice): Notice | undefined => {
+export const hostNotice = ({ id, title, body, silent }: Notice): Notice | undefined => {
   const notice = {
     id,
     title: noticeText(title, noticeTitleLength),
     body: noticeText(body, noticeBodyLength),
+    ...(typeof silent === "boolean" ? { silent } : {}),
   }
   return noticeIdPattern.test(id) && notice.title ? notice : undefined
 }
@@ -55,6 +56,7 @@ export const desktopNotices = (host: DesktopHost | undefined): Backend["notices"
   const listen = host?.onNoticeClick
   if (!show || !listen) return undefined
   const close = host?.closeNotice
+  const quiet = host?.notificationsQuiet
   return {
     show: (notice) => {
       const shown = hostNotice(notice)
@@ -65,6 +67,18 @@ export const desktopNotices = (host: DesktopHost | undefined): Backend["notices"
           close: (terminalId: string) => {
             if (typeof terminalId === "string" && noticeIdPattern.test(terminalId)) {
               close(terminalId)
+            }
+          },
+        }
+      : {}),
+    ...(host?.notificationsSound === true ? { sounds: true } : {}),
+    ...(quiet
+      ? {
+          quiet: async () => {
+            try {
+              return (await quiet()) === true
+            } catch {
+              return false
             }
           },
         }

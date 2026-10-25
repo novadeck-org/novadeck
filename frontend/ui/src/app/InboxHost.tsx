@@ -7,6 +7,7 @@ import { InboxToasts, type ToastBoard } from "../inbox/InboxToasts"
 import { anyAgentWorking } from "../projects/project-status"
 import { useDesktop } from "../shell/desktop"
 import { useWorkspaceServices, useWorkspaceState } from "./controller/context"
+import { dingOf } from "./ding"
 import { clickNotice, noticeBoard } from "./inbox-pings"
 import { watchInboxToasts } from "./inbox-toasts"
 
@@ -15,7 +16,7 @@ import { watchInboxToasts } from "./inbox-toasts"
 
 // Hears a click on a terminal's notification (see `clickNotice`).
 const NoticeClicks = ({ inbox }: { readonly inbox: Inbox }): null => {
-  const { backend, commands } = useWorkspaceServices()
+  const { backend, commands, ui } = useWorkspaceServices()
   const { open } = useInboxContext()
   const { showInbox, reveal } = commands
   useEffect(
@@ -25,10 +26,10 @@ const NoticeClicks = ({ inbox }: { readonly inbox: Inbox }): null => {
           terminalId,
           inbox.state.getSnapshot().items,
           { open, showInbox, reveal },
-          noticeBoard(backend.notices)?.itemOf(terminalId),
+          noticeBoard(backend.notices, dingOf(backend, ui))?.itemOf(terminalId),
         ),
       ),
-    [backend, inbox, open, showInbox, reveal],
+    [backend, ui, inbox, open, showInbox, reveal],
   )
   return null
 }
@@ -57,8 +58,9 @@ export const InboxHost = ({
   // Only a host that shows notices has a ping to take an item held as the person leaves.
   const pings = backend.notices !== undefined
   const follow = useCallback(
-    (board: ToastBoard) => watchInboxToasts(inbox, ui, board, { pings }),
-    [inbox, ui, pings],
+    (board: ToastBoard) =>
+      watchInboxToasts(inbox, ui, board, { pings, ding: dingOf(backend, ui).ring }),
+    [inbox, ui, pings, backend],
   )
   return (
     <InboxProvider

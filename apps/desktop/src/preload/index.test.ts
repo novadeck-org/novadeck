@@ -13,6 +13,7 @@ import {
   badgeChannel,
   noticeChannel,
   noticeClickChannel,
+  notificationsQuietChannel,
   noticeCloseChannel,
   dismissWhatsNewChannel,
   whatsNewChannel,
@@ -307,6 +308,30 @@ describe("closing a notice and the icon's badge", () => {
       [noticeCloseChannel, "01"],
       [badgeChannel, { count: 3, image: null }],
     ])
+  })
+})
+
+describe("notifications that play the sound", () => {
+  it("is only macOS, the platform the test runs on", () => {
+    expect(electron.exposed.notificationsSound).toBe(process.platform === "darwin")
+  })
+
+  it("sends the person's silent choice with a notice", () => {
+    electron.exposed.showNotice?.({ id: "01", title: "t", body: "", silent: true })
+    expect(electron.messages.at(-1)).toEqual([
+      noticeChannel,
+      { id: "01", title: "t", body: "", silent: true },
+    ])
+  })
+})
+
+describe("asking whether notifications are held back", () => {
+  it("passes a boolean answer, and anything else is false", async () => {
+    electron.answer = true
+    expect(await electron.exposed.notificationsQuiet?.()).toBe(true)
+    electron.answer = "yes"
+    expect(await electron.exposed.notificationsQuiet?.()).toBe(false)
+    expect(electron.sent.filter((channel) => channel === notificationsQuietChannel)).toHaveLength(2)
   })
 })
 

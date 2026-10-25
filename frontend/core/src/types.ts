@@ -19,6 +19,10 @@ export type PreferencesValue = {
   notifyNeeds: boolean
   // Whether it notifies them when an agent finishes while Novadeck is in the background.
   notifyFinished: boolean
+  // Whether Novadeck plays its own sound whenever it rings the person, a toast or a desktop
+  // notification, and how loud, from 0 to 1.
+  sound: boolean
+  soundVolume: number
   // Whether monospace text joins pairs such as => and != into one glyph. Off by default:
   // a terminal shows what a program printed.
   ligatures: boolean
