@@ -254,6 +254,7 @@ describe("a view's font", () => {
       load: () => ({
         onContextLoss: () => ({ dispose: () => {} }),
         clearTextureAtlas: cleared,
+        atlas: () => undefined,
         dispose: () => {},
       }),
       supported: () => true,
@@ -320,6 +321,7 @@ describe("a view's renderer", () => {
           const drawing: Drawing = {
             onContextLoss: () => ({ dispose: () => {} }),
             clearTextureAtlas: () => {},
+            atlas: () => undefined,
             dispose: () => {},
           }
           drawings.push(drawing)

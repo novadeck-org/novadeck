@@ -25,6 +25,7 @@ import {
   desktopWhatsNew,
   desktopWindowFocus,
 } from "./desktop-host"
+import { reportPoolTo } from "./renderer-report"
 import type { RunnerListing } from "./seed"
 
 /** The desktop app's runner: the one its host starts, over a port the host hands the page. */
@@ -170,6 +171,7 @@ export const connectRunnerBackend = async (
     const version = desktopVersion(desktopHost())
     const openLogs = desktopHost()?.openLogs
     const pagePicture = desktopHost()?.pagePicture
+    reportPoolTo(desktopHost())
     const sandbox = desktopSandbox(desktopHost())
     const portable = desktopPortable(desktopHost())
     const uninstall = desktopUninstall(desktopHost())

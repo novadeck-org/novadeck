@@ -353,6 +353,7 @@ describe("a surface's renderer", () => {
         return {
           onContextLoss: () => ({ dispose: () => {} }),
           clearTextureAtlas: () => {},
+          atlas: () => undefined,
           dispose: () => void (drawing.disposed = true),
         } satisfies Drawing
       },
