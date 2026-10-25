@@ -3,6 +3,7 @@
   "version": "0.0.0",
   "private": true,
   "description": "The UI's behaviour specs: the whole app in a real browser, over the demo backend.",
+  "license": "GPL-3.0-or-later",
   "type": "module",
   "scripts": {
     "test": "vitest run",

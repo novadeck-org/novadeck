@@ -3,6 +3,7 @@
   "version": "0.0.0",
   "private": true,
   "description": "Typing into a running full-screen program and checking that the text landed: reading a TUI's input box, and comparing what it shows with what was sent.",
+  "license": "GPL-3.0-or-later",
   "type": "module",
   "sideEffects": false,
   "exports": {

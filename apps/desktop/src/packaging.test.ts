@@ -28,6 +28,10 @@ const copied = (): string[] =>
   [...readFileSync(join(app, "electron-builder.yml"), "utf8").matchAll(/^\s*- from: (.+)$/gm)].map(
     (match) => match[1]!.trim(),
   )
+/** The files copied as they are checked in, not built: the license the GPL asks to ship. */
+const checkedIn = ["../../LICENSE"]
+/** The `from:`s that are a package's build output. */
+const built = (): string[] => copied().filter((from) => !checkedIn.includes(from))
 /** The package folder a `from:` is a build output of: the app's own for its `dist`. */
 const packageOf = (from: string): string => join(app, from.split(/\/?dist/)[0]!)
 
@@ -46,7 +50,7 @@ describe("the packaged app's resources", () => {
   // A build's output isn't there in a test, so each is checked by the package that builds it: a
   // path one level off, as a moved folder leaves it, fails here and not in the release run.
   it("copies each from a package's build output", () => {
-    for (const from of copied()) {
+    for (const from of built()) {
       expect(from, `${from} is no package's dist`).toMatch(/^(?:[./a-z-]+\/)?dist(\/|$)/)
       expect(existsSync(join(packageOf(from), "package.json")), `${from} is in no package`).toBe(
         true,
@@ -56,7 +60,7 @@ describe("the packaged app's resources", () => {
 
   it("copies each package the app depends on from the folder that dependency resolves to", () => {
     const declared = Object.keys(manifest(app).devDependencies ?? {})
-    const checked = copied().flatMap((from) => {
+    const checked = built().flatMap((from) => {
       const folder = packageOf(from)
       const { name } = manifest(folder)
       if (!declared.includes(name)) return []
@@ -64,6 +68,11 @@ describe("the packaged app's resources", () => {
       return [name]
     })
     expect(checked).toEqual(expect.arrayContaining(["@novadeck/relay"]))
+  })
+
+  it("copies each checked-in file from where it is", () => {
+    expect(copied()).toEqual(expect.arrayContaining(checkedIn))
+    for (const from of checkedIn) expect(existsSync(join(app, from)), from).toBe(true)
   })
 })
 

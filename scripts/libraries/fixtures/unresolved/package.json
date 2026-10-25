@@ -1,6 +1,7 @@
 {
   "name": "@fixture/unresolved",
   "private": true,
+  "license": "GPL-3.0-or-later",
   "type": "module",
   "exports": {
     ".": {

@@ -3,6 +3,7 @@
   "version": "0.0.0",
   "private": true,
   "description": "The items package: the kinds of item a terminal or a window shows (files, images, pages, plans, changes) and a terminal's messages, their store, bar, taskbar, peek and drag, and the homes that show them.",
+  "license": "GPL-3.0-or-later",
   "type": "module",
   "exports": {
     "./actions": "./src/actions.ts",

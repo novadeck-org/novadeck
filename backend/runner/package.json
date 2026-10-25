@@ -3,6 +3,7 @@
   "version": "0.0.0",
   "private": true,
   "description": "The Novadeck runner: shells and workspace metadata, served over WebSocket or MessagePort.",
+  "license": "GPL-3.0-or-later",
   "author": "mzpkdev",
   "type": "module",
   "sideEffects": false,

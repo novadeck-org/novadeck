@@ -56,3 +56,12 @@ The `PR / Verify` job checks workflow syntax, title format, and required heading
 It checks heading presence, so the author must still write useful content. On
 failure, read the job summary or step log for diagnostics and fixes. `FAIL` means
 invalid content; `ERROR` means a check could not run; `SKIPPED` is not a pass.
+
+## License
+
+Novadeck is under [GPL-3.0-or-later](LICENSE). Before your first pull request can merge,
+sign the [Contributor License Agreement](CLA.md): a bot comments on the pull request with a
+link, and signing takes a GitHub sign-in and one click. You keep the copyright to your work.
+The agreement also lets the maintainer license it on other terms, such as to companies, and
+promises that whatever of yours ships in a public release is available as source under the GPL
+or another OSI-approved license.

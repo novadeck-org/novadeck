@@ -3,6 +3,7 @@
   "version": "0.0.0",
   "private": true,
   "description": "The Novadeck UI's model: its state, stores and the port it talks to a backend through.",
+  "license": "GPL-3.0-or-later",
   "type": "module",
   "exports": {
     "./*": "./src/*.ts",
