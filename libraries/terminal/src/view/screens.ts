@@ -265,10 +265,8 @@ export const createTerminalViews = <K>(o: TerminalViewOptions<K>) => {
     // The two renderers measure a cell apart (WebGL to whole device pixels), so a screen
     // that changes renderer fits its slot again.
     view.onRendererChange(() => {
-      const { cols, rows } = xterm
-      followed.refit()
-      // Counted once the fit took the screen to another size, which went to its pty.
-      if (xterm.cols !== cols || xterm.rows !== rows) view.renderer.resized()
+      // Counted when the fit sent the pty another size.
+      if (followed.refit()) view.renderer.resized()
     })
     const screen: OpenScreen = {
       host: element,

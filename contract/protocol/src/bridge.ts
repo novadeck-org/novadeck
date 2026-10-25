@@ -166,9 +166,10 @@ export type DesktopBridge = {
    */
   reportError?(error: PageError): void
   /**
-   * Tells the host how the page's pool of WebGL contexts has fared since the page opened,
-   * for its log: counts only, each a whole number; the host drops a report that is anything
-   * else. Absent from hosts that came before it.
+   * Tells the host how the page's pool of WebGL contexts has fared, for its log: counts
+   * only, each a whole number; the host drops a report that is anything else. All but
+   * `onDom` are running totals since the page opened; `onDom` is the number of screens on the
+   * DOM renderer for lack of a context at the moment of the report. Absent from hosts that came before it.
    */
   reportRendererPool?(stats: RendererPoolReport): void
   /**

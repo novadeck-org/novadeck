@@ -8,7 +8,6 @@ import {
   type Runner,
   type RunnerErrorCode,
 } from "@novadeck/runner-client"
-import { pageRenderers, reportRenderers } from "@novadeck/terminal-views/renderers"
 import { pause } from "@novadeck/terminal/view"
 import { WireError } from "@novadeck/wire"
 import { websocket, type Transport } from "@novadeck/wire/client"
@@ -26,6 +25,7 @@ import {
   desktopWhatsNew,
   desktopWindowFocus,
 } from "./desktop-host"
+import { reportPoolTo } from "./renderer-report"
 import type { RunnerListing } from "./seed"
 
 /** The desktop app's runner: the one its host starts, over a port the host hands the page. */
@@ -171,9 +171,7 @@ export const connectRunnerBackend = async (
     const version = desktopVersion(desktopHost())
     const openLogs = desktopHost()?.openLogs
     const pagePicture = desktopHost()?.pagePicture
-    // The host logs how the page's WebGL pool fares.
-    const reportPool = desktopHost()?.reportRendererPool
-    if (reportPool) reportRenderers(pageRenderers(), (stats) => reportPool(stats))
+    reportPoolTo(desktopHost())
     const sandbox = desktopSandbox(desktopHost())
     const portable = desktopPortable(desktopHost())
     const uninstall = desktopUninstall(desktopHost())

@@ -54,7 +54,8 @@ export type PoolStats = {
   readonly failed: number
   // Pty resizes a renderer change caused, as its cells measured another size.
   readonly resizes: number
-  // Screens on the DOM renderer now for lack of a context, though shown and wanting WebGL.
+  // A current value, not a total: shown screens wanting WebGL that have no context for lack of
+  // one, not counting those that ran out of tries after losses.
   readonly onDom: number
 }
 
@@ -112,10 +113,35 @@ export const createRenderers = <Target>(deps: RendererDeps<Target>) => {
   const watchers = new Set<() => void>()
   const count = (what: keyof typeof counts): void => {
     counts[what] += 1
-    for (const watcher of watchers) watcher()
+    notify()
+  }
+  // A watcher that throws must not break the pool's work that told it.
+  const notify = (): void => {
+    for (const watcher of watchers) {
+      try {
+        watcher()
+      } catch {
+        // Its own trouble.
+      }
+    }
+  }
+  // Whether a shown screen wanting WebGL lacks a context, as nothing here is holding it back
+  // (an idle one is let go first) but the pool's cap or a context that did not load.
+  const bare = (member: Member<Target>): boolean =>
+    member.shown && member.webgl && !member.drawing && member.losses < lossesAllowed
+  let lastOnDom = 0
+  const domCount = (): number => (usable() ? [...members].filter(bare).length : 0)
+  // Tells the watchers when the screens on the DOM for lack of a context changed in number.
+  const settled = (): void => {
+    const now = domCount()
+    if (now === lastOnDom) return
+    lastOnDom = now
+    notify()
   }
   // Drawings whose screens asked for a clear, and whether the microtask that does it is queued.
   const asked = new Set<Member<Target>>()
+  // The atlases of drawings that asked and were let go before the moment was over.
+  const gone = new Set<unknown>()
   let sharing = false
 
   // xterm clears a glyph atlas for the screen that asked and tells no other screen drawing
@@ -125,18 +151,22 @@ export const createRenderers = <Target>(deps: RendererDeps<Target>) => {
   // against it before anything draws.
   const clearAtlases = (): void => {
     sharing = false
+    const wanted = new Set(asked)
+    asked.clear()
     const drawn = [...members].filter((member) => member.drawing)
     // Read together, as the identity can change when xterm merges pages.
     const atlases = new Map(drawn.map((member) => [member, member.drawing?.atlas()]))
-    const cleared = new Set(
-      [...asked].map((member) => atlases.get(member)).filter((atlas) => atlas !== undefined),
-    )
+    const cleared = new Set(gone)
+    gone.clear()
+    for (const member of wanted) {
+      const atlas = atlases.get(member)
+      if (atlas !== undefined) cleared.add(atlas)
+    }
     for (const member of drawn) {
       const atlas = atlases.get(member)
-      if (asked.has(member) || (atlas !== undefined && cleared.has(atlas)))
+      if (wanted.has(member) || (atlas !== undefined && cleared.has(atlas)))
         member.drawing?.clearTextureAtlas()
     }
-    asked.clear()
   }
 
   // Ligatures keep every screen on the DOM renderer: WebGL draws per cell and cannot join glyphs.
@@ -150,6 +180,12 @@ export const createRenderers = <Target>(deps: RendererDeps<Target>) => {
     if (!drawing) return
     member.drawing = undefined
     held -= 1
+    // Asked to clear its atlas, and let go before the moment is over: the others sharing it
+    // still clear.
+    if (asked.delete(member)) {
+      const atlas = drawing.atlas()
+      if (atlas !== undefined) gone.add(atlas)
+    }
     // Disposing the addon returns xterm to the DOM renderer.
     drawing.dispose()
     swapped(member)
@@ -190,18 +226,26 @@ export const createRenderers = <Target>(deps: RendererDeps<Target>) => {
   // screen nobody shows at the moment keeps its context until one of them has none to
   // take, and then only once the moment is over (`later`).
   const fill = (fromIdle = false): void => {
+    fillSlots(fromIdle)
+    settled()
+  }
+  const fillSlots = (fromIdle: boolean): void => {
     while (usable()) {
       let next: Member<Target> | undefined
+      const waiting: Member<Target>[] = []
       for (const member of members) {
         if (!member.shown || member.idle || !member.webgl || member.drawing || member.lost) continue
         if (member.losses >= lossesAllowed) continue
+        waiting.push(member)
         if (!next || member.since < next.since) next = member
       }
       if (!next) return
       const member = next
       if (held >= deps.cap) {
-        if (!member.waiting) {
-          member.waiting = true
+        // Every shown screen without a context waits, not only the one first in line.
+        for (const other of waiting) {
+          if (other.waiting) continue
+          other.waiting = true
           count("waits")
         }
         if (!fromIdle) return later()
@@ -235,14 +279,13 @@ export const createRenderers = <Target>(deps: RendererDeps<Target>) => {
   const changed = (): void => {
     if (usable()) return fill()
     for (const member of members) drop(member)
+    settled()
   }
 
   return {
     stats: (): PoolStats => ({
       ...counts,
-      onDom: [...members].filter(
-        (member) => member.shown && member.webgl && !member.drawing && usable(),
-      ).length,
+      onDom: domCount(),
     }),
     // Tells `listener` after each count changes, until the returned function is called.
     watch: (listener: () => void): (() => void) => {
@@ -307,9 +350,9 @@ export const createRenderers = <Target>(deps: RendererDeps<Target>) => {
           // A screen that closes has nothing to fit again.
           member.switched = () => {}
           member.closed = true
-          asked.delete(member)
           leave()
           members.delete(member)
+          settled()
           if (members.size > 0) return
           unwatch?.()
           unwatch = undefined

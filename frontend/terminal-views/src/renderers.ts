@@ -29,30 +29,35 @@ export const pageRenderers = (): Renderers =>
     watchLigatures: watchRoot,
   }))
 
-// How long counts settle before they are reported: a busy minute is a few lines.
+// How often counts are reported while they change: a busy minute is a few lines. The first
+// change starts the wait and later ones don't move it, so steady change still reports.
 export const reportAfterMs = 10_000
 
 const reporting = new WeakSet<Renderers>()
-// Tells `report` the pool's counts, once a change has stood still for `reportAfterMs`, and
-// only when they differ from the last report. Once per pool; the page's pool lives as long as
-// the page.
+// Tells `report` the pool's counts at most once per `afterMs` while they change, only when they
+// differ from the last report, and at once when the page is hidden or closing. Once per pool;
+// the page's pool lives as long as the page.
 export const reportRenderers = (
   pool: Renderers,
   report: (stats: PoolStats) => void,
   afterMs = reportAfterMs,
+  target: Pick<Window, "addEventListener"> = window,
 ): void => {
   if (reporting.has(pool)) return
   reporting.add(pool)
   let last = JSON.stringify(pool.stats())
   let timer: ReturnType<typeof setTimeout> | undefined
-  pool.watch(() => {
+  const send = (): void => {
     clearTimeout(timer)
-    timer = setTimeout(() => {
-      const stats = pool.stats()
-      const now = JSON.stringify(stats)
-      if (now === last) return
-      last = now
-      report(stats)
-    }, afterMs)
+    timer = undefined
+    const stats = pool.stats()
+    const now = JSON.stringify(stats)
+    if (now === last) return
+    last = now
+    report(stats)
+  }
+  pool.watch(() => {
+    timer ??= setTimeout(send, afterMs)
   })
+  target.addEventListener("pagehide", send)
 }

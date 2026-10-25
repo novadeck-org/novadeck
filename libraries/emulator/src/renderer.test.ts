@@ -239,6 +239,27 @@ describe("the renderer budget", () => {
       expect(drawing("b").cleared).toBe(0)
     })
 
+    it("still clears its neighbours when the asking screen is let go in the same moment", () => {
+      const { screens, drawing, settle } = shared()
+      screens.a!.refresh()
+      screens.a!.release()
+      settle()
+      expect(["b", "c"].map((name) => drawing(name).cleared)).toEqual([1, 0])
+    })
+
+    it("clears for a screen that asks while the clearing runs", () => {
+      const { screens, drawing, settle } = shared()
+      const clear = drawing("b").clearTextureAtlas
+      drawing("b").clearTextureAtlas = () => {
+        clear()
+        screens.c!.refresh()
+      }
+      screens.a!.refresh()
+      settle()
+      settle()
+      expect(drawing("c").cleared).toBe(1)
+    })
+
     it("does nothing for a screen on the DOM renderer", () => {
       const { screens, drawing, settle } = shared()
       screens.d!.refresh()
@@ -278,6 +299,46 @@ describe("the renderer budget", () => {
       c!.take()
       b!.take()
       expect(pool.stats()).toMatchObject({ waits: 1, swaps: 2, onDom: 1 })
+    })
+
+    it("count every shown screen that finds the pool full, once each", () => {
+      const { pool } = setup({ cap: 1 })
+      for (const name of ["a", "b", "c", "d"]) pool.screen(name).take()
+      expect(pool.stats()).toMatchObject({ waits: 3, onDom: 3 })
+    })
+
+    it("leave out of onDom a screen that ran out of tries after losses", () => {
+      const { pool, drawing, state } = setup({ cap: 2 })
+      const a = pool.screen("a")
+      a.take()
+      drawing("a").lose()
+      a.release()
+      a.take()
+      drawing("a").lose()
+      expect(pool.stats()).toMatchObject({ lost: 2, onDom: 0 })
+      state.failing = false
+    })
+
+    it("tell a watcher when the screens on the DOM change in number", () => {
+      const { pool } = setup({ cap: 1 })
+      const heard = vi.fn<() => void>()
+      pool.watch(heard)
+      const [a, b] = ["a", "b"].map((name) => pool.screen(name))
+      a!.take()
+      b!.take()
+      heard.mockClear()
+      a!.release()
+      expect(pool.stats().onDom).toBe(0)
+      expect(heard).toHaveBeenCalled()
+    })
+
+    it("go on when a watcher throws", () => {
+      const { pool, live } = setup()
+      pool.watch(() => {
+        throw new Error("watcher")
+      })
+      pool.screen("a").take()
+      expect(live("a")).toBe(true)
     })
 
     it("count a wait again after the screen was parked and shown afresh", () => {

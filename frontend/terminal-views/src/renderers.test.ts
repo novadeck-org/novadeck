@@ -15,6 +15,13 @@ describe("the views that draw with WebGL", () => {
 })
 
 describe("reporting the pool's counts", () => {
+  const page = () => {
+    const listeners: (() => void)[] = []
+    return {
+      addEventListener: (_type: string, listener: () => void) => void listeners.push(listener),
+      fire: () => listeners.forEach((listener) => listener()),
+    } as unknown as Pick<Window, "addEventListener"> & { fire: () => void }
+  }
   const pooled = () => {
     let swaps = 0
     let heard = (): void => {}
@@ -34,22 +41,37 @@ describe("reporting the pool's counts", () => {
     }
   }
 
-  it("reports once a change has stood still, not for each one", () => {
+  it("reports at most once per interval, however steadily the counts change", () => {
     vi.useFakeTimers()
     try {
       const { pool, swap } = pooled()
       const report = vi.fn<(stats: unknown) => void>()
-      reportRenderers(pool, report, 1_000)
+      reportRenderers(pool, report, 1_000, page())
       swap()
       vi.advanceTimersByTime(600)
       swap()
-      vi.advanceTimersByTime(900)
+      vi.advanceTimersByTime(399)
       expect(report).not.toHaveBeenCalled()
-      vi.advanceTimersByTime(200)
+      vi.advanceTimersByTime(1)
       expect(report).toHaveBeenCalledExactlyOnceWith({ swaps: 2 })
+      swap()
+      vi.advanceTimersByTime(1_000)
+      expect(report).toHaveBeenLastCalledWith({ swaps: 3 })
     } finally {
       vi.useRealTimers()
     }
+  })
+
+  it("reports what is pending when the page is hidden", () => {
+    const { pool, swap } = pooled()
+    const hide = page()
+    const report = vi.fn<(stats: unknown) => void>()
+    reportRenderers(pool, report, 1_000, hide)
+    swap()
+    hide.fire()
+    expect(report).toHaveBeenCalledExactlyOnceWith({ swaps: 1 })
+    hide.fire()
+    expect(report).toHaveBeenCalledTimes(1)
   })
 
   it("reports nothing when the counts are as last reported, and watches a pool once", () => {
@@ -57,8 +79,8 @@ describe("reporting the pool's counts", () => {
     try {
       const { pool, swap } = pooled()
       const report = vi.fn<(stats: unknown) => void>()
-      reportRenderers(pool, report, 1_000)
-      reportRenderers(pool, report, 1_000)
+      reportRenderers(pool, report, 1_000, page())
+      reportRenderers(pool, report, 1_000, page())
       swap()
       vi.advanceTimersByTime(1_000)
       expect(report).toHaveBeenCalledTimes(1)

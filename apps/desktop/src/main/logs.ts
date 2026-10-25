@@ -277,11 +277,15 @@ export const registerLogIpc = (
       { err: uiErrorAsError(report) },
     )
   })
+  let lastPool = ""
   ipc.on(rendererPoolChannel, (event, value: unknown) => {
     if (!options.window(event)) return
     const report = rendererPoolOf(value)
-    if (report)
-      options.log.info("ui.renderer-pool", "The page's WebGL pool, counted.", { data: report })
+    // A report the same as the last one says nothing new.
+    const text = JSON.stringify(report)
+    if (!report || text === lastPool) return
+    lastPool = text
+    options.log.info("ui.renderer-pool", "The page's WebGL pool, counted.", { data: report })
   })
 }
 

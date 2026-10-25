@@ -6,7 +6,7 @@ import {
   type ScreenRenderer,
   type Terminal,
 } from "@novadeck/emulator/browser"
-import { afterEach, describe as context, describe, expect, it } from "vitest"
+import { afterEach, describe as context, describe, expect, it, vi } from "vitest"
 
 // xterm's WebGL addon in a real browser: what it holds of the page's WebGL contexts, which
 // Chromium caps. Headless Chromium draws WebGL in software, enough to hold a context.
@@ -209,8 +209,7 @@ describe.skipIf(!hasWebgl)("xterm's WebGL renderer", () => {
       try {
         xterm.focus()
         // The timer starts after a blink's wait.
-        await new Promise((resolve) => setTimeout(resolve, 900))
-        expect(intervals.size).toBe(1)
+        await vi.waitFor(() => expect(intervals.size).toBe(1), { timeout: 3000 })
         drawing.dispose()
         expect(intervals.size).toBe(0)
       } finally {
