@@ -26,7 +26,7 @@ export type ViewOptions = {
 }
 
 /** The view's place in the page's pool: whoever shows it says when it is shown and when not. */
-export type ViewRenderer = Pick<ScreenRenderer, "take" | "idle" | "release">
+export type ViewRenderer = Pick<ScreenRenderer, "take" | "idle" | "release" | "resized">
 
 export type View = {
   /** xterm's own API for everything the view doesn't wrap. */
@@ -56,6 +56,7 @@ const noRenderer: ScreenRenderer = {
   idle: () => {},
   release: () => {},
   refresh: () => {},
+  resized: () => {},
   dispose: () => {},
 }
 
@@ -141,7 +142,12 @@ export const createView = (element: HTMLElement, options: ViewOptions): View => 
       terminal.options.theme = next
     },
     setFont,
-    renderer: { take: renderer.take, idle: renderer.idle, release: renderer.release },
+    renderer: {
+      take: renderer.take,
+      idle: renderer.idle,
+      release: renderer.release,
+      resized: renderer.resized,
+    },
     onRendererChange: (listener) => {
       changes.add(listener)
       return { dispose: () => void changes.delete(listener) }

@@ -66,8 +66,9 @@ export type Screen = {
 export type FollowedTerminal = {
   // Sends typed input; dropped while there is no attachment.
   readonly input: (data: string) => void
-  // Tells the owner the size that fits now, and the stream if it changed.
-  readonly refit: () => void
+  // Tells the owner the size that fits now, and the stream if it changed. Whether it sent
+  // the stream a size it had not sent before.
+  readonly refit: () => boolean
   // Lets go of the stream while no view shows the terminal, so its output costs nothing
   // here while the screen keeps what it last drew; `unpark` attaches again, and the
   // host's fresh screen brings it up to date. A fresh shell started meanwhile waits
@@ -100,13 +101,13 @@ export const followTerminal = <K>(
   // A park ended the stream: the same shell runs on, so it attaches again, even when
   // shown before the stream wound down.
   let cut = false
-  const refit = (): void => {
+  const refit = (): boolean => {
     const size = screen.fit()
     if (size) on?.resized?.(key, size)
-    if (!size || !attachment) return
+    if (!size || !attachment) return false
     screen.resize(size)
     const next = `${size.cols}x${size.rows}`
-    if (next === sent) return
+    if (next === sent) return false
     sent = next
     const attached = attachment
     void attached.resize(size.cols, size.rows).catch(() => {
@@ -116,6 +117,7 @@ export const followTerminal = <K>(
         if (attachment === attached) refit()
       }, 500)
     })
+    return true
   }
   const apply = async (event: TerminalEvent): Promise<void> => {
     if (event.type === "snapshot") {

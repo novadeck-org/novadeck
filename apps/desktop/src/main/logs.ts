@@ -3,9 +3,10 @@ import { basename, join } from "node:path"
 import { inspect } from "node:util"
 
 import type { Data, Log } from "@novadeck/log"
+import { rendererPoolOf } from "@novadeck/protocol/bridge"
 import type { IpcMain, IpcMainEvent } from "electron"
 
-import { openLogsChannel, uiErrorChannel } from "../bridge.js"
+import { openLogsChannel, rendererPoolChannel, uiErrorChannel } from "../bridge.js"
 
 /** How this copy of the app was installed, as a log names it. */
 export type InstallKind =
@@ -249,8 +250,9 @@ export const uiErrorAsError = (report: UiError): Error => {
 }
 
 /**
- * The page asks to open the logs folder, and reports errors it didn't catch, which are
- * logged as the page's (`ui.error`, `ui.rejection`). Only the app's own windows are heard.
+ * The page asks to open the logs folder, reports errors it didn't catch, which are
+ * logged as the page's (`ui.error`, `ui.rejection`), and the counts of its WebGL pool
+ * (`ui.renderer-pool`). Only the app's own windows are heard.
  */
 export const registerLogIpc = (
   ipc: Pick<IpcMain, "on">,
@@ -274,6 +276,30 @@ export const registerLogIpc = (
         : "A promise in the page failed with nothing to catch it.",
       { err: uiErrorAsError(report) },
     )
+  })
+  // The last report logged for each page, by its web contents: a window's, until it
+  // navigates or closes, which starts its counts afresh.
+  const lastPool = new Map<number, string>()
+  // The web contents listened to, each once.
+  const hooked = new WeakSet<object>()
+  ipc.on(rendererPoolChannel, (event, value: unknown) => {
+    if (!options.window(event)) return
+    const report = rendererPoolOf(value)
+    if (!report) return
+    const { sender } = event
+    // A report the same as the last one from the page says nothing new.
+    const text = JSON.stringify(report)
+    if (lastPool.get(sender.id) === text) return
+    if (!hooked.has(sender)) {
+      hooked.add(sender)
+      const forget = (): void => void lastPool.delete(sender.id)
+      // The main frame committed another page, whose counts begin afresh; a report of the
+      // outgoing page can no longer arrive.
+      sender.on("did-navigate", forget)
+      sender.once("destroyed", forget)
+    }
+    lastPool.set(sender.id, text)
+    options.log.info("ui.renderer-pool", "The page's WebGL pool, counted.", { data: report })
   })
 }
 

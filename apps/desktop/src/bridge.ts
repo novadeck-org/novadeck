@@ -150,6 +150,12 @@ export const pagePictureChannel = "novadeck:page-picture"
 export const uiErrorChannel = "novadeck:ui-error"
 
 /**
+ * Renderer-to-main report of how the page's WebGL pool has fared, `RendererPoolReport`,
+ * which the host logs.
+ */
+export const rendererPoolChannel = "novadeck:renderer-pool"
+
+/**
  * Messages from the main process to the runner's utility process: a client's port,
  * a save of every terminal before the system session ends, or the final close; and the
  * key saved transcripts are encrypted with, base64 or null where none can be kept safe,
