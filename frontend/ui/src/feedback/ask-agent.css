@@ -1,0 +1,75 @@
+/* The card that asks an agent's window to write feedback (AskAgent.tsx): a `.floating` popover
+   hung from the window's header, with the `.ask-agent-card` in it: head (`.ask-agent-title`
+   holding the handle chip), the `.ask-agent-line`, the optional hint field, and the foot
+   (`.ask-agent-inbox` and the primary Ask). */
+@layer components {
+  .ask-agent-card {
+    display: flex;
+    flex-direction: column;
+    width: min(360px, calc(100vw - 24px));
+  }
+  .ask-agent-body {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    padding: 14px;
+  }
+  .ask-agent-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+  }
+  .ask-agent-title {
+    min-width: 0;
+    font-weight: 600;
+  }
+  .ask-agent-line {
+    color: var(--color-muted);
+  }
+  .ask-agent-field {
+    display: block;
+    padding: 8px 10px;
+    border-radius: var(--radius-panel);
+  }
+  .ask-agent-field:focus-within {
+    --_border-color: var(--color-strong);
+  }
+  .ask-agent-input {
+    display: block;
+    width: 100%;
+    min-height: 60px;
+    max-height: 120px;
+    padding: 0;
+    border: 0;
+    resize: none;
+    line-height: 20px;
+  }
+  .ask-agent-input::placeholder {
+    color: var(--color-muted);
+  }
+  .ask-agent-failed {
+    color: var(--color-danger-fg);
+    font-size: var(--text-caption);
+  }
+  .ask-agent-foot {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    padding: 10px 14px;
+    border-end-start-radius: inherit;
+    border-end-end-radius: inherit;
+  }
+  .ask-agent-inbox {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    min-width: 0;
+    color: var(--color-muted);
+    font-size: var(--text-caption);
+  }
+  .ask-agent-inbox svg {
+    flex: none;
+  }
+}

@@ -33,7 +33,7 @@ import { SubagentBranches, SubagentLine } from "./TabSubagents"
 import { TerminalRenameInput, type TerminalRename } from "./TerminalRenameInput"
 import { tabInstructionsId } from "./TerminalTabs"
 import { useRenderAt } from "./use-render-at"
-import { windowMenu, type DockTarget } from "./window-menu"
+import { windowMenu, type AskFeedback, type DockTarget } from "./window-menu"
 
 // What a waiting agent's tab draws beyond its glyph loads when one waits, as most never do.
 const WaitingBranches = lazy(() =>
@@ -74,6 +74,7 @@ export const TerminalTab = ({
   onClose,
   onResetTitle,
   dockIn,
+  askFeedback,
   folder,
 }: {
   // A terminal, or a window undocked from a companion, which runs nothing.
@@ -106,6 +107,8 @@ export const TerminalTab = ({
   onResetTitle?: (() => void) | undefined
   // Docks a window undocked from a terminal's companion back in that terminal.
   dockIn?: DockTarget | undefined
+  // Asks the window's agent to write feedback; absent for a window that runs none.
+  askFeedback?: AskFeedback | undefined
   // Where a project window's file is, which its line shows where a terminal's program is.
   folder?: string | undefined
 }): React.JSX.Element => {
@@ -156,6 +159,7 @@ export const TerminalTab = ({
     onRename: onBeginRename,
     onResetTitle,
     dockIn,
+    askFeedback,
     onClose,
   })
   // How long ago a done tab's agent finished, beside its program, kept current.

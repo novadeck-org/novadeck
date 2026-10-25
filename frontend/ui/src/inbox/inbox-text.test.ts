@@ -121,7 +121,26 @@ describe("A recommended option", () => {
   })
 })
 
+const draft = (text: string): InboxItem => ({
+  ...base,
+  stopped: false,
+  kind: "feedback",
+  draft: { kind: "bug", text },
+})
+
 describe("An item's subject", () => {
+  it("names a feedback draft's agent and the start of its first line", () => {
+    expect(subjectOf(draft("\n  The toast covers the footer.\nMore."))).toBe(
+      "Feedback draft from @moth: The toast covers the footer.",
+    )
+    expect(subjectOf(draft("x".repeat(100)))).toBe(`Feedback draft from @moth: ${"x".repeat(71)}…`)
+    expect(subjectOf(draft(""))).toBe("Feedback draft from @moth")
+    expect(subjectOf(draft("Crash in ~/Work/app/a.ts on start"))).toBe(
+      "Feedback draft from @moth: Crash in [path] on start",
+    )
+    expect(labelOf(draft("a"))).toBe("Drafted feedback")
+  })
+
   it("says what a command or an edit would do", () => {
     expect(subjectOf(permission("Bash", "pnpm test"))).toBe("Run `pnpm test`?")
     expect(subjectOf(permission("Edit", "src/a.ts"))).toBe("Edit `src/a.ts`?")
@@ -224,6 +243,11 @@ describe("A limit that resumes", () => {
 })
 
 describe("How an item stands", () => {
+  it("says how long ago a feedback draft was written, calmly", () => {
+    expect(standingOf(draft("a"), 0, false)).toEqual({ status: "just now", tone: "calm" })
+    expect(standingOf(draft("a"), 6 * 60_000, false)).toEqual({ status: "6m ago", tone: "calm" })
+  })
+
   it("is waiting for a stopped agent, and working for the rest", () => {
     expect(standingOf(permission("Bash", "x"), 6 * 60_000, false)).toEqual({
       status: "waiting 6m",

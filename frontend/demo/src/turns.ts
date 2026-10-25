@@ -290,6 +290,8 @@ export const demoTurns = (turnMs = demoTurnMs) => {
   }
   return {
     ...verbs,
+    // How long a turn works, which a request of the demo's own may scale.
+    turnMs,
     telemetry,
     prompt,
     resume,

@@ -1,4 +1,5 @@
 import type { Picks } from "@novadeck/core/answers"
+import type { FeedbackAbout } from "@novadeck/core/feedback"
 import type { Inbox, InboxAnswer, InboxItem, InboxState } from "@novadeck/core/inbox"
 import {
   createContext,
@@ -61,6 +62,10 @@ export type InboxContextValue = {
   readonly current: InboxItem | undefined
   readonly sent: Readonly<Record<string, Sent>>
   readonly drafts: Readonly<Record<string, Draft>>
+  // A feedback draft's text as the person edited it, where they have, by item: kept until the
+  // item has left the Inbox, so an answer that didn't take loses nothing. It may be empty.
+  readonly feedbackEdits: Readonly<Record<string, string>>
+  readonly setFeedbackEdit: (id: string, text: string) => void
   // Items answered and dropped by the backend that keep their row, answered, until the
   // sheet closes.
   readonly ghosts: Readonly<Record<string, InboxItem>>
@@ -68,6 +73,8 @@ export type InboxContextValue = {
   readonly phone: boolean
   // Whether any agent in the workspace is at work, which the empty list says.
   readonly working: boolean
+  // What goes along with feedback, where the backend takes it: a draft's sheet says it.
+  readonly feedbackAbout: (() => Promise<FeedbackAbout>) | undefined
   readonly open: (id: string) => void
   readonly close: () => void
   readonly showHeld: () => void
@@ -116,6 +123,7 @@ export const InboxProvider = ({
   reveal,
   phone,
   working = false,
+  feedbackAbout,
   children,
 }: {
   readonly inbox: Inbox
@@ -125,12 +133,15 @@ export const InboxProvider = ({
   readonly phone?: Phone | undefined
   // Whether any agent in the workspace is at work.
   readonly working?: boolean
+  // Asks what goes along with feedback (`Feedback.about`); absent where there is none.
+  readonly feedbackAbout?: (() => Promise<FeedbackAbout>) | undefined
   readonly children?: ReactNode
 }): React.JSX.Element => {
   const state = useSyncExternalStore(inbox.state.subscribe, inbox.state.getSnapshot)
   const [view, setView] = useState<InboxView>(initialView)
   const [answered, setAnswered] = useState<Readonly<Record<string, Sent>>>({})
   const [drafts, setDrafts] = useState<Readonly<Record<string, Draft>>>({})
+  const [feedbackEdits, setFeedbackEdits] = useState<Readonly<Record<string, string>>>({})
   const [now, setNow] = useState(() => Date.now())
 
   useEffect(() => {
@@ -175,6 +186,17 @@ export const InboxProvider = ({
     setDrafts((record) =>
       Object.fromEntries(Object.entries(record).filter(([id]) => !gone.includes(id))),
     )
+  const goneEdits = Object.keys(feedbackEdits).filter(
+    (id) => !(id in ghosts) && !state.items.some((item) => item.id === id),
+  )
+  if (goneEdits.length > 0)
+    setFeedbackEdits((record) =>
+      Object.fromEntries(Object.entries(record).filter(([id]) => !goneEdits.includes(id))),
+    )
+  const setFeedbackEdit = useCallback(
+    (id: string, text: string): void => setFeedbackEdits((record) => ({ ...record, [id]: text })),
+    [],
+  )
   const shown = useMemo(() => visible(view, state.items, ghosts), [view, state.items, ghosts])
 
   // What the handlers below read, as of the last commit.
@@ -331,9 +353,12 @@ export const InboxProvider = ({
       current,
       sent,
       drafts,
+      feedbackEdits,
+      setFeedbackEdit,
       ghosts,
       phone: phone !== undefined,
       working,
+      feedbackAbout,
       open,
       close,
       showHeld,
@@ -353,9 +378,12 @@ export const InboxProvider = ({
       current,
       sent,
       drafts,
+      feedbackEdits,
+      setFeedbackEdit,
       ghosts,
       phone,
       working,
+      feedbackAbout,
       open,
       close,
       showHeld,

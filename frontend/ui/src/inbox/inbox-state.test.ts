@@ -7,6 +7,7 @@ import {
   held,
   initialView,
   needing,
+  ringing,
   nextItem,
   openItem,
   release,
@@ -52,6 +53,16 @@ const update = (id: string, at: number): InboxItem => ({
   seen: false,
   kind: "update",
   update: { type: "told", subject: id, body: "" },
+})
+
+const draft = (id: string, at: number): InboxItem => ({
+  id,
+  source,
+  at,
+  stopped: false,
+  seen: false,
+  kind: "feedback",
+  draft: { kind: "idea", text: id },
 })
 
 const ids = (items: readonly InboxItem[]): string[] => items.map(({ id }) => id)
@@ -158,6 +169,11 @@ describe("What asks next", () => {
     expect(nextItem(items, "a", { answering: { b: true } })?.id).toBe("c")
     expect(nextItem([update("u", 0)], null, { answering: {} })).toBeUndefined()
   })
+
+  it("is never a feedback draft, which asks nothing of the person now", () => {
+    expect(nextItem([draft("f", 0), approve("a", 1)], null, { answering: {} })?.id).toBe("a")
+    expect(nextItem([draft("f", 0)], null, { answering: {} })).toBeUndefined()
+  })
 })
 
 describe("Stepping down and up the list", () => {
@@ -179,6 +195,22 @@ describe("What the rail counts", () => {
   context("with updates among the items", () => {
     it("leaves them out", () => {
       expect(ids(needing([approve("a", 1), update("u", 2)]))).toEqual(["a"])
+    })
+  })
+
+  context("with a feedback draft among the items", () => {
+    it("counts it, though it never rings", () => {
+      const items = [approve("a", 1), draft("f", 2)]
+      expect(ids(needing(items))).toEqual(["a", "f"])
+      expect(ids(ringing(items))).toEqual(["a"])
+    })
+
+    it("lists it after what asks and before updates", () => {
+      expect(ids(visible(initialView, [update("u", 1), draft("f", 2), approve("a", 3)]))).toEqual([
+        "a",
+        "f",
+        "u",
+      ])
     })
   })
 })

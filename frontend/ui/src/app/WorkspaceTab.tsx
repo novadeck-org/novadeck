@@ -12,6 +12,7 @@ import { isProjectWindow, projectFolder } from "../terminals/project-window"
 import { renameView } from "../terminals/rename-state"
 import { TerminalTab } from "../terminals/TerminalTab"
 import { unreadEnd } from "../terminals/unread-state"
+import { useAskFeedback } from "./ask-feedback"
 import { useUiState, useWorkspaceServices, useWorkspaceState } from "./controller/context"
 import { useDockTarget } from "./dock-target"
 import { currentContext, currentState, currentTarget, sameTarget, shallowEqual } from "./selectors"
@@ -67,6 +68,7 @@ export const WorkspaceTab = memo(
       [id, bar, items, fresh, hasMail],
     )
     const dockIn = useDockTarget(terminal)
+    const askFeedback = useAskFeedback(terminal)
     return (
       <TerminalTab
         terminal={terminal}
@@ -89,6 +91,7 @@ export const WorkspaceTab = memo(
         onClose={() => commands.close(id)}
         {...(backend.resetTitle ? { onResetTitle: () => commands.resetTitle(id) } : {})}
         dockIn={dockIn}
+        askFeedback={askFeedback}
         folder={folder}
       />
     )
