@@ -75,6 +75,7 @@ export type AgentWaiting = {
 // it wrote them. `error` is a failed turn's error as its harness said it. `limit` is the
 // usage-limit window the end ran into, with its length in minutes where known, and when it
 // resets, in epoch milliseconds.
+// `limited` is set where the end ran into a usage limit, whether or not the window is known.
 // `files` are the absolute paths its edit tools wrote in the turn, first written first.
 export type AgentTurnEnd = {
   readonly outcome: "completed" | "failed" | "interrupted" | "unknown"
@@ -82,6 +83,7 @@ export type AgentTurnEnd = {
   readonly gist?: string
   readonly error?: string
   readonly limit?: { readonly minutes: number | null; readonly resetsAt: number }
+  readonly limited?: true
   readonly files?: readonly string[]
   readonly at: number
 }

@@ -20,6 +20,12 @@ export const keyOf = ({ source }: InboxItem): ConversationKey => ({
   terminalId: source.terminalId,
 })
 
+// Whether an item is a stored turn row (read by id), as its `stored` mark says, not the failed
+// row derived from a limited end, which no read touches.
+export const isTurnRow = (item: InboxItem): boolean =>
+  (item.kind === "trouble" && item.trouble.type === "failed" && item.trouble.stored === true) ||
+  (item.kind === "update" && item.update.type === "finished" && item.update.stored === true)
+
 // The finish an update stands for, as the app reads it.
 export const finishOf = ({ source }: InboxItem): InboxFinish => ({
   context: `${source.projectId}/${source.workspaceSessionId}`,
@@ -204,7 +210,10 @@ export type InboxActions = {
   ) => Promise<unknown>
   readonly release: (thread: string) => void
   readonly stop: (thread: string) => void
-  readonly read: (finishes: readonly InboxFinish[]) => void
+  // Marks stored rows read by id, tracked: they show answering until the backend drops them.
+  readonly read: (ids: readonly string[]) => void
+  // Reads stored rows by id and says nothing of it: for a nudge that already took.
+  readonly forget: (ids: readonly string[]) => void
   readonly send: (key: ConversationKey, text: string) => Promise<unknown>
   readonly interrupt: (key: ConversationKey) => Promise<unknown>
   // The item's terminal now, to see whether its agent works.
@@ -213,7 +222,9 @@ export type InboxActions = {
 
 // Answers an item as its kind asks: a request through the agent's conversation, a held
 // thread released or stopped, a finish read, trouble by continuing, stopping or nudging the
-// agent (a nudge interrupts it first if it works). An answer of another kind fails; the
+// agent (a nudge interrupts it first if it works, except on a stored failed row, which is
+// nudged only while it is the agent's current end and the agent rests, never interrupting,
+// and read once the nudge is sent; a failed row that is no longer current is only read). An answer of another kind fails; the
 // kinds a backend answers itself (an ask, a told update) it handles before this.
 export const answerItem = (
   tracker: InboxTracker,
@@ -238,16 +249,33 @@ export const answerItem = (
   }
   if (item.kind === "update" && given.kind === "update") {
     tracker.forgive(id)
-    return actions.read([finishOf(item)])
+    return actions.read([id])
   }
   if (item.kind === "trouble" && given.kind === "trouble") {
     const { action } = given
     const settles = { settles: true }
+    if (action.type === "read") {
+      if (!isTurnRow(item)) return tracker.fail(id, "That answer isn't for this item.")
+      tracker.forgive(id)
+      return actions.read([id])
+    }
     if (action.type === "continue")
       return tracker.call(id, () => actions.send(key, "continue"), settles)
     if (action.type === "stop") return tracker.call(id, () => actions.interrupt(key), settles)
     if (action.type === "nudge") {
       const terminal = actions.terminal(key)
+      if (isTurnRow(item)) {
+        if (!item.stopped || !terminal || agentWorking(terminal))
+          return tracker.fail(id, "That agent has moved on. Mark it read.")
+        return tracker.call(
+          id,
+          async () => {
+            await actions.send(key, action.text)
+            actions.forget([id])
+          },
+          settles,
+        )
+      }
       return tracker.call(
         id,
         async () => {

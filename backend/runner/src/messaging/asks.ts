@@ -6,6 +6,8 @@ import {
   hiddenIn,
   inboxLetter,
   maxCommandLines,
+  murmurGist,
+  replyPreviewLength,
   type AgentAsk,
   type AskAnswer,
   type InboxLetter,
@@ -39,6 +41,8 @@ export type Letter = InboxLetter & {
 export type AskRecords = {
   letters(): readonly Letter[]
   saveLetter(letter: Letter): void
+  /** Saves the letters in one transaction. */
+  saveLetters(letters: readonly Letter[]): void
   answerLetter(letter: Letter, message: Message): void
   removeLetters(ids: readonly string[]): void
 }
@@ -47,6 +51,9 @@ export const memoryAsks = (): AskRecords => {
   return {
     letters: () => [...letters.values()],
     saveLetter: (letter) => void letters.set(letter.id, letter),
+    saveLetters: (all) => {
+      for (const letter of all) letters.set(letter.id, letter)
+    },
     answerLetter: (letter) => void letters.set(letter.id, letter),
     removeLetters: (ids) => {
       for (const id of ids) letters.delete(id)
@@ -54,7 +61,11 @@ export const memoryAsks = (): AskRecords => {
   }
 }
 
-type Owner = Omit<InboxLetter, "id" | "at" | "content">
+export type TurnOwner = Omit<InboxLetter, "id" | "at" | "content">
+type Owner = TurnOwner
+type TurnContent = Extract<InboxLetter["content"], { kind: "turn" }>
+/** What a turn letter holds of its end. */
+export type TurnFields = Omit<TurnContent, "kind">
 type Host = {
   owner(terminalId: string): Owner | undefined
   reply(
@@ -197,6 +208,9 @@ const askText = (ask: AgentAsk): string => {
 
 export const maxOpenAsks = 50
 export const maxUnreadTells = 50
+/** Unread finished turns kept per terminal: the oldest goes at the 51st. */
+export const maxUnreadTurns = 50
+const maxTurnFiles = 16
 export const maxResolvedLetters = 100
 export const askSweepMs = 60_000
 /**
@@ -205,6 +219,36 @@ export const askSweepMs = 60_000
  * seconds, or never. An ask it ended reopens if that session binds after all.
  */
 export const askResumeGraceMs = 120_000
+
+const isTurn = (letter: Letter): boolean => letter.content.kind === "turn"
+const clipped = (value: unknown, max: number): string | null =>
+  typeof value === "string" && value.length > 0 ? value.slice(0, max) : null
+
+/**
+ * A stored turn letter as today's rules read it: its text cut to the limits, its files
+ * capped, unknown keys dropped and an unknown outcome taken as failed, so a limit that
+ * tightens later costs a letter nothing. Undefined where it still won't parse.
+ */
+const clampedTurn = (content: unknown): TurnContent | undefined => {
+  if (typeof content !== "object" || content === null) return undefined
+  const raw = content as { [key: string]: unknown }
+  const files = Array.isArray(raw["files"])
+    ? raw["files"].flatMap((file: unknown) => {
+        const path = clipped(file, 1024)
+        return path ? [path] : []
+      })
+    : []
+  const gist = murmurGist.safeParse(raw["gist"])
+  const parsed = inboxLetter.shape.content.safeParse({
+    kind: "turn",
+    outcome: raw["outcome"] === "completed" ? "completed" : "failed",
+    reply: clipped(raw["reply"], replyPreviewLength),
+    gist: gist.success ? gist.data : null,
+    error: clipped(raw["error"], 2048),
+    files: files.slice(0, maxTurnFiles),
+  })
+  return parsed.success && parsed.data.kind === "turn" ? parsed.data : undefined
+}
 
 export class Asks {
   private readonly byTerminal = new Map<string, Map<string, Letter>>()
@@ -236,9 +280,16 @@ export class Asks {
     this.save(() => {
       stored = records.letters()
     })
-    for (const letter of stored)
-      if (inboxLetter.shape.content.safeParse(letter.content).success) this.keep(letter)
-      else stale.push(letter.id)
+    for (const letter of stored) {
+      if (letter?.content?.kind === "turn") {
+        // Clamped in memory only: a newer runner's fields stay in the records until the
+        // letter is next amended.
+        const content = clampedTurn(letter.content)
+        if (!content) stale.push(letter.id)
+        else this.keep({ ...letter, state: "open" as const, content })
+      } else if (inboxLetter.shape.content.safeParse(letter?.content).success) this.keep(letter)
+      else if (letter?.id) stale.push(letter.id)
+    }
     if (stale.length > 0) this.save(() => records.removeLetters(stale))
     this.prune()
     if (sweepMs > 0) {
@@ -362,13 +413,14 @@ export class Asks {
   }
 
   list(): InboxLetter[] {
+    const exists = this.existence()
     return [...this.open.values()]
       .filter(
         (each) =>
           each.state === "open" &&
-          (each.content.kind === "tell"
-            ? this.host.exists(each.terminalId)
-            : same(each, this.host.owner(each.terminalId))),
+          (each.content.kind === "ask"
+            ? same(each, this.host.owner(each.terminalId))
+            : exists(each.terminalId)),
       )
       .map(({ state: _state, ...letter }) => letter)
   }
@@ -424,12 +476,100 @@ export class Asks {
 
   read(ids: readonly string[]): void {
     if (this.closed) throw new DomainError("CLOSING")
-    for (const id of ids) {
+    const turns: Letter[] = []
+    const tells: Letter[] = []
+    const at = this.now()
+    for (const id of new Set(ids)) {
       const letter = this.letters.get(id)
-      if (letter?.state === "open" && letter.content.kind === "tell")
-        this.put({ ...letter, state: "read" })
+      if (letter?.state !== "open") continue
+      if (letter.content.kind === "turn") turns.push(letter)
+      else if (letter.content.kind === "tell")
+        tells.push({ ...letter, state: "read", settledAt: at })
     }
+    // A read of many is one removal, one save and one listing; a tell stays as history.
+    if (turns.length > 0) this.save(() => this.records.removeLetters(turns.map(({ id }) => id)))
+    if (tells.length > 0) this.save(() => this.records.saveLetters(tells))
+    this.forgetTurns(turns)
+    for (const letter of tells) this.keep(letter)
+    for (const terminalId of new Set(tells.map((letter) => letter.terminalId)))
+      this.host.changed(terminalId)
+    if (turns.length > 0 || tells.length > 0) this.publish()
     this.maintain()
+  }
+
+  /**
+   * Stores the finished turn that ended at `at` as a letter of `owner`'s terminal, or
+   * updates the one stored for that end. `owner` is whose it was when the end was seen.
+   * Nothing once closed. The terminal's 51st unread turn removes its oldest.
+   */
+  recordTurn(owner: Owner, at: number, fields: TurnFields): void {
+    if (this.closed) return
+    if (this.turnAt(owner.terminalId, at)) {
+      this.amendTurn(owner.terminalId, at, fields)
+      return
+    }
+    const letter: Letter = {
+      id: randomUUID(),
+      ...owner,
+      at,
+      content: { kind: "turn", ...fields },
+      state: "open",
+    }
+    this.save(() => this.records.saveLetter(letter))
+    this.keep(letter)
+    const unread = [...(this.byTerminal.get(owner.terminalId)?.values() ?? [])]
+      .filter(isTurn)
+      .toSorted((a, b) => a.at - b.at)
+    const excess = unread.slice(0, Math.max(0, unread.length - maxUnreadTurns))
+    if (excess.length > 0) {
+      log.warn("inbox.turns-capped", "Novadeck dropped the oldest unread turns of a terminal", {
+        data: { count: excess.length },
+      })
+      this.save(() => this.records.removeLetters(excess.map(({ id }) => id)))
+      this.forgetTurns(excess)
+    }
+    this.publish()
+  }
+
+  /**
+   * Changes the stored turn that ended at `at` to `fields`, or removes it for null (the end
+   * turned out otherwise). Nothing where none is stored, as after it was read.
+   */
+  amendTurn(terminalId: string, at: number, fields: TurnFields | null): void {
+    if (this.closed) return
+    const letter = this.turnAt(terminalId, at)
+    if (!letter) return
+    if (!fields) {
+      this.save(() => this.records.removeLetters([letter.id]))
+      this.forgetTurns([letter])
+      this.publish()
+      return
+    }
+    const content = { kind: "turn" as const, ...fields }
+    if (JSON.stringify(content) === JSON.stringify(letter.content)) return
+    const next = { ...letter, content }
+    this.save(() => this.records.saveLetter(next))
+    this.keep(next)
+    this.publish()
+  }
+
+  /** Whether a finished turn of the terminal may be stored: Asks is open and the terminal exists. */
+  accepts(terminalId: string): boolean {
+    return !this.closed && this.host.exists(terminalId)
+  }
+
+  /** Strips murmur's gists from the stored turns, as murmur is off. */
+  clearGists(): void {
+    if (this.closed) return
+    const cleared = [...this.letters.values()].flatMap((letter) =>
+      letter.content.kind === "turn" && letter.content.gist !== null
+        ? [{ ...letter, content: { ...letter.content, gist: null } }]
+        : [],
+    )
+    if (cleared.length === 0) return
+    this.save(() => this.records.saveLetters(cleared))
+    for (const letter of cleared) this.keep(letter)
+    this.publish()
   }
 
   rooted(terminalId: string, changes: readonly RootChange[]): void {
@@ -469,7 +609,14 @@ export class Asks {
     if (this.closed) return
     const owner = this.host.owner(terminalId)
     if (!owner) this.guesses.delete(terminalId)
+    const exists = this.existence()
+    if (!exists(terminalId)) {
+      const turns = [...(this.byTerminal.get(terminalId)?.values() ?? [])].filter(isTurn)
+      if (turns.length > 0) this.save(() => this.records.removeLetters(turns.map(({ id }) => id)))
+      this.forgetTurns(turns)
+    }
     for (const letter of this.byTerminal.get(terminalId)?.values() ?? []) {
+      if (letter.content.kind === "turn") continue
       // The session an ask lapsed for is back: it is answerable again, as it was.
       if (letter.state === "gone" && letter.lapsed && same(letter, owner)) {
         const { settledAt: _settledAt, lapsed: _lapsed, ...reopened } = letter
@@ -481,7 +628,7 @@ export class Asks {
         letter.state === "open" &&
         (letter.content.kind === "ask"
           ? !same(letter, owner) && (!owner || !this.guesses.has(terminalId))
-          : !this.host.exists(terminalId))
+          : !exists(terminalId))
       )
         this.put({ ...letter, state: "gone" })
     }
@@ -493,9 +640,11 @@ export class Asks {
     const letters = this.byTerminal.get(terminalId)?.values() ?? []
     const threads = new Map(listing.threads.map((thread) => [thread.id, thread]))
     for (const letter of letters) {
+      const content = letter.content
+      // Finished turns are not messages.
+      if (content.kind === "turn") continue
       const thread = `t-${letter.id.replaceAll("-", "")}`
       const known = threads.get(thread)
-      const content = letter.content
       let text = this.texts.get(letter.id)
       if (text === undefined) {
         text =
@@ -564,6 +713,7 @@ export class Asks {
       ? [...this.byTerminal].filter(([id]) => id === terminalId)
       : [...this.byTerminal]
     this.abandon(groups, at)
+    const exists = this.existence()
     for (const [, letters] of groups) {
       const resolved = [...letters.values()]
         .filter((letter) => letter.state !== "open")
@@ -591,7 +741,7 @@ export class Asks {
       for (const letter of letters.values())
         if (
           ids.has(letter.id) ||
-          (!this.host.exists(letter.terminalId) &&
+          (!exists(letter.terminalId) &&
             at - (letter.settledAt ?? letter.at) >= retentionMs &&
             !this.host.replyState(letter.id))
         )
@@ -704,6 +854,30 @@ export class Asks {
       changed.add(letter.terminalId)
     }
     for (const id of changed) this.changed(id)
+  }
+  /** `host.exists`, looked up once per terminal for as long as the returned function is used. */
+  private existence(): (terminalId: string) => boolean {
+    const known = new Map<string, boolean>()
+    return (terminalId) => {
+      let found = known.get(terminalId)
+      if (found === undefined) known.set(terminalId, (found = this.host.exists(terminalId)))
+      return found
+    }
+  }
+  private turnAt(terminalId: string, at: number): Letter | undefined {
+    for (const letter of this.byTerminal.get(terminalId)?.values() ?? [])
+      if (letter.content.kind === "turn" && letter.at === at) return letter
+    return undefined
+  }
+  /** Forgets turn letters already removed from the records: no mail changes, they are no messages. */
+  private forgetTurns(letters: readonly Letter[]): void {
+    for (const letter of letters) {
+      this.letters.delete(letter.id)
+      this.open.delete(letter.id)
+      const terminal = this.byTerminal.get(letter.terminalId)
+      terminal?.delete(letter.id)
+      if (!terminal?.size) this.byTerminal.delete(letter.terminalId)
+    }
   }
   private changed(terminalId: string): void {
     this.host.changed(terminalId)

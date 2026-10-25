@@ -7,7 +7,7 @@ import {
   type InboxContent,
   type InboxItem,
   type InboxSource,
-  type InboxUnread,
+  type InboxTurn,
 } from "./inbox"
 import { companionKeyId } from "./items"
 import {
@@ -23,8 +23,8 @@ import type { TerminalMetadata, Workspace, WorkspaceProject, WorkspaceSession } 
 
 // The Inbox's items, as a backend that builds them from the app's own state derives them:
 // what every agent terminal waits on the person for, every item its own row, from the
-// terminals' statuses (a finished turn, unless the agent's lead runs, its error, a
-// usage limit), the messages held for
+// terminals' statuses (a usage limit), the stored finished turns (unless the agent's lead
+// runs, a failed one its error), the messages held for
 // release, the requests of the agents that ask, and what agents wrote through Novadeck's MCP
 // `ask` and `tell`. The runner's Inbox and the demo's keep it current.
 
@@ -52,7 +52,8 @@ export type InboxLetter = {
 
 export type InboxInputs = {
   readonly workspace: Workspace
-  readonly unread: InboxUnread
+  // The backend's stored finished turns, read ones gone.
+  readonly turns: readonly InboxTurn[]
   readonly mail: MailState
   readonly letters: readonly InboxLetter[]
   // The requests of each terminal whose detail is open, by terminal id, oldest first.
@@ -186,9 +187,8 @@ export const leadHearsOf = (workspace: Workspace, context: string, terminalId: s
 
 // Each terminal's items, each its own row.
 const candidates = (
-  { unread, mail, requests, now, caseless, longHoldMs }: InboxInputs,
+  { mail, requests, now, longHoldMs }: InboxInputs,
   here: Where,
-  where: readonly Where[],
 ): readonly InboxItem[] => {
   const { project, session, terminal } = here
   const agent = agentOf(terminal)
@@ -235,9 +235,10 @@ const candidates = (
       trouble: { type: "waits", waits: held.waits, count: held.count },
     })
 
+  // A usage limit is a state of the current end, not a stored row: with its window known, limit
+  // trouble; limited with none found, failed trouble. It leaves when the agent works again.
   const turn = status.lastTurn
   if (turn && !status.working) {
-    const mark = unread[`${project.id}/${session.id}`]?.[terminal.id]
     if (turn.limit) {
       add(`limit:${terminal.id}:${turn.at}`, turn.at, true, {
         kind: "trouble",
@@ -249,20 +250,10 @@ const candidates = (
           evidence: [{ text: turn.error ?? "Usage limit reached", result: null, times: 1 }],
         },
       })
-    } else if (turn.outcome === "failed" && mark === "failed") {
-      add(`trouble:${terminal.id}:${turn.at}`, turn.at, true, {
+    } else if (turn.limited) {
+      add(`limit:${terminal.id}:${turn.at}`, turn.at, true, {
         kind: "trouble",
         trouble: { type: "failed", error: turn.error ?? null },
-      })
-    } else if (mark === "done" && !reportsToLead(here, where)) {
-      add(`update:${terminal.id}:${turn.at}`, turn.at, false, {
-        kind: "update",
-        update: {
-          type: "finished",
-          subject: turn.gist ?? turn.reply ?? "Finished its turn",
-          reply: turn.reply ?? "",
-          files: (turn.files ?? []).map((file) => relative(project.directory, file, caseless)),
-        },
       })
     }
   }
@@ -273,7 +264,7 @@ const candidates = (
 // terminal's items, and each thread held for release.
 export const inboxItems = (inputs: InboxInputs): InboxItem[] => {
   const where = whereOf(inputs.workspace)
-  const all = where.flatMap((here) => candidates(inputs, here, where))
+  const all = where.flatMap((here) => candidates(inputs, here))
   for (const letter of inputs.letters) {
     const here = where.find(
       ({ project, session, terminal }) =>
@@ -298,6 +289,55 @@ export const inboxItems = (inputs: InboxInputs): InboxItem[] => {
       stopped: letter.content.kind === "ask" && !agentWorking(here.terminal),
       seen: false,
       ...content,
+    })
+  }
+
+  // A stored turn shows while its terminal exists with the same handle, whatever runs in it.
+  // A completed one is the lead's to hear of while the lead's agent runs; a failed one is
+  // trouble that stops the agent only while it is the terminal's current end and the agent
+  // rests, and informs otherwise.
+  for (const row of inputs.turns) {
+    const here = where.find(
+      ({ project, session, terminal }) =>
+        project.id === row.projectId &&
+        session.id === row.workspaceSessionId &&
+        terminal.id === row.terminalId &&
+        (terminal.handle ?? "") === row.handle,
+    )
+    if (!here) continue
+    const source = sourceOf(here, row.agent)
+    if (row.outcome === "completed") {
+      if (reportsToLead(here, where)) continue
+      all.push({
+        id: row.id,
+        source,
+        at: row.at,
+        stopped: false,
+        seen: false,
+        kind: "update",
+        update: {
+          type: "finished",
+          subject: row.gist ?? row.reply ?? "Finished its turn",
+          reply: row.reply ?? "",
+          files: row.files.map((file) => relative(here.project.directory, file, inputs.caseless)),
+          stored: true,
+        },
+      })
+      continue
+    }
+    const { terminal } = here
+    const current =
+      terminal.state === "running" &&
+      terminal.agent?.lastTurn?.at === row.at &&
+      !agentWorking(terminal)
+    all.push({
+      id: row.id,
+      source,
+      at: row.at,
+      stopped: current,
+      seen: false,
+      kind: "trouble",
+      trouble: { type: "failed", error: row.error, stored: true },
     })
   }
 

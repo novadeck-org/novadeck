@@ -82,6 +82,8 @@ export type DescribingHost = {
   readonly names: () => Names<Record>
   readonly saves: () => Saves
   readonly streams: () => Streams<Record>
+  /** Strips murmur's gists from the stored finished turns. */
+  readonly clearGists: () => void
 }
 
 /**
@@ -146,7 +148,8 @@ export const murmurHost = (host: DescribingHost): MurmurHost => ({
   },
   cleared: () => {
     // Murmur is off or gone: its titles go, running terminals' and saved ones', and the
-    // gists it wrote.
+    // gists it wrote, those of stored turns too.
+    host.clearGists()
     for (const record of host.records()) {
       const { bound } = record
       const next = bound && withoutNotes(bound.activity)

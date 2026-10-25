@@ -470,6 +470,27 @@ shows stopped only once the agent has ended its turn, not because it called the 
 An unread tell stays until read while its terminal exists, including when the agent exits
 or starts a new session; it keeps the original agent attribution.
 
+A third kind of letter is the runner's own, not an agent's: a **finished turn**
+(`content.kind: "turn"`, outcome `completed` or `failed`, with the reply, error, murmur's
+gist and the files written). The runner records one for each turn end it sees, in
+`terminals/turn-ends.ts`. A failed end is recorded at once; a completed one after 700 ms
+(`finishGraceMs`, mirrored in the client), once the agent is not working and the person's
+Escape, if any, has had its verdict window (`escapeVerdictMs`), so an end its harness corrects
+to an interruption within that window is never stored. A completed end followed by another
+end or a new turn within the 700 ms gets no row, as on the client. An end whose session ends
+inside the grace (`claude -p`, `codex exec`, `/exit`, a shell exit) is stored all the same, by
+the flush in `Bindings.unwatch`, which every way a binding ends passes through; that flush
+doesn't look at the live binding, so an end the agent had already followed with a new turn
+inside the grace is stored too. Nothing is recorded for an interrupted, unknown or limited end, an end shown while a
+request waits on the person, or an agent with no Inbox owner. The same end told again updates
+its row in place; an end that turns limited removes it (an Escape's correction is a new end,
+which never had a row). The reply, error and gist go through the transcript redactor before
+they are stored (null where it fails, never the unmasked text); file paths are kept as the
+activity has them. A turn row never reaches Messages and is not mail; it stays until
+read, which removes it, up to fifty unread per terminal (the oldest goes first), and it goes with
+its terminal. A usage limit is no row: it is derived from `lastTurn.limited` and the
+limit window, and leaves when the agent works again.
+
 The runner's `asks` table keeps these lifetimes and their Messages history. Every
 letter is bound to the terminal, project, workspace session and exact agent session.
 An ask clears when answered, withdrawn or its agent session ends. A runner restart

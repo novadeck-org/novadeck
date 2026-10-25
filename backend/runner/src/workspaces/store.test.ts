@@ -1840,3 +1840,39 @@ describe("murmur's settings", () => {
     expect(reopened.voiceCheck()).toBeNull()
   })
 })
+
+describe("the Inbox's letters", () => {
+  const letter = (at: number) => ({
+    id: randomUUID(),
+    terminalId: randomUUID(),
+    projectId: randomUUID(),
+    workspaceSessionId: randomUUID(),
+    agent: "claude" as const,
+    sessionId: "s",
+    handle: "moth",
+    at,
+    state: "open" as const,
+    content: { kind: "tell" as const, subject: "Hi", body: "There" },
+  })
+
+  it("saves several letters as one transaction, and a failure saves none", ({
+    directory,
+    store,
+  }) => {
+    const workspace = store(join(directory(), "workspace.sqlite"))
+    const [a, b] = [letter(1), letter(2)]
+    workspace.saveLetters([a!, b!])
+    expect(workspace.letters().map(({ id }) => id)).toEqual([a!.id, b!.id])
+    const broken = { ...letter(3), content: 1n } as never
+    expect(() => workspace.saveLetters([letter(3), broken])).toThrow()
+    expect(workspace.letters()).toHaveLength(2)
+  })
+
+  it("removes several letters as one transaction", ({ directory, store }) => {
+    const workspace = store(join(directory(), "workspace.sqlite"))
+    const all = [letter(1), letter(2), letter(3)]
+    workspace.saveLetters(all)
+    workspace.removeLetters([all[0]!.id, all[2]!.id])
+    expect(workspace.letters().map(({ id }) => id)).toEqual([all[1]!.id])
+  })
+})

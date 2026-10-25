@@ -4,19 +4,26 @@ import {
   type Inbox,
   type InboxAnswer,
   type InboxBinding,
+  type InboxFinish,
   type InboxItem,
   type InboxSource,
   type InboxState,
+  type InboxTurn,
 } from "@novadeck/core/inbox"
 import {
   answerFailure,
   answerItem,
   createInboxTracker,
-  finishOf,
+  isTurnRow,
   keepInbox,
   keyOf,
 } from "@novadeck/core/inbox-answers"
-import { dialogMs, inboxItems, type Asked } from "@novadeck/core/inbox-items"
+import {
+  dialogMs,
+  inboxItems,
+  type Asked,
+  type InboxLetter as AskLetter,
+} from "@novadeck/core/inbox-items"
 import type { MailState } from "@novadeck/core/messages"
 import { createStore, type Store } from "@novadeck/core/store"
 import type { TerminalMetadata, Workspace } from "@novadeck/core/types"
@@ -59,6 +66,8 @@ export type InboxStreams = {
 
 export type RunnerInbox = Inbox & {
   readonly bind: NonNullable<Inbox["bind"]>
+  readonly turns: NonNullable<Inbox["turns"]>
+  readonly readFinishes: NonNullable<Inbox["readFinishes"]>
   // Ends every stream it opened; the backend is stopping.
   readonly end: () => void
 }
@@ -71,6 +80,34 @@ type Reading = {
   retrying: ReturnType<typeof setTimeout> | undefined
   backoff: number
 }
+
+// The letters that are an ask or a tell; a finished turn is `turnOf`.
+type AskOrTell = InboxLetter & { readonly content: AskLetter["content"] }
+const askOrTell = (letter: InboxLetter): letter is AskOrTell => letter.content.kind !== "turn"
+
+const turnOf = (letter: InboxLetter): InboxTurn | undefined => {
+  const { content } = letter
+  if (content.kind !== "turn") return undefined
+  return {
+    id: letter.id,
+    projectId: letter.projectId,
+    workspaceSessionId: letter.workspaceSessionId,
+    terminalId: letter.terminalId,
+    handle: letter.handle,
+    agent: letter.agent,
+    at: letter.at,
+    outcome: content.outcome,
+    reply: content.reply,
+    gist: content.gist,
+    error: content.error,
+    files: content.files,
+  }
+}
+
+const sameTurns = (
+  a: readonly InboxTurn[] | undefined,
+  b: readonly InboxTurn[] | undefined,
+): boolean => a === b || (!!a && !!b && JSON.stringify(a) === JSON.stringify(b))
 
 const askedOf = (detail: AgentDetail): readonly Asked[] => {
   const root = detail.actors.find((actor) => actor.role === "root")?.ref ?? null
@@ -94,13 +131,35 @@ export const createRunnerInbox = (
 ): RunnerInbox => {
   const state = createStore<InboxState>(emptyInbox)
   let binding: InboxBinding | null = null
-  let letters: readonly InboxLetter[] = []
+  // Asks and tells, as the runner last listed them, and its finished turns (undefined until
+  // the first listing, and after the listing ended for good).
+  let letters: readonly AskOrTell[] = []
+  let listed: readonly InboxTurn[] | undefined
+  const turns = createStore<readonly InboxTurn[] | undefined>(undefined)
+  // The turn rows read on the person's looking: out of `turns` at once, until a listing no
+  // longer holds them. `inflight` the ones whose read is on its way; `queued` the ones to
+  // send at the end of this tick.
+  const hidden = new Set<string>()
+  const inflight = new Set<string>()
+  let queued: string[] = []
+  let readRetry: ReturnType<typeof setTimeout> | undefined
+  let backoff = retryMs
   let lettersStream: AsyncIterableIterator<InboxLetter[], undefined> | undefined
   const stopLetters = (): void => {
     const stream = lettersStream
     lettersStream = undefined
     letters = []
+    forgetTurns()
     void stream?.return?.()?.catch?.(() => {})
+  }
+  const forgetTurns = (): void => {
+    listed = undefined
+    hidden.clear()
+    inflight.clear()
+    queued = []
+    clearTimeout(readRetry)
+    readRetry = undefined
+    backoff = retryMs
   }
   let unsubscribe: (() => void)[] = []
   const readings = new Map<string, Reading>()
@@ -194,9 +253,82 @@ export const createRunnerInbox = (
         }, detailGraceMs)
   }
 
+  // Sends the reads of turn rows, a thousand ids at a time. A failed one is tried again with
+  // the next listing, or after a backoff, never because of its own change.
+  const sendReads = (ids: readonly string[]): void => {
+    const next = binding
+    if (!next || ended) return
+    const fresh = ids.filter((id) => !inflight.has(id))
+    for (let start = 0; start < fresh.length; start += 1000) {
+      const batch = fresh.slice(start, start + 1000)
+      for (const id of batch) inflight.add(id)
+      track(Promise.resolve().then(() => streams.asks.read(batch))).then(
+        () => {
+          if (binding !== next) return
+          for (const id of batch) inflight.delete(id)
+          backoff = retryMs
+        },
+        () => {
+          if (binding !== next) return
+          for (const id of batch) inflight.delete(id)
+          clearTimeout(readRetry)
+          readRetry = setTimeout(() => {
+            readRetry = undefined
+            retryReads()
+          }, backoff)
+          backoff = Math.min(backoff * 2, retryCapMs)
+        },
+      )
+    }
+  }
+
+  // Sends again the reads that are still listed and not on their way.
+  const retryReads = (): void => {
+    if (!listed) return
+    const held = new Set(listed.map(({ id }) => id))
+    sendReads([...hidden].filter((id) => held.has(id)))
+  }
+
+  // Hides turn rows at once and reads them; a row already hidden is left to its retry.
+  const hide = (ids: readonly string[]): void => {
+    const fresh = ids.filter((id) => !hidden.has(id))
+    if (fresh.length === 0) return
+    for (const id of fresh) hidden.add(id)
+    if (queued.length === 0)
+      queueMicrotask(() => {
+        const send = queued
+        queued = []
+        sendReads(send)
+      })
+    queued.push(...fresh)
+    recompute()
+  }
+
+  // A change that a subscriber to `turns` answers with a read (the UI's view-read) recomputes
+  // inside this one: it is run again after, not nested, so what publishes is the latest.
+  let computing = false
+  let dirty = false
   const recompute = (): void => {
+    if (computing) {
+      dirty = true
+      return
+    }
+    computing = true
+    try {
+      do {
+        dirty = false
+        compute()
+      } while (dirty)
+    } finally {
+      computing = false
+    }
+  }
+
+  const compute = (): void => {
     if (!binding || ended) return
     const workspace = binding.workspace.getSnapshot()
+    const visible = listed?.filter(({ id }) => !hidden.has(id))
+    if (!sameTurns(turns.getSnapshot(), visible)) turns.update(() => visible)
     follow(workspace)
     const requests = Object.fromEntries(
       [...readings].map(([id, reading]) => [id, reading.requests] as const),
@@ -204,7 +336,7 @@ export const createRunnerInbox = (
     const at = now()
     const found = inboxItems({
       workspace,
-      unread: binding.unread.getSnapshot(),
+      turns: visible ?? [],
       mail: mail.getSnapshot(),
       letters,
       requests,
@@ -295,12 +427,14 @@ export const createRunnerInbox = (
     }
     if (item.kind === "update" && given.kind === "update" && item.update.type === "told")
       return tracker.call(id, () => streams.asks.read([id]))
-    const { read } = binding
     answerItem(tracker, item, given, {
       request: (_, { request }, chat) => streams.answer(key, request.id, chat),
       release: (thread) => streams.release(thread),
       stop: (thread) => streams.stop(thread),
-      read,
+      read: (ids) => {
+        for (const each of ids) tracker.call(each, () => streams.asks.read([each]))
+      },
+      forget: hide,
       send: (at, text) => streams.send(at, text),
       interrupt: (at) => streams.interrupt(at),
       terminal: () => terminalOf(item.source),
@@ -313,32 +447,45 @@ export const createRunnerInbox = (
     see: (id) => {
       if (find(id)) tracker.see(id)
     },
+    turns,
+    readFinishes: (finishes: readonly InboxFinish[]) => {
+      if (!listed) return
+      const wanted = new Set(finishes.map(({ context, terminalId }) => `${context}/${terminalId}`))
+      hide(
+        listed
+          .filter((row) =>
+            wanted.has(`${row.projectId}/${row.workspaceSessionId}/${row.terminalId}`),
+          )
+          .map(({ id }) => id),
+      )
+    },
     readAll: () => {
       const tells = letters.filter((letter) => letter.content.kind === "tell").map(({ id }) => id)
-      if (tells.length > 0) {
-        tracker.submit(tells)
-        recompute()
-        const live = tracker.guard()
-        for (let start = 0; start < tells.length; start += 1000) {
-          const batch = tells.slice(start, start + 1000)
-          track(streams.asks.read(batch)).catch((error: unknown) => {
-            if (!live()) return
-            for (const id of batch) tracker.fail(id, answerFailure(error))
-          })
-        }
-      }
-      const updates = state
+      // The finished updates and the failed rows that only inform, as shown.
+      const rows = state
         .getSnapshot()
-        .items.filter((item) => item.kind === "update" && item.update.type === "finished")
-      if (updates.length > 0 && binding) binding.read(updates.map(finishOf))
+        .items.filter(
+          (item) =>
+            (item.kind === "update" && item.update.type === "finished") ||
+            (isTurnRow(item) && !item.stopped),
+        )
+        .map(({ id }) => id)
+      const ids = [...tells, ...rows]
+      if (ids.length === 0) return
+      tracker.submit(ids)
+      recompute()
+      const live = tracker.guard()
+      for (let start = 0; start < ids.length; start += 1000) {
+        const batch = ids.slice(start, start + 1000)
+        track(Promise.resolve().then(() => streams.asks.read(batch))).catch((error: unknown) => {
+          if (!live()) return
+          for (const id of batch) tracker.fail(id, answerFailure(error))
+        })
+      }
     },
     bind: (next) => {
       binding = next
-      unsubscribe = [
-        next.workspace.subscribe(recompute),
-        next.unread.subscribe(recompute),
-        mail.subscribe(recompute),
-      ]
+      unsubscribe = [next.workspace.subscribe(recompute), mail.subscribe(recompute)]
       stopLetters()
       const stream = streams.asks.watch()
       lettersStream = stream
@@ -346,8 +493,12 @@ export const createRunnerInbox = (
         try {
           for await (const snapshot of stream) {
             if (lettersStream !== stream || binding !== next || ended) return
-            letters = snapshot
+            letters = snapshot.filter(askOrTell)
+            listed = snapshot.flatMap((letter) => turnOf(letter) ?? [])
+            const held = new Set(listed.map(({ id }) => id))
+            for (const id of hidden) if (!held.has(id)) hidden.delete(id)
             recompute()
+            retryReads()
           }
         } catch {
           // The client reconnects subscriptions; a permanently closed stream drops its letters.
@@ -355,6 +506,7 @@ export const createRunnerInbox = (
         if (lettersStream !== stream) return
         lettersStream = undefined
         letters = []
+        forgetTurns()
         recompute()
       })()
       recompute()
@@ -367,6 +519,7 @@ export const createRunnerInbox = (
         tracker.reset()
         for (const id of readings.keys()) close(id)
         replies.clear()
+        turns.update(() => undefined)
         state.update(() => emptyInbox)
       }
     },

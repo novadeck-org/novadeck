@@ -6,6 +6,7 @@ import {
   closeSheet,
   held,
   initialView,
+  hasUpdates,
   needing,
   ringing,
   nextItem,
@@ -195,6 +196,45 @@ describe("What the rail counts", () => {
   context("with updates among the items", () => {
     it("leaves them out", () => {
       expect(ids(needing([approve("a", 1), update("u", 2)]))).toEqual(["a"])
+    })
+  })
+
+  context("with failed turns among the items", () => {
+    const failed = (id: string, stopped: boolean): InboxItem => ({
+      id,
+      source,
+      at: 1,
+      stopped,
+      seen: false,
+      kind: "trouble",
+      trouble: { type: "failed", error: "boom", stored: true },
+    })
+
+    it("counts the agent's current one, and leaves an older one out, as it only informs", () => {
+      const items = [failed("now", true), failed("old", false)]
+      expect(ids(needing(items))).toEqual(["now"])
+      expect(ids(ringing(items))).toEqual(["now"])
+    })
+
+    it("has Mark all read something to read for an older one only", () => {
+      expect(hasUpdates([failed("now", true)])).toBe(false)
+      expect(hasUpdates([failed("old", false)])).toBe(true)
+    })
+  })
+
+  context("when stepping to the next item", () => {
+    it("skips a failed turn that only informs", () => {
+      const informs: InboxItem = {
+        id: "old",
+        source,
+        at: 1,
+        stopped: false,
+        seen: false,
+        kind: "trouble",
+        trouble: { type: "failed", error: "boom", stored: true },
+      }
+      expect(nextItem([informs, approve("a", 2)], null, { answering: {} })?.id).toBe("a")
+      expect(nextItem([informs], null, { answering: {} })).toBeUndefined()
     })
   })
 

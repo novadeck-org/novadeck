@@ -1,3 +1,4 @@
+import type { Inbox } from "@novadeck/core/inbox"
 import type { BackendAction, TerminalKey } from "@novadeck/core/port"
 import { isAgentProgram } from "@novadeck/core/process"
 import { workspaceFromSeed } from "@novadeck/core/seed"
@@ -189,7 +190,11 @@ const panel = (selected: string | undefined, { keeping }: { keeping?: number } =
     workspace: () => workspace.getSnapshot(),
     note: (text) => void notes.push(text),
   }
-  const states = createDemoStates(verbs(calls, released, workspace))
+  const read = vi.fn<NonNullable<Inbox["readFinishes"]>>()
+  const states = createDemoStates(
+    verbs(calls, released, workspace),
+    () => ({ readFinishes: read }) as unknown as Inbox,
+  )
   const find = (label: string) =>
     states.groups.flatMap((group) => group.actions).find((action) => action.label === label)!
   const terminal = (slot: string) =>
@@ -198,6 +203,7 @@ const panel = (selected: string | undefined, { keeping }: { keeping?: number } =
       .projects[0]!.history[0]!.state.roster.terminals.find((each) => each.id === id(slot))
   return {
     states,
+    read,
     actionContext,
     notes,
     added,
@@ -594,6 +600,20 @@ describe("demo states", () => {
       expect(calls.filter((call) => call.verb === "work").length).toBeGreaterThanOrEqual(12)
       vi.advanceTimersByTime(100)
       expect(calls.filter((call) => call.verb === "rest").length).toBeGreaterThanOrEqual(12)
+    })
+
+    it("reads the finishes the Inbox stored, of every terminal", () => {
+      const { run, read, actionContext } = panel("04")
+      run("Clear waiting agents")
+      const finishes = actionContext.workspace()!.projects.flatMap((each) =>
+        each.history.flatMap((owner) =>
+          owner.state.roster.terminals.map((entry) => ({
+            context: `${each.id}/${owner.id}`,
+            terminalId: entry.id,
+          })),
+        ),
+      )
+      expect(read).toHaveBeenCalledExactlyOnceWith(finishes)
     })
 
     it("has an agent work at a prompt that may hold an unread finish, then leave", () => {

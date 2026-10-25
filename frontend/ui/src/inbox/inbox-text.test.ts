@@ -248,6 +248,17 @@ describe("How an item stands", () => {
     expect(standingOf(draft("a"), 6 * 60_000, false)).toEqual({ status: "6m ago", tone: "calm" })
   })
 
+  it("says how long ago a failed turn that no longer stands as the current end happened", () => {
+    const old: InboxItem = {
+      ...base,
+      stopped: false,
+      kind: "trouble",
+      trouble: { type: "failed", error: "boom", stored: true },
+    }
+    expect(standingOf(old, 6 * 60_000, false)).toEqual({ status: "6m ago", tone: "calm" })
+    expect(standingOf({ ...old, stopped: true }, 6 * 60_000, false).status).toBe("waiting 6m")
+  })
+
   it("is waiting for a stopped agent, and working for the rest", () => {
     expect(standingOf(permission("Bash", "x"), 6 * 60_000, false)).toEqual({
       status: "waiting 6m",

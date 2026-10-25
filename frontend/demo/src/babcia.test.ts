@@ -1,7 +1,7 @@
 import type { InboxItem } from "@novadeck/core/inbox"
 import { workspaceFromSeed } from "@novadeck/core/seed"
 import { activeSession } from "@novadeck/core/state"
-import { createStore, createWorkspaceStore } from "@novadeck/core/store"
+import { createWorkspaceStore } from "@novadeck/core/store"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
 import { babcia, babciaCuesOf, babciaIntroOf } from "./babcia"
@@ -26,10 +26,9 @@ const open = () => {
   )
   backend.commit(store.getSnapshot(), [])
   backend.start!({ dispatch: (actions) => store.transact(actions as never), open: () => {} })
-  const unread = createStore<Record<string, Record<string, "done" | "failed">>>({})
   const inbox = backend.inbox
   if (!isDemoInbox(inbox)) throw new Error("the Babcia demo has the demo's Inbox")
-  inbox.bind!({ workspace: store, unread, read: () => {} })
+  inbox.bind!({ workspace: store })
   const cues = babciaCuesOf(backend)!
   const terminals = () => activeSession(store.getSnapshot())!.state.roster.terminals
   const terminal = (number: number) =>
@@ -39,7 +38,7 @@ const open = () => {
     return found?.state === "running" ? found.agent : undefined
   }
   const items = (): readonly InboxItem[] => inbox.state.getSnapshot().items
-  return { backend, store, inbox, cues, terminals, terminal, agent, items, unread }
+  return { backend, store, inbox, cues, terminals, terminal, agent, items }
 }
 
 describe("the Babcia demo", () => {
@@ -126,7 +125,7 @@ describe("the Babcia demo", () => {
   })
 
   it("fails one turn, which a typed reply sends back to work", async () => {
-    const { backend, cues, items, agent, unread } = open()
+    const { backend, cues, items, agent, inbox } = open()
     cues.fail()
     await vi.advanceTimersByTimeAsync(500)
     expect(agent(babcia.failing)).toMatchObject({
@@ -135,8 +134,14 @@ describe("the Babcia demo", () => {
     })
     // The agent said nothing of its own: the error is the harness's, as Codex records it.
     expect(agent(babcia.failing)?.lastTurn?.reply).toBeUndefined()
-    // The app marks a finish the person didn't see.
-    unread.update(() => ({ "bar-mleczny/initial": { [key(babcia.failing).terminalId]: "failed" } }))
+    // The Inbox stores the failed turn as a row, there from the moment it ended.
+    expect(inbox.turns?.getSnapshot()).toMatchObject([
+      {
+        terminalId: key(babcia.failing).terminalId,
+        outcome: "failed",
+        error: "stream disconnected",
+      },
+    ])
     expect(items()).toMatchObject([
       {
         kind: "trouble",
@@ -576,8 +581,9 @@ describe("the Babcia demo", () => {
     for (const number of [babcia.permission, babcia.plan, babcia.question])
       expect(agent(number)).toMatchObject({ attention: { count: 1 } })
     expect(agent(babcia.asking)?.lastTurn).toBeUndefined()
-    expect(items()).toHaveLength(4)
-    // The others ended.
+    expect(items().filter((item) => item.kind !== "update")).toHaveLength(4)
+    // The others ended, and each stored its finish as a row.
+    expect(items().filter((item) => item.kind === "update").length).toBeGreaterThan(10)
     expect(agent(babcia.shows)).toMatchObject({
       working: false,
       lastTurn: { outcome: "completed" },

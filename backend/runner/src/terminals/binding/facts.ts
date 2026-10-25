@@ -18,6 +18,7 @@ import type { Companion } from "../companion.js"
 import { failed } from "../failures.js"
 import type { Record } from "../record.js"
 import { hasRun } from "../records.js"
+import { TurnEnds, type TurnsHost } from "../turn-ends.js"
 import type { Typing } from "../typing.js"
 
 /**
@@ -49,6 +50,8 @@ export type BindingsHost = {
   ) => boolean
   /** Follows the root after the terminal's binding changed outside its hooks' reports. */
   readonly rebound: (record: Record) => void
+  /** Where finished turns are stored: the Inbox's letters and the redactor that masks their text. */
+  readonly turns: () => TurnsHost
   /** Whether process `pid` still runs. */
   readonly alive: (pid: string) => boolean
 }
@@ -60,6 +63,10 @@ export type BindingsHost = {
  * shows it. The binding itself, with its activity and telemetry, is a terminal record's `bound`.
  */
 export class Bindings {
+  private readonly ends = new TurnEnds({
+    turns: () => this.host.turns(),
+    owner: (terminalId) => this.host.messaging().inboxOwner(terminalId),
+  })
   constructor(readonly host: BindingsHost) {}
 
   /**
@@ -384,6 +391,8 @@ export class Bindings {
   }
 
   unwatch(record: Record): void {
+    // Ends still in their grace are stored: the session can say no more of them.
+    this.ends.flush(record.summary.id)
     record.watching?.abort()
     record.watching = null
     for (const { controller } of record.actorWatches.values()) controller.abort()
@@ -407,6 +416,8 @@ export class Bindings {
     const agent = bound?.binding.agent ?? null
     const ready = this.readyOf(record)
     const activity = bound ? activitySummary(bound.activity) : null
+    // Before the early return below: an Escape that settles changes nothing the summary shows.
+    this.ends.sight(record, activity)
     const telemetry = bound?.telemetry ? telemetrySummary(bound.telemetry) : null
     const agentRan = hasRun(record.agents)
     const { summary } = record

@@ -1307,6 +1307,12 @@ export class WorkspaceStore implements TerminalRecords, MailboxRecords, AskRecor
       ON CONFLICT (id) DO UPDATE SET record = excluded.record`
   }
 
+  saveLetters(letters: readonly Letter[]): void {
+    this.transaction(() => {
+      for (const letter of letters) this.saveLetter(letter)
+    })
+  }
+
   answerLetter(letter: Letter, message: Message): void {
     this.transaction(() => {
       this.saveMessage(message)
@@ -1315,9 +1321,11 @@ export class WorkspaceStore implements TerminalRecords, MailboxRecords, AskRecor
   }
 
   removeLetters(ids: readonly string[]): void {
-    this.forget(() => {
-      for (const id of ids) void this.queries.run`DELETE FROM asks WHERE id = ${id}`
-    })
+    this.forget(() =>
+      this.transaction(() => {
+        for (const id of ids) void this.queries.run`DELETE FROM asks WHERE id = ${id}`
+      }),
+    )
   }
 
   messages(): Message[] {

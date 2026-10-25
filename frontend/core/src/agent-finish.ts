@@ -1,5 +1,6 @@
 import { handleText } from "./handle"
-import type { AgentTurnEnd, TerminalMetadata } from "./types"
+import type { Store } from "./store"
+import type { AgentTurnEnd, TerminalMetadata, Workspace } from "./types"
 
 // An agent that finished: its turn over on its own, completed or `failed` on an error,
 // with nothing it started left that wakes it, as subagents do, and nothing waiting on the
@@ -46,6 +47,8 @@ export const sightTurnEnd = (
 // interruption (Claude Code's transcript, Codex's `Interrupt`) within about half a second
 // of the key, a turn the person stopped (docs/harness-coverage.md, "Escape against a reply
 // on its way"). The end shown at the time is only a finish if it still stands then.
+// Mirrors the runner's constant of the same name, which records the same end after this long;
+// a test in runner-adapter keeps the two equal.
 export const finishGraceMs = 700
 
 // The finish the completed end at `at` still makes, shown still with the agent resting,
@@ -69,5 +72,90 @@ export const finishNotice = (
       ? `${handleText(terminal.handle)} ${what}: ${terminal.name}`
       : `${terminal.name} ${what}`,
     body: reply ?? (failed ? "Its turn failed." : "Finished its turn."),
+  }
+}
+
+// A finish `followFinishes` tells: the terminal's session context (`${projectId}/${sessionId}`)
+// and the terminal as it stands, the finish, and the end's `at`.
+export type FollowedFinish = {
+  readonly context: string
+  readonly terminal: TerminalMetadata
+  readonly finish: AgentFinish
+  readonly at: number
+}
+
+// Follows the workspace's agents finishing (see `sightTurnEnd`) and tells `onFinish` each
+// one. What each terminal showed when this started is taken in as seen. A completed end waits
+// `graceMs`, in case its harness then says the person's Escape stopped the turn (see
+// `finishGraceMs`), and is told only if it still stands then (`standingFinish`); one that
+// failed was there, and is told at once. Stops with the returned function.
+export const followFinishes = (
+  workspace: Store<Workspace>,
+  onFinish: (finish: FollowedFinish) => void,
+  { graceMs = finishGraceMs }: { graceMs?: number } = {},
+): (() => void) => {
+  let terminals = new Map<string, { context: string; terminal: TerminalMetadata }>()
+  const seen = new Map<string, SeenEnd>()
+  const waiting = new Set<ReturnType<typeof setTimeout>>()
+  let previous: Workspace | undefined
+  const sight = (snapshot: Workspace) => {
+    const before = terminals
+    terminals = new Map(
+      snapshot.projects.flatMap((project) =>
+        project.history.flatMap((session) =>
+          session.state.roster.terminals.map(
+            (terminal) =>
+              [
+                `${project.id}/${session.id}/${terminal.id}`,
+                { context: `${project.id}/${session.id}`, terminal },
+              ] as const,
+          ),
+        ),
+      ),
+    )
+    const finished: {
+      key: string
+      context: string
+      terminal: TerminalMetadata
+      finish: AgentFinish
+    }[] = []
+    for (const [key, { context, terminal }] of terminals) {
+      if (before.get(key)?.terminal === terminal) continue
+      const { seen: next, finish } = sightTurnEnd(seen.get(key), terminal)
+      seen.set(key, next)
+      if (finish) finished.push({ key, context, terminal, finish })
+    }
+    for (const key of seen.keys()) if (!terminals.has(key)) seen.delete(key)
+    return finished
+  }
+  const first = workspace.getSnapshot()
+  previous = first
+  sight(first)
+  const follow = (): void => {
+    const snapshot = workspace.getSnapshot()
+    if (snapshot.projects === previous?.projects) return
+    previous = snapshot
+    for (const each of sight(snapshot)) {
+      const at = seen.get(each.key)
+      if (at === null || at === undefined) continue
+      if (each.finish.failed || graceMs <= 0) {
+        onFinish({ context: each.context, terminal: each.terminal, finish: each.finish, at })
+        continue
+      }
+      const timer = setTimeout(() => {
+        waiting.delete(timer)
+        const current = terminals.get(each.key)
+        const finish = current ? standingFinish(current.terminal, at) : undefined
+        if (current && finish)
+          onFinish({ context: current.context, terminal: current.terminal, finish, at })
+      }, graceMs)
+      waiting.add(timer)
+    }
+  }
+  const stop = workspace.subscribe(follow)
+  return () => {
+    stop()
+    waiting.forEach(clearTimeout)
+    waiting.clear()
   }
 }

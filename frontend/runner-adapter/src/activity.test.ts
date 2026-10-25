@@ -211,6 +211,37 @@ describe("terminal activity", () => {
       })
     })
 
+    it("says an end ran into a usage limit, whether or not the window is known", () => {
+      const ended = (limited: true | undefined) =>
+        claude({
+          state: "idle",
+          attention: { pending: 0, kind: null },
+          subagents: [],
+          planning: false,
+          background: null,
+          waiting: null,
+          lastTurn: {
+            outcome: "failed",
+            reply: null,
+            at: 7,
+            gist: null,
+            error: null,
+            limit: null,
+            files: [],
+            ...(limited ? { limited } : {}),
+          },
+        }).status
+
+      expect(ended(true)).toEqual({
+        state: "running",
+        agent: { working: false, lastTurn: { outcome: "failed", limited: true, at: 7 } },
+      })
+      expect(ended(undefined)).toEqual({
+        state: "running",
+        agent: { working: false, lastTurn: { outcome: "failed", at: 7 } },
+      })
+    })
+
     it("carries murmur's gist of the reply", () => {
       const ended = (gist: string) =>
         claude({

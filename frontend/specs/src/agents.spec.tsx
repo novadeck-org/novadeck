@@ -11,6 +11,7 @@ import {
   isMac,
   labelled,
   openWorkspace,
+  sidebarPanel,
   tabDescription,
   terminal,
   terminalTab,
@@ -230,6 +231,43 @@ describe("An agent that finishes", () => {
       await expect.element(window).toHaveAttribute("aria-description", "Done · reply unread")
       // Its phase line marks it, its name bold; its description says it in words.
       await expect.element(window.getByText("Done", { exact: true })).not.toBeInTheDocument()
+      await terminalTab("Build").click()
+      await expect.element(window).toHaveAttribute("data-terminal-phase", "idle")
+    })
+  })
+
+  context("and then works another turn before they look", () => {
+    it("keeps its done mark through that turn, until they look at it", async () => {
+      await promptBuild()
+      // The person leaves the page with Build selected, as to another window.
+      const visibility = (state: "hidden" | "visible") => {
+        Object.defineProperty(document, "visibilityState", { value: state, configurable: true })
+        document.dispatchEvent(new Event("visibilitychange"))
+      }
+      onTestFinished(() => {
+        Reflect.deleteProperty(document, "visibilityState")
+        document.dispatchEvent(new Event("visibilitychange"))
+      })
+      visibility("hidden")
+      const window = terminal("Build")
+      await expect
+        .element(window, { timeout: 10_000 })
+        .toHaveAttribute("data-terminal-phase", "done")
+      await typeInto("Build", "Now the changelog")
+      await userEvent.keyboard("{Enter}")
+      await expect.element(window).toHaveAttribute("data-terminal-phase", "running")
+      await expect
+        .element(window, { timeout: 10_000 })
+        .toHaveAttribute("data-terminal-phase", "done")
+      // Both turns are rows of their own in the Inbox, the first not replaced by the second.
+      await sidebarPanel("Inbox").click()
+      const finished = page
+        .getByRole("list", { name: "Messages from your agents" })
+        .getByRole("listitem")
+        .filter({ hasText: /Done: (Ship the docs|Now the changelog)/ })
+      await expect.element(finished).toHaveLength(2)
+      visibility("visible")
+      await sidebarPanel("Terminals").click()
       await terminalTab("Build").click()
       await expect.element(window).toHaveAttribute("data-terminal-phase", "idle")
     })
