@@ -1708,7 +1708,9 @@ hook's deadline, which doesn't spend what is due.
   injection lasts one model call there, so `ask`'s description is what lasts); it comes
   back after a compaction where the harness reports one.
 - **The summary.** Due when a trigger fired since the last `summarize`: while there is
-  none it asks for one short line on the work's subject; after, it shows the current
+  none it asks for one short line on the work's subject, before the agent starts on the
+  work it was given, as the terminal has no title until then (left to choose when, agents
+  put it off for minutes); after, it shows the current
   summary and asks for an update only if the work moved to another subject or the summary
   holds status, PR or issue numbers, or details. When all are due they share the answer:
   the bar's, the Inbox's, then the summary's. The triggers:
