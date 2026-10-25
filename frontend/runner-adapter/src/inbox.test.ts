@@ -1,5 +1,5 @@
 import type { ChatDialog } from "@novadeck/core/conversation"
-import type { InboxBinding, InboxFinish, InboxUnread } from "@novadeck/core/inbox"
+import type { InboxBinding } from "@novadeck/core/inbox"
 import { dialogMs, type Asked } from "@novadeck/core/inbox-items"
 import {
   noMail,
@@ -108,8 +108,42 @@ const mailOf = (...threads: MessageThread[]): MailState => ({
   terminals: { "p/s/01": { handle: "moth", agent: true, threads } },
 })
 
-const done: InboxUnread = { "p/s": { "01": "done" } }
-const failed: InboxUnread = { "p/s": { "01": "failed" } }
+// The finished turns the tests state, by session context then terminal: each stands for the
+// stored row of that terminal's current end, as the runner lists it.
+type Marks = Readonly<Record<string, Readonly<Record<string, "done" | "failed">>>>
+const done: Marks = { "p/s": { "01": "done" } }
+const failed: Marks = { "p/s": { "01": "failed" } }
+
+const turnLettersOf = (workspace: Workspace, marks: Marks): InboxLetter[] =>
+  workspace.projects.flatMap((project) =>
+    project.history.flatMap((session) =>
+      session.state.roster.terminals.flatMap((terminal): InboxLetter[] => {
+        const mark = marks[`${project.id}/${session.id}`]?.[terminal.id]
+        const end = terminal.state === "running" ? terminal.agent?.lastTurn : undefined
+        if (!mark || !end) return []
+        return [
+          {
+            id: `${mark === "done" ? "update" : "trouble"}:${terminal.id}:${end.at}`,
+            terminalId: terminal.id,
+            projectId: project.id,
+            workspaceSessionId: session.id,
+            agent: "claude",
+            sessionId: "harness-session",
+            handle: terminal.handle ?? "",
+            at: end.at,
+            content: {
+              kind: "turn",
+              outcome: mark === "done" ? "completed" : "failed",
+              reply: end.reply ?? null,
+              gist: end.gist ?? null,
+              error: end.error ?? null,
+              files: [...(end.files ?? [])],
+            },
+          },
+        ]
+      }),
+    ),
+  )
 
 // A stream the test pushes into.
 const pushed = <T>() => {
@@ -170,14 +204,33 @@ const settle = () => vi.advanceTimersByTimeAsync(0)
 beforeEach(() => vi.useFakeTimers({ now: 10_000 }))
 afterEach(() => vi.useRealTimers())
 
-const setup = (workspace: Workspace, unread: InboxUnread = {}, mail: MailState = noMail) => {
+const setup = (workspace: Workspace, unread: Marks = {}, mail: MailState = noMail) => {
   const details: ReturnType<typeof pushed<AgentDetail>>[] = []
-  const letters = pushed<InboxLetter[]>()
+  const feed = pushed<InboxLetter[]>()
+  // What the runner lists: the asks and tells a test pushes, and the turn rows its marks
+  // stand for, which reading removes.
+  let others: InboxLetter[] = []
+  let rows: InboxLetter[] = []
+  const publish = () => feed.push([...others, ...rows])
+  const letters = {
+    stream: feed.stream,
+    returned: feed.returned,
+    push: (list: InboxLetter[]) => {
+      others = list
+      publish()
+    },
+  }
   const streams = {
     asks: {
-      watch: vi.fn<InboxStreams["asks"]["watch"]>(() => letters.stream),
+      watch: vi.fn<InboxStreams["asks"]["watch"]>(() => feed.stream),
       answer: vi.fn<InboxStreams["asks"]["answer"]>(async () => {}),
-      read: vi.fn<InboxStreams["asks"]["read"]>(async () => {}),
+      read: vi.fn<InboxStreams["asks"]["read"]>(async (ids) => {
+        const gone = ({ id, content }: InboxLetter) => content.kind === "turn" && ids.includes(id)
+        if (!rows.some(gone) && !others.some(gone)) return
+        rows = rows.filter((each) => !gone(each))
+        others = others.filter((each) => !gone(each))
+        publish()
+      }),
     },
     detail: vi.fn<InboxStreams["detail"]>(() => {
       const next = pushed<AgentDetail>()
@@ -191,21 +244,12 @@ const setup = (workspace: Workspace, unread: InboxUnread = {}, mail: MailState =
     stop: vi.fn<InboxStreams["stop"]>(),
   }
   const workspaceStore = createStore(workspace)
-  const unreadStore = createStore(unread)
   const mailStore = createStore(mail)
-  const read = vi.fn<(finishes: readonly InboxFinish[]) => void>((finishes) =>
-    unreadStore.update((current) => {
-      const next: Record<string, Record<string, "done" | "failed">> = {}
-      for (const [context, ends] of Object.entries(current)) {
-        const kept = Object.entries(ends).filter(
-          ([id]) =>
-            !finishes.some((finish) => finish.context === context && finish.terminalId === id),
-        )
-        if (kept.length > 0) next[context] = Object.fromEntries(kept)
-      }
-      return next
-    }),
-  )
+  // The runner now lists these marks' rows.
+  const marks = (next: Marks): void => {
+    rows = turnLettersOf(workspaceStore.getSnapshot(), next)
+    publish()
+  }
   // The messages track a release or a stop in the mail state, as the runner backend's do.
   const releasing = (id: string) =>
     mailStore.update((current) => ({
@@ -215,7 +259,8 @@ const setup = (workspace: Workspace, unread: InboxUnread = {}, mail: MailState =
   streams.release.mockImplementation(releasing)
   streams.stop.mockImplementation(releasing)
   const inbox = createRunnerInbox(streams, mailStore)
-  const binding: InboxBinding = { workspace: workspaceStore, unread: unreadStore, read }
+  const binding: InboxBinding = { workspace: workspaceStore }
+  if (Object.keys(unread).length > 0) marks(unread)
   const stop = inbox.bind(binding)
   const ids = () => inbox.state.getSnapshot().items.map((item) => item.id)
   return {
@@ -224,9 +269,8 @@ const setup = (workspace: Workspace, unread: InboxUnread = {}, mail: MailState =
     details,
     letters,
     workspaceStore,
-    unreadStore,
+    marks,
     mailStore,
-    read,
     stop,
     ids,
   }
@@ -236,11 +280,12 @@ const attention: AgentStatus = { working: true, attention: { kind: "permission",
 
 describe("The runner's Inbox", () => {
   describe("binding", () => {
-    it("shows what the app's state holds, and empties when it stops", () => {
+    it("shows what the app's state holds, and empties when it stops", async () => {
       const { inbox, stop, ids } = setup(
         workspaceOf(agentTerminal(1, { working: false, lastTurn: turn({ reply: "ok" }) })),
         done,
       )
+      await settle()
       expect(ids()).toEqual(["update:01:100"])
 
       stop()
@@ -248,15 +293,16 @@ describe("The runner's Inbox", () => {
       expect(inbox.state.getSnapshot()).toEqual({ items: [], answering: {}, failed: {} })
     })
 
-    it("follows the unread marks and the messages", () => {
+    it("follows the stored turns and the messages", async () => {
       const pair = workspaceOf(
         agentTerminal(1, { working: false, lastTurn: turn() }),
         agentTerminal(2, { working: false }, "codex"),
       )
-      const { unreadStore, mailStore, ids } = setup(pair)
+      const { marks, mailStore, ids } = setup(pair)
       expect(ids()).toEqual([])
 
-      unreadStore.update(() => done)
+      marks(done)
+      await settle()
       expect(ids()).toEqual(["update:01:100"])
 
       mailStore.update(() => mailOf(thread()))
@@ -265,16 +311,18 @@ describe("The runner's Inbox", () => {
       expect(ids()).toEqual(["update:01:100"])
     })
 
-    it("keeps an item's object while it reads the same", () => {
-      const { inbox, unreadStore } = setup(
+    it("keeps an item's object while it reads the same", async () => {
+      const { inbox, marks } = setup(
         workspaceOf(
           agentTerminal(1, { working: false, lastTurn: turn() }),
           agentTerminal(2, { working: false, lastTurn: turn({ at: 7 }) }),
         ),
         { "p/s": { "01": "done" } },
       )
+      await settle()
       const [before] = inbox.state.getSnapshot().items
-      unreadStore.update(() => ({ "p/s": { "01": "done", "02": "done" } }))
+      marks({ "p/s": { "01": "done", "02": "done" } })
+      await settle()
 
       expect(inbox.state.getSnapshot().items.find((item) => item.id === before!.id)).toBe(before)
     })
@@ -523,17 +571,48 @@ describe("The runner's Inbox", () => {
         agentTerminal(1, { working: false, lastTurn: turn({ reply: "a" }) }),
         agentTerminal(2, { working: false, lastTurn: turn({ reply: "b", at: 200 }) }),
       )
-    const both: InboxUnread = { "p/s": { "01": "done", "02": "done" } }
+    const both: Marks = { "p/s": { "01": "done", "02": "done" } }
 
-    it("reads one through the app, which drops it", () => {
-      const { inbox, read, ids } = setup(finished(), both)
+    it("reads one by its id, which the runner drops", async () => {
+      const { inbox, streams, ids } = setup(finished(), both)
+      await settle()
       inbox.answer("update:01:100", { kind: "update", action: "read" })
+      expect(inbox.state.getSnapshot().answering).toEqual({ "update:01:100": true })
+      await settle()
 
-      expect(read).toHaveBeenCalledWith([{ context: "p/s", terminalId: "01" }])
+      expect(streams.asks.read).toHaveBeenCalledExactlyOnceWith(["update:01:100"])
       expect(ids()).toEqual(["update:02:200"])
+      expect(inbox.state.getSnapshot().answering).toEqual({})
     })
 
-    it("reads every update, leaving what waits on the person", () => {
+    it("reads a failed row that only informs, but not the current one", async () => {
+      const ws = workspaceOf(
+        agentTerminal(1, {
+          working: false,
+          lastTurn: turn({ outcome: "failed", at: 200, error: "x" }),
+        }),
+      )
+      const { inbox, streams, letters, marks, ids } = setup(ws, { "p/s": { "01": "failed" } })
+      await settle()
+      const older = {
+        ...turnLettersOf(ws, { "p/s": { "01": "failed" } })[0]!,
+        id: "old-row",
+        at: 50,
+      }
+      letters.push([older])
+      await settle()
+      expect(ids().toSorted()).toEqual(["old-row", "trouble:01:200"])
+
+      inbox.answer("old-row", { kind: "trouble", action: { type: "read" } })
+      inbox.answer("trouble:01:200", { kind: "trouble", action: { type: "read" } })
+      await settle()
+
+      expect(streams.asks.read).toHaveBeenCalledExactlyOnceWith(["old-row"])
+      expect(inbox.state.getSnapshot().failed).toHaveProperty("trouble:01:200")
+      void marks
+    })
+
+    it("reads every update and failed row that only informs, leaving what waits on the person", async () => {
       const waiting = workspaceOf(
         agentTerminal(1, { working: false, lastTurn: turn() }),
         agentTerminal(2, {
@@ -541,20 +620,35 @@ describe("The runner's Inbox", () => {
           lastTurn: turn({ outcome: "failed", at: 200, error: "x" }),
         }),
       )
-      const { inbox, read, ids } = setup(waiting, { "p/s": { "01": "done", "02": "failed" } })
+      const { inbox, streams, letters, ids } = setup(waiting, {
+        "p/s": { "01": "done", "02": "failed" },
+      })
+      await settle()
+      letters.push([
+        {
+          ...turnLettersOf(waiting, { "p/s": { "02": "failed" } })[0]!,
+          id: "old-row",
+          at: 50,
+        },
+      ])
+      await settle()
       inbox.readAll()
+      await settle()
 
-      expect(read).toHaveBeenCalledWith([{ context: "p/s", terminalId: "01" }])
+      expect(streams.asks.read).toHaveBeenCalledExactlyOnceWith(["old-row", "update:01:100"])
       expect(ids()).toEqual(["trouble:02:200"])
     })
 
-    it("marks an item seen, here only, until it goes", () => {
-      const { inbox, unreadStore } = setup(finished(), both)
+    it("marks an item seen, here only, until it goes", async () => {
+      const { inbox, marks } = setup(finished(), both)
+      await settle()
       inbox.see("update:01:100")
       expect(inbox.state.getSnapshot().items.map((item) => item.seen)).toEqual([true, false])
 
-      unreadStore.update(() => ({ "p/s": { "02": "done" } }))
-      unreadStore.update(() => both)
+      marks({ "p/s": { "02": "done" } })
+      await settle()
+      marks(both)
+      await settle()
       expect(inbox.state.getSnapshot().items.map((item) => item.seen)).toEqual([false, false])
     })
   })
@@ -596,6 +690,7 @@ describe("The runner's Inbox", () => {
         ),
         failed,
       )
+      await settle()
       inbox.answer("trouble:01:100", {
         kind: "trouble",
         action: { type: "nudge", text: "Fix it." },
@@ -604,6 +699,37 @@ describe("The runner's Inbox", () => {
 
       expect(streams.interrupt).not.toHaveBeenCalled()
       expect(streams.send).toHaveBeenCalledWith(key, "Fix it.")
+    })
+
+    it("reads the failed row once its nudge was sent, with nothing left answering", async () => {
+      const { inbox, streams, ids } = setup(
+        workspaceOf(
+          agentTerminal(1, { working: false, lastTurn: turn({ outcome: "failed", error: "x" }) }),
+        ),
+        failed,
+      )
+      await settle()
+      inbox.answer("trouble:01:100", { kind: "trouble", action: { type: "nudge", text: "go" } })
+      await settle()
+
+      expect(streams.asks.read).toHaveBeenCalledExactlyOnceWith(["trouble:01:100"])
+      expect(ids()).toEqual([])
+      expect(inbox.state.getSnapshot().answering).toEqual({})
+    })
+
+    it("nudges no failed row while its agent works, and interrupts nothing", async () => {
+      const working = agentTerminal(1, {
+        working: true,
+        lastTurn: turn({ outcome: "failed", error: "x" }),
+      })
+      const { inbox, streams } = setup(workspaceOf(working), failed)
+      await settle()
+      inbox.answer("trouble:01:100", { kind: "trouble", action: { type: "nudge", text: "go" } })
+      await settle()
+
+      expect(streams.interrupt).not.toHaveBeenCalled()
+      expect(streams.send).not.toHaveBeenCalled()
+      expect(inbox.state.getSnapshot().answering).toEqual({})
     })
 
     it("gives the buttons back when a continue started no turn", async () => {
@@ -719,14 +845,15 @@ describe("Inbox letters", () => {
   })
 
   it("lists a waiting letter beside trouble, and keeps it once the trouble clears", async () => {
-    const { letters, unreadStore, inbox, ids } = setup(
+    const { letters, marks, inbox, ids } = setup(
       workspaceOf(agentTerminal(1, { working: false, lastTurn: turn({ outcome: "failed" }) })),
       failed,
     )
     letters.push([letter(), told()])
     await settle()
     expect(ids().toSorted()).toEqual(["letter-1", "told-1", "trouble:01:100"])
-    unreadStore.update(() => ({}))
+    marks({})
+    await settle()
     expect(ids().toSorted()).toEqual(["letter-1", "told-1"])
     letters.push([told()])
     await settle()
@@ -761,12 +888,11 @@ describe("Inbox letters", () => {
       exitCode: 0,
       signal: null,
     }
-    const { letters, inbox, streams, read } = setup(workspaceOf(exited))
+    const { letters, inbox, streams } = setup(workspaceOf(exited))
     letters.push([told()])
     await settle()
     inbox.readAll()
     expect(streams.asks.read).toHaveBeenCalledExactlyOnceWith(["told-1"])
-    expect(read).not.toHaveBeenCalled()
   })
 
   it("sends an answer once and stays pending until the runner takes it", async () => {
@@ -796,9 +922,7 @@ describe("Inbox letters", () => {
   })
 
   it("keeps an ask pending beside trouble while its answer is unresolved", async () => {
-    const { letters, inbox, streams, unreadStore, workspaceStore } = setup(
-      workspaceOf(agentTerminal(1)),
-    )
+    const { letters, inbox, streams, marks, workspaceStore } = setup(workspaceOf(agentTerminal(1)))
     letters.push([letter()])
     await settle()
     let accepted: (() => void) | undefined
@@ -815,7 +939,8 @@ describe("Inbox letters", () => {
     workspaceStore.update(() =>
       workspaceOf(agentTerminal(1, { working: false, lastTurn: turn({ outcome: "failed" }) })),
     )
-    unreadStore.update(() => failed)
+    marks(failed)
+    await settle()
     expect(
       inbox.state
         .getSnapshot()
@@ -823,7 +948,8 @@ describe("Inbox letters", () => {
         .toSorted(),
     ).toEqual(["letter-1", "trouble:01:100"])
     expect(inbox.state.getSnapshot().answering["letter-1"]).toBe(true)
-    unreadStore.update(() => ({}))
+    marks({})
+    await settle()
     expect(inbox.state.getSnapshot().items.map(({ id }) => id)).toEqual(["letter-1"])
     expect(inbox.state.getSnapshot().answering["letter-1"]).toBe(true)
     accepted!()
@@ -1040,12 +1166,11 @@ describe("Inbox letters", () => {
   })
 
   it("reads a told update through the runner", async () => {
-    const { letters, inbox, streams, read } = setup(workspaceOf(agentTerminal(1)))
+    const { letters, inbox, streams } = setup(workspaceOf(agentTerminal(1)))
     letters.push([told()])
     await settle()
     inbox.answer("told-1", { kind: "update", action: "read" })
     expect(streams.asks.read).toHaveBeenCalledExactlyOnceWith(["told-1"])
-    expect(read).not.toHaveBeenCalled()
   })
 
   it("reads all known tells in batches, beside the more urgent ask", async () => {
@@ -1061,5 +1186,146 @@ describe("Inbox letters", () => {
     // Submitted tells stay listed, answering, until the runner drops them.
     expect(ids()).toHaveLength(1002)
     expect(ids()).toContain("letter-1")
+  })
+})
+
+describe("Turn rows", () => {
+  const ws = () =>
+    workspaceOf(
+      agentTerminal(1, { working: false, lastTurn: turn({ reply: "a" }) }),
+      agentTerminal(2, { working: false, lastTurn: turn({ reply: "b", at: 200 }) }),
+    )
+  const both: Marks = { "p/s": { "01": "done", "02": "done" } }
+  const finish = { context: "p/s", terminalId: "01" }
+
+  it("has no turns until the first listing, and none after the listing ended for good", async () => {
+    const { inbox, letters, stop } = setup(ws(), both)
+    expect(inbox.turns.getSnapshot()).toBeUndefined()
+    await settle()
+    expect(inbox.turns.getSnapshot()?.map(({ id }) => id)).toEqual([
+      "update:01:100",
+      "update:02:200",
+    ])
+    expect(inbox.turns.getSnapshot()?.[0]).toMatchObject({
+      outcome: "completed",
+      reply: "a",
+      gist: null,
+      error: null,
+      files: [],
+      terminalId: "01",
+    })
+
+    letters.stream.return!()
+    stop()
+    expect(inbox.turns.getSnapshot()).toBeUndefined()
+  })
+
+  it("is undefined again when the iterator ends on its own", async () => {
+    const feed = pushed<InboxLetter[]>()
+    const streams = {
+      asks: { watch: () => feed.stream, answer: async () => {}, read: async () => {} },
+      detail: () => pushed<AgentDetail>().stream,
+      answer: async () => {},
+      send: async () => {},
+      interrupt: async () => null,
+      release: () => {},
+      stop: () => {},
+    } satisfies InboxStreams
+    const inbox = createRunnerInbox(streams, createStore(noMail))
+    inbox.bind({ workspace: createStore(ws()) })
+    feed.push([])
+    await settle()
+    expect(inbox.turns.getSnapshot()).toEqual([])
+
+    feed.finish()
+    await settle()
+    expect(inbox.turns.getSnapshot()).toBeUndefined()
+  })
+
+  it("hides a viewed terminal's rows at once, and keeps them hidden until a listing drops them", async () => {
+    const { inbox, streams, letters, ids } = setup(ws(), both)
+    await settle()
+    let answered: (() => void) | undefined
+    streams.asks.read.mockImplementationOnce(
+      () =>
+        new Promise<void>((resolve) => {
+          answered = resolve
+        }),
+    )
+
+    inbox.readFinishes([finish])
+    expect(inbox.turns.getSnapshot()?.map(({ id }) => id)).toEqual(["update:02:200"])
+    expect(ids()).toEqual(["update:02:200"])
+    expect(inbox.state.getSnapshot().answering).toEqual({})
+    await settle()
+    expect(streams.asks.read).toHaveBeenCalledExactlyOnceWith(["update:01:100"])
+
+    // A listing that still holds it keeps it hidden, and sends nothing while it is on its way.
+    letters.push([])
+    await settle()
+    expect(ids()).toEqual(["update:02:200"])
+    expect(streams.asks.read).toHaveBeenCalledOnce()
+    answered!()
+    await settle()
+    expect(inbox.turns.getSnapshot()?.map(({ id }) => id)).toEqual(["update:02:200"])
+  })
+
+  it("reads again only on the next listing or after a backoff, never on its own change", async () => {
+    const { inbox, streams, letters } = setup(ws(), both)
+    await settle()
+    streams.asks.read.mockRejectedValueOnce(new Error("down"))
+    inbox.readFinishes([finish])
+    await settle()
+    expect(streams.asks.read).toHaveBeenCalledTimes(1)
+    expect(inbox.state.getSnapshot().failed).toEqual({})
+    expect(inbox.state.getSnapshot().answering).toEqual({})
+
+    // The backoff, 1 s then doubling, retries it.
+    streams.asks.read.mockRejectedValueOnce(new Error("down"))
+    await vi.advanceTimersByTimeAsync(retryMs)
+    expect(streams.asks.read).toHaveBeenCalledTimes(2)
+    await vi.advanceTimersByTimeAsync(retryMs)
+    expect(streams.asks.read).toHaveBeenCalledTimes(2)
+    await vi.advanceTimersByTimeAsync(retryMs)
+    expect(streams.asks.read).toHaveBeenCalledTimes(3)
+
+    // A listing that still holds a row not on its way sends it again.
+    streams.asks.read.mockRejectedValueOnce(new Error("down"))
+    inbox.readFinishes([{ context: "p/s", terminalId: "02" }])
+    await settle()
+    letters.push([])
+    await settle()
+    expect(streams.asks.read.mock.calls.map(([ids]) => ids)).toContainEqual(["update:02:200"])
+  })
+
+  it("reads a row that lands later when the terminal is read again", async () => {
+    const { inbox, streams, letters } = setup(ws(), { "p/s": { "01": "done" } })
+    await settle()
+    inbox.readFinishes([finish])
+    await settle()
+    expect(streams.asks.read).toHaveBeenCalledTimes(1)
+
+    const next = { ...turnLettersOf(ws(), done)[0]!, id: "later", at: 300 }
+    letters.push([next])
+    await settle()
+    expect(inbox.turns.getSnapshot()?.map(({ id }) => id)).toEqual(["later"])
+    inbox.readFinishes([finish])
+    await settle()
+    expect(streams.asks.read).toHaveBeenLastCalledWith(["later"])
+    expect(inbox.turns.getSnapshot()).toEqual([])
+  })
+
+  it("keeps rows hidden under a lead in turns, and out of the items", async () => {
+    const worker: TerminalMetadata = {
+      ...agentTerminal(2, { working: false, lastTurn: turn({ at: 200 }) }),
+      ledBy: "moth",
+    }
+    const { inbox, ids } = setup(workspaceOf(agentTerminal(1), worker), {
+      "p/s": { "02": "done" },
+    })
+    await settle()
+
+    expect(ids()).toEqual([])
+    expect(inbox.turns.getSnapshot()?.map(({ id }) => id)).toEqual(["update:02:200"])
   })
 })

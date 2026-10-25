@@ -1,7 +1,7 @@
 import { longHoldMs } from "@novadeck/protocol"
 
 import type { ChatDialog } from "./conversation"
-import type { InboxUnread } from "./inbox"
+import type { InboxTurn } from "./inbox"
 import {
   dialogMs,
   inboxItems,
@@ -113,9 +113,43 @@ const mailOf = (...threads: MessageThread[]): MailState => ({
   terminals: { "p/s/01": { handle: "moth", agent: true, threads } },
 })
 
-const inputs = (workspace: Workspace, more: Partial<InboxInputs> = {}): InboxInputs => ({
+// The marks these tests state, by session context then terminal, stand for the stored row of
+// that terminal's current end: the row the runner keeps for it.
+type Marks = Readonly<Record<string, Readonly<Record<string, "done" | "failed">>>>
+
+const rowsOf = (workspace: Workspace, marks: Marks): InboxTurn[] =>
+  workspace.projects.flatMap((project) =>
+    project.history.flatMap((session) =>
+      session.state.roster.terminals.flatMap((terminal): InboxTurn[] => {
+        const mark = marks[`${project.id}/${session.id}`]?.[terminal.id]
+        const end = terminal.state === "running" ? terminal.agent?.lastTurn : undefined
+        if (!mark || !end) return []
+        return [
+          {
+            id: `${mark === "done" ? "update" : "trouble"}:${terminal.id}:${end.at}`,
+            projectId: project.id,
+            workspaceSessionId: session.id,
+            terminalId: terminal.id,
+            handle: terminal.handle ?? "",
+            agent: terminal.process as InboxTurn["agent"],
+            at: end.at,
+            outcome: mark === "done" ? "completed" : "failed",
+            reply: end.reply ?? null,
+            gist: end.gist ?? null,
+            error: end.error ?? null,
+            files: end.files ?? [],
+          },
+        ]
+      }),
+    ),
+  )
+
+const inputs = (
+  workspace: Workspace,
+  { unread = {}, ...more }: Partial<InboxInputs> & { unread?: Marks } = {},
+): InboxInputs => ({
   workspace,
-  unread: {},
+  turns: rowsOf(workspace, unread),
   mail: noMail,
   requests: {},
   letters: [],
@@ -146,8 +180,8 @@ const letter = (change: Partial<InboxLetter> = {}): InboxLetter => ({
   ...change,
 })
 
-const done: InboxUnread = { "p/s": { "01": "done" } }
-const failed: InboxUnread = { "p/s": { "01": "failed" } }
+const done: Marks = { "p/s": { "01": "done" } }
+const failed: Marks = { "p/s": { "01": "failed" } }
 
 describe("The Inbox's items", () => {
   describe("a request", () => {
@@ -273,12 +307,31 @@ describe("The Inbox's items", () => {
       expect(none).toMatchObject({ update: { subject: "Finished its turn", reply: "", files: [] } })
     })
 
-    it("is none once read, or while the agent works again", () => {
+    it("is none once read, and stays while the agent works again", () => {
       expect(inboxItems(inputs(rested({})))).toEqual([])
       const working = workspaceOf(
         agentTerminal(1, { working: true, lastTurn: turn({ reply: "old" }) }),
       )
-      expect(inboxItems(inputs(working, { unread: done }))).toEqual([])
+      expect(inboxItems(inputs(working, { unread: done }))).toMatchObject([{ id: "update:01:100" }])
+    })
+
+    it("shows every stored row of a terminal, whatever runs in it, while its handle holds", () => {
+      const ws = workspaceOf(agentTerminal(1, { working: false }))
+      const row = (id: string, at: number, handle = "moth"): InboxTurn => ({
+        ...rowsOf(rested({}), done)[0]!,
+        id,
+        at,
+        handle,
+      })
+      const items = inboxItems({
+        ...inputs(ws),
+        turns: [row("a", 1), row("b", 2), row("c", 3, "fox")],
+      })
+      expect(items.map((item) => item.id)).toEqual(["a", "b"])
+      const shell: TerminalMetadata = { ...agentTerminal(1), process: "zsh" }
+      expect(
+        inboxItems({ ...inputs(workspaceOf(shell)), turns: [row("a", 1)] }).map((item) => item.id),
+      ).toEqual(["a"])
     })
 
     it("is its lead's while that lead runs, and the person's once it doesn't", () => {
@@ -286,7 +339,7 @@ describe("The Inbox's items", () => {
         ...agentTerminal(2, { working: false, lastTurn: turn(end) }),
         ledBy: "moth",
       })
-      const unread: InboxUnread = { "p/s": { "02": "done" } }
+      const unread: Marks = { "p/s": { "02": "done" } }
 
       expect(inboxItems(inputs(workspaceOf(agentTerminal(1), worker()), { unread }))).toEqual([])
       // A lead whose agent stopped, or whose terminal closed, hears nothing: the person does.
@@ -348,6 +401,28 @@ describe("The Inbox's items", () => {
     it("goes once the person has viewed the terminal", () => {
       expect(inboxItems(inputs(ended({ error: "x" })))).toEqual([])
     })
+
+    it("informs, and doesn't stop the agent, once it is no longer the current end", () => {
+      const row = rowsOf(ended({ error: "x" }), failed)[0]!
+      const items = inboxItems({
+        ...inputs(ended({ error: "x" })),
+        turns: [row, { ...row, id: "older", at: 50 }],
+      })
+
+      expect(items.map(({ id, stopped }) => [id, stopped]).toSorted()).toEqual([
+        ["older", false],
+        ["trouble:01:100", true],
+      ])
+    })
+
+    it("informs while the agent works on", () => {
+      const row = rowsOf(ended({}), failed)[0]!
+      const working = workspaceOf(
+        agentTerminal(1, { working: true, lastTurn: turn({ outcome: "failed" }) }),
+      )
+
+      expect(inboxItems({ ...inputs(working), turns: [row] })).toMatchObject([{ stopped: false }])
+    })
   })
 
   describe("a usage limit", () => {
@@ -382,13 +457,23 @@ describe("The Inbox's items", () => {
       })
     })
 
-    it("replaces the failure that came with it, and stays after the person looked", () => {
+    it("is derived from the current end, with no row stored for it", () => {
       const items = inboxItems(
-        inputs(limited({ error: "x", limit: { minutes: 60, resetsAt: 9e12 } }), { unread: failed }),
+        inputs(limited({ error: "x", limit: { minutes: 60, resetsAt: 9e12 } })),
       )
 
       expect(items).toHaveLength(1)
       expect(items[0]).toMatchObject({ trouble: { type: "limit" } })
+    })
+
+    it("is failed trouble where it was limited with no window found", () => {
+      const [item] = inboxItems(inputs(limited({ error: "x", limited: true })))
+
+      expect(item).toMatchObject({
+        id: "limit:01:100",
+        stopped: true,
+        trouble: { type: "failed", error: "x" },
+      })
     })
 
     it("goes with the agent's next turn", () => {
@@ -637,7 +722,7 @@ describe("The Inbox's items", () => {
   })
 
   describe("a terminal with several", () => {
-    it("shows the request of a running turn, not the finish from before", () => {
+    it("shows the request of a running turn beside the finish from before", () => {
       const both = workspaceOf(
         agentTerminal(1, {
           working: true,
@@ -647,7 +732,7 @@ describe("The Inbox's items", () => {
       )
       const items = inboxItems(inputs(both, { unread: done, requests: { "01": [asked("r1", 5)] } }))
 
-      expect(items.map((item) => item.id)).toEqual(["request:r1"])
+      expect(items.map((item) => item.id).toSorted()).toEqual(["request:r1", "update:01:100"])
     })
 
     it("keeps a held thread beside the terminal's other item", () => {

@@ -92,6 +92,7 @@ const agentStatus = ({
           ...(lastTurn.gist ? { gist: lastTurn.gist } : {}),
           ...(lastTurn.error === null ? {} : { error: lastTurn.error }),
           ...(lastTurn.limit === null ? {} : { limit: lastTurn.limit }),
+          ...(lastTurn.limited ? { limited: true as const } : {}),
           ...(lastTurn.files.length > 0 ? { files: lastTurn.files } : {}),
           at: lastTurn.at,
         },

@@ -21,8 +21,9 @@ const source = {
   projectName: "App",
 } as const
 
+// Failed trouble derived from a limited end: no stored row stands behind it.
 const trouble: InboxItem = {
-  id: "trouble:01",
+  id: "limit:01:1",
   source,
   at: 1,
   stopped: true,
@@ -327,6 +328,7 @@ describe("Answering an item", () => {
       release: vi.fn<InboxActions["release"]>(),
       stop: vi.fn<InboxActions["stop"]>(),
       read: vi.fn<InboxActions["read"]>(),
+      forget: vi.fn<InboxActions["forget"]>(),
       send: vi.fn<InboxActions["send"]>(() => Promise.resolve()),
       interrupt: vi.fn<InboxActions["interrupt"]>(() => Promise.resolve()),
       terminal: vi.fn<InboxActions["terminal"]>(() => terminal),
@@ -396,12 +398,12 @@ describe("Answering an item", () => {
   })
 
   context("a finished turn", () => {
-    it("is read by its terminal's session", () => {
+    it("is read by its id", () => {
       const { tracker } = setup()
       const done = actions()
       answerItem(tracker, finished, { kind: "update", action: "read" }, done)
 
-      expect(done.read).toHaveBeenCalledWith([{ context: "p/s", terminalId: "01" }])
+      expect(done.read).toHaveBeenCalledWith([finished.id])
     })
   })
 
@@ -438,6 +440,53 @@ describe("Answering an item", () => {
 
       expect(done.interrupt).not.toHaveBeenCalled()
       expect(done.send).toHaveBeenCalledWith(key, "go")
+    })
+
+    describe("a stored failed turn", () => {
+      const row = (stopped: boolean): InboxItem => ({ ...trouble, id: "row-1", stopped })
+      const nudge = { kind: "trouble", action: { type: "nudge", text: "fix" } } as const
+
+      it("is nudged while it is current and the agent rests, then read without waiting", async () => {
+        const { tracker } = setup()
+        const done = actions(agent(false))
+        answerItem(tracker, row(true), nudge, done)
+        await flush()
+
+        expect(done.send).toHaveBeenCalledWith(key, "fix")
+        expect(done.forget).toHaveBeenCalledWith(["row-1"])
+        expect(done.read).not.toHaveBeenCalled()
+      })
+
+      it("offers no nudge while the agent works, and interrupts nothing", async () => {
+        const { tracker } = setup()
+        const done = actions(agent(true))
+        answerItem(tracker, row(true), nudge, done)
+        await flush()
+
+        expect(done.interrupt).not.toHaveBeenCalled()
+        expect(done.send).not.toHaveBeenCalled()
+        expect(tracker.view([row(true)]).failed).toHaveProperty("row-1")
+      })
+
+      it("offers no nudge once it is no longer current", async () => {
+        const { tracker } = setup()
+        const done = actions(agent(false))
+        answerItem(tracker, row(false), nudge, done)
+        await flush()
+
+        expect(done.send).not.toHaveBeenCalled()
+        expect(done.forget).not.toHaveBeenCalled()
+      })
+
+      it("is marked read by its id once it only informs, never while it is current", () => {
+        const { tracker } = setup()
+        const done = actions()
+        answerItem(tracker, row(false), { kind: "trouble", action: { type: "read" } }, done)
+        expect(done.read).toHaveBeenCalledWith(["row-1"])
+
+        answerItem(tracker, row(true), { kind: "trouble", action: { type: "read" } }, done)
+        expect(done.read).toHaveBeenCalledTimes(1)
+      })
     })
 
     it("gives the buttons back after the settle time if the item stands", async () => {

@@ -646,11 +646,7 @@ describe("runner backend", () => {
       await app.idle()
       const inbox = app.backend.inbox!
       const workspace = createStore(workspaceFixture())
-      const unbind = inbox.bind!({
-        workspace,
-        unread: createStore({}),
-        read: () => {},
-      })
+      const unbind = inbox.bind!({ workspace })
 
       expect(inbox.state.getSnapshot().items).toEqual([])
       unbind()

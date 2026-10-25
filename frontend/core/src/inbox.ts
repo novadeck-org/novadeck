@@ -262,7 +262,7 @@ export const urgency = (item: InboxItem): number => {
   if (type === "feedback") return 3
   if (item.kind === "trouble" && item.trouble.type === "waits") return 3
   if (type === "trouble") {
-    if (!item.stopped) return item.trouble.type === "failed" ? 4 : 3
+    if (!item.stopped) return item.kind === "trouble" && item.trouble.type === "failed" ? 4 : 3
     return item.kind === "trouble" && item.trouble.type === "limit" ? 1 : 0
   }
   return item.stopped ? 1 : 2
