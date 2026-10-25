@@ -1926,7 +1926,6 @@ const about = (terminalId: string): Whereabouts | undefined =>
           session: "codex:s-codex",
           first: "Build the users API",
           latest: "Now add paging",
-          recent: [],
           folders: { "/w/src/api": 3, "/w/tests": 2, "/w/docs": 1, "/w/web": 1 },
           activeAt: 1_000_000,
         },

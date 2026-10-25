@@ -1032,7 +1032,6 @@ describe("saved terminals", () => {
         session: "claude:abc",
         first: "Build the users API",
         latest: "Now add paging",
-        recent: ["Build the users API", "Now add paging"],
         folders: { "/work/src": 4 },
         activeAt: 2_000,
       },
