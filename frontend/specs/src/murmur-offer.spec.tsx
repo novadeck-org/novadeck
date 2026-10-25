@@ -142,7 +142,8 @@ describe("Murmur's one-time offer", () => {
       await expect.element(footerItem()).not.toBeInTheDocument()
     })
 
-    it("turns Murmur down for good on No thanks, and Install stays in Preferences", async () => {
+    // That No thanks turns it down for good (not wanted) is the demo's to test, in murmur.test.ts.
+    it("takes the chip away on No thanks, and Install stays in Preferences", async () => {
       await promptBuild("uninstalled")
       await chip().click({ timeout: 10_000 })
       await popover().getByRole("button", { name: "No thanks" }).click()
@@ -220,7 +221,7 @@ describe("Murmur's one-time offer", () => {
       await expect.element(doneItem(), { timeout: 15_000 }).toBeVisible()
     })
 
-    it("hides the item on Not now, and it is no decline", async () => {
+    it("hides the item on Not now, and Install waits in Preferences", async () => {
       await promptBuild("network-down")
       await chip().click({ timeout: 10_000 })
       await popover().getByRole("button", { name: "Turn on" }).click()

@@ -218,6 +218,17 @@ describe("the demo's murmur", () => {
     })
   })
 
+  it("is no longer wanted once turned down before an install, as the offer's No thanks does", () => {
+    const murmur = createDemoMurmur({ step: 100, device: "GPU" }, "uninstalled")
+    expect(murmur.state.getSnapshot()).toMatchObject({ installed: false, wanted: true })
+    murmur.set({ enabled: false })
+    expect(murmur.state.getSnapshot()).toMatchObject({
+      installed: false,
+      enabled: false,
+      wanted: false,
+    })
+  })
+
   it("stays off after the person turns it off, and when it is uninstalled", async () => {
     const murmur = createDemoMurmur({ step: 100, device: "GPU" }, "uninstalled")
     murmur.install()

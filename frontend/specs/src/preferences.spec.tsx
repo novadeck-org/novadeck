@@ -307,7 +307,7 @@ describe("Preferences Addons", () => {
       await voiceCard().getByRole("button", { name: "Uninstall" }).click()
       await confirm.getByRole("button", { name: "Uninstall" }).click()
       await expect.element(voiceCard().getByRole("button", { name: "Install" })).toBeVisible()
-      // Removing it says it isn't wanted: it stays off, and the app stops offering it.
+      // Back to the card before an install: off until the next install turns it on.
       await expect
         .element(voiceCard().getByRole("switch", { name: "Enabled" }))
         .toHaveAttribute("aria-checked", "false")
