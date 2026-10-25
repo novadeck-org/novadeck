@@ -227,9 +227,9 @@ describe("a nudge", () => {
     expect(text).toBe(
       "Novadeck: automatic notice, not from the user: this terminal's summary is " +
         '"Users API. Paging done, #12 in CI."; if the work here is now about something ' +
-        "else, or that holds status, numbers or details, update it with Novadeck's " +
-        "summarize tool to one short line on its subject; progress is no reason to, and " +
-        "otherwise this notice can be ignored.",
+        "else, or that holds status, PR or issue numbers, or details, update it with " +
+        "Novadeck's summarize tool to one short line on its subject. Progress alone is no " +
+        "reason to update it; otherwise this notice can be ignored.",
     )
   })
 
@@ -239,6 +239,6 @@ describe("a nudge", () => {
       /^Novadeck: automatic notice, not from the user: this terminal has no summary yet\./,
     )
     expect(text).toContain("one short line on what the work here is about, at a high level")
-    expect(text).toContain("no status, numbers or details")
+    expect(text).toContain("no status, PR or issue numbers, or details")
   })
 })

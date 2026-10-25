@@ -491,7 +491,7 @@ describe("Novadeck's MCP server", () => {
       // A high-level subject, never status or details, as murmur titles the terminal from it.
       expect(tool.description).toContain("one short line on what the work here is about")
       expect(tool.description).toContain("no status or progress")
-      expect(tool.description).toContain("progress is no reason to")
+      expect(tool.description).toContain("progress alone is no reason to update it")
       expect(tool.inputSchema).toMatchObject({
         required: ["summary"],
         additionalProperties: false,

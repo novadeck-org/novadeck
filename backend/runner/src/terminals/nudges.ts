@@ -187,20 +187,22 @@ export const atPrompt = (
 /**
  * The nudge, one line worded as Novadeck's automatic notice: asking for a summary while
  * there is none, else showing the current one, to update only when the work's subject
- * moved or it holds what a summary leaves out (status, numbers, details). A summary names
+ * moved or it holds what a summary leaves out (status, PR or issue numbers, details). A summary names
  * the subject at a high level, as murmur titles the terminal from it.
  */
 export const nudgeText = (current: { readonly summary: string | null }) =>
   current.summary === null
     ? "Novadeck: automatic notice, not from the user: this terminal has no summary yet. " +
       "When it suits, call Novadeck's summarize tool with one short line on what the work " +
-      "here is about, at a high level: its subject, with no status, numbers or details. " +
+      "here is about, at a high level: its subject, with no status, PR or issue numbers, or " +
+      "details. " +
       "Other agents read it in their agents listing. This notice needs no reply."
     : `Novadeck: automatic notice, not from the user: this terminal's summary is ` +
       `${JSON.stringify(shorten(current.summary, 200))}; ` +
-      "if the work here is now about something else, or that holds status, numbers or " +
-      "details, update it with Novadeck's summarize tool to one short line on its subject; " +
-      "progress is no reason to, and otherwise this notice can be ignored."
+      "if the work here is now about something else, or that holds status, PR or issue " +
+      "numbers, or details, update it with Novadeck's summarize tool to one short line on " +
+      "its subject. Progress alone is no reason to update it; otherwise this notice can be " +
+      "ignored."
 
 /**
  * What a session is told once of the bar beside its terminal (see docs/agent-workspace.md,

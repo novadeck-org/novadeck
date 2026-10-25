@@ -1689,9 +1689,8 @@ hook's deadline, which doesn't spend what is due.
 - **The summary.** Due when a trigger fired since the last `summarize`: while there is
   none it asks for one short line on the work's subject; after, it shows the current
   summary and asks for an update only if the work moved to another subject or the summary
-  holds status, numbers or details. When all are due they share the answer: the bar's, the Inbox's, then
-  the summary's. The
-  triggers:
+  holds status, PR or issue numbers, or details. When all are due they share the answer:
+  the bar's, the Inbox's, then the summary's. The triggers:
   1. a new root session (start, `/clear`, restart or resume);
   2. a compaction, where the harness reports one: Claude Code's and Codex's `SessionStart`
      with source `compact` (decoded as `compacted`). Antigravity reports none (its

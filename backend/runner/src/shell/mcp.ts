@@ -575,7 +575,8 @@ const summarize: Tool<unknown> = {
     "issue numbers, no file names or details. Other agents read it in their agents listing " +
     "to tell terminals apart and route work, and Novadeck may name the terminal from it. " +
     "It only ever summarizes your own terminal. Call it when Novadeck's automatic notice " +
-    "asks, or when the work moves to another subject; progress is no reason to. It sets " +
+    "asks, or when the work moves to another subject; progress alone is no reason to update " +
+    "it. It sets " +
     "no title: titles are Novadeck's and the user's.",
   inputSchema: {
     type: "object",
@@ -583,7 +584,7 @@ const summarize: Tool<unknown> = {
       summary: {
         type: "string",
         description:
-          "One short line on what the work here is about: its subject, with no status, numbers or details.",
+          "One short line on what the work here is about: its subject, with no status, PR or issue numbers, or details.",
         maxLength: 200,
       },
     },
