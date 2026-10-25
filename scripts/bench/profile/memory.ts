@@ -57,6 +57,8 @@ export type MemorySample = {
   /** Terminals opened in the session. */
   readonly terminals: number
   readonly gl: GlReport
+  /** The page's own renderer process, which the renderer rows read. */
+  readonly pagePid?: number
   readonly processes: readonly ProcessMemory[]
   /** Dumps read, or why none was: a sample with none has no process totals. */
   readonly dumps: number
@@ -91,7 +93,7 @@ const kindOf = (name: string): Kind =>
 
 // Nodes with an id for a name, which only add noise two levels deep.
 // The renderer's `webgl` node holds every context's; its parts are only ids.
-const noise = /^(shared_memory|parkable_strings|webgl)\//
+const noise = /^(shared_memory|parkable_strings|webgl|global)\//
 
 /**
  * The last global dump in the trace, by process: its totals and its nodes two levels deep, as
@@ -228,19 +230,25 @@ export const sampleMemory = async (
   })
   // Processes Electron knows and the dump missed still have a working set.
   for (const metric of metrics)
-    if (!processes.some((one) => one.pid === metric.pid))
+    if (!processes.some((one) => one.pid === metric.pid)) {
+      const smaps = process.platform === "linux" ? smapsOf(metric.pid) : undefined
       processes.push({
         pid: metric.pid,
         kind: metricKind(metric.type),
         name: metric.name ?? metric.serviceName ?? metric.type,
         workingSetMB: metric.memory.workingSetSize / 1024,
-        ...(process.platform === "linux" && smapsOf(metric.pid) && { smaps: smapsOf(metric.pid)! }),
+        ...(smaps && { smaps }),
         nodes: {},
       })
+    }
+  const pagePid = await opened.app
+    .evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0]?.webContents.getOSProcessId())
+    .catch(() => undefined)
   return {
     point,
     terminals,
     gl,
+    ...(pagePid && { pagePid }),
     processes,
     dumps: dumped.length,
     ...(error !== undefined && { error }),
@@ -253,14 +261,15 @@ const points: readonly MemoryPoint[] = ["boot", "grid", "focus", "switches"]
 
 type Row = { readonly label: string; readonly read: (sample: MemorySample) => number | undefined }
 
+// The page's own renderer, should the app run others.
 const of = (sample: MemorySample, kind: Kind): ProcessMemory | undefined =>
+  (kind === "renderer" ? sample.processes.find((one) => one.pid === sample.pagePid) : undefined) ??
   sample.processes.find((one) => one.kind === kind)
 
 const node =
   (kind: Kind, path: string): Row["read"] =>
   (sample) => {
-    const found = of(sample, kind)?.nodes[path]
-    return found && (found.effective ?? found.size)
+    return of(sample, kind)?.nodes[path]?.effective
   }
 
 const sizeOf =
@@ -303,9 +312,10 @@ const rowsFor = (samples: readonly MemorySample[]): readonly Row[] => {
     { label: "Terminals mounted", read: (sample) => sample.gl.mounted },
     { label: "Terminals in view", read: (sample) => sample.gl.inView },
     { label: "Screens holding a WebGL context", read: (sample) => sample.gl.withContext },
+    { label: "Screens holding a lost context", read: (sample) => sample.gl.contextLost },
     {
-      label: "Contexts lost (screens now, addons told)",
-      read: (sample) => sample.gl.contextLost + (sample.gl.lostEvents ?? 0),
+      label: "Contexts lost, as the addons were told",
+      read: (sample) => sample.gl.lostEvents ?? undefined,
     },
     { label: "Atlases", read: (sample) => sample.gl.atlases.length },
     {

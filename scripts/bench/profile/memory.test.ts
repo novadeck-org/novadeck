@@ -148,6 +148,31 @@ describe("memoryMarkdown", () => {
     expect(text).not.toContain("private bytes (Electron")
   })
 
+  it("reads the page's own renderer, by its pid, and an effective size only where there is one", () => {
+    const base = sample("grid", 1, 10)
+    const renderer = (pid: number, footprint: number) => ({
+      pid,
+      kind: "renderer" as const,
+      name: "Renderer",
+      privateFootprintMB: footprint,
+      nodes: { "cc/tile_memory": { size: 50 } },
+    })
+    const text = memoryMarkdown([
+      {
+        ...run(1, 1),
+        memory: [
+          {
+            ...base,
+            pagePid: 8,
+            processes: [...base.processes, renderer(7, 11), renderer(8, 222)],
+          },
+        ],
+      },
+    ])
+    expect(text).toContain("| Renderer, private footprint (dump, MB) | – | 222 | – | – |")
+    expect(text).not.toContain("`cc/tile_memory` (effective)")
+  })
+
   it("is empty where no run sampled memory", () => {
     const { memory: _, ...bare } = run(1, 1)
     expect(memoryMarkdown([bare])).toBe("")

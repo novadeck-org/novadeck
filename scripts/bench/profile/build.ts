@@ -3,6 +3,7 @@ import { pathToFileURL } from "node:url"
 import { parseArgs } from "node:util"
 
 import {
+  mustRunOnce,
   profileTextPatch,
   raisedCapPatch,
   softwareWebglPatch,
@@ -34,6 +35,9 @@ const { values } = parseArgs({
   },
 })
 if (!values.out) throw new Error("--out names the folder to build into")
+const contexts = values.contexts === undefined ? undefined : Number(values.contexts)
+if (contexts !== undefined && (!Number.isInteger(contexts) || contexts < 3))
+  throw new Error(`--contexts takes a whole number, 3 or more: ${values.contexts}`)
 
 // The app's own Vite, as the root has none: only its build is used.
 const vite = (await import(
@@ -49,10 +53,10 @@ await vite.build({
   }),
   ...(!values.plain && {
     plugins: [
-      profileTextPatch,
-      webglAtlasPatch,
-      ...(values["software-webgl"] ? [softwareWebglPatch] : []),
-      ...(values.contexts ? [raisedCapPatch(Number(values.contexts))] : []),
+      mustRunOnce(profileTextPatch),
+      mustRunOnce(webglAtlasPatch),
+      ...(values["software-webgl"] ? [mustRunOnce(softwareWebglPatch)] : []),
+      ...(contexts === undefined ? [] : [mustRunOnce(raisedCapPatch(contexts))]),
       ...(values.profiling ? [storeSpansPatch] : []),
     ],
   }),

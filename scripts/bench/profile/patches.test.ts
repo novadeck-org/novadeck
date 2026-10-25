@@ -1,6 +1,7 @@
-import { mkdtempSync, rmSync, writeFileSync } from "node:fs"
+import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs"
+import { createRequire } from "node:module"
 import { tmpdir } from "node:os"
-import { join } from "node:path"
+import { dirname, join } from "node:path"
 import { pathToFileURL } from "node:url"
 
 import { transform } from "esbuild"
@@ -8,6 +9,7 @@ import { afterEach, describe, expect, it } from "vitest"
 
 import {
   addonRegistry,
+  mustRunOnce,
   lostCounter,
   profileTextPatch,
   raisedCapPatch,
@@ -190,5 +192,50 @@ describe("softwareWebglPatch", () => {
   it("fails on a probe of another shape, and leaves other files", () => {
     expect(() => softwareWebglPatch.transform("export const a = 1\n", id)).toThrow(/probeWebgl/)
     expect(softwareWebglPatch.transform("", "/r/frontend/ui/src/App.tsx")).toBeNull()
+  })
+})
+
+describe("the patches on the real sources", () => {
+  // So drift in a file a patch targets fails here, not as a flag that silently does nothing.
+  const root = join(import.meta.dirname, "..", "..", "..")
+  const read = (path: string) => readFileSync(join(root, path), "utf8")
+  const addon = join(
+    dirname(
+      createRequire(join(root, "libraries/emulator/package.json")).resolve("@xterm/addon-webgl"),
+    ),
+    "addon-webgl.mjs",
+  )
+
+  it("patches the view, the pool's probe, the pool's creation and the addon, each once", () => {
+    const view = "libraries/emulator/src/view.ts"
+    expect(profileTextPatch.transform(read(view), join(root, view))).not.toBeNull()
+    const renderer = "libraries/emulator/src/renderer.ts"
+    expect(softwareWebglPatch.transform(read(renderer), join(root, renderer))).not.toBeNull()
+    const views = "frontend/terminal-views/src/renderers.ts"
+    expect(raisedCapPatch(40).transform(read(views), join(root, views))).not.toBeNull()
+    expect(webglAtlasPatch.transform(readFileSync(addon, "utf8"), addon)).not.toBeNull()
+  })
+
+  it("patches the built view and probe too, where the library is built", () => {
+    const built = (
+      [
+        ["libraries/emulator/dist/view.js", profileTextPatch],
+        ["libraries/emulator/dist/renderer.js", softwareWebglPatch],
+      ] as const
+    ).filter(([file]) => existsSync(join(root, file)))
+    const results = built.map(([file, patch]) => patch.transform(read(file), join(root, file)))
+    expect(results.every((each) => each !== null)).toBe(true)
+  })
+
+  it("fails a build whose patch ran on no file, or two", () => {
+    const run = mustRunOnce(profileTextPatch)
+    expect(() => run.buildEnd()).toThrow(/patched 0 files/)
+    expect(() => run.buildEnd(new Error("other"))).not.toThrow()
+    const view = "/r/libraries/emulator/src/view.ts"
+    const source = "  terminal.open(element)\n"
+    run.transform(source, view)
+    expect(() => run.buildEnd()).not.toThrow()
+    run.transform(source, view)
+    expect(() => run.buildEnd()).toThrow(/patched 2 files/)
   })
 })

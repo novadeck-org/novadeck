@@ -185,6 +185,8 @@ export const play = async (
     return []
   })
   await sampled("focus")
+  // As Grid and Focus settle before their windows, after the memory sample's trace.
+  await sleep(shared.warmMs)
   await traced("switches", async () => {
     const switches: Switch[] = []
     for (let pass = 0; pass < shared.switchPasses; pass += 1)

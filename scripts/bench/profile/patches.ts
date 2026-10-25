@@ -3,6 +3,34 @@ import { storeSpan } from "./trace.ts"
 // The profile's patches to the UI's sources, which build.ts makes in its own builds only, as
 // Vite plugins: none of them is the product's.
 
+/**
+ * `patch` as a build plugin that must run: it counts the files it patched and fails the build
+ * should that not be exactly one, as a patch whose target moved or was renamed would otherwise
+ * skip silently and the run would measure the product, not what its flags say.
+ */
+export const mustRunOnce = <
+  Patch extends {
+    readonly name: string
+    readonly transform: (code: string, id: string) => { code: string; map: null } | null
+  },
+>(
+  patch: Patch,
+) => {
+  let ran = 0
+  return {
+    ...patch,
+    transform: (code: string, id: string) => {
+      const result = patch.transform(code, id)
+      if (result) ran += 1
+      return result
+    },
+    buildEnd: (error?: Error) => {
+      if (!error && ran !== 1)
+        throw new Error(`The ${patch.name} patch patched ${ran} files, not one: its target moved`)
+    },
+  }
+}
+
 // Where the emulator library's view opens a terminal, which the text patch follows with
 // `profileText`. The UI's build reads the library as built (dist/view.js, whose open ends in
 // a semicolon), its tests as source (src/view.ts). The text goes on the open's own line, so

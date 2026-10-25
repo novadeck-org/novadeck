@@ -51,8 +51,23 @@ export const readGl = (page: Page): Promise<GlReport> =>
       let limits: GlReport["limits"]
       for (const screen of screens) {
         const box = screen.getBoundingClientRect()
-        const width = Math.min(box.right, innerWidth) - Math.max(box.left, 0)
-        const height = Math.min(box.bottom, innerHeight) - Math.max(box.top, 0)
+        // What shows is the box inside the window and inside every ancestor that clips it,
+        // as the Grid's scroller does for tiles scrolled away.
+        let left = Math.max(box.left, 0)
+        let right = Math.min(box.right, innerWidth)
+        let top = Math.max(box.top, 0)
+        let bottom = Math.min(box.bottom, innerHeight)
+        for (let up = screen.parentElement; up; up = up.parentElement) {
+          const style = getComputedStyle(up)
+          if (style.overflowX === "visible" && style.overflowY === "visible") continue
+          const clip = up.getBoundingClientRect()
+          left = Math.max(left, clip.left)
+          right = Math.min(right, clip.right)
+          top = Math.max(top, clip.top)
+          bottom = Math.min(bottom, clip.bottom)
+        }
+        const width = right - left
+        const height = bottom - top
         if (box.width > 0 && box.height > 0 && width > 0 && height > 0)
           if ((width * height) / (box.width * box.height) >= 0.5) inView += 1
         // Asking a 2D canvas for WebGL gives nothing and creates nothing.
