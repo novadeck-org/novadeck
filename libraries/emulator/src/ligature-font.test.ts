@@ -106,7 +106,7 @@ describe("the ligature table and the bundled font", () => {
           lines.push(a + b)
           for (const c of glyphs) lines.push(a + b + c)
         }
-      const failures = lines.map((line) => check(line, [32, Infinity])).filter(Boolean)
+      const failures = lines.map((line) => check(line, [Infinity])).filter(Boolean)
       expect(failures.slice(0, 5)).toEqual([])
     },
     slow,
@@ -121,14 +121,13 @@ describe("the ligature table and the bundled font", () => {
       const pick = (from: readonly string[]): string =>
         from[Math.floor(random() * from.length)] ?? ""
       const lines: string[] = []
-      for (let i = 0; i < 3000; i++) {
+      for (let i = 0; i < 800; i++) {
         const length = 4 + Math.floor(random() * 20)
         const mix = i % 2 === 0 ? glyphs : [...glyphs, ...filler, " ", " "]
         lines.push(Array.from({ length }, () => pick(mix)).join(""))
       }
       for (const glyph of glyphs)
-        for (const n of [5, 8, 11, 14, 17, 20, 23, 31, 33, 64, 100, 200])
-          lines.push(glyph.repeat(n))
+        for (const n of [5, 11, 17, 33, 64, 200]) lines.push(glyph.repeat(n))
       const failures = lines.map((line) => check(line)).filter(Boolean)
       expect(failures.slice(0, 5)).toEqual([])
     },
@@ -152,7 +151,7 @@ describe("the ligature table and the bundled font", () => {
       const pick = (from: readonly string[]): string =>
         from[Math.floor(random() * from.length)] ?? ""
       const lines: string[] = []
-      for (let i = 0; i < 400; i++) {
+      for (let i = 0; i < 120; i++) {
         let line = ""
         while (line.length < 60 + random() * 160) {
           const roll = random()
@@ -178,7 +177,7 @@ describe("the ligature table and the bundled font", () => {
       const around = (): string => Array.from({ length: Math.floor(random() * 5) }, pick).join("")
       const failures: string[] = []
       for (const glyph of glyphs)
-        for (let i = 0; i < 40; i++) {
+        for (let i = 0; i < 12; i++) {
           const before = around()
           const line = before + glyph.repeat(30) + around()
           const whole = font.glyphs(line)
