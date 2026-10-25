@@ -32,11 +32,11 @@ describe("raising Chromium's WebGL context limit", () => {
   }
   const name = "max-active-webgl-contexts"
 
-  it("sets the app's limit, 64, and says so", () => {
+  it("sets the app's limit, 256, and says so", () => {
     const line = commandLine()
     expect(raiseWebglContexts(line)).toBe(maxWebglContexts)
-    expect(maxWebglContexts).toBe(64)
-    expect(line.switches.get(name)).toBe("64")
+    expect(maxWebglContexts).toBe(256)
+    expect(line.switches.get(name)).toBe("256")
   })
 
   it("keeps a limit already given, and tells the page that one", () => {
@@ -49,8 +49,8 @@ describe("raising Chromium's WebGL context limit", () => {
     "replaces %j, which Chromium would not read as the page does, with the app's limit",
     (given) => {
       const line = commandLine(given)
-      expect(raiseWebglContexts(line)).toBe(64)
-      expect(line.switches.get(name)).toBe("64")
+      expect(raiseWebglContexts(line)).toBe(256)
+      expect(line.switches.get(name)).toBe("256")
     },
   )
 

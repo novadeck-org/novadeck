@@ -7,7 +7,8 @@ import { webglContextsArgumentPrefix } from "../bridge.js"
 // @novadeck/emulator's `contextCap`). A context costs about 1 MB in the GPU process and 1.6 MB
 // in the renderer (architecture/performance.md, "WebGL contexts on real hardware"), so the app
 // raises the limit: a page of 20 terminals then keeps all 20 on WebGL, and 40 held with none lost.
-export const maxWebglContexts = 64
+// 256, as Superset sets, so a Grid of any size a person opens stays on WebGL.
+export const maxWebglContexts = 256
 
 const switchName = "max-active-webgl-contexts"
 
