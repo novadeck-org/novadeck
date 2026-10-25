@@ -464,8 +464,8 @@ Novadeck does not write secrets into project files or send them through this fea
 
 `ask({ withdraw: id })` withdraws only the caller's own open ask in its current session.
 `tell({ subject, body })` adds an Update that the person marks read. An ask badges the
-Inbox bell; a tell doesn't. One row per terminal shows its most urgent item; lower
-priority letters remain pending and appear when the more urgent item clears. An ask
+Inbox bell; a tell doesn't. Every item is its own row, so a terminal with an ask, two
+tells and a finish shows four; nothing replaces or hides another. An ask
 shows stopped only once the agent has ended its turn, not because it called the tool.
 An unread tell stays until read while its terminal exists, including when the agent exits
 or starts a new session; it keeps the original agent attribution.
@@ -1932,12 +1932,12 @@ the box.
   judges it (an Escape that only closed a popup leaves delivery Unknown while the turn runs
   on), and the Inbox shows none while the terminal's status says it works. The listing says since when
   its longest-held message has waited (`waitsSince`). Once that is `longHoldMs` (3 minutes)
-  ago with messages still waiting (none held for release or a pause), the Inbox shows the
-  terminal's item, "N messages for @kite wait behind text in its box", its words for what
+  ago with messages still waiting (none held for release or a pause), the Inbox shows an
+  item for it, "N messages for @kite wait behind text in its box", its words for what
   holds them taken from `waits` ("an idle agent Novadeck can't wake yet" where the doorbell
   gave no reason, as for a screen that never calms), with the Messages pane's sentence and
   **Show terminal**. It waits on the person but marks no failure; a request or an `ask` of
-  that agent's comes first, a finished turn after. Each sender learns of each of its
+  that agent's sorts before it, a finished turn after. Each sender learns of each of its
   messages held that long, once per hold, in whatever Novadeck answers it next, without
   asking: its next `send` or `agents` answer, or the context its next prompt-time or
   tool-call hook prints ("your message m-1 to @kite has not arrived since 11:41 (waits:

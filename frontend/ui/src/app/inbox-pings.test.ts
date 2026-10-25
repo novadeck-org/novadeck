@@ -444,6 +444,15 @@ describe("the board of notifications", () => {
     expect(closed).toEqual(["t"])
   })
 
+  it("remembers the item of a terminal's latest notice, one board per backend", () => {
+    const notices = { show: () => {}, close: () => {}, onClick: () => () => {} }
+    noticeBoard(notices)!.show("a", { id: "t", title: "", body: "" }, "first")
+    noticeBoard(notices)!.show("b", { id: "t", title: "", body: "" }, "second")
+    expect(noticeBoard(notices)!.itemOf("t")).toBe("second")
+    noticeBoard(notices)!.close("b", "t")
+    expect(noticeBoard(notices)!.itemOf("t")).toBeUndefined()
+  })
+
   it("is none where there are no notifications", () => {
     expect(noticeBoard(undefined)).toBeUndefined()
   })
@@ -464,6 +473,29 @@ describe("a click on a terminal's notification", () => {
     const { calls, ...handlers } = to()
     clickNotice("t1", [update("u"), ask("a")], handlers)
     expect(calls).toEqual(["inbox", "open u"])
+  })
+
+  it("opens the item the notice was about, among the terminal's several", () => {
+    const { calls, ...handlers } = to()
+    clickNotice("t1", [update("u"), ask("a"), update("v")], handlers, "v")
+    expect(calls).toEqual(["inbox", "open v"])
+  })
+
+  it("opens the terminal's finish for a notice that names no item", () => {
+    const { calls, ...handlers } = to()
+    const finish: InboxItem = {
+      ...update("f"),
+      kind: "update",
+      update: { type: "finished", subject: "Done", reply: "", files: [] },
+    }
+    clickNotice("t1", [ask("a"), update("u"), finish], handlers)
+    expect(calls).toEqual(["inbox", "open f"])
+  })
+
+  it("falls back to the terminal's first item when the notice's item has left", () => {
+    const { calls, ...handlers } = to()
+    clickNotice("t1", [ask("a"), update("u")], handlers, "gone")
+    expect(calls).toEqual(["inbox", "open a"])
   })
 
   it("shows the terminal otherwise", () => {

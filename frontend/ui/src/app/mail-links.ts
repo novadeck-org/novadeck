@@ -2,7 +2,6 @@ import { mailPeers } from "@novadeck/core/derivations"
 import { letterItem } from "@novadeck/core/inbox"
 import { samePeers, type MailPeer } from "@novadeck/core/messages"
 import type { Store, WorkspaceStore } from "@novadeck/core/store"
-import type { TerminalKey } from "@novadeck/core/types"
 import type { MailLinks } from "@novadeck/items/mail"
 import { useMemo } from "react"
 
@@ -25,7 +24,7 @@ const peersOf = (workspace: WorkspaceStore): Store<Readonly<Record<string, MailP
 
 // What a terminal's Messages pane knows of the session around it: the other terminals by
 // handle, a way to each, and Answer on a letter, which opens the Inbox on its item.
-export const useMailLinks = (key: TerminalKey): MailLinks => {
+export const useMailLinks = (): MailLinks => {
   const { commands, workspace } = useWorkspaceServices()
   const openInbox = useInboxOpener()
   const peers = useMemo(() => peersOf(workspace), [workspace])
@@ -35,9 +34,9 @@ export const useMailLinks = (key: TerminalKey): MailLinks => {
       goTo: commands.reveal,
       answer: (letter) => {
         commands.showInbox()
-        openInbox?.((items) => letterItem(items, letter, key))
+        openInbox?.((items) => letterItem(items, letter))
       },
     }),
-    [peers, commands, openInbox, key],
+    [peers, commands, openInbox],
   )
 }
