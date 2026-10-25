@@ -319,6 +319,7 @@ describe("sessions sidebar", () => {
       await expect.element(emptyWorkspace()).toBeVisible()
       await expect.element(sidebarPanel("Terminals")).toBeChecked()
       await expect.element(sidebar()).toHaveAccessibleName("Terminal sessions")
+      await expect.element(sidebar().getByRole("button", { name: "New terminal" })).toHaveFocus()
       await sidebarPanel("Sessions").click()
       await expect.poll(() => savedSessions().getByRole("listitem").elements()).toHaveLength(2)
       await expect

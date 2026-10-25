@@ -448,7 +448,7 @@ export const createDemoStates = (verbs: DemoAgentVerbs): DemoStates => {
       actions: [
         {
           label: "Fresh session, process running",
-          hint: "Sessions panel counts 1 running",
+          hint: "Open Sessions: the old one counts 1 running",
           run: async ({ selected, dispatch, note, startFresh }) => {
             const key = selected()
             if (!key || !dispatch) return note("Select a terminal first.")
