@@ -4,6 +4,7 @@ import type { Backend, BackendConnectionState } from "@novadeck/core/port"
 import { terminalPhase } from "@novadeck/core/terminal-ending"
 import { memo, useEffect, useState, useSyncExternalStore } from "react"
 
+import { FeedbackButton } from "../feedback/FeedbackButton"
 import { readSubscriptionOrder, writeSubscriptionOrder } from "../shell/shell-storage"
 import { SubscriptionUsage } from "../shell/SubscriptionUsage"
 import { WorkspaceFooter as Footer, type FooterStatus } from "../shell/WorkspaceFooter"
@@ -192,6 +193,7 @@ export const WorkspaceFooter = memo((): React.JSX.Element => {
           : undefined
       }
       usage={<SubscriptionUsage accounts={accounts} onMove={move} />}
+      feedback={backend.feedback && <FeedbackButton feedback={backend.feedback} />}
     />
   )
 })

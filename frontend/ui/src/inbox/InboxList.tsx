@@ -22,7 +22,7 @@ const Row = ({ item }: { readonly item: InboxItem }): React.JSX.Element => {
   const Icon = pending ? LoaderCircle : answered ? CircleCheck : icons[type]
   const current = view.open === item.id
   const extras = [
-    started(drafts[item.id]) && !answering ? "Draft" : null,
+    item.kind !== "feedback" && started(drafts[item.id]) && !answering ? "Draft" : null,
     answering ? null : resumesLabel(item),
     readLabel(item),
   ].filter((extra): extra is string => extra !== null)

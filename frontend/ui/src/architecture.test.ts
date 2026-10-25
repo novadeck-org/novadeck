@@ -25,7 +25,15 @@ const base = ["core/", "interaction/", "ui-toolkit/", "theme/"]
 // and `layouts/` are the workspace's frame, not features. The chat and the items package
 // are packages (`terminals/chat/` and `terminals/companion/` below), denied to a feature by its
 // allow-list, and no rule keys on them: a key that matches no file fails the dead-layer check.
-const features = ["inbox/", "preferences/", "projects/", "search/", "sidebar/", "voice/"]
+const features = [
+  "feedback/",
+  "inbox/",
+  "preferences/",
+  "projects/",
+  "search/",
+  "sidebar/",
+  "voice/",
+]
 const rules: Record<string, readonly string[]> = {
   "theme/": ["theme/", "core/types.ts"],
   "interaction/": ["interaction/", "core/"],

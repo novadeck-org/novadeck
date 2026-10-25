@@ -950,3 +950,22 @@ describe("the footer without the security sandbox", () => {
     }
   })
 })
+
+describe("the footer's feedback slot", () => {
+  it("shows what it is given after the usage readout, and nothing without", () => {
+    const page = render(
+      createElement(WorkspaceFooter, {
+        hidden: false,
+        count: 1,
+        running: 0,
+        status: "ok",
+        usage: createElement("span", { id: "usage" }),
+        feedback: createElement("button", { id: "feedback" }),
+      }),
+    )
+    mounted.push(page)
+    const usage = page.container.querySelector("#usage")!
+    expect(usage.nextElementSibling?.id).toBe("feedback")
+    expect(show("ok").bar().querySelector("#feedback")).toBeNull()
+  })
+})

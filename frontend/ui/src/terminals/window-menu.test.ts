@@ -30,6 +30,19 @@ describe("a window's menu", () => {
     ).toEqual([`Named by ${MURMUR_NAME} (disabled)`, "Rename", "Close"])
   })
 
+  it("offers to ask an agent's window for feedback, above Close", () => {
+    const asked: string[] = []
+    const items = windowMenu({
+      terminal: terminalFixture(4, "~/p"),
+      onRename: ignore,
+      askFeedback: { handle: "moth", onAsk: () => asked.push("moth") },
+      onClose: ignore,
+    })
+    expect(labels(items)).toEqual(["Rename", "Ask @moth to write feedback…", "Close"])
+    items.find((item) => item.value === "ask-feedback")!.onSelect()
+    expect(asked).toEqual(["moth"])
+  })
+
   context("for a window undocked from a terminal's companion", () => {
     const terminal = terminalFixture(3, "~/p")
 

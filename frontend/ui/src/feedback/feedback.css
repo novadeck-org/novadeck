@@ -1,0 +1,136 @@
+/* The footer's feedback button and its card (FeedbackButton.tsx). The button is a footer chip
+   (`.footer-update`), pressed while the card is open (aria-expanded); the card is an anchored
+   `.floating` popover. Hooks: data-send on the button ("sent", "failed"). */
+@layer components {
+  .feedback-button[data-send="failed"] {
+    color: var(--color-danger-fg);
+  }
+  .feedback-button {
+    color: inherit;
+  }
+  .feedback-retry {
+    text-decoration: underline;
+    text-underline-offset: 2px;
+  }
+  .feedback-button-text {
+    margin-inline-start: 6px;
+  }
+  .feedback-button-text:first-child {
+    margin-inline-start: 0;
+  }
+
+  .feedback-card {
+    width: min(400px, calc(100vw - 24px));
+  }
+  .feedback-body {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    padding: 14px 16px;
+  }
+  .feedback-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+  }
+  .feedback-title {
+    font-weight: 600;
+  }
+  .feedback-kinds {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 2px;
+  }
+  .feedback-field {
+    display: block;
+    padding: 8px 10px;
+    border-radius: var(--radius-panel);
+  }
+  .feedback-field:focus-within {
+    --_border-color: var(--color-strong);
+  }
+  .feedback-input {
+    display: block;
+    width: 100%;
+    min-height: 112px;
+    max-height: 240px;
+    padding: 0;
+    border: 0;
+    resize: none;
+    line-height: 20px;
+  }
+  .feedback-input::placeholder {
+    color: var(--color-muted);
+  }
+  .feedback-count {
+    margin-block-start: -6px;
+    color: var(--color-muted);
+    font-family: var(--font-mono);
+    font-size: var(--text-caption);
+    text-align: end;
+  }
+  .feedback-count[data-full] {
+    color: var(--color-danger-fg);
+  }
+  .feedback-failed {
+    color: var(--color-danger-fg);
+    font-size: var(--text-caption);
+  }
+  .feedback-privacy {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    min-width: 0;
+    color: var(--color-muted);
+    font-size: var(--text-caption);
+  }
+  .feedback-privacy svg {
+    flex: none;
+  }
+  .feedback-privacy-text {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .feedback-mono {
+    color: var(--color-ink);
+    font-family: var(--font-mono);
+  }
+  .feedback-foot {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    padding: 10px 12px 10px 16px;
+  }
+  .feedback-link {
+    color: var(--color-ink);
+    text-decoration: underline;
+    text-underline-offset: 2px;
+    cursor: pointer;
+  }
+  .feedback-hint {
+    font-family: var(--font-mono);
+    font-size: var(--text-caption);
+    opacity: 0.7;
+  }
+  .feedback-reply {
+    color: var(--color-muted);
+    font-size: var(--text-caption);
+    white-space: nowrap;
+  }
+  .feedback-send {
+    gap: 8px;
+  }
+
+  /* Lit under the pointer as the usage pills are; the word, while it shows, never changes
+     with hover. */
+  @media (hover: hover) {
+    .app-footer:not([data-tone]) .feedback-button:hover {
+      background-color: var(--color-soft);
+      color: var(--color-ink);
+    }
+  }
+}

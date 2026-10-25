@@ -47,6 +47,8 @@ const limit: InboxContent = {
 const failed: InboxContent = { kind: "trouble", trouble: { type: "failed", error: null } }
 const told: InboxContent = { kind: "update", update: { type: "told", subject: "s", body: "b" } }
 
+const draft: InboxContent = { kind: "feedback", draft: { kind: "bug", text: "It broke." } }
+
 const item = (id: string, content: InboxContent, stopped: boolean, at = 0): InboxItem => ({
   ...content,
   id,
@@ -68,6 +70,7 @@ describe("inboxType", () => {
     expect(inboxType(ask)).toBe("ask")
     expect(inboxType(failed)).toBe("trouble")
     expect(inboxType(told)).toBe("update")
+    expect(inboxType(draft)).toBe("feedback")
   })
 })
 
@@ -81,6 +84,11 @@ describe("urgency", () => {
     expect(urgency(item("g", limit, true))).toBe(1)
     expect(urgency(item("h", limit, false))).toBe(3)
     expect(urgency(item("f", told, false))).toBe(4)
+  })
+
+  it("ranks a feedback draft with handled trouble, before updates", () => {
+    expect(urgency(item("i", draft, false))).toBe(3)
+    expect(urgency(item("j", draft, true))).toBe(3)
   })
 
   it("keeps an update last even when the agent is stopped", () => {

@@ -15,7 +15,7 @@ import { answerMs as chatAnswerMs, answeredMs } from "./chat"
 import { answerMs, createDemoInbox, isDemoInbox } from "./inbox"
 import { demoInboxIds, demoInboxItems, demoInboxItemsAll } from "./inbox-fixtures"
 import { plainDemo, type PlainVariant } from "./index"
-import { demoTerminalId } from "./samples"
+import { chatAgent, demoTerminalId } from "./samples"
 import { context, describe, expect, it } from "./test"
 import { createDemo, demoVariants } from "./variants"
 
@@ -31,9 +31,11 @@ describe("the demo Inbox's items", () => {
   it("covers every type, each kind and every ask shape", () => {
     // The list starts with most of them; the debug panel adds the rest.
     const items = demoInboxItemsAll(now)
-    expect(new Set(items.map(inboxType))).toEqual(new Set(["approve", "ask", "trouble", "update"]))
+    expect(new Set(items.map(inboxType))).toEqual(
+      new Set(["approve", "ask", "trouble", "update", "feedback"]),
+    )
     expect(new Set(items.map((each) => each.kind))).toEqual(
-      new Set(["request", "held", "ask", "trouble", "update"]),
+      new Set(["request", "held", "ask", "trouble", "update", "feedback"]),
     )
     const shapes = items.flatMap((each) => (each.kind === "ask" ? [each.ask.shape.type] : []))
     expect(new Set(shapes)).toEqual(new Set(["options", "action", "text"]))
@@ -166,6 +168,52 @@ describe("the demo Inbox", () => {
     })
   })
 
+  context("when a feedback draft is answered", () => {
+    const sent = { kind: "feedback", answer: { type: "send", text: "edited" } } as const
+    const discarded = { kind: "feedback", answer: { type: "discard" } } as const
+
+    it("removes it after the answer delay on Send, recording what was sent", () => {
+      const record = vi.fn<Parameters<typeof createDemoInbox>[2] & {}>()
+      const inbox = createDemoInbox(now, [], record)
+      const draft = demoInboxItemsAll(now).find((each) => each.id === demoInboxIds.feedback)
+      inbox.add(draft!)
+      record.mockClear()
+      inbox.answer(demoInboxIds.feedback, sent)
+      expect(inbox.state.getSnapshot().answering).toEqual({ [demoInboxIds.feedback]: true })
+      expect(ids(inbox)).toContain(demoInboxIds.feedback)
+      vi.advanceTimersByTime(answerMs)
+      expect(ids(inbox)).toEqual([])
+      expect(record).toHaveBeenCalledWith(draft, sent, undefined)
+    })
+
+    it("removes it the same way on Discard", () => {
+      const inbox = createDemoInbox(now, [])
+      inbox.add(demoInboxItemsAll(now).find((each) => each.id === demoInboxIds.feedback)!)
+      inbox.answer(demoInboxIds.feedback, discarded)
+      vi.advanceTimersByTime(answerMs)
+      expect(ids(inbox)).toEqual([])
+    })
+
+    it("keeps it, saying why, when the answer is made to fail, and refuses another kind's", () => {
+      const inbox = createDemoInbox(now, [])
+      inbox.add(demoInboxItemsAll(now).find((each) => each.id === demoInboxIds.feedback)!)
+      inbox.failNext()
+      inbox.answer(demoInboxIds.feedback, sent)
+      expect(inbox.state.getSnapshot().failed[demoInboxIds.feedback]).toMatch(/Try again/)
+      inbox.answer(demoInboxIds.feedback, { kind: "update", action: "read" })
+      expect(inbox.state.getSnapshot().failed[demoInboxIds.feedback]).toMatch(/isn't for this/)
+      vi.advanceTimersByTime(answerMs)
+      expect(ids(inbox)).toContain(demoInboxIds.feedback)
+    })
+
+    it("stays when every update is read", () => {
+      const inbox = createDemoInbox(now, [])
+      inbox.add(demoInboxItemsAll(now).find((each) => each.id === demoInboxIds.feedback)!)
+      inbox.readAll()
+      expect(ids(inbox)).toEqual([demoInboxIds.feedback])
+    })
+  })
+
   context("when an item arrives", () => {
     it("joins the Inbox, replacing one with its ID, until it is cleared", () => {
       const inbox = createDemoInbox(now, [])
@@ -211,7 +259,7 @@ const boot = (variant: PlainVariant = "agents") => {
     inbox.state
       .getSnapshot()
       .items.find((item) => item.source.terminalId === terminalOf(projectId, slot)?.id)
-  return { inbox, store, unread, read, unbind, terminalOf, itemOn }
+  return { backend, inbox, store, unread, read, unbind, terminalOf, itemOn }
 }
 
 const waitsOn = (terminal: TerminalMetadata | undefined) =>
@@ -229,6 +277,67 @@ const firstChoice = (item: InboxItem | undefined): InboxAnswer => {
 }
 
 describe("the agents demo's Inbox", () => {
+  it("shows the draft an Ask made over its agent's unseen finish and a held thread", async () => {
+    const { backend, inbox, unread, itemOn, store } = boot()
+    const found = store
+      .getSnapshot()
+      .projects.flatMap((project) =>
+        (project.history[0]?.state.roster.terminals ?? []).map((terminal) => ({
+          project: project.id,
+          terminal,
+        })),
+      )
+      .find(
+        ({ project, terminal }) =>
+          terminal.state === "running" &&
+          chatAgent(terminal) &&
+          !terminal.agent?.working &&
+          !terminal.agent?.attention &&
+          !inbox.state.getSnapshot().items.some((each) => each.source.terminalId === terminal.id) &&
+          project !== "",
+      )!
+    const key = {
+      projectId: found.project,
+      workspaceSessionId: "initial",
+      terminalId: found.terminal.id,
+    }
+    await backend.feedback!.ask(key, "")
+    await vi.advanceTimersByTimeAsync(3 * 1500 + 100)
+    // The writing turn ended unseen: the agent finished while the person looked elsewhere.
+    unread.update(() => ({ [`${found.project}/initial`]: { [found.terminal.id]: "done" } }))
+    const held = demoInboxItemsAll(now).find((each) => each.id === demoInboxIds.held)!
+    inbox.add({
+      ...held,
+      id: "held-here",
+      source: { ...held.source, terminalId: found.terminal.id },
+    })
+    const kinds = inbox.state
+      .getSnapshot()
+      .items.filter((each) => each.source.terminalId === found.terminal.id)
+      .map((each) => each.kind)
+    expect(kinds).toContain("feedback")
+    expect(itemOn(found.project, Number(found.terminal.id.slice(-2)))).toBeDefined()
+  })
+
+  it("shows a feedback draft only where its terminal waits on nothing else", () => {
+    const { inbox, itemOn, terminalOf } = boot()
+    const draft = demoInboxItemsAll(now).find((each) => each.id === demoInboxIds.feedback)!
+    const draftFor = (id: string, terminalId: string): InboxItem => ({
+      ...draft,
+      id,
+      source: { ...draft.source, terminalId, projectId: "storefront" },
+    })
+    // Terminal 4 of storefront asks for a permission: the request shows, the draft waits.
+    const asking = terminalOf("storefront", 4)!.id
+    inbox.add(draftFor("draft-asking", asking))
+    expect(itemOn("storefront", 4)?.kind).toBe("request")
+    expect(ids(inbox)).not.toContain("draft-asking")
+    // One that waits on nothing shows its draft.
+    const quiet = terminalOf("storefront", 6)!.id
+    inbox.add(draftFor("draft-quiet", quiet))
+    expect(ids(inbox)).toContain("draft-quiet")
+  })
+
   it("lists what each of its agents waits on, as their terminals say", () => {
     const { itemOn, inbox } = boot()
     for (const [project, slot, kind] of [

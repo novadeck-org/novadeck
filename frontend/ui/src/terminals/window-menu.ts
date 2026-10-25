@@ -1,6 +1,8 @@
 import { titleSourceText } from "@novadeck/core/title-source"
 import type { Tile } from "@novadeck/core/types"
 import type { ContextMenuAction } from "@novadeck/toolkit/ContextMenu"
+import { MessageSquareText } from "lucide-react"
+import { createElement } from "react"
 
 import { isProjectWindow } from "./project-window"
 
@@ -11,15 +13,25 @@ export type DockTarget = {
   readonly onDock: (() => void) | undefined
 }
 
+// Asking the agent in a window to write feedback: its handle, which the item names, and what
+// opens the card.
+export type AskFeedback = {
+  readonly handle: string
+  readonly onAsk: () => void
+}
+
 // A window's own actions, the same in its sidebar tab's menu and its header's: who named
 // it, as a line to read rather than choose, then rename, hand a name the person gave back
 // to Novadeck, dock an undocked window back in its terminal, and close. The project
-// window is named by its file and has no terminal to dock in: it offers Close alone.
+// window is named by its file and has no terminal to dock in: it offers Close alone. A window
+// running an agent, on a backend that takes feedback, can ask it to write some. The menu
+// takes only text for a label, so the handle is plain `@handle` there, not the chip.
 export const windowMenu = ({
   terminal,
   onRename,
   onResetTitle,
   dockIn,
+  askFeedback,
   onClose,
 }: {
   terminal: Tile
@@ -28,6 +40,8 @@ export const windowMenu = ({
   onResetTitle?: (() => void) | undefined
   // Present on a window undocked from a terminal's companion.
   dockIn?: DockTarget | undefined
+  // Present on a window running an agent, where the backend takes feedback.
+  askFeedback?: AskFeedback | undefined
   onClose: () => void
 }): ContextMenuAction[] =>
   isProjectWindow(terminal)
@@ -56,6 +70,16 @@ export const windowMenu = ({
                 label: dockIn.name ? `Dock in ${dockIn.name}` : "Dock in its terminal (closed)",
                 disabled: !dockIn.onDock,
                 onSelect: () => dockIn.onDock?.(),
+              },
+            ]
+          : []),
+        ...(askFeedback
+          ? [
+              {
+                value: "ask-feedback",
+                label: `Ask @${askFeedback.handle} to write feedback…`,
+                icon: createElement(MessageSquareText, { size: 14, strokeWidth: 1.5 }),
+                onSelect: askFeedback.onAsk,
               },
             ]
           : []),

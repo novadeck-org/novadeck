@@ -6,7 +6,7 @@
    parts: `.inbox-row-icon`, `.inbox-row-subject`, `.inbox-row-wait` and `.inbox-row-meta`,
    which holds the `.inbox-row-project` and its `.inbox-row-extra`s (one is
    data-extra="draft"). A row says its type in data-type="approve" | "ask" | "trouble" |
-   "update", how it asks in data-urgency="urgent" | "waiting" | "quiet" | "answered", data-seen,
+   "update" | "feedback", how it asks in data-urgency="urgent" | "waiting" | "quiet" | "answered", data-seen,
    data-arrived while it has just joined the list, and, being an item, data-selected for the
    one whose sheet is open. While a sheet is open the other rows step back. The header's
    `.inbox-held` pill says items wait to join; an empty panel shows `.inbox-empty`.
@@ -816,4 +816,115 @@
   .inbox-sheet-footer {
     padding-inline: 16px;
   }
+}
+
+/* A feedback draft's sheet (FeedbackSheet.tsx): the draft is a plain textarea over a mirror
+   (`.inbox-feedback-mirror`) that draws the same text with what would identify the person
+   struck through (`.inbox-feedback-struck`, data-strike="path" | "user" | "host" | "email").
+   Both take the same box, font and wrapping, so the text in the box is transparent and the
+   mirror shows through. `.inbox-feedback-struck-line` counts what is struck;
+   `.inbox-feedback-privacy` is the nowrap line under it; `.inbox-feedback-foot` holds the
+   issue link, Discard and Send. */
+.inbox-feedback-kind {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+.inbox-feedback-field {
+  position: relative;
+  display: grid;
+  padding: 10px 12px;
+  border-radius: var(--radius-panel);
+}
+.inbox-feedback-field:focus-within {
+  --_border-color: var(--inbox-focus-border-color, var(--color-strong));
+}
+.inbox-feedback-mirror,
+.inbox-feedback-input {
+  grid-area: 1 / 1;
+  min-width: 0;
+  min-height: 140px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  font-family: inherit;
+  font-size: inherit;
+  line-height: 21px;
+  letter-spacing: inherit;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  tab-size: 4;
+}
+.inbox-feedback-mirror {
+  pointer-events: none;
+  color: var(--color-ink);
+}
+.inbox-feedback-input {
+  height: 100%;
+  resize: none;
+  overflow: hidden;
+  background: transparent;
+  color: transparent;
+  caret-color: var(--color-ink);
+}
+.inbox-feedback-input::selection {
+  background-color: color-mix(in srgb, var(--color-ink) 20%, transparent);
+  color: transparent;
+}
+.inbox-feedback-struck {
+  color: var(--color-muted);
+  text-decoration-line: line-through;
+  text-decoration-color: var(--inbox-urgent-fg, var(--color-danger-fg));
+  text-decoration-thickness: 1.5px;
+  background-color: color-mix(
+    in srgb,
+    var(--inbox-urgent-fg, var(--color-danger-fg)) 10%,
+    transparent
+  );
+  border-radius: 2px;
+}
+.inbox-feedback-struck-line {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0;
+  color: var(--color-muted);
+}
+.inbox-feedback-struck-line[data-struck] {
+  color: var(--color-ink);
+}
+.inbox-feedback-privacy {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  margin: 0;
+  color: var(--color-muted);
+}
+.inbox-feedback-privacy svg {
+  flex: none;
+}
+.inbox-feedback-privacy-text {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.inbox-feedback-mono {
+  color: var(--color-ink);
+  font-family: var(--font-mono);
+}
+.inbox-feedback-reply a {
+  color: var(--color-ink);
+}
+.inbox-feedback-foot {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.inbox-feedback-reply {
+  flex: none;
+  margin-inline-end: auto;
+  color: var(--color-muted);
+  white-space: nowrap;
 }
