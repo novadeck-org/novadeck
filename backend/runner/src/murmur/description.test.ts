@@ -7,8 +7,7 @@ import {
   sharesContentWord,
 } from "./description.js"
 
-const reply = (title: unknown, changed?: unknown) =>
-  JSON.stringify(changed === undefined ? { title } : { changed, title })
+const reply = (title: unknown) => JSON.stringify({ title })
 
 const title = (text: string, source?: string, project?: string | null) =>
   parseDescription(JSON.stringify({ title: text }), source, project)?.title
@@ -27,7 +26,6 @@ describe("reading the model's title", () => {
   it("keeps a title that fits", () => {
     expect(parseDescription(reply("Upload client retries"))).toEqual({
       title: "Upload client retries",
-      changed: true,
     })
   })
 
@@ -37,21 +35,9 @@ describe("reading the model's title", () => {
     expect(title("Git history")).toBe("Git history")
   })
 
-  it("reads whether the work changed, which a shell's reply leaves out and counts as true", () => {
-    expect(parseDescription(reply("Login flow", false))).toEqual({
-      title: "Login flow",
-      changed: false,
-    })
-    expect(parseDescription(reply("Login flow", true))?.changed).toBe(true)
-    expect(parseDescription(reply("Login flow"))?.changed).toBe(true)
-    expect(parseDescription(reply("Login flow", "no"))).toBeUndefined()
-    expect(parseDescription(reply("Login flow", null))).toBeUndefined()
-  })
-
   it("tidies whitespace, markdown, quotes and a trailing full stop", () => {
     expect(parseDescription(reply('  "**Fix** the  build."  '))).toEqual({
       title: "Fix the build",
-      changed: true,
     })
   })
 
@@ -143,6 +129,8 @@ describe("reading the model's title", () => {
     "Working on",
     "Hi there",
     "Fixing",
+    "Terminal",
+    "Sessions",
   ])("refuses %s, which says only that something is going on", (text) => {
     expect(title(text)).toBeUndefined()
   })
@@ -401,7 +389,6 @@ describe("reading the model's title", () => {
   it("ignores fields it didn't ask for", () => {
     expect(parseDescription(JSON.stringify({ title: "Fix the build", summary: "x" }))).toEqual({
       title: "Fix the build",
-      changed: true,
     })
   })
 
@@ -419,7 +406,6 @@ describe("reading the model's title", () => {
     ["a five-word title", reply("one two three four five")],
     ["a seven-word title", reply("one two three four five six seven")],
     ["a title past 32 characters", reply("Internationalisation internationalisation")],
-    ["a verdict that isn't a boolean", reply("Fix the build", "yes")],
     ["an empty title", reply("  ")],
   ])("rejects %s", (_name, raw) => {
     expect(parseDescription(raw)).toBeUndefined()

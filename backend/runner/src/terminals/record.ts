@@ -104,12 +104,6 @@ export type Record = {
   root: Root | null
   /** What the root session worked on, kept with the terminal; null before any did. */
   work: Work | null
-  /**
-   * The root session murmur was last told of, as `agent:session`; null before any. A
-   * session is new to murmur only when `work` moves off it, so a restored terminal that
-   * binds its saved session again is not.
-   */
-  murmurSession: string | null
   /** The handle of the terminal whose agent opened this one; null otherwise. */
   openedBy: string | null
   /**

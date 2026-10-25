@@ -5,27 +5,15 @@ import type { AgentDigest, ShellDigest } from "./describer.js"
 import { redactDigest } from "./redact.js"
 
 describe("redacting a digest", () => {
-  const previous = { title: "Deploying app" }
-
   it("cleans every string of an agent digest", () => {
     const digest: AgentDigest = {
       kind: "agent",
-      harness: "Claude Code",
-      project: "app",
-      folder: "api",
-      branch: "task/API_KEY=abc",
-      plan: "Rotate sk-abcdefghijklmnopqrstuvwxyz",
-      folders: ["src"],
-      prompts: ["use DB_PASSWORD=pw please", "now deploy"],
-      reply: "done with https://u:p@host/",
-      summary: "rotated sk-abcdefghijklmnopqrstuvwxyz",
-      previous,
-      stage: "settled",
+      project: "DB_PASSWORD=pw",
+      summary: "Rotated sk-abcdefghijklmnopqrstuvwxyz for billing",
     }
     const clean = redactDigest(digest) as AgentDigest
-    expect(JSON.stringify(clean)).not.toMatch(/ghp_|sk-abc|=pw|=abc|u:p@/)
-    expect(clean.prompts[1]).toBe("now deploy")
-    expect(clean.previous?.title).toBe("Deploying app")
+    expect(JSON.stringify(clean)).not.toMatch(/sk-abc|=pw/)
+    expect(clean.summary).toMatch(/^Rotated .* for billing$/)
   })
 
   it("cleans every string of a reply", () => {
@@ -43,7 +31,6 @@ describe("redacting a digest", () => {
     const digest: ShellDigest = {
       kind: "shell",
       project: null,
-      folder: null,
       command: "cat id_rsa",
       screen: [
         "-----BEGIN PRIVATE KEY-----",
@@ -51,7 +38,6 @@ describe("redacting a digest", () => {
         "-----END PRIVATE KEY-----",
         "$",
       ],
-      previous: null,
     }
     const clean = redactDigest(digest) as ShellDigest
     // Every row of the block is masked, and the rows stay where they are.
@@ -62,7 +48,6 @@ describe("redacting a digest", () => {
     const digest: ShellDigest = {
       kind: "shell",
       project: null,
-      folder: null,
       command: null,
       screen: [
         "$ cat id_rsa",
@@ -73,7 +58,6 @@ describe("redacting a digest", () => {
       ],
       continues: [false, false, true, false, false],
       commandAt: 0,
-      previous: null,
     }
     const clean = redactDigest(digest) as ShellDigest
     expect(clean.screen).toHaveLength(digest.screen.length)
