@@ -50,6 +50,51 @@ const gridRowHeight = 8
 const gridMargin = 16
 const gridRow = gridRowHeight + gridMargin
 
+// Whether something from the wheel's target up to its window would scroll by the wheel itself.
+const scrollsInside = (target: Element, tile: Element, event: WheelEvent): boolean => {
+  for (let element: Element | null = target; element; element = element.parentElement) {
+    const style = getComputedStyle(element)
+    const down = element.scrollTop + element.clientHeight < element.scrollHeight - 1
+    const right = element.scrollLeft + element.clientWidth < element.scrollWidth - 1
+    if (
+      /auto|scroll|overlay/.test(style.overflowY) &&
+      ((event.deltaY < 0 && element.scrollTop > 0) || (event.deltaY > 0 && down))
+    )
+      return true
+    if (
+      /auto|scroll|overlay/.test(style.overflowX) &&
+      ((event.deltaX < 0 && element.scrollLeft > 0) || (event.deltaX > 0 && right))
+    )
+      return true
+    if (element === tile) return false
+  }
+  return false
+}
+
+// The wheel over a window scrolls the grid, unless the window is the selected one and holds
+// the focus: only then does what is in it, such as a terminal's history or its program, take
+// the wheel. It is held in the capture, before anything in the window has it, and left to the
+// browser, whose scroll then reaches the grid; where something in the window would still
+// scroll by it, the grid takes the scroll by hand. A zoom gesture is only held.
+const holdWheel =
+  (stage: HTMLElement) =>
+  (event: WheelEvent): void => {
+    const target = event.target as Element
+    const tile = target.closest<HTMLElement>("[data-grid-terminal]")
+    if (!tile || !stage.contains(tile)) return
+    if (tile.classList.contains("selected") && tile.contains(document.activeElement)) return
+    event.stopPropagation()
+    if (event.ctrlKey || event.metaKey || !scrollsInside(target, tile, event)) return
+    event.preventDefault()
+    const unit =
+      event.deltaMode === WheelEvent.DOM_DELTA_PAGE
+        ? stage.clientHeight
+        : event.deltaMode === WheelEvent.DOM_DELTA_LINE
+          ? 16
+          : 1
+    stage.scrollBy({ top: event.deltaY * unit, behavior: "instant" })
+  }
+
 type Props = {
   presets: Record<string, SizePreset>
   restoreWidths: Record<string, GridRestoreWidths>
@@ -92,6 +137,14 @@ export const Grid = ({
   )
   const resized = resizeRequest?.navigation === navigation ? resizeRequest.id : null
   const removed = useTerminalVisibility(hidden)
+  const stageRef = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    const stage = stageRef.current
+    if (!stage) return
+    const onWheel = holdWheel(stage)
+    stage.addEventListener("wheel", onWheel, { capture: true, passive: false })
+    return () => stage.removeEventListener("wheel", onWheel, { capture: true })
+  }, [])
   const lastNavigation = useRef({ navigation: 0, width: 0 })
   useLayoutEffect(() => {
     if (
@@ -282,6 +335,7 @@ export const Grid = ({
       <div className="workspace-dots absolute inset-0 canvas-grid" aria-hidden="true" />
       <div className="workspace-dots absolute inset-0 canvas-grid-spotlight" aria-hidden="true" />
       <div
+        ref={stageRef}
         className="grid-stage relative z-1 min-h-0 min-w-0 flex-1 overflow-x-hidden overflow-y-auto [scrollbar-gutter:stable]"
         onTransitionEnd={(event) => {
           const terminal = event.target as HTMLElement

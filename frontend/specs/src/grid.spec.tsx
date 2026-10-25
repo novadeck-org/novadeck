@@ -231,6 +231,61 @@ describe("Grid view", () => {
     })
   })
 
+  context("when the wheel turns over a window", () => {
+    afterEach(async () => {
+      await page.viewport(1440, 900)
+    })
+
+    const stage = (): HTMLElement => gridView().element().querySelector(".grid-stage")!
+
+    /** Counts the wheels that reach what the terminal draws in its window. */
+    const wheelsInside = (name: string): { count: number } => {
+      const reached = { count: 0 }
+      terminal(name)
+        .element()
+        .querySelector("[data-terminal-content]")!
+        .addEventListener("wheel", () => reached.count++)
+      return reached
+    }
+
+    it("scrolls the grid, not the window, while another window is selected", async () => {
+      await page.viewport(1440, 560)
+      await openGrid()
+      await clickInto("Dev server")
+      const reached = wheelsInside("Tests")
+
+      await userEvent.wheel(terminal("Tests"), { delta: { y: 200 } })
+
+      await expect.poll(() => stage().scrollTop).toBeGreaterThan(0)
+      expect(reached.count).toBe(0)
+    })
+
+    it("scrolls the grid while the window is selected but the focus is elsewhere", async () => {
+      await page.viewport(1440, 560)
+      await openGrid()
+      await clickInto("Tests")
+      await focusStage()
+      await expectSelected("Tests")
+      const reached = wheelsInside("Tests")
+
+      await userEvent.wheel(terminal("Tests"), { delta: { y: 200 } })
+
+      await expect.poll(() => stage().scrollTop).toBeGreaterThan(0)
+      expect(reached.count).toBe(0)
+    })
+
+    it("hands the wheel to the window that is selected and holds the focus", async () => {
+      await page.viewport(1440, 560)
+      await openGrid()
+      await clickInto("Tests")
+      const reached = wheelsInside("Tests")
+
+      await userEvent.wheel(terminal("Tests"), { delta: { y: 200 } })
+
+      await expect.poll(() => reached.count).toBeGreaterThan(0)
+    })
+  })
+
   context("when creating a terminal from the background", () => {
     it("offers Terminal and creates one and focuses its input", async () => {
       await openGrid()
