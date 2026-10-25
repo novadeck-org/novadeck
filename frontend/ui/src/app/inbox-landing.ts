@@ -11,7 +11,8 @@ import { viewing, type UiState, type UiStore } from "./ui-store"
 // Items for the terminal the person is looking at (see `viewing`: the selected terminal while
 // the page has their focus, in every view) don't land while they look: the agent is right
 // there, so a row would only repeat it. They land when the person looks away, if still
-// unresolved, quietly: no toast or OS ping rings for what the person already saw there. An
+// unresolved: quietly (no toast or OS ping) once they looked at it for `readDwellMs`, as they
+// saw it there, and ringing as any item does after a shorter look. An
 // update (a done report or a tell) is read once its terminal has been looked at for a moment
 // (`readDwellMs`), whether it landed or not: seeing the terminal is seeing it. A read that
 // fails lands the update instead. On a phone, while the Inbox list covers the screen, no

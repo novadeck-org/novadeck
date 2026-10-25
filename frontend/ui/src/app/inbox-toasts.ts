@@ -75,6 +75,8 @@ export const watchInboxToasts = (
     ring: (item) => {
       const state = ui.getSnapshot()
       if (!mayToast(state, desktop)) return false
+      // Never over the terminal they're looking at: they came back to it within the grace.
+      if (state.location.route.terminal === item.source.terminalId) return false
       if (modalOpen(state)) {
         // Rung all the same, so its leaving is followed: closing a toast never shown is a no-op.
         held.set(item.source.terminalId, item)

@@ -338,8 +338,8 @@ since the agent is right there. If it is still unresolved when you look away it 
 looked at it for about a second, it lands quietly, counted on the bell but with no toast or
 system ping, because you saw it where it happened; looked at for less, it lands and rings as any
 item does. An update (a `done` report or a `tell`) is read once you have looked at its terminal
-for about a second, never landing; a glance while passing reads nothing, and the update lands
-when you look away. This second applies to Inbox updates and quiet landings only: the tab's
+for about a second, whether it already landed or not; a glance while passing reads nothing, and
+an update that arrived while you looked lands when you look away. This second applies to Inbox updates and quiet landings only: the tab's
 unread marks of replies and failed turns clear as soon as you look. On a narrow window, while
 the Inbox list covers the screen, no terminal counts as looked at, for either. Opening an item
 by its id, as Answer in Messages or a click on a notification does, lands it at once, even while

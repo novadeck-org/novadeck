@@ -106,9 +106,9 @@ export const inboxShown = (ui: UiState, desktop: () => boolean): boolean =>
   ui.location.route.panel === "inbox" && sidebarVisible(ui.shell, desktop())
 
 // Whether a toast may show now: the page has the person's focus, they want to hear what
-// needs them, and the Inbox isn't what they look at. (An item of the terminal they look at
-// never reaches a toast: it hasn't landed, see inbox-landing.ts.) `desktop` is asked only
-// when the sidebar matters.
+// needs them, and the Inbox isn't what they look at. (The toasts also skip an item of the
+// terminal they've come back to, see inbox-toasts.ts.) `desktop` is asked only when the
+// sidebar matters.
 export const mayToast = (ui: UiState, desktop: () => boolean): boolean =>
   ui.pageFocused && ui.preferences.notifyNeeds && !inboxShown(ui, desktop)
 
