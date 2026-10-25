@@ -1623,7 +1623,8 @@ model behind a `Describer` (`murmur/`).
   is set murmur is not asked about the terminal at all (it could not show), though the
   agent still summarizes it; the runner API's `terminals.resetTitle` takes the person's
   title away, so the title is automatic again (murmur's, else the opener's), and murmur
-  names the terminal again: an agent's at its next summary, a shell's at its next prompt.
+  names the terminal again: an agent's at once from a summary written while the person's
+  title showed, else at its next summary; a shell's at its next prompt.
 
 - **The opener's title.** An opener's title never passes through the client as the
   person's: the request the client gets has no title, and the client creates the terminal
@@ -1736,7 +1737,7 @@ name (murmur's, else the opener's) only when it shares no content word with it
 (`sharesContentWord` in `murmur/description.ts`), so a reworded summary of the same work
 keeps the name. A title murmur wrote for the terminal as a plain shell is no name of the
 agent's work, and is always replaced, even when the opener's title beneath it shares a
-word; one written before a runner restart is not known as a shell's, and is weighed as any
+word, and an agent that binds where one shows (a resume) is named from its summary at once; one written before a runner restart is not known as a shell's, and is weighed as any
 title is. An agent with no summary keeps the title it has. The summary is the one the
 person sees, which stays across `/clear` and an agent's exit until the next is written.
 

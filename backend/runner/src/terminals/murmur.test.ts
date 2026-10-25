@@ -684,6 +684,54 @@ describe("when an agent's terminal is named", () => {
     expect(made.describer.jobs).toHaveLength(0)
   })
 
+  it("names an agent that resumes where a shell's title shows from its summary, once", async () => {
+    const made = create(
+      {
+        agent: null,
+        program: { name: "bash", argv: null },
+        naming: { ...unnamed, summary: "Fixes the login redirect." },
+      },
+      new FakeDescriber({
+        reply: (digest) => ({ title: digest.kind === "shell" ? "Git history" : "Login redirect" }),
+      }),
+    )
+    made.rows.current = ["$ git log", "abc123 Fix login", "$ "]
+    made.murmur.prompted("a")
+    await settle(made.times.shellSettleMs + 50)
+    made.change({ agent: "claude" })
+    for (let report = 0; report < 5; report += 1) {
+      made.murmur.reported("a")
+      // eslint-disable-next-line no-await-in-loop -- Reports come one after another.
+      await settle(made.times.settleMs / 2)
+    }
+    await settle()
+    expect(made.written).toEqual([{ title: "Git history" }, { title: "Login redirect" }])
+    made.murmur.reported("a")
+    await settle()
+    expect(made.describer.jobs).toHaveLength(2)
+  })
+
+  it("owes nothing for a summary whose job a shell's request took", async () => {
+    const made = create(
+      { work: work(), activity: idle("ok"), program: { name: "bash", argv: null } },
+      new FakeDescriber({ reply: () => null }),
+    )
+    summarize(made, summary)
+    // The agent leaves within the quiet, and the shell's prompt takes the job.
+    made.change({ agent: null })
+    made.murmur.prompted("a")
+    await settle(made.times.shellSettleMs + 50)
+    // A titled terminal, which catch-up names only for a summary still owed.
+    made.change({
+      agent: "codex",
+      naming: { ...made.subjects.get("a")!.naming, murmur: { title: "Kept" } },
+    })
+    made.describer.setUsable(false)
+    made.describer.setUsable(true)
+    await settle(300)
+    expect(made.describer.digests.filter((digest) => digest.kind === "agent")).toHaveLength(0)
+  })
+
   it("lets a refused title go until the next summary", async () => {
     const made = create(
       { work: work(), activity: idle("ok") },

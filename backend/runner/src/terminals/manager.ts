@@ -868,6 +868,8 @@ export class Terminals {
   resetTitle(input: { terminalId: string }): void {
     if (this.stopping) throw new DomainError("CLOSING")
     this.names.name(input.terminalId, null)
+    // A summary written while the person's title showed names the terminal now.
+    this.murmur?.summarized(input.terminalId)
   }
 
   get(terminalId: string): TerminalSummary {

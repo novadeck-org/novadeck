@@ -612,7 +612,12 @@ export class Murmur {
    * noted when the agent reports.
    */
   reported(terminalId: string): void {
-    if (this.host.subject(terminalId)?.agent) this.watch(terminalId).agentRan = true
+    if (!this.host.subject(terminalId)?.agent) return
+    const watch = this.watch(terminalId)
+    watch.agentRan = true
+    // An agent that binds where a shell's title shows (a resume) is named from its summary,
+    // asked once rather than at each report, which would put off its quiet.
+    if (watch.shellTitled && !watch.owed) this.summarized(terminalId)
   }
 
   // The name a summary's title would replace: murmur's title, else its opening agent's. A
@@ -917,8 +922,10 @@ export class Murmur {
     options: { readonly program?: string; readonly unchanged?: boolean } = {},
   ): void {
     // A shell's request takes the terminal's one job from any summary's title waiting for
-    // it, which stays owed. A shell opened to run an agent waits for it to bind, or for the
-    // wait to pass.
+    // it, whose agent has left: nothing is owed of it. A shell opened to run an agent waits
+    // for it to bind, or for the wait to pass.
+    const mine = this.watches.get(terminalId)
+    if (mine) mine.owed = false
     const subject = this.host.subject(terminalId)
     const wait = subject && !subject.agent ? this.expectedFor(subject) : 0
     let key: string | null = null
