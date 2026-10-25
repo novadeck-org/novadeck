@@ -25,7 +25,6 @@ export type Waiting = {
   readonly jobs: readonly {
     readonly id: string
     readonly label: string
-    readonly command: string
     readonly since: number
     readonly until: number | null
   }[]
@@ -38,9 +37,9 @@ export const waitingOf = (terminal: TerminalMetadata, now = Date.now()): Waiting
   // A job its harness gives up on is waited on until then and the grace after, as a wake-up is.
   const jobs = waiting.jobs
     .filter((job) => job.until === null || job.until + wakeGraceMs > now)
-    .map(({ description, ...job }) => ({
+    .map(({ description, command, ...job }) => ({
       ...job,
-      label: description ?? (job.command || "a background job"),
+      label: description ?? (command || "a background job"),
     }))
     .toSorted((a, b) => a.since - b.since)
   const wake = waiting.wake && waiting.wake.at + wakeGraceMs > now ? waiting.wake : null
