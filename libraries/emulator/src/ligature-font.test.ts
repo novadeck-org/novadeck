@@ -88,90 +88,116 @@ const rows = [
   "x " + "=".repeat(60) + " y " + "-".repeat(60) + " z",
 ]
 
+// The checks shape tens of thousands of lines, which a slow runner takes seconds over.
+const slow = 60_000
+
 describe("the ligature table and the bundled font", () => {
   it("lists only sequences the font draws whole", () => {
     for (const word of ligatureWords) expect(font.shape(word), word).toEqual([[0, word.length]])
   })
 
-  it("covers every cell the font joins, in every line of two or three of its glyphs", () => {
-    const glyphs = alphabet()
-    const lines: string[] = []
-    for (const a of glyphs)
-      for (const b of glyphs) {
-        lines.push(a + b)
-        for (const c of glyphs) lines.push(a + b + c)
-      }
-    const failures = lines.map((line) => check(line, [32, Infinity])).filter(Boolean)
-    expect(failures.slice(0, 5)).toEqual([])
-  })
-
-  it("holds in random code-like lines and long repeated runs", () => {
-    const glyphs = alphabet()
-    const filler = [..."abcxyz019 ,;()"]
-    const random = generator(20261025)
-    const pick = (from: readonly string[]): string => from[Math.floor(random() * from.length)] ?? ""
-    const lines: string[] = []
-    for (let i = 0; i < 3000; i++) {
-      const length = 4 + Math.floor(random() * 20)
-      const mix = i % 2 === 0 ? glyphs : [...glyphs, ...filler, " ", " "]
-      lines.push(Array.from({ length }, () => pick(mix)).join(""))
-    }
-    for (const glyph of glyphs)
-      for (const n of [5, 8, 11, 14, 17, 20, 23, 31, 33, 64, 100, 200]) lines.push(glyph.repeat(n))
-    const failures = lines.map((line) => check(line)).filter(Boolean)
-    expect(failures.slice(0, 5)).toEqual([])
-  })
-
-  it("draws a long line cut into runs as it draws it whole: tables, arrows, rules, bars", () => {
-    const failures = rows.map((line) => check(line)).filter(Boolean)
-    expect(failures.slice(0, 5)).toEqual([])
-  })
-
-  it("draws long random mixes of stretches and sequences as it draws them whole", () => {
-    const glyphs = alphabet()
-    const random = generator(77)
-    const pick = (from: readonly string[]): string => from[Math.floor(random() * from.length)] ?? ""
-    const lines: string[] = []
-    for (let i = 0; i < 400; i++) {
-      let line = ""
-      while (line.length < 60 + random() * 160) {
-        const roll = random()
-        if (roll < 0.45) line += pick(glyphs).repeat(1 + Math.floor(random() * 30))
-        else if (roll < 0.8) line += pick(ligatureWords)
-        else line += pick([..."ab 1", ...glyphs])
-      }
-      lines.push(line)
-    }
-    const failures = lines.map((line) => check(line)).filter(Boolean)
-    expect(failures.slice(0, 5)).toEqual([])
-  })
-
-  it("draws every cut the joiner makes the same either side: the margin holds for every glyph", () => {
-    const glyphs = alphabet()
-    const random = generator(5)
-    const pick = (): string =>
-      [...glyphs, ..."ab 1"][Math.floor(random() * (glyphs.length + 4))] ?? ""
-    const around = (): string => Array.from({ length: Math.floor(random() * 5) }, pick).join("")
-    const failures: string[] = []
-    for (const glyph of glyphs)
-      for (let i = 0; i < 40; i++) {
-        const before = around()
-        const line = before + glyph.repeat(30) + around()
-        const whole = font.glyphs(line)
-        for (const at of [
-          before.length + cutMargin,
-          before.length + 15,
-          before.length + 30 - cutMargin,
-        ]) {
-          const left = font.glyphs(line.slice(0, at))
-          const right = font.glyphs(line.slice(at))
-          const same =
-            left.every((g, k) => g === whole[k]) && right.every((g, k) => g === whole[at + k])
-          if (!same) failures.push(`${JSON.stringify(line)} cut at ${at}`)
+  it(
+    "covers every cell the font joins, in every line of two or three of its glyphs",
+    () => {
+      const glyphs = alphabet()
+      const lines: string[] = []
+      for (const a of glyphs)
+        for (const b of glyphs) {
+          lines.push(a + b)
+          for (const c of glyphs) lines.push(a + b + c)
         }
+      const failures = lines.map((line) => check(line, [32, Infinity])).filter(Boolean)
+      expect(failures.slice(0, 5)).toEqual([])
+    },
+    slow,
+  )
+
+  it(
+    "holds in random code-like lines and long repeated runs",
+    () => {
+      const glyphs = alphabet()
+      const filler = [..."abcxyz019 ,;()"]
+      const random = generator(20261025)
+      const pick = (from: readonly string[]): string =>
+        from[Math.floor(random() * from.length)] ?? ""
+      const lines: string[] = []
+      for (let i = 0; i < 3000; i++) {
+        const length = 4 + Math.floor(random() * 20)
+        const mix = i % 2 === 0 ? glyphs : [...glyphs, ...filler, " ", " "]
+        lines.push(Array.from({ length }, () => pick(mix)).join(""))
       }
-    expect(failures.slice(0, 5)).toEqual([])
-  })
+      for (const glyph of glyphs)
+        for (const n of [5, 8, 11, 14, 17, 20, 23, 31, 33, 64, 100, 200])
+          lines.push(glyph.repeat(n))
+      const failures = lines.map((line) => check(line)).filter(Boolean)
+      expect(failures.slice(0, 5)).toEqual([])
+    },
+    slow,
+  )
+
+  it(
+    "draws a long line cut into runs as it draws it whole: tables, arrows, rules, bars",
+    () => {
+      const failures = rows.map((line) => check(line)).filter(Boolean)
+      expect(failures.slice(0, 5)).toEqual([])
+    },
+    slow,
+  )
+
+  it(
+    "draws long random mixes of stretches and sequences as it draws them whole",
+    () => {
+      const glyphs = alphabet()
+      const random = generator(77)
+      const pick = (from: readonly string[]): string =>
+        from[Math.floor(random() * from.length)] ?? ""
+      const lines: string[] = []
+      for (let i = 0; i < 400; i++) {
+        let line = ""
+        while (line.length < 60 + random() * 160) {
+          const roll = random()
+          if (roll < 0.45) line += pick(glyphs).repeat(1 + Math.floor(random() * 30))
+          else if (roll < 0.8) line += pick(ligatureWords)
+          else line += pick([..."ab 1", ...glyphs])
+        }
+        lines.push(line)
+      }
+      const failures = lines.map((line) => check(line)).filter(Boolean)
+      expect(failures.slice(0, 5)).toEqual([])
+    },
+    slow,
+  )
+
+  it(
+    "draws every cut the joiner makes the same either side: the margin holds for every glyph",
+    () => {
+      const glyphs = alphabet()
+      const random = generator(5)
+      const pick = (): string =>
+        [...glyphs, ..."ab 1"][Math.floor(random() * (glyphs.length + 4))] ?? ""
+      const around = (): string => Array.from({ length: Math.floor(random() * 5) }, pick).join("")
+      const failures: string[] = []
+      for (const glyph of glyphs)
+        for (let i = 0; i < 40; i++) {
+          const before = around()
+          const line = before + glyph.repeat(30) + around()
+          const whole = font.glyphs(line)
+          for (const at of [
+            before.length + cutMargin,
+            before.length + 15,
+            before.length + 30 - cutMargin,
+          ]) {
+            const left = font.glyphs(line.slice(0, at))
+            const right = font.glyphs(line.slice(at))
+            const same =
+              left.every((g, k) => g === whole[k]) && right.every((g, k) => g === whole[at + k])
+            if (!same) failures.push(`${JSON.stringify(line)} cut at ${at}`)
+          }
+        }
+      expect(failures.slice(0, 5)).toEqual([])
+    },
+    slow,
+  )
 
   // Known limit: the table lists the glyphs a ligature joins, not the neighbour that stops one,
   // so these draw an arrow on WebGL where the font draws plain. They fail until the table can
