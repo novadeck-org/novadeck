@@ -242,10 +242,12 @@ describe("a nudge", () => {
     expect(text).toContain("no status, PR or issue numbers, or details")
   })
 
-  it("asks for the first summary before the agent starts on its work, as it titles the terminal", () => {
+  it("asks for the first summary at once, before the agent goes on with its work, as it titles the terminal", () => {
     const text = nudgeText({ summary: null })
-    expect(text).toContain("Before you start on the work you were given, call Novadeck's summarize")
-    expect(text).toContain("with no work given yet, do so once there is")
+    expect(text).toContain(
+      "Call Novadeck's summarize tool now, before you go on with the work you were given",
+    )
+    expect(text).toContain("with no work given yet, do so as soon as there is")
     expect(text).toContain("Novadeck titles this terminal from it")
     expect(text).not.toContain("When it suits")
   })
