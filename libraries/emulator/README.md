@@ -88,6 +88,19 @@ release fixes what it fixes.
   with either renderer. Check xterm 6.1 for a fix; otherwise make it again in the same two functions.
   `src/pointer.test.ts` pins it in each bundle, and terminal-views' `src/zoom.spec.ts` checks the
   reports and the selection in a real browser at scales 0.5, 1 and 1.5.
+- `@xterm/xterm` 6.0.0, the same two bundles: the DOM renderer's `_updateDimensions` measures a cell
+  as the WebGL renderer does: the device width of a character is `Math.floor(charWidth * dpr)`, and
+  the CSS cell is `device.cell.width / dpr` (it was the measured width, and the rounded canvas over
+  the columns). The renderers disagreed, so a screen that changed renderer (a context stolen, lost
+  or given back, ligatures toggled) fit another number of columns and resized its pty, and an agent's
+  TUI redrew: 13 px JetBrains Mono advances 7.8 px, which is 7 px in WebGL, so 112 columns against
+  100 in an 800 px box at a ratio of 1. The DOM renderer fits each span to the cell with letter-spacing
+  (`_setDefaultSpacing` reads the cell, so it follows), so its text draws at WebGL's pitch, about
+  0.8 px tighter per glyph at 13 px. Heights already agreed. The shared width cache holds glyph
+  widths, not the cell, and is unaffected. Make it again on xterm 6.1 in `DomRenderer._updateDimensions`
+  unless the DOM renderer rounds the same way. `src/cell.test.ts` pins it in each bundle, and
+  terminal-views' `src/grid.spec.ts` checks both renderers fit the same columns and rows in a real
+  browser at ratios 1, 1.25, 1.5 and 2.
 - `@xterm/addon-webgl` 0.19.0: `WebglRenderer` registers its cursor-blink manager with the renderer
   (`this._register(new be)` in `lib/addon-webgl.mjs`, `this._register(new m.MutableDisposable)` in
   `lib/addon-webgl.js`) in place of leaving it undisposed. The manager exists once a program turns

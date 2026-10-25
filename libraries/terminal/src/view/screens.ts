@@ -262,8 +262,8 @@ export const createTerminalViews = <K>(o: TerminalViewOptions<K>) => {
       exited: (waits) => refresh({ waits }),
       live: (live, resuming = false) => refresh({ live, resuming }),
     })
-    // The two renderers measure a cell apart (WebGL to whole device pixels), so a screen
-    // that changes renderer fits its slot again.
+    // The renderers measure a cell alike (the emulator patches xterm's DOM one to WebGL's whole
+    // device pixels), so this changes nothing unless a font or ratio differs; it fits again anyway.
     view.onRendererChange(() => {
       // Counted when the fit sent the pty another size.
       if (followed.refit()) view.renderer.resized()
