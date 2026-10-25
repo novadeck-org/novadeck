@@ -27,6 +27,7 @@ import {
 } from "./desktop-host"
 import { reportPoolTo } from "./renderer-report"
 import type { RunnerListing } from "./seed"
+import { sizePoolTo } from "./webgl-cap"
 
 /** The desktop app's runner: the one its host starts, over a port the host hands the page. */
 export const desktopTransport = (): Transport => desktop()
@@ -147,6 +148,8 @@ export const connectRunnerBackend = async (
   progress: (stage: "loading") => void,
   { transport, theme }: { readonly transport: () => Transport; readonly theme: ThemeSource },
 ): Promise<BackendConnection> => {
+  // Before anything makes the page's pool (the backend's views do, below).
+  sizePoolTo(desktopHost())
   let runner: Runner
   try {
     runner = await connectRunner(transport(), { signal })

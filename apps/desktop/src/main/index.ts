@@ -167,10 +167,13 @@ import {
   type UpdateBuild,
   type UpdaterKind,
 } from "./updater.js"
+import { raiseWebglContexts, webglContextsArgument } from "./webgl.js"
 import { keepWhatsNew, registerWhatsNewIpc, whatsNewAtLaunch } from "./whats-new.js"
 import { registerWindowFocusIpc } from "./window-focus.js"
 
 const appId = "dev.mzpk.novadeck"
+// The WebGL context limit, raised before the app is ready; the pages are told it.
+const webglContexts = raiseWebglContexts(app.commandLine)
 // Where the app keeps its data; a development launch keeps its own (see ./data-folder.ts).
 // One given by --user-data-dir, as the packaged smoke test gives, is kept; the switch
 // without a folder names none.
@@ -878,7 +881,10 @@ const createWindow = (origin: string): BrowserWindow => {
     autoHideMenuBar: true,
     backgroundColor: appearance.current()?.ground ?? "#ffffff",
     webPreferences: {
-      additionalArguments: [`${apiUrlArgumentPrefix}${apiUrl}`],
+      additionalArguments: [
+        `${apiUrlArgumentPrefix}${apiUrl}`,
+        webglContextsArgument(webglContexts),
+      ],
       contextIsolation: true,
       nodeIntegration: false,
       preload: join(currentDirectory, "../preload/index.cjs"),
