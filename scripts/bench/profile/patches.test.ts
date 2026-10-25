@@ -158,7 +158,7 @@ describe("webglAtlasPatch", () => {
 describe("raisedCapPatch", () => {
   const id = "/r/frontend/terminal-views/src/renderers.ts"
   const source =
-    'import { webglRenderers } from "@novadeck/emulator/browser"\nlet page\nexport const pageRenderers = () =>\n  (page ??= webglRenderers({\n    ligatures: () => false,\n  }))\n'
+    'import { webglRenderers } from "@novadeck/emulator/browser"\nlet page\nexport const pageRenderers = () =>\n  (page ??= webglRenderers({\n    ...(configuredCap !== undefined && { cap: configuredCap }),\n  }))\n'
 
   it("gives the page's pool the cap two under the contexts, moving no line", () => {
     const patched = raisedCapPatch(40).transform(source, id)!.code

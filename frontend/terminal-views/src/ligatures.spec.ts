@@ -62,9 +62,16 @@ const rows = [
   { text: "  abc def", cells: undefined },
 ] as const
 
-const open = async (renderer: "webgl" | "dom", on: boolean) => {
+const open = async (
+  renderer: "webgl" | "dom",
+  on: boolean,
+  layout: { readonly lines: readonly string[]; readonly cols: number } = {
+    lines: rows.map((row) => row.text),
+    cols: 30,
+  },
+) => {
   const element = document.createElement("div")
-  element.style.cssText = "position: absolute; left: 0; top: 0; width: 240px; height: 140px"
+  element.style.cssText = `position: absolute; left: 0; top: 0; width: ${layout.cols * 8}px; height: ${layout.lines.length * 20}px`
   // The DOM renderer takes ligatures from the page's CSS (theme/base.css names calt).
   if (renderer === "dom") element.style.fontFeatureSettings = '"calt"'
   document.body.append(element)
@@ -80,12 +87,12 @@ const open = async (renderer: "webgl" | "dom", on: boolean) => {
     view.dispose()
     element.remove()
   })
-  view.terminal.resize(30, rows.length)
+  view.terminal.resize(layout.cols, layout.lines.length)
   view.terminal.write("\x1b[?25l")
-  for (const [i, row] of rows.entries())
+  for (const [i, line] of layout.lines.entries())
     // eslint-disable-next-line no-await-in-loop -- Each write follows the last.
     await new Promise<void>((done) =>
-      view.terminal.write(`${i ? "\r\n" : ""}${row.text}`, () => done()),
+      view.terminal.write(`${i ? "\r\n" : ""}${line}`, () => done()),
     )
   if (renderer === "webgl") view.renderer.take()
   view.setLigatures(on)
@@ -198,5 +205,28 @@ describe("ligatures drawn by WebGL", () => {
     // Both draw the font's own ten-cell bar; allow a pixel for the two rasterizers.
     expect(Math.abs(a.left - b.left)).toBeLessThanOrEqual(1)
     expect(Math.abs(a.right - b.right)).toBeLessThanOrEqual(1)
+  })
+
+  it("draws long bars to their ends, many lengths and colours, not past the glyph atlas", async () => {
+    // A joined run is one glyph, and every length, colour and weight of one is its own, which
+    // a run past 512 device pixels sent to an overflow page that holds about eighty: the frames
+    // after drew nothing. Long runs are cut, so none is that wide.
+    const bars = Array.from({ length: 16 }, (_, i) => {
+      const colour = 31 + (i % 6)
+      return `\x1b[${colour}m[${"=".repeat(96 + 7 * i)}>\x1b[0m ${i}%`
+    })
+    const layout = { lines: ["=".repeat(180), ...bars], cols: 220 }
+    const { view, element } = await open("webgl", true, layout)
+    const cell = cellOf(view)
+    const pixels = await read(element)
+    layout.lines.forEach((line, i) => {
+      const ink = rowInk(pixels, i, cell.height)
+      // Ink to the last glyph of the bar (a `>` or `=`), each of its cells.
+      const end = i === 0 ? 180 : 96 + 7 * (i - 1) + 2
+      expect(ink.right, `row ${i} reaches its end`).toBeGreaterThan((end - 1) * cell.width)
+      expect(ink.right, `row ${i} stays in its cells`).toBeLessThanOrEqual(
+        (i === 0 ? 180 : end + 5 + String(i - 1).length) * cell.width,
+      )
+    })
   })
 })

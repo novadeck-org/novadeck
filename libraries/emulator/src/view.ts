@@ -2,7 +2,7 @@ import { FitAddon } from "@xterm/addon-fit"
 import { WebLinksAddon } from "@xterm/addon-web-links"
 import { Terminal, type IDisposable, type ILinkHandler, type ITheme } from "@xterm/xterm"
 
-import { ligatureRuns } from "./ligatures.js"
+import { hasTable, ligatureRuns, runLimit } from "./ligatures.js"
 import type { Renderers, ScreenRenderer } from "./renderer.js"
 import { applyWidths } from "./width.js"
 
@@ -105,9 +105,17 @@ export const createView = (element: HTMLElement, options: ViewOptions): View => 
   let ligatures = false
   let joiner: number | undefined
   const syncJoiner = (): void => {
-    const wanted = ligatures && renderer.drawn()
+    // The table is JetBrains Mono's: another face's glyphs would be squeezed into runs for nothing.
+    const wanted = ligatures && renderer.drawn() && hasTable(terminal.options.fontFamily ?? "")
     if (wanted === (joiner !== undefined)) return
-    if (wanted) joiner = terminal.registerCharacterJoiner((text) => ligatureRuns(text))
+    if (wanted)
+      joiner = terminal.registerCharacterJoiner((text) =>
+        // A cell is about 0.6 em wide in the table's font.
+        ligatureRuns(
+          text,
+          runLimit(0.6 * (terminal.options.fontSize ?? fontSize) * window.devicePixelRatio),
+        ),
+      )
     else if (joiner !== undefined) {
       terminal.deregisterCharacterJoiner(joiner)
       joiner = undefined
@@ -128,6 +136,7 @@ export const createView = (element: HTMLElement, options: ViewOptions): View => 
   const measure = (family: string): void => {
     if (terminal.options.fontFamily === family) terminal.options.fontFamily = "monospace"
     terminal.options.fontFamily = family
+    syncJoiner()
     // Glyphs the WebGL atlas drew in the family's fallback stay cached under its name.
     renderer.refresh()
   }

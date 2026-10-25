@@ -388,7 +388,7 @@ describe("a view's ligatures", () => {
   /* eslint-enable no-underscore-dangle */
 
   it("hands WebGL the font's runs while ligatures are on and WebGL draws the view", () => {
-    const { view } = open({ renderers: pool() })
+    const { view } = open({ renderers: pool(), fontFamily: "'JetBrains Mono Variable', monospace" })
     view.renderer.take()
     view.setLigatures(true)
     expect(joiners(view)).toHaveLength(1)
@@ -399,14 +399,14 @@ describe("a view's ligatures", () => {
   })
 
   it("keeps the joiner off the DOM renderer, which draws ligatures from its text", () => {
-    const { view } = open({ renderers: pool() })
+    const { view } = open({ renderers: pool(), fontFamily: "'JetBrains Mono Variable', monospace" })
     view.setLigatures(true)
     expect(joiners(view)).toHaveLength(0)
     expect(open().view.setLigatures(true)).toBeUndefined()
   })
 
   it("follows the view between renderers and the setting going off", () => {
-    const { view } = open({ renderers: pool() })
+    const { view } = open({ renderers: pool(), fontFamily: "'JetBrains Mono Variable', monospace" })
     view.setLigatures(true)
     view.renderer.take()
     expect(joiners(view)).toHaveLength(1)
@@ -419,12 +419,33 @@ describe("a view's ligatures", () => {
   })
 
   it("draws the screen again when the joiner comes or goes", () => {
-    const { view } = open({ renderers: pool() })
+    const { view } = open({ renderers: pool(), fontFamily: "'JetBrains Mono Variable', monospace" })
     view.renderer.take()
     const refresh = vi.spyOn(view.terminal, "refresh")
     view.setLigatures(true)
     view.setLigatures(true)
     view.setLigatures(false)
     expect(refresh).toHaveBeenCalledTimes(2)
+  })
+
+  it("keeps the joiner off another face, whose glyphs the table's runs would squeeze for nothing", async () => {
+    const { view } = open({ renderers: pool(), fontFamily: "'Share Tech Mono', monospace" })
+    view.renderer.take()
+    view.setLigatures(true)
+    expect(joiners(view)).toHaveLength(0)
+    // A font that turns out to be JetBrains Mono's brings it.
+    await view.setFont("'JetBrains Mono Variable', monospace")
+    expect(joiners(view)).toHaveLength(1)
+    await view.setFont("'Share Tech Mono', monospace")
+    expect(joiners(view)).toHaveLength(0)
+  })
+
+  it("cuts a long line into runs the glyph atlas holds", () => {
+    const { view } = open({ renderers: pool(), fontFamily: "'JetBrains Mono Variable', monospace" })
+    view.renderer.take()
+    view.setLigatures(true)
+    const runs = joiners(view)[0]!.handler("=".repeat(200))
+    expect(runs.length).toBeGreaterThan(5)
+    for (const [from, to] of runs) expect(to - from).toBeLessThanOrEqual(32)
   })
 })

@@ -205,7 +205,7 @@
 }
 
 /* Every line of text glows in its own colour: text-shadow inherits, so it reaches the
-   terminals that draw with the DOM renderer's spans too (in Canvas, or with ligatures on);
+   terminals that draw with the DOM renderer's spans too (in Canvas, or without a GPU);
    one that draws with WebGL draws on a canvas, which no text-shadow reaches, and shows
    its text without the glow. The tube powers on as it comes on
    screen, at start and when the person picks it: a bright dot draws out into a line,

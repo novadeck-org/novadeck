@@ -113,10 +113,10 @@ release fixes what it fixes.
   disposed renderer alive. Upstream disposes it from 7a6e724b; drop the patch on an upgrade that has it.
 - `@xterm/addon-webgl` 0.19.0, the same two bundles: the glyph atlas draws a run of two or more
   ASCII punctuation characters (what a joined ligature is) scaled sideways to its cells, by
-  `cells * deviceCellWidth / measureText(run).width`, in place of at the font's own advance. A cell is
+  `cells * deviceCellWidth / measureText(run).width`, in place of at the font's own advance; an underlined run's descender outline (`strokeText`) takes the same scale. A cell is
   `floor(advance * dpr)` wide, so at 13 px JetBrains Mono (7.8 px) and a ratio of 1 a run of three
   drew 2.4 px past its cells, onto the next glyph; at a ratio of 2 (15 against 15.6 px) it
-  stayed inside by its side bearings, and at 1.25 it spilled by 0.2 cell. The one `fillText` call,
+  stayed inside by its side bearings, and at 1.25 it spilled by 0.2 cell. The one `fillText` and one `strokeText` call,
   as before for every other string. Drop it if upstream fits joined runs to their cells.
 
 ## Ligatures
@@ -126,7 +126,7 @@ that join. `src/ligature-table.ts` lists the sequences (up to four glyphs) that 
 the bundled font by `pnpm run ligature-table` (the font's GSUB rules, run through `font-ligatures`
 in Node; dev only, nothing of it ships). `ligatureRuns(text)` finds them in a line and merges
 overlapping or touching ones into runs, which xterm's character joiner hands to WebGL as one glyph
-each. A run is shaped by the browser, so the font decides what inside it joins: a run that takes in a
+each. A run is at most 32 cells, and fewer where a cell has more device pixels (480 device pixels in all): WebGL's atlas keeps a glyph past 512 px on one overflow page that evicts nothing, so a screen of progress bars of many lengths and colours filled it and drew nothing, and a glyph past the 2048 px texture is clipped. A longer run (a line of `=`, a bar) is cut into near-equal parts, each cut moved to the nearest place inside four or more of the same glyph, where the font draws the same piece either side; a cut that finds none (a line of `<!--<!--...`) may show a seam the font would not draw. The joiner is registered only while the first font family is JetBrains Mono, whose table it is. A run is shaped by the browser, so the font decides what inside it joins: a run that takes in a
 glyph the font leaves plain draws it plain. `src/ligature-font.test.ts` holds the table to the font:
 every cell the font joins is in a run, and a run alone joins what it did in its line. A change of
 font version fails it until the table is made again.

@@ -69,7 +69,10 @@ describe("the ligature table and the bundled font", () => {
       const mix = i % 2 === 0 ? alphabet : [...alphabet, ...filler, " ", " "]
       lines.push(Array.from({ length }, () => pick(mix)).join(""))
     }
-    for (const glyph of alphabet) for (let n = 5; n <= 24; n += 3) lines.push(glyph.repeat(n))
+    for (const glyph of alphabet)
+      for (const n of [5, 8, 11, 14, 17, 20, 23, 31, 33, 64, 100, 200]) lines.push(glyph.repeat(n))
+    // Long lines are cut into runs; a cut inside a repeat shapes the same either side.
+    lines.push("[" + "=".repeat(150) + ">" + " ".repeat(20) + "] 77%", "|" + "---|".repeat(60))
     const failures = lines.map(check).filter(Boolean)
     expect(failures.slice(0, 5)).toEqual([])
   })
