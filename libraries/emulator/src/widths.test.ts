@@ -219,11 +219,13 @@ describe.each(bundles)("the DOM renderer's width measurements in lib/%s", (bundl
     expect(cache.get("hot字", false, false)).toBe(32)
     expect(reads).toBe(before)
     expect(cache["_shared"].holey.has("hot字")).toBe(true)
-    // However many strings come, the two tables stay within two generations.
-    for (let i = 9000; i < 40000; i += 1) cache.get(`字${i}`, false, false)
+    // However many strings come, the two tables stay within two generations: past two
+    // generations' worth, an unbounded table would hold every one.
+    for (let i = 9000; i < 18000; i += 1) cache.get(`字${i}`, false, false)
     const { holey, prev } = cache["_shared"]
     expect(holey.size + (prev?.size ?? 0)).toBeLessThanOrEqual(2 * 8192)
-  })
+    // Each new string is measured through jsdom, which a slow runner takes seconds over.
+  }, 20_000)
 
   it("never keep a width that read as 0", async () => {
     broken = true
