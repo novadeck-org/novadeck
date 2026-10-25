@@ -321,10 +321,14 @@ answer in place, or reveal its terminal. An `ask` returns immediately so the age
 keep working; your answer reaches that exact agent session later as mail. Its ask clears
 when answered, withdrawn by the agent, or its session ends; a `tell` clears when marked
 read. Asks, tells and your replies remain in that terminal's Messages pane, in the conversation **You**.
-Other rows clear once answered, once you view the terminal, or when the agent starts working again. A count badge on the bell, and on
-Zen's dock, tells how many wait on you; finishes and tells are not counted. A usage limit stays until
-the agent's next turn, so Continue is there after the reset. With Murmur on, a finish you
-haven't seen leads with a short gist of its reply in place of the reply's start.
+Each turn that finishes or fails is its own stored row: it stays, across a reload and a runner restart,
+until you read it (viewing its terminal reads it, or mark it read), and clears with its terminal.
+A failed turn is trouble that counts only while it is the agent's latest end and the agent isn't working;
+an older failed row is a plain update with Mark read. Other rows clear once answered, or once you view
+the terminal. A count badge on the bell, and on
+Zen's dock, tells how many wait on you; finishes, older failures and tells are not counted. A usage limit is
+a state, not a stored row: it stays until the agent's next turn, so Continue is there after the reset.
+With Murmur on, a finish you haven't seen leads with a short gist of its reply in place of the reply's start.
 
 While Novadeck has your focus, a new item that needs you (an approval, a question, or trouble
 that stopped an agent) shows as a toast over the header's right end after a 2 s grace. When
@@ -847,7 +851,7 @@ Agents:
   failed, so the Inbox lists every kind and the rail badge reads 9+. It
   adds terminals to the current session if the workspace has too few, without selecting
   them or leaving the Inbox, and leaves the selected terminal alone, since
-  a finish only counts while you look elsewhere. "Clear waiting agents" rests every agent,
+  a finish is read on sight where you look at its terminal. "Clear waiting agents" rests every agent,
   which answers every request, reads every finish and calls off those still to come, and
   has a terminal back at its prompt work for a moment and leave, for an empty Inbox. Its
   second round of kinds carries what Murmur would write (a gist on the done and the failed
@@ -938,7 +942,7 @@ App:
   back is "Tell Claude what to change": Deny opens a note that must say what. "A new item
   arrives" adds the next kind not there yet, and "Clear the added items" takes away the
   hardcoded items and those added here, leaving what the agents wait on. An added item
-  is its own row; one that waits on the person takes the place of a dialog its agent's
+  is its own row; one that waits on the person for its agent (a request, an ask, trouble) takes the place of a dialog its agent's
   story shows there, as no real agent shows two; answering an added request for an
   agent that waits takes the agent past it. The group shows in every variant over the
   sample projects, so not in the content showcase.

@@ -1911,6 +1911,11 @@ describe("what a turn wrote and how it failed", () => {
       error: "out of quota",
       limit: { minutes: 300, resetsAt: 9_000 },
     })
+    // The summary says the end hit a limit even where no window is known, and only then.
+    expect(summary(hook).lastTurn?.limited).toBe(true)
+    expect(
+      summary(stop(turn(started(0), 1), 2, { outcome: "failed" })).lastTurn,
+    ).not.toHaveProperty("limited")
     // Told by the hook alone, it shows the same.
     const first = stop(turn(started(0), 1), 2, { outcome: "failed", error: "rate limited" })
     expect(summary(first).lastTurn).toMatchObject({ error: "rate limited", limit: null })
