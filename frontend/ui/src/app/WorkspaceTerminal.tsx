@@ -211,7 +211,7 @@ export const WorkspaceTerminal = memo(
       () => ({ projectId, workspaceSessionId, terminalId }),
       [projectId, workspaceSessionId, terminalId],
     )
-    const mailLinks = useMailLinks(terminalKey)
+    const mailLinks = useMailLinks()
     const onInputFocused = useCallback(() => setKeyboardFocus(null), [setKeyboardFocus])
     const { bar, items, fresh } = useTerminalBar(terminalId)
     const { icon: Icon, Body } = terminalProfile(terminal)

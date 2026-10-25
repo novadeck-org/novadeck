@@ -3,7 +3,6 @@ import type { ChatRequest } from "./conversation"
 import type { AgentName } from "./harnesses"
 import {
   ordered,
-  urgency,
   type AgentAsk,
   type InboxContent,
   type InboxItem,
@@ -23,7 +22,7 @@ import { isAgentProgram } from "./process"
 import type { TerminalMetadata, Workspace, WorkspaceProject, WorkspaceSession } from "./types"
 
 // The Inbox's items, as a backend that builds them from the app's own state derives them:
-// what every agent terminal waits on the person for, one item per terminal, from the
+// what every agent terminal waits on the person for, every item its own row, from the
 // terminals' statuses (a finished turn, unless the agent's lead runs, its error, a
 // usage limit), the messages held for
 // release, the requests of the agents that ask, and what agents wrote through Novadeck's MCP
@@ -270,8 +269,8 @@ const candidates = (
   return found
 }
 
-// Every item the Inbox now holds, the longest waiting among the most urgent first: one per
-// terminal, the most urgent of what it has, then the oldest; and each thread held for release.
+// Every item the Inbox now holds, the longest waiting among the most urgent first: each of a
+// terminal's items, and each thread held for release.
 export const inboxItems = (inputs: InboxInputs): InboxItem[] => {
   const where = whereOf(inputs.workspace)
   const all = where.flatMap((here) => candidates(inputs, here, where))
@@ -285,14 +284,6 @@ export const inboxItems = (inputs: InboxInputs): InboxItem[] => {
         (letter.content.kind === "tell" || agentOf(terminal) === letter.agent),
     )
     if (!here) continue
-    // A permission or plan needs the person first. While its dialog is still reading,
-    // retain the request's grace period rather than showing a different question.
-    if (here.terminal.state === "running" && here.terminal.agent?.attention) {
-      const gate = all.find(
-        (item) => item.source.terminalId === letter.terminalId && item.kind === "request",
-      )
-      if (!gate || gate.kind !== "request" || gate.request.kind !== "question") continue
-    }
     const content: InboxContent =
       letter.content.kind === "ask"
         ? { kind: "ask", ask: letter.content.ask }
@@ -321,18 +312,8 @@ export const inboxItems = (inputs: InboxInputs): InboxItem[] => {
       if (item) threads.set(thread.id, item)
     }
 
-  const best = new Map<string, InboxItem>()
-  for (const item of all) {
-    const kept = best.get(item.source.terminalId)
-    if (
-      !kept ||
-      urgency(item) < urgency(kept) ||
-      (urgency(item) === urgency(kept) && item.at < kept.at)
-    )
-      best.set(item.source.terminalId, item)
-  }
-  // A held thread is its own item, whatever else its terminal has to show.
-  return ordered([...best.values(), ...threads.values()])
+  // A terminal's items all show: nothing replaces or hides another.
+  return ordered([...all, ...threads.values()])
 }
 
 // Items that read the same keep their old objects, so what shows them stays as it is.

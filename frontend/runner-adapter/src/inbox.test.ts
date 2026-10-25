@@ -718,16 +718,16 @@ describe("Inbox letters", () => {
     expect(ids()).toEqual([])
   })
 
-  it("keeps the most urgent item and reveals a waiting letter once trouble clears", async () => {
+  it("lists a waiting letter beside trouble, and keeps it once the trouble clears", async () => {
     const { letters, unreadStore, inbox, ids } = setup(
       workspaceOf(agentTerminal(1, { working: false, lastTurn: turn({ outcome: "failed" }) })),
       failed,
     )
     letters.push([letter(), told()])
     await settle()
-    expect(ids()).toEqual(["trouble:01:100"])
+    expect(ids().toSorted()).toEqual(["letter-1", "told-1", "trouble:01:100"])
     unreadStore.update(() => ({}))
-    expect(ids()).toEqual(["letter-1"])
+    expect(ids().toSorted()).toEqual(["letter-1", "told-1"])
     letters.push([told()])
     await settle()
     expect(inbox.state.getSnapshot().items[0]).toMatchObject({
@@ -736,14 +736,14 @@ describe("Inbox letters", () => {
     })
   })
 
-  it("keeps the old agent's tell beneath a new agent's ask until the tell is read", async () => {
+  it("lists the old agent's tell beside a new agent's ask until the tell is read", async () => {
     const { letters, inbox, streams, ids } = setup(
       workspaceOf(agentTerminal(1, { working: true }, "codex")),
     )
     const current = letter({ id: "new-ask", agent: "codex", sessionId: "new-session" })
     letters.push([letter(), told(), current])
     await settle()
-    expect(ids()).toEqual(["new-ask"])
+    expect(ids().toSorted()).toEqual(["new-ask", "told-1"])
     letters.push([told()])
     await settle()
     expect(inbox.state.getSnapshot().items[0]).toMatchObject({
@@ -795,7 +795,7 @@ describe("Inbox letters", () => {
     expect(inbox.state.getSnapshot().answering).toEqual({})
   })
 
-  it("keeps a hidden ask pending while its answer is unresolved", async () => {
+  it("keeps an ask pending beside trouble while its answer is unresolved", async () => {
     const { letters, inbox, streams, unreadStore, workspaceStore } = setup(
       workspaceOf(agentTerminal(1)),
     )
@@ -816,7 +816,12 @@ describe("Inbox letters", () => {
       workspaceOf(agentTerminal(1, { working: false, lastTurn: turn({ outcome: "failed" }) })),
     )
     unreadStore.update(() => failed)
-    expect(inbox.state.getSnapshot().items.map(({ id }) => id)).toEqual(["trouble:01:100"])
+    expect(
+      inbox.state
+        .getSnapshot()
+        .items.map(({ id }) => id)
+        .toSorted(),
+    ).toEqual(["letter-1", "trouble:01:100"])
     expect(inbox.state.getSnapshot().answering["letter-1"]).toBe(true)
     unreadStore.update(() => ({}))
     expect(inbox.state.getSnapshot().items.map(({ id }) => id)).toEqual(["letter-1"])
@@ -1043,15 +1048,16 @@ describe("Inbox letters", () => {
     expect(read).not.toHaveBeenCalled()
   })
 
-  it("reads all known tells in batches, including those hidden by more urgent items", async () => {
+  it("reads all known tells in batches, beside the more urgent ask", async () => {
     const { letters, inbox, streams, ids } = setup(workspaceOf(agentTerminal(1)))
     const tells = Array.from({ length: 1001 }, (_, index) => told(`tell-${index}`))
     letters.push([letter(), ...tells])
     await settle()
-    expect(ids()).toEqual(["letter-1"])
+    expect(ids()).toHaveLength(1002)
+    expect(ids()[0]).toBe("letter-1")
     inbox.readAll()
     expect(streams.asks.read.mock.calls.map(([batch]) => batch.length)).toEqual([1000, 1])
     expect(streams.asks.answer).not.toHaveBeenCalled()
-    expect(ids()).toEqual(["letter-1"])
+    expect(ids()).toContain("letter-1")
   })
 })

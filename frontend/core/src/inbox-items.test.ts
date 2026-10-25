@@ -636,7 +636,7 @@ describe("The Inbox's items", () => {
   })
 
   describe("a terminal with several", () => {
-    it("shows the most urgent: a request over a finished turn", () => {
+    it("shows the request of a running turn, not the finish from before", () => {
       const both = workspaceOf(
         agentTerminal(1, {
           working: true,
@@ -689,7 +689,7 @@ describe("The Inbox's items", () => {
   })
 
   describe("the whole list", () => {
-    it("orders by urgency, then by how long each waited, one per terminal", () => {
+    it("orders by urgency, then by how long each waited", () => {
       const workspace = workspaceOf(
         agentTerminal(1, { working: false, lastTurn: turn({ at: 10, reply: "a" }) }),
         agentTerminal(2, { working: true, attention: { kind: "permission", count: 1 } }),
@@ -763,7 +763,7 @@ describe("The Inbox's items", () => {
       expect(inboxItems(inputs(workspaceOf(), { letters: [told()] }))).toEqual([])
     })
 
-    it("keeps a current permission or plan ahead of an older stopped MCP ask", () => {
+    it("lists a current permission or plan and an older stopped MCP ask, each its own row", () => {
       for (const kind of ["permission", "plan"] as const) {
         const request = asked("gate", 8000)
         const waiting = workspaceOf(
@@ -775,18 +775,19 @@ describe("The Inbox's items", () => {
             requests: { "01": [{ ...request, request: { ...request.request, kind } }] },
           }),
         )
-        expect(items.map(({ id }) => id)).toEqual(["request:gate"])
+        expect(items.map(({ id }) => id).toSorted()).toEqual(["letter-1", "request:gate"])
       }
     })
 
-    it("keeps a gate's unread dialog grace instead of showing an MCP ask", () => {
+    it("keeps a gate's unread dialog grace for the request's row, not for the ask beside it", () => {
       const waiting = workspaceOf(agentTerminal(1, attention))
       for (const requests of [{}, { "01": [asked("gate", 9500, null)] }]) {
-        expect(inboxItems(inputs(waiting, { letters: [letter()], requests }))).toEqual([])
+        const items = inboxItems(inputs(waiting, { letters: [letter()], requests }))
+        expect(items.map(({ id }) => id)).toEqual(["letter-1"])
       }
     })
 
-    it("keeps the oldest of two stopped questions", () => {
+    it("lists a stopped question and an MCP ask beside it", () => {
       const question = asked("question", 8000)
       const waiting = workspaceOf(
         agentTerminal(1, { working: false, attention: { kind: "question", count: 1 } }),
@@ -797,7 +798,29 @@ describe("The Inbox's items", () => {
           requests: { "01": [{ ...question, request: { ...question.request, kind: "question" } }] },
         }),
       )
-      expect(items.map(({ id }) => id)).toEqual(["letter-1"])
+      expect(items.map(({ id }) => id).toSorted()).toEqual(["letter-1", "request:question"])
+    })
+
+    it("lists two tells from one terminal, the newer beside the older", () => {
+      const items = inboxItems(
+        inputs(workspaceOf(agentTerminal(1, { working: false })), {
+          letters: [
+            { ...told("merged"), at: 20 },
+            { ...told("opened"), at: 10 },
+          ],
+        }),
+      )
+      expect(items.map(({ id }) => id)).toEqual(["opened", "merged"])
+    })
+
+    it("lists an ask beside the finish of the same terminal, and every tell too", () => {
+      const items = inboxItems(
+        inputs(workspaceOf(agentTerminal(1, { working: false, lastTurn: turn() })), {
+          unread: done,
+          letters: [letter({ id: "ask" }), told("t1"), told("t2")],
+        }),
+      )
+      expect(items.map(({ id }) => id).toSorted()).toEqual(["ask", "t1", "t2", "update:01:100"])
     })
 
     it("ignores letters for terminals outside their recorded ownership context", () => {

@@ -464,8 +464,8 @@ Novadeck does not write secrets into project files or send them through this fea
 
 `ask({ withdraw: id })` withdraws only the caller's own open ask in its current session.
 `tell({ subject, body })` adds an Update that the person marks read. An ask badges the
-Inbox bell; a tell doesn't. One row per terminal shows its most urgent item; lower
-priority letters remain pending and appear when the more urgent item clears. An ask
+Inbox bell; a tell doesn't. Every item is its own row, so a terminal with an ask, two
+tells and a finish shows four; nothing replaces or hides another. An ask
 shows stopped only once the agent has ended its turn, not because it called the tool.
 An unread tell stays until read while its terminal exists, including when the agent exits
 or starts a new session; it keeps the original agent attribution.

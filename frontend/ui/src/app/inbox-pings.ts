@@ -24,26 +24,37 @@ const maxBadge = 999
 // other's: a terminal has one notification at a time, a newer one replacing it, and what
 // cleared when an Inbox item left must not close the finish notice that came after it.
 export type NoticeBoard = {
-  // Shows a notice for `owner`, replacing whatever its terminal showed.
-  readonly show: (owner: string, notice: Notice) => void
+  // Shows a notice for `owner`, replacing whatever its terminal showed. `item` is the Inbox
+  // item the notice is about, if it is about one.
+  readonly show: (owner: string, notice: Notice, item?: string) => void
   // Closes the terminal's notification if `owner`'s is still the latest.
   readonly close: (owner: string, terminalId: string) => void
+  // The item the terminal's latest notification is about, for a click on it to open.
+  readonly itemOf: (terminalId: string) => string | undefined
 }
+
+// A backend's board is the one: what rings notices and what hears their clicks share it.
+const boards = new WeakMap<object, NoticeBoard>()
 
 export const noticeBoard = (notices: Backend["notices"]): NoticeBoard | undefined => {
   if (!notices) return undefined
-  const latest = new Map<string, string>()
-  return {
-    show: (owner, notice) => {
-      latest.set(notice.id, owner)
+  const known = boards.get(notices)
+  if (known) return known
+  const latest = new Map<string, { owner: string; item: string | undefined }>()
+  const board: NoticeBoard = {
+    show: (owner, notice, item) => {
+      latest.set(notice.id, { owner, item })
       notices.show(notice)
     },
     close: (owner, terminalId) => {
-      if (latest.get(terminalId) !== owner) return
+      if (latest.get(terminalId)?.owner !== owner) return
       latest.delete(terminalId)
       notices.close?.(terminalId)
     },
+    itemOf: (terminalId) => latest.get(terminalId)?.item,
   }
+  boards.set(notices, board)
+  return board
 }
 
 // What a desktop notification says of an item that needs the person: the Inbox row's own
@@ -65,8 +76,9 @@ export const needNotice = (item: InboxItem): Notice => {
   }
 }
 
-// What a click on a terminal's notification does: the Inbox opens on that terminal's item
-// when it has one standing, a finish's Update too, else the terminal shows.
+// What a click on a terminal's notification does: the Inbox opens on the item the notice was
+// about (`itemId`) if it still stands. A finish notice names none, so it opens the terminal's
+// finish; else the terminal's first item, and the terminal itself when it has none.
 export const clickNotice = (
   terminalId: string,
   items: readonly InboxItem[],
@@ -75,8 +87,15 @@ export const clickNotice = (
     readonly showInbox: () => void
     readonly reveal: (terminalId: string) => void
   },
+  itemId?: string,
 ): void => {
-  const item = items.find(({ source }) => source.terminalId === terminalId)
+  const its = items.filter(({ source }) => source.terminalId === terminalId)
+  const item =
+    its.find(({ id }) => id === itemId) ??
+    (itemId === undefined
+      ? its.find((each) => each.kind === "update" && each.update.type === "finished")
+      : undefined) ??
+    its[0]
   if (!item) return to.reveal(terminalId)
   to.showInbox()
   to.open(item.id)
@@ -239,7 +258,7 @@ export const watchInboxPings = (
   // holds them: if the person leaves the app before the dialog closes they ping instead; if
   // the dialog closes with them there, the toast has them and these are forgotten.
   const deferred = new Map<string, InboxItem>()
-  const ping = (item: InboxItem): void => board?.show(keyOf(item), needNotice(item))
+  const ping = (item: InboxItem): void => board?.show(keyOf(item), needNotice(item), item.id)
   const handOver = (): void => {
     const state = ui.getSnapshot()
     if (deferred.size === 0 || (state.pageFocused && modalOpen(state))) return

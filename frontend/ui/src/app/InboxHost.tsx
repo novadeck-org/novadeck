@@ -7,7 +7,7 @@ import { InboxToasts, type ToastBoard } from "../inbox/InboxToasts"
 import { anyAgentWorking } from "../projects/project-status"
 import { useDesktop } from "../shell/desktop"
 import { useWorkspaceServices, useWorkspaceState } from "./controller/context"
-import { clickNotice } from "./inbox-pings"
+import { clickNotice, noticeBoard } from "./inbox-pings"
 import { watchInboxToasts } from "./inbox-toasts"
 
 // The Inbox: the backend's, read from the backend the app runs on, or, where it has none,
@@ -21,7 +21,12 @@ const NoticeClicks = ({ inbox }: { readonly inbox: Inbox }): null => {
   useEffect(
     () =>
       backend.notices?.onClick((terminalId) =>
-        clickNotice(terminalId, inbox.state.getSnapshot().items, { open, showInbox, reveal }),
+        clickNotice(
+          terminalId,
+          inbox.state.getSnapshot().items,
+          { open, showInbox, reveal },
+          noticeBoard(backend.notices)?.itemOf(terminalId),
+        ),
       ),
     [backend, inbox, open, showInbox, reveal],
   )
