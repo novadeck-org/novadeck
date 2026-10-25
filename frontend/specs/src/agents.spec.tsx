@@ -235,6 +235,34 @@ describe("An agent that finishes", () => {
     })
   })
 
+  context("and then works another turn before they look", () => {
+    it("keeps its done mark through that turn, until they look at it", async () => {
+      await promptBuild()
+      // The person leaves the page with Build selected, as to another window.
+      const visibility = (state: "hidden" | "visible") => {
+        Object.defineProperty(document, "visibilityState", { value: state, configurable: true })
+        document.dispatchEvent(new Event("visibilitychange"))
+      }
+      onTestFinished(() => {
+        Reflect.deleteProperty(document, "visibilityState")
+        document.dispatchEvent(new Event("visibilitychange"))
+      })
+      visibility("hidden")
+      const window = terminal("Build")
+      await expect
+        .element(window, { timeout: 10_000 })
+        .toHaveAttribute("data-terminal-phase", "done")
+      await typeInto("Build", "Now the changelog")
+      await userEvent.keyboard("{Enter}")
+      await expect.element(window).toHaveAttribute("data-terminal-phase", "running")
+      await expect
+        .element(window, { timeout: 10_000 })
+        .toHaveAttribute("data-terminal-phase", "done")
+      visibility("visible")
+      await expect.element(window).toHaveAttribute("data-terminal-phase", "idle")
+    })
+  })
+
   it("offers a notification only in the desktop app, on unless turned off", async () => {
     await openWorkspace()
     await openPreferences()

@@ -294,7 +294,11 @@ export type Standing = {
 export const standingOf = (item: InboxItem, now: number, answered: boolean): Standing => {
   if (answered) return { status: "answered", tone: "done" }
   // Neither stops the agent: they say how long they have waited, calmly.
-  if (inboxType(item) === "update" || inboxType(item) === "feedback") {
+  if (
+    inboxType(item) === "update" ||
+    inboxType(item) === "feedback" ||
+    (item.kind === "trouble" && item.trouble.type === "failed" && !item.stopped)
+  ) {
     const ago = waitLabel(item.at, now)
     return { status: ago === "now" ? "just now" : `${ago} ago`, tone: "calm" }
   }

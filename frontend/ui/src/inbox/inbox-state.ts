@@ -113,9 +113,15 @@ export const stepFrom = (
   return shown[Math.max(0, Math.min(shown.length - 1, at + step))]
 }
 
-// What the rail's badge counts: everything that isn't an update.
+// A failed turn that is no longer the agent's current end: it only informs, ranks with
+// updates, and is read, not answered.
+export const informing = (item: InboxItem): boolean =>
+  item.kind === "trouble" && item.trouble.type === "failed" && !item.stopped
+
+// What the rail's badge counts: everything that isn't an update, nor a failed turn that only
+// informs.
 export const needing = (items: readonly InboxItem[]): InboxItem[] =>
-  items.filter((item) => inboxType(item) !== "update")
+  items.filter((item) => inboxType(item) !== "update" && !informing(item))
 
 // What rings the person (a toast, the OS ping): what needs them, except a feedback draft.
 // It waits in the Inbox and the badge counts it, but the person asked for it and nothing is
@@ -123,5 +129,6 @@ export const needing = (items: readonly InboxItem[]): InboxItem[] =>
 export const ringing = (items: readonly InboxItem[]): InboxItem[] =>
   needing(items).filter((item) => inboxType(item) !== "feedback")
 
+// Whether Mark all read has anything to read: an update, or a failed turn that only informs.
 export const hasUpdates = (items: readonly InboxItem[]): boolean =>
-  items.some((item) => inboxType(item) === "update")
+  items.some((item) => inboxType(item) === "update" || informing(item))

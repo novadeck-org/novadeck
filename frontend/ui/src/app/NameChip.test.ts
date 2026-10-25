@@ -8,9 +8,8 @@ import { afterEach, beforeEach, vi } from "vitest"
 import { describe, expect, it } from "../test"
 import { openCommands } from "../test/commands"
 import { WorkspaceServicesContext, type WorkspaceServices } from "./controller/context"
-import { nameFinished } from "./murmur-offer"
+import { nameFinished, watchFinishes } from "./murmur-offer"
 import { NameChip } from "./NameChip"
-import { watchFinishes } from "./ui-store"
 
 const offered: MurmurState = {
   available: true,
@@ -118,10 +117,7 @@ describe("the offer on a finished turn", () => {
 
   // What the app wires: the finish hook of `watchFinishes`, graced for 100 ms here.
   const watching = (setupped: ReturnType<typeof setup>) =>
-    watchFinishes(setupped.workspace, setupped.ui, {
-      graceMs: 100,
-      finished: nameFinished(setupped.services),
-    })
+    watchFinishes(setupped.workspace, nameFinished(setupped.services), { graceMs: 100 })
   const finish = async (status: ReturnType<typeof setup>["status"]) => {
     status({ working: true })
     status({ working: false, lastTurn: { outcome: "completed", reply: "Done.", at: 10 } })

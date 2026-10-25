@@ -32,7 +32,6 @@ import { chatViewOn, notePortableCardShown, type UiState } from "../ui-store"
 import { createChatCommands, type ChatCommands } from "./chat"
 import { createCompanionCommands, type CompanionCommands } from "./companion"
 import type { CommandContext } from "./context"
-import { createFinishCommands, type FinishCommands } from "./finishes"
 import { createLayoutCommands, type LayoutCommands } from "./layout"
 import { createRecentCommands, type RecentCommands } from "./recent"
 import { createRenameCommands, type RenameCommands } from "./rename"
@@ -50,8 +49,7 @@ export type WorkspaceCommands = ShellCommands &
   ChatCommands &
   RenameCommands &
   RecentCommands &
-  LayoutCommands &
-  FinishCommands & {
+  LayoutCommands & {
     readonly switchSession: (id: string) => void
     readonly startFresh: () => void
     readonly switchProject: (next: Project) => void
@@ -138,7 +136,6 @@ export const createWorkspaceCommands = (ctx: CommandContext): WorkspaceCommands 
   const shell = createShellCommands(ctx)
   const rename = createRenameCommands(ctx)
   const recent = createRecentCommands(ctx)
-  const finishes = createFinishCommands(ctx)
   // Rearranges the switcher's projects from the latest of both stores.
   const arrange = (
     change: (projects: Workspace["projects"], current: ProjectArrangement) => ProjectArrangement,
@@ -229,7 +226,6 @@ export const createWorkspaceCommands = (ctx: CommandContext): WorkspaceCommands 
     ...shell,
     ...rename,
     ...recent,
-    ...finishes,
     ...createLayoutCommands(ctx),
     ...createChatCommands(ctx),
     ...createSourceCommands(ctx, { markCreated, pulse: () => pulse() }),
