@@ -50,6 +50,7 @@ import { expectedAgent } from "./commands.js"
 import { Companion } from "./companion.js"
 import { forgetPrompts, markPrompt, murmurHost } from "./describing.js"
 import { type DialogsOptions } from "./dialogs.js"
+import { restored } from "./interrupted.js"
 import { Launcher, startedIn, startFailed } from "./launching.js"
 import { Murmur, type MurmurTimes } from "./murmur.js"
 import { Names } from "./names.js"
@@ -733,6 +734,7 @@ export class Terminals {
         this.claims.claim(resume.key, input.id)
         started.resumeClaim = resume.key
       }
+      const agents = restored(saved?.agents, resume && started.resumes && input.resume, started)
       const record: Record = {
         summary: {
           id: input.id,
@@ -757,7 +759,7 @@ export class Terminals {
         closed: false,
         foreground: undefined,
         origin,
-        agents: saved?.agents ?? {},
+        agents,
         bound: null,
         suspended: null,
         watching: null,
@@ -768,7 +770,7 @@ export class Terminals {
         prompts: [],
         line: emptyLine,
         lineEntered: started.resumes,
-        changed: false,
+        changed: !!saved && agents !== saved.agents,
         screenChanged: false,
         savedAt: 0,
         submitted: started.resumes,

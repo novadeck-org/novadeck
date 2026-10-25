@@ -24,6 +24,10 @@ export const novadeckSender: Sender = {
   sessionId: null,
 }
 
+/** Whether a message is one of Novadeck's own automatic notices (`Messaging.notice`), no peer's. */
+export const isNotice = (message: Pick<Message, "from">): boolean =>
+  message.from.terminalId === novadeckSender.terminalId
+
 /**
  * A terminal a message is for, and the agent session bound there when it was sent; or,
  * where none had bound yet, the agent expected there, whose first session to bind takes
@@ -312,6 +316,10 @@ const peerNote = (person: boolean): string =>
   `${peerClause.charAt(0).toUpperCase()}${peerClause.slice(1)} ${approvalClause(person)} ` +
   `Reply with the send tool if useful. ${seenClause}`
 
+const noticeNote =
+  "An automatic notice from Novadeck itself, not from the user and not from another agent. " +
+  `It needs no reply: there is no one to send one to. ${seenClause}`
+
 const leadNote = (mark: string, person: boolean): string =>
   "Messages from other agents in Novadeck, not from the user. Those marked " +
   `lead='${mark}' are from your lead, the agent that opened this terminal with a brief for ` +
@@ -359,7 +367,7 @@ export const wrap = (
   const person = messages.some((message) => message.response)
   const leads = messages.map(isFromLead)
   return [
-    `<novadeck-messages note="${person ? personNote(personMark) + "For agent messages: " : ""}${leads.includes(true) ? leadNote(mark, person) : peerNote(person)}">`,
+    `<novadeck-messages note="${person ? personNote(personMark) + "For agent messages: " : ""}${leads.includes(true) ? leadNote(mark, person) : messages.every(isNotice) ? noticeNote : peerNote(person)}">`,
     ...messages.map(({ id, from, thread, sentAt, text, response }, index) => {
       if (response) {
         const context = [

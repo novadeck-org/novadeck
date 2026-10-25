@@ -18,7 +18,7 @@ import { sameToken } from "../callers.js"
 import { promptIn } from "../commands.js"
 import type { Companion } from "../companion.js"
 import { failed } from "../failures.js"
-import { interruptedFor } from "../interrupted.js"
+import { tellInterrupted } from "../interrupted.js"
 import type { Murmur } from "../murmur.js"
 import { atPrompt, fired, noticesAt, sessionBegan } from "../nudges.js"
 import { peerOf, type TerminalPeers } from "../peers.js"
@@ -421,23 +421,15 @@ export class Reports {
     // A new root session has yet to hear of the bar beside its terminal.
     if (changes.some((change) => change.type === "new")) {
       record.nudges = sessionBegan(record.nudges, Date.now())
-      void this.tellInterrupted(record)
+      if (record.root)
+        tellInterrupted(
+          record,
+          record.root.agent,
+          { sessionId: record.root.sessionId },
+          this.host.messaging(),
+        )
     }
     return changes
-  }
-
-  /**
-   * A resumed agent whose turn the stop of Novadeck cut short is told to carry on, as any
-   * message, so the person never has to visit its terminal (see `interruptedFor`).
-   */
-  private async tellInterrupted(record: Record): Promise<void> {
-    try {
-      const agent = record.root?.agent
-      const notice = await interruptedFor(record, agent && harnesses[agent].transcripts?.cutShort)
-      if (notice) this.host.messaging().notice(record.summary.id, notice)
-    } catch (error) {
-      failed.interrupted(error)
-    }
   }
 
   /**

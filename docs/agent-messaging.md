@@ -1067,20 +1067,43 @@ the runner, over the same endpoint and token `show` uses, and print what it retu
 
 ### A turn the runner's stop cut short
 
-Nothing about a terminal's turn is kept across a runner restart, and Claude Code, resuming
-a session whose last message nothing answered (a tool's result, a prompt), only appends a
-synthetic "No response requested." and waits at its prompt. So the first root session to
-bind in a terminal whose shell resumed an agent (`Record.resumeClaim`) is judged once by
-its harness's `transcripts.cutShort` over the transcript's tail (`terminals/interrupted.ts`):
-cut when the last real record is the person's prompt or a tool result, past any "No
-response requested."; not cut for an assistant record last (finished, or possibly waiting
-on the person), the person's Escape, or an error such as a usage limit. A cut turn gets a
-Novadeck message (`Messaging.notice`, from `novadeck`, in no thread, so no loop hold
-applies, held only while messaging is paused) saying Novadeck restarted while the turn ran
-and to carry on; it wakes the agent as any message does, and is not sent if a turn started
-meanwhile. Only Claude Code has `cutShort`; a resumed Codex or Antigravity gets no notice.
-A tool call left unanswered at the stop reads as the agent's own step last, so it is not
-told either.
+Nothing a harness keeps of a session says its turn was cut when Novadeck stops: Claude Code,
+resuming a session whose last message nothing answered (a tool's result, a prompt), only
+appends a synthetic "No response requested." and waits at its prompt, and Codex and
+Antigravity resume to an idle prompt as well. So Novadeck keeps what each agent was doing
+itself, the same for every harness, from the activity it already tracks.
+
+Each agent session's saved report (`AgentReport.turn`, inside the `terminals.agents` JSON, so
+a row saved without it simply has none) is `running` while its activity reads working with no
+request pending on the person, subagents and background agents counted as the summary counts
+them (a stop kills those too); `waking` while it is idle but waits on a wake-up or background
+command it set (`activity.waiting`), which the stop also killed; and absent when idle,
+finished, interrupted by the person, ended by an error, or waiting on the person's
+permission, question or plan (`terminals/interrupted.ts`, `turnOf`). `publishAgent` keeps it
+after every applied fact (`markTurn`), and a change marks the terminal changed and saves it
+at once; a later report of the same session carries it over (`observe`). `Terminals.shutdown`
+saves every changed terminal while the shells still run, then stops saving, so the idle flips
+the dying shells cause never erase it.
+
+When a runner restores a terminal, every saved flag is dropped from the live sessions (and
+saved so), and the resumed agent's alone is kept in memory (`Record.resumeTurn`). The first
+time that agent shows itself, as a bound root session (Claude Code's start hook, Antigravity's
+status line) or its own prompt before any binds (Codex's title; it binds with its first
+prompt), `interruptedFor` decides, once per resume (`resumeTold`) and only if the resumed agent
+is the one that appeared and no turn started meanwhile. A `running` or `waking` flag gets a
+Novadeck message (`Messaging.notice`, from `novadeck`, in no thread, so no loop hold applies,
+held only while messaging is paused), worded for what was cut: the turn ran, so anything
+running (commands, subagents) has stopped and it should carry on, or say it is done in a
+line; or it waited on a background command or wake-up that has stopped and will not wake it.
+Addressed to the agent whose prompt shows where no session has bound, as any message is, it
+wakes the agent through the doorbell as any message does. The notice is Novadeck's, not a peer's: listings, the Messages view and the waiting badge
+leave it out, its delivery wrapper says it needs no reply, and it is dropped, not revived,
+should it go gone. None is sent while any message already waits for the terminal (that
+delivery wakes the agent as well, and it keeps one notice at most). It is decided only from a
+restore by a new runner (`restored`), never after a person's restart of a shell in a running
+runner, and only for the resumed session (its id, or the start of it a Codex title shows).
+A terminal restored without a resume tells no one. A flag the runner never got to save (a
+crash) is lost.
 
 ### The lead's messages mid-turn
 
@@ -1725,8 +1748,8 @@ hook's deadline, which doesn't spend what is due.
   injection lasts one model call there, so `ask`'s description is what lasts); it comes
   back after a compaction where the harness reports one.
 - **The summary.** Due when a trigger fired since the last `summarize`: while there is
-  none it asks for one short line on the work's subject, before the agent starts on the
-  work it was given, as the terminal has no title until then (left to choose when, agents
+  none it asks for one short line on the work's subject, at once, before the agent goes on
+  with the work it was given, as the terminal has no title until then (left to choose when, agents
   put it off for minutes); after, it shows the current
   summary and asks for an update only if the work moved to another subject or the summary
   holds status, PR or issue numbers, or details. When all are due they share the answer:
