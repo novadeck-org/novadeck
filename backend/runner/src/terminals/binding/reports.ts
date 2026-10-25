@@ -18,7 +18,7 @@ import { sameToken } from "../callers.js"
 import { promptIn } from "../commands.js"
 import type { Companion } from "../companion.js"
 import { failed } from "../failures.js"
-import type { Murmur, Reported } from "../murmur.js"
+import type { Murmur } from "../murmur.js"
 import { atPrompt, fired, noticesAt, sessionBegan } from "../nudges.js"
 import { peerOf, type TerminalPeers } from "../peers.js"
 import type { Record } from "../record.js"
@@ -264,7 +264,7 @@ export class Reports {
       )
     )
       record.nudges = fired(record.nudges, "compaction")
-    this.host.murmur()?.reported(report.terminalId, this.reported(record, changes))
+    this.host.murmur()?.reported(report.terminalId)
     if (deadline === undefined) {
       this.host.messaging().observe(report.terminalId, told)
       this.host.bindings().escaped(record)
@@ -284,31 +284,6 @@ export class Reports {
     this.host.bindings().escaped(record)
     this.judgeFirst(record)
     return this.nudged(record, report, told, answer, deadline)
-  }
-
-  /**
-   * What a report tells murmur of the terminal's root session (see `Murmur.reported`). A
-   * session is new to murmur when the work's session is not the one murmur was last told
-   * of, however it came to move (this report's, or another's tallied meanwhile): a root
-   * bound again to the session it already worked in (a restored terminal, `claude
-   * --resume`) is not, and neither is a guess corrected to its real id.
-   */
-  reported(record: Record, changes: readonly RootChange[]): Reported {
-    const corrected = changes.flatMap((change) =>
-      change.type === "corrected"
-        ? [
-            {
-              from: `${change.root.agent}:${change.from}`,
-              to: `${change.root.agent}:${change.root.sessionId}`,
-            },
-          ]
-        : [],
-    )
-    for (const { from, to } of corrected)
-      if (record.murmurSession === from) record.murmurSession = to
-    const session = record.work !== null && record.work.session !== record.murmurSession
-    record.murmurSession = record.work?.session ?? record.murmurSession
-    return { session, corrected }
   }
 
   /** A Stop Novadeck continued, lapsed as delivery took it, ends the agent's turn too. */
@@ -415,7 +390,7 @@ export class Reports {
   trackRoot(record: Record, events: readonly HarnessEvent[], statusLine: boolean): boolean {
     const changes = this.followRootOf(record, events, statusLine)
     const tallied = this.tallyWork(record, events, changes)
-    this.host.murmur()?.reported(record.summary.id, this.reported(record, changes))
+    this.host.murmur()?.reported(record.summary.id)
     return tallied
   }
 

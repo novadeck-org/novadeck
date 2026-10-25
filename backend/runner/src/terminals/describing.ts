@@ -76,7 +76,6 @@ export type DescribingHost = {
   readonly records: () => Iterable<Record>
   /** Whether the runner holds the terminal, running or retained. */
   readonly holds: (terminalId: string) => boolean
-  readonly facts: MurmurHost["facts"]
   readonly projectFolder: (sessionId: string) => string | undefined
   /** Shows the bound agent and its activity in the summary, announcing a change. */
   readonly publishAgent: (record: Record) => void
@@ -113,7 +112,6 @@ export const murmurHost = (host: DescribingHost): MurmurHost => ({
     [...host.records()].flatMap((record) =>
       host.live(record.summary.id) ? [murmurSubject(record)] : [],
     ),
-  facts: (terminal) => host.facts(terminal),
   screen: async (terminalId) => {
     const shown = await shellScreenOf(host, terminalId)
     const screen = shown?.text

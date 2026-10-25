@@ -23,11 +23,11 @@ import { DomainError } from "../errors.js"
 import { logs } from "../log.js"
 import type { MurmurSettingsChange, MurmurVerdict } from "../workspaces/store.js"
 import type { Description, Describer, Digest, Gist, Input, Note, NoteDigest } from "./describer.js"
-import { parseDescription, parseGist, sharesContentWord } from "./description.js"
+import { parseDescription, parseGist } from "./description.js"
 import { candidates, parseDevices, type Device } from "./devices.js"
 import { parseVmStat } from "./memory.js"
 import { Preparer } from "./prepare.js"
-import { formatOf, formats, type Message, type Task } from "./prompt.js"
+import { formats, type Message, type Task } from "./prompt.js"
 
 /** Where the runner keeps murmur's settings. */
 export type MurmurSettingsStore = {
@@ -143,17 +143,8 @@ export const updateRetryMs = 60_000
 // What the install check asks: a small, fixed session, the same on every machine.
 const checkDigest: Digest = {
   kind: "agent",
-  harness: "Claude Code",
   project: "shop",
-  folder: "api",
-  branch: "task/checkout-retries",
-  plan: null,
-  folders: ["src/checkout"],
-  prompts: ["Add retries with backoff to the payment client, and cover them with tests."],
-  reply: "I added the retries in src/checkout/payments.ts. The tests pass. Anything else?",
-  summary: null,
-  previous: null,
-  stage: "forming",
+  summary: "Adds retries with backoff to the payment client, covered by tests.",
 }
 
 type Config = {
@@ -205,7 +196,7 @@ const parseCheck = (raw: string): Description | undefined => {
   try {
     const title = (JSON.parse(raw) as { title?: unknown } | null)?.title
     return typeof title === "string" && /\p{L}{2}/u.test(title)
-      ? { title: title.trim(), changed: true }
+      ? { title: title.trim() }
       : undefined
   } catch {
     return undefined
@@ -808,7 +799,7 @@ export class Murmur implements Describer {
     parse?: (raw: string) => Made[T] | undefined,
   ): Promise<Made[T] | undefined> {
     const running = await this.started(server, config, signal)
-    const format = input === undefined ? formats[task] : formatOf(task, input)
+    const format = formats[task]
     // A stuck engine must not hold every job behind it.
     const limit = AbortSignal.any([signal, AbortSignal.timeout(this.options.requestMs ?? 60_000)])
     const response = await server.request(running, "/v1/chat/completions", {
@@ -969,20 +960,11 @@ export class Murmur implements Describer {
     for (const sleeper of this.sleepers) sleeper()
   }
 
-  async describe(
+  describe(
     digest: Digest,
     options: { readonly signal?: AbortSignal; readonly terminal: string },
   ): Promise<Description | null | undefined> {
-    const made = await this.write(digest, "title", options.signal, options.terminal)
-    if (!made) return made
-    // A shell is renamed on every command, and a first title has nothing to differ from.
-    if (digest.kind === "shell" || digest.previous === null) return { ...made, changed: true }
-    // A settled name is judged changed only when the model says so and the new title shares
-    // no word with the old: the 2B model calls a sub-topic of the same work "different" often,
-    // and its title then gives it away (see docs/murmur.md). A forming name is the model's call.
-    if (digest.stage === "settled" && sharesContentWord(made.title, digest.previous.title))
-      return { ...made, changed: false }
-    return made
+    return this.write(digest, "title", options.signal, options.terminal)
   }
 
   note(
