@@ -219,6 +219,10 @@ const TerminalCanvas = ({
   useEffect(() => {
     selectedNow.current = selected
   }, [selected])
+  // The selected window takes its screen the moment it is in sight; the rest take turns.
+  useEffect(() => {
+    visibility.select(selected || undefined)
+  }, [visibility, selected])
   // Where the camera frames a terminal's window whole: its fly-to's destination.
   const framing = useCallback(
     (id: string): CanvasViewport | null => {
