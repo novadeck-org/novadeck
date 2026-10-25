@@ -83,7 +83,7 @@ export const ZenDock = ({
             onClick={onInbox}
           >
             <Bell size={16} />
-            <BellDot shown rings={bellRings} />
+            <BellDot rings={bellRings} />
           </button>
         </Tooltip>
       )}

@@ -228,9 +228,10 @@ export const followNeeds = (
   }
 }
 
-// Counts each new item that needs the person in `ui`'s `bellRings` as `followNeeds` rings it,
-// at the moment the toast or the OS ping would, so the Inbox's dot rings with them. Returns the
-// stop.
+// Counts each new item that needs the person in `ui`'s `bellRings`, after the grace the toast
+// and the OS ping wait (see `followNeeds`), so the Inbox's dot rings for it. Unlike them it
+// rings whatever the person's focus, view or notification settings: it is the app's own quiet
+// mark, there while they look. Returns the stop.
 export const watchBellRings = (
   inbox: Pick<Inbox, "state">,
   ui: UiStore,
