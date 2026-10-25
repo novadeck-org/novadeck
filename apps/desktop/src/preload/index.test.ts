@@ -7,6 +7,7 @@ import { afterEach, beforeEach, vi } from "vitest"
 
 import {
   apiUrlArgumentPrefix,
+  webglContextsArgumentPrefix,
   appearanceChannel,
   installAppChannel,
   badgeChannel,
@@ -693,5 +694,24 @@ describe("uninstalling the app", () => {
     electron.exposed.quitApp!()
     expect(electron.sent).toEqual([quitAppChannel])
     expect(electron.messages).toEqual([])
+  })
+})
+
+describe("the WebGL context limit", () => {
+  const loadWith = async (value: string | undefined): Promise<DesktopHost> => {
+    const given = value === undefined ? [] : [`${webglContextsArgumentPrefix}${value}`]
+    process.argv.push(...given)
+    vi.resetModules()
+    await import("./index")
+    process.argv.splice(process.argv.length - given.length, given.length)
+    return electron.exposed
+  }
+
+  it("is told to the page when the host gives a valid one", async () => {
+    expect((await loadWith("64")).webglContexts).toBe(64)
+  })
+
+  it.each([undefined, "", "2", "9999", "64.5", "lots"])("is left out for %j", async (value) => {
+    expect(await loadWith(value)).not.toHaveProperty("webglContexts")
   })
 })

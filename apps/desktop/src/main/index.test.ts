@@ -20,6 +20,10 @@ describe("compiled desktop host", () => {
       // A folder given by --user-data-dir, as the packaged smoke test gives, is kept.
       expect(main).toContain('app.commandLine.getSwitchValue("user-data-dir")')
       expect(main).toContain("startHttpServer")
+      // Chromium's WebGL context limit is raised before the app is ready, and the window's
+      // preload is told it; the switch itself is covered in ../webgl-contexts.test.ts.
+      expect(main).toMatch(/raiseWebglContexts\(\s*app\.commandLine\s*\)/)
+      expect(main).toContain("webglContextsArgument(")
       expect(main).toContain("port: 0")
       expect(main).toContain('join(process.resourcesPath, "ui", "index.html")')
       expect(main).toContain("loadFile")

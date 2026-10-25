@@ -527,4 +527,22 @@ export type DesktopHost = DesktopBridge & {
   readonly apiUrl: string
   /** Whether the page can show web pages live, in a locked-down `<webview>`. */
   readonly livePages?: true
+  /**
+   * How many live WebGL contexts the host's Chromium allows this page, when the host raised
+   * the limit from the browser's 16; see `webglContextsOf`. Absent in a browser and from
+   * hosts that came before it.
+   */
+  readonly webglContexts?: number
 }
+
+/** The fewest and most WebGL contexts a host may say its page is allowed. */
+export const webglContextsRange = { min: 3, max: 1024 } as const
+
+/** A WebGL context limit when it is a whole number in `webglContextsRange`; otherwise undefined. */
+export const webglContextsOf = (value: unknown): number | undefined =>
+  typeof value === "number" &&
+  Number.isSafeInteger(value) &&
+  value >= webglContextsRange.min &&
+  value <= webglContextsRange.max
+    ? value
+    : undefined
