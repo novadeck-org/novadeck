@@ -313,7 +313,7 @@ switcher's dot covers them again. The order and the pins are kept in this browse
 runner.
 
 The Inbox (the bell on the sidebar rail) lists everything
-across every project and session that waits on you, one row per agent terminal: a dialog to
+across every project and session that waits on you, each item its own row: a dialog to
 answer, a message between agents held for you to release, a turn that failed, a usage
 limit, a question sent through the agent's `ask` tool, an update sent through `tell`,
 and a turn that finished while you looked elsewhere. Click a row to read it and
