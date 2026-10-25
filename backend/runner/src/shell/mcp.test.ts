@@ -360,16 +360,15 @@ describe("Novadeck's MCP server", () => {
     it("says up front that ask doesn't stop the work and tell is for milestones", async () => {
       const [handshake] = await session(terminal(), [initialize])
       const instructions = handshake?.result?.instructions as string
-      expect(instructions).toContain(
-        "puts a question in the user's Inbox without stopping your work",
-      )
+      expect(instructions).toContain("puts a question in the user's Inbox, where they see it")
+      expect(instructions).toContain("so a question only in your reply goes unseen")
+      expect(instructions).toContain("Always ask there every question you end your turn waiting on")
+      expect(instructions).toContain("unless it is already an open ask")
+      expect(instructions).toContain("a closing offer such as 'anything else?' isn't one")
+      expect(instructions).toContain("Mid-work, ask without stopping your work")
       expect(instructions).toContain(
         "for a decision the user should make, ask there and keep going",
       )
-      expect(instructions).toContain("A question you end your turn waiting on")
-      expect(instructions).toContain("not a closing offer")
-      expect(instructions).toContain("unless it is already an open")
-      expect(instructions).toContain("they may not be watching this terminal")
       expect(instructions).toContain("Its tell puts a milestone there")
       expect(instructions).toContain("With a lead, both go to it instead")
     })
@@ -385,12 +384,10 @@ describe("Novadeck's MCP server", () => {
       expect(ask.description).toContain("needs no approval of theirs")
       expect(ask.description).toContain("A pick that is hard to undo waits for their answer")
       expect(ask.description).toContain("once nothing else is left, end your")
-      expect(ask.description).toContain("A question you end your turn waiting on")
-      expect(ask.description).toContain("not a closing offer")
+      expect(ask.description).toContain("always ask every question you end your turn waiting on")
       expect(ask.description).toContain("unless it is already an open ask")
-      expect(ask.description).toContain(
-        "a decision goes to your lead with send; an approval, such as opening a pull request, still goes through ask",
-      )
+      expect(ask.description).toContain("isn't one, nor is an action your harness is already")
+      expect(ask.description).toContain("such as opening a pull request, go through ask")
       expect(ask.description).toContain("withdraw it too once the user answers it another way")
       const tell = described.find((tool) => tool.name === "tell")!
       expect(tell.description).toContain("a pull request opened")
@@ -883,7 +880,7 @@ describe("Novadeck's MCP server", () => {
         expect(description).toContain(
           "so, unless your harness is already prompting them for it, ask them with the ask tool",
         )
-        expect(description).toContain("as they may not be watching this terminal")
+        expect(description).toContain("always, even when you also ask in your reply")
         expect(description).toContain(
           "Questions meant for the user, decisions and requirements too, go to your lead",
         )
