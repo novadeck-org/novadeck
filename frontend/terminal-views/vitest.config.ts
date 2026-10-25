@@ -10,7 +10,7 @@ export default defineConfig({
       {
         extends: true,
         server: { strictPort: false },
-        // Its spec swaps the WebGL renderer in a real browser.
+        // Its specs run a terminal in a real browser: swapping the WebGL renderer, and mouse at any zoom.
         optimizeDeps: {
           include: [
             "@novadeck/emulator > @xterm/addon-fit",
@@ -22,7 +22,7 @@ export default defineConfig({
         },
         test: {
           name: "renderers",
-          include: ["src/renderers.spec.ts"],
+          include: ["src/*.spec.ts"],
           testTimeout: 30_000,
           browser: {
             enabled: true,
