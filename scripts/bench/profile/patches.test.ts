@@ -198,6 +198,8 @@ describe("softwareWebglPatch", () => {
 describe("the patches on the real sources", () => {
   // So drift in a file a patch targets fails here, not as a flag that silently does nothing.
   const root = join(import.meta.dirname, "..", "..", "..")
+  // Vite hands plugins ids with forward slashes, on Windows too.
+  const idOf = (path: string) => join(root, path).replaceAll("\\", "/")
   const read = (path: string) => readFileSync(join(root, path), "utf8")
   const addon = join(
     dirname(
@@ -208,12 +210,14 @@ describe("the patches on the real sources", () => {
 
   it("patches the view, the pool's probe, the pool's creation and the addon, each once", () => {
     const view = "libraries/emulator/src/view.ts"
-    expect(profileTextPatch.transform(read(view), join(root, view))).not.toBeNull()
+    expect(profileTextPatch.transform(read(view), idOf(view))).not.toBeNull()
     const renderer = "libraries/emulator/src/renderer.ts"
-    expect(softwareWebglPatch.transform(read(renderer), join(root, renderer))).not.toBeNull()
+    expect(softwareWebglPatch.transform(read(renderer), idOf(renderer))).not.toBeNull()
     const views = "frontend/terminal-views/src/renderers.ts"
-    expect(raisedCapPatch(40).transform(read(views), join(root, views))).not.toBeNull()
-    expect(webglAtlasPatch.transform(readFileSync(addon, "utf8"), addon)).not.toBeNull()
+    expect(raisedCapPatch(40).transform(read(views), idOf(views))).not.toBeNull()
+    expect(
+      webglAtlasPatch.transform(readFileSync(addon, "utf8"), addon.replaceAll("\\", "/")),
+    ).not.toBeNull()
   })
 
   it("patches the built view and probe too, where the library is built", () => {
@@ -222,8 +226,8 @@ describe("the patches on the real sources", () => {
         ["libraries/emulator/dist/view.js", profileTextPatch],
         ["libraries/emulator/dist/renderer.js", softwareWebglPatch],
       ] as const
-    ).filter(([file]) => existsSync(join(root, file)))
-    const results = built.map(([file, patch]) => patch.transform(read(file), join(root, file)))
+    ).filter(([file]) => existsSync(idOf(file)))
+    const results = built.map(([file, patch]) => patch.transform(read(file), idOf(file)))
     expect(results.every((each) => each !== null)).toBe(true)
   })
 
