@@ -13,6 +13,7 @@ export const ZenDock = ({
   view,
   enabledViews,
   badge,
+  bellRings,
   onCreate,
   onViewChange,
   onInbox,
@@ -21,6 +22,8 @@ export const ZenDock = ({
   view: ViewMode
   enabledViews: ViewMode[]
   badge: BellBadge | undefined
+  // How many new items the bell has rung for, which its dot rings with.
+  bellRings: number
   onCreate: () => void
   onViewChange: (view: ViewMode) => void
   onInbox: () => void
@@ -80,7 +83,7 @@ export const ZenDock = ({
             onClick={onInbox}
           >
             <Bell size={16} />
-            <BellDot latest={badge.latest} />
+            <BellDot shown rings={bellRings} />
           </button>
         </Tooltip>
       )}

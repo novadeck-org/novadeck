@@ -5,7 +5,13 @@ import { appearance } from "@novadeck/core/testing"
 import { afterEach, beforeEach, vi } from "vitest"
 
 import { context, describe, expect, it } from "../test"
-import { clickNotice, needNotice, noticeBoard, watchInboxPings } from "./inbox-pings"
+import {
+  clickNotice,
+  needNotice,
+  noticeBoard,
+  watchBellRings,
+  watchInboxPings,
+} from "./inbox-pings"
 import { createUiStore, initialUi } from "./ui-store"
 
 const source: InboxItem["source"] = {
@@ -347,6 +353,55 @@ describe("pings for what needs the person", () => {
       expect(shown).toEqual([])
       expect(badges.at(-1)).toEqual({ count: 0, image: null })
     })
+  })
+})
+
+describe("the bell's rings, which its dot rings with", () => {
+  const follow = (items: InboxItem[] = []) => {
+    const inbox = createStore<InboxState>({ ...emptyInbox, items })
+    const ui = backgrounded()
+    // Focused, as the toast's case: the bell rings whichever doorbell takes the item.
+    ui.update((state) => ({ ...state, pageFocused: true }))
+    const stop = watchBellRings({ state: inbox }, ui, { graceMs: 2000 })
+    const set = (next: InboxItem[]) => inbox.update((state) => ({ ...state, items: next }))
+    return { set, rings: () => ui.getSnapshot().bellRings, stop }
+  }
+
+  it("counts each new item that needs the person, once its grace has passed", () => {
+    const { set, rings, stop } = follow()
+    const first = ask("a")
+    set([first])
+    vi.advanceTimersByTime(1999)
+    expect(rings()).toBe(0)
+    vi.advanceTimersByTime(1)
+    expect(rings()).toBe(1)
+    const second = request("b", "Bash", "pnpm test")
+    set([first, second])
+    set([first, second])
+    vi.advanceTimersByTime(2000)
+    expect(rings()).toBe(2)
+    stop()
+  })
+
+  it("counts none for what was there as it started, began well before, or doesn't call", () => {
+    const { set, rings, stop } = follow([ask("there")])
+    set([ask("there"), ask("old", 4000), update("u"), draft("d")])
+    vi.advanceTimersByTime(5000)
+    expect(rings()).toBe(0)
+    stop()
+  })
+
+  it("counts a new item that began before one already waiting", () => {
+    const { set, rings, stop } = follow()
+    vi.setSystemTime(300_000)
+    const first = ask("a")
+    set([first])
+    vi.advanceTimersByTime(2000)
+    // Messages held long become an item minutes after they began waiting.
+    set([first, ask("held", 120_000)])
+    vi.advanceTimersByTime(2000)
+    expect(rings()).toBe(2)
+    stop()
   })
 })
 

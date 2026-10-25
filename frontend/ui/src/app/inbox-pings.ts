@@ -2,7 +2,7 @@ import { handleText } from "@novadeck/core/handle"
 import type { Inbox, InboxItem } from "@novadeck/core/inbox"
 import type { Backend, Notice } from "@novadeck/core/port"
 
-import { launchSlackMs, needing, ringing } from "../inbox/inbox-state"
+import { needing, ringing } from "../inbox/inbox-state"
 import { fromNovadeck, labelOf, subjectOf } from "../inbox/inbox-text"
 import { isDesktop } from "../shell/desktop"
 import { heldForToast, modalOpen } from "./selectors"
@@ -12,6 +12,10 @@ import type { UiStore } from "./ui-store"
 // agent settles in that time never does. (A permission request has already waited its own
 // 3 s before it becomes an item.)
 export const needGraceMs = 2000
+
+// How long before this started an item may have begun and still be new: a request becomes
+// an item only once its dialog shows, a few seconds after it was asked.
+const launchSlackMs = 5000
 
 // The most the icon's count says; the host takes 0 to 999.
 const maxBadge = 999
@@ -223,6 +227,23 @@ export const followNeeds = (
     leaving.forEach(clearTimeout)
   }
 }
+
+// Counts each new item that needs the person in `ui`'s `bellRings` as `followNeeds` rings it,
+// at the moment the toast or the OS ping would, so the Inbox's dot rings with them. Returns the
+// stop.
+export const watchBellRings = (
+  inbox: Pick<Inbox, "state">,
+  ui: UiStore,
+  { graceMs = needGraceMs }: { graceMs?: number } = {},
+): (() => void) =>
+  followNeeds(inbox, {
+    graceMs,
+    ring: () => {
+      ui.update((state) => ({ ...state, bellRings: state.bellRings + 1 }))
+      return true
+    },
+    leave: () => {},
+  })
 
 // Follows the Inbox for the person who isn't looking at it. A new item that needs them
 // pings once (see `followNeeds`), only if the page still hasn't their focus and the person

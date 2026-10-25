@@ -69,6 +69,9 @@ export type UiState = {
   readonly portable: PortableState | null
   // Whether the page has the person's focus: its window focused and showing.
   readonly pageFocused: boolean
+  // How many new items the Inbox's bell has rung for in this run, as the toast and the OS ping
+  // ring them (`watchBellRings`): its dot rings with each; never persisted.
+  readonly bellRings: number
   // The terminals with finished turns the person hasn't read: the Inbox's stored rows,
   // mirrored by `watchUnreadTurns`; never persisted.
   readonly unread: Unread
@@ -124,6 +127,7 @@ export const initialUi = ({
   sandboxOpen: false,
   portable: null,
   pageFocused: true,
+  bellRings: 0,
   unread: noUnread,
   projectArrangement,
   canvasWindowSize,

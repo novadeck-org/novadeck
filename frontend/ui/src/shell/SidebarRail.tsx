@@ -12,6 +12,7 @@ export const SidebarRail = ({
   sidebarPanel,
   zen,
   badge,
+  bellRings,
   hasSource = false,
   toggleSidebar,
   hideSidebar,
@@ -21,6 +22,8 @@ export const SidebarRail = ({
   sidebarPanel: SidebarPanel
   zen: boolean
   badge: BellBadge | undefined
+  // How many new items the bell has rung for, which its dot rings with.
+  bellRings: number
   // Whether the backend has a Source panel to toggle.
   hasSource?: boolean
   toggleSidebar: (panel: SidebarPanel) => void
@@ -67,7 +70,7 @@ export const SidebarRail = ({
               data-project-status={status?.status}
             >
               <Icon size={16} />
-              {id === "inbox" && <BellDot latest={badge?.latest} />}
+              {id === "inbox" && <BellDot shown={Boolean(badge)} rings={bellRings} />}
             </ToggleGroupItem>
           )
         })}

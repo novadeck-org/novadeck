@@ -10,8 +10,6 @@ import type { ProjectStatus } from "../projects/project-status"
 export type BellBadge = {
   // How many wait.
   readonly count: number
-  // When the newest of what waits began, which the dot rings for (see BellDot).
-  readonly latest: number
   // The accessible name of the bell, e.g. "Inbox, 3 waiting".
   readonly label: string
   // The status whose tone the badge takes; the parent's `data-project-status`.
@@ -28,7 +26,6 @@ export const inboxBadge = (items: readonly InboxItem[]): BellBadge | undefined =
   const type = inboxType(first)
   return {
     count: waiting.length,
-    latest: Math.max(...waiting.map((item) => item.at)),
     label: `Inbox, ${waiting.length} waiting`,
     status:
       type === "trouble" && toneOf(first) === "urgent"
