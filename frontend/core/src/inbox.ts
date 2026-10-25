@@ -1,4 +1,5 @@
 import type { ChatAnswer, ChatRequest } from "./conversation"
+import type { FeedbackDraft } from "./feedback"
 import type { AgentName } from "./harnesses"
 import type { MailWaits } from "./messages"
 import { createStore, type Store } from "./store"
@@ -6,8 +7,8 @@ import type { TerminalKey, Workspace } from "./types"
 
 // The Inbox: everything across the workspace that an agent, or Novadeck about an agent,
 // puts in front of the person, one item per terminal. The person reads and answers it
-// there, without going to the terminal. Each item is one of five sources, and the UI
-// presents it as one of four types:
+// there, without going to the terminal. Each item is one of six sources, and the UI
+// presents it as one of five types:
 // - `request`: a prompt the agent's harness shows and Novadeck reads from its screen
 //   (`ChatRequest`, as the chat view has it). A permission or plan is an Approve, a
 //   question an Ask; a dialog Novadeck can't read (`raw`) is answered in the terminal.
@@ -17,6 +18,8 @@ import type { TerminalKey, Workspace } from "./types"
 // - `trouble`: what Novadeck noticed about the agent: stuck, at a usage limit, failed, or
 //   its messages held long behind what keeps the doorbell from waking it.
 // - `update`: a finished turn, or what the agent told through the MCP `tell` tool.
+// - `feedback`: feedback the person asked the agent to write (see `feedback`), waiting for
+//   the person to send or discard it (a Feedback).
 // Agents write subjects, bodies and options; Novadeck shows them as they are.
 
 // Where an item comes from: the terminal, its project and session, the agent running in
@@ -132,6 +135,7 @@ export type InboxContent =
   | { readonly kind: "ask"; readonly ask: AgentAsk }
   | { readonly kind: "trouble"; readonly trouble: Trouble }
   | { readonly kind: "update"; readonly update: Update }
+  | { readonly kind: "feedback"; readonly draft: FeedbackDraft }
 
 // One item. `at` is when it started waiting, in epoch milliseconds. `stopped` whether the
 // agent waits on the person (a gate, an ask after which it ended its turn, a stuck or
@@ -144,8 +148,8 @@ export type InboxItem = InboxContent & {
   readonly seen: boolean
 }
 
-// The four ways the Inbox presents an item.
-export type InboxType = "approve" | "ask" | "trouble" | "update"
+// The five ways the Inbox presents an item.
+export type InboxType = "approve" | "ask" | "trouble" | "update" | "feedback"
 
 export const inboxType = (item: InboxContent): InboxType => {
   if (item.kind === "request") return item.request.kind === "question" ? "ask" : "approve"
@@ -156,7 +160,8 @@ export const inboxType = (item: InboxContent): InboxType => {
 // The person's answer to an item, by its source: a dialog's answer as the chat sends it;
 // a held thread released or stopped; an ask's option and/or words, or its
 // action done; a stuck agent nudged with these words or stopped, auto-resume at a limit
-// turned on or off, or the agent continued once the limit has reset; an update read.
+// turned on or off, or the agent continued once the limit has reset; an update read; a
+// feedback draft sent, with the text as the person left it, or discarded.
 export type InboxAnswer =
   | { readonly kind: "request"; readonly answer: ChatAnswer }
   | { readonly kind: "held"; readonly action: "release" | "stop" }
@@ -176,6 +181,10 @@ export type InboxAnswer =
         | { readonly type: "auto-resume"; readonly on: boolean }
     }
   | { readonly kind: "update"; readonly action: "read" }
+  | {
+      readonly kind: "feedback"
+      readonly answer: { readonly type: "send"; readonly text: string } | { readonly type: "discard" }
+    }
 
 // Every item, waiting ones first by how long they waited. `answering` the items whose
 // answer is on its way, until the backend drops them; `failed` why an answer didn't take.
