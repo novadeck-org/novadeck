@@ -56,21 +56,30 @@ describe("The landing rule", () => {
   })
 
   context("when an agent reports it is done to the terminal the person looks at", () => {
-    it("reads it by being seen, so it never lands", async () => {
+    it("reads it by being seen, so it never lands, however they look away", async () => {
       await open(docs)
 
       hostWindow.arrive(demoInboxIds.done)
-      await expectStaysAbsent(
-        { shown: () => document.querySelector(".toast") !== null, name: "a toast" },
-        { ms: 3_000 },
-      )
+      // It isn't read by the arrival itself, only once the person has looked at the terminal
+      // for a moment; then the backend has it read, and it was never a row.
+      expect(hostWindow.itemIds()).toContain(demoInboxIds.done)
+      await expect
+        .poll(() => hostWindow.itemIds(), { timeout: 5_000 })
+        .not.toContain(demoInboxIds.done)
+
       await page
         .getByRole("button", { name: /^Select / })
         .first()
         .click()
-
       await sidebarPanel("Inbox").click()
       await expect.element(inboxRow("Search index rebuilt")).not.toBeInTheDocument()
+      await expectStaysAbsent(
+        {
+          shown: () => inboxRow("Search index rebuilt").query() !== null,
+          name: "the report's row",
+        },
+        { ms: 1_500 },
+      )
     })
   })
 })

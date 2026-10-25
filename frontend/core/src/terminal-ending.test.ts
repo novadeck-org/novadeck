@@ -3,16 +3,18 @@ import {
   doneText,
   endingText,
   needText,
+  joinNote,
   pausedText,
   pausedUntil,
   terminalEnding,
   terminalNeedMark,
   terminalPhase,
   unheardText,
+  waitingAgents,
 } from "./terminal-ending"
 import { describe, expect, it } from "./test"
 import { terminalFixture } from "./testing"
-import type { TerminalMetadata } from "./types"
+import type { AgentStatus, TerminalMetadata } from "./types"
 
 const terminal = terminalFixture(1, "~/project")
 
@@ -106,8 +108,13 @@ describe("terminal ending", () => {
     expect(terminalPhase(limited(true))).toBe("running")
     expect(pausedUntil(limited(false))).toBe(at)
     expect(pausedUntil(limited(true))).toBeUndefined()
-    expect(pausedText(limited(false))).toBe("Paused at its usage limit · resets 15:40")
-    expect(pausedText(limited(true))).toBeUndefined()
+    expect(pausedText(limited(false), at - 1)).toBe("Paused at its usage limit · resets 15:40")
+    expect(pausedText(limited(true), at - 1)).toBeUndefined()
+    // Once the time has passed it says the limit has reset, not a past time.
+    expect(pausedText(limited(false), at)).toBe(
+      "Paused at its usage limit · it has reset and waits to be continued",
+    )
+    expect(pausedText(limited(false), at + 1)).not.toContain("resets 15:40")
     // Limited with no window known has no time to show.
     expect(
       terminalPhase({
@@ -184,5 +191,35 @@ describe("terminal need mark", () => {
   it("words a done tab as a report, a failed one as an error", () => {
     expect(doneText()).toBe("Done · report unread")
     expect(doneText(true)).toBe("Stopped with an error · reply unread")
+  })
+})
+
+describe("joinNote", () => {
+  it("lowercases the parts after the first and drops the missing", () => {
+    expect(joinNote(["Needs you", "Paused at its usage limit · resets 15:40"])).toBe(
+      "Needs you, paused at its usage limit · resets 15:40",
+    )
+    expect(joinNote([undefined, "Done · report unread"])).toBe("Done · report unread")
+    expect(joinNote(["Asks: Which?", undefined])).toBe("Asks: Which?")
+  })
+})
+
+describe("waitingAgents", () => {
+  const job = { id: "j", description: "Watch CI", command: "gh pr checks", since: 1, until: null }
+  const waiting = (attention?: AgentStatus["attention"]): TerminalMetadata => ({
+    ...terminal,
+    state: "running",
+    process: "claude",
+    agent: {
+      working: false,
+      waiting: { jobs: [job], wake: null },
+      ...(attention && { attention }),
+    },
+  })
+
+  it("counts an agent that waits on a job, but not one held on a dialog", () => {
+    const held = waiting({ kind: "permission", count: 1 })
+    expect(terminalPhase(held)).toBe("waiting")
+    expect(waitingAgents([waiting(), held])).toEqual([waiting()])
   })
 })

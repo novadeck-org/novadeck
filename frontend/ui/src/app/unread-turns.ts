@@ -49,8 +49,9 @@ const letterContext = (item: InboxItem): string =>
 // (`inbox.state`) for the rest of the app.
 //
 // The terminals' unread marks (`ui.unread`) mirror the turns: each terminal with unread rows
-// carries how its newest row ended (`unread` or `failed`), rows the Inbox hides under a
-// running lead included. The marks outlast the agent's next turn, as the rows do. A done
+// carries how its newest row ended (`unread` or `failed`). A completed row of a worker whose
+// lead's agent runs is the lead's to hear, so it marks nothing, as the Inbox hides it too;
+// its failed row still marks. The marks outlast the agent's next turn, as the rows do. A done
 // report is no turn: the tab reads it from the Inbox's items itself.
 //
 // Looking reads: the rows of the terminal the person views (the selected one while the page

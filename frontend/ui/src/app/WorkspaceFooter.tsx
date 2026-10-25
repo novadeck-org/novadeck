@@ -1,7 +1,7 @@
 import { movedOrder, nextAccountReset, runningSeats, sameSeats } from "@novadeck/core/account-usage"
 import { nextWaitingChange } from "@novadeck/core/agent-waiting"
 import type { Backend, BackendConnectionState } from "@novadeck/core/port"
-import { terminalPhase } from "@novadeck/core/terminal-ending"
+import { waitingAgents } from "@novadeck/core/terminal-ending"
 import { memo, useEffect, useState, useSyncExternalStore } from "react"
 
 import { FeedbackButton } from "../feedback/FeedbackButton"
@@ -61,7 +61,7 @@ export const WorkspaceFooter = memo((): React.JSX.Element => {
     const now = Date.now()
     // Agents that ended their turn to wait on something count apart, never as running; a
     // wake-up passing makes one idle again, so the count is read again then.
-    const waits = terminals.filter((terminal) => terminalPhase(terminal, false, now) === "waiting")
+    const waits = waitingAgents(terminals, now)
     return {
       waiting: waits.length,
       waitingChange: waits.reduce<number | undefined>((soonest, terminal) => {

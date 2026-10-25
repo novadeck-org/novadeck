@@ -319,6 +319,20 @@ export const terminalNeed = (
   return mine.some((item) => inboxType(item) === "ask") ? "ask" : undefined
 }
 
+// When the next usage limit among `items` that is still ahead of `now` resets, which turns
+// its terminal into an Unblock where auto-resume is off (see `terminalNeed`); undefined when none.
+export const nextLimitReset = (items: readonly InboxItem[], now: number): number | undefined =>
+  items.reduce<number | undefined>(
+    (soonest, item) =>
+      item.kind === "trouble" &&
+      item.trouble.type === "limit" &&
+      item.trouble.resetsAt > now &&
+      (soonest === undefined || item.trouble.resetsAt < soonest)
+        ? item.trouble.resetsAt
+        : soonest,
+    undefined,
+  )
+
 // Whether the terminal has a `done` report the person hasn't seen.
 export const terminalDone = (items: readonly InboxItem[], at: TerminalAt): boolean =>
   items.some(

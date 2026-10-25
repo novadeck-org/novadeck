@@ -4,6 +4,7 @@ import { isWindow } from "@novadeck/core/roster"
 import {
   doneText,
   needText,
+  joinNote,
   pausedText,
   pausedUntil,
   terminalNeedMark,
@@ -147,21 +148,20 @@ export const WindowShell = ({
   const failed = unread === "failed"
   const phase = shell ? terminalPhase(shell, reported || failed) : "idle"
   const need = shell && phase !== "ended" ? terminalNeedMark(shell, inboxNeed) : undefined
-  useRenderAt(phase === "waiting" && shell ? nextWaitingChange(shell) : undefined)
   const resets = shell && phase === "paused" ? pausedUntil(shell) : undefined
+  // Said again once the limit it waits on resets, or its wake-up passes.
+  useRenderAt(phase === "waiting" && shell ? nextWaitingChange(shell) : resets)
   // What the agent needs of the person, that Novadeck can't hear from it, that it is paused
   // at its limit, what it waits on that wakes it, or that it finished with its reply unread.
   const note =
     shell &&
-    [
+    joinNote([
       needText(shell, need, needSubject),
       unheardText(shell) ??
         pausedText(shell) ??
         (phase === "waiting" ? waitingText(shell) : undefined) ??
         (phase === "done" ? doneText(failed) : undefined),
-    ]
-      .filter(Boolean)
-      .join(", ")
+    ])
   const headerDoubleAction = onFlyTo
   // The project window is named by its file, so its name is no rename's: a double-click on it
   // is the header's own.

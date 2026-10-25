@@ -1,4 +1,10 @@
-import { noInbox, type Inbox, type InboxItem, type TerminalAt } from "@novadeck/core/inbox"
+import {
+  nextLimitReset,
+  noInbox,
+  type Inbox,
+  type InboxItem,
+  type TerminalAt,
+} from "@novadeck/core/inbox"
 import { useEffect, useState } from "react"
 
 import { inboxMarks, type InboxMarks } from "../terminals/inbox-marks"
@@ -6,6 +12,19 @@ import { useStoreSelector } from "./controller/useStoreSelector"
 
 const sameItems = (a: readonly InboxItem[], b: readonly InboxItem[]): boolean =>
   a.length === b.length && a.every((item, index) => item === b[index])
+
+// The time the limits among `items` are judged by, moved on once the next one resets (which
+// makes its terminal an Unblock) though nothing else changes.
+export const useLimitClock = (items: readonly InboxItem[]): number => {
+  const [now, setNow] = useState(() => Date.now())
+  const resetsAt = nextLimitReset(items, now)
+  useEffect(() => {
+    if (resetsAt === undefined) return undefined
+    const timer = setTimeout(() => setNow(Date.now()), Math.max(0, resetsAt - Date.now()) + 50)
+    return () => clearTimeout(timer)
+  }, [resetsAt])
+  return now
+}
 
 const none: readonly InboxItem[] = []
 
@@ -26,17 +45,6 @@ export const useTerminalMarks = (inbox: Inbox | undefined, at: TerminalAt): Inbo
     },
     sameItems,
   )
-  // The time the limits are judged by, moved on once the next one resets.
-  const [now, setNow] = useState(() => Date.now())
-  const resetsAt = items
-    .flatMap((item) =>
-      item.kind === "trouble" && item.trouble.type === "limit" ? [item.trouble.resetsAt] : [],
-    )
-    .find((each) => each > now)
-  useEffect(() => {
-    if (resetsAt === undefined) return undefined
-    const timer = setTimeout(() => setNow(Date.now()), Math.max(0, resetsAt - Date.now()) + 50)
-    return () => clearTimeout(timer)
-  }, [resetsAt])
+  const now = useLimitClock(items)
   return inboxMarks(items, at, now)
 }

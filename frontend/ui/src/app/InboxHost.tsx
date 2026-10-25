@@ -1,13 +1,12 @@
-import type { Inbox } from "@novadeck/core/inbox"
 import { useCallback, useEffect, useMemo, type ReactNode } from "react"
 
-import { InboxProvider, useInboxContext } from "../inbox/InboxProvider"
+import { InboxProvider, useInboxOpener } from "../inbox/InboxProvider"
 import { InboxSheet } from "../inbox/InboxSheet"
 import { InboxToasts, type ToastBoard } from "../inbox/InboxToasts"
 import { anyAgentWorking } from "../projects/project-status"
 import { useDesktop } from "../shell/desktop"
 import { useWorkspaceServices, useWorkspaceState } from "./controller/context"
-import { landedInbox } from "./inbox-landing"
+import { landedInbox, revealItem } from "./inbox-landing"
 import { clickNotice, noticeBoard } from "./inbox-pings"
 import { watchInboxToasts } from "./inbox-toasts"
 
@@ -15,21 +14,28 @@ import { watchInboxToasts } from "./inbox-toasts"
 // none, one that lists nothing.
 
 // Hears a click on a terminal's notification (see `clickNotice`).
-const NoticeClicks = ({ inbox }: { readonly inbox: Inbox }): null => {
+const NoticeClicks = (): null => {
   const { backend, commands } = useWorkspaceServices()
-  const { open } = useInboxContext()
+  const opener = useInboxOpener()
   const { showInbox, reveal } = commands
   useEffect(
     () =>
       backend.notices?.onClick((terminalId) =>
+        // The backend's items, as the terminal being viewed may hold the one the notice is
+        // about back from the Inbox: the click lands it before it opens.
         clickNotice(
           terminalId,
-          inbox.state.getSnapshot().items,
-          { open, showInbox, reveal },
+          backend.inbox?.state.getSnapshot().items ?? [],
+          {
+            open: (id) => opener?.((items) => items.find((item) => item.id === id)),
+            showInbox,
+            reveal,
+            land: (id) => revealItem(backend.inbox, id),
+          },
           noticeBoard(backend.notices)?.itemOf(terminalId),
         ),
       ),
-    [backend, inbox, open, showInbox, reveal],
+    [backend, opener, showInbox, reveal],
   )
   return null
 }
@@ -70,7 +76,7 @@ export const InboxHost = ({
       feedbackAbout={backend.feedback?.about}
     >
       {children}
-      <NoticeClicks inbox={inbox} />
+      <NoticeClicks />
       <InboxSheet active={active} />
       <InboxToasts follow={follow} showInbox={showInbox} />
     </InboxProvider>

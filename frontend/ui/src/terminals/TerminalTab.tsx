@@ -15,6 +15,7 @@ import {
   doneText,
   endingText,
   needText,
+  joinNote,
   pausedText,
   pausedUntil,
   terminalEnding,
@@ -150,16 +151,14 @@ export const TerminalTab = ({
   const waitNote = waits && shell ? waitingText(shell) : undefined
   const note =
     ended ??
-    [
+    joinNote([
       needing,
       unheard ??
         (phase === "paused" && shell ? pausedText(shell) : undefined) ??
         waitNote ??
         (phase === "done" ? doneText(failed) : undefined) ??
         (brightened ? "Reply unread" : undefined),
-    ]
-      .filter(Boolean)
-      .join(", ")
+    ])
   const messages = mail ? mailBadgeLabel(mail) : undefined
   // The subagents its agent runs: marked on its line, their kinds under it while selected,
   // and counted in words wherever it marks them.
@@ -192,9 +191,7 @@ export const TerminalTab = ({
   // How long ago a done tab's agent finished, beside its program, kept current.
   const finished = phase === "done" ? shell : undefined
   const age = finished && turnAge(finished)
-  useRenderAt(
-    finished ? nextTurnAge(finished) : waits && shell ? nextWaitingChange(shell) : undefined,
-  )
+  useRenderAt(finished ? nextTurnAge(finished) : waits && shell ? nextWaitingChange(shell) : resets)
   // A window runs no program; a project window names its file's folder there instead.
   const process = shell?.process ?? folder ?? ""
   const { ref, handleRef, isDragSource } = useSortable({

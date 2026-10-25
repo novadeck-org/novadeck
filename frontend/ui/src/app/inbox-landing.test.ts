@@ -7,9 +7,11 @@ import {
 } from "@novadeck/core/inbox"
 import { createStore, createWorkspaceStore } from "@novadeck/core/store"
 import { appearance, workspaceFixture } from "@novadeck/core/testing"
+import { afterEach, beforeEach, vi } from "vitest"
 
 import { context, describe, expect, it } from "../test"
-import { landInbox } from "./inbox-landing"
+import { landedQuietly, landInbox, readDwellMs } from "./inbox-landing"
+import { followNeeds } from "./inbox-pings"
 import { createUiStore, initialUi } from "./ui-store"
 
 const target = { projectId: "project", workspaceSessionId: "initial" }
@@ -44,7 +46,7 @@ const done = (id: string, terminalId: string): InboxItem => ({
 })
 
 // A workspace whose terminal 01 is selected, and a raw Inbox the test fills and answers.
-const setup = () => {
+const setup = (wide = true) => {
   const workspace = createWorkspaceStore(workspaceFixture())
   workspace.dispatch({ type: "terminal/select", target, terminalId: "01" })
   const ui = createUiStore(
@@ -82,13 +84,21 @@ const setup = () => {
     see: () => {},
     readAll: () => {},
   }
-  const { inbox, stop, reveal } = landInbox(raw, workspace, ui)
+  const { inbox, stop, reveal } = landInbox(raw, workspace, ui, () => wide)
   return {
     inbox,
     stop,
     reveal,
     answers,
     set: (items: InboxItem[]) => void state.update((current) => ({ ...current, items })),
+    patch: (patch: Partial<InboxState>) =>
+      void state.update((current) => ({ ...current, ...patch })),
+    showList: () =>
+      void ui.update((current) => ({
+        ...current,
+        location: { ...current.location, route: { ...current.location.route, panel: "inbox" } },
+        shell: { ...current.shell, sidebar: true },
+      })),
     select: (terminalId: string) =>
       workspace.dispatch({ type: "terminal/select", target, terminalId }),
     focus: (pageFocused: boolean) => void ui.update((current) => ({ ...current, pageFocused })),
@@ -158,15 +168,35 @@ describe("the landing rule", () => {
   })
 
   context("an update of the terminal being viewed", () => {
-    it("is read, once, and never lands", () => {
+    beforeEach(() => void vi.useFakeTimers())
+    afterEach(() => void vi.useRealTimers())
+
+    it("is read once, after the dwell, and never lands", () => {
       const { set, select, ids, answers, stop } = setup()
       set([done("d", "01")])
       expect(ids()).toEqual([])
+      // Not synchronously, and not before the person has looked a moment.
+      expect(answers).toEqual([])
+      vi.advanceTimersByTime(readDwellMs - 1)
+      expect(answers).toEqual([])
+      vi.advanceTimersByTime(1)
       expect(answers).toEqual([["d", { kind: "update", action: "read" }]])
       // The read hasn't gone through yet; the person looks away.
       select("02")
       expect(ids()).toEqual([])
+      vi.advanceTimersByTime(readDwellMs * 3)
       expect(answers).toHaveLength(1)
+      stop()
+    })
+
+    it("is not read by a glance: looking away within the dwell lands it", () => {
+      const { set, select, ids, answers, stop } = setup()
+      set([done("d", "01")])
+      vi.advanceTimersByTime(readDwellMs - 1)
+      select("02")
+      vi.advanceTimersByTime(readDwellMs * 3)
+      expect(answers).toEqual([])
+      expect(ids()).toEqual(["d"])
       stop()
     })
 
@@ -178,13 +208,107 @@ describe("the landing rule", () => {
       stop()
     })
 
-    it("is read once the person selects its terminal, after it landed", () => {
+    it("is read once the person selects its terminal for the dwell, after it landed", () => {
       const { set, select, ids, answers, stop } = setup()
       set([done("d", "02")])
       expect(ids()).toEqual(["d"])
       select("02")
+      expect(answers).toEqual([])
+      vi.advanceTimersByTime(readDwellMs)
       expect(ids()).toEqual([])
       expect(answers).toEqual([["d", { kind: "update", action: "read" }]])
+      stop()
+    })
+
+    it("is landed, not read, by an item opened by its id during the dwell", () => {
+      const { set, reveal, ids, answers, stop } = setup()
+      set([done("d", "01")])
+      vi.advanceTimersByTime(readDwellMs / 2)
+      reveal("d")
+      vi.advanceTimersByTime(readDwellMs * 3)
+      expect(answers).toEqual([])
+      expect(ids()).toEqual(["d"])
+      stop()
+    })
+
+    it("lands when its read failed, instead of staying hidden", () => {
+      const { set, patch, ids, answers, stop } = setup()
+      set([done("d", "01")])
+      vi.advanceTimersByTime(readDwellMs)
+      expect(ids()).toEqual([])
+      patch({ failed: { d: "Couldn't mark it read." } })
+      expect(ids()).toEqual(["d"])
+      // It isn't read again over and over while the person still looks.
+      vi.advanceTimersByTime(readDwellMs * 5)
+      expect(answers).toHaveLength(1)
+      stop()
+    })
+
+    it("lands when it still stands after its read settled", () => {
+      const { set, patch, ids, stop } = setup()
+      set([done("d", "01")])
+      vi.advanceTimersByTime(readDwellMs)
+      patch({ answering: { d: true } })
+      expect(ids()).toEqual([])
+      patch({ answering: {} })
+      expect(ids()).toEqual(["d"])
+      stop()
+    })
+  })
+
+  context("an item that arrived while its terminal was viewed", () => {
+    it("lands quietly: no toast or ping rings for it, though it stays on the bell", () => {
+      const { set, select, inbox, ids, stop } = setup()
+      set([ask("a", "01"), ask("b", "02")])
+      select("02")
+      expect(ids()).toEqual(["a", "b"])
+      const [a, b] = inbox.state.getSnapshot().items
+      expect(landedQuietly(inbox, a!)).toBe(true)
+      expect(landedQuietly(inbox, b!)).toBe(false)
+      stop()
+    })
+  })
+
+  context("what rings for the items that land", () => {
+    beforeEach(() => void vi.useFakeTimers())
+    afterEach(() => void vi.useRealTimers())
+
+    it("skips the one that arrived viewed, and rings the one that arrived elsewhere", () => {
+      const { set, select, inbox, stop } = setup()
+      const rung: string[] = []
+      const unfollow = followNeeds(inbox, {
+        graceMs: 100,
+        ring: (item) => rung.push(item.id) > 0,
+        leave: () => {},
+      })
+      const now = Date.now()
+      set([
+        { ...ask("a", "01"), at: now },
+        { ...ask("b", "02"), at: now },
+      ])
+      select("02")
+      vi.advanceTimersByTime(500)
+      expect(rung).toEqual(["b"])
+      unfollow()
+      stop()
+    })
+  })
+
+  context("on a phone, while the Inbox list covers the screen", () => {
+    it("holds nothing back: no terminal counts as viewed", () => {
+      const { set, showList, ids, stop } = setup(false)
+      set([ask("a", "01")])
+      expect(ids()).toEqual([])
+      showList()
+      expect(ids()).toEqual(["a"])
+      stop()
+    })
+
+    it("still holds back on a wide window, where the terminal stays beside the list", () => {
+      const { set, showList, ids, stop } = setup(true)
+      showList()
+      set([ask("a", "01")])
+      expect(ids()).toEqual([])
       stop()
     })
   })

@@ -3,7 +3,7 @@ import type { AgentStatus, AgentWaiting, Tile } from "@novadeck/core/types"
 import { render } from "@novadeck/test-kit/render"
 import { Portal } from "@novadeck/toolkit/Portal"
 import { createElement } from "react"
-import { afterEach, vi } from "vitest"
+import { afterEach, beforeEach, vi } from "vitest"
 
 import { context, describe, expect, it } from "../test"
 import { WindowShell, type WindowShellProps } from "./WindowShell"
@@ -278,12 +278,31 @@ describe("terminal frame marks", () => {
       lastTurn: { at: 1, outcome: "failed", limit: { minutes: 300, resetsAt } },
     })
 
+    // Before the reset, whatever the real date is.
+    beforeEach(() => void vi.useFakeTimers({ now: resetsAt - 3_600_000 }))
+    afterEach(() => void vi.useRealTimers())
+
     it("reads paused, with the reset time after the name, and says so in words", () => {
       const frame = renderFrame(paused)
       expect(section(frame).getAttribute("data-terminal-phase")).toBe("paused")
       expect(frame.querySelector(".terminal-paused")?.textContent).toBe("∅ 15:40")
       expect(section(frame).getAttribute("aria-description")).toBe(
         "Paused at its usage limit · resets 15:40",
+      )
+    })
+
+    it("joins the need and the pause as one sentence", () => {
+      const frame = renderFrame(paused, { need: "unblock" })
+      expect(section(frame).getAttribute("aria-description")).toBe(
+        "Needs you, paused at its usage limit · resets 15:40",
+      )
+    })
+
+    it("says the limit has reset once the time passed, not a past time", () => {
+      vi.setSystemTime(resetsAt + 1000)
+      const frame = renderFrame(paused)
+      expect(section(frame).getAttribute("aria-description")).toBe(
+        "Paused at its usage limit · it has reset and waits to be continued",
       )
     })
 

@@ -238,11 +238,16 @@ export const inboxNotice =
   "so a question only in your reply goes unseen. Always put every question you end your " +
   "turn waiting on, such as which option to take or whether to open a pull request, in " +
   "their Inbox with Novadeck's ask tool, beside your reply, unless it is already an open " +
-  "ask; a closing offer such as 'anything else?' isn't one, nor is an action your harness " +
-  "is already prompting them for. With a lead, your questions go to it with send instead; " +
-  "approvals of actions, such as opening a pull request, still go through ask, and you " +
-  "tell your lead you're waiting. If they answer here instead, withdraw the ask. This " +
-  "notice needs no reply."
+  "ask, and put the full question in your reply too; a closing offer such as 'anything " +
+  "else?' isn't one, nor is an action your harness is already prompting them for. When " +
+  "you can't go on without something only the user can do, such as a sign-in, access to " +
+  "a service or repo, or a key put in place, that is an ask with the action shape, not " +
+  "just words in your reply; never ask for a secret value. When the task you were given " +
+  "is finished, report it with Novadeck's done tool, your own short report, not when you " +
+  "answer a question or finish a step. With a lead, your questions go to it with send " +
+  "instead, and done reports to it too; approvals of actions, such as opening a pull " +
+  "request, still go through ask, and you tell your lead you're waiting. If they answer " +
+  "here instead, withdraw the ask. This notice needs no reply."
 
 /**
  * What a quiet prompt's answer says for what it `took`: the bar beside the terminal and

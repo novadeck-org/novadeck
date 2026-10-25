@@ -90,6 +90,19 @@ export const terminalPhase = (
   return "running"
 }
 
+// The terminals whose agent has ended its turn to wait on something that wakes it, which
+// the footer counts apart from those at work. One held on a dialog waits on the person
+// instead, so it isn't among them.
+export const waitingAgents = (
+  terminals: readonly TerminalMetadata[],
+  now = Date.now(),
+): TerminalMetadata[] =>
+  terminals.filter(
+    (terminal) =>
+      terminalPhase(terminal, false, now) === "waiting" &&
+      !(terminal.state === "running" && terminal.agent?.attention),
+  )
+
 // What a terminal needs of the person, for the mark right after its program: `unblock` (a
 // permission, a plan, a held message, an action only they can do) or `ask` (a question).
 export type TerminalNeed = "unblock" | "ask"
@@ -119,11 +132,24 @@ export const doneText = (failed = false): string =>
   failed ? "Stopped with an error · reply unread" : "Done · report unread"
 
 // What a paused agent says: it stopped at its usage limit, with when it resets as the clock
-// reads it ("Paused at its usage limit · resets 15:40").
-export const pausedText = (terminal: TerminalMetadata): string | undefined => {
+// reads it ("Paused at its usage limit · resets 15:40"), or, once that time has passed, that
+// the limit has reset and it waits to be continued.
+export const pausedText = (terminal: TerminalMetadata, now = Date.now()): string | undefined => {
   const at = pausedUntil(terminal)
-  return at === undefined ? undefined : `Paused at its usage limit · resets ${clockTime(at)}`
+  if (at === undefined) return undefined
+  return at <= now
+    ? "Paused at its usage limit · it has reset and waits to be continued"
+    : `Paused at its usage limit · resets ${clockTime(at)}`
 }
+
+// Joins the parts of a tab's or window's description into one sentence: a part after the
+// first reads on from it, so it isn't capitalised ("Needs you, paused at its usage limit ·
+// resets 15:40").
+export const joinNote = (parts: readonly (string | undefined)[]): string =>
+  parts
+    .filter((part): part is string => !!part)
+    .map((part, index) => (index === 0 ? part : part.charAt(0).toLowerCase() + part.slice(1)))
+    .join(", ")
 
 // What the terminal's phase leaves unsaid at a glance, in words for its tooltip and
 // assistive technology: that Novadeck can't hear from its agent. Undefined otherwise.

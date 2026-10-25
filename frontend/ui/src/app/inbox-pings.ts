@@ -5,6 +5,7 @@ import type { Backend, Notice } from "@novadeck/core/port"
 import { needing, ringing } from "../inbox/inbox-state"
 import { fromNovadeck, labelOf, subjectOf } from "../inbox/inbox-text"
 import { isDesktop } from "../shell/desktop"
+import { landedQuietly } from "./inbox-landing"
 import { heldForToast, modalOpen } from "./selectors"
 import type { UiStore } from "./ui-store"
 
@@ -79,7 +80,7 @@ export const needNotice = (item: InboxItem): Notice => {
 // What a click on a terminal's notification does: the Inbox opens on the item the notice was
 // about (`itemId`) if it still stands (a notice names its row); without one, or once it
 // has gone, the terminal's done report, else its first item, and the terminal itself when it
-// has none.
+// has none. `items` are the backend's own, as the Inbox may hold the item back.
 export const clickNotice = (
   terminalId: string,
   items: readonly InboxItem[],
@@ -87,6 +88,8 @@ export const clickNotice = (
     readonly open: (id: string) => void
     readonly showInbox: () => void
     readonly reveal: (terminalId: string) => void
+    // Lands the item in the Inbox before it opens, where the terminal being viewed held it.
+    readonly land?: (id: string) => void
   },
   itemId?: string,
 ): void => {
@@ -98,6 +101,7 @@ export const clickNotice = (
       : undefined) ??
     its[0]
   if (!item) return to.reveal(terminalId)
+  to.land?.(item.id)
   to.showInbox()
   to.open(item.id)
 }
@@ -208,6 +212,9 @@ export const followNeeds = (
       // One that began well before this started, as the Inbox fills in after launch, isn't
       // new; a request asked just before, whose dialog it waited on, is.
       if (item.at < startedAt - launchSlackMs) continue
+      // One that arrived while the person looked at its terminal, and landed as they looked
+      // away, they have already seen there.
+      if (landedQuietly(inbox, item)) continue
       timers.set(
         key,
         setTimeout(() => {

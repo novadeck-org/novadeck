@@ -2,6 +2,7 @@ import type { ChatRequest } from "./conversation"
 import {
   inboxType,
   letterItem,
+  nextLimitReset,
   ordered,
   terminalDone,
   terminalNeed,
@@ -139,6 +140,14 @@ describe("what a terminal needs and has done", () => {
     expect(terminalNeed([there("a", limitAt(100, false))], at, 100)).toBe("unblock")
     expect(terminalNeed([there("a", limitAt(100, null))], at, 100)).toBe("unblock")
     expect(terminalNeed([there("a", limitAt(100, true))], at, 100)).toBe(undefined)
+  })
+
+  it("finds the next limit still to reset, for the marks that change then", () => {
+    const items = [there("a", limitAt(300, false)), there("b", limitAt(100, false))]
+    expect(nextLimitReset(items, 50)).toBe(100)
+    expect(nextLimitReset(items, 100)).toBe(300)
+    expect(nextLimitReset(items, 300)).toBeUndefined()
+    expect(nextLimitReset([there("c", done)], 0)).toBeUndefined()
   })
 
   it("has a done once its report is unseen, and not for a tell or another terminal", () => {

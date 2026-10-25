@@ -236,26 +236,25 @@ you've seen is faint; something you haven't opened yet, and the messages while s
 for the agent, is a step brighter with a small dot. A long name truncates before them,
 so they line up down the list.
 
-When an agent finishes (its turn over, no subagent it started still running, nothing
-waiting on you, and not stopped by your Escape) while you look at another terminal, or
-at another window altogether, its terminal is marked done until you look: a small green
-"●" and "done · unread" on its tab, its name in bold, and on its window a solid green
-line under the header beside a "Done · reply unread" chip ("Done" on a compact one). A
-command it left running, such as a dev server, doesn't hold that back. The mark clears
-once that terminal is the selected one of the session on screen while Novadeck's window
-has focus, or once its agent starts another turn. A completed turn is marked, and
-announced, about 0.7 s after it ends, in case its harness then says your Escape stopped
-it. The desktop app also shows one system
-notification for each such finish, "@moth is done: <its name>", with the start of the
-agent's last reply (Claude Code's and Codex's Stop hooks name it; Antigravity's
-transcript records it); clicking it brings Novadeck to the front with that terminal
-selected. **Notify when an agent finishes** in Preferences turns the notification off;
-the mark stays. A turn that ended on an error is marked the same way in red, "error ·
-unread" and "Stopped with an error · reply unread", and its notification says "@moth stopped
-with an error: <its name>". Marks belong to the window that showed them: another window
-keeps its own, and a reload or a restart forgets them. The browser build (`pnpm dev:web`)
-shows no notifications. The behaviour
-specs' demo (`?demo=agents`) finishes a prompt you give its Claude Code in Build.
+An agent that finishes the task it was given calls its `done` tool, a short report of
+its own. While you look at another terminal, or at another window altogether, that marks
+its terminal done until you look: a green "✓" before its program on its tab and "Done ·
+report unread" in its tooltip, and on its window a solid green line under the header
+with the same "✓". Only a `done` call makes a finish: a turn that ends without one, or
+with only a question, marks no state. The tab stays idle and its program name brightens
+("Reply unread" in the tooltip) until you look. A turn that ended on an error is marked
+the same way in red, "✗" and "Stopped with an error · reply unread". Looking means that
+terminal is the selected one of the session on screen while Novadeck's window has focus,
+for about a second: a glance while passing doesn't read a report. Starting another turn
+clears the unread mark of a reply. The desktop app also shows one system notification for
+a `done` report, "@moth is done: <its name>" with the report's subject, and one for a
+failed turn, "@moth stopped with an error: <its name>"; clicking one brings Novadeck to
+the front with that terminal selected, or opens its report in the Inbox. **Notify when an
+agent finishes** in Preferences turns both notifications off; the marks stay. Marks
+belong to the window that showed them: another window keeps its own, and a reload or a
+restart forgets those of unread replies. The browser build (`pnpm dev:web`) shows no
+notifications. The behaviour specs' demo (`?demo=agents`) finishes a prompt you give its
+Claude Code in Build, with a `done` call.
 
 When agents message each other (see [Agent messaging](docs/agent-messaging.md)), a
 terminal's tab says in its tooltip how many messages wait for its agent: queued, being
@@ -286,8 +285,8 @@ Switching terminal tabs in Focus uses the same transition.
 
 The project switcher in the top bar lists every project with what its agents show: the
 most pressing of its terminals' marks, as their tabs have them ("?" or "!" while an
-agent waits on you, "✓" or "✗" while a finished agent's reply waits unread, a spinner
-while one works). A dot on the switcher's button marks what another project has
+agent needs you, "✓" while a done report waits unseen, "✗" while a failed turn waits
+unread, a spinner while one works). A dot on the switcher's button marks what another project has
 waiting on you, in that mark's colour; projects only working don't light it. The list
 grows to 560px before it scrolls.
 
@@ -313,22 +312,35 @@ switcher's dot covers them again. The order and the pins are kept in this browse
 runner.
 
 The Inbox (the bell on the sidebar rail) lists everything
-across every project and session that waits on you, each item its own row: a dialog to
-answer, a message between agents held for you to release, a turn that failed, a usage
-limit, a question sent through the agent's `ask` tool, an update sent through `tell`,
-and a turn that finished while you looked elsewhere. Click a row to read it and
-answer in place, or reveal its terminal. An `ask` returns immediately so the agent can
-keep working; your answer reaches that exact agent session later as mail. Its ask clears
-when answered, withdrawn by the agent, or its session ends; a `tell` clears when marked
-read. Asks, tells and your replies remain in that terminal's Messages pane, in the conversation **You**.
-Each turn that finishes or fails is its own stored row: it stays, across a reload and a runner restart,
-until you read it (viewing its terminal reads it, or mark it read), and clears with its terminal.
-A failed turn is trouble that counts only while it is the agent's latest end and the agent isn't working;
-an older failed row is a plain update with Mark read. A dialog or held messages clear once answered or
-released, here or in the terminal. A count badge on the bell, and on
-Zen's dock, tells how many wait on you; finishes, older failures and tells are not counted. A usage limit is
-a state, not a stored row: it stays until the agent's next turn, so Continue is there after the reset.
-With Murmur on, a finish you haven't seen leads with a short gist of its reply in place of the reply's start.
+across every project and session that waits on you, each item its own row, of one of five
+kinds: an Unblock ("!"), where the agent can't go on without you (a permission or plan
+dialog, a message held for you to release, or an `ask` whose answer is an action only you
+can do, such as a sign-in, access or a key); an Ask ("?"), a question from the harness or
+sent through the agent's `ask` tool; Trouble, a failed turn, a usage limit or messages held
+long; an Update, an agent's `done` report or a `tell`; and Feedback you asked for. Click a
+row to read it and answer in place, or reveal its terminal. An `ask` returns immediately so
+the agent can keep working; your answer reaches that exact agent session later as mail. Its
+ask clears when answered, withdrawn by the agent, or its session ends; an update clears when
+marked read. Asks, tells, done reports and your replies remain in that terminal's Messages
+pane, in the conversation **You**. A turn that ends without a `done` call or an ask makes no row; its tab
+marks it (see above). A failed turn is a stored row that stays, across a reload and a runner
+restart, until you read it (viewing its terminal reads it, or mark it read), and clears with
+its terminal; it is trouble that counts only while it is the agent's latest end and the agent
+isn't working, and an older one is a plain update with Mark read. A dialog or held messages
+clear once answered or released, here or in the terminal. A count badge on the bell, and on
+Zen's dock, tells how many wait on you; updates, older failures and tells are not counted. A
+usage limit is a state, not a stored row: it stays until the agent's next turn, so Continue is
+there after the reset.
+
+One rule decides when an item lands in the list: what concerns the terminal you are looking at
+(the selected one, while Novadeck has your focus, in every view) doesn't land while you look,
+since the agent is right there. If it is still unresolved when you look away it lands, quietly,
+counted on the bell but with no toast or system ping, because you saw it where it happened. An
+update (a `done` report or a `tell`) is read by being seen, never landing. On a narrow window,
+while the Inbox list covers the screen, no terminal counts as looked at. Opening an item by its
+id, as Answer in Messages or a click on a notification does, lands it at once. If a read fails,
+the update lands so you can read it by hand. The tabs and windows read the Inbox's raw items,
+so their "!" and "?" show at once, before the list lists them.
 
 While Novadeck has your focus, a new item that needs you (an approval, a question, or trouble
 that stopped an agent) shows as a toast over the header's right end after a 2 s grace. When
@@ -810,11 +822,14 @@ Terminals:
   other; done on two terminals that aren't neighbours, it makes two teams, which Grid and
   Canvas wire side by side (on neighbours, the teams chain through the middle one).
 - **New terminals:** "Every state at once" adds one terminal per state, named after it, so
-  the tabs and the windows in Grid and Canvas show attention, done, error, ended and the
-  rest side by side; you stay on one that needs permission, and the done marks land on
-  the others. Its shell an agent opened and its shell an agent exited from keep their
-  handles on their tabs; its other plain shells show none. Also a burst of 30, a quick
-  failure, a spawn failure and the terminal limit.
+  the tabs and the windows in Grid and Canvas show done, replied (unread), failed, working,
+  planning, subagents, asking, waiting, paused at its limit, ended and the rest side by
+  side. "Asks (MCP)" and "Needs a sign-in" are agents with an `ask` open in the Inbox (a
+  question, and an action ask), so their "?" and "!" show beside "Working, a side question",
+  an agent that works on with a question open. You stay on one that needs permission, and the
+  marks land on the others as you look away. Its shell an agent opened and its shell an agent
+  exited from keep their handles on their tabs; its other plain shells show none. Also a
+  burst of 30, a quick failure, a spawn failure and the terminal limit.
 - **Projects and sessions:** mark the selected terminal running, then start a fresh
   session and open Sessions to see the old one count it; or make the next folder pick fail.
 
@@ -829,9 +844,12 @@ Agents:
   that runs no agent becomes Claude Code first. Work, Plan mode and Subagents start a turn
   that works on. Needs permission, Asks a question, Plan ready and 3 permissions stop it on
   requests you can answer in the chat or on the screen, which clears the tab and the
-  notification. Completes, Fails, Interrupted and Ends without reply work for 3 s, then end
-  the turn the way asked: with its reply, a short one for Interrupted (no unread mark), none
-  for Ends without reply. Background work (2 tasks counted) and Background, uncounted end the
+  notification. Completes, Replies (no done call), Fails, Interrupted and Ends without reply
+  work for 3 s, then end the turn the way asked: Completes calls `done` with a report, so the
+  tab marks it done and the Inbox lists the report; Replies, no done call ends with its reply
+  and no `done`, so its program name brightens until you look and no row appears; Fails marks
+  the tab failed; Interrupted ends with a short reply (no unread mark); Ends without reply
+  has none. Background work (2 tasks counted) and Background, uncounted end the
   turn and leave work running; Finishing subagents keeps the agent working until its 2
   subagents finish. Rest leaves it at its prompt with everything answered and read.
 - **Agent fixtures:** what no turn produces: an unheard agent (Claude Code whose hooks say
@@ -847,11 +865,11 @@ Agents:
   an open ask with Answer), a thread folded to one line, messages waiting, delivering and
   not delivered, and the critters of agents working (hopping), at rest and gone (dim).
 - **Waiting agents:** "Fill the Inbox" has up to 12 terminals across
-  the projects ask for you (questions, permissions, plans), and after 3 s finish done or
-  failed, so the Inbox lists every kind and the rail badge reads 9+. It
+  the projects ask for you (questions, permissions, plans), and after 3 s finish with a done
+  report or failed, so the Inbox lists every kind and the rail badge reads 9+. It
   adds terminals to the current session if the workspace has too few, without selecting
   them or leaving the Inbox, and leaves the selected terminal alone, since
-  a finish is read on sight where you look at its terminal. "Clear waiting agents" rests every agent,
+  a report is read once you have looked at its terminal for a moment. "Clear waiting agents" rests every agent,
   which answers every request, reads every finish and calls off those still to come, and
   has a terminal back at its prompt work for a moment and leave, for an empty Inbox. Its
   second round of kinds carries what Murmur would write (a gist on the done and the failed

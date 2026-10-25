@@ -308,6 +308,12 @@ describe("The Inbox's items", () => {
       ])
     })
 
+    it("is kept for a terminal without a handle, which the demo stores as an empty one", () => {
+      const { handle: _handle, ...bare } = agentTerminal(1)
+      const items = inboxItems(inputs(workspaceOf(bare), { letters: [report({ handle: "" })] }))
+      expect(items).toMatchObject([{ id: "letter:done-1", update: { type: "done" } }])
+    })
+
     it("stays after its agent exits, like a tell", () => {
       const exited: TerminalMetadata = {
         ...agentTerminal(1),

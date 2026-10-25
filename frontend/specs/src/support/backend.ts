@@ -274,6 +274,9 @@ export const hostWindow = {
       }
     }
   },
+  /** The ids of the items the page's backend Inbox holds, whether or not it lists them (the
+   * first host is the page's: StrictMode's second is dropped and never answered). */
+  itemIds: (): string[] => hosts[0]?.inbox?.state.getSnapshot().items.map((item) => item.id) ?? [],
   /** An ask leaves the Inbox, withdrawn by its agent. */
   withdraw: (id: string): void =>
     hosts.forEach((each) =>

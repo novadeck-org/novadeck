@@ -613,7 +613,7 @@ const ask: Tool<{ readonly id: string; readonly withdrawn?: boolean }> = {
     "Put a question in the user's Inbox without stopping your work. The user rarely watches " +
     "this terminal, so a question only in your reply goes unseen: always ask every question " +
     "you end your turn waiting on, such as which option to take or whether to open a pull " +
-    "request, and put the full question in your reply too, unless it is already an open ask. A closing offer such as " +
+    "request, unless it is already an open ask, and put the full question in your reply too. A closing offer such as " +
     "'anything else?' isn't one, nor is an action your harness is already prompting them " +
     "for. With a lead, send it your questions with send instead, working around them as " +
     "below; only approvals of actions, which are always the user's, such as opening a pull " +
@@ -811,8 +811,8 @@ const instructions =
   "Novadeck's ask puts a question in the user's Inbox, where they see it: they rarely " +
   "watch this terminal, so a question only in your reply goes unseen. Always ask there " +
   "every question you end your turn waiting on, such as which option to take or whether " +
-  "to open a pull request, and put the full question in your reply too, unless it is " +
-  "already an open ask; a closing " +
+  "to open a pull request, unless it is already an open ask, and put the full question " +
+  "in your reply too; a closing " +
   "offer such as 'anything else?' isn't one, nor is an action your harness is already " +
   "prompting them for; if they answer here instead, withdraw the ask. When you can't go on " +
   "without something only the user can do, such as a sign-in, access to a service or repo, " +
@@ -824,7 +824,7 @@ const instructions =
   "when they're elsewhere: a pull request " +
   "opened, its checks done, a merge, or that you now wait on someone else. Its done is " +
   "your own short report when the task you were given is finished, not when you answer a " +
-  "question or finish a step. With a lead, tell and done go to it instead, except " +
+  "question or finish a step. With a lead, ask, tell and done go to it instead, except " +
   "approvals of actions, which are always the user's."
 
 const respond = async (line: string, call?: McpCall): Promise<Reply | undefined> => {

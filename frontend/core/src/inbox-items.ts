@@ -254,7 +254,7 @@ export const inboxItems = (inputs: InboxInputs): InboxItem[] => {
         project.id === letter.projectId &&
         session.id === letter.workspaceSessionId &&
         terminal.id === letter.terminalId &&
-        terminal.handle === letter.handle &&
+        (terminal.handle ?? "") === letter.handle &&
         (letter.content.kind !== "ask" || agentOf(terminal) === letter.agent),
     )
     if (!here) continue

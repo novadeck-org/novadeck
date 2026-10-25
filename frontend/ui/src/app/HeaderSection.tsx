@@ -14,6 +14,7 @@ import { useUiState, useWorkspaceServices, useWorkspaceState } from "./controlle
 import { useStoreSelector } from "./controller/useStoreSelector"
 import { routeUrl } from "./routing"
 import { currentState, shallowEqual } from "./selectors"
+import { useLimitClock } from "./useTerminalMarks"
 
 const noIds: readonly string[] = []
 
@@ -53,11 +54,18 @@ export const HeaderSection = memo((): React.JSX.Element => {
   // What the raw Inbox holds, as the tabs read it, not the landing rule's: its needs and
   // done reports mark the projects as they mark the tabs.
   const items = useStoreSelector((backend.inbox ?? noInbox).state, (state) => state.items)
-  // The selector closes over `unread` and the items, so a new one is a new selector and
-  // recomputes.
+  // Moves on as a limit among them resets, so its project is marked then.
+  const now = useLimitClock(items)
+  // The selector closes over `unread`, the items and the time, so a new one is a new
+  // selector and recomputes.
   const statuses = useWorkspaceState(
     (workspace) =>
-      projectStatuses(workspace.projects, (context, id) => unreadEnd(unread, context, id), items),
+      projectStatuses(
+        workspace.projects,
+        (context, id) => unreadEnd(unread, context, id),
+        items,
+        now,
+      ),
     shallowEqual,
   )
   const { zen, enabledViews, homeTo } = useUiState(

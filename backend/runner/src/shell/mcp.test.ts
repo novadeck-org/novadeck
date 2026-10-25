@@ -373,14 +373,18 @@ describe("Novadeck's MCP server", () => {
         "for a decision the user should make, ask there and keep going",
       )
       expect(instructions).toContain("Its tell puts a milestone there")
-      expect(instructions).toContain("put the full question in your reply too")
+      expect(instructions).toContain(
+        "unless it is already an open ask, and put the full question in your reply too",
+      )
       expect(instructions).toContain("an ask with the action shape, not just words in your reply")
       expect(instructions).toContain("never ask for a secret value")
       expect(instructions).toContain(
         "Its done is your own short report when the task you were given is finished",
       )
       expect(instructions).toContain("not when you answer a question or finish a step")
-      expect(instructions).toContain("With a lead, tell and done go to it instead")
+      expect(instructions).toContain(
+        "With a lead, ask, tell and done go to it instead, except approvals of actions, which are always the user's",
+      )
       for (const native of ["AskUserQuestion", "request_user_input", "ask_question"])
         expect(instructions).not.toContain(native)
     })
@@ -409,7 +413,9 @@ describe("Novadeck's MCP server", () => {
       expect(done.description).toContain("the task you were given is finished")
       expect(done.description).toContain("not when you answer a question or finish a step")
       expect(done.description).toContain("With a lead, report to it instead")
-      expect(ask.description).toContain("put the full question in your reply too")
+      expect(ask.description).toContain(
+        "unless it is already an open ask, and put the full question in your reply too",
+      )
       expect(ask.description).toContain("an ask with the action shape")
       for (const each of described)
         for (const native of ["AskUserQuestion", "request_user_input", "ask_question"])
