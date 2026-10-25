@@ -192,12 +192,29 @@ export const createDemoFeedback = (
       )
         draft(event.key, mine.hint)
     }
-    // The next request in line takes its turn; each yields one draft, in order.
+    startNext(id)
+  })
+
+  // The next request in line takes its turn; each yields one draft, in order.
+  const startNext = (id: string): void => {
     const [next, ...rest] = waiting.get(id) ?? []
     if (!next) return
     if (rest.length > 0) waiting.set(id, rest)
     else waiting.delete(id)
     write(next.key, next.hint)
+  }
+
+  // An answered request resumes its agent with no turn event, so a request queued behind the
+  // dialog starts when the status clears. Deferred, so a turn's own end event goes first.
+  turns.watchStatus((key, agent) => {
+    const id = terminalKeyId(key)
+    if (agent.working || agent.attention || !waiting.has(id)) return
+    queueMicrotask(() => {
+      const now = terminalOf(workspace(), key)
+      const status = now?.state === "running" ? now.agent : undefined
+      if (status?.working || status?.attention || turns.working(key) || writing.has(id)) return
+      startNext(id)
+    })
   })
 
   return {

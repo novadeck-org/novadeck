@@ -39,8 +39,9 @@ const home = String.raw`(?:/var/home|/home|/Users)/[^\s/"'` + "`" + String.raw`<
 // A user name under `Users` may hold spaces ("Alice Smith"): up to three words that a
 // separator and more path follow, else one word.
 const word = String.raw`[^\s\\/:,;"'` + "`" + String.raw`<>()\[\]{}|]+`
-const spaced = (separator: string): string =>
-  String.raw`(?:${word}(?: ${word}){0,2}(?=${separator}\S)|${word})`
+// `ends` is what else may close a spaced name: a prompt's `>`, a trailing backslash.
+const spaced = (separator: string, ends = ""): string =>
+  String.raw`(?:${word}(?: ${word}){0,2}(?=${separator}\S${ends})|${word})`
 const unsafe = String.raw`"'` + "`" + String.raw`<>()\[\]{}|`
 const patterns: readonly { readonly kind: StrikeKind; readonly pattern: RegExp }[] = [
   // `~/notes`, `~\notes`.
@@ -52,7 +53,7 @@ const patterns: readonly { readonly kind: StrikeKind; readonly pattern: RegExp }
   {
     kind: "path",
     pattern: new RegExp(
-      String.raw`(?<![\w])[A-Za-z]:[\\/]+Users[\\/]+${spaced(String.raw`[\\/]`)}(?:[\\/]${pathTail})?`,
+      String.raw`(?<![\w])[A-Za-z]:[\\/]+Users[\\/]+${spaced(String.raw`[\\/]`, String.raw`|>|\\(?:\s|$)`)}(?:[\\/]${pathTail})?`,
       "gi",
     ),
   },
@@ -78,7 +79,7 @@ const patterns: readonly { readonly kind: StrikeKind; readonly pattern: RegExp }
 const impersonal = new Set(["git", "noreply", "no-reply", "donotreply"])
 
 const email =
-  /(?<![\w.%+-])([A-Za-z0-9][A-Za-z0-9._%+-]*)@([A-Za-z][A-Za-z0-9-]*(?:\.[A-Za-z0-9-]+)*\.[A-Za-z]{2,})(?![\w-])/g
+  /(?<![\p{L}\p{N}_.%+-])([\p{L}\p{N}][\p{L}\p{N}._%+-]*)@(\p{L}[\p{L}\p{N}-]*(?:\.[\p{L}\p{N}-]+)*\.\p{L}{2,})(?![\p{L}\p{N}_-])/gu
 
 // `alice@laptop:~/work$`, `[alice@laptop work]$`, `alice@laptop $`, zsh's `alice@laptop ~ %`
 // and `alice@laptop project %`, fish's `alice@laptop ~/dir>`: a user and a host only where a
@@ -93,20 +94,38 @@ const kali = /(?<=\()([A-Za-z_][\w-]*)㉿([A-Za-z0-9][\w-]*)(?=\))/g
 // right after such a command: its options (and what they take), paths and logins, up to the
 // first word of prose.
 const remoteCommand = /(?<![\w-])(?:ssh|scp|sftp|mosh)\b[^\n]*/g
-const login = /^([A-Za-z_][\w.-]*)@([A-Za-z0-9][A-Za-z0-9.-]*[A-Za-z0-9])/
+const hostName = String.raw`(?:\d{1,3}(?:\.\d{1,3}){3}|[A-Za-z][A-Za-z0-9.-]*[A-Za-z0-9]|[A-Za-z])`
+const login = new RegExp(String.raw`^([A-Za-z_][\w.-]*)@(${hostName})`)
+const bareHost = new RegExp(String.raw`^${hostName}$`)
 
 // The logins among a command's arguments.
-const logins = (args: string): { index: number; user: string; host: string }[] => {
-  const found: { index: number; user: string; host: string }[] = []
+type Login = { index: number; user: string; host: string; hostIndex?: number }
+const logins = (args: string): Login[] => {
+  const found: Login[] = []
+  const tokens = [...args.matchAll(/\S+/g)]
   let skip = false
-  for (const token of args.matchAll(/\S+/g)) {
+  for (let at = 0; at < tokens.length; at += 1) {
+    const token = tokens[at]!
     const text = token[0]
     const match = login.exec(text)
     if (skip) {
       skip = false
       if (!match) continue
     }
-    if (text.startsWith("-")) skip = true
+    if (text === "-l") {
+      // `-l alice devbox`: the next word is the user, the one after the host.
+      const user = tokens[at + 1]
+      if (user && /^[A-Za-z_][\w.-]*$/.test(user[0])) {
+        const host = tokens[at + 2]
+        found.push({
+          index: user.index,
+          user: user[0],
+          host: host && bareHost.test(host[0]) ? host[0] : "",
+          ...(host && bareHost.test(host[0]) ? { hostIndex: host.index } : {}),
+        })
+        at += host && bareHost.test(host[0]) ? 2 : 1
+      }
+    } else if (text.startsWith("-")) skip = true
     else if (match) found.push({ index: token.index, user: match[1]!, host: match[2]! })
     else if (!/[/.:\d~]/.test(text)) break
   }
@@ -135,12 +154,16 @@ const find = (text: string): Found[] => {
   }
   for (const command of text.matchAll(remoteCommand)) {
     const name = /^\w+/.exec(command[0])![0]
-    for (const { index, user, host } of logins(command[0].slice(name.length))) {
+    for (const { index, user, host, hostIndex } of logins(command[0].slice(name.length))) {
       if (impersonal.has(user.toLowerCase())) continue
       const userStart = command.index + name.length + index
-      const hostStart = userStart + user.length + 1
+      const hostStart =
+        hostIndex === undefined
+          ? userStart + user.length + 1
+          : command.index + name.length + hostIndex
       found.push({ start: userStart, end: userStart + user.length, kind: "user", rank: 0 })
-      found.push({ start: hostStart, end: hostStart + host.length, kind: "host", rank: 0 })
+      if (host)
+        found.push({ start: hostStart, end: hostStart + host.length, kind: "host", rank: 0 })
     }
   }
   for (const match of text.matchAll(kali)) {

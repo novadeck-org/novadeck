@@ -169,4 +169,31 @@ describe("scrubbing a feedback draft", () => {
       ])
     })
   })
+
+  context("review pass 2", () => {
+    it("strikes a spaced Windows name in a prompt", () => {
+      expect(struck(String.raw`PS C:\Users\Alice Smith> ls`)).toEqual([
+        String.raw`path:C:\Users\Alice Smith`,
+      ])
+      expect(struck(String.raw`C:\Users\Alice Smith>dir`)).toEqual([
+        String.raw`path:C:\Users\Alice Smith`,
+      ])
+      expect(struck(String.raw`C:\Users\Alice Smith\ then`)[0]).toContain("Alice Smith")
+      expect(struck(String.raw`C:\Users\alice went home/ later`)).toEqual([
+        String.raw`path:C:\Users\alice`,
+      ])
+    })
+
+    it("strikes emails with non-ASCII letters", () => {
+      expect(struck("zoë@example.com")).toEqual(["email:zoë@example.com"])
+      expect(textToSend(scrub("jürgen.müller@firma.de"))).toBe("[email]")
+      expect(scrub("a@1.example.com").total).toBe(0)
+    })
+
+    it("reads ssh -l and wants a host that looks like one", () => {
+      expect(struck("ssh -l alice devbox")).toEqual(["user:alice", "host:devbox"])
+      expect(struck("ssh 9.6 alice@devbox")).toEqual(["user:alice", "host:devbox"])
+      expect(scrub("ssh 9.6 pnpm@11.22.0").total).toBe(0)
+    })
+  })
 })

@@ -102,7 +102,12 @@ const terminalAt = (workspace: Workspace, key: TerminalKey): TerminalMetadata | 
 // thread is its own row whatever else its terminals show. A feedback draft is the exception:
 // it gives its terminal's row to what the agent waits on, and comes back once the row is free.
 const merged = (own: readonly InboxItem[], derived: readonly InboxItem[]): InboxItem[] => {
-  const asked = new Set(derived.map((each) => each.source.terminalId))
+  // Only what the agent waits on takes the row: not a finish it was seen to make, nor a held thread.
+  const asked = new Set(
+    derived
+      .filter((each) => each.kind !== "update" && each.kind !== "held")
+      .map((each) => each.source.terminalId),
+  )
   const shown = own.filter((each) => each.kind !== "feedback" || !asked.has(each.source.terminalId))
   const taken = new Set(
     shown.filter((each) => each.kind !== "held").map((each) => each.source.terminalId),

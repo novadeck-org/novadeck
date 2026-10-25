@@ -228,6 +228,20 @@ describe("the demo's feedback", () => {
       expect(feedbackItems()).toHaveLength(2)
     })
 
+    it("starts a request queued behind a dialog once the person answers it", async () => {
+      const { feedback, terminals, resting, turns, feedbackItems } = boot()
+      const found = terminals.find(resting)!
+      turns.ask(found.key, found.terminal, "permission", 1)
+      await vi.advanceTimersByTimeAsync(10)
+      await feedback.ask(found.key, "")
+      await vi.advanceTimersByTimeAsync(10_000)
+      expect(feedbackItems()).toEqual([])
+      // Answered, the agent waits at its prompt with no turn event.
+      turns.resume(found.key, found.terminal, { waits: true })
+      await vi.advanceTimersByTimeAsync(writeMs)
+      expect(feedbackItems()).toHaveLength(1)
+    })
+
     it("rejects once when armed, as if no agent ran there", async () => {
       const { feedback, terminals, resting, feedbackItems } = boot()
       const found = terminals.find(resting)!

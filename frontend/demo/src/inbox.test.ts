@@ -15,7 +15,7 @@ import { answerMs as chatAnswerMs, answeredMs } from "./chat"
 import { answerMs, createDemoInbox, isDemoInbox } from "./inbox"
 import { demoInboxIds, demoInboxItems, demoInboxItemsAll } from "./inbox-fixtures"
 import { plainDemo, type PlainVariant } from "./index"
-import { demoTerminalId } from "./samples"
+import { chatAgent, demoTerminalId } from "./samples"
 import { context, describe, expect, it } from "./test"
 import { createDemo, demoVariants } from "./variants"
 
@@ -259,7 +259,7 @@ const boot = (variant: PlainVariant = "agents") => {
     inbox.state
       .getSnapshot()
       .items.find((item) => item.source.terminalId === terminalOf(projectId, slot)?.id)
-  return { inbox, store, unread, read, unbind, terminalOf, itemOn }
+  return { backend, inbox, store, unread, read, unbind, terminalOf, itemOn }
 }
 
 const waitsOn = (terminal: TerminalMetadata | undefined) =>
@@ -277,6 +277,48 @@ const firstChoice = (item: InboxItem | undefined): InboxAnswer => {
 }
 
 describe("the agents demo's Inbox", () => {
+  it("shows the draft an Ask made over its agent's unseen finish and a held thread", async () => {
+    const { backend, inbox, unread, itemOn, store } = boot()
+    const found = store
+      .getSnapshot()
+      .projects.flatMap((project) =>
+        (project.history[0]?.state.roster.terminals ?? []).map((terminal) => ({
+          project: project.id,
+          terminal,
+        })),
+      )
+      .find(
+        ({ project, terminal }) =>
+          terminal.state === "running" &&
+          chatAgent(terminal) &&
+          !terminal.agent?.working &&
+          !terminal.agent?.attention &&
+          !inbox.state.getSnapshot().items.some((each) => each.source.terminalId === terminal.id) &&
+          project !== "",
+      )!
+    const key = {
+      projectId: found.project,
+      workspaceSessionId: "initial",
+      terminalId: found.terminal.id,
+    }
+    await backend.feedback!.ask(key, "")
+    await vi.advanceTimersByTimeAsync(3 * 1500 + 100)
+    // The writing turn ended unseen: the agent finished while the person looked elsewhere.
+    unread.update(() => ({ [`${found.project}/initial`]: { [found.terminal.id]: "done" } }))
+    const held = demoInboxItemsAll(now).find((each) => each.id === demoInboxIds.held)!
+    inbox.add({
+      ...held,
+      id: "held-here",
+      source: { ...held.source, terminalId: found.terminal.id },
+    })
+    const kinds = inbox.state
+      .getSnapshot()
+      .items.filter((each) => each.source.terminalId === found.terminal.id)
+      .map((each) => each.kind)
+    expect(kinds).toContain("feedback")
+    expect(itemOn(found.project, Number(found.terminal.id.slice(-2)))).toBeDefined()
+  })
+
   it("shows a feedback draft only where its terminal waits on nothing else", () => {
     const { inbox, itemOn, terminalOf } = boot()
     const draft = demoInboxItemsAll(now).find((each) => each.id === demoInboxIds.feedback)!

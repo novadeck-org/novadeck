@@ -2,7 +2,7 @@ import type { Feedback, FeedbackAbout, FeedbackKind } from "@novadeck/core/feedb
 import { Popover } from "@novadeck/toolkit/Popover"
 import { SegmentGroup } from "@novadeck/toolkit/SegmentGroup"
 import { Bug, Check, Lightbulb, MessageCircle, MessageSquareText, WifiOff, X } from "lucide-react"
-import { useEffect, useId, useRef, useState } from "react"
+import { useEffect, useRef, useState } from "react"
 
 import { currentPlatform } from "../interaction/shortcuts"
 
@@ -57,7 +57,6 @@ export const FeedbackButton = ({
   const isOpen = useRef(false)
   const inFlight = useRef(false)
   const latestSubmit = useRef<() => void>(() => {})
-  const titleId = useId()
   useEffect(() => {
     alive.current = true
     return () => {
@@ -190,9 +189,7 @@ export const FeedbackButton = ({
         <div className="feedback-card">
           <div className="feedback-body">
             <div className="feedback-head">
-              <h2 id={titleId} className="feedback-title text-body">
-                Send feedback
-              </h2>
+              <h2 className="feedback-title text-body">Send feedback</h2>
               <button
                 type="button"
                 className="icon-button small"
