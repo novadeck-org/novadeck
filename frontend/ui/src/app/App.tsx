@@ -151,15 +151,23 @@ const TeamWireSection = ({
   return <TeamWire teams={teams} team={team} selected={selected} shown={shown} list={list} />
 }
 
-// The rail and the Zen dock read the bell's badge themselves, so an unread change that leaves
-// the badge as it was re-renders neither them nor the app around them.
+// The rail and the Zen dock read the bell's badge and rings themselves, so an unread change that
+// leaves them as they were re-renders neither them nor the app around them.
 const RailWithBadge = (
-  props: Omit<ComponentProps<typeof SidebarRail>, "badge">,
-): React.JSX.Element => <SidebarRail {...props} badge={useInboxBadge()} />
+  props: Omit<ComponentProps<typeof SidebarRail>, "badge" | "bellRings">,
+): React.JSX.Element => (
+  <SidebarRail
+    {...props}
+    badge={useInboxBadge()}
+    bellRings={useUiState((state) => state.bellRings)}
+  />
+)
 
 const ZenDockWithBadge = (
-  props: Omit<ComponentProps<typeof ZenDock>, "badge">,
-): React.JSX.Element => <ZenDock {...props} badge={useInboxBadge()} />
+  props: Omit<ComponentProps<typeof ZenDock>, "badge" | "bellRings">,
+): React.JSX.Element => (
+  <ZenDock {...props} badge={useInboxBadge()} bellRings={useUiState((state) => state.bellRings)} />
+)
 
 export const WorkspaceApp = ({ panel }: Pick<AppProps, "panel"> = {}): React.JSX.Element => {
   const services = useWorkspaceServices()

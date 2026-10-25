@@ -20,7 +20,7 @@ import { connectBackend } from "./controller/backend-connection"
 import { WorkspaceServicesContext, type WorkspaceServices } from "./controller/context"
 import { domEffects } from "./controller/effects"
 import { dialogDepthOf, useRouteSync } from "./controller/useRouteSync"
-import { noticeBoard, watchInboxPings } from "./inbox-pings"
+import { noticeBoard, watchBellRings, watchInboxPings } from "./inbox-pings"
 import { nameFinished, watchFinishes } from "./murmur-offer"
 import { watchPageFocus } from "./page-focus"
 import { availablePanels, resolveRoute, sourceShown } from "./routing"
@@ -174,6 +174,7 @@ export const WorkspaceProvider = ({
           gist: backend.murmur?.gist,
         }),
       )
+    if (backend.inbox) stops.push(watchBellRings(backend.inbox, ui))
     if (backend.inbox && (board || backend.badge))
       stops.push(watchInboxPings(backend.inbox, ui, { board, badge: backend.badge }))
     return () => stops.forEach((stop) => stop())

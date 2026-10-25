@@ -46,7 +46,7 @@ const turnMs = 3000
 // How long a new terminal takes to fail when it fails "right away".
 const quickFailMs = 400
 const burst = 30
-// How many terminals Fill the Inbox takes: enough to pass the badge's 9+ and to scroll.
+// How many terminals Fill the Inbox takes: enough to scroll.
 const crowd = 12
 // How long clearing waits between the agents working and resting, for the app to see both.
 const calmMs = 100
@@ -264,7 +264,7 @@ const createWaitingActions = (
   // while the person looks elsewhere.
   const fillInbox: DemoAction = {
     label: "Fill the Inbox",
-    hint: `${crowd} terminals ask or finish; the Inbox badge reads 9+`,
+    hint: `${crowd} terminals ask or finish; the Inbox header reads ${crowd} waiting`,
     run: ({ selected, workspace, addInBackground, dispatch, note }) => {
       const viewed = selected()
       if (!viewed) return note("Select a terminal first.")

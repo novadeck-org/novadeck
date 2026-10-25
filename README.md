@@ -848,7 +848,7 @@ Agents:
   not delivered, and the critters of agents working (hopping), at rest and gone (dim).
 - **Waiting agents:** "Fill the Inbox" has up to 12 terminals across
   the projects ask for you (questions, permissions, plans), and after 3 s finish done or
-  failed, so the Inbox lists every kind and the rail badge reads 9+. It
+  failed, so the Inbox lists every kind and its header counts 12 waiting. It
   adds terminals to the current session if the workspace has too few, without selecting
   them or leaving the Inbox, and leaves the selected terminal alone, since
   a finish is read on sight where you look at its terminal. "Clear waiting agents" rests every agent,
