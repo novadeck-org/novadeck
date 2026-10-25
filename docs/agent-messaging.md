@@ -1723,7 +1723,7 @@ hook's deadline, which doesn't spend what is due.
      A fact not known (no plan, no folder yet, a branch not read in time) is no change.
      They are read only for a prompt whose answer would otherwise be empty and with time
      left, so a delivery never waits on them;
-  4. as a backstop, 15 of those prompts since the last `summarize`, or since the backstop
+  4. as a backstop, 5 of those prompts since the last `summarize`, or since the backstop
      last fired.
 
 - **A page's troubles.** When a page an agent showed with `show` has problems in the
