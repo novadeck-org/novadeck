@@ -6,6 +6,11 @@
   :where(.grid-stage) {
     @apply p-4;
   }
+  /* A page in its own frame takes the wheel before the grid can, so it has no pointer until
+     its window is the selected one and holds the focus; a press falls through to the window. */
+  .terminal-grid .grid-terminal:not(.selected:focus-within) :is(iframe, webview) {
+    pointer-events: none;
+  }
   .grid-terminal[aria-hidden="true"] > .react-resizable-handle {
     visibility: hidden;
   }
