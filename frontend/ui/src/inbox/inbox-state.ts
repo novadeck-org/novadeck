@@ -122,6 +122,11 @@ export const informing = (item: InboxItem): boolean =>
   !!item.trouble.stored &&
   !item.stopped
 
+// How long before a watcher started an item may have begun and still be new to it: a request
+// becomes an item only once its dialog shows, a few seconds after it was asked. Older ones are
+// the Inbox filling in after launch, which rings nothing.
+export const launchSlackMs = 5000
+
 // What the rail's badge counts: everything that isn't an update, nor a failed turn that only
 // informs.
 export const needing = (items: readonly InboxItem[]): InboxItem[] =>

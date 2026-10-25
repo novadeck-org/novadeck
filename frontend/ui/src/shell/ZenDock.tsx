@@ -80,7 +80,7 @@ export const ZenDock = ({
             onClick={onInbox}
           >
             <Bell size={16} />
-            <BellDot count={badge.count} />
+            <BellDot latest={badge.latest} />
           </button>
         </Tooltip>
       )}

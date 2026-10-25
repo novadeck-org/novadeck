@@ -67,7 +67,7 @@ export const SidebarRail = ({
               data-project-status={status?.status}
             >
               <Icon size={16} />
-              {id === "inbox" && <BellDot count={badge?.count ?? 0} />}
+              {id === "inbox" && <BellDot latest={badge?.latest} />}
             </ToggleGroupItem>
           )
         })}

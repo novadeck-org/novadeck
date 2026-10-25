@@ -2,7 +2,7 @@ import { handleText } from "@novadeck/core/handle"
 import type { Inbox, InboxItem } from "@novadeck/core/inbox"
 import type { Backend, Notice } from "@novadeck/core/port"
 
-import { needing, ringing } from "../inbox/inbox-state"
+import { launchSlackMs, needing, ringing } from "../inbox/inbox-state"
 import { fromNovadeck, labelOf, subjectOf } from "../inbox/inbox-text"
 import { isDesktop } from "../shell/desktop"
 import { heldForToast, modalOpen } from "./selectors"
@@ -12,10 +12,6 @@ import type { UiStore } from "./ui-store"
 // agent settles in that time never does. (A permission request has already waited its own
 // 3 s before it becomes an item.)
 export const needGraceMs = 2000
-
-// How long before this started an item may have begun and still be new: a request becomes
-// an item only once its dialog shows, a few seconds after it was asked.
-const launchSlackMs = 5000
 
 // The most the icon's count says; the host takes 0 to 999.
 const maxBadge = 999

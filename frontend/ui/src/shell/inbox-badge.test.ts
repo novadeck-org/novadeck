@@ -50,6 +50,7 @@ describe("inboxBadge", () => {
   it("counts what waits, and no update, and says so in the bell's name", () => {
     expect(inboxBadge([entry(finished), entry(held, 1), entry(held, 2)])).toEqual({
       count: 2,
+      latest: 2,
       label: "Inbox, 2 waiting",
       status: "attention",
     })
@@ -64,6 +65,7 @@ describe("inboxBadge", () => {
     const draft: InboxContent = { kind: "feedback", draft: { kind: "bug", text: "It broke." } }
     expect(inboxBadge([entry(draft, 0, false)])).toEqual({
       count: 1,
+      latest: 0,
       label: "Inbox, 1 waiting",
       status: "attention",
     })
