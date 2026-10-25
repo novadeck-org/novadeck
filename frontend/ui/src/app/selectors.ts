@@ -1,3 +1,4 @@
+import type { InboxItem } from "@novadeck/core/inbox"
 import { activeProject, activeSession } from "@novadeck/core/state"
 import type {
   TerminalMetadata,
@@ -9,7 +10,7 @@ import type {
   WorkspaceTarget,
 } from "@novadeck/core/types"
 
-import type { FocusPreview } from "../shell/shell-state"
+import { sidebarVisible, type FocusPreview } from "../shell/shell-state"
 import type { UiState } from "./ui-store"
 
 // The active session's state; the workspace always has one once seeded.
@@ -86,3 +87,35 @@ export const crashLoopQuestion = (ui: Pick<UiState, "crashLoop" | "crashLoopDism
 // Whether an alert dialog is on screen, which holds every shortcut back.
 export const alertOpen = (ui: UiState, workspace: Workspace): boolean =>
   closeQuestion(ui, workspace) !== undefined || crashLoopQuestion(ui) > 0
+
+// Whether a modal dialog covers the page, which a doorbell waits out: Search or Preferences
+// (the route's), the close confirmation, the crash-loop question, or the terminal switcher
+// opened by click (the held one, from Ctrl+Tab, takes no pointer and blocks nothing).
+//
+// The welcome dialog is the backend's own state, not the UI store's, and the name offer is a
+// chip that blocks nothing, so neither counts. Nor can the project-removal confirmation (the
+// switcher's local state), the plan-close confirmation (the companion's) or the phone sidebar
+// drawer (the panels'): a toast there sits under the dialog, and its item stays in the Inbox.
+export const modalOpen = (ui: UiState): boolean =>
+  ui.location.route.dialog !== null ||
+  ui.closing !== null ||
+  crashLoopQuestion(ui) > 0 ||
+  ui.recent.switcher?.mode === "click"
+
+// Whether the sidebar shows the Inbox's panel.
+export const inboxShown = (ui: UiState, desktop: () => boolean): boolean =>
+  ui.location.route.panel === "inbox" && sidebarVisible(ui.shell, desktop())
+
+// Whether an item may toast now: the page has the person's focus, they want to hear what
+// needs them, the Inbox isn't what they look at, and they aren't typing in the item's own
+// terminal (the selected one of the route). `desktop` is asked only when the sidebar matters.
+export const mayToast = (item: InboxItem, ui: UiState, desktop: () => boolean): boolean =>
+  ui.pageFocused &&
+  ui.preferences.notifyNeeds &&
+  !inboxShown(ui, desktop) &&
+  ui.location.route.terminal !== item.source.terminalId
+
+// Whether a toast for the item waits behind a modal dialog: it would show but for the dialog.
+// The OS ping defers the same items, so that one never rings for what no toast waits for.
+export const heldForToast = (item: InboxItem, ui: UiState, desktop: () => boolean): boolean =>
+  modalOpen(ui) && mayToast(item, ui, desktop)

@@ -19,8 +19,8 @@ catalogs:
       specifier: 1.15.7
       version: 1.15.7
     electron:
-      specifier: ^44.9.0
-      version: 44.9.0
+      specifier: ^44.9.1
+      version: 44.9.3
     node-pty:
       specifier: 1.2.0-beta.14
       version: 1.2.0-beta.14
@@ -34,7 +34,7 @@ catalogs:
 patchedDependencies:
   '@xterm/addon-unicode-graphemes@0.4.0': b0a9bbbcc53e94cabc762f35be7a9d628ad75ecb84ca1e26eae1e808f27f18b6
   '@xterm/addon-webgl@0.19.0': d5741f66ddf8628c76f7c2bb3eec05d444033258ce8264691f86ab71edac0fe3
-  '@xterm/xterm@6.0.0': 2cd53f4bf1af2ffd7e09dcb6b561f0c0176ae79956b5d91ac46024168cd237fa
+  '@xterm/xterm@6.0.0': 392d27828c15146c2a2a9ca670919785e0112aaa328ccd32be13463a48bde419
   electron-updater@6.8.9: 194f26b921816fb49234137172ac8a9e8146f732442494a3e0cefecd51d541e4
   node-pty@1.2.0-beta.14: c78e0cc7eff2e13ea3521779288bbaad7b96df25030516a8aa8acd64fde92224
 
@@ -153,7 +153,7 @@ importers:
         version: 10.0.6
       electron:
         specifier: 'catalog:'
-        version: 44.9.0(supports-color@10.2.2)
+        version: 44.9.3(supports-color@10.2.2)
       electron-builder:
         specifier: ^26.15.3
         version: 26.15.3(electron-builder-squirrel-windows@26.15.3)(supports-color@10.2.2)
@@ -1153,7 +1153,7 @@ importers:
         version: 6.0.0
       '@xterm/xterm':
         specifier: 6.0.0
-        version: 6.0.0(patch_hash=2cd53f4bf1af2ffd7e09dcb6b561f0c0176ae79956b5d91ac46024168cd237fa)
+        version: 6.0.0(patch_hash=392d27828c15146c2a2a9ca670919785e0112aaa328ccd32be13463a48bde419)
     devDependencies:
       '@types/node':
         specifier: ^26.6.5
@@ -1323,7 +1323,7 @@ importers:
         version: 5.0.5(msw@3.0.3(@types/node@26.6.5)(graphql@16.14.2)(supports-color@10.2.2)(typescript@7.0.2)(vite@7.3.7(@types/node@26.6.5)(jiti@2.7.0)(lightningcss@1.33.0)(tsx@4.23.15)))(playwright@1.64.1)(vite@7.3.7(@types/node@26.6.5)(jiti@2.7.0)(lightningcss@1.33.0)(tsx@4.23.15))(vitest@5.0.5)
       electron:
         specifier: 'catalog:'
-        version: 44.9.0(supports-color@10.2.2)
+        version: 44.9.3(supports-color@10.2.2)
       playwright:
         specifier: ^1.64.1
         version: 1.64.1
@@ -1366,7 +1366,7 @@ importers:
         version: 8.18.2
       electron:
         specifier: 'catalog:'
-        version: 44.9.0(supports-color@10.2.2)
+        version: 44.9.3(supports-color@10.2.2)
       typescript:
         specifier: ^7.0.2
         version: 7.0.2
@@ -3964,8 +3964,8 @@ packages:
     resolution: {integrity: sha512-bO3y10YikuUwUuDUQRM4KfwNkKhnpVO7IPdbsrejwN9/AABJzzTQ4GeHwyzNSrVO+tEH3/Np255a3sVZpZDjvg==}
     engines: {node: '>=8.0.0'}
 
-  electron@44.9.0:
-    resolution: {integrity: sha512-boP8zA5OIoMGYe3uWP4IqB1VJNoEzdHYgcBaVYnd1DBv5TogwXkbM4yJGSfNmYCzalVQ5J3TAIbaKOY+ILTnyg==}
+  electron@44.9.3:
+    resolution: {integrity: sha512-Cv9/yMnZxNWsMlIe8T4v//NKHdUvbeyoTJoXE3BIcRxus2meeFaO9h/P3zB5d4cBXum51IgAYrT2QjpIDWKpJA==}
     engines: {node: '>= 22.12.0'}
     hasBin: true
 
@@ -7333,7 +7333,7 @@ snapshots:
 
   '@xterm/headless@6.0.0': {}
 
-  '@xterm/xterm@6.0.0(patch_hash=2cd53f4bf1af2ffd7e09dcb6b561f0c0176ae79956b5d91ac46024168cd237fa)': {}
+  '@xterm/xterm@6.0.0(patch_hash=392d27828c15146c2a2a9ca670919785e0112aaa328ccd32be13463a48bde419)': {}
 
   '@xyflow/react@12.12.0(@types/react-dom@19.3.0(@types/react@19.3.0))(@types/react@19.3.0)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)':
     dependencies:
@@ -8543,7 +8543,7 @@ snapshots:
     transitivePeerDependencies:
       - supports-color
 
-  electron@44.9.0(supports-color@10.2.2):
+  electron@44.9.3(supports-color@10.2.2):
     dependencies:
       '@electron-internal/extract-zip': 1.0.5
       '@electron/get': 5.1.0(supports-color@10.2.2)

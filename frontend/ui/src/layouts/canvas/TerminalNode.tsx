@@ -23,6 +23,7 @@ export const TerminalContent = createContext<(id: string, onScreen: boolean) => 
 export const NodeVisibilityContext = createContext<NodeVisibility>({
   watch: () => () => {},
   subscribe: () => () => {},
+  select: () => {},
   onScreen: () => true,
 })
 
