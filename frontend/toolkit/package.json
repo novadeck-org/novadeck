@@ -3,6 +3,7 @@
   "version": "0.0.0",
   "private": true,
   "description": "The controls every feature of the UI draws with: Ark UI wrappers, the shared recipes and the sidebar item.",
+  "license": "GPL-3.0-or-later",
   "type": "module",
   "exports": {
     "./badge.css": "./src/badge.css",

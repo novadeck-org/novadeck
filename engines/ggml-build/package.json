@@ -3,6 +3,7 @@
   "version": "0.0.0",
   "private": true,
   "description": "The build steps the ggml engines (whisper.cpp, llama.cpp) share: fetch a pinned source, patch it, build it for this platform, sign it and pack it.",
+  "license": "GPL-3.0-or-later",
   "author": "mzpkdev",
   "type": "module",
   "exports": {

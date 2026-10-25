@@ -56,3 +56,9 @@ The `PR / Verify` job checks workflow syntax, title format, and required heading
 It checks heading presence, so the author must still write useful content. On
 failure, read the job summary or step log for diagnostics and fixes. `FAIL` means
 invalid content; `ERROR` means a check could not run; `SKIPPED` is not a pass.
+
+## License
+
+Contributions are licensed under the project's license, [GPL-3.0-or-later](LICENSE), the same
+terms everyone gets; there is no CLA. Sign off each commit (`git commit -s`) to certify the
+[Developer Certificate of Origin](https://developercertificate.org/).

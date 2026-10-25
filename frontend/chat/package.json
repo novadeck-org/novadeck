@@ -3,6 +3,7 @@
   "version": "0.0.0",
   "private": true,
   "description": "The chat view: a conversation's items drawn as a transcript, with its composer, requests, and its own store and commands.",
+  "license": "GPL-3.0-or-later",
   "type": "module",
   "exports": {
     "./chat.css": "./src/chat.css",

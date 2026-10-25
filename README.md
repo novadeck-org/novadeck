@@ -1730,3 +1730,10 @@ Start with [AGENTS.md](AGENTS.md) for the required reading,
 [CONTRIBUTING.md](CONTRIBUTING.md) for the issue and PR workflow, and
 [CODING.md](CODING.md) for code and test conventions. Follow
 [SECURITY.md](SECURITY.md) for credentials and vulnerability reports.
+
+## License
+
+Novadeck is free software under the [GNU General Public License, version 3 or later](LICENSE)
+(`GPL-3.0-or-later`), all of it. Use it anywhere, at home or at work, and change it as you
+like. If you give a copy to others, changed or not, it goes under the same license with its
+source. Copyright © 2026 Mateusz Pietrzak.

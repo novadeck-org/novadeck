@@ -3,6 +3,7 @@
   "version": "0.0.0",
   "private": true,
   "description": "The llama.cpp engine murmur downloads, built for each platform.",
+  "license": "GPL-3.0-or-later",
   "author": "mzpkdev",
   "type": "module",
   "exports": {

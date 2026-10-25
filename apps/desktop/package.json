@@ -4,6 +4,7 @@
   "private": true,
   "description": "A workspace for parallel terminals.",
   "homepage": "https://github.com/novadeck-org/novadeck",
+  "license": "GPL-3.0-or-later",
   "author": "mzpkdev",
   "type": "module",
   "main": "./out/main/index.js",

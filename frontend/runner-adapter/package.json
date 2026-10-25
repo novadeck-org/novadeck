@@ -3,6 +3,7 @@
   "version": "0.0.0",
   "private": true,
   "description": "The UI's backend for a Novadeck runner, over a WebSocket or the desktop host.",
+  "license": "GPL-3.0-or-later",
   "type": "module",
   "exports": {
     ".": "./src/index.ts",
