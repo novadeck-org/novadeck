@@ -542,6 +542,7 @@ describe("narrow screens", () => {
 
       const terminals = page.getByRole("dialog", { name: "Terminal sessions" })
       await expect.element(terminals).toBeVisible()
+      await expect.element(terminals.getByRole("button", { name: "New terminal" })).toHaveFocus()
       await escapeFrom(terminals)
       await expect.element(terminals).not.toBeInTheDocument()
       await pressShortcut("sessions")
