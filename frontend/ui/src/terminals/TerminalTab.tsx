@@ -1,6 +1,7 @@
 import { useSortable } from "@dnd-kit/react/sortable"
 import { subagentMarks, subagentsBadge, subagentsDetail } from "@novadeck/core/agent-subagents"
 import {
+  clockTime,
   nextWaitingChange,
   waitingOf,
   waitingText,
@@ -11,10 +12,13 @@ import { showsHandle, terminalLabel } from "@novadeck/core/handle"
 import { mailBadgeLabel, type MailBadge } from "@novadeck/core/messages"
 import { isWindow } from "@novadeck/core/roster"
 import {
-  attentionText,
   doneText,
   endingText,
+  needText,
+  pausedText,
+  pausedUntil,
   terminalEnding,
+  terminalNeedMark,
   terminalPhase,
   unheardText,
 } from "@novadeck/core/terminal-ending"
@@ -59,6 +63,9 @@ export const TerminalTab = ({
   teamWords,
   hidden,
   unread,
+  need: inboxNeed,
+  needSubject,
+  reported = false,
   rename,
   mail = null,
   companion,
@@ -85,9 +92,15 @@ export const TerminalTab = ({
   // Who leads it and whom it leads, in words, for its description: the wire only draws it.
   teamWords?: string | undefined
   hidden: boolean
-  // Its agent finished while the person looked elsewhere, on its own or on an error: the
-  // tab says so until they look.
-  unread?: "done" | "failed" | undefined
+  // Its agent ended a turn while the person looked elsewhere: on its own, which brightens
+  // its program, or on an error, which marks it failed, until they look.
+  unread?: "unread" | "failed" | undefined
+  // What the Inbox says it needs of the person (`unblock` or `ask`), the subject of the item
+  // behind it, and whether its agent reported its task done, unseen. The agent's live dialog
+  // adds its own need.
+  need?: "unblock" | "ask" | undefined
+  needSubject?: string | undefined
+  reported?: boolean
   rename: TerminalRename | null
   // What waits for its agent, when anything does: the tab says it in words.
   mail?: MailBadge | null
@@ -114,22 +127,39 @@ export const TerminalTab = ({
   const shell = isWindow(tile) ? undefined : tile
   const icon = <Icon size={14} strokeWidth={1.5} />
   const label = terminalLabel(terminal.name, shell?.handle)
-  // The detail line shows the phase: a glyph (a spinner while a program runs) beside
-  // the program, or a note while the shell starts. A tab that has ended is hatched (styles.css);
-  // assistive technology says how it ended.
-  const phase = shell ? terminalPhase(shell, unread !== undefined) : "idle"
+  // The detail line shows the state: a glyph (a spinner while a program runs) before the
+  // program, what the agent needs of the person right after it, or a note while the shell
+  // starts. A tab that has ended is hatched (styles.css); assistive technology says how it
+  // ended.
   const failed = unread === "failed"
+  const phase = shell ? terminalPhase(shell, reported || failed) : "idle"
+  const need = shell && phase !== "ended" ? terminalNeedMark(shell, inboxNeed) : undefined
+  // A reply the person hasn't read, on an agent that rests: its program brightens.
+  const brightened = unread === "unread" && phase === "idle"
   const ending = shell && terminalEnding(shell)
   const ended = ending ? endingText(ending) : undefined
-  // What the agent waits on the person for, or that Novadeck can't hear from it, said like
-  // an ending, to assistive technology.
-  const waiting = shell && (attentionText(shell) ?? unheardText(shell))
+  // What the agent needs of the person, or that Novadeck can't hear from it, said like an
+  // ending, to assistive technology.
+  const needing = shell && needText(shell, need, needSubject)
+  const unheard = shell && unheardText(shell)
+  const resets = shell && phase === "paused" ? pausedUntil(shell) : undefined
   // What an idle agent waits on, which wakes it by itself, or the wake-up that passed
   // without a new turn: the glyph and the rows under the line say it.
   const waits = phase === "waiting" && shell ? waitingOf(shell) : undefined
   const passed = shell && (phase === "idle" || phase === "done") ? wakePassed(shell) : undefined
   const waitNote = waits && shell ? waitingText(shell) : undefined
-  const note = ended ?? waiting ?? waitNote ?? (phase === "done" ? doneText(failed) : undefined)
+  const note =
+    ended ??
+    [
+      needing,
+      unheard ??
+        (phase === "paused" && shell ? pausedText(shell) : undefined) ??
+        waitNote ??
+        (phase === "done" ? doneText(failed) : undefined) ??
+        (brightened ? "Reply unread" : undefined),
+    ]
+      .filter(Boolean)
+      .join(", ")
   const messages = mail ? mailBadgeLabel(mail) : undefined
   // The subagents its agent runs: marked on its line, their kinds under it while selected,
   // and counted in words wherever it marks them.
@@ -173,6 +203,12 @@ export const TerminalTab = ({
     disabled: editing,
     transition: { duration: 180, easing: "cubic-bezier(0.16, 1, 0.3, 1)" },
   })
+  // Right after the program: `!` where it can't go on without the person, `?` where it asks.
+  const needMark = need && (
+    <span aria-hidden className="terminal-tab-need shrink-0" data-need={need}>
+      {need === "unblock" ? "!" : "?"}
+    </span>
+  )
   const tab = (
     <div className="contents">
       <SidebarItem
@@ -201,11 +237,17 @@ export const TerminalTab = ({
               // fits "claude" and "now" but no dot between.
               <>
                 <span className="terminal-tab-process truncate">{process}</span>
+                {needMark}
                 {age && <span className="terminal-tab-age shrink-0">{age}</span>}
               </>
             ) : (
               <>
                 <span className="terminal-tab-process truncate">{process}</span>
+                {needMark}
+                {/* Paused, when its usage limit resets, in the age's place. */}
+                {resets !== undefined && (
+                  <span className="terminal-tab-age shrink-0">{clockTime(resets)}</span>
+                )}
                 {marks && <SubagentLine marks={marks} />}
               </>
             )}
@@ -241,9 +283,8 @@ export const TerminalTab = ({
         data-terminal-tab-id={terminal.id}
         data-terminal-phase={phase}
         {...(phase === "done" && failed ? { "data-terminal-failed": true } : {})}
-        {...(phase === "attention" && shell?.state === "running" && shell.agent?.attention
-          ? { "data-terminal-attention": shell.agent.attention.kind }
-          : {})}
+        {...(need ? { "data-terminal-need": need } : {})}
+        {...(brightened ? { "data-terminal-unread": true } : {})}
         {...(waits ? { "data-terminal-wait": waits.jobs.length > 0 ? "job" : "wake" } : {})}
         {...(marks ? { "data-terminal-subagents": marks.working ? "working" : "background" } : {})}
         data-terminal-hidden={hidden}

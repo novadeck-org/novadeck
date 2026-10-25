@@ -11,3 +11,27 @@
   font-display: swap;
   src: url("../assets/fonts/InterVariable.woff2") format("woff2");
 }
+
+/* The state glyphs of tabs and windows: ✓ ✗ ∅ ○ ◌ and the braille spinner and drips, which
+   JetBrains Mono's shipped subsets lack and the OS's symbol fonts draw differently on every
+   system. Two small subsets, one family: the first from JetBrains Mono 2.304 (SIL OFL, see
+   assets/fonts/LICENSE-NovadeckSymbols-JetBrainsMono.txt), weight axis kept, so the glyphs
+   match the program beside them; the second the braille block from Noto Sans Symbols 2 (SIL
+   OFL, LICENSE-NovadeckSymbols-Braille.txt). Used by tabs and windows (`--font-glyphs`), never
+   the terminals' own font. */
+@font-face {
+  font-family: "Novadeck Symbols";
+  font-style: normal;
+  font-weight: 100 800;
+  font-display: swap;
+  src: url("../assets/fonts/NovadeckSymbols-JetBrainsMono.woff2") format("woff2");
+  unicode-range: U+2713, U+2717, U+2205, U+25CB, U+25CC;
+}
+@font-face {
+  font-family: "Novadeck Symbols";
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url("../assets/fonts/NovadeckSymbols-Braille.woff2") format("woff2");
+  unicode-range: U+2800-28FF;
+}

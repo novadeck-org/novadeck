@@ -1,3 +1,4 @@
+import { noInbox } from "@novadeck/core/inbox"
 import { viewModes } from "@novadeck/core/state"
 import type { Project } from "@novadeck/core/types"
 import { memo, useMemo, useState } from "react"
@@ -10,6 +11,7 @@ import { projectStatuses } from "../projects/project-status"
 import { WorkspaceHeader } from "../shell/WorkspaceHeader"
 import { unreadEnd } from "../terminals/unread-state"
 import { useUiState, useWorkspaceServices, useWorkspaceState } from "./controller/context"
+import { useStoreSelector } from "./controller/useStoreSelector"
 import { routeUrl } from "./routing"
 import { currentState, shallowEqual } from "./selectors"
 
@@ -48,10 +50,14 @@ export const HeaderSection = memo((): React.JSX.Element => {
   )
   const unread = useUiState((state) => state.unread)
   const arrangement = useUiState((state) => state.projectArrangement)
-  // The selector closes over `unread`, so a new one is a new selector and recomputes.
+  // What the raw Inbox holds, as the tabs read it, not the landing rule's: its needs and
+  // done reports mark the projects as they mark the tabs.
+  const items = useStoreSelector((backend.inbox ?? noInbox).state, (state) => state.items)
+  // The selector closes over `unread` and the items, so a new one is a new selector and
+  // recomputes.
   const statuses = useWorkspaceState(
     (workspace) =>
-      projectStatuses(workspace.projects, (context, id) => unreadEnd(unread, context, id)),
+      projectStatuses(workspace.projects, (context, id) => unreadEnd(unread, context, id), items),
     shallowEqual,
   )
   const { zen, enabledViews, homeTo } = useUiState(

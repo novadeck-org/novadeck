@@ -924,9 +924,9 @@ App:
   (its bypass-permissions yes a quiet link), a failed turn, a free-text ask, a permission
   whose Deny is a plain no, messages held long behind what keeps the doorbell from an idle
   agent, a feedback draft (an agent's bug report with a path in it, to Send or Discard), a
-  heads-up and a finished turn. "Several asks at once" adds four asks from four
+  heads-up and an agent's done report. "Several asks at once" adds four asks from four
   projects together, so three toasts stack with a "+1 more" pill behind (the page needs focus
-  and the Inbox panel closed, and an item from the selected terminal doesn't toast: with
+  and the Inbox panel closed, and an item from the selected terminal never lands until you look away: with
   storefront's terminal 4 selected you get three toasts and no pill). "Fail the next answer" makes
   the next answer to any item fail, so its sheet shows why and keeps the item and draft for retry. Ask, Tell and Your reply
   also appear in the terminal's Messages pane, in the conversation You; replies show queued and delivered states.

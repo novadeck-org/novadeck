@@ -163,6 +163,7 @@ const askRequest = z.strictObject({
   shape: requestedShape.optional(),
 })
 const tellRequest = z.strictObject({ subject, body: markdown })
+const doneRequest = tellRequest
 const withdrawRequest = z.strictObject({ withdraw: z.uuid() })
 const failure = (error: unknown) => ({
   ok: false as const,
@@ -308,7 +309,7 @@ export class Asks {
 
   call(
     terminalId: string,
-    kind: "ask" | "tell",
+    kind: "ask" | "tell" | "done",
     request: unknown,
   ): { ok: true; id: string; withdrawn?: true } | { ok: false; reason: string } {
     if (this.closed) return failure(new Error("Novadeck is stopping."))
@@ -338,40 +339,42 @@ export class Asks {
       const content =
         kind === "tell"
           ? { kind: "tell" as const, ...tellRequest.parse(request) }
-          : (() => {
-              const read = askRequest.parse(request)
-              const choice = read.shape ?? { type: "text" as const }
-              const normalized =
-                choice.type === "options"
-                  ? {
-                      ...choice,
-                      recommend: choice.recommend ?? null,
-                      options: choice.options.map((each) => ({
-                        ...each,
-                        summary: each.summary ?? null,
-                        details: each.details ?? null,
-                        code: each.code ?? null,
-                      })),
-                    }
-                  : choice.type === "action"
+          : kind === "done"
+            ? { kind: "done" as const, ...doneRequest.parse(request) }
+            : (() => {
+                const read = askRequest.parse(request)
+                const choice = read.shape ?? { type: "text" as const }
+                const normalized =
+                  choice.type === "options"
                     ? {
-                        type: "action" as const,
-                        command: choice.command,
-                        directory: choice.directory ?? null,
-                        doneLabel: choice.done_label,
+                        ...choice,
+                        recommend: choice.recommend ?? null,
+                        options: choice.options.map((each) => ({
+                          ...each,
+                          summary: each.summary ?? null,
+                          details: each.details ?? null,
+                          code: each.code ?? null,
+                        })),
                       }
-                    : choice
-              return {
-                kind: "ask" as const,
-                ask: agentAsk.parse({
-                  subject: read.subject,
-                  body: read.body,
-                  details: read.details ?? null,
-                  hardToUndo: read.hard_to_undo ?? null,
-                  shape: normalized,
-                }),
-              }
-            })()
+                    : choice.type === "action"
+                      ? {
+                          type: "action" as const,
+                          command: choice.command,
+                          directory: choice.directory ?? null,
+                          doneLabel: choice.done_label,
+                        }
+                      : choice
+                return {
+                  kind: "ask" as const,
+                  ask: agentAsk.parse({
+                    subject: read.subject,
+                    body: read.body,
+                    details: read.details ?? null,
+                    hardToUndo: read.hard_to_undo ?? null,
+                    shape: normalized,
+                  }),
+                }
+              })()
       if (byteLength(JSON.stringify(content)) > 32_768)
         throw new Error(
           "This Inbox item is over 32 KB. Shorten its details or put longer content in a file.",
@@ -386,7 +389,7 @@ export class Asks {
         (each) =>
           each.state === "open" &&
           each.content.kind === kind &&
-          (kind === "tell" || same(each, owner)),
+          (kind !== "ask" || same(each, owner)),
       )
       const cap = kind === "ask" ? maxOpenAsks : maxUnreadTells
       if (open.length >= cap)
@@ -483,7 +486,7 @@ export class Asks {
       const letter = this.letters.get(id)
       if (letter?.state !== "open") continue
       if (letter.content.kind === "turn") turns.push(letter)
-      else if (letter.content.kind === "tell")
+      else if (letter.content.kind === "tell" || letter.content.kind === "done")
         tells.push({ ...letter, state: "read", settledAt: at })
     }
     // A read of many is one removal, one save and one listing; a tell stays as history.

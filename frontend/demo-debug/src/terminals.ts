@@ -1,5 +1,5 @@
+import type { InboxItem } from "@novadeck/core/inbox"
 import type { BackendAction, TerminalKey } from "@novadeck/core/port"
-import { terminalAsks, type TerminalAsk } from "@novadeck/core/terminal-ending"
 import type { AgentStatus, AgentUsage, TerminalMetadata, Workspace } from "@novadeck/core/types"
 
 // The actions that put a terminal in a state, as the backend would report it. Pure, so
@@ -150,6 +150,69 @@ export const runAgent = (key: TerminalKey, program: string): BackendAction[] => 
   ...agentSays(key, resting),
 ]
 
+// The report an agent makes through its MCP `done` call when its task is finished, which the
+// debug panel's finishes pass where they mean the task, not just a turn.
+export const doneReport = {
+  subject: "Checkout totals round per line",
+  body: "Totals now round per line item, not on the order. The suite passes (214 tests).",
+} as const
+
+// What an agent asks through the MCP `ask` tool: an answer in words, or an action only the
+// person can do, as a sign-in.
+export type AskKind = "text" | "action"
+
+// An MCP ask of `key`'s terminal, as the Inbox holds it, for the terminal as the workspace
+// has it now; none where the workspace lacks the terminal.
+export const mcpAsk = (
+  workspace: Workspace | undefined,
+  key: TerminalKey,
+  kind: AskKind,
+  now: number,
+): InboxItem | undefined => {
+  const project = workspace?.projects.find((each) => each.id === key.projectId)
+  const terminal = project?.history
+    .find((session) => session.id === key.workspaceSessionId)
+    ?.state.roster.terminals.find((each) => each.id === key.terminalId)
+  if (!project || !terminal) return undefined
+  return {
+    id: `demo-mcp-ask:${key.projectId}/${key.workspaceSessionId}/${key.terminalId}:${kind}`,
+    source: {
+      projectId: key.projectId,
+      workspaceSessionId: key.workspaceSessionId,
+      terminalId: key.terminalId,
+      handle: terminal.handle ?? "",
+      agent: "claude",
+      title: terminal.name,
+      projectName: project.name,
+    },
+    at: now,
+    stopped: kind === "action",
+    seen: false,
+    kind: "ask",
+    ask:
+      kind === "action"
+        ? {
+            subject: "Log in to Vercel",
+            body: "I can't deploy until the CLI is signed in. Run the command, then tell me.",
+            details: null,
+            hardToUndo: null,
+            shape: {
+              type: "action",
+              command: "vercel login",
+              directory: null,
+              doneLabel: "I've logged in",
+            },
+          }
+        : {
+            subject: "Where should feedback go?",
+            body: "D1 beside the site's tables, or its own database?",
+            details: null,
+            hardToUndo: null,
+            shape: { type: "text" },
+          },
+  }
+}
+
 // An agent the terminal's program is, which Novadeck hears nothing from.
 export const unheardAgent = (key: TerminalKey, program: string): BackendAction[] => [
   setProcess(key, program),
@@ -216,9 +279,14 @@ export const otherTerminals = (
   return keys
 }
 
-// The kinds of wait and finish dealt out to `count` terminals in turn, most pressing first.
-export const dealKinds = (count: number): TerminalAsk[] =>
-  Array.from({ length: count }, (_, index) => terminalAsks[index % terminalAsks.length]!)
+// The kinds of wait and finish "Fill the Inbox" deals, most pressing first: `done` is the
+// agent's done report, `failed` a turn that stopped on an error.
+export const dealtKinds = ["question", "permission", "plan", "failed", "done"] as const
+export type DealtKind = (typeof dealtKinds)[number]
+
+// The kinds dealt out to `count` terminals in turn.
+export const dealKinds = (count: number): DealtKind[] =>
+  Array.from({ length: count }, (_, index) => dealtKinds[index % dealtKinds.length]!)
 
 // The keys of the terminals the predicate picks, in every session of every project.
 const terminalsWhere = (

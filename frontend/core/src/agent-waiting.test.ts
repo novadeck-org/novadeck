@@ -49,16 +49,16 @@ describe("an agent that waits", () => {
   })
 
   context("against what else the tab shows", () => {
-    it("yields to a finish not yet seen, then shows as waiting", () => {
+    it("yields to a done report not yet seen, then shows as waiting", () => {
       expect(terminalPhase(onJob, true, now)).toBe("done")
       expect(terminalPhase(onJob, false, now)).toBe("waiting")
     })
 
-    it("yields to a request of the person and to work", () => {
+    it("keeps its glyph for a request of the person, which the need mark shows, and yields to work", () => {
       const attention = { kind: "question" as const, count: 1 }
       expect(
         terminalPhase(agent({ jobs: [job(now)], wake: null }, { attention }), false, now),
-      ).toBe("attention")
+      ).toBe("waiting")
       expect(
         terminalPhase(agent({ jobs: [job(now)], wake: null }, { working: true }), false, now),
       ).toBe("running")

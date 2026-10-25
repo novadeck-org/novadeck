@@ -76,6 +76,8 @@ export const inboxLetter = z.strictObject({
   content: z.discriminatedUnion("kind", [
     z.strictObject({ kind: z.literal("ask"), ask: agentAsk }),
     z.strictObject({ kind: z.literal("tell"), subject: line, body: markdown }),
+    // The agent's own report that the task it was given is finished.
+    z.strictObject({ kind: z.literal("done"), subject: line, body: markdown }),
     // A finished turn of the agent: stored until the person reads it, which removes it.
     // `at` is the end's own `lastTurn.at`. `gist` is murmur's, filled in later.
     z.strictObject({

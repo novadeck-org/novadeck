@@ -1,4 +1,4 @@
-import { noInbox, type Inbox } from "@novadeck/core/inbox"
+import type { Inbox } from "@novadeck/core/inbox"
 import { useCallback, useEffect, useMemo, type ReactNode } from "react"
 
 import { InboxProvider, useInboxContext } from "../inbox/InboxProvider"
@@ -7,11 +7,12 @@ import { InboxToasts, type ToastBoard } from "../inbox/InboxToasts"
 import { anyAgentWorking } from "../projects/project-status"
 import { useDesktop } from "../shell/desktop"
 import { useWorkspaceServices, useWorkspaceState } from "./controller/context"
+import { landedInbox } from "./inbox-landing"
 import { clickNotice, noticeBoard } from "./inbox-pings"
 import { watchInboxToasts } from "./inbox-toasts"
 
-// The Inbox: the backend's, read from the backend the app runs on, or, where it has none,
-// one that lists nothing.
+// The Inbox: the backend's, as it lands (see `inbox-landing.ts`), or, where the backend has
+// none, one that lists nothing.
 
 // Hears a click on a terminal's notification (see `clickNotice`).
 const NoticeClicks = ({ inbox }: { readonly inbox: Inbox }): null => {
@@ -44,11 +45,11 @@ export const InboxHost = ({
   readonly active: boolean
   readonly children: ReactNode
 }): React.JSX.Element => {
-  const { backend, commands, ui } = useWorkspaceServices()
+  const { backend, commands, ui, workspace } = useWorkspaceServices()
   const desktop = useDesktop()
-  const inbox = backend.inbox ?? noInbox
+  const inbox = landedInbox(backend.inbox, workspace, ui)
   // Whether an agent is at work in any project, for the empty Inbox to say.
-  const working = useWorkspaceState((workspace) => anyAgentWorking(workspace.projects))
+  const working = useWorkspaceState((state) => anyAgentWorking(state.projects))
   const { hideSidebar, toggleSidebar, reveal, showInbox } = commands
   const phone = useMemo(
     () => (desktop ? undefined : { hideList: hideSidebar, showList: () => toggleSidebar("inbox") }),

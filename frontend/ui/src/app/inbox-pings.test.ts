@@ -481,12 +481,12 @@ describe("a click on a terminal's notification", () => {
     expect(calls).toEqual(["inbox", "open v"])
   })
 
-  it("opens the terminal's finish for a notice that names no item", () => {
+  it("opens the terminal's done report for a notice that names no item", () => {
     const { calls, ...handlers } = to()
     const finish: InboxItem = {
       ...update("f"),
       kind: "update",
-      update: { type: "finished", subject: "Done", reply: "", files: [] },
+      update: { type: "done", subject: "Done", body: "" },
     }
     clickNotice("t1", [ask("a"), update("u"), finish], handlers)
     expect(calls).toEqual(["inbox", "open f"])

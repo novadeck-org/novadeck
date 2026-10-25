@@ -199,15 +199,6 @@ describe("toasts for what needs the person", () => {
       stop()
     })
 
-    it("shows none for the terminal the person is typing in", () => {
-      const { set, route, shown, stop } = setup()
-      route({ terminal: "t1" })
-      set([ask("a", "t1"), ask("b", "t2")])
-      vi.advanceTimersByTime(2000)
-      expect(shown).toEqual(["t2:b"])
-      stop()
-    })
-
     it("shows none while the page doesn't have their focus", () => {
       const { set, change, shown, stop } = setup()
       change((state) => ({ ...state, pageFocused: false }))
@@ -257,7 +248,7 @@ describe("toasts for what needs the person", () => {
       route({ dialog: "search" })
       set([ask("a")])
       vi.advanceTimersByTime(2000)
-      route({ dialog: null, terminal: "t1" })
+      route({ dialog: null, panel: "inbox" })
       expect(shown).toEqual([])
       stop()
     })
@@ -590,8 +581,8 @@ describe("an item that no toast waits for", () => {
       onClick: () => () => {},
     })
     const stop = watchInboxPings({ state: inbox }, ui, { board, desktop: () => true })
-    // The item is of the terminal the person is typing in, so no toast would wait for it.
-    route({ dialog: "preferences", terminal: "t1" })
+    // The Inbox is what the person looks at, so no toast would wait for the item.
+    route({ dialog: "preferences", panel: "inbox" })
     set([ask("a", "t1")])
     vi.advanceTimersByTime(2000)
     change((state) => ({ ...state, pageFocused: false }))

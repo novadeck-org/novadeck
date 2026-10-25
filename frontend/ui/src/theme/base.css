@@ -16,6 +16,9 @@
   --font-mono:
     "JetBrains Mono Variable", "Symbols Nerd Font Mono", "Symbols Nerd Font", "SFMono-Regular",
     Consolas, "Liberation Mono", monospace;
+  /* The mono face with the state glyphs' symbols first: tabs and windows draw ✓ ✗ ∅ and the
+     braille spinner with it (theme/fonts.css), not the terminals, whose font stays theirs. */
+  --font-glyphs: "Novadeck Symbols", var(--font-mono);
   /* Focus */
   --focus-ring-width: 2px;
   --focus-ring-offset: 2px;

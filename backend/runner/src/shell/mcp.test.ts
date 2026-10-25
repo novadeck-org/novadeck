@@ -151,6 +151,7 @@ describe("Novadeck's MCP server", () => {
       expect(tools?.result?.tools?.map((tool) => tool.name)).toEqual([
         "ask",
         "tell",
+        "done",
         "show",
         "showing",
         "close",
@@ -372,7 +373,16 @@ describe("Novadeck's MCP server", () => {
         "for a decision the user should make, ask there and keep going",
       )
       expect(instructions).toContain("Its tell puts a milestone there")
-      expect(instructions).toContain("With a lead, both go to it instead")
+      expect(instructions).toContain("put the full question in your reply too")
+      expect(instructions).toContain("an ask with the action shape, not just words in your reply")
+      expect(instructions).toContain("never ask for a secret value")
+      expect(instructions).toContain(
+        "Its done is your own short report when the task you were given is finished",
+      )
+      expect(instructions).toContain("not when you answer a question or finish a step")
+      expect(instructions).toContain("With a lead, tell and done go to it instead")
+      for (const native of ["AskUserQuestion", "request_user_input", "ask_question"])
+        expect(instructions).not.toContain(native)
     })
 
     it("nudges ask toward not blocking, and tell toward milestones, never each step", async () => {
@@ -395,6 +405,15 @@ describe("Novadeck's MCP server", () => {
       expect(tell.description).toContain("a pull request opened")
       expect(tell.description).toContain("not each step")
       expect(tell.description).toContain("With a lead, report to it instead")
+      const done = described.find((tool) => tool.name === "done")!
+      expect(done.description).toContain("the task you were given is finished")
+      expect(done.description).toContain("not when you answer a question or finish a step")
+      expect(done.description).toContain("With a lead, report to it instead")
+      expect(ask.description).toContain("put the full question in your reply too")
+      expect(ask.description).toContain("an ask with the action shape")
+      for (const each of described)
+        for (const native of ["AskUserQuestion", "request_user_input", "ask_question"])
+          expect(each.description).not.toContain(native)
     })
 
     it("tells agents to show deliverables when done, never each file they touch", async () => {
@@ -986,6 +1005,7 @@ describe("Novadeck's MCP server", () => {
         expect(tools?.result?.tools?.map((tool) => tool.name)).toEqual([
           "ask",
           "tell",
+          "done",
           "show",
           "showing",
           "close",

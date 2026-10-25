@@ -33,7 +33,9 @@ describe("Messages waiting for an agent", () => {
     // Codex has one message being delivered and one queued; what it sent doesn't count.
     await expect
       .poll(() => description("Checkout review"))
-      .toBe("Needs permission, 2 messages waiting, 2 subagents: 2 explorer. Led by @moth")
+      .toBe(
+        "Needs you: pnpm test --filter checkout, 2 messages waiting, 2 subagents: 2 explorer. Led by @moth",
+      )
     // The dev server's message is gone, never waiting.
     expect(description("Dev server")).toBeNull()
   })
@@ -42,7 +44,7 @@ describe("Messages waiting for an agent", () => {
     await openMessagesDemo()
     await expect
       .poll(() => description("Checkout implementation"))
-      .toBe("Plan ready for review, 1 message waiting. Leads @crow")
+      .toBe("Needs you: Where should the empty cart link?, 1 message waiting. Leads @crow")
   })
 })
 
@@ -150,7 +152,8 @@ describe("A terminal's messages", () => {
       const chat = await openConversation(pane, "You")
       await expect.element(pane).toMatchTextContent("1 question waits for you")
       await expect.element(chat).toMatchTextContent("Asked you · answered")
-      await expect.element(chat).toMatchTextContent("Tells you")
+      // Opening its terminal looks at it, which reads the tell the agent left there.
+      await expect.element(chat).toMatchTextContent("Told you")
       await expect.element(chat).toMatchTextContent("Asks you")
       await expect
         .poll(
@@ -191,13 +194,15 @@ describe("Pausing messaging", () => {
     await expect
       .poll(() => description("Checkout review"))
       .toBe(
-        "Needs permission, 2 messages waiting, held while messaging is paused, 2 subagents: 2 explorer. Led by @moth",
+        "Needs you: pnpm test --filter checkout, 2 messages waiting, held while messaging is paused, 2 subagents: 2 explorer. Led by @moth",
       )
     await pause.click()
     await expect.element(pane.getByText(/Messaging is paused/)).not.toBeInTheDocument()
     await expect
       .poll(() => description("Checkout review"))
-      .toBe("Needs permission, 2 messages waiting, 2 subagents: 2 explorer. Led by @moth")
+      .toBe(
+        "Needs you: pnpm test --filter checkout, 2 messages waiting, 2 subagents: 2 explorer. Led by @moth",
+      )
   })
 })
 

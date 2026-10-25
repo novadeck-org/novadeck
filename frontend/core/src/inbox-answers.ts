@@ -23,8 +23,7 @@ export const keyOf = ({ source }: InboxItem): ConversationKey => ({
 // Whether an item is a stored turn row (read by id), as its `stored` mark says, not the failed
 // row derived from a limited end, which no read touches.
 export const isTurnRow = (item: InboxItem): boolean =>
-  (item.kind === "trouble" && item.trouble.type === "failed" && item.trouble.stored === true) ||
-  (item.kind === "update" && item.update.type === "finished" && item.update.stored === true)
+  item.kind === "trouble" && item.trouble.type === "failed" && item.trouble.stored === true
 
 // The finish an update stands for, as the app reads it.
 export const finishOf = ({ source }: InboxItem): InboxFinish => ({
@@ -225,7 +224,7 @@ export type InboxActions = {
 // agent (a nudge interrupts it first if it works, except on a stored failed row, which is
 // nudged only while it is the agent's current end and the agent rests, never interrupting,
 // and read once the nudge is sent; a failed row that is no longer current is only read). An answer of another kind fails; the
-// kinds a backend answers itself (an ask, a told update) it handles before this.
+// kinds a backend answers itself (an ask, a told or done update) it handles before this.
 export const answerItem = (
   tracker: InboxTracker,
   item: InboxItem,

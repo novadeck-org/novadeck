@@ -20,6 +20,7 @@ import { connectBackend } from "./controller/backend-connection"
 import { WorkspaceServicesContext, type WorkspaceServices } from "./controller/context"
 import { domEffects } from "./controller/effects"
 import { dialogDepthOf, useRouteSync } from "./controller/useRouteSync"
+import { landedInbox } from "./inbox-landing"
 import { noticeBoard, watchInboxPings } from "./inbox-pings"
 import { nameFinished, watchFinishes } from "./murmur-offer"
 import { watchPageFocus } from "./page-focus"
@@ -175,7 +176,12 @@ export const WorkspaceProvider = ({
         }),
       )
     if (backend.inbox && (board || backend.badge))
-      stops.push(watchInboxPings(backend.inbox, ui, { board, badge: backend.badge }))
+      stops.push(
+        watchInboxPings(landedInbox(backend.inbox, workspace, ui), ui, {
+          board,
+          badge: backend.badge,
+        }),
+      )
     return () => stops.forEach((stop) => stop())
   }, [services])
   useEffect(() => services.backend.inbox?.bind?.({ workspace: services.workspace }), [services])

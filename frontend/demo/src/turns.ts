@@ -30,6 +30,8 @@ export type TurnEvent =
       readonly key: TerminalKey
       readonly outcome: AgentTurnEnd["outcome"]
       readonly reply?: string
+      // The report the agent made through its MCP `done` as the turn ended.
+      readonly done?: { readonly subject: string; readonly body: string }
     }
   | { readonly type: "rest"; readonly key: TerminalKey }
 
@@ -73,7 +75,8 @@ const statusOf = (terminal: TerminalMetadata | undefined): AgentStatus | undefin
 // goes through here, so what the chat, the screen and the app's marks show follow from it,
 // as they do from a real agent. A prompt to one of them idle at its prompt works for a
 // moment, then finishes with the reply it shows, as its hooks would report it, anything it
-// left running still running. `prompt` starts a turn and `interrupt` ends one early, as
+// left running still running, and a task reporting itself done (a question gets only its
+// reply). `prompt` starts a turn and `interrupt` ends one early, as
 // Escape does; `resume` takes an agent past what it asked; the verbs `work`, `ask`,
 // `finish`, `rest` and `usage` put an agent in a state of the seeds' and the debug panel's choosing
 // (see `DemoAgentVerbs`), each cancelling what an earlier one or a turn still had pending;
@@ -124,7 +127,14 @@ export const demoTurns = (turnMs = demoTurnMs) => {
     sink?.dispatch(actions)
   }
   // Works for a moment, running a tool halfway where it `tools`, then ends with the reply.
-  const run = (key: TerminalKey, agent: AgentStatus, reply: string, tools: boolean): void => {
+  // Where the turn finished a task, the agent reports it through `done`.
+  const run = (
+    key: TerminalKey,
+    agent: AgentStatus,
+    reply: string,
+    tools: boolean,
+    done?: { readonly subject: string; readonly body: string },
+  ): void => {
     const id = terminalKeyId(key)
     const timers: Timers = [
       ...(tools ? [setTimeout(() => emit({ type: "tool", key }), turnMs / 2)] : []),
@@ -135,7 +145,7 @@ export const demoTurns = (turnMs = demoTurnMs) => {
           ...left(agent),
           lastTurn: { outcome: "completed", reply, at: Date.now() },
         })
-        emit({ type: "end", key, outcome: "completed", reply })
+        emit({ type: "end", key, outcome: "completed", reply, ...(done ? { done } : {}) })
       }, turnMs),
     ]
     active.set(id, timers)
@@ -165,7 +175,17 @@ export const demoTurns = (turnMs = demoTurnMs) => {
       return true
     }
     emit({ type: "begin", key, prompt: text.trim() })
-    run(key, agent, `Done: ${text.trim()}. Nothing else changed.`, true)
+    const reply = `Done: ${text.trim()}. Nothing else changed.`
+    // The demo's convention: a prompt ending in `?` is a question, answered in the reply with
+    // no `done` call; any other prompt is a task, reported finished through `done`.
+    const asked = text.trim().endsWith("?")
+    run(
+      key,
+      agent,
+      reply,
+      true,
+      asked ? undefined : { subject: text.trim().split("\n")[0]!, body: reply },
+    )
     return true
   }
   // Takes an agent past what it asked, once the person answered: it waits no more, and
@@ -231,7 +251,7 @@ export const demoTurns = (turnMs = demoTurnMs) => {
       const { program, began } = take(key, terminal)
       const id = terminalKeyId(key)
       const after = options?.after ?? turnMs
-      const { gist, background, error, waiting: waits } = options ?? {}
+      const { gist, background, error, waiting: waits, done, limit } = options ?? {}
       // A turn that ends in the harness's or the API's error has said nothing of its own.
       const reply = error ? undefined : (options?.reply ?? replies[outcome])
       if (began) emit({ type: "begin", key })
@@ -243,6 +263,7 @@ export const demoTurns = (turnMs = demoTurnMs) => {
             ...(reply ? { reply } : {}),
             ...(gist ? { gist } : {}),
             ...(error ? { error } : {}),
+            ...(limit ? { limit } : {}),
             at: Date.now(),
           }
           // Its subagents keep it working until they finish, as the runner reports it.
@@ -253,7 +274,13 @@ export const demoTurns = (turnMs = demoTurnMs) => {
             ...(waits ? { waiting: waitingOf(waits, lastTurn.at) } : {}),
             lastTurn,
           })
-          emit({ type: "end", key, outcome, ...(reply ? { reply } : {}) })
+          emit({
+            type: "end",
+            key,
+            outcome,
+            ...(reply ? { reply } : {}),
+            ...(done ? { done } : {}),
+          })
           if (!waiting) {
             return void active.delete(id)
           }

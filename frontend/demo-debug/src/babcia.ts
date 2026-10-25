@@ -18,12 +18,12 @@ export const babciaGroups = (cues: BabciaCues | undefined): readonly DemoActionG
             },
             {
               label: "1a · Permission only",
-              hint: "Order form asks to run pnpm test: an Approve row",
+              hint: "Order form asks to run pnpm test: an Unblock row",
               run: () => cues.permission(),
             },
             {
               label: "1b · Plan only",
-              hint: "Accessibility's plan waits for approval: an Approve row",
+              hint: "Accessibility's plan waits for approval: an Unblock row",
               run: () => cues.plan(),
             },
             {

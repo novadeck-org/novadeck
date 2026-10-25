@@ -1,5 +1,5 @@
 import { itemFixture, terminalFixture } from "@novadeck/core/testing"
-import type { AgentWaiting, Tile } from "@novadeck/core/types"
+import type { AgentStatus, AgentWaiting, Tile } from "@novadeck/core/types"
 import { render } from "@novadeck/test-kit/render"
 import { Portal } from "@novadeck/toolkit/Portal"
 import { createElement } from "react"
@@ -211,6 +211,106 @@ describe("terminal frame bar", () => {
       )
       expect(window.querySelector("section")?.getAttribute("data-terminal-phase")).toBe("idle")
       expect(window.querySelector(".window-wait")).toBeNull()
+    })
+  })
+})
+
+describe("terminal frame marks", () => {
+  const agent = (status: AgentStatus): Tile => ({
+    ...terminalFixture(1, "~/p"),
+    state: "running",
+    process: "claude",
+    agent: status,
+  })
+  const section = (frame: HTMLElement): Element => frame.querySelector("section")!
+  const need = (frame: HTMLElement): string | undefined =>
+    frame.querySelector(".terminal-need")?.textContent
+
+  context("while the agent's dialog is open", () => {
+    it("marks the need at once, after the name, with the state still what the agent does", () => {
+      const asks = renderFrame(agent({ working: false, attention: { kind: "question", count: 1 } }))
+      expect(need(asks)).toBe("?")
+      expect(section(asks).getAttribute("data-terminal-need")).toBe("ask")
+      expect(section(asks).getAttribute("data-terminal-phase")).toBe("idle")
+      const permission = renderFrame(
+        agent({ working: true, attention: { kind: "permission", count: 1 } }),
+      )
+      expect(need(permission)).toBe("!")
+      // Its harness keeps its turn open, but a dialog stops it: idle, so the line warns.
+      expect(section(permission).getAttribute("data-terminal-phase")).toBe("idle")
+    })
+
+    it("keeps the sweep of an agent that works on with a need from the Inbox on the side", () => {
+      const frame = renderFrame(agent({ working: true }), { need: "ask" })
+      expect(need(frame)).toBe("?")
+      expect(section(frame).getAttribute("data-terminal-phase")).toBe("running")
+    })
+
+    it("lets an unblock from the Inbox win over a question", () => {
+      const frame = renderFrame(
+        agent({ working: false, attention: { kind: "question", count: 1 } }),
+        { need: "unblock" },
+      )
+      expect(need(frame)).toBe("!")
+    })
+
+    it("says the need in words, with the subject of the item behind it", () => {
+      const frame = renderFrame(agent({ working: false }), {
+        need: "ask",
+        needSubject: "Where should feedback go?",
+      })
+      expect(section(frame).getAttribute("aria-description")).toBe(
+        "Asks: Where should feedback go?",
+      )
+    })
+  })
+
+  it("shows no need for an agent that needs nothing", () => {
+    const frame = renderFrame(agent({ working: false }))
+    expect(need(frame)).toBeUndefined()
+    expect(section(frame).hasAttribute("data-terminal-need")).toBe(false)
+  })
+
+  context("while the agent is paused at its usage limit", () => {
+    const resetsAt = new Date(2026, 9, 25, 15, 40).getTime()
+    const paused = agent({
+      working: false,
+      lastTurn: { at: 1, outcome: "failed", limit: { minutes: 300, resetsAt } },
+    })
+
+    it("reads paused, with the reset time after the name, and says so in words", () => {
+      const frame = renderFrame(paused)
+      expect(section(frame).getAttribute("data-terminal-phase")).toBe("paused")
+      expect(frame.querySelector(".terminal-paused")?.textContent).toBe("∅ 15:40")
+      expect(section(frame).getAttribute("aria-description")).toBe(
+        "Paused at its usage limit · resets 15:40",
+      )
+    })
+
+    it("adds the need once the Inbox says it waits on the person to continue", () => {
+      const frame = renderFrame(paused, { need: "unblock" })
+      expect(need(frame)).toBe("!")
+      expect(section(frame).getAttribute("data-terminal-phase")).toBe("paused")
+    })
+  })
+
+  context("when the agent reported done", () => {
+    it("reads done only for the report, never for an unread reply", () => {
+      const resting = agent({ working: false, lastTurn: { at: 1, outcome: "completed" } })
+      expect(
+        section(renderFrame(resting, { unread: "unread" })).getAttribute("data-terminal-phase"),
+      ).toBe("idle")
+      const reported = renderFrame(resting, { reported: true })
+      expect(section(reported).getAttribute("data-terminal-phase")).toBe("done")
+      expect(section(reported).getAttribute("aria-description")).toBe("Done · report unread")
+    })
+
+    it("reads a turn that failed as done on an error", () => {
+      const frame = renderFrame(agent({ working: false, lastTurn: { at: 1, outcome: "failed" } }), {
+        unread: "failed",
+      })
+      expect(section(frame).getAttribute("data-terminal-phase")).toBe("done")
+      expect(section(frame).getAttribute("data-terminal-failed")).toBe("true")
     })
   })
 })

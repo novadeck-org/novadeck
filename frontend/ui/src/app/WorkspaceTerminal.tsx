@@ -40,6 +40,7 @@ import {
 } from "./selectors"
 import { useTerminalBar } from "./terminal-bar"
 import { chatViewOn } from "./ui-store"
+import { useTerminalMarks } from "./useTerminalMarks"
 
 // What every window in the current view takes from the workspace, a terminal's or one
 // undocked from a companion: its header, its menu, and the controls its layout offers.
@@ -70,6 +71,9 @@ const useWindowFrame = (
     }),
     shallowEqual,
   )
+  const target = useWorkspaceState(currentTarget, sameTarget)
+  // What the raw Inbox says of it, not the landing rule's, which hides rows from its list only.
+  const { need, done, subject } = useTerminalMarks(backend.inbox, { ...target, terminalId: id })
   const compact = view !== "focus"
   const destination = windowedDestination(windowedView, enabledViews)
   const windowedLabel = destination === "canvas" ? "Canvas" : "Grid"
@@ -80,6 +84,9 @@ const useWindowFrame = (
     active,
     fresh,
     unread,
+    need,
+    needSubject: subject,
+    reported: done,
     rename: renameView(rename),
     onBeginRename: () => startRename(tile, "header"),
     onRenameDraft: (draft) => changeRenameDraft(id, draft),

@@ -1046,7 +1046,7 @@ export const agentMessage = z.strictObject({
   held: z.enum(["paused", "release"]).nullable(),
   deliveredAt: z.number().nullable(),
   // Only the runner creates Inbox history and responses. Ordinary agent mail has none.
-  inbox: z.enum(["ask", "tell", "answer"]).optional(),
+  inbox: z.enum(["ask", "tell", "done", "answer"]).optional(),
   inboxState: z.enum(["open", "answered", "read", "withdrawn", "gone", "undelivered"]).optional(),
 })
 

@@ -54,8 +54,7 @@ export const watchInboxToasts = (
     const standing = new Set(ringing(inbox.state.getSnapshot().items).map(keyOf))
     const items = [...held.values()]
     held.clear()
-    for (const item of items)
-      if (standing.has(keyOf(item)) && mayToast(item, state, desktop)) show(item)
+    for (const item of items) if (standing.has(keyOf(item)) && mayToast(state, desktop)) show(item)
   }
   // The person has got to what the toasts say: all of them if the Inbox shows, else the one
   // of the terminal they selected. A modal dialog opening takes them all away too, as one
@@ -75,7 +74,7 @@ export const watchInboxToasts = (
     graceMs,
     ring: (item) => {
       const state = ui.getSnapshot()
-      if (!mayToast(item, state, desktop)) return false
+      if (!mayToast(state, desktop)) return false
       if (modalOpen(state)) {
         // Rung all the same, so its leaving is followed: closing a toast never shown is a no-op.
         held.set(item.source.terminalId, item)

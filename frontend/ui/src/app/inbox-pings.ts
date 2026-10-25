@@ -77,8 +77,9 @@ export const needNotice = (item: InboxItem): Notice => {
 }
 
 // What a click on a terminal's notification does: the Inbox opens on the item the notice was
-// about (`itemId`) if it still stands (a finish notice names its row); without one, or once it
-// has gone, the terminal's finish, else its first item, and the terminal itself when it has none.
+// about (`itemId`) if it still stands (a notice names its row); without one, or once it
+// has gone, the terminal's done report, else its first item, and the terminal itself when it
+// has none.
 export const clickNotice = (
   terminalId: string,
   items: readonly InboxItem[],
@@ -93,7 +94,7 @@ export const clickNotice = (
   const item =
     its.find(({ id }) => id === itemId) ??
     (itemId === undefined
-      ? its.find((each) => each.kind === "update" && each.update.type === "finished")
+      ? its.find((each) => each.kind === "update" && each.update.type === "done")
       : undefined) ??
     its[0]
   if (!item) return to.reveal(terminalId)
@@ -276,7 +277,7 @@ export const watchInboxPings = (
       const state = ui.getSnapshot()
       if (!state.preferences.notifyNeeds || !board) return false
       if (state.pageFocused) {
-        if (!heldForToast(item, state, desktop)) return false
+        if (!heldForToast(state, desktop)) return false
         deferred.set(keyOf(item), item)
         return true
       }

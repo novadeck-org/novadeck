@@ -36,7 +36,7 @@ describe("A toast's words", () => {
       handle: "crow",
       said: "wants to run a command",
       command: "pnpm typecheck",
-      type: "approve",
+      type: "unblock",
       tone: "waiting",
       age: "now",
       title: "Typecheck sweep",

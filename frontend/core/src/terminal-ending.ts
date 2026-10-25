@@ -1,4 +1,4 @@
-import { waitingOf } from "./agent-waiting"
+import { clockTime, waitingOf } from "./agent-waiting"
 import { isAgentProgram } from "./process"
 import type { TerminalMetadata } from "./types"
 
@@ -41,67 +41,89 @@ export const terminalEnding = (terminal: TerminalMetadata): TerminalEnding | nul
 export const endingText = ({ status, reason }: TerminalEnding): string =>
   reason ? `${status} · ${reason}` : status
 
-// What a terminal shows at a glance, in its tab and on its window: a shell starting,
-// idle at its prompt, running a program, waiting on the person, unheard, or ended. An
-// agent that reports through its hooks reads as running only while it works, its turn
-// or what that left running, and as waiting while it asks for permission or a question.
+// What a terminal shows at a glance, in its tab and on its window, as the state of what it
+// does: a shell starting, idle at its prompt, running a program, waiting on something that
+// wakes it, paused at a usage limit, done, unheard, or ended. An agent that reports through
+// its hooks reads as running only while it works, its turn or what that left running.
 // An agent Novadeck hears nothing from, as its hooks aren't connected or trusted, is
-// unheard: whether it works or waits, nothing tells. A clean exit closes the terminal, so
-// a finished one reads as idle for the moment it remains. One idle whose agent finished
-// while the person looked elsewhere, its reply `unread`, is done until they look. Once that
-// is seen, one whose turn ended on something it waits on, which wakes it with no word from
-// anyone, is waiting, not idle. A person's request and a finish unseen outrank it, and
-// work outranks all.
+// unheard: whether it works or waits, nothing tells. A clean exit closes the terminal, so a
+// finished one reads as idle for the moment it remains.
+//
+// `done` is what the caller says is unseen and final: a report the agent made itself (its
+// MCP `done` call) or a turn that stopped on an error, never a turn that merely ended. A
+// reply the person hasn't read leaves an idle agent idle, for its tab to brighten its
+// program. A dialog the agent waits on (`attention`) rests it too. A limit pauses an agent that stopped on one until it works again. What an agent
+// needs of the person, a dialog or an ask, is no phase: see `terminalNeedMark`.
 export type TerminalPhase =
   | "starting"
   | "idle"
   | "done"
   | "running"
   | "waiting"
-  | "attention"
+  | "paused"
   | "unheard"
   | "ended"
 
+// When the usage limit an agent is paused at resets, in epoch milliseconds: set while its
+// last turn ended on a limit with a known window and the agent does not work.
+export const pausedUntil = (terminal: TerminalMetadata): number | undefined =>
+  terminal.state === "running" && terminal.agent && !terminal.agent.working
+    ? terminal.agent.lastTurn?.limit?.resetsAt
+    : undefined
+
 export const terminalPhase = (
   terminal: TerminalMetadata,
-  unread = false,
+  done = false,
   now = Date.now(),
 ): TerminalPhase => {
   if (terminal.state === "exited" || terminal.state === "failed") return "ended"
   if (terminal.state === "starting") return "starting"
-  if (terminal.state !== "running") return unread ? "done" : "idle"
-  if (terminal.agent?.attention) return "attention"
+  if (terminal.state !== "running") return done ? "done" : "idle"
   if (!terminal.agent && isAgentProgram(terminal.process)) return "unheard"
-  if (terminal.agent && !terminal.agent.working) {
-    if (unread) return "done"
+  // A dialog it shows stops it: its harness keeps the turn open, but nothing works until the
+  // person answers, so it rests as far as the glyph and the window's line say.
+  if (terminal.agent && (!terminal.agent.working || terminal.agent.attention)) {
+    if (pausedUntil(terminal) !== undefined) return "paused"
+    if (done) return "done"
     return waitingOf(terminal, now) ? "waiting" : "idle"
   }
   return "running"
 }
 
-// What a terminal asks of the person: an agent asking a question, waiting on a permission
-// or a plan to review, or one that finished while they looked elsewhere, on an error or on
-// its own. Most pressing first.
-export const terminalAsks = ["question", "permission", "plan", "failed", "done"] as const
-export type TerminalAsk = (typeof terminalAsks)[number]
+// What a terminal needs of the person, for the mark right after its program: `unblock` (a
+// permission, a plan, a held message, an action only they can do) or `ask` (a question).
+export type TerminalNeed = "unblock" | "ask"
 
-// What the terminal asks, as its phase reads: the kind of request it waits on, or, as its
-// reply is unread (`end`, how that turn ended), the way it finished. Undefined otherwise,
-// as for a request over an unread reply, or an ended terminal.
-export const terminalAsk = (
-  terminal: TerminalMetadata,
-  end?: "done" | "failed",
-): TerminalAsk | undefined => {
-  const phase = terminalPhase(terminal, end !== undefined)
-  if (phase === "attention")
-    return terminal.state === "running" ? terminal.agent?.attention?.kind : undefined
-  return phase === "done" ? end : undefined
+// What a dialog its agent shows now needs, which shows at once, before the Inbox's row:
+// a question asks, a permission or a plan unblocks.
+export const attentionNeed = (terminal: TerminalMetadata): TerminalNeed | undefined => {
+  const attention = terminal.state === "running" ? terminal.agent?.attention : undefined
+  if (!attention) return undefined
+  return attention.kind === "question" ? "ask" : "unblock"
 }
 
+// The mark: the need the Inbox's items make (`terminalNeed` in inbox.ts) and the one its
+// live dialog makes, an unblock winning.
+export const terminalNeedMark = (
+  terminal: TerminalMetadata,
+  inbox?: TerminalNeed,
+): TerminalNeed | undefined =>
+  inbox === "unblock" || attentionNeed(terminal) === "unblock"
+    ? "unblock"
+    : (inbox ?? attentionNeed(terminal))
+
 // What a done terminal says, in words for its tab's description, its window and assistive
-// technology: done, or stopped on an error, its reply unread either way.
+// technology: it reported its task done, or its turn stopped on an error, until the person
+// looks.
 export const doneText = (failed = false): string =>
-  failed ? "Stopped with an error · reply unread" : "Done · reply unread"
+  failed ? "Stopped with an error · reply unread" : "Done · report unread"
+
+// What a paused agent says: it stopped at its usage limit, with when it resets as the clock
+// reads it ("Paused at its usage limit · resets 15:40").
+export const pausedText = (terminal: TerminalMetadata): string | undefined => {
+  const at = pausedUntil(terminal)
+  return at === undefined ? undefined : `Paused at its usage limit · resets ${clockTime(at)}`
+}
 
 // What the terminal's phase leaves unsaid at a glance, in words for its tooltip and
 // assistive technology: that Novadeck can't hear from its agent. Undefined otherwise.
@@ -126,4 +148,17 @@ export const attentionText = (terminal: TerminalMetadata): string | undefined =>
         ? "Plan ready for review"
         : "Needs permission"
   return waitingText(what, attention.count)
+}
+
+// What a terminal needs, in words for its description: what it asks or needs, with the
+// Inbox item's subject where there is one ("Asks: Where should feedback go?"), else what
+// its dialog says, else the need alone.
+export const needText = (
+  terminal: TerminalMetadata,
+  need: TerminalNeed | undefined,
+  subject?: string,
+): string | undefined => {
+  if (!need) return undefined
+  if (subject) return `${need === "ask" ? "Asks" : "Needs you"}: ${subject}`
+  return attentionText(terminal) ?? (need === "ask" ? "Asks a question" : "Needs you")
 }

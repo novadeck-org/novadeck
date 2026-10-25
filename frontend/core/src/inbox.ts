@@ -10,14 +10,15 @@ import type { Workspace } from "./types"
 // there, without going to the terminal. Each item is one of six sources, and the UI
 // presents it as one of five types:
 // - `request`: a prompt the agent's harness shows and Novadeck reads from its screen
-//   (`ChatRequest`, as the chat view has it). A permission or plan is an Approve, a
+//   (`ChatRequest`, as the chat view has it). A permission or plan is an Unblock, a
 //   question an Ask; a dialog Novadeck can't read (`raw`) is answered in the terminal.
 // - `held`: a message between two agents that Novadeck holds until the person releases
-//   it, as its two agents kept messaging while neither worked (an Approve).
-// - `ask`: what the agent asked through Novadeck's MCP `ask` tool (an Ask).
+//   it, as its two agents kept messaging while neither worked (an Unblock).
+// - `ask`: what the agent asked through Novadeck's MCP `ask` tool (an Ask, or an Unblock where
+//   its answer is an action only the person can do, as a sign-in).
 // - `trouble`: what Novadeck noticed about the agent: stuck, at a usage limit, failed, or
 //   its messages held long behind what keeps the doorbell from waking it.
-// - `update`: a finished turn, or what the agent told through the MCP `tell` tool.
+// - `update`: what the agent reported through the MCP `done` tool, or told through `tell`.
 // - `feedback`: feedback the person asked the agent to write (see `feedback`), waiting for
 //   the person to send or discard it (a Feedback).
 // Agents write subjects, bodies and options; Novadeck shows them as they are.
@@ -120,17 +121,10 @@ export type Trouble =
   | { readonly type: "failed"; readonly error: string | null; readonly stored?: true }
   | { readonly type: "waits"; readonly waits: MailWaits | null; readonly count: number }
 
-// A finished turn, with the start of the agent's last reply (or murmur's gist of it) and
-// the files its edit tools wrote in the turn; or something the agent told the person.
+// What the agent reported through the MCP `done` tool (its task is finished), or told the
+// person through `tell`. A finished turn alone makes none.
 export type Update =
-  | {
-      readonly type: "finished"
-      readonly subject: string
-      readonly reply: string
-      readonly files: readonly string[]
-      // Set where it is a stored turn row (read by id).
-      readonly stored?: true
-    }
+  | { readonly type: "done"; readonly subject: string; readonly body: string }
   | { readonly type: "told"; readonly subject: string; readonly body: string }
 
 export type InboxContent =
@@ -152,12 +146,14 @@ export type InboxItem = InboxContent & {
   readonly seen: boolean
 }
 
-// The five ways the Inbox presents an item.
-export type InboxType = "approve" | "ask" | "trouble" | "update" | "feedback"
+// The five ways the Inbox presents an item: Unblock (the agent can't go on without the
+// person's yes or action), Ask (a question), Trouble, Update and Feedback.
+export type InboxType = "unblock" | "ask" | "trouble" | "update" | "feedback"
 
 export const inboxType = (item: InboxContent): InboxType => {
-  if (item.kind === "request") return item.request.kind === "question" ? "ask" : "approve"
-  if (item.kind === "held") return "approve"
+  if (item.kind === "request") return item.request.kind === "question" ? "ask" : "unblock"
+  if (item.kind === "held") return "unblock"
+  if (item.kind === "ask" && item.ask.shape.type === "action") return "unblock"
   return item.kind
 }
 
@@ -209,7 +205,7 @@ export const emptyInbox: InboxState = { items: [], answering: {}, failed: {} }
 export type InboxFinish = { readonly context: string; readonly terminalId: string }
 
 // A finished turn the backend stored as its own row, completed or failed, until the person
-// reads it. `reply` and `gist` are the start of the agent's reply and murmur's words for it;
+// reads it: a completed one only marks its tab unread, a failed one is a Trouble row. `reply` and `gist` are the start of the agent's reply and murmur's words for it;
 // `error` a failed turn's error; null where the harness gave none. `at` is the end's
 // `lastTurn.at`: with `terminalId` it tells this end from any other.
 export type InboxTurn = {
@@ -291,3 +287,41 @@ export const noInbox: Inbox = {
   see: () => {},
   readAll: () => {},
 }
+
+// The terminal an unseen-or-not check is about: its full address.
+export type TerminalAt = {
+  readonly projectId: string
+  readonly workspaceSessionId: string
+  readonly terminalId: string
+}
+
+const atTerminal = (item: InboxItem, at: TerminalAt): boolean =>
+  item.source.projectId === at.projectId &&
+  item.source.workspaceSessionId === at.workspaceSessionId &&
+  item.source.terminalId === at.terminalId
+
+// What a terminal needs of the person, for its tab's mark: "unblock" for any Unblock item
+// or a limit past its reset that Novadeck won't resume from; otherwise "ask" for any Ask;
+// otherwise nothing. Trouble and updates don't count. Takes every item, as the backend
+// lists them: the landing rule hides rows from the Inbox, never from the marks.
+export const terminalNeed = (
+  items: readonly InboxItem[],
+  at: TerminalAt,
+  now: number,
+): "unblock" | "ask" | undefined => {
+  const mine = items.filter((item) => atTerminal(item, at))
+  const limitReset = (item: InboxItem): boolean =>
+    item.kind === "trouble" &&
+    item.trouble.type === "limit" &&
+    item.trouble.resetsAt <= now &&
+    item.trouble.autoResume !== true
+  if (mine.some((item) => inboxType(item) === "unblock" || limitReset(item))) return "unblock"
+  return mine.some((item) => inboxType(item) === "ask") ? "ask" : undefined
+}
+
+// Whether the terminal has a `done` report the person hasn't seen.
+export const terminalDone = (items: readonly InboxItem[], at: TerminalAt): boolean =>
+  items.some(
+    (item) =>
+      atTerminal(item, at) && !item.seen && item.kind === "update" && item.update.type === "done",
+  )

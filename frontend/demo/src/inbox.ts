@@ -19,7 +19,7 @@ import {
   keepInbox,
   keyOf,
 } from "@novadeck/core/inbox-answers"
-import { dialogMs, inboxItems, type Asked } from "@novadeck/core/inbox-items"
+import { dialogMs, inboxItems, type Asked, type InboxLetter } from "@novadeck/core/inbox-items"
 import { noMail, type InboxHistory, type Messages } from "@novadeck/core/messages"
 import { terminalKeyId } from "@novadeck/core/registry"
 import { createStore, type Store } from "@novadeck/core/store"
@@ -44,11 +44,18 @@ export type DemoInbox = Inbox & {
   readonly failNext: (reason?: string) => void
   readonly resolve: (id: string, outcome: "withdrawn" | "gone") => void
   readonly dropReplyNext: () => void
+  // The terminal's agent called `done`: its report becomes an Update once the terminal is
+  // there, as the runner's done letter does, and a lead's workers' hide as its own do.
+  readonly done: (key: TerminalKey, report: { subject: string; body: string }) => void
 }
 
 // Whether a backend's Inbox is the demo's, which the debug panel adds items to.
 export const isDemoInbox = (inbox: Inbox | undefined): inbox is DemoInbox =>
-  inbox !== undefined && "add" in inbox && "clear" in inbox && "failNext" in inbox
+  inbox !== undefined &&
+  "add" in inbox &&
+  "clear" in inbox &&
+  "failNext" in inbox &&
+  "done" in inbox
 
 // An answer fits the item it is for, by source.
 const answers = (content: InboxContent, answer: InboxAnswer): boolean =>
@@ -143,7 +150,7 @@ const merged = (own: readonly InboxItem[], derived: readonly InboxItem[]): Inbox
 }
 
 // The demo's Inbox, built as the runner's is once the app binds it (core's `inboxItems`):
-// what its agents wait on, their finishes and the messages held for release, answered
+// what its agents wait on, their done reports and the messages held for release, answered
 // through their conversations and messages, so an answer here moves the agent on as one on
 // its screen does. Over those, the items the demo shows that its agents don't make: `items`,
 // the Inbox demo's showcase, and what the debug panel adds, answered for a moment and then
@@ -172,7 +179,7 @@ export const createDemoInbox = (
     })
   }
   const state = createStore<InboxState>(combine(emptyInbox))
-  // The finished turns it stores, as the runner stores them: until read, while their terminal
+  // The finished turns it stores, as the runner stores them (a completed one only marks its tab): until read, while their terminal
   // is there. Undefined while nothing is bound.
   const turns = createStore<readonly InboxTurn[] | undefined>(undefined)
   const dropTurns = (drop: (row: InboxTurn) => boolean): void => {
@@ -181,7 +188,28 @@ export const createDemoInbox = (
       return kept && current && kept.length < current.length ? kept : current
     })
   }
-  const readTurns = (ids: readonly string[]): void => dropTurns((row) => ids.includes(row.id))
+  // The done letters its agents wrote, until read, as the runner stores them with the asks.
+  let doneCount = 0
+  let doneLetters: readonly {
+    readonly id: string
+    readonly key: TerminalKey
+    readonly agent: AgentName
+    readonly handle: string
+    readonly at: number
+    readonly subject: string
+    readonly body: string
+  }[] = []
+  const readTurns = (ids: readonly string[]): void => {
+    for (const id of ids) {
+      const item = derived.getSnapshot().items.find((each) => each.id === id)
+      if (item?.kind === "update") record(item, { kind: "update", action: "read" })
+    }
+    dropTurns((row) => ids.includes(row.id))
+    if (doneLetters.some(({ id }) => ids.includes(id))) {
+      doneLetters = doneLetters.filter(({ id }) => !ids.includes(id))
+      recompute()
+    }
+  }
   own.subscribe(() => state.update(combine))
   derived.subscribe(() => state.update(combine))
 
@@ -241,10 +269,18 @@ export const createDemoInbox = (
       workspace,
       turns: turns.getSnapshot() ?? [],
       mail: sources.messages?.state.getSnapshot() ?? noMail,
-      letters: [],
+      letters: doneLetters.map(({ key, ...letter }): InboxLetter => ({
+        id: letter.id,
+        terminalId: key.terminalId,
+        projectId: key.projectId,
+        workspaceSessionId: key.workspaceSessionId,
+        agent: letter.agent,
+        handle: letter.handle,
+        at: letter.at,
+        content: { kind: "done", subject: letter.subject, body: letter.body },
+      })),
       requests,
       now: at,
-      caseless: false,
       // The demo's messages wait for no idle agent long.
       longHoldMs: null,
     })
@@ -325,6 +361,7 @@ export const createDemoInbox = (
         for (const each of followed.values()) each.stop()
         followed.clear()
         tracker.reset()
+        doneLetters = []
         asked.clear()
         if (binding === next) binding = null
         derived.update(() => emptyInbox)
@@ -410,14 +447,13 @@ export const createDemoInbox = (
         ...current,
         items: current.items.filter((each) => each.kind !== "update"),
       }))
-      // The finishes, and the failed turns that no longer stop their agent; what does stays.
-      const shown = new Set(
-        derived
-          .getSnapshot()
-          .items.filter((each) => each.kind === "update" || (isTurnRow(each) && !each.stopped))
-          .map((each) => each.id),
-      )
-      if (shown.size > 0) dropTurns((row) => shown.has(row.id))
+      // The done reports, and the failed turns that no longer stop their agent; what does
+      // stays.
+      const shown = derived
+        .getSnapshot()
+        .items.filter((each) => each.kind === "update" || (isTurnRow(each) && !each.stopped))
+        .map((each) => each.id)
+      if (shown.length > 0) readTurns(shown)
     },
     add: (added) => {
       record(added)
@@ -434,6 +470,35 @@ export const createDemoInbox = (
     },
     dropReplyNext: () => {
       dropping = true
+    },
+    done: (key, report) => {
+      const workspace = binding?.workspace.getSnapshot()
+      const project = workspace?.projects.find((each) => each.id === key.projectId)
+      const terminal = workspace && terminalAt(workspace, key)
+      if (!project || terminal?.state !== "running") return
+      const at = Date.now()
+      doneCount += 1
+      const id = `letter:demo-done-${doneCount}`
+      const agent = terminal.process as AgentName
+      const handle = terminal.handle ?? ""
+      doneLetters = [...doneLetters, { id, key, agent, handle, at, ...report }]
+      recompute()
+      // The Messages trace keeps it whether or not the Inbox shows it, as the runner's does.
+      record({
+        id,
+        source: {
+          ...key,
+          handle,
+          agent,
+          title: terminal.name,
+          projectName: project.name,
+        },
+        at,
+        stopped: false,
+        seen: false,
+        kind: "update",
+        update: { type: "done", ...report },
+      })
     },
     clear: () => change(() => emptyInbox),
     failNext: (reason = "The agent didn't take that answer. Try again.") => {

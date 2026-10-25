@@ -1,9 +1,12 @@
 import {
   attentionText,
+  doneText,
   endingText,
-  terminalAsk,
-  terminalAsks,
+  needText,
+  pausedText,
+  pausedUntil,
   terminalEnding,
+  terminalNeedMark,
   terminalPhase,
   unheardText,
 } from "./terminal-ending"
@@ -60,7 +63,7 @@ describe("terminal ending", () => {
     expect(terminalPhase({ ...terminal, state: "failed", message: "" })).toBe("ended")
   })
 
-  it("reads an agent by what its hooks say: working, idle, or waiting on the person", () => {
+  it("reads an agent by what its hooks say: working or idle, a dialog being no phase", () => {
     const agent = (working: boolean, kind?: "permission" | "question") =>
       terminalPhase({
         ...terminal,
@@ -69,7 +72,50 @@ describe("terminal ending", () => {
       })
     expect(agent(true)).toBe("running")
     expect(agent(false)).toBe("idle")
-    expect(agent(true, "permission")).toBe("attention")
+    // It waits on a dialog: the need mark shows that, the glyph what it does.
+    expect(agent(false, "permission")).toBe("idle")
+    // Its harness keeps the turn open while the dialog waits, but nothing works until they answer.
+    expect(agent(true, "question")).toBe("idle")
+    expect(agent(true, "permission")).toBe("idle")
+  })
+
+  it("is done only from a done input, never from a turn that ended", () => {
+    const resting: TerminalMetadata = {
+      ...terminal,
+      state: "running",
+      agent: { working: false, lastTurn: { at: 1, outcome: "completed" } },
+    }
+    expect(terminalPhase(resting)).toBe("idle")
+    expect(terminalPhase(resting, true)).toBe("done")
+    expect(terminalPhase({ ...resting, agent: { working: true } }, true)).toBe("running")
+  })
+
+  it("pauses an agent that stopped on a usage limit, until it works again", () => {
+    const at = new Date(2026, 9, 25, 15, 40).getTime()
+    const limited = (working: boolean): TerminalMetadata => ({
+      ...terminal,
+      state: "running",
+      agent: {
+        working,
+        lastTurn: { at: 1, outcome: "failed", limit: { minutes: 300, resetsAt: at } },
+      },
+    })
+    expect(terminalPhase(limited(false))).toBe("paused")
+    // Paused outranks done: what it does now is stopped.
+    expect(terminalPhase(limited(false), true)).toBe("paused")
+    expect(terminalPhase(limited(true))).toBe("running")
+    expect(pausedUntil(limited(false))).toBe(at)
+    expect(pausedUntil(limited(true))).toBeUndefined()
+    expect(pausedText(limited(false))).toBe("Paused at its usage limit · resets 15:40")
+    expect(pausedText(limited(true))).toBeUndefined()
+    // Limited with no window known has no time to show.
+    expect(
+      terminalPhase({
+        ...terminal,
+        state: "running",
+        agent: { working: false, lastTurn: { at: 1, outcome: "failed", limited: true } },
+      }),
+    ).toBe("idle")
   })
 
   it("reads an agent Novadeck hears nothing from as unheard, any other program as running", () => {
@@ -101,39 +147,42 @@ describe("terminal ending", () => {
   })
 })
 
-describe("terminal ask", () => {
-  const running = (
-    kind?: "question" | "permission" | "plan",
-    working = true,
-  ): TerminalMetadata => ({
+describe("terminal need mark", () => {
+  const running = (kind?: "question" | "permission" | "plan"): TerminalMetadata => ({
     ...terminal,
     state: "running",
     process: "claude",
-    agent: { working, ...(kind ? { attention: { kind, count: 1 } } : {}) },
-  })
-
-  it("lists what is asked most pressing first", () => {
-    expect(terminalAsks).toEqual(["question", "permission", "plan", "failed", "done"])
+    agent: { working: false, ...(kind ? { attention: { kind, count: 1 } } : {}) },
   })
 
   it.each([
-    ["a question", running("question"), undefined, "question"],
-    ["a permission", running("permission"), undefined, "permission"],
-    ["a plan", running("plan"), undefined, "plan"],
-    ["a request over an unread reply", running("plan"), "done", "plan"],
-    ["an unread finish", running(undefined, false), "done", "done"],
-    ["an unread failure", running(undefined, false), "failed", "failed"],
-    ["a finish unread at an idle prompt", { ...terminal, state: "idle" }, "done", "done"],
-    ["a reply read", running(undefined, false), undefined, undefined],
-    ["an agent at work", running(), undefined, undefined],
-    ["an unread finish while it works again", running(), "done", undefined],
-    [
-      "an ended terminal",
-      { ...terminal, state: "exited", exitCode: 1, signal: null },
-      "done",
-      undefined,
-    ],
-  ] as const)("reads %s", (_, metadata, end, ask) => {
-    expect(terminalAsk(metadata as TerminalMetadata, end)).toBe(ask)
+    ["a question", running("question"), undefined, "ask"],
+    ["a permission", running("permission"), undefined, "unblock"],
+    ["a plan", running("plan"), undefined, "unblock"],
+    ["an item's ask", running(), "ask", "ask"],
+    ["an item's unblock", running(), "unblock", "unblock"],
+    ["a question over an unblock item", running("question"), "unblock", "unblock"],
+    ["a permission over an ask item", running("permission"), "ask", "unblock"],
+    ["a question over an ask item", running("question"), "ask", "ask"],
+    ["nothing", running(), undefined, undefined],
+    ["a dialog of an ended terminal", { ...running("plan"), state: "idle" }, undefined, undefined],
+  ] as const)("reads %s", (_, metadata, inbox, need) => {
+    expect(terminalNeedMark(metadata as TerminalMetadata, inbox)).toBe(need)
+  })
+
+  it("says the need in words, with the item's subject where there is one", () => {
+    expect(needText(running(), "ask", "Where should feedback go?")).toBe(
+      "Asks: Where should feedback go?",
+    )
+    expect(needText(running(), "unblock", "wrangler login")).toBe("Needs you: wrangler login")
+    expect(needText(running("permission"), "unblock")).toBe("Needs permission")
+    expect(needText(running(), "ask")).toBe("Asks a question")
+    expect(needText(running(), "unblock")).toBe("Needs you")
+    expect(needText(running(), undefined)).toBeUndefined()
+  })
+
+  it("words a done tab as a report, a failed one as an error", () => {
+    expect(doneText()).toBe("Done · report unread")
+    expect(doneText(true)).toBe("Stopped with an error · reply unread")
   })
 })

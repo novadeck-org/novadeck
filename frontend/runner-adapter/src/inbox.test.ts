@@ -282,20 +282,20 @@ describe("The runner's Inbox", () => {
   describe("binding", () => {
     it("shows what the app's state holds, and empties when it stops", async () => {
       const { inbox, stop, ids } = setup(
-        workspaceOf(agentTerminal(1, { working: false, lastTurn: turn({ reply: "ok" }) })),
-        done,
+        workspaceOf(agentTerminal(1, { working: false, lastTurn: turn({ outcome: "failed" }) })),
+        failed,
       )
       await settle()
-      expect(ids()).toEqual(["update:01:100"])
+      expect(ids()).toEqual(["trouble:01:100"])
 
       stop()
 
       expect(inbox.state.getSnapshot()).toEqual({ items: [], answering: {}, failed: {} })
     })
 
-    it("follows the stored turns and the messages", async () => {
+    it("follows the stored failed turns and the messages, and shows no completed one", async () => {
       const pair = workspaceOf(
-        agentTerminal(1, { working: false, lastTurn: turn() }),
+        agentTerminal(1, { working: false, lastTurn: turn({ outcome: "failed" }) }),
         agentTerminal(2, { working: false }, "codex"),
       )
       const { marks, mailStore, ids } = setup(pair)
@@ -303,25 +303,29 @@ describe("The runner's Inbox", () => {
 
       marks(done)
       await settle()
-      expect(ids()).toEqual(["update:01:100"])
+      expect(ids()).toEqual([])
+
+      marks(failed)
+      await settle()
+      expect(ids()).toEqual(["trouble:01:100"])
 
       mailStore.update(() => mailOf(thread()))
-      expect(ids()).toEqual(["held:th1", "update:01:100"])
+      expect(ids().toSorted()).toEqual(["held:th1", "trouble:01:100"])
       mailStore.update(() => mailOf(thread({ held: false })))
-      expect(ids()).toEqual(["update:01:100"])
+      expect(ids()).toEqual(["trouble:01:100"])
     })
 
     it("keeps an item's object while it reads the same", async () => {
       const { inbox, marks } = setup(
         workspaceOf(
-          agentTerminal(1, { working: false, lastTurn: turn() }),
-          agentTerminal(2, { working: false, lastTurn: turn({ at: 7 }) }),
+          agentTerminal(1, { working: false, lastTurn: turn({ outcome: "failed" }) }),
+          agentTerminal(2, { working: false, lastTurn: turn({ outcome: "failed", at: 7 }) }),
         ),
-        { "p/s": { "01": "done" } },
+        { "p/s": { "01": "failed" } },
       )
       await settle()
       const [before] = inbox.state.getSnapshot().items
-      marks({ "p/s": { "01": "done", "02": "done" } })
+      marks({ "p/s": { "01": "failed", "02": "failed" } })
       await settle()
 
       expect(inbox.state.getSnapshot().items.find((item) => item.id === before!.id)).toBe(before)
@@ -566,22 +570,28 @@ describe("The runner's Inbox", () => {
   })
 
   describe("updates", () => {
-    const finished = () =>
-      workspaceOf(
-        agentTerminal(1, { working: false, lastTurn: turn({ reply: "a" }) }),
-        agentTerminal(2, { working: false, lastTurn: turn({ reply: "b", at: 200 }) }),
-      )
-    const both: Marks = { "p/s": { "01": "done", "02": "done" } }
+    const report = (id: string, change: Partial<InboxLetter> = {}): InboxLetter =>
+      letter({
+        id,
+        content: { kind: "done", subject: `Report ${id}`, body: "All of it." },
+        ...change,
+      })
+    const two = () => workspaceOf(agentTerminal(1), agentTerminal(2, { working: false }, "codex"))
+    const fox = { terminalId: "02", handle: "fox", agent: "codex" as const }
 
-    it("reads one by its id, which the runner drops", async () => {
-      const { inbox, streams, ids } = setup(finished(), both)
+    it("reads a done report by its id, which the runner drops", async () => {
+      const { inbox, streams, letters, ids } = setup(two())
+      letters.push([report("done-1"), report("done-2", fox)])
       await settle()
-      inbox.answer("update:01:100", { kind: "update", action: "read" })
-      expect(inbox.state.getSnapshot().answering).toEqual({ "update:01:100": true })
+      expect(ids().toSorted()).toEqual(["done-1", "done-2"])
+      inbox.answer("done-1", { kind: "update", action: "read" })
+      expect(inbox.state.getSnapshot().answering).toEqual({ "done-1": true })
       await settle()
 
-      expect(streams.asks.read).toHaveBeenCalledExactlyOnceWith(["update:01:100"])
-      expect(ids()).toEqual(["update:02:200"])
+      expect(streams.asks.read).toHaveBeenCalledExactlyOnceWith(["done-1"])
+      letters.push([report("done-2", fox)])
+      await settle()
+      expect(ids()).toEqual(["done-2"])
       expect(inbox.state.getSnapshot().answering).toEqual({})
     })
 
@@ -616,17 +626,17 @@ describe("The runner's Inbox", () => {
 
     it("reads every update and failed row that only informs, leaving what waits on the person", async () => {
       const waiting = workspaceOf(
-        agentTerminal(1, { working: false, lastTurn: turn() }),
+        agentTerminal(1, { working: false }),
         agentTerminal(2, {
           working: false,
           lastTurn: turn({ outcome: "failed", at: 200, error: "x" }),
         }),
       )
-      const { inbox, streams, letters, ids } = setup(waiting, {
-        "p/s": { "01": "done", "02": "failed" },
-      })
+      const { inbox, streams, letters, ids } = setup(waiting, { "p/s": { "02": "failed" } })
       await settle()
       letters.push([
+        report("done-1"),
+        told("told-1"),
         {
           ...turnLettersOf(waiting, { "p/s": { "02": "failed" } })[0]!,
           id: "old-row",
@@ -637,21 +647,37 @@ describe("The runner's Inbox", () => {
       inbox.readAll()
       await settle()
 
-      expect(streams.asks.read).toHaveBeenCalledExactlyOnceWith(["old-row", "update:01:100"])
-      expect(ids()).toEqual(["trouble:02:200"])
+      expect(streams.asks.read).toHaveBeenCalledOnce()
+      expect(streams.asks.read.mock.calls[0]![0].toSorted()).toEqual([
+        "done-1",
+        "old-row",
+        "told-1",
+      ])
+      // What was submitted stays, answering, until the runner drops it; what waits stays too.
+      expect(ids().toSorted()).toEqual(["done-1", "told-1", "trouble:02:200"])
+      expect(Object.keys(inbox.state.getSnapshot().answering).toSorted()).toEqual([
+        "done-1",
+        "told-1",
+      ])
     })
 
     it("marks an item seen, here only, until it goes", async () => {
-      const { inbox, marks } = setup(finished(), both)
+      const { inbox, letters } = setup(two())
+      letters.push([report("done-1"), report("done-2", fox)])
       await settle()
-      inbox.see("update:01:100")
-      expect(inbox.state.getSnapshot().items.map((item) => item.seen)).toEqual([true, false])
+      inbox.see("done-1")
+      const seen = () =>
+        inbox.state
+          .getSnapshot()
+          .items.toSorted((a, b) => a.id.localeCompare(b.id))
+          .map((item) => item.seen)
+      expect(seen()).toEqual([true, false])
 
-      marks({ "p/s": { "02": "done" } })
+      letters.push([report("done-2", fox)])
       await settle()
-      marks(both)
+      letters.push([report("done-1"), report("done-2", fox)])
       await settle()
-      expect(inbox.state.getSnapshot().items.map((item) => item.seen)).toEqual([false, false])
+      expect(seen()).toEqual([false, false])
     })
   })
 
@@ -1176,6 +1202,45 @@ describe("Inbox letters", () => {
     expect(streams.asks.read).toHaveBeenCalledExactlyOnceWith(["told-1"])
   })
 
+  it("reads a done report through the runner, and lists it after its agent exited", async () => {
+    const exited: TerminalMetadata = {
+      ...agentTerminal(1),
+      state: "exited",
+      exitCode: 0,
+      signal: null,
+    }
+    const { letters, inbox, streams, ids } = setup(workspaceOf(exited))
+    letters.push([letter({ id: "done-1", content: { kind: "done", subject: "s", body: "b" } })])
+    await settle()
+    expect(inbox.state.getSnapshot().items).toMatchObject([
+      { id: "done-1", kind: "update", update: { type: "done" } },
+    ])
+    inbox.answer("done-1", { kind: "update", action: "read" })
+    expect(streams.asks.read).toHaveBeenCalledExactlyOnceWith(["done-1"])
+    inbox.readAll()
+    await settle()
+    expect(ids()).toEqual(["done-1"])
+  })
+
+  it("leaves a worker's done unread under its running lead when everything is read", async () => {
+    const worker: TerminalMetadata = { ...agentTerminal(2, { working: false }), ledBy: "moth" }
+    const { letters, inbox, streams, ids } = setup(workspaceOf(agentTerminal(1), worker))
+    letters.push([
+      letter({
+        id: "worker-done",
+        terminalId: "02",
+        handle: "fox",
+        content: { kind: "done", subject: "s", body: "b" },
+      }),
+      told(),
+    ])
+    await settle()
+    expect(ids()).toEqual(["told-1"])
+    inbox.readAll()
+    await settle()
+    expect(streams.asks.read).toHaveBeenCalledExactlyOnceWith(["told-1"])
+  })
+
   it("reads all known tells in batches, beside the more urgent ask", async () => {
     const { letters, inbox, streams, ids } = setup(workspaceOf(agentTerminal(1)))
     const tells = Array.from({ length: 1001 }, (_, index) => told(`tell-${index}`))
@@ -1200,6 +1265,7 @@ describe("Turn rows", () => {
       agentTerminal(2, { working: false, lastTurn: turn({ reply: "b", at: 200 }) }),
     )
   const both: Marks = { "p/s": { "01": "done", "02": "done" } }
+  const bothFailed: Marks = { "p/s": { "01": "failed", "02": "failed" } }
   const finish = { context: "p/s", terminalId: "01" }
 
   it("has no turns until the first listing, and none after the listing ended for good", async () => {
@@ -1247,7 +1313,7 @@ describe("Turn rows", () => {
   })
 
   it("hides a viewed terminal's rows at once, and keeps them hidden until a listing drops them", async () => {
-    const { inbox, streams, letters, ids } = setup(ws(), both)
+    const { inbox, streams, letters, ids } = setup(ws(), bothFailed)
     await settle()
     let answered: (() => void) | undefined
     streams.asks.read.mockImplementationOnce(
@@ -1258,20 +1324,20 @@ describe("Turn rows", () => {
     )
 
     inbox.readFinishes([finish])
-    expect(inbox.turns.getSnapshot()?.map(({ id }) => id)).toEqual(["update:02:200"])
-    expect(ids()).toEqual(["update:02:200"])
+    expect(inbox.turns.getSnapshot()?.map(({ id }) => id)).toEqual(["trouble:02:200"])
+    expect(ids()).toEqual(["trouble:02:200"])
     expect(inbox.state.getSnapshot().answering).toEqual({})
     await settle()
-    expect(streams.asks.read).toHaveBeenCalledExactlyOnceWith(["update:01:100"])
+    expect(streams.asks.read).toHaveBeenCalledExactlyOnceWith(["trouble:01:100"])
 
     // A listing that still holds it keeps it hidden, and sends nothing while it is on its way.
     letters.push([])
     await settle()
-    expect(ids()).toEqual(["update:02:200"])
+    expect(ids()).toEqual(["trouble:02:200"])
     expect(streams.asks.read).toHaveBeenCalledOnce()
     answered!()
     await settle()
-    expect(inbox.turns.getSnapshot()?.map(({ id }) => id)).toEqual(["update:02:200"])
+    expect(inbox.turns.getSnapshot()?.map(({ id }) => id)).toEqual(["trouble:02:200"])
   })
 
   it("reads again only on the next listing or after a backoff, never on its own change", async () => {
@@ -1364,12 +1430,12 @@ describe("Turn rows", () => {
     delete (bare as { handle?: string }).handle
     const ws2 = workspaceOf(bare)
     const { inbox, streams, letters, ids } = setup(ws2)
-    letters.push([{ ...turnLettersOf(ws2, done)[0]!, handle: "" }])
+    letters.push([{ ...turnLettersOf(ws2, failed)[0]!, handle: "", id: "old-row", at: 50 }])
     await settle()
-    expect(ids()).toEqual(["update:01:100"])
+    expect(ids()).toEqual(["old-row"])
 
     inbox.readAll()
     await settle()
-    expect(streams.asks.read).toHaveBeenCalledExactlyOnceWith(["update:01:100"])
+    expect(streams.asks.read).toHaveBeenCalledExactlyOnceWith(["old-row"])
   })
 })
