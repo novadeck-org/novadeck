@@ -1,8 +1,6 @@
 import { clockTime, wakeFill, type Waiting } from "@novadeck/core/agent-waiting"
-import { minutesWaited, wakeIn } from "@novadeck/core/agent-waiting-clock"
+import { minutesWaited } from "@novadeck/core/agent-waiting-clock"
 import type { TerminalMetadata } from "@novadeck/core/types"
-
-import { useSecond } from "./use-second"
 
 // How many rows a tab's waiting lists before it counts the rest on the last.
 const waitRows = 3
@@ -99,38 +97,3 @@ export const WakePassed = ({ time }: { time: string }): React.JSX.Element => (
     </span>
   </span>
 )
-
-// What the hover card over a waiting tab says: how long it has waited, in the agent's own
-// words what on, the command in mono, when it wakes, and that a message still reaches it.
-export const WaitingPeek = ({ waiting }: { waiting: Waiting }): React.JSX.Element => {
-  // Open, it keeps the wake-up's countdown and the minutes current.
-  useSecond(true)
-  return (
-    <div className="terminal-tab-peek flex flex-col gap-2">
-      {waiting.jobs.map((job) => (
-        <div key={job.id} className="flex flex-col gap-0.5">
-          <strong>Waiting · {minutesWaited(job.since)}</strong>
-          <span>{job.label}</span>
-          {job.command && job.label !== job.command && (
-            <code className="terminal-tab-peek-command">{job.command}</code>
-          )}
-          <span className="terminal-tab-peek-note">
-            {job.until === null
-              ? "Wakes when it finishes."
-              : `Wakes when it finishes, or gives up at ${clockTime(job.until)}.`}
-          </span>
-        </div>
-      ))}
-      {waiting.wake && (
-        <div className="flex flex-col gap-0.5">
-          <strong>
-            Wakes at {clockTime(waiting.wake.at)} · {wakeIn(waiting.wake.at)}
-          </strong>
-          {waiting.wake.reason && <span>{waiting.wake.reason}</span>}
-          <span className="terminal-tab-peek-note">A wake-up it set.</span>
-        </div>
-      )}
-      <span className="terminal-tab-peek-note">A message still reaches it.</span>
-    </div>
-  )
-}
