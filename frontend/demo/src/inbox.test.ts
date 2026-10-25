@@ -1,13 +1,13 @@
+import { finishGraceMs } from "@novadeck/core/agent-finish"
 import {
   inboxType,
   ordered,
   type InboxAnswer,
-  type InboxFinish,
   type InboxItem,
-  type InboxUnread,
+  type InboxTurn,
 } from "@novadeck/core/inbox"
 import { workspaceFromSeed } from "@novadeck/core/seed"
-import { createStore, createWorkspaceStore } from "@novadeck/core/store"
+import { createWorkspaceStore } from "@novadeck/core/store"
 import type { TerminalMetadata } from "@novadeck/core/types"
 import { afterEach, beforeEach, vi } from "vitest"
 
@@ -242,11 +242,9 @@ const boot = (variant: PlainVariant = "agents") => {
   )
   backend.commit(store.getSnapshot(), [])
   backend.start!({ dispatch: (actions) => store.transact(actions as never), open: () => {} })
-  const unread = createStore<InboxUnread>({})
-  const read = vi.fn<(finishes: readonly InboxFinish[]) => void>()
   const { inbox } = backend
   if (!isDemoInbox(inbox)) throw new Error("every demo has the demo's Inbox")
-  const unbind = inbox.bind!({ workspace: store, unread, read })
+  const unbind = inbox.bind!({ workspace: store })
   const terminalOf = (projectId: string, slot: number): TerminalMetadata | undefined =>
     store
       .getSnapshot()
@@ -259,8 +257,47 @@ const boot = (variant: PlainVariant = "agents") => {
     inbox.state
       .getSnapshot()
       .items.find((item) => item.source.terminalId === terminalOf(projectId, slot)?.id)
-  return { backend, inbox, store, unread, read, unbind, terminalOf, itemOn }
+  // An agent's turn ends as the terminal's status says, a completed one standing past the
+  // grace that tells it a finish.
+  let ends = 0
+  const finish = async (
+    projectId: string,
+    slot: number,
+    outcome: "completed" | "failed" = "completed",
+  ): Promise<readonly InboxTurn[]> => {
+    const before = new Set(inbox.turns?.getSnapshot()?.map((row) => row.id))
+    const terminal = terminalOf(projectId, slot)
+    if (terminal?.state !== "running") throw new Error("a running terminal")
+    ends += 1
+    store.transact([
+      {
+        type: "terminal/status",
+        target: { projectId, workspaceSessionId: "initial" },
+        terminalId: terminal.id,
+        status: {
+          state: "running",
+          agent: {
+            ...terminal.agent,
+            working: false,
+            lastTurn: {
+              outcome,
+              reply: `Reply ${ends}`,
+              ...(outcome === "failed" ? { error: "stream disconnected" } : {}),
+              at: Date.now() + ends,
+            },
+          },
+        },
+      },
+    ] as never)
+    await vi.advanceTimersByTimeAsync(finishGraceMs + 1)
+    return (inbox.turns?.getSnapshot() ?? []).filter((row) => !before.has(row.id))
+  }
+  return { backend, inbox, store, unbind, terminalOf, itemOn, finish }
 }
+
+// The item of this id the Inbox shows.
+const itemWith = (inbox: ReturnType<typeof createDemoInbox>, id: string): InboxItem | undefined =>
+  inbox.state.getSnapshot().items.find((each) => each.id === id)
 
 const waitsOn = (terminal: TerminalMetadata | undefined) =>
   terminal?.state === "running" ? terminal.agent?.attention?.kind : undefined
@@ -277,8 +314,8 @@ const firstChoice = (item: InboxItem | undefined): InboxAnswer => {
 }
 
 describe("the agents demo's Inbox", () => {
-  it("shows the draft an Ask made over its agent's unseen finish and a held thread", async () => {
-    const { backend, inbox, unread, itemOn, store } = boot()
+  it("shows the draft an Ask made beside its agent's unseen finish and a held thread", async () => {
+    const { backend, inbox, itemOn, store, finish } = boot()
     const found = store
       .getSnapshot()
       .projects.flatMap((project) =>
@@ -303,8 +340,9 @@ describe("the agents demo's Inbox", () => {
     }
     await backend.feedback!.ask(key, "")
     await vi.advanceTimersByTimeAsync(3 * 1500 + 100)
-    // The writing turn ended unseen: the agent finished while the person looked elsewhere.
-    unread.update(() => ({ [`${found.project}/initial`]: { [found.terminal.id]: "done" } }))
+    // The writing turn ended unseen: the agent finished while the person looked elsewhere, and
+    // the demo stored its finish as a row.
+    await finish(found.project, Number(found.terminal.id.slice(-2)))
     const held = demoInboxItemsAll(now).find((each) => each.id === demoInboxIds.held)!
     inbox.add({
       ...held,
@@ -315,7 +353,7 @@ describe("the agents demo's Inbox", () => {
       .getSnapshot()
       .items.filter((each) => each.source.terminalId === found.terminal.id)
       .map((each) => each.kind)
-    expect(kinds).toContain("feedback")
+    expect(kinds).toEqual(expect.arrayContaining(["feedback", "update", "held"]))
     expect(itemOn(found.project, Number(found.terminal.id.slice(-2)))).toBeDefined()
   })
 
@@ -379,33 +417,94 @@ describe("the agents demo's Inbox", () => {
   })
 
   context("when an agent finished while the person looked elsewhere", () => {
-    it("lists its reply, and reads it through the app", async () => {
-      const { inbox, unread, read, itemOn, terminalOf } = boot()
+    it("lists its reply as a row of its own, and reads it", async () => {
+      const { inbox, finish } = boot()
       await vi.advanceTimersByTimeAsync(10_000)
-      const done = terminalOf("design-system", 1)!
-      unread.update(() => ({ "design-system/initial": { [done.id]: "done" } }))
-      const item = itemOn("design-system", 1)
-      expect(item).toMatchObject({ kind: "update", update: { type: "finished" } })
+      const [row] = await finish("design-system", 1)
+      expect(row).toMatchObject({ projectId: "design-system", outcome: "completed" })
+      const item = itemWith(inbox, row!.id)
+      expect(item).toMatchObject({ id: row!.id, kind: "update", update: { type: "finished" } })
 
       inbox.answer(item!.id, { kind: "update", action: "read" })
-      expect(read).toHaveBeenCalledExactlyOnceWith([
-        { context: "design-system/initial", terminalId: done.id },
+      expect(inbox.turns?.getSnapshot()?.some((each) => each.id === row!.id)).toBe(false)
+      expect(itemWith(inbox, row!.id)).toBeUndefined()
+    })
+
+    it("lists every end as its own row, and records one only after the grace", async () => {
+      const { inbox, finish, store, terminalOf } = boot()
+      await vi.advanceTimersByTimeAsync(10_000)
+      const first = await finish("design-system", 1)
+      const second = await finish("design-system", 1)
+      expect([first.length, second.length]).toEqual([1, 1])
+      expect(first[0]!.id).not.toBe(second[0]!.id)
+      const listed = (): number => inbox.turns?.getSnapshot()?.length ?? 0
+      const before = listed()
+
+      // An end the person's Escape may still settle is no finish until the grace is out.
+      const terminal = terminalOf("design-system", 2)!
+      if (terminal.state !== "running") throw new Error("a running terminal")
+      store.transact([
+        {
+          type: "terminal/status",
+          target: { projectId: "design-system", workspaceSessionId: "initial" },
+          terminalId: terminal.id,
+          status: {
+            state: "running",
+            agent: {
+              ...terminal.agent,
+              working: false,
+              lastTurn: { outcome: "completed", reply: "Almost", at: Date.now() + 999 },
+            },
+          },
+        },
+      ] as never)
+      await vi.advanceTimersByTimeAsync(finishGraceMs - 100)
+      expect(listed()).toBe(before)
+      await vi.advanceTimersByTimeAsync(101)
+      expect(listed()).toBe(before + 1)
+    })
+
+    it("drops a terminal's rows when the person reads its finishes", async () => {
+      const { inbox, finish, terminalOf } = boot()
+      await vi.advanceTimersByTimeAsync(10_000)
+      const [kept] = await finish("infra", 1)
+      const [read] = await finish("design-system", 1)
+      inbox.readFinishes?.([
+        { context: "design-system/initial", terminalId: terminalOf("design-system", 1)!.id },
       ])
+      const left = inbox.turns?.getSnapshot()?.map((row) => row.id)
+      expect(left).toContain(kept!.id)
+      expect(left).not.toContain(read!.id)
+    })
+
+    it("drops the rows of a terminal that closed", async () => {
+      const { inbox, finish, store, terminalOf } = boot()
+      await vi.advanceTimersByTimeAsync(10_000)
+      const [row] = await finish("design-system", 1)
+      const closing = terminalOf("design-system", 1)!
+      store.transact([
+        {
+          type: "terminal/close",
+          target: { projectId: "design-system", workspaceSessionId: "initial" },
+          terminalId: closing.id,
+        },
+      ] as never)
+      expect(terminalOf("design-system", 1)).toBeUndefined()
+      expect(inbox.turns?.getSnapshot()?.some((each) => each.id === row!.id)).toBe(false)
     })
   })
 
   context("when trouble is answered and its item stays", () => {
     it("holds its buttons a moment, then gives them back", async () => {
-      const { inbox, unread, itemOn, terminalOf } = boot()
+      const { inbox, finish } = boot()
       await vi.advanceTimersByTimeAsync(10_000)
-      const infra = terminalOf("infra", 1)!
-      unread.update(() => ({ "infra/initial": { [infra.id]: "failed" } }))
-      const trouble = itemOn("infra", 1)!
+      const [made] = await finish("infra", 1, "failed")
+      const trouble = itemWith(inbox, made!.id)!
       expect(trouble).toMatchObject({ kind: "trouble", trouble: { type: "failed" } })
 
       inbox.answer(trouble.id, { kind: "trouble", action: { type: "stop" } })
       await vi.advanceTimersByTimeAsync(0)
-      expect(itemOn("infra", 1)?.id).toBe(trouble.id)
+      expect(itemWith(inbox, trouble.id)).toBeDefined()
       expect(inbox.state.getSnapshot().answering[trouble.id]).toBe(true)
       await vi.advanceTimersByTimeAsync(3000)
       expect(inbox.state.getSnapshot().answering[trouble.id]).toBeUndefined()
@@ -423,14 +522,17 @@ describe("the agents demo's Inbox", () => {
   })
 
   context("when the app unbinds it", () => {
-    it("empties of what the agents wait on", () => {
-      const { inbox, unbind } = boot()
+    it("empties of what the agents wait on, and of the rows it stored", async () => {
+      const { inbox, unbind, finish } = boot()
+      await vi.advanceTimersByTimeAsync(10_000)
+      await finish("design-system", 1)
       unbind()
       expect(inbox.state.getSnapshot().items).toEqual([])
+      expect(inbox.turns?.getSnapshot()).toBeUndefined()
     })
 
     it("forgets what it knew of their items, once bound again", async () => {
-      const { inbox, itemOn, unbind, store, unread, read } = boot()
+      const { inbox, itemOn, unbind, store } = boot()
       const codex = itemOn("storefront", 4)!
       inbox.see(codex.id)
       inbox.failNext()
@@ -438,7 +540,7 @@ describe("the agents demo's Inbox", () => {
       await vi.advanceTimersByTimeAsync(0)
       unbind()
 
-      inbox.bind!({ workspace: store, unread, read })
+      inbox.bind!({ workspace: store })
       const again = itemOn("storefront", 4)
       expect(again).toMatchObject({ id: codex.id, seen: false })
       expect(inbox.state.getSnapshot().failed).toEqual({})
@@ -490,36 +592,42 @@ describe("the Inbox demo's own items", () => {
   })
 
   it("read a finish beside an ask of their own, when every update is read", async () => {
-    const { inbox, unread, read, terminalOf, itemOn } = boot("inbox")
+    const { inbox, finish } = boot("inbox")
     await vi.advanceTimersByTimeAsync(10_000)
-    const done = terminalOf("design-system", 1)!
-    unread.update(() => ({ "design-system/initial": { [done.id]: "done" } }))
-    const finish = itemOn("design-system", 1)!
-    expect(finish.kind).toBe("update")
+    const [made] = await finish("design-system", 1)
+    const row = itemWith(inbox, made!.id)!
+    expect(row).toMatchObject({ id: made!.id, kind: "update" })
     const ask = inbox.state.getSnapshot().items.find((each) => each.id === demoInboxIds.webhook)!
-    inbox.add({ ...ask, source: { ...finish.source } })
-    expect(inbox.state.getSnapshot().items.map((each) => each.id)).toContain(finish.id)
+    inbox.add({ ...ask, source: { ...row.source } })
+    expect(inbox.state.getSnapshot().items.map((each) => each.id)).toContain(row.id)
 
     inbox.readAll()
-    expect(read).toHaveBeenCalledExactlyOnceWith([
-      { context: "design-system/initial", terminalId: done.id },
-    ])
+    expect(inbox.turns?.getSnapshot()?.some((each) => each.id === made!.id)).toBe(false)
   })
 
   it("read a finish under an update of their own, which is read with it", async () => {
-    const { inbox, unread, read, terminalOf, itemOn } = boot("inbox")
+    const { inbox, finish, itemOn } = boot("inbox")
     await vi.advanceTimersByTimeAsync(10_000)
-    const done = terminalOf("design-system", 1)!
-    unread.update(() => ({ "design-system/initial": { [done.id]: "done" } }))
-    const finish = itemOn("design-system", 1)!
+    const [made] = await finish("design-system", 1)
+    const row = itemWith(inbox, made!.id)!
     const told = inbox.state.getSnapshot().items.find((each) => each.id === demoInboxIds.told)!
-    inbox.add({ ...told, source: { ...finish.source } })
+    inbox.add({ ...told, source: { ...row.source } })
     expect(itemOn("design-system", 1)?.id).toBe(demoInboxIds.told)
 
     inbox.readAll()
-    expect(read).toHaveBeenCalledExactlyOnceWith([
-      { context: "design-system/initial", terminalId: done.id },
-    ])
+    expect(inbox.turns?.getSnapshot()?.some((each) => each.id === made!.id)).toBe(false)
+    expect(itemWith(inbox, made!.id)).toBeUndefined()
+  })
+
+  it("leave a failed turn that still stops its agent when every update is read", async () => {
+    const { inbox, finish } = boot("inbox")
+    await vi.advanceTimersByTimeAsync(10_000)
+    const [made] = await finish("infra", 1, "failed")
+    const trouble = itemWith(inbox, made!.id)!
+    expect(trouble).toMatchObject({ id: made!.id, kind: "trouble", stopped: true })
+    inbox.readAll()
+    expect(inbox.turns?.getSnapshot()?.some((each) => each.id === made!.id)).toBe(true)
+    expect(itemWith(inbox, trouble.id)).toBeDefined()
   })
 
   it("take the agent past what it waited on once answered", async () => {

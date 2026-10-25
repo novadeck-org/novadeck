@@ -1,3 +1,4 @@
+import type { Inbox } from "@novadeck/core/inbox"
 import type { BackendAction, TerminalKey } from "@novadeck/core/port"
 import { isAgentProgram } from "@novadeck/core/process"
 import { terminalKeyId } from "@novadeck/core/registry"
@@ -252,7 +253,10 @@ const everyState = (verbs: DemoAgentVerbs): DemoAction => ({
 })
 
 // What fills the Inbox with waiting agents and clears it of them, over the verbs.
-const createWaitingActions = (verbs: DemoAgentVerbs): readonly [DemoAction, DemoAction] => {
+const createWaitingActions = (
+  verbs: DemoAgentVerbs,
+  inbox: () => Inbox | undefined,
+): readonly [DemoAction, DemoAction] => {
   // Every kind of wait and finish across the workspace's projects and sessions, in terminals
   // the person doesn't view. Takes up to `crowd` terminals, adding some to the session on
   // screen when the workspace has fewer, without selecting them or leaving the panel the
@@ -285,15 +289,25 @@ const createWaitingActions = (verbs: DemoAgentVerbs): readonly [DemoAction, Demo
     },
   }
 
-  // Answers every request and reads every finish: each agent works for a moment, which
-  // clears its unread mark, as its next turn would, then rests, which also calls off a finish
-  // still to come. A terminal back at its shell's prompt may hold a finish unread too, so an
-  // agent works there and leaves again.
+  // Answers every request and reads every finish: the Inbox reads the finishes it stored, and
+  // each agent works for a moment, then rests, which also calls off a finish still to come. A
+  // terminal back at its shell's prompt may hold a finish too, so an agent works there and
+  // leaves again.
   const clearWaiting: DemoAction = {
     label: "Clear waiting agents",
     hint: "Answers and reads everything; the Inbox empties of what agents wait on",
     run: ({ workspace, dispatch }) => {
       if (!dispatch) return
+      inbox()?.readFinishes?.(
+        (workspace()?.projects ?? []).flatMap((project) =>
+          project.history.flatMap((session) =>
+            session.state.roster.terminals.map((terminal) => ({
+              context: `${project.id}/${session.id}`,
+              terminalId: terminal.id,
+            })),
+          ),
+        ),
+      )
       const agents = noisyAgents(workspace())
       const prompts = promptTerminals(workspace()).map((key) => ({
         key,
@@ -320,14 +334,17 @@ const createWaitingActions = (verbs: DemoAgentVerbs): readonly [DemoAction, Demo
   return [fillInbox, clearWaiting]
 }
 
-export const createDemoStates = (verbs: DemoAgentVerbs): DemoStates => {
+export const createDemoStates = (
+  verbs: DemoAgentVerbs,
+  inbox: () => Inbox | undefined = () => undefined,
+): DemoStates => {
   const { agents, openWelcome, failNext: failAgents, limitAntigravity } = createDemoAgents()
   const { notices, Notices } = createDemoNotices()
   const updateControls = createDemoUpdates()
   const { updates, offer, whatsNew } = updateControls
   const { pickDirectory, failNext: failPick } = createDemoFolders()
   const chat = createDebugChat()
-  const waitingActions = createWaitingActions(verbs)
+  const waitingActions = createWaitingActions(verbs, inbox)
   const screens = createStore<ReadonlyMap<string, DemoScreenState>>(new Map())
   // The terminals whose next pasted file fails to save.
   const pasteFails = new Set<string>()
