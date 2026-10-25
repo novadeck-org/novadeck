@@ -43,7 +43,7 @@ export type Nudges = {
 }
 
 /** How many of the person's prompts since the last `summarize` nudge as a backstop. */
-export const backstopPrompts = 15
+export const backstopPrompts = 5
 
 export const noNudges: Nudges = {
   pending: [],
