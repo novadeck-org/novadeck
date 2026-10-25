@@ -1736,8 +1736,8 @@ shown the summary and nothing else, not the previous name, and the new title rep
 name (murmur's, else the opener's) only when it shares no content word with it
 (`sharesContentWord` in `murmur/description.ts`), so a reworded summary of the same work
 keeps the name. A title murmur wrote for the terminal as a plain shell is no name of the
-agent's work, and is always replaced, even when the opener's title beneath it shares a
-word, and an agent that binds where one shows (a resume) is named from its summary at once; one written before a runner restart is not known as a shell's, and is weighed as any
+agent's work, and is always replaced by the agent's next summary, even when the opener's
+title beneath it shares a word; one written before a runner restart is not known as a shell's, and is weighed as any
 title is. An agent with no summary keeps the title it has. The summary is the one the
 person sees, which stays across `/clear` and an agent's exit until the next is written.
 

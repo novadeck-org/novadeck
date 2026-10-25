@@ -684,7 +684,7 @@ describe("when an agent's terminal is named", () => {
     expect(made.describer.jobs).toHaveLength(0)
   })
 
-  it("names an agent that resumes where a shell's title shows from its summary, once", async () => {
+  it("leaves a shell's title to an agent's own next summary, not the one left from before", async () => {
     const made = create(
       {
         agent: null,
@@ -698,17 +698,54 @@ describe("when an agent's terminal is named", () => {
     made.rows.current = ["$ git log", "abc123 Fix login", "$ "]
     made.murmur.prompted("a")
     await settle(made.times.shellSettleMs + 50)
+    // A new agent binds and reports: the summary on record is the last agent's.
     made.change({ agent: "claude" })
-    for (let report = 0; report < 5; report += 1) {
-      made.murmur.reported("a")
-      // eslint-disable-next-line no-await-in-loop -- Reports come one after another.
-      await settle(made.times.settleMs / 2)
-    }
-    await settle()
-    expect(made.written).toEqual([{ title: "Git history" }, { title: "Login redirect" }])
     made.murmur.reported("a")
     await settle()
-    expect(made.describer.jobs).toHaveLength(2)
+    expect(made.written).toEqual([{ title: "Git history" }])
+    summarize(made, "Fixes the login redirect again.")
+    await settle()
+    expect(made.written).toEqual([{ title: "Git history" }, { title: "Login redirect" }])
+  })
+
+  it("names a summary written under the person's title once they clear it", async () => {
+    const made = create({
+      work: work(),
+      activity: idle("ok"),
+      naming: { ...unnamed, person: "Mine" },
+    })
+    summarize(made, summary)
+    await settle()
+    expect(made.describer.jobs).toHaveLength(0)
+    made.change({ naming: { ...made.subjects.get("a")!.naming, person: null } })
+    made.murmur.summarized("a")
+    await settle()
+    expect(made.written).toEqual([{ title: "Title 1" }])
+  })
+
+  it("drops a title whose agent left or the person titled while the model ran, naming nothing", async () => {
+    const left = create({ work: work(), activity: idle("ok") })
+    left.describer.hold = true
+    summarize(left, summary)
+    await settle()
+    left.change({ agent: null })
+    left.describer.jobs[0]!.answer({ title: "Addons" })
+    await settle()
+    expect(left.written).toEqual([])
+
+    const titled = create({ work: work(), activity: idle("ok") })
+    titled.describer.hold = true
+    summarize(titled, summary)
+    await settle()
+    titled.change({ naming: { ...titled.subjects.get("a")!.naming, person: "Mine" } })
+    titled.describer.jobs[0]!.answer({ title: "Addons" })
+    await settle()
+    // Cleared again, the same summary is named.
+    titled.describer.hold = false
+    titled.change({ naming: { ...titled.subjects.get("a")!.naming, person: null } })
+    titled.murmur.summarized("a")
+    await settle()
+    expect(titled.written).toEqual([{ title: "Title 2" }])
   })
 
   it("owes nothing for a summary whose job a shell's request took", async () => {

@@ -483,7 +483,7 @@ const programKey = (program: ForegroundProcess | null): string | null =>
 /**
  * Decides when each terminal is described and what from, and hands the result to the
  * manager. Without a describer, nothing happens. A terminal the person titled is never
- * asked about; if they clear their title it is eligible again on the next evidence.
+ * asked about; once they clear it, a summary written meanwhile names it at once.
  *
  * An agent's terminal is named from its agent's own summary alone (from `summarize`), each
  * time the agent writes one that says something new, `settleMs` after it so a burst makes
@@ -612,12 +612,7 @@ export class Murmur {
    * noted when the agent reports.
    */
   reported(terminalId: string): void {
-    if (!this.host.subject(terminalId)?.agent) return
-    const watch = this.watch(terminalId)
-    watch.agentRan = true
-    // An agent that binds where a shell's title shows (a resume) is named from its summary,
-    // asked once rather than at each report, which would put off its quiet.
-    if (watch.shellTitled && !watch.owed) this.summarized(terminalId)
+    if (this.host.subject(terminalId)?.agent) this.watch(terminalId).agentRan = true
   }
 
   // The name a summary's title would replace: murmur's title, else its opening agent's. A
@@ -838,6 +833,8 @@ export class Murmur {
       if (watch.owed || untitled) this.check(id)
       return
     }
+    // A summary's title owed when the agent left is not the shell's.
+    watch.owed = false
     if (subject.naming.murmur !== null) return
     watch.shellOwed = true
     this.ask(id, this.times.shellSettleMs)
@@ -903,9 +900,16 @@ export class Murmur {
       watch.retryTimer.unref()
       return
     }
+    // The agent left, or the person titled the terminal, while the model ran: nothing is
+    // named, and clearing the person's title asks again.
+    const now = this.host.subject(terminalId)
+    if (!now?.agent || now.naming.person !== null) {
+      watch.owed = false
+      return
+    }
     watch.named = words(digest.summary)
     // A newer summary that came while this one was named is still owed.
-    watch.owed = words(this.host.subject(terminalId)?.naming.summary ?? null) !== watch.named
+    watch.owed = words(now.naming.summary) !== watch.named
     if (outcome === null) return
     if (previous !== undefined && sharesContentWord(outcome.title, previous)) return
     if (this.store(terminalId, outcome.title)) watch.shellTitled = false
