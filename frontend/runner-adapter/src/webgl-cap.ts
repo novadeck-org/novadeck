@@ -8,5 +8,11 @@ export const contextMargin = 2
 // and a host that came before it, keep the pool's default.
 export const sizePoolTo = (host: DesktopHost | undefined): void => {
   const contexts = webglContextsOf(host?.webglContexts)
-  if (contexts !== undefined) configurePageRenderers({ cap: contexts - contextMargin })
+  if (contexts === undefined) return
+  // A pool that already exists keeps its cap: starting with it beats not starting.
+  try {
+    configurePageRenderers({ cap: contexts - contextMargin })
+  } catch (error) {
+    console.error("Novadeck could not size the WebGL pool to the host's limit:", error)
+  }
 }

@@ -36,12 +36,6 @@ export const configurePageRenderers = ({ cap }: { readonly cap: number }): void 
     )
   configuredCap = cap
 }
-
-// Forgets the pool and its cap, for tests.
-export const resetPageRenderers = (): void => {
-  page = undefined
-  configuredCap = undefined
-}
 // The page's pool: the context budget is the page's, whichever backend's screens draw. The app
 // draws nothing else with WebGL, but its browser build can run beside an extension's canvas,
 // which the pool's margin of two contexts leaves room for.

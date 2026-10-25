@@ -24,3 +24,15 @@ describe("sizing the page's pool to the host's context limit", () => {
     expect(configurePageRenderers).not.toHaveBeenCalled()
   })
 })
+
+describe("a pool that cannot take the host's limit", () => {
+  it("keeps going, with the problem logged", () => {
+    const error = vi.spyOn(console, "error").mockImplementation(() => {})
+    configurePageRenderers.mockImplementationOnce(() => {
+      throw new Error("already exists")
+    })
+    expect(() => sizePoolTo({ webglContexts: 64 } as never)).not.toThrow()
+    expect(error).toHaveBeenCalledTimes(1)
+    error.mockRestore()
+  })
+})

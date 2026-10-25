@@ -27,8 +27,7 @@ describe("raising Chromium's WebGL context limit", () => {
       switches,
       hasSwitch: (key: string) => switches.has(key),
       getSwitchValue: (key: string) => switches.get(key) ?? "",
-      appendSwitch: (key: string, value = "") =>
-        void (switches.has(key) || switches.set(key, value)),
+      appendSwitch: (key: string, value = "") => void switches.set(key, value),
     }
   }
   const name = "max-active-webgl-contexts"
@@ -46,8 +45,24 @@ describe("raising Chromium's WebGL context limit", () => {
     expect(line.switches.get(name)).toBe("40")
   })
 
-  it("tells the page Chromium's default when the given limit is no valid one", () => {
-    expect(raiseWebglContexts(commandLine("lots"))).toBe(16)
+  it.each(["lots", "0x40", "1e2", " 40", "40 ", "", "-5", "4.5"])(
+    "replaces %j, which Chromium would not read as the page does, with the app's limit",
+    (given) => {
+      const line = commandLine(given)
+      expect(raiseWebglContexts(line)).toBe(64)
+      expect(line.switches.get(name)).toBe("64")
+    },
+  )
+
+  it.each([
+    ["0", 3],
+    ["2", 3],
+    ["2000", 1024],
+    ["99999999999999999999", 1024],
+  ])("clamps %s into the range the page can be told, in the switch too", (given, limit) => {
+    const line = commandLine(given)
+    expect(raiseWebglContexts(line)).toBe(limit)
+    expect(line.switches.get(name)).toBe(String(limit))
   })
 
   it("names the limit in the window's arguments for the preload", () => {

@@ -1,4 +1,4 @@
-import { webglContextsOf } from "@novadeck/protocol/bridge"
+import { webglContextsRange } from "@novadeck/protocol/bridge"
 
 import { webglContextsArgumentPrefix } from "../bridge.js"
 
@@ -21,19 +21,21 @@ type CommandLine = {
  * Raises Chromium's WebGL context limit, which Chromium passes on to its renderer processes,
  * and returns what the limit is. It must run before the app is ready. A limit already on the
  * command line (the profile bench's `--contexts`, or a launcher's) is kept, and told to the
- * page as it stands, so the page's pool never counts more than Chromium allows; one that is no
- * valid limit is replaced.
+ * page as it stands, so the page's pool never counts more than Chromium allows. Chromium reads
+ * the value as plain digits and `appendSwitch` overwrites, so a value that is not plain digits
+ * is replaced by the app's limit, and one outside what the contract lets the page be told
+ * (`webglContextsRange`) is clamped into it, in the switch itself: the page and Chromium then
+ * always hold the same number.
  */
 export const raiseWebglContexts = (commandLine: CommandLine): number => {
-  const given = commandLine.hasSwitch(switchName)
-    ? webglContextsOf(Number(commandLine.getSwitchValue(switchName)))
-    : undefined
-  if (given !== undefined) return given
-  // appendSwitch leaves a switch already present as it is, so a bad one stays; the page is
-  // told the default Chromium then has.
-  if (commandLine.hasSwitch(switchName)) return 16
-  commandLine.appendSwitch(switchName, String(maxWebglContexts))
-  return maxWebglContexts
+  const given = commandLine.hasSwitch(switchName) ? commandLine.getSwitchValue(switchName) : ""
+  const limit = !commandLine.hasSwitch(switchName)
+    ? maxWebglContexts
+    : /^\d+$/.test(given)
+      ? Math.min(Math.max(Number(given), webglContextsRange.min), webglContextsRange.max)
+      : maxWebglContexts
+  if (given !== String(limit)) commandLine.appendSwitch(switchName, String(limit))
+  return limit
 }
 
 /** The window argument that tells the page's preload the limit. */
