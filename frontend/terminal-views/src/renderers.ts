@@ -17,6 +17,31 @@ const watchRoot = (changed: () => void): (() => void) => {
 }
 
 let page: Renderers | undefined
+let configuredCap: number | undefined
+
+// Sets how many WebGL contexts the page's pool may hold, for a host that raised Chromium's
+// own limit; without it the pool takes the emulator's default, which fits the browser's.
+// It must come before the pool is first made. A second call with the value already in use
+// does nothing, as the backend connects again under StrictMode and on retries. A different
+// value once the pool exists throws: the pool's screens already hold contexts counted
+// against the old cap, and a silent keep would leave the host and the page disagreeing about
+// a limit that blanks terminals when exceeded. Only code changes the value (a host's is
+// fixed for its window's life), so a throw is a bug found, never a start that fails.
+export const configurePageRenderers = ({ cap }: { readonly cap: number }): void => {
+  if (!Number.isSafeInteger(cap) || cap < 1)
+    throw new RangeError(`The WebGL cap is a whole number, 1 or more: ${cap}`)
+  if (page && cap !== configuredCap)
+    throw new Error(
+      `The page's WebGL pool already exists with ${configuredCap ?? "the default"} contexts; it cannot take ${cap}`,
+    )
+  configuredCap = cap
+}
+
+// Forgets the pool and its cap, for tests.
+export const resetPageRenderers = (): void => {
+  page = undefined
+  configuredCap = undefined
+}
 // The page's pool: the context budget is the page's, whichever backend's screens draw. The app
 // draws nothing else with WebGL, but its browser build can run beside an extension's canvas,
 // which the pool's margin of two contexts leaves room for.
@@ -27,6 +52,7 @@ export const pageRenderers = (): Renderers =>
     // the DOM renderer while they are on (no ligatures addon for now).
     ligatures: () => document.documentElement.dataset.ligatures === "on",
     watchLigatures: watchRoot,
+    ...(configuredCap === undefined ? {} : { cap: configuredCap }),
   }))
 
 // How often counts are reported while they change: a busy minute is a few lines. The first

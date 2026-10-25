@@ -13,6 +13,9 @@ export const murmurSourceArgumentPrefix = "--novadeck-murmur-source="
 /** Given as `software` when the host saw no graphics hardware, so murmur can't run and voice input goes straight to its small model; absent otherwise. */
 export const graphicsArgumentPrefix = "--novadeck-graphics="
 
+/** Given to the page's preload: how many WebGL contexts Chromium allows the page, a whole number. */
+export const webglContextsArgumentPrefix = "--novadeck-webgl-contexts="
+
 /**
  * How the runner writes its log: a `LogSetup` as JSON (see ./logging.ts), naming the logs
  * folder, the launch and which start of the runner this is.

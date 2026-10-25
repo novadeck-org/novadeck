@@ -11,7 +11,9 @@ import type { IEvent, Terminal } from "@xterm/xterm"
 // canvas the page doesn't own and as a margin while a context the GPU lost waits to be freed.
 // That is a page of 13 or 14 terminals all on WebGL, where one busy terminal left on the DOM
 // costs about as much as the other twelve; a shown screen past the cap draws with the DOM
-// renderer until a slot frees.
+// renderer until a slot frees. That is the default, for a browser, where a larger pool would
+// make Chromium drop live contexts; a host that raises Chromium's limit (the desktop app does,
+// to 64) passes `cap` to `webglRenderers`, the limit less two.
 export const contextCap = 14
 // How many times a screen may lose its context, or fail to load one; it tries again when
 // it is shown again, once, and stays on the DOM renderer after that.
