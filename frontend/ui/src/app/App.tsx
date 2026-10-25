@@ -16,6 +16,7 @@ import { cancelTerminalTransition } from "../layouts/transition"
 import { useDesktop } from "../shell/desktop"
 import { panelLabels } from "../shell/panels"
 import { sidebarVisible } from "../shell/shell-state"
+import { readSidebarOrder, writeSidebarOrder } from "../shell/shell-storage"
 import { SidebarRail } from "../shell/SidebarRail"
 import { WorkspacePanels } from "../shell/WorkspacePanels"
 import { ZenDock } from "../shell/ZenDock"
@@ -189,6 +190,9 @@ export const WorkspaceApp = ({ panel }: Pick<AppProps, "panel"> = {}): React.JSX
   useEffect(() => {
     backend.setFont({ size: fontSize })
   }, [backend, fontSize])
+  // The order the person left the rail's toggles in, kept for their next visit; one order
+  // for both rails, the drawer's on a phone and the window's.
+  const [railOrder, setRailOrder] = useState(readSidebarOrder)
   const sidebarRail = (mobile = false): React.JSX.Element => (
     <RailWithBadge
       mobile={mobile}
@@ -196,6 +200,11 @@ export const WorkspaceApp = ({ panel }: Pick<AppProps, "panel"> = {}): React.JSX
       sidebarPanel={sidebarPanel}
       zen={zen}
       hasSource={sourceShown(services.backend)}
+      order={railOrder}
+      onOrder={(order) => {
+        setRailOrder(order)
+        writeSidebarOrder(order)
+      }}
       toggleSidebar={toggleSidebar}
       hideSidebar={hideSidebar}
     />

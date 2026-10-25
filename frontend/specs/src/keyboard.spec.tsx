@@ -580,6 +580,47 @@ describe("sidebar settings", () => {
       await expect.poll(() => width(sidebar())).toBeCloseTo(resized, 0)
     })
   })
+
+  context("when a rail toggle is dragged, or moved with Alt and the arrows", () => {
+    it("takes its new place, keeps the focus, and keeps its place after a reload", async () => {
+      await openWorkspace()
+      const toggles = page.getByRole("radiogroup", { name: "Sidebar actions" }).getByRole("radio")
+      // The Inbox adds how many wait to its name, e.g. "Inbox, 3 waiting".
+      const order = () =>
+        toggles.elements().map((toggle) => toggle.getAttribute("aria-label")!.split(",")[0])
+      const before = order()
+      expect(before[0]).toBe("Terminals")
+      const moved = [...before.slice(1), "Terminals"]
+
+      const box = toggles.first().element().getBoundingClientRect()
+      await userEvent.dragAndDrop(toggles.first(), toggles.last(), {
+        sourcePosition: { x: box.width / 2, y: box.height / 2 },
+        targetPosition: { x: box.width / 2, y: box.height - 4 },
+        steps: 12,
+      })
+      await expect.poll(order).toEqual(moved)
+      // The toggles move as the drag goes; the new order is the rail's once it is let go,
+      // and the toggle let go keeps the focus once its drop has played out.
+      await expect
+        .poll(() => localStorage.getItem("novadeck.sidebar-order"))
+        .toMatch(/"terminals"\]$/)
+      await expect.poll(() => document.activeElement?.id).toBe("terminals-toggle")
+
+      await press("{Alt>}{ArrowUp}{/Alt}")
+      await expect.poll(order).toEqual([...moved.slice(0, -2), "Terminals", moved.at(-2)])
+      await expect.poll(() => document.activeElement?.id).toBe("terminals-toggle")
+      await press("{Alt>}{ArrowDown}{/Alt}")
+      await expect.poll(order).toEqual(moved)
+      // At the end already, it stays.
+      await press("{Alt>}{ArrowDown}{/Alt}")
+      expect(order()).toEqual(moved)
+      expect(document.activeElement?.id).toBe("terminals-toggle")
+
+      await reloadWorkspace()
+
+      await expect.poll(order).toEqual(moved)
+    })
+  })
 })
 
 describe("preferences shortcut", () => {

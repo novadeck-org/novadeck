@@ -58,14 +58,23 @@ export const ToggleGroup = ({
 export type ToggleGroupItemProps = Omit<ComponentPropsWithRef<"button">, "value"> & {
   value: string
   tooltip?: ReactNode
+  // Keeps the tooltip shut, as while the item is dragged.
+  tooltipDisabled?: boolean
 }
 
 export const ToggleGroupItem = ({
   tooltip,
+  tooltipDisabled,
   value,
   ...props
 }: ToggleGroupItemProps): React.JSX.Element => {
   const itemId = useContext(ItemId)
   const item = <ArkToggleGroup.Item {...props} id={itemId(value)} value={value} />
-  return tooltip === undefined ? item : <Tooltip content={tooltip}>{item}</Tooltip>
+  return tooltip === undefined ? (
+    item
+  ) : (
+    <Tooltip content={tooltip} disabled={tooltipDisabled ?? false}>
+      {item}
+    </Tooltip>
+  )
 }
