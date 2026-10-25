@@ -43,6 +43,7 @@ export const SessionsPanel = ({
           className={sidebarCreateClasses}
           type="button"
           aria-label="New session"
+          data-sessions-create
           onClick={onFresh}
         >
           <Plus size={14} className="shrink-0" />

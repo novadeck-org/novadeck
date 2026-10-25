@@ -109,7 +109,12 @@ export const WorkspaceSidebar = ({
       active={sidebarPanel === "terminals"}
       onClose={onHide}
     >
-      <button className={sidebarCreateClasses} aria-label="New terminal" onClick={onCreate}>
+      <button
+        className={sidebarCreateClasses}
+        aria-label="New terminal"
+        data-terminals-create
+        onClick={onCreate}
+      >
         <Plus size={14} className="shrink-0" />
         <span className="min-w-0 truncate">Terminal</span>
         <kbd className="hint mb-[-2px] ml-auto shrink-0 whitespace-nowrap">

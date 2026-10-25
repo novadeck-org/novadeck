@@ -291,6 +291,10 @@ describe("sessions sidebar", () => {
       await page.getByRole("button", { name: "New session" }).click()
 
       await expect.element(emptyWorkspace()).toBeVisible()
+      await expect.element(sidebar()).toHaveAccessibleName("Terminal sessions")
+      await expect.element(sidebarPanel("Terminals")).toBeChecked()
+      await expect.element(sidebar().getByRole("button", { name: "New terminal" })).toHaveFocus()
+      await sidebarPanel("Sessions").click()
       const fresh = await newSessionName(original)
       await expect.poll(() => savedSessions().getByRole("listitem").elements()).toHaveLength(2)
       await expect
@@ -304,7 +308,7 @@ describe("sessions sidebar", () => {
   })
 
   context("when pressing the new-session shortcut", () => {
-    it("creates an empty session and opens the Sessions sidebar", async () => {
+    it("creates an empty session and opens the Terminals sidebar", async () => {
       await openWorkspace()
       await sidebarPanel("Terminals").click()
       await expect.element(sidebar()).not.toBeInTheDocument()
@@ -313,8 +317,9 @@ describe("sessions sidebar", () => {
       await pressNewSession()
 
       await expect.element(emptyWorkspace()).toBeVisible()
-      await expect.element(sidebarPanel("Sessions")).toBeChecked()
-      await expect.element(sidebar()).toHaveAccessibleName("Workspace sessions")
+      await expect.element(sidebarPanel("Terminals")).toBeChecked()
+      await expect.element(sidebar()).toHaveAccessibleName("Terminal sessions")
+      await sidebarPanel("Sessions").click()
       await expect.poll(() => savedSessions().getByRole("listitem").elements()).toHaveLength(2)
       await expect
         .element(savedSessions().getByRole("button").getByText("0 terminals", { exact: true }))
@@ -349,6 +354,7 @@ describe("sessions sidebar", () => {
       const original = await currentSessionName()
       await page.getByRole("button", { name: "New session" }).click()
       await expect.element(emptyWorkspace()).toBeVisible()
+      await sidebarPanel("Sessions").click()
 
       await savedSession(original).click()
 
@@ -364,12 +370,12 @@ describe("sessions sidebar", () => {
       const original = await currentSessionName()
       await page.getByRole("button", { name: "New session" }).click()
       await expect.element(emptyWorkspace()).toBeVisible()
-      const fresh = await newSessionName(original)
-      await page.getByRole("button", { name: "New terminal" }).click()
+      await sidebar().getByRole("button", { name: "New terminal" }).click()
       await expect.element(commandInput(newTerminalName)).toHaveFocus()
       await typeInto(newTerminalName, "new draft")
 
       await sidebarPanel("Sessions").click()
+      const fresh = await newSessionName(original)
       await savedSession(original).click()
       await expect.element(terminal("Checkout implementation")).toBeVisible()
       await expectStaysAbsent(terminal(newTerminalName))
@@ -389,6 +395,7 @@ describe("sessions sidebar", () => {
       const original = await currentSessionName()
       await page.getByRole("button", { name: "New session" }).click()
       await expect.element(emptyWorkspace()).toBeVisible()
+      await sidebarPanel("Sessions").click()
       const fresh = await newSessionName(original)
       await chooseView("Canvas")
 
@@ -413,6 +420,7 @@ describe("sessions sidebar", () => {
       const original = await currentSessionName()
       await page.getByRole("button", { name: "New session" }).click()
       await expect.element(emptyWorkspace()).toBeVisible()
+      await sidebarPanel("Sessions").click()
       const fresh = await newSessionName(original)
 
       await switchProject("api-service")
@@ -434,7 +442,7 @@ describe("sessions sidebar", () => {
       await openWorkspace()
       await pressNewSession()
       await expect.element(emptyWorkspace()).toBeVisible()
-      await sidebarPanel("Sessions").click()
+      await sidebarPanel("Terminals").click()
       await expect.element(sidebar()).not.toBeInTheDocument()
 
       await page.getByRole("button", { name: "Browse sessions" }).click()
@@ -531,6 +539,12 @@ describe("narrow screens", () => {
 
       await drawer.getByRole("button", { name: "New session" }).click()
 
+      const terminals = page.getByRole("dialog", { name: "Terminal sessions" })
+      await expect.element(terminals).toBeVisible()
+      await escapeFrom(terminals)
+      await expect.element(terminals).not.toBeInTheDocument()
+      await pressShortcut("sessions")
+      await expect.element(drawer).toBeVisible()
       const fresh = await newSessionName(original)
       await expect.poll(() => savedSessions().getByRole("listitem").elements()).toHaveLength(2)
       await expect
