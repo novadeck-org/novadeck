@@ -33,7 +33,7 @@ catalogs:
 
 patchedDependencies:
   '@xterm/addon-unicode-graphemes@0.4.0': b0a9bbbcc53e94cabc762f35be7a9d628ad75ecb84ca1e26eae1e808f27f18b6
-  '@xterm/addon-webgl@0.19.0': d5741f66ddf8628c76f7c2bb3eec05d444033258ce8264691f86ab71edac0fe3
+  '@xterm/addon-webgl@0.19.0': 8779608ac3cfa4f94d6f3ade004ec36b7ebd70259eb08082affc6c41a52326f5
   '@xterm/xterm@6.0.0': 5cceb0abb03f6a06e082154528f2a5b89cccff1d5d5e8a65820a1da801627b9a
   electron-updater@6.8.9: 194f26b921816fb49234137172ac8a9e8146f732442494a3e0cefecd51d541e4
   node-pty@1.2.0-beta.14: c78e0cc7eff2e13ea3521779288bbaad7b96df25030516a8aa8acd64fde92224
@@ -844,6 +844,9 @@ importers:
         specifier: workspace:*
         version: link:../../libraries/terminal
     devDependencies:
+      '@fontsource-variable/jetbrains-mono':
+        specifier: 5.3.0
+        version: 5.3.0
       '@novadeck/build-kit':
         specifier: workspace:*
         version: link:../../tools/build-kit
@@ -1147,7 +1150,7 @@ importers:
         version: 0.12.0
       '@xterm/addon-webgl':
         specifier: 0.19.0
-        version: 0.19.0(patch_hash=d5741f66ddf8628c76f7c2bb3eec05d444033258ce8264691f86ab71edac0fe3)
+        version: 0.19.0(patch_hash=8779608ac3cfa4f94d6f3ade004ec36b7ebd70259eb08082affc6c41a52326f5)
       '@xterm/headless':
         specifier: 6.0.0
         version: 6.0.0
@@ -1155,9 +1158,15 @@ importers:
         specifier: 6.0.0
         version: 6.0.0(patch_hash=5cceb0abb03f6a06e082154528f2a5b89cccff1d5d5e8a65820a1da801627b9a)
     devDependencies:
+      '@fontsource-variable/jetbrains-mono':
+        specifier: 5.3.0
+        version: 5.3.0
       '@types/node':
         specifier: ^26.6.5
         version: 26.6.5
+      font-ligatures:
+        specifier: 1.4.1
+        version: 1.4.1
       jsdom:
         specifier: ^30.1.3
         version: 30.1.3(@noble/hashes@2.4.0)
@@ -4113,6 +4122,14 @@ packages:
   flatted@3.4.4:
     resolution: {integrity: sha512-5+ybhBZANEJxaH3X5evAFatUxLfEHSr7n6kYJ+1Qd0mUqr4eu9gIf6GDbWHf8RJijHrjjO8G+la14SlL2SeS1Q==}
 
+  font-finder@1.1.0:
+    resolution: {integrity: sha512-wpCL2uIbi6GurJbU7ZlQ3nGd61Ho+dSU6U83/xJT5UPFfN35EeCW/rOtS+5k+IuEZu2SYmHzDIPL9eA5tSYRAw==}
+    engines: {node: '>8.0.0'}
+
+  font-ligatures@1.4.1:
+    resolution: {integrity: sha512-7W6zlfyhvCqShZ5ReUWqmSd9vBaUudW0Hxis+tqUjtHhsPU+L3Grf8mcZAtCiXHTzorhwdRTId2WeH/88gdFkw==}
+    engines: {node: '>8.0.0'}
+
   form-data@4.0.6:
     resolution: {integrity: sha512-vKatAh4SlVfgbv+YtmhiRjhEMJsYpsG1Y2rMQtR+SVSbytsSD1YGzDIcrAJmdFec88u/+VoGmxnl+80gL1tRCQ==}
     engines: {node: '>= 6'}
@@ -4175,6 +4192,10 @@ packages:
   get-stream@5.2.0:
     resolution: {integrity: sha512-nBF+F1rAZVCu/p7rjzgA+Yb4lfYXrpl7a6VmJrU8wF9I1CKvP/QwPNZHnOlwbTkY6dvtFIzFMSyQXbLoTQPRpA==}
     engines: {node: '>=8'}
+
+  get-system-fonts@2.0.2:
+    resolution: {integrity: sha512-zzlgaYnHMIEgHRrfC7x0Qp0Ylhw/sHpM6MHXeVBTYIsvGf5GpbnClB+Q6rAPdn+0gd2oZZIo6Tj3EaWrt4VhDQ==}
+    engines: {node: '>8.0.0'}
 
   get-uri@8.0.1:
     resolution: {integrity: sha512-/5N/P4Lrh0p/mDwlDRi7Y1+P2o/OyzZI3l6Iz1Ov6XXwwm1y3RlZLuo3gVgML99djrEDtV980bBxSuOeHLk8ww==}
@@ -4815,6 +4836,10 @@ packages:
   openapi-types@12.1.3:
     resolution: {integrity: sha512-N4YtSYJqghVu4iek2ZUvcN/0aqH1kRDuNqzcycDxhOUpg7GdvLa2F3DgS6yBNhInhv2r/6I0Flkn7CqL8+nIcw==}
 
+  opentype.js@0.8.0:
+    resolution: {integrity: sha512-FQHR4oGP+a0m/f6yHoRpBOIbn/5ZWxKd4D/djHVJu8+KpBTYrJda0b7mLcgDEMWXE9xBCJm+qb0yv6FcvPjukg==}
+    hasBin: true
+
   ora@9.4.1:
     resolution: {integrity: sha512-6VlU9MLXbjVQD04AZCMX28hVtA5bUoadvUqO76MUCVA0ilwJbMiHsITRPfyVm6p/BC0Av/BXMujx39WCe1LEqw==}
     engines: {node: '>=20'}
@@ -4967,6 +4992,10 @@ packages:
   promise-retry@2.0.1:
     resolution: {integrity: sha512-y+WKFlBR8BGXnsNlIHFGPZmyDf3DFMoLhaflAnyZgV6rG6xu+JwesTo2Q9R6XwYmtmwAFCkAk3e35jEdoeh/3g==}
     engines: {node: '>=10'}
+
+  promise-stream-reader@1.0.1:
+    resolution: {integrity: sha512-Tnxit5trUjBAqqZCGWwjyxhmgMN4hGrtpW3Oc/tRI4bpm/O2+ej72BB08l6JBnGQgVDGCLvHFGjGgQS6vzhwXg==}
+    engines: {node: '>8.0.0'}
 
   prop-types@15.8.1:
     resolution: {integrity: sha512-oj87CgZICdulUohogVAR7AjlC0327U4el4L6eAvOqCeudMDVU0NThNaV+b9Df4dXgSP1gXMTnPdhfe/2qDH5cg==}
@@ -5334,6 +5363,9 @@ packages:
 
   tiny-async-pool@1.3.0:
     resolution: {integrity: sha512-01EAw5EDrcVrdgyCLgoSPvqznC0sVxDSVeiOz09FUpjh71G79VCqneOr+xvt7T1r76CF6ZZfPjHorN2+d+3mqA==}
+
+  tiny-inflate@1.0.3:
+    resolution: {integrity: sha512-pkY1fj1cKHb2seWDy0B16HeWyczlJA9/WW3u3c4z/NiWDsO3DOU5D7nhTLE9CF0yXv/QZFY7sEJmj24dK+Rrqw==}
 
   tiny-typed-emitter@2.1.0:
     resolution: {integrity: sha512-qVtvMxeXbVej0cQWKqVSSAHmKZEHAvxdF8HEUBFWts8h+xEo5m/lEiPakuyZ3BnCBjOD8i24kzNOiOLLgsSxhA==}
@@ -7329,7 +7361,7 @@ snapshots:
 
   '@xterm/addon-web-links@0.12.0': {}
 
-  '@xterm/addon-webgl@0.19.0(patch_hash=d5741f66ddf8628c76f7c2bb3eec05d444033258ce8264691f86ab71edac0fe3)': {}
+  '@xterm/addon-webgl@0.19.0(patch_hash=8779608ac3cfa4f94d6f3ade004ec36b7ebd70259eb08082affc6c41a52326f5)': {}
 
   '@xterm/headless@6.0.0': {}
 
@@ -8690,6 +8722,17 @@ snapshots:
 
   flatted@3.4.4: {}
 
+  font-finder@1.1.0:
+    dependencies:
+      get-system-fonts: 2.0.2
+      promise-stream-reader: 1.0.1
+
+  font-ligatures@1.4.1:
+    dependencies:
+      font-finder: 1.1.0
+      lru-cache: 6.0.0
+      opentype.js: 0.8.0
+
   form-data@4.0.6:
     dependencies:
       asynckit: 0.4.0
@@ -8769,6 +8812,8 @@ snapshots:
   get-stream@5.2.0:
     dependencies:
       pump: 3.0.4
+
+  get-system-fonts@2.0.2: {}
 
   get-uri@8.0.1(supports-color@10.2.2):
     dependencies:
@@ -9351,6 +9396,10 @@ snapshots:
 
   openapi-types@12.1.3: {}
 
+  opentype.js@0.8.0:
+    dependencies:
+      tiny-inflate: 1.0.3
+
   ora@9.4.1:
     dependencies:
       chalk: 5.6.2
@@ -9524,6 +9573,8 @@ snapshots:
     dependencies:
       err-code: 2.0.3
       retry: 0.12.0
+
+  promise-stream-reader@1.0.1: {}
 
   prop-types@15.8.1:
     dependencies:
@@ -9948,6 +9999,8 @@ snapshots:
   tiny-async-pool@1.3.0:
     dependencies:
       semver: 5.7.2
+
+  tiny-inflate@1.0.3: {}
 
   tiny-typed-emitter@2.1.0: {}
 

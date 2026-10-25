@@ -15,7 +15,10 @@ character-width rule every emulator shares, and helpers that need only an emulat
   and the pool that draws views with WebGL (`webglRenderers`, `createRenderers`,
   `ScreenRenderer`; `stats()` and `watch()` give the pool's counts: waits, steals, swaps, contexts
   lost, loads failed, pty resizes a swap caused, and screens left on the DOM). The app resolves its theme, its link policy and which views want WebGL, and
-  passes them in. Types of xterm's `Terminal` and `ITheme` come from here too.
+  passes them in. `View.setLigatures(on)` is the one mechanic for ligatures: while it is on and WebGL
+  draws the view, runs the bundled JetBrains Mono joins (`=>`, `!=`, `<!--`) reach WebGL as one
+  glyph each; the DOM renderer draws them from its text, which the page's CSS allows. Types of
+  xterm's `Terminal` and `ITheme` come from here too.
 - `./browser.css`: xterm's stylesheet, for the browser emulator's screens.
 - `./headless` (Node only): the emulator without a view, and what needs only it.
   - `createScreen({ cols, rows, scrollback })`: a screen that counts widths as `./width` says and
@@ -108,6 +111,25 @@ release fixes what it fixes.
   `lib/addon-webgl.js`) in place of leaving it undisposed. The manager exists once a program turns
   blinking on (DECSET 12), and while the terminal has focus it keeps a 600 ms interval that held the
   disposed renderer alive. Upstream disposes it from 7a6e724b; drop the patch on an upgrade that has it.
+- `@xterm/addon-webgl` 0.19.0, the same two bundles: the glyph atlas draws a run of two or more
+  ASCII punctuation characters (what a joined ligature is) scaled sideways to its cells, by
+  `cells * deviceCellWidth / measureText(run).width`, in place of at the font's own advance. A cell is
+  `floor(advance * dpr)` wide, so at 13 px JetBrains Mono (7.8 px) and a ratio of 1 a run of three
+  drew 2.4 px past its cells, onto the next glyph; at a ratio of 2 (15 against 15.6 px) it
+  stayed inside by its side bearings, and at 1.25 it spilled by 0.2 cell. The one `fillText` call,
+  as before for every other string. Drop it if upstream fits joined runs to their cells.
+
+## Ligatures
+
+JetBrains Mono makes a ligature by contextual substitution: `=>` is two glyphs swapped for ones
+that join. `src/ligature-table.ts` lists the sequences (up to four glyphs) that trigger it, read from
+the bundled font by `pnpm run ligature-table` (the font's GSUB rules, run through `font-ligatures`
+in Node; dev only, nothing of it ships). `ligatureRuns(text)` finds them in a line and merges
+overlapping or touching ones into runs, which xterm's character joiner hands to WebGL as one glyph
+each. A run is shaped by the browser, so the font decides what inside it joins: a run that takes in a
+glyph the font leaves plain draws it plain. `src/ligature-font.test.ts` holds the table to the font:
+every cell the font joins is in a run, and a run alone joins what it did in its line. A change of
+font version fails it until the table is made again.
 
 ## Bundling the headless emulator
 

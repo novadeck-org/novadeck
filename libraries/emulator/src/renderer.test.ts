@@ -4,11 +4,10 @@ import { describe, expect, it, vi } from "vitest"
 import { contextCap, createRenderers, probeWebgl, type Drawing } from "./renderer.js"
 
 const setup = ({ cap = 2, supported = true, failing = false } = {}) => {
-  const state = { ligatures: false, failing, loads: 0 }
+  const state = { failing, loads: 0 }
   // Work the pool leaves until the moment is over, run when the test says it is.
   const deferred: (() => void)[] = []
   const log: string[] = []
-  let changed = (): void => {}
   const drawings = new Map<string, FakeDrawing>()
   class FakeDrawing implements Drawing {
     disposed = false
@@ -39,11 +38,6 @@ const setup = ({ cap = 2, supported = true, failing = false } = {}) => {
     },
     supported: () => supported,
     cap,
-    ligatures: () => state.ligatures,
-    watchLigatures: (listener) => {
-      changed = listener
-      return () => {}
-    },
     defer: (work) => void deferred.push(work),
   })
   const live = (name: string): boolean => {
@@ -58,10 +52,6 @@ const setup = ({ cap = 2, supported = true, failing = false } = {}) => {
     // The moment is over: what the pool left for then runs.
     settle: () => deferred.splice(0).forEach((work) => work()),
     drawing: (name: string) => drawings.get(name)!,
-    ligatures: (on: boolean) => {
-      state.ligatures = on
-      changed()
-    },
   }
 }
 
@@ -171,15 +161,15 @@ describe("the renderer budget", () => {
     expect(live("b")).toBe(true)
   })
 
-  it("keeps every screen on the DOM renderer while ligatures are on", () => {
-    const { pool, live, ligatures } = setup()
-    pool.screen("a").take()
-    ligatures(true)
-    expect(live("a")).toBe(false)
-    pool.screen("b").take()
-    expect(live("b")).toBe(false)
-    ligatures(false)
-    expect([live("a"), live("b")]).toEqual([true, true])
+  it("tells whether WebGL draws a screen", () => {
+    const { pool } = setup({ cap: 1 })
+    const [a, b] = ["a", "b"].map((name) => pool.screen(name))
+    expect([a!.drawn(), b!.drawn()]).toEqual([false, false])
+    a!.take()
+    b!.take()
+    expect([a!.drawn(), b!.drawn()]).toEqual([true, false])
+    a!.release()
+    expect([a!.drawn(), b!.drawn()]).toEqual([false, true])
   })
 
   it("clears the texture atlas of a screen that has one", () => {
@@ -333,17 +323,6 @@ describe("the renderer budget", () => {
       d!.take()
       d!.idle()
       expect(second.pool.stats().onDom).toBe(0)
-    })
-
-    it("count a wait again after ligatures went on and off", () => {
-      const { pool, ligatures } = setup({ cap: 1 })
-      const [a, b] = ["a", "b"].map((name) => pool.screen(name))
-      a!.take()
-      b!.take()
-      expect(pool.stats().waits).toBe(1)
-      ligatures(true)
-      ligatures(false)
-      expect(pool.stats().waits).toBe(2)
     })
 
     it("tell a watcher when the screens on the DOM change in number", () => {

@@ -6,16 +6,6 @@ import { webglRenderers, type PoolStats, type Renderers } from "@novadeck/emulat
 // above one and ragged below, so Canvas keeps the DOM renderer.
 export const wantsWebgl = (view: ViewMode): boolean => view !== "canvas"
 
-// The ligatures setting is one attribute on the page's root, set from Preferences.
-const watchRoot = (changed: () => void): (() => void) => {
-  const observer = new MutationObserver(changed)
-  observer.observe(document.documentElement, {
-    attributes: true,
-    attributeFilter: ["data-ligatures"],
-  })
-  return () => observer.disconnect()
-}
-
 let page: Renderers | undefined
 let configuredCap: number | undefined
 
@@ -41,11 +31,6 @@ export const configurePageRenderers = ({ cap }: { readonly cap: number }): void 
 // which the pool's margin of two contexts leaves room for.
 export const pageRenderers = (): Renderers =>
   (page ??= webglRenderers({
-    // The trade-off: ligatures render through CSS `font-variant-ligatures`, which only the
-    // DOM renderer gets; WebGL draws per cell and cannot join glyphs. So every screen stays on
-    // the DOM renderer while they are on (no ligatures addon for now).
-    ligatures: () => document.documentElement.dataset.ligatures === "on",
-    watchLigatures: watchRoot,
     ...(configuredCap === undefined ? {} : { cap: configuredCap }),
   }))
 

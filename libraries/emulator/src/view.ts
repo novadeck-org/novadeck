@@ -2,6 +2,7 @@ import { FitAddon } from "@xterm/addon-fit"
 import { WebLinksAddon } from "@xterm/addon-web-links"
 import { Terminal, type IDisposable, type ILinkHandler, type ITheme } from "@xterm/xterm"
 
+import { ligatureRuns } from "./ligatures.js"
 import type { Renderers, ScreenRenderer } from "./renderer.js"
 import { applyWidths } from "./width.js"
 
@@ -40,6 +41,13 @@ export type View = {
    * false when nothing changed or a later call took over.
    */
   readonly setFont: (family: string) => Promise<boolean>
+  /**
+   * Draws the font's ligatures (`=>`, `!=`, `<!--`) joined, or each glyph alone. The DOM
+   * renderer draws them from its text, so only a CSS rule keeps them on (the page's);
+   * WebGL draws a glyph per cell, so while it draws the view, runs of cells the font
+   * joins are handed to it as one glyph each, fitted to their cells.
+   */
+  readonly setLigatures: (on: boolean) => void
   /** Which renderer draws the view. */
   readonly renderer: ViewRenderer
   /**
@@ -57,6 +65,7 @@ const noRenderer: ScreenRenderer = {
   release: () => {},
   refresh: () => {},
   resized: () => {},
+  drawn: () => false,
   dispose: () => {},
 }
 
@@ -91,9 +100,26 @@ export const createView = (element: HTMLElement, options: ViewOptions): View => 
   }
   terminal.open(element)
   const changes = new Set<() => void>()
+  // Ligature runs go to the character joiner only while WebGL draws the view: the DOM renderer
+  // draws ligatures from its text, and a joiner would only make it build a span per run.
+  let ligatures = false
+  let joiner: number | undefined
+  const syncJoiner = (): void => {
+    const wanted = ligatures && renderer.drawn()
+    if (wanted === (joiner !== undefined)) return
+    if (wanted) joiner = terminal.registerCharacterJoiner((text) => ligatureRuns(text))
+    else if (joiner !== undefined) {
+      terminal.deregisterCharacterJoiner(joiner)
+      joiner = undefined
+    }
+    // What is on screen was drawn the other way.
+    terminal.refresh(0, terminal.rows - 1)
+  }
   const renderer =
-    options.renderers?.screen(terminal, () => changes.forEach((listener) => listener())) ??
-    noRenderer
+    options.renderers?.screen(terminal, () => {
+      syncJoiner()
+      changes.forEach((listener) => listener())
+    }) ?? noRenderer
   let disposed = false
 
   // xterm measures its cells when its font changes, with whatever has loaded by then.
@@ -142,6 +168,10 @@ export const createView = (element: HTMLElement, options: ViewOptions): View => 
       terminal.options.theme = next
     },
     setFont,
+    setLigatures: (on) => {
+      ligatures = on
+      syncJoiner()
+    },
     renderer: {
       take: renderer.take,
       idle: renderer.idle,
