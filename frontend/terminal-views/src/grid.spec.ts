@@ -27,7 +27,7 @@ const setRatio = async (ratio: number) => {
     mobile: false,
   })
   await new Promise((done) => requestAnimationFrame(() => done(undefined)))
-  expect(window.devicePixelRatio).toBe(ratio)
+  expect(window.devicePixelRatio).toBeCloseTo(ratio, 5)
 }
 
 // The family's advance at 13 px, from a span: the headless shell hints some fonts (JetBrains Mono)
@@ -70,6 +70,22 @@ const boxes = [
 describe.skipIf(!hasWebgl)("a terminal that changes renderer", () => {
   it("is measured on a font whose advance is fractional here", () => {
     expect(advance(family, fontSize) % 1).not.toBe(0)
+  })
+
+  // Boxes a row's fraction short of a multiple of the cell height, where a rounded canvas height
+  // over the rows (the DOM renderer's old cell height) fits one row more than WebGL's.
+  describe.each([
+    { ratio: 1.1, width: 800, height: 340 },
+    { ratio: 1.25, width: 796, height: 228 },
+    { ratio: 1.25, width: 800, height: 304 },
+    { ratio: 1.5, width: 810, height: 230 },
+  ])("at a device pixel ratio of $ratio", ({ ratio, width, height }) => {
+    it(`fits ${width} x ${height} to the same rows`, async () => {
+      await setRatio(ratio)
+      const dom = fitted(width, height, "dom")
+      expect(dom).toBeDefined()
+      expect(fitted(width, height, "webgl")).toEqual(dom)
+    })
   })
 
   describe.each([1, 1.25, 1.5, 2])("at a device pixel ratio of %s", (ratio) => {

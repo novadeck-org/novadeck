@@ -91,12 +91,14 @@ release fixes what it fixes.
 - `@xterm/xterm` 6.0.0, the same two bundles: the DOM renderer's `_updateDimensions` measures a cell
   as the WebGL renderer does: the device width of a character is `Math.floor(charWidth * dpr)`, and
   the CSS cell is `device.cell.width / dpr` (it was the measured width, and the rounded canvas over
-  the columns). The renderers disagreed, so a screen that changed renderer (a context stolen, lost
+  the columns), and the CSS cell height is `device.cell.height / dpr` (it was the rounded canvas height
+  over the rows, which differs from WebGL's at a fractional ratio: a box fit one row more or less, at
+  ratio 1.25 a 796 x 228 box 14 rows against 15). The renderers disagreed, so a screen that changed renderer (a context stolen, lost
   or given back, ligatures toggled) fit another number of columns and resized its pty, and an agent's
   TUI redrew: 13 px JetBrains Mono advances 7.8 px, which is 7 px in WebGL, so 112 columns against
   100 in an 800 px box at a ratio of 1. The DOM renderer fits each span to the cell with letter-spacing
   (`_setDefaultSpacing` reads the cell, so it follows), so its text draws at WebGL's pitch, about
-  0.8 px tighter per glyph at 13 px. Heights already agreed. The shared width cache holds glyph
+  0.8 px tighter per glyph at 13 px. The shared width cache holds glyph
   widths, not the cell, and is unaffected. Make it again on xterm 6.1 in `DomRenderer._updateDimensions`
   unless the DOM renderer rounds the same way. `src/cell.test.ts` pins it in each bundle, and
   terminal-views' `src/grid.spec.ts` checks both renderers fit the same columns and rows in a real
