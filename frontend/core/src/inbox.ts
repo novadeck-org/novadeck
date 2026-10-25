@@ -179,6 +179,8 @@ export type InboxAnswer =
         // A limit that has reset: sends `continue` as the agent's next prompt, with no interrupt.
         | { readonly type: "continue" }
         | { readonly type: "auto-resume"; readonly on: boolean }
+        // A failed turn that is no longer current, read.
+        | { readonly type: "read" }
     }
   | { readonly kind: "update"; readonly action: "read" }
   | {
@@ -202,14 +204,28 @@ export const emptyInbox: InboxState = { items: [], answering: {}, failed: {} }
 // (`${projectId}/${workspaceSessionId}`) that holds it.
 export type InboxFinish = { readonly context: string; readonly terminalId: string }
 
-// Where a backend that builds its Inbox from the app's own state gets it: the workspace,
-// the terminals whose agent finished while the person looked elsewhere (by session context,
-// then terminal id, as `Unread` has them), and a way to read finishes.
-export type InboxUnread = Readonly<Record<string, Readonly<Record<string, "done" | "failed">>>>
+// A finished turn the backend stored as its own row, completed or failed, until the person
+// reads it. `reply` and `gist` are the start of the agent's reply and murmur's words for it;
+// `error` a failed turn's error; null where the harness gave none. `at` is the end's
+// `lastTurn.at`: with `terminalId` it tells this end from any other.
+export type InboxTurn = {
+  readonly id: string
+  readonly projectId: string
+  readonly workspaceSessionId: string
+  readonly terminalId: string
+  readonly handle: string
+  readonly agent: AgentName
+  readonly at: number
+  readonly outcome: "completed" | "failed"
+  readonly reply: string | null
+  readonly gist: string | null
+  readonly error: string | null
+  readonly files: readonly string[]
+}
+
+// Where a backend that builds its Inbox from the app's own state gets it: the workspace.
 export type InboxBinding = {
   readonly workspace: Store<Workspace>
-  readonly unread: Store<InboxUnread>
-  readonly read: (finishes: readonly InboxFinish[]) => void
 }
 
 export type Inbox = {
@@ -223,20 +239,30 @@ export type Inbox = {
   readonly see: (id: string) => void
   // Reads every update, leaving everything that waits on the person.
   readonly readAll: () => void
+  // The stored finished turns, newest last as the backend lists them, undefined until the
+  // backend first lists them (and again where it stops). Includes the rows the Inbox hides
+  // under a running lead, and none the person already read. Absent where the backend
+  // stores none.
+  readonly turns?: Store<readonly InboxTurn[] | undefined>
+  // Reads every stored turn row of these terminals, as the person looks at them. The rows
+  // leave `turns` at once.
+  readonly readFinishes?: (finishes: readonly InboxFinish[]) => void
 }
 
 // How urgent an item is, most urgent first: trouble that stopped the agent, then
 // anything else that stopped it (a limit that waits for the person among them), then what
 // asks while the agent works on, then trouble that handles itself (a limit Novadeck
 // resumes from) or that only holds its messages (whose own question, if any, comes first)
-// or a feedback draft, which waits on the person but not the agent, then updates.
+// or a feedback draft, which waits on the person but not the agent, then updates, and with
+// them a failed turn that is no longer the agent's current end (not `stopped`), which only
+// informs.
 export const urgency = (item: InboxItem): number => {
   const type = inboxType(item)
   if (type === "update") return 4
   if (type === "feedback") return 3
   if (item.kind === "trouble" && item.trouble.type === "waits") return 3
   if (type === "trouble") {
-    if (!item.stopped) return 3
+    if (!item.stopped) return item.trouble.type === "failed" ? 4 : 3
     return item.kind === "trouble" && item.trouble.type === "limit" ? 1 : 0
   }
   return item.stopped ? 1 : 2
