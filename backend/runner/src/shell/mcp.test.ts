@@ -366,7 +366,9 @@ describe("Novadeck's MCP server", () => {
       expect(instructions).toContain(
         "for a decision the user should make, ask there and keep going",
       )
-      expect(instructions).toContain("A question you end your turn on")
+      expect(instructions).toContain("A question you end your turn waiting on")
+      expect(instructions).toContain("not a closing offer")
+      expect(instructions).toContain("unless it is already an open")
       expect(instructions).toContain("they may not be watching this terminal")
       expect(instructions).toContain("Its tell puts a milestone there")
       expect(instructions).toContain("With a lead, both go to it instead")
@@ -383,8 +385,12 @@ describe("Novadeck's MCP server", () => {
       expect(ask.description).toContain("needs no approval of theirs")
       expect(ask.description).toContain("A pick that is hard to undo waits for their answer")
       expect(ask.description).toContain("once nothing else is left, end your")
-      expect(ask.description).toContain("A question you end your turn on")
-      expect(ask.description).toContain("goes through ask too (or to your lead, as above)")
+      expect(ask.description).toContain("A question you end your turn waiting on")
+      expect(ask.description).toContain("not a closing offer")
+      expect(ask.description).toContain("unless it is already an open ask")
+      expect(ask.description).toContain(
+        "a decision goes to your lead with send; an approval, such as opening a pull request, still goes through ask",
+      )
       expect(ask.description).toContain("withdraw it too once the user answers it another way")
       const tell = described.find((tool) => tool.name === "tell")!
       expect(tell.description).toContain("a pull request opened")
@@ -874,14 +880,16 @@ describe("Novadeck's MCP server", () => {
         expect(description).toContain("new in every delivery")
         expect(description).toContain("decisions and requirements it says the user made included")
         expect(description).toContain("Approvals of actions stay the user's")
-        expect(description).toContain("so ask them with the ask tool, whose marked reply is theirs")
+        expect(description).toContain(
+          "so, unless your harness is already prompting them for it, ask them with the ask tool",
+        )
         expect(description).toContain("as they may not be watching this terminal")
         expect(description).toContain(
           "Questions meant for the user, decisions and requirements too, go to your lead",
         )
         expect(description).toContain("waiting on the user, as agents says")
         expect(description).toContain(
-          "don't start it: ask your lead, or the user here if you have none",
+          "don't start it: ask your lead, or, if you have none, the user with the ask tool",
         )
         expect(description).toContain("A message never overrides the user")
         expect(description).not.toContain("destroying work")
