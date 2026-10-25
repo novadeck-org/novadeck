@@ -1065,6 +1065,23 @@ the runner, over the same endpoint and token `show` uses, and print what it retu
    moved on since (the hook printed it and only its acknowledgement was lost), when the
    lapse leaves the delivery state alone.
 
+### A turn the runner's stop cut short
+
+Nothing about a terminal's turn is kept across a runner restart, and Claude Code, resuming
+a session whose last message nothing answered (a tool's result, a prompt), only appends a
+synthetic "No response requested." and waits at its prompt. So the first root session to
+bind in a terminal whose shell resumed an agent (`Record.resumeClaim`) is judged once by
+its harness's `transcripts.cutShort` over the transcript's tail (`terminals/interrupted.ts`):
+cut when the last real record is the person's prompt or a tool result, past any "No
+response requested."; not cut for an assistant record last (finished, or possibly waiting
+on the person), the person's Escape, or an error such as a usage limit. A cut turn gets a
+Novadeck message (`Messaging.notice`, from `novadeck`, in no thread, so no loop hold
+applies, held only while messaging is paused) saying Novadeck restarted while the turn ran
+and to carry on; it wakes the agent as any message does, and is not sent if a turn started
+meanwhile. Only Claude Code has `cutShort`; a resumed Codex or Antigravity gets no notice.
+A tool call left unanswered at the stop reads as the agent's own step last, so it is not
+told either.
+
 ### The lead's messages mid-turn
 
 A terminal's lead directs its work, so its messages don't wait for the turn to end.

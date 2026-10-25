@@ -58,6 +58,7 @@ import {
   undelivered,
   waiting,
   markLength,
+  novadeckSender,
   newMark,
   wrap,
   type Message,
@@ -650,6 +651,40 @@ export class Messaging {
     this.messages.set(message.id, message)
     this.responses.set(askId, message.id)
     this.changed(terminalId)
+  }
+
+  /**
+   * Queues an automatic notice from Novadeck itself for the terminal's root session, which
+   * its agent gets as any message, waking it when idle (the doorbell). It belongs to no
+   * thread, so no loop or hold guards it, and no sender is told of its fate; false when no
+   * session is bound there.
+   */
+  notice(terminalId: string, text: string): boolean {
+    const owner = this.inboxOwner(terminalId)
+    if (!owner) return false
+    const id = this.freshMessageId()
+    this.put({
+      id,
+      projectId: owner.projectId,
+      thread: `t-notice-${id}`,
+      hop: 1,
+      from: novadeckSender,
+      to: {
+        terminalId,
+        handle: owner.handle,
+        agent: owner.agent,
+        sessionId: owner.sessionId,
+      },
+      text: cleanText(text),
+      sentAt: this.now(),
+      state: this.paused ? "held" : "queued",
+      deliveredAt: null,
+      notified: true,
+      stopped: false,
+      fromLead: false,
+      toLead: false,
+    })
+    return true
   }
 
   /** The reply for one Inbox ask, used to retain pending replies with their question. */

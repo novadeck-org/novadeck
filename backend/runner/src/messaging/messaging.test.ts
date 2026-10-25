@@ -4043,6 +4043,23 @@ describe("the loop hold", () => {
     expect(rounds(1).map(sent)[0]).toMatchObject({ state: "held" })
   })
 
+  it("delivers Novadeck's own notice to a session as a message from novadeck, held while paused", () => {
+    const { messaging, records, prompt, claude } = setup()
+    expect(
+      messaging.notice("nowhere", "Novadeck: automatic notice, not from the user: go on"),
+    ).toBe(false)
+    messaging.pause(true)
+    expect(messaging.notice("A", "Novadeck: automatic notice, not from the user: go on")).toBe(true)
+    expect(records.messages()).toMatchObject([{ from: { handle: "novadeck" }, state: "held" }])
+    messaging.pause(false)
+    messaging.notice("A", "Novadeck: automatic notice, not from the user: carry on")
+    const answer = prompt("A", claude)
+    expect(answer.stdout).toContain('from=\\"novadeck\\"')
+    expect(answer.stdout).toContain("carry on")
+    messaging.acknowledge("A", answer.leaseId!)
+    expect(records.messages().map(({ state }) => state)).toContain("delivered")
+  })
+
   it("keeps ten messages waiting held for a pair and refuses the next, spending no hop", () => {
     const { messaging, rounds, records } = setup()
     const answers = rounds(18, "A")

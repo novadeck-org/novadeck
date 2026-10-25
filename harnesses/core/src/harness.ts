@@ -115,6 +115,13 @@ export type Harness = {
     ) => Promise<string | undefined>
     /** The items one line of it records, oldest first; none for a line of anything else. */
     readonly items: (line: string) => readonly TranscriptEntry[]
+    /**
+     * Whether the transcript's last turn was cut short, given its tail's lines: the
+     * session ended with a turn running, so a resume of it sits idle with nothing to
+     * answer. False for a turn that finished, the person interrupted, or an error ended,
+     * and for a session whose last step was the agent's own (it may wait on the person).
+     */
+    readonly cutShort?: (lines: readonly string[]) => boolean
   }
   /**
    * The plans one line of its transcript or rollout records, as its own decoders read

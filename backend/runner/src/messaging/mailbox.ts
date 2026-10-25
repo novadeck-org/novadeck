@@ -16,6 +16,14 @@ export type Sender = {
   readonly sessionId: string | null
 }
 
+/** Novadeck itself as a sender, of its automatic notices to an agent (see `Messaging.notice`). */
+export const novadeckSender: Sender = {
+  terminalId: "novadeck",
+  handle: "novadeck",
+  agent: null,
+  sessionId: null,
+}
+
 /**
  * A terminal a message is for, and the agent session bound there when it was sent; or,
  * where none had bound yet, the agent expected there, whose first session to bind takes

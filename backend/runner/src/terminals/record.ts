@@ -170,4 +170,6 @@ export type Started = {
   resumeFile: string | undefined
   /** The session claimed for the resume, as agent:session, once the shell runs it. */
   resumeClaim?: string | undefined
+  /** Whether the resumed agent was already judged for a turn the stop cut short (`interruptedFor`). */
+  resumeTold?: true | undefined
 }

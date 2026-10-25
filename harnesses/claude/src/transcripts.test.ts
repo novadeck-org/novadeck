@@ -3,7 +3,7 @@ import { dirname, join } from "node:path"
 import { loadProbe } from "@novadeck/harness-core/testing/probes"
 import { describe, expect, it } from "vitest"
 
-import { transcripts } from "./transcripts.js"
+import { cutShort, transcripts } from "./transcripts.js"
 
 const { scenarios } = loadProbe(import.meta.dirname, "transcript.probe.json") as {
   scenarios: { [name: string]: object[] }
@@ -150,5 +150,55 @@ describe("Claude Code's transcripts", () => {
       join(dirname(root), "s1", "subagents", "agent-a1b2.jsonl"),
     )
     await expect(transcripts.locate(root, "s1", "../x")).resolves.toBeUndefined()
+  })
+})
+
+describe("a Claude Code session whose last turn was cut short", () => {
+  const user = (content: unknown, extra: object = {}) =>
+    JSON.stringify({
+      type: "user",
+      message: { role: "user", content },
+      ...extra,
+    })
+  const assistant = (content: unknown, model = "claude-opus-5-5") =>
+    JSON.stringify({
+      type: "assistant",
+      message: { role: "assistant", model, content },
+    })
+  const result = user([{ type: "tool_result", tool_use_id: "t1", content: "ok" }])
+  const call = assistant([{ type: "tool_use", id: "t1", name: "Read", input: {} }])
+  const synthetic = (text: string) => assistant([{ type: "text", text }], "<synthetic>")
+
+  it("is cut when a tool's result or a prompt has no answer, also past the resume's own", () => {
+    expect(cutShort([user("do it"), call, result])).toBe(true)
+    expect(cutShort([user("do it")])).toBe(true)
+    expect(cutShort([call, result, synthetic("No response requested.")])).toBe(true)
+    expect(cutShort([call, result, JSON.stringify({ type: "last-prompt" }), "{cut", ""])).toBe(true)
+  })
+
+  it("is not when the turn finished, the person interrupted it or an error ended it", () => {
+    expect(cutShort([user("do it"), assistant([{ type: "text", text: "Done." }])])).toBe(false)
+    expect(
+      cutShort([call, result, user([{ type: "text", text: "[Request interrupted by user]" }])]),
+    ).toBe(false)
+    expect(cutShort([call, result, synthetic("You've hit your session limit")])).toBe(false)
+    expect(
+      cutShort([
+        user("go"),
+        synthetic("No response requested."),
+        assistant([{ type: "text", text: "On it." }]),
+      ]),
+    ).toBe(false)
+  })
+
+  it("is not when the agent's own step is last, as it may wait on the person", () => {
+    expect(cutShort([user("do it"), call])).toBe(false)
+  })
+
+  it("leaves out records no turn answers", () => {
+    const done = [user("do it"), assistant([{ type: "text", text: "Done." }])]
+    expect(cutShort([...done, user("<local-command-stdout>x</local-command-stdout>")])).toBe(false)
+    expect(cutShort([...done, user("meta", { isMeta: true })])).toBe(false)
+    expect(cutShort([...done, user("side", { isSidechain: true })])).toBe(false)
   })
 })
