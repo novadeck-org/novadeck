@@ -22,7 +22,8 @@ export const SidebarPanel = ({
   titleHint?: string
   // Beside the title, such as a pill that says something waits.
   titleExtra?: ReactNode
-  count?: number | undefined
+  // How many, or an element that says it; an element that renders nothing hides it.
+  count?: ReactNode
   active: boolean
   onClose: () => void
   // Quiet buttons beside the close button.

@@ -3,7 +3,7 @@ import type { SidebarPanel as PanelId, Tile, WorkspaceSession } from "@novadeck/
 import { Plus } from "lucide-react"
 import type { ComponentProps } from "react"
 
-import { HeldPill, InboxList, InboxMarkAll } from "../inbox/InboxList"
+import { HeldPill, InboxCount, InboxList, InboxMarkAll } from "../inbox/InboxList"
 import { shortcutBindings } from "../interaction/shortcuts"
 import { SessionsPanel } from "../sidebar/SessionsPanel"
 import { SidebarPanel, sidebarCreateClasses } from "../sidebar/SidebarPanel"
@@ -16,8 +16,6 @@ type Props = Omit<ComponentProps<typeof TerminalTabs>, "terminals"> & {
   workspaceSessionId: string
   workspaceSessions: WorkspaceSession[]
   terminalCount: number
-  // How many in the Inbox wait on the person, while any do.
-  inboxCount: number | undefined
   ordered: readonly Tile[]
   sidebarPanel: PanelId
   sidebarVisible: boolean
@@ -46,7 +44,6 @@ export const WorkspaceSidebar = ({
   workspaceSessionId,
   workspaceSessions,
   terminalCount,
-  inboxCount,
   ordered,
   sidebarPanel,
   sidebarVisible,
@@ -134,7 +131,7 @@ export const WorkspaceSidebar = ({
     <SidebarPanel
       id="inbox-panel"
       title="Inbox"
-      count={inboxCount}
+      count={<InboxCount />}
       titleExtra={<HeldPill />}
       active={sidebarPanel === "inbox"}
       onClose={onHide}

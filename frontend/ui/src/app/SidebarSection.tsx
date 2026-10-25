@@ -14,7 +14,6 @@ import { useUiState, useWorkspaceServices, useWorkspaceState } from "./controlle
 import { useStoreSelector } from "./controller/useStoreSelector"
 import { sourceShown } from "./routing"
 import { currentState, currentTarget, sameItems, sameTarget } from "./selectors"
-import { useInboxBadge } from "./useInboxBadge"
 import { renderTab } from "./WorkspaceTab"
 
 // The Sessions panel shows each session's name, visit time and terminals, nothing else.
@@ -109,14 +108,12 @@ export const SidebarSection = memo((): React.JSX.Element => {
   )
   const sidebarPanel = useUiState((state) => state.location.route.panel)
   const visible = useUiState((state) => sidebarVisible(state.shell, desktop))
-  const inboxCount = useInboxBadge()?.count
   return (
     <WorkspaceSidebar
       projectId={projectId}
       workspaceSessionId={target.workspaceSessionId}
       workspaceSessions={workspaceSessions}
       terminalCount={ordered.length}
-      inboxCount={inboxCount}
       ordered={ordered}
       sidebarPanel={sidebarPanel}
       sidebarVisible={visible}

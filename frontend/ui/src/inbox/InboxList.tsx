@@ -6,7 +6,7 @@ import { CheckCheck, CircleCheck, LoaderCircle } from "lucide-react"
 
 import { focusSheet, focusSheetSoon } from "./inbox-dom"
 import { icons, typeWords } from "./inbox-icons"
-import { hasUpdates } from "./inbox-state"
+import { hasUpdates, needing } from "./inbox-state"
 import { readLabel, resumesLabel, subjectOf, toneOf, waitLabel } from "./inbox-text"
 import { started, useInboxContext } from "./InboxProvider"
 import { Text } from "./sheet-parts"
@@ -80,6 +80,14 @@ const Row = ({ item }: { readonly item: InboxItem }): React.JSX.Element => {
       </button>
     </div>
   )
+}
+
+// Beside the title: how many wait on the person, as the rail's bell says, while any do. It reads
+// the Inbox itself, so a change in what waits re-renders it and not the sidebar.
+export const InboxCount = (): string | null => {
+  const { state } = useInboxContext()
+  const waiting = needing(state.items).length
+  return waiting === 0 ? null : `${waiting} waiting`
 }
 
 // The pill beside the title while items wait to join the list.
