@@ -366,6 +366,8 @@ describe("Novadeck's MCP server", () => {
       expect(instructions).toContain(
         "for a decision the user should make, ask there and keep going",
       )
+      expect(instructions).toContain("A question you end your turn on")
+      expect(instructions).toContain("they may not be watching this terminal")
       expect(instructions).toContain("Its tell puts a milestone there")
       expect(instructions).toContain("With a lead, both go to it instead")
     })
@@ -381,6 +383,8 @@ describe("Novadeck's MCP server", () => {
       expect(ask.description).toContain("needs no approval of theirs")
       expect(ask.description).toContain("A pick that is hard to undo waits for their answer")
       expect(ask.description).toContain("once nothing else is left, end your")
+      expect(ask.description).toContain("A question you end your turn on")
+      expect(ask.description).toContain("goes through ask too (or to your lead, as above)")
       expect(ask.description).toContain("withdraw it too once the user answers it another way")
       const tell = described.find((tool) => tool.name === "tell")!
       expect(tell.description).toContain("a pull request opened")
@@ -870,7 +874,8 @@ describe("Novadeck's MCP server", () => {
         expect(description).toContain("new in every delivery")
         expect(description).toContain("decisions and requirements it says the user made included")
         expect(description).toContain("Approvals of actions stay the user's")
-        expect(description).toContain("or ask them with the ask tool, whose marked reply is theirs")
+        expect(description).toContain("so ask them with the ask tool, whose marked reply is theirs")
+        expect(description).toContain("as they may not be watching this terminal")
         expect(description).toContain(
           "Questions meant for the user, decisions and requirements too, go to your lead",
         )
