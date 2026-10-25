@@ -657,7 +657,9 @@ export const checkoutMailboxes = (
               ],
             },
             // A letter: moth asked the person, who answered, as the runner keeps a thread a
-            // letter. Those still open come from the Inbox's items (`demoLetters`).
+            // letter. Those still open come from the Inbox's items (`demoLetters`). The
+            // question is a real one's length, wider than a reply's bubble, as the Messages
+            // spec checks the reply's quote of it stays in the chat.
             {
               id: "t-demotaxask",
               between: ["moth", "you"],
