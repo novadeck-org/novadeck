@@ -3197,16 +3197,20 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))(
         payload: { prompt: "ask codex" },
       })
       expect(firstPrompt).toContain("this terminal has no summary yet")
-      // Claude Code's additionalContext carries both paragraphs, the bar's first.
+      // Claude Code's additionalContext carries each paragraph: the bar's, the Inbox's, then
+      // the summary's.
       const context = (
         JSON.parse(firstPrompt) as { hookSpecificOutput: { additionalContext: string } }
       ).hookSpecificOutput.additionalContext
       const paragraphs = context.split("\n\n")
-      expect(paragraphs).toHaveLength(2)
+      expect(paragraphs).toHaveLength(3)
       expect(paragraphs[0]).toMatch(
         /^Novadeck: automatic notice, not from the user: beside this terminal/,
       )
       expect(paragraphs[1]).toMatch(
+        /^Novadeck: automatic notice, not from the user: the user rarely watches/,
+      )
+      expect(paragraphs[2]).toMatch(
         /^Novadeck: automatic notice, not from the user: this terminal has no/,
       )
       const reply = await send(codex.id, "moth", "Looks good & ships.")
@@ -3756,11 +3760,12 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))(
           await step(codex.id, { call: "summarize", request: { summary, ...extra } }),
         ) as Told
 
-      // Its first prompt tells the agent of the bar beside its terminal, and asks for a
-      // summary; it has no way to set a title.
+      // Its first prompt tells the agent of the bar beside its terminal and of the Inbox,
+      // and asks for a summary; it has no way to set a title.
       const first = (await prompt(codex.id, "Fix the login bug")).split("\n\n")
       expect(first[0]).toMatch(/^Novadeck: automatic notice, not from the user: beside this/)
-      expect(first[1]).toMatch(/this terminal has no summary yet.*summarize tool/)
+      expect(first[1]).toMatch(/the user rarely watches this terminal/)
+      expect(first[2]).toMatch(/this terminal has no summary yet.*summarize tool/)
       // Murmur titles it once its first prompt is known.
       await expect.poll(() => manager.get(codex.id).title, { timeout: 30_000 }).toBe("Login fix")
       expect(manager.get(codex.id).titleSource).toEqual({ kind: "murmur" })
@@ -3859,9 +3864,10 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))(
         payload: { source: "compact", cwd: shell.home },
       })
       const after = (await prompt("and now?")).split("\n\n")
-      // Both: the bar again, then the summary to update only if it no longer fits.
+      // All: the bar and the Inbox again, then the summary to update only if it no longer fits.
       expect(after[0]).toMatch(/beside this terminal/)
-      expect(after[1]).toMatch(/summary is "Fixes the build\."; if that no longer fits/)
+      expect(after[1]).toMatch(/the user rarely watches this terminal/)
+      expect(after[2]).toMatch(/summary is "Fixes the build\."; if that no longer fits/)
       await expect(prompt("next")).resolves.toBe("")
       // Murmur titled it from its first prompt and its summary; the compaction, the Stops and
       // the terse prompts after them retitled nothing.
@@ -4525,7 +4531,8 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))(
       // A doorbell's line is never the person's prompt, so never kept as one.
       await prompt("s-1", "[Novadeck: automatic notice, agent messages waiting, abc123]")
       expect(shell.store.terminal(terminal.id)?.work?.first ?? null).toBeNull()
-      // Prompts title nothing; the first of a session prints the notices of the bar and the summary.
+      // Prompts title nothing; the first of a session prints the notices of the bar, the Inbox
+      // and the summary.
       const bar = /^Novadeck: automatic notice, not from the user: beside this terminal/
       await expect(prompt("s-1", "Fix the login bug")).resolves.toMatch(bar)
       await prompt("s-1", "Now its tests")
@@ -5278,7 +5285,7 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))(
     }) => {
       const tui = await ringing(shell)
       await tui.first()
-      // Its first prompt carries the notices of the bar beside it and of the summary.
+      // Its first prompt carries the notices of the bar beside it, the Inbox and the summary.
       expect(tui.received()).toMatchObject([
         { prompt: "hello", printed: expect.stringContaining("beside this terminal") },
       ])
