@@ -156,6 +156,9 @@ export const focusZenCreate = (): void =>
 export const focusSidebarToggleStranded = (panel: SidebarPanel): void =>
   focusStranded(`#${panel}-toggle`, ".zen-inbox")
 export const focusZenEnter = (): void => focusStranded("[data-workspace-zen-enter]", ".zen-exit")
+// The Terminals panel's create button, once a new session leaves the Sessions panel behind.
+export const focusTerminalsCreate = (): void =>
+  focusStranded("[data-terminals-create]", "[data-sessions-create]")
 
 export const focusTerminalInput = (id: string): boolean => {
   const input = terminalElement(id)?.querySelector<HTMLElement>("[data-terminal-input]")
