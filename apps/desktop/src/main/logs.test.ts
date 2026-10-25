@@ -251,13 +251,19 @@ describe("logNewDumps", () => {
 describe("the page's logs and errors", () => {
   // A page's web contents: an id, and the events it can be told of.
   const contents = (id: number) => {
-    const handlers = new Map<string, (...args: never[]) => void>()
+    const handlers: [string, (...args: never[]) => void][] = []
     const known = {
       id,
-      on: (name: string, handler: (...args: never[]) => void) => void handlers.set(name, handler),
-      once: (name: string, handler: (...args: never[]) => void) => void handlers.set(name, handler),
+      on: (name: string, handler: (...args: never[]) => void) =>
+        void handlers.push([name, handler]),
+      once: (name: string, handler: (...args: never[]) => void) =>
+        void handlers.push([name, handler]),
+      // Every listener of the event hears it.
       emit: (name: string, ...args: unknown[]) =>
-        (handlers.get(name) as ((...args: unknown[]) => void) | undefined)?.(...args),
+        handlers
+          .filter(([event]) => event === name)
+          .forEach(([, handler]) => (handler as (...args: unknown[]) => void)(...args)),
+      listeners: () => handlers.length,
     }
     return known
   }
@@ -349,14 +355,25 @@ describe("the page's logs and errors", () => {
       const other = contents(2)
       send(rendererPoolChannel, true, counts)
       send(rendererPoolChannel, true, counts, other)
-      first.emit("did-start-navigation", { isMainFrame: false, isSameDocument: false })
-      send(rendererPoolChannel, true, counts)
-      first.emit("did-start-navigation", { isMainFrame: true, isSameDocument: false })
+      first.emit("did-navigate")
       send(rendererPoolChannel, true, counts)
       other.emit("destroyed")
       send(rendererPoolChannel, true, counts, other)
       logger.close()
       expect(lines()).toHaveLength(4)
+    })
+
+    it("listens to a window once, however often it navigates", () => {
+      const { logger, lines, send } = setup()
+      const window = contents(3)
+      for (let n = 1; n <= 12; n++) {
+        send(rendererPoolChannel, true, { ...counts, swaps: n }, window)
+        window.emit("did-navigate")
+        send(rendererPoolChannel, true, { ...counts, swaps: n }, window)
+      }
+      logger.close()
+      expect(window.listeners()).toBe(2)
+      expect(lines()).toHaveLength(24)
     })
   })
 

@@ -280,6 +280,8 @@ export const registerLogIpc = (
   // The last report logged for each page, by its web contents: a window's, until it
   // navigates or closes, which starts its counts afresh.
   const lastPool = new Map<number, string>()
+  // The web contents listened to, each once.
+  const hooked = new WeakSet<object>()
   ipc.on(rendererPoolChannel, (event, value: unknown) => {
     if (!options.window(event)) return
     const report = rendererPoolOf(value)
@@ -288,11 +290,12 @@ export const registerLogIpc = (
     // A report the same as the last one from the page says nothing new.
     const text = JSON.stringify(report)
     if (lastPool.get(sender.id) === text) return
-    if (!lastPool.has(sender.id)) {
+    if (!hooked.has(sender)) {
+      hooked.add(sender)
       const forget = (): void => void lastPool.delete(sender.id)
-      sender.on("did-start-navigation", (details) => {
-        if (details.isMainFrame && !details.isSameDocument) forget()
-      })
+      // The main frame committed another page, whose counts begin afresh; a report of the
+      // outgoing page can no longer arrive.
+      sender.on("did-navigate", forget)
       sender.once("destroyed", forget)
     }
     lastPool.set(sender.id, text)
