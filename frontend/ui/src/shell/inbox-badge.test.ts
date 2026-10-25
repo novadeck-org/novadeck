@@ -60,6 +60,15 @@ describe("inboxBadge", () => {
     expect(inboxBadge([entry(asked), entry(held, 1, false)])?.status).toBe("question")
   })
 
+  it("counts a feedback draft, as needing attention", () => {
+    const draft: InboxContent = { kind: "feedback", draft: { kind: "bug", text: "It broke." } }
+    expect(inboxBadge([entry(draft, 0, false)])).toEqual({
+      text: "1",
+      label: "Inbox, 1 waiting",
+      status: "attention",
+    })
+  })
+
   it("caps the printed count at 9+ but keeps the full count in the name", () => {
     const list = Array.from({ length: 12 }, (_, index) => entry(held, index))
     expect(inboxBadge(list)).toMatchObject({ text: "9+", label: "Inbox, 12 waiting" })

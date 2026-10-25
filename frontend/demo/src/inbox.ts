@@ -99,13 +99,14 @@ const terminalAt = (workspace: Workspace, key: TerminalKey): TerminalMetadata | 
     ?.state.roster.terminals.find((terminal) => terminal.id === key.terminalId)
 
 // Every item is its own row, as in core's `inboxItems`, but for one: the demo's own items
-// that wait on the person (a request, an ask, trouble) stand in for what their terminal's
-// agent waits on, so they take the place of a dialog that agent's own story shows there,
-// which no real agent shows beside another.
+// that wait on the person for their agent (a request, an ask, trouble) stand in for what
+// their terminal's agent waits on, so they take the place of a dialog that agent's own
+// story shows there, which no real agent shows beside another. A feedback draft waits on
+// the person alone, so it is a row beside whatever the agent waits on.
 const merged = (own: readonly InboxItem[], derived: readonly InboxItem[]): InboxItem[] => {
   const taken = new Set(
     own
-      .filter((each) => each.kind !== "held" && each.kind !== "update")
+      .filter((each) => each.kind !== "held" && each.kind !== "update" && each.kind !== "feedback")
       .map((each) => each.source.terminalId),
   )
   return ordered([

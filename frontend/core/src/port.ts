@@ -1,4 +1,5 @@
 import type { Conversations } from "./conversation"
+import type { Feedback } from "./feedback"
 import type { AgentName } from "./harnesses"
 import type { Inbox } from "./inbox"
 import type { Companions } from "./items"
@@ -264,6 +265,11 @@ export type BackendFields = {
   // change in them, for the sidebar's Source panel (see core's `source`). Absent where the
   // backend can't read the projects' folders: the panel isn't drawn.
   readonly source?: Source
+  // Optional. Feedback for the people building Novadeck (see core's `feedback`): the
+  // footer's card, and an agent window's "Ask @handle to write feedback…". Absent where
+  // the backend can't send it: neither is drawn. Today only the demo backend has it, and
+  // it sends nothing anywhere.
+  readonly feedback?: Feedback
   // Optional. Types text into a terminal as a paste, bracketed where its program asks,
   // without pressing Enter, as dictation does. Says whether it typed: false when the
   // terminal has gone or has no screen to take the text. Absent where terminals take no input.
@@ -366,7 +372,7 @@ export type BackendFields = {
   readonly visitor?: true
   // Optional. Marks a demo backend: fixtures and simulated agents, as the try demo and the
   // previews have, never the runner. Features still being designed show only here: today the
-  // sidebar's Source panel.
+  // sidebar's Source panel and feedback.
   readonly demo?: true
 }
 

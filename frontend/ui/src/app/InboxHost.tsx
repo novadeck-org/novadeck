@@ -61,7 +61,13 @@ export const InboxHost = ({
     [inbox, ui, pings],
   )
   return (
-    <InboxProvider inbox={inbox} reveal={reveal} phone={phone} working={working}>
+    <InboxProvider
+      inbox={inbox}
+      reveal={reveal}
+      phone={phone}
+      working={working}
+      feedbackAbout={backend.feedback?.about}
+    >
       {children}
       <NoticeClicks inbox={inbox} />
       <InboxSheet active={active} />

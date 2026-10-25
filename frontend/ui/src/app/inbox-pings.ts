@@ -2,7 +2,7 @@ import { handleText } from "@novadeck/core/handle"
 import type { Inbox, InboxItem } from "@novadeck/core/inbox"
 import type { Backend, Notice } from "@novadeck/core/port"
 
-import { needing } from "../inbox/inbox-state"
+import { needing, ringing } from "../inbox/inbox-state"
 import { fromNovadeck, labelOf, subjectOf } from "../inbox/inbox-text"
 import { isDesktop } from "../shell/desktop"
 import { heldForToast, modalOpen } from "./selectors"
@@ -140,8 +140,8 @@ const onWindows = (): boolean => navigator.platform.startsWith("Win")
 // says whether it rang. A ringing item that then leaves the Inbox for `graceMs` is handed to
 // `leave`: one that drops out of a recompute and comes back keeps its own ring. Items there
 // when this starts, or that began well before it, are taken as seen, and one that leaves
-// before it rings is new again if it comes back. `change` hears the items that need the
-// person after every Inbox change. A doorbell (the OS ping, the toast) is a `ring` that
+// before it rings is new again if it comes back. `change` hears the items that wait on the
+// person (the bell's, feedback drafts too) after every Inbox change. A doorbell (the OS ping, the toast) is a `ring` that
 // takes an item only while its own case holds, which is how one item never rings two.
 // Returns the stop.
 export const followNeeds = (
@@ -167,14 +167,14 @@ export const followNeeds = (
   // The grace each new item waits out, by key.
   const timers = new Map<string, ReturnType<typeof setTimeout>>()
   const waitingKeys = (): Set<string> =>
-    new Set(needing(inbox.state.getSnapshot().items).map(keyOf))
+    new Set(ringing(inbox.state.getSnapshot().items).map(keyOf))
   const sound = (key: string): void => {
-    const item = needing(inbox.state.getSnapshot().items).find((each) => keyOf(each) === key)
+    const item = ringing(inbox.state.getSnapshot().items).find((each) => keyOf(each) === key)
     if (!item || rung.has(key)) return
     if (ring(item)) rung.set(key, item)
   }
   const follow = (): void => {
-    const waiting = needing(inbox.state.getSnapshot().items)
+    const waiting = ringing(inbox.state.getSnapshot().items)
     const keys = new Set(waiting.map(keyOf))
     for (const [key, item] of rung) {
       const timer = leaving.get(key)
@@ -215,9 +215,10 @@ export const followNeeds = (
         }, graceMs),
       )
     }
-    change?.(waiting)
+    // The count is the bell's: it holds a feedback draft, which rings nothing.
+    change?.(needing(inbox.state.getSnapshot().items))
   }
-  for (const item of needing(inbox.state.getSnapshot().items)) seen.add(keyOf(item))
+  for (const item of ringing(inbox.state.getSnapshot().items)) seen.add(keyOf(item))
   follow()
   const stop = inbox.state.subscribe(follow)
   return () => {
@@ -262,7 +263,7 @@ export const watchInboxPings = (
   const handOver = (): void => {
     const state = ui.getSnapshot()
     if (deferred.size === 0 || (state.pageFocused && modalOpen(state))) return
-    const standing = new Set(needing(inbox.state.getSnapshot().items).map(keyOf))
+    const standing = new Set(ringing(inbox.state.getSnapshot().items).map(keyOf))
     const items = [...deferred.values()]
     deferred.clear()
     if (state.pageFocused || !state.preferences.notifyNeeds) return

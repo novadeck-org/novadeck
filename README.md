@@ -919,7 +919,8 @@ App:
   failed turn with no error, a held message whose sender is gone, a plan approval
   (its bypass-permissions yes a quiet link), a failed turn, a free-text ask, a permission
   whose Deny is a plain no, messages held long behind what keeps the doorbell from an idle
-  agent, a heads-up and a finished turn. "Several asks at once" adds four asks from four
+  agent, a feedback draft (an agent's bug report with a path in it, to Send or Discard), a
+  heads-up and a finished turn. "Several asks at once" adds four asks from four
   projects together, so three toasts stack with a "+1 more" pill behind (the page needs focus
   and the Inbox panel closed, and an item from the selected terminal doesn't toast: with
   storefront's terminal 4 selected you get three toasts and no pill). "Fail the next answer" makes
@@ -956,6 +957,15 @@ App:
   hides it), Install ends Not available (the sheet says so, with Details), Next install ends
   Not available, Not available, Not available, files left (Details and Check again by
   Uninstall, no switch) and Not available (software rendering) (no Check again).
+- **Feedback:** where the backend has feedback (every demo but the visitor's, and never the
+  runner). "Next send fails" makes the next note Not sent, so the card keeps it and the footer's
+  button reads "Not sent · Retry". "Next ask fails" makes the next Ask from an agent window's card
+  fail, so the card says no agent is running there. "Show the button's word again" clears
+  `novadeck.feedback-opened` and boots the demo again, so the button shows "Feedback" as on a new
+  install. "A feedback draft from the selected agent" asks the selected terminal's agent to write
+  feedback, as the window menu does: it works a moment (after its current turn, if it is in one),
+  then a Feedback item from it joins the Inbox with a path under the home folder to strike. The
+  demo's card says version 0.0.219 and the browser's OS.
 - **Voice input:** the demo starts with it installed and on, as the try demo shows it, and
   never offers it. `&voice=uninstalled` in the address starts it without, and
   `&voice=failing` starts it without and makes its first install fail. Voice input's setup

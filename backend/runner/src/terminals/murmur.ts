@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto"
-import { basename, isAbsolute, relative, sep } from "node:path"
+import { basename } from "node:path"
 
 import { tailLines } from "@novadeck/harness-core/follow"
 import { terminalTitle, type AgentName, type ForegroundProcess } from "@novadeck/protocol"
@@ -7,22 +7,18 @@ import { terminalTitle, type AgentName, type ForegroundProcess } from "@novadeck
 import type { Activity } from "../harnesses/activity.js"
 import type { Items } from "../harnesses/replies.js"
 import { logs } from "../log.js"
-import { agentLabel } from "../messaging/mailbox.js"
 import type {
-  AgentDigest,
   Describer,
   Description,
   Digest,
   Note,
   NoteDigest,
-  Previous,
   ReplyDigest,
   ShellDigest,
 } from "../murmur/describer.js"
 import { sharesContentWord } from "../murmur/description.js"
-import type { Facts } from "./nudges.js"
 import type { PeerTerminal } from "./peers.js"
-import { busiestFolders, promptChars, shorten, type Work } from "./work.js"
+import { shorten } from "./work.js"
 
 const log = logs.for("murmur")
 
@@ -35,18 +31,10 @@ const log = logs.for("murmur")
 /** The waits and counts that decide when murmur describes; tests shorten them. */
 export type MurmurTimes = {
   /**
-   * How long an agent terminal's trigger waits for quiet before it describes, in
-   * milliseconds, so a burst (a prompt, then the turn's end) makes one description, and
-   * the reply is written to the transcript by then.
+   * How long an agent terminal's summary waits before it is named, in milliseconds, so a
+   * burst of summaries makes one title.
    */
   readonly settleMs: number
-  /**
-   * How long a settled agent terminal waits between two checks of its name, in
-   * milliseconds, counted from the last check. Evidence that arrives inside the gap does
-   * not check at once but sets one timer for when the gap ends; a hard signal (a new
-   * summary, a changed branch or plan) ignores the gap.
-   */
-  readonly settledGapMs: number
   /**
    * How long a plain shell's program must have run before it describes while it runs: a
    * command that ends sooner (`ls`, `git status`) is described at the prompt after it
@@ -64,9 +52,8 @@ export type MurmurTimes = {
    */
   readonly expectMs: number
   /**
-   * How long a title that could not be asked for (murmur off, backed off or busy: it did
-   * not run) waits before the same mission is asked again, in milliseconds, with no digest
-   * built meanwhile.
+   * How long a title or gist that could not be asked for (murmur backed off or busy: it did
+   * not run) waits before it is asked again, in milliseconds.
    */
   readonly retryMs: number
   /** How long a gist waits before it is asked for, in milliseconds. */
@@ -75,7 +62,6 @@ export type MurmurTimes = {
 
 export const defaultTimes: MurmurTimes = {
   settleMs: 3_000,
-  settledGapMs: 5 * 60_000,
   shellRunMs: 5_000,
   shellSettleMs: 3_000,
   expectMs: 10_000,
@@ -85,11 +71,8 @@ export const defaultTimes: MurmurTimes = {
 
 // These are generous safety caps only. The service redacts every string before it cuts
 // any, so a cap here must never cut a secret in half ahead of the redaction; it applies
-// the caps the model is shown (the reply's last 1500 characters, a screen of the last
-// few rows) afterwards.
+// the caps the model is shown (a reply's ends, a screen of the last few rows) afterwards.
 
-/** How much of the agent's last reply is passed on, in characters, from its end. */
-export const replyChars = 3000
 /** How many logical lines of a plain shell's screen, how long each; the lowest lines win. */
 export const screenRows = 100
 export const screenColumns = 8000
@@ -104,18 +87,6 @@ export const replyTailChars = 4000
 const control = /[\x00-\x08\x0b-\x1f\x7f-\x9f]/g
 // eslint-disable-next-line no-control-regex -- Escape sequences, whole.
 const escapes = /\u001b\[[0-9;?]*[ -/]*[@-~]|\u001b\][^\u0007\u001b]*(?:\u0007|\u001b\\)/g
-
-/** The last segment or two of a path, as a place is named. */
-export const placeName = (path: string): string => {
-  const parts = path.split(/[\\/]+/).filter(Boolean)
-  return parts.slice(-2).join("/") || path
-}
-
-/** `text` cut to its last `max` characters (code points), with an ellipsis where it was cut. */
-export const tailOf = (text: string, max: number): string => {
-  const characters = [...text]
-  return characters.length > max ? `…${characters.slice(-(max - 1)).join("")}` : text
-}
 
 /**
  * What the agent said last since the person's latest prompt and its latest tool step, as
@@ -135,16 +106,6 @@ export const lastReply = async (path: string, items: Items): Promise<string | nu
   return reply.replace(escapes, "").replace(control, " ").trim() || null
 }
 
-/** The tail of `lastReply`, up to `chars` characters; null when there is none. */
-export const replyTail = async (
-  path: string,
-  items: Items,
-  chars = replyChars,
-): Promise<string | null> => {
-  const reply = await lastReply(path, items)
-  return reply === null ? null : tailOf(reply, chars)
-}
-
 /** What murmur is shown of a reply: all of it when short, else its first and last characters. */
 export const replyDigest = (reply: string, failed: boolean): ReplyDigest => {
   const characters = [...reply]
@@ -155,139 +116,6 @@ export const replyDigest = (reply: string, failed: boolean): ReplyDigest => {
         ? `${characters.slice(0, replyHeadChars).join("")}\n…\n${characters.slice(-replyTailChars).join("")}`
         : reply,
     failed,
-  }
-}
-
-/** A folder as murmur is shown it: inside the project, relative to it; else its last segments. */
-const shownFolder = (folder: string, projectFolder: string | undefined): string => {
-  if (projectFolder !== undefined) {
-    const inside = relative(projectFolder, folder)
-    if (!inside) return "."
-    // Always "/"-separated: the model reads the same digest on every platform.
-    if (!inside.startsWith("..") && !isAbsolute(inside)) return inside.split(sep).join("/")
-  }
-  return placeName(folder)
-}
-
-// The words of greetings, thanks, acknowledgements, chat and small talk, in English, Polish
-// and Korean (which uses spaces). A prompt made of nothing else says nothing of what a
-// terminal is for; one with a single word beyond them ("fix", "login", "deploy") does.
-const filler = new Set(
-  `hi hey hello hiya howdy yo greetings thanks thank you thx ty cheers ok okay k kk yes yeah yep
-  yup no nope nah sure fine good great nice cool awesome perfect lovely sounds right got it go on
-  continue proceed please pls do that this the other one a an and so then now again try retry
-  more next sorry bye goodbye lgtm done how are is going what s up whats sup hows doing u ur me
-  there everyone all for with your my well just very really much lot lots can could would will
-  help i m im am back today again morning evening afternoon night
-  cześć czesc hej heja siema witam witaj dzień dzien dobry dobra dobrze dzięki dzieki dziękuję
-  dziekuje dziękuje super świetna swietna świetnie swietnie świetny swietny robota spoko git jak
-  leci co tam słychać slychac u ciebie ty proszę prosze dalej kontynuuj jeszcze raz znowu pa do
-  widzenia nara tak nie jasne jasno okej to ten ta inne inny drugi drugie jedno i a w porządku
-  porzadku się sie jest tu zrób zrob spróbuj sprobuj możesz mozesz mi pomóc pomoc pomocy mogę
-  moge wróciłem wrocilem jestem
-  안녕 안녕하세요 안녕히 감사합니다 고맙습니다 고마워요 감사해요 네 예 아니요 좋아요 알겠습니다
-  반갑습니다 잘 부탁드립니다 부탁해요 죄송합니다`.split(/\s+/),
-)
-
-// Greetings and thanks of the scripts written without spaces (Japanese, Chinese, Thai),
-// which a prompt of nothing else is.
-const spacelessFiller =
-  `こんにちは こんばんは おはようございます おはよう ありがとうございました ありがとうございます
-  ありがとう よろしくお願いします よろしく お願いします お疲れ様です お疲れさまです お疲れ様 すみません
-  ごめんなさい はい ええ いいえ
-  你好吗 你好 您好 谢谢您 谢谢你 谢谢 多谢 好的 早上好 晚上好 再见 嗯 好
-  สวัสดีครับ สวัสดีค่ะ สวัสดี ขอบคุณครับ ขอบคุณค่ะ ขอบคุณ ครับ ค่ะ โอเค ได้`
-    .split(/\s+/)
-    .toSorted((a, b) => b.length - a.length)
-
-// A stretch of nothing but those greetings.
-const spacelessGreeting = new RegExp(`^(?:${spacelessFiller.join("|")})+$`, "u")
-
-/**
- * Whether a prompt says what a terminal is for: at least three words (or four characters
- * of a script written without spaces), and not wholly a greeting, thanks, acknowledgement,
- * chat or small talk ("hey, how's it going", "sounds good, thanks!", "can you help me",
- * "こんにちは"). A prompt that merely starts with such a word ("test the login flow", "ok fix
- * the tests") is one.
- */
-export const substantial = (prompt: string): boolean => {
-  const text = prompt.normalize("NFKC").toLowerCase()
-  // Scripts written without spaces between words (Chinese, Japanese, Thai) have no words
-  // to count: four characters of them say as much as three words, unless they are all
-  // greetings. Korean has spaces, and goes by its words. A greeting is a whole stretch
-  // between punctuation or spaces; it is never taken out from inside a word ("修好测试").
-  const script = /[\p{Script=Han}\p{Script=Hiragana}\p{Script=Katakana}\p{Script=Thai}]/gu
-  if ((text.match(script)?.length ?? 0) >= 4) {
-    const rest = text
-      .split(/[\p{P}\p{S}\s]+/u)
-      .filter((stretch) => stretch && !spacelessGreeting.test(stretch))
-      .join("")
-    if ((rest.match(script)?.length ?? 0) >= 4) return true
-  }
-  const words = text.replace(script, " ").match(/[\p{L}\p{N}]+/gu) ?? []
-  if (words.length < 3) return false
-  return !words.every((word) => filler.has(word))
-}
-
-/** The prompts murmur is shown, oldest first: the first the person gave, if it left the recent ones. */
-export const promptsOf = (work: Work | null): readonly string[] => {
-  if (!work) return []
-  const recent = work.recent.length > 0 ? work.recent : work.latest ? [work.latest] : []
-  const first =
-    work.first !== null && !recent.some((prompt) => shorten(prompt, promptChars) === work.first)
-      ? [work.first]
-      : []
-  return [...first, ...recent]
-}
-
-/**
- * The person's latest prompt that says what the terminal is for (see `substantial`); null
- * when none does. What the last check was made against, so a prompt is new evidence once
- * it differs.
- */
-export const latestPrompt = (work: Work | null): string | null =>
-  promptsOf(work).findLast(substantial) ?? null
-
-/**
- * What murmur is shown of an agent's terminal; null when neither a summary nor a
- * substantial prompt tells what it is for.
- */
-export const agentDigest = (input: {
-  readonly harness: AgentName
-  readonly projectFolder: string | undefined
-  readonly cwd: string
-  readonly branch: string | null
-  readonly plan: string | null
-  readonly work: Work | null
-  readonly reply: string | null
-  /** What the terminal's own agent last said it works on, through `summarize`. */
-  readonly summary: string | null
-  readonly previous: Previous
-  /** Where the terminal's name stands (see `AgentDigest.stage`). */
-  readonly stage: AgentDigest["stage"]
-}): AgentDigest | null => {
-  // A title names the session's goal, which a terse prompt ("ok", "go on") does not
-  // state but an earlier one does: the substantial prompts are shown, the first and the
-  // recent ones, and pure filler is dropped.
-  const prompts = promptsOf(input.work).filter(substantial)
-  // A summary of the current session says enough with no prompt yet.
-  if (prompts.length === 0 && !input.summary) return null
-  const { projectFolder } = input
-  return {
-    kind: "agent",
-    harness: agentLabel(input.harness),
-    project: projectFolder === undefined ? null : basename(projectFolder) || null,
-    folder: placeName(input.cwd),
-    branch: input.branch,
-    plan: input.plan,
-    folders: busiestFolders(input.work?.folders ?? {}, 3).map(({ folder }) =>
-      shownFolder(folder, projectFolder),
-    ),
-    prompts,
-    reply: input.reply,
-    summary: input.summary,
-    previous: input.previous,
-    stage: input.stage,
   }
 }
 
@@ -369,7 +197,6 @@ export const screenOf = (
  */
 export const shellDigest = (input: {
   readonly projectFolder: string | undefined
-  readonly cwd: string
   readonly command: string | null
   readonly rows: readonly string[]
   /** Which rows continue the one before, as the terminal wrapped a long line. */
@@ -381,10 +208,9 @@ export const shellDigest = (input: {
    * shell integration's prompt reports placed it; none where that is not known.
    */
   readonly commandRow?: number
-  readonly previous: Previous
   /**
    * A full-screen program (vim, less, htop, tmux) has the screen: what it draws is not
-   * shown, so the digest has the program's command, folder and project alone, and none at
+   * shown, so the digest has the program's command and project alone, and none at
    * all when the command is not known (the title stays as it is).
    */
   readonly alternate?: boolean
@@ -397,12 +223,10 @@ export const shellDigest = (input: {
   return {
     kind: "shell",
     project: projectFolder === undefined ? null : basename(projectFolder) || null,
-    folder: placeName(input.cwd),
     command: input.command,
     screen,
     ...(input.rowContinues && { continues }),
     ...(at !== undefined && { commandAt: at }),
-    previous: input.previous,
   }
 }
 
@@ -435,12 +259,6 @@ export class Descriptions<D = Digest, O = Description> {
       ): Promise<O | null | undefined>
     },
   ) {}
-
-  /** Whether a request waits or a job runs for the terminal. */
-  busy(id: string): boolean {
-    const job = this.jobs.get(id)
-    return job !== undefined && (job.timer !== undefined || job.running)
-  }
 
   /**
    * Asks for the description of `id`, a terminal or a key of one's (`terminal`), once
@@ -538,14 +356,6 @@ export class Descriptions<D = Digest, O = Description> {
   }
 }
 
-/** What a terminal's agent report tells murmur, as the terminal manager reads it. */
-export type Reported = {
-  /** The root session is a new one. */
-  readonly session: boolean
-  /** Root sessions whose id was corrected (Antigravity's guess), as `agent:session`. */
-  readonly corrected?: readonly { readonly from: string; readonly to: string }[]
-}
-
 /** What murmur needs of a running terminal, beyond what peers read of it. */
 export type MurmurSubject = PeerTerminal & {
   /** The agent bound there, if one is; a terminal with none is a plain shell. */
@@ -569,8 +379,6 @@ export type MurmurHost = {
   /** A running terminal, read afresh; undefined once it is gone. */
   subject(terminalId: string): MurmurSubject | undefined
   subjects(): readonly MurmurSubject[]
-  /** The terminal's plan, busiest folder and branch: what drift is told by and the digest shows. */
-  facts(subject: MurmurSubject): Promise<Facts>
   /** The visible rows of the terminal's screen, and which of them the terminal wrapped. */
   screen(terminalId: string): Promise<
     | {
@@ -598,105 +406,26 @@ export type MurmurHost = {
   cleared(): void
 }
 
-/** What a check of an agent terminal's name was made against: the evidence it has seen. */
-type Marks = {
-  /** The latest substantial prompt shown, as `latestPrompt` tells it; null before any. */
-  readonly prompt: string | null
-  /** The summary shown. */
-  readonly summary: string | null
-  /** When the digest was built, from which the settled gap runs; 0 before any. */
-  readonly at: number
-  /** Whether any check of this session was made. */
-  readonly started: boolean
-}
-
-/** How many checks in a row that keep the name end the forming stage, and the most checks it lasts. */
-const keepsToSettle = 2
-const formingChecks = 4
-
 // What murmur keeps of a terminal between triggers; lost with the runner.
 type Watch = {
   /**
-   * Where an agent terminal's name stands. `forming`: the session's work is still taking
-   * shape (its first turns, or just after a pivot), and a better name replaces the previous
-   * one when the model judges the work changed. `settled`: the name has held, and is replaced only when the work changed.
+   * The agent's summary its terminal was last named from (as `words` compares it), whether
+   * the title was kept or refused; null when none was since the runner started or the
+   * terminal last had a shell's title. The same summary again names nothing.
    */
-  stage: "forming" | "settled"
-  /** In the forming stage, how many checks since it began, and how many in a row kept the name. */
-  checks: number
-  keeps: number
+  named: string | null
   /**
-   * In the settled stage, whether the last check judged the work changed without that
-   * being confirmed: a second such check in a row confirms the pivot.
+   * A summary's title was asked for and has not run yet: one that is stopped (murmur became
+   * unusable) or did not run is asked for again.
    */
-  candidate: boolean
-  /** What the last check was made against (see `Marks`). */
-  prompt: string | null
-  summary: string | null
-  checkedAt: number
-  /**
-   * What murmur wrote the terminal's title for: its digest as a plain shell or as an
-   * agent's; null when it wrote none since the runner started. A shell's title starts the
-   * agent that runs there forming, not settled.
-   */
-  titledFrom: "shell" | "agent" | null
-  /** Whether a check of this root session was made, so the first one is made on its first mission. */
-  started: boolean
-  /**
-   * The marks as they were before the oldest check whose job has not ended, and whether
-   * any such check followed a hard signal: a job that is stopped (murmur became unusable)
-   * gives them back, so the evidence it was to judge is owed, not lost.
-   */
-  unsettled: Marks | null
-  unsettledHard: boolean
-  /**
-   * A turn end was looked at, and the same report's prompt may not have been tallied yet:
-   * the report that follows looks again. It lapses when a turn begins, so a report that
-   * handled its Stop before the end was seen (the harnesses' Stop asks) leaves nothing to
-   * be taken at the next turn's prompt, in the middle of its work.
-   */
-  recheck: boolean
-  /**
-   * A check that followed a hard signal had its title refused: the signal is kept owed, to
-   * be asked once more; refused again, it is let go. */
-  refusedHard: boolean
-  /**
-   * Whether the watch still has the root session it was made with, which may come from
-   * the store (a runner restart): only its title can be taken to be the agent's then. A
-   * new root session ends it.
-   */
-  restored: boolean
-  /**
-   * Whether a check of the name waits for its quiet, so reports in the meantime don't ask
-   * again. Apart from the terminal's job, which a shell's description may hold too.
-   */
-  waiting: boolean
-  /**
-   * The plan and branch as they were at the last check that ran (stored title or not), which
-   * a hard signal is told by; a plan or branch a check could not read keeps the one before.
-   * Null until a check has seen them. The busiest folder is not among them: it
-   * moves with every task inside a project, and would pivot too readily.
-   */
-  baseline: Facts | null
-  /** The root session the watch has seen, as `work.session`; null before any. */
-  session: string | null
-  /** The turn end (`lastTurn.at`) last looked at, so each end is looked at once. */
-  turnSeen: number | null
-  /** The one timer that makes the check owed when evidence came inside the settled gap. */
-  gapTimer: NodeJS.Timeout | undefined
-  /** A check is owed because it did not run (or a summary came while murmur was unusable). */
   owed: boolean
-  /** Whether the owed check follows a hard signal (a summary). */
-  owedHard: boolean
   /**
-   * The root session the agent's summary was written in (as `work.session`); undefined when
-   * unknown, as after a runner restart. A summary of an earlier session says nothing of
-   * this one's mission.
+   * Whether murmur's title is one it wrote for the terminal as a plain shell since the runner
+   * started: no name of an agent's work, so a summary's title always replaces it. One kept
+   * across a restart is not known as one.
    */
-  summarySession: string | null | undefined
-  /** Until when a check that could not be asked for waits to be asked again. */
-  retryAt: number
-  /** The timer that asks again then, for a terminal that sends no reports meanwhile. */
+  shellTitled: boolean
+  /** The timer that asks again for a summary's title that did not run. */
   retryTimer: NodeJS.Timeout | undefined
   /** The program in a plain shell's foreground, as a key, and since when; null at the prompt. */
   program: { readonly key: string | null; readonly since: number }
@@ -744,36 +473,6 @@ const screenKey = (
     .update(JSON.stringify([cwd, command, alternate ? null : rows]))
     .digest("hex")
 
-/**
- * Whether the plan or the branch moved from the baseline: both known and different. One
- * that was unknown and now is read is no change: entering plan mode for the same task, or
- * a branch read in time, is not a new subject.
- */
-const shifted = (baseline: Facts | null, facts: Facts): boolean =>
-  baseline !== null &&
-  (["plan", "branch"] as const).some(
-    (fact) => baseline[fact] !== null && facts[fact] !== null && baseline[fact] !== facts[fact],
-  )
-
-/**
- * The facts a check leaves as the baseline: what it read, but a plan or branch it could
- * not read keeps the one before, so a plan that flickers to none and back is no change.
- */
-const rebased = (baseline: Facts | null, facts: Facts): Facts => ({
-  ...facts,
-  plan: facts.plan ?? baseline?.plan ?? null,
-  branch: facts.branch ?? baseline?.branch ?? null,
-})
-
-/** The activity's turn end, as `lastTurn.at`, when it is idle after a turn that ended; else null. */
-const turnEndOf = (activity: Activity): number | null => {
-  const turn = activity.lastTurn
-  if (activity.state !== "idle" || !turn) return null
-  return turn.outcome === "completed" || turn.outcome === "failed" || turn.outcome === "interrupted"
-    ? turn.at
-    : null
-}
-
 // A summary as compared: lower case, spaces collapsed; null is none.
 const words = (text: string | null): string =>
   (text ?? "").toLowerCase().replace(/\s+/g, " ").trim()
@@ -784,31 +483,14 @@ const programKey = (program: ForegroundProcess | null): string | null =>
 /**
  * Decides when each terminal is described and what from, and hands the result to the
  * manager. Without a describer, nothing happens. A terminal the person titled is never
- * asked about; if they clear their title it is eligible again on the next evidence.
+ * asked about; once they clear it, a summary written meanwhile names it at once.
  *
- * An agent's terminal is in one of two stages, and is checked at its turns' ends.
- *
- * - Forming (a new root session, or just after a pivot): the first check is made
- *   `settleMs` after the person's first substantial prompt (its mission; not "hey!" nor
- *   "try again") or the agent's first summary. Then it is checked at every turn end that
- *   brought new evidence, with no rate limit, and a check replaces the name when the model
- *   judges the work changed (or there is none yet).
- *   Two checks in a row that kept the name, or four checks in all, settle it.
- * - Settled: it is checked at a turn end with new evidence, at most once in `settledGapMs`.
- *   Evidence that comes inside the gap sets one timer for when it ends, so a window that
- *   goes quiet right after a change is still checked. The model says whether the work
- *   differs from the previous title's: if not, the name is kept; if so, it is a pivot
- *   candidate, applied (back to forming) when the previous settled check said so too or a
- *   hard signal came with it, else the name is kept and the candidate remembered.
- *
- * New evidence is a substantial prompt not seen at the last check, a new summary, or a
- * change of the git branch or the plan's title since the last check. A turn whose
- * only prompt was "ok" or "go on" brings none. A hard signal (a new `summarize` summary,
- * a changed branch or plan) ignores the settled gap and renames directly (it is shown a forming digest). A turn
- * end is told by the activity going idle with a new `lastTurn.at`, which every harness's
- * events give alike. A compaction does nothing; a new root session returns to forming and
- * keeps the name until there is new evidence. An agent's own `open_terminal` title starts
- * the terminal settled, so murmur replaces it only on a pivot.
+ * An agent's terminal is named from its agent's own summary alone (from `summarize`), each
+ * time the agent writes one that says something new, `settleMs` after it so a burst makes
+ * one title. The person's prompts and the agent's replies are never read for it: they name
+ * steps (a critic pass, a merge), and the summary names the work. A new title replaces the
+ * name only when it shares no content word with it, so a reworded summary of the same work
+ * keeps it. With no summary, the terminal keeps the title it has, if any.
  *
  * A plain shell's: at every return to its prompt, after `shellSettleMs` of quiet so that
  * rapid commands make one description, unless its screen, directory and command are as
@@ -842,10 +524,9 @@ export class Murmur {
       this.usable = usable
       if (usable) this.catchUp()
       else {
+        // What waited is dropped; a summary's title stays owed for the catch-up.
         this.descriptions.stop()
         this.notes.stop()
-        // What waited is dropped, and what a stopped check was to judge is owed again.
-        for (const watch of this.watches.values()) this.undo(watch)
       }
     })
     this.unwatchCleared = describer.watchCleared(() => this.clear())
@@ -857,11 +538,11 @@ export class Murmur {
     this.descriptions.stop()
     this.notes.stop()
     for (const watch of this.watches.values()) {
-      this.resetRetry(watch)
+      clearTimeout(watch.retryTimer)
       this.resetNotes(watch)
-      this.reform(watch)
-      watch.titledFrom = null
-      watch.baseline = null
+      watch.named = null
+      watch.owed = false
+      watch.shellTitled = false
       watch.shellOwed = false
       watch.screenKey = null
     }
@@ -900,57 +581,12 @@ export class Murmur {
     watch.noteRetry.unref()
   }
 
-  // The agent terminal's name starts over: forming, with no check made in this session, and
-  // nothing owed or waiting. The stored title and the baseline of the facts stay, if any.
-  private reform(watch: Watch): void {
-    clearTimeout(watch.gapTimer)
-    watch.gapTimer = undefined
-    this.resetRetry(watch)
-    watch.stage = "forming"
-    watch.checks = 0
-    watch.keeps = 0
-    watch.candidate = false
-    watch.prompt = null
-    watch.summary = null
-    watch.checkedAt = 0
-    watch.started = false
-    watch.waiting = false
-    watch.unsettled = null
-    watch.unsettledHard = false
-    watch.recheck = false
-    watch.refusedHard = false
-    watch.restored = false
-    watch.owed = false
-    watch.owedHard = false
-  }
-
-  // A job was stopped before it ran: what its check saw is unseen again, and owed.
-  private undo(watch: Watch): void {
-    watch.waiting = false
-    if (watch.unsettled === null) return
-    watch.prompt = watch.unsettled.prompt
-    watch.summary = watch.unsettled.summary
-    watch.checkedAt = watch.unsettled.at
-    watch.started = watch.unsettled.started
-    watch.owed = true
-    watch.owedHard = watch.owedHard || watch.unsettledHard
-    watch.unsettled = null
-    watch.unsettledHard = false
-  }
-
-  private resetRetry(watch: Watch): void {
-    clearTimeout(watch.retryTimer)
-    watch.retryTimer = undefined
-    watch.retryAt = 0
-  }
-
   /** A terminal is gone or closed. */
   gone(terminalId: string): void {
     const watch = this.watches.get(terminalId)
     if (watch) {
-      this.resetRetry(watch)
+      clearTimeout(watch.retryTimer)
       this.resetNotes(watch)
-      clearTimeout(watch.gapTimer)
     }
     this.descriptions.cancel(terminalId)
     this.notes.forget(terminalId)
@@ -961,145 +597,44 @@ export class Murmur {
     this.unwatch()
     this.unwatchCleared()
     for (const watch of this.watches.values()) {
-      this.resetRetry(watch)
+      clearTimeout(watch.retryTimer)
       this.resetNotes(watch)
-      clearTimeout(watch.gapTimer)
     }
     this.descriptions.stop()
     this.notes.stop()
     this.watches.clear()
   }
 
-  /** An agent's report, as the manager read it for the terminal's root session. */
-  reported(terminalId: string, told: Reported): void {
-    try {
-      this.react(terminalId, told)
-    } catch (error) {
-      log.error("murmur.look-failed", "Novadeck could not look at a terminal to describe it", {
-        err: error,
-      })
-    }
+  /**
+   * An agent reported from the terminal: the run in the shell's foreground is the agent's
+   * from here on, and its end owes the shell nothing. The sampler sees the foreground change
+   * only when it does (the program the agent runs as stays the same all along), so it is
+   * noted when the agent reports.
+   */
+  reported(terminalId: string): void {
+    if (this.host.subject(terminalId)?.agent) this.watch(terminalId).agentRan = true
   }
 
-  private react(terminalId: string, told: Reported): void {
-    const subject = this.host.subject(terminalId)
-    if (!subject?.agent) return
-    const watch = this.watch(terminalId)
-    // A corrected root session carries its summary, and the watch, over.
-    for (const { from, to } of told.corrected ?? []) {
-      if (watch.summarySession === from) watch.summarySession = to
-      if (watch.session === from) watch.session = to
-    }
-    // A new root session starts the name over, whether murmur can write one now or not;
-    // the name it has stays until the session brings evidence of its own. The first
-    // session the watch sees is no change: an agent-titled terminal begins settled.
-    const session = subject.work?.session ?? null
-    if (told.session && session !== null && watch.session !== null && session !== watch.session)
-      this.reform(watch)
-    if (session !== null) watch.session = session
-    // A title kept across a runner restart, whose source is lost, of an agent that already
-    // worked in this session is the agent's: the terminal is settled, with what it has seen.
-    const seen = latestPrompt(subject.work)
-    if (
-      watch.restored &&
-      watch.titledFrom === null &&
-      !watch.started &&
-      subject.naming.murmur !== null &&
-      seen !== null
-    ) {
-      watch.stage = "settled"
-      watch.started = true
-      watch.prompt = seen
-      watch.titledFrom = "agent"
-    }
-    // The run in the shell's foreground is the agent's from here on, and its end owes the
-    // shell nothing: the sampler sees the foreground change only when it does (the program
-    // the agent runs as stays the same all along), so it is noted when the agent binds.
-    watch.agentRan = true
-    if (!this.usable || subject.naming.person !== null) return
-    if (watch.recheck) {
-      watch.recheck = false
-      this.turnEnded(terminalId)
-    }
-    // A check waits for a prompt to say what the terminal is for (its mission) or for the
-    // agent's first summary; one in the making is not asked for again at each report. A
-    // terminal with no name at all is named from any new evidence, as soon as it comes;
-    // one with a name is checked at its turn ends (see `consider`) and its summaries.
-    // A check that could not run is owed, and asked for again once `retryMs` passed.
-    if (watch.waiting || Date.now() < watch.retryAt) return
-    if (this.missionOf(subject) === undefined) return
-    if (
-      !watch.started ||
-      watch.owed ||
-      (this.previousOf(subject, watch) === null && this.fresh(subject, watch))
-    )
-      this.check(terminalId, this.times.settleMs, watch.owedHard)
-  }
-
-  // The title the terminal has now, murmur's or else its opening agent's; null for none.
-  // A title murmur wrote for the terminal as a plain shell is left out: it names what the
-  // shell did, not the agent's work, and would only anchor the model to the wrong subject.
-  // The agent is titled afresh, forming, and the shell's title shows until it is.
-  private previousOf(subject: MurmurSubject, watch: Watch): Previous {
-    // Nor is a title of unknown source (kept across a restart) once a new session began.
-    const foreign = watch.titledFrom === "shell" || (watch.titledFrom === null && !watch.restored)
-    const murmur = foreign ? undefined : subject.naming.murmur?.title
-    const title = murmur ?? subject.naming.agent?.title
-    return title === undefined ? null : { title }
-  }
-
-  // Whether the terminal's prompts or summary hold evidence the last check did not see.
-  private fresh(subject: MurmurSubject, watch: Watch): boolean {
-    const prompt = latestPrompt(subject.work)
-    const summary = this.currentSummary(subject)
-    return (
-      (prompt !== null && prompt !== watch.prompt) ||
-      (summary !== null && words(summary) !== words(watch.summary))
-    )
-  }
-
-  // The agent's summary, if it was written in the root session now running; one of an
-  // earlier session (before a /clear) says nothing of this one. Where it was written is
-  // unknown after a runner restart, and then it is not taken for the mission: the next
-  // `summarize`, which the new session's nudge asks for, is.
-  private currentSummary(subject: MurmurSubject): string | null {
-    const { summary } = subject.naming
-    if (!summary) return null
-    const session = subject.work?.session ?? null
-    const written = this.watch(subject.summary.id).summarySession
-    return written !== undefined && written === session ? summary : null
-  }
-
-  // What the terminal can be titled from: its agent's current summary, else the first
-  // substantial prompt it was given; undefined while it has neither.
-  private missionOf(subject: MurmurSubject): string | undefined {
-    return this.currentSummary(subject) ?? promptsOf(subject.work).find(substantial)
+  // The name a summary's title would replace: murmur's title, else its opening agent's. A
+  // shell's title, which shows over the opener's, names what the shell did, not the agent's
+  // work: then there is none to weigh, and the summary's title replaces it.
+  private previousOf(subject: MurmurSubject, watch: Watch): string | undefined {
+    const { murmur, agent } = subject.naming
+    if (murmur !== null) return watch.shellTitled ? undefined : murmur.title
+    return agent?.title
   }
 
   /**
-   * The terminal's agent summarized its work: its latest summary is the strongest thing
-   * murmur has to title it by, and a hard signal: it is checked right away, a pivot it
-   * shows is applied at once, and it locks nothing.
+   * The terminal's agent summarized its work: a summary that says something new names the
+   * terminal. One that comes while murmur is unusable is owed until it is usable again.
    */
   summarized(terminalId: string): void {
     const subject = this.host.subject(terminalId)
-    if (!subject?.agent) return
+    if (!subject?.agent || subject.naming.person !== null || !subject.naming.summary) return
     const watch = this.watch(terminalId)
-    // Where the summary was written counts whether murmur can use it now or not.
-    watch.summarySession = subject.work?.session ?? null
-    if (subject.naming.person !== null) return
-    // A summary murmur could not use is owed a check once it can.
-    // Only a summary that says something other than the last one seen is a hard signal: the
-    // same again, as the agent's nudges (drift, every 15 prompts) bring it, is evidence like
-    // any other.
-    const fresh = this.freshSummary(subject, watch)
-    if (!this.usable) {
-      watch.owed = true
-      watch.owedHard ||= fresh
-      return
-    }
-    if (fresh) this.check(terminalId, this.times.settleMs, true)
-    else this.turnEnded(terminalId)
+    if (words(subject.naming.summary) === watch.named) return
+    watch.owed = true
+    if (this.usable) this.check(terminalId)
   }
 
   /** A plain shell's foreground program changed (sampled, so never on Windows). */
@@ -1121,7 +656,6 @@ export class Murmur {
     // enough describes nothing, but a directory change or a catch-up still owed is asked
     // for again at the prompt.
     this.descriptions.withdraw(terminalId)
-    watch.waiting = false
     // The prompt after a long run is owed a description until one is built, whatever holds
     // the foreground when the run ends: a brief program before the prompt (a prompt hook,
     // a status helper, or the shell caught between two processes) must not lose it, nor
@@ -1152,24 +686,12 @@ export class Murmur {
   private look(terminalId: string): void {
     const subject = this.host.subject(terminalId)
     const watch = this.watches.get(terminalId)
+    if (!watch) return
     const activity = subject?.agent ? subject.activity : null
     if (!activity) {
-      if (watch) this.forgetNotes(terminalId, watch)
+      this.forgetNotes(terminalId, watch)
       return
     }
-    // A turn that ended brings a look at the terminal's name, once.
-    const ended = turnEndOf(activity)
-    if (watch && ended !== null && ended !== watch.turnSeen) {
-      watch.turnSeen = ended
-      // The report that brought this end may tally its prompt after this look: the report
-      // handled next looks again, if the terminal is still idle (see `recheck`).
-      watch.recheck = true
-      this.turnEnded(terminalId)
-    } else if (watch && ended === null) {
-      // A turn began or goes on: what was left to look at again belonged to the end before.
-      watch.recheck = false
-    }
-    if (!watch) return
     if (watch.gist !== null && !endedAt(activity, watch.gist)) {
       this.notes.cancel(gistKey(terminalId))
       watch.gist = null
@@ -1246,40 +768,10 @@ export class Murmur {
   private watch(terminalId: string): Watch {
     let watch = this.watches.get(terminalId)
     if (!watch) {
-      // A terminal that has a title already begins settled, having seen the prompts it
-      // has: only evidence after this replaces it. That is the one its opening agent gave,
-      // or murmur's, kept across a restart, of a terminal with an agent bound: where it
-      // came from is lost, and a bound agent most likely wrote it. A plain shell's, or one
-      // whose title may be a shell's, begins forming.
-      const subject = this.host.subject(terminalId)
-      const titled =
-        subject !== undefined &&
-        (subject.naming.agent !== null ||
-          (subject.naming.murmur !== null && subject.agent !== null))
       watch = {
-        stage: titled ? "settled" : "forming",
-        checks: 0,
-        keeps: 0,
-        candidate: false,
-        prompt: titled && subject ? latestPrompt(subject.work) : null,
-        summary: null,
-        checkedAt: 0,
-        started: titled,
-        titledFrom: titled ? "agent" : null,
-        waiting: false,
-        unsettled: null,
-        unsettledHard: false,
-        recheck: false,
-        refusedHard: false,
-        restored: subject?.work != null,
-        baseline: null,
-        session: subject?.work?.session ?? null,
-        turnSeen: (subject?.activity && turnEndOf(subject.activity)) ?? null,
-        gapTimer: undefined,
+        named: null,
         owed: false,
-        owedHard: false,
-        summarySession: undefined,
-        retryAt: 0,
+        shellTitled: false,
         retryTimer: undefined,
         program: { key: null, since: Date.now() },
         agentRan: false,
@@ -1333,116 +825,94 @@ export class Murmur {
     const id = subject.summary.id
     const watch = this.watch(id)
     if (subject.agent) {
-      // Whether a check is due is for `react` to tell: the first of a session, one that did
-      // not run, or a terminal that has no name yet.
-      this.react(id, { session: false })
+      // A summary not named yet: one whose title did not run, or one of a terminal with no
+      // title (as after murmur was turned off and on). A titled one waits for the next.
+      const { naming } = subject
+      const untitled = naming.murmur === null && naming.agent === null
+      if (naming.person !== null || !naming.summary || words(naming.summary) === watch.named) return
+      if (watch.owed || untitled) this.check(id)
       return
     }
+    // A summary's title owed when the agent left is not the shell's.
+    watch.owed = false
     if (subject.naming.murmur !== null) return
     watch.shellOwed = true
     this.ask(id, this.times.shellSettleMs)
   }
 
   /**
-   * A turn of the agent ended: if it brought new evidence, the name is checked, at once in
-   * the forming stage; in the settled stage at once if the gap since the last check has
-   * passed or a hard signal came, else when the gap ends.
+   * Names the agent's terminal from its summary after `settleMs`: the digest is built then,
+   * so a burst of summaries makes one title.
    */
-  private turnEnded(terminalId: string): void {
-    this.consider(terminalId).catch((error: unknown) =>
-      log.error("murmur.look-failed", "Novadeck could not look at a terminal to describe it", {
-        err: error,
-      }),
+  private check(terminalId: string): void {
+    const watch = this.watch(terminalId)
+    clearTimeout(watch.retryTimer)
+    watch.owed = true
+    // The name the title would replace, as it was when the digest was built.
+    let previous: string | undefined
+    this.descriptions.request(
+      terminalId,
+      this.times.settleMs,
+      async () => {
+        // Nothing is built, read or serialized while murmur isn't usable.
+        if (!this.usable) return undefined
+        const subject = this.host.subject(terminalId)
+        const summary = subject?.naming.summary
+        if (!subject?.agent || subject.naming.person !== null || !summary) return undefined
+        previous = this.previousOf(subject, watch)
+        const projectFolder = this.host.projectFolder(subject.summary.sessionId)
+        return {
+          kind: "agent",
+          project: projectFolder === undefined ? null : basename(projectFolder) || null,
+          summary,
+        }
+      },
+      (outcome, digest) => this.checked(terminalId, watch, outcome, digest, previous),
     )
-  }
-
-  private async consider(terminalId: string): Promise<void> {
-    const watch = this.watches.get(terminalId)
-    const subject = this.host.subject(terminalId)
-    if (!watch || !this.usable || !subject?.agent || subject.naming.person !== null) return
-    // A check that could not run is asked for again by its own timer.
-    if (Date.now() < watch.retryAt) return
-    const facts = await this.host.facts(subject)
-    // Read again after waiting: the terminal may have moved on or gone.
-    const now = this.host.subject(terminalId)
-    if (this.watches.get(terminalId) !== watch || !this.usable) return
-    if (!now?.agent || now.naming.person !== null) return
-    const hard = shifted(watch.baseline, facts) || this.freshSummary(now, watch)
-    if (!hard && !this.fresh(now, watch)) return
-    if (watch.stage === "forming") {
-      this.check(terminalId, this.times.settleMs, false)
-      return
-    }
-    const wait = watch.checkedAt + this.times.settledGapMs - Date.now()
-    if (hard || wait <= 0) this.check(terminalId, this.times.settleMs, hard)
-    else this.owe(terminalId, watch, wait)
-  }
-
-  // Whether the agent's current summary is one the last check did not see.
-  private freshSummary(subject: MurmurSubject, watch: Watch): boolean {
-    const summary = this.currentSummary(subject)
-    return summary !== null && words(summary) !== words(watch.summary)
-  }
-
-  // Evidence came inside the settled gap: one timer checks when it ends, however much more
-  // evidence comes meanwhile.
-  private owe(terminalId: string, watch: Watch, waitMs: number): void {
-    if (watch.gapTimer !== undefined) return
-    watch.gapTimer = setTimeout(() => {
-      watch.gapTimer = undefined
-      this.turnEnded(terminalId)
-    }, waitMs)
-    watch.gapTimer.unref()
   }
 
   /**
-   * Checks the agent terminal's name after `delayMs`: a digest of it is built then, so a
-   * burst makes one check, and a later one replaces it. `hard` says a hard signal came
-   * with it (a summary); the digest's facts may add one (a changed branch or plan).
+   * A summary's title came back. It replaces the name unless it shares a content word with
+   * it, as a rewording of the same work. A refusal names nothing; one that did not run is
+   * asked for again after `retryMs`.
    */
-  private check(terminalId: string, delayMs: number, hard: boolean): void {
-    const watch = this.watch(terminalId)
-    clearTimeout(watch.gapTimer)
-    watch.gapTimer = undefined
-    // What the build saw, for the outcome to judge and, if the job did not run, to undo.
-    let ran: { hard: boolean; facts: Facts; previous: string | null; before: Marks } | null = null
-    watch.waiting = true
-    this.descriptions.request(
-      terminalId,
-      delayMs,
-      async () => {
-        ran = null
-        watch.waiting = false
-        // Nothing is built, read or serialized while murmur isn't usable.
-        if (!this.usable) return undefined
-        const current = this.host.subject(terminalId)
-        if (!current?.agent || current.naming.person !== null) return undefined
-        const built = await this.agentDigestOf(current, watch, hard)
-        if (!built) return undefined
-        // What the digest was built from is what this check saw, and the gap runs from now.
-        ran = {
-          hard: built.hard,
-          facts: built.facts,
-          previous: built.digest.previous?.title ?? null,
-          before: {
-            prompt: watch.prompt,
-            summary: watch.summary,
-            at: watch.checkedAt,
-            started: watch.started,
-          },
-        }
-        if (watch.unsettled === null) watch.unsettled = ran.before
-        watch.unsettledHard ||= ran.hard
-        watch.prompt = latestPrompt(built.subject.work)
-        watch.summary = this.currentSummary(built.subject)
-        watch.checkedAt = Date.now()
-        watch.started = true
-        watch.owed = false
-        watch.owedHard = false
-        return built.digest
-      },
-      (outcome) => this.checked(terminalId, watch, outcome, ran),
-    )
+  private checked(
+    terminalId: string,
+    watch: Watch,
+    outcome: Description | null | undefined,
+    digest: Digest | undefined,
+    previous: string | undefined,
+  ): void {
+    if (this.watches.get(terminalId) !== watch) return
+    if (digest?.kind !== "agent") {
+      // No digest was built: an agent that left, or a terminal the person titled, is owed
+      // nothing; one that waits for murmur to be usable still is.
+      const subject = this.host.subject(terminalId)
+      if (!subject?.agent || subject.naming.person !== null) watch.owed = false
+      return
+    }
+    if (outcome === undefined) {
+      clearTimeout(watch.retryTimer)
+      watch.retryTimer = setTimeout(() => {
+        watch.retryTimer = undefined
+        if (this.usable && watch.owed) this.check(terminalId)
+      }, this.times.retryMs)
+      watch.retryTimer.unref()
+      return
+    }
+    // The agent left, or the person titled the terminal, while the model ran: nothing is
+    // named, and clearing the person's title asks again.
+    const now = this.host.subject(terminalId)
+    if (!now?.agent || now.naming.person !== null) {
+      watch.owed = false
+      return
+    }
+    watch.named = words(digest.summary)
+    // A newer summary that came while this one was named is still owed.
+    watch.owed = words(now.naming.summary) !== watch.named
+    if (outcome === null) return
+    if (previous !== undefined && sharesContentWord(outcome.title, previous)) return
+    if (this.store(terminalId, outcome.title)) watch.shellTitled = false
   }
 
   /**
@@ -1455,12 +925,11 @@ export class Murmur {
     delayMs: number,
     options: { readonly program?: string; readonly unchanged?: boolean } = {},
   ): void {
-    // A shell's request takes the terminal's one job from any agent check waiting for it.
-    // An agent check still waiting for its quiet is replaced by this request, and has
-    // marked nothing. One running is aborted only when this job starts (see below).
+    // A shell's request takes the terminal's one job from any summary's title waiting for
+    // it, whose agent has left: nothing is owed of it. A shell opened to run an agent waits
+    // for it to bind, or for the wait to pass.
     const mine = this.watches.get(terminalId)
-    if (mine) mine.waiting = false
-    // A shell opened to run an agent waits for it to bind, or for the wait to pass.
+    if (mine) mine.owed = false
     const subject = this.host.subject(terminalId)
     const wait = subject && !subject.agent ? this.expectedFor(subject) : 0
     let key: string | null = null
@@ -1469,9 +938,6 @@ export class Murmur {
       Math.max(delayMs, wait),
       async () => {
         key = null
-        // The job starts, and aborts an agent check still running: it gives back the
-        // evidence it was to judge. (One that ended before this is settled already.)
-        if (mine) this.undo(mine)
         // Nothing is built, read or serialized while murmur isn't usable.
         if (!this.usable) return undefined
         const current = this.host.subject(terminalId)
@@ -1498,52 +964,6 @@ export class Murmur {
     return Math.max(0, this.times.expectMs - (Date.now() - since))
   }
 
-  // The digest an agent's terminal is described from, the facts it is built on, and the
-  // terminal as it was read after waiting.
-  // A check that carries a hard signal (given, or told by the facts and the summary as they
-  // are now) is shown as a forming one: the model is asked to name the work afresh, not to
-  // keep a name unless the latest prompt overturns it, since the signal already says the
-  // work moved.
-  private async agentDigestOf(
-    subject: MurmurSubject,
-    watch: Watch,
-    given: boolean,
-  ): Promise<
-    { digest: AgentDigest; facts: Facts; subject: MurmurSubject; hard: boolean } | undefined
-  > {
-    const id = subject.summary.id
-    const agent = subject.agent!
-    const [facts, reply] = await Promise.all([this.host.facts(subject), this.replyOf(subject)])
-    // Read again after waiting: the terminal may have moved on or gone.
-    const now = this.host.subject(id)
-    if (!now?.agent || now.naming.person !== null) return undefined
-    const hard = given || shifted(watch.baseline, facts) || this.freshSummary(now, watch)
-    const digest = agentDigest({
-      harness: agent,
-      projectFolder: this.host.projectFolder(now.summary.sessionId),
-      cwd: now.summary.cwd,
-      branch: facts.branch,
-      plan: facts.plan,
-      work: now.work,
-      reply,
-      summary: this.currentSummary(now),
-      previous: this.previousOf(now, watch),
-      stage: hard ? "forming" : watch.stage,
-    })
-    return digest ? { digest, facts, subject: now, hard } : undefined
-  }
-
-  /**
-   * The tail of the agent's last reply: from its transcript, up to `replyChars`; else, where
-   * its harness tells no transcript's items, the preview its turn's end reported (a
-   * hundred or so characters), only once the turn is over.
-   */
-  private async replyOf(subject: MurmurSubject): Promise<string | null> {
-    const items = subject.agent ? this.host.items(subject.agent) : undefined
-    if (items && subject.transcript) return replyTail(subject.transcript, items)
-    return finishedReply(subject.activity)
-  }
-
   private async shellDigestOf(
     subject: MurmurSubject,
     unchanged: boolean,
@@ -1560,15 +980,12 @@ export class Murmur {
     if (unchanged && key === watch.screenKey) return undefined
     const digest = shellDigest({
       projectFolder: this.host.projectFolder(now.summary.sessionId),
-      cwd: now.summary.cwd,
       command,
       rows: screen.rows,
       alternate,
       ...(screen.commandRow !== undefined && { commandRow: screen.commandRow }),
       ...(screen.wrapped && { wrapped: screen.wrapped }),
       ...(screen.continues && { rowContinues: screen.continues }),
-      // A title an agent's check wrote names its work, not what the shell does now.
-      previous: watch.titledFrom === "agent" ? null : now.naming.murmur,
     })
     if (!digest) return undefined
     // A bare prompt with nothing typed after it (the last command's line is a prompt like
@@ -1580,158 +997,26 @@ export class Murmur {
 
   // A shell's job ended: its title, if it got one, names the terminal.
   private shellSettled(terminalId: string, outcome: Description | null | undefined): void {
-    if (!outcome) return
-    this.store(terminalId, outcome.title)
-    // An agent that starts in this shell, or after the one that left it, is a new subject:
-    // its name forms from its own work, whatever stage the last agent's had reached.
+    if (!outcome || !this.store(terminalId, outcome.title)) return
+    // An agent that starts in this shell, or after the one that left it, is named from its
+    // own summary, even one that says what the last agent's did; nothing is owed meanwhile.
     const watch = this.watches.get(terminalId)
     if (!watch) return
-    this.reform(watch)
-    watch.titledFrom = "shell"
+    watch.named = null
+    watch.owed = false
+    watch.shellTitled = true
   }
 
-  /**
-   * An agent terminal's check ended. A refusal (null) closes it; murmur not running
-   * (undefined) undoes it, leaving the evidence owed, to be asked for again after
-   * `retryMs`; a title is judged by the stage the terminal is in.
-   */
-  private checked(
-    terminalId: string,
-    watch: Watch,
-    outcome: Description | null | undefined,
-    ran: { hard: boolean; facts: Facts; previous: string | null; before: Marks } | null,
-  ): void {
-    if (this.watches.get(terminalId) !== watch) return
-    const before = watch.unsettled
-    const hardBefore = watch.unsettledHard
-    watch.unsettled = null
-    watch.unsettledHard = false
-    if (outcome === undefined) {
-      this.unrun(terminalId, watch, ran, before, hardBefore)
-      return
-    }
-    this.resetRetry(watch)
-    if (ran === null) return
-    // Every check that ran has seen the facts as they are: a change of the branch or plan
-    // is a hard signal once, not at every turn end after a verdict that kept the name.
-    // A refusal of a hard signal's check keeps the signal, once: the summary is unseen and
-    // the baseline stays, so the next check is hard again and names the work afresh.
-    if (outcome === null && ran.hard && !watch.refusedHard) {
-      watch.refusedHard = true
-      if (before) watch.summary = before.summary
-      return
-    }
-    watch.refusedHard = false
-    watch.baseline = rebased(watch.baseline, ran.facts)
-    if (outcome === null) return
-    const title = outcome.title.trim()
-    if (!terminalTitle.safeParse(title).success) return
-    // The person may have titled the terminal while the model ran.
-    if (this.host.subject(terminalId)?.naming.person !== null) return
-    const same = title === ran.previous
-    const kept = !outcome.changed || same
-    if (watch.stage === "forming") {
-      // Forming, the name follows the work; it settles once it has held twice in a
-      // row, or after four checks whatever they said.
-      // A better name replaces the previous one only when the model judges the work changed
-      // (or there is none yet); a verdict that it did not is a keep.
-      if (!same && this.renames(outcome, title, ran))
-        this.store(terminalId, title, ran.facts, watch)
-      watch.checks += 1
-      watch.keeps = kept ? watch.keeps + 1 : 0
-      if (watch.keeps >= keepsToSettle || watch.checks >= formingChecks) {
-        watch.stage = "settled"
-        watch.candidate = false
-      }
-      return
-    }
-    // A hard signal renames directly, as in forming, with no verdict needed (it was shown a
-    // forming digest): a title that differs is a new phase, and forms again.
-    if (ran.hard) {
-      watch.candidate = false
-      if (same || !this.renames(outcome, title, ran)) return
-      this.store(terminalId, title, ran.facts, watch)
-      watch.stage = "forming"
-      watch.checks = 0
-      watch.keeps = 0
-      return
-    }
-    if (kept) {
-      watch.candidate = false
-      return
-    }
-    // The work changed: it is a pivot once a second check in a row says so. Until then the
-    // name is kept and the pivot remembered.
-    if (!watch.candidate) {
-      watch.candidate = true
-      return
-    }
-    this.store(terminalId, title, ran.facts, watch)
-    watch.stage = "forming"
-    watch.checks = 0
-    watch.keeps = 0
-    watch.candidate = false
-  }
-
-  // Whether a differing title replaces the name: when the model judges the work changed,
-  // when there is no name yet, or, after a hard signal (a summary, a new branch or plan),
-  // when the new name shares no content word with the old one; a rewording of the same
-  // work keeps the name.
-  private renames(
-    outcome: Description,
-    title: string,
-    ran: { readonly hard: boolean; readonly previous: string | null },
-  ): boolean {
-    if (outcome.changed || ran.previous === null) return true
-    return ran.hard && !sharesContentWord(title, ran.previous)
-  }
-
-  // The check did not run: what it saw is unseen again, and it is owed once `retryMs` pass.
-  private unrun(
-    terminalId: string,
-    watch: Watch,
-    ran: { hard: boolean; facts: Facts; previous: string | null; before: Marks } | null,
-    before: Marks | null,
-    hard: boolean,
-  ): void {
-    if (ran === null || before === null) return
-    const subject = this.host.subject(terminalId)
-    if (!subject || subject.naming.person !== null) return
-    watch.prompt = before.prompt
-    watch.summary = before.summary
-    watch.checkedAt = before.at
-    watch.started = before.started
-    watch.owed = true
-    watch.owedHard = hard
-    watch.retryAt = Date.now() + this.times.retryMs
-    // An idle terminal sends no reports to ask again at: a timer does, once.
-    clearTimeout(watch.retryTimer)
-    watch.retryTimer = setTimeout(() => {
-      watch.retryTimer = undefined
-      this.reported(terminalId, { session: false })
-    }, this.times.retryMs)
-    watch.retryTimer.unref()
-  }
-
-  // A title came back: it names the terminal if it can be one. An agent terminal's also
-  // takes the facts as they were then for the baseline of the next change.
-  private store(terminalId: string, title: string, facts?: Facts, watch?: Watch): void {
-    const mine = watch ?? this.watches.get(terminalId)
-    if (mine) {
-      this.resetRetry(mine)
-      if (facts) mine.baseline = rebased(mine.baseline, facts)
-    }
+  // A title came back: it names the terminal if it can be one and the person gave it none;
+  // true when it does.
+  private store(terminalId: string, title: string): boolean {
     const text = title.trim()
-    if (!terminalTitle.safeParse(text).success) return
-    if (this.host.subject(terminalId)?.naming.person) return
+    if (!terminalTitle.safeParse(text).success) return false
+    if (this.host.subject(terminalId)?.naming.person) return false
     this.host.described(terminalId, { title: text })
-    if (mine && watch) mine.titledFrom = "agent"
+    return true
   }
 }
-
-/** The preview of the agent's last reply, when its turn is over. */
-const finishedReply = (activity: Activity | null): string | null =>
-  activity && activity.state !== "working" ? (activity.lastTurn?.reply ?? null) : null
 
 /** Whether the activity's last turn ended at `at`, completed or failed, with none running and no gist yet. */
 const endedAt = (activity: Activity, at: number): boolean =>

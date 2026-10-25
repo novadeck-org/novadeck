@@ -3,7 +3,7 @@ import { mailBadge } from "@novadeck/core/messages"
 import { afterEach, vi } from "vitest"
 
 import { createDemoInbox } from "./inbox"
-import { demoInboxIds, demoInboxItems } from "./inbox-fixtures"
+import { demoInboxIds, demoInboxItems, demoInboxItemsAll } from "./inbox-fixtures"
 import { checkoutMailboxes, createDemoMessages, rungMs } from "./messages"
 import { demoTerminalId } from "./samples"
 import { describe, expect, it } from "./test"
@@ -108,6 +108,16 @@ it("records asks, tells and accepted person replies in the demo's You threads", 
   } finally {
     vi.useRealTimers()
   }
+})
+
+it("keeps no Inbox history of a feedback draft, nor of its answers", () => {
+  const messages = createDemoMessages([])
+  const draft = demoInboxItemsAll(Date.now()).find((item) => item.id === demoInboxIds.feedback)!
+  const before = messages.state.getSnapshot()
+  messages.record(draft)
+  messages.record(draft, { kind: "feedback", answer: { type: "send", text: "sent" } })
+  messages.record(draft, { kind: "feedback", answer: { type: "discard" } })
+  expect(messages.state.getSnapshot()).toBe(before)
 })
 
 it("keeps options, recommendations, code and action labels in separate Inbox history threads", () => {

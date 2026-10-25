@@ -13,6 +13,7 @@ import type {
 } from "@novadeck/core/types"
 
 import { createDemoEngine } from "./engine"
+import { withFeedback } from "./feedback"
 import { demoBackend, windowReset, withConversations, withInbox } from "./index"
 import { createDemoMessages, studioMailbox } from "./messages"
 import { defaultName, demoTerminalId } from "./samples"
@@ -283,7 +284,7 @@ export const contentDemo = (
       },
     }),
   )
-  return withInbox(conversing, turns)
+  return withFeedback(withInbox(conversing, turns), turns)
 }
 
 // Specs open the showcase with `&planFault=` one of the debug panel's plan faults, its

@@ -3726,18 +3726,14 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))(
   // Polls wait up to 30 s for a loaded machine; the tests have room for them.
   { timeout: 90_000 },
   () => {
-    it("titles an agent's terminal from its prompts while the agent summarizes it, beneath the person's title", async ({
+    it("titles an agent's terminal from its summary alone, beneath the person's title", async ({
       shell,
     }) => {
       const bin = standIn(shell.home)
       // The terminals' shells are described at their prompts too: here murmur does not run
       // for them, so only the agent's digests are answered and counted.
-      let asked = 0
       const describer = new FakeDescriber({
-        reply: (digest) =>
-          digest.kind !== "agent"
-            ? undefined
-            : { title: ++asked === 1 ? "Login fix" : "Login fix and tests" },
+        reply: (digest) => (digest.kind !== "agent" ? undefined : { title: "Login fix" }),
       })
       const agentDigests = () => describer.digests.filter((digest) => digest.kind === "agent")
       const manager = shell.manager({
@@ -3766,44 +3762,37 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))(
       expect(first[0]).toMatch(/^Novadeck: automatic notice, not from the user: beside this/)
       expect(first[1]).toMatch(/the user rarely watches this terminal/)
       expect(first[2]).toMatch(/this terminal has no summary yet.*summarize tool/)
-      // Murmur titles it once its first prompt is known.
-      await expect.poll(() => manager.get(codex.id).title, { timeout: 30_000 }).toBe("Login fix")
-      expect(manager.get(codex.id).titleSource).toEqual({ kind: "murmur" })
-      expect(agentDigests()[0]).toMatchObject({
-        kind: "agent",
-        harness: "Codex",
-        prompts: ["Fix the login bug"],
-        summary: null,
-        previous: null,
-      })
-      expect(manager.get(claude.id).title).toBe("Terminal")
+      // Its prompt titles nothing.
+      await new Promise((resolve) => setTimeout(resolve, 300))
+      expect(agentDigests()).toHaveLength(0)
 
-      // The agent summarizes its own terminal: titles stay Novadeck's, and murmur looks again
-      // with the summary in its digest.
+      // The agent summarizes its own terminal: titles stay Novadeck's, and murmur names the
+      // terminal from the summary alone.
       await expect(
         summarize("Fixes the login bug.\nThen its tests.", {
           title: "Evil",
           to: "moth",
         }),
       ).resolves.toEqual({ ok: true, text: "Summarized this terminal." })
-      await expect.poll(() => agentDigests().length, { timeout: 30_000 }).toBe(2)
-      expect(agentDigests()[1]).toMatchObject({
-        summary: "Fixes the login bug.\nThen its tests.",
-        previous: { title: "Login fix" },
-      })
-      await expect
-        .poll(() => manager.get(codex.id).title, { timeout: 30_000 })
-        .toBe("Login fix and tests")
+      await expect.poll(() => manager.get(codex.id).title, { timeout: 30_000 }).toBe("Login fix")
+      expect(manager.get(codex.id).titleSource).toEqual({ kind: "murmur" })
+      expect(agentDigests()).toEqual([
+        expect.objectContaining({
+          kind: "agent",
+          summary: "Fixes the login bug.\nThen its tests.",
+        }),
+      ])
+      expect(agentDigests()[0]).not.toHaveProperty("prompts")
       expect(manager.get(claude.id).title).toBe("Terminal")
       expect(await listed()).toContain(
         "- @fox: Codex, busy, last active just now\n" +
-          "  title: Login fix and tests (written by Novadeck's local model, not the user)\n" +
+          "  title: Login fix (written by Novadeck's local model, not the user)\n" +
           "  described by its agent: Fixes the login bug. / Then its tests.",
       )
       expect(shell.store.terminalIdentity(codex.id)?.naming).toEqual({
         person: null,
         agent: null,
-        murmur: { title: "Login fix and tests" },
+        murmur: { title: "Login fix" },
         summary: "Fixes the login bug.\nThen its tests.",
       })
       // A summary that can't be taken says why.
@@ -3823,7 +3812,7 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))(
       )
       manager.resetTitle({ terminalId: codex.id })
       expect(manager.get(codex.id)).toMatchObject({
-        title: "Login fix and tests",
+        title: "Login fix",
         titleSource: { kind: "murmur" },
       })
     })
@@ -3849,13 +3838,11 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))(
       const prompt = async (text: string) =>
         context(await step(terminal.id, { hook: "UserPromptSubmit", payload: { prompt: text } }))
       await prompt("Fix the build")
-      // Murmur titles it from the prompt before the agent summarizes, so the two are two jobs.
-      await expect.poll(() => agents().length, { timeout: 30_000 }).toBe(1)
       await step(terminal.id, {
         call: "summarize",
         request: { summary: "Fixes the build." },
       })
-      await expect.poll(() => agents().length, { timeout: 30_000 }).toBe(2)
+      await expect.poll(() => agents().length, { timeout: 30_000 }).toBe(1)
       await step(terminal.id, { hook: "Stop", payload: {} })
       await expect(prompt("go on")).resolves.toBe("")
       await step(terminal.id, { hook: "Stop", payload: {} })
@@ -3869,14 +3856,13 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))(
       expect(after[1]).toMatch(/the user rarely watches this terminal/)
       expect(after[2]).toMatch(/summary is "Fixes the build\."; if that no longer fits/)
       await expect(prompt("next")).resolves.toBe("")
-      // Murmur titled it from its first prompt and its summary; the compaction, the Stops and
-      // the terse prompts after them retitled nothing.
+      // Murmur titled it from its summary; the compaction, the Stops and the prompts after
+      // them retitled nothing.
       await new Promise((resolve) => setTimeout(resolve, 300))
-      expect(agents()).toHaveLength(2)
-      expect(agents()[1]).toMatchObject({ summary: "Fixes the build." })
+      expect(agents()).toEqual([expect.objectContaining({ summary: "Fixes the build." })])
     })
 
-    it("never retitles an agent from a terse prompt, a turn's end or its drift", async ({
+    it("never titles an agent from its prompts, its turns' ends or its drift", async ({
       shell,
     }) => {
       const bin = standIn(shell.home)
@@ -3897,18 +3883,11 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))(
             tool_input: { file_path: join(shell.home, folder, "a.ts") },
           },
         })
-      // A terse first prompt is no mission: nothing is asked of murmur.
-      await step(terminal.id, { hook: "UserPromptSubmit", payload: { prompt: "hows going?" } })
-      await new Promise((resolve) => setTimeout(resolve, 300))
       // (The shell the stand-in agent ran in is described at its prompt, as any shell is.)
       const agents = () => describer.digests.filter((digest) => digest.kind === "agent")
-      expect(agents()).toHaveLength(0)
-      // The next substantial one is, and the terse one is not shown.
+      await step(terminal.id, { hook: "UserPromptSubmit", payload: { prompt: "hows going?" } })
       await step(terminal.id, { hook: "Stop", payload: {} })
       await step(terminal.id, { hook: "UserPromptSubmit", payload: { prompt: "Fix the build" } })
-      await expect.poll(() => agents().length, { timeout: 30_000 }).toBe(1)
-      expect(agents()[0]).toMatchObject({ prompts: ["Fix the build"] })
-      // Drift and further turns retitle nothing.
       for (const _ of [1, 2, 3, 4])
         // eslint-disable-next-line no-await-in-loop -- Each write is its own hook.
         await write("docs")
@@ -3916,7 +3895,7 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))(
       await step(terminal.id, { hook: "UserPromptSubmit", payload: { prompt: "try again" } })
       await step(terminal.id, { hook: "Stop", payload: {} })
       await new Promise((resolve) => setTimeout(resolve, 300))
-      expect(agents()).toHaveLength(1)
+      expect(agents()).toHaveLength(0)
     })
 
     it("describes a plain shell at its prompt, while a program has run a few seconds, and when its directory changes", async ({
@@ -3971,7 +3950,7 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))(
       await expect.poll(() => describer.digests.length, { timeout: 30_000 }).toBeGreaterThan(before)
       expect(describer.digests.at(-1)).toMatchObject({
         kind: "shell",
-        folder: expect.stringContaining("sub"),
+        screen: expect.arrayContaining([expect.stringContaining("cd sub")]),
       })
     })
 
@@ -4077,7 +4056,7 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))(
       expect(digest.commandAt).toBeUndefined()
     })
 
-    it("forms an agent typed into a titled shell afresh, and its exit does not retitle from its screen", async ({
+    it("names an agent typed into a titled shell from its summary, and its exit does not retitle from its screen", async ({
       shell,
     }) => {
       const bin = standIn(shell.home)
@@ -4093,23 +4072,11 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))(
       await expect
         .poll(() => manager.get(terminal.id).title, { timeout: 30_000 })
         .toBe("Shell work")
-      // An agent is typed into it and given its first prompt.
+      // An agent is typed into it, and summarizes its work.
       const { start, step } = driver(shell, manager)
       await start(terminal.id, "claude", "s-claude")
-      await step(terminal.id, {
-        hook: "UserPromptSubmit",
-        payload: { prompt: "Fix the login bug" },
-      })
-      await expect
-        .poll(() => describer.digests.some((digest) => digest.kind === "agent"), {
-          timeout: 30_000,
-        })
-        .toBe(true)
-      // It is named afresh: the shell's title is not shown to the model as its previous one.
-      expect(describer.digests.find((digest) => digest.kind === "agent")).toMatchObject({
-        stage: "forming",
-        previous: null,
-      })
+      await step(terminal.id, { call: "summarize", request: { summary: "Fixes the login bug." } })
+      // The shell's title is no name of the agent's work: the summary's title replaces it.
       await expect.poll(() => manager.get(terminal.id).title, { timeout: 30_000 }).toBe("Login fix")
       // It runs a while, then the person ends it: what its exit leaves on the screen does not
       // name the terminal again.
@@ -4192,7 +4159,7 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))(
       const { start, step } = driver(shell, manager)
       await start(terminal.id, "claude", "s-claude")
       describer.setUsable(false)
-      await step(terminal.id, { hook: "UserPromptSubmit", payload: { prompt: "Fix the build" } })
+      await step(terminal.id, { call: "summarize", request: { summary: "Fixes the build." } })
       await new Promise((resolve) => setTimeout(resolve, 200))
       expect(describer.jobs).toHaveLength(0)
       expect(manager.get(terminal.id).titleSource).toEqual({ kind: "default" })
@@ -4212,8 +4179,8 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))(
       const before = driver(shell, first)
       await before.start(terminal.id, "claude", "s-claude")
       await before.step(terminal.id, {
-        hook: "UserPromptSubmit",
-        payload: { prompt: "Fix the login bug" },
+        call: "summarize",
+        request: { summary: "Fixes the login bug." },
       })
       await expect
         .poll(() => first.get(terminal.id).titleSource, { timeout: 30_000 })
@@ -4237,7 +4204,7 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))(
       expect(second.get(terminal.id).titleSource).toEqual({ kind: "murmur" })
     })
 
-    it("titles a terminal again when its agent starts another session, though the first was titled", async ({
+    it("titles a terminal again only when its agent's new session summarizes", async ({
       shell,
     }) => {
       const bin = standIn(shell.home)
@@ -4250,10 +4217,7 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))(
       const terminal = await create(manager, shell)
       const { start, step } = driver(shell, manager)
       await start(terminal.id, "claude", "s-one")
-      await step(terminal.id, {
-        hook: "UserPromptSubmit",
-        payload: { prompt: "Fix the login bug" },
-      })
+      await step(terminal.id, { call: "summarize", request: { summary: "Fixes the login bug." } })
       await expect.poll(() => agents().length, { timeout: 30_000 }).toBe(1)
       await step(terminal.id, { hook: "Stop", payload: {} })
       await step(terminal.id, {
@@ -4263,6 +4227,12 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))(
       await step(terminal.id, {
         hook: "UserPromptSubmit",
         payload: { prompt: "Write the signup tests", session_id: "s-two" },
+      })
+      await new Promise((resolve) => setTimeout(resolve, 300))
+      expect(agents()).toHaveLength(1)
+      await step(terminal.id, {
+        call: "summarize",
+        request: { summary: "Writes the signup tests." },
       })
       await expect.poll(() => agents().length, { timeout: 30_000 }).toBe(2)
     })
@@ -4277,8 +4247,8 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))(
         const { start, step } = driver(shell, manager)
         await start(terminal.id, "claude", session)
         await step(terminal.id, {
-          hook: "UserPromptSubmit",
-          payload: { prompt: "Fix the login bug" },
+          call: "summarize",
+          request: { summary: "Fixes the login bug." },
         })
         await expect
           .poll(() => manager.get(terminal.id).titleSource, { timeout: 30_000 })
@@ -4544,7 +4514,7 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))(
       expect(shell.store.terminal(terminal.id)?.work).toMatchObject({
         first: "Fix the login bug",
         firstByPerson: false,
-        recent: ["Fix the login bug", "Now its tests"],
+        latest: "Now its tests",
       })
       // A new root session starts over, with its own prompts.
       await clear("s-2")
@@ -4558,7 +4528,7 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))(
       expect(shell.store.terminal(terminal.id)?.work).toMatchObject({
         first: "Write the docs",
         firstByPerson: true,
-        recent: ["Write the docs"],
+        latest: "Write the docs",
       })
       expect(manager.get(terminal.id).title).toBe("Terminal")
     })

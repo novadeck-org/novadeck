@@ -223,6 +223,9 @@ export const answerItem = (
 ): void => {
   const { id } = item
   if (item.kind !== given.kind) return tracker.fail(id, "That answer isn't for this item.")
+  // A feedback draft is the app's own, sent by the backend that holds it; the runner never
+  // makes one.
+  if (item.kind === "feedback") return tracker.fail(id, "A feedback draft isn't answered here.")
   const key = keyOf(item)
   if (item.kind === "request" && given.kind === "request")
     return tracker.call(id, () => actions.request(key, item, given.answer))

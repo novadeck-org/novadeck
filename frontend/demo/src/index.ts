@@ -23,6 +23,7 @@ import { babciaIntroOf, createBabcia } from "./babcia"
 import { createDemoChat } from "./chat"
 import { chirpIntroOf, chirpSeed, chirpTranscripts } from "./chirp"
 import { createDemoEngine, type DemoEngine } from "./engine"
+import { withFeedback } from "./feedback"
 import { demoHandle } from "./handles"
 import { createDemoInbox, isDemoInbox } from "./inbox"
 import { demoInboxItems, demoLetters } from "./inbox-fixtures"
@@ -451,6 +452,16 @@ export const plainDemo = (
   turnMs?: number,
   turns: DemoTurns = demoTurns(turnMs),
 ): Backend => {
+  const backend = plainBackend(variant, terminals, turns)
+  // Babcia's cues are kept by the backend its own wrapper returns: its feedback joins inside.
+  return variant === "babcia" ? backend : withFeedback(backend, turns)
+}
+
+const plainBackend = (
+  variant: PlainVariant,
+  terminals: DemoTerminalSetup | undefined,
+  turns: DemoTurns,
+): Backend => {
   // Every agent takes a prompt, works a moment, and finishes, however it is sent; the
   // seeds and the debug panel drive the same turns.
   const backend = demoBackend(createDemoEngine(), {
@@ -478,8 +489,11 @@ export const plainDemo = (
   if (variant === "babcia") {
     const babcia = createBabcia(turns, now)
     return babcia.over(
-      withInbox(
-        withConversations(babcia.under(backend), babcia.transcripts, turns, babcia.wrap),
+      withFeedback(
+        withInbox(
+          withConversations(babcia.under(backend), babcia.transcripts, turns, babcia.wrap),
+          turns,
+        ),
         turns,
       ),
     )

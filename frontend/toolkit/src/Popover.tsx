@@ -8,14 +8,18 @@ export type PopoverProps = {
   label: string
   open: boolean
   onOpenChange: (open: boolean) => void
-  trigger: ReactElement
+  // What it opens from. Absent for one opened by something else, which says where it hangs
+  // with `anchorRect`.
+  trigger?: ReactElement
+  // Where it hangs when it has no trigger, read each time it places itself.
+  anchorRect?: () => DOMRect | null
   children: ReactNode
   className?: string
   // What its trigger's tooltip says, while the popover is closed. The trigger's Ark data
   // attributes are then the tooltip's: style its open state by aria-expanded.
   tooltip?: string
   // Where it opens from its trigger: below by default, or above for one at the bottom.
-  placement?: "bottom-start" | "top-end"
+  placement?: "bottom-start" | "bottom-end" | "top-end"
   // Where focus lands when it opens, where the first control is not the one to press by reflex.
   initialFocus?: () => HTMLElement | null
   // False leaves where focus goes once it closes to its owner, instead of back to the trigger.
@@ -29,6 +33,7 @@ export const Popover = ({
   open,
   onOpenChange,
   trigger,
+  anchorRect,
   children,
   className,
   tooltip,
@@ -60,11 +65,12 @@ export const Popover = ({
         strategy: "fixed",
         gutter: 10,
         overflowPadding: 12,
+        ...(anchorRect ? { getAnchorRect: anchorRect } : {}),
       }}
       lazyMount
       unmountOnExit
     >
-      {tooltip ? (
+      {!trigger ? null : tooltip ? (
         <Tooltip content={tooltip} disabled={open}>
           <ArkPopover.Trigger asChild id={triggerId}>
             {trigger}

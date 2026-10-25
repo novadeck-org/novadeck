@@ -69,10 +69,8 @@ describe.skipIf(!engine || !model)("murmur with the real engine", () => {
         {
           kind: "shell",
           project: "app",
-          folder: "api",
           command: "pnpm vitest --watch",
           screen: [" ✓ src/a.test.ts (12 tests)", " ❯ src/b.test.ts (14 tests | 1 failed)"],
-          previous: null,
         },
         { terminal: "moth" },
       )

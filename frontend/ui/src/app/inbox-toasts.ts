@@ -1,6 +1,6 @@
 import type { Inbox, InboxItem } from "@novadeck/core/inbox"
 
-import { needing } from "../inbox/inbox-state"
+import { ringing } from "../inbox/inbox-state"
 import type { ToastBoard } from "../inbox/InboxToasts"
 import { isDesktop } from "../shell/desktop"
 import { followNeeds, keyOf, needGraceMs } from "./inbox-pings"
@@ -51,7 +51,7 @@ export const watchInboxToasts = (
     // where there is one; else it waits for the person to come back.
     if (!state.pageFocused && pings) return held.clear()
     if (!state.pageFocused || modalOpen(state) || held.size === 0) return
-    const standing = new Set(needing(inbox.state.getSnapshot().items).map(keyOf))
+    const standing = new Set(ringing(inbox.state.getSnapshot().items).map(keyOf))
     const items = [...held.values()]
     held.clear()
     for (const item of items)
