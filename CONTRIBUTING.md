@@ -59,6 +59,9 @@ invalid content; `ERROR` means a check could not run; `SKIPPED` is not a pass.
 
 ## License
 
-Contributions are licensed under the project's license, [GPL-3.0-or-later](LICENSE), the same
-terms everyone gets; there is no CLA. Sign off each commit (`git commit -s`) to certify the
-[Developer Certificate of Origin](https://developercertificate.org/).
+Novadeck is under [GPL-3.0-or-later](LICENSE). Before your first pull request can merge,
+sign the [Contributor License Agreement](CLA.md): a bot comments on the pull request with a
+link, and signing takes a GitHub sign-in and one click. You keep the copyright to your work.
+The agreement also lets the maintainer license it on other terms, such as to companies, and
+promises that whatever of yours ships in a public release is available as source under the GPL
+or another OSI-approved license.

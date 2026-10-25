@@ -1735,5 +1735,7 @@ Start with [AGENTS.md](AGENTS.md) for the required reading,
 
 Novadeck is free software under the [GNU General Public License, version 3 or later](LICENSE)
 (`GPL-3.0-or-later`), all of it. Use it anywhere, at home or at work, and change it as you
-like. If you give a copy to others, changed or not, it goes under the same license with its
-source. Copyright © 2026 Mateusz Pietrzak.
+like. If you give a copy to others, changed or not, it goes under the same license, and you
+make its source available. Copyright © 2026 Mateusz Pietrzak and contributors.
+Contributions come in under the [Contributor License Agreement](CLA.md); see
+[CONTRIBUTING.md](CONTRIBUTING.md#license).
