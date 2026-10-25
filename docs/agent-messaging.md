@@ -1673,6 +1673,11 @@ hook's deadline, which doesn't spend what is due.
   beside the terminal (see [Agent workspace](agent-workspace.md), "Companion pane") says
   what to show there and what not to. A `summarize` doesn't clear it, so it still comes at
   the next quiet prompt when the agent summarized first.
+- **The Inbox.** With the bar's notice, its own paragraph after it: the person rarely
+  watches the terminal, so every question the agent's turn ends waiting on goes to the
+  Inbox with `ask`, beside its reply (see [Inbox asks and updates](#inbox-asks-and-updates)).
+  It is the one place Antigravity hears this, as it reads no server instructions, and it
+  comes back after a compaction, which forgets them in every harness.
 - **The summary.** Due when a trigger fired since the last `summarize`: while there is
   none it asks for one; after, it shows the current summary and asks for an update only if
   it no longer fits. When both are due they share the answer, the bar's first. The

@@ -269,7 +269,9 @@ own description carries the rule, which every harness reads alike from `tools/li
 and the runner's prompt-time hook adds Novadeck's artifacts notice, one paragraph, at
 the person's first quiet prompt of each root session and after a compaction
 (`artifactsNotice` in `terminals/nudges.ts`; it rides with the summary nudge but a
-`summarize` never clears it; see [Agent messaging](agent-messaging.md), "Nudges"). A
+`summarize` never clears it; see [Agent messaging](agent-messaging.md), "Nudges"), with
+the Inbox notice beside it (`inboxNotice`): the person rarely watches the terminal, so
+a question the agent's turn ends waiting on goes to the Inbox with `ask`. A
 worker another agent runs by briefs alone hears it at the person's first prompt there,
 so until then its tool description is what tells it. In Antigravity an injected message
 lasts one model call, so there the notice is read once at the prompt and the tool

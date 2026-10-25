@@ -5,6 +5,7 @@ import {
   afterSummary,
   drifted,
   artifactsNotice,
+  inboxNotice,
   fired,
   noNudges,
   noticesAt,
@@ -164,12 +165,16 @@ describe("a nudge", () => {
     expect(text).not.toContain("asked")
   })
 
-  it("tells a session of the bar beside it when it begins or forgot, then only of the description", () => {
+  it("tells a session of the bar and the Inbox when it begins or forgot, then only of the description", () => {
     const current = { summary: null }
     for (const trigger of ["session", "compaction"] as const) {
       const taken = quietly(raise(noNudges, trigger))
       expect(taken).toMatchObject({ nudge: true, artifacts: true, summarize: true })
-      expect(noticesAt(taken, current).split("\n\n")).toEqual([artifactsNotice, nudgeText(current)])
+      expect(noticesAt(taken, current).split("\n\n")).toEqual([
+        artifactsNotice,
+        inboxNotice,
+        nudgeText(current),
+      ])
       expect(quietly(taken.nudges).nudge).toBe(false)
     }
     for (const trigger of ["drift", "prompts"] as const) {
@@ -188,6 +193,20 @@ describe("a nudge", () => {
       "close",
     ])
       expect(artifactsNotice).toContain(word)
+    expect(inboxNotice).toMatch(/^Novadeck: automatic notice, not from the user: /)
+    expect(inboxNotice).not.toContain("\n")
+    for (const words of [
+      "the user rarely watches this terminal",
+      "Always put every question you end your turn waiting on",
+      "in their Inbox with Novadeck's ask tool, beside your reply",
+      "unless it is already an open ask",
+      "a closing offer such as 'anything else?' isn't one",
+      "nor is an action your harness is already prompting them for",
+      "With a lead, your decisions go to it with send instead",
+      "approvals of actions still go through ask",
+      "If they answer here instead, withdraw the ask",
+    ])
+      expect(inboxNotice).toContain(words)
   })
 
   it("still tells of the bar after a describe came before the first quiet prompt", () => {
@@ -198,7 +217,7 @@ describe("a nudge", () => {
     expect(after.pending).toEqual([])
     const taken = quietly(after)
     expect(taken).toMatchObject({ nudge: true, artifacts: true, summarize: false })
-    expect(noticesAt(taken, current)).toBe(artifactsNotice)
+    expect(noticesAt(taken, current)).toBe(`${artifactsNotice}\n\n${inboxNotice}`)
     expect(quietly(taken.nudges).nudge).toBe(false)
   })
 

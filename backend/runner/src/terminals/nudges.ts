@@ -25,7 +25,8 @@ export type Facts = {
  * A terminal's nudges: the triggers that fired since the last `summarize` or nudge, the
  * person's prompts counted toward the backstop, the facts at the last `summarize` (null
  * before any), and those drift last fired for; and, apart from all of these, whether
- * the session has yet to hear of the bar beside its terminal (`artifactsNotice`), which
+ * the session has yet to hear of the bar beside its terminal (`artifactsNotice`) and of
+ * the Inbox (`inboxNotice`), which
  * only its delivery clears, never a `summarize`; and the troubles the pane told of pages
  * the session showed (`troubles.ts`), which a new root session drops and only their
  * delivery otherwise clears.
@@ -123,7 +124,7 @@ export const afterSummary = (nudges: Nudges, facts: Facts): Nudges => ({
   since: nudges.since,
 })
 
-/** What a prompt's answer says, if anything: of the bar, of the description, of pages, or all. */
+/** What a prompt's answer says, if anything: of the bar and Inbox, of the description, of pages, or all. */
 export type Taken = {
   readonly nudge: boolean
   readonly artifacts: boolean
@@ -219,16 +220,32 @@ export const artifactsNotice =
   "looking at unless they asked; showing lists what is there. This notice needs no reply."
 
 /**
- * What a quiet prompt's answer says for what it `took`: the bar beside the terminal, for
- * a session that begins or forgot, the terminal's description, and each page that had
- * problems, each a paragraph of its own.
+ * What a session is told once of the Inbox, with the bar's notice: that the person
+ * rarely watches the terminal, so a question the agent's turn ends waiting on goes there
+ * with `ask`, beside the reply. It reaches every harness, Antigravity too, which reads no
+ * server instructions, and comes back after a compaction, which forgets them.
+ */
+export const inboxNotice =
+  "Novadeck: automatic notice, not from the user: the user rarely watches this terminal, " +
+  "so a question only in your reply goes unseen. Always put every question you end your " +
+  "turn waiting on, such as which option to take or whether to open a pull request, in " +
+  "their Inbox with Novadeck's ask tool, beside your reply, unless it is already an open " +
+  "ask; a closing offer such as 'anything else?' isn't one, nor is an action your harness " +
+  "is already prompting them for. With a lead, your decisions go to it with send instead; " +
+  "approvals of actions still go through ask. If they answer here instead, withdraw the " +
+  "ask. This notice needs no reply."
+
+/**
+ * What a quiet prompt's answer says for what it `took`: the bar beside the terminal and
+ * the Inbox, for a session that begins or forgot, the terminal's description, and each
+ * page that had problems, each a paragraph of its own.
  */
 export const noticesAt = (
   took: Pick<Taken, "artifacts" | "summarize" | "pages">,
   current: { readonly summary: string | null },
 ): string =>
   [
-    ...(took.artifacts ? [artifactsNotice] : []),
+    ...(took.artifacts ? [artifactsNotice, inboxNotice] : []),
     ...(took.summarize ? [nudgeText(current)] : []),
     ...took.pages.map(pageNotice),
   ].join("\n\n")
