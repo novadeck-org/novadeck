@@ -191,7 +191,7 @@ describe("The Inbox's items", () => {
       })
     })
 
-    it("takes the terminal over an unread failed turn from before", () => {
+    it("stands beside an unread failed turn from before, which shows while it waits too", () => {
       const both = workspaceOf(
         agentTerminal(1, {
           working: false,
@@ -204,8 +204,9 @@ describe("The Inbox's items", () => {
       )
       const pending = inboxItems(inputs(both, { unread: failed, requests: {} }))
 
-      expect(items.map((item) => item.id)).toEqual(["request:r1"])
-      expect(pending).toEqual([])
+      // A subagent's or the screen's request can stand after the root's Stop.
+      expect(items.map((item) => item.id).toSorted()).toEqual(["request:r1", "trouble:01:100"])
+      expect(pending.map((item) => item.id)).toEqual(["trouble:01:100"])
     })
 
     it("waits for a dialog a moment, then shows without one to be answered in the terminal", () => {

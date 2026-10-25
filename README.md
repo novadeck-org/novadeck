@@ -937,7 +937,8 @@ App:
   back is "Tell Claude what to change": Deny opens a note that must say what. "A new item
   arrives" adds the next kind not there yet, and "Clear the added items" takes away the
   hardcoded items and those added here, leaving what the agents wait on. An added item
-  is its own row beside what its agent waits on; answering an added request for an
+  is its own row; one that waits on the person takes the place of a dialog its agent's
+  story shows there, as no real agent shows two; answering an added request for an
   agent that waits takes the agent past it. The group shows in every variant over the
   sample projects, so not in the content showcase.
 - **Murmur:** the demo starts with it installed and on, as the try demo shows it, and never

@@ -98,17 +98,19 @@ const terminalAt = (workspace: Workspace, key: TerminalKey): TerminalMetadata | 
     ?.history.find((session) => session.id === key.workspaceSessionId)
     ?.state.roster.terminals.find((terminal) => terminal.id === key.terminalId)
 
-// The demo's own items stand in for what their terminal's agent waits on, so they take the
-// place of what that agent's own story derives there (it may sit at a dialog of its own,
-// which a real agent can't beside another); a held thread is its own row whatever else
-// its terminals show. Every other item is its own row, as in core's `inboxItems`.
+// Every item is its own row, as in core's `inboxItems`, but for one: the demo's own items
+// that wait on the person (a request, an ask, trouble) stand in for what their terminal's
+// agent waits on, so they take the place of a dialog that agent's own story shows there,
+// which no real agent shows beside another.
 const merged = (own: readonly InboxItem[], derived: readonly InboxItem[]): InboxItem[] => {
   const taken = new Set(
-    own.filter((each) => each.kind !== "held").map((each) => each.source.terminalId),
+    own
+      .filter((each) => each.kind !== "held" && each.kind !== "update")
+      .map((each) => each.source.terminalId),
   )
   return ordered([
     ...own,
-    ...derived.filter((each) => each.kind === "held" || !taken.has(each.source.terminalId)),
+    ...derived.filter((each) => each.kind !== "request" || !taken.has(each.source.terminalId)),
   ])
 }
 
@@ -342,14 +344,6 @@ export const createDemoInbox = (
       )
     },
     readAll: () => {
-      // The finishes the Inbox shows, or that an update of the demo's own read now covered: one
-      // whose row another item of the demo's own took stays unread.
-      const covered = new Set(
-        own
-          .getSnapshot()
-          .items.filter((each) => each.kind !== "update" && each.kind !== "held")
-          .map((each) => each.source.terminalId),
-      )
       for (const each of own.getSnapshot().items)
         if (each.kind === "update") record(each, { kind: "update", action: "read" })
       change((current) => ({
@@ -358,7 +352,7 @@ export const createDemoInbox = (
       }))
       const finishes = derived
         .getSnapshot()
-        .items.filter((each) => each.kind === "update" && !covered.has(each.source.terminalId))
+        .items.filter((each) => each.kind === "update")
         .map(finishOf)
       if (finishes.length > 0) binding?.read(finishes)
     },

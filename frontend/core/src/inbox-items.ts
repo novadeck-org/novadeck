@@ -184,7 +184,7 @@ export const leadHearsOf = (workspace: Workspace, context: string, terminalId: s
   return !!here && reportsToLead(here, where)
 }
 
-// Each terminal's candidate items, before only the most urgent is kept.
+// Each terminal's items, each its own row.
 const candidates = (
   { unread, mail, requests, now, caseless, longHoldMs }: InboxInputs,
   here: Where,
@@ -200,9 +200,10 @@ const candidates = (
     found.push({ id, source, at, stopped, seen: false, ...content })
   }
 
-  // A request waiting on the person is the terminal's item, whatever it ended on before.
-  // The oldest is the one to answer: until its dialog reads, or it has waited long enough
-  // to be answered in the terminal, the terminal shows nothing.
+  // A request waiting on the person: the oldest, as the harness asks one at a time, once its
+  // dialog reads or it has waited long enough to be answered in the terminal. It hides
+  // nothing else of the terminal's: one a screen or a subagent raised can stand after the
+  // turn ended, beside how it ended.
   if (status.attention) {
     const [oldest] = requests[terminal.id] ?? []
     if (oldest && (oldest.request.dialog !== null || now - oldest.askedAt >= dialogMs))
@@ -210,7 +211,6 @@ const candidates = (
         kind: "request",
         request: oldest.request,
       })
-    return found
   }
 
   // Its messages held long, as only the person can clear what holds them: in the terminal.

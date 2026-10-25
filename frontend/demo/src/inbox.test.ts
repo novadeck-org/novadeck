@@ -360,17 +360,27 @@ describe("the agents demo's Inbox", () => {
 })
 
 describe("the Inbox demo's own items", () => {
-  it("take their terminal's row from what its agent waits on", () => {
-    const { inbox, itemOn } = boot("inbox")
-    expect(itemOn("storefront", 4)?.id).toBe(demoInboxIds.codexPermission)
-    const terminals = inbox.state
-      .getSnapshot()
-      .items.filter((each) => each.kind !== "held")
-      .map((each) => each.source.terminalId)
-    expect(new Set(terminals).size).toBe(terminals.length)
+  it("take the place of a dialog their terminal's agent shows, and only that", () => {
+    const { inbox, terminalOf } = boot("inbox")
+    const items = inbox.state.getSnapshot().items
+    const on = (terminalId: string) => items.filter((each) => each.source.terminalId === terminalId)
+    const codex = terminalOf("storefront", 4)!.id
+    expect(
+      on(codex)
+        .filter((each) => each.kind === "request")
+        .map((each) => each.id),
+    ).toEqual([demoInboxIds.codexPermission])
+    const standing = new Set(
+      items
+        .filter((each) => !each.id.startsWith("request:") && each.kind !== "held")
+        .filter((each) => each.kind !== "update")
+        .map((each) => each.source.terminalId),
+    )
+    for (const terminalId of standing)
+      expect(on(terminalId).filter((each) => each.id.startsWith("request:"))).toEqual([])
   })
 
-  it("leave a finish unread under one that still waits, when every update is read", async () => {
+  it("read a finish beside an ask of their own, when every update is read", async () => {
     const { inbox, unread, read, terminalOf, itemOn } = boot("inbox")
     await vi.advanceTimersByTimeAsync(10_000)
     const done = terminalOf("design-system", 1)!
@@ -379,10 +389,12 @@ describe("the Inbox demo's own items", () => {
     expect(finish.kind).toBe("update")
     const ask = inbox.state.getSnapshot().items.find((each) => each.id === demoInboxIds.webhook)!
     inbox.add({ ...ask, source: { ...finish.source } })
-    expect(itemOn("design-system", 1)?.id).toBe(demoInboxIds.webhook)
+    expect(inbox.state.getSnapshot().items.map((each) => each.id)).toContain(finish.id)
 
     inbox.readAll()
-    expect(read).not.toHaveBeenCalled()
+    expect(read).toHaveBeenCalledExactlyOnceWith([
+      { context: "design-system/initial", terminalId: done.id },
+    ])
   })
 
   it("read a finish under an update of their own, which is read with it", async () => {

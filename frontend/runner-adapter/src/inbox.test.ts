@@ -1058,6 +1058,8 @@ describe("Inbox letters", () => {
     inbox.readAll()
     expect(streams.asks.read.mock.calls.map(([batch]) => batch.length)).toEqual([1000, 1])
     expect(streams.asks.answer).not.toHaveBeenCalled()
+    // Submitted tells stay listed, answering, until the runner drops them.
+    expect(ids()).toHaveLength(1002)
     expect(ids()).toContain("letter-1")
   })
 })
