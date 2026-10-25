@@ -136,19 +136,18 @@ export const VoiceInput = ({
     return (
       <>
         <div className={settingsCardClasses}>
-          {/* Wanted until turned off or declined: the app shows a microphone in agent terminals
-            that offers the install, and holds the shortcut. Off, both go until it is on again. */}
+          {/* Off until it is set up: an install turns it on. */}
           <div className={rowClasses}>
             <span className="flex min-w-0 flex-col gap-1">
               <span id="voice-enabled">Enabled</span>
               <span id="voice-enabled-description" className={noteClasses}>
-                Shows a microphone in agent terminals. It offers to install voice input when used.
+                Turns on when you install it.
               </span>
             </span>
             <Switch
-              checked={state.wanted}
-              onChange={(enabled) => actions.set({ enabled })}
-              disabled={busy}
+              checked={false}
+              onChange={() => {}}
+              disabled
               labelledBy="voice-enabled"
               describedBy="voice-enabled-description"
             />

@@ -84,10 +84,6 @@ describe("Murmur's one-time offer", () => {
         .poll(() => terminal("Build").element().contains(document.activeElement))
         .toBe(true)
       expect(document.activeElement).not.toBe(chip().element())
-      const card = await preferencesMurmur()
-      await expect
-        .element(card.getByRole("switch", { name: "Enabled" }))
-        .toHaveAttribute("aria-checked", "true")
     })
 
     it("leaves focus where the person put it when a press outside closes the popover", async () => {
@@ -146,13 +142,15 @@ describe("Murmur's one-time offer", () => {
       await expect.element(footerItem()).not.toBeInTheDocument()
     })
 
-    it("turns Murmur down for good on No thanks, and Preferences shows it off", async () => {
+    // That No thanks turns it down for good (not wanted) is the demo's to test, in murmur.test.ts.
+    it("takes the chip away on No thanks, and Install stays in Preferences", async () => {
       await promptBuild("uninstalled")
       await chip().click({ timeout: 10_000 })
       await popover().getByRole("button", { name: "No thanks" }).click()
       await expect.element(chip()).not.toBeInTheDocument()
 
       const card = await preferencesMurmur()
+      await expect.element(card.getByRole("button", { name: "Install" })).toBeVisible()
       await expect
         .element(card.getByRole("switch", { name: "Enabled" }))
         .toHaveAttribute("aria-checked", "false")
@@ -223,7 +221,7 @@ describe("Murmur's one-time offer", () => {
       await expect.element(doneItem(), { timeout: 15_000 }).toBeVisible()
     })
 
-    it("hides the item on Not now, and it is no decline", async () => {
+    it("hides the item on Not now, and Install waits in Preferences", async () => {
       await promptBuild("network-down")
       await chip().click({ timeout: 10_000 })
       await popover().getByRole("button", { name: "Turn on" }).click()
@@ -231,10 +229,9 @@ describe("Murmur's one-time offer", () => {
       await sheet.getByRole("button", { name: "Not now" }).click({ timeout: 12_000 })
 
       await expect.element(sheet).not.toBeInTheDocument()
+      // The footer can't turn Murmur down (it has no such call): Install waits in Preferences.
       const card = await preferencesMurmur()
-      await expect
-        .element(card.getByRole("switch", { name: "Enabled" }))
-        .toHaveAttribute("aria-checked", "true")
+      await expect.element(card.getByRole("button", { name: "Install" })).toBeVisible()
     })
   })
 

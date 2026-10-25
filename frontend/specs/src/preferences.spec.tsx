@@ -250,6 +250,11 @@ describe("Preferences Addons", () => {
       await expect.element(voiceCard().getByText(/Downloads 602 MB once/)).toBeVisible()
       // The person never chooses a model.
       await expect.element(voiceCard().getByText("Model", { exact: true })).not.toBeInTheDocument()
+      // Off until it is installed, and the install turns it on.
+      await expect
+        .element(voiceCard().getByRole("switch", { name: "Enabled" }))
+        .toHaveAttribute("aria-checked", "false")
+      await expect.element(voiceCard().getByRole("switch", { name: "Enabled" })).toBeDisabled()
       await voiceCard().getByRole("button", { name: "Install" }).click()
 
       await expect.element(voiceCard().getByText(/Downloading engine/)).toBeVisible()
@@ -302,7 +307,7 @@ describe("Preferences Addons", () => {
       await voiceCard().getByRole("button", { name: "Uninstall" }).click()
       await confirm.getByRole("button", { name: "Uninstall" }).click()
       await expect.element(voiceCard().getByRole("button", { name: "Install" })).toBeVisible()
-      // Removing it says it isn't wanted: it stays off, and the app stops offering it.
+      // Back to the card before an install: off until the next install turns it on.
       await expect
         .element(voiceCard().getByRole("switch", { name: "Enabled" }))
         .toHaveAttribute("aria-checked", "false")
@@ -319,9 +324,11 @@ describe("Preferences Addons", () => {
         .element(murmurCard().getByText("Downloads 1.2 GB once, then works offline."))
         .toBeVisible()
       await expect.element(murmurCard().getByText(/GPU/)).not.toBeInTheDocument()
+      // Off until it is installed, and the install turns it on.
       await expect
         .element(murmurCard().getByRole("switch", { name: "Enabled" }))
-        .toHaveAttribute("aria-checked", "true")
+        .toHaveAttribute("aria-checked", "false")
+      await expect.element(murmurCard().getByRole("switch", { name: "Enabled" })).toBeDisabled()
       await murmurCard().getByRole("button", { name: "Install" }).click()
 
       await expect.element(murmurCard().getByText(/Downloading engine/)).toBeVisible()
