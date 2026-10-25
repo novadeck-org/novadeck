@@ -1,0 +1,39 @@
+/* The dot over the Inbox's bell, in the rail and in the Zen dock: it says something waits on
+   the person, in the tone of the most pressing of it, as the switcher's dot does. How many is
+   in the bell's name and tooltip, and in the Inbox's header. Its tone is project-status.css's,
+   set by the bell's data-project-status. It sits in the button's corner, clear of the icon's
+   strokes, so it needs no cut-out edge (one wouldn't match a textured rail). Its
+   `.bell-dot-ring`, which BellDot mounts afresh for each new item the bell rings for, rings
+   out twice; not at all with reduced motion. Forced colours: see accessibility.css. */
+.bell-dot {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background-color: currentColor;
+  pointer-events: none;
+}
+.bell-dot-ring {
+  position: absolute;
+  inset: -3px;
+  border: 1.5px solid currentColor;
+  border-radius: 50%;
+  opacity: 0;
+}
+@media (prefers-reduced-motion: no-preference) {
+  .bell-dot-ring {
+    animation: bell-dot-ring 1.6s var(--ease-interface) 2;
+  }
+}
+@keyframes bell-dot-ring {
+  from {
+    opacity: 0.9;
+    transform: scale(0.6);
+  }
+  to {
+    opacity: 0;
+    transform: scale(1.8);
+  }
+}

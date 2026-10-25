@@ -5,10 +5,11 @@ import { toneOf } from "../inbox/inbox-text"
 import type { ProjectStatus } from "../projects/project-status"
 
 // What the rail's and the Zen dock's bell shows while something in the Inbox waits on the
-// person: a count, toned as the switcher's status marks are by the most pressing of it.
+// person: a dot, toned as the switcher's status marks are by the most pressing of it. How many
+// wait is in the bell's name and tooltip, and in the Inbox's header.
 export type BellBadge = {
-  // The count as the badge prints it, capped at "9+".
-  readonly text: string
+  // How many wait.
+  readonly count: number
   // The accessible name of the bell, e.g. "Inbox, 3 waiting".
   readonly label: string
   // The status whose tone the badge takes; the parent's `data-project-status`.
@@ -24,7 +25,7 @@ export const inboxBadge = (items: readonly InboxItem[]): BellBadge | undefined =
   const first = waiting.reduce((a, b) => (urgency(b) < urgency(a) ? b : a))
   const type = inboxType(first)
   return {
-    text: waiting.length > 9 ? "9+" : String(waiting.length),
+    count: waiting.length,
     label: `Inbox, ${waiting.length} waiting`,
     status:
       type === "trouble" && toneOf(first) === "urgent"
