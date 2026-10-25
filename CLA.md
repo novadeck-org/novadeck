@@ -11,7 +11,7 @@ organization ("the Project"). You keep the copyright to your work. Read it befor
 
 "You" means the person signing this agreement. If you sign on behalf of a company or other
 organization you are authorized to bind, such as your employer, "you" also means that
-organization, and the agreement covers what its people contribute through you.
+organization.
 
 "Contribution" means any original work of authorship, including changes to existing work,
 that you submit to the Project: by pull request, issue, patch, comment or any other channel
@@ -29,7 +29,7 @@ of these fields of exploitation:
   loading, displaying, running, transmitting and storing them, in whole or in part;
 - translating, adapting, arranging and otherwise modifying them, and combining them with
   other works;
-- distributing originals or copies, including by sale, lease and rental;
+- distributing originals or copies, including by sale, lease, rental and lending;
 - making them available to the public, including over networks, so that anyone can reach
   them at a place and time they choose, and publicly displaying, performing and
   broadcasting them.
@@ -76,11 +76,11 @@ You aren't expected to support your Contributions unless you choose to. They are
 
 ## 5. What the Maintainer promises
 
-The Maintainer will make each Contribution that is included in a public release of a public
-repository available as source under GPL-3.0-or-later or another license the Open Source
-Initiative approves. This doesn't stop the Maintainer from licensing the same code on other
-terms, from removing a Contribution, or from developing other software, open or closed, that
-uses it.
+The Maintainer will make and keep each Contribution that is included in a public release of
+a public repository available as source under GPL-3.0-or-later or another license the Open
+Source Initiative approves. This doesn't stop the Maintainer from licensing the same code on
+other terms, from removing a Contribution, or from developing other software, open or
+closed, that uses it.
 
 ## 6. No obligation to use
 
@@ -104,6 +104,6 @@ Polish law governs this agreement.
 ## 10. Signing and versions
 
 You sign by accepting this agreement through the CLA bot that comments on your first pull
-request, with your GitHub account. It then covers every Contribution you submit to the
-Project until you sign a newer version. Contributions you submitted earlier stay under the
-version that covered them.
+request, with your GitHub account. It covers every Contribution you have submitted to the
+Project, including the pull request the bot comments on, and every one you submit until you
+sign a newer version. Contributions covered by an earlier version stay under it.
