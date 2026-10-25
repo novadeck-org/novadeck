@@ -1,68 +1,55 @@
-import { describe, expect, it } from "../test"
-import {
-  clearUnread,
-  keepUnread,
-  markUnread,
-  noUnread,
-  unreadEnd,
-  viewUnread,
-  type Viewing,
-} from "./unread-state"
+import type { InboxTurn } from "@novadeck/core/inbox"
 
-const here = "project/initial"
-const there = "project/other"
+import { describe, expect, it } from "../test"
+import { noUnread, sameUnread, unreadEnd, unreadOfTurns } from "./unread-state"
+
+const row = (
+  id: string,
+  terminalId: string,
+  at: number,
+  outcome: InboxTurn["outcome"],
+): InboxTurn => ({
+  id,
+  projectId: "project",
+  workspaceSessionId: "initial",
+  terminalId,
+  handle: "fox",
+  agent: "claude",
+  at,
+  outcome,
+  reply: null,
+  gist: null,
+  error: null,
+  files: [],
+})
 
 describe("unread replies", () => {
-  it("marks a terminal whose agent finished while the person looked elsewhere", () => {
-    const unread = markUnread(noUnread, here, "02", "done", { context: here, id: "01" })
-    expect(unreadEnd(unread, here, "02")).toBe("done")
-    expect(unreadEnd(unread, here, "01")).toBeUndefined()
-    expect(unreadEnd(unread, there, "02")).toBeUndefined()
+  it("marks each terminal with rows by how its newest row ended", () => {
+    const unread = unreadOfTurns([
+      row("a", "02", 10, "failed"),
+      row("b", "02", 20, "completed"),
+      row("c", "03", 5, "failed"),
+    ])
+    expect(unreadEnd(unread, "project/initial", "02")).toBe("done")
+    expect(unreadEnd(unread, "project/initial", "03")).toBe("failed")
+    expect(unreadEnd(unread, "project/initial", "01")).toBeUndefined()
+    expect(unreadEnd(unread, "project/other", "02")).toBeUndefined()
   })
 
-  it("marks one that finished while the page had no focus", () => {
-    expect(unreadEnd(markUnread(noUnread, here, "01", "done", null), here, "01")).toBe("done")
+  it("takes the newest row whatever the order the backend lists them in", () => {
+    const unread = unreadOfTurns([row("b", "02", 20, "completed"), row("a", "02", 10, "failed")])
+    expect(unreadEnd(unread, "project/initial", "02")).toBe("done")
   })
 
-  it("leaves one the person was looking at as it finished", () => {
-    expect(markUnread(noUnread, here, "01", "done", { context: here, id: "01" })).toBe(noUnread)
+  it("marks nothing for no rows", () => {
+    expect(unreadOfTurns([])).toEqual(noUnread)
   })
 
-  it("keeps how the latest finish ended, and marks a terminal once", () => {
-    const done = markUnread(noUnread, here, "02", "done", null)
-    expect(markUnread(done, here, "02", "done", null)).toBe(done)
-    expect(unreadEnd(markUnread(done, here, "02", "failed", null), here, "02")).toBe("failed")
-  })
-
-  it("clears once the person looks at it, and only that terminal", () => {
-    const unread = markUnread(
-      markUnread(noUnread, here, "01", "done", null),
-      here,
-      "02",
-      "failed",
-      null,
-    )
-    const viewing: Viewing = { context: here, id: "02" }
-    const viewed = viewUnread(unread, viewing)
-    expect(unreadEnd(viewed, here, "02")).toBeUndefined()
-    expect(unreadEnd(viewed, here, "01")).toBe("done")
-    expect(viewUnread(viewed, viewing)).toBe(viewed)
-    expect(viewUnread(viewed, null)).toBe(viewed)
-  })
-
-  it("clears its session's entry with its last terminal", () => {
-    expect(clearUnread(markUnread(noUnread, there, "03", "done", null), there, "03")).toEqual({})
-  })
-
-  it("forgets terminals that are gone", () => {
-    const unread = markUnread(
-      markUnread(noUnread, here, "01", "done", null),
-      there,
-      "03",
-      "done",
-      null,
-    )
-    expect(keepUnread(unread, (context) => context === here)).toEqual({ [here]: { "01": "done" } })
-    expect(keepUnread(unread, () => true)).toBe(unread)
+  it("tells marks that say the same", () => {
+    const one = unreadOfTurns([row("a", "02", 10, "failed")])
+    expect(sameUnread(one, unreadOfTurns([row("z", "02", 99, "failed")]))).toBe(true)
+    expect(sameUnread(one, unreadOfTurns([row("a", "02", 10, "completed")]))).toBe(false)
+    expect(sameUnread(one, unreadOfTurns([row("a", "03", 10, "failed")]))).toBe(false)
+    expect(sameUnread(one, noUnread)).toBe(false)
   })
 })

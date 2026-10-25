@@ -1,6 +1,6 @@
 import { workspaceFromSeed } from "@novadeck/core/seed"
 import { activeSession } from "@novadeck/core/state"
-import { createStore, createWorkspaceStore } from "@novadeck/core/store"
+import { createWorkspaceStore } from "@novadeck/core/store"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
 import { answerMs, answeredMs } from "./chat"
@@ -60,7 +60,9 @@ describe("the Chirp demo", () => {
     const { backend, terminal, store } = open()
     const inbox = backend.inbox
     if (!isDemoInbox(inbox)) throw new Error("the Chirp demo has the demo's Inbox")
-    inbox.bind!({ workspace: store, unread: createStore({}), read: () => {} })
+    inbox.bind!({ workspace: store })
+    // Her agents are all at work: no finish is stored for the Inbox to list.
+    expect(inbox.turns?.getSnapshot()).toEqual([])
     const items = inbox.state.getSnapshot().items
     expect(items).toHaveLength(1)
     const [item] = items

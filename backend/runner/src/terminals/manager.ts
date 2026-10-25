@@ -420,6 +420,9 @@ export class Terminals {
     // Read once now, so the first terminal doesn't wait for it; see `Launcher.environment`.
     // After the deletes, as the relay, or PowerShell, that reads it gets this environment.
     if (this.options.freshPath) void this.launcher.environment()
+    const redactor = this.options.records
+      ? (options.redactor ?? createTranscriptRedactor())
+      : undefined
     this.saves = new Saves(
       {
         records: this.options.records,
@@ -428,9 +431,7 @@ export class Terminals {
         shutdownMs: positive(options.transcriptShutdownMs, 1_000),
         transcriptChars: this.options.transcriptChars,
         transcripts: options.transcripts ?? true,
-        redactor: this.options.records
-          ? (options.redactor ?? createTranscriptRedactor())
-          : undefined,
+        redactor,
         sealer: options.sealer,
         keyMs: positive(options.transcriptKeyMs, 5_000),
       },
@@ -480,6 +481,7 @@ export class Terminals {
       trackRoot: (record, events, statusLine) =>
         this.reporting.trackRoot(record, events, statusLine),
       rebound: (record) => this.reporting.rebound(record),
+      turns: () => ({ asks: this.asks, redactor }),
       alive,
     })
     this.shown = new Shown({
@@ -614,6 +616,7 @@ export class Terminals {
             names: () => this.names,
             saves: () => this.saves,
             streams: () => this.streams,
+            clearGists: () => this.asks.clearGists(),
           }),
           options.murmurTimes,
         )

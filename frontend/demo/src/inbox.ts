@@ -1,4 +1,6 @@
+import { followFinishes, type FollowedFinish } from "@novadeck/core/agent-finish"
 import type { Conversation, Conversations } from "@novadeck/core/conversation"
+import type { AgentName } from "@novadeck/core/harnesses"
 import {
   emptyInbox,
   ordered,
@@ -8,11 +10,12 @@ import {
   type InboxContent,
   type InboxItem,
   type InboxState,
+  type InboxTurn,
 } from "@novadeck/core/inbox"
 import {
   answerItem,
   createInboxTracker,
-  finishOf,
+  isTurnRow,
   keepInbox,
   keyOf,
 } from "@novadeck/core/inbox-answers"
@@ -68,6 +71,30 @@ const settleMs = 3000
 // A request's id as the Inbox has it, unique across the workspace: the demo's transcripts give
 // each sample terminal's requests the same ids in every session.
 const scoped = (key: TerminalKey, id: string): string => `${terminalKeyId(key)}/${id}`
+
+// The stored row a finish makes, as the runner's recorder would: the end's own fields from the
+// terminal's `lastTurn` (the finish carries only its reply), the row's id its terminal and `at`.
+const turnOf = ({ context, terminal, finish, at }: FollowedFinish): InboxTurn | undefined => {
+  if (terminal.state !== "running" || !terminal.agent) return undefined
+  const end = terminal.agent.lastTurn?.at === at ? terminal.agent.lastTurn : undefined
+  // A usage limit is a state, not a row: the runner never records one.
+  if (end?.limit || end?.limited) return undefined
+  const slash = context.indexOf("/")
+  return {
+    id: `turn:${context}/${terminal.id}:${at}`,
+    projectId: context.slice(0, slash),
+    workspaceSessionId: context.slice(slash + 1),
+    terminalId: terminal.id,
+    handle: terminal.handle ?? "",
+    agent: terminal.process as AgentName,
+    at,
+    outcome: finish.failed ? "failed" : "completed",
+    reply: end?.reply ?? finish.reply ?? null,
+    gist: end?.gist ?? null,
+    error: end?.error ?? null,
+    files: end?.files ?? [],
+  }
+}
 
 // What the demo's Inbox is built from, as the runner's is from the runner: the agents'
 // conversations, which hold what each asks and answer it as its screen does; the messages
@@ -145,6 +172,16 @@ export const createDemoInbox = (
     })
   }
   const state = createStore<InboxState>(combine(emptyInbox))
+  // The finished turns it stores, as the runner stores them: until read, while their terminal
+  // is there. Undefined while nothing is bound.
+  const turns = createStore<readonly InboxTurn[] | undefined>(undefined)
+  const dropTurns = (drop: (row: InboxTurn) => boolean): void => {
+    turns.update((current) => {
+      const kept = current?.filter((row) => !drop(row))
+      return kept && current && kept.length < current.length ? kept : current
+    })
+  }
+  const readTurns = (ids: readonly string[]): void => dropTurns((row) => ids.includes(row.id))
   own.subscribe(() => state.update(combine))
   derived.subscribe(() => state.update(combine))
 
@@ -202,7 +239,7 @@ export const createDemoInbox = (
     for (const id of asked.keys()) if (!present.has(id)) asked.delete(id)
     const found = inboxItems({
       workspace,
-      unread: binding.unread.getSnapshot(),
+      turns: turns.getSnapshot() ?? [],
       mail: sources.messages?.state.getSnapshot() ?? noMail,
       letters: [],
       requests,
@@ -231,13 +268,14 @@ export const createDemoInbox = (
       return tracker.fail(target.id, why)
     }
     const { conversations, messages } = sources
-    const { workspace, read } = binding
+    const { workspace } = binding
     answerItem(tracker, target, given, {
       request: (key, { request }, answer) =>
         conversations.answer(key, request.id.slice(scoped(key, "").length), answer),
       release: (thread) => messages?.release(thread),
       stop: (thread) => messages?.stop(thread),
-      read,
+      read: readTurns,
+      forget: readTurns,
       send: (key, text) => conversations.send(key, text),
       interrupt: (key) => conversations.interrupt(key),
       terminal: (key) => terminalAt(workspace.getSnapshot(), key),
@@ -253,16 +291,37 @@ export const createDemoInbox = (
 
   return {
     state,
+    turns,
+    readFinishes: (finishes) => {
+      const read = new Set(finishes.map(({ context, terminalId }) => `${context}/${terminalId}`))
+      dropTurns((row) => read.has(`${row.projectId}/${row.workspaceSessionId}/${row.terminalId}`))
+    },
     bind: (next) => {
       binding = next
+      turns.update(() => [])
+      // A row is kept while its terminal is there, and only the first of an end.
+      const stopFinishes = followFinishes(next.workspace, (found) => {
+        const row = turnOf(found)
+        if (row)
+          turns.update((current) =>
+            current?.some((each) => each.id === row.id) ? current : [...(current ?? []), row],
+          )
+      })
+      const present = (): void => {
+        const workspace = next.workspace.getSnapshot()
+        dropTurns((row) => !terminalAt(workspace, row))
+      }
       const stops = [
-        next.workspace,
-        next.unread,
-        ...(sources?.messages ? [sources.messages.state] : []),
-      ].map((store) => store.subscribe(recompute))
+        ...[next.workspace, turns, ...(sources?.messages ? [sources.messages.state] : [])].map(
+          (store) => store.subscribe(recompute),
+        ),
+        next.workspace.subscribe(present),
+        stopFinishes,
+      ]
       recompute()
       return () => {
         stops.forEach((stop) => stop())
+        turns.update(() => undefined)
         for (const each of followed.values()) each.stop()
         followed.clear()
         tracker.reset()
@@ -351,11 +410,14 @@ export const createDemoInbox = (
         ...current,
         items: current.items.filter((each) => each.kind !== "update"),
       }))
-      const finishes = derived
-        .getSnapshot()
-        .items.filter((each) => each.kind === "update")
-        .map(finishOf)
-      if (finishes.length > 0) binding?.read(finishes)
+      // The finishes, and the failed turns that no longer stop their agent; what does stays.
+      const shown = new Set(
+        derived
+          .getSnapshot()
+          .items.filter((each) => each.kind === "update" || (isTurnRow(each) && !each.stopped))
+          .map((each) => each.id),
+      )
+      if (shown.size > 0) dropTurns((row) => shown.has(row.id))
     },
     add: (added) => {
       record(added)

@@ -1,5 +1,7 @@
 import { formatSize } from "@novadeck/core/addon-format"
+import { followFinishes } from "@novadeck/core/agent-finish"
 import { murmurDownloadSize, type MurmurState } from "@novadeck/core/murmur"
+import type { Store } from "@novadeck/core/store"
 import type { TerminalMetadata, Workspace } from "@novadeck/core/types"
 
 import type { WorkspaceServices } from "./controller/context"
@@ -57,7 +59,7 @@ export const offerText = {
   decline: "No thanks",
 } as const
 
-// What to do when an agent's turn ends complete (the finish hook of `watchFinishes`): put the
+// What to do when an agent's turn ends complete (the hook of `watchFinishes`): put the
 // chip on that terminal if the offer is due, no other addon's offer has this run, and the
 // terminal can carry it. A finish that does not qualify is let go, and the next that does is
 // the one.
@@ -75,3 +77,19 @@ export const nameFinished =
     if (canCarryChip(workspace.getSnapshot(), { context, id }))
       commands.offerNameTo({ context, id })
   }
+
+// Follows the workspace's agents finishing a turn on their own (not on an error), after the
+// grace (see `followFinishes`), and tells `finished` each one by its session context and
+// terminal id: the moment naming terminals shows its worth. Stops with the returned function.
+export const watchFinishes = (
+  workspace: Store<Workspace>,
+  finished: (context: string, id: string) => void,
+  { graceMs }: { graceMs?: number } = {},
+): (() => void) =>
+  followFinishes(
+    workspace,
+    ({ context, terminal, finish }) => {
+      if (!finish.failed) finished(context, terminal.id)
+    },
+    graceMs === undefined ? {} : { graceMs },
+  )

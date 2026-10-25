@@ -1,6 +1,7 @@
 import type { Trouble } from "@novadeck/core/inbox"
 import { unsaidWaits, waitsText } from "@novadeck/core/messages"
 import { Switch } from "@novadeck/toolkit/Switch"
+import { Check } from "lucide-react"
 import { useId, useState } from "react"
 
 import { agentName, clock, limitWindow } from "./inbox-text"
@@ -146,7 +147,8 @@ const LimitReached = (
   )
 }
 
-// A turn that ended in an error.
+// A turn that ended in an error. Only the agent's current end, with the agent at rest, offers
+// to fix it; an older one, or one with the agent working again, is read.
 const Errored = (props: SheetContentProps & { readonly trouble: Failed }): React.JSX.Element => {
   const { item, trouble, sent, answering, failed, onNext, submit } = props
   const agent = agentName(item.source.agent)
@@ -162,25 +164,38 @@ const Errored = (props: SheetContentProps & { readonly trouble: Failed }): React
       )}
       {!sent && (
         <div className="inbox-actions">
-          <button
-            type="button"
-            className="button primary text-control"
-            disabled={answering}
-            onClick={() =>
-              submit(
-                {
-                  kind: "trouble",
-                  action: {
-                    type: "nudge",
-                    text: "Your last turn ended in an error. Look at what went wrong and fix it.",
+          {item.stopped && (
+            <button
+              type="button"
+              className="button primary text-control"
+              disabled={answering}
+              onClick={() =>
+                submit(
+                  {
+                    kind: "trouble",
+                    action: {
+                      type: "nudge",
+                      text: "Your last turn ended in an error. Look at what went wrong and fix it.",
+                    },
                   },
-                },
-                `Asked ${agent} to fix it.`,
-              )
-            }
-          >
-            Ask it to fix
-          </button>
+                  `Asked ${agent} to fix it.`,
+                )
+              }
+            >
+              Ask it to fix
+            </button>
+          )}
+          {trouble.stored && (
+            <button
+              type="button"
+              className={item.stopped ? "button text-control" : "button primary text-control"}
+              disabled={answering}
+              onClick={() => submit({ kind: "trouble", action: { type: "read" } }, "Marked read.")}
+            >
+              <Check size={12} aria-hidden />
+              Mark read
+            </button>
+          )}
         </div>
       )}
       <Failure message={failed} />

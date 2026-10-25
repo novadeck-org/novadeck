@@ -1,7 +1,17 @@
-import { finishNotice, sightTurnEnd, standingFinish } from "./agent-finish"
+import { afterEach, beforeEach, vi } from "vitest"
+
+import {
+  finishNotice,
+  followFinishes,
+  sightTurnEnd,
+  standingFinish,
+  type FollowedFinish,
+} from "./agent-finish"
+import { createTerminalState } from "./state"
+import { createStore } from "./store"
 import { context, describe, expect, it } from "./test"
 import { terminalFixture } from "./testing"
-import type { AgentStatus, TerminalMetadata } from "./types"
+import type { AgentStatus, TerminalMetadata, Workspace } from "./types"
 
 const base = { ...terminalFixture(1, "~/project"), process: "claude" }
 const agent = (status: AgentStatus): TerminalMetadata => ({
@@ -133,5 +143,67 @@ describe("the finish a completed end still makes", () => {
     expect(standingFinish(rested("interrupted", 12), 10)).toBeUndefined()
     expect(standingFinish(rested("completed", 20), 10)).toBeUndefined()
     expect(standingFinish(working, 10)).toBeUndefined()
+  })
+})
+
+describe("following finishes", () => {
+  beforeEach(() => void vi.useFakeTimers())
+  afterEach(() => void vi.useRealTimers())
+
+  const workspaceOf = (terminal: TerminalMetadata): Workspace => ({
+    activeProjectId: "p",
+    projects: [
+      {
+        id: "p",
+        name: "App",
+        directory: "~/project",
+        activeSessionId: "s",
+        history: [
+          {
+            id: "s",
+            name: "s",
+            visitedAt: 0,
+            state: createTerminalState([terminal], "grid", "grid"),
+          },
+        ],
+      },
+    ],
+  })
+  const setup = (first: TerminalMetadata, graceMs = 700) => {
+    const store = createStore(workspaceOf(first))
+    const told: FollowedFinish[] = []
+    const stop = followFinishes(store, (finish) => void told.push(finish), { graceMs })
+    const show = (terminal: TerminalMetadata) => store.update(() => workspaceOf(terminal))
+    return { told, show, stop }
+  }
+
+  it("takes in what it starts with, and tells a completed end after the grace", () => {
+    const { told, show } = setup(idle)
+    show(working)
+    show(agent({ working: false, lastTurn: { ...completed, at: 20 } }))
+    expect(told).toEqual([])
+
+    vi.advanceTimersByTime(700)
+    expect(told).toMatchObject([{ context: "p/s", at: 20, finish: { failed: false } }])
+  })
+
+  it("tells nothing for an end that turned interrupted inside the grace", () => {
+    const { told, show } = setup(working)
+    show(agent({ working: false, lastTurn: completed }))
+    show(agent({ working: false, lastTurn: { outcome: "interrupted", at: 10 } }))
+    vi.advanceTimersByTime(700)
+
+    expect(told).toEqual([])
+  })
+
+  it("tells a failed end at once, and none once stopped", () => {
+    const { told, show, stop } = setup(working)
+    show(agent({ working: false, lastTurn: { outcome: "failed", at: 11, error: "x" } }))
+    expect(told).toMatchObject([{ at: 11, finish: { failed: true } }])
+
+    stop()
+    show(working)
+    show(agent({ working: false, lastTurn: { outcome: "failed", at: 12 } }))
+    expect(told).toHaveLength(1)
   })
 })

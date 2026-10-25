@@ -1,8 +1,9 @@
 # Murmur
 
 Murmur is an opt-in local model that writes terminal titles, and a short gist of a
-reply the person has not seen, which the Inbox shows as the subject of that finished turn's row
-in place of the reply's start. (Summaries are the agents' own, written with their `summarize` tool; an agent's title is a short name of its summary.) It runs
+reply the person has not seen, which the Inbox shows as the subject of that finished turn's stored row
+in place of the reply's start (the row takes the gist in place; turning Murmur off strips the gists from
+stored rows). (Summaries are the agents' own, written with their `summarize` tool; an agent's title is a short name of its summary.) It runs
 Qwen3.5-2B (Q4_K_M, 1.28 GB) on llama.cpp's `llama-server`, an engine of its own like
 voice input's, installed from Preferences > Addons. Without it, terminals keep their default
 titles.

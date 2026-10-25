@@ -1087,6 +1087,7 @@ export const summary = ({
             error: lastTurn.error ?? null,
             limit: lastTurn.limit ?? null,
             files: [...lastTurn.files],
+            ...(lastTurn.limited && { limited: true as const }),
           },
   }
 }

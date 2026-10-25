@@ -75,6 +75,11 @@ const murmurLine = (max: number) => z.string().min(1).max(max).regex(oneLine)
 export const murmurGistLength = 96
 export const murmurGist = murmurLine(murmurGistLength)
 
+// Fields of an agent's last turn, shared by its summary and by a stored turn letter.
+export const turnReply = z.string().min(1).max(replyPreviewLength)
+export const turnError = z.string().min(1).max(2048)
+export const turnFiles = z.array(z.string().min(1).max(1024)).max(16)
+
 // What the agent holding a terminal's foreground is doing, as its own hooks report it:
 // working on a turn, or with its turn over while subagents it started run on, which will
 // wake the agent (`background`); idle otherwise; or unknown when they have not said. `attention`
@@ -145,13 +150,13 @@ export const agentActivity = z.strictObject({
   lastTurn: z
     .strictObject({
       outcome: z.enum(["completed", "failed", "interrupted", "unknown"]),
-      reply: z.string().min(1).max(replyPreviewLength).nullable(),
+      reply: turnReply.nullable(),
       at: z.number(),
       // Murmur's gist of the last reply, written once a client showed this end unread
       // (`murmur.gist`). It never changes `outcome`.
       gist: murmurGist.nullable(),
       // A failed turn's error as its harness said it; null otherwise or where it gave none.
-      error: z.string().min(1).max(2048).nullable(),
+      error: turnError.nullable(),
       // The usage-limit window this end ran into: its harness said the turn failed on a
       // limit; its records, within a minute of the end, only tell when it resets.
       // Kept for this end once set. Null where none, or no reset time is known.
@@ -163,7 +168,10 @@ export const agentActivity = z.strictObject({
         .nullable(),
       // Absolute paths its write/edit tools wrote in the turn (root and subagents), first
       // written first, each once.
-      files: z.array(z.string().min(1).max(1024)).max(16),
+      files: turnFiles,
+      // True only where this end ran into a usage limit, whether or not its window is known
+      // (`limit`), so a client shows a limited end without a window as the state it is.
+      limited: z.literal(true).optional(),
     })
     .nullable(),
 })

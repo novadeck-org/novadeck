@@ -204,14 +204,17 @@ for (const setup of setups) {
           .every((message) => message.state === "delivered"),
       ).toBe(true)
       run.deck.terminals.readTells([told.id])
-      expect(run.deck.terminals.inboxLetters().map((each) => each.id)).toEqual([ask.id])
+      // The agent's finished turn is a letter too, stored once it rests: not what is asked here.
+      const waiting = () =>
+        run.deck.terminals.inboxLetters().filter((each) => each.content.kind !== "turn")
+      expect(waiting().map((each) => each.id)).toEqual([ask.id])
       const mark = terminal.mark()
       // This is the same runner operation that the authenticated UI's asks.answer calls.
       run.deck.terminals.answerAsk(ask.id, { type: "reply", option: 1, text: "Use green, please." })
       expect(() =>
         run.deck.terminals.answerAsk(ask.id, { type: "reply", option: null, text: "Again" }),
       ).toThrow(/no longer/)
-      expect(run.deck.terminals.inboxLetters()).toEqual([])
+      expect(waiting()).toEqual([])
       await terminal.until("I received your Inbox answer: green.")
       await through(terminal, ["settled"], { after: mark })
       const received = await run.model.waitFor((call) => !call.side && delivered(call, "you"))

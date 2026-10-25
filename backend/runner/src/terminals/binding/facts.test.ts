@@ -1,7 +1,8 @@
 import type { AgentName } from "@novadeck/protocol"
 import { vi } from "vitest"
 
-import { started } from "../../harnesses/activity.js"
+import { apply, started } from "../../harnesses/activity.js"
+import { Asks, memoryAsks, type TurnOwner } from "../../messaging/asks.js"
 import { describe, expect, it } from "../../test.js"
 import type { Record } from "../record.js"
 import { Bindings, type BindingsHost } from "./facts.js"
@@ -14,7 +15,8 @@ const bindings = (shown?: AgentName) => {
   const announce = vi.fn<(record: Record) => void>()
   const detailed = vi.fn<(record: Record) => void>()
   const host = {
-    messaging: () => ({ shownAgent: () => shown }),
+    messaging: () => ({ shownAgent: () => shown, inboxOwner: () => undefined }),
+    turns: () => ({ asks: undefined, redactor: undefined }),
     typing: () => ({ dialogsChanged: () => {} }),
     murmurChanged: () => {},
     rebound: () => {},
@@ -108,5 +110,91 @@ describe("the ends of a session", () => {
     const { bound: session, suspended, root, seenEntry } = ends.restarted()
     expect(bound).toMatchObject({ bound: session, suspended, root })
     expect(bound.seenEntry).toBe(seenEntry)
+  })
+})
+
+describe("a turn that ends within its grace as its session does", () => {
+  const owner: TurnOwner = {
+    projectId: "00000000-0000-4000-8000-000000000003",
+    workspaceSessionId: "00000000-0000-4000-8000-000000000004",
+    terminalId: "t1",
+    handle: "moth",
+    agent: "claude",
+    sessionId: "s1",
+  }
+  const fact = (fields: object) =>
+    ({ agent: "claude", sessionId: "s1", instance: "41", startedAt: 5, ...fields }) as never
+
+  /** Bindings over a real Asks, and a terminal whose agent just finished a turn at `at`. */
+  const finished = (outcome: "completed" | "interrupted" = "completed") => {
+    const asks = new Asks(
+      {
+        owner: () => owner,
+        reply: () => {},
+        replyState: () => undefined,
+        forgetReplies: () => {},
+        changed: () => {},
+        exists: () => true,
+      },
+      memoryAsks(),
+      Date.now,
+      { sweepMs: 0 },
+    )
+    const host = {
+      messaging: () => ({ shownAgent: () => undefined, inboxOwner: () => owner }),
+      typing: () => ({ dialogsChanged: () => {} }),
+      murmurChanged: () => {},
+      rebound: () => {},
+      announce: () => {},
+      detailed: () => {},
+      turns: () => ({ asks, redactor: undefined }),
+    } as unknown as BindingsHost
+    const ends = new Bindings(host)
+    const bound = record({ agent: "claude", agentRan: true })
+    const binding = bound.bound!.binding
+    const turning = apply(
+      started(0, true, false),
+      binding,
+      fact({ type: "turn-started", startedAt: 1 }),
+    )!
+    bound.bound = {
+      binding,
+      activity: apply(
+        turning,
+        binding,
+        fact({ type: "turn-ended", outcome, startedAt: 100, reply: "Done." }),
+      )!,
+      telemetry: null,
+    }
+    ends.publishAgent(bound, false)
+    const turns = () => asks.list().filter((letter) => letter.content.kind === "turn")
+    return { ends, bound, turns, asks }
+  }
+
+  it("is stored when the binding ends, is replaced by another session, or the shell exits", () => {
+    const cases: [string, (run: ReturnType<typeof finished>) => void][] = [
+      ["endBinding", ({ ends, bound }) => void ends.endBinding(bound)],
+      [
+        "a rebind",
+        ({ ends, bound }) => {
+          // The new session's fresh activity is installed before it is followed.
+          bound.bound = { ...bound.bound!, activity: started(0) }
+          ends.follow(bound, { type: "session-observed" } as never)
+        },
+      ],
+      ["a shell exit", ({ ends, bound }) => ends.exited(bound)],
+    ]
+    for (const [why, end] of cases) {
+      const run = finished()
+      expect(run.turns(), why).toEqual([])
+      end(run)
+      expect(run.turns(), why).toMatchObject([{ at: 100, content: { outcome: "completed" } }])
+    }
+  })
+
+  it("stores nothing for an end that was never one", () => {
+    const run = finished("interrupted")
+    run.ends.endBinding(run.bound)
+    expect(run.turns()).toEqual([])
   })
 })

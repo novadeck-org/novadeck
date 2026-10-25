@@ -106,7 +106,8 @@ export const createDebugDemo = (launch: DemoLaunch): Backend => {
   const connection = createStore<BackendConnectionState>("connected")
   const crashes = createStore(0)
   const turns = demoTurns()
-  const states = createDemoStates(turns)
+  // The Inbox is the demo's, made below; the states reach it only when an action runs.
+  const states = createDemoStates(turns, () => inner.inbox)
   if (launch.portable?.offer) states.offer(launch.portable.offer)
   launch.play?.(states.updateControls)
   let sink: BackendSink | undefined

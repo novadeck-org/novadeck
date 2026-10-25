@@ -118,3 +118,46 @@ describe("A long hold's sheet", () => {
     open.view.unmount()
   })
 })
+
+describe("A failed turn's sheet", () => {
+  const failed = (stopped: boolean): InboxItem => ({
+    ...(limit(null, 0) as Extract<InboxItem, { kind: "trouble" }>),
+    stopped,
+    trouble: { type: "failed", error: "API Error: 529", stored: true },
+  })
+  const press = (label: string): void =>
+    act(() =>
+      Array.from(document.querySelectorAll<HTMLButtonElement>(".inbox-sheet button"))
+        .find((each) => each.textContent?.trim() === label)!
+        .click(),
+    )
+
+  it("offers to fix the current end of an agent at rest", async () => {
+    const open = mount(failed(true))
+
+    expect(open.sheet()).toContain("API Error: 529")
+    press("Ask it to fix")
+    expect(open.sent).toMatchObject([{ kind: "trouble", action: { type: "nudge" } }])
+    await nextFrame()
+    open.view.unmount()
+  })
+
+  it("offers Mark read beside it, which reads the row", async () => {
+    const open = mount(failed(true))
+
+    press("Mark read")
+    expect(open.sent).toEqual([{ kind: "trouble", action: { type: "read" } }])
+    await nextFrame()
+    open.view.unmount()
+  })
+
+  it("offers only Mark read for an older end, or one whose agent works again", async () => {
+    const open = mount(failed(false))
+
+    expect(open.sheet()).not.toContain("Ask it to fix")
+    press("Mark read")
+    expect(open.sent).toEqual([{ kind: "trouble", action: { type: "read" } }])
+    await nextFrame()
+    open.view.unmount()
+  })
+})

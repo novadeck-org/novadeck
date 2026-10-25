@@ -1,7 +1,9 @@
-// Terminals whose agent finished while the person looked elsewhere, by the session context
-// (`${projectId}/${workspaceSessionId}`) that holds them, each with how its turn ended:
-// `done` on its own, or `failed` on an error. Each stays marked until the person views it
-// or its agent starts another turn.
+import type { InboxTurn } from "@novadeck/core/inbox"
+
+// Terminals whose agent finished and left a row in the Inbox the person hasn't read, by the
+// session context (`${projectId}/${workspaceSessionId}`) that holds them, each with how its
+// newest unread turn ended: `done` on its own, or `failed` on an error. The backend stores
+// the rows; this is their mirror for the marks (see `watchUnreadTurns`).
 export type UnreadEnd = "done" | "failed"
 export type Unread = Readonly<Record<string, Readonly<Record<string, UnreadEnd>>>>
 
@@ -15,38 +17,34 @@ export const noUnread: Unread = {}
 export const unreadEnd = (unread: Unread, context: string, id: string): UnreadEnd | undefined =>
   unread[context]?.[id]
 
-// Marks a finish, the latest one's end replacing an earlier one's, unless the person was
-// looking at that terminal as it finished.
-export const markUnread = (
-  unread: Unread,
-  context: string,
-  id: string,
-  end: UnreadEnd,
-  viewing: Viewing,
-): Unread =>
-  unreadEnd(unread, context, id) === end || (viewing?.context === context && viewing.id === id)
-    ? unread
-    : { ...unread, [context]: { ...unread[context], [id]: end } }
+// The session context of a stored turn.
+export const turnContext = (turn: Pick<InboxTurn, "projectId" | "workspaceSessionId">): string =>
+  `${turn.projectId}/${turn.workspaceSessionId}`
 
-export const clearUnread = (unread: Unread, context: string, id: string): Unread => {
-  if (!unreadEnd(unread, context, id)) return unread
-  const { [id]: _cleared, ...left } = unread[context]!
-  const { [context]: _session, ...rest } = unread
-  return Object.keys(left).length > 0 ? { ...rest, [context]: left } : rest
+// The marks the stored rows make: each terminal's newest row's outcome, the later of two
+// rows with the same `at` winning.
+export const unreadOfTurns = (turns: readonly InboxTurn[]): Unread => {
+  const newest = new Map<string, InboxTurn>()
+  for (const turn of turns) {
+    const key = `${turnContext(turn)}/${turn.terminalId}`
+    const known = newest.get(key)
+    if (!known || turn.at >= known.at) newest.set(key, turn)
+  }
+  const unread: Record<string, Record<string, UnreadEnd>> = {}
+  for (const turn of newest.values())
+    (unread[turnContext(turn)] ??= {})[turn.terminalId] =
+      turn.outcome === "failed" ? "failed" : "done"
+  return unread
 }
 
-// Clears what the person now looks at.
-export const viewUnread = (unread: Unread, viewing: Viewing): Unread =>
-  viewing ? clearUnread(unread, viewing.context, viewing.id) : unread
-
-// Keeps only the terminals still there, as `exists` tells by context and id.
-export const keepUnread = (
-  unread: Unread,
-  exists: (context: string, id: string) => boolean,
-): Unread => {
-  let next = unread
-  for (const [context, ends] of Object.entries(unread))
-    for (const id of Object.keys(ends))
-      if (!exists(context, id)) next = clearUnread(next, context, id)
-  return next
+// Whether two marks say the same.
+export const sameUnread = (a: Unread, b: Unread): boolean => {
+  const contexts = Object.keys(a)
+  if (contexts.length !== Object.keys(b).length) return false
+  return contexts.every((context) => {
+    const left = a[context]!
+    const right = b[context]
+    if (!right || Object.keys(left).length !== Object.keys(right).length) return false
+    return Object.entries(left).every(([id, end]) => right[id] === end)
+  })
 }

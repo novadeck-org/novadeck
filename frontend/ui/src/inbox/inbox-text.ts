@@ -4,6 +4,8 @@ import { harnesses, type AgentName } from "@novadeck/core/harnesses"
 import { inboxType, type InboxItem, type InboxSource, type Trouble } from "@novadeck/core/inbox"
 import { unsaidWaits, waitsBehind } from "@novadeck/core/messages"
 
+import { informing } from "./inbox-state"
+
 // What the Inbox says about an item, in words: pure, so the rows and the sheet read the
 // same sentences, and so their rules read apart from the markup.
 
@@ -294,7 +296,7 @@ export type Standing = {
 export const standingOf = (item: InboxItem, now: number, answered: boolean): Standing => {
   if (answered) return { status: "answered", tone: "done" }
   // Neither stops the agent: they say how long they have waited, calmly.
-  if (inboxType(item) === "update" || inboxType(item) === "feedback") {
+  if (inboxType(item) === "update" || inboxType(item) === "feedback" || informing(item)) {
     const ago = waitLabel(item.at, now)
     return { status: ago === "now" ? "just now" : `${ago} ago`, tone: "calm" }
   }

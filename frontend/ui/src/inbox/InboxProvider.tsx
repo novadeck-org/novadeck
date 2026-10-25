@@ -19,6 +19,7 @@ import {
   clearArrived,
   closeSheet,
   held,
+  informing,
   initialView,
   nextItem,
   openItem,
@@ -277,7 +278,7 @@ export const InboxProvider = ({
     const { state: snapshot, view: before } = latest.current
     const opened = snapshot.items.find(({ id }) => id === before.open)
     inbox.readAll()
-    if (opened?.kind === "update") close()
+    if (opened?.kind === "update" || (opened && informing(opened))) close()
   }, [inbox, close])
 
   const revealItem = useCallback(

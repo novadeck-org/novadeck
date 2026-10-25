@@ -75,12 +75,12 @@ describe("inboxType", () => {
 })
 
 describe("urgency", () => {
-  it("ranks stopping trouble, other stops, asks that go on, handled trouble, then updates", () => {
+  it("ranks stopping trouble, other stops, asks that go on, handled trouble, then updates and failed turns that only inform", () => {
     expect(urgency(item("a", failed, true))).toBe(0)
     expect(urgency(item("b", held, true))).toBe(1)
     expect(urgency(item("c", ask, true))).toBe(1)
     expect(urgency(item("d", ask, false))).toBe(2)
-    expect(urgency(item("e", failed, false))).toBe(3)
+    expect(urgency(item("e", failed, false))).toBe(4)
     expect(urgency(item("g", limit, true))).toBe(1)
     expect(urgency(item("h", limit, false))).toBe(3)
     expect(urgency(item("f", told, false))).toBe(4)
