@@ -131,7 +131,7 @@ export const cleanSummary = (summary: string): string =>
  * `summaryChars` characters, with words in it.
  */
 export const summaryRefusal = (summary: string): string | undefined => {
-  if (!summary) return "The summary is empty: say in a line or two what you work on."
+  if (!summary) return "The summary is empty: say in one short line what the work here is about."
   if (!/[\p{L}\p{N}]/u.test(summary))
     return "The summary needs words, not only symbols or invisible characters."
   const lines = summary.split("\n").length

@@ -569,18 +569,22 @@ const agents: Tool<Listing> = {
 const summarize: Tool<unknown> = {
   name: "summarize",
   description:
-    "Summarize your own Novadeck terminal: a line or two (up to 200 characters) on what " +
-    "you work on here, which other agents read in their agents listing, so they can tell " +
-    "terminals apart and route work. It only ever summarizes your " +
-    "own terminal. Call it when Novadeck's automatic notice asks, or when your work " +
-    "changes enough that the summary no longer fits. It sets no title: titles are " +
-    "Novadeck's and the user's.",
+    "Summarize your own Novadeck terminal: one short line on what the work here is about, " +
+    'at a high level, such as "Checkout rounding fix" or "Billing webhook key rotation". ' +
+    "Name the subject only: no status or progress (done, merged, in CI, next), no PR or " +
+    "issue numbers, no file names or details. Other agents read it in their agents listing " +
+    "to tell terminals apart and route work, and Novadeck may name the terminal from it. " +
+    "It only ever summarizes your own terminal. Call it when Novadeck's automatic notice " +
+    "asks, or when the work moves to another subject; progress alone is no reason to update " +
+    "it. It sets " +
+    "no title: titles are Novadeck's and the user's.",
   inputSchema: {
     type: "object",
     properties: {
       summary: {
         type: "string",
-        description: "A line or two on what you work on here, up to 200 characters.",
+        description:
+          "One short line on what the work here is about: its subject, with no status, PR or issue numbers, or details.",
         maxLength: 200,
       },
     },
