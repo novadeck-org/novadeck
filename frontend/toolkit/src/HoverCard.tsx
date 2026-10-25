@@ -9,8 +9,6 @@ export type HoverCardProps = {
   trigger: ReactElement
   children: ReactNode
   className?: string
-  // Holds the card shut, where the trigger has nothing to show for now.
-  disabled?: boolean
   // Told when the peek opens and when it closes.
   onOpenChange?: (open: boolean) => void
 }
@@ -36,7 +34,6 @@ export const HoverCard = ({
   trigger,
   children,
   className,
-  disabled = false,
   onOpenChange,
 }: HoverCardProps): React.JSX.Element => {
   const [open, show] = useState(false)
@@ -71,19 +68,12 @@ export const HoverCard = ({
     showing.close()
     showing = undefined
   }, [shown, owner])
-  // Turned off with its card up, it goes.
-  useEffect(() => {
-    if (disabled && showing?.owner === owner) {
-      showing.close()
-      showing = undefined
-    }
-  }, [disabled, owner])
   const resting = useRestingPointer(restDelay, () => {
-    if (onScreen.current && !disabled && !menuOpen()) setOpen(true)
+    if (onScreen.current && !menuOpen()) setOpen(true)
   })
   return (
     <ArkHoverCard.Root
-      open={open && !disabled}
+      open={open}
       // Resting opens it; Ark only keeps it open, as the pointer moves onto the peek.
       onOpenChange={({ open: next }) => setOpen(next && open)}
       openDelay={restDelay}

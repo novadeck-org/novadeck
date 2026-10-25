@@ -1,4 +1,4 @@
-// The clocks a waiting agent's rows, window bar and card read, apart from what its tab needs
+// The clocks a waiting agent's rows and window bar read, apart from what its tab needs
 // to be drawn, so the views that show them load when one does.
 
 const second = 1000
@@ -21,7 +21,7 @@ const countdown = (at: number, now: number): string => {
     : `${Math.floor(left / 60)}:${seconds}`
 }
 
-// How a wake-up's time left reads, for a window and its card: "in 8:14", or "due" once its
+// How a wake-up's time left reads, for a window: "in 8:14", or "due" once its
 // time has come and the agent hasn't yet taken its turn.
 export const wakeIn = (at: number, now = Date.now()): string =>
   at <= now ? "due" : `in ${countdown(at, now)}`
