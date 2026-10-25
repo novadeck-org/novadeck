@@ -365,6 +365,8 @@ describe("Novadeck's MCP server", () => {
       expect(instructions).toContain("Always ask there every question you end your turn waiting on")
       expect(instructions).toContain("unless it is already an open ask")
       expect(instructions).toContain("a closing offer such as 'anything else?' isn't one")
+      expect(instructions).toContain("nor is an action your harness is already prompting them")
+      expect(instructions).toContain("if they answer here instead, withdraw the ask")
       expect(instructions).toContain("Mid-work, ask without stopping your work")
       expect(instructions).toContain(
         "for a decision the user should make, ask there and keep going",

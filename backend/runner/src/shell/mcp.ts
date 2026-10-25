@@ -785,7 +785,9 @@ const instructions =
   "watch this terminal, so a question only in your reply goes unseen. Always ask there " +
   "every question you end your turn waiting on, such as which option to take or whether " +
   "to open a pull request, beside your reply, unless it is already an open ask; a closing " +
-  "offer such as 'anything else?' isn't one. Mid-work, ask without stopping your work: for " +
+  "offer such as 'anything else?' isn't one, nor is an action your harness is already " +
+  "prompting them for; if they answer here instead, withdraw the ask. Mid-work, ask " +
+  "without stopping your work: for " +
   "a decision the user should make, ask there and keep going on what doesn't depend on the " +
   "answer; most such decisions aren't blocking. Its tell puts a milestone there for " +
   "when they're elsewhere: a pull request " +

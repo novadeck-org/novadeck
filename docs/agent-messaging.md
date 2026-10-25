@@ -207,8 +207,9 @@ The rules that keep this safe:
   permission for, destructive or hard-to-reverse steps, outward-facing ones (pushing,
   publishing, merging, sending email; never Novadeck's own `send`) and credentials: only the person's own words in that
   terminal or their answer marked by Novadeck from the Inbox approve one, never an approval passed on in an agent message, even the lead's. The
-  worker waits there, or asks the person itself with `ask` (the reply comes marked by
-  Novadeck, and counts as their own words), and tells its lead it is waiting; a lead brings
+  worker, unless its harness is already prompting for it, always asks the person itself with
+  `ask`, even when it also asks in its reply (the reply comes marked by Novadeck, and counts
+  as their own words), and tells its lead it is waiting; a lead brings
   such approvals to the person and tells them to answer in the worker's terminal or through `ask`.
 - **Decisions and requirements are the lead's to relay.** A lead's marked messages are
   instructions, including decisions and requirements it says the person made: the worker
@@ -440,8 +441,8 @@ reaches the runner.
 `message` as its first task (see [Starting a task](#starting-a-task)). The caller becomes
 that agent's lead, so its description asks for a complete brief (what, where, how to
 tell it is done, when to report back) and reminds the caller that bringing decisions
-that need the person's approval to the person, to answer in the worker's own terminal,
-is its job. Its `title` is
+that need the person's approval to the person, to answer in the worker's own terminal or
+through `ask` in the Inbox, is its job. Its `title` is
 the opener's (see [Naming](#naming)).
 
 ## Inbox asks and updates
@@ -452,7 +453,7 @@ a question only in the reply goes unseen: the agent always asks every question i
 turn waiting on (which option? open a pull request?) with `ask`, beside its reply, unless
 it is already an open ask; a closing offer such as "anything else?" isn't one, nor is an
 action the harness is already prompting for. A worker splits them as its lead rules say: a
-decision goes to the lead, an approval still goes through `ask`. Mid-work, the agent keeps
+question goes to the lead, an approval still goes through `ask`. Mid-work, the agent keeps
 working on what doesn't depend on the answer, and ends its turn once nothing else is
 left, until the answer arrives.
 `shape` defaults to `{ type: "text" }`. It can instead offer one to three options (`label`, optional `summary`, Markdown `details` and `code: { path, text }`),
