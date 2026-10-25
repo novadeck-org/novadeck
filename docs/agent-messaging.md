@@ -1614,7 +1614,12 @@ model behind a `Describer` (`murmur/`).
   caller from its terminal token. The summary is one or two lines of up to 200 characters
   with words in it, kept with the terminal's record; `agents()` lists it as "described by
   its agent". A refused summary (empty, three lines) says why. A summary is all murmur
-  names an agent's terminal from (see below).
+  names an agent's terminal from (see below), so the tool and its nudges ask for one short
+  line on what the work is about at a high level ("Checkout rounding fix"): its subject,
+  never status or progress (done, merged, in CI), PR or issue numbers, file names or
+  details. It is updated when the work moves to another subject, not as it progresses; the
+  later nudge shows the current summary and asks for an update only then, or when it
+  holds what a summary leaves out.
 - **Who wins the title.** The record keeps each layer apart (`naming`: `person`; `agent`,
   the opener's title with the handle of the terminal that gave it; `murmur`, its title;
   and `summary`, the agent's own), and the store persists only these (`person_title`,
@@ -1682,8 +1687,9 @@ hook's deadline, which doesn't spend what is due.
   injection lasts one model call there, so `ask`'s description is what lasts); it comes
   back after a compaction where the harness reports one.
 - **The summary.** Due when a trigger fired since the last `summarize`: while there is
-  none it asks for one; after, it shows the current summary and asks for an update only if
-  it no longer fits. When all are due they share the answer: the bar's, the Inbox's, then
+  none it asks for one short line on the work's subject; after, it shows the current
+  summary and asks for an update only if the work moved to another subject or the summary
+  holds status, numbers or details. When all are due they share the answer: the bar's, the Inbox's, then
   the summary's. The
   triggers:
   1. a new root session (start, `/clear`, restart or resume);

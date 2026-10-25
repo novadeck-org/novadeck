@@ -488,6 +488,10 @@ describe("Novadeck's MCP server", () => {
       const tool = offered.find(({ name }) => name === "summarize")!
       expect(tool.description).toContain("agents listing")
       expect(tool.description).toContain("sets no title")
+      // A high-level subject, never status or details, as murmur titles the terminal from it.
+      expect(tool.description).toContain("one short line on what the work here is about")
+      expect(tool.description).toContain("no status or progress")
+      expect(tool.description).toContain("progress is no reason to")
       expect(tool.inputSchema).toMatchObject({
         required: ["summary"],
         additionalProperties: false,

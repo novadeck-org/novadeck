@@ -3851,10 +3851,12 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))(
         payload: { source: "compact", cwd: shell.home },
       })
       const after = (await prompt("and now?")).split("\n\n")
-      // All: the bar and the Inbox again, then the summary to update only if it no longer fits.
+      // All: the bar and the Inbox again, then the summary to update only for another subject.
       expect(after[0]).toMatch(/beside this terminal/)
       expect(after[1]).toMatch(/the user rarely watches this terminal/)
-      expect(after[2]).toMatch(/summary is "Fixes the build\."; if that no longer fits/)
+      expect(after[2]).toMatch(
+        /summary is "Fixes the build\."; if the work here is now about something else/,
+      )
       await expect(prompt("next")).resolves.toBe("")
       // Murmur titled it from its summary; the compaction, the Stops and the prompts after
       // them retitled nothing.

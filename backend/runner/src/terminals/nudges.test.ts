@@ -222,12 +222,23 @@ describe("a nudge", () => {
     expect(quietly(taken.nudges).nudge).toBe(false)
   })
 
-  it("shows the current description later, to update only if it no longer fits", () => {
-    const text = nudgeText({ summary: "Builds the users API.\nThen paging." })
+  it("shows the current description later, to update only for another subject or what a summary leaves out", () => {
+    const text = nudgeText({ summary: "Users API.\nPaging done, #12 in CI." })
     expect(text).toBe(
       "Novadeck: automatic notice, not from the user: this terminal's summary is " +
-        '"Builds the users API. Then paging."; if that no longer fits your work, ' +
-        "update it with Novadeck's summarize tool, and otherwise this notice can be ignored.",
+        '"Users API. Paging done, #12 in CI."; if the work here is now about something ' +
+        "else, or that holds status, numbers or details, update it with Novadeck's " +
+        "summarize tool to one short line on its subject; progress is no reason to, and " +
+        "otherwise this notice can be ignored.",
     )
+  })
+
+  it("asks for the first summary as one short line on the work's subject, not its status", () => {
+    const text = nudgeText({ summary: null })
+    expect(text).toMatch(
+      /^Novadeck: automatic notice, not from the user: this terminal has no summary yet\./,
+    )
+    expect(text).toContain("one short line on what the work here is about, at a high level")
+    expect(text).toContain("no status, numbers or details")
   })
 })
