@@ -40,7 +40,7 @@ released together, so an upgrade moves all of them in one change.
 
 ## Patches
 
-pnpm reads patches from the workspace's root `pnpm-workspace.yaml`, which registers these three from
+pnpm reads patches from the workspace's root `pnpm-workspace.yaml`, which registers these from
 this library's `patches/`. pnpm refuses an install whose patch no longer matches its pinned version,
 so an upgrade can't drop one unnoticed; each is made again for the new version, or dropped once a
 release fixes what it fixes.
@@ -79,6 +79,15 @@ release fixes what it fixes.
   Widths and letter-spacing are what they were, apart from sharing a screen's measurements with
   the others. Like the viewport fix, this is made again on xterm 6.1: the same class, in both
   bundles, unless 6.1 shares its widths itself. `src/widths.test.ts` pins it.
+- `@xterm/xterm` 6.0.0, the same two bundles: `getCoordsRelativeToElement` (`src/browser/input/Mouse.ts`)
+  and `moveTextAreaUnderMouseCursor` (`Clipboard.ts`) divide the pointer's offset in the element by
+  the element's scale, `getBoundingClientRect().width / offsetWidth` on each axis, before taking the
+  unscaled padding or placing the textarea. The Canvas view scales a terminal with a CSS transform;
+  xterm took client pixels, which the scale stretches, over cell sizes it doesn't touch. At zoom 0.5 a
+  click on column 40, row 3 reported column 21, row 2, and a drag over columns 10 to 19 selected 5 to 9,
+  with either renderer. Check xterm 6.1 for a fix; otherwise make it again in the same two functions.
+  `src/pointer.test.ts` pins it in each bundle, and terminal-views' `src/zoom.spec.ts` checks the
+  reports and the selection in a real browser at scales 0.5, 1 and 1.5.
 - `@xterm/addon-webgl` 0.19.0: `WebglRenderer` registers its cursor-blink manager with the renderer
   (`this._register(new be)` in `lib/addon-webgl.mjs`, `this._register(new m.MutableDisposable)` in
   `lib/addon-webgl.js`) in place of leaving it undisposed. The manager exists once a program turns
