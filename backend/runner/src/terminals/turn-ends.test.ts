@@ -371,18 +371,22 @@ describe("the text of a stored turn", () => {
   })
 
   it("masks the gist too, and stores none where the redaction fails", async () => {
+    const withGist = (activity: Activity): Activity => ({
+      ...activity,
+      lastTurn: { ...activity.lastTurn!, gist: "Rotated hunter2" },
+    })
     const run = setup({ redactor: redactor() })
-    const gisted = {
-      ...end(begin(run.record.bound!.activity, 1), 100, { outcome: "failed", error: "x" }),
-    }
-    gisted.lastTurn = { ...gisted.lastTurn!, gist: "Rotated hunter2" }
-    run.show(gisted)
+    run.show(
+      withGist(end(begin(run.record.bound!.activity, 1), 100, { outcome: "failed", error: "x" })),
+    )
     await settle()
     expect(run.turns()[0]!.content).toMatchObject({ gist: "Rotated *******" })
     const failing = setup({ redactor: redactor(() => null) })
-    const other = end(begin(failing.record.bound!.activity, 1), 100, { outcome: "failed" })
-    other.lastTurn = { ...other.lastTurn!, gist: "Rotated hunter2" }
-    failing.show(other)
+    failing.show(
+      withGist(
+        end(begin(failing.record.bound!.activity, 1), 100, { outcome: "failed", error: "x" }),
+      ),
+    )
     await settle()
     expect(failing.turns()[0]!.content).toMatchObject({ gist: null })
   })
@@ -393,6 +397,7 @@ describe("the text of a stored turn", () => {
     for (let at = 100; at < 140; at += 10) {
       activity = end(begin(activity, at - 5), at)
       run.show(activity)
+      // eslint-disable-next-line no-await-in-loop -- Each end rests on its own clock.
       await wait(100)
     }
     await wait(finishGraceMs * 2)
