@@ -845,7 +845,7 @@ importers:
         version: link:../../libraries/terminal
     devDependencies:
       '@fontsource-variable/jetbrains-mono':
-        specifier: 5.3.0
+        specifier: ^5.3.0
         version: 5.3.0
       '@novadeck/build-kit':
         specifier: workspace:*
@@ -1159,7 +1159,7 @@ importers:
         version: 6.0.0(patch_hash=5cceb0abb03f6a06e082154528f2a5b89cccff1d5d5e8a65820a1da801627b9a)
     devDependencies:
       '@fontsource-variable/jetbrains-mono':
-        specifier: 5.3.0
+        specifier: ^5.3.0
         version: 5.3.0
       '@types/node':
         specifier: ^26.6.5
