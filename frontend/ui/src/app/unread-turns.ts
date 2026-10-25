@@ -12,17 +12,27 @@ import { viewing, type UiStore } from "./ui-store"
 const launchSlackMs = 5000
 
 // A desktop notification about one terminal, as a backend shows it.
-export type FinishNotify = (notice: {
-  readonly id: string
-  readonly title: string
-  readonly body: string
-}) => void
+// `itemId` is the Inbox row it is about, which a click on it opens.
+export type FinishNotify = (
+  notice: { readonly id: string; readonly title: string; readonly body: string },
+  itemId: string,
+) => void
 
-const terminalOf = (workspace: Workspace, turn: InboxTurn): TerminalMetadata | undefined =>
-  workspace.projects
-    .find((project) => project.id === turn.projectId)
-    ?.history.find((session) => session.id === turn.workspaceSessionId)
-    ?.state.roster.terminals.find((terminal) => terminal.id === turn.terminalId)
+// Every terminal of every session, by `${context}/${terminalId}`.
+type Terminals = ReadonlyMap<string, TerminalMetadata>
+const terminalsOf = (workspace: Workspace): Terminals =>
+  new Map(
+    workspace.projects.flatMap((project) =>
+      project.history.flatMap((session) =>
+        session.state.roster.terminals.map(
+          (terminal) => [`${project.id}/${session.id}/${terminal.id}`, terminal] as const,
+        ),
+      ),
+    ),
+  )
+
+const terminalOf = (terminals: Terminals, turn: InboxTurn): TerminalMetadata | undefined =>
+  terminals.get(`${turnContext(turn)}/${turn.terminalId}`)
 
 // Follows the stored finished turns of the Inbox (`inbox.turns`) for the rest of the app.
 //
@@ -87,14 +97,19 @@ export const watchUnreadTurns = (
     const before = listed
     const fresh = before ? list.filter((turn) => !before.has(turn.id)) : []
     listed = new Set([...(before ?? []), ...list.map((turn) => turn.id)])
+    const terminals = terminalsOf(snapshot)
+    // A completed row of a worker whose lead's agent runs is the lead's, as in the Inbox.
+    const heard = (turn: InboxTurn): boolean =>
+      turn.outcome === "completed" && leadHearsOf(snapshot, turnContext(turn), turn.terminalId)
     const unviewed = list.filter((turn) => !viewed(turn))
-    mirror(unviewed)
+    mirror(unviewed.filter((turn) => !heard(turn)))
     announce(
       fresh.filter((turn) => turn.at >= startedAt - launchSlackMs && !viewed(turn)),
       snapshot,
+      terminals,
     )
-    sweep(unviewed)
-    wordsFor(unviewed, snapshot)
+    sweep(unviewed.filter((turn) => !heard(turn)))
+    wordsFor(unviewed, terminals)
     asked = new Set([...asked].filter((id) => list.some((turn) => turn.id === id)))
     const reading = list.filter((turn) => viewed(turn) && !asked.has(turn.id))
     if (reading.length === 0 || !readFinishes || !looking) return
@@ -107,7 +122,11 @@ export const watchUnreadTurns = (
     ui.update((current) => (sameUnread(current.unread, unread) ? current : { ...current, unread }))
   }
 
-  const announce = (rows: readonly InboxTurn[], snapshot: Workspace): void => {
+  const announce = (
+    rows: readonly InboxTurn[],
+    snapshot: Workspace,
+    terminals: Terminals,
+  ): void => {
     const { pageFocused, preferences } = ui.getSnapshot()
     if (!notify || !preferences.notifyFinished || pageFocused) return
     const newest = new Map<string, InboxTurn>()
@@ -117,16 +136,22 @@ export const watchUnreadTurns = (
       if (!known || turn.at >= known.at) newest.set(key, turn)
     }
     for (const turn of newest.values()) {
-      const terminal = terminalOf(snapshot, turn)
+      const terminal = terminalOf(terminals, turn)
       if (!terminal || leadHearsOf(snapshot, turnContext(turn), turn.terminalId)) continue
       const failed = turn.outcome === "failed"
       // A failed turn is trouble in the Inbox, which pings of its own where the person wants
       // what needs them: one notification for it, not two.
       if (failed && preferences.notifyNeeds) continue
-      notify({
-        id: terminal.id,
-        ...finishNotice(terminal, turn.reply === null ? { failed } : { failed, reply: turn.reply }),
-      })
+      notify(
+        {
+          id: terminal.id,
+          ...finishNotice(
+            terminal,
+            turn.reply === null ? { failed } : { failed, reply: turn.reply },
+          ),
+        },
+        turn.id,
+      )
       notified.set(terminal.id, turnContext(turn))
     }
   }
@@ -141,12 +166,12 @@ export const watchUnreadTurns = (
       }
   }
 
-  const wordsFor = (rows: readonly InboxTurn[], snapshot: Workspace): void => {
+  const wordsFor = (rows: readonly InboxTurn[], terminals: Terminals): void => {
     gisted = new Set([...gisted].filter((id) => rows.some((turn) => turn.id === id)))
     if (!gist) return
     for (const turn of rows) {
       if (turn.gist !== null || gisted.has(turn.id)) continue
-      const terminal = terminalOf(snapshot, turn)
+      const terminal = terminalOf(terminals, turn)
       if (terminal?.state !== "running" || terminal.agent?.lastTurn?.at !== turn.at) continue
       gisted.add(turn.id)
       gist(turn.terminalId, turn.at)

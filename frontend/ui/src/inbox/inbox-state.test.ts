@@ -207,7 +207,7 @@ describe("What the rail counts", () => {
       stopped,
       seen: false,
       kind: "trouble",
-      trouble: { type: "failed", error: "boom" },
+      trouble: { type: "failed", error: "boom", stored: true },
     })
 
     it("counts the agent's current one, and leaves an older one out, as it only informs", () => {
@@ -219,6 +219,22 @@ describe("What the rail counts", () => {
     it("has Mark all read something to read for an older one only", () => {
       expect(hasUpdates([failed("now", true)])).toBe(false)
       expect(hasUpdates([failed("old", false)])).toBe(true)
+    })
+  })
+
+  context("when stepping to the next item", () => {
+    it("skips a failed turn that only informs", () => {
+      const informs: InboxItem = {
+        id: "old",
+        source,
+        at: 1,
+        stopped: false,
+        seen: false,
+        kind: "trouble",
+        trouble: { type: "failed", error: "boom", stored: true },
+      }
+      expect(nextItem([informs, approve("a", 2)], null, { answering: {} })?.id).toBe("a")
+      expect(nextItem([informs], null, { answering: {} })).toBeUndefined()
     })
   })
 

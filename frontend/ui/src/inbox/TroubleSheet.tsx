@@ -162,40 +162,40 @@ const Errored = (props: SheetContentProps & { readonly trouble: Failed }): React
       ) : (
         <p className="inbox-lead">{agent} ended its turn on an error and gave no reason.</p>
       )}
-      {!sent && !item.stopped && (
+      {!sent && (
         <div className="inbox-actions">
-          <button
-            type="button"
-            className="button primary text-control"
-            disabled={answering}
-            onClick={() => submit({ kind: "trouble", action: { type: "read" } }, "Marked read.")}
-          >
-            <Check size={12} aria-hidden />
-            Mark read
-          </button>
-        </div>
-      )}
-      {!sent && item.stopped && (
-        <div className="inbox-actions">
-          <button
-            type="button"
-            className="button primary text-control"
-            disabled={answering}
-            onClick={() =>
-              submit(
-                {
-                  kind: "trouble",
-                  action: {
-                    type: "nudge",
-                    text: "Your last turn ended in an error. Look at what went wrong and fix it.",
+          {item.stopped && (
+            <button
+              type="button"
+              className="button primary text-control"
+              disabled={answering}
+              onClick={() =>
+                submit(
+                  {
+                    kind: "trouble",
+                    action: {
+                      type: "nudge",
+                      text: "Your last turn ended in an error. Look at what went wrong and fix it.",
+                    },
                   },
-                },
-                `Asked ${agent} to fix it.`,
-              )
-            }
-          >
-            Ask it to fix
-          </button>
+                  `Asked ${agent} to fix it.`,
+                )
+              }
+            >
+              Ask it to fix
+            </button>
+          )}
+          {trouble.stored && (
+            <button
+              type="button"
+              className={item.stopped ? "button text-control" : "button primary text-control"}
+              disabled={answering}
+              onClick={() => submit({ kind: "trouble", action: { type: "read" } }, "Marked read.")}
+            >
+              <Check size={12} aria-hidden />
+              Mark read
+            </button>
+          )}
         </div>
       )}
       <Failure message={failed} />

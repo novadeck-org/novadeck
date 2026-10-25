@@ -113,11 +113,15 @@ const setup = ({
   select("01")
   status("02", { working: false })
   const notices: Parameters<FinishNotify>[0][] = []
+  const noticeItems: string[] = []
   const cleared: string[] = []
   const gists: [string, number][] = []
   const watch = () =>
     watchUnreadTurns(inbox, workspace, ui, {
-      notify: (notice) => notices.push(notice),
+      notify: (notice, itemId) => {
+        notices.push(notice)
+        noticeItems.push(itemId)
+      },
       clear: (terminalId) => cleared.push(terminalId),
       gist: (terminalId, at) => gists.push([terminalId, at]),
     })
@@ -127,6 +131,7 @@ const setup = ({
     turns,
     readCalls,
     notices,
+    noticeItems,
     cleared,
     gists,
     watch,
@@ -167,6 +172,25 @@ describe("unread turns", () => {
       app.workspace.dispatch({ type: "terminal/update", target, terminalId: "02", ledBy: "moth" })
       app.status("01", { working: true })
       const stop = app.watch()
+      expect(app.unread()).toEqual(done)
+      stop()
+    })
+
+    it("leave out a worker's finished rows while its lead's agent runs, and show them once it stops", () => {
+      const app = setup({ rows: [row("a", 10), row("f", 20, "failed")] })
+      app.workspace.dispatch({ type: "terminal/update", target, terminalId: "01", handle: "moth" })
+      app.workspace.dispatch({ type: "terminal/update", target, terminalId: "02", ledBy: "moth" })
+      app.workspace.dispatch({
+        type: "terminal/process",
+        target,
+        terminalId: "01",
+        process: "claude",
+      })
+      app.status("01", { working: true })
+      app.turns.set([row("a", 10)])
+      const stop = app.watch()
+      expect(app.unread()).toEqual({})
+      app.workspace.dispatch({ type: "terminal/process", target, terminalId: "01", process: "zsh" })
       expect(app.unread()).toEqual(done)
       stop()
     })
@@ -321,6 +345,14 @@ describe("unread turns", () => {
         { id: "02", title: "@fox stopped with an error: Checkout", body: "All green." },
       ])
       stopQuiet()
+    })
+
+    it("name the row they show, which a click opens", () => {
+      const app = setup({ rows: [], pageFocused: false })
+      const stop = app.watch()
+      app.turns.set([row("a", 10), row("b", 20)])
+      expect(app.noticeItems).toEqual(["b"])
+      stop()
     })
 
     it("are none for a worker whose lead's agent runs", () => {

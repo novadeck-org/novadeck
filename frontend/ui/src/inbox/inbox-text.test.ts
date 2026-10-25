@@ -253,7 +253,7 @@ describe("How an item stands", () => {
       ...base,
       stopped: false,
       kind: "trouble",
-      trouble: { type: "failed", error: "boom" },
+      trouble: { type: "failed", error: "boom", stored: true },
     }
     expect(standingOf(old, 6 * 60_000, false)).toEqual({ status: "6m ago", tone: "calm" })
     expect(standingOf({ ...old, stopped: true }, 6 * 60_000, false).status).toBe("waiting 6m")

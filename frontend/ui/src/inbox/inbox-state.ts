@@ -99,7 +99,8 @@ export const nextItem = (
       item.id !== from &&
       !state.answering[item.id] &&
       inboxType(item) !== "update" &&
-      inboxType(item) !== "feedback",
+      inboxType(item) !== "feedback" &&
+      !informing(item),
   )
 
 // The item `step` rows from `from` in the list (1 down, -1 up), within its ends; the
@@ -113,10 +114,13 @@ export const stepFrom = (
   return shown[Math.max(0, Math.min(shown.length - 1, at + step))]
 }
 
-// A failed turn that is no longer the agent's current end: it only informs, ranks with
+// A stored failed turn that is no longer the agent's current end: it only informs, ranks with
 // updates, and is read, not answered.
 export const informing = (item: InboxItem): boolean =>
-  item.kind === "trouble" && item.trouble.type === "failed" && !item.stopped
+  item.kind === "trouble" &&
+  item.trouble.type === "failed" &&
+  !!item.trouble.stored &&
+  !item.stopped
 
 // What the rail's badge counts: everything that isn't an update, nor a failed turn that only
 // informs.

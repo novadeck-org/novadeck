@@ -123,7 +123,7 @@ describe("A failed turn's sheet", () => {
   const failed = (stopped: boolean): InboxItem => ({
     ...(limit(null, 0) as Extract<InboxItem, { kind: "trouble" }>),
     stopped,
-    trouble: { type: "failed", error: "API Error: 529" },
+    trouble: { type: "failed", error: "API Error: 529", stored: true },
   })
   const press = (label: string): void =>
     act(() =>
@@ -136,9 +136,17 @@ describe("A failed turn's sheet", () => {
     const open = mount(failed(true))
 
     expect(open.sheet()).toContain("API Error: 529")
-    expect(open.sheet()).not.toContain("Mark read")
     press("Ask it to fix")
     expect(open.sent).toMatchObject([{ kind: "trouble", action: { type: "nudge" } }])
+    await nextFrame()
+    open.view.unmount()
+  })
+
+  it("offers Mark read beside it, which reads the row", async () => {
+    const open = mount(failed(true))
+
+    press("Mark read")
+    expect(open.sent).toEqual([{ kind: "trouble", action: { type: "read" } }])
     await nextFrame()
     open.view.unmount()
   })

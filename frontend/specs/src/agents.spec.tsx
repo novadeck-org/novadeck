@@ -11,6 +11,7 @@ import {
   isMac,
   labelled,
   openWorkspace,
+  sidebarPanel,
   tabDescription,
   terminal,
   terminalTab,
@@ -258,7 +259,16 @@ describe("An agent that finishes", () => {
       await expect
         .element(window, { timeout: 10_000 })
         .toHaveAttribute("data-terminal-phase", "done")
+      // Both turns are rows of their own in the Inbox, the first not replaced by the second.
+      await sidebarPanel("Inbox").click()
+      const finished = page
+        .getByRole("list", { name: "Messages from your agents" })
+        .getByRole("listitem")
+        .filter({ hasText: /Done: (Ship the docs|Now the changelog)/ })
+      await expect.element(finished).toHaveLength(2)
       visibility("visible")
+      await sidebarPanel("Terminals").click()
+      await terminalTab("Build").click()
       await expect.element(window).toHaveAttribute("data-terminal-phase", "idle")
     })
   })

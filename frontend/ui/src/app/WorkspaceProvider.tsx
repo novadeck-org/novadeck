@@ -169,7 +169,7 @@ export const WorkspaceProvider = ({
     if (backend.inbox)
       stops.push(
         watchUnreadTurns(backend.inbox, workspace, ui, {
-          notify: board && ((notice) => board.show("finish", notice)),
+          notify: board && ((notice, itemId) => board.show("finish", notice, itemId)),
           clear: board && ((terminalId) => board.close("finish", terminalId)),
           gist: backend.murmur?.gist,
         }),
