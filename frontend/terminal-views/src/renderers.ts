@@ -31,7 +31,7 @@ export const configurePageRenderers = ({ cap }: { readonly cap: number }): void 
 // which the pool's margin of two contexts leaves room for.
 export const pageRenderers = (): Renderers =>
   (page ??= webglRenderers({
-    ...(configuredCap === undefined ? {} : { cap: configuredCap }),
+    ...(configuredCap !== undefined && { cap: configuredCap }),
   }))
 
 // How often counts are reported while they change: a busy minute is a few lines. The first
