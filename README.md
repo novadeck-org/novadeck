@@ -812,7 +812,7 @@ Terminals:
   handles on their tabs; its other plain shells show none. Also a burst of 30, a quick
   failure, a spawn failure and the terminal limit.
 - **Projects and sessions:** mark the selected terminal running, then start a fresh
-  session, to see the sessions panel count it; or make the next folder pick fail.
+  session and open Sessions to see the old one count it; or make the next folder pick fail.
 
 Agents:
 

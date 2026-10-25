@@ -125,7 +125,7 @@ describe("workspace commands", () => {
   })
 
   context("when starting a fresh session twice in the same minute", () => {
-    it("numbers the second one and shows the Sessions panel", () => {
+    it("numbers the second one and shows the Terminals panel", () => {
       const app = openCommands()
       app.commands.startFresh()
       app.commands.startFresh()
@@ -133,7 +133,7 @@ describe("workspace commands", () => {
       expect(second!.name).toBe(`${first!.name} (2)`)
       expect(app.ui.getSnapshot().location.route).toMatchObject({
         sessionId: second!.id,
-        panel: "sessions",
+        panel: "terminals",
       })
       // The phone drawer opens on the session just created.
       expect(app.shell()).toMatchObject({
@@ -141,6 +141,8 @@ describe("workspace commands", () => {
         sidebar: true,
         sidebarCollapsed: false,
       })
+      app.flush()
+      expect(app.effects).toContain("focus terminals create")
     })
   })
 
