@@ -66,17 +66,22 @@ const safeCuts = (text: string, from: number, to: number): number[] => {
 // unjoined (drawn as plain glyphs, as with ligatures off), or to the run's end where there is
 // none: a few plain cells beat a glyph the font would not draw there.
 const cut = (text: string, from: number, to: number, limit: number): [number, number][] => {
+  // No two cuts a part's width apart, so no part.
+  if (limit < 2 * cutMargin) return []
   const cuts = safeCuts(text, from, to)
   const parts: [number, number][] = []
   let start = from
+  // The first cut past the part's reach; `start` only grows, and so does it.
+  let next = 0
   while (to - start > limit) {
-    const within = cuts.findLast((at) => at >= start + cutMargin && at <= start + limit)
-    if (within !== undefined) {
+    while (next < cuts.length && cuts[next]! <= start + limit) next++
+    const within = cuts[next - 1]
+    if (within !== undefined && within >= start + cutMargin) {
       parts.push([start, within])
       start = within
       continue
     }
-    const beyond = cuts.find((at) => at > start + limit)
+    const beyond = cuts[next]
     if (beyond === undefined) return parts
     start = beyond
   }

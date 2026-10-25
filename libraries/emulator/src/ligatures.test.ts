@@ -90,13 +90,26 @@ describe("ligatureRuns", () => {
       }
     })
 
-    it("leaves the stretch to the next safe cut plain where none falls within the cap", () => {
-      // Two repeats with a join between that no cut may fall in: the first fills the cap alone.
-      const line = "=".repeat(20) + "|---|" + "=".repeat(40)
+    it("leaves the stretch to the next safe cut plain where none falls within the cap, then joins on", () => {
+      // A tangle no cut may fall in, then a repeat: the font joins it all as one run.
+      const tangle = "|---|---|---|---|---|---|"
+      const line = tangle + "=".repeat(60)
+      expect(ligatureRuns(line, Infinity)).toEqual([[0, line.length]])
       const runs = ligatureRuns(line, 20)
       expect(runs.every(([from, to]) => to - from <= 20)).toBe(true)
-      // Nothing crosses the tee's neighbourhood, whose glyphs a cut would change.
-      expect(runs.some(([from, to]) => from < 22 && to > 22)).toBe(false)
+      // The tangle and the first cells of the repeat, up to its first safe cut, stay plain...
+      expect(runs[0]![0]).toBe(tangle.length + cutMargin)
+      // ...and the repeat joins on from there to its end, in parts of at least the margin.
+      expect(runs.at(-1)![1]).toBe(line.length)
+      expect(runs.length).toBeGreaterThan(1)
+      runs.slice(0, -1).forEach(([, to], i) => expect(runs[i + 1]![0]).toBe(to))
+      // Nothing starts or crosses inside the tangle, whose glyphs a cut would change.
+      expect(runs.some(([from]) => from < tangle.length)).toBe(false)
+    })
+
+    it("joins nothing past the cap where the cap is narrower than two margins", () => {
+      expect(ligatureRuns("=".repeat(60), 2 * cutMargin - 1)).toEqual([])
+      expect(ligatureRuns("a => b " + "=".repeat(60), 2 * cutMargin - 1)).toEqual([[2, 4]])
     })
 
     it("takes a narrower cap where a cell has more device pixels, and none where too few fit", () => {

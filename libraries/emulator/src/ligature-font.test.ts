@@ -172,4 +172,11 @@ describe("the ligature table and the bundled font", () => {
       }
     expect(failures.slice(0, 5)).toEqual([])
   })
+
+  // Known limit: the table lists the glyphs a ligature joins, not the neighbour that stops one,
+  // so these draw an arrow on WebGL where the font draws plain. They fail until the table can
+  // say so; this records that they do.
+  it.fails.each(["<-1>", "[--->", "a <-1> b"])("draws %s as the font does", (line) => {
+    expect(check(line)).toBeUndefined()
+  })
 })
