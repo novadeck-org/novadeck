@@ -512,6 +512,28 @@ describe("narrow screens", () => {
     })
   })
 
+  context("when a toggle on the drawer's rail is moved with Alt and the arrows", () => {
+    it("keeps the focus on the toggle, not the drawer's close button", async () => {
+      await phone()
+      await openWorkspace()
+      await sidebarPanel("Terminals").click()
+      const drawer = page.getByRole("dialog", { name: "Terminal sessions" })
+      await expect.element(drawer).toBeVisible()
+      const toggles = drawer.getByRole("radio")
+      const place = () =>
+        toggles.elements().findIndex((toggle) => toggle.id === "mobile-terminals-toggle")
+      expect(place()).toBe(0)
+
+      toggles.first().element().focus()
+      await press("{Alt>}{ArrowDown}{/Alt}")
+
+      await expect.poll(place).toBe(1)
+      // The drawer's focus trap answers the button's move a moment later.
+      await new Promise((resolve) => setTimeout(resolve, 150))
+      expect(document.activeElement?.id).toBe("mobile-terminals-toggle")
+    })
+  })
+
   context("when opening a sidebar panel on a phone", () => {
     it("shows the panel as a drawer that closes once a terminal is chosen", async () => {
       await phone()

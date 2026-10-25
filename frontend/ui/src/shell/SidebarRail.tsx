@@ -164,11 +164,18 @@ const RailToggle = ({
 }): React.JSX.Element => {
   const { ref, isDragSource } = useSortable({ id: value, index, transition })
   const button = useRef<HTMLButtonElement | null>(null)
-  // A dragged toggle has settled once its drop has played out.
+  // A dragged toggle has settled once its drop has played out. A dialog's focus trap, as
+  // around a phone's drawer, sees the moved button leave and sends the focus to its first
+  // control just after, so the toggle takes it again a frame later.
   useLayoutEffect(() => {
-    if (focusRequest?.id !== value || isDragSource) return
-    button.current?.focus({ preventScroll: true })
-    onFocused()
+    if (focusRequest?.id !== value || isDragSource) return undefined
+    const take = (): void => button.current?.focus({ preventScroll: true })
+    take()
+    const frame = requestAnimationFrame(() => {
+      take()
+      onFocused()
+    })
+    return () => cancelAnimationFrame(frame)
   }, [focusRequest, value, isDragSource, onFocused])
   const { label, icon: Icon } = panels[value]
   return (
