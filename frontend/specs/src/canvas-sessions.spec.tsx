@@ -36,6 +36,7 @@ describe("Canvas across workspace sessions", () => {
       // No waiting for the gesture to end: Canvas saves the camera as it unmounts.
       await pressNewSession()
       await expect.element(emptyWorkspace()).toBeVisible()
+      await sidebarPanel("Sessions").click()
       await savedSession(original).click()
 
       await expectCurrentSession(original)

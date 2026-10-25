@@ -13,6 +13,9 @@ export const murmurSourceArgumentPrefix = "--novadeck-murmur-source="
 /** Given as `software` when the host saw no graphics hardware, so murmur can't run and voice input goes straight to its small model; absent otherwise. */
 export const graphicsArgumentPrefix = "--novadeck-graphics="
 
+/** Given to the page's preload: how many WebGL contexts Chromium allows the page, a whole number. */
+export const webglContextsArgumentPrefix = "--novadeck-webgl-contexts="
+
 /**
  * How the runner writes its log: a `LogSetup` as JSON (see ./logging.ts), naming the logs
  * folder, the launch and which start of the runner this is.
@@ -148,6 +151,12 @@ export const pagePictureChannel = "novadeck:page-picture"
  * which the host logs; see main/ui-errors.ts.
  */
 export const uiErrorChannel = "novadeck:ui-error"
+
+/**
+ * Renderer-to-main report of how the page's WebGL pool has fared, `RendererPoolReport`,
+ * which the host logs.
+ */
+export const rendererPoolChannel = "novadeck:renderer-pool"
 
 /**
  * Messages from the main process to the runner's utility process: a client's port,

@@ -559,7 +559,7 @@ describe("leaving Zen", () => {
       await openWorkspace()
       await pressNewSession()
       await expect.element(emptyWorkspace()).toBeVisible()
-      await sidebarPanel("Sessions").click()
+      await sidebarPanel("Terminals").click()
       await enterZen().click()
       await expectInZen()
 

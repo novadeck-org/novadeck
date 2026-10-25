@@ -1,12 +1,22 @@
-import { mkdtempSync, rmSync, writeFileSync } from "node:fs"
+import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs"
+import { createRequire } from "node:module"
 import { tmpdir } from "node:os"
-import { join } from "node:path"
+import { dirname, join } from "node:path"
 import { pathToFileURL } from "node:url"
 
 import { transform } from "esbuild"
 import { afterEach, describe, expect, it } from "vitest"
 
-import { storeSpansPatch, webglPatch } from "./patches.ts"
+import {
+  addonRegistry,
+  mustRunOnce,
+  lostCounter,
+  profileTextPatch,
+  raisedCapPatch,
+  softwareWebglPatch,
+  storeSpansPatch,
+  webglAtlasPatch,
+} from "./patches.ts"
 import { storeSpan } from "./trace.ts"
 
 // A store module shaped as core/store.ts is once step 1.3a has added its hook.
@@ -33,14 +43,14 @@ export const createStore = () => {
 
 const storeId = "/r/frontend/core/src/store.ts"
 
-describe("storeSpansPatch", () => {
-  let folder: string | undefined
-  afterEach(() => {
-    if (folder) rmSync(folder, { recursive: true, force: true })
-    folder = undefined
-    performance.clearMeasures(storeSpan)
-  })
+let folder: string | undefined
+afterEach(() => {
+  if (folder) rmSync(folder, { recursive: true, force: true })
+  folder = undefined
+  performance.clearMeasures(storeSpan)
+})
 
+describe("storeSpansPatch", () => {
   it("measures one span a task's run of the listeners, through the hook", async () => {
     const patched = storeSpansPatch.transform(store, storeId)
     expect(patched).not.toBeNull()
@@ -80,29 +90,156 @@ describe("storeSpansPatch", () => {
   })
 })
 
-describe("webglPatch", () => {
+describe("profileTextPatch", () => {
   const source = "/r/libraries/emulator/src/view.ts"
   const built = "/r/libraries/emulator/dist/view.js"
   const view =
     'import { Terminal } from "@xterm/xterm"\nconst a = 1\n  terminal.open(element)\nconst b = 2\n'
 
-  it("loads the addon where a view opens its terminal, moving no line", () => {
-    const patched = webglPatch.transform(view, source)!.code
+  it("leaves a text reader on the host where a view opens its terminal, moving no line", () => {
+    const patched = profileTextPatch.transform(view, source)!.code
     expect(patched.split("\n")).toHaveLength(view.split("\n").length)
-    expect(patched.split("\n")[0]).toMatch(/^import \{ WebglAddon \} from "@xterm\/addon-webgl"; /)
+    expect(patched.split("\n")[0]).toBe('import { Terminal } from "@xterm/xterm"')
     expect(patched.split("\n")[2]).toMatch(
-      /^ {2}terminal\.open\(element\); const webgl = new WebglAddon\(\);/,
+      /^ {2}terminal\.open\(element\); element\.profileText = \(\) => /,
     )
     expect(patched.split("\n")[3]).toBe("const b = 2")
+    // It adds no renderer: whichever draws the screen, the pool's, is the product's.
+    expect(patched).not.toContain("WebglAddon")
   })
 
   it("patches the built view too, whose open ends in a semicolon", () => {
-    const patched = webglPatch.transform(view.replace("(element)", "(element);"), built)!.code
-    expect(patched.split("\n")[2]).toMatch(/^ {2}terminal\.open\(element\); const webgl = /)
+    const patched = profileTextPatch.transform(view.replace("(element)", "(element);"), built)!.code
+    expect(patched.split("\n")[2]).toMatch(/^ {2}terminal\.open\(element\); element\.profileText/)
   })
 
   it("fails where the view no longer opens a terminal once, and leaves other files", () => {
-    expect(() => webglPatch.transform("const a = 1\n", source)).toThrow(/WebGL patch/)
-    expect(webglPatch.transform(view, "/r/frontend/ui/src/App.tsx")).toBeNull()
+    expect(() => profileTextPatch.transform("const a = 1\n", source)).toThrow(/profileText patch/)
+    expect(profileTextPatch.transform(view, "/r/frontend/ui/src/App.tsx")).toBeNull()
+  })
+})
+
+describe("webglAtlasPatch", () => {
+  const id =
+    "/r/node_modules/.pnpm/@xterm+addon-webgl@0.19.0/node_modules/@xterm/addon-webgl/lib/addon-webgl.mjs"
+  const bundle =
+    "var xr=class{activate(t){this.on=1}dispose(){this.on=0}get onContextLoss(){return (f)=>{this.listener=f}}};export{xr as WebglAddon};\n// the end\n"
+
+  it("registers the addons that activate, and forgets those disposed, on one line of the bundle", async () => {
+    const patched = webglAtlasPatch.transform(bundle, id)!.code
+    expect(patched.split("\n")).toHaveLength(bundle.split("\n").length)
+    folder = mkdtempSync(join(tmpdir(), "profile-patches-"))
+    const file = join(folder, "addon.mjs")
+    writeFileSync(file, patched)
+    const { WebglAddon } = (await import(pathToFileURL(file).href)) as {
+      WebglAddon: new () => {
+        activate: (terminal: unknown) => void
+        dispose: () => void
+        listener: () => void
+      }
+    }
+    const live = (globalThis as unknown as Record<string, Set<unknown>>)[addonRegistry]!
+    const one = new WebglAddon()
+    expect(live.size).toBe(0)
+    one.activate({})
+    expect(live.has(one)).toBe(true)
+    one.listener()
+    expect((globalThis as unknown as Record<string, number>)[lostCounter]).toBe(1)
+    one.dispose()
+    expect(live.size).toBe(0)
+  })
+
+  it("fails on a bundle that exports the addon otherwise, and leaves other files", () => {
+    expect(() => webglAtlasPatch.transform("export{a as Other};", id)).toThrow(/exports WebglAddon/)
+    expect(webglAtlasPatch.transform(bundle, "/r/frontend/ui/src/App.tsx")).toBeNull()
+  })
+})
+
+describe("raisedCapPatch", () => {
+  const id = "/r/frontend/terminal-views/src/renderers.ts"
+  const source =
+    'import { webglRenderers } from "@novadeck/emulator/browser"\nlet page\nexport const pageRenderers = () =>\n  (page ??= webglRenderers({\n    ligatures: () => false,\n  }))\n'
+
+  it("gives the page's pool the cap two under the contexts, moving no line", () => {
+    const patched = raisedCapPatch(40).transform(source, id)!.code
+    expect(patched.split("\n")).toHaveLength(source.split("\n").length)
+    expect(patched).toContain("(page ??= webglRenderers({ cap: 38,\n")
+  })
+
+  it("fails where the pool isn't made once by webglRenderers({, and leaves other files", () => {
+    expect(() => raisedCapPatch(40).transform("export const a = 1\n", id)).toThrow(/webglRenderers/)
+    expect(() => raisedCapPatch(40).transform(`${source}x = webglRenderers({\n`, id)).toThrow(
+      /webglRenderers/,
+    )
+    expect(raisedCapPatch(40).transform(source, "/r/frontend/ui/src/App.tsx")).toBeNull()
+  })
+})
+
+describe("softwareWebglPatch", () => {
+  const id = "/r/libraries/emulator/src/renderer.ts"
+
+  it("lets the pool's probe pass, in the source and in the build", () => {
+    const source = "export const probeWebgl = (): boolean => {\n  return false\n}\n"
+    expect(softwareWebglPatch.transform(source, id)!.code.split("\n")[0]).toBe(
+      "export const probeWebgl = (): boolean => { return true;",
+    )
+    const built = "export const probeWebgl = () => {\n  return false\n};\n"
+    expect(
+      softwareWebglPatch.transform(built, "/r/libraries/emulator/dist/renderer.js")!.code,
+    ).toContain("probeWebgl = () => { return true;")
+  })
+
+  it("fails on a probe of another shape, and leaves other files", () => {
+    expect(() => softwareWebglPatch.transform("export const a = 1\n", id)).toThrow(/probeWebgl/)
+    expect(softwareWebglPatch.transform("", "/r/frontend/ui/src/App.tsx")).toBeNull()
+  })
+})
+
+describe("the patches on the real sources", () => {
+  // So drift in a file a patch targets fails here, not as a flag that silently does nothing.
+  const root = join(import.meta.dirname, "..", "..", "..")
+  // Vite hands plugins ids with forward slashes, on Windows too.
+  const idOf = (path: string) => join(root, path).replaceAll("\\", "/")
+  const read = (path: string) => readFileSync(join(root, path), "utf8")
+  const addon = join(
+    dirname(
+      createRequire(join(root, "libraries/emulator/package.json")).resolve("@xterm/addon-webgl"),
+    ),
+    "addon-webgl.mjs",
+  )
+
+  it("patches the view, the pool's probe, the pool's creation and the addon, each once", () => {
+    const view = "libraries/emulator/src/view.ts"
+    expect(profileTextPatch.transform(read(view), idOf(view))).not.toBeNull()
+    const renderer = "libraries/emulator/src/renderer.ts"
+    expect(softwareWebglPatch.transform(read(renderer), idOf(renderer))).not.toBeNull()
+    const views = "frontend/terminal-views/src/renderers.ts"
+    expect(raisedCapPatch(40).transform(read(views), idOf(views))).not.toBeNull()
+    expect(
+      webglAtlasPatch.transform(readFileSync(addon, "utf8"), addon.replaceAll("\\", "/")),
+    ).not.toBeNull()
+  })
+
+  it("patches the built view and probe too, where the library is built", () => {
+    const built = (
+      [
+        ["libraries/emulator/dist/view.js", profileTextPatch],
+        ["libraries/emulator/dist/renderer.js", softwareWebglPatch],
+      ] as const
+    ).filter(([file]) => existsSync(idOf(file)))
+    const results = built.map(([file, patch]) => patch.transform(read(file), idOf(file)))
+    expect(results.every((each) => each !== null)).toBe(true)
+  })
+
+  it("fails a build whose patch ran on no file, or two", () => {
+    const run = mustRunOnce(profileTextPatch)
+    expect(() => run.buildEnd()).toThrow(/patched 0 files/)
+    expect(() => run.buildEnd(new Error("other"))).not.toThrow()
+    const view = "/r/libraries/emulator/src/view.ts"
+    const source = "  terminal.open(element)\n"
+    run.transform(source, view)
+    expect(() => run.buildEnd()).not.toThrow()
+    run.transform(source, view)
+    expect(() => run.buildEnd()).toThrow(/patched 2 files/)
   })
 })

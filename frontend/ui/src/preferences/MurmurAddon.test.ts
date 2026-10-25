@@ -274,6 +274,22 @@ describe("murmur's card before an install", () => {
     expect(container.textContent).not.toMatch(/GPU/)
     unmount()
   })
+
+  it("shows the switch off and disabled though murmur is wanted, as only the install turns it on", () => {
+    const { container, unmount } = render(
+      createElement(MurmurAddon, {
+        murmur: {
+          state: { ...unchecked, installed: false, wanted: true, failure: null },
+          actions: actions(),
+        },
+      }),
+    )
+    const toggle = container.querySelector<HTMLButtonElement>("[role=switch]")
+    expect(toggle?.getAttribute("aria-checked")).toBe("false")
+    expect(toggle?.disabled).toBe(true)
+    expect(container.textContent).toContain("Turns on when you install it.")
+    unmount()
+  })
 })
 
 describe("murmur's card when a verdict stands beside files", () => {

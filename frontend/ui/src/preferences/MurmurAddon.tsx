@@ -163,12 +163,19 @@ export const MurmurAddon = ({
   if (!installed)
     return (
       <div className={settingsCardClasses}>
-        {/* Wanted until turned off: an install turns it on. */}
-        <AddonRow scope="murmur" id="enabled" label="Enabled">
+        {/* Off until it is on the computer: an install turns it on. */}
+        <AddonRow
+          scope="murmur"
+          id="enabled"
+          label="Enabled"
+          description="Turns on when you install it."
+        >
           <Switch
-            checked={state.wanted}
-            onChange={(enabled) => actions.set({ enabled })}
+            checked={false}
+            onChange={() => {}}
+            disabled
             labelledBy="murmur-enabled"
+            describedBy="murmur-enabled-description"
           />
         </AddonRow>
         <div className={addonRowClasses}>

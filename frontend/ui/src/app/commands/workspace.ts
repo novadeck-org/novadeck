@@ -268,9 +268,11 @@ export const createWorkspaceCommands = (ctx: CommandContext): WorkspaceCommands 
         next.name = `${name} (${suffix++})`
       set("freshSession", next.id)
       set("sidebarCollapsed", false)
+      // The new session's own terminal tabs, where its first terminal is made.
       navigateWorkspace([{ type: "session/add", projectId: project.id, session: next }], {
-        panel: "sessions",
+        panel: "terminals",
       })
+      effects.afterFrame(effects.focusTerminalsCreate)
     },
     switchProject,
     openFolder: async () => {

@@ -102,6 +102,7 @@ export const openCommands = ({
     focusSidebarToggleStranded: (panel) => effects.push(`focus ${panel} toggle`),
     focusZenCreate: () => effects.push("focus zen create"),
     focusZenEnter: () => effects.push("focus zen enter"),
+    focusTerminalsCreate: () => effects.push("focus terminals create"),
     focusWorkspaceViewport: () => effects.push("focus viewport"),
     focusTerminalTab: (id) => effects.push(`focus tab ${id}`),
     focusTerminalInput: (id) => (effects.push(`focus input ${id}`), true),

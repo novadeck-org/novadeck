@@ -1203,15 +1203,9 @@ describe("dictation", () => {
       await press("{Enter}")
 
       await expect.element(offer()).not.toBeInTheDocument()
-      await pressShortcut("preferences")
-      await preferencesDialog().getByRole("tab", { name: "Addons" }).click()
-      await expect
-        .element(
-          preferencesDialog()
-            .getByRole("region", { name: "Voice input" })
-            .getByRole("switch", { name: "Enabled" }),
-        )
-        .toHaveAttribute("aria-checked", "false")
+      // Turned down: the shortcut is no longer voice input's, so it offers nothing.
+      await press(`${dictateKeys}${releaseKeys}`)
+      await expectStaysAbsent(offer())
     })
 
     it("turns on when the shortcut is pressed again on a layout where M is elsewhere", async () => {
@@ -1354,27 +1348,35 @@ describe("dictation", () => {
         .toBeVisible()
     })
 
-    it("brings the microphone and the shortcut back when turned on in Addons", async () => {
+    it("brings the microphone and the shortcut back when installed from Addons", async () => {
       await openWithoutVoice("/?demo=agents&voice=uninstalled")
       await terminalTab("Checkout implementation").click()
-      const mic = terminal("Checkout implementation").getByRole("button", {
+      const offered = terminal("Checkout implementation").getByRole("button", {
         name: labelled("Set up voice input for ", "Checkout implementation"),
       })
-      await mic.click()
+      await offered.click()
       await offer().getByRole("button", { name: "No thanks" }).click()
-      await expect.element(mic).not.toBeInTheDocument()
+      await expect.element(offered).not.toBeInTheDocument()
 
+      // Off until it is installed: the install is what turns it on again.
       await pressShortcut("preferences")
       await preferencesDialog().getByRole("tab", { name: "Addons" }).click()
-      const enabled = preferencesDialog()
-        .getByRole("region", { name: "Voice input" })
-        .getByRole("switch", { name: "Enabled" })
+      const card = preferencesDialog().getByRole("region", { name: "Voice input" })
+      const enabled = card.getByRole("switch", { name: "Enabled" })
       await expect.element(enabled).toHaveAttribute("aria-checked", "false")
-      await enabled.click()
-      await expect.element(enabled).toHaveAttribute("aria-checked", "true")
+      await expect.element(enabled).toBeDisabled()
+      await card.getByRole("button", { name: "Install" }).click()
+      // The demo's install takes a few seconds, its three steps together.
+      await expect.element(enabled, { timeout: 10_000 }).toHaveAttribute("aria-checked", "true")
       await press("{Escape}")
 
-      await expect.element(mic).toBeVisible()
+      await expect
+        .element(
+          terminal("Checkout implementation").getByRole("button", {
+            name: labelled("Dictate into ", "Checkout implementation"),
+          }),
+        )
+        .toBeVisible()
     })
   })
 

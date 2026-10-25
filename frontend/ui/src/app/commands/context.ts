@@ -29,6 +29,7 @@ export type CommandEffects = {
   readonly focusSidebarToggleStranded: (panel: SidebarPanel) => void
   readonly focusZenCreate: () => void
   readonly focusZenEnter: () => void
+  readonly focusTerminalsCreate: () => void
   readonly focusWorkspaceViewport: () => void
   readonly focusTerminalTab: (id: string) => void
   // Focuses the terminal's input now; false when it has none that can take focus.

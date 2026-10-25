@@ -2,5 +2,5 @@
 export { createView } from "./view.js"
 export type { View, ViewLinks, ViewOptions, ViewRenderer } from "./view.js"
 export { createRenderers, loadWebgl, webglRenderers } from "./renderer.js"
-export type { Drawing, RendererDeps, Renderers, ScreenRenderer } from "./renderer.js"
+export type { Drawing, PoolStats, RendererDeps, Renderers, ScreenRenderer } from "./renderer.js"
 export type { IDisposable, ITheme, Terminal } from "@xterm/xterm"

@@ -80,6 +80,7 @@ describe("Canvas returned to with its camera as it was left", () => {
     const original = await currentSessionName()
     await pressNewSession()
     await expect.element(emptyWorkspace()).toBeVisible()
+    await sidebarPanel("Sessions").click()
     await savedSession(original).click()
     await expectCurrentSession(original)
     await expect.element(terminal("Build Studio")).toBeVisible()

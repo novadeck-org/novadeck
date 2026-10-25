@@ -166,12 +166,43 @@ export type DesktopBridge = {
    */
   reportError?(error: PageError): void
   /**
+   * Tells the host how the page's pool of WebGL contexts has fared, for its log: counts
+   * only, each a whole number; the host drops a report that is anything else. All but
+   * `onDom` are running totals since the page opened; `onDom` is the number of screens on the
+   * DOM renderer for lack of a context at the moment of the report. Absent from hosts that came before it.
+   */
+  reportRendererPool?(stats: RendererPoolReport): void
+  /**
    * A picture of what a live page shows now, as a JPEG `data:` address, for the page's
    * viewer to show in its place while it rests: the page by its view's `getWebContentsId()`.
    * Undefined for anything but a page view of the asking page, and for one that draws
    * nothing yet. Absent from hosts that came before it.
    */
   pagePicture?(page: number): Promise<string | undefined>
+}
+
+/** The counts of the page's WebGL pool; see `DesktopBridge.reportRendererPool`. */
+export const rendererPoolFields = [
+  "waits",
+  "steals",
+  "swaps",
+  "lost",
+  "failed",
+  "resizes",
+  "onDom",
+] as const
+export type RendererPoolReport = { readonly [Field in (typeof rendererPoolFields)[number]]: number }
+
+/** A pool report when it is one, its counts whole numbers; anything else is undefined. */
+export const rendererPoolOf = (value: unknown): RendererPoolReport | undefined => {
+  if (typeof value !== "object" || value === null) return undefined
+  const found: Record<string, number> = {}
+  for (const field of rendererPoolFields) {
+    const count = (value as Record<string, unknown>)[field]
+    if (typeof count !== "number" || !Number.isSafeInteger(count) || count < 0) return undefined
+    found[field] = count
+  }
+  return found as RendererPoolReport
 }
 
 /**
@@ -496,4 +527,22 @@ export type DesktopHost = DesktopBridge & {
   readonly apiUrl: string
   /** Whether the page can show web pages live, in a locked-down `<webview>`. */
   readonly livePages?: true
+  /**
+   * How many live WebGL contexts the host's Chromium allows this page, when the host raised
+   * the limit from the browser's 16; see `webglContextsOf`. Absent in a browser and from
+   * hosts that came before it.
+   */
+  readonly webglContexts?: number
 }
+
+/** The fewest and most WebGL contexts a host may say its page is allowed. */
+export const webglContextsRange = { min: 3, max: 1024 } as const
+
+/** A WebGL context limit when it is a whole number in `webglContextsRange`; otherwise undefined. */
+export const webglContextsOf = (value: unknown): number | undefined =>
+  typeof value === "number" &&
+  Number.isSafeInteger(value) &&
+  value >= webglContextsRange.min &&
+  value <= webglContextsRange.max
+    ? value
+    : undefined

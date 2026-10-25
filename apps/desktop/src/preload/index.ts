@@ -3,6 +3,8 @@ import {
   parsePortableState,
   parseUpdateOffer,
   parseWhatsNew,
+  rendererPoolOf,
+  webglContextsOf,
   runnerPortMessage,
   updateChannels,
   updateVersionPattern,
@@ -29,6 +31,7 @@ import { contextBridge, ipcRenderer, webUtils } from "electron"
 import {
   allowUpdatesChannel,
   apiUrlArgumentPrefix,
+  webglContextsArgumentPrefix,
   appearanceChannel,
   badgeChannel,
   directoryPickerChannel,
@@ -42,6 +45,7 @@ import {
   openUpdatePageChannel,
   pagePictureChannel,
   portableChannel,
+  rendererPoolChannel,
   quitAppChannel,
   runnerPortChannel,
   sandboxChannel,
@@ -64,6 +68,16 @@ const argument = process.argv.find((value) => value.startsWith(apiUrlArgumentPre
 if (!argument) throw new Error("Novadeck API URL was not provided by the desktop host")
 
 const apiUrl = new URL(argument.slice(apiUrlArgumentPrefix.length))
+
+// What the host raised Chromium's WebGL context limit to, when it says so in a form the
+// contract allows; the page keeps its browser default otherwise.
+const webglContexts = webglContextsOf(
+  Number(
+    process.argv
+      .find((value) => value.startsWith(webglContextsArgumentPrefix))
+      ?.slice(webglContextsArgumentPrefix.length),
+  ),
+)
 
 if (apiUrl.protocol !== "http:" || apiUrl.hostname !== "127.0.0.1" || !apiUrl.port) {
   throw new Error("Novadeck API URL must be an HTTP loopback URL with an explicit port")
@@ -308,6 +322,11 @@ const bridge = {
       stack: text(error?.stack, 8_000),
     })
   },
+  // Only the counts cross; the main process checks them again.
+  reportRendererPool: (stats) => {
+    const report = rendererPoolOf(stats)
+    if (report) ipcRenderer.send(rendererPoolChannel, report)
+  },
   // Only a JPEG picture comes back; the main process checks the page is one of this page's.
   pagePicture: async (page) => {
     const picture: unknown = await ipcRenderer.invoke(pagePictureChannel, page)
@@ -327,5 +346,6 @@ const bridge = {
 contextBridge.exposeInMainWorld("novadeck", {
   apiUrl: apiUrl.href,
   livePages: true,
+  ...(webglContexts === undefined ? {} : { webglContexts }),
   ...bridge,
 } satisfies DesktopHost)

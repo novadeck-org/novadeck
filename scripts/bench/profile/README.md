@@ -7,38 +7,39 @@ recorded on a named machine in performance.md, and the numbers the plan's trigge
 
 ```sh
 pnpm bench:profile [--machine <name>] [--runs <n>] [--scenario timing|heavy]… \
-  [--variant production|profiling|webgl]… [--output <folder>] \
+  [--variant production|profiling]… [--terminals <n>] [--window <width>x<height>] \
+  [--contexts <n>] [--software-webgl] [--output <folder>] \
   [--switch <chromium switch>]… [--note <text>]
 ```
 
 It packages the app unpacked (`pnpm --filter @novadeck/desktop package`), then:
 
-1. builds the UI again with hidden source maps (`build.ts`) and checks that every script it built
-   is byte for byte the packaged one, which the maps then describe; should any differ, scripting
-   isn't split and `problems` says so;
-2. builds each other variant's UI (`build.ts`) and puts it in a copy of the package: React DOM's
-   profiling build in place of its production one (`profiling`), or every screen drawing with
-   xterm's WebGL renderer (`webgl`), a patch to the emulator library's view made in that build only
-   (`patches.ts`); a run on it fails should a screen not load the renderer or lose its WebGL
-   context; the copies are removed at the end;
+1. builds the UI again without the bench's patches and checks that every script it built is
+   byte for byte the packaged one, which says the builds below are made of the package's
+   source; should any differ, `problems` says so;
+2. builds each variant's UI (`build.ts`) with the bench-only patches (`patches.ts`, below)
+   and puts it in a copy of the package: the production build (`production`), or the same
+   with React DOM's profiling build in place of its production one (`profiling`), the
+   maps of the very build that runs describing it; the copies are removed at the end;
 3. for each run, the scenarios and builds taking turns, makes a sandbox as the timing run does
    (`../timing/sandbox.ts`): a throwaway home with Novadeck's plugin on in
    `.claude/settings.json`, and a PATH whose only `claude` is the fake agent; it refuses to start
    if any other folder on that PATH holds `claude`, `codex` or `agy`;
 4. launches the build in it through Playwright's Electron driver, its window's content 1440×900,
    shown and in front;
-5. plays the scenario (`drive.ts`): 13 terminals, Grid then Focus on agent 1, a steady window in
-   each (5 s warm-up, 15 s traced), then 2 passes of 15 switches in Focus, traced as one phase.
-   The timing scenario has the first 5 terminals running the fake agent, busy, and the rest
-   idle shells; the heavy one has all 13 busy;
+5. plays the scenario (`drive.ts`): `--terminals` terminals (13 by default), Grid then Focus on
+   agent 1, a steady window in each (5 s warm-up, 15 s traced), then 2 passes of the
+   switches (up to 15 a pass) in Focus, traced as one phase, and the memory sampled at the
+   start and after each phase (see "Memory"). The timing scenario has the first 5 terminals
+   running the fake agent, busy, and the rest idle shells; the heavy one has them all busy;
 6. closes the app, reaps whatever still runs in the sandbox, checks the developer's home with
    the tripwire, removes the sandbox, and reads the run's traces.
 
 `--machine` names the machine in the output, this computer's host name by default, and the output
 folder is `.cache/bench/profile/<machine>` unless `--output` says otherwise, so a second machine's
 profile sits beside the first's. `--runs` is 3 by default and every variant runs by default; a run
-takes about 2 minutes and a half, so the default, 3 runs of 2 scenarios on 3 builds, takes about
-45 minutes. `--switch` passes Chromium a switch, as `--switch=--foo`; `--note` is kept in the
+takes about 3 minutes, so the default, 3 runs of 2 scenarios on 2 builds, takes about
+35 minutes. `--switch` passes Chromium a switch, as `--switch=--foo`; `--note` is kept in the
 output, to say where it ran. It exits 1 should any run fail or the sandbox leak, having written
 what it got; on SIGINT, SIGTERM or SIGHUP the app running closes and what the runs got is written,
 and a second signal ends it at once. A signal while the app is still launching meets
@@ -75,14 +76,91 @@ dark partway through a phase isn't caught, so the run is best left alone with bl
 
 ```sh
 xvfb-run -a -s "-screen 0 1920x1080x24" pnpm bench:profile --machine xvfb --runs 1 \
-  --switch=--use-angle=swiftshader --switch=--enable-unsafe-swiftshader \
+  --software-webgl --switch=--use-angle=swiftshader --switch=--enable-unsafe-swiftshader \
   --switch=--ignore-gpu-blocklist --note "xvfb smoke"
 ```
 
 checks the plumbing without touching the real display. **Its numbers are a smoke test, not the
-baseline**: Xvfb has no GPU, so Chromium draws in software, and the switches give the WebGL
-renderer SwiftShader's software WebGL to draw with. profile.md says so in bold whenever the
+baseline**: Xvfb has no GPU, so Chromium draws in software, the switches give the WebGL
+renderer SwiftShader's software WebGL to draw with, and `--software-webgl` makes the page's
+pool take it (the pool refuses software WebGL, which draws slower than the DOM renderer, so
+without the flag no screen would hold a context). profile.md says so in bold whenever the
 trace or Electron shows software rendering.
+
+## Terminals, window and the context cap
+
+- `--terminals <n>` opens n terminals in each scenario (13 by default, at least 2): the timing
+  scenario runs its first 5 on the fake agent, the heavy one all of them. The switches phase
+  presses the same terminals whatever n is (those of the 13 the session has), so its times
+  compare across counts. **Memory is reported against the terminals mounted** (screens in the
+  page, `.xterm`; Grid mounts every one, Focus the few it keeps) and **time against the
+  terminals in view** (a screen at least half inside the window); both are rows of the tables.
+- `--window <width>x<height>` sets the window's content (1440×900 by default). **To have 20
+  tiles in view the window is made bigger, not the tiles smaller.** The Grid puts two tiles
+  across at any width above a phone's (a tile is half the Grid's width, `gridPresetWidth`)
+  and a row of them takes 432 px (a tile is 400 px high, `gridTileHeight`, with its gaps)
+  under 161 px of header, so n tiles in view need about 161 + 432 × n/2 px of height: 1440×900
+  has 4 in view, 2560×2400 has 10 or 12, and 20 take about 4500 px, which only a virtual
+  display has (`xvfb-run -s "-screen 0 1600x4600x24"` and `--window 1600x4500`); a real
+  display's window is clamped to it. Tiles can't go small enough to help (the smallest is 240
+  px high). On a real display, `--switch=--force-device-scale-factor=0.5` doubles the CSS pixels
+  the window holds, but draws the terminals' text at half its size, which changes what the
+  atlas holds: do not compare it with a run without. The "Terminals in view" row says what a run
+  got.
+- `--contexts <n>` raises the cap: it passes Electron `--max-active-webgl-contexts=n` and
+  builds the page with a bench-only patch (`raisedCapPatch`, on
+  `frontend/terminal-views/src/renderers.ts`) that makes the page's pool take n - 2 contexts,
+  as its default of 14 is 16 less two. The run **fails** should a screen hold a lost context,
+  or an addon be told one is lost, in any sample or phase: so a run with 20 or 40 terminals
+  and `--contexts 40` that finishes shows no context was lost past 16. Without the flag the
+  app raises the limit to 64 itself (the pool takes 62), and the page learns a limit given
+  by the flag the same way, so the patch only restates it. A page of the browser build keeps
+  14, and its screens past that draw with the DOM renderer.
+
+## The bench-only patches
+
+`patches.ts` holds what the profile adds to its builds, as Vite plugins in `build.ts`; none is
+the product's, and each fails the build should the source it patches change shape. The
+production build the profile runs is the package's UI built again with them (the build checks
+first that the package is that source), and they keep every line where it was, for the maps:
+
+- `profileTextPatch`: every screen's host gets `profileText`, which reads the rows its terminal
+  shows from the buffer, as a WebGL screen has no text in the page and the timing driver reads
+  `profileText` before `textContent`; every variant has it, as the pool puts any screen on WebGL;
+- `webglAtlasPatch`: registers the live WebGL addons (`globalThis.__profileWebgl`) and counts
+  the contexts they were told were lost, on the addon's bundle, so `gpu.ts` can read each one's
+  texture atlas through the addon's private fields;
+- `raisedCapPatch` (`--contexts`), above;
+- `softwareWebglPatch` (`--software-webgl`), above;
+- `storeSpansPatch`, in the profiling build, below.
+
+## Memory
+
+Memory is sampled outside the timed phases, as its dumps would load the main thread: at the start
+(`boot`, no terminal), and after Grid, Focus and the switches. A sample (`memory.ts`) is:
+
+- a three-second Chromium trace of the `disabled-by-default-memory-infra` category alone, with a
+  detailed dump every 500 ms; the last complete one is read, for every process: its totals
+  (`private_footprint_bytes`) and its allocator dumps two levels deep (`gpu/shared_images`,
+  `skia/gpu_resources`, and in the renderer `webgl`, `cc/tile_memory`, `v8`...);
+- Electron's `app.getAppMetrics()`: the working set, and the private bytes, which it gives on
+  Windows only;
+- on Linux, each process's `smaps_rollup` (private clean plus dirty), which gives the GPU
+  process's private memory where Electron doesn't. (The page's `process.getProcessMemoryInfo()`
+  isn't used: the renderer's sandbox doesn't expose it to the page, and the dump has the
+  renderer's private footprint everywhere);
+- the page's screens and atlases (`gpu.ts`): how many screens are mounted and in view, how many
+  hold a WebGL context (a canvas under `.xterm-screen` with a `webgl2` context), how many of
+  those are lost, and for each texture atlas its pages and their sizes and how many contexts
+  hold it. Each context uploads its own copy of every page, so the pages times the contexts is
+  what the atlases cost in textures (4 bytes a pixel, mipmaps apart).
+
+profile.md's memory section tables each scenario and build, a row a number and a column a
+point, with the median and the range across runs, and lists every dump node two levels deep that
+reaches 1 MB in the GPU process or 5 MB in the renderer, by path: which of them carry the
+textures depends on the GPU and the driver, so the report shows them all rather than naming
+one. profile.json has every sample whole, under each run's `memory`, and each phase's page
+screens under its `gl`.
 
 ## The output
 
@@ -91,12 +169,13 @@ In the output folder:
 - `profile.md`: the machine (CPU, GPU, display, window), the triggers a scenario, React's
   profiling build's overhead, then a table a scenario and build, a row a number and a column a
   phase, each cell the median and the range (min–max) across the runs, phases of runs that
-  failed part way included, and the throttled phases left out, listed;
+  failed part way included, and the throttled phases left out, listed; then the memory section;
 - `profile.json`: the same with every run's values, each phase's full breakdown, the switches and
   the agents' phases, the machine as Electron (`getGPUInfo("complete")`, `getGPUFeatureStatus()`,
   the displays, read at the end of the first run that can, as right after a launch the GPU process
   may not have come up) and the trace (Chromium's own CPU, GPU and OS) record it, the scenarios, the
-  trace's categories, the comparisons, the throttled phases, and `problems`;
+  trace's categories, the comparisons, the throttled phases, the options (terminals, window,
+  contexts), every run's memory samples, and `problems`;
 - `traces/<scenario>-<variant>-<run>-<phase>.json.gz`: each phase's trace, of every process the
   app runs, which Chrome DevTools' Performance panel and ui.perfetto.dev open;
 - `maps/<variant>/`: each build of the UI the source maps came from.
@@ -184,11 +263,11 @@ time.
   on its pool workers (each worker's time summed, so they may pass 100%), and the GPU process's viz
   compositor and main threads, each by its busy time.
 - **Switch p50 and p90**, in the switches phase, are timed as the timing run times them: from the
-  press to the first frame painted with the target's screen in the page, laid out. On the WebGL
-  build, whose screens draw their text on a canvas, a screen's text is read from its buffer
-  (`profileText`, `patches.ts`), so a kept screen counts as soon as it is laid out and painted;
-  as that read is the probe's, each frame, the WebGL build's switch times carry a cost the
-  production build's don't, and the two are best not compared.
+  press to the first frame painted with the target's screen in the page, laid out. A WebGL
+  screen draws its text on a canvas, so its text is read from its terminal's buffer
+  (`profileText`, `patches.ts`, in every build), and a kept screen counts as soon as it is laid
+  out and painted; that read is the probe's, each frame, and costs something of its own on every
+  switch.
 
 ## The triggers
 
@@ -201,9 +280,8 @@ alone):
   production build's work-loop attribution, React's own frames bottom up (its own cost without
   the components), and React's tracks, from the profiling build's runs; and the store listener
   spans, once step 1.3a has landed;
-- **transport**, of busy, for T7 (over 5%);
-- **Grid's busy share** with the DOM renderer and with WebGL, and how much less, relatively,
-  WebGL takes of the window and of each frame, for E4 (a cut of 20% or more in the heavy
-  scenario). A main thread busy 95% or more on either build is marked saturated: its cut of the
-  window reads low, as what WebGL saves goes into more frames, and the cut a frame is the one
-  to read.
+- **transport**, of busy, for T7 (over 5%).
+
+Grid's busy share with the DOM renderer against WebGL, which E4 read from a `webgl` variant, is
+gone with that variant: it loaded a second WebGL addon over the production pool's (#223), and
+the production build draws with the pool's now.
