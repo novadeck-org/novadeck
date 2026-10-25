@@ -29,7 +29,8 @@
   "scripts": {
     "build": "tsc -p tsconfig.build.json",
     "test": "vitest run",
-    "typecheck": "tsc --noEmit -p tsconfig.json"
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "ligature-table": "node src/ligature-table.generate.ts && pnpm -w exec oxfmt libraries/emulator/src/ligature-table.ts"
   },
   "dependencies": {
     "@xterm/addon-fit": "0.11.0",
@@ -41,7 +42,9 @@
     "@xterm/xterm": "6.0.0"
   },
   "devDependencies": {
+    "@fontsource-variable/jetbrains-mono": "^5.3.0",
     "@types/node": "^26.6.5",
+    "font-ligatures": "1.4.1",
     "jsdom": "^30.1.3",
     "typescript": "^7.0.2",
     "vitest": "^5.0.5"

@@ -32,8 +32,6 @@ const noWebgl = createRenderers<Terminal>({
   },
   supported: () => false,
   cap: 0,
-  ligatures: () => false,
-  watchLigatures: () => () => {},
 })
 
 const open = (screenReader: boolean) => {

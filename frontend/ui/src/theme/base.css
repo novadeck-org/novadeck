@@ -75,6 +75,15 @@
   ) {
   font-variant-ligatures: none;
 }
+/* With ligatures on, the DOM renderer (the Canvas view, and machines without a GPU) draws them
+   only if the feature is named: xterm fits each span to its cell with letter-spacing, and
+   Chromium drops the ligature features it turns on by itself whenever letter-spacing is not
+   zero. Named in font-feature-settings, calt holds at any spacing and the glyphs keep their
+   advances, so the grid is as it was. This replaces body's list for the terminal, so it repeats it.
+   WebGL draws them from the emulator's joiner instead. */
+:root[data-ligatures="on"] .xterm {
+  font-feature-settings: "cv05", "cv08", "zero", "calt";
+}
 /* Inter's l takes a tail, its I serifs and its 0 a slash, so names, paths and branches
    read unambiguously; and its digits are all one width, so counts, timers and badges
    hold still as they change. The mono has none of these variants and fixed digits

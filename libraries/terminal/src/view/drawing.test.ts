@@ -100,7 +100,6 @@ describe("a screen's renderer", () => {
   const wired = () => {
     const loaded: Terminal[] = []
     const drawings: { disposed: boolean }[] = []
-    const watching = { count: 0 }
     const renderers = createRenderers<Terminal>({
       load: (xterm) => {
         loaded.push(xterm)
@@ -115,11 +114,6 @@ describe("a screen's renderer", () => {
       },
       supported: () => true,
       cap: 12,
-      ligatures: () => false,
-      watchLigatures: () => {
-        watching.count += 1
-        return () => void (watching.count -= 1)
-      },
     })
     // The screens' hosts have a size, as laid out; nothing else in the page does.
     for (const [name, value] of [
@@ -174,7 +168,7 @@ describe("a screen's renderer", () => {
         unmount: () => holds.forEach((hold) => hold.release({ unmount: true })),
       }
     }
-    return { loaded, drawings, watching, resized, closed, mount, page, renderers, fit, stream }
+    return { loaded, drawings, resized, closed, mount, page, renderers, fit, stream }
   }
 
   it("loads WebGL for a screen that asks for it and nothing for one that doesn't", () => {
@@ -254,24 +248,6 @@ describe("a screen's renderer", () => {
       expect(drawings[0]!.disposed).toBe(false)
       vi.advanceTimersByTime(1)
       expect(drawings[0]!.disposed).toBe(true)
-    } finally {
-      vi.useRealTimers()
-    }
-  })
-
-  it("watches the ligatures setting until the last screen goes", () => {
-    const { watching, closed, mount } = wired()
-    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout", "Date"] })
-    try {
-      const page = mount(true, "01", "02")
-      expect(watching.count).toBe(1)
-      page.unmount()
-      closed.add("01")
-      vi.advanceTimersByTime(1_000)
-      expect(watching.count).toBe(1)
-      closed.add("02")
-      vi.advanceTimersByTime(1_000)
-      expect(watching.count).toBe(0)
     } finally {
       vi.useRealTimers()
     }

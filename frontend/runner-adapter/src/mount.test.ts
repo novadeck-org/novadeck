@@ -359,8 +359,6 @@ describe("a surface's renderer", () => {
       },
       supported: () => true,
       cap: 12,
-      ligatures: () => false,
-      watchLigatures: () => () => {},
     })
     const page = mountOver(
       createTerminalViews(viewOptions(starting().runtime, { theme: noTheme, renderers })),

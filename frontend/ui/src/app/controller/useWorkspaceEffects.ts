@@ -28,8 +28,7 @@ export const useWorkspaceEffects = (): void => {
   const activeRename = renameSession?.context === context ? renameSession : null
 
   // Ligatures follow the preference on <html>, so dialogs outside the workspace follow it
-  // too (theme/base.css). Set before any effect of the terminals, whose renderer depends
-  // on the setting (backend/terminal-views/renderers.ts), so a screen never loads WebGL to drop.
+  // too (theme/base.css); the terminals' screens watch it (terminal-views/ligatures.ts).
   useLayoutEffect(() => {
     document.documentElement.dataset.ligatures = ligatures ? "on" : "off"
   }, [ligatures])

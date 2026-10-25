@@ -139,8 +139,6 @@ describe.skipIf(!hasWebgl)("xterm's WebGL renderer", () => {
         },
         supported: () => true,
         cap: 4,
-        ligatures: () => false,
-        watchLigatures: () => () => {},
       })
       const renderers: typeof pool = {
         ...pool,

@@ -1,5 +1,6 @@
 import { createView, type Renderers, type View } from "@novadeck/emulator/browser"
 
+import { ligaturesOn, watchLigatures } from "./ligatures"
 import { linkOptions } from "./links"
 
 // How every backend's screens open their emulator: in the font and theme the views pass, with
@@ -22,7 +23,14 @@ export const openEmulator =
       links: linkOptions(),
       renderers,
     })
-    if (!screenReader) return view
+    // Ligatures follow the preference on <html> (data-ligatures, set from Preferences).
+    view.setLigatures(ligaturesOn())
+    const unwatchLigatures = watchLigatures(() => view.setLigatures(ligaturesOn()))
+    const dispose = (): void => {
+      unwatchLigatures()
+      view.dispose()
+    }
+    if (!screenReader) return { ...view, dispose }
     const reading = (on: boolean): void => {
       view.terminal.options.screenReaderMode = on
     }
@@ -42,7 +50,7 @@ export const openEmulator =
       dispose: () => {
         element.removeEventListener("focusin", focus)
         element.removeEventListener("focusout", blur)
-        view.dispose()
+        dispose()
       },
     }
   }

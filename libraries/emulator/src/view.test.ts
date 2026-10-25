@@ -259,8 +259,6 @@ describe("a view's font", () => {
       }),
       supported: () => true,
       cap: 1,
-      ligatures: () => false,
-      watchLigatures: () => () => {},
     })
     const { view } = open({ renderers })
     view.renderer.take()
@@ -329,8 +327,6 @@ describe("a view's renderer", () => {
         },
         supported: () => true,
         cap: 2,
-        ligatures: () => false,
-        watchLigatures: () => () => {},
       }),
     }
   }
@@ -365,5 +361,91 @@ describe("a view's renderer", () => {
     view.onRendererChange(changed).dispose()
     view.renderer.take()
     expect(changed).not.toHaveBeenCalled()
+  })
+})
+
+describe("a view's ligatures", () => {
+  const pool = () =>
+    createRenderers<Terminal>({
+      load: () => ({
+        onContextLoss: () => ({ dispose: () => {} }),
+        clearTextureAtlas: () => {},
+        atlas: () => undefined,
+        dispose: () => {},
+      }),
+      supported: () => true,
+      cap: 1,
+    })
+
+  // The joiner xterm holds for the view, as the character joiner service lists them.
+  const joiners = (view: View): { handler: (text: string) => [number, number][] }[] =>
+    /* eslint-disable no-underscore-dangle -- Its only way out is its internals. */
+    (
+      view.terminal as unknown as {
+        _core: { _characterJoinerService: { _characterJoiners: never[] } }
+      }
+    )._core._characterJoinerService._characterJoiners
+  /* eslint-enable no-underscore-dangle */
+
+  it("hands WebGL the font's runs while ligatures are on and WebGL draws the view", () => {
+    const { view } = open({ renderers: pool(), fontFamily: "'JetBrains Mono Variable', monospace" })
+    view.renderer.take()
+    view.setLigatures(true)
+    expect(joiners(view)).toHaveLength(1)
+    expect(joiners(view)[0]!.handler("a => b !== c")).toEqual([
+      [2, 4],
+      [7, 10],
+    ])
+  })
+
+  it("keeps the joiner off the DOM renderer, which draws ligatures from its text", () => {
+    const { view } = open({ renderers: pool(), fontFamily: "'JetBrains Mono Variable', monospace" })
+    view.setLigatures(true)
+    expect(joiners(view)).toHaveLength(0)
+    expect(open().view.setLigatures(true)).toBeUndefined()
+  })
+
+  it("follows the view between renderers and the setting going off", () => {
+    const { view } = open({ renderers: pool(), fontFamily: "'JetBrains Mono Variable', monospace" })
+    view.setLigatures(true)
+    view.renderer.take()
+    expect(joiners(view)).toHaveLength(1)
+    view.renderer.release()
+    expect(joiners(view)).toHaveLength(0)
+    view.renderer.take()
+    expect(joiners(view)).toHaveLength(1)
+    view.setLigatures(false)
+    expect(joiners(view)).toHaveLength(0)
+  })
+
+  it("draws the screen again when the joiner comes or goes", () => {
+    const { view } = open({ renderers: pool(), fontFamily: "'JetBrains Mono Variable', monospace" })
+    view.renderer.take()
+    const refresh = vi.spyOn(view.terminal, "refresh")
+    view.setLigatures(true)
+    view.setLigatures(true)
+    view.setLigatures(false)
+    expect(refresh).toHaveBeenCalledTimes(2)
+  })
+
+  it("keeps the joiner off another face, whose glyphs the table's runs would squeeze for nothing", async () => {
+    const { view } = open({ renderers: pool(), fontFamily: "'Share Tech Mono', monospace" })
+    view.renderer.take()
+    view.setLigatures(true)
+    expect(joiners(view)).toHaveLength(0)
+    // A font that turns out to be JetBrains Mono's brings it.
+    await view.setFont("'JetBrains Mono Variable', monospace")
+    expect(joiners(view)).toHaveLength(1)
+    await view.setFont("'Share Tech Mono', monospace")
+    expect(joiners(view)).toHaveLength(0)
+  })
+
+  it("cuts a long line into runs the glyph atlas holds", () => {
+    const { view } = open({ renderers: pool(), fontFamily: "'JetBrains Mono Variable', monospace" })
+    view.renderer.take()
+    view.setLigatures(true)
+    const runs = joiners(view)[0]!.handler("=".repeat(200))
+    expect(runs.length).toBeGreaterThan(5)
+    for (const [from, to] of runs) expect(to - from).toBeLessThanOrEqual(32)
   })
 })
