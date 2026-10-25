@@ -35,9 +35,6 @@ export type RendererDeps<Target> = {
   // Whether a real GPU context can be had; asked once.
   readonly supported: () => boolean
   readonly cap: number
-  // Whether ligatures are on, and a way to hear when that changes.
-  readonly ligatures: () => boolean
-  readonly watchLigatures: (changed: () => void) => () => void
   // Runs work once the current task's synchronous work is over; a microtask by default.
   readonly defer?: (work: () => void) => void
 }
@@ -78,6 +75,8 @@ export type ScreenRenderer = {
   readonly refresh: () => void
   // A renderer change fit the screen to another size, which went to its pty.
   readonly resized: () => void
+  // Whether WebGL draws the screen now.
+  readonly drawn: () => boolean
   readonly dispose: () => void
 }
 
@@ -108,7 +107,6 @@ export const createRenderers = <Target>(deps: RendererDeps<Target>) => {
   let held = 0
   let clock = 0
   let supported: boolean | undefined
-  let unwatch: (() => void) | undefined
   let stealing = false
   const defer = deps.defer ?? queueMicrotask
   const counts = { waits: 0, steals: 0, swaps: 0, lost: 0, failed: 0, resizes: 0 }
@@ -171,10 +169,9 @@ export const createRenderers = <Target>(deps: RendererDeps<Target>) => {
     }
   }
 
-  // Ligatures keep every screen on the DOM renderer: WebGL draws per cell and cannot join glyphs.
   const usable = (): boolean => {
     supported ??= deps.supported()
-    return supported && !deps.ligatures()
+    return supported
   }
 
   const drop = (member: Member<Target>): void => {
@@ -278,14 +275,6 @@ export const createRenderers = <Target>(deps: RendererDeps<Target>) => {
     }
   }
 
-  const changed = (): void => {
-    if (usable()) return fill()
-    // Off, and on again, is a new episode for whoever has to wait then.
-    for (const member of members) member.waiting = false
-    for (const member of members) drop(member)
-    settled()
-  }
-
   return {
     stats: (): PoolStats => ({
       ...counts,
@@ -311,7 +300,6 @@ export const createRenderers = <Target>(deps: RendererDeps<Target>) => {
         closed: false,
       }
       members.add(member)
-      unwatch ??= deps.watchLigatures(changed)
       const leave = (): void => {
         member.shown = false
         member.idle = false
@@ -350,6 +338,7 @@ export const createRenderers = <Target>(deps: RendererDeps<Target>) => {
           defer(clearAtlases)
         },
         resized: () => count("resizes"),
+        drawn: () => member.drawing !== undefined,
         dispose: () => {
           // A screen that closes has nothing to fit again.
           member.switched = () => {}
@@ -357,9 +346,6 @@ export const createRenderers = <Target>(deps: RendererDeps<Target>) => {
           leave()
           members.delete(member)
           settled()
-          if (members.size > 0) return
-          unwatch?.()
-          unwatch = undefined
         },
       }
     },
@@ -445,17 +431,10 @@ export const loadWebgl = (xterm: Terminal): Drawing => {
 }
 
 // The pool for a page of xterm terminals, loading xterm's WebGL addon where the page has a
-// hardware context to spare. Ligatures render through CSS `font-variant-ligatures`, which only
-// the DOM renderer gets, so the page says whether they are on and when that changes.
-export const webglRenderers = (options: {
-  readonly ligatures: () => boolean
-  readonly watchLigatures: (changed: () => void) => () => void
-  readonly cap?: number
-}): Renderers =>
+// hardware context to spare.
+export const webglRenderers = (options: { readonly cap?: number }): Renderers =>
   createRenderers<Terminal>({
     load: loadWebgl,
     supported: probeWebgl,
     cap: options.cap ?? contextCap,
-    ligatures: options.ligatures,
-    watchLigatures: options.watchLigatures,
   })
