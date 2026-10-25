@@ -484,7 +484,9 @@ export class Messaging {
   /** How long the oldest message waiting for the terminal has waited, in milliseconds; null for none. */
   waitedMs(terminalId: string): number | null {
     const [wait] = longWaits(
-      [...this.messages.values()].filter((message) => message.to.terminalId === terminalId),
+      [...this.messages.values()].filter(
+        (message) => message.to.terminalId === terminalId && !isNotice(message),
+      ),
       this.now(),
     )
     return wait ? this.now() - wait.oldestAt : null
@@ -661,16 +663,17 @@ export class Messaging {
    * session is bound yet it is addressed as any message is, to the agent whose prompt
    * shows (or is expected) there, whose first session to bind takes it; false where
    * there is no such agent. It is no peer's conversation: listings leave it out. None is
-   * sent while any message already waits for the terminal, whose delivery wakes the agent
-   * as well and stands in for it, which also keeps at most one notice waiting.
+   * sent while a message that will be delivered to that agent soon already waits, queued
+   * or leased and addressed to it (`soon`), whose delivery wakes it as well and stands in
+   * for it, which also keeps at most one notice waiting. A message held for the person's
+   * release, or for another session, does not.
    */
   notice(terminalId: string, text: string): boolean {
     const live = this.live.get(terminalId)
     if (!live || this.closed) return false
-    for (const message of this.messages.values())
-      if (message.to.terminalId === terminalId && undelivered(message)) return false
     const agent = live.root?.agent ?? live.shown?.agent ?? live.expecting
     if (!agent) return false
+    for (const message of this.messages.values()) if (this.soon(live, message)) return false
     const id = this.freshMessageId()
     this.put({
       id,
@@ -694,6 +697,22 @@ export class Messaging {
       toLead: false,
     })
     return true
+  }
+
+  /**
+   * Whether a message will be delivered to the agent at the terminal soon: queued or leased,
+   * addressed to its root session or, where none is bound, to the agent about to bind. Not
+   * one held for the person's release, gone, or for another session; one held only while
+   * messaging is paused arrives once it is resumed.
+   */
+  private soon(live: Live, message: Message): boolean {
+    if (message.to.terminalId !== live.terminalId) return false
+    if (!undelivered(message) || this.holdOf(message) === "release") return false
+    if (live.root) return this.addressed(message, live.root)
+    if (this.awaiting(live, message)) return true
+    return (
+      message.to.sessionId === null && message.to.agent === (live.shown?.agent ?? live.expecting)
+    )
   }
 
   /** The reply for one Inbox ask, used to retain pending replies with their question. */
@@ -1358,6 +1377,7 @@ export class Messaging {
       (message) =>
         message.to.terminalId === terminalId &&
         message.from.terminalId !== except &&
+        !isNotice(message) &&
         undelivered(message),
     ).length
   }

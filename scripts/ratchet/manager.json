@@ -7,8 +7,8 @@
   ],
   "lines": {
     "budget": 1679,
-    "reason": "Transcript redaction: three Terminals options (transcriptMs, transcriptShutdownMs, redactor) with their Omit entries, the redactor's construction, the restart's save once the earlier screen is shown, and the restore's once its replay ends; the rest is in saving.ts. Transcript sealing: two more options (sealer, transcriptKeyMs) with their Omit entries and construction, and the restore's open before the shell starts, less the re-save once restored, which sealing makes redundant. Inbox turn rows (+3): Bindings and murmur reach Asks and the redactor, so the redactor is a local shared with Saves, plus the Bindings host's turns entry and murmur's clearGists. Interrupted-turn notice (+2): the restore reads the saved turn flag through restored() (an import and the call; the logic is in terminals/interrupted.ts).",
-    "from": "first-summary task"
+    "reason": "Transcript redaction: three Terminals options (transcriptMs, transcriptShutdownMs, redactor) with their Omit entries, the redactor's construction, the restart's save once the earlier screen is shown, and the restore's once its replay ends; the rest is in saving.ts. Transcript sealing: two more options (sealer, transcriptKeyMs) with their Omit entries and construction, and the restore's open before the shell starts, less the re-save once restored, which sealing makes redundant. Inbox turn rows (+3): Bindings and murmur reach Asks and the redactor, so the redactor is a local shared with Saves, plus the Bindings host's turns entry and murmur's clearGists. Interrupted-turn notice (+2): the restore reads the saved turn flag through restored(), its import and the call; the logic is in terminals/interrupted.ts.",
+    "from": "#472"
   },
   "methods": 68,
   "slack": { "lines": 100, "methods": 5 }

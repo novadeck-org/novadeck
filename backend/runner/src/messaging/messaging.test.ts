@@ -3979,6 +3979,17 @@ describe("the loop hold", () => {
   }
   const thread = (messaging: Messaging) => messaging.list("A", "moth").threads[0]!
 
+  it("sends a notice though only a message held for the person's release waits", () => {
+    const { messaging, rounds, prompt, claude } = setup()
+    rounds(8, "B")
+    const notice = "Novadeck: automatic notice, not from the user: go on"
+    // Queued messages for moth's agent still wait, and wake it as a notice would.
+    expect(messaging.notice("A", notice)).toBe(false)
+    const answer = prompt("A", claude)
+    messaging.acknowledge("A", answer.leaseId!)
+    expect(messaging.notice("A", notice)).toBe(true)
+  })
+
   it("never holds a pair that works between messages", () => {
     const { messaging, rounds, working } = setup()
     working.set("B", true)
@@ -4065,6 +4076,15 @@ describe("the loop hold", () => {
     expect(answer.stdout).not.toContain("Reply with the send tool")
     messaging.acknowledge("A", answer.leaseId!)
     expect(records.messages().map(({ state }) => state)).toContain("delivered")
+  })
+
+  it("counts no notice as a message a peer's close loses, nor as a wait", () => {
+    const { messaging, send } = setup()
+    expect(messaging.notice("A", "Novadeck: automatic notice, not from the user: go on")).toBe(true)
+    expect(messaging.waitingFor("A", "B")).toBe(0)
+    expect(messaging.waitedMs("A")).toBeNull()
+    sent(send("B", "moth", "real"))
+    expect(messaging.waitingFor("A", "A")).toBe(1)
   })
 
   it("drops a notice whose session ended, never reviving it when that session roots again", () => {

@@ -1096,10 +1096,13 @@ held only while messaging is paused), worded for what was cut: the turn ran, so 
 running (commands, subagents) has stopped and it should carry on, or say it is done in a
 line; or it waited on a background command or wake-up that has stopped and will not wake it.
 Addressed to the agent whose prompt shows where no session has bound, as any message is, it
-wakes the agent through the doorbell as any message does. The notice is Novadeck's, not a peer's: listings, the Messages view and the waiting badge
-leave it out, its delivery wrapper says it needs no reply, and it is dropped, not revived,
-should it go gone. None is sent while any message already waits for the terminal (that
-delivery wakes the agent as well, and it keeps one notice at most). It is decided only from a
+wakes the agent through the doorbell as any message does. The notice is Novadeck's, not a peer's: listings, the Messages view, the waiting badge, the count of messages a peer's
+close loses (`waitingFor`) and the wait times leave it out, its delivery wrapper says it needs no reply, and it is dropped, not
+revived, should it go gone. None is sent while a message that will soon be delivered to that
+agent already waits (queued, leased or held only while paused, addressed to its root session, or to the agent about
+to bind where none has: that delivery wakes it as well, and it keeps one notice at most). A
+message held for the person's release or for a pause, or one for another session (as one
+for a session not resumed, which the restore's end makes gone), does not stand in for it. It is decided only from a
 restore by a new runner (`restored`), never after a person's restart of a shell in a running
 runner, and only for the resumed session (its id, or the start of it a Codex title shows).
 A terminal restored without a resume tells no one. A flag the runner never got to save (a

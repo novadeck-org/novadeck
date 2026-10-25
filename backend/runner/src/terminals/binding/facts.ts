@@ -144,10 +144,13 @@ export class Bindings {
   /**
    * The shell exited: the session ends, and what the shell held with it, its root not
    * followed anew, nothing suspended and no entry seen in a transcript, as a restart starts
-   * from (`restarted`). The caller shows neither agent nor ready prompt, and announces.
+   * from (`restarted`). The caller shows neither agent nor ready prompt, and announces and
+   * saves. The turn kept for a restart of Novadeck (`markTurn`) ends with the session: a shell
+   * that died, or was restarted, mid-turn has nothing cut for a later restart to tell of.
    */
   exited(record: Record): void {
     this.endSession(record)
+    if (markTurn(record, null)) record.changed = true
     Object.assign(record, this.shellEnded())
   }
 
