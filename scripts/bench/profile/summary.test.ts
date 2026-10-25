@@ -163,43 +163,26 @@ describe("summarize", () => {
     expect(switches?.switchesTimedOut?.values).toEqual([1, 0])
   })
 
-  it("keeps each build apart, and compares the others with the production build", () => {
+  it("keeps each build apart, and compares the profiling build with the production build", () => {
     const summary = summarize([
       run("heavy", 1, [phase("grid", 40)]),
       run("heavy", 1, [{ ...phase("grid", 50), breakdown: breakdown(50, 10) }], {
         variant: "profiling",
       }),
-      run("heavy", 1, [phase("grid", 30)], { variant: "webgl" }),
     ])
     expect(summary.production?.heavy?.phases.grid?.mainThread?.values).toEqual([40])
     expect(summary.profiling?.heavy?.phases.grid?.reactTracksOfBusy?.values).toEqual([20])
     expect(compared(summary, "profiling")).toEqual({
       heavy: { grid: { production: 40, variant: 50, points: 10 } },
     })
-    expect(compared(summary, "webgl")).toEqual({
-      heavy: { grid: { production: 40, variant: 30, points: -10 } },
-    })
-    // WebGL's cut, a quarter of Grid's busy time, and of each of its 100 frames.
-    expect(markdown(summary, { title: "Profile", lines: [] })).toContain(
-      "| 40.0% | 30.0% | 25.0% | 25.0% |",
-    )
-    expect(compared(summary, "webgl", "busyMsPerFrame").heavy?.grid).toEqual({
-      production: 60,
-      variant: 45,
-      points: -15,
-    })
   })
 
-  it("leaves out the script's split where the build couldn't be mapped, and marks saturation", () => {
-    const summary = summarize([
-      run("heavy", 1, [phase("grid", 99)], { attributed: false }),
-      run("heavy", 1, [phase("grid", 96)], { variant: "webgl" }),
-    ])
+  it("leaves out the script's split where the build couldn't be mapped", () => {
+    const summary = summarize([run("heavy", 1, [phase("grid", 99)], { attributed: false })])
     const grid = summary.production?.heavy?.phases.grid
     expect(grid?.mainThread?.values).toEqual([99])
     expect(grid?.reactOfBusy).toBeUndefined()
     expect(summary.production?.heavy?.triggers.statePropagationOfBusy).toBeUndefined()
-    expect(markdown(summary, { title: "Profile", lines: [] })).toContain("(saturated)")
   })
 })
 
