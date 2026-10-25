@@ -103,14 +103,21 @@ export const bundledFont = (): string =>
     "@fontsource-variable/jetbrains-mono/files/jetbrains-mono-latin-wght-normal.woff2",
   )
 
-// The ranges of `text` the font draws as ligatures, as its own substitution rules say.
+// What the font does to `text`: the ranges it draws as ligatures, as its own substitution rules
+// say, and the glyph it draws at each cell (the id a rule swapped in; a plain glyph where none).
 export type Shaper = (text: string) => [number, number][]
+export type Font = { readonly shape: Shaper; readonly glyphs: (text: string) => number[] }
 
-export const loadShaper = async (path = bundledFont()): Promise<Shaper> => {
+export const loadFont = async (path = bundledFont()): Promise<Font> => {
   const file = sfnt(woff2Tables(readFileSync(path)))
   const font = await loadBuffer(
     file.buffer.slice(file.byteOffset, file.byteOffset + file.byteLength) as ArrayBuffer,
     { cacheSize: 0 },
   )
-  return (text) => font.findLigatureRanges(text).map(([from, to]) => [from, to])
+  return {
+    shape: (text) => font.findLigatureRanges(text).map(([from, to]) => [from, to]),
+    glyphs: (text) => [...font.findLigatures(text).outputGlyphs],
+  }
 }
+
+export const loadShaper = async (path?: string): Promise<Shaper> => (await loadFont(path)).shape

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest"
 
-import { hasTable, ligatureRuns, maxRunCells, runLimit } from "./ligatures.js"
+import { cutMargin, hasTable, ligatureRuns, maxRunCells, runLimit } from "./ligatures.js"
 
 describe("ligatureRuns", () => {
   it("finds the sequences the font joins", () => {
@@ -45,15 +45,24 @@ describe("ligatureRuns", () => {
   })
 
   describe("a long line", () => {
-    const lines = [
+    const cells = (runs: [number, number][]) =>
+      new Set(runs.flatMap(([from, to]) => Array.from({ length: to - from }, (_, i) => from + i)))
+    const repeats = [
       ..."=-.#_/~*:".split("").map((glyph) => glyph.repeat(300)),
-      "|" + "---|".repeat(60),
       "[" + "=".repeat(150) + ">" + " ".repeat(20) + "] 77%",
+      "+" + "-".repeat(60) + "+",
+    ]
+    // Where no cut is safe, the font draws what a cut would break, so the line is not cut.
+    const tangles = [
+      "|" + "---|".repeat(60),
+      "|" + "-----|".repeat(30),
+      "-->".repeat(50),
+      "=>".repeat(80),
       "x " + "<!--".repeat(40) + " y",
     ]
 
-    it.each(lines)("is drawn in runs no wider than the cap: %s", (line) => {
-      for (const limit of [maxRunCells, 4, 9, 20])
+    it.each([...repeats, ...tangles])("is drawn in runs no wider than the cap: %s", (line) => {
+      for (const limit of [maxRunCells, 9, 17, 20])
         for (const [from, to] of ligatureRuns(line, limit)) {
           expect(to - from).toBeLessThanOrEqual(limit)
           // Never a lone cell, which joins nothing.
@@ -61,29 +70,46 @@ describe("ligatureRuns", () => {
         }
     })
 
-    it.each(lines)("is covered end to end as it would be in one run: %s", (line) => {
-      const whole = ligatureRuns(line, 100_000)
-      const cells = (runs: [number, number][]) =>
-        new Set(runs.flatMap(([from, to]) => Array.from({ length: to - from }, (_, i) => from + i)))
-      expect(cells(ligatureRuns(line))).toEqual(cells(whole))
+    it.each(repeats)("is joined end to end, cut where the font would not change: %s", (line) => {
+      expect(cells(ligatureRuns(line))).toEqual(cells(ligatureRuns(line, Infinity)))
     })
 
-    it("is cut inside a repeated glyph, where the font draws the same piece either side", () => {
+    it.each(tangles)("is left plain past the cap, never cut where it would change: %s", (line) => {
+      // A run past the cap with no safe cut stays unjoined, whole.
+      expect(ligatureRuns(line)).toEqual([])
+      expect(ligatureRuns(line, Infinity).length).toBeGreaterThan(0)
+    })
+
+    it("is cut only deep inside a repeated glyph, never nearer its ends than the margin", () => {
       const line = "[" + "=".repeat(150) + ">"
       const runs = ligatureRuns(line)
       expect(runs.length).toBeGreaterThan(1)
       for (const [, to] of runs.slice(0, -1)) {
-        expect(line.slice(to - 2, to + 2)).toBe("====")
+        expect(to - 1).toBeGreaterThanOrEqual(1 + cutMargin)
+        expect(150 + 1 - to).toBeGreaterThanOrEqual(cutMargin)
       }
     })
 
-    it("takes a narrower cap where a cell has more device pixels", () => {
+    it("leaves the stretch to the next safe cut plain where none falls within the cap", () => {
+      // Two repeats with a join between that no cut may fall in: the first fills the cap alone.
+      const line = "=".repeat(20) + "|---|" + "=".repeat(40)
+      const runs = ligatureRuns(line, 20)
+      expect(runs.every(([from, to]) => to - from <= 20)).toBe(true)
+      // Nothing crosses the tee's neighbourhood, whose glyphs a cut would change.
+      expect(runs.some(([from, to]) => from < 22 && to > 22)).toBe(false)
+    })
+
+    it("takes a narrower cap where a cell has more device pixels, and none where too few fit", () => {
       expect(runLimit(7)).toBe(maxRunCells)
       expect(runLimit(15)).toBe(maxRunCells)
       expect(runLimit(23)).toBe(20)
-      expect(runLimit(1000)).toBe(4)
+      // A cap under the longest sequence joins nothing, rather than a run past 512 px.
+      expect(runLimit(121)).toBe(0)
+      expect(runLimit(1000)).toBe(0)
+      expect(ligatureRuns("a => b", 0)).toEqual([])
+      expect(ligatureRuns("a => b", 3)).toEqual([])
       // A glyph of that many cells stays under the 512 px that sends one to the overflow page.
-      for (const pixels of [7, 9, 11, 15, 23, 31])
+      for (const pixels of [7, 9, 11, 15, 23, 31, 100])
         expect(runLimit(pixels) * pixels).toBeLessThan(512)
     })
   })

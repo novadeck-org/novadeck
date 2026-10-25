@@ -1,17 +1,17 @@
 // @vitest-environment node
 import { beforeAll, describe, expect, it } from "vitest"
 
-import { loadShaper, type Shaper } from "./ligature-font.test-kit.js"
+import { loadFont, type Font } from "./ligature-font.test-kit.js"
 import { ligatureWords } from "./ligature-table.js"
-import { ligatureRuns } from "./ligatures.js"
+import { cutMargin, ligatureRuns } from "./ligatures.js"
 
 // The ligature table against the font it was read from: the bundled JetBrains Mono's own
 // substitution rules, run in Node. A font upgrade that changes a ligature fails here until
 // `pnpm run ligature-table` makes the table again.
 
-let shape: Shaper
+let font: Font
 beforeAll(async () => {
-  shape = await loadShaper()
+  font = await loadFont()
 })
 
 const cellsOf = (ranges: readonly (readonly [number, number])[]): number[] =>
@@ -23,57 +23,153 @@ const generator = (seed: number) => () => {
   return seed / 2 ** 32
 }
 
-// The two things a joiner must hold for the font: every cell it draws as part of a ligature
-// is in a run, and a run drawn alone joins the same cells as it did in its line.
-const check = (line: string): string | undefined => {
-  const runs = ligatureRuns(line)
-  const inRun = new Set(cellsOf(runs))
-  const wanted = cellsOf(shape(line))
-  const missing = wanted.find((cell) => !inRun.has(cell))
+const widths = [4, 17, 20, 30, 32, Infinity]
+
+// What a joiner must hold for the font, at every width of run it may be given:
+// - drawn as the joiner cuts it, each run is the glyphs the font draws at those cells in the whole
+//   line (the glyph ids, so a tee where a cut fell, or a pairing that flipped, fails);
+// - no run is wider than the width;
+// - without a width, every cell the font joins is in a run; with one, a cell the font joins is
+//   either in a run or in a stretch the cap left plain, which is inside a run of the uncapped line.
+const check = (line: string, limits = widths): string | undefined => {
+  const whole = font.glyphs(line)
+  const uncapped = ligatureRuns(line, Infinity)
+  const inUncapped = new Set(cellsOf(uncapped))
+  const joined = cellsOf(font.shape(line))
+  const missing = joined.find((cell) => !inUncapped.has(cell))
   if (missing !== undefined)
     return `${JSON.stringify(line)}: cell ${missing} joins and no run has it`
-  for (const [from, to] of runs) {
-    const alone = cellsOf(shape(line.slice(from, to))).map((cell) => cell + from)
-    const inLine = wanted.filter((cell) => cell >= from && cell < to)
-    if (alone.join() !== inLine.join())
-      return `${JSON.stringify(line)}: run ${from}-${to} joins ${alone} alone, ${inLine} in its line`
+  for (const limit of limits) {
+    const runs = ligatureRuns(line, limit)
+    const inRun = new Set(cellsOf(runs))
+    for (const cell of inRun)
+      if (!inUncapped.has(cell)) return `${JSON.stringify(line)}: width ${limit} joins cell ${cell}`
+    for (const [from, to] of runs) {
+      if (to - from > limit)
+        return `${JSON.stringify(line)}: run ${from}-${to} is wider than ${limit}`
+      const alone = font.glyphs(line.slice(from, to))
+      const differs = alone.findIndex((glyph, i) => glyph !== whole[from + i])
+      if (differs >= 0)
+        return `${JSON.stringify(line)}: width ${limit}, run ${from}-${to} draws cell ${from + differs} as another glyph than in its line`
+    }
+    // Only a capped line leaves cells out, and only those of a run too wide.
+    for (const [from, to] of uncapped)
+      if (to - from <= limit)
+        for (let cell = from; cell < to; cell++)
+          if (!inRun.has(cell))
+            return `${JSON.stringify(line)}: width ${limit} left cell ${cell} of a narrow run plain`
   }
   return undefined
 }
 
+const alphabet = (): string[] => [...new Set(ligatureWords.join(""))]
+
+// Rows the font draws with rules that reach further than a pair of glyphs.
+const rows = [
+  "|" + "---|".repeat(60),
+  "|" + "-----|".repeat(30),
+  "|:---|:---:|".repeat(20),
+  "|" + "--|".repeat(60),
+  "|" + "===|".repeat(60),
+  "~-".repeat(60),
+  "-|".repeat(60),
+  "-->".repeat(50),
+  "==>".repeat(50),
+  "<-->".repeat(40),
+  "##====".repeat(30),
+  "=>".repeat(80),
+  "->".repeat(80),
+  "<!--".repeat(40),
+  "+" + "-".repeat(40) + "+" + "-".repeat(40) + "+",
+  "+" + "=".repeat(40) + "+",
+  "<!-- " + "=".repeat(40) + " -->",
+  "[" + "=".repeat(150) + ">" + " ".repeat(20) + "] 77%",
+  "<" + "-".repeat(100) + ">",
+  "x " + "=".repeat(60) + " y " + "-".repeat(60) + " z",
+]
+
 describe("the ligature table and the bundled font", () => {
   it("lists only sequences the font draws whole", () => {
-    for (const word of ligatureWords) expect(shape(word), word).toEqual([[0, word.length]])
+    for (const word of ligatureWords) expect(font.shape(word), word).toEqual([[0, word.length]])
   })
 
   it("covers every cell the font joins, in every line of two or three of its glyphs", () => {
-    const alphabet = [...new Set(ligatureWords.join(""))]
+    const glyphs = alphabet()
     const lines: string[] = []
-    for (const a of alphabet)
-      for (const b of alphabet) {
+    for (const a of glyphs)
+      for (const b of glyphs) {
         lines.push(a + b)
-        for (const c of alphabet) lines.push(a + b + c)
+        for (const c of glyphs) lines.push(a + b + c)
       }
-    const failures = lines.map(check).filter(Boolean)
+    const failures = lines.map((line) => check(line, [32, Infinity])).filter(Boolean)
     expect(failures.slice(0, 5)).toEqual([])
   })
 
   it("holds in random code-like lines and long repeated runs", () => {
-    const alphabet = [...new Set(ligatureWords.join(""))]
+    const glyphs = alphabet()
     const filler = [..."abcxyz019 ,;()"]
     const random = generator(20261025)
     const pick = (from: readonly string[]): string => from[Math.floor(random() * from.length)] ?? ""
     const lines: string[] = []
     for (let i = 0; i < 3000; i++) {
       const length = 4 + Math.floor(random() * 20)
-      const mix = i % 2 === 0 ? alphabet : [...alphabet, ...filler, " ", " "]
+      const mix = i % 2 === 0 ? glyphs : [...glyphs, ...filler, " ", " "]
       lines.push(Array.from({ length }, () => pick(mix)).join(""))
     }
-    for (const glyph of alphabet)
+    for (const glyph of glyphs)
       for (const n of [5, 8, 11, 14, 17, 20, 23, 31, 33, 64, 100, 200]) lines.push(glyph.repeat(n))
-    // Long lines are cut into runs; a cut inside a repeat shapes the same either side.
-    lines.push("[" + "=".repeat(150) + ">" + " ".repeat(20) + "] 77%", "|" + "---|".repeat(60))
-    const failures = lines.map(check).filter(Boolean)
+    const failures = lines.map((line) => check(line)).filter(Boolean)
+    expect(failures.slice(0, 5)).toEqual([])
+  })
+
+  it("draws a long line cut into runs as it draws it whole: tables, arrows, rules, bars", () => {
+    const failures = rows.map((line) => check(line)).filter(Boolean)
+    expect(failures.slice(0, 5)).toEqual([])
+  })
+
+  it("draws long random mixes of stretches and sequences as it draws them whole", () => {
+    const glyphs = alphabet()
+    const random = generator(77)
+    const pick = (from: readonly string[]): string => from[Math.floor(random() * from.length)] ?? ""
+    const lines: string[] = []
+    for (let i = 0; i < 400; i++) {
+      let line = ""
+      while (line.length < 60 + random() * 160) {
+        const roll = random()
+        if (roll < 0.45) line += pick(glyphs).repeat(1 + Math.floor(random() * 30))
+        else if (roll < 0.8) line += pick(ligatureWords)
+        else line += pick([..."ab 1", ...glyphs])
+      }
+      lines.push(line)
+    }
+    const failures = lines.map((line) => check(line)).filter(Boolean)
+    expect(failures.slice(0, 5)).toEqual([])
+  })
+
+  it("draws every cut the joiner makes the same either side: the margin holds for every glyph", () => {
+    const glyphs = alphabet()
+    const random = generator(5)
+    const pick = (): string =>
+      [...glyphs, ..."ab 1"][Math.floor(random() * (glyphs.length + 4))] ?? ""
+    const around = (): string => Array.from({ length: Math.floor(random() * 5) }, pick).join("")
+    const failures: string[] = []
+    for (const glyph of glyphs)
+      for (let i = 0; i < 40; i++) {
+        const before = around()
+        const line = before + glyph.repeat(30) + around()
+        const whole = font.glyphs(line)
+        for (const at of [
+          before.length + cutMargin,
+          before.length + 15,
+          before.length + 30 - cutMargin,
+        ]) {
+          const left = font.glyphs(line.slice(0, at))
+          const right = font.glyphs(line.slice(at))
+          const same =
+            left.every((g, k) => g === whole[k]) && right.every((g, k) => g === whole[at + k])
+          if (!same) failures.push(`${JSON.stringify(line)} cut at ${at}`)
+        }
+      }
     expect(failures.slice(0, 5)).toEqual([])
   })
 })
