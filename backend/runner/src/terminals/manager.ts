@@ -609,7 +609,6 @@ export class Terminals {
             live: (terminalId) => this.live(terminalId),
             records: () => this.records.values(),
             holds: (terminalId) => this.records.has(terminalId),
-            facts: (terminal) => this.peers.facts(terminal),
             projectFolder: (sessionId) => this.projectFolder(sessionId),
             publishAgent: (record) => this.bindings.publishAgent(record, false),
             names: () => this.names,
@@ -775,7 +774,6 @@ export class Terminals {
         naming,
         root: null,
         work,
-        murmurSession: work?.session ?? null,
         openedBy,
         openerCommand: opener?.command ?? null,
         // Only a session the opener's command started, running an agent, is the opener's.
@@ -870,6 +868,8 @@ export class Terminals {
   resetTitle(input: { terminalId: string }): void {
     if (this.stopping) throw new DomainError("CLOSING")
     this.names.name(input.terminalId, null)
+    // A summary written while the person's title showed names the terminal now.
+    this.murmur?.summarized(input.terminalId)
   }
 
   get(terminalId: string): TerminalSummary {

@@ -95,11 +95,13 @@ const moreChatWords = words(
 )
 for (const word of moreChatWords) chatWords.add(word)
 
-// Words that make a title say only that something is going on or was asked, never what.
+// Words that make a title say only that something is going on or was asked, never what, or
+// only what the window is ("Terminal", which the model gave for a summary opening "Done:").
 const workFiller = new Set(
   words(
     `help helping working work running finished finish waiting status question questions
-    review reviewing updating update updates fixing fix fixes checking`,
+    review reviewing updating update updates fixing fix fixes checking terminal terminals
+    session sessions`,
   ),
 )
 
@@ -545,8 +547,7 @@ const line = (
  * The title in `raw`, the model's reply, or undefined when it can't be used. `source` is
  * the text the model was shown, which tells a title that copies an example from one that
  * names the same work. `project` is the project's name, taken out of the title (it is
- * refused when nothing else is left). An agent's reply says whether the work `changed`; a
- * shell's has no such property and counts as changed.
+ * refused when nothing else is left).
  */
 export const parseDescription = (
   raw: string,
@@ -555,10 +556,9 @@ export const parseDescription = (
 ): Description | undefined => {
   const value = object(raw)
   if (value === undefined) return undefined
-  const { title, changed = true } = value
-  if (typeof changed !== "boolean") return undefined
+  const { title } = value
   const clean = typeof title === "string" ? line(title, titleLimits, source, project) : undefined
-  return clean === undefined ? undefined : { title: clean, changed }
+  return clean === undefined ? undefined : { title: clean }
 }
 
 /** The gist in `raw`, or undefined when it can't be used. */

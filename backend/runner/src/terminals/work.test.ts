@@ -10,9 +10,7 @@ import {
   keptFiles,
   keptFolders,
   lastFiles,
-  keptPrompts,
   promptChars,
-  recentChars,
   shorten,
   tallied,
   workAfter,
@@ -49,21 +47,6 @@ describe("what a root session worked on", () => {
     expect(work!.first).toMatch(/^Build/)
   })
 
-  it("keeps the person's last few prompts, longer than the first and latest, oldest first", () => {
-    let work = workAfter(null, root, [prompted(`Start ${"x".repeat(400)}`)], 1)
-    expect(work!.recent).toHaveLength(1)
-    expect(work!.recent[0]!.length).toBe(recentChars)
-    expect(work!.first!.length).toBe(promptChars)
-    for (const text of ["two", "three", "four", "five", "six", "seven"])
-      work = workAfter(work, root, [prompted(text)], 2)
-    // The harness's own turns never count; the oldest drop out past the cap.
-    work = workAfter(work, root, [prompted("<task-notification>done", "harness")], 3)
-    expect(work!.recent).toEqual(["three", "four", "five", "six", "seven"])
-    expect(work!.recent).toHaveLength(keptPrompts)
-    // The same prompt told twice, as by a hook and a transcript, is kept once.
-    expect(workAfter(work, root, [prompted("seven")], 4)!.recent).toEqual(work!.recent)
-  })
-
   it("tallies the folders it writes in, and when it was last active", () => {
     const work = workAfter(null, root, [touched("/w/src/a.ts"), touched("/w/src/b.ts")], 9)
     expect(work).toMatchObject({
@@ -92,7 +75,6 @@ describe("what a root session worked on", () => {
       session: "codex:s2",
       first: null,
       latest: null,
-      recent: [],
       folders: {},
       activeAt: null,
     })
@@ -116,7 +98,6 @@ describe("what a root session worked on", () => {
       session: "agy:c-root",
       first: null,
       latest: null,
-      recent: [],
       folders: { "/w": 1 },
       files: ["/w/a.ts"],
       activeAt: 4,

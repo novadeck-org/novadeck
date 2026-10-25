@@ -8,17 +8,8 @@ import { Preparer } from "./prepare.js"
 const script = new URL("../testing/slow-worker.mjs", import.meta.url)
 const digest = (project: string): AgentDigest => ({
   kind: "agent",
-  harness: "Claude Code",
   project,
-  folder: null,
-  branch: null,
-  plan: null,
-  folders: [],
-  prompts: ["fix it"],
-  reply: null,
-  summary: null,
-  previous: null,
-  stage: "forming",
+  summary: "Fixes it.",
 })
 
 describe("preparing a digest in a thread", () => {
@@ -38,7 +29,7 @@ describe("preparing a digest in a thread", () => {
 
     const chat = await preparer.prepare({
       ...digest("app"),
-      prompts: ["use API_KEY=hunter2abc please"],
+      summary: "Rotates API_KEY=hunter2abc.",
     })
 
     expect(chat).toHaveLength(2)
