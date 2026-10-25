@@ -1676,11 +1676,13 @@ hook's deadline, which doesn't spend what is due.
 - **The Inbox.** With the bar's notice, its own paragraph after it: the person rarely
   watches the terminal, so every question the agent's turn ends waiting on goes to the
   Inbox with `ask`, beside its reply (see [Inbox asks and updates](#inbox-asks-and-updates)).
-  It is the one place Antigravity hears this, as it reads no server instructions, and it
-  comes back after a compaction, which forgets them in every harness.
+  Antigravity, which reads no server instructions, hears it here once at the prompt (an
+  injection lasts one model call there, so `ask`'s description is what lasts); it comes
+  back after a compaction where the harness reports one.
 - **The summary.** Due when a trigger fired since the last `summarize`: while there is
   none it asks for one; after, it shows the current summary and asks for an update only if
-  it no longer fits. When both are due they share the answer, the bar's first. The
+  it no longer fits. When all are due they share the answer: the bar's, the Inbox's, then
+  the summary's. The
   triggers:
   1. a new root session (start, `/clear`, restart or resume);
   2. a compaction, where the harness reports one: Claude Code's and Codex's `SessionStart`
@@ -1721,7 +1723,7 @@ hook's deadline, which doesn't spend what is due.
      many as keep the whole printed answer within the 8 KB delivery budget (see
      "Hook output has limits"); the rest wait for the next quiet prompt. A page that could
      not fit even as the only notice is let go untold, while one that only fails to fit beside
-     the bar's or the summary's notice waits;
+     the bar's, the Inbox's or the summary's notice waits;
   5. closing or showing the item again drops its entry, and so does a new root session in
      the terminal, which didn't show the page. A `summarize` and a compaction leave it.
 

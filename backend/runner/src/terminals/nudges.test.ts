@@ -202,8 +202,9 @@ describe("a nudge", () => {
       "unless it is already an open ask",
       "a closing offer such as 'anything else?' isn't one",
       "nor is an action your harness is already prompting them for",
-      "With a lead, your decisions go to it with send instead",
-      "approvals of actions still go through ask",
+      "With a lead, your questions go to it with send instead",
+      "approvals of actions, such as opening a pull request, still go through ask",
+      "tell your lead you're waiting",
       "If they answer here instead, withdraw the ask",
     ])
       expect(inboxNotice).toContain(words)

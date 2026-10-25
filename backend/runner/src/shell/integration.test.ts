@@ -4531,7 +4531,8 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))(
       // A doorbell's line is never the person's prompt, so never kept as one.
       await prompt("s-1", "[Novadeck: automatic notice, agent messages waiting, abc123]")
       expect(shell.store.terminal(terminal.id)?.work?.first ?? null).toBeNull()
-      // Prompts title nothing; the first of a session prints the notices of the bar and the summary.
+      // Prompts title nothing; the first of a session prints the notices of the bar, the Inbox
+      // and the summary.
       const bar = /^Novadeck: automatic notice, not from the user: beside this terminal/
       await expect(prompt("s-1", "Fix the login bug")).resolves.toMatch(bar)
       await prompt("s-1", "Now its tests")
@@ -5284,7 +5285,7 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))(
     }) => {
       const tui = await ringing(shell)
       await tui.first()
-      // Its first prompt carries the notices of the bar beside it and of the summary.
+      // Its first prompt carries the notices of the bar beside it, the Inbox and the summary.
       expect(tui.received()).toMatchObject([
         { prompt: "hello", printed: expect.stringContaining("beside this terminal") },
       ])
