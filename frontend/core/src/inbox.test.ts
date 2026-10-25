@@ -115,23 +115,15 @@ describe("ordered", () => {
 })
 
 describe("letterItem", () => {
-  const key = { projectId: "p", workspaceSessionId: "s", terminalId: "t" }
   const letter = "8f1c2a3b-0d4e-4f5a-9b6c-7d8e9f0a1b2c"
 
   it("finds the item a letter came from, as the runner names the letter", () => {
     const items = [item("other", told, false), item(letter, ask, true)]
-    expect(letterItem(items, { id: `m-${letter.replaceAll("-", "")}` }, key)?.id).toBe(letter)
-    expect(letterItem(items, { id: letter }, key)?.id).toBe(letter)
+    expect(letterItem(items, { id: `m-${letter.replaceAll("-", "")}` })?.id).toBe(letter)
+    expect(letterItem(items, { id: letter })?.id).toBe(letter)
   })
 
-  it("falls back to the item its own terminal shows, never one of another session's", () => {
-    const elsewhere = {
-      ...item("elsewhere", ask, true),
-      source: { ...source, workspaceSessionId: "o" },
-    }
-    expect(letterItem([elsewhere, item("here", held, true)], { id: "m-gone" }, key)?.id).toBe(
-      "here",
-    )
-    expect(letterItem([elsewhere], { id: "m-gone" }, key)).toBeUndefined()
+  it("finds nothing for a letter with no item, not another item of its terminal", () => {
+    expect(letterItem([item("other", held, true)], { id: "m-gone" })).toBeUndefined()
   })
 })

@@ -98,23 +98,20 @@ const terminalAt = (workspace: Workspace, key: TerminalKey): TerminalMetadata | 
     ?.history.find((session) => session.id === key.workspaceSessionId)
     ?.state.roster.terminals.find((terminal) => terminal.id === key.terminalId)
 
-// The demo's own items take their terminal's row from what its agents would show; a held
-// thread is its own row whatever else its terminals show. A feedback draft is the exception:
-// it gives its terminal's row to what the agent waits on, and comes back once the row is free.
+// Every item is its own row, as in core's `inboxItems`, but for one: the demo's own items
+// that wait on the person for their agent (a request, an ask, trouble) stand in for what
+// their terminal's agent waits on, so they take the place of a dialog that agent's own
+// story shows there, which no real agent shows beside another. A feedback draft waits on
+// the person alone, so it is a row beside whatever the agent waits on.
 const merged = (own: readonly InboxItem[], derived: readonly InboxItem[]): InboxItem[] => {
-  // Only what the agent waits on takes the row: not a finish it was seen to make, nor a held thread.
-  const asked = new Set(
-    derived
-      .filter((each) => each.kind !== "update" && each.kind !== "held")
+  const taken = new Set(
+    own
+      .filter((each) => each.kind !== "held" && each.kind !== "update" && each.kind !== "feedback")
       .map((each) => each.source.terminalId),
   )
-  const shown = own.filter((each) => each.kind !== "feedback" || !asked.has(each.source.terminalId))
-  const taken = new Set(
-    shown.filter((each) => each.kind !== "held").map((each) => each.source.terminalId),
-  )
   return ordered([
-    ...shown,
-    ...derived.filter((each) => each.kind === "held" || !taken.has(each.source.terminalId)),
+    ...own,
+    ...derived.filter((each) => each.kind !== "request" || !taken.has(each.source.terminalId)),
   ])
 }
 
@@ -348,14 +345,6 @@ export const createDemoInbox = (
       )
     },
     readAll: () => {
-      // The finishes the Inbox shows, or that an update of the demo's own read now covered: one
-      // whose row another item of the demo's own took stays unread.
-      const covered = new Set(
-        own
-          .getSnapshot()
-          .items.filter((each) => each.kind !== "update" && each.kind !== "held")
-          .map((each) => each.source.terminalId),
-      )
       for (const each of own.getSnapshot().items)
         if (each.kind === "update") record(each, { kind: "update", action: "read" })
       change((current) => ({
@@ -364,7 +353,7 @@ export const createDemoInbox = (
       }))
       const finishes = derived
         .getSnapshot()
-        .items.filter((each) => each.kind === "update" && !covered.has(each.source.terminalId))
+        .items.filter((each) => each.kind === "update")
         .map(finishOf)
       if (finishes.length > 0) binding?.read(finishes)
     },

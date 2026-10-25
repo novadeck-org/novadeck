@@ -314,7 +314,6 @@ export const createRunnerInbox = (
       if (find(id)) tracker.see(id)
     },
     readAll: () => {
-      // Include told updates hidden by a more urgent item on the same terminal.
       const tells = letters.filter((letter) => letter.content.kind === "tell").map(({ id }) => id)
       if (tells.length > 0) {
         tracker.submit(tells)

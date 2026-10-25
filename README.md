@@ -313,7 +313,7 @@ switcher's dot covers them again. The order and the pins are kept in this browse
 runner.
 
 The Inbox (the bell on the sidebar rail) lists everything
-across every project and session that waits on you, one row per agent terminal: a dialog to
+across every project and session that waits on you, each item its own row: a dialog to
 answer, a message between agents held for you to release, a turn that failed, a usage
 limit, a question sent through the agent's `ask` tool, an update sent through `tell`,
 and a turn that finished while you looked elsewhere. Click a row to read it and
@@ -938,7 +938,8 @@ App:
   back is "Tell Claude what to change": Deny opens a note that must say what. "A new item
   arrives" adds the next kind not there yet, and "Clear the added items" takes away the
   hardcoded items and those added here, leaving what the agents wait on. An added item
-  takes its terminal's row from what its agent waits on; answering an added request for an
+  is its own row; one that waits on the person takes the place of a dialog its agent's
+  story shows there, as no real agent shows two; answering an added request for an
   agent that waits takes the agent past it. The group shows in every variant over the
   sample projects, so not in the content showcase.
 - **Murmur:** the demo starts with it installed and on, as the try demo shows it, and never
