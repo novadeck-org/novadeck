@@ -204,7 +204,7 @@ export const Preferences = ({
   const onlyScheme = theme.schemes.length === 1 ? theme.schemes[0] : undefined
   // The first sound is the theme's own, which the choice follows; the rest override it.
   const soundItems = [
-    { label: `Theme's sound (${soundName(theme.sound)})`, value: "theme" },
+    { label: `Theme's bell (${soundName(theme.sound)})`, value: "theme" },
     ...sounds.map(({ id, name }) => ({ label: name, value: id })),
   ]
   const { soundChoice } = value
@@ -313,13 +313,13 @@ export const Preferences = ({
             </Section>
             {/* Only where Novadeck rings through desktop notifications. */}
             {notices && (
-              <Section title="Sound">
+              <Section title="Bell">
                 <div className={settingsCardClasses}>
                   <div className={`preference-row ${settingRowClasses}`}>
                     <SettingText
                       id="sound-label"
-                      label="Play a sound"
-                      description="Novadeck's own sound when an agent needs you or finishes. Holds off during Do Not Disturb where the system says so."
+                      label="Ring the bell"
+                      description="Novadeck rings when an agent needs you or finishes. Holds off during Do Not Disturb where the system says so."
                       descriptionId="sound-description"
                     />
                     <Switch
@@ -331,7 +331,7 @@ export const Preferences = ({
                   </div>
                   <Select
                     className={`preference-row ${settingRowClasses} [&_[data-part=trigger]]:w-56`}
-                    label="Notification sound"
+                    label="Bell sound"
                     items={soundItems}
                     value={soundChoice}
                     onValueChange={(next) => {
@@ -349,7 +349,7 @@ export const Preferences = ({
                       <SettingText
                         id="sound-volume-label"
                         label="Volume"
-                        description="For the sound inside Novadeck. Desktop notifications play at the system's alert volume."
+                        description="For the bell inside Novadeck. Desktop notifications play at the system's alert volume."
                         descriptionId="sound-volume-description"
                       />
                     ) : (

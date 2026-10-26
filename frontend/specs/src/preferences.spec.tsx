@@ -771,7 +771,7 @@ describe("appearance preference", () => {
   })
 
   context("the notification sound", () => {
-    const sound = () => preferencesDialog().getByRole("combobox", { name: "Notification sound" })
+    const sound = () => preferencesDialog().getByRole("combobox", { name: "Bell sound" })
     const savedChoice = () =>
       JSON.parse(localStorage.getItem("novadeck.preferences") ?? "{}").soundChoice
 
@@ -779,10 +779,10 @@ describe("appearance preference", () => {
       await openWorkspace("/?host=on")
       await openAppearance()
 
-      await expect.element(sound()).toHaveTextContent("Theme's sound (Felt)")
+      await expect.element(sound()).toHaveTextContent("Theme's bell (Felt)")
       await preferencesDialog().getByRole("combobox", { name: "Theme" }).click()
       await preferencesDialog().getByRole("option", { name: "Phosphor Amber" }).click()
-      await expect.element(sound()).toHaveTextContent("Theme's sound (Afterglow)")
+      await expect.element(sound()).toHaveTextContent("Theme's bell (Afterglow)")
 
       await sound().click()
       // The theme's own first, then every sound, by name.
@@ -793,7 +793,7 @@ describe("appearance preference", () => {
             .elements()
             .map((option) => option.textContent),
         )
-        .toEqual(["Theme's sound (Afterglow)", "Felt", "Afterglow", "Settle", "Beam"])
+        .toEqual(["Theme's bell (Afterglow)", "Felt", "Afterglow", "Settle", "Beam"])
       await preferencesDialog().getByRole("option", { name: "Beam" }).click()
       await expect.element(sound()).toHaveTextContent("Beam")
       await expect.poll(savedChoice).toBe("beam")
@@ -822,7 +822,7 @@ describe("appearance preference", () => {
       }
     })
 
-    const soundSwitch = () => preferencesDialog().getByRole("switch", { name: "Play a sound" })
+    const soundSwitch = () => preferencesDialog().getByRole("switch", { name: "Ring the bell" })
 
     it("is set on a host that shows desktop notifications, the volume following the switch", async () => {
       await openWorkspace("/?host=on")
@@ -868,7 +868,7 @@ describe("appearance preference", () => {
         .element(preferencesDialog().getByRole("combobox", { name: "Theme" }))
         .toBeVisible()
       await expect
-        .element(preferencesDialog().getByRole("combobox", { name: "Notification sound" }))
+        .element(preferencesDialog().getByRole("combobox", { name: "Bell sound" }))
         .not.toBeInTheDocument()
     })
   })
