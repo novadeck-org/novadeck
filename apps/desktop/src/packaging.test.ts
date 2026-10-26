@@ -28,8 +28,11 @@ const copied = (): string[] =>
   [...readFileSync(join(app, "electron-builder.yml"), "utf8").matchAll(/^\s*- from: (.+)$/gm)].map(
     (match) => match[1]!.trim(),
   )
-/** The files copied as they are checked in, not built: the license the GPL asks to ship. */
-const checkedIn = ["../../LICENSE"]
+/**
+ * The files copied as they are checked in, not built: the license the GPL asks to ship, and
+ * the notification sound.
+ */
+const checkedIn = ["../../LICENSE", "../../frontend/ui/src/app/ding.wav"]
 /** The `from:`s that are a package's build output. */
 const built = (): string[] => copied().filter((from) => !checkedIn.includes(from))
 /** The package folder a `from:` is a build output of: the app's own for its `dist`. */

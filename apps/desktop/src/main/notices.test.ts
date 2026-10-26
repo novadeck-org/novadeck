@@ -6,6 +6,8 @@ import { noticeChannel, noticeCloseChannel } from "../bridge.js"
 import { context, describe, expect, it } from "../test"
 import {
   desktopNoticeOf,
+  noticeSound,
+  notificationOptions,
   notificationText,
   registerNoticeIpc,
   showNotices,
@@ -23,7 +25,7 @@ describe("a notice from the page", () => {
   })
 
   it("passes nothing else the page sent", () => {
-    expect(desktopNoticeOf({ ...notice, icon: "/etc/passwd", silent: true })).toEqual(notice)
+    expect(desktopNoticeOf({ ...notice, icon: "/etc/passwd", sound: "x" })).toEqual(notice)
   })
 
   context("when it is not one", () => {
@@ -45,6 +47,7 @@ describe("a notice from the page", () => {
         { ...notice, body: "x".repeat(121) },
         { ...notice, body: "bell\u0007" },
         { ...notice, body: null },
+        { ...notice, silent: "yes" },
       ])
         expect(desktopNoticeOf(value)).toBeUndefined()
     })
@@ -115,7 +118,9 @@ describe("taking the page's requests to close a notice", () => {
 class FakeNotification extends EventEmitter implements NotificationLike {
   shown = false
   closed = false
-  constructor(readonly options: { readonly title: string; readonly body: string }) {
+  constructor(
+    readonly options: { readonly title: string; readonly body: string; readonly silent: boolean },
+  ) {
     super()
   }
   show(): void {
@@ -147,7 +152,7 @@ describe("showing notices as the system's notifications", () => {
     const { show, made } = notifying()
     show("window", { ...notice, body: "All green." })
     expect(made.map(({ options, shown }) => ({ ...options, shown }))).toEqual([
-      { title: "t1 is done: Tests", body: "All green.", shown: true },
+      { title: "t1 is done: Tests", body: "All green.", silent: false, shown: true },
     ])
   })
 
@@ -227,5 +232,56 @@ describe("a notification's text", () => {
   it("leaves it as it is elsewhere, where it is plain text", () => {
     expect(notificationText(markup, "darwin")).toEqual(markup)
     expect(notificationText(markup, "win32")).toEqual(markup)
+  })
+})
+
+describe("a notice's silent flag", () => {
+  it("passes when it is a boolean", () => {
+    expect(desktopNoticeOf({ ...notice, silent: true })).toEqual({ ...notice, silent: true })
+    expect(desktopNoticeOf({ ...notice, silent: false })).toEqual({ ...notice, silent: false })
+  })
+
+  it("reaches the notification the person turned the sound off for", () => {
+    const made: unknown[] = []
+    const { show } = showNotices<string>({
+      supported: true,
+      create: (options) => {
+        made.push(options)
+        return new FakeNotification(options)
+      },
+      clicked: () => {},
+    })
+    show("window", { ...notice, silent: true })
+    expect(made).toEqual([{ title: notice.title, body: "", silent: true }])
+  })
+})
+
+describe("a notice as Electron's notification", () => {
+  const text = { title: "t1 is done", body: "All green.", silent: false }
+
+  it("is silent where the app plays its own sound", () => {
+    for (const platform of ["linux", "win32"] as const) {
+      expect(notificationOptions(text, platform)).toEqual({
+        title: "t1 is done",
+        body: "All green.",
+        silent: true,
+      })
+    }
+  })
+
+  it("plays the bundled sound on macOS, so Focus mutes it", () => {
+    expect(notificationOptions(text, "darwin")).toEqual({
+      title: "t1 is done",
+      body: "All green.",
+      sound: noticeSound,
+    })
+  })
+
+  it("stays silent on macOS when the person turned the sound off", () => {
+    expect(notificationOptions({ ...text, silent: true }, "darwin")).toEqual({
+      title: "t1 is done",
+      body: "All green.",
+      silent: true,
+    })
   })
 })

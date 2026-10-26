@@ -29,11 +29,14 @@ export const watchInboxToasts = (
   {
     graceMs = needGraceMs,
     pings = false,
+    ding,
     desktop = isDesktop,
   }: {
     graceMs?: number
     // Whether the OS ping can take an item held when the person leaves the app.
     pings?: boolean
+    // Sounds the ding as each toast shows, keyed by its terminal.
+    ding?: (terminalId: string) => void
     // Whether the window is wide enough for the resizable sidebar, as the shell asks.
     desktop?: () => boolean
   } = {},
@@ -44,6 +47,7 @@ export const watchInboxToasts = (
   const shown = new Map<string, InboxItem>()
   const show = (item: InboxItem): void => {
     shown.set(item.source.terminalId, item)
+    ding?.(item.source.terminalId)
     board.show(item)
   }
   const release = (state: UiState): void => {

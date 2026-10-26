@@ -19,15 +19,16 @@ const line = (value: unknown, length: number): value is string =>
 /**
  * The page's notice when it is one, or undefined. The page is not trusted with more: a
  * terminal id, and a title and body each one line of plain text within its length, the
- * title not empty; nothing else of the value passes.
+ * title not empty, and `silent`, when there, a boolean; nothing else of the value passes.
  */
 export const desktopNoticeOf = (value: unknown): DesktopNotice | undefined => {
   if (typeof value !== "object" || value === null) return undefined
-  const { id, title, body } = value as Record<string, unknown>
+  const { id, title, body, silent } = value as Record<string, unknown>
   if (typeof id !== "string" || !noticeIdPattern.test(id)) return undefined
   if (!line(title, noticeTitleLength) || !title.trim()) return undefined
   if (!line(body, noticeBodyLength)) return undefined
-  return { id, title, body }
+  if (silent !== undefined && typeof silent !== "boolean") return undefined
+  return silent === undefined ? { id, title, body } : { id, title, body, silent }
 }
 
 type NoticeIpc = {
@@ -81,6 +82,33 @@ export const notificationText = (
       : body,
 })
 
+/** What Electron's `Notification` takes to show a notice. */
+export type NotificationOptions = {
+  readonly title: string
+  readonly body: string
+  readonly silent?: true
+  readonly sound?: string
+}
+
+/** The bundled sound macOS plays for a notification, named by file in the app's resources. */
+export const noticeSound = "ding.wav"
+
+/**
+ * A notice as Electron's `Notification` takes it. The app plays its own sound where it can,
+ * so the notification is silent, but on macOS the page cannot tell whether Focus holds
+ * notifications back and the system can: there the notification plays the bundled sound,
+ * which Focus mutes, unless the person turned the sound off (`silent`).
+ */
+export const notificationOptions = (
+  notice: { readonly title: string; readonly body: string; readonly silent: boolean },
+  platform: NodeJS.Platform,
+): NotificationOptions => {
+  const text = notificationText(notice, platform)
+  return platform === "darwin" && !notice.silent
+    ? { ...text, sound: noticeSound }
+    : { ...text, silent: true }
+}
+
 /** What showing a notification takes of Electron's `Notification`. */
 export type NotificationLike = {
   on(event: "click", listener: () => void): unknown
@@ -103,7 +131,11 @@ export const showNotices = <Window>({
   clicked,
 }: {
   readonly supported: boolean
-  readonly create: (notice: { readonly title: string; readonly body: string }) => NotificationLike
+  readonly create: (notice: {
+    readonly title: string
+    readonly body: string
+    readonly silent: boolean
+  }) => NotificationLike
   readonly clicked: (window: Window, id: string) => void
 }): {
   readonly show: (window: Window, notice: DesktopNotice) => void
@@ -111,10 +143,10 @@ export const showNotices = <Window>({
   readonly closeAll: () => void
 } => {
   const showing = new Map<string, NotificationLike>()
-  const show = (window: Window, { id, title, body }: DesktopNotice): void => {
+  const show = (window: Window, { id, title, body, silent }: DesktopNotice): void => {
     if (!supported) return
     showing.get(id)?.close()
-    const notification = create({ title, body })
+    const notification = create({ title, body, silent: silent === true })
     const forget = (): void => {
       if (showing.get(id) === notification) showing.delete(id)
     }
