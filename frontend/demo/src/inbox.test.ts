@@ -326,6 +326,116 @@ const firstChoice = (item: InboxItem | undefined): InboxAnswer => {
 }
 
 describe("the agents demo's Inbox", () => {
+  it("keeps an agent's open asks when an Inbox button sends it a fixed line", async () => {
+    const { backend, inbox, store } = boot()
+    const found = store
+      .getSnapshot()
+      .projects.flatMap((project) =>
+        (project.history[0]?.state.roster.terminals ?? []).map((terminal) => ({
+          project: project.id,
+          terminal,
+        })),
+      )
+      .find(
+        ({ terminal }) =>
+          terminal.state === "running" &&
+          chatAgent(terminal) &&
+          !terminal.agent?.working &&
+          !terminal.agent?.attention &&
+          !inbox.state.getSnapshot().items.some((each) => each.source.terminalId === terminal.id),
+      )!
+    const key = {
+      projectId: found.project,
+      workspaceSessionId: "initial",
+      terminalId: found.terminal.id,
+    }
+    const question = demoInboxItemsAll(now).find((each) => each.kind === "ask")!
+    inbox.add({ ...question, id: "ask-here", source: { ...question.source, ...key } })
+    await backend.conversations!.send(key, "continue", { automatic: true })
+    await vi.advanceTimersByTimeAsync(1)
+    expect(ids(inbox)).toContain("ask-here")
+  })
+
+  it("keeps an Inbox line's mark through an interrupt that gives the line back, as the runner does", async () => {
+    const { backend, inbox, store, turns } = boot()
+    const found = store
+      .getSnapshot()
+      .projects.flatMap((project) =>
+        (project.history[0]?.state.roster.terminals ?? []).map((terminal) => ({
+          project: project.id,
+          terminal,
+        })),
+      )
+      .find(
+        ({ terminal }) =>
+          terminal.state === "running" &&
+          chatAgent(terminal) &&
+          terminal.agent !== undefined &&
+          !terminal.agent?.working &&
+          !terminal.agent?.attention &&
+          !inbox.state.getSnapshot().items.some((each) => each.source.terminalId === terminal.id),
+      )!
+    const key = {
+      projectId: found.project,
+      workspaceSessionId: "initial",
+      terminalId: found.terminal.id,
+    }
+    const question = demoInboxItemsAll(now).find((each) => each.kind === "ask")!
+    // The agent works, and a Continue waits behind its turn; the person takes the line back.
+    expect(turns.prompt("Get on with it.", found.terminal, key)).toBe(true)
+    await vi.advanceTimersByTimeAsync(1)
+    await backend.conversations!.send(key, "continue", { automatic: true })
+    expect(await backend.conversations!.interrupt(key)).toBe("continue")
+    inbox.add({ ...question, id: "ask-here", source: { ...question.source, ...key } })
+    // Sent again as their own words, the line still matches the mark, which waited.
+    await vi.advanceTimersByTimeAsync(5_000)
+    await backend.conversations!.send(key, "continue")
+    await vi.advanceTimersByTimeAsync(1)
+    expect(ids(inbox)).toContain("ask-here")
+  })
+
+  it("withdraws an agent's open asks when the person writes to it, and no other item", async () => {
+    const { inbox, turns, store } = boot()
+    const found = store
+      .getSnapshot()
+      .projects.flatMap((project) =>
+        (project.history[0]?.state.roster.terminals ?? []).map((terminal) => ({
+          project: project.id,
+          terminal,
+        })),
+      )
+      .find(
+        ({ terminal }) =>
+          terminal.state === "running" &&
+          chatAgent(terminal) &&
+          !terminal.agent?.working &&
+          !terminal.agent?.attention &&
+          !inbox.state.getSnapshot().items.some((each) => each.source.terminalId === terminal.id),
+      )!
+    const key = {
+      projectId: found.project,
+      workspaceSessionId: "initial",
+      terminalId: found.terminal.id,
+    }
+    const all = demoInboxItemsAll(now)
+    const question = all.find((each) => each.kind === "ask")!
+    const update = all.find((each) => each.kind === "update")!
+    const here = { ...question.source, ...key }
+    inbox.add({ ...question, id: "ask-here", source: here })
+    inbox.add({ ...question, id: "ask-elsewhere" })
+    inbox.add({ ...update, id: "update-here", source: { ...update.source, ...key } })
+    expect(ids(inbox)).toEqual(expect.arrayContaining(["ask-here", "update-here", "ask-elsewhere"]))
+    // An ask made after a prompt was queued (the demo's lasts from `now`) stays.
+    inbox.add({ ...question, id: "ask-later", at: now + 5, source: here })
+    expect(turns.prompt("Blue, please.", found.terminal, key, { submittedAt: now + 1 })).toBe(true)
+    await vi.advanceTimersByTimeAsync(1)
+    expect(ids(inbox)).toContain("ask-later")
+    const left = ids(inbox)
+    expect(left).not.toContain("ask-here")
+    // An ask on another terminal, and an update on this one, stay.
+    expect(left).toEqual(expect.arrayContaining(["update-here", "ask-elsewhere"]))
+  })
+
   it("shows the draft an Ask made beside a held thread, and no row for the agent's finish", async () => {
     const { backend, inbox, itemOn, store, finish } = boot()
     const found = store

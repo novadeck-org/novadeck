@@ -1121,7 +1121,7 @@ export const runnerBackend = (
     {
       detail: (terminalId) => runner.agents.detail(terminalId),
       transcript: (terminalId, actor) => runner.agents.transcript(terminalId, actor),
-      prompt: (terminalId, text) => runner.agents.prompt(terminalId, text),
+      prompt: (terminalId, text, automatic) => runner.agents.prompt(terminalId, text, automatic),
       interrupt: (terminalId) => runner.agents.interrupt(terminalId),
       answer: (terminalId, request, answer) => runner.agents.answer(terminalId, request, answer),
     },
@@ -1134,7 +1134,7 @@ export const runnerBackend = (
       asks: runner.asks,
       detail: (terminalId) => runner.agents.detail(terminalId),
       answer: (key, request, answer) => conversations.answer(key, request, answer),
-      send: (key, text) => conversations.send(key, text),
+      send: (key, text, sending) => conversations.send(key, text, sending),
       interrupt: (key) => conversations.interrupt(key),
       release: messages.release,
       stop: messages.stop,

@@ -12,7 +12,7 @@ import { followRoot, rootedIn, type RootChange } from "../../harnesses/roots.js"
 import { transcriptWaitMs, typedPromptStart } from "../../harnesses/typed-prompts.js"
 import type { Asks } from "../../messaging/asks.js"
 import { byteLength, maxDeliveryBytes } from "../../messaging/mailbox.js"
-import { leaseMargin, type Messaging } from "../../messaging/messaging.js"
+import { leaseMargin, type Messaging, type Person } from "../../messaging/messaging.js"
 import type { HookAnswer } from "../../shell/reports.js"
 import { sameToken } from "../callers.js"
 import { promptIn } from "../commands.js"
@@ -268,8 +268,15 @@ export class Reports {
     )
       record.nudges = fired(record.nudges, "compaction")
     this.host.murmur()?.reported(report.terminalId)
+    // The person's own prompt starting a root turn takes the session's open asks out of the
+    // Inbox, as delivery judges the prompt theirs, but only with the notice in an answer of
+    // the hook that can still print it (see `Messaging.withdrawn`).
+    const person: Person = {
+      counts: ({ prompt }) => !this.byCommand(record, prompt),
+      withdraw: (before) => this.host.asks().withdrawBefore(record.summary.id, before),
+    }
     if (deadline === undefined) {
-      this.host.messaging().observe(report.terminalId, told)
+      this.host.messaging().observe(report.terminalId, told, person)
       this.host.bindings().escaped(record)
       this.judgeFirst(record)
       return silent
@@ -279,6 +286,7 @@ export class Reports {
       event: report.event,
       events: told,
       deadline,
+      person,
     })
     if (stopAsk) {
       this.continued(record, told, answer)
@@ -329,14 +337,24 @@ export class Reports {
     const { work } = record
     if (!work?.first || work.firstByPerson !== undefined) return
     const prompt = this.host.messaging().personPrompt(record.summary.id)
-    // The opener's own command-line prompt is never the person's, whatever Enter came before.
-    const command =
+    record.work = judgedFirst(work, prompt !== undefined && !this.byCommand(record, prompt))
+    this.host.save(record)
+  }
+
+  /**
+   * Whether the root session's first prompt, not yet judged, is its opener's own
+   * command-line prompt, never the person's whatever Enter came before.
+   */
+  byCommand(record: Record, prompt: string | undefined): boolean {
+    const { work } = record
+    return (
+      !!work?.first &&
+      work.firstByPerson === undefined &&
       work.opened === true &&
       prompt !== undefined &&
       record.openerCommand !== null &&
       promptIn(record.openerCommand, prompt)
-    record.work = judgedFirst(work, prompt !== undefined && !command)
-    this.host.save(record)
+    )
   }
 
   /**

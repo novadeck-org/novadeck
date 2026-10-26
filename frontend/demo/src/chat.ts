@@ -35,6 +35,37 @@ export const answeredMs = 500
 
 const movedOn = "The agent moved on before your answer reached it."
 
+// A line sent to an agent, and when the person sent it.
+type Sent = { readonly text: string; readonly submittedAt: number }
+
+// A prompt as the runner reads it once sent: line ends as `\n`, trimmed.
+const sentText = (line: string): string => line.replace(/\r\n?/g, "\n").trim()
+
+// Spends the marks of the Inbox lines that `line` is entirely made of, as the runner does: one
+// line, or several in the order they were marked, joined by line breaks. Whether it was.
+const spendMarks = (marks: string[] | undefined, line: string): boolean => {
+  if (!marks) return false
+  const text = sentText(line)
+  const one = marks.indexOf(text)
+  if (one >= 0) {
+    marks.splice(one, 1)
+    return true
+  }
+  const taken: number[] = []
+  let rest = text
+  let from = 0
+  while (rest !== "") {
+    const next = marks.findIndex(
+      (mark, at) => at >= from && (rest === mark || rest.startsWith(`${mark}\n`)),
+    )
+    if (next < 0) return false
+    taken.push(next)
+    rest = rest.slice(marks[next]!.length + 1)
+    from = next + 1
+  }
+  for (const at of taken.toReversed()) marks.splice(at, 1)
+  return taken.length > 0
+}
 type Found = { readonly key: TerminalKey; readonly terminal: TerminalMetadata }
 
 const agentOf = (terminal: TerminalMetadata): AgentStatus =>
@@ -183,6 +214,10 @@ export const createDemoChat = (
   // The transcript requests each agent has asked, by terminal and the request's id in its
   // transcript: each but a plan is asked once, then the agent makes one up.
   const asked = new Set<string>()
+  // The Inbox lines sent to each terminal's agent and not yet taken, one entry for each send,
+  // oldest first, as the runner keeps them: they outlast an interrupt that gives the lines
+  // back, and go with the agent.
+  const marks = new Map<string, string[]>()
   // What each terminal's agent was sent while it worked, oldest first, and which agent it
   // was for: a later agent in the terminal never gets it.
   const queues = new Map<
@@ -190,7 +225,7 @@ export const createDemoChat = (
     {
       readonly key: TerminalKey
       readonly agent: string
-      readonly prompts: readonly string[]
+      readonly prompts: readonly Sent[]
     }
   >()
   // The terminal at the full address, in the workspace as it stands, or in the seed.
@@ -327,10 +362,12 @@ export const createDemoChat = (
     }))
   // Gives the agent what was sent to it: a shell command runs at once, and a message
   // starts its turn.
-  const deliver = (found: Found, prompt: string): void => {
+  const deliver = (found: Found, sent: Sent): void => {
+    const prompt = sent.text
     const command = shellCommand(prompt)
     if (command === undefined) {
-      turns.prompt(prompt, found.terminal, found.key)
+      const automatic = spendMarks(marks.get(terminalKeyId(found.key)), prompt)
+      turns.prompt(prompt, found.terminal, found.key, { automatic, submittedAt: sent.submittedAt })
       return
     }
     // A shell command runs without a turn. Antigravity keeps no record of it; the
@@ -372,6 +409,7 @@ export const createDemoChat = (
       const found = locate(entry.key)
       if (!runs(found) || String(found.terminal.process) !== entry.agent) {
         queues.delete(id)
+        marks.delete(id)
         return
       }
       if (busy(found)) return
@@ -379,7 +417,7 @@ export const createDemoChat = (
       if (rest.length > 0) queues.set(id, { ...entry, prompts: rest })
       else queues.delete(id)
       deliver(found, prompt!)
-      if (shellCommand(prompt!) === undefined) return
+      if (shellCommand(prompt!.text) === undefined) return
     }
   }
   // Nothing waits on the person once a turn begins or the agent rests or is stopped.
@@ -444,7 +482,7 @@ export const createDemoChat = (
     conversations: {
       conversation: storeOf,
       refused: promptRefused,
-      send: async (key, prompt) => {
+      send: async (key, prompt, options) => {
         const found = agentFor(key)
         const name = chatAgents[chatAgent(found.terminal)!]
         const agent = agentOf(found.terminal)
@@ -455,19 +493,23 @@ export const createDemoChat = (
         if (!prompt.trim()) return
         // As the runner refuses it: text the agent would read as more than a message.
         if (promptRefused(prompt, { shell: true })) throw new Error(promptRefusal)
-        // Behind a turn, or behind what already waits for one, it waits its turn.
+        // The mark and the time go with the line, so a line that waits, is dropped or never
+        // goes takes them along.
+        const sent: Sent = { text: prompt, submittedAt: Date.now() }
         const id = terminalKeyId(found.key)
+        if (options?.automatic) marks.set(id, [...(marks.get(id) ?? []), sentText(prompt)])
+        // Behind a turn, or behind what already waits for one, it waits its turn.
         const waiting = queues.get(id)
         if (busy(found) || waiting) {
           queues.set(id, {
             key: found.key,
             agent: String(found.terminal.process),
-            prompts: [...(waiting?.prompts ?? []), prompt],
+            prompts: [...(waiting?.prompts ?? []), sent],
           })
           drain(id)
           return
         }
-        deliver(found, prompt)
+        deliver(found, sent)
       },
       interrupt: async (key) => {
         const found = agentFor(key)
@@ -476,7 +518,7 @@ export const createDemoChat = (
         queues.delete(id)
         turns.interrupt(found.key, agentOf(found.terminal))
         // What waited behind the turn comes back, for the person to send again.
-        return queued ? queued.prompts.join("\n") : null
+        return queued ? queued.prompts.map(({ text: line }) => line).join("\n") : null
       },
       answer: async (key, id, answer) => {
         const found = agentFor(key)
@@ -570,7 +612,11 @@ export const createDemoChat = (
     observe: (workspace) => {
       latest = workspace
       // What waited for an agent that ended goes at once, before another can start there.
-      for (const [id, entry] of queues) if (!runs(locate(entry.key))) queues.delete(id)
+      for (const [id, entry] of queues)
+        if (!runs(locate(entry.key))) {
+          queues.delete(id)
+          marks.delete(id)
+        }
       // After the commit that freed an agent has said all it says, as its turn's reply.
       if (queues.size > 0) queueMicrotask(() => [...queues.keys()].forEach(drain))
       for (const entry of stores.values()) {

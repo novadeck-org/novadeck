@@ -512,8 +512,14 @@ describe("the runner's conversations", () => {
       const { conversations, streams } = setup()
       await conversations.send(key, "hello")
       await conversations.interrupt(key)
-      expect(streams.prompt).toHaveBeenCalledWith("t", "hello")
+      expect(streams.prompt).toHaveBeenCalledWith("t", "hello", undefined)
       expect(streams.interrupt).toHaveBeenCalledWith("t")
+    })
+
+    it("marks a fixed line an Inbox button sends as automatic", async () => {
+      const { conversations, streams } = setup()
+      await conversations.send(key, "continue", { automatic: true })
+      expect(streams.prompt).toHaveBeenCalledWith("t", "continue", true)
     })
 
     it.each([

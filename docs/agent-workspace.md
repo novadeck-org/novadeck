@@ -271,7 +271,9 @@ the person's first quiet prompt of each root session and after a compaction
 (`artifactsNotice` in `terminals/nudges.ts`; it rides with the summary nudge but a
 `summarize` never clears it; see [Agent messaging](agent-messaging.md), "Nudges"), with
 the Inbox notice beside it (`inboxNotice`): the person rarely watches the terminal, so
-a question the agent's turn ends waiting on goes to the Inbox with `ask`. A
+a question the agent's turn ends waiting on goes to the Inbox: through the harness's own
+question tool where the agent would use one, which the Inbox shows as it is, else with
+`ask`. A
 worker another agent runs by briefs alone hears them at the person's first prompt there,
 so until then its tool descriptions are what tell it. In Antigravity an injected message
 lasts one model call, so there the notices are read once at the prompt and the tool

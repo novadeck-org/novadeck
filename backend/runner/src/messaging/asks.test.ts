@@ -10,7 +10,14 @@ import { vi } from "vitest"
 import { agents, harnesses } from "../harnesses/registry.js"
 import { describe, expect, it } from "../test.js"
 import { WorkspaceStore } from "../workspaces/store.js"
-import { Asks, askSweepMs, maxResolvedLetters, memoryAsks, type AskRecords } from "./asks.js"
+import {
+  Asks,
+  askSweepMs,
+  maxResolvedLetters,
+  memoryAsks,
+  withdrawnNotice,
+  type AskRecords,
+} from "./asks.js"
 import { retentionMs, wrap, type Message } from "./mailbox.js"
 import { Messaging } from "./messaging.js"
 import { memoryMailbox, type MailboxRecords } from "./records.js"
@@ -1554,5 +1561,83 @@ describe("Inbox asks whose session does not come back after a restart", () => {
         .threads.flatMap((thread) => thread.messages)
         .find((message) => message.id === `m-${id.replaceAll("-", "")}`)?.inboxState,
     ).toBe("gone")
+  })
+})
+
+describe("asks the person's own prompt withdraws", () => {
+  const clocked = () => {
+    const time = { now: 1_000 }
+    return { time, ...setup(memoryAsks(), undefined, { now: () => time.now }) }
+  }
+
+  it("withdraws the session's open asks made before the prompt, leaving what they began with", () => {
+    const { asks, create, time } = clocked()
+    const early = create({ ...letter, subject: "Pick a colour" })
+    time.now = 1_200
+    const later = create({ ...letter, subject: "Pick a font" })
+    time.now = 1_300
+    asks.call(identity.terminalId, "tell", { subject: "PR opened", body: "Checks run." })
+    asks.call(identity.terminalId, "done", { subject: "Task finished", body: "All done." })
+    asks.recordTurn(identity, 1_350, {
+      outcome: "completed",
+      reply: "Done",
+      error: null,
+      files: [],
+    })
+    const notice = asks.withdrawBefore(identity.terminalId, 1_150)
+    expect(notice).toContain('"Pick a colour"')
+    expect(notice).not.toContain("Pick a font")
+    expect(notice).toBe(withdrawnNotice(["Pick a colour"]))
+    expect(asks.list().map(({ id }) => id)).toContain(later)
+    expect(asks.list().map(({ id }) => id)).not.toContain(early)
+    expect(
+      asks
+        .list()
+        .map(({ content }) => content.kind)
+        .toSorted(),
+    ).toEqual(["ask", "done", "tell", "turn"])
+    // The agent can no longer withdraw what is already out.
+    expect(asks.call(identity.terminalId, "ask", { withdraw: early }).ok).toBe(false)
+  })
+
+  it("keeps an ask the agent made in the new turn, and answers nothing when none was open", () => {
+    const { asks, create, time } = clocked()
+    create()
+    expect(asks.withdrawBefore(identity.terminalId, 1_000)).toBeUndefined()
+    expect(asks.list()).toHaveLength(1)
+    time.now = 2_000
+    create({ ...letter, subject: "Asked in the new turn" })
+    expect(asks.withdrawBefore(identity.terminalId, 2_000)).toContain('"Pick a colour"')
+    expect(asks.withdrawBefore("another", 9_000)).toBeUndefined()
+    expect(asks.withdrawBefore(identity.terminalId, 2_000)).toBeUndefined()
+    expect(asks.list()).toHaveLength(1)
+  })
+
+  it("keeps an answered ask answered, and shows a withdrawn one as withdrawn in the history", () => {
+    const { asks, messaging, create, time } = clocked()
+    const answered = create()
+    asks.answer(answered, { type: "reply", option: 1, text: "Green" })
+    time.now = 1_100
+    create({ ...letter, subject: "Which one?" })
+    time.now = 1_500
+    expect(asks.withdrawBefore(identity.terminalId, 1_500)).toContain('"Which one?"')
+    expect(asks.list()).toEqual([])
+    const messages = asks
+      .history(identity.terminalId, messaging.list(identity.terminalId, identity.handle))
+      .threads.flatMap((thread) => thread.messages)
+    const states = messages
+      .filter(({ inbox }) => inbox === "ask")
+      .map(({ inboxState }) => inboxState)
+    expect(states.toSorted()).toEqual(["answered", "withdrawn"])
+  })
+
+  it("names a few subjects in one short paragraph, as the agent's quoted words", () => {
+    const subjects = Array.from({ length: 7 }, (_, index) => `Question ${index + 1} "quoted"`)
+    const notice = withdrawnNotice([...subjects, "x".repeat(400)])
+    expect(notice.startsWith("Novadeck: automatic notice, not from the user: ")).toBe(true)
+    expect(notice).toContain('"Question 1 \\"quoted\\""')
+    expect(notice).toContain("and 3 more")
+    expect(notice).not.toContain("\n")
+    expect(Buffer.byteLength(notice)).toBeLessThan(1_000)
   })
 })

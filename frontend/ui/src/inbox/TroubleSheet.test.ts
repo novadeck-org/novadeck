@@ -161,3 +161,41 @@ describe("A failed turn's sheet", () => {
     open.view.unmount()
   })
 })
+
+describe("A stuck agent's sheet", () => {
+  const stuck: InboxItem = {
+    ...(limit(null, 0) as Extract<InboxItem, { kind: "trouble" }>),
+    trouble: {
+      type: "stuck",
+      summary: "Loops on the same test.",
+      evidence: [],
+      nudge: "Step back.",
+    },
+  }
+  const press = (label: string): void =>
+    act(() =>
+      Array.from(document.querySelectorAll<HTMLElement>(".inbox-sheet button, .inbox-sheet a"))
+        .find((each) => each.textContent?.trim() === label)!
+        .click(),
+    )
+
+  it("sends Nudge's own line as Novadeck's, and words the person wrote as theirs", async () => {
+    const open = mount(stuck)
+    press("Write your own")
+    const field = document.querySelector<HTMLTextAreaElement>(".inbox-sheet textarea")!
+    act(() => {
+      Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, "value")!.set!.call(
+        field,
+        "Try the cache",
+      )
+      field.dispatchEvent(new Event("input", { bubbles: true }))
+    })
+    act(() => field.form!.requestSubmit())
+
+    expect(open.sent).toEqual([
+      { kind: "trouble", action: { type: "nudge", text: "Try the cache", own: true } },
+    ])
+    await nextFrame()
+    open.view.unmount()
+  })
+})

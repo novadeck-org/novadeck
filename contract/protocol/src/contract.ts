@@ -246,9 +246,17 @@ export const contract = {
     // showed, or showed other than exactly the text, is PROMPT_FAILED, and what landed of it
     // stays in the box as a draft; text a TUI would read as a command or a file pick (a
     // leading `/` or `!`, a trailing `@name` or `$name`, a control character), or that is
-    // nothing but white space, is PROMPT_REFUSED, writing nothing.
+    // nothing but white space, is PROMPT_REFUSED, writing nothing. `automatic` marks a fixed
+    // line an Inbox button sends ("continue"), not words the person wrote: the turn it
+    // starts is theirs to the doorbell and delivery, but takes no open ask out of the Inbox.
     prompt: procedure
-      .input(z.strictObject({ terminalId: id, text: z.string().min(1).max(16_384) }))
+      .input(
+        z.strictObject({
+          terminalId: id,
+          text: z.string().min(1).max(16_384),
+          automatic: z.literal(true).optional(),
+        }),
+      )
       .output(z.void()),
     // Answers a request waiting on the person through its dialog in the agent's TUI, as the
     // person would with its keys: the harness's adapter reads the dialog, checks it is the
