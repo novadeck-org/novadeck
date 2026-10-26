@@ -86,7 +86,8 @@ describe("the packaged app's resources", () => {
         .toSorted(),
     ).toEqual(noticeSounds.map(({ id }) => noticeSoundFile(id)).toSorted())
     expect(readFileSync(join(app, "electron-builder.yml"), "utf8")).toMatch(
-      /from: \.\.\/\.\.\/frontend\/ui\/src\/sounds\n\s+to: \.\n\s+filter:\n\s+- "\*\.wav"/,
+      // Any line ending: a Windows checkout reads the config with \r\n.
+      /from: \.\.\/\.\.\/frontend\/ui\/src\/sounds\s+to: \.\s+filter:\s+- "\*\.wav"/,
     )
   })
 
