@@ -602,6 +602,7 @@ export class Terminals {
           (record) => record.summary.sessionId === sessionId && record.terminal.exit === null,
         ),
       projectFolder: (sessionId) => this.projectFolder(sessionId),
+      reports: (terminalId) => this.inbox.reports(terminalId),
       stopping: () => this.stopping,
     })
     this.murmur = options.describer

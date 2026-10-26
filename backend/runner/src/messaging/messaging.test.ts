@@ -1917,6 +1917,7 @@ const whereabouts = (overrides: Partial<Whereabouts> = {}): Whereabouts => ({
   working: false,
   waiting: null,
   waitsOn: null,
+  reports: { tell: null, done: null },
   place: (path) => path,
   ...overrides,
 })
@@ -3215,7 +3216,8 @@ describe("the person's prompt, told to the asks", () => {
   const who = (note: string | undefined = notice) => {
     const counts = vi.fn<Person["counts"]>(() => true)
     const withdraw = vi.fn<Person["withdraw"]>(() => note)
-    return { counts, withdraw, person: { counts, withdraw } satisfies Person }
+    const prompted = vi.fn<Person["prompted"]>()
+    return { counts, withdraw, prompted, person: { counts, withdraw, prompted } satisfies Person }
   }
   type Run = ReturnType<typeof create> & {
     readonly bound: Binding
@@ -3287,6 +3289,28 @@ describe("the person's prompt, told to the asks", () => {
       })
       expect(told.withdraw).toHaveBeenCalledWith(run.clock.now)
       expect(answer.stdout).toContain(notice)
+    },
+  )
+
+  it.each(harnessesTold)(
+    "notes $name's turn as the person's prompt only when their Enter started it",
+    async ({ agent }) => {
+      const run = setup(agent)
+      const told = who()
+      // The harness's own turn, as a self-wake, or a prompt with no Enter of theirs, isn't it.
+      run.messaging.keys(run.terminal, ["enter"], false)
+      await start(run, "harness", told.person)
+      run.stop(run.terminal, run.bound)
+      run.messaging.keys(run.terminal, ["enter"], false)
+      await start(run, "doorbell", told.person)
+      run.stop(run.terminal, run.bound)
+      run.clock.now += 60_000
+      await start(run, "prompt", told.person)
+      run.stop(run.terminal, run.bound)
+      expect(told.prompted).not.toHaveBeenCalled()
+      run.messaging.keys(run.terminal, ["enter"], false)
+      await start(run, "prompt", told.person)
+      expect(told.prompted).toHaveBeenCalledExactlyOnceWith(run.clock.now)
     },
   )
 

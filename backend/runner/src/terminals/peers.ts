@@ -7,7 +7,7 @@ import { secret } from "../companions/secrets.js"
 import { DomainError } from "../errors.js"
 import type { Activity } from "../harnesses/activity.js"
 import type { AgentsAnswer, Messaging, PeerAnswer, SendAnswer } from "../messaging/messaging.js"
-import { waitsOnNote, type Waiting, type Whereabouts } from "../messaging/peers.js"
+import { waitsOnNote, type Reports, type Waiting, type Whereabouts } from "../messaging/peers.js"
 import { unansweredCalls, type Ack, type Call } from "../shell/reports.js"
 import type { HintFacts } from "../voice/hint.js"
 import { gitBranch } from "./branch.js"
@@ -65,6 +65,8 @@ export type PeersOptions = {
   readonly running: (sessionId: string) => readonly PeerRecord[]
   /** The folder of the project a session belongs to, when one is known. */
   readonly projectFolder: (sessionId: string) => string | undefined
+  /** The latest reports of the agent session bound in a terminal. */
+  readonly reports: (terminalId: string) => Reports
   /** Whether the runner is stopping. */
   readonly stopping: () => boolean
 }
@@ -183,8 +185,8 @@ export class TerminalPeers {
   /**
    * What Novadeck knows of each running terminal in a session beyond its agent's hooks:
    * its title and who gave it; its folder, relative to the project when inside it; its
-   * git branch; its agent's current plan's title; what its root session worked on; and
-   * how to shorten the paths it wrote in.
+   * git branch; its agent's current plan's title; what its root session worked on; its
+   * agent's latest reports; and how to shorten the paths it wrote in.
    */
   private async whereabouts(sessionId: string): Promise<Map<string, Whereabouts>> {
     const project = this.options.projectFolder(sessionId)
@@ -218,6 +220,7 @@ export class TerminalPeers {
             waitsOn: terminal.summary.activity?.waiting
               ? waitsOnNote(terminal.summary.activity.waiting, Date.now())
               : null,
+            reports: this.options.reports(terminal.summary.id),
             place: (path) => {
               const shown = place(path)
               return shown.length > 80 ? `…${shown.slice(-79)}` : shown

@@ -10,6 +10,7 @@ import {
   keptFiles,
   keptFolders,
   lastFiles,
+  personPrompted,
   promptChars,
   shorten,
   tallied,
@@ -45,6 +46,13 @@ describe("what a root session worked on", () => {
     work = workAfter(work, root, [prompted("Now add paging")], 7)
     expect(work).toMatchObject({ latest: "Now add paging" })
     expect(work!.first).toMatch(/^Build/)
+  })
+
+  it("keeps when the person's latest prompt started its turn, never moving it back", () => {
+    const work = freshWork("codex:s1")
+    expect(personPrompted(work, 10).personAt).toBe(10)
+    expect(personPrompted(personPrompted(work, 10), 5).personAt).toBe(10)
+    expect(personPrompted(personPrompted(work, 10), 20).personAt).toBe(20)
   })
 
   it("tallies the folders it writes in, and when it was last active", () => {

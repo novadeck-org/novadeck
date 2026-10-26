@@ -3,7 +3,7 @@ import { join } from "node:path"
 import { setups } from "./agents/index.js"
 import { describe, e2e, expect, supported } from "./fixture.js"
 import { asked, tool, type Call } from "./model/script.js"
-import { delivered, own, result, start, through, turn } from "./scenarios.js"
+import { delivered, own, replies, result, start, through, turn } from "./scenarios.js"
 
 const record = (value: unknown): Readonly<Record<string, unknown>> =>
   typeof value === "object" && value !== null && !Array.isArray(value)
@@ -237,6 +237,56 @@ for (const setup of setups) {
         "theme.css\n--heading: blue;",
       )
       expect(history.some((message) => message.inbox === "tell")).toBe(true)
+    })
+
+    it("lists a peer's done to other agents until its next prompt, then as its latest update", async ({
+      e2e: run,
+    }) => {
+      // A tool is named as any terminal's request offers it: one may go out before its
+      // MCP tools load.
+      const named = (call: Call, name: string): string => {
+        const found = [call, ...run.model.calls].map((one) => tool(one, name)).find(Boolean)
+        if (!found) throw new Error(`Novadeck's ${name} tool is missing`)
+        return found
+      }
+      const listings: string[] = []
+      run.model.use(
+        own((call) => {
+          if (asked(call, "Finish up"))
+            return {
+              calls: [
+                {
+                  name: named(call, "done"),
+                  input: { subject: "Fixed the login bug", body: "All green." },
+                },
+              ],
+            }
+          if (/Report [a-f0-9-]+ is in the user's Inbox/.test(result(call) ?? ""))
+            return { text: "Reported it done." }
+          if (asked(call, "Look around") || asked(call, "Look again"))
+            return { calls: [{ name: named(call, "agents"), input: {} }] }
+          const listing = result(call)
+          if (listing?.includes("Other terminals in this project and session")) {
+            listings.push(listing)
+            return { text: `Looked ${listings.length}.` }
+          }
+          return undefined
+        }),
+        replies("Next task", "On the next task."),
+      )
+      const t1 = await start(run, setup)
+      const t2 = await start(run, setup)
+
+      await turn(t2, "Finish up", "Reported it done.")
+      await turn(t1, "Look around", "Looked 1.")
+      expect(listings[0]).toMatch(/\n {2}reported done [^:\n]+: Fixed the login bug\n?/)
+      expect(listings[0]).not.toContain("latest update")
+
+      // The person's next prompt gave it more to do: the done is only its latest update now.
+      await turn(t2, "Next task", "On the next task.")
+      await turn(t1, "Look again", "Looked 2.")
+      expect(listings[1]).toMatch(/\n {2}latest update [^:\n]+: Fixed the login bug\n?/)
+      expect(listings[1]).not.toContain("reported done")
     })
 
     it("shows an action ask and receives its confirmation as a message", async ({ e2e: run }) => {

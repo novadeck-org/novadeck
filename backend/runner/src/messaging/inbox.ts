@@ -28,6 +28,7 @@ import {
   undelivered,
   type Message,
 } from "./messages.js"
+import type { Report, Reports } from "./peers.js"
 
 const log = logs.for("inbox")
 
@@ -274,7 +275,8 @@ export class Inbox {
   private readonly open = new Map<string, StoredEntry>()
   private readonly texts = new Map<string, string>()
   private readonly sent = new Map<string, readonly number[]>()
-  private readonly guesses = new Set<string>()
+  /** Terminals whose root is a guess, with when the guessing began. */
+  private readonly guesses = new Map<string, number>()
   private readonly sweeper: ReturnType<typeof setInterval> | undefined
   private readonly entries = new Map<string, StoredEntry>()
   private readonly readers = new Set<Latest<InboxEntry[]>>()
@@ -602,6 +604,25 @@ export class Inbox {
     return withdrawnNotice(subjects)
   }
 
+  /**
+   * The latest `tell` and the latest `done` of the agent session now bound in the terminal,
+   * read or not, while Inbox keeps them, as other agents read them; none of a session before
+   * it, and none once closed.
+   */
+  reports(terminalId: string): Reports {
+    const owner = this.closed ? undefined : this.host.owner(terminalId)
+    let tell: Report | null = null
+    let done: Report | null = null
+    for (const entry of owner ? (this.byTerminal.get(terminalId)?.values() ?? []) : []) {
+      const { content } = entry
+      if ((content.kind !== "tell" && content.kind !== "done") || !same(entry, owner)) continue
+      const report = { subject: content.subject, at: entry.at }
+      if (content.kind === "tell" && (!tell || tell.at < report.at)) tell = report
+      if (content.kind === "done" && (!done || done.at < report.at)) done = report
+    }
+    return { tell, done }
+  }
+
   /** Whether a finished turn of the terminal may be stored: Inbox is open and the terminal exists. */
   accepts(terminalId: string): boolean {
     return !this.closed && this.host.exists(terminalId)
@@ -610,8 +631,9 @@ export class Inbox {
   rooted(terminalId: string, changes: readonly RootChange[]): void {
     if (this.closed) return
     for (const change of changes) {
+      const guessedAt = this.guesses.get(terminalId)
       if (change.type === "new" ? change.guess : change.type === "corrected" && !change.confirmed)
-        this.guesses.add(terminalId)
+        this.guesses.set(terminalId, guessedAt ?? this.now())
       else this.guesses.delete(terminalId)
       if (change.type === "corrected" && change.from !== change.root.sessionId) {
         const open = [...(this.byTerminal.get(terminalId)?.values() ?? [])].filter(
@@ -631,6 +653,17 @@ export class Inbox {
               ? { ...entry, sessionId: change.root.sessionId }
               : { ...entry, state: "gone" },
           )
+        // The reports made while the guess stood were the corrected session's, as other
+        // agents read them; those the guessed session made before were its own.
+        for (const entry of this.byTerminal.get(terminalId)?.values() ?? [])
+          if (
+            (entry.content.kind === "tell" || entry.content.kind === "done") &&
+            entry.agent === change.root.agent &&
+            entry.sessionId === change.from &&
+            guessedAt !== undefined &&
+            entry.at >= guessedAt
+          )
+            this.put({ ...entry, sessionId: change.root.sessionId })
       }
     }
     if (this.guesses.has(terminalId)) {
@@ -733,7 +766,7 @@ export class Inbox {
   forgetProject(projectId: string): void {
     const gone = [...this.entries.values()].filter((each) => each.projectId === projectId)
     const terminals = new Set(gone.map((entry) => entry.terminalId))
-    for (const id of this.guesses) {
+    for (const id of this.guesses.keys()) {
       const owner = this.host.owner(id)
       if (!owner || owner.projectId === projectId || terminals.has(id)) this.guesses.delete(id)
     }

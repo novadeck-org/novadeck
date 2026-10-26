@@ -66,6 +66,7 @@ import {
   type Thread,
 } from "./messages.js"
 import {
+  deliveredTo,
   lastBetween,
   peerOf,
   renderAgents,
@@ -338,6 +339,8 @@ export type Person = {
   }) => boolean
   /** Withdraws the session's open asks made before `before`; the notice for the agent, if any. */
   readonly withdraw: (before: number) => string | undefined
+  /** Notes that the person's own prompt started a root turn at `at`, whether it counts or not. */
+  readonly prompted: (at: number) => void
 }
 
 /** What `personTurn` reads from before a report's turn events apply (see `beforeTurns`). */
@@ -990,6 +993,7 @@ export class Messaging {
         event.type === "turn-started" && event.cause === "prompt" && rootedIn(live.root, event),
     )
     if (!start) return
+    person.prompted(start.startedAt)
     const text = prompt?.epoch === delivery.epoch ? prompt.text : undefined
     // A turn of Inbox lines alone spends their marks and withdraws nothing; the person's own
     // words spend none, and wait for the lines still to come.
@@ -2165,6 +2169,7 @@ export class Messaging {
         where: about(peer.terminalId),
         withYou: lastBetween(this.messages.values(), live.terminalId, peer),
         lead: this.leadOf(peer.terminalId) ?? null,
+        deliveredAt: deliveredTo(this.messages.values(), peer.terminalId),
       }),
     )
   }
