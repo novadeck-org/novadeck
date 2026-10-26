@@ -414,6 +414,10 @@ const screenKey = (
 const words = (text: string | null): string =>
   (text ?? "").toLowerCase().replace(/\s+/g, " ").trim()
 
+// Whether the terminal has no automatic title: neither murmur's nor its opening agent's.
+const untitled = ({ naming }: MurmurSubject): boolean =>
+  naming.murmur === null && naming.agent === null
+
 const programKey = (program: ForegroundProcess | null): string | null =>
   program === null ? null : JSON.stringify([program.name, program.argv])
 
@@ -434,7 +438,8 @@ const programKey = (program: ForegroundProcess | null): string | null =>
  * at the last description; and while a program in its foreground has run `shellRunMs`.
  * The foreground is sampled only where the platform tells it, so on Windows only the
  * prompt triggers. When murmur becomes usable, running terminals with no description yet
- * are described.
+ * are described; an agent that binds after that, as one resumed with the runner, names a
+ * terminal with no title from the summary on record when it reports.
  */
 export class Murmur {
   private readonly descriptions: Descriptions
@@ -503,9 +508,26 @@ export class Murmur {
    * from here on, and its end owes the shell nothing. The sampler sees the foreground change
    * only when it does (the program the agent runs as stays the same all along), so it is
    * noted when the agent reports.
+   *
+   * An agent that binds after the catch-up (one resumed when the runner restarted, whose
+   * terminal catch-up took for a shell) names a terminal with no title from the summary on
+   * record, as catch-up would have: no new summary may ever come to name it.
    */
   reported(terminalId: string): void {
-    if (this.host.subject(terminalId)?.agent) this.watch(terminalId).agentRan = true
+    const subject = this.host.subject(terminalId)
+    if (!subject?.agent) return
+    const watch = this.watch(terminalId)
+    watch.agentRan = true
+    // Reports come often: a title already asked for is not asked again.
+    if (this.usable && !watch.owed && untitled(subject) && this.unnamed(subject, watch))
+      this.check(terminalId)
+  }
+
+  // Whether the agent's summary on record names nothing yet: there is one, the person gave
+  // no title, and it is not the one murmur last named the terminal from.
+  private unnamed(subject: MurmurSubject, watch: Watch): boolean {
+    const { person, summary } = subject.naming
+    return person === null && !!summary && words(summary) !== watch.named
   }
 
   // The name a summary's title would replace: murmur's title, else its opening agent's. A
@@ -622,10 +644,8 @@ export class Murmur {
     if (subject.agent) {
       // A summary not named yet: one whose title did not run, or one of a terminal with no
       // title (as after murmur was turned off and on). A titled one waits for the next.
-      const { naming } = subject
-      const untitled = naming.murmur === null && naming.agent === null
-      if (naming.person !== null || !naming.summary || words(naming.summary) === watch.named) return
-      if (watch.owed || untitled) this.check(id)
+      if (!this.unnamed(subject, watch)) return
+      if (watch.owed || untitled(subject)) this.check(id)
       return
     }
     // A summary's title owed when the agent left is not the shell's.
