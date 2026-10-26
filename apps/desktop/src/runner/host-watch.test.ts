@@ -53,7 +53,9 @@ describe("watchHost", () => {
       const { lines, run } = watched()
       run(1_000, 1_000)
       run(10_000)
-      expect(lines).toEqual([{ level: "warn", evt: "host.stalled", data: { sinceMs: 3_000 } }])
+      expect(lines).toEqual([
+        { level: "warn", evt: "host.stalled", data: { stall: 1, sinceMs: 3_000 } },
+      ])
     })
 
     it("logs how long it stalled when the host beats again", () => {
@@ -64,7 +66,7 @@ describe("watchHost", () => {
       expect(lines.at(-1)).toEqual({
         level: "info",
         evt: "host.answered",
-        data: { stalledMs: 8_000 },
+        data: { stall: 1, stalledMs: 8_000 },
       })
     })
 
@@ -75,6 +77,8 @@ describe("watchHost", () => {
       watch.beat()
       run(10_000)
       expect(lines.map(({ evt }) => evt)).toEqual(["host.stalled", "host.answered", "host.stalled"])
+      // Numbered, so the log never folds the second into the first as a repeat.
+      expect(lines.at(-1)?.data).toMatchObject({ stall: 2 })
     })
   })
 
@@ -97,6 +101,24 @@ describe("watchHost", () => {
       watch.beat()
       run(40_000, 1_000)
       expect(lines).toEqual([])
+    })
+
+    it("still counts the time the host had gone quiet before the hold-up", () => {
+      const { watch, lines, run, skip } = watched()
+      run(1_000, 1_000)
+      run(2_000)
+      skip(1_500)
+      watch.check()
+      run(6_000)
+      expect(lines).toEqual([
+        { level: "warn", evt: "host.stalled", data: { stall: 1, sinceMs: 3_000 } },
+      ])
+      watch.beat()
+      expect(lines.at(-1)).toEqual({
+        level: "info",
+        evt: "host.answered",
+        data: { stall: 1, stalledMs: 4_000 },
+      })
     })
   })
 })
