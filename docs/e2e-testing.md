@@ -735,7 +735,7 @@ for (const setup of setups) {
     whose hook delivers, to the model the turn before used, as no option was taken.
 - **The lifecycle's scenarios** (`lifecycle.e2e.ts`), the person clearing the
   conversation or leaving the agent, asserting docs/agent-messaging.md's "Acceptance
-  scenarios", "Message store" and "Message states" for them. Each starts with a turn, so a
+  scenarios", "Messages" and "Message states" for them. Each starts with a turn, so a
   session is bound:
   - _`/clear`, then a message_: the clear drops the conversation from the screen, and
     Novadeck sees the agent Ready with the old session no longer bound (a new one, or

@@ -1959,7 +1959,7 @@ describe("the Inbox table's rename", () => {
   })
 
   it.for([2, 5])(
-    "carries a version %i database last opened before the asks table existed",
+    "doesn't need a version %i database to have the asks table",
     (version, { directory }) => {
       const path = join(directory(), "workspace.sqlite")
       const old = new DatabaseSync(path)
