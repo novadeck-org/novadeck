@@ -1,10 +1,11 @@
 import type { InboxTurn } from "@novadeck/core/inbox"
 
-// Terminals whose agent finished and left a row in the Inbox the person hasn't read, by the
-// session context (`${projectId}/${workspaceSessionId}`) that holds them, each with how its
-// newest unread turn ended: `done` on its own, or `failed` on an error. The backend stores
-// the rows; this is their mirror for the marks (see `watchUnreadTurns`).
-export type UnreadEnd = "done" | "failed"
+// Terminals whose agent ended a turn the person hasn't read, by the session context
+// (`${projectId}/${workspaceSessionId}`) that holds them, each with how its newest unread
+// turn ended: `unread` on its own (the tab brightens its program), or `failed` on an error.
+// Neither is a done report, which comes from the Inbox. The backend stores the rows; this is
+// their mirror for the marks (see `watchUnreadTurns`).
+export type UnreadEnd = "unread" | "failed"
 export type Unread = Readonly<Record<string, Readonly<Record<string, UnreadEnd>>>>
 
 // The terminal the person is looking at: the selected one of the session on screen while
@@ -33,7 +34,7 @@ export const unreadOfTurns = (turns: readonly InboxTurn[]): Unread => {
   const unread: Record<string, Record<string, UnreadEnd>> = {}
   for (const turn of newest.values())
     (unread[turnContext(turn)] ??= {})[turn.terminalId] =
-      turn.outcome === "failed" ? "failed" : "done"
+      turn.outcome === "failed" ? "failed" : "unread"
   return unread
 }
 

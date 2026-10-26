@@ -135,7 +135,6 @@ const rowsOf = (workspace: Workspace, marks: Marks): InboxTurn[] =>
             at: end.at,
             outcome: mark === "done" ? "completed" : "failed",
             reply: end.reply ?? null,
-            gist: end.gist ?? null,
             error: end.error ?? null,
             files: end.files ?? [],
           },
@@ -154,7 +153,6 @@ const inputs = (
   requests: {},
   letters: [],
   now: 10_000,
-  caseless: false,
   longHoldMs,
   ...more,
 })
@@ -268,96 +266,88 @@ describe("The Inbox's items", () => {
     })
   })
 
-  describe("a finished turn", () => {
+  describe("a completed turn", () => {
     const rested = (end: Partial<AgentTurnEnd>) =>
       workspaceOf(agentTerminal(1, { working: false, lastTurn: turn(end) }))
 
-    it("is an update while its mark is unread, with the reply and the files it wrote", () => {
-      const [item] = inboxItems(
-        inputs(
-          rested({
-            reply: "Done. Tests pass.",
-            files: ["/work/app/src/a.ts", "/elsewhere/b.ts", "/work/application/c.ts"],
-          }),
-          { unread: done },
-        ),
+    it("makes no item, stored or not: it only marks its tab", () => {
+      expect(inboxItems(inputs(rested({ reply: "Done. Tests pass." }), { unread: done }))).toEqual(
+        [],
       )
-
-      expect(item).toMatchObject({
-        id: "update:01:100",
-        at: 100,
-        stopped: false,
-        kind: "update",
-        update: {
-          type: "finished",
-          subject: "Done. Tests pass.",
-          reply: "Done. Tests pass.",
-          files: ["src/a.ts", "/elsewhere/b.ts", "/work/application/c.ts"],
-        },
-      })
-    })
-
-    it("says murmur's gist first, and a plain line where there is no reply", () => {
-      const [gist] = inboxItems(
-        inputs(rested({ reply: "Long.", gist: "Fixed rounding" }), { unread: done }),
-      )
-      const [none] = inboxItems(inputs(rested({}), { unread: done }))
-
-      expect(gist).toMatchObject({ update: { subject: "Fixed rounding", reply: "Long." } })
-      expect(none).toMatchObject({ update: { subject: "Finished its turn", reply: "", files: [] } })
-    })
-
-    it("is none once read, and stays while the agent works again", () => {
       expect(inboxItems(inputs(rested({})))).toEqual([])
-      const working = workspaceOf(
-        agentTerminal(1, { working: true, lastTurn: turn({ reply: "old" }) }),
-      )
-      expect(inboxItems(inputs(working, { unread: done }))).toMatchObject([{ id: "update:01:100" }])
     })
 
-    it("shows every stored row of a terminal, whatever runs in it, while its handle holds", () => {
-      const ws = workspaceOf(agentTerminal(1, { working: false }))
-      const row = (id: string, at: number, handle = "moth"): InboxTurn => ({
-        ...rowsOf(rested({}), done)[0]!,
-        id,
-        at,
-        handle,
+    it("leaves a failed row of the same terminal as it was", () => {
+      const ws = rested({ outcome: "failed", error: "x" })
+      expect(inboxItems(inputs(ws, { unread: failed }))).toMatchObject([
+        { id: "trouble:01:100", kind: "trouble" },
+      ])
+    })
+  })
+
+  describe("a done report", () => {
+    const report = (change: Partial<InboxLetter> = {}): InboxLetter =>
+      letter({
+        id: "letter:done-1",
+        content: { kind: "done", subject: "Search rebuilt", body: "All 412 pages." },
+        ...change,
       })
-      const items = inboxItems({
-        ...inputs(ws),
-        turns: [row("a", 1), row("b", 2), row("c", 3, "fox")],
-      })
-      expect(items.map((item) => item.id)).toEqual(["a", "b"])
-      const shell: TerminalMetadata = { ...agentTerminal(1), process: "zsh" }
-      expect(
-        inboxItems({ ...inputs(workspaceOf(shell)), turns: [row("a", 1)] }).map((item) => item.id),
-      ).toEqual(["a"])
+    const worker = (): TerminalMetadata => ({ ...agentTerminal(2), ledBy: "moth" })
+
+    it("is an update of its terminal that the person reads, not stopping the agent", () => {
+      const items = inboxItems(inputs(workspaceOf(agentTerminal(1)), { letters: [report()] }))
+      expect(items).toMatchObject([
+        {
+          id: "letter:done-1",
+          kind: "update",
+          stopped: false,
+          source: { terminalId: "01", handle: "moth", agent: "claude" },
+          update: { type: "done", subject: "Search rebuilt", body: "All 412 pages." },
+        },
+      ])
+    })
+
+    it("is kept for a terminal without a handle, which the demo stores as an empty one", () => {
+      const { handle: _handle, ...bare } = agentTerminal(1)
+      const items = inboxItems(inputs(workspaceOf(bare), { letters: [report({ handle: "" })] }))
+      expect(items).toMatchObject([{ id: "letter:done-1", update: { type: "done" } }])
+    })
+
+    it("stays after its agent exits, like a tell", () => {
+      const exited: TerminalMetadata = {
+        ...agentTerminal(1),
+        state: "exited",
+        exitCode: 0,
+        signal: null,
+      }
+      expect(inboxItems(inputs(workspaceOf(exited), { letters: [report()] }))).toMatchObject([
+        { id: "letter:done-1", update: { type: "done" } },
+      ])
+      expect(inboxItems(inputs(workspaceOf(), { letters: [report()] }))).toEqual([])
     })
 
     it("is its lead's while that lead runs, and the person's once it doesn't", () => {
-      const worker = (end: Partial<AgentTurnEnd> = {}): TerminalMetadata => ({
-        ...agentTerminal(2, { working: false, lastTurn: turn(end) }),
-        ledBy: "moth",
-      })
-      const unread: Marks = { "p/s": { "02": "done" } }
-
-      expect(inboxItems(inputs(workspaceOf(agentTerminal(1), worker()), { unread }))).toEqual([])
+      const letters = [report({ terminalId: "02", handle: "fox" })]
+      expect(inboxItems(inputs(workspaceOf(agentTerminal(1), worker()), { letters }))).toEqual([])
       // A lead whose agent stopped, or whose terminal closed, hears nothing: the person does.
       const shell = { ...agentTerminal(1), process: "bash" }
-      expect(inboxItems(inputs(workspaceOf(shell, worker()), { unread }))).toMatchObject([
-        { id: "update:02:100", kind: "update" },
+      expect(inboxItems(inputs(workspaceOf(shell, worker()), { letters }))).toMatchObject([
+        { id: "letter:done-1" },
       ])
-      expect(inboxItems(inputs(workspaceOf(worker()), { unread }))).toMatchObject([
-        { id: "update:02:100" },
+      expect(inboxItems(inputs(workspaceOf(worker()), { letters }))).toMatchObject([
+        { id: "letter:done-1" },
       ])
-      // What only the person can fix still comes to them.
+    })
+
+    it("is not its lead's when the lead told instead: only a done is held back", () => {
+      const told = report({
+        terminalId: "02",
+        handle: "fox",
+        content: { kind: "tell", subject: "Heads-up", body: "b" },
+      })
       expect(
-        inboxItems(
-          inputs(workspaceOf(agentTerminal(1), worker({ outcome: "failed", error: "x" })), {
-            unread: { "p/s": { "02": "failed" } },
-          }),
-        ),
-      ).toMatchObject([{ id: "trouble:02:100", kind: "trouble" }])
+        inboxItems(inputs(workspaceOf(agentTerminal(1), worker()), { letters: [told] })),
+      ).toMatchObject([{ update: { type: "told" } }])
     })
   })
 
@@ -480,35 +470,6 @@ describe("The Inbox's items", () => {
       const next = workspaceOf(agentTerminal(1, { working: true }))
 
       expect(inboxItems(inputs(next))).toEqual([])
-    })
-  })
-
-  describe("a file the turn wrote", () => {
-    const wrote = (directory: string, file: string) =>
-      workspaceOf({
-        ...agentTerminal(1, { working: false, lastTurn: turn({ files: [file] }) }),
-        directory,
-      })
-    const withProject = (directory: string, file: string): string[] => {
-      const workspace = wrote(directory, file)
-      workspace.projects[0]!.directory = directory
-      const [item] = inboxItems(inputs(workspace, { unread: done }))
-      return item?.kind === "update" && item.update.type === "finished"
-        ? [...item.update.files]
-        : []
-    }
-
-    it("is relative to the project however its separators fall", () => {
-      expect(withProject("C:/work/app", "C:\\work\\app\\src\\a.ts")).toEqual(["src\\a.ts"])
-      expect(withProject("C:\\work\\app\\", "C:/work/app/src/a.ts")).toEqual(["src/a.ts"])
-      expect(withProject("c:/work/app", "C:/Work/App/a.ts")).toEqual(["a.ts"])
-      expect(withProject("/work/app", "/work/App/a.ts")).toEqual(["/work/App/a.ts"])
-    })
-
-    it("matches the project whatever its case where the machine's paths are caseless", () => {
-      const workspace = wrote("/work/app", "/work/App/src/a.ts")
-      const [item] = inboxItems(inputs(workspace, { unread: done, caseless: true }))
-      expect(item).toMatchObject({ update: { files: ["src/a.ts"] } })
     })
   })
 
@@ -685,7 +646,7 @@ describe("The Inbox's items", () => {
       })
     })
 
-    it("gives way to the agent's own ask, and comes before a finished turn", () => {
+    it("gives way to the agent's own ask, and comes whatever turn it last ended", () => {
       const ask = letter({ terminalId: "02", agent: "codex", handle: "fox" })
       const [shown] = inboxItems(
         inputs(pair, { mail: heldFor([waiting()]), letters: [ask], now: at }),
@@ -722,7 +683,7 @@ describe("The Inbox's items", () => {
   })
 
   describe("a terminal with several", () => {
-    it("shows the request of a running turn beside the finish from before", () => {
+    it("shows the request of a running turn, not the completed turn from before", () => {
       const both = workspaceOf(
         agentTerminal(1, {
           working: true,
@@ -732,7 +693,7 @@ describe("The Inbox's items", () => {
       )
       const items = inboxItems(inputs(both, { unread: done, requests: { "01": [asked("r1", 5)] } }))
 
-      expect(items.map((item) => item.id).toSorted()).toEqual(["request:r1", "update:01:100"])
+      expect(items.map((item) => item.id)).toEqual(["request:r1"])
     })
 
     it("keeps a held thread beside the terminal's other item", () => {
@@ -789,10 +750,10 @@ describe("The Inbox's items", () => {
         }),
       )
 
-      expect(items.map((item) => item.id)).toEqual(["trouble:03:5", "request:r1", "update:01:10"])
+      expect(items.map((item) => item.id)).toEqual(["trouble:03:5", "request:r1"])
     })
 
-    it("holds nothing for a terminal that runs no agent, and never an ask, told or stuck", () => {
+    it("holds nothing for a terminal that runs no agent, and nothing for completed turns", () => {
       const shell: TerminalMetadata = {
         id: "01",
         name: "Shell",
@@ -807,8 +768,7 @@ describe("The Inbox's items", () => {
         }),
       )
 
-      expect(items.map((item) => item.id)).toEqual(["update:02:100"])
-      expect(items.every((item) => item.kind !== "ask")).toBe(true)
+      expect(items).toEqual([])
     })
   })
 
@@ -899,14 +859,14 @@ describe("The Inbox's items", () => {
       expect(items.map(({ id }) => id)).toEqual(["opened", "merged"])
     })
 
-    it("lists an ask beside the finish of the same terminal, and every tell too", () => {
+    it("lists an ask beside the tells of the same terminal, and not its completed turn", () => {
       const items = inboxItems(
         inputs(workspaceOf(agentTerminal(1, { working: false, lastTurn: turn() })), {
           unread: done,
           letters: [letter({ id: "ask" }), told("t1"), told("t2")],
         }),
       )
-      expect(items.map(({ id }) => id).toSorted()).toEqual(["ask", "t1", "t2", "update:01:100"])
+      expect(items.map(({ id }) => id).toSorted()).toEqual(["ask", "t1", "t2"])
     })
 
     it("ignores letters for terminals outside their recorded ownership context", () => {

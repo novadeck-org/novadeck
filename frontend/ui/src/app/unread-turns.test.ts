@@ -1,4 +1,11 @@
-import type { Inbox, InboxFinish, InboxTurn } from "@novadeck/core/inbox"
+import {
+  emptyInbox,
+  type Inbox,
+  type InboxFinish,
+  type InboxItem,
+  type InboxTurn,
+  type InboxState,
+} from "@novadeck/core/inbox"
 import { createStore, createWorkspaceStore } from "@novadeck/core/store"
 import { appearance, workspaceFixture } from "@novadeck/core/testing"
 import type { AgentStatus } from "@novadeck/core/types"
@@ -25,13 +32,14 @@ const row = (
   at: base + at,
   outcome,
   reply: "All green.",
-  gist: null,
   error: null,
   files: [],
 })
 
 // A workspace whose terminal 01 is selected and 02 runs a resting agent, and an Inbox whose
 // stored rows the test sets and whose reads drop them as the adapter does.
+let wide = true
+
 const setup = ({
   rows,
   notifyFinished = true,
@@ -79,7 +87,14 @@ const setup = ({
     set: (next: readonly InboxTurn[] | undefined) => void store.update(() => next),
   }
   const readCalls: InboxFinish[][] = []
-  const inbox: Pick<Inbox, "turns" | "readFinishes"> = {
+  const inboxState = createStore<InboxState>(emptyInbox)
+  const letters = {
+    ...inboxState,
+    set: (items: readonly InboxItem[]) =>
+      void inboxState.update((current) => ({ ...current, items })),
+  }
+  const inbox: Pick<Inbox, "turns" | "readFinishes" | "state"> = {
+    state: inboxState,
     turns,
     readFinishes: (finishes) => {
       readCalls.push([...finishes])
@@ -117,7 +132,6 @@ const setup = ({
   const notices: Parameters<FinishNotify>[0][] = []
   const noticeItems: string[] = []
   const cleared: string[] = []
-  const gists: [string, number][] = []
   const watch = () =>
     watchUnreadTurns(inbox, workspace, ui, {
       notify: (notice, itemId) => {
@@ -125,17 +139,17 @@ const setup = ({
         noticeItems.push(itemId)
       },
       clear: (terminalId) => cleared.push(terminalId),
-      gist: (terminalId, at) => gists.push([terminalId, at]),
+      desktop: () => wide,
     })
   return {
     workspace,
     ui,
     turns,
+    letters,
     readCalls,
     notices,
     noticeItems,
     cleared,
-    gists,
     watch,
     status,
     select,
@@ -144,7 +158,26 @@ const setup = ({
   }
 }
 
-const done = { "project/initial": { "02": "done" } }
+const done = { "project/initial": { "02": "unread" } }
+
+// A done report of terminal 02, as the Inbox lists it.
+const letter = (id: string, at: number, seen = false): InboxItem => ({
+  id,
+  source: {
+    projectId: "project",
+    workspaceSessionId: "initial",
+    terminalId: "02",
+    handle: "fox",
+    agent: "claude",
+    title: "Checkout",
+    projectName: "Project",
+  },
+  at: base + at,
+  stopped: false,
+  seen,
+  kind: "update",
+  update: { type: "done", subject: "Totals round per line", body: "Tests pass." },
+})
 const failed = { "project/initial": { "02": "failed" } }
 
 describe("unread turns", () => {
@@ -210,7 +243,7 @@ describe("unread turns", () => {
 
     it("do nothing for a backend that stores no rows", () => {
       const app = setup()
-      const stop = watchUnreadTurns({}, app.workspace, app.ui)
+      const stop = watchUnreadTurns({ state: createStore(emptyInbox) }, app.workspace, app.ui)
       expect(app.unread()).toEqual({})
       stop()
     })
@@ -225,6 +258,24 @@ describe("unread turns", () => {
       expect(app.readCalls).toEqual([[{ context: "project/initial", terminalId: "02" }]])
       expect(app.unread()).toEqual({})
       stop()
+    })
+
+    it("reads nothing on a phone while the Inbox list covers the screen", () => {
+      wide = false
+      try {
+        const app = setup({ rows: [row("a", 10)] })
+        app.ui.update((current) => ({
+          ...current,
+          location: { ...current.location, route: { ...current.location.route, panel: "inbox" } },
+          shell: { ...current.shell, sidebar: true },
+        }))
+        app.select("02")
+        const stop = app.watch()
+        expect(app.readCalls).toEqual([])
+        stop()
+      } finally {
+        wide = true
+      }
     })
 
     it("reads a row that lands while the person views its terminal", () => {
@@ -271,66 +322,77 @@ describe("unread turns", () => {
   })
 
   context("the notices", () => {
-    it("are none for the rows stored when it starts, nor for any after the backend lost them", () => {
-      const app = setup({ rows: [row("a", 10)], pageFocused: false })
+    it("are none for the reports and rows stored when it starts, nor for any after the backend lost them", () => {
+      const app = setup({ rows: [row("a", 10, "failed")], pageFocused: false, notifyNeeds: false })
+      app.letters.set([letter("l1", 10)])
       const stop = app.watch()
       expect(app.notices).toEqual([])
       app.turns.set(undefined)
-      app.turns.set([row("a", 10), row("b", 20)])
+      app.letters.set([letter("l1", 10), letter("l2", 20)])
+      app.turns.set([row("a", 10, "failed"), row("b", 20, "failed")])
       expect(app.notices).toEqual([])
       stop()
     })
 
-    it("show a new row's terminal, with the start of its reply, while the page isn't focused", () => {
+    it("fire for a new done report, with its subject, while the page isn't focused", () => {
+      const app = setup({ rows: [], pageFocused: false })
+      const stop = app.watch()
+      app.letters.set([letter("l1", 10)])
+      expect(app.notices).toEqual([
+        { id: "02", title: "@fox is done: Checkout", body: "Totals round per line" },
+      ])
+      expect(app.noticeItems).toEqual(["l1"])
+      stop()
+    })
+
+    it("are none for a bare completed turn, which is no finish", () => {
       const app = setup({ rows: [], pageFocused: false })
       const stop = app.watch()
       app.turns.set([row("a", 10)])
-      expect(app.notices).toEqual([
-        { id: "02", title: "@fox is done: Checkout", body: "All green." },
-      ])
+      expect(app.notices).toEqual([])
+      expect(app.unread()).toEqual(done)
       stop()
     })
 
     it("are none while the page has the person's focus, or when they turned them off", () => {
       const focused = setup({ rows: [] })
       const stopFocused = focused.watch()
-      focused.turns.set([row("a", 10)])
+      focused.letters.set([letter("l1", 10)])
       expect(focused.notices).toEqual([])
       stopFocused()
       const off = setup({ rows: [], pageFocused: false, notifyFinished: false })
       const stopOff = off.watch()
-      off.turns.set([row("a", 10)])
+      off.letters.set([letter("l1", 10)])
       expect(off.notices).toEqual([])
       stopOff()
     })
 
-    it("are none for a row that ended well before this started", () => {
+    it("are none for a report from well before this started", () => {
       const app = setup({ rows: [], pageFocused: false })
       const stop = app.watch()
-      app.turns.set([{ ...row("a", 10), at: base - 60_000 }])
+      app.letters.set([letter("old", -60_000)])
       expect(app.notices).toEqual([])
       stop()
     })
 
-    it("are none for a row that comes back after a failed read", () => {
+    it("are none for a report that comes back after a failed read", () => {
       const app = setup({ rows: [], pageFocused: false })
       const stop = app.watch()
-      app.turns.set([row("a", 10)])
+      app.letters.set([letter("l1", 10)])
       expect(app.notices).toHaveLength(1)
+      app.turns.set(undefined)
       app.turns.set([])
-      app.turns.set([row("a", 10)])
+      app.letters.set([letter("l1", 10)])
       expect(app.notices).toHaveLength(1)
       stop()
     })
 
-    it("are one for a terminal, its newest row's", () => {
+    it("are one for a terminal, its newest report's", () => {
       const app = setup({ rows: [], pageFocused: false })
       const stop = app.watch()
-      app.turns.set([row("a", 10), row("b", 20)])
+      app.letters.set([letter("a", 10), letter("b", 20)])
       expect(app.notices).toHaveLength(1)
-      app.turns.set([row("a", 10), row("b", 20), row("c", 30)])
-      expect(app.notices).toHaveLength(2)
-      expect(app.notices.map((notice) => notice.id)).toEqual(["02", "02"])
+      expect(app.noticeItems).toEqual(["b"])
       stop()
     })
 
@@ -346,15 +408,8 @@ describe("unread turns", () => {
       expect(quiet.notices).toEqual([
         { id: "02", title: "@fox stopped with an error: Checkout", body: "All green." },
       ])
+      expect(quiet.noticeItems).toEqual(["a"])
       stopQuiet()
-    })
-
-    it("name the row they show, which a click opens", () => {
-      const app = setup({ rows: [], pageFocused: false })
-      const stop = app.watch()
-      app.turns.set([row("a", 10), row("b", 20)])
-      expect(app.noticeItems).toEqual(["b"])
-      stop()
     })
 
     it("are none for a worker whose lead's agent runs", () => {
@@ -369,15 +424,15 @@ describe("unread turns", () => {
       })
       app.status("01", { working: true })
       const stop = app.watch()
-      app.turns.set([row("a", 10)])
+      app.letters.set([letter("l1", 10)])
       expect(app.notices).toEqual([])
       stop()
     })
 
-    it("close once the terminal has no unread row: the person views it", () => {
+    it("close once the terminal has no unseen report: the person views it", () => {
       const app = setup({ rows: [], pageFocused: false })
       const stop = app.watch()
-      app.turns.set([row("a", 10)])
+      app.letters.set([letter("l1", 10)])
       expect(app.cleared).toEqual([])
       app.select("02")
       app.focus(true)
@@ -385,41 +440,24 @@ describe("unread turns", () => {
       stop()
     })
 
-    it("close once the row is read elsewhere, and not before the last of two is", () => {
+    it("close once the report is seen elsewhere, and not before the last of two is", () => {
       const app = setup({ rows: [], pageFocused: false })
       const stop = app.watch()
-      app.turns.set([row("a", 10), row("b", 20)])
-      app.turns.set([row("b", 20)])
+      app.letters.set([letter("a", 10), letter("b", 20)])
+      app.letters.set([letter("a", 10, true), letter("b", 20)])
       expect(app.cleared).toEqual([])
-      app.turns.set([])
+      app.letters.set([letter("a", 10, true), letter("b", 20, true)])
       expect(app.cleared).toEqual(["02"])
       stop()
     })
-  })
 
-  context("the gists", () => {
-    it("are asked once for a row without one, whose end is its agent's current", () => {
-      const app = setup({ rows: [] })
-      app.status("02", { working: false, lastTurn: { outcome: "completed", at: base + 10 } })
+    it("close a failed row's once it is read", () => {
+      const app = setup({ rows: [], pageFocused: false, notifyNeeds: false })
       const stop = app.watch()
-      app.turns.set([row("a", 10)])
-      app.status("02", {
-        working: false,
-        lastTurn: { outcome: "completed", at: base + 10, reply: "x" },
-      })
-      expect(app.gists).toEqual([["02", base + 10]])
-      stop()
-    })
-
-    it("are not asked for an end the agent has moved past, a row with a gist, or a viewed terminal", () => {
-      const app = setup({ rows: [] })
-      app.status("02", { working: false, lastTurn: { outcome: "completed", at: base + 20 } })
-      const stop = app.watch()
-      app.turns.set([row("old", 10), { ...row("with", 20), gist: "Fixed it" }])
-      expect(app.gists).toEqual([])
-      app.select("02")
-      app.turns.set([row("now", 20)])
-      expect(app.gists).toEqual([])
+      app.turns.set([row("a", 10, "failed")])
+      expect(app.cleared).toEqual([])
+      app.turns.set([])
+      expect(app.cleared).toEqual(["02"])
       stop()
     })
   })

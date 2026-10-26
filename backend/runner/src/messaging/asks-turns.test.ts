@@ -28,7 +28,6 @@ const owner: TurnOwner = {
 const fields = (reply: string | null = "All done."): TurnFields => ({
   outcome: "completed",
   reply,
-  gist: null,
   error: null,
   files: [],
 })
@@ -148,13 +147,6 @@ describe("finished turns in Asks", () => {
     await watch.return(undefined)
   })
 
-  it("strips gists with clearGists", () => {
-    const run = setup()
-    run.asks.recordTurn(owner, 5, { ...fields(), gist: "Fixed the build" })
-    run.asks.clearGists()
-    expect(run.turns()).toMatchObject([{ content: { gist: null } }])
-  })
-
   it("stores nothing once closed", () => {
     const run = setup()
     run.asks.close()
@@ -174,6 +166,29 @@ describe("finished turns across a restart", () => {
       content,
     }) as Letter
 
+  it("loads a turn stored with the gist an older runner wrote, without it", () => {
+    const records = memoryAsks()
+    records.saveLetter(
+      stored({
+        kind: "turn",
+        outcome: "completed",
+        reply: "All done.",
+        gist: "Fixed the build",
+        error: null,
+        files: [],
+      }),
+    )
+    const run = setup(records)
+    expect(run.turns()).toHaveLength(1)
+    expect(run.turns()[0]!.content).toEqual({
+      kind: "turn",
+      outcome: "completed",
+      reply: "All done.",
+      error: null,
+      files: [],
+    })
+  })
+
   it("clamps a turn stored under looser rules, with a pinned fixture", () => {
     const records = memoryAsks()
     // Stored by a runner with other limits: a long reply, 20 files, an unknown key and outcome.
@@ -182,7 +197,7 @@ describe("finished turns across a restart", () => {
         kind: "turn",
         outcome: "interrupted",
         reply: "r".repeat(300),
-        gist: null,
+        gist: "Fixed the build",
         error: "e".repeat(5000),
         files: Array.from({ length: 20 }, (_, index) => `/f${index}`),
         later: "a key from a newer runner",
@@ -195,7 +210,6 @@ describe("finished turns across a restart", () => {
       kind: "turn",
       outcome: "failed",
       reply: "r".repeat(120),
-      gist: null,
       error: "e".repeat(2048),
       files: Array.from({ length: 16 }, (_, index) => `/f${index}`),
     })

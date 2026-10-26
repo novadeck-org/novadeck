@@ -302,7 +302,7 @@ export const createDemoMessages = (
   return {
     state,
     record: (item, answer, outcome) => {
-      if (item.kind !== "ask" && !(item.kind === "update" && item.update.type === "told")) return
+      if (item.kind !== "ask" && item.kind !== "update") return
       if (answer && answer.kind !== "ask" && answer.kind !== "update") return
       const { source } = item
       const target = { projectId: source.projectId, workspaceSessionId: source.workspaceSessionId }
@@ -314,12 +314,7 @@ export const createDemoMessages = (
       const box: DemoMailbox = boxes[index] ?? { target, terminals: [], threads: [] }
       const id = `t-${item.id.replaceAll("-", "")}`
       const thread = box.threads.find((each) => each.id === id)
-      const content =
-        item.kind === "ask"
-          ? item.ask
-          : item.kind === "update" && item.update.type === "told"
-            ? item.update
-            : null
+      const content = item.kind === "ask" ? item.ask : item.kind === "update" ? item.update : null
       if (!content) return
       const reply = answer?.kind === "ask" ? answer.answer : null
       const option =
@@ -340,7 +335,13 @@ export const createDemoMessages = (
           : `${content.subject}\n\n${content.body}`
       const letter: DemoMessage = {
         id: reply ? `answer:${item.id}` : item.id,
-        inbox: reply ? "answer" : item.kind === "ask" ? "ask" : "tell",
+        inbox: reply
+          ? "answer"
+          : item.kind === "ask"
+            ? "ask"
+            : item.kind === "update" && item.update.type === "done"
+              ? "done"
+              : "tell",
         ...(!reply ? { inboxState: outcome ?? (answer ? "read" : "open") } : {}),
         from: reply ? "you" : source.handle,
         to: reply ? source.handle : "you",

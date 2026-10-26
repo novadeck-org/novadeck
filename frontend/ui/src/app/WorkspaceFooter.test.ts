@@ -7,6 +7,7 @@ import { afterEach } from "vitest"
 import { describe, expect, it } from "../test"
 import { openCommands } from "../test/commands"
 import { WorkspaceServicesContext } from "./controller/context"
+import { noLanding } from "./inbox-landing"
 import { WorkspaceFooter } from "./WorkspaceFooter"
 
 const mounted: Rendered[] = []
@@ -30,6 +31,7 @@ const show = (backend: Partial<Backend>): Rendered => {
           commands,
           canvas: { current: null },
           itemStore: undefined,
+          landing: noLanding,
           drag: undefined as never,
         },
       },

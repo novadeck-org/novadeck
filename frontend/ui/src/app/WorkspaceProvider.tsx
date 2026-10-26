@@ -21,6 +21,7 @@ import { WorkspaceServicesContext, type WorkspaceServices } from "./controller/c
 import { domEffects } from "./controller/effects"
 import { dialogDepthOf, useRouteSync } from "./controller/useRouteSync"
 import { dingOf } from "./ding"
+import { landInbox, noLanding } from "./inbox-landing"
 import { noticeBoard, watchBellRings, watchInboxPings } from "./inbox-pings"
 import { nameFinished, watchFinishes } from "./murmur-offer"
 import { watchPageFocus } from "./page-focus"
@@ -81,6 +82,7 @@ const createServices = (
   const canvas = createRef<CanvasHandle>()
   const itemStore =
     backend.companions && createItemStore({ companions: backend.companions, workspace })
+  const landing = backend.inbox ? landInbox(backend.inbox, workspace, ui) : noLanding
   const commands = createWorkspaceCommands({
     workspace,
     ui,
@@ -107,6 +109,7 @@ const createServices = (
       commands,
       canvas,
       itemStore,
+      landing,
       drag: createDragSession(),
     },
     sync: { workspace, ui, now, panels, bind, settle },
@@ -163,8 +166,11 @@ export const WorkspaceProvider = ({
   useEffect(() => watchClosing(services.workspace, services.ui), [services])
   useEffect(() => watchChat(services.chat, services.workspace), [services])
   useEffect(() => watchPageFocus(services.ui, window, services.backend.windowFocus), [services])
+  // Before the watchers below, which read the landed Inbox. The Inbox's own watchers, in child
+  // effects, subscribe first; until it starts, the landed Inbox holds the rule's computed state.
+  useEffect(() => services.landing.start(), [services])
   useEffect(() => {
-    const { backend, workspace, ui } = services
+    const { backend, workspace, ui, landing } = services
     const board = noticeBoard(backend.notices, dingOf(backend, ui))
     const stops = [watchFinishes(workspace, nameFinished(services))]
     if (backend.inbox)
@@ -172,12 +178,16 @@ export const WorkspaceProvider = ({
         watchUnreadTurns(backend.inbox, workspace, ui, {
           notify: board && ((notice, itemId) => board.show("finish", notice, itemId)),
           clear: board && ((terminalId) => board.close("finish", terminalId)),
-          gist: backend.murmur?.gist,
         }),
       )
-    if (backend.inbox) stops.push(watchBellRings(backend.inbox, ui))
+    if (backend.inbox) stops.push(watchBellRings(landing.inbox, ui))
     if (backend.inbox && (board || backend.badge))
-      stops.push(watchInboxPings(backend.inbox, ui, { board, badge: backend.badge }))
+      stops.push(
+        watchInboxPings(landing.inbox, ui, {
+          board,
+          badge: backend.badge,
+        }),
+      )
     return () => stops.forEach((stop) => stop())
   }, [services])
   useEffect(() => services.backend.inbox?.bind?.({ workspace: services.workspace }), [services])

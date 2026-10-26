@@ -38,27 +38,6 @@ describe("preparing a digest in a thread", () => {
   })
 
   it(
-    "writes the chat of a note with the real thread",
-    { timeout: 20_000 },
-    async ({ resources }) => {
-      const preparer = new Preparer()
-      resources.defer(() => preparer.close())
-
-      const chat = await preparer.prepare({
-        kind: "reply",
-        reply: "Use API_KEY=hunter2abc for staging?",
-        failed: false,
-      })
-
-      expect(chat).toHaveLength(2)
-      expect(JSON.stringify(chat)).not.toContain("hunter2abc")
-      const messages = chat as { content: string }[]
-      expect(messages[0]?.content).toContain("gist")
-      expect(messages[1]?.content).toContain("API_KEY=[redacted]")
-    },
-  )
-
-  it(
     "ends a thread that takes too long, leaves the event loop running, and starts another",
     {
       timeout: 10_000,

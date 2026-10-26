@@ -16,17 +16,6 @@ describe("redacting a digest", () => {
     expect(clean.summary).toMatch(/^Rotated .* for billing$/)
   })
 
-  it("cleans every string of a reply", () => {
-    const reply = redactDigest({
-      kind: "reply",
-      reply: "Done with https://u:p@host/",
-      failed: true,
-    })
-
-    expect(JSON.stringify(reply)).not.toContain("u:p@")
-    expect(reply).toMatchObject({ kind: "reply", failed: true })
-  })
-
   it("sees a key block that spans the rows of a screen", () => {
     const digest: ShellDigest = {
       kind: "shell",

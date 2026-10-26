@@ -1,8 +1,5 @@
 import { readScreen, type ScreenText } from "@novadeck/emulator/headless"
-import { murmurGist } from "@novadeck/protocol"
 
-import { withGist, withoutNotes } from "../harnesses/activity.js"
-import { harnesses } from "../harnesses/registry.js"
 import type { MurmurHost, MurmurSubject } from "./murmur.js"
 import type { Names } from "./names.js"
 import { murmured } from "./naming.js"
@@ -17,7 +14,6 @@ import { savedSummaryOf } from "./summary.js"
 const murmurSubject = (record: Record): MurmurSubject => ({
   ...peerOf(record),
   agent: record.bound?.binding.agent ?? null,
-  transcript: record.transcript,
   program: record.summary.process,
   atPrompt: shellAtPrompt(record),
   expecting: record.bound === null ? record.expecting : null,
@@ -77,13 +73,9 @@ export type DescribingHost = {
   /** Whether the runner holds the terminal, running or retained. */
   readonly holds: (terminalId: string) => boolean
   readonly projectFolder: (sessionId: string) => string | undefined
-  /** Shows the bound agent and its activity in the summary, announcing a change. */
-  readonly publishAgent: (record: Record) => void
   readonly names: () => Names<Record>
   readonly saves: () => Saves
   readonly streams: () => Streams<Record>
-  /** Strips murmur's gists from the stored finished turns. */
-  readonly clearGists: () => void
 }
 
 /**
@@ -127,7 +119,6 @@ export const murmurHost = (host: DescribingHost): MurmurHost => ({
       }
     )
   },
-  items: (agent) => harnesses[agent].transcripts?.items,
   projectFolder: (sessionId) => host.projectFolder(sessionId),
   described: (terminalId, description) => {
     const record = host.live(terminalId)
@@ -136,28 +127,8 @@ export const murmurHost = (host: DescribingHost): MurmurHost => ({
     host.names().retitle(record)
     host.saves().save(record, false)
   },
-  gisted: (terminalId, at, gist) => {
-    const record = host.live(terminalId)
-    const parsed = murmurGist.safeParse(gist)
-    if (!record?.bound || !parsed.success) return
-    const { bound } = record
-    const next = withGist(bound.activity, at, parsed.data)
-    if (!next) return
-    record.bound = { ...bound, activity: next }
-    host.publishAgent(record)
-  },
   cleared: () => {
-    // Murmur is off or gone: its titles go, running terminals' and saved ones', and the
-    // gists it wrote, those of stored turns too.
-    host.clearGists()
-    for (const record of host.records()) {
-      const { bound } = record
-      const next = bound && withoutNotes(bound.activity)
-      if (next) {
-        record.bound = { ...bound, activity: next }
-        host.publishAgent(record)
-      }
-    }
+    // Murmur is off or gone: its titles go, running terminals' and saved ones'.
     for (const record of host.records()) {
       if (record.naming.murmur === null) continue
       record.naming = { ...record.naming, murmur: null }

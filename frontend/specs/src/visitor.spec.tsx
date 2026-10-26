@@ -1,5 +1,5 @@
-import { afterEach, describe, expect, it, vi } from "vitest"
-import { page } from "vitest/browser"
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
+import { page, userEvent } from "vitest/browser"
 
 import { taskbarIcon } from "./support/companions"
 import { pressShortcut, terminalCount } from "./support/keyboard"
@@ -277,13 +277,15 @@ describe("the visitor build", () => {
           .poll(() => terminalText("Checkout implementation"))
           .toContain("read the checkout layout")
         expect(terminalText("Checkout implementation")).not.toContain(planAsked)
-        expect(tabDescription("Checkout implementation")).not.toBe("Plan ready for review")
+        expect(tabDescription("Checkout implementation")).not.toBe(
+          "Plan ready for review: Checkout flow",
+        )
         await expect
           .poll(() => terminalText("Checkout implementation"), { timeout: 4000 })
           .toContain(planAsked)
         await expect
           .poll(() => tabDescription("Checkout implementation"))
-          .toBe("Plan ready for review")
+          .toBe("Plan ready for review: Checkout flow")
         await framesPass(10)
         expect(document.activeElement).toBe(document.body)
       } finally {
@@ -297,7 +299,7 @@ describe("the visitor build", () => {
       await expect.poll(() => terminalText("Checkout implementation")).toContain(planAsked)
       await expect
         .poll(() => tabDescription("Checkout implementation"))
-        .toBe("Plan ready for review")
+        .toBe("Plan ready for review: Checkout flow")
     })
 
     // True of the app anywhere; framed, it leaves the page around it its focus.
@@ -309,6 +311,14 @@ describe("the visitor build", () => {
   })
 
   describe("on its desk", () => {
+    // The landing rule holds an item of the terminal being looked at, which takes the page to
+    // have the person's focus; a spec browser's frame has none until a click gives it, so each
+    // case here gives it, whatever ran before.
+    beforeEach(async () => {
+      await userEvent.click(document.body)
+      if (!document.hasFocus()) throw new Error("The click did not give the page its focus.")
+    })
+
     // The bell, whose name says how many wait, e.g. "Inbox, 1 waiting".
     const bell = () => sidebarPanel("Inbox")
     const waiting = (count: number) => page.getByRole("radio", { name: `Inbox, ${count} waiting` })
@@ -324,25 +334,32 @@ describe("the visitor build", () => {
       await expect.element(terminalCount(4)).toBeVisible()
       await expect
         .poll(() => tabDescription("Checkout implementation"))
-        .toBe("Plan ready for review")
-      await expect.element(bell()).toHaveAccessibleName("Inbox, 1 waiting")
+        .toBe("Plan ready for review: Checkout flow")
+      // The visitor looks at the asking terminal, so its item holds back from the bell and the
+      // tab's mark carries it; it lands once they look away.
+      await expect.element(bell()).toHaveAccessibleName("Inbox")
       await expect.element(workspaceSwitcher()).not.toHaveAttribute("data-project-status")
+      await page.getByRole("button", { name: labelled("Select ", "Checkout review") }).click()
+      await expect.element(bell()).toHaveAccessibleName("Inbox, 1 waiting")
     })
 
     it("moves on only once the visitor answers, and ends quiet", async () => {
       // Codex asks a second after Claude Code's turn ends, past the moment a finish counts as
       // seen by whoever looks at it.
       await openWorkspace("/?visitor=on&turnMs=200&nudgeMs=1000")
-      // Codex reviews, and asks nothing while the plan waits.
-      await expect.element(waiting(1)).toBeInTheDocument()
-      await expectStaysAbsent(waiting(2), { ms: 800 })
+      // Codex reviews, and asks nothing while the plan waits; the visitor looks at the plan,
+      // whose item is held back from the bell, the tab carrying it.
+      await expect
+        .poll(() => tabDescription("Checkout implementation"))
+        .toBe("Plan ready for review: Checkout flow")
+      await expectStaysAbsent(page.getByRole("radio", { name: /^Inbox, / }), { ms: 800 })
       expect(tabDescription("Checkout review")).toBeNull()
 
       await answer("Checkout implementation")
       await expect
         .element(taskbarIcon("Checkout implementation", "order-summary.png"))
         .toBeVisible()
-      await expect.poll(() => tabDescription("Checkout review")).toBe("Needs permission")
+      await expect.poll(() => tabDescription("Checkout review")).toMatch(/^Needs permission: /)
       await expect.element(waiting(1)).toBeInTheDocument()
 
       await answer("Checkout review")

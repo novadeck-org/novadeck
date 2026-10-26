@@ -75,8 +75,7 @@ export type AgentWaiting = {
 // How an agent's turn ended: `completed` or `failed` on its own, `interrupted` by the
 // person (Escape, or a request they refused), or `unknown` when it only went idle, as an
 // Escape shows in Antigravity. `reply` is the start of its last reply, one line of plain
-// text; `at` tells this end from any other. `gist` is murmur's words for the reply, where
-// it wrote them. `error` is a failed turn's error as its harness said it. `limit` is the
+// text; `at` tells this end from any other. `error` is a failed turn's error as its harness said it. `limit` is the
 // usage-limit window the end ran into, with its length in minutes where known, and when it
 // resets, in epoch milliseconds.
 // `limited` is set where the end ran into a usage limit, whether or not the window is known.
@@ -84,7 +83,6 @@ export type AgentWaiting = {
 export type AgentTurnEnd = {
   readonly outcome: "completed" | "failed" | "interrupted" | "unknown"
   readonly reply?: string
-  readonly gist?: string
   readonly error?: string
   readonly limit?: { readonly minutes: number | null; readonly resetsAt: number }
   readonly limited?: true

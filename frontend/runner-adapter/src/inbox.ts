@@ -28,7 +28,6 @@ import type { MailState } from "@novadeck/core/messages"
 import { createStore, type Store } from "@novadeck/core/store"
 import type { TerminalMetadata, Workspace } from "@novadeck/core/types"
 import { longHoldMs, type AgentDetail, type AskAnswer, type InboxLetter } from "@novadeck/protocol"
-import { currentPlatform } from "@novadeck/terminal-views/platform"
 
 import { requestOf } from "./conversations"
 
@@ -81,9 +80,9 @@ type Reading = {
   backoff: number
 }
 
-// The letters that are an ask or a tell; a finished turn is `turnOf`.
-type AskOrTell = InboxLetter & { readonly content: AskLetter["content"] }
-const askOrTell = (letter: InboxLetter): letter is AskOrTell => letter.content.kind !== "turn"
+// The letters that are an ask, a tell or a done; a finished turn is `turnOf`.
+type NotATurn = InboxLetter & { readonly content: AskLetter["content"] }
+const notATurn = (letter: InboxLetter): letter is NotATurn => letter.content.kind !== "turn"
 
 const turnOf = (letter: InboxLetter): InboxTurn | undefined => {
   const { content } = letter
@@ -98,7 +97,6 @@ const turnOf = (letter: InboxLetter): InboxTurn | undefined => {
     at: letter.at,
     outcome: content.outcome,
     reply: content.reply,
-    gist: content.gist,
     error: content.error,
     files: content.files,
   }
@@ -133,7 +131,7 @@ export const createRunnerInbox = (
   let binding: InboxBinding | null = null
   // Asks and tells, as the runner last listed them, and its finished turns (undefined until
   // the first listing, and after the listing ended for good).
-  let letters: readonly AskOrTell[] = []
+  let letters: readonly NotATurn[] = []
   let listed: readonly InboxTurn[] | undefined
   const turns = createStore<readonly InboxTurn[] | undefined>(undefined)
   // The turn rows read on the person's looking: out of `turns` at once, until a listing no
@@ -341,7 +339,6 @@ export const createRunnerInbox = (
       letters,
       requests,
       now: at,
-      caseless: currentPlatform() === "mac",
       longHoldMs,
     })
     const { items, answering, failed: shown } = tracker.view(found)
@@ -425,7 +422,11 @@ export const createRunnerInbox = (
         onError: () => replies.delete(id),
       })
     }
-    if (item.kind === "update" && given.kind === "update" && item.update.type === "told")
+    if (
+      item.kind === "update" &&
+      given.kind === "update" &&
+      (item.update.type === "told" || item.update.type === "done")
+    )
       return tracker.call(id, () => streams.asks.read([id]))
     answerItem(tracker, item, given, {
       request: (_, { request }, chat) => streams.answer(key, request.id, chat),
@@ -460,17 +461,12 @@ export const createRunnerInbox = (
       )
     },
     readAll: () => {
-      const tells = letters.filter((letter) => letter.content.kind === "tell").map(({ id }) => id)
-      // The finished updates and the failed rows that only inform, as shown.
-      const rows = state
+      // The updates and the failed rows that only inform, as shown: a done hidden under its
+      // running lead is the lead's, and stays.
+      const ids = state
         .getSnapshot()
-        .items.filter(
-          (item) =>
-            (item.kind === "update" && item.update.type === "finished") ||
-            (isTurnRow(item) && !item.stopped),
-        )
+        .items.filter((item) => item.kind === "update" || (isTurnRow(item) && !item.stopped))
         .map(({ id }) => id)
-      const ids = [...tells, ...rows]
       if (ids.length === 0) return
       tracker.submit(ids)
       recompute()
@@ -493,7 +489,7 @@ export const createRunnerInbox = (
         try {
           for await (const snapshot of stream) {
             if (lettersStream !== stream || binding !== next || ended) return
-            letters = snapshot.filter(askOrTell)
+            letters = snapshot.filter(notATurn)
             listed = snapshot.flatMap((letter) => turnOf(letter) ?? [])
             const held = new Set(listed.map(({ id }) => id))
             for (const id of hidden) if (!held.has(id)) hidden.delete(id)

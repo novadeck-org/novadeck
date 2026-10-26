@@ -1,9 +1,10 @@
 /* The window recipe: the terminal window, its header, selection bar and phase line, and
    the content area the backends draw into.
 
-   Hooks: data-terminal-phase="idle" | "done" | "running" | "waiting" | "starting" |
-   "attention" | "unheard" | "ended", data-terminal-failed="true" (done on an error) and
-   data-new="true" on `.terminal-window`; `.terminal-focused` (Focus) and
+   Hooks: data-terminal-phase="idle" | "done" | "running" | "waiting" | "paused" |
+   "starting" | "unheard" | "ended" (what the agent does), data-terminal-need="unblock" |
+   "ask" (what it needs of the person; a dialog its agent shows counts at once),
+   data-terminal-failed="true" (done on an error) and data-new="true" on `.terminal-window`; `.terminal-focused` (Focus) and
    `.terminal-compact` (Grid, Canvas); a selected window is `.terminal-focused`, or sits
    in a `.grid-terminal.selected` or `.canvas-node.selected`; a `.grid-terminal` or
    `.canvas-node` with data-team="lead" | "worker" is in the selected terminal's team.
@@ -41,9 +42,11 @@
    --window-phase-running-shadow (none): a filter over the phase line while a program
    runs, such as a drop-shadow that glows along it; the sweep moves over it unfiltered.
    --window-phase-running-border-color (strong), --window-phase-starting-border-color
-   (muted), --window-phase-attention-border-color (warning-fg),
-   --window-phase-ended-border-color (strong): the phase line in each phase.
-   --window-phase-attention-border-width (2px): its weight while an agent waits.
+   (muted), --window-phase-paused-border-color (muted), --window-phase-need-border-color
+   (warning-fg), --window-phase-ended-border-color (strong): the phase line in each phase.
+   --window-phase-need-border-width (2px): its weight while an agent that doesn't work needs
+   the person. --window-need-fg (warning-fg): the mark after the name.
+   --window-paused-fg (muted): the paused note.
    --window-phase-unheard-border-color (muted): the line while Novadeck can't hear from an
    agent.
    --window-phase-done-border-color (success-fg), --window-phase-done-border-width (2px):
@@ -128,7 +131,7 @@
   border-radius: var(--radius-control, 4px);
   background-color: color-mix(in srgb, currentColor 10%, transparent);
   color: var(--window-metadata-fg, var(--color-muted));
-  font-family: var(--window-metadata-font, var(--font-mono));
+  font-family: var(--window-metadata-font, var(--font-glyphs));
   font-size: var(--text-caption);
   line-height: var(--text-caption--line-height);
   white-space: nowrap;
@@ -188,7 +191,7 @@
 .terminal-lead {
   flex: none;
   color: var(--window-metadata-fg, var(--color-muted));
-  font-family: var(--window-metadata-font, var(--font-mono));
+  font-family: var(--window-metadata-font, var(--font-glyphs));
   font-size: var(--text-caption);
   line-height: 1rem;
 }
@@ -203,7 +206,7 @@
   overflow: hidden;
   margin-left: 0.75rem;
   color: var(--window-metadata-fg, var(--color-muted));
-  font-family: var(--window-metadata-font, var(--font-mono));
+  font-family: var(--window-metadata-font, var(--font-glyphs));
   font-size: var(--text-caption);
   line-height: 1rem;
 }
@@ -227,7 +230,7 @@
   border-radius: var(--radius-control);
   background-color: color-mix(in srgb, var(--terminal-bg, var(--color-paper)) 85%, transparent);
   color: var(--window-metadata-fg, var(--color-muted));
-  font-family: var(--window-metadata-font, var(--font-mono));
+  font-family: var(--window-metadata-font, var(--font-glyphs));
   font-size: var(--text-caption);
   line-height: var(--text-caption--line-height);
   white-space: nowrap;
@@ -359,8 +362,10 @@
 /* A terminal's phase. Its tab reads it as text (see tabs.css); its window reads it from
    a line under the header, legible at any Canvas zoom: a sweep while a program runs,
    dots while the shell starts, dashes once it has ended, muted dashes while Novadeck
-   can't hear from its agent, and nothing while idle.
-   Reduced motion holds the sweep still. */
+   can't hear from its agent, quiet muted dashes while it is paused at its usage limit,
+   success or danger once it reported done or failed, and nothing while idle. It turns
+   warning, 2px, only while the agent isn't working and needs the person (the mark after
+   the name). Reduced motion holds the sweep still. */
 /* An ended terminal is hatched across its window; the hatch lies in the glass, over its
    output, which is drawn on an opaque canvas, and above the glass image. The hatch is
    drawn from ink, so it reads on a light ground and a dark one alike. */
@@ -442,13 +447,6 @@
   border-top-color: var(--window-phase-starting-border-color, var(--color-muted));
   animation: terminal-pulse 1.2s ease-in-out infinite;
 }
-/* Waiting on the person: a steady line in the warning colour, which a slow pulse draws
-   the eye to unless motion is reduced. */
-.terminal-window[data-terminal-phase="attention"] .terminal-heading::after {
-  border-top: var(--window-phase-attention-border-width, 2px) solid
-    var(--window-phase-attention-border-color, var(--color-warning-fg));
-  animation: terminal-pulse 1.6s ease-in-out infinite;
-}
 .terminal-window[data-terminal-phase="ended"] .terminal-heading::after {
   border-top-style: dashed;
   border-top-color: var(--window-phase-ended-border-color, var(--color-strong));
@@ -468,6 +466,38 @@
   border-top-style: dashed;
   border-top-color: var(--window-phase-unheard-border-color, var(--color-muted));
 }
+/* Paused at its usage limit: a quiet dashed line, as it waits on the clock, not on the person. */
+.terminal-window[data-terminal-phase="paused"] .terminal-heading::after {
+  border-top-style: dashed;
+  border-top-color: var(--window-phase-paused-border-color, var(--color-muted));
+}
+/* Stopped and needing the person: a steady warning line, which a slow pulse draws the eye to
+   unless motion is reduced. A working agent keeps its sweep, whatever it asks on the side. */
+.terminal-window[data-terminal-need]:is(
+    [data-terminal-phase="idle"],
+    [data-terminal-phase="done"],
+    [data-terminal-phase="waiting"],
+    [data-terminal-phase="paused"],
+    [data-terminal-phase="unheard"]
+  )
+  .terminal-heading::after {
+  border-top: var(--window-phase-need-border-width, 2px) solid
+    var(--window-phase-need-border-color, var(--color-warning-fg));
+  animation: terminal-pulse 1.6s ease-in-out infinite;
+}
+/* What the agent needs, right after the window's name, in the tab's style. */
+.terminal-need {
+  flex: none;
+  font-family: var(--window-metadata-font, var(--font-glyphs));
+  font-weight: 700;
+  color: var(--window-need-fg, var(--color-warning-fg));
+}
+.terminal-paused {
+  flex: none;
+  font-family: var(--window-metadata-font, var(--font-glyphs));
+  font-size: var(--text-caption);
+  color: var(--window-paused-fg, var(--color-muted));
+}
 .terminal-window[data-terminal-phase="ended"] .terminal-mounted .xterm {
   opacity: var(--window-ended-content-opacity, 0.55);
 }
@@ -485,7 +515,7 @@
   }
 }
 @media (prefers-reduced-motion: reduce) {
-  .terminal-window[data-terminal-phase="attention"] .terminal-heading::after {
+  .terminal-window[data-terminal-need][data-terminal-phase] .terminal-heading::after {
     animation: none;
   }
   .terminal-window[data-terminal-phase="running"] .terminal-heading::after {

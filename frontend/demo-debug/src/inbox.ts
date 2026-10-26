@@ -17,17 +17,17 @@ const kinds: readonly { readonly label: string; readonly name: Named; readonly h
   {
     label: "Codex command permission",
     name: "codexPermission",
-    hint: "Approve row with Codex's four options, one taking words",
+    hint: "Unblock row with Codex's four options, one taking words",
   },
   {
     label: "Unreadable dialog",
     name: "rawDialog",
-    hint: "Approve row showing Claude's edit diff, to answer in the terminal",
+    hint: "Unblock row showing Claude's edit diff, to answer in the terminal",
   },
   {
     label: "Held message",
     name: "held",
-    hint: "Approve row with Release and Stop for a message between two agents",
+    hint: "Unblock row with Release and Stop for a message between two agents",
   },
   {
     label: "Decision with options",
@@ -52,7 +52,7 @@ const kinds: readonly { readonly label: string; readonly name: Named; readonly h
   {
     label: "Login request",
     name: "login",
-    hint: "Ask row with the vercel login command and an I've logged in button",
+    hint: "Unblock row with the vercel login command and an I've logged in button",
   },
   {
     label: "Usage limit",
@@ -67,7 +67,7 @@ const kinds: readonly { readonly label: string; readonly name: Named; readonly h
   {
     label: "Plan approval",
     name: "plan",
-    hint: "Approve row with Claude's plan: the plain yes leads, bypass permissions is a quiet link",
+    hint: "Unblock row with Claude's plan: the plain yes leads, bypass permissions is a quiet link",
   },
   {
     label: "Failed turn",
@@ -82,7 +82,7 @@ const kinds: readonly { readonly label: string; readonly name: Named; readonly h
   {
     label: "Permission with a plain Deny",
     name: "plainDeny",
-    hint: "Approve row whose Deny answers at once, with no note to write",
+    hint: "Unblock row whose Deny answers at once, with no note to write",
   },
   {
     label: "Usage limit, no auto-resume",
@@ -92,7 +92,7 @@ const kinds: readonly { readonly label: string; readonly name: Named; readonly h
   {
     label: "Request with no dialog",
     name: "noDialog",
-    hint: "Approve row for a permission whose dialog never read: it can't be answered here, only in the terminal",
+    hint: "Unblock row for a permission whose dialog never read: it can't be answered here, only in the terminal",
   },
   {
     label: "Failed turn, no error",
@@ -102,7 +102,7 @@ const kinds: readonly { readonly label: string; readonly name: Named; readonly h
   {
     label: "Held message, sender gone",
     name: "heldSenderGone",
-    hint: "Approve row for a held message whose sender's terminal closed: it shows on the recipient, the sender by its handle",
+    hint: "Unblock row for a held message whose sender's terminal closed: it shows on the recipient, the sender by its handle",
   },
   {
     label: "Messages held long",
@@ -115,9 +115,9 @@ const kinds: readonly { readonly label: string; readonly name: Named; readonly h
     hint: "Feedback row with an agent's drafted bug report, a path in it struck out, to Send or Discard",
   },
   {
-    label: "Finished turn",
-    name: "finished",
-    hint: "Update row with the reply and the files an agent wrote",
+    label: "Done report",
+    name: "done",
+    hint: "Update row with an agent's done report: its subject and a Markdown body",
   },
 ]
 
@@ -163,7 +163,7 @@ export const inboxGroups = (
         })),
         {
           label: "Command hiding lines",
-          hint: "Approve row whose command buries a line under blank lines and spaces: the card counts its lines and marks them",
+          hint: "Unblock row whose command buries a line under blank lines and spaces: the card counts its lines and marks them",
           run: () => {
             const item = fresh(demoInboxIds.plainDeny)
             if (item?.kind !== "request" || item.request.dialog?.type !== "choices") return
@@ -182,7 +182,7 @@ export const inboxGroups = (
         },
         {
           label: "Plan with a change field",
-          hint: "Approve row with Claude Code 2.1.287's plan: Deny opens a note that must say what to change",
+          hint: "Unblock row with Claude Code 2.1.287's plan: Deny opens a note that must say what to change",
           run: () => {
             const item = fresh(demoInboxIds.plan)
             if (item?.kind !== "request" || item.request.dialog?.type !== "choices") return

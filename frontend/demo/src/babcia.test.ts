@@ -582,8 +582,19 @@ describe("the Babcia demo", () => {
       expect(agent(number)).toMatchObject({ attention: { count: 1 } })
     expect(agent(babcia.asking)?.lastTurn).toBeUndefined()
     expect(items().filter((item) => item.kind !== "update")).toHaveLength(4)
-    // The others ended, and each stored its finish as a row.
-    expect(items().filter((item) => item.kind === "update").length).toBeGreaterThan(10)
+    // The others ended, and each reported its finished task with done.
+    const reports = items().filter((item) => item.kind === "update")
+    expect(reports.length).toBeGreaterThan(10)
+    // Each report names the job it finished, in the agent's own words.
+    expect(reports).toContainEqual(
+      expect.objectContaining({
+        update: expect.objectContaining({
+          type: "done",
+          subject: "Opening hours is done",
+          body: "Today's hours are marked, and the filter tests pass.",
+        }),
+      }),
+    )
     expect(agent(babcia.shows)).toMatchObject({
       working: false,
       lastTurn: { outcome: "completed" },

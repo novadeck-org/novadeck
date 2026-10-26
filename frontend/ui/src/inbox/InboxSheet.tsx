@@ -112,8 +112,10 @@ const SheetBody = ({ item }: { readonly item: InboxItem }): React.JSX.Element =>
           </button>
         </Tooltip>
       </header>
-      {type === "approve" && <ApproveSheet {...content} />}
-      {type === "ask" && <AskSheet {...content} />}
+      {/* By what the item is, not its type alone: an ask that wants an action (a sign-in) is an
+          Unblock but still takes the ask page, with its Do dialog. */}
+      {(type === "ask" || item.kind === "ask") && <AskSheet {...content} />}
+      {type === "unblock" && item.kind !== "ask" && <ApproveSheet {...content} />}
       {type === "trouble" && <TroubleSheet {...content} />}
       {type === "update" && <UpdateSheet {...content} />}
       {type === "feedback" && <FeedbackSheet {...content} />}

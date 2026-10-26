@@ -1,9 +1,9 @@
 import { describe, expect, it } from "../test.js"
 import {
-  exampleGists,
   looksSecret,
   parseDescription,
-  parseGist,
+  line,
+  type Limits,
   sharesContentWord,
 } from "./description.js"
 
@@ -14,13 +14,14 @@ const title = (text: string, source?: string, project?: string | null) =>
 
 // The guard on secrets and token-like pieces is shared by every line murmur writes, but a
 // title's limit (a short name) is too tight for the long names and keys these checks put
-// through it, so they go in as a gist, which holds up to 60 characters. A gist has three words
-// at least, so a shorter text gets two small words, which are taken off again.
-const guarded = (text: string, source?: string) => {
-  const padding = text.trim().split(/\s+/).length < 3 ? " for now" : ""
-  const clean = parseGist(JSON.stringify({ gist: `${text}${padding}` }), source)?.text
-  return padding && clean?.endsWith(padding) ? clean.slice(0, -padding.length) : clean
+// through it, so they go through the line's own check with roomy limits.
+const roomy: Limits = {
+  words: { min: 1, max: 20 },
+  characters: 80,
+  spaceless: { min: 1, max: 80 },
+  examples: [],
 }
+const guarded = (text: string, source?: string) => line(text, roomy, source)
 
 describe("reading the model's title", () => {
   it("keeps a title that fits", () => {
@@ -1013,75 +1014,7 @@ describe("keys cut short, and names that begin like keys", () => {
   })
 })
 
-const gist = (text: unknown, source?: string) => parseGist(JSON.stringify({ gist: text }), source)
-
-describe("reading the model's gist", () => {
-  it("keeps a gist that fits, tidied", () => {
-    expect(gist("Checkout totals round per line")).toEqual({
-      kind: "gist",
-      text: "Checkout totals round per line",
-    })
-    expect(gist('  "**Tests** pass now."  ')).toEqual({
-      kind: "gist",
-      text: "Tests pass now",
-    })
-  })
-
-  it("refuses a missing gist and replies that are no JSON", () => {
-    expect(gist(7)).toBeUndefined()
-    expect(parseGist(JSON.stringify({ title: "Checkout totals round per line" }))).toBeUndefined()
-    expect(parseGist("Checkout totals round per line")).toBeUndefined()
-  })
-
-  it("holds a gist to three to ten words and 60 characters", () => {
-    expect(gist("Done fast")).toBeUndefined()
-    expect(gist("Fixed b c d e f g h i j k")).toBeUndefined()
-    expect(gist("Fixed b c d e f g h i j")).toBeDefined()
-    expect(gist(`Fixed ${"x".repeat(60)} test`)).toBeUndefined()
-    expect(
-      gist("Reworked internationalisation configuration for the documentation pipeline"),
-    ).toBeUndefined()
-  })
-
-  it("refuses a gist the grammar would have cut, which runs on past the limit", () => {
-    expect(
-      gist("Both projects use NSIS for Windows, lack portable exe support, and Orca has"),
-    ).toBeUndefined()
-  })
-
-  it("refuses a gist that opens like a question, and keeps statements that begin alike", () => {
-    expect(gist("Should I include gossip templates")).toBeUndefined()
-    expect(gist("Do you want the gossip templates")).toBeUndefined()
-    expect(gist("Can we drop the tab tooltip")).toBeUndefined()
-    for (const text of [
-      "Did not touch the migration files",
-      "Is now waiting for your approval",
-      "Will need your API token to continue",
-      "Does not compile on Windows",
-      "Do README dodano sekcję o instalacji",
-      "Can't build on Windows yet",
-    ])
-      expect(gist(text)?.text).toBe(text)
-  })
-
-  it("counts the characters of a script written without spaces", () => {
-    expect(gist("结账总额按行取整")).toBeDefined()
-    expect(gist("好")).toBeUndefined()
-    expect(gist("结账".repeat(16))).toBeUndefined()
-  })
-
-  it("refuses a gist that ends in a question", () => {
-    expect(gist("Which rounding mode should I keep?")).toBeUndefined()
-  })
-
-  it("refuses chat words, and a copy of an example", () => {
-    expect(gist("Thank you very much")).toBeUndefined()
-    for (const example of exampleGists) expect(gist(example)).toBeUndefined()
-    expect(
-      gist("Checkout totals now round per line", "checkout totals now round per line"),
-    ).toBeDefined()
-  })
-
+describe("the guard on a sentence", () => {
   it.each([
     "Merged PR #131 and bumped react to 18.3.1",
     "Build took 4m 30s on Node 26",
@@ -1095,7 +1028,7 @@ describe("reading the model's gist", () => {
     "Moved @novadeck/protocol files around",
   ])("keeps %s, which holds names, versions and numbers", (text) => {
     // The tidying drops a "#".
-    expect(gist(text)?.text).toBe(text.replace("#", ""))
+    expect(guarded(text)).toBe(text.replace("#", ""))
   })
 
   it.each([
@@ -1109,15 +1042,11 @@ describe("reading the model's gist", () => {
     "Used AKIAIOSFODNN7EXAMPLE key for tests",
     "Set token=x7Kp2mQ9vL4nR8sT in the file",
   ])("refuses %s, a secret inside a sentence", (text) => {
-    expect(gist(text)).toBeUndefined()
-  })
-
-  it("refuses a provider key in the raw string even when tidying splits it", () => {
-    expect(parseGist('{"gist":"Leaked ghp_AbC9dEf2GhI4jKl7mN0p in the log"}')).toBeUndefined()
+    expect(guarded(text)).toBeUndefined()
   })
 
   it("refuses a key that markdown or invisible characters split", () => {
-    expect(gist("Found sk-\u200BAbC9dEf2GhI4jKl7 in the file")).toBeUndefined()
-    expect(parseGist('{"gist":"Found ghp_AbC9dEf2GhI4jKl7mN0p in the file"}')).toBeUndefined()
+    expect(guarded("Found sk-\u200BAbC9dEf2GhI4jKl7 in the file")).toBeUndefined()
+    expect(guarded("Found ghp_AbC9dEf2GhI4jKl7mN0p in the file")).toBeUndefined()
   })
 })

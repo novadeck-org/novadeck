@@ -1,6 +1,6 @@
 import { z } from "zod"
 
-import { agentName, id, murmurGist, turnError, turnFiles, turnReply } from "./schemas.js"
+import { agentName, id, turnError, turnFiles, turnReply } from "./schemas.js"
 import { hiddenIn, maxCommandLines } from "./text.js"
 
 const line = z
@@ -76,13 +76,14 @@ export const inboxLetter = z.strictObject({
   content: z.discriminatedUnion("kind", [
     z.strictObject({ kind: z.literal("ask"), ask: agentAsk }),
     z.strictObject({ kind: z.literal("tell"), subject: line, body: markdown }),
+    // The agent's own report that the task it was given is finished.
+    z.strictObject({ kind: z.literal("done"), subject: line, body: markdown }),
     // A finished turn of the agent: stored until the person reads it, which removes it.
-    // `at` is the end's own `lastTurn.at`. `gist` is murmur's, filled in later.
+    // `at` is the end's own `lastTurn.at`.
     z.strictObject({
       kind: z.literal("turn"),
       outcome: z.enum(["completed", "failed"]),
       reply: turnReply.nullable(),
-      gist: murmurGist.nullable(),
       error: turnError.nullable(),
       files: turnFiles,
     }),

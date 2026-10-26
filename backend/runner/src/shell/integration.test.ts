@@ -1192,7 +1192,6 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))("bash shell i
         outcome: "interrupted",
         reply: null,
         at: expect.any(Number),
-        gist: null,
         error: null,
         limit: null,
         files: [],
@@ -4329,50 +4328,6 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))(
         person: "My title",
         murmur: null,
       })
-    })
-
-    it("shows a finish's gist in the agent's activity, and takes it away when murmur is turned off", async ({
-      shell,
-    }) => {
-      const transcript = join(shell.home, "session.jsonl")
-      writeFileSync(
-        transcript,
-        `${JSON.stringify({ type: "assistant", message: { role: "assistant", content: [{ type: "text", text: "Fixed the rounding bug." }] } })}\n`,
-      )
-      const claude = { agent: "claude", sessionId: "s", source: "" }
-      const bin = reporter(shell.home, [
-        { ...claude, seq: 1, source: "startup", fields: { transcript_path: transcript } },
-        { ...claude, seq: 2, event: "UserPromptSubmit" },
-        { ...claude, seq: 3, event: "Stop", fields: { transcript_path: transcript } },
-      ])
-      const describer = new FakeDescriber()
-      const manager = shell.manager({
-        env: { HOME: shell.home, PS1: "$ ", PATH: `${bin}:${process.env.PATH}` },
-        describer,
-        murmurTimes: { ...murmurTimes, noteMs: 20 },
-      })
-      const terminal = await create(manager, shell)
-      manager.write({ terminalId: terminal.id, data: "report\r" }, "owner")
-      const activity = () => manager.list(terminal.sessionId)[0]?.activity
-      await expect.poll(() => activity()?.lastTurn?.outcome, { timeout: 30_000 }).toBe("completed")
-      expect(activity()).toMatchObject({
-        attention: { pending: 0, kind: null },
-        lastTurn: { gist: null },
-      })
-      // A client showing the finish unread asks for its gist, which is written once.
-      const at = activity()!.lastTurn!.at
-      manager.gistWanted(terminal.id, at)
-      manager.gistWanted(terminal.id, at)
-      await expect.poll(() => activity()?.lastTurn?.gist, { timeout: 30_000 }).toEqual("Gist 1")
-      expect(describer.notes[0]!.digest).toMatchObject({
-        kind: "reply",
-        reply: "Fixed the rounding bug.",
-      })
-      expect(describer.notes).toHaveLength(1)
-      // Turning murmur off takes it away.
-      describer.clear()
-      await expect.poll(() => activity()?.lastTurn?.gist, { timeout: 30_000 }).toBeNull()
-      expect(activity()!.lastTurn).toMatchObject({ outcome: "completed", at })
     })
 
     it("does nothing without a describer: terminals keep their default titles and have no summary", async ({

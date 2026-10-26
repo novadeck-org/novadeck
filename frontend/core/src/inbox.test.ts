@@ -1,5 +1,15 @@
 import type { ChatRequest } from "./conversation"
-import { inboxType, letterItem, ordered, urgency, type InboxContent, type InboxItem } from "./inbox"
+import {
+  inboxType,
+  letterItem,
+  nextLimitReset,
+  ordered,
+  terminalDone,
+  terminalNeed,
+  urgency,
+  type InboxContent,
+  type InboxItem,
+} from "./inbox"
 import { describe, expect, it } from "./test"
 
 const source: InboxItem["source"] = {
@@ -58,19 +68,93 @@ const item = (id: string, content: InboxContent, stopped: boolean, at = 0): Inbo
   seen: false,
 })
 
+const action: InboxContent = {
+  kind: "ask",
+  ask: {
+    subject: "Log in",
+    body: "b",
+    details: null,
+    hardToUndo: null,
+    shape: { type: "action", command: "vercel login", directory: null, doneLabel: "Done" },
+  },
+}
+const done: InboxContent = { kind: "update", update: { type: "done", subject: "s", body: "b" } }
+
 describe("inboxType", () => {
-  it("presents a permission or a plan as an approve and a question as an ask", () => {
-    expect(inboxType(request("permission"))).toBe("approve")
-    expect(inboxType(request("plan"))).toBe("approve")
+  it("presents a permission or a plan as an unblock and a question as an ask", () => {
+    expect(inboxType(request("permission"))).toBe("unblock")
+    expect(inboxType(request("plan"))).toBe("unblock")
     expect(inboxType(request("question"))).toBe("ask")
   })
 
-  it("presents a held message as an approve, and the rest by their source", () => {
-    expect(inboxType(held)).toBe("approve")
+  it("presents a held message as an unblock, and the rest by their source", () => {
+    expect(inboxType(held)).toBe("unblock")
     expect(inboxType(ask)).toBe("ask")
     expect(inboxType(failed)).toBe("trouble")
     expect(inboxType(told)).toBe("update")
+    expect(inboxType(done)).toBe("update")
     expect(inboxType(draft)).toBe("feedback")
+  })
+
+  it("presents an ask the person answers by doing something as an unblock", () => {
+    expect(inboxType(action)).toBe("unblock")
+  })
+})
+
+describe("what a terminal needs and has done", () => {
+  const at = { projectId: "p", workspaceSessionId: "s", terminalId: "t" }
+  const elsewhere = { ...source, terminalId: "other" }
+  const there = (id: string, content: InboxContent, seen = false): InboxItem => ({
+    ...item(id, content, true),
+    seen,
+  })
+  const away = (id: string, content: InboxContent): InboxItem => ({
+    ...item(id, content, true),
+    source: elsewhere,
+  })
+  const limitAt = (resetsAt: number, autoResume: boolean | null): InboxContent => ({
+    kind: "trouble",
+    trouble: { type: "limit", minutes: 300, resetsAt, autoResume, evidence: [] },
+  })
+
+  it("needs an unblock for a permission, a held message or an action ask", () => {
+    for (const content of [request("permission"), held, action])
+      expect(terminalNeed([there("a", content)], at, 0)).toBe("unblock")
+  })
+
+  it("needs an answer for a question or an ask, and an unblock wins over it", () => {
+    expect(terminalNeed([there("a", request("question"))], at, 0)).toBe("ask")
+    expect(terminalNeed([there("a", ask)], at, 0)).toBe("ask")
+    expect(terminalNeed([there("a", ask), there("b", held)], at, 0)).toBe("unblock")
+  })
+
+  it("needs nothing for trouble, updates or a draft, nor for another terminal's items", () => {
+    expect(terminalNeed([there("a", failed), there("b", told), there("c", draft)], at, 0)).toBe(
+      undefined,
+    )
+    expect(terminalNeed([away("a", held)], at, 0)).toBe(undefined)
+  })
+
+  it("needs an unblock from a limit only once it has reset and Novadeck won't resume", () => {
+    expect(terminalNeed([there("a", limitAt(100, false))], at, 99)).toBe(undefined)
+    expect(terminalNeed([there("a", limitAt(100, false))], at, 100)).toBe("unblock")
+    expect(terminalNeed([there("a", limitAt(100, null))], at, 100)).toBe("unblock")
+    expect(terminalNeed([there("a", limitAt(100, true))], at, 100)).toBe(undefined)
+  })
+
+  it("finds the next limit still to reset, for the marks that change then", () => {
+    const items = [there("a", limitAt(300, false)), there("b", limitAt(100, false))]
+    expect(nextLimitReset(items, 50)).toBe(100)
+    expect(nextLimitReset(items, 100)).toBe(300)
+    expect(nextLimitReset(items, 300)).toBeUndefined()
+    expect(nextLimitReset([there("c", done)], 0)).toBeUndefined()
+  })
+
+  it("has a done once its report is unseen, and not for a tell or another terminal", () => {
+    expect(terminalDone([there("a", done)], at)).toBe(true)
+    expect(terminalDone([there("a", done, true)], at)).toBe(false)
+    expect(terminalDone([there("a", told)], at)).toBe(false)
+    expect(terminalDone([away("a", done)], at)).toBe(false)
   })
 })
 

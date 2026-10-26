@@ -303,7 +303,6 @@ export const scriptedRunner = ({
       uninstall: api.murmur.uninstall.handler(unplayed("murmur.uninstall")),
       set: api.murmur.set.handler(unplayed("murmur.set")),
       noteOffered: api.murmur.noteOffered.handler(unplayed("murmur.noteOffered")),
-      gist: api.murmur.gist.handler(unplayed("murmur.gist")),
     },
     settings: {
       get: api.settings.get.handler(() => ({

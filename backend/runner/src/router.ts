@@ -272,9 +272,6 @@ export const createRouter = (options: {
       uninstall: api.murmur.uninstall.handler(() => murmur.uninstall()),
       set: api.murmur.set.handler(({ input }) => murmur.set(input)),
       noteOffered: api.murmur.noteOffered.handler(() => murmur.noteOffered()),
-      gist: api.murmur.gist.handler(({ input }) =>
-        terminals.gistWanted(input.terminalId, input.at),
-      ),
     },
     // The store keeps the settings; the terminals apply the transcript switch.
     settings: {

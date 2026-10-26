@@ -40,9 +40,14 @@ export const conversationsOf = (mail: TerminalMail): readonly Conversation[] => 
 export const latestOf = (conversation: Conversation): number =>
   conversation.messages.at(-1)?.sentAt ?? 0
 
+// The open letters of a kind; news (`"tell"`) counts a done report, which is a tell that says
+// the task is finished.
 const openLetters = (conversation: Conversation, kind: "ask" | "tell"): number =>
-  conversation.messages.filter((message) => message.inbox === kind && message.inboxState === "open")
-    .length
+  conversation.messages.filter(
+    (message) =>
+      (message.inbox === kind || (kind === "tell" && message.inbox === "done")) &&
+      message.inboxState === "open",
+  ).length
 
 // The questions the person hasn't answered yet.
 export const openAsks = (conversation: Conversation): number => openLetters(conversation, "ask")
@@ -84,6 +89,8 @@ export const listed = (conversations: readonly Conversation[]): readonly Convers
 // How a letter says what it is, in plain words, by its kind and where it stands.
 export const letterLabel = (message: AgentMessage): string | undefined => {
   if (message.inbox === "tell") return message.inboxState === "open" ? "Tells you" : "Told you"
+  if (message.inbox === "done")
+    return message.inboxState === "open" ? "Reports done" : "Reported done"
   if (message.inbox !== "ask") return undefined
   switch (message.inboxState) {
     case "open":

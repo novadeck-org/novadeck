@@ -1,9 +1,9 @@
-import type { Inbox, InboxItem } from "@novadeck/core/inbox"
+import type { InboxItem } from "@novadeck/core/inbox"
 
 import { ringing } from "../inbox/inbox-state"
 import type { ToastBoard } from "../inbox/InboxToasts"
 import { isDesktop } from "../shell/desktop"
-import { followNeeds, keyOf, needGraceMs } from "./inbox-pings"
+import { followNeeds, keyOf, needGraceMs, type NeedsInbox } from "./inbox-pings"
 import { inboxShown, mayToast, modalOpen } from "./selectors"
 import type { UiState, UiStore } from "./ui-store"
 
@@ -23,7 +23,7 @@ import type { UiState, UiStore } from "./ui-store"
 // within its grace doesn't toast. That is acceptable: the Inbox keeps it, and the board only
 // restarts as the app mounts.
 export const watchInboxToasts = (
-  inbox: Pick<Inbox, "state">,
+  inbox: NeedsInbox,
   ui: UiStore,
   board: ToastBoard,
   {
@@ -58,8 +58,7 @@ export const watchInboxToasts = (
     const standing = new Set(ringing(inbox.state.getSnapshot().items).map(keyOf))
     const items = [...held.values()]
     held.clear()
-    for (const item of items)
-      if (standing.has(keyOf(item)) && mayToast(item, state, desktop)) show(item)
+    for (const item of items) if (standing.has(keyOf(item)) && mayToast(state, desktop)) show(item)
   }
   // The person has got to what the toasts say: all of them if the Inbox shows, else the one
   // of the terminal they selected. A modal dialog opening takes them all away too, as one
@@ -79,7 +78,9 @@ export const watchInboxToasts = (
     graceMs,
     ring: (item) => {
       const state = ui.getSnapshot()
-      if (!mayToast(item, state, desktop)) return false
+      if (!mayToast(state, desktop)) return false
+      // Never over the terminal they're looking at: they came back to it within the grace.
+      if (state.location.route.terminal === item.source.terminalId) return false
       if (modalOpen(state)) {
         // Rung all the same, so its leaving is followed: closing a toast never shown is a no-op.
         held.set(item.source.terminalId, item)

@@ -167,8 +167,6 @@ export type LastTurn = {
   readonly reply: string | null
   readonly at: number
   readonly recorded: boolean
-  /** Murmur's gist of the reply, for the person only; see `withGist`. */
-  readonly gist?: string
   /** Set while the person's Escape is the only word on how the turn ended. */
   readonly escaped?: Escape
   /** A failed turn's error as its harness said it. */
@@ -452,9 +450,7 @@ const turnEnded = (activity: Activity, event: TurnEnded): Activity | undefined =
           ? activity.lastTurn.at
           : event.startedAt,
       recorded: recorded === true,
-      // The same end again, told the same way, keeps the gist murmur wrote of it.
-      ...(before?.gist && { gist: before.gist }),
-      // Likewise the error and limit either way of telling told, and the window latched.
+      // The error and limit either way of telling told, and the window latched.
       ...(error && { error }),
       ...(limited && { limited: true as const }),
       ...(before?.limit && { limit: before.limit }),
@@ -983,23 +979,6 @@ const asked = (
 }
 
 /**
- * The activity with murmur's gist on its last turn, while that turn is still the one that
- * ended at `at`, completed or failed, and none runs; undefined otherwise.
- */
-export const withGist = (activity: Activity, at: number, gist: string): Activity | undefined => {
-  const { lastTurn } = activity
-  if (
-    activity.state === "working" ||
-    !lastTurn ||
-    lastTurn.at !== at ||
-    (lastTurn.outcome !== "completed" && lastTurn.outcome !== "failed") ||
-    lastTurn.gist
-  )
-    return undefined
-  return { ...activity, lastTurn: { ...lastTurn, gist } }
-}
-
-/**
  * The activity with the usage-limit window its last turn ran into, once none runs and the
  * turn has none yet; undefined otherwise.
  */
@@ -1019,18 +998,6 @@ export const withLimit = (
       ...(!limit.spent && { guessed: true as const }),
     },
   }
-}
-
-const ungisted = (lastTurn: LastTurn): LastTurn => {
-  const { gist: _, ...rest } = lastTurn
-  return rest
-}
-
-/** The activity without the gist murmur wrote (murmur turned off); undefined when it had none. */
-export const withoutNotes = (activity: Activity): Activity | undefined => {
-  const { lastTurn } = activity
-  if (lastTurn?.gist === undefined) return undefined
-  return { ...activity, lastTurn: ungisted(lastTurn) }
 }
 
 /**
@@ -1083,7 +1050,6 @@ export const summary = ({
             outcome: lastTurn.outcome,
             reply: lastTurn.reply,
             at: lastTurn.at,
-            gist: lastTurn.gist ?? null,
             error: lastTurn.error ?? null,
             limit: lastTurn.limit ?? null,
             files: [...lastTurn.files],

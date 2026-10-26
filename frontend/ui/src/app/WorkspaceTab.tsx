@@ -17,6 +17,7 @@ import { useUiState, useWorkspaceServices, useWorkspaceState } from "./controlle
 import { useDockTarget } from "./dock-target"
 import { currentContext, currentState, currentTarget, sameTarget, shallowEqual } from "./selectors"
 import { useTerminalBar } from "./terminal-bar"
+import { useTerminalMarks } from "./useTerminalMarks"
 
 // One terminal's or window's sidebar tab. It selects only what concerns its own tile, so
 // a rename keystroke re-renders the tab being renamed and no other.
@@ -45,6 +46,12 @@ export const WorkspaceTab = memo(
       shallowEqual,
     )
     const unread = useUiState((state) => unreadEnd(state.unread, context, id))
+    // What the raw Inbox says of it: a need, and a done report unseen. Not the landing rule's
+    // Inbox, which hides rows from its list, never from the marks.
+    const { need, done, subject, dialog } = useTerminalMarks(backend.inbox, {
+      ...target,
+      terminalId: id,
+    })
     // What a window shows, which its icon says.
     const itemId = isWindow(terminal) ? terminal.itemId : undefined
     const item = useWorkspaceState((workspace) =>
@@ -79,6 +86,10 @@ export const WorkspaceTab = memo(
         teamWords={teamWords}
         hidden={hidden}
         unread={unread}
+        need={need}
+        needSubject={subject}
+        needDialog={dialog}
+        reported={done}
         rename={rename}
         mail={badge}
         companion={<TabKinds slots={slots} mail={badge !== null} />}

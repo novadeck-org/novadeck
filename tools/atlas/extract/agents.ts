@@ -30,6 +30,7 @@ const handlers: Record<string, { readonly file: string; readonly method: string 
   // The Inbox's, which the calls' dispatch hands to its asks.
   ask: { file: callsFile, method: "call" },
   tell: { file: callsFile, method: "call" },
+  done: { file: callsFile, method: "call" },
 }
 
 const lineOf = (source: string | null, pattern: RegExp): number | null => {

@@ -198,16 +198,22 @@ describe("a nudge", () => {
     for (const words of [
       "the user rarely watches this terminal",
       "Always put every question you end your turn waiting on",
-      "in their Inbox with Novadeck's ask tool, beside your reply",
-      "unless it is already an open ask",
+      "in their Inbox with Novadeck's ask tool, unless it is already an open ask",
       "a closing offer such as 'anything else?' isn't one",
       "nor is an action your harness is already prompting them for",
-      "With a lead, your questions go to it with send instead",
-      "approvals of actions, such as opening a pull request, still go through ask",
-      "tell your lead you're waiting",
+      "With a lead, send your report and your questions to it with send instead of done, tell or ask",
+      "approvals of actions, such as opening a pull request, are still the user's, asked with ask",
+      "you send your lead that you're waiting",
+      "put the full question in your reply too",
+      "that is an ask with the action shape, not just words in your reply",
+      "never ask for a secret value",
+      "report it with Novadeck's done tool, your own short report",
+      "not when you answer a question or finish a step",
       "If they answer here instead, withdraw the ask",
     ])
       expect(inboxNotice).toContain(words)
+    for (const native of ["AskUserQuestion", "request_user_input", "ask_question"])
+      expect(inboxNotice).not.toContain(native)
   })
 
   it("still tells of the bar after a describe came before the first quiet prompt", () => {

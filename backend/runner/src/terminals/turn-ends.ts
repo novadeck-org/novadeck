@@ -1,4 +1,4 @@
-import { murmurGistLength, replyPreviewLength } from "@novadeck/protocol"
+import { replyPreviewLength } from "@novadeck/protocol"
 import type { AgentActivity } from "@novadeck/protocol"
 
 import { escapeVerdictMs, summary as activitySummary } from "../harnesses/activity.js"
@@ -38,7 +38,6 @@ type Seen = {
   readonly owner: TurnOwner
   outcome: "completed" | "failed"
   reply: string | null
-  gist: string | null
   error: string | null
   files: readonly string[]
   /** The end turned out otherwise (interrupted, unknown, limited): nothing is stored. */
@@ -55,7 +54,7 @@ type Seen = {
 }
 
 /** The text of an end that is stored: all of it redacted. */
-type Text = { reply: string | null; error: string | null; gist: string | null }
+type Text = { reply: string | null; error: string | null }
 
 type Ends = {
   readonly seen: Map<number, Seen>
@@ -67,9 +66,9 @@ type Ends = {
 // eslint-disable-next-line no-control-regex -- Control characters are what it removes.
 const plain = (text: string): string => text.replace(/[\u0000-\u001f\u007f-\u009f]+/gu, " ").trim()
 
-const key = (seen: Seen): string => JSON.stringify([seen.reply, seen.error, seen.gist])
+const key = (seen: Seen): string => JSON.stringify([seen.reply, seen.error])
 const raw = (seen: Seen): string =>
-  JSON.stringify([seen.outcome, seen.reply, seen.gist, seen.error, seen.files])
+  JSON.stringify([seen.outcome, seen.reply, seen.error, seen.files])
 
 /**
  * Stores each completed or failed turn end of an agent as an Inbox letter (`Asks.recordTurn`),
@@ -113,7 +112,7 @@ export class TurnEnds {
         seen.timer = undefined
         seen.flushed = true
         if (!asks.accepts(terminalId)) continue
-        this.write(seen, { reply: null, error: null, gist: null })
+        this.write(seen, { reply: null, error: null })
         // The text follows once redacted, if Asks is still open then.
         if (!seen.settling) void this.settle(seen)
       }
@@ -160,7 +159,6 @@ export class TurnEnds {
       owner,
       outcome: last.outcome === "failed" ? "failed" : "completed",
       reply: last.reply,
-      gist: last.gist ?? null,
       error: last.error ?? null,
       files: [...last.files],
       corrected: false,
@@ -181,7 +179,7 @@ export class TurnEnds {
     seen.timer.unref()
   }
 
-  /** The same end told again: it fills in its reply, error, gist and files, or is corrected. */
+  /** The same end told again: it fills in its reply, error and files, or is corrected. */
   private update(seen: Seen, last: LastTurn, ok: boolean, id: string, asks: Asks): void {
     if (seen.corrected) return
     if (!ok) {
@@ -197,7 +195,6 @@ export class TurnEnds {
   private take(seen: Seen, last: LastTurn): void {
     seen.outcome = last.outcome === "failed" ? "failed" : "completed"
     seen.reply = last.reply
-    seen.gist = last.gist ?? null
     seen.error = last.error ?? null
     seen.files = [...last.files]
   }
@@ -268,7 +265,6 @@ export class TurnEnds {
     const fields: TurnFields = {
       outcome: seen.outcome,
       reply: text.reply,
-      gist: seen.gist === null ? null : text.gist,
       error: seen.error === null ? null : text.error,
       files: [...seen.files],
     }
@@ -303,8 +299,7 @@ export class TurnEnds {
     }
     const reply = await one(seen.reply, replyPreviewLength)
     const error = await one(seen.error, 2048)
-    const gist = await one(seen.gist, murmurGistLength)
-    seen.masked = { reply, error, gist, from }
+    seen.masked = { reply, error, from }
     return seen.masked
   }
 }

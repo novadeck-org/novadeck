@@ -453,6 +453,61 @@ describe("unread tell lifetimes", () => {
   })
 })
 
+describe("done letters", () => {
+  it("stores a done like a tell: kept as history once read, and across a restart", ({
+    resources,
+  }) => {
+    const folder = mkdtempSync(join(tmpdir(), "novadeck-done-"))
+    resources.defer(() => rmSync(folder, { recursive: true, force: true }))
+    const path = join(folder, "workspace.sqlite")
+    const store = new WorkspaceStore(path)
+    const first = setup(store, store)
+    const sent = first.asks.call(identity.terminalId, "done", {
+      subject: "Fixed it",
+      body: "All green.",
+    })
+    if (!sent.ok) throw new Error(sent.reason)
+    const old = first.asks.call(identity.terminalId, "tell", { subject: "Older", body: "Body" })
+    if (!old.ok) throw new Error(old.reason)
+    expect(first.asks.list().map((each) => each.content.kind)).toEqual(["done", "tell"])
+    first.asks.close()
+    first.messaging.close()
+    store.close()
+
+    const reopened = new WorkspaceStore(path)
+    resources.defer(() => reopened.close())
+    const next = setup(reopened, reopened)
+    resources.defer(() => next.messaging.close())
+    expect(next.asks.list()).toMatchObject([
+      { id: sent.id, content: { kind: "done", subject: "Fixed it", body: "All green." } },
+      { id: old.id, content: { kind: "tell" } },
+    ])
+    next.asks.read([sent.id])
+    expect(next.asks.list().map((each) => each.id)).toEqual([old.id])
+    expect(reopened.letters().find((each) => each.id === sent.id)?.state).toBe("read")
+    const history = next.asks.history(
+      identity.terminalId,
+      next.messaging.list(identity.terminalId, identity.handle),
+    )
+    const trace = history.threads
+      .flatMap((thread) => thread.messages)
+      .find((message) => message.inbox === "done")
+    expect(trace?.text).toBe("Fixed it\n\nAll green.")
+  })
+
+  it("refuses a done with no subject or an oversized subject or body", ({ resources }) => {
+    const run = setup()
+    resources.defer(() => run.messaging.close())
+    expect(run.asks.call(identity.terminalId, "done", { subject: "", body: "x" }).ok).toBe(false)
+    expect(
+      run.asks.call(identity.terminalId, "done", { subject: "S".repeat(300), body: "x" }).ok,
+    ).toBe(false)
+    expect(
+      run.asks.call(identity.terminalId, "done", { subject: "S", body: "x".repeat(40_000) }).ok,
+    ).toBe(false)
+  })
+})
+
 const inboxClock = () => {
   let at = 1_000_000
   return {

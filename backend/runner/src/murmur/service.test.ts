@@ -23,7 +23,7 @@ import {
 import { redactionProbe } from "../testing/redaction-probe.js"
 import type { Resources } from "../testing/resources.js"
 import { WorkspaceStore } from "../workspaces/store.js"
-import type { AgentDigest, Digest, NoteDigest } from "./describer.js"
+import type { AgentDigest, Digest } from "./describer.js"
 import { Murmur, serverArguments } from "./service.js"
 
 const digest: AgentDigest = {
@@ -1892,81 +1892,20 @@ describe("clearing titles", () => {
   })
 })
 
-const reply: NoteDigest = {
-  kind: "reply",
-  reply:
-    "I rounded the checkout totals per line. Which mode should I keep? API_KEY=hunter2 is set.",
-  failed: false,
-}
-
-describe("writing notes", () => {
-  it("answers a reply with a gist", async ({ resources }) => {
-    const { murmur, directory } = await installed(resources, { behaviour: "log" })
-
-    expect(await murmur.note(reply, { terminal: "t" })).toEqual({
-      kind: "gist",
-      text: expect.stringMatching(/^Fake gist \d+$/),
-    })
-
-    const asked = await requests(directory)
-    const request = asked.at(-1) as unknown as {
-      response_format: { json_schema: { name: string } }
-      max_tokens?: number
-    }
-    expect(request.response_format.json_schema.name).toBe("reply_gist")
-    expect(request.max_tokens).toBe(128)
-    // The worker redacted the reply before the model saw it.
-    const text = asked.at(-1)?.messages[1]?.content ?? ""
-    expect(text).not.toContain("hunter2")
-    expect(text).toContain("API_KEY=[redacted]")
-  })
-
-  it("refuses a note that copies an example", async ({ resources }) => {
-    const context = await installed(resources)
-    await writeFile(await modelOf(context.directory), "copy")
-    await context.murmur.set({ enabled: false })
-    await context.murmur.set({ enabled: true })
-
-    expect(await context.murmur.note(reply, { terminal: "t" })).toBeNull()
-  })
-
-  it("does not run when murmur is off", async ({ resources }) => {
-    const { murmur } = await setup(resources, { engine: false })
-
-    await expect(murmur.note(reply, { terminal: "t" })).resolves.toBeUndefined()
-  })
-})
-
-// Starts jobs of each kind while one runs, and says in what order they finished.
-const order = async (murmur: Murmur, jobs: readonly (readonly [string, NoteDigest | Digest])[]) => {
-  const finished: string[] = []
-  const results = jobs.map(([name, input]) => {
-    const options = { terminal: "t" }
-    const result =
-      input.kind === "reply" ? murmur.note(input, options) : murmur.describe(input, options)
-    return result.then((value) => {
-      finished.push(name)
-      return value
-    })
-  })
-  await Promise.all(results)
-  return finished
-}
-
 describe("the line of jobs", () => {
-  it("serves a gist before a title, and first come first served within", async ({ resources }) => {
+  it("serves jobs first come first served, never pre-empting the one running", async ({
+    resources,
+  }) => {
     const { murmur } = await installed(resources, { behaviour: "slow" })
+    const finished: string[] = []
 
-    const finished = await order(murmur, [
-      ["running", digest],
-      ["title 1", digest],
-      ["gist 1", reply],
-      ["title 2", digest],
-      ["gist 2", reply],
-    ])
+    await Promise.all(
+      ["running", "title 1", "title 2"].map((name) =>
+        murmur.describe(digest, { terminal: "t" }).then(() => finished.push(name)),
+      ),
+    )
 
-    // The one running is never pre-empted.
-    expect(finished).toEqual(["running", "gist 1", "gist 2", "title 1", "title 2"])
+    expect(finished).toEqual(["running", "title 1", "title 2"])
   })
 
   it("lets a waiting job leave when its signal aborts, without holding the others", async ({
@@ -1976,82 +1915,47 @@ describe("the line of jobs", () => {
     const leaving = new AbortController()
     const finished: string[] = []
     const running = murmur.describe(digest, { terminal: "t" }).then(() => finished.push("running"))
-    const gist = murmur.note(reply, { terminal: "t", signal: leaving.signal }).then((value) => {
-      finished.push("gist")
-      return value
-    })
+    const leaves = murmur
+      .describe(digest, { terminal: "t", signal: leaving.signal })
+      .then((value) => {
+        finished.push("leaves")
+        return value
+      })
     const title = murmur.describe(digest, { terminal: "t" }).then(() => finished.push("title"))
     leaving.abort()
 
-    expect(await gist).toBeUndefined()
+    expect(await leaves).toBeUndefined()
     await Promise.all([running, title])
-    expect(finished).toEqual(["gist", "running", "title"])
+    expect(finished).toEqual(["leaves", "running", "title"])
     // The line is idle again.
-    expect(await murmur.note(reply, { terminal: "t" })).toMatchObject({ kind: "gist" })
-  })
-})
-
-describe("notes that keep being refused", () => {
-  it("are counted for each kind of text apart", async ({ resources }) => {
-    const context = await installed(resources, { now: () => 1_000 })
-    await writeFile(await modelOf(context.directory), "garbage")
-    await context.murmur.set({ enabled: false })
-    await context.murmur.set({ enabled: true })
-
-    expect(await context.murmur.note(reply, { terminal: "a" })).toBeNull()
-    expect(await context.murmur.note(reply, { terminal: "a" })).toBeNull()
-    await fix(context)
-
-    // Two gists refused in a row: that terminal's gists are held off.
-    expect(await context.murmur.note(reply, { terminal: "a" })).toBeUndefined()
-    // Its titles are not, nor are another terminal's gists.
-    expect(await context.murmur.describe(digest, { terminal: "a" })).toMatchObject({
+    expect(await murmur.describe(digest, { terminal: "t" })).toMatchObject({
       title: expect.any(String),
     })
-    expect(await context.murmur.note(reply, { terminal: "b" })).toMatchObject({ kind: "gist" })
   })
 })
 
-describe("notes giving way", () => {
-  it("wait while voice input is busy and run once it is not", async ({ resources }) => {
-    let busy = true
-    const tracker = new ActivityTracker(() => busy)
-    const { murmur } = await installed(resources, { voice: tracker })
-    let done = false
-
-    const job = murmur.note(reply, { terminal: "t" }).then((value) => {
-      done = true
-      return value
-    })
-    await sleep(150)
-    expect(done).toBe(false)
-    busy = false
-    tracker.update()
-
-    expect(await job).toMatchObject({ kind: "gist" })
-  })
-
-  it("back off after a failure, for titles too", async ({ resources }) => {
+describe("jobs giving way", () => {
+  it("back off after a failure", async ({ resources }) => {
     const time = 1_000
     const context = await installed(resources, { now: () => time })
     await writeFile(await modelOf(context.directory), "crash")
     await context.murmur.set({ enabled: false })
     await context.murmur.set({ enabled: true })
 
-    expect(await context.murmur.note(reply, { terminal: "t" })).toBeUndefined()
+    expect(await context.murmur.describe(digest, { terminal: "t" })).toBeUndefined()
     await fix(context)
 
-    expect(await context.murmur.note(reply, { terminal: "u" })).toBeUndefined()
+    expect(await context.murmur.describe(digest, { terminal: "u" })).toBeUndefined()
     expect(await context.murmur.describe(digest, { terminal: "v" })).toBeUndefined()
   })
 
   it("count no failure when murmur is turned off under them", async ({ resources }) => {
     const context = await installed(resources, { now: () => 1_000 })
-    // The engine never answers, and says when the note's request has reached it: the note is
+    // The engine never answers, and says when the job's request has reached it: the job is
     // under way when murmur is turned off, however slow the machine.
     const model = await modelOf(context.directory)
     await writeFile(model, "hang seen")
-    const job = context.murmur.note(reply, { terminal: "a" })
+    const job = context.murmur.describe(digest, { terminal: "a" })
     await vi.waitFor(() => expect(existsSync(`${model}.seen`)).toBe(true), { timeout: 10_000 })
     await context.murmur.set({ enabled: false })
     expect(await job).toBeUndefined()
@@ -2068,13 +1972,12 @@ describe("notes giving way", () => {
 })
 
 describe("a request too big for the context", () => {
-  it("gets no text for any kind of job, without a failure or a restart", async ({ resources }) => {
+  it("gets no text, without a failure or a restart", async ({ resources }) => {
     const context = await installed(resources, { now: () => 1_000 })
     await writeFile(await modelOf(context.directory), "overflow")
     await context.murmur.set({ enabled: false })
     await context.murmur.set({ enabled: true })
 
-    expect(await context.murmur.note(reply, { terminal: "b" })).toBeNull()
     expect(await context.murmur.describe(digest, { terminal: "c" })).toBeNull()
 
     const counted = context.murmur as unknown as {
@@ -2088,6 +1991,8 @@ describe("a request too big for the context", () => {
     expect(context.murmur.state().failure).toBeNull()
     // The engine was not stopped for it: a smaller request is answered at once.
     await fix(context)
-    expect(await context.murmur.note(reply, { terminal: "d" })).toMatchObject({ kind: "gist" })
+    expect(await context.murmur.describe(digest, { terminal: "d" })).toMatchObject({
+      title: expect.any(String),
+    })
   })
 })

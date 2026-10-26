@@ -1,31 +1,31 @@
 /* What a project's terminals show at a glance, marked as a terminal tab marks its phase:
    `.project-status-mark`, a glyph in the mono face, sits in the dropdown's rows and the
    pins bar, and `.project-status-dot` is the dot over the switcher's button. The
-   parent says which: data-project-status="question" | "attention" | "failed" | "done" |
+   parent says which: data-project-status="ask" | "unblock" | "failed" | "done" |
    "running" on the element that holds the mark.
 
-   "?" or "!" while an agent waits on the person, "✗" or "✓" while a finished agent's reply
-   waits unread, a spinner while one works (the pins bar and the dot leave that one out, so
+   "?" while an agent asks, "!" while it is blocked on the person, "✓" while an agent's done
+   report waits unseen, "✗" while a turn that ended on an error does, a spinner while one works (the pins bar and the dot leave that one out, so
    the header stays still while agents work).
 
    Tokens, each optional (its fallback in brackets):
-   --project-status-attention-fg (warning-fg): the mark while an agent waits.
-   --project-status-done-fg (success-fg): the mark while a reply waits unread.
-   --project-status-failed-fg (danger-fg): the same, where its turn ended on an error.
+   --project-status-attention-fg (warning-fg): the mark while an agent asks or is blocked.
+   --project-status-done-fg (success-fg): the mark while a done report waits unseen.
+   --project-status-failed-fg (danger-fg): the mark while a turn that ended on an error waits.
    --project-status-running-fg (ink): the spinner. */
 .project-status-mark {
   flex: none;
   width: 1ch;
-  font-family: var(--font-mono);
+  font-family: var(--font-glyphs);
   font-weight: 700;
   /* An even line of its own, not the row's 1.5, so it centres on whole pixels. */
   line-height: 20px;
   text-align: center;
 }
-[data-project-status="question"] > .project-status-mark::before {
+[data-project-status="ask"] > .project-status-mark::before {
   content: "?";
 }
-[data-project-status="attention"] > .project-status-mark::before {
+[data-project-status="unblock"] > .project-status-mark::before {
   content: "!";
 }
 [data-project-status="failed"] > .project-status-mark::before {
@@ -49,8 +49,8 @@
 }
 
 /* The tones, set on the mark by its parent so no other child of it takes them. */
-[data-project-status="question"] > :is(.project-status-mark, .project-status-dot),
-[data-project-status="attention"] > :is(.project-status-mark, .project-status-dot) {
+[data-project-status="ask"] > :is(.project-status-mark, .project-status-dot),
+[data-project-status="unblock"] > :is(.project-status-mark, .project-status-dot) {
   color: var(--project-status-attention-fg, var(--color-warning-fg));
 }
 [data-project-status="failed"] > :is(.project-status-mark, .project-status-dot) {

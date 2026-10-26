@@ -68,14 +68,14 @@ const held: InboxItem = {
   },
 }
 
-const finished: InboxItem = {
+const reported: InboxItem = {
   id: "update:01:100",
   source,
   at: 1,
   stopped: false,
   seen: false,
   kind: "update",
-  update: { type: "finished", subject: "Done", reply: "ok", files: [] },
+  update: { type: "done", subject: "Done", body: "ok" },
 }
 
 const settleMs = 1000
@@ -397,13 +397,13 @@ describe("Answering an item", () => {
     })
   })
 
-  context("a finished turn", () => {
+  context("a done report", () => {
     it("is read by its id", () => {
       const { tracker } = setup()
       const done = actions()
-      answerItem(tracker, finished, { kind: "update", action: "read" }, done)
+      answerItem(tracker, reported, { kind: "update", action: "read" }, done)
 
-      expect(done.read).toHaveBeenCalledWith([finished.id])
+      expect(done.read).toHaveBeenCalledWith([reported.id])
     })
   })
 

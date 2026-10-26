@@ -252,7 +252,7 @@ export const demoInboxIds = {
   limit: "demo-limit",
   limitManual: "demo-limit-manual",
   told: "demo-told",
-  finished: "demo-finished",
+  done: "demo-done",
   plan: "demo-plan",
   failed: "demo-failed",
   noDialog: "demo-no-dialog",
@@ -646,7 +646,7 @@ const fixtures: readonly Fixture[] = [
     },
   },
   {
-    id: demoInboxIds.finished,
+    id: demoInboxIds.done,
     project: "docs-site",
     terminal: 2,
     agent: "claude",
@@ -655,10 +655,9 @@ const fixtures: readonly Fixture[] = [
     content: {
       kind: "update",
       update: {
-        type: "finished",
+        type: "done",
         subject: "Search index rebuilt, no broken links",
-        reply: "Rebuilt the index for all 412 pages and checked every internal link.",
-        files: ["scripts/build-index.mjs"],
+        body: "Rebuilt the index for all 412 pages and checked every internal link. The script is `scripts/build-index.mjs`.",
       },
     },
   },

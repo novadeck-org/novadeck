@@ -357,6 +357,10 @@ export const withInbox = (
     messages,
     resume: (key, terminal) => turns.resume(key, terminal, { waits: true }),
   })
+  // An agent that ends its turn calling `done` reports through the Inbox.
+  turns.watch((event) => {
+    if (event.type === "end" && event.done) inbox.done(event.key, event.done)
+  })
   return { ...backend, inbox }
 }
 
@@ -416,16 +420,23 @@ const withFinishes = (backend: Backend, turns: DemoTurns): Backend => ({
   ...backend,
   start: (sink) => {
     const stop = backend.start?.(sink)
-    for (const { projectId, terminalId, outcome } of demoFinishes)
-      turns.finish(
-        { projectId, workspaceSessionId: "initial", terminalId },
-        backend.seed.projects
-          .find((project) => project.id === projectId)
-          ?.sessions.find((session) => session.id === "initial")
-          ?.terminals.find((terminal) => terminal.id === terminalId),
-        outcome,
-        { after: finishAfterMs },
-      )
+    for (const { projectId, terminalId, outcome } of demoFinishes) {
+      const found = backend.seed.projects
+        .find((project) => project.id === projectId)
+        ?.sessions.find((session) => session.id === "initial")
+        ?.terminals.find((terminal) => terminal.id === terminalId)
+      turns.finish({ projectId, workspaceSessionId: "initial", terminalId }, found, outcome, {
+        after: finishAfterMs,
+        ...(outcome === "completed"
+          ? {
+              done: {
+                subject: `${found?.name ?? "The agent"} is done`,
+                body: "Everything asked is in, and the checks pass.",
+              },
+            }
+          : {}),
+      })
+    }
     return () => stop?.()
   },
 })

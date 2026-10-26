@@ -115,26 +115,21 @@ const server = createServer(async (request, response) => {
   completions += 1
   if (mode.includes("log"))
     appendFileSync(`${argument("-m")}.requests`, `${JSON.stringify(asked)}\n`)
-  // Each kind of text is asked for with a schema of its own name.
-  const kind = asked.response_format?.json_schema?.name
   const text = (label, copied) =>
     mode.includes("copy")
       ? copied
       : mode.includes("device")
         ? `${label} on ${device}`
         : `${label} ${completions}`
-  const answer =
-    kind === "reply_gist"
-      ? { gist: text("Fake gist", "Checkout totals now round per line") }
-      : {
-          title: mode.includes("project")
-            ? "Shopdeck login redirect"
-            : mode.includes("junk")
-              ? "!!!!!!!!"
-              : mode.includes("verbose")
-                ? "Add retries with backoff to the payment client"
-                : text("Fake title", "Webhook key rotation"),
-        }
+  const answer = {
+    title: mode.includes("project")
+      ? "Shopdeck login redirect"
+      : mode.includes("junk")
+        ? "!!!!!!!!"
+        : mode.includes("verbose")
+          ? "Add retries with backoff to the payment client"
+          : text("Fake title", "Webhook key rotation"),
+  }
   const content = mode.includes("garbage")
     ? "Sure! Here is a title for your terminal."
     : JSON.stringify(answer)

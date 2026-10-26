@@ -268,28 +268,35 @@ next part within a minute. A file past `maxUploadBytes` (32 MiB) is
 `UPLOAD_TOO_LARGE`, a `path` the runner isn't receiving `NOT_FOUND`, and an unknown
 terminal `TERMINAL_NOT_FOUND`.
 
-The MCP `ask` and `tell` tools add questions and updates to the Inbox. In a Novadeck
+The MCP `ask`, `tell` and `done` tools add questions and updates to the Inbox. In a Novadeck
 terminal the server's `instructions` say when each serves: `ask` doesn't stop the work, as
-most decisions aren't blocking, and `tell` is for milestones. Claude Code reads them up
-front, before it loads a tool's description. A client follows
-all active letters across projects and sessions, answers an ask, or marks tells read:
+most decisions aren't blocking, and its question is also put in the reply; `tell` is for
+milestones; `done` is the agent's own short report when the task it was given is finished,
+not when it answers a question or finishes a step. With a lead, they go to it instead, which
+the instructions say and the runner doesn't enforce. Claude Code reads the instructions up
+front, before it loads a tool's description; the prompt-time notice every harness gets says the
+same for Antigravity, which reads none. A client follows
+all active letters across projects and sessions, answers an ask, or marks tells and done
+reports read:
 
 ```ts
 for await (const letters of runner.asks.watch()) showInbox(letters)
 const letters = await runner.asks.list()
 await runner.asks.answer(askId, { type: "reply", option: null, text: "Use green" })
 await runner.asks.answer(actionAskId, { type: "done" })
-await runner.asks.read(tellIds)
+await runner.asks.read(updateIds)
 ```
 
 A letter includes its id, terminal, project and workspace session ids, exact agent
 session, handle, creation time and `content`: `{ kind: "ask", ask }` or
-`{ kind: "tell", subject, body }`. An ask's shape is text, up to three options, or an
+`{ kind: "tell", subject, body }` or `{ kind: "done", subject, body }` (a tell's fields, and
+the report an agent called `done` with). An ask's shape is text, up to three options, or an
 action for the person to run. Secret shapes are unavailable. `answer` rejects stale or
 already answered asks with `CONFLICT`, invalid answers with `ANSWER_FAILED`, and a
 full mailbox with `RESOURCE_LIMIT`. Resolving the ask and storing its answer are atomic;
-answers arrive later through ordinary mail delivery. `read` affects tells only and takes
-at most 1,000 ids per call. `watch` resubscribes with a fresh listing on reconnect.
+answers arrive later through ordinary mail delivery. `read` affects tells and done reports only and takes
+at most 1,000 ids per call. A done report, like a tell, outlives its agent and turns into
+Messages history once read. `watch` resubscribes with a fresh listing on reconnect.
 
 Agents in a project's terminals message each other (see
 [Agent messaging](agent-messaging.md)); the runner API lets a client see and steer it:
@@ -311,8 +318,8 @@ handle, its hops so far, its idle messages in a row (sent while neither end work
 null when not held or for a hold carried over from the twelve-hop rule), whether the person stopped it, and its messages, oldest first: id, hop, sender and recipient
 handles and agents, text, when sent, state (`queued`, `leased`, `delivered`, `held` or
 `gone`), why it is held (`paused` or `release`), and when delivered. Inbox history
-adds optional `inbox: "ask" | "tell" | "answer"`; its person party is the handle `you`.
-Ask and tell traces also have `inboxState`: `open`, `answered`, `read`, `withdrawn`,
+adds optional `inbox: "ask" | "tell" | "done" | "answer"`; its person party is the handle `you`.
+Ask, tell and done traces also have `inboxState`: `open`, `answered`, `read`, `withdrawn`,
 `gone` (the asking session ended, or did not come back within two minutes of a runner restart), or `undelivered` (the person's reply went gone before
 reaching the agent). A reply already delivered stays delivered when the session ends.
 Trace outcomes are separate from delivery state, so a withdrawn question remains an
