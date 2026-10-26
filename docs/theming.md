@@ -437,17 +437,29 @@ needs. When many such rules pile up, the recipe is missing a token: add it to th
 recipe instead, and every theme gains it.
 
 `theme/themes.ts` lists the themes: an id, the name Preferences shows, the schemes it
-defines, and its file, `theme/<id>.css` unless it names a shared one. The first is the
+defines, the notification sound it goes with, and its file, `theme/<id>.css` unless it names a shared one. The first is the
 default, and the fallback for an unknown id. To add a theme:
 
 1. Copy `theme/graphite.css` to `theme/<id>.css`, rename the scope and change the
    values; or, for another palette of an existing theme, add a block to its file and
    its id to the shared scope.
-2. Import a new file in `styles.css` into `layer(themes)`, add `{ id, name, schemes }`
-   (and `file` when shared) to `theme/themes.ts`. The boot script needs nothing: it
+2. Import a new file in `styles.css` into `layer(themes)`, add `{ id, name, schemes, sound }`
+   (and `file` when shared) to `theme/themes.ts`. `sound` is the id of the notification
+   sound it goes with unless the person picks another (see "Notification sounds" below). The boot script needs nothing: it
    takes the theme's schemes from the boot record, which the app writes from the
    manifest entry.
 3. Run `pnpm --filter @novadeck/ui exec vitest run --project unit src/theme/`.
+
+## Notification sounds
+
+Novadeck rings with a sound that follows the theme: each theme names its default in
+`sound` (Graphite goes with Felt, both Phosphor tubes with Afterglow), and Preferences'
+Appearance tab can override it with any sound the app has (`soundChoice`, `"theme"` by
+default, so a theme change takes effect at once). The sounds are the files in
+`frontend/ui/src/sounds/<id>.wav`, listed with their names in `noticeSounds` in
+`contract/protocol/src/sounds.ts`. To add a sound, put its file in that folder and add
+`{ id, name }` to that list. macOS plays its own copy, which electron-builder copies from the
+same folder, and the desktop's packaging test holds the folder and the list to each other.
 
 ## Choosing a theme
 

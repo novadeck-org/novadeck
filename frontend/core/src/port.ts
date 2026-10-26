@@ -8,6 +8,7 @@ import type { Murmur } from "./murmur"
 import type { PortableState } from "./portable"
 import type { SandboxState } from "./sandbox"
 import type { WorkspaceSeed } from "./seed"
+import type { NoticeSound } from "./sounds"
 import type { Source } from "./source"
 import type { WorkspaceAction } from "./state"
 import type { Store } from "./store"
@@ -401,6 +402,9 @@ export type Notice = {
   // True when the notification should make no sound: the person turned Novadeck's sound off,
   // or it sounded just now for another. Only a host that plays the sound (`sounds`) heeds it.
   readonly silent?: boolean
+  // The sound the host's notification plays, the person's choice or else the theme's.
+  // Absent plays the default.
+  readonly sound?: NoticeSound
 }
 
 // An agent the backend can connect, as the Preferences switches show it.
