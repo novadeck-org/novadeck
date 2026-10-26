@@ -401,6 +401,7 @@ export class Reports {
     const taken = atPrompt(record.nudges, {
       quiet: silent && inTime(leaseMargin),
       facts,
+      unsummarized: current.summary === null,
       // Pages the hook may not print in full wait for the next prompt.
       fits: (took) => byteLength(printed(took)) <= maxDeliveryBytes,
     })

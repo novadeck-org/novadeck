@@ -4637,6 +4637,8 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))(
         )
       // The first prompt of the session carries the bar's notice and the summary's.
       await prompt("Build the page")
+      // Summarized, so the prompts below are told of pages alone.
+      await step(terminal.id, { call: "summarize", request: { summary: "Builds the page." } })
       const items = shell.items(manager)
       const shown = await items.show(manager.place(terminal.id)!, {
         page: { url: "http://localhost:5173/app" },
@@ -4685,6 +4687,8 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))(
           }),
         )
       await prompt("s-1", "Build the page")
+      // Summarized, so the prompts below are told of pages alone.
+      await step(terminal.id, { call: "summarize", request: { summary: "Builds the page." } })
       const items = shell.items(manager)
       const place = manager.place(terminal.id)!
       const troubles = [{ kind: "load" as const, text: "ERR_CONNECTION_REFUSED" }]
