@@ -258,7 +258,8 @@ export const inboxNotice =
   "send instead of done, tell or ask; approvals of actions, such as opening a pull " +
   "request, are still the user's, asked with ask, and you send your lead that you're " +
   "waiting. When they write to you here, Novadeck takes your open asks out of their Inbox " +
-  "and tells you; ask again only what their message leaves open. This notice needs no reply."
+  "and tells you; ask again only what their message leaves open. If they answer one here " +
+  "and no such notice came, withdraw it yourself. This notice needs no reply."
 
 /**
  * What a quiet prompt's answer says for what it `took`: the bar beside the terminal and

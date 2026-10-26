@@ -113,7 +113,9 @@ export class Typing {
    * Gives the terminal's agent a prompt as the person would paste and submit it (see
    * `Prompts`), once those before it in the terminal's input queue are done.
    */
-  async prompt(terminalId: string, text: string): Promise<void> {
+  async prompt(terminalId: string, text: string, automatic?: true | undefined): Promise<void> {
+    // A fixed line from an Inbox button: the turn it starts withdraws no ask (see `automatic`).
+    if (automatic) this.host.messaging().automatic(terminalId, text)
     return await this.prompts.prompt(terminalId, text)
   }
 

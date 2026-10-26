@@ -326,6 +326,36 @@ const firstChoice = (item: InboxItem | undefined): InboxAnswer => {
 }
 
 describe("the agents demo's Inbox", () => {
+  it("keeps an agent's open asks when an Inbox button sends it a fixed line", async () => {
+    const { backend, inbox, store } = boot()
+    const found = store
+      .getSnapshot()
+      .projects.flatMap((project) =>
+        (project.history[0]?.state.roster.terminals ?? []).map((terminal) => ({
+          project: project.id,
+          terminal,
+        })),
+      )
+      .find(
+        ({ terminal }) =>
+          terminal.state === "running" &&
+          chatAgent(terminal) &&
+          !terminal.agent?.working &&
+          !terminal.agent?.attention &&
+          !inbox.state.getSnapshot().items.some((each) => each.source.terminalId === terminal.id),
+      )!
+    const key = {
+      projectId: found.project,
+      workspaceSessionId: "initial",
+      terminalId: found.terminal.id,
+    }
+    const question = demoInboxItemsAll(now).find((each) => each.kind === "ask")!
+    inbox.add({ ...question, id: "ask-here", source: { ...question.source, ...key } })
+    await backend.conversations!.send(key, "continue", { automatic: true })
+    await vi.advanceTimersByTimeAsync(1)
+    expect(ids(inbox)).toContain("ask-here")
+  })
+
   it("withdraws an agent's open asks when the person writes to it, and no other item", async () => {
     const { inbox, turns, store } = boot()
     const found = store

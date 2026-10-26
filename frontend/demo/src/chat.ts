@@ -325,12 +325,15 @@ export const createDemoChat = (
         })),
       ],
     }))
+  // The fixed lines an Inbox button sent and the agent has yet to take, by terminal and text.
+  const automatic = new Set<string>()
   // Gives the agent what was sent to it: a shell command runs at once, and a message
   // starts its turn.
   const deliver = (found: Found, prompt: string): void => {
     const command = shellCommand(prompt)
     if (command === undefined) {
-      turns.prompt(prompt, found.terminal, found.key)
+      const mark = `${terminalKeyId(found.key)}\n${prompt}`
+      turns.prompt(prompt, found.terminal, found.key, automatic.delete(mark))
       return
     }
     // A shell command runs without a turn. Antigravity keeps no record of it; the
@@ -444,7 +447,7 @@ export const createDemoChat = (
     conversations: {
       conversation: storeOf,
       refused: promptRefused,
-      send: async (key, prompt) => {
+      send: async (key, prompt, options) => {
         const found = agentFor(key)
         const name = chatAgents[chatAgent(found.terminal)!]
         const agent = agentOf(found.terminal)
@@ -455,6 +458,7 @@ export const createDemoChat = (
         if (!prompt.trim()) return
         // As the runner refuses it: text the agent would read as more than a message.
         if (promptRefused(prompt, { shell: true })) throw new Error(promptRefusal)
+        if (options?.automatic) automatic.add(`${terminalKeyId(found.key)}\n${prompt}`)
         // Behind a turn, or behind what already waits for one, it waits its turn.
         const id = terminalKeyId(found.key)
         const waiting = queues.get(id)

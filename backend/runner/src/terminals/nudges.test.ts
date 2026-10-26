@@ -213,6 +213,7 @@ describe("a nudge", () => {
       "not when you answer a question or finish a step",
       "When they write to you here, Novadeck takes your open asks out of their Inbox and tells you",
       "ask again only what their message leaves open",
+      "If they answer one here and no such notice came, withdraw it yourself",
     ])
       expect(inboxNotice).toContain(words)
     for (const native of ["AskUserQuestion", "request_user_input", "ask_question"])

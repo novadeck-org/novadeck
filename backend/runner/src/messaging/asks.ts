@@ -261,7 +261,7 @@ export const withdrawnNotice = (subjects: readonly string[]): string => {
   const more = subjects.length - named.length
   const one = subjects.length === 1
   return (
-    "Novadeck: automatic notice, not from the user: the user wrote to you in this terminal, " +
+    "Novadeck: automatic notice, not from the user: the user wrote to you, " +
     `so Novadeck took your open ${one ? "ask" : "asks"} out of their Inbox: ` +
     `${named.join(", ")}${more > 0 ? ` and ${more} more` : ""}. ` +
     `Read their message as their reply to ${one ? "it" : "them"}; ask again, as a new ask, ` +

@@ -4478,6 +4478,88 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))(
       }
     })
 
+    it("takes no ask out of the Inbox at the opener's command-line prompt, but at the person's next prompt", async ({
+      shell,
+    }) => {
+      const bin = standIn(shell.home)
+      const manager = shell.manager({
+        env: { HOME: shell.home, PS1: "$ ", PATH: `${bin}:${process.env.PATH}` },
+      })
+      writeFileSync(join(bin, "claude"), '#!/bin/sh\nexec agent claude "$@"\n')
+      chmodSync(join(bin, "claude"), 0o755)
+      const opener = await create(manager, shell)
+      const { start, step } = driver(shell, manager)
+      await start(opener.id, "claude", "s-opener")
+      const steps = join(shell.home, "steps-opened")
+      mkdirSync(steps)
+      const controller = new AbortController()
+      const created: string[] = []
+      const client = (async () => {
+        for await (const request of manager.requests("client", controller.signal)) {
+          const id = randomUUID()
+          created.push(id)
+          // eslint-disable-next-line no-await-in-loop -- Requests are opened in turn.
+          await manager.create(
+            {
+              id,
+              sessionId: request.sessionId,
+              cwd: request.cwd,
+              cols: 100,
+              rows: 20,
+              ...(request.command && { command: request.command }),
+              requestId: request.requestId,
+            },
+            "client",
+          )
+          manager.answerRequest({ requestId: request.requestId, terminalId: id }, "client")
+        }
+      })()
+      try {
+        await step(opener.id, {
+          call: "open",
+          request: { command: `'claude' s-opened ${steps} fix-the-build` },
+        })
+        const [opened] = created as [string]
+        symlinkSync(steps, join(shell.home, `steps-${opened}`))
+        await shell.until(manager, opened, "claude ready")
+        await expect
+          .poll(() => manager.messages(opened).delivery, { timeout: 10_000 })
+          .toBe("ready")
+        const asks = () => manager.inboxLetters().filter(({ terminalId }) => terminalId === opened)
+        const asked = JSON.parse(
+          await step(opened, {
+            call: "ask",
+            request: { subject: "Which colour?", body: "Blue or green." },
+          }),
+        ) as Told
+        expect(asked.ok).toBe(true)
+        expect(asks()).toHaveLength(1)
+        // Its own command-line prompt, whatever Enter came before: the ask stays.
+        manager.write({ terminalId: opened, data: "\r" }, "client")
+        const first = await step(opened, {
+          hook: "UserPromptSubmit",
+          payload: { prompt: "fix-the-build" },
+        })
+        expect(first).not.toContain("took your open ask")
+        expect(asks()).toHaveLength(1)
+        await step(opened, { hook: "Stop", payload: {} })
+        await expect
+          .poll(() => manager.messages(opened).delivery, { timeout: 10_000 })
+          .toBe("settled")
+        // The person's next prompt takes it out, and the agent is told in that answer.
+        manager.write({ terminalId: opened, data: "\r" }, "client")
+        const next = await step(opened, {
+          hook: "UserPromptSubmit",
+          payload: { prompt: "blue, please" },
+        })
+        expect(next).toContain("took your open ask out of their Inbox")
+        expect(asks()).toEqual([])
+      } finally {
+        controller.abort()
+        await client
+      }
+    })
+
     it("tells whose each root session's first prompt is, and titles none by it", async ({
       shell,
     }) => {

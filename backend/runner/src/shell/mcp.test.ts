@@ -378,6 +378,9 @@ describe("Novadeck's MCP server", () => {
       expect(instructions).toContain(
         "When they write to you here, Novadeck takes your open asks out of the Inbox and tells you",
       )
+      expect(instructions).toContain(
+        "If they answer one here and no such notice came, withdraw it yourself",
+      )
       expect(instructions).toContain("Mid-work, ask without stopping your work")
       expect(instructions).toContain(
         "for a decision the user should make, ask there and keep going",

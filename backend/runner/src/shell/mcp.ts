@@ -821,7 +821,8 @@ const instructions =
   "question in your reply too; a closing " +
   "offer such as 'anything else?' isn't one, nor is an action your harness is already " +
   "prompting them for. When they write to you here, Novadeck takes your open asks out " +
-  "of the Inbox and tells you; ask again only what their message leaves open. When you can't go on " +
+  "of the Inbox and tells you; ask again only what their message leaves open. If they " +
+  "answer one here and no such notice came, withdraw it yourself. When you can't go on " +
   "without something only the user can do, such as a sign-in, access to a service or repo, " +
   "or a key put in place, that is an ask with the action shape, not just words in your " +
   "reply; never ask for a secret value. Mid-work, ask " +

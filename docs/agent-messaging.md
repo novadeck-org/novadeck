@@ -477,13 +477,25 @@ clears with it, and Messages shows it withdrawn. Tells, done rows and turn rows 
 so does an ask the agent makes during the new turn. The same prompt's hook answer carries a
 short automatic notice that names the withdrawn asks' subjects (shortened and quoted) and
 says to read the person's message as their reply and to ask again, as a new ask, only what
-it leaves open. It rides with any messages or hold notices the answer carries, whatever time
-the hook has left; a message that then no longer fits the delivery budget (`maxDeliveryBytes`)
+it leaves open. It rides with any messages or hold notices the answer carries, and the asks are
+withdrawn only as it goes into an answer the hook still has time to print (the same
+`leaseMargin` rule messages use). A turn start whose answer comes too late, or is heard
+with no answer to print in, leaves the asks open and owes the withdrawal: the session's next
+prompt-time hook (including a later model call of Antigravity's) or tool-call hook that has
+time withdraws those still open and made before the person's submission, and tells the agent
+then. A Stop is never used, as printing there would continue the turn. The debt is dropped
+when the session ends or another binds. A message that then no longer fits the delivery budget (`maxDeliveryBytes`)
 waits for the next hook, and the notice goes alone. Where a harness's injected text lasts one
 model call (Antigravity's), the notice is given again on each later call of the turn. A
 prompt the person steers into a running turn counts when delivery takes it as theirs by the
-same Enter. A turn start heard by a report without an answer (no prompt hook to print in)
-withdraws without the notice.
+same Enter. A prompt they queued during the previous turn (Claude Code's and Codex's queues,
+Antigravity's) counts from their queuing Enter, not the turn's start, so an ask the agent made
+at that turn's end is not taken for answered; if that time is unknown nothing is withdrawn. A
+fixed line an Inbox button sends ("continue", a nudge) is the runner's `agents.prompt` with
+`automatic`: delivery still takes the turn as theirs, but it withdraws nothing and says
+nothing to the agent. Words the person writes themselves, a nudge of their own from a
+stuck agent's sheet or an answer to a harness request sent on as the next prompt, are theirs,
+and do withdraw.
 
 `tell({ subject, body })` adds an Update that the person marks read. An ask badges the
 Inbox bell; a tell doesn't. Every item is its own row, so a terminal with an ask, two

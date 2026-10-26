@@ -322,7 +322,7 @@ export const createDemoInbox = (
       stop: (thread) => messages?.stop(thread),
       read: readTurns,
       forget: readTurns,
-      send: (key, text) => conversations.send(key, text),
+      send: (key, text, options) => conversations.send(key, text, options),
       interrupt: (key) => conversations.interrupt(key),
       terminal: (key) => terminalAt(workspace.getSnapshot(), key),
     })

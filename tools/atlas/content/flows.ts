@@ -444,7 +444,7 @@ export const flows: (Omit<Flow, "steps"> & { steps: CuratedStep[] })[] = [
         text: "Messaging leases the waiting message and wraps it as the agent's attributed context, never as the person's prompt.",
         anchor: {
           file: `${runnerSrc}/messaging/messaging.ts`,
-          text: "private askPrompt({ live, root, profile, silent, events, time, note }: Asked): HookAnswer",
+          text: "private askPrompt({ live, root, profile, silent, events, time, person }: Asked): HookAnswer",
         },
       },
       {

@@ -274,7 +274,7 @@ export type Runner = {
      * ending in an `@` or `$` mention a picker would take the Enter for, holding a control
      * character, or nothing but white space; see `promptRefusal`.
      */
-    prompt(terminalId: string, text: string): Promise<void>
+    prompt(terminalId: string, text: string, automatic?: true): Promise<void>
     /**
      * Answers a request waiting on the person through its dialog in the agent's TUI, by the
      * ref `detail` names it by. Rejects with `NOT_FOUND` for a request it doesn't have,
@@ -699,7 +699,8 @@ export const connectRunner = async (
           (wire, signal) => wire.agents.transcript({ terminalId, actor }, { signal }),
           { type: "reset" },
         ),
-      prompt: (terminalId, text) => call((wire) => wire.agents.prompt({ terminalId, text })),
+      prompt: (terminalId, text, automatic) =>
+        call((wire) => wire.agents.prompt({ terminalId, text, ...(automatic && { automatic }) })),
       answer: (terminalId, request, answer) =>
         call((wire) => wire.agents.answer({ terminalId, request, answer })),
       interrupt: (terminalId) => call((wire) => wire.agents.interrupt({ terminalId })),

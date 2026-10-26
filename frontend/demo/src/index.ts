@@ -361,8 +361,10 @@ export const withInbox = (
   turns.watch((event) => {
     if (event.type === "end" && event.done) inbox.done(event.key, event.done)
     // The person's own prompt to an agent takes its open asks out of the Inbox, as the
-    // runner's does: only a turn begun on their words carries a prompt.
-    if (event.type === "begin" && event.prompt !== undefined) inbox.withdrawAsks(event.key)
+    // runner's does: only a turn begun on their words carries a prompt, not an Inbox
+    // button's fixed line.
+    if (event.type === "begin" && event.prompt !== undefined && !event.automatic)
+      inbox.withdrawAsks(event.key)
   })
   return { ...backend, inbox }
 }

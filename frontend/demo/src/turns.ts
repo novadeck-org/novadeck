@@ -23,6 +23,8 @@ export type TurnEvent =
       readonly type: "begin"
       readonly key: TerminalKey
       readonly prompt?: string
+      // The prompt was a fixed line an Inbox button sent, not the person's words.
+      readonly automatic?: true
     }
   | { readonly type: "tool"; readonly key: TerminalKey }
   | {
@@ -156,7 +158,12 @@ export const demoTurns = (turnMs = demoTurnMs) => {
   }
   // Starts the turn of an agent idle at its prompt; whether it started. Nothing for any
   // other terminal.
-  const prompt = (text: string, terminal: TerminalMetadata, key: TerminalKey): boolean => {
+  const prompt = (
+    text: string,
+    terminal: TerminalMetadata,
+    key: TerminalKey,
+    automatic = false,
+  ): boolean => {
     const id = terminalKeyId(key)
     const agent = terminal.state === "running" ? (terminal.agent ?? { working: false }) : undefined
     if (!chatAgent(terminal) || !agent || agent.working || agent.attention || active.has(id))
@@ -165,7 +172,12 @@ export const demoTurns = (turnMs = demoTurnMs) => {
     // An agent Novadeck hears nothing from reports no status, so a turn can't show: its
     // screen takes the person's line and the reply, which moves it past what it showed.
     if (terminal.state === "running" && !terminal.agent) {
-      emit({ type: "begin", key, prompt: text.trim() })
+      emit({
+        type: "begin",
+        key,
+        prompt: text.trim(),
+        ...(automatic && { automatic: true as const }),
+      })
       emit({
         type: "end",
         key,
@@ -174,7 +186,12 @@ export const demoTurns = (turnMs = demoTurnMs) => {
       })
       return true
     }
-    emit({ type: "begin", key, prompt: text.trim() })
+    emit({
+      type: "begin",
+      key,
+      prompt: text.trim(),
+      ...(automatic && { automatic: true as const }),
+    })
     const reply = `Done: ${text.trim()}. Nothing else changed.`
     // The demo's convention: a prompt ending in `?` is a question, answered in the reply with
     // no `done` call; any other prompt is a task, reported finished through `done`.
