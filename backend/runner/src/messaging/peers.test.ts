@@ -1,3 +1,4 @@
+import { freshWork } from "../terminals/work.js"
 import { describe, expect, it } from "../test.js"
 import type { Message } from "./mailbox.js"
 import {
@@ -65,7 +66,7 @@ const listing = (overrides: Partial<PeerInput> = {}): Peer =>
     where: undefined,
     withYou: null,
     lead: null,
-    since: 0,
+    deliveredAt: null,
     ...overrides,
   })
 
@@ -279,8 +280,22 @@ describe("a peer as agents read it", () => {
 
   it("says its agent reported done until a prompt or a message gave it more, and its latest update", () => {
     const report = (subject: string, minutes: number) => ({ subject, at: now - minutes * 60_000 })
-    const reported = (reports: Whereabouts["reports"], since = 0): readonly string[] =>
-      read(listing({ since, where: whereabouts({ reports }) })).slice(1)
+    const reported = (
+      reports: Whereabouts["reports"],
+      given: { personAt?: number; deliveredAt?: number } = {},
+    ): readonly string[] =>
+      read(
+        listing({
+          deliveredAt: given.deliveredAt ?? null,
+          where: whereabouts({
+            reports,
+            work: {
+              ...freshWork("claude:s1"),
+              ...(given.personAt !== undefined && { personAt: given.personAt }),
+            },
+          }),
+        }),
+      ).slice(1)
     const done = report("Fixed the login bug", 4)
     const tell = report("Opened PR #512", 20)
     expect(reported({ tell: null, done: null })).toEqual([])
@@ -292,11 +307,12 @@ describe("a peer as agents read it", () => {
     ])
     // The person's prompt or a message delivered after the done gave it more to do.
     const after = now - 2 * 60_000
-    expect(reported({ tell, done }, after)).toEqual([
-      "  latest update 4 min ago: Fixed the login bug",
-    ])
+    for (const given of [{ personAt: after }, { deliveredAt: after }])
+      expect(reported({ tell, done }, given)).toEqual([
+        "  latest update 4 min ago: Fixed the login bug",
+      ])
     // Nor did one before it.
-    expect(reported({ tell, done }, now - 10 * 60_000)).toEqual([
+    expect(reported({ tell, done }, { personAt: now - 10 * 60_000 })).toEqual([
       "  reported done 4 min ago: Fixed the login bug",
     ])
     expect(reported({ tell, done: null })).toEqual(["  latest update 20 min ago: Opened PR #512"])

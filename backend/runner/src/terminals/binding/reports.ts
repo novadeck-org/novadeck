@@ -25,7 +25,7 @@ import { peerOf, type TerminalPeers } from "../peers.js"
 import type { Record } from "../record.js"
 import { boundProgram } from "../sampling.js"
 import type { Typing } from "../typing.js"
-import { judgedFirst, workAfter } from "../work.js"
+import { judgedFirst, personPrompted, workAfter } from "../work.js"
 import type { Bindings } from "./facts.js"
 import type { Shown } from "./shown.js"
 
@@ -274,6 +274,12 @@ export class Reports {
     const person: Person = {
       counts: ({ prompt }) => !this.byCommand(record, prompt),
       withdraw: (before) => this.host.asks().withdrawBefore(record.summary.id, before),
+      // Kept with its work, so a restart still knows the agent's done was before it.
+      prompted: (at) => {
+        if (!record.work) return
+        record.work = personPrompted(record.work, at)
+        this.host.save(record)
+      },
     }
     if (deadline === undefined) {
       this.host.messaging().observe(report.terminalId, told, person)

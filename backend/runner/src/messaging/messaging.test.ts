@@ -3216,7 +3216,8 @@ describe("the person's prompt, told to the asks", () => {
   const who = (note: string | undefined = notice) => {
     const counts = vi.fn<Person["counts"]>(() => true)
     const withdraw = vi.fn<Person["withdraw"]>(() => note)
-    return { counts, withdraw, person: { counts, withdraw } satisfies Person }
+    const prompted = vi.fn<Person["prompted"]>()
+    return { counts, withdraw, prompted, person: { counts, withdraw, prompted } satisfies Person }
   }
   type Run = ReturnType<typeof create> & {
     readonly bound: Binding
@@ -3292,29 +3293,24 @@ describe("the person's prompt, told to the asks", () => {
   )
 
   it.each(harnessesTold)(
-    "clears $name's reported done for other agents with the person's own prompt alone",
+    "notes $name's turn as the person's prompt only when their Enter started it",
     async ({ agent }) => {
       const run = setup(agent)
-      const done = { subject: "Fixed it", at: run.clock.now - 1 }
-      const where = (id: string) =>
-        id === run.terminal ? whereabouts({ reports: { tell: null, done } }) : undefined
-      const caller = run.terminal === "A" ? "B" : "A"
-      const listed = () => {
-        const answer = run.messaging.agents(caller, where)
-        return answer.ok ? answer.text : answer.reason
-      }
+      const told = who()
       // The harness's own turn, as a self-wake, or a prompt with no Enter of theirs, isn't it.
       run.messaging.keys(run.terminal, ["enter"], false)
-      await start(run, "harness", who().person)
+      await start(run, "harness", told.person)
+      run.stop(run.terminal, run.bound)
+      run.messaging.keys(run.terminal, ["enter"], false)
+      await start(run, "doorbell", told.person)
       run.stop(run.terminal, run.bound)
       run.clock.now += 60_000
-      await start(run, "prompt", who().person)
+      await start(run, "prompt", told.person)
       run.stop(run.terminal, run.bound)
-      expect(listed()).toContain("  reported done 1 min ago: Fixed it")
+      expect(told.prompted).not.toHaveBeenCalled()
       run.messaging.keys(run.terminal, ["enter"], false)
-      await start(run, "prompt", who().person)
-      expect(listed()).toContain("  latest update 1 min ago: Fixed it")
-      expect(listed()).not.toContain("reported done")
+      await start(run, "prompt", told.person)
+      expect(told.prompted).toHaveBeenCalledExactlyOnceWith(run.clock.now)
     },
   )
 

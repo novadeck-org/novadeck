@@ -1070,6 +1070,7 @@ describe("saved terminals", () => {
         latest: "Now add paging",
         folders: { "/work/src": 4 },
         activeAt: 2_000,
+        personAt: 1_500,
       },
     }
     first.saveTerminal({ ...terminal, transcript: "screen" })

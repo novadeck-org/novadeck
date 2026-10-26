@@ -169,19 +169,17 @@ export const peerOf = (input: {
   readonly withYou: Peer["withYou"]
   /** Its running lead's handle; null when it has none, or the terminal that leads it is gone. */
   readonly lead: string | null
-  /**
-   * When it was last given more to do: the person's latest prompt there, or the latest
-   * message delivered to it (see `deliveredTo`); 0 before either.
-   */
-  readonly since: number
+  /** When the latest message delivered to it was delivered: see `deliveredTo`. */
+  readonly deliveredAt: number | null
 }): Peer => {
   const { where, agent } = input
   const work = agent ? (where?.work ?? null) : null
   const openedBy = where?.openedBy ?? null
   const place = where?.place ?? ((path: string) => path)
   const reports = agent ? where?.reports : undefined
-  // A prompt or a message after its report gave it more to do.
-  const done = reports?.done && reports.done.at > input.since ? reports.done : null
+  // The person's prompt or a message after its report gave it more to do.
+  const since = Math.max(work?.personAt ?? 0, input.deliveredAt ?? 0)
+  const done = reports?.done && reports.done.at > since ? reports.done : null
   const [latest] = [reports?.tell, reports?.done]
     .filter((report): report is Report => Boolean(report))
     .toSorted((a, b) => b.at - a.at)
