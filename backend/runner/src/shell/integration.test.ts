@@ -3312,6 +3312,51 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))(
       expect(queued.hookSpecificOutput.additionalContext).toContain("One more thing.")
     })
 
+    it("tells an agent no one types to Novadeck's notices with the messages its doorbell delivers", async ({
+      shell,
+    }) => {
+      const bin = standIn(shell.home)
+      const manager = shell.manager({
+        env: { HOME: shell.home, PS1: "$ ", PATH: `${bin}:${process.env.PATH}` },
+      })
+      const lead = await create(manager, shell)
+      const { start, step } = driver(shell, manager)
+      await start(lead.id, "claude", "s-lead")
+      const ring = "[Novadeck: automatic notice, agent messages waiting, abc123]"
+      const teammate = async (agent: "claude" | "codex") => {
+        const worker = await create(manager, shell)
+        await start(worker.id, agent, `s-${agent}`)
+        await expect.poll(() => manager.messages(worker.id).delivery).toMatch(/^(?:fresh|ready)$/)
+        const { handle } = manager.get(worker.id)
+        await step(lead.id, { call: "send", request: { to: handle, text: "Build the page." } })
+        // Its first turn is the doorbell's: the message, then the bar's, the Inbox's and the
+        // summary's notices, a paragraph each.
+        const rung = context(
+          await step(worker.id, { hook: "UserPromptSubmit", payload: { prompt: ring } }),
+        )
+        expect(rung).toContain(">Build the page.</message>")
+        const notices = rung.slice(rung.indexOf("</novadeck-messages>")).split("\n\n").slice(1)
+        expect(notices).toHaveLength(3)
+        expect(notices[0]).toMatch(/^Novadeck: automatic notice, not from the user: beside this/)
+        expect(notices[1]).toMatch(/the user rarely watches this terminal/)
+        expect(notices[2]).toMatch(/this terminal has no summary yet/)
+        await expect
+          .poll(() => manager.messages(worker.id).threads[0]?.messages[0]?.state)
+          .toBe("delivered")
+        await step(worker.id, { hook: "Stop", payload: {} })
+        // The next message's turn asks for the summary again, and only that, until one comes.
+        await step(lead.id, { call: "send", request: { to: handle, text: "And the footer." } })
+        const again = context(
+          await step(worker.id, { hook: "UserPromptSubmit", payload: { prompt: ring } }),
+        )
+        expect(again).toContain(">And the footer.</message>")
+        expect(again).toContain("this terminal has no summary yet")
+        expect(again).not.toContain("beside this terminal is a bar")
+      }
+      await teammate("claude")
+      await teammate("codex")
+    })
+
     it("tells a terminal's watchers nothing of messages between two others", async ({ shell }) => {
       const bin = standIn(shell.home)
       const manager = shell.manager({
@@ -4583,13 +4628,17 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))(
           payload: { session_id: session, source: "clear", cwd: shell.home },
         })
       expect(manager.get(terminal.id).title).toBe("Terminal")
-      // A doorbell's line is never the person's prompt, so never kept as one.
-      await prompt("s-1", "[Novadeck: automatic notice, agent messages waiting, abc123]")
+      // A doorbell's line is never the person's prompt, so never kept as one; its turn, the
+      // session's first, takes the notices of the bar, the Inbox and the summary.
+      await expect(
+        prompt("s-1", "[Novadeck: automatic notice, agent messages waiting, abc123]"),
+      ).resolves.toContain("beside this terminal is a bar")
       expect(shell.store.terminal(terminal.id)?.work?.first ?? null).toBeNull()
-      // Prompts title nothing; the first of a session prints the notices of the bar, the Inbox
-      // and the summary.
+      // Prompts title nothing; while there is no summary, each asks for one.
       const bar = /^Novadeck: automatic notice, not from the user: beside this terminal/
-      await expect(prompt("s-1", "Fix the login bug")).resolves.toMatch(bar)
+      await expect(prompt("s-1", "Fix the login bug")).resolves.toMatch(
+        /^Novadeck: automatic notice, not from the user: this terminal has no summary yet/,
+      )
       await prompt("s-1", "Now its tests")
       expect(manager.get(terminal.id)).toMatchObject({
         title: "Terminal",
@@ -4653,12 +4702,11 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))(
         },
       ]
       items.pageTrouble({ itemId, shown: 1, troubles })
-      // A doorbell's line is not the person's prompt: the notice waits.
-      expect(
-        await prompt("[Novadeck: automatic notice, agent messages waiting, abc123]"),
-      ).not.toContain("the page you showed")
-      const told = await prompt("How does it look?")
-      expect(told).toMatch(/^Novadeck: automatic notice, not from the user: the page you showed, /)
+      // A doorbell's turn takes it as the person's prompt would, after what it says.
+      const told = await prompt("[Novadeck: automatic notice, agent messages waiting, abc123]")
+      expect(told).toMatch(
+        /\n\nNovadeck: automatic notice, not from the user: the page you showed, /,
+      )
       expect(told).toContain('error "x is undefined" at "/a.js:3".')
       // Told once for that show, however often the page repeats itself.
       items.pageTrouble({ itemId, shown: 1, troubles })
