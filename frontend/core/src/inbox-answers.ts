@@ -58,11 +58,16 @@ export type InboxTracker = {
   readonly see: (id: string) => void
   // Runs an answer: its item shows answering until the backend drops it or the answer fails.
   // With `settles`, an answer that took but left its item standing (a prompt that started no
-  // turn) gives the buttons back after `settleMs`. `onError` runs when the answer fails.
+  // turn) gives the buttons back after `settleMs`. `onError` runs when the answer fails;
+  // with `silent`, a failure leaves no error behind: the item just stands as it was.
   readonly call: (
     id: string,
     work: () => Promise<unknown>,
-    options?: { readonly settles?: boolean; readonly onError?: () => void },
+    options?: {
+      readonly settles?: boolean
+      readonly silent?: boolean
+      readonly onError?: () => void
+    },
   ) => void
   // Marks answers as sent, for the ones the backend sends itself.
   readonly submit: (ids: readonly string[]) => void
@@ -133,7 +138,7 @@ export const createInboxTracker = ({
       seen.add(id)
       changed()
     },
-    call: (id, work, { settles = false, onError } = {}) => {
+    call: (id, work, { settles = false, silent = false, onError } = {}) => {
       clearTimeout(settling.get(id))
       settling.delete(id)
       failed.delete(id)
@@ -159,7 +164,10 @@ export const createInboxTracker = ({
           if (binds !== round) return
           inFlight.delete(id)
           onError?.()
-          fail(id, answerFailure(error))
+          if (silent) {
+            submitted.delete(id)
+            changed()
+          } else fail(id, answerFailure(error))
         },
       )
     },

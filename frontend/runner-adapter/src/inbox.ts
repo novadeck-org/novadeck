@@ -414,7 +414,8 @@ export const createRunnerInbox = (
 
   const answer = (id: string, given: InboxAnswer): void => {
     const item = find(id)
-    if (!item || !binding || state.getSnapshot().answering[id]) return
+    // A settled ask is no longer the agent's to be answered.
+    if (!item || item.settled || !binding || state.getSnapshot().answering[id]) return
     const key = keyOf(item)
     if (item.kind === "ask" && given.kind === "ask") {
       replies.delete(id)
@@ -477,7 +478,7 @@ export const createRunnerInbox = (
         state.getSnapshot().answering[id]
       )
         return
-      tracker.call(id, () => streams.inbox.dismiss(id))
+      tracker.call(id, () => streams.inbox.dismiss(id), { silent: true })
     },
     clear: (ids) => {
       const settled = new Set(

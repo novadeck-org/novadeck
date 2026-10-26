@@ -119,6 +119,8 @@ export const landInbox = (
   // key: the updates read by being seen, which never land, the held items viewed long enough
   // to land quietly, and the reads under way.
   const landed = new Set<string>()
+  // The open asks the rule held back, which then settled unseen: they never land.
+  const held = new Set<string>()
   const kept = new Set<string>()
   const read = new Set<string>()
   const quiet = new Set<string>()
@@ -139,6 +141,7 @@ export const landInbox = (
     const standing = new Set(state.items.map(keyOf))
     const ids = new Set(state.items.map((item) => item.id))
     for (const id of landed) if (!ids.has(id)) landed.delete(id)
+    for (const id of held) if (!ids.has(id) || landed.has(id)) held.delete(id)
     for (const id of kept) if (!ids.has(id)) kept.delete(id)
     for (const set of [read, quiet, reading, ripe])
       for (const key of set) if (!standing.has(key)) set.delete(key)
@@ -174,6 +177,8 @@ export const landInbox = (
           continue
         }
       }
+      // A settled row only stays: one that never landed is dropped, not shown as news.
+      if (item.settled && held.has(item.id)) continue
       const { act, hold } = decideItem({
         kind: item.kind,
         here,
@@ -203,7 +208,10 @@ export const landInbox = (
             }, readDwellMs),
           )
       }
-      if (hold) continue
+      if (hold) {
+        held.add(item.id)
+        continue
+      }
       landed.add(item.id)
       items.push(item)
     }

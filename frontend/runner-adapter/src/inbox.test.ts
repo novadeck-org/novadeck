@@ -1282,7 +1282,7 @@ describe("Dismissing an ask", () => {
     expect(inbox.state.getSnapshot().answering).toEqual({})
   })
 
-  it("leaves the ask open and says why when the runner refuses", async () => {
+  it("leaves the ask open, with no answer error, when the runner refuses", async () => {
     const { entries, inbox, streams } = setup(workspaceOf(agentTerminal(1)))
     entries.push([entry()])
     await settle()
@@ -1291,8 +1291,16 @@ describe("Dismissing an ask", () => {
     await settle()
     const state = inbox.state.getSnapshot()
     expect(state.answering).toEqual({})
-    expect(state.failed["entry-1"]).toBeTruthy()
+    expect(state.failed["entry-1"]).toBeUndefined()
     expect(state.items[0]!.settled).toBeUndefined()
+  })
+
+  it("does not send an answer to a settled ask", async () => {
+    const { entries, inbox, streams } = setup(workspaceOf(agentTerminal(1)))
+    entries.push([settledEntry()])
+    await settle()
+    inbox.answer("entry-1", { kind: "ask", answer: { type: "reply", option: null, text: "x" } })
+    expect(streams.inbox.answer).not.toHaveBeenCalled()
   })
 
   it("does not dismiss a settled ask, an update or an unknown id", async () => {

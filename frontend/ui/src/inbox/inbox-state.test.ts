@@ -302,6 +302,11 @@ const ask = (
 describe("An ask that has settled", () => {
   const items = [ask("a", 1), ask("b", 2, { how: "dismissed", at: 9 })]
 
+  it("is not held as news while a sheet is open", () => {
+    const open = openItem(settle(initialView, [items[0]!]), "a", [items[0]!])
+    expect(ids(held(open, items))).toEqual([])
+  })
+
   it("asks nothing: the count, the bell and the rings leave it out", () => {
     expect(needs(items[1]!)).toBe(false)
     expect(ids(needing(items))).toEqual(["a"])

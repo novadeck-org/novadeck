@@ -44,6 +44,8 @@ export type StoredEntry = InboxEntry & {
   readonly cause?: "dismissed" | "withdrawn" | "replied"
   /** Ended for want of its session after a restart, not by a different one: it reopens if it binds. */
   readonly lapsed?: true
+  /** A settled ask the person cleared from the Inbox: gone from the listing, still in history. */
+  readonly cleared?: true
 }
 export type InboxRecords = {
   entries(): readonly StoredEntry[]
@@ -500,10 +502,11 @@ export class Inbox {
         (each) =>
           each.state === "withdrawn" &&
           each.cause !== undefined &&
+          !each.cleared &&
           each.content.kind === "ask" &&
           exists(each.terminalId),
       )
-      .map(({ state: _state, cause, settledAt, lapsed: _lapsed, ...entry }) => ({
+      .map(({ state: _state, cause, settledAt, lapsed: _lapsed, cleared: _cleared, ...entry }) => ({
         ...entry,
         settled: { how: cause!, at: settledAt ?? entry.at },
       }))
@@ -541,16 +544,22 @@ export class Inbox {
     this.maintain(entry.terminalId)
   }
 
-  /** Removes settled asks; any other id, or an unknown one, is skipped. */
+  /**
+   * Takes settled asks out of the listing; any other id, or an unknown one, is skipped. They
+   * stay in the terminal's history until the usual retention drops them.
+   */
   clear(ids: readonly string[]): void {
     if (this.closed) throw new DomainError("CLOSING")
     const settled = [...new Set(ids)]
       .map((id) => this.entries.get(id))
       .filter(
         (entry): entry is StoredEntry =>
-          entry?.state === "withdrawn" && entry.cause !== undefined && entry.content.kind === "ask",
+          entry?.state === "withdrawn" &&
+          entry.cause !== undefined &&
+          !entry.cleared &&
+          entry.content.kind === "ask",
       )
-    this.remove(settled)
+    for (const entry of settled) this.put({ ...entry, cleared: true })
   }
 
   /**
@@ -760,6 +769,10 @@ export class Inbox {
             entry.content.kind === "ask" &&
             entry.agent === change.root.agent,
         )
+        // A dismissal noticed under the guessed session is the corrected one's to be told.
+        const queued = this.dismissals.get(terminalId)
+        if (queued && queued.agent === change.root.agent && queued.sessionId === change.from)
+          this.dismissals.set(terminalId, { ...queued, sessionId: change.root.sessionId })
         const existing = open.filter((entry) => entry.sessionId === change.root.sessionId).length
         const tentative = open
           .filter((entry) => entry.sessionId === change.from)

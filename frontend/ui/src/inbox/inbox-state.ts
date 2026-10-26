@@ -58,7 +58,9 @@ export const visible = (
 export const held = (view: InboxView, items: readonly InboxRow[]): InboxRow[] =>
   view.open === null || view.known === null
     ? []
-    : items.filter(({ id }) => !view.known?.includes(id)).toSorted((a, b) => a.at - b.at)
+    : items
+        .filter(({ id, settled }) => !settled && !view.known?.includes(id))
+        .toSorted((a, b) => a.at - b.at)
 
 // With no sheet open, the list shows everything: what is new since it last looked is
 // marked as arrived. Where a sheet is open the view stays as it is.

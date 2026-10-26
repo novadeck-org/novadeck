@@ -4553,7 +4553,8 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))(
           payload: { prompt: "blue, please" },
         })
         expect(next).toContain("took your open ask out of their Inbox")
-        expect(asks()).toEqual([])
+        expect(asks().filter(({ settled }) => !settled)).toEqual([])
+        expect(asks().map(({ settled }) => settled?.how)).toEqual(["replied"])
       } finally {
         controller.abort()
         await client
@@ -6403,7 +6404,8 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))(
         await shell.until(tui.manager, tui.idle.id, "> blue, please")
         tui.type("\r")
         await vi.waitFor(() => expect(tui.received()).toHaveLength(turns + 2), { timeout: 10_000 })
-        expect(asking()).toEqual([])
+        expect(asking().filter(({ settled }) => !settled)).toEqual([])
+        expect(asking().map(({ settled }) => settled?.how)).toEqual(["replied"])
         const printed = tui.received().at(-1)!.printed
         expect(printed).toContain("took your open ask out of their Inbox")
         expect(printed).toContain("Which colour?")
@@ -6434,7 +6436,8 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))(
       await shell.until(tui.manager, tui.idle.id, "\u203a blue, please")
       tui.type("\r")
       await vi.waitFor(() => expect(tui.received()).toHaveLength(3), { timeout: 10_000 })
-      expect(asking()).toEqual([])
+      expect(asking().filter(({ settled }) => !settled)).toEqual([])
+      expect(asking().map(({ settled }) => settled?.how)).toEqual(["replied"])
       expect(tui.received()[2]!.printed).toContain("took your open ask out of their Inbox")
     })
 

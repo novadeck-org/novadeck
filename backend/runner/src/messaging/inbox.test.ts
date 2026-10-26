@@ -1840,8 +1840,8 @@ describe("asks the person dismisses", () => {
     expect(inbox.call(identity.terminalId, "ask", { withdraw: withdrawn }).ok).toBe(false)
   })
 
-  it("clears settled asks only", () => {
-    const { inbox, create } = clocked()
+  it("clears settled asks only, from the listing and not from the history", () => {
+    const { inbox, create, messaging } = clocked()
     const dismissed = create()
     const open = create()
     const withdrawn = create()
@@ -1855,6 +1855,44 @@ describe("asks the person dismisses", () => {
         .map(({ id }) => id)
         .toSorted(),
     ).toEqual([open, tell.ok ? tell.id : ""].toSorted())
+    const states = inbox
+      .history(identity.terminalId, messaging.list(identity.terminalId, identity.handle))
+      .threads.flatMap((thread) => thread.messages)
+      .filter((message) => message.inbox === "ask")
+      .map(({ inboxState }) => inboxState)
+    expect(states).toContain("dismissed")
+    expect(states).toContain("withdrawn")
+  })
+
+  it("tells the corrected session of a dismissal made under a guessed one", ({ resources }) => {
+    const run = setup()
+    resources.defer(run.stop)
+    const guess = {
+      type: "new" as const,
+      root: {
+        agent: identity.agent,
+        sessionId: "tentative",
+        instance: null,
+        source: "binding" as const,
+      },
+      guess: true,
+      ready: true,
+    }
+    run.messaging.rooted(identity.terminalId, [guess])
+    run.inbox.rooted(identity.terminalId, [guess])
+    const id = run.create()
+    run.inbox.dismiss(id)
+    const correction = {
+      type: "corrected" as const,
+      from: "tentative",
+      root: { ...guess.root, sessionId: identity.sessionId, source: "status-line" as const },
+      confirmed: true,
+    }
+    run.messaging.rooted(identity.terminalId, [correction])
+    run.inbox.rooted(identity.terminalId, [correction])
+    expect(run.inbox.dismissed(identity.terminalId, identity.agent, identity.sessionId)).toBe(
+      dismissedNotice([{ subject: "Pick a colour", action: "options" }]),
+    )
   })
 
   it("keeps a cause across a reload and drops settled asks at the usual retention", () => {

@@ -324,7 +324,7 @@ export const createDemoInbox = (
     )
   }
   const answerDerived = (target: InboxRow, given: InboxAnswer): void => {
-    if (!sources || !binding || derived.getSnapshot().answering[target.id]) return
+    if (!sources || !binding || target.settled || derived.getSnapshot().answering[target.id]) return
     if (target.kind !== given.kind)
       return tracker.fail(target.id, "That answer isn't for this item.")
     if (failing) {
@@ -495,10 +495,10 @@ export const createDemoInbox = (
     dismiss: (id) => {
       const found = ownItem(id)
       if (found?.kind !== "ask" || found.settled || own.getSnapshot().answering[id]) return
+      // A dismissal that fails leaves the ask as it was, with no error shown.
       if (failing) {
-        const why = failing
         failing = null
-        return change((current) => ({ ...current, failed: { ...current.failed, [id]: why } }))
+        return
       }
       settle(id, "dismissed")
     },

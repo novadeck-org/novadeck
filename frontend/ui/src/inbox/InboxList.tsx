@@ -44,7 +44,8 @@ const Row = ({
   const answering = pending || answered
   const Icon = pending ? LoaderCircle : answered ? CircleCheck : icons[type]
   const current = view.open === item.id
-  const dismissable = dismiss !== undefined && item.kind === "ask" && !settled && !pending
+  const dismissable =
+    dismiss !== undefined && item.kind === "ask" && !settled && !pending && !answered
   const subject = subjectOf(item).replaceAll("`", "")
   const extras = settled
     ? [settledWords[settled.how]]
@@ -72,7 +73,9 @@ const Row = ({
       <button
         type="button"
         className="inbox-row-select"
-        aria-label={`${typeWords[type]}: ${subject}, ${item.source.projectName}`}
+        aria-label={`${typeWords[type]}: ${subject}, ${item.source.projectName}${
+          settled ? `, ${settledWords[settled.how].toLowerCase()}` : ""
+        }`}
         aria-current={current ? "true" : undefined}
         aria-disabled={settled ? "true" : undefined}
         onClick={(event) => {
@@ -215,15 +218,21 @@ export const InboxClear = (): React.JSX.Element | null => {
 }
 
 // Everything across the workspace that asks for the person, one row each.
+const needsBefore = (before: InboxRow | undefined): boolean => before !== undefined && needs(before)
+
 export const InboxList = (): React.JSX.Element => {
   const { shown, view, working, state, ghosts } = useInboxContext()
   const rows = shown.map((item) => ({
     item,
     asks: needs(item) && !answeredIn(item, state, ghosts),
+    // A row that settled in place among the asks keeps its place with them.
+    placed: item.settled !== undefined && needsBefore(view.base[item.id]),
   }))
   const settledAt = settledStart(shown.map((item) => item.settled !== undefined))
   const updates = updatesStart(
-    rows.slice(0, settledAt < 0 ? rows.length : settledAt).map(({ asks }) => asks),
+    rows
+      .slice(0, settledAt < 0 ? rows.length : settledAt)
+      .map(({ asks, placed }) => asks || placed),
   )
   return (
     <div

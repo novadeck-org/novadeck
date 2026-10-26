@@ -173,6 +173,20 @@ describe("the landing rule", () => {
       stop()
     })
 
+    it("never lands once it settled unseen, but a landed one stays settled", () => {
+      const { set, select, ids, stop } = setup()
+      const settled = { how: "replied" as const, at: 2 }
+      set([ask("a", "01"), ask("b", "02")])
+      set([
+        { ...ask("a", "01"), settled },
+        { ...ask("b", "02"), settled },
+      ])
+      expect(ids()).toEqual(["b"])
+      select("02")
+      expect(ids()).toEqual(["b"])
+      stop()
+    })
+
     it("stays landed after the person selects its terminal", () => {
       const { set, select, ids, stop } = setup()
       select("02")

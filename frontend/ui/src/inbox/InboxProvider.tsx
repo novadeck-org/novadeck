@@ -212,9 +212,15 @@ export const InboxProvider = ({
     latest.current = { state, view, phone, ghosts }
   })
   const heldItems = useMemo(() => held(view, state.items), [view, state.items])
-  const current =
-    state.items.find(({ id, settled: closed }) => id === view.open && !closed) ??
-    (view.open === null ? undefined : sent[view.open]?.item)
+  // A settled ask has no sheet, even where an answer was sent to it meanwhile.
+  const standing = state.items.find(({ id }) => id === view.open)
+  const current = standing
+    ? standing.settled
+      ? undefined
+      : standing
+    : view.open === null
+      ? undefined
+      : sent[view.open]?.item
 
   const dropSent = useCallback((id: string | null): void => {
     if (id !== null)

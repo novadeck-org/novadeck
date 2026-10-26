@@ -468,6 +468,21 @@ describe("the agents demo's Inbox", () => {
     expect(row("ask-b")?.settled).toMatchObject({ how: "withdrawn" })
   })
 
+  it("leaves an ask open, with no answer error, when its dismissal fails", () => {
+    const { inbox } = boot()
+    const question = demoInboxRowsAll(now).find((each) => each.kind === "ask")!
+    inbox.add({ ...question, id: "ask-a" })
+    inbox.failNext()
+    inbox.dismiss!("ask-a")
+    const state = inbox.state.getSnapshot()
+    expect(state.failed["ask-a"]).toBeUndefined()
+    expect(state.items.find((each) => each.id === "ask-a")?.settled).toBeUndefined()
+    inbox.dismiss!("ask-a")
+    expect(
+      inbox.state.getSnapshot().items.find((each) => each.id === "ask-a")?.settled,
+    ).toBeDefined()
+  })
+
   it("shows the draft an Ask made beside a held thread, and no row for the agent's finish", async () => {
     const { backend, inbox, itemOn, store, finish } = boot()
     const found = store
