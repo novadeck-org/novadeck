@@ -171,13 +171,14 @@ export const turn = async (
 
 /**
  * What the suite's nested runs of a harness are asked, which only their own conversations
- * hold as a user's words: one a command left running starts (controls.e2e.ts), and one
- * inside an agent's turn (nested.e2e.ts). A harness that allows a command only by its
- * whole text is allowed each.
+ * hold as a user's words: one a command left running starts (controls.e2e.ts), one
+ * inside an agent's turn (nested.e2e.ts), and one held while prompts queue behind it
+ * (chat.e2e.ts). A harness that allows a command only by its whole text is allowed each.
  */
 export const nestedRuns = {
   leftRunning: "novadeck-e2e-background command: say done",
   inTurn: "novadeck-e2e-nested run: say the nested word",
+  whileQueued: "novadeck-e2e-held run: say the held word",
 } as const
 
 /** A rule for the agent's own turns, never a call the harness makes for itself, as a title. */

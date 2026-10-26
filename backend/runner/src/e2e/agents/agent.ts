@@ -77,6 +77,7 @@ export type Trait =
   | "forms"
   | "fork.picker"
   | "fork.inPlace"
+  | "image"
 
 /**
  * How a scenario makes the harness ask the person before a tool runs, and what that
@@ -256,6 +257,12 @@ export type AgentSetup = {
    */
   readonly steers?: true
   /**
+   * Whether prompts queued behind a running turn reach its agent as one message, their
+   * texts joined by line breaks, as Antigravity sends them to its model as one input step:
+   * its transcript then holds them as one prompt, which the chat shows as it was sent.
+   */
+  readonly merges?: true
+  /**
    * Hosts it tries through the proxy on every run, which no setting turns off: their
    * refused tunnels are expected. Any other refused tunnel is not.
    */
@@ -295,6 +302,11 @@ export type AgentSetup = {
   readonly background?: Background
   /** How its agent runs a command, a nested run of the harness, without asking. */
   readonly shell?: Shell
+  /**
+   * How the person gives its agent an image in a prompt typed into its box: pasting the
+   * image file's path, which the box then shows as `shows` in its place.
+   */
+  readonly image?: { readonly shows: string }
   /** A command its prompt runs that submits nothing to the model, as `/status`. */
   readonly idleCommand?: string
   /** How the person forks a session, in a new terminal or in place. */

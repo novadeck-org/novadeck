@@ -142,6 +142,77 @@ describe("Claude Code's transcript records", () => {
   })
 })
 
+const queued = loadProbe(import.meta.dirname, "queued.probe.json") as {
+  scenarios: { [name: string]: object[] }
+}
+
+// A queued_command attachment, as Claude Code writes one for a prompt it takes into the
+// running turn, with `fields` over its own.
+const queuedCommand = (fields: object) => ({
+  type: "attachment",
+  timestamp: "2026-10-26T10:16:20.200Z",
+  attachment: {
+    type: "queued_command",
+    prompt: "Also check the logs",
+    commandMode: "prompt",
+    origin: { kind: "human" },
+    timestamp: "2026-10-26T10:16:20.157Z",
+    ...fields,
+  },
+})
+
+describe("Claude Code's prompts taken into a running turn", () => {
+  it("read as the person's, after the tool's result and before the reply that answers them", () => {
+    expect(
+      items(queued.scenarios.absorbed!).map(({ role, kind, text }) => `${role} ${kind}: ${text}`),
+    ).toEqual([
+      "user text: First quick",
+      'assistant tool-call: {"query":"select:SendMessage"}',
+      "tool tool-result: ",
+      "user text: Second quick",
+      "assistant text: Did first. Did second.",
+    ])
+  })
+
+  it("take the time the person gave the prompt, not when the turn took it", () => {
+    expect(items([queuedCommand({})])).toEqual([
+      expect.objectContaining({
+        role: "user",
+        kind: "text",
+        text: "Also check the logs",
+        at: Date.parse("2026-10-26T10:16:20.157Z"),
+      }),
+    ])
+  })
+
+  it("read a prompt with an image as its text", () => {
+    const prompt = [
+      { type: "image", source: { type: "base64", media_type: "image/png", data: "iVBORw0K" } },
+      { type: "text", text: "What is on this screenshot?" },
+    ]
+    expect(items([queuedCommand({ prompt })]).map(({ text }) => text)).toEqual([
+      "What is on this screenshot?",
+    ])
+  })
+
+  it("leave out what comes the same way but isn't the person's", () => {
+    for (const fields of [
+      { origin: { kind: "task-notification" } },
+      { origin: { kind: "peer" } },
+      { origin: { kind: "coordinator" } },
+      { origin: undefined },
+      { isMeta: true },
+      { commandMode: "task-notification" },
+      { prompt: "<task-notification>\n<status>completed</status>\n</task-notification>" },
+    ])
+      expect(items([queuedCommand(fields)])).toEqual([])
+    expect(items([{ ...queuedCommand({}), isMeta: true }])).toEqual([])
+    expect(items([{ type: "attachment", attachment: { type: "total_tokens_reminder" } }])).toEqual(
+      [],
+    )
+  })
+})
+
 describe("Claude Code's transcripts", () => {
   it("are the session's, and beside it one per subagent", async () => {
     const root = "/home/user/.claude/projects/-p/s1.jsonl"

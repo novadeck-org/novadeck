@@ -1,0 +1,200 @@
+{
+  "harness": "claude",
+  "version": "2.1.304",
+  "source": "captured",
+  "how": "the first turn of the chat E2E 'gives its agent prompts back to back' under CPU load (task chat-folded-prompts, 2026-10-26): the second prompt, queued while the turn's ToolSearch ran, taken into the turn beside its result as a queued_command attachment; conversation records only, the tool search's query and result and the hook's notice shortened, session fields dropped",
+  "scenarios": {
+    "absorbed": [
+      {
+        "type": "queue-operation",
+        "operation": "enqueue",
+        "timestamp": "2026-10-26T10:16:20.341Z",
+        "content": "Second quick"
+      },
+      {
+        "type": "queue-operation",
+        "operation": "remove",
+        "timestamp": "2026-10-26T10:16:20.363Z",
+        "content": "Second quick",
+        "reason": "absorbed_mid_turn"
+      },
+      {
+        "parentUuid": null,
+        "isSidechain": false,
+        "type": "user",
+        "message": {
+          "role": "user",
+          "content": "First quick"
+        },
+        "uuid": "2cc783d0-7309-472f-82b3-fdb2c97774c8",
+        "timestamp": "2026-10-26T10:16:19.797Z",
+        "origin": {
+          "kind": "human"
+        },
+        "promptSource": "typed"
+      },
+      {
+        "parentUuid": "dab1983d-436d-4e4e-b907-dc2ba6ce7f0e",
+        "isSidechain": false,
+        "message": {
+          "role": "assistant",
+          "content": [
+            {
+              "type": "tool_use",
+              "id": "toolu_30214427ad1881ae5f223c58",
+              "name": "ToolSearch",
+              "input": {
+                "query": "select:SendMessage"
+              }
+            }
+          ],
+          "usage": {
+            "input_tokens": 4007,
+            "cache_creation_input_tokens": 0,
+            "cache_read_input_tokens": 0,
+            "output_tokens": 1,
+            "output_tokens_details": {
+              "thinking_tokens": 0
+            },
+            "server_tool_use": {
+              "web_search_requests": 0,
+              "web_fetch_requests": 0
+            },
+            "service_tier": "standard",
+            "cache_creation": {
+              "ephemeral_1h_input_tokens": 0,
+              "ephemeral_5m_input_tokens": 0
+            },
+            "inference_geo": "",
+            "iterations": [],
+            "speed": "standard",
+            "fallback_credit": null
+          }
+        },
+        "type": "assistant",
+        "uuid": "423da18b-72aa-46ab-8929-b379300650b8",
+        "timestamp": "2026-10-26T10:16:20.199Z"
+      },
+      {
+        "parentUuid": "1ead7074-b75c-4c0b-b174-d2b7b26ee7de",
+        "isSidechain": false,
+        "attachment": {
+          "type": "total_tokens_reminder",
+          "text": "<total_tokens>15000000 tokens left</total_tokens>"
+        },
+        "type": "attachment",
+        "uuid": "019ea32d-62f3-4487-8433-efdea38e4b6e",
+        "timestamp": "2026-10-26T10:16:19.792Z"
+      },
+      {
+        "parentUuid": "019ea32d-62f3-4487-8433-efdea38e4b6e",
+        "isSidechain": false,
+        "attachment": {
+          "type": "hook_additional_context",
+          "content": ["Novadeck: automatic notice, not from the user: <text>"]
+        },
+        "type": "attachment",
+        "uuid": "ad318ccb-8bda-4f90-a7c5-4d1147dd681a",
+        "timestamp": "2026-10-26T10:16:19.952Z"
+      },
+      {
+        "parentUuid": "423da18b-72aa-46ab-8929-b379300650b8",
+        "isSidechain": false,
+        "type": "user",
+        "message": {
+          "role": "user",
+          "content": [
+            {
+              "type": "tool_result",
+              "tool_use_id": "toolu_30214427ad1881ae5f223c58",
+              "content": [
+                {
+                  "type": "tool_reference",
+                  "tool_name": "SendMessage"
+                }
+              ]
+            }
+          ]
+        },
+        "uuid": "a8572f10-46e0-44a4-ba44-e3b06d1d8561",
+        "timestamp": "2026-10-26T10:16:20.344Z"
+      },
+      {
+        "parentUuid": "4c96731a-600b-4ac9-998b-e62abd206d6c",
+        "isSidechain": false,
+        "attachment": {
+          "type": "queued_command",
+          "prompt": "Second quick",
+          "source_uuid": "fce2d44c-0c4c-4367-a50c-236546a17539",
+          "delivery_id": "777b0f92-ebe6-421c-b3dc-861148c894ac",
+          "commandMode": "prompt",
+          "origin": {
+            "kind": "human"
+          },
+          "timestamp": "2026-10-26T10:16:20.157Z",
+          "humanTurn": true
+        },
+        "type": "attachment",
+        "uuid": "a5bec299-8a7a-445f-a425-1ad39fc1b355",
+        "timestamp": "2026-10-26T10:16:20.157Z"
+      },
+      {
+        "parentUuid": "a5bec299-8a7a-445f-a425-1ad39fc1b355",
+        "isSidechain": false,
+        "attachment": {
+          "type": "total_tokens_reminder",
+          "text": "<total_tokens>14995992 tokens left</total_tokens>"
+        },
+        "type": "attachment",
+        "uuid": "d9bfab54-7336-445c-bd2e-d6ab8e36a3e7",
+        "timestamp": "2026-10-26T10:16:20.362Z"
+      },
+      {
+        "parentUuid": "9dd5acf0-c453-4555-a9df-a87e86c502f2",
+        "isSidechain": false,
+        "message": {
+          "role": "assistant",
+          "content": [
+            {
+              "type": "text",
+              "text": "Did first. Did second."
+            }
+          ],
+          "usage": {
+            "input_tokens": 4095,
+            "cache_creation_input_tokens": 0,
+            "cache_read_input_tokens": 0,
+            "output_tokens": 1,
+            "output_tokens_details": {
+              "thinking_tokens": 0
+            },
+            "server_tool_use": {
+              "web_search_requests": 0,
+              "web_fetch_requests": 0
+            },
+            "service_tier": "standard",
+            "cache_creation": {
+              "ephemeral_1h_input_tokens": 0,
+              "ephemeral_5m_input_tokens": 0
+            },
+            "inference_geo": "",
+            "iterations": [],
+            "speed": "standard",
+            "fallback_credit": null
+          }
+        },
+        "type": "assistant",
+        "uuid": "8de8cfb5-e9d9-4c6d-b190-83ee5bee7965",
+        "timestamp": "2026-10-26T10:16:20.524Z"
+      },
+      {
+        "parentUuid": "8de8cfb5-e9d9-4c6d-b190-83ee5bee7965",
+        "isSidechain": false,
+        "type": "system",
+        "subtype": "stop_hook_summary",
+        "timestamp": "2026-10-26T10:16:20.606Z",
+        "uuid": "223f4e99-93fa-4a89-8e98-ccfd6458e583"
+      }
+    ]
+  }
+}
