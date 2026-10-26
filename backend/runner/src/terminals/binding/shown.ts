@@ -11,6 +11,7 @@ import { foregroundProcess, openFiles, processSetting, type Pty } from "@novadec
 import { agents, harnesses } from "../../harnesses/registry.js"
 import type { Messaging } from "../../messaging/messaging.js"
 import { failed } from "../failures.js"
+import { tellInterrupted } from "../interrupted.js"
 import type { Record } from "../record.js"
 import type { Typing } from "../typing.js"
 import type { Bindings } from "./facts.js"
@@ -266,6 +267,7 @@ export class Shown {
     const id = record.summary.id
     if (!binding) {
       this.host.messaging().shown(id, agent, sessionPrefix ?? null)
+      tellInterrupted(record, agent, { prefix: sessionPrefix ?? null }, this.host.messaging())
       record.readyEntered = false
       this.host.bindings().publishAgent(record, false)
       return
