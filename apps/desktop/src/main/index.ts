@@ -19,7 +19,7 @@ import { basename, dirname, join, win32 } from "node:path"
 import { fileURLToPath, pathToFileURL } from "node:url"
 
 import { consoleLogger, logPath, openSession, type Logger, type Session } from "@novadeck/log"
-import type { DesktopBadge, UpdateChannel } from "@novadeck/protocol/bridge"
+import type { DesktopBadge, FeedbackHostAbout, UpdateChannel } from "@novadeck/protocol/bridge"
 import { pagesPartition } from "@novadeck/protocol/pages"
 import { startHttpServer, type HttpServer } from "@novadeck/runner/http"
 import {
@@ -62,6 +62,7 @@ import {
 import {
   apiUrlArgumentPrefix,
   directoryPickerChannel,
+  feedbackArgumentPrefix,
   noticeClickChannel,
   pagePictureChannel,
   portableStateChannel,
@@ -81,6 +82,7 @@ import {
 } from "./applications-folder.js"
 import { applyBadge, registerBadgeIpc } from "./badge.js"
 import { dataFolderName, logsFolder } from "./data-folder.js"
+import { feedbackAbout, feedbackOrigin, registerFeedbackIpc, sendFeedback } from "./feedback.js"
 import { detectSoftwareGraphics } from "./graphics.js"
 import {
   extractWithProcess,
@@ -175,6 +177,18 @@ import { registerWindowFocusIpc } from "./window-focus.js"
 const appId = "dev.mzpk.novadeck"
 // The WebGL context limit, raised before the app is ready; the pages are told it.
 const webglContexts = raiseWebglContexts(app.commandLine)
+
+// Where the person's feedback notes go: novadeck.dev once packaged, and from a development
+// run only to the local website NOVADECK_FEEDBACK_ORIGIN names. Without one the app has no
+// feedback card.
+const feedbackTo = feedbackOrigin({
+  packaged: app.isPackaged,
+  platform: process.platform,
+  version: app.getVersion(),
+  env: process.env.NOVADECK_FEEDBACK_ORIGIN,
+})
+const feedbackDetails = (): FeedbackHostAbout =>
+  feedbackAbout({ version: app.getVersion(), platform: process.platform, arch: process.arch })
 // Where the app keeps its data; a development launch keeps its own (see ./data-folder.ts).
 // One given by --user-data-dir, as the packaged smoke test gives, is kept; the switch
 // without a folder names none.
@@ -885,6 +899,7 @@ const createWindow = (origin: string): BrowserWindow => {
       additionalArguments: [
         `${apiUrlArgumentPrefix}${apiUrl}`,
         webglContextsArgument(webglContexts),
+        ...(feedbackTo ? [`${feedbackArgumentPrefix}1`] : []),
       ],
       contextIsolation: true,
       nodeIntegration: false,
@@ -1485,6 +1500,19 @@ const launch = async (): Promise<void> => {
     ),
   )
   registerQuietIpc(ipcMain, { window: appWindow, quiet: systemQuiet.quiet })
+  // The page's feedback notes are posted from here, never from the page.
+  if (feedbackTo) {
+    registerFeedbackIpc(ipcMain, {
+      window: appWindow,
+      about: feedbackDetails,
+      send: (note) =>
+        sendFeedback(note, {
+          origin: feedbackTo,
+          about: feedbackDetails(),
+          fetch: (url, init) => net.fetch(url, init),
+        }),
+    })
+  }
   // Asked once now, so the first ring is not answered by the default.
   systemQuiet.warm()
   // The page's Inbox count on the app's icon: the dock or launcher badge, or on Windows

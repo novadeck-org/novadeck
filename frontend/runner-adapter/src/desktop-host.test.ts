@@ -15,6 +15,7 @@ import type {
 
 import {
   desktopBadge,
+  desktopFeedback,
   desktopNotices,
   desktopPortable,
   desktopSandbox,
@@ -712,5 +713,62 @@ describe("a host's uninstall", () => {
     expect(
       desktopUninstall({ uninstallPlan: () => Promise.resolve(ready) } as unknown as DesktopHost),
     ).toBeUndefined()
+  })
+})
+
+describe("desktop feedback", () => {
+  const sent: unknown[] = []
+  const feedbackHost = (overrides: Record<string, unknown> = {}) =>
+    ({
+      feedback: true,
+      feedbackAbout: () => Promise.resolve({ version: "0.0.219", os: "macos", arch: "arm64" }),
+      sendFeedback: (note: unknown) => {
+        sent.push(note)
+        return Promise.resolve()
+      },
+      ...overrides,
+    }) as unknown as DesktopHost
+
+  it("is absent unless the host says it sends notes", () => {
+    expect(desktopFeedback(undefined)).toBeUndefined()
+    expect(desktopFeedback({} as DesktopHost)).toBeUndefined()
+    expect(desktopFeedback(feedbackHost({ feedback: undefined }))).toBeUndefined()
+    expect(desktopFeedback(feedbackHost({ sendFeedback: undefined }))).toBeUndefined()
+  })
+
+  it("has no way to ask an agent yet", () => {
+    expect(desktopFeedback(feedbackHost())).not.toHaveProperty("ask")
+  })
+
+  it("shows the version and the OS as the demo does", async () => {
+    expect(await desktopFeedback(feedbackHost())!.about()).toEqual({
+      version: "0.0.219",
+      os: "macOS arm64",
+    })
+    const windows = feedbackHost({
+      feedbackAbout: () => Promise.resolve({ version: "1.0.0", os: "windows", arch: "x64" }),
+    })
+    expect((await desktopFeedback(windows)!.about()).os).toBe("Windows x64")
+    const linux = feedbackHost({
+      feedbackAbout: () => Promise.resolve({ version: "1.0.0", os: "linux", arch: "x64" }),
+    })
+    expect((await desktopFeedback(linux)!.about()).os).toBe("Linux x64")
+  })
+
+  it.each([
+    undefined,
+    { version: "x", os: "linux", arch: "x64" },
+    { version: "1.0.0", os: "beos", arch: "x64" },
+    { version: "1.0.0", os: "linux", arch: "x 64!" },
+  ])("refuses details like %j", async (answer) => {
+    const odd = feedbackHost({ feedbackAbout: () => Promise.resolve(answer) })
+    await expect(desktopFeedback(odd)!.about()).rejects.toThrow()
+  })
+
+  it("hands the host a note's kind and text, and rejects when it fails", async () => {
+    await desktopFeedback(feedbackHost())!.send({ kind: "idea", text: "Hi" })
+    expect(sent).toEqual([{ kind: "idea", text: "Hi" }])
+    const failing = feedbackHost({ sendFeedback: () => Promise.reject(new Error("503")) })
+    await expect(desktopFeedback(failing)!.send({ kind: null, text: "x" })).rejects.toThrow("503")
   })
 })

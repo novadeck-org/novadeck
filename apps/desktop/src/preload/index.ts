@@ -10,6 +10,7 @@ import {
   updateVersionPattern,
   type DesktopBridge,
   type DesktopHost,
+  type FeedbackHostAbout,
   type PortableState,
   type SandboxState,
   type UninstallPlan,
@@ -36,6 +37,9 @@ import {
   badgeChannel,
   directoryPickerChannel,
   dismissWhatsNewChannel,
+  feedbackAboutChannel,
+  feedbackArgumentPrefix,
+  feedbackSendChannel,
   installAppChannel,
   portableStateChannel,
   noticeChannel,
@@ -69,6 +73,9 @@ const argument = process.argv.find((value) => value.startsWith(apiUrlArgumentPre
 if (!argument) throw new Error("Novadeck API URL was not provided by the desktop host")
 
 const apiUrl = new URL(argument.slice(apiUrlArgumentPrefix.length))
+
+// Whether the host sends feedback notes: it says so by an argument, `1`.
+const feedback = process.argv.includes(`${feedbackArgumentPrefix}1`)
 
 // What the host raised Chromium's WebGL context limit to, when it says so in a form the
 // contract allows; the page keeps its browser default otherwise.
@@ -325,6 +332,11 @@ const bridge = {
   openLogs: () => {
     ipcRenderer.send(openLogsChannel)
   },
+  // The main process checks both again; the page never reaches the network itself.
+  feedbackAbout: async () => (await ipcRenderer.invoke(feedbackAboutChannel)) as FeedbackHostAbout,
+  sendFeedback: async (note) => {
+    await ipcRenderer.invoke(feedbackSendChannel, { kind: note?.kind ?? null, text: note?.text })
+  },
   // Only the four fields cross, as text; the main process checks them again.
   reportError: (error) => {
     ipcRenderer.send(uiErrorChannel, {
@@ -359,5 +371,6 @@ contextBridge.exposeInMainWorld("novadeck", {
   apiUrl: apiUrl.href,
   livePages: true,
   ...(webglContexts === undefined ? {} : { webglContexts }),
+  ...(feedback ? { feedback: true as const } : {}),
   ...bridge,
 } satisfies DesktopHost)
