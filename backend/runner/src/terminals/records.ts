@@ -3,8 +3,22 @@ import type { AgentName } from "@novadeck/protocol"
 import type { Naming } from "./naming.js"
 import type { Work } from "./work.js"
 
-/** An agent's latest reported session in a terminal; a larger `seq` is a later report. */
-export type AgentReport = { readonly sessionId: string; readonly seq: number }
+/**
+ * What an agent's session was doing when last saved, for a restart of Novadeck to tell a
+ * resumed agent of (see `terminals/interrupted.ts`): its turn was running, or it waited on a
+ * wake-up or background command it had set, which a restart stops too. Absent otherwise.
+ */
+export type AgentTurn = "running" | "waking"
+
+/**
+ * An agent's latest reported session in a terminal; a larger `seq` is a later report. `turn`
+ * is kept in the saved row's JSON, so rows saved without it read as having none.
+ */
+export type AgentReport = {
+  readonly sessionId: string
+  readonly seq: number
+  readonly turn?: AgentTurn
+}
 
 /**
  * What the runner keeps of a terminal: the terminal itself, which exists until it is

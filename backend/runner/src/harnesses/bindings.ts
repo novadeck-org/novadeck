@@ -90,9 +90,16 @@ export const observe = (
   if (state.binding && !replaces(state.binding, event, facts.busy === true)) return undefined
   const known = state.sessions[event.agent]
   if (known && known.seq >= event.startedAt) return undefined
+  // What the session was doing stays with it, as it reports again: only a new session
+  // starts without (`AgentReport.turn`).
+  const turn = known?.sessionId === event.sessionId ? known.turn : undefined
   const sessions = {
     ...state.sessions,
-    [event.agent]: { sessionId: event.sessionId, seq: event.startedAt },
+    [event.agent]: {
+      sessionId: event.sessionId,
+      seq: event.startedAt,
+      ...(turn && { turn }),
+    },
   }
   return event.startedAt > (facts.promptedAt ?? 0)
     ? {

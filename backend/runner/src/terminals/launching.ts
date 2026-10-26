@@ -228,7 +228,14 @@ export class Launcher {
     }
     return {
       spec: { file: shell, args: this.options.shellArgs ?? launched.args, cwd, env, cols, rows },
-      started: { token, resumes: launched.resumes, resumeFile, resumeClaim: undefined },
+      started: {
+        token,
+        resumes: launched.resumes,
+        resumeFile,
+        resumeClaim: undefined,
+        resumeTurn: undefined,
+        resumeTold: undefined,
+      },
     }
   }
 }

@@ -22,6 +22,10 @@ export const failed = {
     },
   title: failure("terminals.title-failed", "Novadeck could not read a title"),
   following: failure("harnesses.follow-failed", "Novadeck stopped following an agent"),
+  interrupted: failure(
+    "terminals.interrupted-notice-failed",
+    "Novadeck could not tell a resumed agent to carry on",
+  ),
   followingSubagent: failure(
     "harnesses.follow-subagent-failed",
     "Novadeck stopped following a subagent",

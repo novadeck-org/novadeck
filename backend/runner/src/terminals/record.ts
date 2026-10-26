@@ -10,7 +10,7 @@ import type { Root } from "../harnesses/roots.js"
 import type { Telemetry } from "../harnesses/telemetry.js"
 import type { Naming } from "./naming.js"
 import type { Nudges } from "./nudges.js"
-import type { AgentReport } from "./records.js"
+import type { AgentReport, AgentTurn } from "./records.js"
 import type { AgentSummary } from "./summary.js"
 import type { Work } from "./work.js"
 
@@ -170,4 +170,8 @@ export type Started = {
   resumeFile: string | undefined
   /** The session claimed for the resume, as agent:session, once the shell runs it. */
   resumeClaim?: string | undefined
+  /** Whether the resumed agent was already judged for a turn the stop cut short (`interruptedFor`). */
+  resumeTold?: true | undefined
+  /** What the resumed agent was doing when the runner stopped, until judged (`restored`). */
+  resumeTurn?: AgentTurn | undefined
 }
