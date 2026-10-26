@@ -166,8 +166,9 @@ describe("a prompt's nudge", () => {
     const busy = atPrompt(second.nudges, { quiet: false, unsummarized: true })
     expect(busy.nudge).toBe(false)
     expect(atPrompt(busy.nudges, { quiet: true, unsummarized: true }).summarize).toBe(true)
-    // Once there is a summary, only the usual triggers ask.
-    const summarized = afterSummary(second.nudges, facts)
+    // A summary clears what waited, and from then on only the usual triggers ask.
+    expect(busy.nudges.pending).toEqual(["unsummarized"])
+    const summarized = afterSummary(busy.nudges, facts)
     expect(atPrompt(summarized, { quiet: true, unsummarized: false }).nudge).toBe(false)
   })
 })
