@@ -1817,7 +1817,10 @@ hook's deadline, which doesn't spend what is due.
      They are read only for a prompt whose answer would otherwise be empty and with time
      left, so a delivery never waits on them;
   4. as a backstop, 5 of those prompts since the last `summarize`, or since the backstop
-     last fired.
+     last fired;
+  5. every prompt while the terminal has no summary at all: an agent whose first prompt
+     gives it no work yet (a question) puts the first nudge off, as the notice allows, and
+     without this would hear nothing more until the backstop, its terminal untitled.
 
 - **A page's troubles.** When a page an agent showed with `show` has problems in the
   user's pane (console errors, failed requests, a failed load), the pane reports them with

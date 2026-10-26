@@ -154,6 +154,23 @@ describe("a prompt's nudge", () => {
       nudges: { prompts: 2, pending: [] },
     })
   })
+
+  it("asks for a summary at every prompt while there is none, until the agent gives one", () => {
+    // The first prompt was only a question: the agent put the session's nudge off.
+    const first = atPrompt(sessionBegan(noNudges, 0), { quiet: true, unsummarized: true })
+    expect(first).toMatchObject({ nudge: true, summarize: true })
+    // The work comes in the next prompt, long before the backstop.
+    const second = atPrompt(first.nudges, { quiet: true, unsummarized: true })
+    expect(second).toMatchObject({ nudge: true, summarize: true, artifacts: false })
+    // One that carries messages waits, and the next quiet one asks.
+    const busy = atPrompt(second.nudges, { quiet: false, unsummarized: true })
+    expect(busy.nudge).toBe(false)
+    expect(atPrompt(busy.nudges, { quiet: true, unsummarized: true }).summarize).toBe(true)
+    // A summary clears what waited, and from then on only the usual triggers ask.
+    expect(busy.nudges.pending).toEqual(["unsummarized"])
+    const summarized = afterSummary(busy.nudges, facts)
+    expect(atPrompt(summarized, { quiet: true, unsummarized: false }).nudge).toBe(false)
+  })
 })
 
 describe("a nudge", () => {
