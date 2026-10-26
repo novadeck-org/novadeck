@@ -13,6 +13,10 @@ export type PreferencesTab = (typeof preferencesTabs)[number]["id"]
 export const settingsCardClasses = "card settings-card overflow-hidden"
 export const settingRowClasses =
   "settings-row flex min-h-13 items-center justify-between gap-6 px-4 py-3 text-body"
+// A row that tunes the setting above it, shown only while that one is on: set in, so it
+// reads as part of it.
+export const settingSubRowClasses =
+  "settings-row settings-subrow flex min-h-13 items-center justify-between gap-6 py-3 pr-4 pl-8 text-body"
 
 // What Preferences shows of the app's version: local and pull request builds carry 0.0.0,
 // which names no release.

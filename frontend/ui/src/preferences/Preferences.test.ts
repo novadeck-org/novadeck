@@ -129,16 +129,16 @@ describe("the Appearance tab", () => {
     await show({ tab: "appearance" })
 
     expect(panel()?.textContent).toContain("Theme")
-    expect(panel()?.textContent).not.toContain("Bell sound")
-    expect(panel()?.textContent).not.toContain("Hear it")
+    expect(panel()?.textContent).not.toContain("Bell")
+    expect(panel()?.querySelector('[aria-label="Hear it"]')).toBeNull()
   })
 
   it("holds the sound, led by the theme's own, where it does", async () => {
     await show({ tab: "appearance", notices: true })
 
-    expect(panel()?.textContent).toContain("Bell sound")
+    expect(panel()?.textContent).toContain("Ring the bell")
     expect(panel()?.textContent).toContain("Theme's bell (Felt)")
-    expect(panel()?.textContent).toContain("Hear it")
+    expect(panel()?.querySelector('[aria-label="Hear it"]')).not.toBeNull()
   })
 
   it("names the sound of the theme in effect", async () => {

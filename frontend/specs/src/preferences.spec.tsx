@@ -771,7 +771,7 @@ describe("appearance preference", () => {
   })
 
   context("the notification sound", () => {
-    const sound = () => preferencesDialog().getByRole("combobox", { name: "Bell sound" })
+    const sound = () => preferencesDialog().getByRole("combobox", { name: "Sound" })
     const savedChoice = () =>
       JSON.parse(localStorage.getItem("novadeck.preferences") ?? "{}").soundChoice
 
@@ -824,19 +824,23 @@ describe("appearance preference", () => {
 
     const soundSwitch = () => preferencesDialog().getByRole("switch", { name: "Ring the bell" })
 
-    it("is set on a host that shows desktop notifications, the volume following the switch", async () => {
+    it("is set on a host that shows desktop notifications, its sound and volume only while it rings", async () => {
       await openWorkspace("/?host=on")
       await openAppearance()
-      const volume = preferencesDialog().getByRole("slider", { name: "Volume" })
+      const volume = () => preferencesDialog().getByRole("slider", { name: "Volume" })
+      const hear = () => preferencesDialog().getByRole("button", { name: "Hear it" })
 
       await expect.element(soundSwitch()).toBeChecked()
-      await expect.element(volume).toBeEnabled()
+      await expect.element(sound()).toBeVisible()
+      await expect.element(hear()).toBeVisible()
+      await expect.element(volume()).toBeVisible()
       await soundSwitch().click()
-      await expect.element(volume).toBeDisabled()
-      // Stays to try: hearing it before turning the sound on is the point.
-      await expect
-        .element(preferencesDialog().getByRole("button", { name: "Hear it" }))
-        .toBeEnabled()
+      await expect.element(soundSwitch()).not.toBeChecked()
+      await expect.element(sound()).not.toBeInTheDocument()
+      await expect.element(hear()).not.toBeInTheDocument()
+      await expect.element(volume()).not.toBeInTheDocument()
+      await soundSwitch().click()
+      await expect.element(volume()).toBeVisible()
     })
 
     it("keeps the volume it is set to, said as a percentage", async () => {
@@ -868,7 +872,7 @@ describe("appearance preference", () => {
         .element(preferencesDialog().getByRole("combobox", { name: "Theme" }))
         .toBeVisible()
       await expect
-        .element(preferencesDialog().getByRole("combobox", { name: "Bell sound" }))
+        .element(preferencesDialog().getByRole("combobox", { name: "Sound" }))
         .not.toBeInTheDocument()
     })
   })

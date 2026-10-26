@@ -9,7 +9,7 @@ import { Select } from "@novadeck/toolkit/Select"
 import { Switch } from "@novadeck/toolkit/Switch"
 import { Tabs, TabList, Tab, TabPanel } from "@novadeck/toolkit/Tabs"
 import { views } from "@novadeck/toolkit/views"
-import { X } from "lucide-react"
+import { Play, X } from "lucide-react"
 import { useRef, useState, type ReactNode } from "react"
 
 import { shortcutGroups } from "../interaction/keymap"
@@ -23,6 +23,7 @@ import { MurmurAddon, type MurmurAddonValue } from "./MurmurAddon"
 import {
   preferencesTabs,
   settingRowClasses,
+  settingSubRowClasses,
   settingsCardClasses,
   versionText,
   type PreferencesTab,
@@ -329,58 +330,65 @@ export const Preferences = ({
                       describedBy="sound-description"
                     />
                   </div>
-                  <Select
-                    className={`preference-row ${settingRowClasses} [&_[data-part=trigger]]:w-56`}
-                    label="Bell sound"
-                    items={soundItems}
-                    value={soundChoice}
-                    onValueChange={(next) => {
-                      const chosen = { ...value, soundChoice: soundChoiceOf(next) }
-                      onChange(chosen)
-                      // Picking a sound plays it, as the system's own sound settings do.
-                      hearSound?.(value.soundVolume, soundInEffect(chosen))
-                    }}
-                    open={open && shown === "appearance" && openSelect === "sound"}
-                    onOpenChange={(expanded) => setOpenSelect(expanded ? "sound" : null)}
-                    portalContainer={dialog}
-                  />
-                  <div className={`preference-row ${settingRowClasses}`}>
-                    {hostSounds ? (
-                      <SettingText
-                        id="sound-volume-label"
-                        label="Volume"
-                        description="For the bell inside Novadeck. Desktop notifications play at the system's alert volume."
-                        descriptionId="sound-volume-description"
-                      />
-                    ) : (
-                      <span id="sound-volume-label">Volume</span>
-                    )}
-                    <span className="flex items-center gap-3">
-                      <input
-                        type="range"
-                        min={0}
-                        max={1}
-                        step={0.05}
-                        value={value.soundVolume}
-                        onChange={(event) =>
-                          onChange({ ...value, soundVolume: Number(event.target.value) })
-                        }
-                        aria-labelledby="sound-volume-label"
-                        aria-valuetext={`${Math.round(value.soundVolume * 100)}%`}
-                        {...(hostSounds ? { "aria-describedby": "sound-volume-description" } : {})}
-                        disabled={!value.sound}
-                        className="settings-range w-32 cursor-pointer disabled:cursor-not-allowed"
-                      />
-                      <button
-                        type="button"
-                        className="button min-h-8 shrink-0 px-3 text-control"
-                        // Stays enabled with the sound off: hear it before turning it on.
-                        onClick={() => hearSound?.(value.soundVolume)}
-                      >
-                        Hear it
-                      </button>
-                    </span>
-                  </div>
+                  {/* What it rings with and how loud matter only while it rings. */}
+                  {value.sound && (
+                    <>
+                      <div className={`preference-row ${settingSubRowClasses}`}>
+                        <Select
+                          className="flex-1 [&_[data-part=trigger]]:w-56"
+                          label="Sound"
+                          items={soundItems}
+                          value={soundChoice}
+                          onValueChange={(next) => {
+                            const chosen = { ...value, soundChoice: soundChoiceOf(next) }
+                            onChange(chosen)
+                            // Picking a sound plays it, as the system's own sound settings do.
+                            hearSound?.(value.soundVolume, soundInEffect(chosen))
+                          }}
+                          open={open && shown === "appearance" && openSelect === "sound"}
+                          onOpenChange={(expanded) => setOpenSelect(expanded ? "sound" : null)}
+                          portalContainer={dialog}
+                        />
+                        <button
+                          type="button"
+                          className="button flex min-h-8 min-w-8 shrink-0 items-center justify-center px-2"
+                          aria-label="Hear it"
+                          title="Hear it"
+                          onClick={() => hearSound?.(value.soundVolume)}
+                        >
+                          <Play aria-hidden="true" size={13} strokeWidth={1.8} />
+                        </button>
+                      </div>
+                      <div className={`preference-row ${settingSubRowClasses}`}>
+                        {hostSounds ? (
+                          <SettingText
+                            id="sound-volume-label"
+                            label="Volume"
+                            description="For the bell inside Novadeck. Desktop notifications play at the system's alert volume."
+                            descriptionId="sound-volume-description"
+                          />
+                        ) : (
+                          <span id="sound-volume-label">Volume</span>
+                        )}
+                        <input
+                          type="range"
+                          min={0}
+                          max={1}
+                          step={0.05}
+                          value={value.soundVolume}
+                          onChange={(event) =>
+                            onChange({ ...value, soundVolume: Number(event.target.value) })
+                          }
+                          aria-labelledby="sound-volume-label"
+                          aria-valuetext={`${Math.round(value.soundVolume * 100)}%`}
+                          {...(hostSounds
+                            ? { "aria-describedby": "sound-volume-description" }
+                            : {})}
+                          className="settings-range w-32 shrink-0 cursor-pointer"
+                        />
+                      </div>
+                    </>
+                  )}
                 </div>
               </Section>
             )}
