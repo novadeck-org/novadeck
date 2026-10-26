@@ -35,6 +35,8 @@ export const answeredMs = 500
 
 const movedOn = "The agent moved on before your answer reached it."
 
+// A line sent to an agent: when the person sent it, and whether an Inbox button did.
+type Sent = { readonly text: string; readonly submittedAt: number; readonly automatic: boolean }
 type Found = { readonly key: TerminalKey; readonly terminal: TerminalMetadata }
 
 const agentOf = (terminal: TerminalMetadata): AgentStatus =>
@@ -190,7 +192,7 @@ export const createDemoChat = (
     {
       readonly key: TerminalKey
       readonly agent: string
-      readonly prompts: readonly string[]
+      readonly prompts: readonly Sent[]
     }
   >()
   // The terminal at the full address, in the workspace as it stands, or in the seed.
@@ -325,15 +327,13 @@ export const createDemoChat = (
         })),
       ],
     }))
-  // The fixed lines an Inbox button sent and the agent has yet to take, by terminal and text.
-  const automatic = new Set<string>()
   // Gives the agent what was sent to it: a shell command runs at once, and a message
   // starts its turn.
-  const deliver = (found: Found, prompt: string): void => {
+  const deliver = (found: Found, sent: Sent): void => {
+    const prompt = sent.text
     const command = shellCommand(prompt)
     if (command === undefined) {
-      const mark = `${terminalKeyId(found.key)}\n${prompt}`
-      turns.prompt(prompt, found.terminal, found.key, automatic.delete(mark))
+      turns.prompt(prompt, found.terminal, found.key, sent)
       return
     }
     // A shell command runs without a turn. Antigravity keeps no record of it; the
@@ -382,7 +382,7 @@ export const createDemoChat = (
       if (rest.length > 0) queues.set(id, { ...entry, prompts: rest })
       else queues.delete(id)
       deliver(found, prompt!)
-      if (shellCommand(prompt!) === undefined) return
+      if (shellCommand(prompt!.text) === undefined) return
     }
   }
   // Nothing waits on the person once a turn begins or the agent rests or is stopped.
@@ -458,7 +458,13 @@ export const createDemoChat = (
         if (!prompt.trim()) return
         // As the runner refuses it: text the agent would read as more than a message.
         if (promptRefused(prompt, { shell: true })) throw new Error(promptRefusal)
-        if (options?.automatic) automatic.add(`${terminalKeyId(found.key)}\n${prompt}`)
+        // The mark and the time go with the line, so a line that waits, is dropped or never
+        // goes takes them along.
+        const sent: Sent = {
+          text: prompt,
+          submittedAt: Date.now(),
+          automatic: options?.automatic === true,
+        }
         // Behind a turn, or behind what already waits for one, it waits its turn.
         const id = terminalKeyId(found.key)
         const waiting = queues.get(id)
@@ -466,12 +472,12 @@ export const createDemoChat = (
           queues.set(id, {
             key: found.key,
             agent: String(found.terminal.process),
-            prompts: [...(waiting?.prompts ?? []), prompt],
+            prompts: [...(waiting?.prompts ?? []), sent],
           })
           drain(id)
           return
         }
-        deliver(found, prompt)
+        deliver(found, sent)
       },
       interrupt: async (key) => {
         const found = agentFor(key)
@@ -480,7 +486,7 @@ export const createDemoChat = (
         queues.delete(id)
         turns.interrupt(found.key, agentOf(found.terminal))
         // What waited behind the turn comes back, for the person to send again.
-        return queued ? queued.prompts.join("\n") : null
+        return queued ? queued.prompts.map(({ text: line }) => line).join("\n") : null
       },
       answer: async (key, id, answer) => {
         const found = agentFor(key)

@@ -3385,7 +3385,78 @@ describe("the person's prompt, told to the asks", () => {
   )
 
   it.each(harnessesTold)(
-    "keeps the asks when $name's hook answer is too late to print the notice, and withdraws at the next answer that can",
+    "keeps $name's fixed line exempt however long it waited behind a running turn",
+    async ({ agent }) => {
+      const run = setup(agent)
+      const told = who()
+      run.messaging.keys(run.terminal, ["enter"], false)
+      await start(run, "prompt", told.person)
+      told.withdraw.mockClear()
+      // Continue is sent while the turn works and goes in when it ends, minutes later.
+      run.messaging.automatic(run.terminal, "let's talk it over\r\n")
+      run.clock.now += 10 * 60_000
+      run.stop(run.terminal, run.bound)
+      run.messaging.keys(run.terminal, ["enter"], false)
+      expect((await start(run, "prompt", told.person)).stdout).not.toContain(notice)
+      expect(told.withdraw).not.toHaveBeenCalled()
+    },
+  )
+
+  it.each(harnessesTold)(
+    "spends $name's mark on the person's next turn, whatever its words, and not on a doorbell's or the harness's",
+    async ({ agent }) => {
+      const run = setup(agent)
+      const told = who()
+      run.messaging.keys(run.terminal, ["enter"], false)
+      run.messaging.automatic(run.terminal, "continue")
+      // A turn the harness started leaves the mark for the line still to come.
+      await start(run, "harness", told.person)
+      run.stop(run.terminal, run.bound)
+      // Their own words come first: theirs, and the mark is gone.
+      run.messaging.keys(run.terminal, ["enter"], false)
+      expect((await start(run, "prompt", told.person)).stdout).toContain(notice)
+      run.stop(run.terminal, run.bound)
+      run.messaging.keys(run.terminal, ["enter"], false)
+      told.withdraw.mockClear()
+      // The same words as the mark's now are theirs too: it was spent.
+      run.messaging.automatic(run.terminal, "x")
+      run.messaging.automaticFailed(run.terminal, "x")
+      expect((await start(run, "prompt", told.person)).stdout).toContain(notice)
+    },
+  )
+
+  it.each(harnessesTold)(
+    "forgets $name's mark when its send failed, and when its session ended",
+    async ({ agent }) => {
+      const run = setup(agent)
+      const told = who()
+      run.messaging.keys(run.terminal, ["enter"], false)
+      run.messaging.automatic(run.terminal, "let's talk it over")
+      // Refused, PROMPT_FAILED, BOX_NOT_CLEARED or thrown: no turn comes of the line.
+      run.messaging.automaticFailed(run.terminal, " let's talk it over ")
+      expect((await start(run, "prompt", told.person)).stdout).toContain(notice)
+      run.stop(run.terminal, run.bound)
+      run.messaging.keys(run.terminal, ["enter"], false)
+      run.messaging.automatic(run.terminal, "let's talk it over")
+      run.messaging.rooted(run.terminal, [
+        { type: "ended", root: { ...run.bound, source: "binding" } } as never,
+      ])
+      run.messaging.rooted(run.terminal, [
+        {
+          type: "new",
+          root: { ...run.bound, source: "binding" },
+          guess: false,
+          ready: true,
+        } as never,
+      ])
+      run.messaging.keys(run.terminal, ["enter"], false)
+      told.withdraw.mockClear()
+      expect((await start(run, "prompt", told.person)).stdout).toContain(notice)
+    },
+  )
+
+  it.each(harnessesTold)(
+    "keeps the asks when $name's hook answer is too late, and pays within the turn only",
     async ({ agent }) => {
       const run = setup(agent)
       run.messaging.keys(run.terminal, ["enter"], false)
@@ -3395,23 +3466,44 @@ describe("the person's prompt, told to the asks", () => {
       expect(late.stdout).not.toContain(notice)
       expect(told.counts).toHaveBeenCalledTimes(1)
       expect(told.withdraw).not.toHaveBeenCalled()
-      const submitted = run.clock.now
+      // The turn ends unpaid: the debt is dropped, and the asks stay open for good.
       run.clock.now += 4_000
       run.stop(run.terminal, run.bound)
-      // The next prompt hook, though the harness started that turn, can print it.
       run.clock.now += 1_000
       const next = await start(run, "harness", told.person)
-      expect(next.stdout).toContain(notice)
-      expect(told.withdraw).toHaveBeenCalledExactlyOnceWith(submitted)
-      // Told once.
+      expect(next.stdout).not.toContain(notice)
+      expect(told.withdraw).not.toHaveBeenCalled()
+      // Nor does a later turn of the person's own owe it: it owes its own.
       run.stop(run.terminal, run.bound)
       expect((await start(run, "harness", told.person)).stdout).not.toContain(notice)
-      expect(told.withdraw).toHaveBeenCalledTimes(1)
+      expect(told.withdraw).not.toHaveBeenCalled()
     },
   )
 
+  it("pays at Antigravity's later model call of the turn, and keeps the notice for its remaining calls", async () => {
+    const run = setup("agy")
+    run.messaging.keys("G", ["enter"], false)
+    const told = who()
+    const late = await start(run, "prompt", told.person, undefined, run.clock.now + 50)
+    expect(late.stdout).not.toContain(notice)
+    const call = () =>
+      run.ask("G", agy, "PreInvocation", [started(agy, "call")], undefined, told.person)
+    const paid = call()
+    expect(paid.stdout).toContain(notice)
+    expect(told.withdraw).toHaveBeenCalledTimes(1)
+    expect(call().stdout).toContain(notice)
+    expect(call().stdout).toContain(notice)
+    expect(told.withdraw).toHaveBeenCalledTimes(1)
+    // Not in the next turn.
+    run.stop("G", agy)
+    run.messaging.keys("G", ["enter"], false)
+    run.clock.now += 1_000
+    await start(run, "prompt", { ...told.person, withdraw: () => undefined })
+    expect(call().stdout).not.toContain(notice)
+  })
+
   it.each(harnessesTold)(
-    "keeps the asks when $name's turn start comes with no answer to print in, and withdraws at the next prompt",
+    "keeps the asks when $name's turn start comes with no answer to print in, and pays at its next hook of the turn",
     async ({ agent }) => {
       const run = setup(agent)
       run.messaging.keys(run.terminal, ["enter"], false)
@@ -3446,10 +3538,19 @@ describe("the person's prompt, told to the asks", () => {
       run.messaging.observe(run.terminal, heard, told.person)
       expect(told.withdraw).not.toHaveBeenCalled()
       run.clock.now += 1_000
-      run.stop(run.terminal, run.bound)
-      expect((await start(run, "harness", told.person)).stdout).toContain(notice)
-      expect(told.withdraw).toHaveBeenCalledWith(expect.any(Number))
-      expect(submitted).toBeLessThanOrEqual(told.withdraw.mock.calls[0]![0])
+      const answer =
+        agent === "agy"
+          ? run.ask("G", agy, "PreInvocation", [started(agy, "call")], undefined, told.person)
+          : run.ask(
+              run.terminal,
+              run.bound,
+              "PostToolUse",
+              [toolCalled(run.bound)],
+              undefined,
+              told.person,
+            )
+      expect(answer.stdout).toContain(notice)
+      expect(told.withdraw).toHaveBeenCalledExactlyOnceWith(submitted)
     },
   )
 

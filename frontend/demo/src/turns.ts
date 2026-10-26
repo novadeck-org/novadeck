@@ -25,6 +25,8 @@ export type TurnEvent =
       readonly prompt?: string
       // The prompt was a fixed line an Inbox button sent, not the person's words.
       readonly automatic?: true
+      // When the person submitted the prompt, for one that waited behind a turn.
+      readonly submittedAt?: number
     }
   | { readonly type: "tool"; readonly key: TerminalKey }
   | {
@@ -162,7 +164,7 @@ export const demoTurns = (turnMs = demoTurnMs) => {
     text: string,
     terminal: TerminalMetadata,
     key: TerminalKey,
-    automatic = false,
+    options: { readonly automatic?: boolean; readonly submittedAt?: number } = {},
   ): boolean => {
     const id = terminalKeyId(key)
     const agent = terminal.state === "running" ? (terminal.agent ?? { working: false }) : undefined
@@ -176,7 +178,8 @@ export const demoTurns = (turnMs = demoTurnMs) => {
         type: "begin",
         key,
         prompt: text.trim(),
-        ...(automatic && { automatic: true as const }),
+        ...(options.automatic && { automatic: true as const }),
+        ...(options.submittedAt !== undefined && { submittedAt: options.submittedAt }),
       })
       emit({
         type: "end",
@@ -190,7 +193,8 @@ export const demoTurns = (turnMs = demoTurnMs) => {
       type: "begin",
       key,
       prompt: text.trim(),
-      ...(automatic && { automatic: true as const }),
+      ...(options.automatic && { automatic: true as const }),
+      ...(options.submittedAt !== undefined && { submittedAt: options.submittedAt }),
     })
     const reply = `Done: ${text.trim()}. Nothing else changed.`
     // The demo's convention: a prompt ending in `?` is a question, answered in the reply with

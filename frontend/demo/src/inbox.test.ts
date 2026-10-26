@@ -387,8 +387,11 @@ describe("the agents demo's Inbox", () => {
     inbox.add({ ...question, id: "ask-elsewhere" })
     inbox.add({ ...update, id: "update-here", source: { ...update.source, ...key } })
     expect(ids(inbox)).toEqual(expect.arrayContaining(["ask-here", "update-here", "ask-elsewhere"]))
-    expect(turns.prompt("Blue, please.", found.terminal, key)).toBe(true)
+    // An ask made after a prompt was queued (the demo's lasts from `now`) stays.
+    inbox.add({ ...question, id: "ask-later", at: now + 5, source: here })
+    expect(turns.prompt("Blue, please.", found.terminal, key, { submittedAt: now + 1 })).toBe(true)
     await vi.advanceTimersByTimeAsync(1)
+    expect(ids(inbox)).toContain("ask-later")
     const left = ids(inbox)
     expect(left).not.toContain("ask-here")
     // An ask on another terminal, and an update on this one, stay.

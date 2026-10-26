@@ -364,7 +364,7 @@ export const withInbox = (
     // runner's does: only a turn begun on their words carries a prompt, not an Inbox
     // button's fixed line.
     if (event.type === "begin" && event.prompt !== undefined && !event.automatic)
-      inbox.withdrawAsks(event.key)
+      inbox.withdrawAsks(event.key, event.submittedAt ?? Date.now())
   })
   return { ...backend, inbox }
 }

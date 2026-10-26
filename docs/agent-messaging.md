@@ -480,20 +480,28 @@ says to read the person's message as their reply and to ask again, as a new ask,
 it leaves open. It rides with any messages or hold notices the answer carries, and the asks are
 withdrawn only as it goes into an answer the hook still has time to print (the same
 `leaseMargin` rule messages use). A turn start whose answer comes too late, or is heard
-with no answer to print in, leaves the asks open and owes the withdrawal: the session's next
-prompt-time hook (including a later model call of Antigravity's) or tool-call hook that has
-time withdraws those still open and made before the person's submission, and tells the agent
-then. A Stop is never used, as printing there would continue the turn. The debt is dropped
-when the session ends or another binds. A message that then no longer fits the delivery budget (`maxDeliveryBytes`)
+with no answer to print in, leaves the asks open and owes the withdrawal, but only within the turn
+the person's prompt started: the next tool-call hook of that turn (or Antigravity's next
+model call of it) that has time withdraws those still open and made before the person's
+submission, and tells the agent then. If the turn ends unpaid the debt is dropped and the
+asks stay open (the agent's notice already says to withdraw an ask itself if the user
+answered it in the terminal and no notice came). A Stop is never used, as printing there
+would continue the turn. The debt is also dropped when the session ends or another binds.
+A notice paid at a later model call of Antigravity's turn is given again on the turn's
+remaining calls, as one paid at its first. A message that then no longer fits the delivery budget (`maxDeliveryBytes`)
 waits for the next hook, and the notice goes alone. Where a harness's injected text lasts one
 model call (Antigravity's), the notice is given again on each later call of the turn. A
 prompt the person steers into a running turn counts when delivery takes it as theirs by the
 same Enter. A prompt they queued during the previous turn (Claude Code's and Codex's queues,
 Antigravity's) counts from their queuing Enter, not the turn's start, so an ask the agent made
 at that turn's end is not taken for answered; if that time is unknown nothing is withdrawn. A
-fixed line an Inbox button sends ("continue", a nudge) is the runner's `agents.prompt` with
+fixed line an Inbox button sends ("continue") is the runner's `agents.prompt` with
 `automatic`: delivery still takes the turn as theirs, but it withdraws nothing and says
-nothing to the agent. Words the person writes themselves, a nudge of their own from a
+nothing to the agent. The mark is the line's text as the prompt is sent (line ends as `\n`,
+trimmed) and lasts however long the line waits behind a running turn: it is spent by the
+next turn of the person's own (that line's, which it exempts, or any other words), and
+cleared when the send fails (refused, `PROMPT_FAILED`, `BOX_NOT_CLEARED`, any error) or the
+session ends or another binds. The person's own "Write your own" nudge is not marked. Words the person writes themselves, a nudge of their own from a
 stuck agent's sheet or an answer to a harness request sent on as the next prompt, are theirs,
 and do withdraw.
 

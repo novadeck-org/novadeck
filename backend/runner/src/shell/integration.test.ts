@@ -4855,7 +4855,8 @@ describe.runIf(process.platform === "win32")("Windows shell integration", () => 
  * focus reports, as such a TUI does. `named` is the same TUI under its harness's name, so
  * its hooks find its instance. `askafter` asks a permission after its first turn's Stop;
  * `askpaste` asks one as a paste comes after it, drawing the paste once told to; `asking`
- * puts a question in the Inbox after its first turn's Stop.
+ * puts a question in the Inbox after its first turn's Stop, `askbox` too, with Codex's own box
+ * marker, so a prompt the runner gives it finds its box.
  */
 const standInTui = (home: string): string => {
   const bin = join(home, "bin")
@@ -4913,7 +4914,9 @@ let busy = true
 let menu = false
 let turns = 0
 let pasteAsked = false
-const draw = () => process.stdout.write(menu ? "\r\x1b[2K  [menu] pick an item" : "\r\x1b[2K> " + box)
+// With "askbox", Codex draws its own box marker, so a prompt given through the runner finds it.
+const marker = mode === "askbox" && agent === "codex" ? "\u203a " : "> "
+const draw = () => process.stdout.write(menu ? "\r\x1b[2K  [menu] pick an item" : "\r\x1b[2K" + marker + box)
 // Antigravity's hooks name no prompt: it records what was typed in its transcript, as a
 // USER_EXPLICIT USER_INPUT step, and what woke it by itself as a SYSTEM_MESSAGE one.
 const transcript = received + ".transcript.jsonl"
@@ -4969,7 +4972,7 @@ const turn = (prompt, typed = true) => {
         fs.writeFileSync(raw + ".finished", String(turns))
         // With "asking", its agent puts a question in the person's Inbox after its first
         // turn's Stop, and writes what Novadeck answered to <raw>.asked.
-        if (mode === "asking" && turns === 1) {
+        if ((mode === "asking" || mode === "askbox") && turns === 1) {
           const request = { subject: "Which colour?", body: "Blue or green for the heading." }
           toolCall("ask", request, process.env.NOVADECK_REPORT_TOKEN, (answer) =>
             fs.writeFileSync(raw + ".asked", JSON.stringify(answer)),
@@ -6401,6 +6404,35 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))(
         expect(printed).toContain("took your open ask out of their Inbox")
         expect(printed).toContain("Which colour?")
       })
+
+    it("sends an Inbox button's fixed line through agents.prompt without taking Codex's asks out, but the person's next words do", async ({
+      shell,
+    }) => {
+      const tui = await ringing(shell, "askbox", "tui", "codex")
+      tui.type("hello")
+      await shell.until(tui.manager, tui.idle.id, "\u203a hello")
+      tui.type("\r")
+      await expect.poll(tui.delivery, { timeout: 10_000 }).toBe("settled")
+      await tui.back(1)
+      const asking = () =>
+        tui.manager.inboxLetters().filter(({ content }) => content.kind === "ask")
+      await expect.poll(asking, { timeout: 10_000 }).toHaveLength(1)
+      // The line goes in as a paste and an Enter, and its hook prints the real prompt text.
+      await tui.manager.prompt({ terminalId: tui.idle.id, text: "continue\r\n", automatic: true })
+      await vi.waitFor(() => expect(tui.received()).toHaveLength(2), { timeout: 10_000 })
+      expect(tui.received()[1]!.prompt).toBe("continue")
+      await tui.back(2)
+      await expect.poll(tui.delivery, { timeout: 10_000 }).toBe("settled")
+      expect(asking()).toHaveLength(1)
+      expect(tui.received()[1]!.printed).not.toContain("took your open ask")
+      // The person's own words next.
+      tui.type("blue, please")
+      await shell.until(tui.manager, tui.idle.id, "\u203a blue, please")
+      tui.type("\r")
+      await vi.waitFor(() => expect(tui.received()).toHaveLength(3), { timeout: 10_000 })
+      expect(asking()).toEqual([])
+      expect(tui.received()[2]!.printed).toContain("took your open ask out of their Inbox")
+    })
 
     it("rings an agent whose process group holds the terminal's foreground", async ({ shell }) => {
       // Under its harness's name, so its hooks name its instance.

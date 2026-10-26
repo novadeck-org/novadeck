@@ -126,10 +126,16 @@ type Live = Scope & {
   lapsed: boolean
   /** The prompt that started the current root turn, by its delivery epoch; null before any. */
   prompt: { readonly epoch: number; readonly text: string } | null
-  /** When the person submitted a prompt whose asks are yet to be withdrawn with their notice; null if none. */
-  withdrawing: number | null
-  /** The fixed line an Inbox button sent and when, until the turn it starts or `automaticMs`. */
-  automatic: { readonly text: string; readonly at: number } | null
+  /**
+   * The person's prompt whose asks are yet to be withdrawn with their notice: when they
+   * submitted it, and the delivery epoch of the turn it started, which alone may pay it.
+   */
+  withdrawing: { readonly submittedAt: number; readonly epoch: number } | null
+  /**
+   * The fixed line an Inbox button sent, as the prompt reads once sent (see `sentText`), until
+   * the next turn of the person's own, which spends it, or its send fails.
+   */
+  automatic: string | null
   /** When the person's last key came; the doorbell's screen look before it is stale. */
   keyedAt: number
   /** Why the doorbell last found the idle agent unringable, from its screen; null if not. */
@@ -336,8 +342,8 @@ export type Person = {
 /** What `personTurn` reads from before a report's turn events apply (see `beforeTurns`). */
 type Before = { readonly epoch: number; readonly queuedAt: number | null | undefined }
 
-/** How long a fixed line from an Inbox button is told apart from the person's own words. */
-const automaticMs = 60_000
+/** A prompt as it is sent: line ends as `\n`, trimmed (see `Prompts` in `@novadeck/tui-input`). */
+const sentText = (text: string): string => text.replace(/\r\n?/g, "\n").trim()
 
 /** What an ask's handlers share: its terminal, root, harness profile and the hook's report. */
 type Asked = {
@@ -915,11 +921,19 @@ export class Messaging {
 
   /**
    * Marks `text` as a fixed line an Inbox button is about to send the terminal's agent: the
-   * turn it starts is the person's to delivery, but takes no open ask out of the Inbox.
+   * turn it starts is the person's to delivery, but takes no open ask out of the Inbox. The
+   * mark lasts until the person's next turn, however long the line waits behind a running
+   * one, and ends with its send failing (`automaticFailed`) or the session.
    */
   automatic(terminalId: string, text: string): void {
     const live = this.live.get(terminalId)
-    if (live) live.automatic = { text: text.trim(), at: this.now() }
+    if (live) live.automatic = sentText(text)
+  }
+
+  /** The send of a fixed line marked `automatic` failed: no turn will come of it. */
+  automaticFailed(terminalId: string, text: string): void {
+    const live = this.live.get(terminalId)
+    if (live?.automatic === sentText(text)) live.automatic = null
   }
 
   /**
@@ -945,26 +959,33 @@ export class Messaging {
     )
     if (!start) return
     const text = prompt?.epoch === delivery.epoch ? prompt.text : undefined
-    if (automatic) {
-      live.automatic = null
-      if (this.now() - automatic.at < automaticMs && text?.trim() === automatic.text) return
-    }
+    // The mark is spent by the person's next turn, theirs or the line's own.
+    live.automatic = null
+    if (automatic !== null && text !== undefined && sentText(text) === automatic) return
     // A queued prompt's time unknown: nothing says which asks it came after.
     if (before.queuedAt === null) return
     const submittedAt = Math.min(start.startedAt, before.queuedAt ?? start.startedAt)
-    if (person.counts({ submittedAt, prompt: text })) live.withdrawing = submittedAt
+    if (person.counts({ submittedAt, prompt: text }))
+      live.withdrawing = { submittedAt, epoch: delivery.epoch }
   }
 
   /**
    * The notice of the asks the person's prompt took out of the Inbox, when an answer that
    * can print it is due: they are withdrawn only then, those still open and made before
-   * their submission, so the agent never loses an ask unheard. None when no prompt owes it.
+   * their submission, so the agent never loses an ask unheard. Only within the turn the
+   * prompt started: once it ended unpaid the debt is dropped and the asks stay open. None
+   * when no prompt owes it.
    */
   private withdrawn(live: Live, person: Person | undefined): string | undefined {
-    const before = live.withdrawing
-    if (before === null || !person) return undefined
+    const debt = live.withdrawing
+    if (debt === null) return undefined
+    if (debt.epoch !== live.delivery.epoch || !running(live.delivery)) {
+      live.withdrawing = null
+      return undefined
+    }
+    if (!person) return undefined
     live.withdrawing = null
-    return person.withdraw(before)
+    return person.withdraw(debt.submittedAt)
   }
 
   /**
@@ -1081,6 +1102,9 @@ export class Messaging {
     const holds = [...notes, ...(time ? this.heldFrom(live.terminalId) : [])]
     const again = kept === undefined ? undefined : profile.prompt(noted(kept, holds))
     if (start.cause === "call") {
+      // A notice paid at a later call is given again on the turn's remaining ones, as one
+      // paid at its first is.
+      const carried = notes.length > 0 ? joined(kept, noted("", notes)) : kept
       const print = (text: string) => profile.prompt(noted(joined(kept, text), holds))
       const added =
         time && running(live.delivery)
@@ -1088,10 +1112,12 @@ export class Messaging {
               kind: "midturn",
               print,
               only: isFromLead,
-              keeps: (text) => joined(kept, text),
+              keeps: (text) => joined(carried, text),
             })
           : undefined
       if (added) return { leaseId: added.id, stdout: print(added.text) }
+      if (profile.reinjectPerCall && carried !== undefined && notes.length > 0)
+        this.leases.remember(live.terminalId, live.delivery.epoch, carried)
       const rest = noted(kept, holds)
       return rest ? { leaseId: null, stdout: profile.prompt(rest) } : silent
     }
@@ -2298,6 +2324,7 @@ export class Messaging {
         if (!live.root) continue
         live.root = null
         live.withdrawing = null
+        live.automatic = null
         this.loops.reset(live.terminalId)
         // A session already shown at its prompt in its place keeps the state it gave.
         if (!live.shown) this.step(live, { type: "unbound" })
@@ -2333,6 +2360,7 @@ export class Messaging {
   ): void {
     live.root = root
     live.withdrawing = null
+    live.automatic = null
     this.loops.reset(live.terminalId)
     // Its first session came: from now on, only a bound session takes messages.
     live.expecting = null

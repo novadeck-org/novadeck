@@ -116,7 +116,13 @@ export class Typing {
   async prompt(terminalId: string, text: string, automatic?: true | undefined): Promise<void> {
     // A fixed line from an Inbox button: the turn it starts withdraws no ask (see `automatic`).
     if (automatic) this.host.messaging().automatic(terminalId, text)
-    return await this.prompts.prompt(terminalId, text)
+    try {
+      return await this.prompts.prompt(terminalId, text)
+    } catch (error) {
+      // Refused, failed or never given: no turn comes of it, so the mark would catch another.
+      if (automatic) this.host.messaging().automaticFailed(terminalId, text)
+      throw error
+    }
   }
 
   /** Answers a request waiting on the person through its dialog (see `Terminals.answer`). */

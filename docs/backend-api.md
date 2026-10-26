@@ -787,8 +787,8 @@ one from an earlier runner.
   client's `agents.transcript(terminalId, actor)` resubscribes across reconnections,
   yielding `reset` before the items follow again, and ends without one when the actor
   is gone.
-- `agents.prompt({ terminalId, text })` gives the terminal's agent a prompt as the person
-  would paste and submit it (`text` is 1 to 16,384 characters; its line breaks, CRLF and a lone CR included, are taken as one line break each and stay
+- `agents.prompt({ terminalId, text, automatic? })` gives the terminal's agent a prompt as the person
+  would paste and submit it (`automatic: true` marks a fixed line an Inbox button sends, such as "continue", not words the person wrote: the turn it starts withdraws no ask from the Inbox, see [Agent messaging](agent-messaging.md); a strict-schema field added with the protocol version unchanged, as the repo does while client and runner ship together; `text` is 1 to 16,384 characters; its line breaks, CRLF and a lone CR included, are taken as one line break each and stay
   line breaks in the box). It needs an agent bound, or one showing its own empty prompt
   before its first session binds (Codex before its first prompt), and no request waiting
   on the person, whose dialog would take the text: otherwise `CONFLICT`, as when the

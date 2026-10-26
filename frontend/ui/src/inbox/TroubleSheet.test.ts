@@ -165,7 +165,12 @@ describe("A failed turn's sheet", () => {
 describe("A stuck agent's sheet", () => {
   const stuck: InboxItem = {
     ...(limit(null, 0) as Extract<InboxItem, { kind: "trouble" }>),
-    trouble: { type: "stuck", summary: "Loops on the same test.", evidence: [], nudge: "Step back." },
+    trouble: {
+      type: "stuck",
+      summary: "Loops on the same test.",
+      evidence: [],
+      nudge: "Step back.",
+    },
   }
   const press = (label: string): void =>
     act(() =>

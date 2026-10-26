@@ -44,8 +44,8 @@ export type DemoInbox = Inbox & {
   readonly failNext: (reason?: string) => void
   readonly resolve: (id: string, outcome: "withdrawn" | "gone") => void
   // The person wrote to the terminal's agent: its open asks from before are withdrawn, as
-  // the runner withdraws them at the person's own prompt.
-  readonly withdrawAsks: (key: TerminalKey) => void
+  // the runner withdraws them at the person's own prompt: those made before they sent it.
+  readonly withdrawAsks: (key: TerminalKey, before: number) => void
   readonly dropReplyNext: () => void
   // The terminal's agent called `done`: its report becomes an Update once the terminal is
   // there, as the runner's done letter does, and a lead's workers' hide as its own do.
@@ -473,10 +473,11 @@ export const createDemoInbox = (
       }))
     },
     resolve,
-    withdrawAsks: (key) => {
+    withdrawAsks: (key, before) => {
       for (const each of own.getSnapshot().items)
         if (
           each.kind === "ask" &&
+          each.at < before &&
           each.source.projectId === key.projectId &&
           each.source.workspaceSessionId === key.workspaceSessionId &&
           each.source.terminalId === key.terminalId
