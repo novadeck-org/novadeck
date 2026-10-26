@@ -22,7 +22,7 @@ const question = {
 describe("ask", () => {
   context("when an answer isn't JSON", () => {
     it("says so without quoting a piece of it, and keeps it on the Skip for a dry run", async () => {
-      const said = 'data: {"choices":[{"delta":{"content":"it crashes when I open Gr\n\n'
+      const said = "data: it crashes when I open Grid\n\n"
       const failure = await ask(answering(said), question).catch((error: unknown) => error)
 
       expect(failure).toBeInstanceOf(Skip)
