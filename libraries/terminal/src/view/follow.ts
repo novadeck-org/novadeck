@@ -49,6 +49,7 @@ export type FollowOptions<K> = {
 
 // The screen a terminal draws on, reduced to what following it needs.
 export type Screen = {
+  // Rejects when the emulator could not draw it, which leaves the screen in doubt.
   readonly write: (data: string) => Promise<void>
   readonly reset: () => void
   readonly resize: (size: { readonly cols: number; readonly rows: number }) => void
@@ -78,9 +79,17 @@ export type FollowedTerminal = {
   readonly stop: () => void
 }
 
+// How long a screen that failed to draw waits before it attaches again: the first, doubling
+// with each failure in a row up to the most. A failure `apart` after the one before it is the
+// first again. One that fails on every snapshot, or soon after each, settles at a redraw every
+// `most`: short, as the screen shows "Loading output…" meanwhile, and a snapshot costs little.
+const redrawMs = { first: 250, most: 5_000, apart: 60_000 }
+
 // Attaches to the terminal, draws what it sends, and passes input and size back until
 // stopped. When its shell exits, or the host loses it, the view waits for a fresh
-// shell and attaches again. A terminal another window controls is reported instead.
+// shell and attaches again. A terminal another window controls is reported instead. A
+// screen that failed to draw lets go of the stream and attaches again, for a fresh screen
+// from the host: the shell is fine, only what this screen shows is in doubt.
 export const followTerminal = <K>(
   options: FollowOptions<K>,
   key: K,
@@ -101,6 +110,9 @@ export const followTerminal = <K>(
   // A park ended the stream: the same shell runs on, so it attaches again, even when
   // shown before the stream wound down.
   let cut = false
+  // The failures to draw in a row, and when the last was.
+  let failures = 0
+  let failedAt = 0
   const refit = (): boolean => {
     const size = screen.fit()
     if (size) on?.resized?.(key, size)
@@ -174,14 +186,22 @@ export const followTerminal = <K>(
     cut ||= Boolean(unparked)
     return undefined
   }
-  const follow = async (attached: AttachStream): Promise<void> => {
+  // Follows the stream until it ends; whether the screen failed to draw it.
+  const follow = async (attached: AttachStream): Promise<boolean> => {
     attachment = attached
     const release = on?.attached?.(key, attached)
+    let failed = false
     try {
       for await (const event of attached) {
         if (stopped) break
-        // eslint-disable-next-line no-await-in-loop -- Drawing paces acknowledgement.
-        await apply(event)
+        try {
+          // eslint-disable-next-line no-await-in-loop -- Drawing paces acknowledgement.
+          await apply(event)
+        } catch {
+          // The screen is in doubt; the emulator threw the error again, for the page's log.
+          failed = !stopped
+          break
+        }
       }
     } catch (error) {
       if (!stopped) on?.lost?.(key, error)
@@ -190,6 +210,8 @@ export const followTerminal = <K>(
       attachment = undefined
       screen.live(false)
     }
+    if (failed) attached.close()
+    return failed
   }
   const running = (): boolean => !stopped
   const run = async (): Promise<void> => {
@@ -208,9 +230,18 @@ export const followTerminal = <K>(
       // eslint-disable-next-line no-await-in-loop -- Then attach to it.
       const attached = ready && (await track(open(entry)))
       // eslint-disable-next-line no-await-in-loop -- One attachment at a time.
-      if (attached) await follow(attached)
+      const failed = attached && (await follow(attached))
       if (cut || unparked) {
         cut = false
+        continue
+      }
+      if (failed) {
+        const now = Date.now()
+        failures = now - failedAt >= redrawMs.apart ? 1 : failures + 1
+        failedAt = now
+        const wait = Math.min(redrawMs.first * 2 ** (failures - 1), redrawMs.most)
+        // eslint-disable-next-line no-await-in-loop -- Back off before drawing again.
+        await Promise.race([pause(wait), halted])
         continue
       }
       // eslint-disable-next-line no-await-in-loop -- Wait for a fresh shell.

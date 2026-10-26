@@ -1,4 +1,10 @@
-import type { ITheme, Terminal, View, ViewRenderer } from "@novadeck/emulator/browser"
+import {
+  writeTo,
+  type ITheme,
+  type Terminal,
+  type View,
+  type ViewRenderer,
+} from "@novadeck/emulator/browser"
 
 import { followTerminal, type FollowedTerminal, type FollowOptions, type Screen } from "./follow.js"
 import {
@@ -230,8 +236,13 @@ export const createTerminalViews = <K>(o: TerminalViewOptions<K>) => {
     const drawn: Screen = {
       exited: () => {},
       live: () => {},
-      write: (data) => new Promise((resolve) => xterm.write(data, resolve)),
-      reset: () => xterm.reset(),
+      write: (data) => writeTo(xterm, data),
+      // xterm's reset leaves its parser as it was, which a stream cut short or a write that
+      // failed may have left inside a sequence: a CAN ends any, before the screen that follows.
+      reset: () => {
+        xterm.reset()
+        xterm.write("\x18")
+      },
       resize: ({ cols, rows }) => {
         if (xterm.cols !== cols || xterm.rows !== rows) xterm.resize(cols, rows)
       },

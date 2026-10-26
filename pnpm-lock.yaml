@@ -34,7 +34,8 @@ catalogs:
 patchedDependencies:
   '@xterm/addon-unicode-graphemes@0.4.0': b0a9bbbcc53e94cabc762f35be7a9d628ad75ecb84ca1e26eae1e808f27f18b6
   '@xterm/addon-webgl@0.19.0': 73f8c854c5f9aefcad136d2d24b047c852da2a4c6331e20354b315ca763d422f
-  '@xterm/xterm@6.0.0': 5cceb0abb03f6a06e082154528f2a5b89cccff1d5d5e8a65820a1da801627b9a
+  '@xterm/headless@6.0.0': 144e46df24bdbccd0c74b2b7e18caa47d7570f96e8107980e00175ca01625bea
+  '@xterm/xterm@6.0.0': 4aa2566c234b1baa98545b4d744b9456dab5010bf20501b3c1e3100ce7cb4c3f
   electron-updater@6.8.9: 194f26b921816fb49234137172ac8a9e8146f732442494a3e0cefecd51d541e4
   node-pty@1.2.0-beta.14: c78e0cc7eff2e13ea3521779288bbaad7b96df25030516a8aa8acd64fde92224
 
@@ -1156,10 +1157,10 @@ importers:
         version: 0.19.0(patch_hash=73f8c854c5f9aefcad136d2d24b047c852da2a4c6331e20354b315ca763d422f)
       '@xterm/headless':
         specifier: 6.0.0
-        version: 6.0.0
+        version: 6.0.0(patch_hash=144e46df24bdbccd0c74b2b7e18caa47d7570f96e8107980e00175ca01625bea)
       '@xterm/xterm':
         specifier: 6.0.0
-        version: 6.0.0(patch_hash=5cceb0abb03f6a06e082154528f2a5b89cccff1d5d5e8a65820a1da801627b9a)
+        version: 6.0.0(patch_hash=4aa2566c234b1baa98545b4d744b9456dab5010bf20501b3c1e3100ce7cb4c3f)
     devDependencies:
       '@fontsource-variable/jetbrains-mono':
         specifier: ^5.3.0
@@ -7529,9 +7530,9 @@ snapshots:
 
   '@xterm/addon-webgl@0.19.0(patch_hash=73f8c854c5f9aefcad136d2d24b047c852da2a4c6331e20354b315ca763d422f)': {}
 
-  '@xterm/headless@6.0.0': {}
+  '@xterm/headless@6.0.0(patch_hash=144e46df24bdbccd0c74b2b7e18caa47d7570f96e8107980e00175ca01625bea)': {}
 
-  '@xterm/xterm@6.0.0(patch_hash=5cceb0abb03f6a06e082154528f2a5b89cccff1d5d5e8a65820a1da801627b9a)': {}
+  '@xterm/xterm@6.0.0(patch_hash=4aa2566c234b1baa98545b4d744b9456dab5010bf20501b3c1e3100ce7cb4c3f)': {}
 
   '@xyflow/react@12.12.0(@types/react-dom@19.3.0(@types/react@19.3.0))(@types/react@19.3.0)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)':
     dependencies:
