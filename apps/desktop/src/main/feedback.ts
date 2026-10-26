@@ -18,16 +18,19 @@ const systems: Readonly<Record<string, FeedbackHostAbout["os"]>> = {
  * none. A packaged build sends to novadeck.dev; `NOVADECK_FEEDBACK_ORIGIN` replaces it for
  * testing, and only with an address on this computer (as `NOVADECK_UPDATE_URL` does). A
  * build that is not packaged posts only there, never to the real website, and sends nothing
- * without it. A system the website has no name for sends nothing either.
+ * without it. Neither does a packaged build of version 0.0.0, which is what pull-request
+ * builds are, so testers of those never send real notes. A system the website has no name
+ * for sends nothing either.
  */
 export const feedbackOrigin = (options: {
   readonly packaged: boolean
   readonly platform: string
+  readonly version: string
   readonly env: string | undefined
 }): string | undefined => {
   if (!(options.platform in systems)) return undefined
   const local = options.env === undefined ? undefined : localOrigin(options.env)
-  return local ?? (options.packaged ? novadeckSite : undefined)
+  return local ?? (options.packaged && options.version !== "0.0.0" ? novadeckSite : undefined)
 }
 
 /** What goes along with a note: the version, the OS and the architecture. */
@@ -56,7 +59,9 @@ export const feedbackNoteOf = (value: unknown): FeedbackHostNote | undefined => 
 
 /**
  * Posts a note to `<origin>/feedback` as JSON: the note, the version, the OS and the
- * architecture, with no header beyond the content type. Resolves on 204. Anything else
+ * architecture, with the content type as its only header and no cookies (`credentials:
+ * "omit"`). Electron's own request adds its User-Agent, accept-language, accept-encoding and
+ * sec-fetch-* headers; the website keeps none of them. Resolves on 204. Anything else
  * rejects: another status, the network failing, or no answer in `timeoutMs`.
  */
 export const sendFeedback = async (
@@ -76,6 +81,7 @@ export const sendFeedback = async (
       headers: { "Content-Type": "application/json" },
       // Never follows a redirect: the note goes where the contract says.
       redirect: "error",
+      credentials: "omit",
       signal: controller.signal,
       body: JSON.stringify({
         kind: note.kind,

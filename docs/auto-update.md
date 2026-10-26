@@ -140,7 +140,9 @@ The feedback card posts through the same website. A packaged build sends to
 `https://novadeck.dev/feedback`. A development run has no card, so it never posts to the
 real site, unless `NOVADECK_FEEDBACK_ORIGIN` names a website on this computer, on the same
 terms as above (`NOVADECK_FEEDBACK_ORIGIN=http://127.0.0.1:8788`, a local `wrangler pages
-dev`). The same variable replaces the address for a packaged build.
+dev`). The same variable replaces the address for a packaged build. A packaged build of
+version `0.0.0`, as pull-request builds are, has no card either unless that variable names a
+local website.
 
 ## Which builds update
 

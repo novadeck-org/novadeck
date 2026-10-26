@@ -15,8 +15,8 @@ afterEach(() => vi.useRealTimers())
 const about = { version: "0.0.219", os: "linux", arch: "x64" } as const
 
 describe("where feedback goes", () => {
-  const origin = (packaged: boolean, env?: string, platform = "linux") =>
-    feedbackOrigin({ packaged, platform, env })
+  const origin = (packaged: boolean, env?: string, platform = "linux", version = "0.0.219") =>
+    feedbackOrigin({ packaged, platform, version, env })
 
   it("is novadeck.dev for a packaged build", () => {
     expect(origin(true)).toBe("https://novadeck.dev")
@@ -31,6 +31,12 @@ describe("where feedback goes", () => {
   it("is the local website the variable names, in either build", () => {
     expect(origin(false, "http://127.0.0.1:8788/feedback")).toBe("http://127.0.0.1:8788")
     expect(origin(true, "http://localhost:8788")).toBe("http://localhost:8788")
+  })
+
+  it("is nowhere for a pull request's build, packaged as 0.0.0, unless a local site is named", () => {
+    expect(origin(true, undefined, "linux", "0.0.0")).toBeUndefined()
+    expect(origin(true, "https://example.test", "linux", "0.0.0")).toBeUndefined()
+    expect(origin(true, "http://127.0.0.1:8788", "linux", "0.0.0")).toBe("http://127.0.0.1:8788")
   })
 
   it("ignores an address that is not on this computer", () => {
@@ -87,6 +93,7 @@ describe("sending a note", () => {
     const { url, init } = calls[0]!
     expect(url).toBe("https://novadeck.dev/feedback")
     expect(init.method).toBe("POST")
+    expect(init.credentials).toBe("omit")
     expect(init.headers).toEqual({ "Content-Type": "application/json" })
     expect(JSON.parse(init.body as string)).toEqual({
       kind: "idea",

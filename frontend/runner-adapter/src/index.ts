@@ -15,13 +15,13 @@ import { websocket, type Transport } from "@novadeck/wire/client"
 import { runnerBackend, type RunnerBackend } from "./backend"
 import {
   desktopBadge,
+  desktopFeedback,
   desktopHost,
   desktopNotices,
   desktopPortable,
   desktopSandbox,
   desktopUninstall,
   desktopUpdates,
-  desktopFeedback,
   desktopVersion,
   desktopWhatsNew,
   desktopWindowFocus,

@@ -15,12 +15,12 @@ import type {
 
 import {
   desktopBadge,
+  desktopFeedback,
   desktopNotices,
   desktopPortable,
   desktopSandbox,
   desktopUninstall,
   desktopUpdates,
-  desktopFeedback,
   desktopVersion,
   desktopWhatsNew,
   desktopWindowFocus,
