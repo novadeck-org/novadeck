@@ -1,4 +1,4 @@
-import type { InboxItem } from "@novadeck/core/inbox"
+import type { InboxRow } from "@novadeck/core/inbox"
 import { terminalFixture, workspaceFixture } from "@novadeck/core/testing"
 import type { AgentStatus, TerminalMetadata, WorkspaceProject } from "@novadeck/core/types"
 
@@ -13,9 +13,9 @@ import {
 // Unread ends by session context, then terminal id, as the app keeps them.
 type Unread = Readonly<Record<string, Readonly<Record<string, "unread" | "failed">>>>
 const noUnread: Unread = {}
-const projectStatus = (project: WorkspaceProject, unread: Unread, items: InboxItem[] = []) =>
+const projectStatus = (project: WorkspaceProject, unread: Unread, items: InboxRow[] = []) =>
   statusOf(project, (session, id) => unread[session]?.[id], items, now)
-const projectStatuses = (projects: WorkspaceProject[], unread: Unread, items: InboxItem[] = []) =>
+const projectStatuses = (projects: WorkspaceProject[], unread: Unread, items: InboxRow[] = []) =>
   statusesOf(projects, (session, id) => unread[session]?.[id], items, now)
 
 const now = 1_000_000
@@ -24,9 +24,9 @@ const now = 1_000_000
 const itemOf = (
   projectId: string,
   terminal: TerminalMetadata,
-  content: Pick<InboxItem, "kind"> & Record<string, unknown>,
-  extra: Partial<InboxItem> = {},
-): InboxItem =>
+  content: Pick<InboxRow, "kind"> & Record<string, unknown>,
+  extra: Partial<InboxRow> = {},
+): InboxRow =>
   ({
     id: `${projectId}-${terminal.id}-${content.kind}`,
     source: {
@@ -43,7 +43,7 @@ const itemOf = (
     seen: false,
     ...content,
     ...extra,
-  }) as InboxItem
+  }) as InboxRow
 const askItem = (projectId: string, terminal: TerminalMetadata, type: "text" | "action") =>
   itemOf(projectId, terminal, {
     kind: "ask",

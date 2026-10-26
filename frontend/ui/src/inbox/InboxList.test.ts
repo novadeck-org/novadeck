@@ -1,4 +1,4 @@
-import { emptyInbox, type Inbox, type InboxItem, type InboxState } from "@novadeck/core/inbox"
+import { emptyInbox, type Inbox, type InboxRow, type InboxState } from "@novadeck/core/inbox"
 import { createStore } from "@novadeck/core/store"
 import { nextFrame, render } from "@novadeck/test-kit/render"
 import { act, createElement } from "react"
@@ -17,7 +17,7 @@ Object.assign(globalThis, {
   },
 })
 
-const source: InboxItem["source"] = {
+const source: InboxRow["source"] = {
   projectId: "p",
   workspaceSessionId: "s",
   terminalId: "t",
@@ -27,7 +27,7 @@ const source: InboxItem["source"] = {
   projectName: "Project",
 }
 
-const permission = (id: string, at: number): InboxItem => ({
+const permission = (id: string, at: number): InboxRow => ({
   id,
   source,
   at,
@@ -55,7 +55,7 @@ const permission = (id: string, at: number): InboxItem => ({
   },
 })
 
-const told = (id: string, at: number): InboxItem => ({
+const told = (id: string, at: number): InboxRow => ({
   id,
   source,
   at,
@@ -67,7 +67,7 @@ const told = (id: string, at: number): InboxItem => ({
 
 // An Inbox whose items the test changes, with the list, the held pill and the sheets as the
 // sidebar and the workspace wire them.
-const mount = (items: readonly InboxItem[], working = false) => {
+const mount = (items: readonly InboxRow[], working = false) => {
   const state = createStore<InboxState>({ ...emptyInbox, items })
   const answered: string[] = []
   const inbox: Inbox = {
@@ -101,10 +101,10 @@ const mount = (items: readonly InboxItem[], working = false) => {
   const open = (id: string): void =>
     act(() =>
       view.container
-        .querySelector<HTMLElement>(`[data-inbox-item="${id}"] .inbox-row-select`)!
+        .querySelector<HTMLElement>(`[data-inbox-row="${id}"] .inbox-row-select`)!
         .click(),
     )
-  const arrive = (item: InboxItem): void =>
+  const arrive = (item: InboxRow): void =>
     act(() => {
       state.update((current) => ({ ...current, items: [...current.items, item] }))
     })
@@ -113,7 +113,7 @@ const mount = (items: readonly InboxItem[], working = false) => {
       document.dispatchEvent(new KeyboardEvent("keydown", { key, bubbles: true }))
     })
   const row = (id: string): HTMLElement =>
-    view.container.querySelector<HTMLElement>(`[data-inbox-item="${id}"]`)!
+    view.container.querySelector<HTMLElement>(`[data-inbox-row="${id}"]`)!
   return { view, subjects, pill, open, arrive, press, answered, row }
 }
 
@@ -187,7 +187,7 @@ describe("The Inbox's list", () => {
 
       expect(inbox.subjects()).toHaveLength(2)
       expect(
-        inbox.view.container.querySelector('[data-inbox-item="c"]')?.getAttribute("data-arrived"),
+        inbox.view.container.querySelector('[data-inbox-row="c"]')?.getAttribute("data-arrived"),
       ).toBe("true")
       await nextFrame()
       inbox.view.unmount()
@@ -202,8 +202,8 @@ describe("The Inbox's list", () => {
       const current = (): string | null =>
         inbox.view.container
           .querySelector('[aria-current="true"]')
-          ?.closest("[data-inbox-item]")
-          ?.getAttribute("data-inbox-item") ?? null
+          ?.closest("[data-inbox-row]")
+          ?.getAttribute("data-inbox-row") ?? null
 
       // A frame between keys, as a person's presses have: each sheet opened finds itself.
       const press = async (key: string) => {

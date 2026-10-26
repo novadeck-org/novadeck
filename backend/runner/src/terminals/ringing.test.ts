@@ -13,7 +13,7 @@ import type { Binding } from "../harnesses/bindings.js"
 import { harnesses } from "../harnesses/registry.js"
 import { followRoot, type Root } from "../harnesses/roots.js"
 import { Messaging } from "../messaging/messaging.js"
-import { memoryMailbox } from "../messaging/records.js"
+import { memoryMessages } from "../messaging/records.js"
 import { describe, expect, it } from "../test.js"
 import { adapterFolder } from "../testing/adapters.js"
 import {
@@ -356,7 +356,7 @@ describe("a session stopped with background work running", () => {
   const setup = (agent: AgentName) => {
     const clock = { now: 1_000_000 }
     const messaging = new Messaging({
-      records: memoryMailbox(),
+      records: memoryMessages(),
       now: () => clock.now,
       sweepMs: 0,
       restoreMs: 0,

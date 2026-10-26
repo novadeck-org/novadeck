@@ -1,5 +1,5 @@
 import { handleText } from "@novadeck/core/handle"
-import { waitsText, type MailPeer } from "@novadeck/core/messages"
+import { waitsText, type MessagePeer } from "@novadeck/core/messages"
 import { useShown } from "@novadeck/toolkit/shown"
 import { Switch } from "@novadeck/toolkit/Switch"
 import { ChevronLeft, ChevronRight, ExternalLink } from "lucide-react"
@@ -22,17 +22,17 @@ import {
   conversationsOf,
   cornerOf,
   latestOf,
-  letterLabel,
+  entryLabel,
   listed,
   openAsks,
   waitsOnPerson,
   youKey,
-  type ChatEntry,
+  type ChatLine,
   type Conversation,
   type Corner,
   type Note,
 } from "./conversations"
-import { usePeers, type MailHandle, type MailLinks } from "./mail"
+import { usePeers, type MessagesHandle, type MessageLinks } from "./messages"
 
 const sameDay = (a: Date, b: Date): boolean => a.toDateString() === b.toDateString()
 
@@ -71,10 +71,10 @@ const onVisibility = (listener: () => void): (() => void) => {
 
 const party = (handle: string): string => (handle === "you" ? "You" : handleText(handle))
 
-const nameOf = (peer: string, found: MailPeer | undefined): string =>
+const nameOf = (peer: string, found: MessagePeer | undefined): string =>
   peer === "you" ? "You" : (found?.name ?? handleText(peer))
 
-const liveOf = (found: MailPeer | undefined): AvatarLive => found?.live ?? "gone"
+const liveOf = (found: MessagePeer | undefined): AvatarLive => found?.live ?? "gone"
 
 const noteText: Readonly<Record<Note, string>> = {
   queued: "Waiting",
@@ -94,21 +94,21 @@ const CornerText = ({ corner }: { corner: Corner }): React.JSX.Element => {
   switch (corner.kind) {
     case "asks":
       return (
-        <span className="mail-chip" data-tone="warning">
+        <span className="message-chip" data-tone="warning">
           Asks you
         </span>
       )
     case "undelivered":
       return (
-        <span className="mail-chip" data-tone="danger">
+        <span className="message-chip" data-tone="danger">
           Not delivered
         </span>
       )
     case "unread":
-      return <span className="mail-row-time">Unread</span>
+      return <span className="message-row-time">Unread</span>
     case "time":
       return (
-        <time className="mail-row-time" dateTime={new Date(corner.at).toISOString()}>
+        <time className="message-row-time" dateTime={new Date(corner.at).toISOString()}>
           {rowTime(corner.at)}
         </time>
       )
@@ -132,7 +132,7 @@ const Row = ({
   onOpen,
 }: {
   conversation: Conversation
-  peer: MailPeer | undefined
+  peer: MessagePeer | undefined
   seenAt: number
   onOpen: () => void
 }): React.JSX.Element => {
@@ -145,7 +145,7 @@ const Row = ({
     <li>
       <button
         type="button"
-        className="mail-row"
+        className="message-row"
         data-conversation={conversation.key}
         data-unread={corner.kind === "unread" || waitsOnPerson(conversation) || undefined}
         aria-label={[
@@ -162,49 +162,49 @@ const Row = ({
           live={you ? "idle" : liveOf(peer)}
           program={you ? undefined : peer?.program}
         />
-        <span className="mail-row-main">
-          <span className="mail-row-top">
-            <strong className="mail-row-name">{name}</strong>
-            {peer && <code className="mail-row-handle">{handleText(conversation.peer)}</code>}
+        <span className="message-row-main">
+          <span className="message-row-top">
+            <strong className="message-row-name">{name}</strong>
+            {peer && <code className="message-row-handle">{handleText(conversation.peer)}</code>}
           </span>
           {last && (
-            <span id={preview} className="mail-preview">
-              <span className="mail-preview-who">{party(last.from)}:</span>{" "}
+            <span id={preview} className="message-preview">
+              <span className="message-preview-who">{party(last.from)}:</span>{" "}
               {last.text.replace(/\s+/g, " ")}
             </span>
           )}
         </span>
-        <span className="mail-row-end">
+        <span className="message-row-end">
           <CornerText corner={corner} />
         </span>
-        <ChevronRight className="mail-row-go" size={14} strokeWidth={1.75} aria-hidden />
+        <ChevronRight className="message-row-go" size={14} strokeWidth={1.75} aria-hidden />
       </button>
     </li>
   )
 }
 
 // One message as a bubble on its side: its sender's critter at the start of a run of the
-// other side's, a letter's label in plain words, the question a reply answers, Answer on a
+// other side's, an entry's label in plain words, the question a reply answers, Answer on a
 // question still open, and its note under it while there's one worth a look.
 const Bubble = ({
-  entry,
+  line,
   conversation,
   peers,
   links,
 }: {
-  entry: Extract<ChatEntry, { kind: "message" }>
+  line: Extract<ChatLine, { kind: "message" }>
   conversation: Conversation
-  peers: Readonly<Record<string, MailPeer>>
-  links: MailLinks
+  peers: Readonly<Record<string, MessagePeer>>
+  links: MessageLinks
 }): React.JSX.Element => {
-  const { message, side, grouped, note } = entry
-  const label = letterLabel(message)
+  const { message, side, grouped, note } = line
+  const label = entryLabel(message)
   const asked = conversation.asked.get(message.id)
   const open = message.inbox === "ask" && message.inboxState === "open"
   const sender = party(message.from)
   return (
     <li
-      className="mail-bubble-row"
+      className="message-bubble-row"
       data-side={side}
       data-grouped={grouped || undefined}
       data-hue={message.from === "you" ? "you" : hueOf(message.from)}
@@ -213,7 +213,7 @@ const Bubble = ({
       title={exact(message.sentAt)}
     >
       {side === "in" && (
-        <span className="mail-bubble-av">
+        <span className="message-bubble-av">
           {!grouped && (
             <Avatar
               handle={message.from}
@@ -223,24 +223,24 @@ const Bubble = ({
           )}
         </span>
       )}
-      <div className="mail-bubble-col">
-        <div className="mail-bubble">
+      <div className="message-bubble-col">
+        <div className="message-bubble">
           {/* Who sent it is plain from its side; the words stay for screen readers. */}
           <span className="sr-only">{sender}: </span>
           {label && (
             <span
-              className="mail-letter"
+              className="message-entry"
               data-kind={message.inbox}
               data-open={message.inboxState === "open" || undefined}
             >
               {label}
             </span>
           )}
-          {asked && <span className="mail-quote">{asked.text.replace(/\s+/g, " ")}</span>}
+          {asked && <span className="message-quote">{asked.text.replace(/\s+/g, " ")}</span>}
           {/* The agent's words, exactly as it wrote them: never formatted or interpreted. */}
-          <p className="mail-text">{message.text}</p>
+          <p className="message-text">{message.text}</p>
           {open && (
-            <div className="mail-answer">
+            <div className="message-answer">
               <button
                 type="button"
                 className="button"
@@ -253,8 +253,8 @@ const Bubble = ({
           )}
         </div>
         {note && (
-          <div className="mail-bubble-meta">
-            <span className="mail-note" data-note={note} title={noteHint[note]}>
+          <div className="message-bubble-meta">
+            <span className="message-note" data-note={note} title={noteHint[note]}>
               {note === "gone" && message.inbox === "answer"
                 ? "Reply not delivered"
                 : noteText[note]}
@@ -266,48 +266,48 @@ const Bubble = ({
   )
 }
 
-const ChatEntryItem = ({
-  entry,
+const ChatLineItem = ({
+  line,
   conversation,
   peers,
   links,
   onUnfold,
 }: {
-  entry: ChatEntry
+  line: ChatLine
   conversation: Conversation
-  peers: Readonly<Record<string, MailPeer>>
-  links: MailLinks
+  peers: Readonly<Record<string, MessagePeer>>
+  links: MessageLinks
   onUnfold: () => void
 }): React.JSX.Element => {
-  switch (entry.kind) {
+  switch (line.kind) {
     case "time":
       return (
-        <li className="mail-time">
-          <time dateTime={new Date(entry.at).toISOString()} title={exact(entry.at)}>
-            {clock(entry.at)}
+        <li className="message-time">
+          <time dateTime={new Date(line.at).toISOString()} title={exact(line.at)}>
+            {clock(line.at)}
           </time>
         </li>
       )
     case "new":
       return (
-        <li className="mail-new">
+        <li className="message-new">
           <span>New</span>
         </li>
       )
     case "fold":
       return (
-        <li className="mail-fold">
+        <li className="message-fold">
           <button type="button" onClick={onUnfold}>
-            <span className="mail-fold-count">
-              {entry.rounds} more round{entry.rounds === 1 ? "" : "s"} like this
+            <span className="message-fold-count">
+              {line.rounds} more round{line.rounds === 1 ? "" : "s"} like this
             </span>
-            <span className="mail-fold-text">{entry.first.text.replace(/\s+/g, " ")}</span>
-            <span className="mail-fold-show">Show</span>
+            <span className="message-fold-text">{line.first.text.replace(/\s+/g, " ")}</span>
+            <span className="message-fold-show">Show</span>
           </button>
         </li>
       )
     case "message":
-      return <Bubble entry={entry} conversation={conversation} peers={peers} links={links} />
+      return <Bubble line={line} conversation={conversation} peers={peers} links={links} />
   }
 }
 
@@ -323,16 +323,13 @@ const Chat = ({
 }: {
   conversation: Conversation
   self: string
-  peers: Readonly<Record<string, MailPeer>>
-  links: MailLinks
+  peers: Readonly<Record<string, MessagePeer>>
+  links: MessageLinks
   onBack: () => void
 }): React.JSX.Element => {
   const peer = peers[conversation.peer]
   const [unfolded, setUnfolded] = useState(false)
-  const entries = useMemo(
-    () => chatOf(conversation, self, unfolded),
-    [conversation, self, unfolded],
-  )
+  const lines = useMemo(() => chatOf(conversation, self, unfolded), [conversation, self, unfolded])
   const you = conversation.key === youKey
   const name = nameOf(conversation.peer, peer)
   const asks = openAsks(conversation)
@@ -340,22 +337,22 @@ const Chat = ({
   const atEnd = useRef(true)
   const back = useRef<HTMLButtonElement>(null)
   useEffect(() => back.current?.focus({ preventScroll: true }), [])
-  // At its end as entries come, unless the person scrolled up.
+  // At its end as lines come, unless the person scrolled up.
   useLayoutEffect(() => {
     const element = scroll.current
-    if (element && atEnd.current && entries.length) element.scrollTop = element.scrollHeight
-  }, [entries])
+    if (element && atEnd.current && lines.length) element.scrollTop = element.scrollHeight
+  }, [lines])
   const gone =
     !you &&
     liveOf(peer) === "gone" &&
     conversation.messages.some((message) => message.from === self && message.state === "gone")
   return (
     <>
-      <div className="mail-chat-head">
+      <div className="message-chat-head">
         <button
           ref={back}
           type="button"
-          className="icon-button mail-back"
+          className="icon-button message-back"
           aria-label="All conversations"
           onClick={onBack}
         >
@@ -367,20 +364,20 @@ const Chat = ({
           live={you ? "idle" : liveOf(peer)}
           program={you ? undefined : peer?.program}
         />
-        <h3 className="mail-chat-name">
+        <h3 className="message-chat-name">
           <strong>{name}</strong>
           {!you && peer && <code>{handleText(conversation.peer)}</code>}
         </h3>
-        <span className="mail-chat-side">
+        <span className="message-chat-side">
           {you && asks > 0 && (
-            <span className="mail-asks">
+            <span className="message-asks">
               {asks === 1 ? "1 question waits for you" : `${asks} questions wait for you`}
             </span>
           )}
           {!you && peer && peer.live !== "gone" && (
             <button
               type="button"
-              className="icon-button mail-go"
+              className="icon-button message-go"
               aria-label={`Go to ${peer.name}`}
               title={`Go to ${peer.name}`}
               onClick={() => links.goTo(peer.terminalId)}
@@ -392,17 +389,17 @@ const Chat = ({
       </div>
       <div
         ref={scroll}
-        className="mail-scroll"
+        className="message-scroll"
         onScroll={(event) => {
           const element = event.currentTarget
           atEnd.current = element.scrollHeight - element.scrollTop - element.clientHeight < 24
         }}
       >
-        <ol className="mail-chat" aria-label={`Messages with ${you ? "you" : name}`}>
-          {entries.map((entry) => (
-            <ChatEntryItem
-              key={entry.key}
-              entry={entry}
+        <ol className="message-chat" aria-label={`Messages with ${you ? "you" : name}`}>
+          {lines.map((line) => (
+            <ChatLineItem
+              key={line.key}
+              line={line}
               conversation={conversation}
               peers={peers}
               links={links}
@@ -415,7 +412,7 @@ const Chat = ({
           ))}
         </ol>
         {gone && (
-          <p className="mail-footnote">
+          <p className="message-footnote">
             The agent in {name} ended before this arrived, so nothing more reaches it.
           </p>
         )}
@@ -424,17 +421,17 @@ const Chat = ({
   )
 }
 
-// A terminal's messages: one list of its conversations, the person's letters first while
+// A terminal's messages: one list of its conversations, the person's entries first while
 // they wait on them, then latest first; one opened reads as a chat. The header holds the
 // pause for messages between agents; the person's replies go through. Holds stay with the
 // runner and the Inbox, never here.
 export const MessagesView = ({
-  mail,
+  messagesHandle,
   links,
   actions,
 }: {
-  mail: MailHandle
-  links: MailLinks
+  messagesHandle: MessagesHandle
+  links: MessageLinks
   // What the pane does, at the end of the header.
   actions?: ReactNode
 }): React.JSX.Element => {
@@ -444,13 +441,13 @@ export const MessagesView = ({
   const list = useRef<HTMLUListElement>(null)
   const returnTo = useRef<string | null>(null)
   const conversations = useMemo(
-    () => (mail.mail ? listed(conversationsOf(mail.mail)) : []),
-    [mail.mail],
+    () => (messagesHandle.threads ? listed(conversationsOf(messagesHandle.threads)) : []),
+    [messagesHandle.threads],
   )
   const opened = conversations.find((each) => each.key === open)
   const latest = opened ? latestOf(opened) : 0
   const peers = usePeers(links)
-  const { seen } = mail
+  const { seen } = messagesHandle
   // What the person has open on screen, they've seen, up to its latest message: not one
   // left open in a terminal kept out of sight, or in a window in the background, until it
   // comes back.
@@ -468,12 +465,12 @@ export const MessagesView = ({
     returnTo.current = null
   }, [opened])
   return (
-    <div className="mail-view">
-      <ArtifactMeta className="mail-meta" actions={actions}>
+    <div className="message-view">
+      <ArtifactMeta className="message-meta" actions={actions}>
         <code>Messages</code>
-        {mail.mail && <span>{handleText(mail.mail.handle)}</span>}
-        <span className="mail-pause">
-          <span id={label} className="mail-pause-label">
+        {messagesHandle.threads && <span>{handleText(messagesHandle.threads.handle)}</span>}
+        <span className="message-pause">
+          <span id={label} className="message-pause-label">
             Pause all agents' messages
           </span>
           <span id={hint} className="sr-only">
@@ -481,34 +478,34 @@ export const MessagesView = ({
             through.
           </span>
           <Switch
-            checked={mail.paused}
-            onChange={mail.pause}
+            checked={messagesHandle.paused}
+            onChange={messagesHandle.pause}
             labelledBy={label}
             describedBy={hint}
-            pending={mail.pending}
+            pending={messagesHandle.pending}
           />
         </span>
       </ArtifactMeta>
-      {mail.error && (
-        <p className="mail-error" data-tone="danger" role="alert">
-          {mail.error}
+      {messagesHandle.error && (
+        <p className="message-error" data-tone="danger" role="alert">
+          {messagesHandle.error}
         </p>
       )}
-      {mail.paused && (
-        <p className="mail-paused" data-tone="warning" role="status">
+      {messagesHandle.paused && (
+        <p className="message-paused" data-tone="warning" role="status">
           Messaging is paused between agents. Your replies still go through.
         </p>
       )}
-      {mail.mail?.waits && mail.badge?.kind === "waiting" && (
-        <p className="mail-waits" data-tone="warning" role="status">
-          {waitsText[mail.mail.waits]}
+      {messagesHandle.threads?.waits && messagesHandle.badge?.kind === "waiting" && (
+        <p className="message-waits" data-tone="warning" role="status">
+          {waitsText[messagesHandle.threads.waits]}
         </p>
       )}
-      {opened && mail.mail ? (
+      {opened && messagesHandle.threads ? (
         <Chat
           key={opened.key}
           conversation={opened}
-          self={mail.mail.handle}
+          self={messagesHandle.threads.handle}
           peers={peers}
           links={links}
           onBack={() => {
@@ -517,21 +514,21 @@ export const MessagesView = ({
           }}
         />
       ) : (
-        <div className="mail-scroll">
+        <div className="message-scroll">
           {conversations.length ? (
-            <ul ref={list} className="mail-rows" aria-label="Conversations">
+            <ul ref={list} className="message-rows" aria-label="Conversations">
               {conversations.map((conversation) => (
                 <Row
                   key={conversation.key}
                   conversation={conversation}
                   peer={peers[conversation.peer]}
-                  seenAt={mail.seenAt(conversation.key)}
+                  seenAt={messagesHandle.seenAt(conversation.key)}
                   onOpen={() => setOpen(conversation.key)}
                 />
               ))}
             </ul>
           ) : (
-            <div className="artifact-status mail-empty">
+            <div className="artifact-status message-empty">
               No messages yet. Conversations with the other agents in this session show here.
             </div>
           )}

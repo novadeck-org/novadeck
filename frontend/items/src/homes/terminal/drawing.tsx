@@ -1,4 +1,4 @@
-import { mailBadgeLabel } from "@novadeck/core/messages"
+import { messageBadgeLabel } from "@novadeck/core/messages"
 import type { WorkspaceTarget } from "@novadeck/core/types"
 import { MessagesSquare, Pause, type LucideIcon } from "lucide-react"
 import type { ReactNode } from "react"
@@ -8,8 +8,8 @@ import type { LookContext } from "../../registration"
 import { itemLook, registrationOf, stackIcon, type Look } from "../../registry"
 import type { ItemStore } from "../../state"
 import type { BarDrawing } from "../../TaskbarSlot"
-import type { MailHandle, MailLinks } from "./messages/mail"
-import { MailThumb } from "./messages/MailThumb"
+import type { MessagesHandle, MessageLinks } from "./messages/messages"
+import { MessagesThumb } from "./messages/MessagesThumb"
 import { MessagesView } from "./messages/MessagesView"
 
 // How a terminal's home draws what's on its bar: an item by its kind's registration, and
@@ -30,22 +30,26 @@ export const slotIcon = (slot: BarSlot): LucideIcon =>
   slot.stack ? stackIcon(slot.stack) : memberIcon(slot.members[0]!)
 
 // What the messages' views read beside the item store.
-type MailProps = {
-  readonly mail: MailHandle
-  readonly links: MailLinks
+type MessagesProps = {
+  readonly messagesHandle: MessagesHandle
+  readonly links: MessageLinks
 }
 
-// Where what's drawn comes from: the item store for items, the mail for the messages.
-type Sources = MailProps & { readonly itemStore: ItemStore; readonly target: WorkspaceTarget }
+// Where what's drawn comes from: the item store for items, the handle for the messages.
+type Sources = MessagesProps & { readonly itemStore: ItemStore; readonly target: WorkspaceTarget }
 
 // The messages' count waiting for their agent, or the pause mark.
-const MailCount = ({ mail }: { mail: MailHandle }): React.JSX.Element | null =>
-  mail.badge ? (
-    <b className="plan-tb-count" data-mail={mail.badge.kind} aria-hidden="true">
-      {mail.badge.count}
+const MessagesCount = ({
+  messagesHandle,
+}: {
+  messagesHandle: MessagesHandle
+}): React.JSX.Element | null =>
+  messagesHandle.badge ? (
+    <b className="plan-tb-count" data-messages={messagesHandle.badge.kind} aria-hidden="true">
+      {messagesHandle.badge.count}
     </b>
-  ) : mail.paused ? (
-    <b className="plan-tb-count" data-mail="paused" aria-hidden="true">
+  ) : messagesHandle.paused ? (
+    <b className="plan-tb-count" data-messages="paused" aria-hidden="true">
       <Pause size={8} strokeWidth={2.5} />
     </b>
   ) : null
@@ -57,7 +61,8 @@ export const terminalDrawing = ({
 }: Sources & { readonly plans: LookContext["plans"] }): BarDrawing => ({
   look: (member) => memberLook(member, { plans }),
   preview: (member) => {
-    if (member.kind === "messages") return <MailThumb mail={sources.mail} links={sources.links} />
+    if (member.kind === "messages")
+      return <MessagesThumb messagesHandle={sources.messagesHandle} links={sources.links} />
     const { Thumb } = registrationOf(member.item)
     return <Thumb item={member.item} itemStore={sources.itemStore} target={sources.target} />
   },
@@ -65,10 +70,10 @@ export const terminalDrawing = ({
     member.kind !== "messages"
       ? undefined
       : {
-          mark: <MailCount mail={sources.mail} />,
-          label: sources.mail.badge
-            ? `, ${mailBadgeLabel(sources.mail.badge)}`
-            : sources.mail.paused
+          mark: <MessagesCount messagesHandle={sources.messagesHandle} />,
+          label: sources.messagesHandle.badge
+            ? `, ${messageBadgeLabel(sources.messagesHandle.badge)}`
+            : sources.messagesHandle.paused
               ? ", messaging paused"
               : "",
         },
@@ -79,12 +84,12 @@ export const MemberView = ({
   member,
   itemStore,
   target,
-  mail,
+  messagesHandle,
   links,
   actions,
 }: Sources & { member: BarMember; actions: ReactNode }): React.JSX.Element => {
   if (member.kind === "messages")
-    return <MessagesView mail={mail} links={links} actions={actions} />
+    return <MessagesView messagesHandle={messagesHandle} links={links} actions={actions} />
   const { View } = registrationOf(member.item)
   return <View item={member.item} itemStore={itemStore} target={target} actions={actions} />
 }

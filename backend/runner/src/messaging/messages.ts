@@ -4,8 +4,8 @@ import { stripVTControlCharacters } from "node:util"
 import { harnesses, type AgentName, type MessageState } from "@novadeck/protocol"
 
 /**
- * The mailbox's rules, as pure functions over its records (see docs/agent-messaging.md,
- * "Mailbox" and "Guards"). `Messaging` keeps the records and applies these.
+ * The message rules, as pure functions over its records (see docs/agent-messaging.md,
+ * "Message store" and "Guards"). `Messaging` keeps the records and applies these.
  */
 
 /** A terminal that sent a message: its handle, and its agent session when one was bound. */

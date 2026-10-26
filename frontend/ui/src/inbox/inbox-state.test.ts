@@ -1,4 +1,4 @@
-import type { InboxItem } from "@novadeck/core/inbox"
+import type { InboxRow } from "@novadeck/core/inbox"
 
 import { context, describe, expect, it } from "../test"
 import {
@@ -18,7 +18,7 @@ import {
   visible,
 } from "./inbox-state"
 
-const source: InboxItem["source"] = {
+const source: InboxRow["source"] = {
   projectId: "p",
   workspaceSessionId: "s",
   terminalId: "t",
@@ -29,7 +29,7 @@ const source: InboxItem["source"] = {
 }
 
 // A permission that waited since `at`.
-const approve = (id: string, at: number, stopped = true): InboxItem => ({
+const approve = (id: string, at: number, stopped = true): InboxRow => ({
   id,
   source,
   at,
@@ -47,7 +47,7 @@ const approve = (id: string, at: number, stopped = true): InboxItem => ({
     answered: false,
   },
 })
-const update = (id: string, at: number): InboxItem => ({
+const update = (id: string, at: number): InboxRow => ({
   id,
   source,
   at,
@@ -57,7 +57,7 @@ const update = (id: string, at: number): InboxItem => ({
   update: { type: "told", subject: id, body: "" },
 })
 
-const draft = (id: string, at: number): InboxItem => ({
+const draft = (id: string, at: number): InboxRow => ({
   id,
   source,
   at,
@@ -67,7 +67,7 @@ const draft = (id: string, at: number): InboxItem => ({
   draft: { kind: "idea", text: id },
 })
 
-const ids = (items: readonly InboxItem[]): string[] => items.map(({ id }) => id)
+const ids = (items: readonly InboxRow[]): string[] => items.map(({ id }) => id)
 
 describe("What the Inbox starts with", () => {
   it("is on the list at once, and none of it counts as having just arrived", () => {
@@ -201,7 +201,7 @@ describe("What the rail counts", () => {
   })
 
   context("with failed turns among the items", () => {
-    const failed = (id: string, stopped: boolean): InboxItem => ({
+    const failed = (id: string, stopped: boolean): InboxRow => ({
       id,
       source,
       at: 1,
@@ -225,7 +225,7 @@ describe("What the rail counts", () => {
 
   context("when stepping to the next item", () => {
     it("skips a failed turn that only informs", () => {
-      const informs: InboxItem = {
+      const informs: InboxRow = {
         id: "old",
         source,
         at: 1,

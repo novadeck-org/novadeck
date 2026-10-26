@@ -3,7 +3,7 @@ import {
   type AskShape,
   type Inbox,
   type InboxAnswer,
-  type InboxItem,
+  type InboxRow,
   type InboxState,
 } from "@novadeck/core/inbox"
 import { createStore } from "@novadeck/core/store"
@@ -38,8 +38,8 @@ const shapes = {
 
 // The sheet reads the public Inbox port; tests publish backend outcomes explicitly. An item
 // given is shown in place of an ask of that shape.
-const mount = (shape: keyof typeof shapes, item?: InboxItem) => {
-  const sample: InboxItem = item ?? {
+const mount = (shape: keyof typeof shapes, item?: InboxRow) => {
+  const sample: InboxRow = item ?? {
     id: "ask",
     source: {
       projectId: "p",
@@ -208,7 +208,7 @@ describe("An agent's several questions", () => {
     text: false,
     options: labels.map((label) => ({ id: label, label, description: null })),
   })
-  const asking: InboxItem = {
+  const asking: InboxRow = {
     id: "request:q",
     source: {
       projectId: "p",

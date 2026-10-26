@@ -64,7 +64,7 @@ export const askAnswer = z.discriminatedUnion("type", [
   z.strictObject({ type: z.literal("done") }),
 ])
 
-export const inboxLetter = z.strictObject({
+export const inboxEntry = z.strictObject({
   id,
   terminalId: id,
   projectId: id,
@@ -92,4 +92,4 @@ export const inboxLetter = z.strictObject({
 
 export type AgentAsk = z.infer<typeof agentAsk>
 export type AskAnswer = z.infer<typeof askAnswer>
-export type InboxLetter = z.infer<typeof inboxLetter>
+export type InboxEntry = z.infer<typeof inboxEntry>

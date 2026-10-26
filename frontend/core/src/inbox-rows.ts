@@ -5,7 +5,7 @@ import {
   ordered,
   type AgentAsk,
   type InboxContent,
-  type InboxItem,
+  type InboxRow,
   type InboxSource,
   type InboxTurn,
 } from "./inbox"
@@ -13,10 +13,10 @@ import { companionKeyId } from "./items"
 import {
   waitingFor,
   type AgentMessage,
-  type MailState,
-  type MailWaits,
+  type MessagesState,
+  type MessageWaits,
   type MessageThread,
-  type TerminalMail,
+  type TerminalThreads,
 } from "./messages"
 import { isAgentProgram } from "./process"
 import type { TerminalMetadata, Workspace, WorkspaceProject, WorkspaceSession } from "./types"
@@ -36,7 +36,7 @@ export type Asked = { readonly request: ChatRequest; readonly askedAt: number }
 
 // What an agent wrote through Novadeck's MCP `ask`, `tell` or `done`, from its terminal: an
 // ask, something it told the person, or its report that its task is done.
-export type InboxLetter = {
+export type InboxEntry = {
   readonly id: string
   readonly terminalId: string
   readonly projectId: string
@@ -54,8 +54,8 @@ export type InboxInputs = {
   readonly workspace: Workspace
   // The backend's stored finished turns, read ones gone.
   readonly turns: readonly InboxTurn[]
-  readonly mail: MailState
-  readonly letters: readonly InboxLetter[]
+  readonly messages: MessagesState
+  readonly entries: readonly InboxEntry[]
   // The requests of each terminal whose detail is open, by terminal id, oldest first.
   readonly requests: Readonly<Record<string, readonly Asked[]>>
   readonly now: number
@@ -96,7 +96,7 @@ const heldOf = (
   thread: MessageThread,
   message: AgentMessage,
   where: Where[],
-): InboxItem | undefined => {
+): InboxRow | undefined => {
   const named = (handle: string) => where.find(({ terminal }) => terminal.handle === handle)
   const sender = named(message.from)
   const recipient = named(message.to)
@@ -130,15 +130,15 @@ const heldOf = (
 // how many (none held for the person's release or a pause, which have items and switches of
 // their own).
 const heldLong = (
-  mail: TerminalMail | undefined,
+  messages: TerminalThreads | undefined,
   now: number,
   longHoldMs: number,
 ):
-  | { readonly waits: MailWaits | null; readonly since: number; readonly count: number }
+  | { readonly waits: MessageWaits | null; readonly since: number; readonly count: number }
   | undefined => {
-  const { waits = null, waitsSince } = mail ?? {}
-  if (!mail || waitsSince == null || now - waitsSince < longHoldMs) return undefined
-  const count = waitingFor(mail).filter((message) => message.state === "queued").length
+  const { waits = null, waitsSince } = messages ?? {}
+  if (!messages || waitsSince == null || now - waitsSince < longHoldMs) return undefined
+  const count = waitingFor(messages).filter((message) => message.state === "queued").length
   return count > 0 ? { waits, since: waitsSince, count } : undefined
 }
 
@@ -170,15 +170,15 @@ export const leadHearsOf = (workspace: Workspace, context: string, terminalId: s
 
 // Each terminal's items, each its own row.
 const candidates = (
-  { mail, requests, now, longHoldMs }: InboxInputs,
+  { messages, requests, now, longHoldMs }: InboxInputs,
   here: Where,
-): readonly InboxItem[] => {
+): readonly InboxRow[] => {
   const { project, session, terminal } = here
   const agent = agentOf(terminal)
   if (!agent || terminal.state !== "running" || !terminal.agent) return []
   const status = terminal.agent
   const source = sourceOf(here, agent)
-  const found: InboxItem[] = []
+  const found: InboxRow[] = []
   const add = (id: string, at: number, stopped: boolean, content: InboxContent): void => {
     found.push({ id, source, at, stopped, seen: false, ...content })
   }
@@ -202,7 +202,7 @@ const candidates = (
     !status.working &&
     longHoldMs !== null &&
     heldLong(
-      mail.terminals[
+      messages.terminals[
         companionKeyId({
           projectId: project.id,
           workspaceSessionId: session.id,
@@ -245,39 +245,39 @@ const candidates = (
 
 // Every item the Inbox now holds, the longest waiting among the most urgent first: each of a
 // terminal's items, and each thread held for release.
-export const inboxItems = (inputs: InboxInputs): InboxItem[] => {
+export const inboxRows = (inputs: InboxInputs): InboxRow[] => {
   const where = whereOf(inputs.workspace)
   const all = where.flatMap((here) => candidates(inputs, here))
-  for (const letter of inputs.letters) {
+  for (const entry of inputs.entries) {
     const here = where.find(
       ({ project, session, terminal }) =>
-        project.id === letter.projectId &&
-        session.id === letter.workspaceSessionId &&
-        terminal.id === letter.terminalId &&
-        (terminal.handle ?? "") === letter.handle &&
-        (letter.content.kind !== "ask" || agentOf(terminal) === letter.agent),
+        project.id === entry.projectId &&
+        session.id === entry.workspaceSessionId &&
+        terminal.id === entry.terminalId &&
+        (terminal.handle ?? "") === entry.handle &&
+        (entry.content.kind !== "ask" || agentOf(terminal) === entry.agent),
     )
     if (!here) continue
     // A worker's done is its lead's to hear while the lead's agent runs: a team reports
     // one finish.
-    if (letter.content.kind === "done" && reportsToLead(here, where)) continue
-    const { content: letterContent } = letter
+    if (entry.content.kind === "done" && reportsToLead(here, where)) continue
+    const { content: entryContent } = entry
     const content: InboxContent =
-      letterContent.kind === "ask"
-        ? { kind: "ask", ask: letterContent.ask }
+      entryContent.kind === "ask"
+        ? { kind: "ask", ask: entryContent.ask }
         : {
             kind: "update",
             update: {
-              type: letterContent.kind === "done" ? "done" : "told",
-              subject: letterContent.subject,
-              body: letterContent.body,
+              type: entryContent.kind === "done" ? "done" : "told",
+              subject: entryContent.subject,
+              body: entryContent.body,
             },
           }
     all.push({
-      id: letter.id,
-      source: sourceOf(here, letter.agent),
-      at: letter.at,
-      stopped: letter.content.kind === "ask" && !agentWorking(here.terminal),
+      id: entry.id,
+      source: sourceOf(here, entry.agent),
+      at: entry.at,
+      stopped: entry.content.kind === "ask" && !agentWorking(here.terminal),
       seen: false,
       ...content,
     })
@@ -315,9 +315,9 @@ export const inboxItems = (inputs: InboxInputs): InboxItem[] => {
 
   // A thread held for release is listed by both its terminals: once, from its oldest
   // held message.
-  const threads = new Map<string, InboxItem>()
-  for (const mail of Object.values(inputs.mail.terminals))
-    for (const thread of mail.threads) {
+  const threads = new Map<string, InboxRow>()
+  for (const messages of Object.values(inputs.messages.terminals))
+    for (const thread of messages.threads) {
       if (!thread.held || threads.has(thread.id)) continue
       const message = thread.messages.find((each) => each.held === "release")
       const item = message && heldOf(thread, message, where)
@@ -330,9 +330,9 @@ export const inboxItems = (inputs: InboxInputs): InboxItem[] => {
 
 // Items that read the same keep their old objects, so what shows them stays as it is.
 export const reuse = (
-  before: readonly InboxItem[],
-  next: readonly InboxItem[],
-): readonly InboxItem[] => {
+  before: readonly InboxRow[],
+  next: readonly InboxRow[],
+): readonly InboxRow[] => {
   const old = new Map(before.map((item) => [item.id, item]))
   const items = next.map((item) => {
     const known = old.get(item.id)

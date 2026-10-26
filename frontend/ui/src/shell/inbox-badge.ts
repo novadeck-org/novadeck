@@ -1,4 +1,4 @@
-import { inboxType, urgency, type InboxItem } from "@novadeck/core/inbox"
+import { inboxType, urgency, type InboxRow } from "@novadeck/core/inbox"
 
 import { needing } from "../inbox/inbox-state"
 import { toneOf } from "../inbox/inbox-text"
@@ -19,7 +19,7 @@ export type BellBadge = {
 // The Inbox's badge, undefined while nothing waits: what isn't an update, toned by the most
 // pressing of it: trouble that stopped an agent as a failure, an ask as a question, anything
 // else as needing attention.
-export const inboxBadge = (items: readonly InboxItem[]): BellBadge | undefined => {
+export const inboxBadge = (items: readonly InboxRow[]): BellBadge | undefined => {
   const waiting = needing(items)
   if (waiting.length === 0) return undefined
   const first = waiting.reduce((a, b) => (urgency(b) < urgency(a) ? b : a))

@@ -49,7 +49,7 @@ export type BindingsHost = {
   ) => boolean
   /** Follows the root after the terminal's binding changed outside its hooks' reports. */
   readonly rebound: (record: Record) => void
-  /** Where finished turns are stored: the Inbox's letters and the redactor that masks their text. */
+  /** Where finished turns are stored: the Inbox's entries and the redactor that masks their text. */
   readonly turns: () => TurnsHost
   /** Whether process `pid` still runs. */
   readonly alive: (pid: string) => boolean

@@ -8,7 +8,7 @@ import {
   wakePassed,
 } from "@novadeck/core/agent-waiting"
 import { showsHandle, terminalLabel } from "@novadeck/core/handle"
-import { mailBadgeLabel, type MailBadge } from "@novadeck/core/messages"
+import { messageBadgeLabel, type MessageBadge } from "@novadeck/core/messages"
 import { isWindow } from "@novadeck/core/roster"
 import {
   endingText,
@@ -64,7 +64,7 @@ export const TerminalTab = ({
   needDialog,
   reported = false,
   rename,
-  mail = null,
+  messageBadge = null,
   companion,
   onVisibilityChange,
   onSelect,
@@ -101,7 +101,7 @@ export const TerminalTab = ({
   reported?: boolean
   rename: TerminalRename | null
   // What waits for its agent, when anything does: the tab says it in words.
-  mail?: MailBadge | null
+  messageBadge?: MessageBadge | null
   // What its companion bar holds, at the end of its name's line.
   companion?: ReactNode
   onVisibilityChange: (hidden: boolean) => void
@@ -144,7 +144,7 @@ export const TerminalTab = ({
   const waits = phase === "waiting" && shell ? waitingOf(shell) : undefined
   const passed = shell && (phase === "idle" || phase === "done") ? wakePassed(shell) : undefined
   const note = ended ?? text
-  const messages = mail ? mailBadgeLabel(mail) : undefined
+  const messages = messageBadge ? messageBadgeLabel(messageBadge) : undefined
   // The subagents its agent runs: marked on its line, their kinds under it while selected,
   // and counted in words wherever it marks them.
   const subagents = shell && subagentsBadge(shell)

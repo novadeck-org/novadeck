@@ -174,7 +174,7 @@ export const recordingRunner = (runner: Runner, io: string[]): RunnerApi => {
       set: (agent, connected) =>
         note(`agent ${agent} ${connected}`, () => runner.agents.set(agent, connected)),
     },
-    asks: runner.asks,
+    inbox: runner.inbox,
     messages: {
       list: (terminalId) => runner.messages.list(terminalId),
       watch: (terminalId) => runner.messages.watch(terminalId),

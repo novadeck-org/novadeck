@@ -1,12 +1,12 @@
-import type { AgentMessage, MessageThread, TerminalMail } from "@novadeck/core/messages"
+import type { AgentMessage, MessageThread, TerminalThreads } from "@novadeck/core/messages"
 
 // A terminal's messages as the pane reads them: a list of its conversations, each one
-// other terminal's thread with it or the person's letters, and one opened as a chat.
+// other terminal's thread with it or the person's entries, and one opened as a chat.
 
 // One conversation: every thread the terminal had with one other, keyed by its handle (the
 // runner starts a new thread for a pair after ten quiet minutes), or, keyed `you`, every
-// letter its agent wrote the person with their replies, which the runner keeps as a thread
-// a letter. Its messages oldest first; for each of the person's replies, the question it
+// entry its agent wrote the person with their replies, which the runner keeps as a thread
+// an entry. Its messages oldest first; for each of the person's replies, the question it
 // answers.
 export type Conversation = {
   readonly key: string
@@ -17,9 +17,9 @@ export type Conversation = {
 
 export const youKey = "you"
 
-export const conversationsOf = (mail: TerminalMail): readonly Conversation[] => {
+export const conversationsOf = (terminal: TerminalThreads): readonly Conversation[] => {
   const byPeer = new Map<string, MessageThread[]>()
-  for (const thread of mail.threads)
+  for (const thread of terminal.threads)
     byPeer.set(thread.peer, [...(byPeer.get(thread.peer) ?? []), thread])
   return [...byPeer].map(([peer, threads]): Conversation => {
     const asked = new Map<string, AgentMessage>()
@@ -40,9 +40,9 @@ export const conversationsOf = (mail: TerminalMail): readonly Conversation[] => 
 export const latestOf = (conversation: Conversation): number =>
   conversation.messages.at(-1)?.sentAt ?? 0
 
-// The open letters of a kind; news (`"tell"`) counts a done report, which is a tell that says
+// The open entries of a kind; news (`"tell"`) counts a done report, which is a tell that says
 // the task is finished.
-const openLetters = (conversation: Conversation, kind: "ask" | "tell"): number =>
+const openEntries = (conversation: Conversation, kind: "ask" | "tell"): number =>
   conversation.messages.filter(
     (message) =>
       (message.inbox === kind || (kind === "tell" && message.inbox === "done")) &&
@@ -50,11 +50,11 @@ const openLetters = (conversation: Conversation, kind: "ask" | "tell"): number =
   ).length
 
 // The questions the person hasn't answered yet.
-export const openAsks = (conversation: Conversation): number => openLetters(conversation, "ask")
+export const openAsks = (conversation: Conversation): number => openEntries(conversation, "ask")
 
 // What a row's corner says, one thing: that the agent asks the person something, that its
 // last message was lost, that there's news since the person last looked (`seenAt`), or else
-// when its last message came. The person's letters say news by their own unread state, an
+// when its last message came. The person's entries say news by their own unread state, an
 // agent's by any message from it since.
 export type Corner =
   | { readonly kind: "asks" }
@@ -68,26 +68,26 @@ export const cornerOf = (conversation: Conversation, seenAt: number): Corner => 
   if (you && openAsks(conversation)) return { kind: "asks" }
   if (last?.state === "gone") return { kind: "undelivered" }
   const news = you
-    ? openLetters(conversation, "tell") > 0
+    ? openEntries(conversation, "tell") > 0
     : conversation.messages.some(
         (message) => message.from === conversation.peer && message.sentAt > seenAt,
       )
   return news ? { kind: "unread" } : { kind: "time", at: last?.sentAt ?? 0 }
 }
 
-// Whether the person's letters wait on them: a question open or news unread.
+// Whether the person's entries wait on them: a question open or news unread.
 export const waitsOnPerson = (conversation: Conversation): boolean =>
   conversation.key === youKey &&
-  (openAsks(conversation) > 0 || openLetters(conversation, "tell") > 0)
+  (openAsks(conversation) > 0 || openEntries(conversation, "tell") > 0)
 
-// The list: the person's letters first while they wait on them, then latest first.
+// The list: the person's entries first while they wait on them, then latest first.
 export const listed = (conversations: readonly Conversation[]): readonly Conversation[] =>
   conversations.toSorted(
     (a, b) => Number(waitsOnPerson(b)) - Number(waitsOnPerson(a)) || latestOf(b) - latestOf(a),
   )
 
-// How a letter says what it is, in plain words, by its kind and where it stands.
-export const letterLabel = (message: AgentMessage): string | undefined => {
+// How an entry says what it is, in plain words, by its kind and where it stands.
+export const entryLabel = (message: AgentMessage): string | undefined => {
   if (message.inbox === "tell") return message.inboxState === "open" ? "Tells you" : "Told you"
   if (message.inbox === "done")
     return message.inboxState === "open" ? "Reports done" : "Reported done"
@@ -114,10 +114,10 @@ export const letterLabel = (message: AgentMessage): string | undefined => {
 export type Note = "queued" | "leased" | "gone" | "delivered"
 
 // A chat, top to bottom: the time where a burst starts (the first message, or one after ten
-// quiet minutes), a New line before the first of the person's unread letters, rounds that
+// quiet minutes), a New line before the first of the person's unread entries, rounds that
 // repeat folded to one line, and the messages, each on its side, grouped under the one
 // before it from the same sender.
-export type ChatEntry =
+export type ChatLine =
   | { readonly kind: "time"; readonly key: string; readonly at: number }
   | { readonly kind: "new"; readonly key: string }
   | {
@@ -130,7 +130,7 @@ export type ChatEntry =
       readonly kind: "message"
       readonly key: string
       readonly message: AgentMessage
-      // The right side is the terminal's own agent's, or the person's in their letters.
+      // The right side is the terminal's own agent's, or the person's in their entries.
       readonly side: "out" | "in"
       readonly grouped: boolean
       readonly note: Note | null
@@ -193,26 +193,26 @@ export const chatOf = (
   conversation: Conversation,
   self: string,
   unfolded: boolean,
-): readonly ChatEntry[] => {
+): readonly ChatLine[] => {
   const you = conversation.key === youKey
   const mine = you ? "you" : self
   const lastMine = conversation.messages.findLast((message) => message.from === mine)
-  const entries: ChatEntry[] = []
+  const lines: ChatLine[] = []
   let prev: AgentMessage | null = null
   let fresh = false
   const burst = (message: AgentMessage): void => {
     if (prev && message.sentAt - prev.sentAt < burstMs) return
-    entries.push({ kind: "time", key: `time-${message.id}`, at: message.sentAt })
+    lines.push({ kind: "time", key: `time-${message.id}`, at: message.sentAt })
     prev = null
   }
   const one = (message: AgentMessage): void => {
     burst(message)
     if (you && !fresh && message.inboxState === "open" && message.from !== "you") {
-      entries.push({ kind: "new", key: "new" })
+      lines.push({ kind: "new", key: "new" })
       fresh = true
       prev = null
     }
-    entries.push({
+    lines.push({
       kind: "message",
       key: message.id,
       message,
@@ -230,9 +230,9 @@ export const chatOf = (
     else {
       const first = run.fold[0]!
       burst(first)
-      entries.push({ kind: "fold", key: `fold-${first.id}`, rounds: run.rounds, first })
+      lines.push({ kind: "fold", key: `fold-${first.id}`, rounds: run.rounds, first })
       prev = run.fold.at(-1)!
     }
   }
-  return entries
+  return lines
 }

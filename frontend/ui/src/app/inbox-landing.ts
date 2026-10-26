@@ -1,4 +1,4 @@
-import { noInbox, type Inbox, type InboxItem, type InboxState } from "@novadeck/core/inbox"
+import { noInbox, type Inbox, type InboxRow, type InboxState } from "@novadeck/core/inbox"
 import { createStore, type Store } from "@novadeck/core/store"
 import type { Workspace } from "@novadeck/core/types"
 
@@ -28,9 +28,9 @@ import { viewing, type UiState, type UiStore } from "./ui-store"
 // so everything that consumes the landed Inbox, and whatever opens an item by its id, shares
 // the one object through the workspace services.
 
-const keyOf = (item: InboxItem): string => `${item.id}@${item.at}`
+const keyOf = (item: InboxRow): string => `${item.id}@${item.at}`
 
-const sameItems = (a: readonly InboxItem[], b: readonly InboxItem[]): boolean =>
+const sameItems = (a: readonly InboxRow[], b: readonly InboxRow[]): boolean =>
   a.length === b.length && a.every((item, index) => item === b[index])
 
 type WorkspaceSource = Pick<Store<Workspace>, "getSnapshot" | "subscribe">
@@ -44,14 +44,14 @@ export const readDwellMs = 1000
 // as the person looked away. They count on the bell, but the person has already seen them
 // where they happened, so no toast or OS ping rings for them.
 export type LandedInbox = Inbox & {
-  readonly landedQuietly: (item: InboxItem) => boolean
+  readonly landedQuietly: (item: InboxRow) => boolean
 }
 
 // What the landing rule decides of one raw item, from what is known of it: whether its
 // terminal is viewed (`here`), whether it has landed or been kept unread while viewed, whether
 // it already landed quietly, and whether it has waited out the dwell (`ripe`).
 export type ItemFacts = {
-  readonly kind: InboxItem["kind"]
+  readonly kind: InboxRow["kind"]
   readonly here: boolean
   readonly landed: boolean
   readonly kept: boolean
@@ -147,8 +147,8 @@ export const landInbox = (
         clearTimeout(timer)
         dwelling.delete(key)
       }
-    const items: InboxItem[] = []
-    const toRead: InboxItem[] = []
+    const items: InboxRow[] = []
+    const toRead: InboxRow[] = []
     const stillDwelling = new Set<string>()
     for (const item of state.items) {
       const key = keyOf(item)

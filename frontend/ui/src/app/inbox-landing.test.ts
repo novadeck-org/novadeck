@@ -2,7 +2,7 @@ import {
   emptyInbox,
   type Inbox,
   type InboxAnswer,
-  type InboxItem,
+  type InboxRow,
   type InboxState,
 } from "@novadeck/core/inbox"
 import { createStore, createWorkspaceStore } from "@novadeck/core/store"
@@ -16,7 +16,7 @@ import { createUiStore, initialUi } from "./ui-store"
 
 const target = { projectId: "project", workspaceSessionId: "initial" }
 
-const source = (terminalId: string): InboxItem["source"] => ({
+const source = (terminalId: string): InboxRow["source"] => ({
   ...target,
   terminalId,
   handle: "moth",
@@ -25,7 +25,7 @@ const source = (terminalId: string): InboxItem["source"] => ({
   projectName: "Project",
 })
 
-const ask = (id: string, terminalId: string): InboxItem => ({
+const ask = (id: string, terminalId: string): InboxRow => ({
   id,
   source: source(terminalId),
   at: 1,
@@ -35,7 +35,7 @@ const ask = (id: string, terminalId: string): InboxItem => ({
   ask: { subject: "Which?", body: "", details: null, hardToUndo: null, shape: { type: "text" } },
 })
 
-const done = (id: string, terminalId: string): InboxItem => ({
+const done = (id: string, terminalId: string): InboxRow => ({
   id,
   source: source(terminalId),
   at: 1,
@@ -103,7 +103,7 @@ const setup = (initiallyWide = true) => {
     restart: start,
     reveal,
     answers,
-    set: (items: InboxItem[]) => void state.update((current) => ({ ...current, items })),
+    set: (items: InboxRow[]) => void state.update((current) => ({ ...current, items })),
     patch: (patch: Partial<InboxState>) =>
       void state.update((current) => ({ ...current, ...patch })),
     resize: (next: boolean) => {

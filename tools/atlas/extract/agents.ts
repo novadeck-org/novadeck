@@ -27,7 +27,7 @@ const handlers: Record<string, { readonly file: string; readonly method: string 
   send: { file: managerFile, method: "send" },
   agents: { file: managerFile, method: "agents" },
   summarize: { file: callsFile, method: "summarize" },
-  // The Inbox's, which the calls' dispatch hands to its asks.
+  // The Inbox's tools, which the calls' dispatch hands to the Inbox.
   ask: { file: callsFile, method: "call" },
   tell: { file: callsFile, method: "call" },
   done: { file: callsFile, method: "call" },
@@ -57,7 +57,7 @@ const extractTools = (anchors: Anchors, adapters: Adapter[]): McpTool[] => {
   // The constants the literals spread or name, each ending at a blank line or a comment.
   const preamble = [
     ...source.matchAll(
-      /^const (rules|agentChoices|letterFields)\b[^=]*=\s*([\s\S]*?)\n(?=\n|\/\/)/gm,
+      /^const (rules|agentChoices|entryFields)\b[^=]*=\s*([\s\S]*?)\n(?=\n|\/\/)/gm,
     ),
   ]
     .map(([, name, value]) => `const ${name} = ${value}`)

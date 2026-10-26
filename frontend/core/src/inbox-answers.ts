@@ -1,7 +1,7 @@
 import { agentWorking } from "./agent-finish"
 import type { ChatAnswer, ConversationKey } from "./conversation"
-import type { InboxAnswer, InboxItem, InboxState } from "./inbox"
-import { reuse } from "./inbox-items"
+import type { InboxAnswer, InboxRow, InboxState } from "./inbox"
+import { reuse } from "./inbox-rows"
 import type { TerminalMetadata } from "./types"
 
 // What a backend that builds its Inbox from the app's state does with the person's answers,
@@ -14,7 +14,7 @@ export const answerFailure = (error: unknown): string =>
   error instanceof Error && error.message ? error.message : "That didn't take. Try again."
 
 // The terminal an item is about, by its full address.
-export const keyOf = ({ source }: InboxItem): ConversationKey => ({
+export const keyOf = ({ source }: InboxRow): ConversationKey => ({
   projectId: source.projectId,
   workspaceSessionId: source.workspaceSessionId,
   terminalId: source.terminalId,
@@ -22,7 +22,7 @@ export const keyOf = ({ source }: InboxItem): ConversationKey => ({
 
 // Whether an item is a stored turn row (read by id), as its `stored` mark says, not the failed
 // row derived from a limited end, which no read touches.
-export const isTurnRow = (item: InboxItem): boolean =>
+export const isTurnRow = (item: InboxRow): boolean =>
   item.kind === "trouble" && item.trouble.type === "failed" && item.trouble.stored === true
 
 // The state as it was when nothing changed in it, so what subscribes to it stays quiet.
@@ -38,7 +38,7 @@ export const keepInbox = (current: InboxState, next: InboxState): InboxState => 
 // What the tracker shows of the items a backend found: the `seen` ones marked, and which
 // are answering or have failed. A backend adds what it tracks itself before it publishes.
 export type InboxView = {
-  readonly items: readonly InboxItem[]
+  readonly items: readonly InboxRow[]
   readonly answering: Record<string, true>
   readonly failed: Record<string, string>
 }
@@ -54,7 +54,7 @@ export type InboxTrackerOptions = {
 }
 
 export type InboxTracker = {
-  readonly view: (found: readonly InboxItem[]) => InboxView
+  readonly view: (found: readonly InboxRow[]) => InboxView
   readonly see: (id: string) => void
   // Runs an answer: its item shows answering until the backend drops it or the answer fails.
   // With `settles`, an answer that took but left its item standing (a prompt that started no
@@ -192,7 +192,7 @@ export const createInboxTracker = ({
   }
 }
 
-type RequestItem = Extract<InboxItem, { kind: "request" }>
+type RequestItem = Extract<InboxRow, { kind: "request" }>
 
 // What answering an item asks of the backend; each is its own way to reach the agent.
 export type InboxActions = {
@@ -227,7 +227,7 @@ export type InboxActions = {
 // kinds a backend answers itself (an ask, a told or done update) it handles before this.
 export const answerItem = (
   tracker: InboxTracker,
-  item: InboxItem,
+  item: InboxRow,
   given: InboxAnswer,
   actions: InboxActions,
 ): void => {

@@ -273,11 +273,11 @@ export const scriptedRunner = ({
         unplayed("companions.resetWindowTitle"),
       ),
     },
-    asks: {
-      list: api.asks.list.handler(unplayed("asks.list")),
-      watch: api.asks.watch.handler(idle),
-      answer: api.asks.answer.handler(unplayed("asks.answer")),
-      read: api.asks.read.handler(unplayed("asks.read")),
+    inbox: {
+      list: api.inbox.list.handler(unplayed("inbox.list")),
+      watch: api.inbox.watch.handler(idle),
+      answer: api.inbox.answer.handler(unplayed("inbox.answer")),
+      read: api.inbox.read.handler(unplayed("inbox.read")),
     },
     messages: {
       list: api.messages.list.handler(unplayed("messages.list")),

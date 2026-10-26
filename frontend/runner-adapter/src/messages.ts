@@ -1,5 +1,10 @@
 import { companionKeyId, type CompanionKey } from "@novadeck/core/items"
-import { noMail, type MailState, type Messages, type TerminalMail } from "@novadeck/core/messages"
+import {
+  noMessages,
+  type MessagesState,
+  type Messages,
+  type TerminalThreads,
+} from "@novadeck/core/messages"
 import { createStore } from "@novadeck/core/store"
 import type { TerminalMessages } from "@novadeck/protocol"
 
@@ -8,7 +13,7 @@ import type { TerminalMessages } from "@novadeck/protocol"
 // accepted is so; a release goes on once a listing shows its thread no longer held, as a
 // listing may come before or after the runner's answer.
 
-export type MailStreams = {
+export type MessageStreams = {
   readonly watch: (terminalId: string) => AsyncIterableIterator<TerminalMessages, undefined>
   readonly pause: (paused: boolean) => Promise<void>
   readonly release: (thread: string) => Promise<void>
@@ -25,7 +30,7 @@ export type RunnerMessages = Messages & {
   readonly end: () => void
 }
 
-export const mailOf = (listing: TerminalMessages): TerminalMail => ({
+export const messagesOf = (listing: TerminalMessages): TerminalThreads => ({
   handle: listing.handle,
   agent: listing.delivery !== "unbound",
   waits: listing.waits,
@@ -54,20 +59,22 @@ export const mailOf = (listing: TerminalMessages): TerminalMail => ({
 })
 
 // Whether some listing has the thread, and not held.
-const goesOn = (current: MailState, thread: string): boolean =>
-  Object.values(current.terminals).some((mail) =>
-    mail.threads.some((each) => each.id === thread && !each.held),
+const goesOn = (current: MessagesState, thread: string): boolean =>
+  Object.values(current.terminals).some((terminalMessages) =>
+    terminalMessages.threads.some((each) => each.id === thread && !each.held),
   )
 
 // Whether some listing has the thread at all.
-const listed = (current: MailState, thread: string): boolean =>
-  Object.values(current.terminals).some((mail) => mail.threads.some((each) => each.id === thread))
+const listed = (current: MessagesState, thread: string): boolean =>
+  Object.values(current.terminals).some((terminalMessages) =>
+    terminalMessages.threads.some((each) => each.id === thread),
+  )
 
 // What the listings now say of releases: a thread shown going on is released once the
 // runner accepted it, and any failure it showed is over. With `gone`, as once a terminal's
 // listing goes or a release was accepted, a thread no listing has any more can't be shown
 // released, so it's let go.
-export const reconcile = (current: MailState, gone = false): MailState => {
+export const reconcile = (current: MessagesState, gone = false): MessagesState => {
   const entries = Object.entries(current.releasing)
   const releasing = Object.fromEntries(
     entries.filter(
@@ -88,11 +95,11 @@ const reason = (error: unknown): string =>
   error instanceof Error && error.message ? error.message : String(error)
 
 export const createRunnerMessages = (
-  streams: MailStreams,
+  streams: MessageStreams,
   // Keeps a call the backend waits for before it stops, as its other calls are.
   track: <T>(work: Promise<T>) => Promise<T> = (work) => work,
 ): RunnerMessages => {
-  const state = createStore<MailState>(noMail)
+  const state = createStore<MessagesState>(noMessages)
   const followed = new Map<string, AsyncIterableIterator<TerminalMessages, undefined>>()
 
   const forget = (id: string): void =>
@@ -121,7 +128,7 @@ export const createRunnerMessages = (
             reconcile({
               ...current,
               paused: listing.paused,
-              terminals: { ...current.terminals, [id]: mailOf(listing) },
+              terminals: { ...current.terminals, [id]: messagesOf(listing) },
             }),
           )
         }

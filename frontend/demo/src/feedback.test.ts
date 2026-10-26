@@ -1,4 +1,4 @@
-import type { InboxItem } from "@novadeck/core/inbox"
+import type { InboxRow } from "@novadeck/core/inbox"
 import type { TerminalKey } from "@novadeck/core/port"
 import { workspaceFromSeed } from "@novadeck/core/seed"
 import { createWorkspaceStore } from "@novadeck/core/store"
@@ -107,7 +107,7 @@ const boot = () => {
     !each.terminal.agent?.working &&
     !each.terminal.agent?.attention &&
     chatAgent(each.terminal)
-  const feedbackItems = (): InboxItem[] =>
+  const feedbackItems = (): InboxRow[] =>
     inbox.state.getSnapshot().items.filter((each) => each.kind === "feedback")
   return { turns, backend, feedback, inbox, store, terminals, resting, feedbackItems }
 }

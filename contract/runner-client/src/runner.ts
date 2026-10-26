@@ -2,7 +2,7 @@ import {
   contract,
   type WireClient,
   type AskAnswer,
-  type InboxLetter,
+  type InboxEntry,
   maxUploadBytes,
   maxUploadPartLength,
   maxVoicePartLength,
@@ -391,9 +391,9 @@ export type Runner = {
       readonly troubles: PageTrouble[]
     }): Promise<void>
   }
-  readonly asks: {
-    list(): Promise<InboxLetter[]>
-    watch(): AsyncIterableIterator<InboxLetter[], undefined>
+  readonly inbox: {
+    list(): Promise<InboxEntry[]>
+    watch(): AsyncIterableIterator<InboxEntry[], undefined>
     answer(id: string, answer: AskAnswer): Promise<void>
     read(ids: readonly string[]): Promise<void>
   }
@@ -726,12 +726,12 @@ export const connectRunner = async (
         call((wire) => wire.companions.resetWindowTitle({ windowId })),
       pageTrouble: (input) => call((wire) => wire.companions.pageTrouble(input)),
     },
-    asks: {
-      list: () => call((wire) => wire.asks.list()),
+    inbox: {
+      list: () => call((wire) => wire.inbox.list()),
       watch: () =>
-        resubscribe(connection, (wire, signal) => wire.asks.watch(undefined, { signal })),
-      answer: (id, answer) => call((wire) => wire.asks.answer({ id, answer })),
-      read: (ids) => call((wire) => wire.asks.read({ ids: [...ids] })),
+        resubscribe(connection, (wire, signal) => wire.inbox.watch(undefined, { signal })),
+      answer: (id, answer) => call((wire) => wire.inbox.answer({ id, answer })),
+      read: (ids) => call((wire) => wire.inbox.read({ ids: [...ids] })),
     },
     messages: {
       list: (terminalId) => call((wire) => wire.messages.list({ terminalId })),

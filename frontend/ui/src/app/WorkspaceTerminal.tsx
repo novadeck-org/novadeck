@@ -26,7 +26,7 @@ import { useAskFeedback } from "./ask-feedback"
 import { useUiState, useWorkspaceServices, useWorkspaceState } from "./controller/context"
 import { DictationContext, useMicButton } from "./controller/dictation"
 import { useDockTarget } from "./dock-target"
-import { useMailLinks } from "./mail-links"
+import { useMessageLinks } from "./message-links"
 import { MountedTerminal } from "./MountedTerminal"
 import { plainTitle } from "./murmur-offer"
 import { NameChip } from "./NameChip"
@@ -225,7 +225,7 @@ export const WorkspaceTerminal = memo(
       () => ({ projectId, workspaceSessionId, terminalId }),
       [projectId, workspaceSessionId, terminalId],
     )
-    const mailLinks = useMailLinks()
+    const messageLinks = useMessageLinks()
     const onInputFocused = useCallback(() => setKeyboardFocus(null), [setKeyboardFocus])
     const { bar, items, fresh } = useTerminalBar(terminalId)
     const { icon: Icon, Body } = terminalProfile(terminal)
@@ -341,7 +341,7 @@ export const WorkspaceTerminal = memo(
             <TerminalCompanion
               itemStore={itemStore}
               messages={backend.messages}
-              links={mailLinks}
+              links={messageLinks}
               companionKey={terminalKey}
               view={view}
               onReveal={onReveal}

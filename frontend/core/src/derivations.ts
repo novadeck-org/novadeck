@@ -1,5 +1,5 @@
 import { handleText } from "./handle"
-import type { MailPeer } from "./messages"
+import type { MessagePeer } from "./messages"
 import { isAgentProgram } from "./process"
 import { remembered } from "./roster"
 import { activeSession } from "./state"
@@ -60,9 +60,9 @@ export const runningLeads = (workspace: Workspace): Readonly<Record<string, Runn
 
 // The current session's terminals as their messages show them, by handle, which name the
 // agents its messages are with and say whether each is there.
-const peersOf = remembered((roster): Readonly<Record<string, MailPeer>> =>
+const peersOf = remembered((roster): Readonly<Record<string, MessagePeer>> =>
   Object.fromEntries(
-    roster.terminals.flatMap((each): [string, MailPeer][] =>
+    roster.terminals.flatMap((each): [string, MessagePeer][] =>
       each.handle
         ? [
             [
@@ -85,7 +85,7 @@ const peersOf = remembered((roster): Readonly<Record<string, MailPeer>> =>
   ),
 )
 
-export const mailPeers = (workspace: Workspace): Readonly<Record<string, MailPeer>> =>
+export const messagePeers = (workspace: Workspace): Readonly<Record<string, MessagePeer>> =>
   peersOf(rosterOf(workspace))
 
 // A lead and the terminals it leads, by id, its workers in the roster's order.

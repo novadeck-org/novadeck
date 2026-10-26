@@ -1,18 +1,18 @@
 import type { ChatRequest } from "./conversation"
 import {
   inboxType,
-  letterItem,
+  entryRow,
   nextLimitReset,
   ordered,
   terminalDone,
   terminalNeed,
   urgency,
   type InboxContent,
-  type InboxItem,
+  type InboxRow,
 } from "./inbox"
 import { describe, expect, it } from "./test"
 
-const source: InboxItem["source"] = {
+const source: InboxRow["source"] = {
   projectId: "p",
   workspaceSessionId: "s",
   terminalId: "t",
@@ -59,7 +59,7 @@ const told: InboxContent = { kind: "update", update: { type: "told", subject: "s
 
 const draft: InboxContent = { kind: "feedback", draft: { kind: "bug", text: "It broke." } }
 
-const item = (id: string, content: InboxContent, stopped: boolean, at = 0): InboxItem => ({
+const item = (id: string, content: InboxContent, stopped: boolean, at = 0): InboxRow => ({
   ...content,
   id,
   source,
@@ -104,11 +104,11 @@ describe("inboxType", () => {
 describe("what a terminal needs and has done", () => {
   const at = { projectId: "p", workspaceSessionId: "s", terminalId: "t" }
   const elsewhere = { ...source, terminalId: "other" }
-  const there = (id: string, content: InboxContent, seen = false): InboxItem => ({
+  const there = (id: string, content: InboxContent, seen = false): InboxRow => ({
     ...item(id, content, true),
     seen,
   })
-  const away = (id: string, content: InboxContent): InboxItem => ({
+  const away = (id: string, content: InboxContent): InboxRow => ({
     ...item(id, content, true),
     source: elsewhere,
   })
@@ -198,16 +198,16 @@ describe("ordered", () => {
   })
 })
 
-describe("letterItem", () => {
-  const letter = "8f1c2a3b-0d4e-4f5a-9b6c-7d8e9f0a1b2c"
+describe("entryRow", () => {
+  const entry = "8f1c2a3b-0d4e-4f5a-9b6c-7d8e9f0a1b2c"
 
-  it("finds the item a letter came from, as the runner names the letter", () => {
-    const items = [item("other", told, false), item(letter, ask, true)]
-    expect(letterItem(items, { id: `m-${letter.replaceAll("-", "")}` })?.id).toBe(letter)
-    expect(letterItem(items, { id: letter })?.id).toBe(letter)
+  it("finds the item an entry came from, as the runner names the entry", () => {
+    const items = [item("other", told, false), item(entry, ask, true)]
+    expect(entryRow(items, { id: `m-${entry.replaceAll("-", "")}` })?.id).toBe(entry)
+    expect(entryRow(items, { id: entry })?.id).toBe(entry)
   })
 
-  it("finds nothing for a letter with no item, not another item of its terminal", () => {
-    expect(letterItem([item("other", held, true)], { id: "m-gone" })).toBeUndefined()
+  it("finds nothing for an entry with no item, not another item of its terminal", () => {
+    expect(entryRow([item("other", held, true)], { id: "m-gone" })).toBeUndefined()
   })
 })

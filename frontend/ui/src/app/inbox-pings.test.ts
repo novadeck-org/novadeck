@@ -1,4 +1,4 @@
-import { emptyInbox, type InboxItem, type InboxState } from "@novadeck/core/inbox"
+import { emptyInbox, type InboxRow, type InboxState } from "@novadeck/core/inbox"
 import type { Notice } from "@novadeck/core/port"
 import { createStore } from "@novadeck/core/store"
 import { appearance } from "@novadeck/core/testing"
@@ -18,7 +18,7 @@ import { createUiStore, initialUi } from "./ui-store"
 // A ding that sounds nothing: the board under test is about its notices.
 const testDing = createDing({ sound: () => ({ on: false, volume: 0, name: "felt" }) })
 
-const source: InboxItem["source"] = {
+const source: InboxRow["source"] = {
   projectId: "p",
   workspaceSessionId: "s",
   terminalId: "t1",
@@ -28,7 +28,7 @@ const source: InboxItem["source"] = {
   projectName: "Project",
 }
 
-const request = (id: string, tool: string, subject: string | null, at = Date.now()): InboxItem => ({
+const request = (id: string, tool: string, subject: string | null, at = Date.now()): InboxRow => ({
   id,
   source,
   at,
@@ -47,7 +47,7 @@ const request = (id: string, tool: string, subject: string | null, at = Date.now
   },
 })
 
-const ask = (id: string, at = Date.now()): InboxItem => ({
+const ask = (id: string, at = Date.now()): InboxRow => ({
   id,
   source,
   at,
@@ -63,7 +63,7 @@ const ask = (id: string, at = Date.now()): InboxItem => ({
   },
 })
 
-const update = (id: string, at = Date.now()): InboxItem => ({
+const update = (id: string, at = Date.now()): InboxRow => ({
   id,
   source,
   at,
@@ -73,7 +73,7 @@ const update = (id: string, at = Date.now()): InboxItem => ({
   update: { type: "told", subject: "Done", body: "" },
 })
 
-const draft = (id: string, at = Date.now()): InboxItem => ({
+const draft = (id: string, at = Date.now()): InboxRow => ({
   id,
   source,
   at,
@@ -117,7 +117,7 @@ const backgrounded = (notifyNeeds = true) => {
 const setup = (
   options: {
     notifyNeeds?: boolean
-    items?: InboxItem[]
+    items?: InboxRow[]
     graceMs?: number
     drawn?: boolean
   } = {},
@@ -148,7 +148,7 @@ const setup = (
       },
     }),
   })
-  const set = (next: InboxItem[]) => inbox.update((state) => ({ ...state, items: next }))
+  const set = (next: InboxRow[]) => inbox.update((state) => ({ ...state, items: next }))
   const focus = (pageFocused: boolean) => ui.update((state) => ({ ...state, pageFocused }))
   return { set, focus, shown, closed, badges, images, board, stop }
 }
@@ -372,13 +372,13 @@ describe("pings for what needs the person", () => {
 })
 
 describe("the bell's rings, which its dot rings with", () => {
-  const follow = (items: InboxItem[] = []) => {
+  const follow = (items: InboxRow[] = []) => {
     const inbox = createStore<InboxState>({ ...emptyInbox, items })
     const ui = backgrounded()
     // Focused, as the toast's case: the bell rings whichever doorbell takes the item.
     ui.update((state) => ({ ...state, pageFocused: true }))
     const stop = watchBellRings({ state: inbox }, ui, { graceMs: 2000 })
-    const set = (next: InboxItem[]) => inbox.update((state) => ({ ...state, items: next }))
+    const set = (next: InboxRow[]) => inbox.update((state) => ({ ...state, items: next }))
     return { set, rings: () => ui.getSnapshot().bellRings, stop }
   }
 
@@ -438,7 +438,7 @@ describe("what a notification says of an item", () => {
   })
 
   it("is Novadeck's own for what Novadeck noticed, and plain where the terminal has no handle", () => {
-    const failed: InboxItem = {
+    const failed: InboxRow = {
       id: "f",
       source,
       at: 0,
@@ -628,7 +628,7 @@ describe("a click on a terminal's notification", () => {
 
   it("opens the terminal's done report for a notice that names no item", () => {
     const { calls, ...handlers } = to()
-    const finish: InboxItem = {
+    const finish: InboxRow = {
       ...update("f"),
       kind: "update",
       update: { type: "done", subject: "Done", body: "" },

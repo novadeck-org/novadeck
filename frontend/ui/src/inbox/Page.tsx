@@ -1,4 +1,4 @@
-import type { InboxAnswer, InboxItem } from "@novadeck/core/inbox"
+import type { InboxAnswer, InboxRow } from "@novadeck/core/inbox"
 import type { ReactNode } from "react"
 
 import { labelOf, fromNovadeck, subjectOf, type Standing } from "./inbox-text"
@@ -7,7 +7,7 @@ import { Byline, Text } from "./sheet-parts"
 
 // What each kind of sheet gets: its item, and what the sheet knows around it.
 export type SheetContentProps = {
-  readonly item: InboxItem
+  readonly item: InboxRow
   readonly standing: Standing
   // The answer the person gave, once they have.
   readonly sent: SentAnswer | undefined

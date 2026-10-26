@@ -1,5 +1,5 @@
 import { handleText } from "@novadeck/core/handle"
-import type { Inbox, InboxItem } from "@novadeck/core/inbox"
+import type { Inbox, InboxRow } from "@novadeck/core/inbox"
 import type { Backend, Notice } from "@novadeck/core/port"
 
 import { needing, ringing } from "../inbox/inbox-state"
@@ -74,7 +74,7 @@ export const noticeBoard = (notices: Backend["notices"], ding: Ding): NoticeBoar
 // byline as the title, led by who it is from as a finish notice's is ("@moth asks you:
 // Checkout"; Novadeck's own items are its own), and its subject, a command included, as the
 // body.
-export const needNotice = (item: InboxItem): Notice => {
+export const needNotice = (item: InboxRow): Notice => {
   const { handle, title, terminalId } = item.source
   const label = labelOf(item)
   const what = label.charAt(0).toLowerCase() + label.slice(1)
@@ -95,7 +95,7 @@ export const needNotice = (item: InboxItem): Notice => {
 // has none. `items` are the backend's own, as the Inbox may hold the item back.
 export const clickNotice = (
   terminalId: string,
-  items: readonly InboxItem[],
+  items: readonly InboxRow[],
   to: {
     readonly open: (id: string) => void
     readonly showInbox: () => void
@@ -148,7 +148,7 @@ export const drawBadge = (count: number): string | null => {
 }
 
 // An item by its id and when it began: a newer one under the same id is another.
-export const keyOf = (item: InboxItem): string => `${item.id}@${item.at}`
+export const keyOf = (item: InboxRow): string => `${item.id}@${item.at}`
 
 const onWindows = (): boolean => navigator.platform.startsWith("Win")
 
@@ -170,15 +170,15 @@ export const followNeeds = (
     change,
   }: {
     graceMs: number
-    ring: (item: InboxItem) => boolean
-    leave: (item: InboxItem) => void
-    change?: (waiting: readonly InboxItem[]) => void
+    ring: (item: InboxRow) => boolean
+    leave: (item: InboxRow) => void
+    change?: (waiting: readonly InboxRow[]) => void
   },
 ): (() => void) => {
   const startedAt = Date.now()
   const seen = new Set<string>()
   // The items whose ring stands, by key.
-  const rung = new Map<string, InboxItem>()
+  const rung = new Map<string, InboxRow>()
   // The rung items gone from the Inbox, which leave once they've stayed gone for `graceMs`.
   const leaving = new Map<string, ReturnType<typeof setTimeout>>()
   // The grace each new item waits out, by key.
@@ -296,8 +296,8 @@ export const watchInboxPings = (
   // The items that rang while the page was focused but a modal dialog covered it, so the toast
   // holds them: if the person leaves the app before the dialog closes they ping instead; if
   // the dialog closes with them there, the toast has them and these are forgotten.
-  const deferred = new Map<string, InboxItem>()
-  const ping = (item: InboxItem): void => board?.show(keyOf(item), needNotice(item), item.id)
+  const deferred = new Map<string, InboxRow>()
+  const ping = (item: InboxRow): void => board?.show(keyOf(item), needNotice(item), item.id)
   const handOver = (): void => {
     const state = ui.getSnapshot()
     if (deferred.size === 0 || (state.pageFocused && modalOpen(state))) return
