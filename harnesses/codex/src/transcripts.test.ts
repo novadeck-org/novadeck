@@ -119,6 +119,29 @@ describe("Codex's rollout records", () => {
     ).toEqual(["user: hi", "assistant: yo"])
   })
 
+  it("give a prompt with an image as its text, without the tags naming the image's file", () => {
+    const image = { type: "input_image", image_url: "data:image/png;base64,iVBORw0K" }
+    expect(
+      items([
+        item({
+          type: "message",
+          role: "user",
+          content: [
+            { type: "input_text", text: '<image name=[Image #1] path="/p/picture.png">' },
+            image,
+            { type: "input_text", text: "</image>" },
+            { type: "input_text", text: "Look at this picture [Image #1]" },
+          ],
+        }),
+        item({
+          type: "message",
+          role: "user",
+          content: [{ type: "input_text", text: "what does </image> close?" }],
+        }),
+      ]).map(({ text }) => text),
+    ).toEqual(["Look at this picture [Image #1]", "what does </image> close?"])
+  })
+
   it("give a function call's arguments, and its text output", () => {
     const [call, output] = items([
       item({ type: "function_call", name: "shell", arguments: '{"cmd":"ls"}', call_id: "c1" }),
