@@ -1,8 +1,8 @@
-import { mailPeers } from "@novadeck/core/derivations"
-import { letterItem } from "@novadeck/core/inbox"
-import { samePeers, type MailPeer } from "@novadeck/core/messages"
+import { messagePeers } from "@novadeck/core/derivations"
+import { entryRow } from "@novadeck/core/inbox"
+import { samePeers, type MessagePeer } from "@novadeck/core/messages"
 import type { Store, WorkspaceStore } from "@novadeck/core/store"
-import type { MailLinks } from "@novadeck/items/mail"
+import type { MessageLinks } from "@novadeck/items/messages"
 import { useMemo } from "react"
 
 import { useInboxOpener } from "../inbox/InboxProvider"
@@ -10,11 +10,11 @@ import { useWorkspaceServices } from "./controller/context"
 
 // The session's terminals as messages show them, a new value only when one of them shows
 // differently, for the views that draw them to subscribe to.
-const peersOf = (workspace: WorkspaceStore): Store<Readonly<Record<string, MailPeer>>> => {
-  let last = mailPeers(workspace.getSnapshot())
+const peersOf = (workspace: WorkspaceStore): Store<Readonly<Record<string, MessagePeer>>> => {
+  let last = messagePeers(workspace.getSnapshot())
   return {
     getSnapshot: () => {
-      const next = mailPeers(workspace.getSnapshot())
+      const next = messagePeers(workspace.getSnapshot())
       if (!samePeers(last, next)) last = next
       return last
     },
@@ -23,8 +23,8 @@ const peersOf = (workspace: WorkspaceStore): Store<Readonly<Record<string, MailP
 }
 
 // What a terminal's Messages pane knows of the session around it: the other terminals by
-// handle, a way to each, and Answer on a letter, which opens the Inbox on its item.
-export const useMailLinks = (): MailLinks => {
+// handle, a way to each, and Answer on an entry, which opens the Inbox on its item.
+export const useMessageLinks = (): MessageLinks => {
   const { commands, workspace, backend, landing } = useWorkspaceServices()
   const openInbox = useInboxOpener()
   const peers = useMemo(() => peersOf(workspace), [workspace])
@@ -32,13 +32,13 @@ export const useMailLinks = (): MailLinks => {
     () => ({
       peers,
       goTo: commands.reveal,
-      answer: (letter) => {
+      answer: (entry) => {
         // The ask may be held back from the Inbox because this terminal is in view: asking
         // to answer it lands it.
-        const held = letterItem(backend.inbox?.state.getSnapshot().items ?? [], letter)
+        const held = entryRow(backend.inbox?.state.getSnapshot().items ?? [], entry)
         if (held) landing.reveal(held.id)
         commands.showInbox()
-        openInbox?.((items) => letterItem(items, letter))
+        openInbox?.((items) => entryRow(items, entry))
       },
     }),
     [peers, commands, openInbox, backend, landing],

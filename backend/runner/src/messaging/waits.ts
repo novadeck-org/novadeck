@@ -1,4 +1,4 @@
-import { undelivered, type Message } from "./mailbox.js"
+import { undelivered, type Message } from "./messages.js"
 
 /** The messages waiting for one terminal: how many, and the oldest of them. */
 export type Wait = {

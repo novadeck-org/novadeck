@@ -1,6 +1,6 @@
 import { freshWork } from "../terminals/work.js"
 import { describe, expect, it } from "../test.js"
-import type { Message } from "./mailbox.js"
+import type { Message } from "./messages.js"
 import {
   ago,
   deliveredTo,

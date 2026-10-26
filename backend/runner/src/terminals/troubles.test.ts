@@ -1,7 +1,7 @@
 import { hasControlCharacters, type PageTrouble } from "@novadeck/protocol"
 
 import { harnesses } from "../harnesses/registry.js"
-import { byteLength } from "../messaging/mailbox.js"
+import { byteLength } from "../messaging/messages.js"
 import { describe, expect, it } from "../test.js"
 import {
   afterSummary,

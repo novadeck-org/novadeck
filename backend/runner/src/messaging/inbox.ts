@@ -4,12 +4,12 @@ import {
   agentAsk,
   askAnswer,
   hiddenIn,
-  inboxLetter,
+  inboxEntry,
   maxCommandLines,
   replyPreviewLength,
   type AgentAsk,
   type AskAnswer,
-  type InboxLetter,
+  type InboxEntry,
   type TerminalMessages,
 } from "@novadeck/protocol"
 import { Latest } from "@novadeck/wire/server"
@@ -27,45 +27,45 @@ import {
   retentionMs,
   undelivered,
   type Message,
-} from "./mailbox.js"
+} from "./messages.js"
 import type { Report, Reports } from "./peers.js"
 
 const log = logs.for("inbox")
 
-// Resolved letters stay as the Messages pane's history. Only open letters reach Inbox.
-export type Letter = InboxLetter & {
+// Resolved entries stay as the Messages pane's history. Only open entries reach Inbox.
+export type StoredEntry = InboxEntry & {
   readonly state: "open" | "answered" | "read" | "withdrawn" | "gone"
   readonly settledAt?: number
   /** Ended for want of its session after a restart, not by a different one: it reopens if it binds. */
   readonly lapsed?: true
 }
-export type AskRecords = {
-  letters(): readonly Letter[]
-  saveLetter(letter: Letter): void
-  /** Saves the letters in one transaction. */
-  saveLetters(letters: readonly Letter[]): void
-  answerLetter(letter: Letter, message: Message): void
-  removeLetters(ids: readonly string[]): void
+export type InboxRecords = {
+  entries(): readonly StoredEntry[]
+  saveEntry(entry: StoredEntry): void
+  /** Saves the entries in one transaction. */
+  saveEntries(entries: readonly StoredEntry[]): void
+  answerEntry(entry: StoredEntry, message: Message): void
+  removeEntries(ids: readonly string[]): void
 }
-export const memoryAsks = (): AskRecords => {
-  const letters = new Map<string, Letter>()
+export const memoryInbox = (): InboxRecords => {
+  const entries = new Map<string, StoredEntry>()
   return {
-    letters: () => [...letters.values()],
-    saveLetter: (letter) => void letters.set(letter.id, letter),
-    saveLetters: (all) => {
-      for (const letter of all) letters.set(letter.id, letter)
+    entries: () => [...entries.values()],
+    saveEntry: (entry) => void entries.set(entry.id, entry),
+    saveEntries: (all) => {
+      for (const entry of all) entries.set(entry.id, entry)
     },
-    answerLetter: (letter) => void letters.set(letter.id, letter),
-    removeLetters: (ids) => {
-      for (const id of ids) letters.delete(id)
+    answerEntry: (entry) => void entries.set(entry.id, entry),
+    removeEntries: (ids) => {
+      for (const id of ids) entries.delete(id)
     },
   }
 }
 
-export type TurnOwner = Omit<InboxLetter, "id" | "at" | "content">
+export type TurnOwner = Omit<InboxEntry, "id" | "at" | "content">
 type Owner = TurnOwner
-type TurnContent = Extract<InboxLetter["content"], { kind: "turn" }>
-/** What a turn letter holds of its end. */
+type TurnContent = Extract<InboxEntry["content"], { kind: "turn" }>
+/** What a turn entry holds of its end. */
 export type TurnFields = Omit<TurnContent, "kind">
 type Host = {
   owner(terminalId: string): Owner | undefined
@@ -170,12 +170,12 @@ const failure = (error: unknown) => ({
   ok: false as const,
   reason: error instanceof Error ? error.message : "Novadeck couldn't save that item.",
 })
-const same = (letter: InboxLetter, owner: Owner | undefined): boolean =>
+const same = (entry: InboxEntry, owner: Owner | undefined): boolean =>
   owner !== undefined &&
-  letter.projectId === owner.projectId &&
-  letter.workspaceSessionId === owner.workspaceSessionId &&
-  letter.agent === owner.agent &&
-  letter.sessionId === owner.sessionId
+  entry.projectId === owner.projectId &&
+  entry.workspaceSessionId === owner.workspaceSessionId &&
+  entry.agent === owner.agent &&
+  entry.sessionId === owner.sessionId
 
 // A plain-text record of everything the person saw, retained after the sheet clears.
 const askText = (ask: AgentAsk): string => {
@@ -213,7 +213,7 @@ export const maxUnreadTells = 50
 /** Unread finished turns kept per terminal: the oldest goes at the 51st. */
 export const maxUnreadTurns = 50
 const maxTurnFiles = 16
-export const maxResolvedLetters = 100
+export const maxResolvedEntries = 100
 export const askSweepMs = 60_000
 /**
  * How long after a runner starts an open ask waits for its terminal's session to come back
@@ -222,14 +222,14 @@ export const askSweepMs = 60_000
  */
 export const askResumeGraceMs = 120_000
 
-const isTurn = (letter: Letter): boolean => letter.content.kind === "turn"
+const isTurn = (entry: StoredEntry): boolean => entry.content.kind === "turn"
 const clipped = (value: unknown, max: number): string | null =>
   typeof value === "string" && value.length > 0 ? value.slice(0, max) : null
 
 /**
- * A stored turn letter as today's rules read it: its text cut to the limits, its files
+ * A stored turn entry as today's rules read it: its text cut to the limits, its files
  * capped, unknown keys dropped and an unknown outcome taken as failed, so a limit that
- * tightens later costs a letter nothing. Undefined where it still won't parse.
+ * tightens later costs an entry nothing. Undefined where it still won't parse.
  */
 const clampedTurn = (content: unknown): TurnContent | undefined => {
   if (typeof content !== "object" || content === null) return undefined
@@ -240,7 +240,7 @@ const clampedTurn = (content: unknown): TurnContent | undefined => {
         return path ? [path] : []
       })
     : []
-  const parsed = inboxLetter.shape.content.safeParse({
+  const parsed = inboxEntry.shape.content.safeParse({
     kind: "turn",
     outcome: raw["outcome"] === "completed" ? "completed" : "failed",
     reply: clipped(raw["reply"], replyPreviewLength),
@@ -270,23 +270,23 @@ export const withdrawnNotice = (subjects: readonly string[]): string => {
   )
 }
 
-export class Asks {
-  private readonly byTerminal = new Map<string, Map<string, Letter>>()
-  private readonly open = new Map<string, Letter>()
+export class Inbox {
+  private readonly byTerminal = new Map<string, Map<string, StoredEntry>>()
+  private readonly open = new Map<string, StoredEntry>()
   private readonly texts = new Map<string, string>()
   private readonly sent = new Map<string, readonly number[]>()
   /** Terminals whose root is a guess, with when the guessing began. */
   private readonly guesses = new Map<string, number>()
   private readonly sweeper: ReturnType<typeof setInterval> | undefined
-  private readonly letters = new Map<string, Letter>()
-  private readonly readers = new Set<Latest<InboxLetter[]>>()
+  private readonly entries = new Map<string, StoredEntry>()
+  private readonly readers = new Set<Latest<InboxEntry[]>>()
   /** Since when each terminal with open asks has had no agent bound (from the runner's start). */
   private readonly unbound = new Map<string, number>()
   private readonly resumeGraceMs: number
   private closed = false
   constructor(
     private readonly host: Host,
-    private readonly records: AskRecords = memoryAsks(),
+    private readonly records: InboxRecords = memoryInbox(),
     private readonly now = Date.now,
     {
       sweepMs = askSweepMs,
@@ -294,24 +294,24 @@ export class Asks {
     }: { readonly sweepMs?: number; readonly resumeGraceMs?: number } = {},
   ) {
     this.resumeGraceMs = resumeGraceMs
-    // A letter stored before the wire's rules tightened would fail every listing it is in,
+    // An entry stored before the wire's rules tightened would fail every listing it is in,
     // so one the wire refuses now is dropped, not kept.
     const stale: string[] = []
-    let stored: readonly Letter[] = []
+    let stored: readonly StoredEntry[] = []
     this.save(() => {
-      stored = records.letters()
+      stored = records.entries()
     })
-    for (const letter of stored) {
-      if (letter?.content?.kind === "turn") {
+    for (const entry of stored) {
+      if (entry?.content?.kind === "turn") {
         // Clamped in memory only: a newer runner's fields stay in the records until the
-        // letter is next amended.
-        const content = clampedTurn(letter.content)
-        if (!content) stale.push(letter.id)
-        else this.keep({ ...letter, state: "open" as const, content })
-      } else if (inboxLetter.shape.content.safeParse(letter?.content).success) this.keep(letter)
-      else if (letter?.id) stale.push(letter.id)
+        // entry is next amended.
+        const content = clampedTurn(entry.content)
+        if (!content) stale.push(entry.id)
+        else this.keep({ ...entry, state: "open" as const, content })
+      } else if (inboxEntry.shape.content.safeParse(entry?.content).success) this.keep(entry)
+      else if (entry?.id) stale.push(entry.id)
     }
-    if (stale.length > 0) this.save(() => records.removeLetters(stale))
+    if (stale.length > 0) this.save(() => records.removeEntries(stale))
     this.prune()
     if (sweepMs > 0) {
       this.sweeper = setInterval(() => {
@@ -343,18 +343,18 @@ export class Asks {
     try {
       const withdrawing = withdrawRequest.safeParse(request)
       if (kind === "ask" && withdrawing.success) {
-        const letter = this.letters.get(withdrawing.data.withdraw)
+        const entry = this.entries.get(withdrawing.data.withdraw)
         if (
-          !letter ||
-          letter.terminalId !== terminalId ||
-          !same(letter, owner) ||
-          letter.content.kind !== "ask" ||
-          letter.state !== "open"
+          !entry ||
+          entry.terminalId !== terminalId ||
+          !same(entry, owner) ||
+          entry.content.kind !== "ask" ||
+          entry.state !== "open"
         )
           throw new Error("That ask is no longer open in your session.")
-        this.put({ ...letter, state: "withdrawn" })
+        this.put({ ...entry, state: "withdrawn" })
         this.maintain(terminalId)
-        return { ok: true, id: letter.id, withdrawn: true }
+        return { ok: true, id: entry.id, withdrawn: true }
       }
       const content =
         kind === "tell"
@@ -402,9 +402,9 @@ export class Asks {
       const existing = this.byTerminal.get(terminalId)
       // A tentative root can still be corrected back to an earlier session.
       if (!this.guesses.has(terminalId))
-        for (const letter of existing?.values() ?? [])
-          if (letter.content.kind === "ask" && letter.state === "open" && !same(letter, owner))
-            this.put({ ...letter, state: "gone" })
+        for (const entry of existing?.values() ?? [])
+          if (entry.content.kind === "ask" && entry.state === "open" && !same(entry, owner))
+            this.put({ ...entry, state: "gone" })
       const open = [...(existing?.values() ?? [])].filter(
         (each) =>
           each.state === "open" &&
@@ -424,18 +424,18 @@ export class Asks {
         throw new Error(
           `An agent may create ${rates.sender} Inbox asks or updates a minute. Withdrawals are still available; try again shortly.`,
         )
-      const letter: Letter = { id: randomUUID(), ...owner, at, content, state: "open" }
+      const entry: StoredEntry = { id: randomUUID(), ...owner, at, content, state: "open" }
       // The first save of a new ask is not best effort: the agent is told if it can't be kept.
-      this.put(letter, false)
+      this.put(entry, false)
       this.sent.set(terminalId, times)
       this.maintain(terminalId)
-      return { ok: true, id: letter.id }
+      return { ok: true, id: entry.id }
     } catch (error) {
       return failure(error)
     }
   }
 
-  list(): InboxLetter[] {
+  list(): InboxEntry[] {
     const exists = this.existence()
     return [...this.open.values()]
       .filter(
@@ -445,23 +445,23 @@ export class Asks {
             ? same(each, this.host.owner(each.terminalId))
             : exists(each.terminalId)),
       )
-      .map(({ state: _state, ...letter }) => letter)
+      .map(({ state: _state, ...entry }) => entry)
   }
 
   answer(id: string, input: AskAnswer): void {
     if (this.closed) throw new DomainError("CLOSING")
-    const letter = this.letters.get(id)
+    const entry = this.entries.get(id)
     if (
-      !letter ||
-      letter.state !== "open" ||
-      letter.content.kind !== "ask" ||
-      !same(letter, this.host.owner(letter.terminalId))
+      !entry ||
+      entry.state !== "open" ||
+      entry.content.kind !== "ask" ||
+      !same(entry, this.host.owner(entry.terminalId))
     )
       throw new DomainError("CONFLICT", "This ask is no longer waiting in that agent session.")
     const parsed = askAnswer.safeParse(input)
     if (!parsed.success) throw new DomainError("ANSWER_FAILED", "That answer doesn't fit this ask.")
     const answer = parsed.data
-    const { ask } = letter.content
+    const { ask } = entry.content
     let text: string
     let choice: { readonly option?: string; readonly action?: string } = {}
     if (answer.type === "done") {
@@ -480,48 +480,48 @@ export class Asks {
       if (!text && !label)
         throw new DomainError("ANSWER_FAILED", "Write an answer or choose an option.")
     }
-    const answered: Letter = { ...letter, state: "answered", settledAt: this.now() }
+    const answered: StoredEntry = { ...entry, state: "answered", settledAt: this.now() }
     this.host.reply(
-      letter.terminalId,
-      letter.id,
+      entry.terminalId,
+      entry.id,
       ask.subject,
       text,
       (message) => {
         // Atomic with the person's reply: a failure refuses the answer, retryable.
-        this.records.answerLetter(answered, message)
+        this.records.answerEntry(answered, message)
         this.keep(answered)
       },
       choice,
     )
-    this.changed(letter.terminalId)
-    this.maintain(letter.terminalId)
+    this.changed(entry.terminalId)
+    this.maintain(entry.terminalId)
   }
 
   read(ids: readonly string[]): void {
     if (this.closed) throw new DomainError("CLOSING")
-    const turns: Letter[] = []
-    const tells: Letter[] = []
+    const turns: StoredEntry[] = []
+    const tells: StoredEntry[] = []
     const at = this.now()
     for (const id of new Set(ids)) {
-      const letter = this.letters.get(id)
-      if (letter?.state !== "open") continue
-      if (letter.content.kind === "turn") turns.push(letter)
-      else if (letter.content.kind === "tell" || letter.content.kind === "done")
-        tells.push({ ...letter, state: "read", settledAt: at })
+      const entry = this.entries.get(id)
+      if (entry?.state !== "open") continue
+      if (entry.content.kind === "turn") turns.push(entry)
+      else if (entry.content.kind === "tell" || entry.content.kind === "done")
+        tells.push({ ...entry, state: "read", settledAt: at })
     }
     // A read of many is one removal, one save and one listing; a tell stays as history.
-    if (turns.length > 0) this.save(() => this.records.removeLetters(turns.map(({ id }) => id)))
-    if (tells.length > 0) this.save(() => this.records.saveLetters(tells))
+    if (turns.length > 0) this.save(() => this.records.removeEntries(turns.map(({ id }) => id)))
+    if (tells.length > 0) this.save(() => this.records.saveEntries(tells))
     this.forgetTurns(turns)
-    for (const letter of tells) this.keep(letter)
-    for (const terminalId of new Set(tells.map((letter) => letter.terminalId)))
+    for (const entry of tells) this.keep(entry)
+    for (const terminalId of new Set(tells.map((entry) => entry.terminalId)))
       this.host.changed(terminalId)
     if (turns.length > 0 || tells.length > 0) this.publish()
     this.maintain()
   }
 
   /**
-   * Stores the finished turn that ended at `at` as a letter of `owner`'s terminal, or
+   * Stores the finished turn that ended at `at` as an entry of `owner`'s terminal, or
    * updates the one stored for that end. `owner` is whose it was when the end was seen.
    * Nothing once closed. The terminal's 51st unread turn removes its oldest.
    */
@@ -531,15 +531,15 @@ export class Asks {
       this.amendTurn(owner.terminalId, at, fields)
       return
     }
-    const letter: Letter = {
+    const entry: StoredEntry = {
       id: randomUUID(),
       ...owner,
       at,
       content: { kind: "turn", ...fields },
       state: "open",
     }
-    this.save(() => this.records.saveLetter(letter))
-    this.keep(letter)
+    this.save(() => this.records.saveEntry(entry))
+    this.keep(entry)
     const unread = [...(this.byTerminal.get(owner.terminalId)?.values() ?? [])]
       .filter(isTurn)
       .toSorted((a, b) => a.at - b.at)
@@ -548,7 +548,7 @@ export class Asks {
       log.warn("inbox.turns-capped", "Novadeck dropped the oldest unread turns of a terminal", {
         data: { count: excess.length },
       })
-      this.save(() => this.records.removeLetters(excess.map(({ id }) => id)))
+      this.save(() => this.records.removeEntries(excess.map(({ id }) => id)))
       this.forgetTurns(excess)
     }
     this.publish()
@@ -560,18 +560,18 @@ export class Asks {
    */
   amendTurn(terminalId: string, at: number, fields: TurnFields | null): void {
     if (this.closed) return
-    const letter = this.turnAt(terminalId, at)
-    if (!letter) return
+    const entry = this.turnAt(terminalId, at)
+    if (!entry) return
     if (!fields) {
-      this.save(() => this.records.removeLetters([letter.id]))
-      this.forgetTurns([letter])
+      this.save(() => this.records.removeEntries([entry.id]))
+      this.forgetTurns([entry])
       this.publish()
       return
     }
     const content = { kind: "turn" as const, ...fields }
-    if (JSON.stringify(content) === JSON.stringify(letter.content)) return
-    const next = { ...letter, content }
-    this.save(() => this.records.saveLetter(next))
+    if (JSON.stringify(content) === JSON.stringify(entry.content)) return
+    const next = { ...entry, content }
+    this.save(() => this.records.saveEntry(next))
     this.keep(next)
     this.publish()
   }
@@ -587,18 +587,18 @@ export class Asks {
     const owner = this.host.owner(terminalId)
     const taken = [...(this.byTerminal.get(terminalId)?.values() ?? [])]
       .filter(
-        (letter) =>
-          letter.state === "open" &&
-          letter.content.kind === "ask" &&
-          same(letter, owner) &&
-          letter.at < before,
+        (entry) =>
+          entry.state === "open" &&
+          entry.content.kind === "ask" &&
+          same(entry, owner) &&
+          entry.at < before,
       )
       .toSorted((a, b) => a.at - b.at)
     if (taken.length === 0) return undefined
     const subjects: string[] = []
-    for (const letter of taken) {
-      this.put({ ...letter, state: "withdrawn" })
-      if (letter.content.kind === "ask") subjects.push(letter.content.ask.subject)
+    for (const entry of taken) {
+      this.put({ ...entry, state: "withdrawn" })
+      if (entry.content.kind === "ask") subjects.push(entry.content.ask.subject)
     }
     this.maintain(terminalId)
     return withdrawnNotice(subjects)
@@ -613,17 +613,17 @@ export class Asks {
     const owner = this.closed ? undefined : this.host.owner(terminalId)
     let tell: Report | null = null
     let done: Report | null = null
-    for (const letter of owner ? (this.byTerminal.get(terminalId)?.values() ?? []) : []) {
-      const { content } = letter
-      if ((content.kind !== "tell" && content.kind !== "done") || !same(letter, owner)) continue
-      const report = { subject: content.subject, at: letter.at }
+    for (const entry of owner ? (this.byTerminal.get(terminalId)?.values() ?? []) : []) {
+      const { content } = entry
+      if ((content.kind !== "tell" && content.kind !== "done") || !same(entry, owner)) continue
+      const report = { subject: content.subject, at: entry.at }
       if (content.kind === "tell" && (!tell || tell.at < report.at)) tell = report
       if (content.kind === "done" && (!done || done.at < report.at)) done = report
     }
     return { tell, done }
   }
 
-  /** Whether a finished turn of the terminal may be stored: Asks is open and the terminal exists. */
+  /** Whether a finished turn of the terminal may be stored: Inbox is open and the terminal exists. */
   accepts(terminalId: string): boolean {
     return !this.closed && this.host.exists(terminalId)
   }
@@ -637,33 +637,33 @@ export class Asks {
       else this.guesses.delete(terminalId)
       if (change.type === "corrected" && change.from !== change.root.sessionId) {
         const open = [...(this.byTerminal.get(terminalId)?.values() ?? [])].filter(
-          (letter) =>
-            letter.state === "open" &&
-            letter.content.kind === "ask" &&
-            letter.agent === change.root.agent,
+          (entry) =>
+            entry.state === "open" &&
+            entry.content.kind === "ask" &&
+            entry.agent === change.root.agent,
         )
-        const existing = open.filter((letter) => letter.sessionId === change.root.sessionId).length
+        const existing = open.filter((entry) => entry.sessionId === change.root.sessionId).length
         const tentative = open
-          .filter((letter) => letter.sessionId === change.from)
+          .filter((entry) => entry.sessionId === change.from)
           .toSorted((a, b) => a.at - b.at)
         const remaining = Math.max(0, maxOpenAsks - existing)
-        for (const [index, letter] of tentative.entries())
+        for (const [index, entry] of tentative.entries())
           this.put(
             index < remaining
-              ? { ...letter, sessionId: change.root.sessionId }
-              : { ...letter, state: "gone" },
+              ? { ...entry, sessionId: change.root.sessionId }
+              : { ...entry, state: "gone" },
           )
         // The reports made while the guess stood were the corrected session's, as other
         // agents read them; those the guessed session made before were its own.
-        for (const letter of this.byTerminal.get(terminalId)?.values() ?? [])
+        for (const entry of this.byTerminal.get(terminalId)?.values() ?? [])
           if (
-            (letter.content.kind === "tell" || letter.content.kind === "done") &&
-            letter.agent === change.root.agent &&
-            letter.sessionId === change.from &&
+            (entry.content.kind === "tell" || entry.content.kind === "done") &&
+            entry.agent === change.root.agent &&
+            entry.sessionId === change.from &&
             guessedAt !== undefined &&
-            letter.at >= guessedAt
+            entry.at >= guessedAt
           )
-            this.put({ ...letter, sessionId: change.root.sessionId })
+            this.put({ ...entry, sessionId: change.root.sessionId })
       }
     }
     if (this.guesses.has(terminalId)) {
@@ -680,70 +680,70 @@ export class Asks {
     const exists = this.existence()
     if (!exists(terminalId)) {
       const turns = [...(this.byTerminal.get(terminalId)?.values() ?? [])].filter(isTurn)
-      if (turns.length > 0) this.save(() => this.records.removeLetters(turns.map(({ id }) => id)))
+      if (turns.length > 0) this.save(() => this.records.removeEntries(turns.map(({ id }) => id)))
       this.forgetTurns(turns)
     }
-    for (const letter of this.byTerminal.get(terminalId)?.values() ?? []) {
-      if (letter.content.kind === "turn") continue
+    for (const entry of this.byTerminal.get(terminalId)?.values() ?? []) {
+      if (entry.content.kind === "turn") continue
       // The session an ask lapsed for is back: it is answerable again, as it was.
-      if (letter.state === "gone" && letter.lapsed && same(letter, owner)) {
-        const { settledAt: _settledAt, lapsed: _lapsed, ...reopened } = letter
+      if (entry.state === "gone" && entry.lapsed && same(entry, owner)) {
+        const { settledAt: _settledAt, lapsed: _lapsed, ...reopened } = entry
         this.put({ ...reopened, state: "open" })
         continue
       }
       if (
-        letter.terminalId === terminalId &&
-        letter.state === "open" &&
-        (letter.content.kind === "ask"
-          ? !same(letter, owner) && (!owner || !this.guesses.has(terminalId))
+        entry.terminalId === terminalId &&
+        entry.state === "open" &&
+        (entry.content.kind === "ask"
+          ? !same(entry, owner) && (!owner || !this.guesses.has(terminalId))
           : !exists(terminalId))
       )
-        this.put({ ...letter, state: "gone" })
+        this.put({ ...entry, state: "gone" })
     }
     this.changed(terminalId)
     this.maintain(terminalId)
   }
 
   history(terminalId: string, listing: TerminalMessages): TerminalMessages {
-    const letters = this.byTerminal.get(terminalId)?.values() ?? []
+    const entries = this.byTerminal.get(terminalId)?.values() ?? []
     const threads = new Map(listing.threads.map((thread) => [thread.id, thread]))
-    for (const letter of letters) {
-      const content = letter.content
+    for (const entry of entries) {
+      const content = entry.content
       // Finished turns are not messages.
       if (content.kind === "turn") continue
-      const thread = `t-${letter.id.replaceAll("-", "")}`
+      const thread = `t-${entry.id.replaceAll("-", "")}`
       const known = threads.get(thread)
-      let text = this.texts.get(letter.id)
+      let text = this.texts.get(entry.id)
       if (text === undefined) {
         text =
           content.kind === "ask" ? askText(content.ask) : `${content.subject}\n\n${content.body}`
-        this.texts.set(letter.id, text)
+        this.texts.set(entry.id, text)
       }
       const reply =
         known?.messages.find((message) => message.inbox === "answer") ??
-        this.host.replyState(letter.id)
+        this.host.replyState(entry.id)
       const inboxState =
-        letter.state === "answered" && reply?.state === "gone" && reply.deliveredAt === null
+        entry.state === "answered" && reply?.state === "gone" && reply.deliveredAt === null
           ? ("undelivered" as const)
-          : letter.state
+          : entry.state
       const trace = {
-        id: `m-${letter.id.replaceAll("-", "")}`,
+        id: `m-${entry.id.replaceAll("-", "")}`,
         thread,
         hop: 1,
-        from: letter.handle,
-        fromAgent: letter.agent,
+        from: entry.handle,
+        fromAgent: entry.agent,
         to: "you",
-        toAgent: letter.agent,
+        toAgent: entry.agent,
         text,
-        sentAt: letter.at,
+        sentAt: entry.at,
         state: "delivered" as const,
         held: null,
-        deliveredAt: letter.at,
+        deliveredAt: entry.at,
         inbox: content.kind,
         inboxState,
       }
       const messages = [trace, ...(known?.messages ?? [])]
-      const entry = {
+      const listed = {
         id: thread,
         peer: "you",
         hops: messages.length,
@@ -753,7 +753,7 @@ export class Asks {
         stopped: false,
         messages,
       }
-      threads.set(thread, entry)
+      threads.set(thread, listed)
     }
     return {
       ...listing,
@@ -764,8 +764,8 @@ export class Asks {
   }
 
   forgetProject(projectId: string): void {
-    const gone = [...this.letters.values()].filter((each) => each.projectId === projectId)
-    const terminals = new Set(gone.map((letter) => letter.terminalId))
+    const gone = [...this.entries.values()].filter((each) => each.projectId === projectId)
+    const terminals = new Set(gone.map((entry) => entry.terminalId))
     for (const id of this.guesses.keys()) {
       const owner = this.host.owner(id)
       if (!owner || owner.projectId === projectId || terminals.has(id)) this.guesses.delete(id)
@@ -776,22 +776,22 @@ export class Asks {
   prune(terminalId?: string): void {
     if (this.closed) return
     const at = this.now()
-    const gone: Letter[] = []
+    const gone: StoredEntry[] = []
     const groups = terminalId
       ? [...this.byTerminal].filter(([id]) => id === terminalId)
       : [...this.byTerminal]
     this.abandon(groups, at)
     const exists = this.existence()
-    for (const [, letters] of groups) {
-      const resolved = [...letters.values()]
-        .filter((letter) => letter.state !== "open")
-        .map((letter) => {
-          const reply = this.host.replyState(letter.id)
+    for (const [, entries] of groups) {
+      const resolved = [...entries.values()]
+        .filter((entry) => entry.state !== "open")
+        .map((entry) => {
+          const reply = this.host.replyState(entry.id)
           return {
-            letter,
+            entry,
             reply,
             at: Math.max(
-              letter.settledAt ?? letter.at,
+              entry.settledAt ?? entry.at,
               reply?.deliveredAt ?? 0,
               reply?.response?.goneAt ?? 0,
             ),
@@ -799,21 +799,21 @@ export class Asks {
         })
         .toSorted((a, b) => a.at - b.at)
       const eligible = resolved.filter(({ reply }) => !reply || !undelivered(reply))
-      const expired = eligible.filter((entry) => at - entry.at >= retentionMs)
-      const ids = new Set(expired.map(({ letter }) => letter.id))
-      const excess = Math.max(0, resolved.length - ids.size - maxResolvedLetters)
-      for (const { letter } of eligible
-        .filter((entry) => !ids.has(entry.letter.id))
+      const expired = eligible.filter((candidate) => at - candidate.at >= retentionMs)
+      const ids = new Set(expired.map(({ entry }) => entry.id))
+      const excess = Math.max(0, resolved.length - ids.size - maxResolvedEntries)
+      for (const { entry } of eligible
+        .filter((candidate) => !ids.has(candidate.entry.id))
         .slice(0, excess))
-        ids.add(letter.id)
-      for (const letter of letters.values())
+        ids.add(entry.id)
+      for (const entry of entries.values())
         if (
-          ids.has(letter.id) ||
-          (!exists(letter.terminalId) &&
-            at - (letter.settledAt ?? letter.at) >= retentionMs &&
-            !this.host.replyState(letter.id))
+          ids.has(entry.id) ||
+          (!exists(entry.terminalId) &&
+            at - (entry.settledAt ?? entry.at) >= retentionMs &&
+            !this.host.replyState(entry.id))
         )
-          gone.push(letter)
+          gone.push(entry)
     }
     this.remove(gone)
     for (const [id, times] of this.sent) {
@@ -823,8 +823,8 @@ export class Asks {
     }
   }
 
-  async *watch(signal?: AbortSignal): AsyncGenerator<InboxLetter[]> {
-    const reader = new Latest<InboxLetter[]>()
+  async *watch(signal?: AbortSignal): AsyncGenerator<InboxEntry[]> {
+    const reader = new Latest<InboxEntry[]>()
     this.readers.add(reader)
     reader.push(this.list())
     const abort = () => reader.finish()
@@ -856,10 +856,13 @@ export class Asks {
    * the runner started: the session the restart left them with has not come back. They
    * reopen if it binds later (see `reconcile`); one that binds another ends them for good.
    */
-  private abandon(groups: readonly (readonly [string, Map<string, Letter>])[], at: number): void {
-    for (const [terminalId, letters] of groups) {
-      const asks = [...letters.values()].filter(
-        (letter) => letter.state === "open" && letter.content.kind === "ask",
+  private abandon(
+    groups: readonly (readonly [string, Map<string, StoredEntry>])[],
+    at: number,
+  ): void {
+    for (const [terminalId, entries] of groups) {
+      const asks = [...entries.values()].filter(
+        (entry) => entry.state === "open" && entry.content.kind === "ask",
       )
       if (asks.length === 0 || this.host.owner(terminalId) || this.guesses.has(terminalId)) {
         this.unbound.delete(terminalId)
@@ -868,7 +871,7 @@ export class Asks {
       const since = this.unbound.get(terminalId) ?? at
       this.unbound.set(terminalId, since)
       if (at - since < this.resumeGraceMs) continue
-      for (const letter of asks) this.put({ ...letter, state: "gone", lapsed: true })
+      for (const entry of asks) this.put({ ...entry, state: "gone", lapsed: true })
       this.unbound.delete(terminalId)
     }
     for (const id of this.unbound.keys()) if (!this.byTerminal.has(id)) this.unbound.delete(id)
@@ -888,38 +891,38 @@ export class Asks {
       log.error("inbox.prune-failed", "Novadeck could not prune its Inbox history", { err: error })
     }
   }
-  private keep(letter: Letter): void {
-    this.letters.set(letter.id, letter)
-    const terminal = this.byTerminal.get(letter.terminalId) ?? new Map<string, Letter>()
-    terminal.set(letter.id, letter)
-    this.byTerminal.set(letter.terminalId, terminal)
-    if (letter.state === "open") this.open.set(letter.id, letter)
-    else this.open.delete(letter.id)
+  private keep(entry: StoredEntry): void {
+    this.entries.set(entry.id, entry)
+    const terminal = this.byTerminal.get(entry.terminalId) ?? new Map<string, StoredEntry>()
+    terminal.set(entry.id, entry)
+    this.byTerminal.set(entry.terminalId, terminal)
+    if (entry.state === "open") this.open.set(entry.id, entry)
+    else this.open.delete(entry.id)
   }
-  private put(letter: Letter, guarded = true): void {
+  private put(entry: StoredEntry, guarded = true): void {
     const saved =
-      letter.state !== "open" && this.letters.get(letter.id)?.state === "open"
-        ? { ...letter, settledAt: this.now() }
-        : letter
-    if (guarded) this.save(() => this.records.saveLetter(saved))
-    else this.records.saveLetter(saved)
+      entry.state !== "open" && this.entries.get(entry.id)?.state === "open"
+        ? { ...entry, settledAt: this.now() }
+        : entry
+    if (guarded) this.save(() => this.records.saveEntry(saved))
+    else this.records.saveEntry(saved)
     this.keep(saved)
     this.changed(saved.terminalId)
   }
-  private remove(letters: readonly Letter[]): void {
-    if (!letters.length) return
-    const ids = letters.map((letter) => letter.id)
-    this.save(() => this.records.removeLetters(ids))
+  private remove(entries: readonly StoredEntry[]): void {
+    if (!entries.length) return
+    const ids = entries.map((entry) => entry.id)
+    this.save(() => this.records.removeEntries(ids))
     this.host.forgetReplies(ids)
     const changed = new Set<string>()
-    for (const letter of letters) {
-      this.letters.delete(letter.id)
-      this.open.delete(letter.id)
-      this.texts.delete(letter.id)
-      const terminal = this.byTerminal.get(letter.terminalId)
-      terminal?.delete(letter.id)
-      if (!terminal?.size) this.byTerminal.delete(letter.terminalId)
-      changed.add(letter.terminalId)
+    for (const entry of entries) {
+      this.entries.delete(entry.id)
+      this.open.delete(entry.id)
+      this.texts.delete(entry.id)
+      const terminal = this.byTerminal.get(entry.terminalId)
+      terminal?.delete(entry.id)
+      if (!terminal?.size) this.byTerminal.delete(entry.terminalId)
+      changed.add(entry.terminalId)
     }
     for (const id of changed) this.changed(id)
   }
@@ -932,19 +935,19 @@ export class Asks {
       return found
     }
   }
-  private turnAt(terminalId: string, at: number): Letter | undefined {
-    for (const letter of this.byTerminal.get(terminalId)?.values() ?? [])
-      if (letter.content.kind === "turn" && letter.at === at) return letter
+  private turnAt(terminalId: string, at: number): StoredEntry | undefined {
+    for (const entry of this.byTerminal.get(terminalId)?.values() ?? [])
+      if (entry.content.kind === "turn" && entry.at === at) return entry
     return undefined
   }
-  /** Forgets turn letters already removed from the records: no mail changes, they are no messages. */
-  private forgetTurns(letters: readonly Letter[]): void {
-    for (const letter of letters) {
-      this.letters.delete(letter.id)
-      this.open.delete(letter.id)
-      const terminal = this.byTerminal.get(letter.terminalId)
-      terminal?.delete(letter.id)
-      if (!terminal?.size) this.byTerminal.delete(letter.terminalId)
+  /** Forgets turn entries already removed from the records: no message changes, they are no messages. */
+  private forgetTurns(entries: readonly StoredEntry[]): void {
+    for (const entry of entries) {
+      this.entries.delete(entry.id)
+      this.open.delete(entry.id)
+      const terminal = this.byTerminal.get(entry.terminalId)
+      terminal?.delete(entry.id)
+      if (!terminal?.size) this.byTerminal.delete(entry.terminalId)
     }
   }
   private changed(terminalId: string): void {

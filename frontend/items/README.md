@@ -13,7 +13,7 @@ terminal (`src/homes/terminal/`) and the window an item is undocked into
 store, the Markdown document (`src/document/`), and the bar, taskbar, peek and bar drag. Today
 only the terminal's home has a bar; they stay at the top for a home of the project's, which
 will have one too. What only the terminal's home uses is in its folder: the terminal's
-messages (`homes/terminal/messages/`: the pane, its peek, the mail hooks and `followMail`,
+messages (`homes/terminal/messages/`: the pane, its peek, the message hooks and `followMessages`,
 which puts messages on a terminal's bar), how the pane presents beside its terminal
 (`presentation.ts`), how it draws its bar (`drawing.tsx`) and the marks on the terminal's tab.
 
@@ -25,10 +25,10 @@ which puts messages on a terminal's bar), how the pane presents beside its termi
   import in a frontend package's `src` leaves that package's folder, so a path into the UI
   can't bypass the manifest. The host (`frontend/ui`) composes it and passes in what it needs: the workspace's
   items and each terminal's bar (`TerminalCompanion`'s props), the commands that act on them,
-  and the `ItemStore` it creates once, beside which it starts `followMail`.
+  and the `ItemStore` it creates once, beside which it starts `followMessages`.
 - **A view reads state and never writes it.** `ItemStore` (`state.ts`) is the one place that loads
   content and writes plans, content and the revealed item; the views read it through
-  `use-item-store.ts`. The items and the bar are core's workspace store, and mail is core's
+  `use-item-store.ts`. The items and the bar are core's workspace store, and messages are core's
   `Messages`. The host's part is `CompanionActions` (`actions.ts`): the named actions
   (`undock`, `dock`, `place`, `closeItem`, `markSeen`, `openBarTab`, `closeBarPane`,
   `hideOnBar`, `moveBarSlot`) that `frontend/ui`'s `app/commands/companion.ts` implements and
@@ -67,13 +67,13 @@ which puts messages on a terminal's bar), how the pane presents beside its termi
 
 Only what the host imports: `./TerminalCompanion`, `./UndockedWindow` (the pane in its
 terminal, and an item in a window of its own), `./state` (`createItemStore`, `ItemStore`, the plan
-actions), `./bar` (`barMembers`, `composeBar`), `./mail` (`useHasMail`, `useMailBadge`,
-`followMail`),
+actions), `./bar` (`barMembers`, `composeBar`), `./messages` (`useHasMessages`, `useMessageBadge`,
+`followMessages`),
 `./TabKinds` (the kinds' marks on a terminal's tab), `./registry` (`iconOf`: whoever draws an
 item's icon), `./actions` (`CompanionActions`),
 `./drag-session` (`createDragSession`, `DragSessionContext`, `useDrag`, `useDragSession` and
 their types: the views' drop spaces read it too) and the recipe stylesheets (`./taskbar.css`,
-`./peek.css`, `./pane.css`, `./artifact.css`, `./mail.css`, `./prose.css`, `./syntax.css`).
+`./peek.css`, `./pane.css`, `./artifact.css`, `./messages.css`, `./prose.css`, `./syntax.css`).
 `src/test.ts` is Vitest's re-export for the package's own tests and is not exported. A module is
 exported when something outside imports it; the rest of `src` is internal.
 

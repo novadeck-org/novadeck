@@ -64,7 +64,7 @@ import {
   wrap,
   type Message,
   type Thread,
-} from "./mailbox.js"
+} from "./messages.js"
 import {
   deliveredTo,
   lastBetween,
@@ -75,7 +75,7 @@ import {
   type About,
   type Peer,
 } from "./peers.js"
-import { memoryMailbox, type MailboxRecords } from "./records.js"
+import { memoryMessages, type MessageRecords } from "./records.js"
 import { longWaits } from "./waits.js"
 
 const log = logs.for("messaging")
@@ -209,7 +209,7 @@ export type AgentsAnswer =
 
 export type MessagingOptions = {
   /** Where messages, threads and the pause are kept; in memory when omitted. */
-  readonly records?: MailboxRecords
+  readonly records?: MessageRecords
   readonly now?: () => number
   /** How long a lease waits for its hook's acknowledgement, in milliseconds. */
   readonly leaseMs?: number
@@ -390,7 +390,7 @@ const latest = (thread: MessageThread): number => thread.messages.at(-1)?.sentAt
 
 /** The bytes the largest of a message's deliveries on its own would print, in any harness. */
 const deliveredBytes = (message: Message): number => {
-  // Agent mail uses the longer lead note. Person replies use their own note and nonce.
+  // Agent messages use the longer lead note. Person replies use their own note and nonce.
   const text = wrap([message], () => message.response === undefined, "x".repeat(markLength))
   return Math.max(
     ...allAgents.flatMap((agent) => {
@@ -406,13 +406,13 @@ const deliveredBytes = (message: Message): number => {
 
 /**
  * Messages between the agents in Novadeck's terminals (see docs/agent-messaging.md): the
- * mailbox, which keeps every message and thread; each terminal's delivery state; and its
+ * message store, which keeps every message and thread; each terminal's delivery state; and its
  * leases (`leases.ts`) and descriptions of peers (`peers.ts`). The terminal manager owns
  * the terminals, their handles, roots and work, tells it what their agents and people
  * do, and asks it what each hook prints.
  */
 export class Messaging {
-  private readonly records: MailboxRecords
+  private readonly records: MessageRecords
   private readonly now: () => number
   /** How much later a hook may come, for the shell it starts in (see `firing`). */
   private readonly slackMs: number
@@ -457,7 +457,7 @@ export class Messaging {
   private closed = false
 
   constructor(options: MessagingOptions = {}) {
-    this.records = options.records ?? memoryMailbox()
+    this.records = options.records ?? memoryMessages()
     this.now = options.now ?? Date.now
     this.slackMs = hookShellSlackMs(options.platform ?? process.platform)
     this.exists = options.exists ?? ((terminalId) => this.live.has(terminalId))

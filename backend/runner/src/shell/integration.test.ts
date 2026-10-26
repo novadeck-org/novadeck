@@ -106,7 +106,7 @@ const it = base.extend<{ shell: Fixture }>({
             ? options.shellFiles
             : installShellFiles(join(root, "data", "shell")),
         records: store,
-        mailbox: store,
+        messages: store,
         projectOf: (sessionId) => store.session(sessionId).projectId,
         items,
         // Masks nothing: these tests are about when screens are saved, not about secrets.
@@ -653,7 +653,7 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))("bash shell i
     const next = shell.watch(manager)
     await create(manager, shell, { id, restore: true, resume: "claude" })
     await next((summary) => summary.id === id && summary.agent === "claude")
-    // The notice is no peer's conversation, so only the mailbox holds it.
+    // The notice is no peer's conversation, so only the message store holds it.
     const told = () => shell.store.messages().filter(({ to }) => to.terminalId === id)
     await expect.poll(told).toMatchObject([
       {
@@ -4525,7 +4525,7 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))(
         await expect
           .poll(() => manager.messages(opened).delivery, { timeout: 10_000 })
           .toBe("ready")
-        const asks = () => manager.inboxLetters().filter(({ terminalId }) => terminalId === opened)
+        const asks = () => manager.inboxEntries().filter(({ terminalId }) => terminalId === opened)
         const asked = JSON.parse(
           await step(opened, {
             call: "ask",
@@ -6388,7 +6388,7 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))(
         if (agent === "agy") await agyStarted(tui)
         else await tui.first()
         const asking = () =>
-          tui.manager.inboxLetters().filter(({ content }) => content.kind === "ask")
+          tui.manager.inboxEntries().filter(({ content }) => content.kind === "ask")
         await expect.poll(asking, { timeout: 10_000 }).toHaveLength(1)
         // A turn the agent's harness starts by itself leaves it there.
         const turns = tui.received().length
@@ -6419,7 +6419,7 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))(
       await expect.poll(tui.delivery, { timeout: 10_000 }).toBe("settled")
       await tui.back(1)
       const asking = () =>
-        tui.manager.inboxLetters().filter(({ content }) => content.kind === "ask")
+        tui.manager.inboxEntries().filter(({ content }) => content.kind === "ask")
       await expect.poll(asking, { timeout: 10_000 }).toHaveLength(1)
       // The line goes in as a paste and an Enter, and its hook prints the real prompt text.
       await tui.manager.prompt({ terminalId: tui.idle.id, text: "continue\r\n", automatic: true })

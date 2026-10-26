@@ -1,6 +1,6 @@
 import type { Picks } from "@novadeck/core/answers"
 import type { FeedbackAbout } from "@novadeck/core/feedback"
-import type { Inbox, InboxAnswer, InboxItem, InboxState } from "@novadeck/core/inbox"
+import type { Inbox, InboxAnswer, InboxRow, InboxState } from "@novadeck/core/inbox"
 import {
   createContext,
   useCallback,
@@ -32,7 +32,7 @@ import {
 
 // An answer the person gave, kept with its item and what it did, so the sheet can say so
 // after the backend drops the item.
-export type Sent = { readonly item: InboxItem; readonly note: string }
+export type Sent = { readonly item: InboxRow; readonly note: string }
 
 // What the person has started to answer with and not sent: their words, the option they
 // picked on an agent's own ask, and the picks on a dialog's questions.
@@ -55,12 +55,12 @@ export const started = (draft: Draft | undefined): boolean =>
 export type InboxContextValue = {
   readonly state: InboxState
   // The items the list shows, and those held back while a sheet is open.
-  readonly shown: readonly InboxItem[]
-  readonly held: readonly InboxItem[]
+  readonly shown: readonly InboxRow[]
+  readonly held: readonly InboxRow[]
   readonly view: InboxView
   readonly now: number
   // The item whose sheet is open: as the backend has it, or, once answered, as it was.
-  readonly current: InboxItem | undefined
+  readonly current: InboxRow | undefined
   readonly sent: Readonly<Record<string, Sent>>
   readonly drafts: Readonly<Record<string, Draft>>
   // A feedback draft's text as the person edited it, where they have, by item: kept until the
@@ -69,7 +69,7 @@ export type InboxContextValue = {
   readonly setFeedbackEdit: (id: string, text: string) => void
   // Items answered and dropped by the backend that keep their row, answered, until the
   // sheet closes.
-  readonly ghosts: Readonly<Record<string, InboxItem>>
+  readonly ghosts: Readonly<Record<string, InboxRow>>
   // Whether the Inbox is on a screen of its own, where the list and a sheet each take it.
   readonly phone: boolean
   // Whether any agent in the workspace is at work, which the empty list says.
@@ -81,11 +81,11 @@ export type InboxContextValue = {
   readonly showHeld: () => void
   readonly next: () => void
   readonly setDraft: (id: string, patch: Partial<Draft>) => void
-  readonly submit: (item: InboxItem, answer: InboxAnswer, note: string) => void
+  readonly submit: (item: InboxRow, answer: InboxAnswer, note: string) => void
   // Changes how an item is handled without answering it, as turning auto-resume on or off.
-  readonly change: (item: InboxItem, answer: InboxAnswer) => void
+  readonly change: (item: InboxRow, answer: InboxAnswer) => void
   readonly readAll: () => void
-  readonly reveal: (item: InboxItem) => void
+  readonly reveal: (item: InboxRow) => void
 }
 
 const InboxContext = createContext<InboxContextValue | null>(null)
@@ -93,7 +93,7 @@ const InboxContext = createContext<InboxContextValue | null>(null)
 // Opens the item `pick` finds among those listed now, for a view outside the Inbox: one
 // function for as long as the Inbox lasts, so a view holding it never renders again with
 // the Inbox's every change. None in a view rendered on its own.
-export type InboxOpener = (pick: (items: readonly InboxItem[]) => InboxItem | undefined) => void
+export type InboxOpener = (pick: (items: readonly InboxRow[]) => InboxRow | undefined) => void
 
 const OpenerContext = createContext<InboxOpener | null>(null)
 
@@ -221,7 +221,7 @@ export const InboxProvider = ({
 
   const open = useCallback(
     // `items` where the caller read them newer than the last commit.
-    (id: string, items?: readonly InboxItem[]): void => {
+    (id: string, items?: readonly InboxRow[]): void => {
       const { state: snapshot, view: before, phone: screen } = latest.current
       const list = items ?? snapshot.items
       if (before.open !== id) dropSent(before.open)
@@ -264,7 +264,7 @@ export const InboxProvider = ({
   }, [])
 
   const submit = useCallback(
-    (item: InboxItem, answer: InboxAnswer, note: string): void => {
+    (item: InboxRow, answer: InboxAnswer, note: string): void => {
       setAnswered((record) => ({ ...record, [item.id]: { item, note } }))
       inbox.answer(item.id, answer)
     },
@@ -272,7 +272,7 @@ export const InboxProvider = ({
   )
 
   const change = useCallback(
-    (item: InboxItem, answer: InboxAnswer): void => inbox.answer(item.id, answer),
+    (item: InboxRow, answer: InboxAnswer): void => inbox.answer(item.id, answer),
     [inbox],
   )
 
@@ -284,7 +284,7 @@ export const InboxProvider = ({
   }, [inbox, close])
 
   const revealItem = useCallback(
-    (item: InboxItem): void => {
+    (item: InboxRow): void => {
       close()
       reveal(item.source.terminalId)
     },

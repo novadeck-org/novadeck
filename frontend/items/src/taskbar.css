@@ -8,7 +8,7 @@
    data-drop-target while an icon from another bar is over it; `.plan-taskbar-empty`, the
    bar a terminal with nothing to show offers as a drop target. On an icon,
    aria-pressed="true" while the pane shows it, and data-state="new" | "open" | "behind" |
-   "seen" for its mark. On a count, data-mail="held" | "paused". `.plan-tb-grabbed`, a card
+   "seen" for its mark. On a count, data-messages="held" | "paused". `.plan-tb-grabbed`, a card
    pulled out of a peek, and data-settling as it goes back. data-drag-refused on the
    root while a dragged icon is somewhere nothing takes it.
 
@@ -236,11 +236,11 @@
   font-style: normal;
   line-height: 13px;
 }
-.plan-tb-count[data-mail="held"] {
+.plan-tb-count[data-messages="held"] {
   --_bg: var(--taskbar-count-held-bg, var(--color-warning));
   --_fg: var(--taskbar-count-held-fg, var(--color-warning-fg));
 }
-.plan-tb-count[data-mail="paused"] {
+.plan-tb-count[data-messages="paused"] {
   --_bg: var(--taskbar-count-paused-bg, var(--color-paper));
   --_fg: var(--taskbar-count-paused-fg, var(--color-muted));
   --_border-color: var(--taskbar-count-paused-border-color, var(--color-line));

@@ -53,7 +53,7 @@
 @import "@novadeck/items/peek.css" layer(components);
 @import "@novadeck/items/pane.css" layer(components);
 @import "@novadeck/items/artifact.css" layer(components);
-@import "@novadeck/items/mail.css" layer(components);
+@import "@novadeck/items/messages.css" layer(components);
 @import "./app/visitor.css" layer(components);
 @import "./shell/region.css" layer(components);
 @import "./shell/footer-murmur.css" layer(components);

@@ -2,7 +2,7 @@ import {
   nextLimitReset,
   noInbox,
   type Inbox,
-  type InboxItem,
+  type InboxRow,
   type TerminalAt,
 } from "@novadeck/core/inbox"
 import { inboxMarks, type InboxMarks } from "@novadeck/core/inbox-marks"
@@ -10,12 +10,12 @@ import { useEffect, useState } from "react"
 
 import { useStoreSelector } from "./controller/useStoreSelector"
 
-const sameItems = (a: readonly InboxItem[], b: readonly InboxItem[]): boolean =>
+const sameItems = (a: readonly InboxRow[], b: readonly InboxRow[]): boolean =>
   a.length === b.length && a.every((item, index) => item === b[index])
 
 // The time the limits among `items` are judged by, moved on once the next one resets (which
 // makes its terminal an Unblock) though nothing else changes.
-export const useLimitClock = (items: readonly InboxItem[]): number => {
+export const useLimitClock = (items: readonly InboxRow[]): number => {
   const [now, setNow] = useState(() => Date.now())
   const resetsAt = nextLimitReset(items, now)
   useEffect(() => {
@@ -26,7 +26,7 @@ export const useLimitClock = (items: readonly InboxItem[]): number => {
   return now
 }
 
-const none: readonly InboxItem[] = []
+const none: readonly InboxRow[] = []
 
 // Follows the raw Inbox for one terminal: it re-renders only when that terminal's own items
 // change, and again when one of its limits resets (which makes it an Unblock).

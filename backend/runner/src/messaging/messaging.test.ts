@@ -25,7 +25,7 @@ import { bareHandle } from "../terminals/handles.js"
 import { describe, expect, it } from "../test.js"
 import { running, submitWindowMs } from "./delivery.js"
 import type { Loops } from "./loops.js"
-import { clock, retentionMs, threadMs } from "./mailbox.js"
+import { clock, retentionMs, threadMs } from "./messages.js"
 import {
   holdNotice,
   Messaging,
@@ -35,7 +35,7 @@ import {
   type SendAnswer,
 } from "./messaging.js"
 import type { Whereabouts } from "./peers.js"
-import { memoryMailbox, type MailboxRecords } from "./records.js"
+import { memoryMessages, type MessageRecords } from "./records.js"
 
 const binding = (agent: AgentName, sessionId: string, instance: string | null = "10"): Binding => ({
   agent,
@@ -124,7 +124,7 @@ const here = { projectId: "p", sessionId: "s" }
 const elsewhere = { projectId: "q", sessionId: "s2" }
 
 const create = (
-  records: MailboxRecords = memoryMailbox(),
+  records: MessageRecords = memoryMessages(),
   time: Clock = { now: 1_000_000 },
   options: MessagingOptions = {},
 ) => {
@@ -584,7 +584,7 @@ describe("an addressee with no session yet", () => {
   })
 
   it("outlasts the restore, and is gone once another agent binds there or the terminal closes", () => {
-    const records = memoryMailbox()
+    const records = memoryMessages()
     const setup = create(records, { now: 1_000_000 }, { restoreMs: 60_000 })
     setup.messaging.register("N", here, "owl", null)
     setup.messaging.expect("N", "codex")
@@ -603,7 +603,7 @@ describe("an addressee with no session yet", () => {
 
 describe("guards", () => {
   it("hold every message while paused, across restarts, and deliver in order once resumed", () => {
-    const records = memoryMailbox()
+    const records = memoryMessages()
     const first = create(records)
     sent(first.send("A", "fox", "before"))
     first.messaging.pause(true)
@@ -827,7 +827,7 @@ describe("delivery through hooks", () => {
   })
 
   it("puts every lease held when the runner stops back to queued", () => {
-    const records = memoryMailbox()
+    const records = memoryMessages()
     const first = create(records)
     sent(first.send("A", "fox", "hello"))
     expect(first.prompt("B", first.codex).leaseId).toEqual(expect.any(String))
@@ -839,7 +839,7 @@ describe("delivery through hooks", () => {
   })
 
   it("keeps a terminal's messages waiting through the runner's end, as its shells exit after it closed", () => {
-    const records = memoryMailbox()
+    const records = memoryMessages()
     const first = create(records)
     sent(first.send("A", "fox", "hello"))
     expect(first.prompt("B", first.codex).leaseId).toEqual(expect.any(String))
@@ -863,12 +863,12 @@ describe("delivery through hooks", () => {
   })
 
   it("leases nothing once the runner closed it, as no ack could then record a delivery", () => {
-    const records = memoryMailbox()
+    const records = memoryMessages()
     const { messaging, send, prompt, stop, codex } = create(records)
     sent(send("A", "fox", "hello"))
     messaging.close()
     // A hook of a turn as the shells end: its messages would be printed, then delivered
-    // again by the next runner, as the closed mailbox can't save the ack.
+    // again by the next runner, as the closed store can't save the ack.
     const answer = prompt("B", codex)
     expect(answer.leaseId).toBeNull()
     expect(answer.stdout ?? "").not.toContain("hello")
@@ -877,7 +877,7 @@ describe("delivery through hooks", () => {
   })
 
   it("refuses a message sent while the runner stops, which it could no longer keep", () => {
-    const records = memoryMailbox()
+    const records = memoryMessages()
     const first = create(records)
     first.messaging.close()
     const answer = first.send("A", "fox", "hello")
@@ -1079,7 +1079,7 @@ describe("delivery through hooks", () => {
   })
 
   it("makes messages gone once restoring is over for a terminal never restored, until it is", () => {
-    const records = memoryMailbox()
+    const records = memoryMessages()
     const first = create(records)
     sent(first.send("A", "fox", "hello"))
     first.messaging.close()
@@ -1262,7 +1262,7 @@ describe("a stopped thread", () => {
   })
 
   it("keeps a leased message gone across a restart of the runner", () => {
-    const records = memoryMailbox()
+    const records = memoryMessages()
     const first = create(records)
     sent(first.send("A", "fox", "first"))
     first.prompt("B", first.codex)
@@ -1376,7 +1376,7 @@ describe("Antigravity's root conversation", () => {
     vi.useRealTimers()
   })
 
-  const agyTerminal = (records?: MailboxRecords) => {
+  const agyTerminal = (records?: MessageRecords) => {
     const setup = create(records)
     const root = binding("agy", "c-root", "7")
     setup.messaging.register("G", here, "owl", null)
@@ -1432,7 +1432,7 @@ describe("Antigravity's root conversation", () => {
   })
 
   it("never makes the root's messages gone when Antigravity restarts during a subagent's work", () => {
-    const records = memoryMailbox()
+    const records = memoryMessages()
     const first = agyTerminal(records)
     first.observe("G", first.root, [observed(first.root, true)], true)
     sent(first.send("A", "owl", "hello"))
@@ -2060,7 +2060,7 @@ describe("listing", () => {
 describe("retention", () => {
   it("keeps messages while either terminal exists, and for a day after their latest activity", () => {
     const kept = new Set(["A", "B"])
-    const records = memoryMailbox()
+    const records = memoryMessages()
     const {
       messaging,
       send,
@@ -2281,7 +2281,7 @@ describe("the person's submissions", () => {
 
 describe("ringing", () => {
   // Codex settled after a turn, with a message waiting.
-  const settledWithMail = () => {
+  const settledWithMessages = () => {
     const setup = create()
     setup.prompt("B", setup.codex)
     setup.stop("B", setup.codex)
@@ -2311,7 +2311,7 @@ describe("ringing", () => {
   })
 
   it("is confirmed by its doorbell prompt, whose hook delivers", () => {
-    const { messaging, ask, codex } = settledWithMail()
+    const { messaging, ask, codex } = settledWithMessages()
     messaging.ring("B", "n1")
     const answer = ask("B", codex, "UserPromptSubmit", [doorbellStarted(codex, "n1")])
     expect(answer.leaseId).toEqual(expect.any(String))
@@ -2331,7 +2331,7 @@ describe("ringing", () => {
   })
 
   it("gives way to another prompt, the ring then over", () => {
-    const { messaging, prompt, codex } = settledWithMail()
+    const { messaging, prompt, codex } = settledWithMessages()
     messaging.ring("B", "n1")
     expect(messaging.delivery("B")?.state).toBe("ringing")
     expect(prompt("B", codex).leaseId).toEqual(expect.any(String))
@@ -2341,7 +2341,7 @@ describe("ringing", () => {
   })
 
   it("tells of each change, for the doorbell to look again", () => {
-    const { messaging, changed } = settledWithMail()
+    const { messaging, changed } = settledWithMessages()
     changed.length = 0
     messaging.ring("B", "n1")
     messaging.ringFailed("B", "n1")
@@ -2569,7 +2569,7 @@ describe("a new agent session at its own prompt", () => {
   })
 
   it("rings a Claude Code the runner restored, resumed at its prompt, and its doorbell prompt delivers", () => {
-    const records = memoryMailbox()
+    const records = memoryMessages()
     const first = create(records)
     sent(first.send("B", "moth", "hello"))
     first.messaging.close()
@@ -2877,7 +2877,7 @@ describe("an agent's prompt shown before any session binds", () => {
   it("keeps a restored Codex's messages for the session its title shows, and rings it", () => {
     vi.useFakeTimers()
     try {
-      const records = memoryMailbox()
+      const records = memoryMessages()
       const first = create(records)
       const resumed = binding("codex", "01a0f932-a824-7c30-b713-b59ed562f00b", "2")
       first.follow("B", resumed)
@@ -3732,8 +3732,8 @@ describe("the person's prompt, told to the asks", () => {
   })
 })
 
-// The latest message the mailbox keeps for a terminal, as the mailbox holds it.
-const latestFor = (records: MailboxRecords, terminalId: string) =>
+// The latest message the store keeps for a terminal, as the store holds it.
+const latestFor = (records: MessageRecords, terminalId: string) =>
   records.messages().findLast((message) => message.to.terminalId === terminalId)!
 
 // A third terminal, owl, opened by moth's agent: moth is its lead.
@@ -4286,7 +4286,7 @@ describe("a long hold of the doorbell", () => {
       // The person's Escape mid-turn only closed a popup: delivery takes the agent for
       // Unknown, but its activity says the turn runs on.
       const working = new Set<string>()
-      const made = create(memoryMailbox(), { now: 1_000_000 }, { busy: (id) => working.has(id) })
+      const made = create(memoryMessages(), { now: 1_000_000 }, { busy: (id) => working.has(id) })
       const { messaging, clock: time, send, prompt, observe, claude, codex } = made
       const bound = { A: claude, B: codex }
       prompt(to, bound[to])
@@ -4636,7 +4636,7 @@ describe("the loop hold", () => {
   })
 
   it("addresses Novadeck's notice, where no session is bound yet, to the agent whose prompt shows", () => {
-    const records = memoryMailbox()
+    const records = memoryMessages()
     const messaging = new Messaging({ records, sweepMs: 0, exists: () => true })
     messaging.register("B", here, "fox", null)
     const notice = "Novadeck: automatic notice, not from the user: go on"
@@ -4917,7 +4917,7 @@ describe("the loop hold", () => {
 
 describe("a hold carried over from the twelve-message rule", () => {
   it("holds a message past it on load, answers a send with the thread waiting, and lists no reason", () => {
-    const records = memoryMailbox()
+    const records = memoryMessages()
     records.saveThread({
       id: "t-old",
       projectId: "p",

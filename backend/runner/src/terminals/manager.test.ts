@@ -1756,7 +1756,7 @@ const createIn = (manager: Terminals) =>
 
 // The message watches the manager still holds for the terminal.
 const readers = (manager: Terminals, terminalId: string) =>
-  (manager as unknown as { streams: { mail: Map<string, Set<unknown>> } }).streams.mail.get(
+  (manager as unknown as { streams: { messages: Map<string, Set<unknown>> } }).streams.messages.get(
     terminalId,
   )?.size ?? 0
 

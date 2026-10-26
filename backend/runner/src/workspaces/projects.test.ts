@@ -29,7 +29,7 @@ describe("project removal", () => {
         shell: "/bin/sh",
         shellArgs: ["-c", "trap '' HUP; echo ready; exec cat"],
         records: store,
-        mailbox: store,
+        messages: store,
         doorbell: false,
         items,
       })
@@ -85,7 +85,7 @@ describe("project removal", () => {
         shell: "/bin/sh",
         shellArgs: ["-c", "exec cat"],
         records: store,
-        mailbox: store,
+        messages: store,
         doorbell: false,
         items,
       })

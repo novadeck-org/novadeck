@@ -1,5 +1,5 @@
 import { agentWorking } from "@novadeck/core/agent-finish"
-import type { InboxItem } from "@novadeck/core/inbox"
+import type { InboxRow } from "@novadeck/core/inbox"
 import { inboxMarks } from "@novadeck/core/inbox-marks"
 import { doneText, terminalGlance } from "@novadeck/core/terminal-ending"
 import type { WorkspaceProject } from "@novadeck/core/types"
@@ -38,7 +38,7 @@ export const statusText: Record<ProjectStatus, string> = {
 export const projectStatus = (
   project: WorkspaceProject,
   unread: UnreadEnds,
-  items: readonly InboxItem[] = [],
+  items: readonly InboxRow[] = [],
   now = Date.now(),
 ): ProjectStatus | undefined => {
   let status: ProjectStatus | undefined
@@ -86,7 +86,7 @@ export const needsPerson = (status: ProjectStatus | undefined): boolean =>
 export const projectStatuses = (
   projects: readonly WorkspaceProject[],
   unread: UnreadEnds,
-  items: readonly InboxItem[] = [],
+  items: readonly InboxRow[] = [],
   now = Date.now(),
 ): Readonly<Record<string, ProjectStatus>> => {
   const statuses: Record<string, ProjectStatus> = {}

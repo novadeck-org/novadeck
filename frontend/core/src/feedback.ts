@@ -37,7 +37,7 @@ export type Feedback = {
   readonly send: (note: FeedbackNote) => Promise<void>
   // Asks the agent in a terminal to write feedback from what it just did, with the
   // person's hint (empty for none). Resolves once the request is on its way; the draft
-  // arrives later as an Inbox item. Rejects when no agent runs there. Optional: the demo
+  // arrives later as an Inbox row. Rejects when no agent runs there. Optional: the demo
   // has it, the desktop app not yet (it waits for the same route on every harness), and
   // the window menu offers the item only where it exists.
   readonly ask?: (terminal: TerminalKey, hint: string) => Promise<void>

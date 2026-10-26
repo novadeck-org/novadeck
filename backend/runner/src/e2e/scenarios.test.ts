@@ -1,7 +1,7 @@
 import { doorbellLine } from "@novadeck/harness-core/harness"
 import type { DeliveryState, MessageState, TerminalMessages } from "@novadeck/protocol"
 
-import { wrap, type Message } from "../messaging/mailbox.js"
+import { wrap, type Message } from "../messaging/messages.js"
 import { describe, expect, it } from "../test.js"
 import { claude } from "./agents/claude.js"
 import { createHistory } from "./history.js"

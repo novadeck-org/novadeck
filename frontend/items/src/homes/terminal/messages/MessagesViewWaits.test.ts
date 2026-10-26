@@ -1,10 +1,10 @@
-import type { MailWaits, TerminalMail } from "@novadeck/core/messages"
+import type { MessageWaits, TerminalThreads } from "@novadeck/core/messages"
 import { render } from "@novadeck/test-kit/render"
 import { createElement } from "react"
 import { afterEach } from "vitest"
 
 import { describe, expect, it } from "../../../test"
-import { noLinks, type MailHandle } from "./mail"
+import { noLinks, type MessagesHandle } from "./messages"
 import { MessagesView } from "./MessagesView"
 
 const message = {
@@ -19,8 +19,8 @@ const message = {
   deliveredAt: null,
 } as const
 
-const mailOf = (waits: MailWaits | null, paused = false): MailHandle => {
-  const mail: TerminalMail = {
+const messagesOf = (waits: MessageWaits | null, paused = false): MessagesHandle => {
+  const threads: TerminalThreads = {
     handle: "moth",
     agent: true,
     waits,
@@ -29,7 +29,7 @@ const mailOf = (waits: MailWaits | null, paused = false): MailHandle => {
     ],
   }
   return {
-    mail,
+    threads,
     paused,
     pending: false,
     error: null,
@@ -44,8 +44,8 @@ const mailOf = (waits: MailWaits | null, paused = false): MailHandle => {
 const unmounts: (() => void)[] = []
 afterEach(() => unmounts.splice(0).forEach((unmount) => unmount()))
 
-const html = (mail: MailHandle): string => {
-  const rendered = render(createElement(MessagesView, { mail, links: noLinks }))
+const html = (messagesHandle: MessagesHandle): string => {
+  const rendered = render(createElement(MessagesView, { messagesHandle, links: noLinks }))
   unmounts.push(rendered.unmount)
   return rendered.container.innerHTML
 }
@@ -61,11 +61,11 @@ describe("the Messages pane's note on why the doorbell cannot wake an idle agent
     ["failed", "The doorbell failed"],
     ["away", "isn't at the agent's prompt"],
   ] as const)("says %s in plain words while messages wait", (waits, words) => {
-    expect(html(mailOf(waits))).toContain(words)
+    expect(html(messagesOf(waits))).toContain(words)
   })
 
   it("says nothing when nothing keeps it, or messaging is paused", () => {
-    expect(html(mailOf(null))).not.toContain("mail-waits")
-    expect(html(mailOf("draft", true))).not.toContain("mail-waits")
+    expect(html(messagesOf(null))).not.toContain("message-waits")
+    expect(html(messagesOf("draft", true))).not.toContain("message-waits")
   })
 })

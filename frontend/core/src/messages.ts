@@ -17,7 +17,7 @@ export type InboxHistory = "open" | "answered" | "read" | "withdrawn" | "gone" |
 
 export type AgentMessage = {
   readonly id: string
-  // Inbox letters and the person's replies share a thread with You.
+  // Inbox entries and the person's replies share a thread with You.
   readonly inbox?: "ask" | "tell" | "done" | "answer"
   readonly inboxState?: InboxHistory
   // Its place in its thread, counted from 1.
@@ -52,7 +52,7 @@ export type MessageThread = {
 // (`working`), a prompt queued in the agent (`queued`), its box in shell mode (`shell`),
 // text in its box (`draft`), a dialog or picker over it (`dialog`), or a question it waits
 // on the person for (`asking`). The pane says so in plain words.
-export type MailWaits =
+export type MessageWaits =
   | "working"
   | "queued"
   | "shell"
@@ -62,7 +62,7 @@ export type MailWaits =
   | "failed"
   | "away"
 
-export const waitsText: Readonly<Record<MailWaits, string>> = {
+export const waitsText: Readonly<Record<MessageWaits, string>> = {
   working: "It is working, so they wait. They arrive once its turn ends.",
   queued: "A prompt is queued in it, so they wait. They arrive once that prompt has run.",
   shell: "Its box is in shell mode, so they wait. They arrive once it's back to a prompt.",
@@ -79,7 +79,7 @@ export const unsaidWaits = {
   behind: "an idle agent Novadeck can't wake yet",
   text: "It is idle, but Novadeck can't wake it yet, so they wait. They arrive at its next prompt.",
 }
-export const waitsBehind: Readonly<Record<MailWaits, string>> = {
+export const waitsBehind: Readonly<Record<MessageWaits, string>> = {
   working: "its turn running",
   queued: "a prompt queued in the agent",
   shell: "its box in shell mode",
@@ -93,10 +93,10 @@ export const waitsBehind: Readonly<Record<MailWaits, string>> = {
 // A terminal's messages: its own handle, whether an agent is there to take them, why the
 // doorbell can't wake it now if its agent is idle and since when (epoch milliseconds), and
 // its threads, latest first.
-export type TerminalMail = {
+export type TerminalThreads = {
   readonly handle: string
   readonly agent: boolean
-  readonly waits?: MailWaits | null
+  readonly waits?: MessageWaits | null
   readonly waitsSince?: number | null
   readonly threads: readonly MessageThread[]
 }
@@ -104,7 +104,7 @@ export type TerminalMail = {
 // Another terminal of the session as a terminal's messages show it, by its handle: its
 // name and id, the program running in it, and whether its agent is there, at rest or
 // working, or gone from it.
-export type MailPeer = {
+export type MessagePeer = {
   readonly name: string
   readonly terminalId: string
   readonly program: string | undefined
@@ -114,8 +114,8 @@ export type MailPeer = {
 // Whether two sets of peers show the same, as the roster gives new ones each time any
 // terminal changes.
 export const samePeers = (
-  a: Readonly<Record<string, MailPeer>>,
-  b: Readonly<Record<string, MailPeer>>,
+  a: Readonly<Record<string, MessagePeer>>,
+  b: Readonly<Record<string, MessagePeer>>,
 ): boolean => {
   if (a === b) return true
   const handles = Object.keys(a)
@@ -141,16 +141,16 @@ export const samePeers = (
 // `releasing` the threads whose release is on its way, by whether the backend has only
 // been asked or has accepted it, until a listing shows them going
 // on, and `failed` why a thread's last release didn't take: only that thread says so.
-export type MailState = {
+export type MessagesState = {
   readonly paused: boolean
   readonly pending: boolean
   readonly error: string | null
   readonly releasing: Readonly<Record<string, "asked" | "accepted">>
   readonly failed: Readonly<Record<string, string>>
-  readonly terminals: Readonly<Record<string, TerminalMail>>
+  readonly terminals: Readonly<Record<string, TerminalThreads>>
 }
 
-export const noMail: MailState = {
+export const noMessages: MessagesState = {
   paused: false,
   pending: false,
   error: null,
@@ -160,7 +160,7 @@ export const noMail: MailState = {
 }
 
 export type Messages = {
-  readonly state: Store<MailState>
+  readonly state: Store<MessagesState>
   // Pauses messaging, or resumes it.
   readonly pause: (paused: boolean) => void
   // Lets a held thread go on: its held messages wait to be delivered again, and its count
@@ -170,29 +170,32 @@ export type Messages = {
   // senders are told the person stopped it.
   readonly stop: (thread: string) => void
   // Only the demo's: puts a terminal's agent in a state the doorbell can't ring, or back.
-  readonly waits?: (key: CompanionKey, waits: MailWaits | null) => boolean
+  readonly waits?: (key: CompanionKey, waits: MessageWaits | null) => boolean
 }
 
 const waitingStates: ReadonlySet<MessageState> = new Set(["queued", "leased", "held"])
 
 // Messages on their way to the terminal's agent: not yet delivered, nor gone.
-export const waitingFor = (mail: TerminalMail): readonly AgentMessage[] =>
-  mail.threads.flatMap((thread) =>
+export const waitingFor = (terminalMessages: TerminalThreads): readonly AgentMessage[] =>
+  terminalMessages.threads.flatMap((thread) =>
     thread.messages.filter(
-      (message) => message.to === mail.handle && waitingStates.has(message.state),
+      (message) => message.to === terminalMessages.handle && waitingStates.has(message.state),
     ),
   )
 
 // What a terminal's tab says of the messages waiting for its agent: how many, and whether
 // some need the person to release their thread, or all wait for messaging to resume.
-export type MailBadge = {
+export type MessageBadge = {
   readonly count: number
   readonly kind: "waiting" | "held" | "paused"
 }
 
-export const mailBadge = (mail: TerminalMail | undefined, paused: boolean): MailBadge | null => {
-  if (!mail) return null
-  const waiting = waitingFor(mail)
+export const messageBadge = (
+  terminalMessages: TerminalThreads | undefined,
+  paused: boolean,
+): MessageBadge | null => {
+  if (!terminalMessages) return null
+  const waiting = waitingFor(terminalMessages)
   if (!waiting.length) return null
   const kind = waiting.some((message) => message.held === "release")
     ? "held"
@@ -204,7 +207,7 @@ export const mailBadge = (mail: TerminalMail | undefined, paused: boolean): Mail
 
 const messagesWord = (count: number): string => `${count} message${count === 1 ? "" : "s"}`
 
-export const mailBadgeLabel = ({ count, kind }: MailBadge): string =>
+export const messageBadgeLabel = ({ count, kind }: MessageBadge): string =>
   kind === "held"
     ? `${messagesWord(count)} waiting, held until you release ${count === 1 ? "it" : "them"}`
     : kind === "paused"
@@ -213,5 +216,5 @@ export const mailBadgeLabel = ({ count, kind }: MailBadge): string =>
 
 // Whether a terminal has a messages view: it has had messages. An agent with none yet
 // keeps its bar clear until one comes.
-export const hasMail = (mail: TerminalMail | undefined): boolean =>
-  Boolean(mail && mail.threads.length > 0)
+export const hasMessages = (terminalMessages: TerminalThreads | undefined): boolean =>
+  Boolean(terminalMessages && terminalMessages.threads.length > 0)
