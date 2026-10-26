@@ -12,7 +12,7 @@ import { followRoot, rootedIn, type RootChange } from "../../harnesses/roots.js"
 import { transcriptWaitMs, typedPromptStart } from "../../harnesses/typed-prompts.js"
 import type { Inbox } from "../../messaging/inbox.js"
 import { byteLength, maxDeliveryBytes } from "../../messaging/messages.js"
-import { leaseMargin, type Messaging, type Person } from "../../messaging/messaging.js"
+import { leaseMargin, type Answer, type Messaging, type Person } from "../../messaging/messaging.js"
 import type { HookAnswer } from "../../shell/reports.js"
 import { sameToken } from "../callers.js"
 import { promptIn } from "../commands.js"
@@ -20,7 +20,7 @@ import type { Companion } from "../companion.js"
 import { failed } from "../failures.js"
 import { tellInterrupted } from "../interrupted.js"
 import type { Murmur } from "../murmur.js"
-import { atPrompt, fired, noticesAt, sessionBegan } from "../nudges.js"
+import { atTurnStart, fired, noticesAt, sessionBegan } from "../nudges.js"
 import { peerOf, type TerminalPeers } from "../peers.js"
 import type { Record } from "../record.js"
 import { boundProgram } from "../sampling.js"
@@ -364,50 +364,51 @@ export class Reports {
   }
 
   /**
-   * A prompt-time hook's answer, with Novadeck's notices when any is due (see
-   * `nudges.ts`): the bar beside the terminal and the Inbox, for a session that begins or
-   * lost its context, which a `summarize` never clears, and a nudge to summarize the terminal's
-   * work, when a trigger fired since the last `summarize`; only at the person's prompt, as
-   * a paragraph each, never in an answer that carries messages or another notice, nor at
-   * Stop. Each of the person's prompts counts toward the backstop, and where nothing else
-   * is said, whether the work drifted is looked at.
+   * A turn's answer, with Novadeck's notices when any is due (see `nudges.ts`): the bar
+   * beside the terminal and the Inbox, for a session that begins or lost its context, which
+   * a `summarize` never clears, a nudge to summarize the terminal's work, when a trigger
+   * fired since the last `summarize`, and pages that had troubles; a paragraph each, after
+   * what the answer says, at the start of a root turn the person's prompt or the doorbell
+   * began (messaging says which, as `adding`), so an agent its lead started and only
+   * messages hears them too; never at Stop. Each of the person's prompts counts toward the
+   * backstop, and where no messages are delivered, whether the work drifted is looked at.
    */
   async nudged(
     record: Record,
     report: Report,
     events: readonly HarnessEvent[],
-    answer: HookAnswer,
+    answer: Answer,
     deadline: number,
   ): Promise<HookAnswer> {
+    const { leaseId, stdout, adding } = answer
+    const given = { leaseId, stdout }
+    if (!adding) return given
     const { messaging } = harnesses[report.agent]
-    if (messaging.asks[report.event] !== "prompt") return answer
-    const prompt = events.some(
-      (event) =>
-        event.type === "turn-started" && event.cause === "prompt" && rootedIn(record.root, event),
-    )
-    if (!prompt) return answer
-    const silent = answer.leaseId === null && answer.stdout === silentFor(messaging, report.event)
     const inTime = (ms: number) => deadline - Date.now() >= ms
-    // Read only for an answer that has nothing else to say, so a delivery never waits on
-    // it, and only with time to spare.
+    // Read only for an answer that delivers nothing, so a delivery never waits on it, and
+    // only with time to spare.
     const facts =
-      silent && record.nudges.baseline && inTime(driftReadMs)
+      leaseId === null && record.nudges.baseline && inTime(driftReadMs)
         ? await this.host.peers().facts(peerOf(record))
         : undefined
-    // A nudge that may miss the hook's deadline is never spent: its trigger waits.
     const current = { summary: record.naming.summary }
-    const printed = (took: Parameters<typeof noticesAt>[0]) =>
-      messaging.prompt(noticesAt(took, current))
-    const taken = atPrompt(record.nudges, {
-      quiet: silent && inTime(leaseMargin),
+    const notices = (took: Parameters<typeof noticesAt>[0]) => noticesAt(took, current)
+    const taken = atTurnStart(record.nudges, {
+      person: events.some(
+        (event) =>
+          event.type === "turn-started" && event.cause === "prompt" && rootedIn(record.root, event),
+      ),
+      // A nudge that may miss the hook's deadline is never spent: its trigger waits.
+      inTime: inTime(leaseMargin),
       facts,
       unsummarized: current.summary === null,
-      // Pages the hook may not print in full wait for the next prompt.
-      fits: (took) => byteLength(printed(took)) <= maxDeliveryBytes,
+      // What the hook may not print beside what the answer says waits for the next turn.
+      fits: (took) => byteLength(adding(notices(took))) <= maxDeliveryBytes,
+      fitsAlone: (took) => byteLength(messaging.prompt(notices(took))) <= maxDeliveryBytes,
     })
     record.nudges = taken.nudges
-    if (!taken.nudge) return answer
-    return { leaseId: null, stdout: printed(taken) }
+    if (!taken.nudge) return given
+    return { leaseId, stdout: adding(notices(taken)) }
   }
 
   /**
