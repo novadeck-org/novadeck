@@ -328,10 +328,15 @@ for (const setup of setups) {
       for (const reply of pairs.flatMap((pair) => [pair.reply, pair.next]))
         await item(t1, "assistant", (text) => text.includes(reply))
       const users = await texts(t1, "user")
+      // Each reaches the model once, whether queued, steered or sent with the first.
+      for (const pair of pairs)
+        expect(
+          run.model.calls.filter((call) => !call.side && asked(call, pair.second)),
+        ).toHaveLength(1)
       // Each once, as its own prompt; or, where the harness steers, maybe in the turn it
-      // joined. Claude Code, having sent both prompts in one request, records the first as
-      // the user's turn and the second not as a turn of its own (seen under load, 2.1.304);
-      // the model's call above held it, so none is lost, and it is not asked for twice.
+      // joined. A harness that sent both prompts in one request may record the second not
+      // as a turn of its own: Claude Code 2.1.304 did so under load, and whether our reader
+      // misses where it put it is being looked into. The model's call held it, so none is lost.
       for (const pair of pairs) {
         const sentTogether =
           !setup.steers &&
