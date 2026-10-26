@@ -1,6 +1,6 @@
 import { setups } from "./agents/index.js"
 import { describe, e2e, expect, supported } from "./fixture.js"
-import { latest } from "./model/script.js"
+import { asked, latest, tool, type Call } from "./model/script.js"
 import {
   deliveries,
   delivered,
@@ -8,6 +8,7 @@ import {
   own,
   prompted,
   replies,
+  result,
   ring,
   sends,
   sent,
@@ -75,6 +76,58 @@ for (const setup of setups) {
         { after: mark },
       )
       expect((await resumed.detail()).sessionId).toBe(sessionId)
+    })
+
+    it("still knows after a restart that the person gave a peer more to do after its done", async ({
+      e2e: run,
+    }) => {
+      const named = (call: Call, name: string): string => {
+        const found = [call, ...run.model.calls].map((one) => tool(one, name)).find(Boolean)
+        if (!found) throw new Error(`Novadeck's ${name} tool is missing`)
+        return found
+      }
+      const listings: string[] = []
+      run.model.use(
+        own((call) => {
+          if (asked(call, "Finish up"))
+            return {
+              calls: [
+                {
+                  name: named(call, "done"),
+                  input: { subject: "Fixed the login bug", body: "All green." },
+                },
+              ],
+            }
+          if (/Report [a-f0-9-]+ is in the user's Inbox/.test(result(call) ?? ""))
+            return { text: "Reported it done." }
+          if (asked(call, "Look around"))
+            return { calls: [{ name: named(call, "agents"), input: {} }] }
+          const listing = result(call)
+          if (listing?.includes("Other terminals in this project and session")) {
+            listings.push(listing)
+            return { text: "Looked." }
+          }
+          return undefined
+        }),
+        replies("Next task", "On the next task."),
+      )
+      const t1 = await start(run, setup)
+      await turn(t1, "Finish up", "Reported it done.")
+      await turn(t1, "Next task", "On the next task.")
+
+      await run.deck.restart()
+
+      const resumed = await run.deck.restore(t1, { resume: setup.agent })
+      await resumed.reached("ready", { timeoutMs: 60_000 })
+      await prompted(resumed, setup)
+      const t2 = await start(run, setup)
+      await turn(t2, "Look around", "Looked.")
+      // The person's prompt after the done is kept with the terminal: never a stale done.
+      expect(listings[0]).not.toContain("reported done")
+      // A harness that binds its resumed session at its prompt shows its reports at once;
+      // the others only once their next prompt binds it.
+      if (setup.bindsAtReady)
+        expect(listings[0]).toMatch(/\n {2}latest update [^:\n]+: Fixed the login bug\n?/)
     })
 
     it("returns a message leased to its hook to queued when the runner restarts", async ({

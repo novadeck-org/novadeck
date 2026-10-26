@@ -27,6 +27,11 @@ export type Work = {
    */
   readonly opened?: true
   readonly latest: string | null
+  /**
+   * When the person's latest root prompt started its turn, as delivery judges the prompt
+   * theirs (their Enter), so never a self-wake's or the doorbell's; absent before one.
+   */
+  readonly personAt?: number
   /** Edits by folder, by absolute path, the `keptFolders` written in most. */
   readonly folders: { readonly [folder: string]: number }
   /** The paths of the `keptFiles` files it wrote in last, the latest first; absent until one. */
@@ -51,6 +56,10 @@ export const firstFrom = (work: Work | null, openedBy: string | null): "user" | 
   if (openedBy === null || work.opened !== true) return "user"
   return work.firstByPerson === true ? "user" : "opener"
 }
+
+/** The work once the person's own prompt started a root turn at `at`; never earlier than it was. */
+export const personPrompted = (work: Work, at: number): Work =>
+  work.personAt !== undefined && work.personAt >= at ? work : { ...work, personAt: at }
 
 /** The work once told whether the person's own submission started its first prompt; told once. */
 export const judgedFirst = (work: Work, byPerson: boolean): Work =>
