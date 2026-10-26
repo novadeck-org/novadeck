@@ -1,6 +1,7 @@
 import { viewModes } from "@novadeck/core/state"
 import type { PreferencesValue } from "@novadeck/core/types"
 
+import { soundChoiceOf } from "../sounds"
 import { appearancePreferenceOf, defaultPreference } from "../theme/apply"
 import { themes } from "../theme/themes"
 
@@ -15,6 +16,7 @@ export const readPreferences = (): PreferencesValue => {
     notifyFinished: true,
     sound: true,
     soundVolume: 0.6,
+    soundChoice: "theme",
     ligatures: false,
     chatView: false,
   }
@@ -38,6 +40,7 @@ export const readPreferences = (): PreferencesValue => {
         typeof saved?.soundVolume === "number" && Number.isFinite(saved.soundVolume)
           ? Math.min(1, Math.max(0, saved.soundVolume))
           : defaults.soundVolume,
+      soundChoice: soundChoiceOf(saved?.soundChoice),
       ligatures: typeof saved?.ligatures === "boolean" ? saved.ligatures : defaults.ligatures,
       chatView: typeof saved?.chatView === "boolean" ? saved.chatView : defaults.chatView,
     }

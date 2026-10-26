@@ -1,3 +1,5 @@
+import type { NoticeSound } from "./sounds.js"
+
 /**
  * The contract between a desktop host's preload script and the page. The page calls
  * `window.novadeck.requestRunner(id)`; the preload answers with a window message
@@ -522,6 +524,12 @@ export type DesktopNotice = {
    * `DesktopBridge.notificationsSound`).
    */
   readonly silent?: boolean
+  /**
+   * The sound to play, the person's choice or else the theme's, where the host's
+   * notifications play one. The host drops an id outside `noticeSounds`, and absent plays
+   * `defaultNoticeSound`.
+   */
+  readonly sound?: NoticeSound
 }
 
 /** The longest notice title the host shows: a handle, a few words and a terminal's title. */

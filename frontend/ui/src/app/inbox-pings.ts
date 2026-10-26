@@ -53,7 +53,7 @@ export const noticeBoard = (notices: Backend["notices"], ding: Ding): NoticeBoar
       if (notices.sounds) {
         // The host's own notification plays the sound, so only a notice the ding lets
         // through carries it: one of a burst, or a terminal's second, is silent.
-        notices.show({ ...notice, silent: !ding.take(notice.id) })
+        notices.show({ ...notice, silent: !ding.take(notice.id), sound: ding.sound() })
       } else {
         notices.show({ ...notice, silent: !ding.on() })
         ding.ring(notice.id)

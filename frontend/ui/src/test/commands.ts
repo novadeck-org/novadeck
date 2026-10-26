@@ -58,6 +58,7 @@ export const openCommands = ({
     notifyFinished: true,
     sound: true,
     soundVolume: 0.6,
+    soundChoice: "theme",
     ligatures: false,
     chatView: false,
   },
