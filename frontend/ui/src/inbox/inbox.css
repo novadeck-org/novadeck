@@ -2,8 +2,8 @@
    rows, and the sheet that opens beside the one the person picks.
 
    The panel (`.inbox-panel`, data-sheet="open" | "closed") holds a `.inbox-list` of
-   `.inbox-row`s, each an item (the item recipe) with an `.inbox-row-unread` dot and a
-   `.inbox-row-select` button and its parts: `.inbox-row-icon`, `.inbox-row-subject`,
+   `.inbox-row`s, each an item (the item recipe) with a `.inbox-row-select` button and its
+   parts: `.inbox-row-icon`, `.inbox-row-subject`,
    `.inbox-row-wait` and `.inbox-row-meta`,
    which holds the `.inbox-row-project` and its `.inbox-row-extra`s (one is
    data-extra="draft"). A row says its type in data-type="unblock" | "ask" | "trouble" |
@@ -11,7 +11,7 @@
    data-needs while it asks something of the person and isn't answered, data-updates-start on
    the row after the last that asks (the updates' line), data-arrived while it has just joined the list, and, being
    an item, data-selected for the one whose sheet is open. A row that asks keeps its colour
-   until it is answered: opening it only takes away its dot and its weight. While a sheet is
+   until it is answered, opened or not. While a sheet is
    open the updates step back. The header's
    `.inbox-held` pill says items wait to join; an empty panel shows `.inbox-empty`.
 
@@ -111,22 +111,6 @@
   background-color: var(--inbox-rule-color, var(--color-line));
   pointer-events: none;
 }
-/* Not opened yet: a dot in the row's tone at its leading edge, level with the icon. */
-.inbox-row-unread {
-  position: absolute;
-  top: 20px;
-  left: 2px;
-  width: 5px;
-  height: 5px;
-  border-radius: 50%;
-  background-color: var(--_fg);
-  opacity: 0;
-  pointer-events: none;
-  transition: opacity var(--motion-state) var(--ease-interface);
-}
-.inbox-row[data-needs="true"][data-seen="false"]:not([data-selected="true"]) .inbox-row-unread {
-  opacity: 1;
-}
 .inbox-row-select {
   display: grid;
   grid-template-columns: 14px minmax(0, 1fr) auto;
@@ -157,13 +141,10 @@
   line-clamp: 3;
   color: var(--color-muted);
 }
-/* What asks is bright until it is answered, opened or not; unopened, it is bold too. Gray is
-   for updates and answered rows. */
+/* What asks is bright until it is answered, opened or not. Gray is for updates and answered
+   rows. */
 .inbox-row[data-needs="true"] .inbox-row-subject {
   color: var(--color-ink);
-}
-.inbox-row[data-needs="true"][data-seen="false"] .inbox-row-subject {
-  font-weight: 500;
 }
 .inbox-row[data-selected="true"] .inbox-row-subject {
   color: var(--color-ink);
