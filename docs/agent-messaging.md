@@ -449,8 +449,12 @@ the opener's (see [Naming](#naming)).
 
 `ask({ subject, body, details?, hard_to_undo?, shape? })` puts a question in the person's
 Inbox and returns its id immediately. The person rarely watches an agent's terminal, so
-a question only in the reply goes unseen: the agent always asks every question it ends its
-turn waiting on (which option? open a pull request?) with `ask`, and in full in its reply, unless
+a question only in the reply goes unseen. A question the agent would stop to ask with its
+harness's own question tool (Claude Code's AskUserQuestion, Codex's request_user_input in
+Plan mode, Antigravity's ask_question) it still asks there, as it normally would: the Inbox
+shows that request as it is, so it needs no `ask`, and the wording never names a tool, as
+it is the same in every harness. Every other question it ends its turn waiting on (which
+option? open a pull request?) it always asks with `ask`, and in full in its reply, unless
 it is already an open ask; a closing offer such as "anything else?" isn't one, nor is an
 action the harness is already prompting for. A worker splits them as its lead rules say: a
 question goes to the lead, an approval still goes through `ask`. Mid-work, the agent keeps
@@ -463,6 +467,50 @@ Novadeck. The person can always write their own answer. Secret shapes are unavai
 Novadeck does not write secrets into project files or send them through this feature.
 
 `ask({ withdraw: id })` withdraws only the caller's own open ask in its current session.
+So does the person writing to the agent in its terminal. When a root turn starts that is the
+person's own submission, as delivery judges it (see [What counts](#what-counts):
+a doorbell ring, a turn the harness or the agent started, and the first prompt an
+agent's command line gave never count), Novadeck withdraws that agent session's open asks
+made before the person submitted it, in every harness: the same `withdrawn` state as the
+agent's own withdrawal, so the row leaves the Inbox, and its toast or OS notification
+clears with it, and Messages shows it withdrawn. Tells, done rows and turn rows stay, and
+so does an ask the agent makes during the new turn. The same prompt's hook answer carries a
+short automatic notice that names the withdrawn asks' subjects (shortened and quoted) and
+says to read the person's message as their reply and to ask again, as a new ask, only what
+it leaves open. It rides with any messages or hold notices the answer carries, and the asks are
+withdrawn only as it goes into an answer the hook still has time to print (the same
+`leaseMargin` rule messages use). A turn start whose answer comes too late, or is heard
+with no answer to print in, leaves the asks open and owes the withdrawal, but only within the turn
+the person's prompt started: the next tool-call hook of that turn (or Antigravity's next
+model call of it) that has time withdraws those still open and made before the person's
+submission, and tells the agent then. If the turn ends unpaid the debt is dropped and the
+asks stay open (the agent's notice already says to withdraw an ask itself if the user
+answered it in the terminal and no notice came). A Stop is never used, as printing there
+would continue the turn. The debt is also dropped when the session ends or another binds.
+A notice paid at a later model call of Antigravity's turn is given again on the turn's
+remaining calls, as one paid at its first. A message that then no longer fits the delivery budget (`maxDeliveryBytes`)
+waits for the next hook, and the notice goes alone. A
+prompt the person steers into a running turn counts when delivery takes it as theirs by the
+same Enter. A prompt they queued during the previous turn (Claude Code's and Codex's queues,
+Antigravity's) counts from their queuing Enter, not the turn's start, so an ask the agent made
+at that turn's end is not taken for answered; if that time is unknown nothing is withdrawn. A
+fixed line an Inbox button sends (Continue, the default Nudge, Ask it to fix) is the runner's `agents.prompt` with
+`automatic`: delivery still takes the turn as theirs, but it withdraws nothing and says
+nothing to the agent. Each send is its own mark, the line's text as the prompt is sent (line ends as `\n`,
+trimmed), kept in order for the terminal however long the line waits behind a running turn
+and whatever turns of the person's come first. A turn whose words are one marked line, or
+several marked lines in the order they were marked joined by line breaks (a harness may
+fold lines queued close together), is exempt and spends those marks; the person's own words
+spend none and withdraw as usual. A failed send (refused, `PROMPT_FAILED`,
+`BOX_NOT_CLEARED`, any error) removes one mark of its text, and the session ending or
+another binding clears them all. A mark no turn matches (its line folded in with the
+person's words, a turn not taken for theirs, or a given-back line the person deleted) stays
+until then, so the person typing exactly that line themselves withdraws nothing; the asks
+stay open and the agent's own withdrawal covers it. The demo keeps marks the same way, an interrupt that gives
+queued lines back included. The person's own "Write your own" nudge is not marked. Words the person writes themselves, a nudge of their own from a
+stuck agent's sheet or an answer to a harness request sent on as the next prompt, are theirs,
+and do withdraw.
+
 `tell({ subject, body })` adds an Update that the person marks read. An ask badges the
 Inbox bell; a tell doesn't. Every item is its own row, so a terminal with an ask, two
 tells and a finish shows four; nothing replaces or hides another. An ask
@@ -492,7 +540,8 @@ limit window, and leaves when the agent works again.
 
 The runner's `asks` table keeps these lifetimes and their Messages history. Every
 letter is bound to the terminal, project, workspace session and exact agent session.
-An ask clears when answered, withdrawn or its agent session ends. A runner restart
+An ask clears when answered, withdrawn (by the agent, or by Novadeck at the person's own
+prompt in its terminal) or its agent session ends. A runner restart
 keeps pending asks for the resumed session; one whose terminal has had no agent bound for
 two minutes after the runner starts ends as `gone`, and reopens, with its id and time, if
 that session binds after all; one whose terminal binds another session ends for good at

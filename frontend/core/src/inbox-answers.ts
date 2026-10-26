@@ -207,7 +207,13 @@ export type InboxActions = {
   readonly read: (ids: readonly string[]) => void
   // Reads stored rows by id and says nothing of it: for a nudge that already took.
   readonly forget: (ids: readonly string[]) => void
-  readonly send: (key: ConversationKey, text: string) => Promise<unknown>
+  // `automatic` for the trouble row's fixed lines, not words the person wrote: the agent's
+  // turn on one takes no open ask out of the Inbox.
+  readonly send: (
+    key: ConversationKey,
+    text: string,
+    options?: { readonly automatic?: true },
+  ) => Promise<unknown>
   readonly interrupt: (key: ConversationKey) => Promise<unknown>
   // The item's terminal now, to see whether its agent works.
   readonly terminal: (key: ConversationKey) => TerminalMetadata | undefined
@@ -253,17 +259,18 @@ export const answerItem = (
       return actions.read([id])
     }
     if (action.type === "continue")
-      return tracker.call(id, () => actions.send(key, "continue"), settles)
+      return tracker.call(id, () => actions.send(key, "continue", { automatic: true }), settles)
     if (action.type === "stop") return tracker.call(id, () => actions.interrupt(key), settles)
     if (action.type === "nudge") {
       const terminal = actions.terminal(key)
+      const sent = action.own ? undefined : { automatic: true as const }
       if (isTurnRow(item)) {
         if (!item.stopped || !terminal || agentWorking(terminal))
           return tracker.fail(id, "That agent has moved on. Mark it read.")
         return tracker.call(
           id,
           async () => {
-            await actions.send(key, action.text)
+            await actions.send(key, action.text, sent)
             actions.forget([id])
           },
           settles,
@@ -273,7 +280,7 @@ export const answerItem = (
         id,
         async () => {
           if (terminal && agentWorking(terminal)) await actions.interrupt(key)
-          await actions.send(key, action.text)
+          await actions.send(key, action.text, sent)
         },
         settles,
       )

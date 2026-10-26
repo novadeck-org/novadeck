@@ -694,7 +694,7 @@ describe("The runner's Inbox", () => {
       const { inbox, streams } = setup(limitHit())
       inbox.answer("limit:01:100", { kind: "trouble", action: { type: "continue" } })
 
-      expect(streams.send).toHaveBeenCalledWith(key, "continue")
+      expect(streams.send).toHaveBeenCalledWith(key, "continue", { automatic: true })
       expect(streams.interrupt).not.toHaveBeenCalled()
     })
 
@@ -725,7 +725,7 @@ describe("The runner's Inbox", () => {
       await settle()
 
       expect(streams.interrupt).not.toHaveBeenCalled()
-      expect(streams.send).toHaveBeenCalledWith(key, "Fix it.")
+      expect(streams.send).toHaveBeenCalledWith(key, "Fix it.", { automatic: true })
     })
 
     it("reads the failed row once its nudge was sent, with nothing left answering", async () => {

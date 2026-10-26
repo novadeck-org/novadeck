@@ -56,7 +56,11 @@ export type InboxStreams = {
   }
   readonly detail: (terminalId: string) => AsyncIterableIterator<AgentDetail, undefined>
   readonly answer: (key: ConversationKey, request: string, answer: ChatAnswer) => Promise<void>
-  readonly send: (key: ConversationKey, text: string) => Promise<void>
+  readonly send: (
+    key: ConversationKey,
+    text: string,
+    options?: { readonly automatic?: true },
+  ) => Promise<void>
   readonly interrupt: (key: ConversationKey) => Promise<string | null>
   // The messages' own, which track their progress in the mail state.
   readonly release: (thread: string) => void
@@ -436,7 +440,7 @@ export const createRunnerInbox = (
         for (const each of ids) tracker.call(each, () => streams.asks.read([each]))
       },
       forget: hide,
-      send: (at, text) => streams.send(at, text),
+      send: (at, text, options) => streams.send(at, text, options),
       interrupt: (at) => streams.interrupt(at),
       terminal: () => terminalOf(item.source),
     })

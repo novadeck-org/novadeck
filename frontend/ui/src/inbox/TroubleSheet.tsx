@@ -22,9 +22,9 @@ const Stuck = (props: SheetContentProps & { readonly trouble: Stuck }): React.JS
   const agent = agentName(item.source.agent)
   const [writing, setWriting] = useState(false)
   const [words, setWords] = useState("")
-  const nudge = (text: string): void =>
+  const nudge = (text: string, own?: true): void =>
     submit(
-      { kind: "trouble", action: { type: "nudge", text } },
+      { kind: "trouble", action: { type: "nudge", text, ...(own && { own }) } },
       `Interrupted and nudged. ${agent} is rethinking.`,
     )
   return (
@@ -67,7 +67,7 @@ const Stuck = (props: SheetContentProps & { readonly trouble: Stuck }): React.JS
           <ReplyBox
             value={words}
             onChange={setWords}
-            onSend={() => nudge(words.trim())}
+            onSend={() => nudge(words.trim(), true)}
             placeholder="What should it try?"
             label={`What ${agent} should try`}
             canSend={!answering && words.trim() !== ""}

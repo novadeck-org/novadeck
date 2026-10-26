@@ -4478,6 +4478,88 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))(
       }
     })
 
+    it("takes no ask out of the Inbox at the opener's command-line prompt, but at the person's next prompt", async ({
+      shell,
+    }) => {
+      const bin = standIn(shell.home)
+      const manager = shell.manager({
+        env: { HOME: shell.home, PS1: "$ ", PATH: `${bin}:${process.env.PATH}` },
+      })
+      writeFileSync(join(bin, "claude"), '#!/bin/sh\nexec agent claude "$@"\n')
+      chmodSync(join(bin, "claude"), 0o755)
+      const opener = await create(manager, shell)
+      const { start, step } = driver(shell, manager)
+      await start(opener.id, "claude", "s-opener")
+      const steps = join(shell.home, "steps-opened")
+      mkdirSync(steps)
+      const controller = new AbortController()
+      const created: string[] = []
+      const client = (async () => {
+        for await (const request of manager.requests("client", controller.signal)) {
+          const id = randomUUID()
+          created.push(id)
+          // eslint-disable-next-line no-await-in-loop -- Requests are opened in turn.
+          await manager.create(
+            {
+              id,
+              sessionId: request.sessionId,
+              cwd: request.cwd,
+              cols: 100,
+              rows: 20,
+              ...(request.command && { command: request.command }),
+              requestId: request.requestId,
+            },
+            "client",
+          )
+          manager.answerRequest({ requestId: request.requestId, terminalId: id }, "client")
+        }
+      })()
+      try {
+        await step(opener.id, {
+          call: "open",
+          request: { command: `'claude' s-opened ${steps} fix-the-build` },
+        })
+        const [opened] = created as [string]
+        symlinkSync(steps, join(shell.home, `steps-${opened}`))
+        await shell.until(manager, opened, "claude ready")
+        await expect
+          .poll(() => manager.messages(opened).delivery, { timeout: 10_000 })
+          .toBe("ready")
+        const asks = () => manager.inboxLetters().filter(({ terminalId }) => terminalId === opened)
+        const asked = JSON.parse(
+          await step(opened, {
+            call: "ask",
+            request: { subject: "Which colour?", body: "Blue or green." },
+          }),
+        ) as Told
+        expect(asked.ok).toBe(true)
+        expect(asks()).toHaveLength(1)
+        // Its own command-line prompt, whatever Enter came before: the ask stays.
+        manager.write({ terminalId: opened, data: "\r" }, "client")
+        const first = await step(opened, {
+          hook: "UserPromptSubmit",
+          payload: { prompt: "fix-the-build" },
+        })
+        expect(first).not.toContain("took your open ask")
+        expect(asks()).toHaveLength(1)
+        await step(opened, { hook: "Stop", payload: {} })
+        await expect
+          .poll(() => manager.messages(opened).delivery, { timeout: 10_000 })
+          .toBe("settled")
+        // The person's next prompt takes it out, and the agent is told in that answer.
+        manager.write({ terminalId: opened, data: "\r" }, "client")
+        const next = await step(opened, {
+          hook: "UserPromptSubmit",
+          payload: { prompt: "blue, please" },
+        })
+        expect(next).toContain("took your open ask out of their Inbox")
+        expect(asks()).toEqual([])
+      } finally {
+        controller.abort()
+        await client
+      }
+    })
+
     it("tells whose each root session's first prompt is, and titles none by it", async ({
       shell,
     }) => {
@@ -4772,7 +4854,9 @@ describe.runIf(process.platform === "win32")("Windows shell integration", () => 
  * `mouse` turns on mouse and focus reporting, as a fullscreen TUI does. It skips mouse and
  * focus reports, as such a TUI does. `named` is the same TUI under its harness's name, so
  * its hooks find its instance. `askafter` asks a permission after its first turn's Stop;
- * `askpaste` asks one as a paste comes after it, drawing the paste once told to.
+ * `askpaste` asks one as a paste comes after it, drawing the paste once told to; `asking`
+ * puts a question in the Inbox after its first turn's Stop, `askbox` too, with Codex's own box
+ * marker, so a prompt the runner gives it finds its box.
  */
 const standInTui = (home: string): string => {
   const bin = join(home, "bin")
@@ -4783,6 +4867,8 @@ const standInTui = (home: string): string => {
     String.raw`
 const { spawn, spawnSync } = require("node:child_process")
 const fs = require("node:fs")
+const net = require("node:net")
+${toolCall}
 const [agent, session, received, raw, mode] = process.argv.slice(2)
 // Capture job-control state only on failure: probing before raw mode changes the race.
 const startupFailed = (error) => {
@@ -4828,7 +4914,9 @@ let busy = true
 let menu = false
 let turns = 0
 let pasteAsked = false
-const draw = () => process.stdout.write(menu ? "\r\x1b[2K  [menu] pick an item" : "\r\x1b[2K> " + box)
+// With "askbox", Codex draws its own box marker, so a prompt given through the runner finds it.
+const marker = mode === "askbox" && agent === "codex" ? "\u203a " : "> "
+const draw = () => process.stdout.write(menu ? "\r\x1b[2K  [menu] pick an item" : "\r\x1b[2K" + marker + box)
 // Antigravity's hooks name no prompt: it records what was typed in its transcript, as a
 // USER_EXPLICIT USER_INPUT step, and what woke it by itself as a SYSTEM_MESSAGE one.
 const transcript = received + ".transcript.jsonl"
@@ -4882,6 +4970,14 @@ const turn = (prompt, typed = true) => {
         // Back at its prompt once its Stop hook returned, which may be well after Novadeck
         // heard the Stop: the turns it finished so, for the test to wait on.
         fs.writeFileSync(raw + ".finished", String(turns))
+        // With "asking", its agent puts a question in the person's Inbox after its first
+        // turn's Stop, and writes what Novadeck answered to <raw>.asked.
+        if ((mode === "asking" || mode === "askbox") && turns === 1) {
+          const request = { subject: "Which colour?", body: "Blue or green for the heading." }
+          toolCall("ask", request, process.env.NOVADECK_REPORT_TOKEN, (answer) =>
+            fs.writeFileSync(raw + ".asked", JSON.stringify(answer)),
+          )
+        }
         // With "askafter", a call asks a permission after its first turn's Stop, as a
         // background task's may: its dialog draws nothing, and Enter allows it, so only the
         // request's own resolution tells Novadeck it no longer waits.
@@ -6278,6 +6374,64 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))(
       await tui.send("Review a.ts")
       await quiet()
       expect(pastes(tui.raw())).toEqual([])
+    })
+
+    for (const agent of ["codex", "claude", "agy"] as const)
+      it(`takes ${agent}'s open asks out of the Inbox at the person's own prompt, and tells it`, async ({
+        shell,
+      }) => {
+        const tui = await ringing(shell, "asking", "tui", agent)
+        if (agent === "agy") await agyStarted(tui)
+        else await tui.first()
+        const asking = () =>
+          tui.manager.inboxLetters().filter(({ content }) => content.kind === "ask")
+        await expect.poll(asking, { timeout: 10_000 }).toHaveLength(1)
+        // A turn the agent's harness starts by itself leaves it there.
+        const turns = tui.received().length
+        tui.kick()
+        await vi.waitFor(() => expect(tui.received()).toHaveLength(turns + 1), { timeout: 10_000 })
+        await tui.back(2)
+        await expect.poll(tui.delivery, { timeout: 10_000 }).toBe("settled")
+        expect(asking()).toHaveLength(1)
+        expect(tui.received().at(-1)!.printed).not.toContain("took your open ask")
+        // The person writes to it in its terminal.
+        tui.type("blue, please")
+        await shell.until(tui.manager, tui.idle.id, "> blue, please")
+        tui.type("\r")
+        await vi.waitFor(() => expect(tui.received()).toHaveLength(turns + 2), { timeout: 10_000 })
+        expect(asking()).toEqual([])
+        const printed = tui.received().at(-1)!.printed
+        expect(printed).toContain("took your open ask out of their Inbox")
+        expect(printed).toContain("Which colour?")
+      })
+
+    it("sends an Inbox button's fixed line through agents.prompt without taking Codex's asks out, but the person's next words do", async ({
+      shell,
+    }) => {
+      const tui = await ringing(shell, "askbox", "tui", "codex")
+      tui.type("hello")
+      await shell.until(tui.manager, tui.idle.id, "\u203a hello")
+      tui.type("\r")
+      await expect.poll(tui.delivery, { timeout: 10_000 }).toBe("settled")
+      await tui.back(1)
+      const asking = () =>
+        tui.manager.inboxLetters().filter(({ content }) => content.kind === "ask")
+      await expect.poll(asking, { timeout: 10_000 }).toHaveLength(1)
+      // The line goes in as a paste and an Enter, and its hook prints the real prompt text.
+      await tui.manager.prompt({ terminalId: tui.idle.id, text: "continue\r\n", automatic: true })
+      await vi.waitFor(() => expect(tui.received()).toHaveLength(2), { timeout: 10_000 })
+      expect(tui.received()[1]!.prompt).toBe("continue")
+      await tui.back(2)
+      await expect.poll(tui.delivery, { timeout: 10_000 }).toBe("settled")
+      expect(asking()).toHaveLength(1)
+      expect(tui.received()[1]!.printed).not.toContain("took your open ask")
+      // The person's own words next.
+      tui.type("blue, please")
+      await shell.until(tui.manager, tui.idle.id, "\u203a blue, please")
+      tui.type("\r")
+      await vi.waitFor(() => expect(tui.received()).toHaveLength(3), { timeout: 10_000 })
+      expect(asking()).toEqual([])
+      expect(tui.received()[2]!.printed).toContain("took your open ask out of their Inbox")
     })
 
     it("rings an agent whose process group holds the terminal's foreground", async ({ shell }) => {

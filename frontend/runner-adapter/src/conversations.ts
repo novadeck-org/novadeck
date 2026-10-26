@@ -36,7 +36,7 @@ export type ConversationStreams = {
     terminalId: string,
     actor: string,
   ) => AsyncIterableIterator<TranscriptChange, undefined>
-  readonly prompt: (terminalId: string, text: string) => Promise<void>
+  readonly prompt: (terminalId: string, text: string, automatic?: true) => Promise<void>
   readonly interrupt: (terminalId: string) => Promise<{ readonly returned: string | null }>
   readonly answer: (terminalId: string, request: string, answer: RequestAnswer) => Promise<void>
 }
@@ -383,8 +383,8 @@ export const createRunnerConversations = (
   return {
     // The runner's terminal ids are unique, so the id alone names the terminal.
     conversation: ({ terminalId }) => entryOf(terminalId).conversation,
-    send: ({ terminalId }, text) =>
-      track(streams.prompt(terminalId, text)).catch((error: unknown) => {
+    send: ({ terminalId }, text, options) =>
+      track(streams.prompt(terminalId, text, options?.automatic)).catch((error: unknown) => {
         throw failure(error, "reach", "send")
       }),
     interrupt: ({ terminalId }) =>

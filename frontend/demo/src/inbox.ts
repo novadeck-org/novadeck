@@ -43,6 +43,9 @@ export type DemoInbox = Inbox & {
   // The next answer fails instead of taking, so the sheet shows why.
   readonly failNext: (reason?: string) => void
   readonly resolve: (id: string, outcome: "withdrawn" | "gone") => void
+  // The person wrote to the terminal's agent: its open asks from before are withdrawn, as
+  // the runner withdraws them at the person's own prompt: those made before they sent it.
+  readonly withdrawAsks: (key: TerminalKey, before: number) => void
   readonly dropReplyNext: () => void
   // The terminal's agent called `done`: its report becomes an Update once the terminal is
   // there, as the runner's done letter does, and a lead's workers' hide as its own do.
@@ -217,6 +220,14 @@ export const createDemoInbox = (
   const ownItem = (id: string): InboxItem | undefined =>
     own.getSnapshot().items.find((each) => each.id === id)
 
+  // An ask of the demo's own leaves the Inbox, kept in the Messages history as `outcome`.
+  const resolve = (id: string, outcome: "withdrawn" | "gone"): void => {
+    const found = ownItem(id)
+    if (found?.kind !== "ask") return
+    record(found, undefined, outcome)
+    change((current) => ({ ...current, items: current.items.filter((each) => each.id !== id) }))
+  }
+
   let binding: InboxBinding | null = null
   // What was seen, answered or failed among the agents' items.
   const tracker = createInboxTracker({ settleMs, changed: () => recompute() })
@@ -311,7 +322,7 @@ export const createDemoInbox = (
       stop: (thread) => messages?.stop(thread),
       read: readTurns,
       forget: readTurns,
-      send: (key, text) => conversations.send(key, text),
+      send: (key, text, options) => conversations.send(key, text, options),
       interrupt: (key) => conversations.interrupt(key),
       terminal: (key) => terminalAt(workspace.getSnapshot(), key),
     })
@@ -461,11 +472,17 @@ export const createDemoInbox = (
         items: [...current.items.filter((each) => each.id !== added.id), added],
       }))
     },
-    resolve: (id, outcome) => {
-      const found = ownItem(id)
-      if (found?.kind !== "ask") return
-      record(found, undefined, outcome)
-      change((current) => ({ ...current, items: current.items.filter((each) => each.id !== id) }))
+    resolve,
+    withdrawAsks: (key, before) => {
+      for (const each of own.getSnapshot().items)
+        if (
+          each.kind === "ask" &&
+          each.at < before &&
+          each.source.projectId === key.projectId &&
+          each.source.workspaceSessionId === key.workspaceSessionId &&
+          each.source.terminalId === key.terminalId
+        )
+          resolve(each.id, "withdrawn")
     },
     dropReplyNext: () => {
       dropping = true

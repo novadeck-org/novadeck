@@ -374,6 +374,52 @@ describe("answers and the prompts after them", () => {
 })
 
 describe("terminal prompts", () => {
+  it("marks a fixed line an Inbox button sends as automatic, and the person's own words not", async ({
+    terminals,
+  }) => {
+    const manager = terminals.manager(ptyOptions)
+    const terminal = await manager.create(
+      { id: randomUUID(), sessionId: "session", cwd, cols: 80, rows: 24 },
+      "creator",
+    )
+    const inside = manager as unknown as {
+      messaging: { automatic: (id: string, text: string) => void }
+      typing: { prompts: { give: () => Promise<void> } }
+    }
+    inside.typing.prompts.give = () => Promise.resolve()
+    const marked: string[] = []
+    inside.messaging.automatic = (id, text) => void marked.push(`${id === terminal.id} ${text}`)
+    await manager.prompt({ terminalId: terminal.id, text: "my own words" }).catch(() => {})
+    await manager
+      .prompt({ terminalId: terminal.id, text: "continue", automatic: true })
+      .catch(() => {})
+    expect(marked).toEqual(["true continue"])
+  })
+
+  it("forgets the automatic mark when the send fails", async ({ terminals }) => {
+    const manager = terminals.manager(ptyOptions)
+    const terminal = await manager.create(
+      { id: randomUUID(), sessionId: "session", cwd, cols: 80, rows: 24 },
+      "creator",
+    )
+    const inside = manager as unknown as {
+      messaging: {
+        automatic: (id: string, text: string) => void
+        automaticFailed: (id: string, text: string) => void
+      }
+      typing: { prompts: { give: () => Promise<void> } }
+    }
+    const events: string[] = []
+    inside.messaging.automatic = (_, text) => void events.push(`mark ${text}`)
+    inside.messaging.automaticFailed = (_, text) => void events.push(`failed ${text}`)
+    inside.typing.prompts.give = () => Promise.reject(new Error("PROMPT_FAILED"))
+    await manager
+      .prompt({ terminalId: terminal.id, text: "continue", automatic: true })
+      .catch(() => {})
+    await manager.prompt({ terminalId: terminal.id, text: "my words" }).catch(() => {})
+    expect(events).toEqual(["mark continue", "failed continue"])
+  })
+
   it("refuse a plain shell, which runs no agent, writing nothing to it", async ({ terminals }) => {
     const manager = terminals.manager(ptyOptions)
     const terminal = await manager.create(

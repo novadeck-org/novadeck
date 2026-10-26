@@ -174,7 +174,8 @@ export type InboxAnswer =
   | {
       readonly kind: "trouble"
       readonly action:
-        | { readonly type: "nudge"; readonly text: string }
+        // `own` when the person wrote the words, which take their asks out of the Inbox.
+        | { readonly type: "nudge"; readonly text: string; readonly own?: true }
         | { readonly type: "stop" }
         // A limit that has reset: sends `continue` as the agent's next prompt, with no interrupt.
         | { readonly type: "continue" }

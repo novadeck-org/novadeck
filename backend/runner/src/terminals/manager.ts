@@ -890,8 +890,8 @@ export class Terminals {
    * Gives the terminal's agent a prompt as the person would paste and submit it (see
    * `Prompts`), once those before it in the terminal's input queue are done.
    */
-  prompt(input: { terminalId: string; text: string }): Promise<void> {
-    return this.typing.prompt(input.terminalId, input.text)
+  prompt(input: { terminalId: string; text: string; automatic?: true | undefined }): Promise<void> {
+    return this.typing.prompt(input.terminalId, input.text, input.automatic)
   }
 
   /**
