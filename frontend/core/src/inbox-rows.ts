@@ -143,9 +143,9 @@ const heldLong = (
 }
 
 // Whether a terminal's agent reports to a lead whose agent still runs in its project and
-// session: that lead hears of its dones, so they are the lead's, not the person's. Stricter
-// than messaging's running lead, a live terminal whatever runs in it, on purpose: a lead whose
-// agent stopped hears nothing, so its workers' dones come to the person, once each.
+// session: that lead hears of its finished turns, so they are the lead's, not the person's.
+// Stricter than messaging's running lead, a live terminal whatever runs in it, on purpose: a
+// lead whose agent stopped hears nothing, so its workers' finishes come to the person.
 const reportsToLead = ({ project, session, terminal }: Where, where: readonly Where[]): boolean =>
   !!terminal.ledBy &&
   where.some(
@@ -258,9 +258,6 @@ export const inboxRows = (inputs: InboxInputs): InboxRow[] => {
         (entry.content.kind !== "ask" || agentOf(terminal) === entry.agent),
     )
     if (!here) continue
-    // A worker's done is its lead's to hear while the lead's agent runs: a team reports
-    // one finish.
-    if (entry.content.kind === "done" && reportsToLead(here, where)) continue
     const { content: entryContent } = entry
     const content: InboxContent =
       entryContent.kind === "ask"

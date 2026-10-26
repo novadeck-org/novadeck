@@ -326,10 +326,11 @@ describe("The Inbox's items", () => {
       expect(inboxRows(inputs(workspaceOf(), { entries: [report()] }))).toEqual([])
     })
 
-    it("is its lead's while that lead runs, and the person's once it doesn't", () => {
+    it("is the person's for a worker too, while its lead runs or not", () => {
       const entries = [report({ terminalId: "02", handle: "fox" })]
-      expect(inboxRows(inputs(workspaceOf(agentTerminal(1), worker()), { entries }))).toEqual([])
-      // A lead whose agent stopped, or whose terminal closed, hears nothing: the person does.
+      expect(inboxRows(inputs(workspaceOf(agentTerminal(1), worker()), { entries }))).toMatchObject(
+        [{ id: "entry:done-1", update: { type: "done" } }],
+      )
       const shell = { ...agentTerminal(1), process: "bash" }
       expect(inboxRows(inputs(workspaceOf(shell, worker()), { entries }))).toMatchObject([
         { id: "entry:done-1" },
@@ -339,7 +340,7 @@ describe("The Inbox's items", () => {
       ])
     })
 
-    it("is not its lead's when the lead told instead: only a done is held back", () => {
+    it("is the person's for a worker that told instead, like its done", () => {
       const told = report({
         terminalId: "02",
         handle: "fox",

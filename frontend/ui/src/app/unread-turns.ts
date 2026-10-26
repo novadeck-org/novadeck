@@ -209,7 +209,7 @@ export const watchUnreadTurns = (
     for (const [key, entry] of newest) {
       const terminal = terminals.get(key)
       const context = entryContext(entry)
-      if (!terminal || leadHearsOf(snapshot, context, entry.source.terminalId)) continue
+      if (!terminal) continue
       notify({ id: terminal.id, ...doneNotice(terminal, entry.update) }, entry.id)
       notified.set(terminal.id, { context, kind: "done" })
     }
