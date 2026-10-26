@@ -94,19 +94,6 @@
   border-top-width: var(--border-width);
   border-top-color: var(--separator-bg, var(--color-line));
 }
-/* A sub-row's separator starts where its text does, so it hangs off the row above. */
-.settings-row + .settings-subrow {
-  position: relative;
-  border-top-color: transparent;
-}
-.settings-row + .settings-subrow::before {
-  content: "";
-  position: absolute;
-  top: calc(-1 * var(--border-width));
-  right: 0;
-  left: calc(var(--spacing) * 8);
-  border-top: var(--border-width) solid var(--separator-bg, var(--color-line));
-}
 .settings-fieldset {
   border: 0;
 }
