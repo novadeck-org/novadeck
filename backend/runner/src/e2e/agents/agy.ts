@@ -194,7 +194,13 @@ export const agy: AgentSetup = {
       trusts: /> Yes, I trust this folder/,
     },
   },
+  // Prompts queued while a turn runs go to its model as one USER_INPUT step, joined by a
+  // line break; its own history.jsonl keeps them apart, but the conversation holds one
+  // message (probed 2026-10-26, 1.4.3).
+  merges: true,
   absent: {
+    image:
+      "its box keeps a pasted image file's path as text, and an @ mention picks the file as a file, not an image (probed 2026-10-26, 1.4.3)",
     forms: "it shows no MCP elicitation form to answer (probed 2026-10-06, 1.2.14)",
     "fork.picker":
       "no command line forks a conversation: its flags only resume one (`--conversation`, `--continue`), and its fork is the in-place /fork (probed 2026-10-03, 1.2.14)",

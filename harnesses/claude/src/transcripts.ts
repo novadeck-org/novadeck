@@ -1,6 +1,6 @@
 import { dirname, join } from "node:path"
 
-import type { Harness } from "@novadeck/harness-core/harness"
+import type { Harness, TranscriptEntry } from "@novadeck/harness-core/harness"
 import { at, entry, joined, record, textOf } from "@novadeck/harness-core/items"
 import { shellCall } from "@novadeck/harness-core/tools"
 
@@ -17,7 +17,9 @@ const safeId = /^[\w-]{1,128}$/
  * tasks it hands the model as the person's message. A command the person runs in shell
  * mode (`!`) is two user records, the command and then its output, which read as the
  * person's `!command` and a Bash run (the output's record names the command's as its
- * parent, so they pair).
+ * parent, so they pair). A prompt the person gives while a turn runs, which Claude Code
+ * takes into that turn beside a tool's result, is no user record but an attachment of the
+ * turn (see `queuedPrompt`); it reads as the person's prompt all the same.
  */
 
 // A background task's notice, in the person's place.
@@ -28,6 +30,67 @@ const notice = /^\s*<task-notification>/
 const shellInput = /^<bash-input>([\s\S]*)<\/bash-input>$/
 const shellOutput = /^<bash-stdout>([\s\S]*)<\/bash-stdout><bash-stderr>([\s\S]*)<\/bash-stderr>$/
 
+/**
+ * The person's prompt that a `queued_command` attachment carries, and when they gave it:
+ * Claude Code writes one for a prompt it takes into the running turn, as a tool's result
+ * comes, rather than as a turn of its own (2.1.304; its queue logs `absorbed_mid_turn`).
+ * Only a human origin is the person's: a background task's notice, a peer's or a
+ * coordinator's message comes the same way, as do Claude Code's own (`isMeta`), and an
+ * attachment that names no origin is left out with them. A prompt with an image is a list
+ * of blocks, whose text reads as the prompt.
+ */
+const queuedPrompt = (
+  fields: Record<string, unknown>,
+): { readonly text: string; readonly at: unknown } | undefined => {
+  const queued = (fields.attachment ?? {}) as Record<string, unknown>
+  const { origin, commandMode: mode, prompt } = queued
+  if (
+    queued.type !== "queued_command" ||
+    queued.isMeta === true ||
+    (origin as { kind?: unknown } | undefined)?.kind !== "human" ||
+    (mode !== undefined && mode !== "prompt")
+  )
+    return undefined
+  const text = typeof prompt === "string" ? prompt : joined(prompt, ["text"])
+  return { text, at: queued.timestamp ?? fields.timestamp }
+}
+
+// The items of a record's text content: the person's shell-mode command or its output, or
+// the text itself unless it is a background task's notice.
+const textItems = (
+  role: "user" | "assistant",
+  content: string,
+  time: number | null,
+  fields: Record<string, unknown>,
+): TranscriptEntry[] => {
+  const command = role === "user" ? shellInput.exec(content)?.[1] : undefined
+  if (command !== undefined)
+    return [
+      entry("user", "text", `!${command}`, { at: time }),
+      entry("assistant", "tool-call", JSON.stringify({ command }), {
+        at: time,
+        tool: "Bash",
+        call: fields.uuid,
+        describe: shellCall,
+      }),
+    ]
+  const output = role === "user" ? shellOutput.exec(content) : null
+  if (output)
+    return [
+      entry(
+        "tool",
+        "tool-result",
+        output
+          .slice(1, 3)
+          .map((each) => each!.trimEnd())
+          .filter(Boolean)
+          .join("\n"),
+        { at: time, call: fields.parentUuid },
+      ),
+    ]
+  return content && !notice.test(content) ? [entry(role, "text", content, { at: time })] : []
+}
+
 export const transcripts: NonNullable<Harness["transcripts"]> = {
   locate: (root, sessionId, subagent) => {
     if (subagent === null) return Promise.resolve(root)
@@ -36,44 +99,16 @@ export const transcripts: NonNullable<Harness["transcripts"]> = {
   },
   items: (line) => {
     const fields = record(line)
-    const role = fields?.type
-    if (
-      !fields ||
-      (role !== "user" && role !== "assistant") ||
-      fields.isMeta === true ||
-      fields.isCompactSummary === true
-    )
-      return []
+    if (!fields || fields.isMeta === true || fields.isCompactSummary === true) return []
+    if (fields.type === "attachment") {
+      const queued = queuedPrompt(fields)
+      return queued ? textItems("user", queued.text, at(queued.at), fields) : []
+    }
+    const role = fields.type
+    if (role !== "user" && role !== "assistant") return []
     const time = at(fields.timestamp)
     const content = (fields.message as { content?: unknown } | undefined)?.content
-    if (typeof content === "string") {
-      const command = role === "user" ? shellInput.exec(content)?.[1] : undefined
-      if (command !== undefined)
-        return [
-          entry("user", "text", `!${command}`, { at: time }),
-          entry("assistant", "tool-call", JSON.stringify({ command }), {
-            at: time,
-            tool: "Bash",
-            call: fields.uuid,
-            describe: shellCall,
-          }),
-        ]
-      const output = role === "user" ? shellOutput.exec(content) : null
-      if (output)
-        return [
-          entry(
-            "tool",
-            "tool-result",
-            output
-              .slice(1, 3)
-              .map((each) => each!.trimEnd())
-              .filter(Boolean)
-              .join("\n"),
-            { at: time, call: fields.parentUuid },
-          ),
-        ]
-      return content && !notice.test(content) ? [entry(role, "text", content, { at: time })] : []
-    }
+    if (typeof content === "string") return textItems(role, content, time, fields)
     return (Array.isArray(content) ? content : []).flatMap((part) => {
       const {
         type,
