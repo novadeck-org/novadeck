@@ -11,12 +11,18 @@ import { Bindings, type BindingsHost } from "./facts.js"
  * Bindings with what the ends of a session use of their host: whose prompt shows as ready
  * there (`shown`), and the announcements and detail changes, counted.
  */
+const noReports = { reports: () => ({ tell: null, done: null }) }
+
 const bindings = (shown?: AgentName) => {
   const announce = vi.fn<(record: Record) => void>()
   const detailed = vi.fn<(record: Record) => void>()
   const host = {
-    messaging: () => ({ shownAgent: () => shown, inboxOwner: () => undefined }),
-    turns: () => ({ inbox: undefined, redactor: undefined }),
+    messaging: () => ({
+      shownAgent: () => shown,
+      inboxOwner: () => undefined,
+      deliveredAt: () => null,
+    }),
+    turns: () => ({ inbox: noReports, redactor: undefined }),
     typing: () => ({ dialogsChanged: () => {} }),
     murmurChanged: () => {},
     rebound: () => {},
@@ -29,7 +35,15 @@ const bindings = (shown?: AgentName) => {
 /** A terminal with a Claude Code session bound in its shell, shown as the summary says. */
 const record = (summary: Partial<Record["summary"]> = {}) =>
   ({
-    summary: { id: "t1", agent: null, ready: null, activity: null, telemetry: null, ...summary },
+    summary: {
+      id: "t1",
+      agent: null,
+      ready: null,
+      activity: null,
+      telemetry: null,
+      reported: null,
+      ...summary,
+    },
     agents: {},
     bound: {
       binding: { agent: "claude", sessionId: "s1", instance: "41" },
@@ -152,7 +166,11 @@ describe("a turn that ends within its grace as its session does", () => {
       { sweepMs: 0 },
     )
     const host = {
-      messaging: () => ({ shownAgent: () => undefined, inboxOwner: () => owner }),
+      messaging: () => ({
+        shownAgent: () => undefined,
+        inboxOwner: () => owner,
+        deliveredAt: () => null,
+      }),
       typing: () => ({ dialogsChanged: () => {} }),
       murmurChanged: () => {},
       rebound: () => {},
@@ -207,5 +225,67 @@ describe("a turn that ends within its grace as its session does", () => {
     const run = finished("interrupted")
     run.ends.endBinding(run.bound)
     expect(run.turns()).toEqual([])
+  })
+})
+
+describe("the done report that stands", () => {
+  const report = { subject: "Fixed it", at: 100 }
+
+  /** Bindings whose Inbox holds `done` and into which a message is delivered at `deliveredAt`. */
+  const standing = () => {
+    const run = {
+      done: report as { subject: string; at: number } | null,
+      deliveredAt: null as number | null,
+    }
+    const announce = vi.fn<(record: Record) => void>()
+    const host = {
+      messaging: () => ({ shownAgent: () => undefined, deliveredAt: () => run.deliveredAt }),
+      turns: () => ({ inbox: { reports: () => ({ tell: null, done: run.done }) } }),
+      typing: () => ({ dialogsChanged: () => {} }),
+      rebound: () => {},
+      announce,
+      detailed: () => {},
+    } as unknown as BindingsHost
+    const ends = new Bindings(host)
+    const bound = record({ reported: null })
+    bound.work = { session: "claude:s1", first: null, latest: null, folders: {}, activeAt: null }
+    return { run, ends, bound, announce }
+  }
+
+  it("shows in the summary when the agent's done arrives, and stays while it is read", () => {
+    const { ends, bound, announce } = standing()
+    ends.publishReported(bound)
+    expect(bound.summary.reported).toEqual(report)
+    expect(announce).toHaveBeenCalledTimes(1)
+    // Reading it changes nothing the summary shows: the Inbox still holds the report.
+    ends.publishReported(bound)
+    expect(bound.summary.reported).toEqual(report)
+    expect(announce).toHaveBeenCalledTimes(1)
+  })
+
+  it("goes with the person's prompt or a delivered message after it, not before", () => {
+    const { run, ends, bound } = standing()
+    ends.publishReported(bound)
+    run.deliveredAt = 50
+    bound.work = { ...bound.work!, personAt: 99 }
+    ends.publishReported(bound)
+    expect(bound.summary.reported).toEqual(report)
+    bound.work = { ...bound.work, personAt: 101 }
+    ends.publishReported(bound)
+    expect(bound.summary.reported).toBeNull()
+    bound.work = { ...bound.work, personAt: 10 }
+    ends.publishReported(bound)
+    expect(bound.summary.reported).toEqual(report)
+    run.deliveredAt = 200
+    ends.publishReported(bound)
+    expect(bound.summary.reported).toBeNull()
+  })
+
+  it("goes with the session: none once the binding ended, and publishAgent shows it as well", () => {
+    const { ends, bound } = standing()
+    ends.publishAgent(bound, false)
+    expect(bound.summary.reported).toEqual(report)
+    ends.endBinding(bound)
+    expect(bound.summary.reported).toBeNull()
   })
 })

@@ -32,8 +32,8 @@ export const statusText: Record<ProjectStatus, string> = {
 }
 
 // The status of each terminal is what its tab shows: its need (the Inbox's raw `items`, as
-// the tab reads them, and the dialog its agent shows now), an unread turn that failed, an
-// unseen done report, or an agent at work. An ended terminal shows nothing, as its tab reads
+// the tab reads them, and the dialog its agent shows now), an unread turn that failed, a
+// done report that stands, or an agent at work. An ended terminal shows nothing, as its tab reads
 // ended, and only an agent at work counts as running, not a dev server or any other program.
 export const projectStatus = (
   project: WorkspaceProject,

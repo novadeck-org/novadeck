@@ -275,7 +275,7 @@ describe("terminal need mark", () => {
   })
 
   it("words a done tab as a report, a failed one as an error", () => {
-    expect(doneText()).toBe("Done · report unread")
+    expect(doneText()).toBe("Done · reported")
     expect(doneText(true)).toBe("Stopped with an error · reply unread")
   })
 })
@@ -285,7 +285,7 @@ describe("joinNote", () => {
     expect(joinNote(["Needs you", "Paused at its usage limit · resets 15:40"])).toBe(
       "Needs you, paused at its usage limit · resets 15:40",
     )
-    expect(joinNote([undefined, "Done · report unread"])).toBe("Done · report unread")
+    expect(joinNote([undefined, "Done · reported"])).toBe("Done · reported")
     expect(joinNote(["Asks: Which?", undefined])).toBe("Asks: Which?")
   })
 })
@@ -325,7 +325,7 @@ describe("a terminal's note", () => {
     process: "claude",
     agent: { working: false, ...fields },
   })
-  const quiet = { need: undefined, done: false } as const
+  const quiet = { need: undefined } as const
 
   it("is a bare idle terminal with nothing to say", () => {
     expect(terminalNote(agent(), quiet, undefined, now)).toEqual({
@@ -346,12 +346,7 @@ describe("a terminal's note", () => {
       },
     })
     expect(
-      terminalNote(
-        paused,
-        { need: "unblock", done: false, subject: "wrangler login" },
-        undefined,
-        now,
-      ),
+      terminalNote(paused, { need: "unblock", subject: "wrangler login" }, undefined, now),
     ).toMatchObject({
       phase: "paused",
       need: "unblock",
@@ -360,10 +355,16 @@ describe("a terminal's note", () => {
   })
 
   it("words a done report and a stopped turn apart, and a reply unread beside neither", () => {
-    expect(terminalNote(agent(), { need: undefined, done: true }, undefined, now)).toMatchObject({
+    expect(terminalNote(agent({ reported: true }), quiet, undefined, now)).toMatchObject({
       phase: "done",
       failed: false,
-      text: "Done · report unread",
+      text: "Done · reported",
+    })
+    // The report stands while the agent rests; at work again, it is a running agent.
+    expect(
+      terminalNote(agent({ reported: true, working: true }), quiet, undefined, now),
+    ).toMatchObject({
+      phase: "running",
     })
     expect(terminalNote(agent(), quiet, "failed", now)).toMatchObject({
       phase: "done",
@@ -389,7 +390,7 @@ describe("a terminal's note", () => {
       exitCode: 1,
       signal: null,
     }
-    expect(terminalNote(ended, { need: "ask", done: false }, undefined, now)).toMatchObject({
+    expect(terminalNote(ended, { need: "ask" }, undefined, now)).toMatchObject({
       phase: "ended",
       need: undefined,
     })
@@ -407,8 +408,8 @@ describe("a terminal's note", () => {
   })
 
   it("gives the glance of a terminal the same, without the words", () => {
-    const marks = { need: "ask", done: true } as const
-    const { text: _, ...glance } = terminalNote(agent(), marks, "failed", now)
-    expect(terminalGlance(agent(), marks, "failed", now)).toEqual(glance)
+    const marks = { need: "ask" } as const
+    const { text: _, ...glance } = terminalNote(agent({ reported: true }), marks, "failed", now)
+    expect(terminalGlance(agent({ reported: true }), marks, "failed", now)).toEqual(glance)
   })
 })

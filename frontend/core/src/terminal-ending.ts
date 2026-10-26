@@ -126,10 +126,10 @@ export const terminalNeedMark = (
     : (inbox ?? attentionNeed(terminal))
 
 // What a done terminal says, in words for its tab's description, its window and assistive
-// technology: it reported its task done, or its turn stopped on an error, until the person
-// looks.
+// technology: it reported its task done, which stands until the person or a message gives
+// it more to do, or its turn stopped on an error, until the person looks.
 export const doneText = (failed = false): string =>
-  failed ? "Stopped with an error · reply unread" : "Done · report unread"
+  failed ? "Stopped with an error · reply unread" : "Done · reported"
 
 // What a paused agent says: it stopped at its usage limit, with when it resets as the clock
 // reads it ("Paused at its usage limit · resets 15:40"), or, once that time has passed, that
@@ -217,11 +217,10 @@ export const needText = (
 }
 
 // What the Inbox says of one terminal, for its tab, its window and its project's status: the
-// need its items make, a done report it has not been looked at for, and the subject and the
-// dialog kind of the item that makes the need.
+// need its items make, and the subject and the dialog kind of the item that makes the need.
+// Its done report is no mark of the Inbox: it stands with the agent (`AgentStatus.reported`).
 export type NoteMarks = {
   readonly need: TerminalNeed | undefined
-  readonly done: boolean
   readonly subject?: string | undefined
   readonly dialog?: NeedDialog | undefined
 }
@@ -246,7 +245,8 @@ export const terminalGlance = (
   now = Date.now(),
 ): TerminalGlance => {
   const failed = unread === "failed"
-  const phase = terminalPhase(terminal, marks.done || failed, now)
+  const reported = terminal.state === "running" && terminal.agent?.reported === true
+  const phase = terminalPhase(terminal, reported || failed, now)
   return {
     phase,
     need: phase === "ended" ? undefined : terminalNeedMark(terminal, marks.need),

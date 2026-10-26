@@ -59,6 +59,9 @@ export type AgentStatus = {
   // How its latest turn ended, once none runs, with the start of its last reply where its
   // harness tells it (see `AgentTurnEnd`).
   readonly lastTurn?: AgentTurnEnd
+  // Its `done` report still stands: nothing the person prompted or a message delivered to it
+  // came after. Looking at the terminal does not end it, so its done mark stays until then.
+  readonly reported?: true
 }
 
 // What an idle agent waits on: jobs it left running and picks up once they finish, each in

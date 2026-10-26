@@ -531,7 +531,11 @@ export class Terminals {
           this.messaging.personReply(id, ask, subject, text, commit, choice),
         replyState: (id) => this.messaging.inboxReply(id),
         forgetReplies: (ids) => this.messaging.forgetResponses(ids),
-        changed: (id) => this.streams.messagesChanged(id),
+        changed: (id) => {
+          this.streams.messagesChanged(id)
+          const record = this.records.get(id)
+          if (record) this.bindings.publishReported(record)
+        },
         exists: (id) =>
           !this.closedIds.has(id) &&
           (this.records.has(id) || this.saves.identity(id) !== undefined),
@@ -546,6 +550,7 @@ export class Terminals {
       if (record) {
         this.reporting.lapsed(record)
         this.typing.settleBox(record)
+        this.bindings.publishReported(record)
       }
     })
     this.typing = new Typing(
@@ -751,6 +756,7 @@ export class Terminals {
           ready: null,
           activity: null,
           telemetry: null,
+          reported: null,
         },
         ...started,
         terminal,
@@ -1052,6 +1058,7 @@ export class Terminals {
                     ready: null,
                     activity: null,
                     telemetry: null,
+                    reported: null,
                   } satisfies AgentSummary,
                   foreground: undefined,
                   ...this.bindings.restarted(),

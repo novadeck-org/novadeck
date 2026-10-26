@@ -113,7 +113,10 @@ export const terminalActivity = (
   if (!program || isShellProcess(program)) return { status: { state: "idle" }, process: program }
   const agent =
     summary.agent && summary.activity
-      ? agentStatus(summary.activity)
+      ? {
+          ...agentStatus(summary.activity),
+          ...(summary.reported ? { reported: true as const } : {}),
+        }
       : !summary.agent && summary.ready === program
         ? { working: false }
         : undefined

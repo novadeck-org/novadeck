@@ -2154,6 +2154,11 @@ export class Messaging {
     )
   }
 
+  /** When the latest message was delivered to the terminal: see `deliveredTo`. */
+  deliveredAt(terminalId: string): number | null {
+    return deliveredTo(this.messages.values(), terminalId)
+  }
+
   /** The caller's peers, described. */
   private peers(live: Live, about: About): Peer[] {
     return this.scoped(live).map((peer) =>
