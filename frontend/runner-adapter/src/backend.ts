@@ -105,6 +105,8 @@ export type RunnerBackendOptions = {
   readonly updates?: Backend["updates"]
   readonly version?: Backend["version"]
   readonly openLogs?: Backend["openLogs"]
+  // Where the host sends the person's feedback notes.
+  readonly feedback?: Backend["feedback"]
   readonly sandbox?: Backend["sandbox"]
   readonly whatsNew?: Backend["whatsNew"]
   readonly portable?: Backend["portable"]
@@ -1533,6 +1535,7 @@ export const runnerBackend = (
     ...(options.updates ? { updates: options.updates } : {}),
     ...(options.version ? { version: options.version } : {}),
     ...(options.openLogs ? { openLogs: options.openLogs } : {}),
+    ...(options.feedback ? { feedback: options.feedback } : {}),
     ...(options.sandbox ? { sandbox: options.sandbox } : {}),
     ...(options.whatsNew ? { whatsNew: options.whatsNew } : {}),
     ...(options.portable ? { portable: options.portable } : {}),
