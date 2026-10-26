@@ -474,7 +474,10 @@ does not remove plugins you left connected: switch agents off first, or remove t
 The runner saves each terminal's directory and agent sessions as they change, and its
 output every few seconds and when the app quits, so a crash or a power cut loses little.
 Once the runner starts shutting down it saves nothing more, so shells ending on the way
-out cannot replace what it saved while they ran.
+out cannot replace what it saved while they ran. On Windows, which doesn't tell which
+program a terminal runs, the agent whose session the terminal reported is the one to
+resume, until its shell has shown its prompt for a second: Windows ends the agents before
+their shells as it shuts down, and an agent ended that way still resumes.
 
 ## Zen mode
 
