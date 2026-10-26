@@ -40,11 +40,12 @@ describe("An agent waiting on the person", () => {
     const tab = page.getByRole("button", { name: labelled("Select ", "Checkout review") })
     await expect
       .poll(() => tabDescription("Checkout review"))
-      .toBe("Needs permission, 2 subagents: 2 explorer")
+      // The need says what the Inbox's item is about, as the tab's `!` does.
+      .toBe("Needs permission: pnpm test --filter checkout, 2 subagents: 2 explorer")
     await tab.click()
     await expect
       .element(terminal("Checkout review"))
-      .toHaveAttribute("aria-description", "Needs permission")
+      .toHaveAttribute("aria-description", "Needs permission: pnpm test --filter checkout")
   })
 
   context("in another project", () => {
@@ -57,10 +58,10 @@ describe("An agent waiting on the person", () => {
       if (await skip.query()) await skip.click()
       const trigger = workspaceSwitcher()
 
-      await expect.element(trigger).toHaveAttribute("data-project-status", "question")
+      await expect.element(trigger).toHaveAttribute("data-project-status", "unblock")
       await expect
         .element(trigger)
-        .toHaveAttribute("aria-description", "Another project: Asks a question")
+        .toHaveAttribute("aria-description", "Another project: Needs you")
       await trigger.click()
       const menu = page.getByRole("dialog", { name: "Switch workspace" })
       const row = (name: string): Locator =>
@@ -70,7 +71,7 @@ describe("An agent waiting on the person", () => {
       await expect.element(row("mobile-app")).toHaveAttribute("aria-description", "Working")
       await expect
         .element(row("design-system"), { timeout: 10_000 })
-        .toHaveAttribute("aria-description", "Done · reply unread")
+        .toHaveAttribute("aria-description", "Done · report unread")
       await expect
         .element(row("infra"), { timeout: 10_000 })
         .toHaveAttribute("aria-description", "Stopped with an error · reply unread")
@@ -86,10 +87,14 @@ describe("An agent that plans", () => {
     const skip = page.getByRole("button", { name: "Skip for now" })
     if (await skip.query()) await skip.click()
     const tab = page.getByRole("button", { name: labelled("Select ", "Checkout implementation") })
-    await expect.poll(() => tabDescription("Checkout implementation")).toBe("Plan ready for review")
+    await expect
+      .poll(() => tabDescription("Checkout implementation"))
+      .toBe("Plan ready for review: Checkout flow")
     await tab.click()
     const window = terminal("Checkout implementation")
-    await expect.element(window).toHaveAttribute("aria-description", "Plan ready for review")
+    await expect
+      .element(window)
+      .toHaveAttribute("aria-description", "Plan ready for review: Checkout flow")
     // Whether it plans is its own terminal's to show, not its window's header.
     await expect.element(window.getByText("planning", { exact: true })).not.toBeInTheDocument()
   })
@@ -190,35 +195,39 @@ describe("An agent Novadeck can't hear from", () => {
 // chosen before the prompt, so the turn's moment goes to looking away from it. The turn
 // works 5 s, so a busy machine's click elsewhere lands before it ends, which the demo's
 // usual 1.5 s didn't always leave room for.
-const promptBuild = async (view?: "Grid"): Promise<void> => {
+const promptBuild = async (view?: "Grid", text = "Ship the docs"): Promise<void> => {
   await openWorkspace("/?demo=agents&turnMs=5000")
   const skip = page.getByRole("button", { name: "Skip for now" })
   if (await skip.query()) await skip.click()
   if (view) await chooseView(view)
   await terminalTab("Build").click()
-  await typeInto("Build", "Ship the docs")
+  await typeInto("Build", text)
   await userEvent.keyboard("{Enter}")
   await expect.element(terminal("Build")).toHaveAttribute("data-terminal-phase", "running")
 }
 
 describe("An agent that finishes", () => {
+  const reports = () =>
+    page
+      .getByRole("list", { name: "Messages from your agents" })
+      .getByRole("listitem")
+      .filter({ hasText: /Ship the docs|Now the changelog/ })
+
   context("while the person looks elsewhere", () => {
-    it("marks its terminal done, reply unread, until they look at it", async () => {
+    it("marks its terminal done, report unread, until they look at it", async () => {
       await promptBuild()
       await terminalTab("Tests").click()
       await expect
         .poll(() => tabDescription("Build"), { timeout: 10_000 })
         // The command its turn left running still counts.
-        .toBe("Done · reply unread, 1 task")
+        .toBe("Done · report unread, 1 task")
       const row = terminalTab("Build").element().closest(".terminal-tab")!
       expect(row.getAttribute("data-terminal-phase")).toBe("done")
-      // Beside its program, how long ago it finished.
-      await expect.element(terminalTab("Build").getByText("now", { exact: true })).toBeVisible()
       await terminalTab("Build").click()
       const window = terminal("Build")
       await expect.element(window).toHaveAttribute("data-terminal-phase", "idle")
-      await expect.element(window.getByText("Done · reply unread")).not.toBeInTheDocument()
-      expect(tabDescription("Build")).toBe("1 task")
+      await expect.element(window.getByText("Done · report unread")).not.toBeInTheDocument()
+      await expect.poll(() => tabDescription("Build")).toBe("1 task")
     })
 
     it("shows it on a window in view, and clears once the person selects it", async () => {
@@ -228,11 +237,26 @@ describe("An agent that finishes", () => {
       await expect
         .element(window, { timeout: 10_000 })
         .toHaveAttribute("data-terminal-phase", "done")
-      await expect.element(window).toHaveAttribute("aria-description", "Done · reply unread")
-      // Its phase line marks it, its name bold; its description says it in words.
-      await expect.element(window.getByText("Done", { exact: true })).not.toBeInTheDocument()
+      await expect.element(window).toHaveAttribute("aria-description", "Done · report unread")
       await terminalTab("Build").click()
       await expect.element(window).toHaveAttribute("data-terminal-phase", "idle")
+    })
+
+    it("brightens its program, with no glyph, where it replies without a done call", async () => {
+      // A question is answered in the reply; the agent reports no finished task.
+      await promptBuild(undefined, "Is the docs build clean?")
+      await terminalTab("Tests").click()
+      await expect
+        .poll(() => tabDescription("Build"), { timeout: 10_000 })
+        .toBe("Reply unread, 1 task")
+      const row = terminalTab("Build").element().closest(".terminal-tab")!
+      // A turn that ended is no done report: the agent rests, its program in ink.
+      expect(row.getAttribute("data-terminal-phase")).toBe("idle")
+      expect(row.getAttribute("data-terminal-unread")).toBe("true")
+      expect(row.getAttribute("data-terminal-need")).toBeNull()
+      await terminalTab("Build").click()
+      await expect.poll(() => row.getAttribute("data-terminal-unread")).toBeNull()
+      expect(tabDescription("Build")).toBe("1 task")
     })
   })
 
@@ -259,13 +283,9 @@ describe("An agent that finishes", () => {
       await expect
         .element(window, { timeout: 10_000 })
         .toHaveAttribute("data-terminal-phase", "done")
-      // Both turns are rows of their own in the Inbox, the first not replaced by the second.
+      // Both reports are rows of their own in the Inbox, the first not replaced by the second.
       await sidebarPanel("Inbox").click()
-      const finished = page
-        .getByRole("list", { name: "Messages from your agents" })
-        .getByRole("listitem")
-        .filter({ hasText: /Done: (Ship the docs|Now the changelog)/ })
-      await expect.element(finished).toHaveLength(2)
+      await expect.element(reports()).toHaveLength(2)
       visibility("visible")
       await sidebarPanel("Terminals").click()
       await terminalTab("Build").click()
@@ -292,7 +312,7 @@ describe("An agent that finishes", () => {
         .element(window, { timeout: 10_000 })
         .toHaveAttribute("data-terminal-phase", "idle")
       // Past the grace a completed end waits before it is marked (`finishGraceMs`).
-      await expectStaysAbsent(window.getByText("Done · reply unread"), { ms: 1500 })
+      await expectStaysAbsent(window.getByText("Done · report unread"), { ms: 1500 })
       // Only the command its turn left running.
       expect(tabDescription("Build")).toBe("1 task")
     })
@@ -550,7 +570,7 @@ describe("A pinned project", () => {
     await openWorkspace("/?demo=agents")
     await skipWelcome()
     await expect.element(pin("docs-site")).toHaveAttribute("aria-description", "Asks a question")
-    await expect.element(workspaceSwitcher()).toHaveAttribute("data-project-status", "attention")
+    await expect.element(workspaceSwitcher()).toHaveAttribute("data-project-status", "unblock")
 
     // Switching to it keeps its pin in place, marked current; the others still wait in
     // the dot.
@@ -859,7 +879,7 @@ describe("A pinned project", () => {
     await skipWelcome()
     await expect.element(pin("storefront")).toBeVisible()
     await expect.element(pin("docs-site")).not.toBeInTheDocument()
-    await expect.element(workspaceSwitcher()).toHaveAttribute("data-project-status", "question")
+    await expect.element(workspaceSwitcher()).toHaveAttribute("data-project-status", "ask")
   })
 
   it("keeps the other pins where they are when switching", async () => {

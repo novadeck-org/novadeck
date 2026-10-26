@@ -18,7 +18,6 @@ const row = (
   at,
   outcome,
   reply: null,
-  gist: null,
   error: null,
   files: [],
 })
@@ -30,7 +29,7 @@ describe("unread replies", () => {
       row("b", "02", 20, "completed"),
       row("c", "03", 5, "failed"),
     ])
-    expect(unreadEnd(unread, "project/initial", "02")).toBe("done")
+    expect(unreadEnd(unread, "project/initial", "02")).toBe("unread")
     expect(unreadEnd(unread, "project/initial", "03")).toBe("failed")
     expect(unreadEnd(unread, "project/initial", "01")).toBeUndefined()
     expect(unreadEnd(unread, "project/other", "02")).toBeUndefined()
@@ -38,7 +37,7 @@ describe("unread replies", () => {
 
   it("takes the newest row whatever the order the backend lists them in", () => {
     const unread = unreadOfTurns([row("b", "02", 20, "completed"), row("a", "02", 10, "failed")])
-    expect(unreadEnd(unread, "project/initial", "02")).toBe("done")
+    expect(unreadEnd(unread, "project/initial", "02")).toBe("unread")
   })
 
   it("marks nothing for no rows", () => {

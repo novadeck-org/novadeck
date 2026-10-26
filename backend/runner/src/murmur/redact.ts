@@ -9,7 +9,6 @@ const one = (text: string | null): string | null => (text === null ? null : reda
 
 /** The input with every string run through `redact`. */
 export const redactDigest = (digest: Input): Input => {
-  if (digest.kind === "reply") return { ...digest, reply: redact(digest.reply) }
   if (digest.kind === "agent")
     return { ...digest, project: one(digest.project), summary: redact(digest.summary) }
   // Key blocks are masked whole, on the rows as they were drawn; then every row is seen on

@@ -328,7 +328,8 @@ export class Calls {
       case "close":
         return this.closePeer(call)
       case "ask":
-      case "tell": {
+      case "tell":
+      case "done": {
         if (!callerOf(this.host.records(), call)) return Promise.resolve(unansweredCalls[call.type])
         return Promise.resolve(this.host.asks().call(call.terminalId, call.type, call.request))
       }

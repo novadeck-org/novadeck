@@ -151,6 +151,7 @@ describe("Novadeck's MCP server", () => {
       expect(tools?.result?.tools?.map((tool) => tool.name)).toEqual([
         "ask",
         "tell",
+        "done",
         "show",
         "showing",
         "close",
@@ -372,7 +373,20 @@ describe("Novadeck's MCP server", () => {
         "for a decision the user should make, ask there and keep going",
       )
       expect(instructions).toContain("Its tell puts a milestone there")
-      expect(instructions).toContain("With a lead, both go to it instead")
+      expect(instructions).toContain(
+        "unless it is already an open ask, and put the full question in your reply too",
+      )
+      expect(instructions).toContain("an ask with the action shape, not just words in your reply")
+      expect(instructions).toContain("never ask for a secret value")
+      expect(instructions).toContain(
+        "Its done is your own short report when the task you were given is finished",
+      )
+      expect(instructions).toContain("not when you answer a question or finish a step")
+      expect(instructions).toContain(
+        "With a lead, send your report and your questions to it with send instead of done, tell or ask; approvals of actions are still the user's, asked with ask",
+      )
+      for (const native of ["AskUserQuestion", "request_user_input", "ask_question"])
+        expect(instructions).not.toContain(native)
     })
 
     it("nudges ask toward not blocking, and tell toward milestones, never each step", async () => {
@@ -382,7 +396,9 @@ describe("Novadeck's MCP server", () => {
       expect(ask.description).toContain(
         "Put a question in the user's Inbox without stopping your work.",
       )
-      expect(ask.description).toContain("With a lead, send it")
+      expect(ask.description).toContain(
+        "With a lead, send it your questions with send instead of ask",
+      )
       expect(ask.description).toContain("needs no approval of theirs")
       expect(ask.description).toContain("A pick that is hard to undo waits for their answer")
       expect(ask.description).toContain("once nothing else is left, end your")
@@ -394,7 +410,20 @@ describe("Novadeck's MCP server", () => {
       const tell = described.find((tool) => tool.name === "tell")!
       expect(tell.description).toContain("a pull request opened")
       expect(tell.description).toContain("not each step")
-      expect(tell.description).toContain("With a lead, report to it instead")
+      expect(tell.description).toContain("With a lead, send it that with send instead of tell")
+      const done = described.find((tool) => tool.name === "done")!
+      expect(done.description).toContain("the task you were given is finished")
+      expect(done.description).toContain("not when you answer a question or finish a step")
+      expect(done.description).toContain(
+        "With a lead, send it your report with send instead of done",
+      )
+      expect(ask.description).toContain(
+        "unless it is already an open ask, and put the full question in your reply too",
+      )
+      expect(ask.description).toContain("an ask with the action shape")
+      for (const each of described)
+        for (const native of ["AskUserQuestion", "request_user_input", "ask_question"])
+          expect(each.description).not.toContain(native)
     })
 
     it("tells agents to show deliverables when done, never each file they touch", async () => {
@@ -986,6 +1015,7 @@ describe("Novadeck's MCP server", () => {
         expect(tools?.result?.tools?.map((tool) => tool.name)).toEqual([
           "ask",
           "tell",
+          "done",
           "show",
           "showing",
           "close",

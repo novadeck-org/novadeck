@@ -450,7 +450,7 @@ the opener's (see [Naming](#naming)).
 `ask({ subject, body, details?, hard_to_undo?, shape? })` puts a question in the person's
 Inbox and returns its id immediately. The person rarely watches an agent's terminal, so
 a question only in the reply goes unseen: the agent always asks every question it ends its
-turn waiting on (which option? open a pull request?) with `ask`, beside its reply, unless
+turn waiting on (which option? open a pull request?) with `ask`, and in full in its reply, unless
 it is already an open ask; a closing offer such as "anything else?" isn't one, nor is an
 action the harness is already prompting for. A worker splits them as its lead rules say: a
 question goes to the lead, an approval still goes through `ask`. Mid-work, the agent keeps
@@ -471,8 +471,7 @@ An unread tell stays until read while its terminal exists, including when the ag
 or starts a new session; it keeps the original agent attribution.
 
 A third kind of letter is the runner's own, not an agent's: a **finished turn**
-(`content.kind: "turn"`, outcome `completed` or `failed`, with the reply, error, murmur's
-gist and the files written). The runner records one for each turn end it sees, in
+(`content.kind: "turn"`, outcome `completed` or `failed`, with the reply, error and the files written). The runner records one for each turn end it sees, in
 `terminals/turn-ends.ts`. A failed end is recorded at once; a completed one after 700 ms
 (`finishGraceMs`, mirrored in the client), once the agent is not working and the person's
 Escape, if any, has had its verdict window (`escapeVerdictMs`), so an end its harness corrects
@@ -484,7 +483,7 @@ doesn't look at the live binding, so an end the agent had already followed with 
 inside the grace is stored too. Nothing is recorded for an interrupted, unknown or limited end, an end shown while a
 request waits on the person, or an agent with no Inbox owner. The same end told again updates
 its row in place; an end that turns limited removes it (an Escape's correction is a new end,
-which never had a row). The reply, error and gist go through the transcript redactor before
+which never had a row). The reply and error go through the transcript redactor before
 they are stored (null where it fails, never the unmasked text); file paths are kept as the
 activity has them. A turn row never reaches Messages and is not mail; it stays until
 read, which removes it, up to fifty unread per terminal (the oldest goes first), and it goes with

@@ -1,4 +1,3 @@
-import type { InboxItem } from "@novadeck/core/inbox"
 import { activeProject, activeSession } from "@novadeck/core/state"
 import type {
   TerminalMetadata,
@@ -106,16 +105,14 @@ export const modalOpen = (ui: UiState): boolean =>
 export const inboxShown = (ui: UiState, desktop: () => boolean): boolean =>
   ui.location.route.panel === "inbox" && sidebarVisible(ui.shell, desktop())
 
-// Whether an item may toast now: the page has the person's focus, they want to hear what
-// needs them, the Inbox isn't what they look at, and they aren't typing in the item's own
-// terminal (the selected one of the route). `desktop` is asked only when the sidebar matters.
-export const mayToast = (item: InboxItem, ui: UiState, desktop: () => boolean): boolean =>
-  ui.pageFocused &&
-  ui.preferences.notifyNeeds &&
-  !inboxShown(ui, desktop) &&
-  ui.location.route.terminal !== item.source.terminalId
+// Whether a toast may show now: the page has the person's focus, they want to hear what
+// needs them, and the Inbox isn't what they look at. (The toasts also skip an item of the
+// terminal they've come back to, see inbox-toasts.ts.) `desktop` is asked only when the
+// sidebar matters.
+export const mayToast = (ui: UiState, desktop: () => boolean): boolean =>
+  ui.pageFocused && ui.preferences.notifyNeeds && !inboxShown(ui, desktop)
 
 // Whether a toast for the item waits behind a modal dialog: it would show but for the dialog.
 // The OS ping defers the same items, so that one never rings for what no toast waits for.
-export const heldForToast = (item: InboxItem, ui: UiState, desktop: () => boolean): boolean =>
-  modalOpen(ui) && mayToast(item, ui, desktop)
+export const heldForToast = (ui: UiState, desktop: () => boolean): boolean =>
+  modalOpen(ui) && mayToast(ui, desktop)

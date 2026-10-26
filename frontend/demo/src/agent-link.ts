@@ -39,8 +39,8 @@ export type DemoAgentVerbs = {
     count: number,
   ) => void
   // Works, if not already, and ends the turn `after` ms later the way asked, with its
-  // reply (the agent's own words, where given), murmur's `gist` of it where given, and
-  // what it leaves running, where given.
+  // reply (the agent's own words, where given), what it leaves running, where given, and its
+  // `done` report where it calls that.
   readonly finish: (
     key: TerminalKey,
     terminal: TerminalMetadata | undefined,
@@ -50,9 +50,13 @@ export type DemoAgentVerbs = {
       readonly reply?: string
       // What the harness or the API said where the turn failed; the agent says no reply then.
       readonly error?: string
-      readonly gist?: string
       readonly background?: DemoBackground
       readonly waiting?: DemoWaiting
+      // The agent calls its MCP `done` as the turn ends: this report becomes an Update.
+      readonly done?: { readonly subject: string; readonly body: string }
+      // The turn failed on the agent's usage limit, which resets at `resetsAt`, as the runner
+      // reports it on the end: a state of the agent, never a stored turn.
+      readonly limit?: { readonly minutes: number; readonly resetsAt: number }
     },
   ) => void
   // Back at its prompt with no turn behind it: nothing works, waits or reads unread.

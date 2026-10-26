@@ -160,6 +160,8 @@ export const novadeckTool = (tool: string, fields: Fields | null): ToolRun | und
     }
     case "showing":
       return { kind: "read", title: "Checked what's shown", detail: "" }
+    case "done":
+      return { kind: "agent", title: "Reported done", detail: text("subject") }
     case "summarize":
       return { kind: "agent", title: "Summarized this terminal", detail: text("summary") }
     default:

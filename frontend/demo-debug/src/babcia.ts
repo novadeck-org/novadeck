@@ -13,17 +13,17 @@ export const babciaGroups = (cues: BabciaCues | undefined): readonly DemoActionG
           actions: [
             {
               label: "1 · The three asks",
-              hint: "Inbox badge reads 3: Order form asks to run pnpm test, Accessibility has a plan to approve, Menu page asks a question with its own pick",
+              hint: "Inbox header counts 3: Order form asks to run pnpm test, Accessibility has a plan to approve, Menu page asks a question with its own pick",
               run: () => cues.asks(),
             },
             {
               label: "1a · Permission only",
-              hint: "Order form asks to run pnpm test: an Approve row",
+              hint: "Order form asks to run pnpm test: an Unblock row",
               run: () => cues.permission(),
             },
             {
               label: "1b · Plan only",
-              hint: "Accessibility's plan waits for approval: an Approve row",
+              hint: "Accessibility's plan waits for approval: an Unblock row",
               run: () => cues.plan(),
             },
             {

@@ -22,8 +22,8 @@ import { EngineError, engineFolder, exists, programFile } from "../engines/unpac
 import { DomainError } from "../errors.js"
 import { logs } from "../log.js"
 import type { MurmurSettingsChange, MurmurVerdict } from "../workspaces/store.js"
-import type { Description, Describer, Digest, Gist, Input, Note, NoteDigest } from "./describer.js"
-import { parseDescription, parseGist } from "./description.js"
+import type { Description, Describer, Digest, Input } from "./describer.js"
+import { parseDescription } from "./description.js"
 import { candidates, parseDevices, type Device } from "./devices.js"
 import { parseVmStat } from "./memory.js"
 import { Preparer } from "./prepare.js"
@@ -181,11 +181,10 @@ export const serverArguments = (model: string, device: string, port: number): st
   "--exit-with-stdin",
 ]
 
-// What each task makes, and the order the line serves them in: a gist is wanted soon, a title
-// can wait.
-type Made = { title: Description; gist: Gist }
-const priority: Record<Task, number> = { gist: 0, title: 1 }
-const parsers = { title: parseDescription, gist: parseGist } as const
+// What each task makes, and its place in the line.
+type Made = { title: Description }
+const priority: Record<Task, number> = { title: 0 }
+const parsers = { title: parseDescription } as const
 
 // What the install check takes for a working device: a reply that is a JSON object with a
 // title of at least two letters in a row, since a broken backend writes junk the grammar still
@@ -965,13 +964,6 @@ export class Murmur implements Describer {
     options: { readonly signal?: AbortSignal; readonly terminal: string },
   ): Promise<Description | null | undefined> {
     return this.write(digest, "title", options.signal, options.terminal)
-  }
-
-  note(
-    digest: NoteDigest,
-    options: { readonly signal?: AbortSignal; readonly terminal: string },
-  ): Promise<Note | null | undefined> {
-    return this.write(digest, "gist", options.signal, options.terminal)
   }
 
   // Waits for the turn of `task` on the line, and runs the job.

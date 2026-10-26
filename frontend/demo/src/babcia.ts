@@ -913,6 +913,10 @@ export const createBabcia = (turns: DemoTurns, now: number) => {
             turns.finish(key, found, "completed", {
               after: finishesAfterMs + count * rippleMs,
               reply: job?.done ?? "Done. Everything is in, and the checks pass.",
+              done: {
+                subject: `${job?.name ?? found.name} is done`,
+                body: job?.done ?? "Done. Everything is in, and the checks pass.",
+              },
             })
             count += 1
           }

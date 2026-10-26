@@ -88,7 +88,17 @@ const verbs = (
     finish: (at, terminal, ...args) => {
       record("finish", at, terminal, args)
       say(at, terminal, { working: true })
-      const { after = 0, waiting } = (args[1] ?? {}) as { after?: number; waiting?: unknown }
+      const {
+        after = 0,
+        waiting,
+        error,
+        limit,
+      } = (args[1] ?? {}) as {
+        after?: number
+        waiting?: unknown
+        error?: string
+        limit?: { minutes: number; resetsAt: number }
+      }
       setTimeout(
         () =>
           say(at, terminal, {
@@ -110,7 +120,12 @@ const verbs = (
                   },
                 }
               : {}),
-            lastTurn: { outcome: args[0] as "completed", at: Date.now() },
+            lastTurn: {
+              outcome: args[0] as "completed",
+              ...(error ? { error } : {}),
+              ...(limit ? { limit } : {}),
+              at: Date.now(),
+            },
           }),
         after,
       )
@@ -256,12 +271,20 @@ describe("demo states", () => {
       agent: { attention: { kind: "permission", count: 1 } },
     })
     expect(shown[0]).toMatchObject({
-      name: "Finished turn",
+      name: "Done",
       agent: { lastTurn: { outcome: "completed" } },
     })
-    expect(shown[1]).toMatchObject({ agent: { lastTurn: { outcome: "failed" } } })
+    expect(shown[1]).toMatchObject({
+      name: "Replied, unread",
+      agent: { lastTurn: { outcome: "completed" } },
+    })
+    expect(shown[2]).toMatchObject({ agent: { lastTurn: { outcome: "failed" } } })
+    expect(shown.find((each) => each.name === "Paused at its limit")).toMatchObject({
+      agent: { working: false, lastTurn: { limit: { minutes: 300 } } },
+    })
+    // A dialog is no phase: the need mark shows it, the glyph that the agent rests.
     expect(new Set(shown.map((each) => terminalPhase(each)))).toEqual(
-      new Set(["idle", "running", "waiting", "attention", "unheard", "starting", "ended"]),
+      new Set(["idle", "running", "waiting", "paused", "unheard", "starting", "ended"]),
     )
   })
 
@@ -272,13 +295,8 @@ describe("demo states", () => {
       [
         ...Array<string>(3).fill("ask"),
         ...Array<string>(1).fill("ask"),
-        "finish",
-        "finish",
-        "finish",
-        "finish",
-        "work",
-        "work",
-        "work",
+        ...Array<string>(6).fill("finish"),
+        ...Array<string>(4).fill("work"),
       ].toSorted(),
     )
     expect(calls.every((call) => !call.known)).toBe(true)
@@ -389,11 +407,12 @@ describe("demo states", () => {
     it("lets go of the terminals of the gallery's metadata tiles, not its agents'", async () => {
       const { run, released, added } = panel("04")
       await run("Every state at once")
-      // The eight that set no agent: unheard, program, a shell an agent opened, one an agent
-      // exited from, starting, and the three ways to end.
-      expect(released).toHaveLength(8)
+      // The ten that set no agent verb: two that ask through MCP (their Inbox items are the
+      // demo's own), unheard, program, a shell an agent opened, one an
+      // agent exited from, starting, and the three ways to end.
+      expect(released).toHaveLength(10)
       for (const each of released) expect(added).toContainEqual(each)
-      expect(new Set(released.map((each) => each.terminalId)).size).toBe(8)
+      expect(new Set(released.map((each) => each.terminalId)).size).toBe(10)
     })
 
     it("calls its verbs without letting go", () => {
@@ -423,7 +442,15 @@ describe("demo states", () => {
       ["Asks a question", "ask", ["question", 1]],
       ["Plan ready", "ask", ["plan", 1]],
       ["3 permissions", "ask", ["permission", 3]],
-      ["Completes", "finish", ["completed", { after: 3000 }]],
+      [
+        "Completes",
+        "finish",
+        [
+          "completed",
+          { after: 3000, done: { subject: expect.any(String), body: expect.any(String) } },
+        ],
+      ],
+      ["Replies, no done call", "finish", ["completed", { after: 3000 }]],
       ["Fails", "finish", ["failed", { after: 3000 }]],
       ["Interrupted", "finish", ["interrupted", { after: 3000 }]],
       ["Ends without reply", "finish", ["unknown", { after: 3000 }]],
@@ -540,30 +567,6 @@ describe("demo states", () => {
         else expect(call.args[1]).toMatchObject({ after: 3000 })
       }
       expect(new Set(calls.map((call) => call.verb))).toEqual(new Set(["ask", "finish"]))
-    })
-
-    it("gives the second round of finishes murmur's gists, and the rest none", () => {
-      const { run, calls } = panel("04")
-      run("Fill the Inbox")
-      expect(
-        calls
-          .flatMap((call) => {
-            const gist = (call.args[1] as { gist?: string } | undefined)?.gist
-            return call.verb === "finish" && gist ? [[call.args[0], gist]] : []
-          })
-          .toSorted(),
-      ).toEqual([
-        ["completed", "Checkout totals round per line, tests pass"],
-        ["failed", "Test suite no longer compiles"],
-      ])
-      // The first round reads as it did before murmur: a finish without a gist.
-      expect(
-        calls.filter(
-          (call) =>
-            call.verb === "finish" &&
-            (call.args[1] as { gist?: unknown } | undefined)?.gist === undefined,
-        ),
-      ).not.toHaveLength(0)
     })
 
     it("adds what it needs without selecting it, so every finish lands elsewhere", () => {

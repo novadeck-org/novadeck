@@ -89,7 +89,4 @@ export type Murmur = {
   // A backend may ask the app to offer murmur now, on the selected terminal, where the demo's
   // debug panel does: each bump is a request.
   readonly offer?: Store<number>
-  // Asks for the gist of the reply that ended the terminal's turn at `at`, which the person
-  // hasn't seen; it arrives with the terminal's agent status. Fire and forget.
-  readonly gist?: (terminalId: string, at: number) => void
 }

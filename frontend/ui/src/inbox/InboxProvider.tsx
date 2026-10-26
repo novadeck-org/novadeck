@@ -220,11 +220,13 @@ export const InboxProvider = ({
   }, [])
 
   const open = useCallback(
-    (id: string): void => {
+    // `items` where the caller read them newer than the last commit.
+    (id: string, items?: readonly InboxItem[]): void => {
       const { state: snapshot, view: before, phone: screen } = latest.current
+      const list = items ?? snapshot.items
       if (before.open !== id) dropSent(before.open)
-      setView(openItem(before, id, snapshot.items))
-      const found = snapshot.items.find((item) => item.id === id)
+      setView(openItem(before, id, list))
+      const found = list.find((item) => item.id === id)
       if (found && !found.seen) inbox.see(id)
       if (before.open === null) screen?.hideList()
     },
@@ -398,10 +400,12 @@ export const InboxProvider = ({
   )
   const opener = useCallback<InboxOpener>(
     (pick) => {
-      const found = pick(latest.current.state.items)
-      if (found) open(found.id)
+      // The Inbox as it is now: an item just revealed is there before the next commit.
+      const items = inbox.state.getSnapshot().items
+      const found = pick(items)
+      if (found) open(found.id, items)
     },
-    [open],
+    [open, inbox],
   )
   return (
     <OpenerContext.Provider value={opener}>

@@ -68,13 +68,6 @@ export const agentSessionId = z.string().regex(/^[A-Za-z0-9][A-Za-z0-9._-]{0,127
 // for a notification's line, and never the whole reply.
 export const replyPreviewLength = 120
 
-// Murmur's words for the person, never for agents: one line, no control characters.
-// eslint-disable-next-line no-control-regex -- These are the characters it refuses.
-const oneLine = /^[^\x00-\x1f\x7f-\x9f]*$/
-const murmurLine = (max: number) => z.string().min(1).max(max).regex(oneLine)
-export const murmurGistLength = 96
-export const murmurGist = murmurLine(murmurGistLength)
-
 // Fields of an agent's last turn, shared by its summary and by a stored turn letter.
 export const turnReply = z.string().min(1).max(replyPreviewLength)
 export const turnError = z.string().min(1).max(2048)
@@ -152,9 +145,6 @@ export const agentActivity = z.strictObject({
       outcome: z.enum(["completed", "failed", "interrupted", "unknown"]),
       reply: turnReply.nullable(),
       at: z.number(),
-      // Murmur's gist of the last reply, written once a client showed this end unread
-      // (`murmur.gist`). It never changes `outcome`.
-      gist: murmurGist.nullable(),
       // A failed turn's error as its harness said it; null otherwise or where it gave none.
       error: turnError.nullable(),
       // The usage-limit window this end ran into: its harness said the turn failed on a
@@ -1046,7 +1036,7 @@ export const agentMessage = z.strictObject({
   held: z.enum(["paused", "release"]).nullable(),
   deliveredAt: z.number().nullable(),
   // Only the runner creates Inbox history and responses. Ordinary agent mail has none.
-  inbox: z.enum(["ask", "tell", "answer"]).optional(),
+  inbox: z.enum(["ask", "tell", "done", "answer"]).optional(),
   inboxState: z.enum(["open", "answered", "read", "withdrawn", "gone", "undelivered"]).optional(),
 })
 

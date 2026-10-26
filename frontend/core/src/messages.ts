@@ -18,7 +18,7 @@ export type InboxHistory = "open" | "answered" | "read" | "withdrawn" | "gone" |
 export type AgentMessage = {
   readonly id: string
   // Inbox letters and the person's replies share a thread with You.
-  readonly inbox?: "ask" | "tell" | "answer"
+  readonly inbox?: "ask" | "tell" | "done" | "answer"
   readonly inboxState?: InboxHistory
   // Its place in its thread, counted from 1.
   readonly hop: number

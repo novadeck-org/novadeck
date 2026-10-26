@@ -137,7 +137,9 @@ describe("terminal states", () => {
       const codex = apply(runAgent(key("04"), "codex"))
       const next = shell(apply(agentIn(key("04"), shell(codex), asking("plan", 1)), codex))
       expect(next.process).toBe("codex")
-      expect(terminalPhase(next)).toBe("attention")
+      // A dialog rests the agent: the glyph says so, the need mark what it needs.
+      expect(terminalPhase(next)).toBe("idle")
+      expect(next).toMatchObject({ agent: { attention: { kind: "plan", count: 1 } } })
     })
 
     it("rests after starting", () => {

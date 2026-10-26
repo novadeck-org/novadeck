@@ -10,23 +10,12 @@ export const UpdateSheet = (props: SheetContentProps): React.JSX.Element | null 
   const { item, sent, answering, failed, onNext, submit, reveal } = props
   if (item.kind !== "update") return null
   const { update } = item
-  const files = update.type === "finished" ? update.files : []
   return (
     <Page>
       <Lead {...props} />
       <div className="inbox-prose">
-        <Markdown text={update.type === "told" ? update.body : update.reply} />
+        <Markdown text={update.body} />
       </div>
-      {files.length > 0 && (
-        <div className="inbox-files">
-          <span className="inbox-evidence-label">Files it edited</span>
-          {files.map((file) => (
-            <span className="inbox-file" key={file}>
-              {file}
-            </span>
-          ))}
-        </div>
-      )}
       {!sent && (
         <>
           <div className="inbox-actions">

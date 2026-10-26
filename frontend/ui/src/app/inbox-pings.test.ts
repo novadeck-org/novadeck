@@ -600,36 +600,37 @@ describe("a click on a terminal's notification", () => {
       open: (id: string) => void calls.push(`open ${id}`),
       showInbox: () => void calls.push("inbox"),
       reveal: (terminalId: string) => void calls.push(`reveal ${terminalId}`),
+      land: (id: string) => void calls.push(`land ${id}`),
     }
   }
 
   it("opens that terminal's item in the Inbox when one stands", () => {
     const { calls, ...handlers } = to()
     clickNotice("t1", [update("u"), ask("a")], handlers)
-    expect(calls).toEqual(["inbox", "open u"])
+    expect(calls).toEqual(["land u", "inbox", "open u"])
   })
 
   it("opens the item the notice was about, among the terminal's several", () => {
     const { calls, ...handlers } = to()
     clickNotice("t1", [update("u"), ask("a"), update("v")], handlers, "v")
-    expect(calls).toEqual(["inbox", "open v"])
+    expect(calls).toEqual(["land v", "inbox", "open v"])
   })
 
-  it("opens the terminal's finish for a notice that names no item", () => {
+  it("opens the terminal's done report for a notice that names no item", () => {
     const { calls, ...handlers } = to()
     const finish: InboxItem = {
       ...update("f"),
       kind: "update",
-      update: { type: "finished", subject: "Done", reply: "", files: [] },
+      update: { type: "done", subject: "Done", body: "" },
     }
     clickNotice("t1", [ask("a"), update("u"), finish], handlers)
-    expect(calls).toEqual(["inbox", "open f"])
+    expect(calls).toEqual(["land f", "inbox", "open f"])
   })
 
   it("falls back to the terminal's first item when the notice's item has left", () => {
     const { calls, ...handlers } = to()
     clickNotice("t1", [ask("a"), update("u")], handlers, "gone")
-    expect(calls).toEqual(["inbox", "open a"])
+    expect(calls).toEqual(["land a", "inbox", "open a"])
   })
 
   it("shows the terminal otherwise", () => {

@@ -1,12 +1,6 @@
-import { mkdtempSync, rmSync, writeFileSync } from "node:fs"
-import { tmpdir } from "node:os"
-import { join } from "node:path"
-
 import { createScreen, readScreen } from "@novadeck/emulator/headless"
 import { afterEach, beforeEach, vi } from "vitest"
 
-import { started, withGist, type Activity, type Request } from "../harnesses/activity.js"
-import type { Items } from "../harnesses/replies.js"
 import type { Description, Digest, ShellDigest } from "../murmur/describer.js"
 import { redactDigest } from "../murmur/redact.js"
 import { describe, expect, it } from "../test.js"
@@ -14,7 +8,6 @@ import { FakeDescriber } from "../testing/describer.js"
 import {
   commandOf,
   Descriptions,
-  lastReply,
   Murmur,
   screenLines,
   screenOf,
@@ -42,52 +35,6 @@ const subjectSummary = () =>
     cwd: "/home/me/shop",
     process: null,
   }) as MurmurSubject["summary"]
-
-// One line of a fake transcript: "role:kind:text".
-const items: Items = (line) => {
-  const [role, kind, ...text] = line.split(":")
-  return role && kind ? [{ role, kind, text: text.join(":") } as ReturnType<Items>[number]] : []
-}
-
-describe("an agent's last reply", () => {
-  describe("read from the transcript", () => {
-    let directory: string
-    beforeEach(() => {
-      directory = mkdtempSync(join(tmpdir(), "novadeck-reply-"))
-    })
-    afterEach(() => rmSync(directory, { recursive: true, force: true }))
-
-    const transcript = (...lines: string[]) => {
-      const path = join(directory, "t.jsonl")
-      writeFileSync(path, lines.join("\n"))
-      return path
-    }
-
-    it("is the last text since the person's prompt and the latest tool step", async () => {
-      const path = transcript(
-        "user:text:fix it",
-        "assistant:text:Looking.",
-        "assistant:tool-call:Read",
-        "tool:tool-result:ok",
-        "assistant:text:Fixed it.",
-      )
-      expect(await lastReply(path, items)).toBe("Fixed it.")
-    })
-
-    it("is null while the turn has said nothing yet, or when the transcript can't be read", async () => {
-      expect(await lastReply(transcript("user:text:fix it"), items)).toBeNull()
-      expect(
-        await lastReply(transcript("user:text:a", "assistant:text:b", "user:text:c"), items),
-      ).toBeNull()
-      expect(await lastReply(join(directory, "missing.jsonl"), items)).toBeNull()
-    })
-
-    it("drops terminal escapes and control characters", async () => {
-      const path = transcript("assistant:text:\u001b[31mred\u001b[0m and \u0007bell")
-      expect(await lastReply(path, items)).toBe("red and  bell")
-    })
-  })
-})
 
 describe("the digest of a plain shell", () => {
   it("tells where the last command's line is in the screen it shows", () => {
@@ -406,7 +353,6 @@ const create = (
     activity: null,
     openedBy: null,
     agent: "claude",
-    transcript: null,
     program: null,
     atPrompt: true,
     expecting: null,
@@ -422,8 +368,6 @@ const create = (
   const reads = { screens: 0 }
   const written: { readonly title: string }[] = []
   const clears = { count: 0 }
-  const hooks: { items?: () => void } = {}
-  const gisted: string[] = []
   const host: MurmurHost = {
     subject: (id) => subjects.get(id),
     subjects: () => (ready ? [...subjects.values()] : []),
@@ -436,23 +380,12 @@ const create = (
         ...(wrapped.current && { wrapped: wrapped.current }),
       })
     },
-    items: () => {
-      hooks.items?.()
-      return items
-    },
     projectFolder: () => "/home/me/shop",
     described: (id, description) => {
       written.push(description)
       const subject = subjects.get(id)
       if (subject)
         subjects.set(id, { ...subject, naming: { ...subject.naming, murmur: description } })
-    },
-    gisted: (id, at, gist) => {
-      const subject = subjects.get(id)
-      const activity = subject?.activity && withGist(subject.activity, at, gist)
-      if (!activity) return
-      gisted.push(gist)
-      subjects.set(id, { ...subject, activity })
     },
     cleared: () => {
       clears.count += 1
@@ -475,7 +408,6 @@ const create = (
     shellSettleMs: 200,
     expectMs: 1_000,
     retryMs: 60_000,
-    noteMs: 50,
     ...more,
   }
   const murmur = new Murmur(describer, host, times)
@@ -491,8 +423,6 @@ const create = (
     reads,
     written,
     clears,
-    hooks,
-    gisted,
     change,
     times,
   }
@@ -560,9 +490,7 @@ describe("when an agent's terminal is named", () => {
     const made = create({ work: work(), activity: working() })
     made.murmur.reported("a")
     made.change({ activity: finished(10) })
-    made.murmur.changed("a")
     made.change({ work: work({ latest: "Run a critic pass on the PR" }), activity: finished(20) })
-    made.murmur.changed("a")
     made.murmur.reported("a")
     await settle(10 * made.times.retryMs)
     expect(made.describer.jobs).toHaveLength(0)
@@ -1457,242 +1385,5 @@ describe("when the person turns murmur off or removes it", () => {
     murmur.stop()
     describer.clear()
     expect(clears.count).toBe(0)
-  })
-})
-
-const asking = (requests: readonly Request[]): Activity => ({
-  ...started(0),
-  state: "working",
-  pending: requests,
-})
-const ended = (at = 20, outcome: "completed" | "failed" = "completed"): Activity => ({
-  ...started(0),
-  lastTurn: { outcome, reply: null, at, recorded: false, files: [], from: 0 },
-})
-const real = (ms = 150) => new Promise((resolve) => setTimeout(resolve, ms))
-
-describe("murmur's gists", () => {
-  beforeEach(() => {
-    vi.useFakeTimers()
-  })
-  afterEach(() => {
-    vi.useRealTimers()
-  })
-
-  describe("of a reply", () => {
-    let directory: string
-    // Transcripts are read from disk, which fake timers don't wait for.
-    beforeEach(() => {
-      vi.useRealTimers()
-      directory = mkdtempSync(join(tmpdir(), "novadeck-gist-"))
-    })
-    afterEach(() => rmSync(directory, { recursive: true, force: true }))
-
-    const written = (...lines: string[]) => {
-      const path = join(directory, "t.jsonl")
-      writeFileSync(path, lines.join("\n"))
-      return path
-    }
-
-    it("asks once for the reply that ended the turn at `at`, and puts the gist on it", async () => {
-      const transcript = written("user:text:fix it", "assistant:text:Fixed the rounding bug.")
-      const { murmur, describer, subjects, gisted } = create({ activity: ended(20), transcript })
-      murmur.replied("a", 20)
-      murmur.replied("a", 20)
-      await vi.waitFor(() => expect(gisted).toEqual(["Gist 1"]))
-      expect(describer.notes.map(({ digest }) => digest)).toEqual([
-        { kind: "reply", reply: "Fixed the rounding bug.", failed: false },
-      ])
-      expect(gisted).toEqual(["Gist 1"])
-      expect(subjects.get("a")!.activity!.lastTurn!.gist).toEqual("Gist 1")
-      // Shown unread again: it has a gist already.
-      murmur.replied("a", 20)
-      await real()
-      expect(describer.notes).toHaveLength(1)
-    })
-
-    it("tells a failed turn, and cuts a long reply to its head and tail", async () => {
-      const long = `${"a".repeat(5000)}${"z".repeat(5000)}`
-      const transcript = written(`assistant:text:${long}`)
-      const { murmur, describer } = create({ activity: ended(20, "failed"), transcript })
-      murmur.replied("a", 20)
-      await vi.waitFor(() => expect(describer.notes).toHaveLength(1))
-      const digest = describer.notes[0]!.digest as { reply: string; failed: boolean }
-      expect(digest.failed).toBe(true)
-      expect(digest.reply).toBe(`${"a".repeat(4000)}\n…\n${"z".repeat(4000)}`)
-    })
-
-    it("ignores an end that is not the last, an interrupted one, a running turn and an unreadable reply", async () => {
-      const transcript = written("assistant:text:Done.")
-      const { murmur, describer, change } = create({ activity: ended(20), transcript })
-      murmur.replied("a", 19)
-      change({
-        activity: { ...ended(20), lastTurn: { ...ended(20).lastTurn!, outcome: "interrupted" } },
-      })
-      murmur.replied("a", 20)
-      change({ activity: asking([]) })
-      murmur.replied("a", 20)
-      change({ activity: ended(20), transcript: null })
-      murmur.replied("a", 20)
-      murmur.replied("nobody", 20)
-      await real()
-      expect(describer.notes).toHaveLength(0)
-    })
-
-    it("is called off by a new turn, and drops a late gist for an end no longer the last", async () => {
-      const transcript = written("assistant:text:Done.")
-      const { murmur, describer, change, gisted } = create({ activity: ended(20), transcript })
-      describer.hold = true
-      murmur.replied("a", 20)
-      await vi.waitFor(() => expect(describer.notes).toHaveLength(1))
-      expect(describer.notes).toHaveLength(1)
-      change({ activity: asking([]) })
-      murmur.changed("a")
-      expect(describer.notes[0]!.signal?.aborted).toBe(true)
-      describer.notes[0]!.answer({ kind: "gist", text: "Late" })
-      change({ activity: ended(40) })
-      await real()
-      expect(gisted).toEqual([])
-    })
-
-    it("asks for the gist again when murmur becomes usable, after a job that did not run", async () => {
-      const transcript = written("assistant:text:Done.")
-      const skipped = create(
-        { activity: ended(20), transcript },
-        new FakeDescriber({
-          note: (_digest, call) => (call === 1 ? undefined : { kind: "gist", text: "Did it" }),
-        }),
-      )
-      skipped.murmur.replied("a", 20)
-      // The first transcript read and skipped job must finish before changing usability.
-      await vi.waitFor(() => expect(skipped.describer.notes).toHaveLength(1))
-      skipped.describer.setUsable(false)
-      skipped.describer.setUsable(true)
-      await vi.waitFor(() => expect(skipped.gisted).toEqual(["Did it"]))
-    })
-
-    it("drops a reply whose end stopped being the last while its transcript was read", async () => {
-      const transcript = written("assistant:text:Done.")
-      const { murmur, describer, change, hooks } = create({ activity: ended(20), transcript })
-      hooks.items = () => change({ activity: asking([]) })
-      murmur.replied("a", 20)
-      await real()
-      expect(describer.notes).toHaveLength(0)
-    })
-
-    it("is ignored while murmur is unusable, and not remembered", async () => {
-      const transcript = written("assistant:text:Done.")
-      const { murmur, describer, gisted } = create(
-        { activity: ended(20), transcript },
-        new FakeDescriber({ usable: false }),
-      )
-      murmur.replied("a", 20)
-      describer.setUsable(true)
-      await real()
-      expect(describer.notes).toHaveLength(0)
-      murmur.replied("a", 20)
-      await vi.waitFor(() => expect(gisted).toEqual(["Gist 1"]))
-    })
-
-    it("keeps a gist that did not run for the catch-up when murmur is unusable as it is due", async () => {
-      const transcript = written("assistant:text:Done.")
-      const { murmur, describer, gisted } = create(
-        { activity: ended(20), transcript },
-        new FakeDescriber({
-          note: (_digest, call) => (call === 1 ? undefined : { kind: "gist", text: "Did it" }),
-        }),
-        { retryMs: 150 },
-      )
-      murmur.replied("a", 20)
-      await vi.waitFor(() => expect(describer.notes).toHaveLength(1))
-      describer.setUsable(false)
-      // Its retry comes and goes while murmur can't run.
-      await real(500)
-      expect(gisted).toEqual([])
-      describer.setUsable(true)
-      await vi.waitFor(() => expect(gisted).toEqual(["Did it"]))
-    })
-
-    it("asks again after a job that did not run, and not after a refusal", async () => {
-      const transcript = written("assistant:text:Done.")
-      const skipped = create(
-        { activity: ended(20), transcript },
-        new FakeDescriber({
-          note: (_digest, call) => (call === 1 ? undefined : { kind: "gist", text: "Did it" }),
-        }),
-        { retryMs: 150 },
-      )
-      // Shown unread once: the same end is asked for again after a while on its own.
-      skipped.murmur.replied("a", 20)
-      await vi.waitFor(() => expect(skipped.describer.notes).toHaveLength(1))
-      expect(skipped.gisted).toEqual([])
-      await vi.waitFor(() => expect(skipped.gisted).toEqual(["Did it"]))
-
-      const refused = create(
-        { activity: ended(20), transcript },
-        new FakeDescriber({ note: () => null }),
-      )
-      refused.murmur.replied("a", 20)
-      await vi.waitFor(() => expect(refused.describer.notes).toHaveLength(1))
-      refused.murmur.replied("a", 20)
-      await real()
-      expect(refused.describer.notes).toHaveLength(1)
-    })
-  })
-
-  describe("across murmur's life", () => {
-    let directory: string
-    // Transcripts are read from disk, which fake timers don't wait for.
-    beforeEach(() => {
-      vi.useRealTimers()
-      directory = mkdtempSync(join(tmpdir(), "novadeck-gist-"))
-    })
-    afterEach(() => rmSync(directory, { recursive: true, force: true }))
-
-    const transcript = () => {
-      const path = join(directory, "t.jsonl")
-      writeFileSync(path, "assistant:text:Done.")
-      return path
-    }
-
-    it("asks again when murmur becomes usable, for a remembered gist", async () => {
-      const done = create({ activity: ended(20), transcript: transcript() })
-      done.describer.hold = true
-      done.murmur.replied("a", 20)
-      await vi.waitFor(() => expect(done.describer.notes).toHaveLength(1))
-      done.describer.setUsable(false)
-      expect(done.describer.notes[0]!.signal?.aborted).toBe(true)
-      done.describer.setUsable(true)
-      await vi.waitFor(() => expect(done.describer.notes).toHaveLength(2))
-    })
-
-    it("stops its jobs and forgets what it asked when murmur is turned off", async () => {
-      const { murmur, describer } = create({ activity: ended(20), transcript: transcript() })
-      describer.hold = true
-      murmur.replied("a", 20)
-      await vi.waitFor(() => expect(describer.notes).toHaveLength(1))
-      describer.fireCleared()
-      expect(describer.notes[0]!.signal?.aborted).toBe(true)
-      describer.hold = false
-      murmur.replied("a", 20)
-      await vi.waitFor(() => expect(describer.notes).toHaveLength(2))
-    })
-
-    it("cancels a terminal's jobs when it is gone, and all of them on stop", async () => {
-      const path = transcript()
-      const { murmur, describer } = create({ activity: ended(20), transcript: path })
-      describer.hold = true
-      murmur.replied("a", 20)
-      await vi.waitFor(() => expect(describer.notes).toHaveLength(1))
-      murmur.gone("a")
-      expect(describer.notes[0]!.signal?.aborted).toBe(true)
-
-      const other = create({ activity: ended(20), transcript: path })
-      other.describer.hold = true
-      other.murmur.replied("a", 20)
-      await vi.waitFor(() => expect(other.describer.notes).toHaveLength(1))
-      other.murmur.stop()
-      expect(other.describer.notes[0]!.signal?.aborted).toBe(true)
-    })
   })
 })

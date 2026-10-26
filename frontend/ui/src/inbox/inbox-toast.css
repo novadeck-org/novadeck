@@ -2,7 +2,7 @@
    stack sits in the app. Over the header's right end, covering Search and Preferences, its
    right edge on the workspace window's.
 
-   The content is an `.inbox-toast` (data-type="approve" | "ask" | "trouble" | "update",
+   The content is an `.inbox-toast` (data-type="unblock" | "ask" | "trouble" | "update",
    data-tone="urgent" | "waiting" | "quiet"), a grid of the type's `.inbox-toast-icon`;
    a `.inbox-toast-head` of the handle chip (or Novadeck's mark) and `.inbox-toast-said`;
    the `.inbox-toast-age`; the `.inbox-toast-subject` (data-command="true" for a command,

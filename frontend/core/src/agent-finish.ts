@@ -75,6 +75,16 @@ export const finishNotice = (
   }
 }
 
+// What a desktop notification says of an agent's `done` report: who is done, as `finishNotice`
+// names them, and the report's subject, which the agent wrote to say what it did.
+export const doneNotice = (
+  terminal: TerminalMetadata,
+  { subject }: { readonly subject: string },
+): { readonly title: string; readonly body: string } => ({
+  title: finishNotice(terminal, { failed: false }).title,
+  body: subject,
+})
+
 // A finish `followFinishes` tells: the terminal's session context (`${projectId}/${sessionId}`)
 // and the terminal as it stands, the finish, and the end's `at`.
 export type FollowedFinish = {

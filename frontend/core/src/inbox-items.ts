@@ -23,10 +23,9 @@ import type { TerminalMetadata, Workspace, WorkspaceProject, WorkspaceSession } 
 
 // The Inbox's items, as a backend that builds them from the app's own state derives them:
 // what every agent terminal waits on the person for, every item its own row, from the
-// terminals' statuses (a usage limit), the stored finished turns (unless the agent's lead
-// runs, a failed one its error), the messages held for
-// release, the requests of the agents that ask, and what agents wrote through Novadeck's MCP
-// `ask` and `tell`. The runner's Inbox and the demo's keep it current.
+// terminals' statuses (a usage limit), the stored failed turns (their error), the messages
+// held for release, the requests of the agents that ask, and what agents wrote through
+// Novadeck's MCP `ask`, `tell` and `done`. A completed turn makes no item. The runner's Inbox and the demo's keep it current.
 
 // How long a request's dialog may stay unread before its item shows anyway, to be answered
 // in the terminal.
@@ -35,8 +34,8 @@ export const dialogMs = 3000
 // A request, with when its hook started on the backend's clock.
 export type Asked = { readonly request: ChatRequest; readonly askedAt: number }
 
-// What an agent wrote through Novadeck's MCP `ask` or `tell`, from its terminal: an ask, or
-// something it told the person.
+// What an agent wrote through Novadeck's MCP `ask`, `tell` or `done`, from its terminal: an
+// ask, something it told the person, or its report that its task is done.
 export type InboxLetter = {
   readonly id: string
   readonly terminalId: string
@@ -48,6 +47,7 @@ export type InboxLetter = {
   readonly content:
     | { readonly kind: "ask"; readonly ask: AgentAsk }
     | { readonly kind: "tell"; readonly subject: string; readonly body: string }
+    | { readonly kind: "done"; readonly subject: string; readonly body: string }
 }
 
 export type InboxInputs = {
@@ -59,9 +59,6 @@ export type InboxInputs = {
   // The requests of each terminal whose detail is open, by terminal id, oldest first.
   readonly requests: Readonly<Record<string, readonly Asked[]>>
   readonly now: number
-  // Whether paths on the backend's machine match whatever their case, as on macOS; a
-  // Windows path always does.
-  readonly caseless: boolean
   // How long a message may wait for an idle agent before its hold is raised (the protocol's
   // `longHoldMs`); null where the backend raises none, as the demo's.
   readonly longHoldMs: number | null
@@ -94,20 +91,6 @@ const sourceOf = ({ project, session, terminal }: Where, agent: AgentName): Inbo
   title: terminal.name,
   projectName: project.name,
 })
-
-const slashed = (path: string): string => path.replaceAll("\\", "/")
-
-// A path inside the project's directory, relative to it; any other as it is. Separators
-// match either way, and case does on Windows paths and where the machine's paths are
-// `caseless`.
-const relative = (directory: string, file: string, caseless: boolean): string => {
-  const base = slashed(directory).replace(/\/+$/, "")
-  if (base === "") return file
-  const folded = caseless || /^[A-Za-z]:/.test(base)
-  const same = (path: string): string => (folded ? path.toLowerCase() : path)
-  const path = slashed(file)
-  return same(path).startsWith(`${same(base)}/`) ? file.slice(base.length + 1) : file
-}
 
 const heldOf = (
   thread: MessageThread,
@@ -160,9 +143,9 @@ const heldLong = (
 }
 
 // Whether a terminal's agent reports to a lead whose agent still runs in its project and
-// session: that lead hears of its finishes, so they are the lead's, not the person's. Stricter
+// session: that lead hears of its dones, so they are the lead's, not the person's. Stricter
 // than messaging's running lead, a live terminal whatever runs in it, on purpose: a lead whose
-// agent stopped hears nothing, so its workers' finishes come to the person, once each.
+// agent stopped hears nothing, so its workers' dones come to the person, once each.
 const reportsToLead = ({ project, session, terminal }: Where, where: readonly Where[]): boolean =>
   !!terminal.ledBy &&
   where.some(
@@ -271,16 +254,24 @@ export const inboxItems = (inputs: InboxInputs): InboxItem[] => {
         project.id === letter.projectId &&
         session.id === letter.workspaceSessionId &&
         terminal.id === letter.terminalId &&
-        terminal.handle === letter.handle &&
-        (letter.content.kind === "tell" || agentOf(terminal) === letter.agent),
+        (terminal.handle ?? "") === letter.handle &&
+        (letter.content.kind !== "ask" || agentOf(terminal) === letter.agent),
     )
     if (!here) continue
+    // A worker's done is its lead's to hear while the lead's agent runs: a team reports
+    // one finish.
+    if (letter.content.kind === "done" && reportsToLead(here, where)) continue
+    const { content: letterContent } = letter
     const content: InboxContent =
-      letter.content.kind === "ask"
-        ? { kind: "ask", ask: letter.content.ask }
+      letterContent.kind === "ask"
+        ? { kind: "ask", ask: letterContent.ask }
         : {
             kind: "update",
-            update: { type: "told", subject: letter.content.subject, body: letter.content.body },
+            update: {
+              type: letterContent.kind === "done" ? "done" : "told",
+              subject: letterContent.subject,
+              body: letterContent.body,
+            },
           }
     all.push({
       id: letter.id,
@@ -292,11 +283,11 @@ export const inboxItems = (inputs: InboxInputs): InboxItem[] => {
     })
   }
 
-  // A stored turn shows while its terminal exists with the same handle, whatever runs in it.
-  // A completed one is the lead's to hear of while the lead's agent runs; a failed one is
-  // trouble that stops the agent only while it is the terminal's current end and the agent
-  // rests, and informs otherwise.
+  // A stored failed turn shows while its terminal exists with the same handle, whatever runs
+  // in it: trouble that stops the agent only while it is the terminal's current end and the
+  // agent rests, and informs otherwise. A completed one makes no item: it marks its tab unread.
   for (const row of inputs.turns) {
+    if (row.outcome !== "failed") continue
     const here = where.find(
       ({ project, session, terminal }) =>
         project.id === row.projectId &&
@@ -306,25 +297,6 @@ export const inboxItems = (inputs: InboxInputs): InboxItem[] => {
     )
     if (!here) continue
     const source = sourceOf(here, row.agent)
-    if (row.outcome === "completed") {
-      if (reportsToLead(here, where)) continue
-      all.push({
-        id: row.id,
-        source,
-        at: row.at,
-        stopped: false,
-        seen: false,
-        kind: "update",
-        update: {
-          type: "finished",
-          subject: row.gist ?? row.reply ?? "Finished its turn",
-          reply: row.reply ?? "",
-          files: row.files.map((file) => relative(here.project.directory, file, inputs.caseless)),
-          stored: true,
-        },
-      })
-      continue
-    }
     const { terminal } = here
     const current =
       terminal.state === "running" &&

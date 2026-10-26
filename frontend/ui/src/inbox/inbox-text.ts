@@ -140,8 +140,7 @@ const readWords = (item: InboxItem): number => {
         : []
     return words([item.ask.body, ...options].join(" "))
   }
-  if (item.kind === "update")
-    return words(item.update.type === "told" ? item.update.body : item.update.reply)
+  if (item.kind === "update") return words(item.update.body)
   return 0
 }
 
@@ -171,11 +170,11 @@ export const labelOf = (item: InboxItem): string => {
     case "held":
       return "Novadeck held a message"
     case "ask":
-      return "Asks you"
+      return item.ask.shape.type === "action" ? "Needs you" : "Asks you"
     case "trouble":
       return "Novadeck noticed"
     case "update":
-      return item.update.type === "finished" ? "Finished" : "Heads-up"
+      return item.update.type === "done" ? "Done" : "Heads-up"
     case "feedback":
       return "Drafted feedback"
   }

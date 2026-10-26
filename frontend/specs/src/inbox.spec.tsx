@@ -8,11 +8,12 @@ import {
   sidebarPanel,
   tabDescription,
   terminal,
+  terminalTab,
 } from "./support/workspace"
 
 // The Inbox demo: the agents demo with an Inbox of hardcoded items across its projects, one
 // of each kind, waiting on the person, over what its own agents wait on: api-service's plan and
-// permission, and, a moment after it opens, infra's failed turn and design-system's finish.
+// permission, and, a moment after it opens, infra's failed turn and design-system's done report.
 const inbox = "/?demo=inbox"
 
 const openInbox = async (route = inbox): Promise<void> => {
@@ -21,6 +22,20 @@ const openInbox = async (route = inbox): Promise<void> => {
   if (await skip.query()) await skip.click()
   await sidebarPanel("Inbox").click()
 }
+
+// The preview ask comes from the terminal the demo opens on, which the landing rule holds back
+// while the person looks at it: selecting another one lands it.
+const lookAway = async (): Promise<void> => {
+  await sidebarPanel("Terminals").click()
+  await terminalTab("Checkout review").click()
+  await sidebarPanel("Inbox").click()
+}
+
+// What the Inbox demo holds once it has settled and the person has looked away from its first
+// terminal: the 12 that wait, the preview ask that landed, and the demo agents' done reports.
+// Whether the page has focus when it opens (so whether the preview ask is held) is up to the
+// browser, so a count is only asserted after looking away, never before.
+const settledRows = 15
 
 const rows = () =>
   page.getByRole("list", { name: "Messages from your agents" }).getByRole("listitem")
@@ -37,6 +52,9 @@ afterEach(() => {
 describe("The Inbox on the rail", () => {
   it("counts what isn't an update", async () => {
     await openWorkspace(inbox)
+    const skip = page.getByRole("button", { name: "Skip for now" })
+    if (await skip.query()) await skip.click()
+    await terminalTab("Checkout review").click()
 
     await expect.element(sidebarPanel("Inbox")).toHaveAccessibleName("Inbox, 12 waiting")
   })
@@ -64,8 +82,9 @@ describe("The agents demo's Inbox", () => {
 describe("The Inbox's list", () => {
   it("lists one row for each item, trouble that stopped an agent first", async () => {
     await openInbox()
+    await lookAway()
 
-    await expect.element(rows()).toHaveLength(15)
+    await expect.element(rows()).toHaveLength(settledRows)
     await expect
       .element(rows().first())
       .toMatchTextContent(/Seems stuck: the same failure 3 times[\s\S]*7m[\s\S]*api-service/)
@@ -324,6 +343,7 @@ describe("An item's sheet", () => {
 
     it("says a stale ask is no longer available", async () => {
       await openInbox(`${inbox}&inboxAnswer=stale`)
+      await lookAway()
       await row("Should the preview show test or sample products").click()
       const open = sheet("Checkout implementation")
       await userEvent.type(open.getByRole("textbox", { name: "Reply to Claude" }), "Samples.")
@@ -338,6 +358,7 @@ describe("An item's sheet", () => {
   context("when looking at Inbox history", () => {
     it("shows the ask and the person's reply in the conversation named You", async () => {
       await openInbox()
+      await lookAway()
       await row("Should the preview show test or sample products").click()
       const open = sheet("Checkout implementation")
       await userEvent.type(
@@ -424,6 +445,7 @@ describe("An item's sheet", () => {
   context("when an agent asks while working", () => {
     it("takes a reply without claiming the agent resumed", async () => {
       await openInbox()
+      await lookAway()
       await row("Should the preview show test or sample products").click()
       const open = sheet("Checkout implementation")
       await userEvent.type(
@@ -450,14 +472,14 @@ describe("An item's sheet", () => {
     })
   })
 
-  context("when an agent finished", () => {
-    it("lists what it edited, and marks it read", async () => {
+  context("when an agent reports it is done", () => {
+    it("shows its report, and marks it read", async () => {
       await openInbox()
       await row("Search index rebuilt").click()
       const open = page.getByRole("dialog")
 
-      await expect.element(open).toMatchTextContent("Files it edited")
-      await expect.element(open).toMatchTextContent("scripts/build-index.mjs")
+      await expect.element(open).toMatchTextContent("Done")
+      await expect.element(open).toMatchTextContent("Rebuilt the index for all 412 pages")
       await open.getByRole("button", { name: "Mark read" }).click()
 
       await expect.element(confirmation()).toMatchTextContent("Marked read.")
@@ -468,8 +490,12 @@ describe("An item's sheet", () => {
 describe("Marking updates read", () => {
   it("reads every update and leaves what waits on the person", async () => {
     await openInbox()
+    await lookAway()
+    // Its late arrivals are in before the reading.
+    await expect.element(rows()).toHaveLength(settledRows)
     await page.getByRole("button", { name: "Mark all read" }).click()
 
+    // The updates read, what waits on the person (12, with the preview ask) stays.
     await expect.element(rows()).toHaveLength(12)
     await expect
       .element(page.getByRole("button", { name: "Mark all read" }))

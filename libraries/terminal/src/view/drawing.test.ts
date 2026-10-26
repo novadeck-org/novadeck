@@ -6,15 +6,18 @@ import {
 } from "@novadeck/emulator/browser"
 import { afterEach, describe, expect, it, vi } from "vitest"
 
+import type { AttachStream } from "../contract.js"
 import {
   closeViews,
   emulatorPrototype,
   loading,
   openedTerminals,
   optionsOf,
+  output,
   running,
   shell,
   slot,
+  snapshot,
   starting,
   streamOf,
   themed,
@@ -251,5 +254,71 @@ describe("a screen's renderer", () => {
     } finally {
       vi.useRealTimers()
     }
+  })
+})
+
+describe("a screen its emulator fails to draw", () => {
+  afterEach(() => vi.unstubAllGlobals())
+
+  // A buffer whose rows went missing makes the emulator throw while parsing; a sequence of the
+  // test's own throws in its place. Before, the screen stayed on "Loading output…" for good.
+  it("draws the host's screen afresh and takes input again", async () => {
+    const thrown: unknown[] = []
+    const queue = globalThis.queueMicrotask
+    vi.stubGlobal("queueMicrotask", (task: () => void) =>
+      queue(() => {
+        try {
+          task()
+        } catch (error) {
+          thrown.push(error)
+        }
+      }),
+    )
+    const first = streamOf([snapshot("$ before\x1b[z")])
+    const second = streamOf([snapshot("$ fresh")])
+    const attach = vi
+      .fn<() => Promise<AttachStream>>()
+      .mockResolvedValueOnce(first.attached)
+      .mockResolvedValue(second.attached)
+    const screens = viewsOf(optionsOf({ attach }))
+    const opened = openedTerminals()
+    const hold = screens.acquire("garbled", running)
+    const xterm = opened[0]!
+    const broken = new Error("no such row")
+    xterm.parser.registerCsiHandler({ final: "z" }, () => {
+      throw broken
+    })
+    await vi.waitFor(() => expect(attach).toHaveBeenCalledTimes(2))
+    await vi.waitFor(() =>
+      expect(hold.state.getSnapshot()).toMatchObject({ live: true, lock: null }),
+    )
+    expect(first.close).toHaveBeenCalled()
+    expect(thrown).toEqual([broken])
+    expect(xterm.buffer.active.getLine(0)?.translateToString(true)).toBe("$ fresh")
+    hold.release()
+  })
+
+  it("draws a screen afresh after a stream cut inside a sequence", async () => {
+    const first = streamOf([snapshot("$ before"), output("\x1b[", 2)])
+    const second = streamOf([snapshot("$ after")])
+    const attach = vi
+      .fn<() => Promise<AttachStream>>()
+      .mockResolvedValueOnce(first.attached)
+      .mockResolvedValue(second.attached)
+    const screens = viewsOf(optionsOf({ attach, park: { afterMs: 0, keep: 16 } }))
+    const opened = openedTerminals()
+    const hold = screens.acquire("cut", running)
+    const xterm = opened[0]!
+    await vi.waitFor(() => expect(hold.state.getSnapshot().live).toBe(true))
+    await new Promise<void>((resolve) => xterm.write("", resolve))
+    // Parked out of sight, then shown again.
+    hold.release()
+    await vi.waitFor(() => expect(first.close).toHaveBeenCalled())
+    const again = screens.acquire("cut", running)
+    await vi.waitFor(() => expect(attach).toHaveBeenCalledTimes(2))
+    await vi.waitFor(() => expect(again.state.getSnapshot().live).toBe(true))
+    await new Promise<void>((resolve) => xterm.write("", resolve))
+    expect(xterm.buffer.active.getLine(0)?.translateToString(true)).toBe("$ after")
+    again.release()
   })
 })

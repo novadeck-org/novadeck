@@ -15,7 +15,6 @@ const turn = {
   kind: "turn" as const,
   outcome: "completed" as const,
   reply: "done",
-  gist: null,
   error: null,
   files: [],
 }
@@ -48,7 +47,6 @@ describe("lastTurn.limited", () => {
     outcome: "failed" as const,
     reply: null,
     at: 1,
-    gist: null,
     error: null,
     limit: null,
     files: [],
