@@ -4772,7 +4772,8 @@ describe.runIf(process.platform === "win32")("Windows shell integration", () => 
  * `mouse` turns on mouse and focus reporting, as a fullscreen TUI does. It skips mouse and
  * focus reports, as such a TUI does. `named` is the same TUI under its harness's name, so
  * its hooks find its instance. `askafter` asks a permission after its first turn's Stop;
- * `askpaste` asks one as a paste comes after it, drawing the paste once told to.
+ * `askpaste` asks one as a paste comes after it, drawing the paste once told to; `asking`
+ * puts a question in the Inbox after its first turn's Stop.
  */
 const standInTui = (home: string): string => {
   const bin = join(home, "bin")
@@ -4783,6 +4784,8 @@ const standInTui = (home: string): string => {
     String.raw`
 const { spawn, spawnSync } = require("node:child_process")
 const fs = require("node:fs")
+const net = require("node:net")
+${toolCall}
 const [agent, session, received, raw, mode] = process.argv.slice(2)
 // Capture job-control state only on failure: probing before raw mode changes the race.
 const startupFailed = (error) => {
@@ -4882,6 +4885,14 @@ const turn = (prompt, typed = true) => {
         // Back at its prompt once its Stop hook returned, which may be well after Novadeck
         // heard the Stop: the turns it finished so, for the test to wait on.
         fs.writeFileSync(raw + ".finished", String(turns))
+        // With "asking", its agent puts a question in the person's Inbox after its first
+        // turn's Stop, and writes what Novadeck answered to <raw>.asked.
+        if (mode === "asking" && turns === 1) {
+          const request = { subject: "Which colour?", body: "Blue or green for the heading." }
+          toolCall("ask", request, process.env.NOVADECK_REPORT_TOKEN, (answer) =>
+            fs.writeFileSync(raw + ".asked", JSON.stringify(answer)),
+          )
+        }
         // With "askafter", a call asks a permission after its first turn's Stop, as a
         // background task's may: its dialog draws nothing, and Enter allows it, so only the
         // request's own resolution tells Novadeck it no longer waits.
@@ -6279,6 +6290,35 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))(
       await quiet()
       expect(pastes(tui.raw())).toEqual([])
     })
+
+    for (const agent of ["codex", "claude", "agy"] as const)
+      it(`takes ${agent}'s open asks out of the Inbox at the person's own prompt, and tells it`, async ({
+        shell,
+      }) => {
+        const tui = await ringing(shell, "asking", "tui", agent)
+        if (agent === "agy") await agyStarted(tui)
+        else await tui.first()
+        const asking = () =>
+          tui.manager.inboxLetters().filter(({ content }) => content.kind === "ask")
+        await expect.poll(asking, { timeout: 10_000 }).toHaveLength(1)
+        // A turn the agent's harness starts by itself leaves it there.
+        const turns = tui.received().length
+        tui.kick()
+        await vi.waitFor(() => expect(tui.received()).toHaveLength(turns + 1), { timeout: 10_000 })
+        await tui.back(2)
+        await expect.poll(tui.delivery, { timeout: 10_000 }).toBe("settled")
+        expect(asking()).toHaveLength(1)
+        expect(tui.received().at(-1)!.printed).not.toContain("took your open ask")
+        // The person writes to it in its terminal.
+        tui.type("blue, please")
+        await shell.until(tui.manager, tui.idle.id, "> blue, please")
+        tui.type("\r")
+        await vi.waitFor(() => expect(tui.received()).toHaveLength(turns + 2), { timeout: 10_000 })
+        expect(asking()).toEqual([])
+        const printed = tui.received().at(-1)!.printed
+        expect(printed).toContain("took your open ask out of their Inbox")
+        expect(printed).toContain("Which colour?")
+      })
 
     it("rings an agent whose process group holds the terminal's foreground", async ({ shell }) => {
       // Under its harness's name, so its hooks name its instance.

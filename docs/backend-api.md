@@ -324,7 +324,7 @@ adds optional `inbox: "ask" | "tell" | "done" | "answer"`; its person party is t
 Ask, tell and done traces also have `inboxState`: `open`, `answered`, `read`, `withdrawn`,
 `gone` (the asking session ended, or did not come back within two minutes of a runner restart), or `undelivered` (the person's reply went gone before
 reaching the agent). A reply already delivered stays delivered when the session ends.
-Trace outcomes are separate from delivery state, so a withdrawn question remains an
+Trace outcomes are separate from delivery state, so a withdrawn question (by its agent, or by Novadeck when the person wrote to that agent in its terminal) remains an
 already-received history entry.
 Ask and tell entries are delivered history; answers show their real delivery state.
 These person threads have no loop hold, release or stop control, and list `idle: 0`,

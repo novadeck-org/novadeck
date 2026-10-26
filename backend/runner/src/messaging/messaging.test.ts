@@ -31,6 +31,7 @@ import {
   Messaging,
   type MessagingChange,
   type MessagingOptions,
+  type OnPerson,
   type SendAnswer,
 } from "./messaging.js"
 import type { Whereabouts } from "./peers.js"
@@ -186,10 +187,17 @@ const create = (
     event: string,
     reported: HarnessEvent[],
     deadline = time.now + 3_000,
+    onPerson?: OnPerson,
   ) => {
     const events = timed(reported)
     follow(terminalId, bound, events)
-    return messaging.ask(terminalId, { agent: bound.agent, event, events, deadline })
+    return messaging.ask(terminalId, {
+      agent: bound.agent,
+      event,
+      events,
+      deadline,
+      ...(onPerson && { onPerson }),
+    })
   }
   const prompt = (terminalId: string, bound: Binding, cause?: "prompt" | "harness" | "call") =>
     ask(terminalId, bound, bound.agent === "agy" ? "PreInvocation" : "UserPromptSubmit", [
@@ -3190,6 +3198,141 @@ describe("Antigravity's prompts, told from its transcript", () => {
     ask("G", agy, "PreInvocation", [...events])
     stop("G", agy)
     expect(messaging.delivery("G")?.state).toBe("settled")
+  })
+})
+
+describe("the person's prompt, told to the asks", () => {
+  const notice = "Novadeck: automatic notice, not from the user: asks withdrawn."
+  const agy = binding("agy", "c-root", "7")
+  // Each harness's prompt hook and how its prompt text is told: Claude Code's and Codex's by
+  // the hook, Antigravity's from its transcript's typed entry.
+  const harnessesTold = [
+    { name: "Claude Code", event: "UserPromptSubmit", terminal: "A", agent: "claude" },
+    { name: "Codex", event: "UserPromptSubmit", terminal: "B", agent: "codex" },
+    { name: "Antigravity", event: "PreInvocation", terminal: "G", agent: "agy" },
+  ] as const
+  type Run = ReturnType<typeof create> & {
+    readonly bound: Binding
+    readonly terminal: string
+    readonly event: string
+  }
+  const setup = (agent: "claude" | "codex" | "agy"): Run => {
+    const run = create()
+    const found = harnessesTold.find((each) => each.agent === agent)!
+    if (agent === "agy") {
+      run.messaging.register("G", here, "owl", null)
+      run.follow("G", agy)
+    }
+    const bound = agent === "claude" ? run.claude : agent === "codex" ? run.codex : agy
+    return { ...run, bound, terminal: found.terminal, event: found.event }
+  }
+  // The turn's start as the hooks (or Antigravity's transcript) tell it, for a prompt `cause`.
+  const start = async (
+    run: Run,
+    cause: "prompt" | "harness" | "doorbell",
+    onPerson: OnPerson,
+    reported?: HarnessEvent[],
+  ) => {
+    const { bound } = run
+    let events: HarnessEvent[]
+    if (reported) events = reported
+    else if (bound.agent === "agy") {
+      const harnessTurn = started(bound, "harness")
+      const told =
+        cause === "prompt"
+          ? await typedPromptStart(
+              [{ ...harnessTurn, startedAt: run.clock.now }],
+              {
+                root: { ...bound, source: "status-line" } as Root,
+                typedEntry: harnesses.agy.messaging.typedEntry!,
+                transcript: "/t.jsonl",
+                seen: 1,
+                enteredAt: run.clock.now - 500,
+                ringing: undefined,
+                startedWith: undefined,
+              },
+              () => Promise.resolve({ text: "let's talk it over", at: null, id: 2 }),
+              { waitMs: 2, gapMs: 1 },
+            )
+          : { events: [harnessTurn] }
+      events = [...told.events]
+    } else
+      events =
+        cause === "prompt"
+          ? [{ ...started(bound, "prompt"), prompt: "let's talk it over" } as HarnessEvent]
+          : cause === "doorbell"
+            ? [doorbellStarted(bound, "n1")]
+            : [started(bound, "harness")]
+    return run.ask(run.terminal, bound, run.event, events, undefined, onPerson)
+  }
+
+  it.each(harnessesTold)(
+    "tells $name's withdrawal of the asks the person's prompt took, in that hook's answer",
+    async ({ agent }) => {
+      const run = setup(agent)
+      run.messaging.keys(run.terminal, ["enter"], false)
+      const seen: unknown[] = []
+      const answer = await start(run, "prompt", (turn) => (seen.push(turn), notice))
+      expect(seen).toEqual([{ startedAt: run.clock.now, prompt: "let's talk it over" }])
+      expect(answer.stdout).toContain(notice)
+    },
+  )
+
+  it.each(harnessesTold)(
+    "puts the notice beside the messages $name's prompt carries",
+    async ({ agent }) => {
+      const run = setup(agent)
+      run.messaging.register("Z", here, "owl2", null)
+      run.follow("Z", binding("claude", "s-z", "9"))
+      sent(run.send("Z", agent === "claude" ? "moth" : agent === "codex" ? "fox" : "owl", "hello"))
+      run.messaging.keys(run.terminal, ["enter"], false)
+      const answer = await start(run, "prompt", () => notice)
+      expect(answer.leaseId).not.toBeNull()
+      expect(answer.stdout).toContain(">hello</message>")
+      expect(answer.stdout).toContain(notice)
+    },
+  )
+
+  it.each(harnessesTold)(
+    "never tells of $name's turn the doorbell or the harness started, or one with no Enter",
+    async ({ agent }) => {
+      const run = setup(agent)
+      const onPerson = vi.fn<OnPerson>(() => notice)
+      run.messaging.keys(run.terminal, ["enter"], false)
+      expect((await start(run, "harness", onPerson)).stdout).not.toContain(notice)
+      run.stop(run.terminal, run.bound)
+      run.messaging.keys(run.terminal, ["enter"], false)
+      await start(run, "doorbell", onPerson)
+      run.stop(run.terminal, run.bound)
+      // No Enter of theirs before a prompt: not their submission.
+      run.clock.now += 60_000
+      expect((await start(run, "prompt", onPerson)).stdout).not.toContain(notice)
+      expect(onPerson).not.toHaveBeenCalled()
+    },
+  )
+
+  it("takes a prompt the person steers into Codex's running turn as theirs when delivery does", async () => {
+    const run = setup("codex")
+    run.messaging.keys("B", ["enter"], false)
+    await start(run, "prompt", () => undefined)
+    // Enter while it works steers: its hook fires for the new prompt, a new turn started by Enter.
+    run.clock.now += 5_000
+    run.messaging.keys("B", ["content", "enter"], false)
+    run.clock.now += 200
+    const onPerson = vi.fn<OnPerson>(() => notice)
+    await start(run, "prompt", onPerson)
+    expect(onPerson).toHaveBeenCalledTimes(1)
+  })
+
+  it("does not tell of a continued turn, nor of a later model call of the person's turn", async () => {
+    const run = setup("agy")
+    run.messaging.keys("G", ["enter"], false)
+    const first = vi.fn<OnPerson>(() => notice)
+    await start(run, "prompt", first)
+    expect(first).toHaveBeenCalledTimes(1)
+    const later = vi.fn<OnPerson>(() => notice)
+    run.ask("G", agy, "PreInvocation", [started(agy, "call")], undefined, later)
+    expect(later).not.toHaveBeenCalled()
   })
 })
 

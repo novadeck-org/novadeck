@@ -315,8 +315,19 @@ const refused = (reason: string) => ({ ok: false, reason }) as const
 // Closed, messaging keeps nothing more, so a message then would be lost, not queued.
 const stopping = "Novadeck is stopping and couldn't keep the message; send it again once it's back."
 
+/**
+ * What the person's own prompt starting a root turn is told to; what it answers is Novadeck's
+ * notice for the agent, if any.
+ */
+export type OnPerson = (turn: {
+  readonly startedAt: number
+  readonly prompt: string | undefined
+}) => string | undefined
+
 /** What an ask's handlers share: its terminal, root, harness profile and the hook's report. */
 type Asked = {
+  /** Novadeck's notice for the agent, due with this hook's answer. */
+  readonly note: string | undefined
   readonly live: Live
   readonly root: Root
   readonly profile: MessagingProfile
@@ -866,11 +877,38 @@ export class Messaging {
   }
 
   /** What the terminal's root session did, decoded from a report, for its delivery state. */
-  observe(terminalId: string, events: readonly HarnessEvent[]): void {
+  observe(terminalId: string, events: readonly HarnessEvent[], onPerson?: OnPerson): void {
     const live = this.live.get(terminalId)
     if (!live) return
     this.feed(live, events)
+    const before = live.delivery.epoch
     for (const event of events) this.turn(live, event)
+    this.personTurn(live, before, events, onPerson)
+  }
+
+  /**
+   * Tells `onPerson` of the root turn that `events` started, if it is the person's own
+   * submission as delivery judges it (never a doorbell's or the harness's); what it
+   * answers, a notice for the agent, otherwise undefined.
+   */
+  private personTurn(
+    live: Live,
+    before: number,
+    events: readonly HarnessEvent[],
+    onPerson: OnPerson | undefined,
+  ): string | undefined {
+    const { delivery, prompt } = live
+    if (!onPerson || delivery.epoch === before || !delivery.byPerson || !running(delivery))
+      return undefined
+    const start = events.find(
+      (event): event is Extract<HarnessEvent, { type: "turn-started" }> =>
+        event.type === "turn-started" && event.cause === "prompt" && rootedIn(live.root, event),
+    )
+    if (!start) return undefined
+    return onPerson({
+      startedAt: start.startedAt,
+      prompt: prompt?.epoch === delivery.epoch ? prompt.text : undefined,
+    })
   }
 
   /**
@@ -888,6 +926,8 @@ export class Messaging {
       readonly event: string
       readonly events: readonly HarnessEvent[]
       readonly deadline: number
+      /** Told of a root turn the person's own prompt started; the notice it answers goes to the agent. */
+      readonly onPerson?: OnPerson
     },
   ): HookAnswer {
     const profile = harnesses[report.agent].messaging
@@ -896,7 +936,7 @@ export class Messaging {
     const live = this.live.get(terminalId)
     if (!live) return silent
     if (!kind) {
-      this.observe(terminalId, report.events)
+      this.observe(terminalId, report.events, report.onPerson)
       return silent
     }
     const root = live.root
@@ -909,9 +949,12 @@ export class Messaging {
           )
         : undefined
     this.feed(live, report.events)
+    const before = live.delivery.epoch
     for (const event of report.events) if (event !== stop) this.turn(live, event)
+    const note = this.personTurn(live, before, report.events, report.onPerson)
     if (!root) return silent
     const asked = {
+      note,
       live,
       root,
       profile,
@@ -964,7 +1007,7 @@ export class Messaging {
    * harness whose injected messages last one call also gets the turn's delivery again, with
    * the lead's messages that came since joined to it.
    */
-  private askPrompt({ live, root, profile, silent, events, time }: Asked): HookAnswer {
+  private askPrompt({ live, root, profile, silent, events, time, note }: Asked): HookAnswer {
     const start = events.find(
       (event): event is Extract<HarnessEvent, { type: "turn-started" }> =>
         event.type === "turn-started" && rootedIn(root, event),
@@ -975,7 +1018,9 @@ export class Messaging {
       ? this.leases.recall(live.terminalId, live.delivery.epoch)
       : undefined
     // What this terminal sent that waits long goes with whatever the hook prints, once.
-    const holds = time ? this.heldFrom(live.terminalId) : []
+    // Novadeck's notice goes whatever time is left: it is short and its trigger is spent.
+    const notes = note === undefined ? [] : [note]
+    const holds = [...notes, ...(time ? this.heldFrom(live.terminalId) : [])]
     const again = kept === undefined ? undefined : profile.prompt(noted(kept, holds))
     if (start.cause === "call") {
       const print = (text: string) => profile.prompt(noted(joined(kept, text), holds))
@@ -998,10 +1043,13 @@ export class Messaging {
       this.lease(live, root, {
         kind: "prompt",
         print,
-        ...(profile.reinjectPerCall && { keeps: (text: string) => text }),
+        ...(profile.reinjectPerCall && { keeps: (text: string) => noted(text, notes) }),
       })
     if (lease) return { leaseId: lease.id, stdout: print(lease.text) }
     if (again) return { leaseId: null, stdout: again }
+    // A harness whose injected messages last one call gives the notice on each later call.
+    if (profile.reinjectPerCall && notes.length > 0)
+      this.leases.remember(live.terminalId, live.delivery.epoch, noted("", notes))
     if (start.cause !== "doorbell")
       return holds.length > 0 ? { leaseId: null, stdout: print("") } : silent
     // A doorbell whose messages couldn't be leased now, as too late or while paused, says

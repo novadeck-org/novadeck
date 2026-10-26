@@ -197,7 +197,9 @@ describe("a nudge", () => {
     expect(inboxNotice).not.toContain("\n")
     for (const words of [
       "the user rarely watches this terminal",
-      "Always put every question you end your turn waiting on",
+      "When your harness has its own question tool and you'd stop to ask with it, do, as you normally would",
+      "Novadeck shows that question in their Inbox as it is, so it needs no ask",
+      "Always put every other question you end your turn waiting on",
       "in their Inbox with Novadeck's ask tool, unless it is already an open ask",
       "a closing offer such as 'anything else?' isn't one",
       "nor is an action your harness is already prompting them for",
@@ -209,7 +211,8 @@ describe("a nudge", () => {
       "never ask for a secret value",
       "report it with Novadeck's done tool, your own short report",
       "not when you answer a question or finish a step",
-      "If they answer here instead, withdraw the ask",
+      "When they write to you here, Novadeck takes your open asks out of their Inbox and tells you",
+      "ask again only what their message leaves open",
     ])
       expect(inboxNotice).toContain(words)
     for (const native of ["AskUserQuestion", "request_user_input", "ask_question"])

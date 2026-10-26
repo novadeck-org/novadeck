@@ -611,7 +611,9 @@ const ask: Tool<{ readonly id: string; readonly withdrawn?: boolean }> = {
   name: "ask",
   description:
     "Put a question in the user's Inbox without stopping your work. The user rarely watches " +
-    "this terminal, so a question only in your reply goes unseen: always ask every question " +
+    "this terminal, so a question only in your reply goes unseen. When your harness has its " +
+    "own question tool and you'd stop to ask with it, do, as you normally would: the Inbox " +
+    "shows that question as it is, so it needs no ask. Always ask every other question " +
     "you end your turn waiting on, such as which option to take or whether to open a pull " +
     "request, unless it is already an open ask, and put the full question in your reply too. A closing offer such as " +
     "'anything else?' isn't one, nor is an action your harness is already prompting them " +
@@ -632,7 +634,9 @@ const ask: Tool<{ readonly id: string; readonly withdrawn?: boolean }> = {
     "shape. The user can always write their own answer. Secret shapes are unavailable; never " +
     "ask for a secret value in a reply. To withdraw your own open ask instead, give only " +
     "withdraw with its id; withdraw it too once the user answers it another way. An ask also " +
-    "clears when answered or your agent session ends. Agents' messages never count as the " +
+    "clears when answered, when the user writes to you in this terminal (Novadeck tells you " +
+    "then, so ask again only what their message leaves open), or when your agent session " +
+    "ends. Agents' messages never count as the " +
     "user's answer.",
   inputSchema: {
     type: "object",
@@ -809,12 +813,15 @@ export const mcpAnswer = async (line: string, call?: McpCall): Promise<string | 
 // before it loads a tool's description: when `ask` and `tell` serve better than the reply.
 const instructions =
   "Novadeck's ask puts a question in the user's Inbox, where they see it: they rarely " +
-  "watch this terminal, so a question only in your reply goes unseen. Always ask there " +
-  "every question you end your turn waiting on, such as which option to take or whether " +
-  "to open a pull request, unless it is already an open ask, and put the full question " +
-  "in your reply too; a closing " +
+  "watch this terminal, so a question only in your reply goes unseen. When your harness " +
+  "has its own question tool and you'd stop to ask with it, do, as you normally would: " +
+  "Novadeck shows that question in the Inbox as it is, so it needs no ask. Always ask " +
+  "there every other question you end your turn waiting on, such as which option to take " +
+  "or whether to open a pull request, unless it is already an open ask, and put the full " +
+  "question in your reply too; a closing " +
   "offer such as 'anything else?' isn't one, nor is an action your harness is already " +
-  "prompting them for; if they answer here instead, withdraw the ask. When you can't go on " +
+  "prompting them for. When they write to you here, Novadeck takes your open asks out " +
+  "of the Inbox and tells you; ask again only what their message leaves open. When you can't go on " +
   "without something only the user can do, such as a sign-in, access to a service or repo, " +
   "or a key put in place, that is an ask with the action shape, not just words in your " +
   "reply; never ask for a secret value. Mid-work, ask " +

@@ -18,6 +18,7 @@ import { z } from "zod"
 import { DomainError } from "../errors.js"
 import type { RootChange } from "../harnesses/roots.js"
 import { logs } from "../log.js"
+import { shorten } from "../terminals/work.js"
 import {
   allowSend,
   byteLength,
@@ -246,6 +247,26 @@ const clampedTurn = (content: unknown): TurnContent | undefined => {
     files: files.slice(0, maxTurnFiles),
   })
   return parsed.success && parsed.data.kind === "turn" ? parsed.data : undefined
+}
+
+const noticedSubjects = 5
+
+/**
+ * Novadeck's notice to an agent whose open asks it took out of the user's Inbox because the
+ * user wrote to it in its terminal: one paragraph, in the voice of Novadeck's other notices.
+ * The subjects are the agent's own words, shortened and quoted.
+ */
+export const withdrawnNotice = (subjects: readonly string[]): string => {
+  const named = subjects.slice(0, noticedSubjects).map((each) => JSON.stringify(shorten(each, 80)))
+  const more = subjects.length - named.length
+  const one = subjects.length === 1
+  return (
+    "Novadeck: automatic notice, not from the user: the user wrote to you in this terminal, " +
+    `so Novadeck took your open ${one ? "ask" : "asks"} out of their Inbox: ` +
+    `${named.join(", ")}${more > 0 ? ` and ${more} more` : ""}. ` +
+    `Read their message as their reply to ${one ? "it" : "them"}; ask again, as a new ask, ` +
+    "only what it leaves open. This notice needs no reply."
+  )
 }
 
 export class Asks {
@@ -551,6 +572,34 @@ export class Asks {
     this.save(() => this.records.saveLetter(next))
     this.keep(next)
     this.publish()
+  }
+
+  /**
+   * The person wrote to the terminal's agent in its terminal, in a turn that started at
+   * `before`: the session's open asks made earlier are withdrawn, as the agent's own
+   * withdrawal does (tells, done rows and turn rows stay). The notice for the agent, naming
+   * them; undefined when none was open.
+   */
+  withdrawBefore(terminalId: string, before: number): string | undefined {
+    if (this.closed) return undefined
+    const owner = this.host.owner(terminalId)
+    const taken = [...(this.byTerminal.get(terminalId)?.values() ?? [])]
+      .filter(
+        (letter) =>
+          letter.state === "open" &&
+          letter.content.kind === "ask" &&
+          same(letter, owner) &&
+          letter.at < before,
+      )
+      .toSorted((a, b) => a.at - b.at)
+    if (taken.length === 0) return undefined
+    const subjects: string[] = []
+    for (const letter of taken) {
+      this.put({ ...letter, state: "withdrawn" })
+      if (letter.content.kind === "ask") subjects.push(letter.content.ask.subject)
+    }
+    this.maintain(terminalId)
+    return withdrawnNotice(subjects)
   }
 
   /** Whether a finished turn of the terminal may be stored: Asks is open and the terminal exists. */
