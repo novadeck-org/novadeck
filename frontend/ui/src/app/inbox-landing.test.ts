@@ -83,8 +83,10 @@ const setup = (initiallyWide = true) => {
   ui.update((state) => ({ ...state, pageFocused: true }))
   const state = createStore<InboxState>(emptyInbox)
   const answers: [string, InboxAnswer][] = []
+  const cleared: string[][] = []
   const raw: Inbox = {
     state,
+    clear: (ids) => void cleared.push([...ids]),
     answer: (id, answer) => void answers.push([id, answer]),
     see: () => {},
     readAll: () => {},
@@ -103,6 +105,7 @@ const setup = (initiallyWide = true) => {
     restart: start,
     reveal,
     answers,
+    cleared,
     set: (items: InboxRow[]) => void state.update((current) => ({ ...current, items })),
     patch: (patch: Partial<InboxState>) =>
       void state.update((current) => ({ ...current, ...patch })),
@@ -173,8 +176,8 @@ describe("the landing rule", () => {
       stop()
     })
 
-    it("never lands once it settled unseen, but a landed one stays settled", () => {
-      const { set, select, ids, stop } = setup()
+    it("never lands once it settled unseen, is cleared once, and a landed one stays settled", () => {
+      const { set, select, ids, cleared, stop } = setup()
       const settled = { how: "replied" as const, at: 2 }
       set([ask("a", "01"), ask("b", "02")])
       set([
@@ -182,8 +185,18 @@ describe("the landing rule", () => {
         { ...ask("b", "02"), settled },
       ])
       expect(ids()).toEqual(["b"])
+      expect(cleared).toEqual([["a"]])
       select("02")
       expect(ids()).toEqual(["b"])
+      expect(cleared).toEqual([["a"]])
+      stop()
+    })
+
+    it("shows a settled row at once, even where its terminal is viewed", () => {
+      const { set, ids, cleared, stop } = setup()
+      set([{ ...ask("a", "01"), settled: { how: "dismissed", at: 2 } }])
+      expect(ids()).toEqual(["a"])
+      expect(cleared).toEqual([])
       stop()
     })
 

@@ -163,7 +163,6 @@ export const informing = (item: InboxRow): boolean =>
 
 // Whether an item asks something of the person: anything but an update, a failed turn that
 // only informs, or an ask that has settled.
-// An ask that has settled asks nothing.
 export const needs = (item: InboxRow): boolean =>
   !item.settled && inboxType(item) !== "update" && !informing(item)
 
@@ -195,10 +194,10 @@ export const needing = (items: readonly InboxRow[]): InboxRow[] => items.filter(
 export const ringing = (items: readonly InboxRow[]): InboxRow[] =>
   needing(items).filter((item) => inboxType(item) !== "feedback")
 
-// Whether Mark all read has anything to read: an update, or a failed turn that only informs.
 // Whether any ask has settled, for Clear to offer itself.
 export const hasSettled = (items: readonly InboxRow[]): boolean =>
   items.some((item) => item.settled)
 
+// Whether Mark all read has anything to read: an update, or a failed turn that only informs.
 export const hasUpdates = (items: readonly InboxRow[]): boolean =>
   items.some((item) => inboxType(item) === "update" || informing(item))

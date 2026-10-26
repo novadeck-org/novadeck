@@ -1890,6 +1890,38 @@ describe("asks the person dismisses", () => {
     }
     run.messaging.rooted(identity.terminalId, [correction])
     run.inbox.rooted(identity.terminalId, [correction])
+    // The agent's own withdrawal of it still succeeds, quietly.
+    expect(run.inbox.call(identity.terminalId, "ask", { withdraw: id })).toMatchObject({
+      ok: true,
+      withdrawn: true,
+    })
+    expect(run.inbox.list()).toMatchObject([{ id, settled: { how: "dismissed" } }])
+    expect(run.inbox.dismissed(identity.terminalId, identity.agent, identity.sessionId)).toBe(
+      dismissedNotice([{ subject: "Pick a colour", action: "options" }]),
+    )
+  })
+
+  it("keeps a dismissal notice for its session through a hook of a guessed one", ({
+    resources,
+  }) => {
+    const run = setup()
+    resources.defer(run.stop)
+    const id = run.create()
+    run.inbox.dismiss(id)
+    const guess = {
+      type: "new" as const,
+      root: {
+        agent: identity.agent,
+        sessionId: "tentative",
+        instance: null,
+        source: "binding" as const,
+      },
+      guess: true,
+      ready: true,
+    }
+    run.messaging.rooted(identity.terminalId, [guess])
+    run.inbox.rooted(identity.terminalId, [guess])
+    expect(run.inbox.dismissed(identity.terminalId, identity.agent, "tentative")).toBeUndefined()
     expect(run.inbox.dismissed(identity.terminalId, identity.agent, identity.sessionId)).toBe(
       dismissedNotice([{ subject: "Pick a colour", action: "options" }]),
     )

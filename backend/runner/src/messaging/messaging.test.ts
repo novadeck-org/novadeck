@@ -203,8 +203,8 @@ const create = (
     ask(terminalId, bound, bound.agent === "agy" ? "PreInvocation" : "UserPromptSubmit", [
       started(bound, cause),
     ])
-  const stop = (terminalId: string, bound: Binding, background = false) =>
-    ask(terminalId, bound, "Stop", [stopped(bound, background)])
+  const stop = (terminalId: string, bound: Binding, background = false, person?: Person) =>
+    ask(terminalId, bound, "Stop", [stopped(bound, background)], undefined, person)
   const send = (from: string, to: string, text: string) => messaging.send(from, { to, text })
   return {
     messaging,
@@ -3734,7 +3734,7 @@ describe("the person's prompt, told to the asks", () => {
         const run = setup(agent)
         const told = dismissing(run)
         await start(run, "harness", who().person)
-        run.stop(run.terminal, run.bound)
+        run.stop(run.terminal, run.bound, false, told.person)
         run.clock.now += 60_000
         // Idle: nothing is queued for the doorbell, and nothing asked yet.
         expect(told.dismissed).not.toHaveBeenCalled()

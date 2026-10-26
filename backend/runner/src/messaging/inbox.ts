@@ -559,7 +559,14 @@ export class Inbox {
           !entry.cleared &&
           entry.content.kind === "ask",
       )
-    for (const entry of settled) this.put({ ...entry, cleared: true })
+    if (settled.length === 0) return
+    // One save and one listing for the lot, as a read of many.
+    const cleared = settled.map((entry) => ({ ...entry, cleared: true as const }))
+    this.save(() => this.records.saveEntries(cleared))
+    for (const entry of cleared) this.keep(entry)
+    for (const terminalId of new Set(cleared.map((entry) => entry.terminalId)))
+      this.host.changed(terminalId)
+    this.publish()
   }
 
   /**
@@ -570,6 +577,9 @@ export class Inbox {
   dismissed(terminalId: string, agent: string, sessionId: string): string | undefined {
     const queued = this.dismissals.get(terminalId)
     if (!queued) return undefined
+    // While the terminal's session is only a guess, a hook of another one may be the guess's:
+    // the notice waits for the session it is for.
+    if (this.guesses.has(terminalId) && queued.sessionId !== sessionId) return undefined
     this.dismissals.delete(terminalId)
     if (queued.agent !== agent || queued.sessionId !== sessionId) return undefined
     return dismissedNotice(queued.asks)
@@ -769,6 +779,17 @@ export class Inbox {
             entry.content.kind === "ask" &&
             entry.agent === change.root.agent,
         )
+        // An ask dismissed under the guessed session stays quietly withdrawable by the
+        // corrected one.
+        for (const entry of this.byTerminal.get(terminalId)?.values() ?? [])
+          if (
+            entry.state === "withdrawn" &&
+            entry.cause === "dismissed" &&
+            entry.content.kind === "ask" &&
+            entry.agent === change.root.agent &&
+            entry.sessionId === change.from
+          )
+            this.put({ ...entry, sessionId: change.root.sessionId })
         // A dismissal noticed under the guessed session is the corrected one's to be told.
         const queued = this.dismissals.get(terminalId)
         if (queued && queued.agent === change.root.agent && queued.sessionId === change.from)
