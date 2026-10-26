@@ -13,7 +13,7 @@ export const babciaGroups = (cues: BabciaCues | undefined): readonly DemoActionG
           actions: [
             {
               label: "1 · The three asks",
-              hint: "Inbox badge reads 3: Order form asks to run pnpm test, Accessibility has a plan to approve, Menu page asks a question with its own pick",
+              hint: "Inbox header counts 3: Order form asks to run pnpm test, Accessibility has a plan to approve, Menu page asks a question with its own pick",
               run: () => cues.asks(),
             },
             {

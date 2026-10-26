@@ -172,7 +172,6 @@ export const WorkspaceProvider = ({
         watchUnreadTurns(backend.inbox, workspace, ui, {
           notify: board && ((notice, itemId) => board.show("finish", notice, itemId)),
           clear: board && ((terminalId) => board.close("finish", terminalId)),
-          gist: backend.murmur?.gist,
         }),
       )
     if (backend.inbox) stops.push(watchBellRings(landedInbox(backend.inbox, workspace, ui), ui))

@@ -176,15 +176,19 @@ export const attentionText = (terminal: TerminalMetadata): string | undefined =>
   return waitingText(what, attention.count)
 }
 
-// What a terminal needs, in words for its description: what it asks or needs, with the
-// Inbox item's subject where there is one ("Asks: Where should feedback go?"), else what
-// its dialog says, else the need alone.
+// What a terminal needs, in words for its description, from whichever source decided its mark
+// (`terminalNeedMark`): the Inbox item's subject where the Inbox decided it and there is one
+// (as in "Asks: Where should feedback go?"), else what the live dialog says when the dialog
+// decided it (as in "Plan ready for review"), else the need alone. `inbox` is the Inbox's need,
+// not the mark.
 export const needText = (
   terminal: TerminalMetadata,
-  need: TerminalNeed | undefined,
+  inbox: TerminalNeed | undefined,
   subject?: string,
 ): string | undefined => {
+  const need = terminalNeedMark(terminal, inbox)
   if (!need) return undefined
-  if (subject) return `${need === "ask" ? "Asks" : "Needs you"}: ${subject}`
-  return attentionText(terminal) ?? (need === "ask" ? "Asks a question" : "Needs you")
+  if (inbox === need && subject) return `${need === "ask" ? "Asks" : "Needs you"}: ${subject}`
+  if (attentionNeed(terminal) === need) return attentionText(terminal)
+  return need === "ask" ? "Asks a question" : "Needs you"
 }

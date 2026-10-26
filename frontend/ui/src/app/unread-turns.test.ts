@@ -131,7 +131,6 @@ const setup = ({
   const notices: Parameters<FinishNotify>[0][] = []
   const noticeItems: string[] = []
   const cleared: string[] = []
-  const gists: [string, number][] = []
   const watch = () =>
     watchUnreadTurns(inbox, workspace, ui, {
       notify: (notice, itemId) => {
@@ -139,7 +138,6 @@ const setup = ({
         noticeItems.push(itemId)
       },
       clear: (terminalId) => cleared.push(terminalId),
-      gist: (terminalId, at) => gists.push([terminalId, at]),
       desktop: () => wide,
     })
   return {
@@ -151,7 +149,6 @@ const setup = ({
     notices,
     noticeItems,
     cleared,
-    gists,
     watch,
     status,
     select,
@@ -460,33 +457,6 @@ describe("unread turns", () => {
       expect(app.cleared).toEqual([])
       app.turns.set([])
       expect(app.cleared).toEqual(["02"])
-      stop()
-    })
-  })
-
-  context("the gists", () => {
-    it("are asked once for a row without one, whose end is its agent's current", () => {
-      const app = setup({ rows: [] })
-      app.status("02", { working: false, lastTurn: { outcome: "completed", at: base + 10 } })
-      const stop = app.watch()
-      app.turns.set([row("a", 10)])
-      app.status("02", {
-        working: false,
-        lastTurn: { outcome: "completed", at: base + 10, reply: "x" },
-      })
-      expect(app.gists).toEqual([["02", base + 10]])
-      stop()
-    })
-
-    it("are not asked for an end the agent has moved past, a row with a gist, or a viewed terminal", () => {
-      const app = setup({ rows: [] })
-      app.status("02", { working: false, lastTurn: { outcome: "completed", at: base + 20 } })
-      const stop = app.watch()
-      app.turns.set([row("old", 10), { ...row("with", 20), gist: "Fixed it" }])
-      expect(app.gists).toEqual([])
-      app.select("02")
-      app.turns.set([row("now", 20)])
-      expect(app.gists).toEqual([])
       stop()
     })
   })

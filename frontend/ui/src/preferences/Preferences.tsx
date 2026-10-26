@@ -413,7 +413,7 @@ export const Preferences = ({
                     label="Notify when an agent finishes"
                     description={
                       notices
-                        ? "A desktop notification with the start of its reply, while Novadeck is in the background."
+                        ? "A desktop notification when an agent reports its task done (its subject) or a turn fails, while Novadeck is in the background."
                         : "Only in the desktop app."
                     }
                     descriptionId="notify-finished-description"

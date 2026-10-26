@@ -188,6 +188,26 @@ describe("terminal need mark", () => {
     expect(needText(running(), undefined)).toBeUndefined()
   })
 
+  it("takes the words from whichever source decided the mark", () => {
+    // A live dialog that wins over an Inbox ask says what the dialog says.
+    expect(needText(running("plan"), "ask", "Which?")).toBe("Plan ready for review")
+    expect(needText(running("permission"), "ask", "Which?")).toBe("Needs permission")
+    // An Inbox unblock wins over a live question, with its own subject.
+    expect(needText(running("question"), "unblock", "wrangler login")).toBe(
+      "Needs you: wrangler login",
+    )
+    // Same kind: the Inbox subject, else the dialog.
+    expect(needText(running("permission"), "unblock", "wrangler login")).toBe(
+      "Needs you: wrangler login",
+    )
+    expect(needText(running("question"), "ask", "Which?")).toBe("Asks: Which?")
+    expect(needText(running("question"), "ask")).toBe("Asks a question")
+    // A dialog alone.
+    expect(needText(running("plan"), undefined)).toBe("Plan ready for review")
+    // An Inbox unblock without words, over a live question, doesn't borrow the question's.
+    expect(needText(running("question"), "unblock")).toBe("Needs you")
+  })
+
   it("words a done tab as a report, a failed one as an error", () => {
     expect(doneText()).toBe("Done · report unread")
     expect(doneText(true)).toBe("Stopped with an error · reply unread")

@@ -67,9 +67,6 @@ const letterContext = (item: InboxItem): string =>
 // terminal has no unseen done report nor failed row. A row or report is new if no listing
 // held it before and it did not end before this started; the first listing, and the first
 // after the backend lost its rows, only takes in what it holds.
-//
-// `gist`, where given, is asked once for each row without one, whose terminal the person
-// isn't viewing and whose end is its agent's current, so murmur can write the gist.
 export const watchUnreadTurns = (
   inbox: Pick<Inbox, "turns" | "readFinishes" | "state">,
   workspace: Store<Workspace>,
@@ -77,12 +74,10 @@ export const watchUnreadTurns = (
   {
     notify,
     clear,
-    gist,
     desktop = isDesktop,
   }: {
     notify?: FinishNotify | undefined
     clear?: ((terminalId: string) => void) | undefined
-    gist?: ((terminalId: string, at: number) => void) | undefined
     // Whether the window is wide enough for the sidebar beside the terminal.
     desktop?: () => boolean
   } = {},
@@ -94,9 +89,8 @@ export const watchUnreadTurns = (
   let listed: Set<string> | undefined
   // Every done report id the same listings held.
   let listedDone: Set<string> | undefined
-  // The rows asked to be read, and those asked a gist for, while listed.
+  // The rows asked to be read, while listed.
   let asked = new Set<string>()
-  let gisted = new Set<string>()
   // The terminals whose notification stands, by id, with their session context and what it is
   // about.
   const notified = new Map<string, { context: string; kind: "done" | "failed" }>()
@@ -111,7 +105,6 @@ export const watchUnreadTurns = (
       listed = undefined
       listedDone = undefined
       asked = new Set()
-      gisted = new Set()
       mirror([])
       sweep([], [])
       return
@@ -153,7 +146,6 @@ export const watchUnreadTurns = (
           !(looking?.context === letterContext(letter) && looking.id === letter.source.terminalId),
       ),
     )
-    wordsFor(unviewed, terminals)
     asked = new Set([...asked].filter((id) => list.some((turn) => turn.id === id)))
     const reading = list.filter((turn) => viewed(turn) && !asked.has(turn.id))
     if (reading.length === 0 || !readFinishes || !looking) return
@@ -240,18 +232,6 @@ export const watchUnreadTurns = (
         notified.delete(id)
         clear?.(id)
       }
-    }
-  }
-
-  const wordsFor = (rows: readonly InboxTurn[], terminals: Terminals): void => {
-    gisted = new Set([...gisted].filter((id) => rows.some((turn) => turn.id === id)))
-    if (!gist) return
-    for (const turn of rows) {
-      if (turn.gist !== null || gisted.has(turn.id)) continue
-      const terminal = terminalOf(terminals, turn)
-      if (terminal?.state !== "running" || terminal.agent?.lastTurn?.at !== turn.at) continue
-      gisted.add(turn.id)
-      gist(turn.terminalId, turn.at)
     }
   }
 

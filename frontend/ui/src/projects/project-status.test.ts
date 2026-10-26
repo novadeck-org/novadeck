@@ -127,7 +127,9 @@ describe("A project's status", () => {
       ).toBe("done")
       expect(projectStatus(project("p", [finished, failed, working]), ends)).toBe("failed")
       expect(projectStatus(project("p", [failed, waiting]), ends)).toBe("attention")
-      expect(projectStatus(project("p", [waiting, asking, failed]), ends)).toBe("question")
+      expect(projectStatus(project("p", [waiting, asking, failed]), ends)).toBe("attention")
+      // Without the permission, the question outranks a failure.
+      expect(projectStatus(project("p", [asking, failed]), ends)).toBe("question")
     })
 
     it("counts the Inbox's needs as its tabs mark them: an ask a question, an action needs you", () => {
@@ -141,7 +143,7 @@ describe("A project's status", () => {
           askItem("p", asking, "text"),
           askItem("p", signing, "action"),
         ]),
-      ).toBe("question")
+      ).toBe("attention")
       expect(
         projectStatus(project("p", [signing]), noUnread, [askItem("p", signing, "action")]),
       ).toBe("attention")

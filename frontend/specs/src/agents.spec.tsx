@@ -58,10 +58,10 @@ describe("An agent waiting on the person", () => {
       if (await skip.query()) await skip.click()
       const trigger = workspaceSwitcher()
 
-      await expect.element(trigger).toHaveAttribute("data-project-status", "question")
+      await expect.element(trigger).toHaveAttribute("data-project-status", "attention")
       await expect
         .element(trigger)
-        .toHaveAttribute("aria-description", "Another project: Asks a question")
+        .toHaveAttribute("aria-description", "Another project: Needs you")
       await trigger.click()
       const menu = page.getByRole("dialog", { name: "Switch workspace" })
       const row = (name: string): Locator =>

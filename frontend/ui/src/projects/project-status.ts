@@ -9,8 +9,8 @@ import type { WorkspaceProject } from "@novadeck/core/types"
 // reported its task done, unseen; or one still working. Undefined while none shows anything.
 export type ProjectStatus = "question" | "attention" | "failed" | "done" | "running"
 
-// Most pressing first.
-const rank: readonly ProjectStatus[] = ["question", "attention", "failed", "done", "running"]
+// Most pressing first: what blocks an agent (the tab's `!`) before what it asks (its `?`).
+const rank: readonly ProjectStatus[] = ["attention", "question", "failed", "done", "running"]
 
 const pressing = (a: ProjectStatus | undefined, b: ProjectStatus | undefined) =>
   a === undefined || (b !== undefined && rank.indexOf(b) < rank.indexOf(a)) ? b : a

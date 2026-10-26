@@ -156,7 +156,7 @@ export const WindowShell = ({
   const note =
     shell &&
     joinNote([
-      needText(shell, need, needSubject),
+      needText(shell, inboxNeed, needSubject),
       unheardText(shell) ??
         pausedText(shell) ??
         (phase === "waiting" ? waitingText(shell) : undefined) ??

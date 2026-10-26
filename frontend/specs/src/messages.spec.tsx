@@ -44,7 +44,7 @@ describe("Messages waiting for an agent", () => {
     await openMessagesDemo()
     await expect
       .poll(() => description("Checkout implementation"))
-      .toBe("Needs you: Where should the empty cart link?, 1 message waiting. Leads @crow")
+      .toBe("Plan ready for review, 1 message waiting. Leads @crow")
   })
 })
 

@@ -141,7 +141,7 @@ export const TerminalTab = ({
   const ended = ending ? endingText(ending) : undefined
   // What the agent needs of the person, or that Novadeck can't hear from it, said like an
   // ending, to assistive technology.
-  const needing = shell && needText(shell, need, needSubject)
+  const needing = shell && needText(shell, inboxNeed, needSubject)
   const unheard = shell && unheardText(shell)
   const resets = shell && phase === "paused" ? pausedUntil(shell) : undefined
   // What an idle agent waits on, which wakes it by itself, or the wake-up that passed

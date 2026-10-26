@@ -327,8 +327,9 @@ marks it (see above). A failed turn is a stored row that stays, across a reload 
 restart, until you read it (viewing its terminal reads it, or mark it read), and clears with
 its terminal; it is trouble that counts only while it is the agent's latest end and the agent
 isn't working, and an older one is a plain update with Mark read. A dialog or held messages
-clear once answered or released, here or in the terminal. A count badge on the bell, and on
-Zen's dock, tells how many wait on you; updates, older failures and tells are not counted. A
+clear once answered or released, here or in the terminal. The bell, and Zen's dock, show a dot
+toned by the most pressing item; how many wait on you is in its tooltip and the Inbox's
+header. Updates, older failures and tells are not counted. A
 usage limit is a state, not a stored row: it stays until the agent's next turn, so Continue is
 there after the reset.
 
@@ -875,9 +876,7 @@ Agents:
   them or leaving the Inbox, and leaves the selected terminal alone, since
   a report is read once you have looked at its terminal for a moment. "Clear waiting agents" rests every agent,
   which answers every request, reads every finish and calls off those still to come, and
-  has a terminal back at its prompt work for a moment and leave, for an empty Inbox. Its
-  second round of kinds carries what Murmur would write (a gist on the done and the failed
-  finish), so the rows can be seen without Murmur installed. The notices for finishes need the Preferences switch
+  has a terminal back at its prompt work for a moment and leave, for an empty Inbox. The notices for finishes need the Preferences switch
   "Notify when an agent finishes" on.
 - **Chat: next send or Stop fails:** arm the next send from a chat to fail as the runner turns it away: a
   draft in the agent's box, its shell mode, too tall a message, no box on screen, or no
