@@ -1,7 +1,6 @@
-import type { InboxItem } from "@novadeck/core/inbox"
-
-import { describe, expect, it } from "../test"
+import type { InboxItem } from "./inbox"
 import { inboxMarks } from "./inbox-marks"
+import { describe, expect, it } from "./test"
 
 const at = { projectId: "p", workspaceSessionId: "initial", terminalId: "01" }
 const now = 1_000_000
@@ -36,12 +35,46 @@ describe("the marks the raw Inbox makes", () => {
       need: "ask",
       done: false,
       subject: "Which?",
+      dialog: undefined,
     })
     const items = [
       ask({ type: "text" }),
       ask({ type: "action", command: "x", directory: null, doneLabel: "ok" }, "Log in"),
     ]
     expect(inboxMarks(items, at, now)).toMatchObject({ need: "unblock", subject: "Log in" })
+  })
+
+  it("names the dialog a request stands for, with its subject, and none for an item that is no dialog", () => {
+    const request = (kind: "permission" | "plan" | "question", subject: string | null) =>
+      item({
+        kind: "request",
+        request: {
+          id: "r",
+          kind,
+          tool: kind === "plan" ? "ExitPlanMode" : "Bash",
+          subject,
+          choices: [],
+          subagent: false,
+          dialog: null,
+          answered: false,
+        },
+      })
+    expect(inboxMarks([request("permission", "pnpm test")], at, now)).toMatchObject({
+      need: "unblock",
+      dialog: "permission",
+      subject: "pnpm test",
+    })
+    expect(inboxMarks([request("plan", "Checkout flow")], at, now)).toMatchObject({
+      need: "unblock",
+      dialog: "plan",
+      subject: "Checkout flow",
+    })
+    expect(inboxMarks([request("question", null)], at, now)).toMatchObject({
+      need: "ask",
+      dialog: "question",
+      subject: undefined,
+    })
+    expect(inboxMarks([ask({ type: "text" })], at, now).dialog).toBeUndefined()
   })
 
   it("reads another terminal's items as nothing", () => {
@@ -51,6 +84,7 @@ describe("the marks the raw Inbox makes", () => {
       need: undefined,
       done: false,
       subject: undefined,
+      dialog: undefined,
     })
   })
 

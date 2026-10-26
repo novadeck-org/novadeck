@@ -1,25 +1,18 @@
-import {
-  inboxType,
-  terminalDone,
-  terminalNeed,
-  type InboxItem,
-  type TerminalAt,
-} from "@novadeck/core/inbox"
-import type { TerminalNeed } from "@novadeck/core/terminal-ending"
+import { inboxType, terminalDone, terminalNeed, type InboxItem, type TerminalAt } from "./inbox"
+import type { NoteMarks } from "./terminal-ending"
 
-// What the Inbox says of one terminal for its tab and window: the need its items make, a done
-// report it has not been looked at for, and the words of the item that makes the need.
-export type InboxMarks = {
-  readonly need: TerminalNeed | undefined
-  readonly done: boolean
-  // The subject of the item behind the need, where it has one.
-  readonly subject: string | undefined
-}
+// What the Inbox says of one terminal for its tab and window (see `NoteMarks`).
+export type InboxMarks = NoteMarks
 
 const here = (item: InboxItem, at: TerminalAt): boolean =>
   item.source.projectId === at.projectId &&
   item.source.workspaceSessionId === at.workspaceSessionId &&
   item.source.terminalId === at.terminalId
+
+// The kind of dialog an item stands for, where it stands for one: a request is the dialog
+// its agent's harness shows.
+const dialogOf = (item: InboxItem): InboxMarks["dialog"] =>
+  item.kind === "request" ? item.request.kind : undefined
 
 const subjectOf = (item: InboxItem): string | undefined => {
   if (item.kind === "ask") return item.ask.subject
@@ -38,5 +31,10 @@ export const inboxMarks = (
   const need = terminalNeed(items, at, now)
   const mine = items.filter((item) => here(item, at))
   const behind = need && mine.find((item) => inboxType(item) === need)
-  return { need, done: terminalDone(mine, at), subject: behind ? subjectOf(behind) : undefined }
+  return {
+    need,
+    done: terminalDone(mine, at),
+    subject: behind ? subjectOf(behind) : undefined,
+    dialog: behind ? dialogOf(behind) : undefined,
+  }
 }

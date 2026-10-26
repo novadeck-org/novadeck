@@ -251,7 +251,7 @@ export const demoTurns = (turnMs = demoTurnMs) => {
       const { program, began } = take(key, terminal)
       const id = terminalKeyId(key)
       const after = options?.after ?? turnMs
-      const { gist, background, error, waiting: waits, done, limit } = options ?? {}
+      const { background, error, waiting: waits, done, limit } = options ?? {}
       // A turn that ends in the harness's or the API's error has said nothing of its own.
       const reply = error ? undefined : (options?.reply ?? replies[outcome])
       if (began) emit({ type: "begin", key })
@@ -261,7 +261,6 @@ export const demoTurns = (turnMs = demoTurnMs) => {
           const lastTurn: AgentTurnEnd = {
             outcome,
             ...(reply ? { reply } : {}),
-            ...(gist ? { gist } : {}),
             ...(error ? { error } : {}),
             ...(limit ? { limit } : {}),
             at: Date.now(),

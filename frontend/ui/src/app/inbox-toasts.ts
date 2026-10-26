@@ -1,9 +1,9 @@
-import type { Inbox, InboxItem } from "@novadeck/core/inbox"
+import type { InboxItem } from "@novadeck/core/inbox"
 
 import { ringing } from "../inbox/inbox-state"
 import type { ToastBoard } from "../inbox/InboxToasts"
 import { isDesktop } from "../shell/desktop"
-import { followNeeds, keyOf, needGraceMs } from "./inbox-pings"
+import { followNeeds, keyOf, needGraceMs, type NeedsInbox } from "./inbox-pings"
 import { inboxShown, mayToast, modalOpen } from "./selectors"
 import type { UiState, UiStore } from "./ui-store"
 
@@ -23,7 +23,7 @@ import type { UiState, UiStore } from "./ui-store"
 // within its grace doesn't toast. That is acceptable: the Inbox keeps it, and the board only
 // restarts as the app mounts.
 export const watchInboxToasts = (
-  inbox: Pick<Inbox, "state">,
+  inbox: NeedsInbox,
   ui: UiStore,
   board: ToastBoard,
   {

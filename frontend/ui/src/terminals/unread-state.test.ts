@@ -18,7 +18,6 @@ const row = (
   at,
   outcome,
   reply: null,
-  gist: null,
   error: null,
   files: [],
 })

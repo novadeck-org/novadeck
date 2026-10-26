@@ -97,7 +97,6 @@ const turnOf = (letter: InboxLetter): InboxTurn | undefined => {
     at: letter.at,
     outcome: content.outcome,
     reply: content.reply,
-    gist: content.gist,
     error: content.error,
     files: content.files,
   }

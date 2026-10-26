@@ -97,7 +97,6 @@ const turnOf = ({ context, terminal, finish, at }: FollowedFinish): InboxTurn | 
     at,
     outcome: finish.failed ? "failed" : "completed",
     reply: end?.reply ?? finish.reply ?? null,
-    gist: end?.gist ?? null,
     error: end?.error ?? null,
     files: end?.files ?? [],
   }

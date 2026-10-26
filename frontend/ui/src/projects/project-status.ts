@@ -1,16 +1,18 @@
 import { agentWorking } from "@novadeck/core/agent-finish"
-import { terminalDone, terminalNeed, type InboxItem } from "@novadeck/core/inbox"
-import { doneText, terminalNeedMark, terminalPhase } from "@novadeck/core/terminal-ending"
+import type { InboxItem } from "@novadeck/core/inbox"
+import { inboxMarks } from "@novadeck/core/inbox-marks"
+import { doneText, terminalGlance } from "@novadeck/core/terminal-ending"
 import type { WorkspaceProject } from "@novadeck/core/types"
 
 // What a project's terminals show at a glance, the most pressing of them, as the switcher
-// marks it, as their tabs do: an agent asking the person a question, or needing them for a
-// permission, a plan or an action; one that failed while they looked elsewhere; one that
-// reported its task done, unseen; or one still working. Undefined while none shows anything.
-export type ProjectStatus = "question" | "attention" | "failed" | "done" | "running"
+// marks it, as their tabs do: an agent that asks the person a question (the tab's `?`, the
+// Inbox's `ask`) or is blocked on them for a permission, a plan or an action (its `!`, the
+// Inbox's `unblock`); one that failed while they looked elsewhere; one that reported its task
+// done, unseen; or one still working. Undefined while none shows anything.
+export type ProjectStatus = "ask" | "unblock" | "failed" | "done" | "running"
 
-// Most pressing first: what blocks an agent (the tab's `!`) before what it asks (its `?`).
-const rank: readonly ProjectStatus[] = ["attention", "question", "failed", "done", "running"]
+// Most pressing first: what blocks an agent before what it asks.
+const rank: readonly ProjectStatus[] = ["unblock", "ask", "failed", "done", "running"]
 
 const pressing = (a: ProjectStatus | undefined, b: ProjectStatus | undefined) =>
   a === undefined || (b !== undefined && rank.indexOf(b) < rank.indexOf(a)) ? b : a
@@ -22,8 +24,8 @@ export type UnreadEnds = (context: string, terminalId: string) => "unread" | "fa
 // Each status in words, for the switcher's rows and the pins bar: the terminal tabs' own for
 // the states they share.
 export const statusText: Record<ProjectStatus, string> = {
-  question: "Asks a question",
-  attention: "Needs you",
+  ask: "Asks a question",
+  unblock: "Needs you",
   failed: doneText(true),
   done: doneText(),
   running: "Working",
@@ -49,19 +51,21 @@ export const projectStatus = (
         workspaceSessionId: session.id,
         terminalId: terminal.id,
       }
-      const need = terminalNeedMark(terminal, terminalNeed(items, at, now))
+      const { need, phase, failed } = terminalGlance(
+        terminal,
+        inboxMarks(items, at, now),
+        unread(context, terminal.id),
+        now,
+      )
       const each: ProjectStatus | undefined =
-        need === "ask"
-          ? "question"
-          : need === "unblock"
-            ? "attention"
-            : unread(context, terminal.id) === "failed"
-              ? "failed"
-              : terminalDone(items, at)
-                ? "done"
-                : terminalPhase(terminal) === "running" && agentWorking(terminal)
-                  ? "running"
-                  : undefined
+        need ??
+        (phase === "done"
+          ? failed
+            ? "failed"
+            : "done"
+          : phase === "running" && agentWorking(terminal)
+            ? "running"
+            : undefined)
       status = pressing(status, each)
     }
   }

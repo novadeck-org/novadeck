@@ -6,7 +6,6 @@ import {
   hiddenIn,
   inboxLetter,
   maxCommandLines,
-  murmurGist,
   replyPreviewLength,
   type AgentAsk,
   type AskAnswer,
@@ -239,12 +238,10 @@ const clampedTurn = (content: unknown): TurnContent | undefined => {
         return path ? [path] : []
       })
     : []
-  const gist = murmurGist.safeParse(raw["gist"])
   const parsed = inboxLetter.shape.content.safeParse({
     kind: "turn",
     outcome: raw["outcome"] === "completed" ? "completed" : "failed",
     reply: clipped(raw["reply"], replyPreviewLength),
-    gist: gist.success ? gist.data : null,
     error: clipped(raw["error"], 2048),
     files: files.slice(0, maxTurnFiles),
   })
@@ -559,20 +556,6 @@ export class Asks {
   /** Whether a finished turn of the terminal may be stored: Asks is open and the terminal exists. */
   accepts(terminalId: string): boolean {
     return !this.closed && this.host.exists(terminalId)
-  }
-
-  /** Strips murmur's gists from the stored turns, as murmur is off. */
-  clearGists(): void {
-    if (this.closed) return
-    const cleared = [...this.letters.values()].flatMap((letter) =>
-      letter.content.kind === "turn" && letter.content.gist !== null
-        ? [{ ...letter, content: { ...letter.content, gist: null } }]
-        : [],
-    )
-    if (cleared.length === 0) return
-    this.save(() => this.records.saveLetters(cleared))
-    for (const letter of cleared) this.keep(letter)
-    this.publish()
   }
 
   rooted(terminalId: string, changes: readonly RootChange[]): void {

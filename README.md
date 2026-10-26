@@ -240,11 +240,11 @@ An agent that finishes the task it was given calls its `done` tool, a short repo
 its own. While you look at another terminal, or at another window altogether, that marks
 its terminal done until you look: a green "✓" before its program on its tab and "Done ·
 report unread" in its tooltip, and on its window a solid green line under the header
-with the same "✓". Only a `done` call makes a finish: a turn that ends without one, or
-with only a question, marks no state. The tab stays idle and its program name brightens
-("Reply unread" in the tooltip) until you look. A turn that ended on an error is marked
-the same way in red, "✗" and "Stopped with an error · reply unread". Looking means that
-terminal is the selected one of the session on screen while Novadeck's window has focus
+(no glyph; red for an error). Only a `done` call makes a finish: a turn that ends
+without one, or with only a question, marks no state. The tab stays idle and its program
+name brightens ("Reply unread" in the tooltip) until you look. A turn that ended on an
+error is marked the same way in red, "✗" on its tab and "Stopped with an error · reply
+unread". Looking means that terminal is the selected one of the session on screen while Novadeck's window has focus
 (on a narrow window, not while the Inbox list covers the screen). Starting another turn
 clears the unread mark of a reply. The desktop app also shows one system notification for
 a `done` report, "@moth is done: <its name>" with the report's subject, and one for a

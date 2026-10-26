@@ -32,7 +32,6 @@ const row = (
   at: base + at,
   outcome,
   reply: "All green.",
-  gist: null,
   error: null,
   files: [],
 })

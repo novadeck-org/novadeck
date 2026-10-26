@@ -73,7 +73,10 @@ const useWindowFrame = (
   )
   const target = useWorkspaceState(currentTarget, sameTarget)
   // What the raw Inbox says of it, not the landing rule's, which hides rows from its list only.
-  const { need, done, subject } = useTerminalMarks(backend.inbox, { ...target, terminalId: id })
+  const { need, done, subject, dialog } = useTerminalMarks(backend.inbox, {
+    ...target,
+    terminalId: id,
+  })
   const compact = view !== "focus"
   const destination = windowedDestination(windowedView, enabledViews)
   const windowedLabel = destination === "canvas" ? "Canvas" : "Grid"
@@ -86,6 +89,7 @@ const useWindowFrame = (
     unread,
     need,
     needSubject: subject,
+    needDialog: dialog,
     reported: done,
     rename: renameView(rename),
     onBeginRename: () => startRename(tile, "header"),

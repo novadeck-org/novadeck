@@ -1,15 +1,11 @@
-import { clockTime, nextWaitingChange, waitingText } from "@novadeck/core/agent-waiting"
+import { clockTime, nextWaitingChange } from "@novadeck/core/agent-waiting"
 import { handleText, terminalLabel } from "@novadeck/core/handle"
 import { isWindow } from "@novadeck/core/roster"
 import {
-  doneText,
-  needText,
-  joinNote,
-  pausedText,
+  idleNote,
   pausedUntil,
-  terminalNeedMark,
-  terminalPhase,
-  unheardText,
+  terminalNote,
+  type NeedDialog,
 } from "@novadeck/core/terminal-ending"
 import type { Tile } from "@novadeck/core/types"
 import { ContextMenu, type ContextMenuItem } from "@novadeck/toolkit/ContextMenu"
@@ -78,6 +74,7 @@ export type WindowShellProps = {
   // adds its own need.
   need?: "unblock" | "ask" | undefined
   needSubject?: string | undefined
+  needDialog?: NeedDialog | undefined
   reported?: boolean
   // The terminal that directs this one's work while it runs, by its handle and name.
   lead?: { handle: string; name: string }
@@ -114,6 +111,7 @@ export const WindowShell = ({
   unread,
   need: inboxNeed,
   needSubject,
+  needDialog,
   reported = false,
   lead,
   leads,
@@ -145,23 +143,26 @@ export const WindowShell = ({
   const renaming = Boolean(rename)
   const shell = isWindow(terminal) ? undefined : terminal
   const label = terminalLabel(terminal.name, shell?.handle)
-  const failed = unread === "failed"
-  const phase = shell ? terminalPhase(shell, reported || failed) : "idle"
-  const need = shell && phase !== "ended" ? terminalNeedMark(shell, inboxNeed) : undefined
+  // Its phase, the need mark after its name, and its note for assistive technology, from the
+  // same derivation as its tab: what the agent needs of the person, that Novadeck can't hear
+  // from it, that it is paused at its limit, what it waits on that wakes it, that it reported
+  // done or stopped on an error, or that its reply is unread. The window draws the phase as
+  // the line under its header and shows no state glyph of its own.
+  const {
+    phase,
+    need,
+    failed,
+    text: note,
+  } = shell
+    ? terminalNote(
+        shell,
+        { need: inboxNeed, done: reported, subject: needSubject, dialog: needDialog },
+        unread,
+      )
+    : idleNote
   const resets = shell && phase === "paused" ? pausedUntil(shell) : undefined
   // Said again once the limit it waits on resets, or its wake-up passes.
   useRenderAt(phase === "waiting" && shell ? nextWaitingChange(shell) : resets)
-  // What the agent needs of the person, that Novadeck can't hear from it, that it is paused
-  // at its limit, what it waits on that wakes it, or that it finished with its reply unread.
-  const note =
-    shell &&
-    joinNote([
-      needText(shell, inboxNeed, needSubject),
-      unheardText(shell) ??
-        pausedText(shell) ??
-        (phase === "waiting" ? waitingText(shell) : undefined) ??
-        (phase === "done" ? doneText(failed) : undefined),
-    ])
   const headerDoubleAction = onFlyTo
   // The project window is named by its file, so its name is no rename's: a double-click on it
   // is the header's own.

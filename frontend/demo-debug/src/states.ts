@@ -19,7 +19,6 @@ import {
   cleanExit,
   contextOnly,
   dealKinds,
-  dealtKinds,
   doneReport,
   exitedWithCode,
   failedToStart,
@@ -28,7 +27,6 @@ import {
   mcpAsk,
   leadsNext,
   leadsOthers,
-  murmurGists,
   noisyAgents,
   openedByAgent,
   othersOf,
@@ -55,10 +53,6 @@ const crowd = 12
 const calmMs = 100
 // How long a screen takes to arrive, as the runner's.
 const attachMs = 2500
-
-// The second round of kinds reads as murmur wrote it, the first as it never ran.
-const murmured = (index: number): boolean =>
-  index >= dealtKinds.length && index < 2 * dealtKinds.length
 
 const pause = (ms: number): Promise<void> => new Promise((resolve) => setTimeout(resolve, ms))
 
@@ -313,13 +307,11 @@ const createWaitingActions = (
       slots.forEach((key, index) => {
         const kind = kinds[index]!
         const terminal = terminalOf(workspace(), key)
-        const murmur = murmured(index)
         if (kind === "done" || kind === "failed")
           verbs.finish(key, terminal, kind === "done" ? "completed" : "failed", {
             after: turnMs,
             // A done agent called `done`; a failed one only stopped.
             ...(kind === "done" ? { done: doneReport } : {}),
-            ...(murmur ? { gist: murmurGists[kind] } : {}),
           })
         else verbs.ask(key, terminal, kind, 1)
       })

@@ -51,13 +51,13 @@ describe("inboxBadge", () => {
     expect(inboxBadge([entry(done), entry(held, 1), entry(held, 2)])).toEqual({
       count: 2,
       label: "Inbox, 2 waiting",
-      status: "attention",
+      status: "unblock",
     })
   })
 
   it("takes the tone of the most pressing item", () => {
     expect(inboxBadge([entry(held), entry(failed, 1)])?.status).toBe("failed")
-    expect(inboxBadge([entry(asked), entry(held, 1, false)])?.status).toBe("question")
+    expect(inboxBadge([entry(asked), entry(held, 1, false)])?.status).toBe("ask")
   })
 
   it("counts a feedback draft, as needing attention", () => {
@@ -65,7 +65,7 @@ describe("inboxBadge", () => {
     expect(inboxBadge([entry(draft, 0, false)])).toEqual({
       count: 1,
       label: "Inbox, 1 waiting",
-      status: "attention",
+      status: "unblock",
     })
   })
 

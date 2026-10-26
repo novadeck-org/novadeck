@@ -10,7 +10,7 @@ import { appearance, workspaceFixture } from "@novadeck/core/testing"
 import { afterEach, beforeEach, vi } from "vitest"
 
 import { context, describe, expect, it } from "../test"
-import { landedQuietly, landInbox, readDwellMs } from "./inbox-landing"
+import { decideItem, landInbox, readDwellMs, type ItemFacts } from "./inbox-landing"
 import { followNeeds } from "./inbox-pings"
 import { createUiStore, initialUi } from "./ui-store"
 
@@ -86,16 +86,18 @@ const setup = (initiallyWide = true) => {
     see: () => {},
     readAll: () => {},
   }
-  const { inbox, stop, reveal } = landInbox(raw, workspace, ui, {
+  const { inbox, start, reveal } = landInbox(raw, workspace, ui, {
     is: () => wide,
     subscribe: (notify) => {
       widthListeners.add(notify)
       return () => void widthListeners.delete(notify)
     },
   })
+  const stop = start()
   return {
     inbox,
     stop,
+    restart: start,
     reveal,
     answers,
     set: (items: InboxItem[]) => void state.update((current) => ({ ...current, items })),
@@ -279,8 +281,8 @@ describe("the landing rule", () => {
       select("02")
       expect(ids()).toEqual(["a", "b"])
       const [a, b] = inbox.state.getSnapshot().items
-      expect(landedQuietly(inbox, a!)).toBe(true)
-      expect(landedQuietly(inbox, b!)).toBe(false)
+      expect(inbox.landedQuietly(a!)).toBe(true)
+      expect(inbox.landedQuietly(b!)).toBe(false)
       stop()
     })
 
@@ -290,9 +292,9 @@ describe("the landing rule", () => {
       vi.advanceTimersByTime(readDwellMs - 1)
       select("02")
       expect(ids()).toEqual(["a"])
-      expect(landedQuietly(inbox, inbox.state.getSnapshot().items[0]!)).toBe(false)
+      expect(inbox.landedQuietly(inbox.state.getSnapshot().items[0]!)).toBe(false)
       vi.advanceTimersByTime(readDwellMs * 3)
-      expect(landedQuietly(inbox, inbox.state.getSnapshot().items[0]!)).toBe(false)
+      expect(inbox.landedQuietly(inbox.state.getSnapshot().items[0]!)).toBe(false)
       stop()
     })
   })
@@ -426,5 +428,63 @@ describe("the landing rule", () => {
       expect(ids()).toEqual([])
       stop()
     })
+  })
+})
+
+describe("the landing's start and stop", () => {
+  it("follows nothing once stopped", () => {
+    const { set, ids, stop } = setup()
+    set([ask("a", "01"), ask("b", "02")])
+    expect(ids()).toEqual(["b"])
+    stop()
+    set([ask("a", "01"), ask("b", "02"), ask("c", "02")])
+    expect(ids()).toEqual(["b"])
+  })
+
+  it("follows again when started again, as StrictMode does", () => {
+    const { set, ids, stop, restart } = setup()
+    stop()
+    const stopAgain = restart()
+    set([ask("a", "02")])
+    expect(ids()).toEqual(["a"])
+    stopAgain()
+  })
+})
+
+describe("deciding one item", () => {
+  const facts: ItemFacts = {
+    kind: "ask",
+    here: true,
+    landed: false,
+    kept: false,
+    quiet: false,
+    ripe: false,
+  }
+
+  it("holds an unlanded item of the viewed terminal while it waits out the dwell", () => {
+    expect(decideItem(facts)).toEqual({ act: "dwell", hold: true })
+  })
+
+  it("keeps holding it once ripe, now to land quietly when they look away", () => {
+    expect(decideItem({ ...facts, ripe: true })).toEqual({ act: "quiet", hold: true })
+  })
+
+  it("reads an update seen for the dwell, landed or not", () => {
+    expect(decideItem({ ...facts, kind: "update", ripe: true }).act).toBe("read")
+    expect(decideItem({ ...facts, kind: "update", landed: true, ripe: true }).act).toBe("read")
+  })
+
+  it("lands an item of a terminal not viewed", () => {
+    expect(decideItem({ ...facts, here: false })).toEqual({ act: "none", hold: false })
+  })
+
+  it("does not hold a landed item or a feedback draft, nor one kept by the person's asking", () => {
+    expect(decideItem({ ...facts, landed: true }).hold).toBe(false)
+    expect(decideItem({ ...facts, kind: "feedback" })).toEqual({ act: "none", hold: false })
+    expect(decideItem({ ...facts, kept: true, landed: true }).act).toBe("none")
+  })
+
+  it("waits no more on one that already landed quietly", () => {
+    expect(decideItem({ ...facts, quiet: true })).toEqual({ act: "none", hold: true })
   })
 })

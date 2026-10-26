@@ -88,8 +88,6 @@ export const createRunnerMurmur = (
       set: (settings) => void change("set", () => calls.set(settings)),
       // Only counted: a count that is not kept is no refusal to show.
       noteOffered: () => void track(calls.noteOffered()).catch(() => {}),
-      // Murmur is extra: a gist that can't be asked for leaves the reply as it was.
-      gist: (terminalId, at) => void track(calls.gist(terminalId, at)).catch(() => {}),
     },
     follow,
     stop: () => {

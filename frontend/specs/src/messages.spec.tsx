@@ -34,7 +34,7 @@ describe("Messages waiting for an agent", () => {
     await expect
       .poll(() => description("Checkout review"))
       .toBe(
-        "Needs you: pnpm test --filter checkout, 2 messages waiting, 2 subagents: 2 explorer. Led by @moth",
+        "Needs permission: pnpm test --filter checkout, 2 messages waiting, 2 subagents: 2 explorer. Led by @moth",
       )
     // The dev server's message is gone, never waiting.
     expect(description("Dev server")).toBeNull()
@@ -202,14 +202,14 @@ describe("Pausing messaging", () => {
     await expect
       .poll(() => description("Checkout review"))
       .toBe(
-        "Needs you: pnpm test --filter checkout, 2 messages waiting, held while messaging is paused, 2 subagents: 2 explorer. Led by @moth",
+        "Needs permission: pnpm test --filter checkout, 2 messages waiting, held while messaging is paused, 2 subagents: 2 explorer. Led by @moth",
       )
     await pause.click()
     await expect.element(pane.getByText(/Messaging is paused/)).not.toBeInTheDocument()
     await expect
       .poll(() => description("Checkout review"))
       .toBe(
-        "Needs you: pnpm test --filter checkout, 2 messages waiting, 2 subagents: 2 explorer. Led by @moth",
+        "Needs permission: pnpm test --filter checkout, 2 messages waiting, 2 subagents: 2 explorer. Led by @moth",
       )
   })
 })

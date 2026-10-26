@@ -465,10 +465,6 @@ export const contract = {
     // Counts a session of the app the one-time offer of murmur was shown in, which it stops
     // after three of.
     noteOffered: procedure.input(z.void()).output(z.void()),
-    // Asks murmur for the gist of the reply that ended the terminal's turn at `at`, which the
-    // client shows unread. It lands on the terminal's `activity.lastTurn.gist`. Nothing happens
-    // when murmur can't run, that end is no longer the last, or the terminal is unknown.
-    gist: procedure.input(z.strictObject({ terminalId: id, at: z.number() })).output(z.void()),
   },
   settings: {
     get: procedure.input(z.void()).output(runnerSettingsState),

@@ -615,7 +615,7 @@ const ask: Tool<{ readonly id: string; readonly withdrawn?: boolean }> = {
     "you end your turn waiting on, such as which option to take or whether to open a pull " +
     "request, unless it is already an open ask, and put the full question in your reply too. A closing offer such as " +
     "'anything else?' isn't one, nor is an action your harness is already prompting them " +
-    "for. With a lead, send it your questions with send instead, working around them as " +
+    "for. With a lead, send it your questions with send instead of ask, working around them as " +
     "below; only approvals of actions, which are always the user's, such as opening a pull " +
     "request, go through ask, and you tell your lead you're waiting. Most decisions aren't blocking: ask, keep going on what doesn't depend on the " +
     "answer, and where your pick is easy to undo and needs no approval of theirs " +
@@ -732,7 +732,7 @@ const tell: Tool<{ readonly id: string }> = {
     "It appears as an Update they can mark read, without badging the bell. It suits a " +
     "milestone they'd want to hear of while they're elsewhere: a pull request opened, its " +
     "checks passed or failed, a merge, or that you now wait on someone else; not each step. " +
-    "With a lead, report to it instead. Use ask when you need an answer. Asks, updates and " +
+    "With a lead, send it that with send instead of tell. Use ask when you need an answer. Asks, updates and " +
     "the user's answers stay in Messages.",
   inputSchema: {
     type: "object",
@@ -752,8 +752,8 @@ const done: Tool<{ readonly id: string }> = {
     "Report to the user through Novadeck's Inbox that the task you were given is finished: " +
     "a one-line subject and a Markdown body with your own short report. It appears as an " +
     "Update they can mark read. Call it once the task is finished, not when you answer a " +
-    "question or finish a step. With a lead, report to it instead. Use ask when you need " +
-    "an answer. Reports stay in Messages.",
+    "question or finish a step. With a lead, send it your report with send instead of done. " +
+    "Use ask when you need an answer. Reports stay in Messages.",
   inputSchema: {
     type: "object",
     properties: letterFields,
@@ -824,9 +824,9 @@ const instructions =
   "when they're elsewhere: a pull request " +
   "opened, its checks done, a merge, or that you now wait on someone else. Its done is " +
   "your own short report when the task you were given is finished, not when you answer a " +
-  "question or finish a step. With a lead, send your questions to it with send instead of " +
-  "ask, and report tells and done to it too; approvals of actions are still the user's, " +
-  "asked with ask."
+  "question or finish a step. With a lead, send your report and your questions to it with " +
+  "send instead of done, tell or ask; approvals of actions are still the user's, asked " +
+  "with ask."
 
 const respond = async (line: string, call?: McpCall): Promise<Reply | undefined> => {
   if (line.trim() === "") return undefined

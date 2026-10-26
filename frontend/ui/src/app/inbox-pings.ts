@@ -5,9 +5,12 @@ import type { Backend, Notice } from "@novadeck/core/port"
 import { needing, ringing } from "../inbox/inbox-state"
 import { fromNovadeck, labelOf, subjectOf } from "../inbox/inbox-text"
 import { isDesktop } from "../shell/desktop"
-import { landedQuietly } from "./inbox-landing"
+import type { LandedInbox } from "./inbox-landing"
 import { heldForToast, modalOpen } from "./selectors"
 import type { UiStore } from "./ui-store"
+
+// The Inbox these follow: the landed one, which knows what landed quietly, or any with a state.
+export type NeedsInbox = Pick<Inbox, "state"> & Partial<Pick<LandedInbox, "landedQuietly">>
 
 // How long a new item that needs the person waits before it pings: one the person or the
 // agent settles in that time never does. (A permission request has already waited its own
@@ -150,7 +153,7 @@ const onWindows = (): boolean => navigator.platform.startsWith("Win")
 // takes an item only while its own case holds, which is how one item never rings two.
 // Returns the stop.
 export const followNeeds = (
-  inbox: Pick<Inbox, "state">,
+  inbox: NeedsInbox,
   {
     graceMs,
     ring,
@@ -214,7 +217,7 @@ export const followNeeds = (
       if (item.at < startedAt - launchSlackMs) continue
       // One that arrived while the person looked at its terminal, and landed as they looked
       // away, they have already seen there.
-      if (landedQuietly(inbox, item)) continue
+      if (inbox.landedQuietly?.(item)) continue
       timers.set(
         key,
         setTimeout(() => {
@@ -241,7 +244,7 @@ export const followNeeds = (
 // rings whatever the person's focus, view or notification settings: it is the app's own quiet
 // mark, there while they look. Returns the stop.
 export const watchBellRings = (
-  inbox: Pick<Inbox, "state">,
+  inbox: NeedsInbox,
   ui: UiStore,
   { graceMs = needGraceMs }: { graceMs?: number } = {},
 ): (() => void) =>
@@ -263,7 +266,7 @@ export const watchBellRings = (
 // once it closes. The app icon's `badge` follows the bell's count, drawn as an image where
 // `image` says the platform takes one, and clears when this stops. Returns the stop.
 export const watchInboxPings = (
-  inbox: Pick<Inbox, "state">,
+  inbox: NeedsInbox,
   ui: UiStore,
   {
     board,

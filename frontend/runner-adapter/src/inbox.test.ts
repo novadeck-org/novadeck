@@ -135,7 +135,6 @@ const turnLettersOf = (workspace: Workspace, marks: Marks): InboxLetter[] =>
               kind: "turn",
               outcome: mark === "done" ? "completed" : "failed",
               reply: end.reply ?? null,
-              gist: end.gist ?? null,
               error: end.error ?? null,
               files: [...(end.files ?? [])],
             },
@@ -1279,7 +1278,6 @@ describe("Turn rows", () => {
     expect(inbox.turns.getSnapshot()?.[0]).toMatchObject({
       outcome: "completed",
       reply: "a",
-      gist: null,
       error: null,
       files: [],
       terminalId: "01",

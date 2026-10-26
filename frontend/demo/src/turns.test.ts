@@ -108,16 +108,13 @@ describe("demo turns", () => {
     it("works, then ends the way asked with its reply and when", async () => {
       const { turns, held, agent, chat } = open()
       vi.setSystemTime(1_000_000)
-      turns.finish(key("06"), held(key("06")), "completed", {
-        gist: "All good",
-      })
+      turns.finish(key("06"), held(key("06")), "completed")
       expect(agent(key("06"))).toMatchObject({ working: true })
       await vi.advanceTimersByTimeAsync(demoTurnMs)
       expect(agent(key("06"))).toMatchObject({
         working: false,
         lastTurn: {
           outcome: "completed",
-          gist: "All good",
           at: 1_000_000 + demoTurnMs,
         },
       })

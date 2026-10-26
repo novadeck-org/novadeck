@@ -265,6 +265,14 @@ describe("terminal frame marks", () => {
     })
   })
 
+  it("keeps the kind of a dialog in the words, with the subject of the item behind it", () => {
+    const frame = renderFrame(
+      agent({ working: false, attention: { kind: "permission", count: 1 } }),
+      { need: "unblock", needSubject: "pnpm test …", needDialog: "permission" },
+    )
+    expect(section(frame).getAttribute("aria-description")).toBe("Needs permission: pnpm test …")
+  })
+
   it("shows no need for an agent that needs nothing", () => {
     const frame = renderFrame(agent({ working: false }))
     expect(need(frame)).toBeUndefined()
@@ -322,6 +330,13 @@ describe("terminal frame marks", () => {
       const reported = renderFrame(resting, { reported: true })
       expect(section(reported).getAttribute("data-terminal-phase")).toBe("done")
       expect(section(reported).getAttribute("aria-description")).toBe("Done · report unread")
+    })
+
+    it("says an unread reply in words, as its tab does", () => {
+      const resting = agent({ working: false, lastTurn: { at: 1, outcome: "completed" } })
+      expect(
+        section(renderFrame(resting, { unread: "unread" })).getAttribute("aria-description"),
+      ).toBe("Reply unread")
     })
 
     it("reads a turn that failed as done on an error", () => {

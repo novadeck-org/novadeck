@@ -205,7 +205,7 @@ export const emptyInbox: InboxState = { items: [], answering: {}, failed: {} }
 export type InboxFinish = { readonly context: string; readonly terminalId: string }
 
 // A finished turn the backend stored as its own row, completed or failed, until the person
-// reads it: a completed one only marks its tab unread, a failed one is a Trouble row. `reply` and `gist` are the start of the agent's reply and murmur's words for it;
+// reads it: a completed one only marks its tab unread, a failed one is a Trouble row. `reply` is the start of the agent's reply;
 // `error` a failed turn's error; null where the harness gave none. `at` is the end's
 // `lastTurn.at`: with `terminalId` it tells this end from any other.
 export type InboxTurn = {
@@ -218,7 +218,6 @@ export type InboxTurn = {
   readonly at: number
   readonly outcome: "completed" | "failed"
   readonly reply: string | null
-  readonly gist: string | null
   readonly error: string | null
   readonly files: readonly string[]
 }

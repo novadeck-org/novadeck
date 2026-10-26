@@ -1,6 +1,6 @@
 import { agentWorking } from "./agent-finish"
 import type { ChatAnswer, ConversationKey } from "./conversation"
-import type { InboxAnswer, InboxFinish, InboxItem, InboxState } from "./inbox"
+import type { InboxAnswer, InboxItem, InboxState } from "./inbox"
 import { reuse } from "./inbox-items"
 import type { TerminalMetadata } from "./types"
 
@@ -24,12 +24,6 @@ export const keyOf = ({ source }: InboxItem): ConversationKey => ({
 // row derived from a limited end, which no read touches.
 export const isTurnRow = (item: InboxItem): boolean =>
   item.kind === "trouble" && item.trouble.type === "failed" && item.trouble.stored === true
-
-// The finish an update stands for, as the app reads it.
-export const finishOf = ({ source }: InboxItem): InboxFinish => ({
-  context: `${source.projectId}/${source.workspaceSessionId}`,
-  terminalId: source.terminalId,
-})
 
 // The state as it was when nothing changed in it, so what subscribes to it stays quiet.
 export const keepInbox = (current: InboxState, next: InboxState): InboxState => {

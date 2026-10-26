@@ -143,7 +143,6 @@ describe("terminal activity", () => {
           outcome: "completed" as const,
           reply: "All green.",
           at: 7,
-          gist: null,
           error: null,
           limit: null,
           files: [],
@@ -160,7 +159,6 @@ describe("terminal activity", () => {
             outcome: "interrupted",
             reply: null,
             at: 8,
-            gist: null,
             error: null,
             limit: null,
             files: [],
@@ -185,7 +183,6 @@ describe("terminal activity", () => {
             outcome: "failed",
             reply: null,
             at: 7,
-            gist: null,
             error: "5-hour limit reached",
             limit: { minutes: 300, resetsAt: 9000 },
             files: ["/work/a.ts", "/work/b.ts"],
@@ -224,7 +221,6 @@ describe("terminal activity", () => {
             outcome: "failed",
             reply: null,
             at: 7,
-            gist: null,
             error: null,
             limit: null,
             files: [],
@@ -239,34 +235,6 @@ describe("terminal activity", () => {
       expect(ended(undefined)).toEqual({
         state: "running",
         agent: { working: false, lastTurn: { outcome: "failed", at: 7 } },
-      })
-    })
-
-    it("carries murmur's gist of the reply", () => {
-      const ended = (gist: string) =>
-        claude({
-          state: "idle",
-          attention: { pending: 0, kind: null },
-          subagents: [],
-          planning: false,
-          background: null,
-          waiting: null,
-          lastTurn: {
-            outcome: "completed",
-            reply: "Rounded.",
-            at: 7,
-            gist,
-            error: null,
-            limit: null,
-            files: [],
-          },
-        }).status
-      expect(ended("Rounded each line")).toEqual({
-        state: "running",
-        agent: {
-          working: false,
-          lastTurn: { outcome: "completed", reply: "Rounded.", at: 7, gist: "Rounded each line" },
-        },
       })
     })
 

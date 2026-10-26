@@ -383,7 +383,7 @@ describe("Novadeck's MCP server", () => {
       )
       expect(instructions).toContain("not when you answer a question or finish a step")
       expect(instructions).toContain(
-        "With a lead, send your questions to it with send instead of ask, and report tells and done to it too; approvals of actions are still the user's, asked with ask",
+        "With a lead, send your report and your questions to it with send instead of done, tell or ask; approvals of actions are still the user's, asked with ask",
       )
       for (const native of ["AskUserQuestion", "request_user_input", "ask_question"])
         expect(instructions).not.toContain(native)
@@ -396,7 +396,9 @@ describe("Novadeck's MCP server", () => {
       expect(ask.description).toContain(
         "Put a question in the user's Inbox without stopping your work.",
       )
-      expect(ask.description).toContain("With a lead, send it")
+      expect(ask.description).toContain(
+        "With a lead, send it your questions with send instead of ask",
+      )
       expect(ask.description).toContain("needs no approval of theirs")
       expect(ask.description).toContain("A pick that is hard to undo waits for their answer")
       expect(ask.description).toContain("once nothing else is left, end your")
@@ -408,11 +410,13 @@ describe("Novadeck's MCP server", () => {
       const tell = described.find((tool) => tool.name === "tell")!
       expect(tell.description).toContain("a pull request opened")
       expect(tell.description).toContain("not each step")
-      expect(tell.description).toContain("With a lead, report to it instead")
+      expect(tell.description).toContain("With a lead, send it that with send instead of tell")
       const done = described.find((tool) => tool.name === "done")!
       expect(done.description).toContain("the task you were given is finished")
       expect(done.description).toContain("not when you answer a question or finish a step")
-      expect(done.description).toContain("With a lead, report to it instead")
+      expect(done.description).toContain(
+        "With a lead, send it your report with send instead of done",
+      )
       expect(ask.description).toContain(
         "unless it is already an open ask, and put the full question in your reply too",
       )

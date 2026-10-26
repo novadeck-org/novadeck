@@ -41,11 +41,11 @@ describe("An agent waiting on the person", () => {
     await expect
       .poll(() => tabDescription("Checkout review"))
       // The need says what the Inbox's item is about, as the tab's `!` does.
-      .toBe("Needs you: pnpm test --filter checkout, 2 subagents: 2 explorer")
+      .toBe("Needs permission: pnpm test --filter checkout, 2 subagents: 2 explorer")
     await tab.click()
     await expect
       .element(terminal("Checkout review"))
-      .toHaveAttribute("aria-description", "Needs you: pnpm test --filter checkout")
+      .toHaveAttribute("aria-description", "Needs permission: pnpm test --filter checkout")
   })
 
   context("in another project", () => {
@@ -58,7 +58,7 @@ describe("An agent waiting on the person", () => {
       if (await skip.query()) await skip.click()
       const trigger = workspaceSwitcher()
 
-      await expect.element(trigger).toHaveAttribute("data-project-status", "attention")
+      await expect.element(trigger).toHaveAttribute("data-project-status", "unblock")
       await expect
         .element(trigger)
         .toHaveAttribute("aria-description", "Another project: Needs you")
@@ -89,10 +89,12 @@ describe("An agent that plans", () => {
     const tab = page.getByRole("button", { name: labelled("Select ", "Checkout implementation") })
     await expect
       .poll(() => tabDescription("Checkout implementation"))
-      .toBe("Needs you: Checkout flow")
+      .toBe("Plan ready for review: Checkout flow")
     await tab.click()
     const window = terminal("Checkout implementation")
-    await expect.element(window).toHaveAttribute("aria-description", "Needs you: Checkout flow")
+    await expect
+      .element(window)
+      .toHaveAttribute("aria-description", "Plan ready for review: Checkout flow")
     // Whether it plans is its own terminal's to show, not its window's header.
     await expect.element(window.getByText("planning", { exact: true })).not.toBeInTheDocument()
   })
@@ -568,7 +570,7 @@ describe("A pinned project", () => {
     await openWorkspace("/?demo=agents")
     await skipWelcome()
     await expect.element(pin("docs-site")).toHaveAttribute("aria-description", "Asks a question")
-    await expect.element(workspaceSwitcher()).toHaveAttribute("data-project-status", "attention")
+    await expect.element(workspaceSwitcher()).toHaveAttribute("data-project-status", "unblock")
 
     // Switching to it keeps its pin in place, marked current; the others still wait in
     // the dot.
@@ -877,7 +879,7 @@ describe("A pinned project", () => {
     await skipWelcome()
     await expect.element(pin("storefront")).toBeVisible()
     await expect.element(pin("docs-site")).not.toBeInTheDocument()
-    await expect.element(workspaceSwitcher()).toHaveAttribute("data-project-status", "question")
+    await expect.element(workspaceSwitcher()).toHaveAttribute("data-project-status", "ask")
   })
 
   it("keeps the other pins where they are when switching", async () => {

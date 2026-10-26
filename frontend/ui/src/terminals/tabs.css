@@ -46,7 +46,7 @@
    --tab-unheard-fg (muted): the glyph while Novadeck can't hear from an agent.
    --tab-waiting-fg (muted): the glyph while an agent waits on something that wakes it, and
    the rows under the tab. --tab-passed-opacity (0.6): the trace of a wake-up that passed.
-   --tab-done-fg (success-fg): the glyph while an agent's reply waits unread.
+   --tab-done-fg (success-fg): the glyph while an agent's done report waits unseen.
    --tab-failed-fg (danger-fg): the same, where its turn ended on an error.
    --tab-age-fg (muted): how long ago it finished.
    --tab-process-font (mono with the symbols font first, --font-glyphs): the program and

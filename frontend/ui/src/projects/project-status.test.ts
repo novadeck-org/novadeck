@@ -126,32 +126,42 @@ describe("A project's status", () => {
         projectStatus(project("p", [working, finished]), ends, [doneItem("p", finished)]),
       ).toBe("done")
       expect(projectStatus(project("p", [finished, failed, working]), ends)).toBe("failed")
-      expect(projectStatus(project("p", [failed, waiting]), ends)).toBe("attention")
-      expect(projectStatus(project("p", [waiting, asking, failed]), ends)).toBe("attention")
+      expect(projectStatus(project("p", [failed, waiting]), ends)).toBe("unblock")
+      expect(projectStatus(project("p", [waiting, asking, failed]), ends)).toBe("unblock")
       // Without the permission, the question outranks a failure.
-      expect(projectStatus(project("p", [asking, failed]), ends)).toBe("question")
+      expect(projectStatus(project("p", [asking, failed]), ends)).toBe("ask")
     })
 
     it("counts the Inbox's needs as its tabs mark them: an ask a question, an action needs you", () => {
       const asking = running(1, {})
       const signing = running(2, {})
       expect(projectStatus(project("p", [asking]), noUnread, [askItem("p", asking, "text")])).toBe(
-        "question",
+        "ask",
       )
       expect(
         projectStatus(project("p", [asking, signing]), noUnread, [
           askItem("p", asking, "text"),
           askItem("p", signing, "action"),
         ]),
-      ).toBe("attention")
+      ).toBe("unblock")
       expect(
         projectStatus(project("p", [signing]), noUnread, [askItem("p", signing, "action")]),
-      ).toBe("attention")
+      ).toBe("unblock")
       // A need counts while the agent works on, as its tab's mark does.
       const working = running(3, { working: true })
       expect(
         projectStatus(project("p", [working]), noUnread, [askItem("p", working, "text")]),
-      ).toBe("question")
+      ).toBe("ask")
+    })
+
+    it("reads each terminal as its tab does: an agent that works again is running, not failed", () => {
+      const resumed = running(1, { working: true })
+      const ends: Unread = { "p/initial": { [resumed.id]: "failed" } }
+      expect(projectStatus(project("p", [resumed]), ends)).toBe("running")
+      const stopped = running(2, {})
+      expect(
+        projectStatus(project("p", [stopped]), { "p/initial": { [stopped.id]: "failed" } }),
+      ).toBe("failed")
     })
 
     it("counts a done report only while unseen, and not of another project", () => {
@@ -166,7 +176,7 @@ describe("A project's status", () => {
 
     it("counts a plan to review as waiting on the person", () => {
       const planning = running(1, { attention: { kind: "plan", count: 1 } })
-      expect(projectStatus(project("p", [planning]), noUnread)).toBe("attention")
+      expect(projectStatus(project("p", [planning]), noUnread)).toBe("unblock")
     })
 
     it("counts nothing from an ended terminal, though its reply went unread", () => {
@@ -211,12 +221,12 @@ describe("The switcher's mark", () => {
 
   it("is the most pressing status among the other projects", () => {
     expect(statuses).toEqual({
-      here: "question",
+      here: "ask",
       there: "failed",
       busy: "running",
     })
     expect(elsewhereStatus(statuses, "here", [])).toBe("failed")
-    expect(elsewhereStatus(statuses, "there", [])).toBe("question")
+    expect(elsewhereStatus(statuses, "there", [])).toBe("ask")
   })
 
   it("leaves out the projects it is told to ignore", () => {

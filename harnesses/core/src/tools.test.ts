@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest"
 
-import { sleepOnly } from "./tools.js"
+import { novadeckTool, sleepOnly } from "./tools.js"
 
 describe("a command that only waits", () => {
   it.each([
@@ -68,5 +68,21 @@ describe("a command that only waits", () => {
     "bash -lc 'sleep 5'",
   ])("is work: %j", (command) => {
     expect(sleepOnly(command)).toBe(false)
+  })
+})
+
+describe("Novadeck's own tools", () => {
+  it("labels a done call as a report, with its subject", () => {
+    expect(novadeckTool("done", { subject: "Checkout flow shipped", body: "All green." })).toEqual({
+      kind: "agent",
+      title: "Reported done",
+      detail: "Checkout flow shipped",
+    })
+  })
+
+  it("keeps the first line of a done report's subject", () => {
+    expect(novadeckTool("done", { subject: "Shipped\nand tested", body: "" })?.detail).toBe(
+      "Shipped",
+    )
   })
 })

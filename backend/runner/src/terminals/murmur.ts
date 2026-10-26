@@ -1,21 +1,10 @@
 import { createHash } from "node:crypto"
 import { basename } from "node:path"
 
-import { tailLines } from "@novadeck/harness-core/follow"
 import { terminalTitle, type AgentName, type ForegroundProcess } from "@novadeck/protocol"
 
-import type { Activity } from "../harnesses/activity.js"
-import type { Items } from "../harnesses/replies.js"
 import { logs } from "../log.js"
-import type {
-  Describer,
-  Description,
-  Digest,
-  Note,
-  NoteDigest,
-  ReplyDigest,
-  ShellDigest,
-} from "../murmur/describer.js"
+import type { Describer, Description, Digest, ShellDigest } from "../murmur/describer.js"
 import { sharesContentWord } from "../murmur/description.js"
 import type { PeerTerminal } from "./peers.js"
 import { shorten } from "./work.js"
@@ -52,12 +41,10 @@ export type MurmurTimes = {
    */
   readonly expectMs: number
   /**
-   * How long a title or gist that could not be asked for (murmur backed off or busy: it did
-   * not run) waits before it is asked again, in milliseconds.
+   * How long a title that could not be asked for (murmur backed off or busy: it did not
+   * run) waits before it is asked again, in milliseconds.
    */
   readonly retryMs: number
-  /** How long a gist waits before it is asked for, in milliseconds. */
-  readonly noteMs: number
 }
 
 export const defaultTimes: MurmurTimes = {
@@ -66,7 +53,6 @@ export const defaultTimes: MurmurTimes = {
   shellSettleMs: 3_000,
   expectMs: 10_000,
   retryMs: 60_000,
-  noteMs: 1_000,
 }
 
 // These are generous safety caps only. The service redacts every string before it cuts
@@ -78,46 +64,11 @@ export const screenRows = 100
 export const screenColumns = 8000
 /** The longest command line passed on. */
 export const commandChars = 2000
-/** How much of a reply is shown: its first and last characters. */
-export const replyHeadChars = 4000
-export const replyTailChars = 4000
-
 // Characters no reply or screen row shows to a model: C0 and C1 control characters, and DEL.
 // eslint-disable-next-line no-control-regex -- These are the characters it removes.
 const control = /[\x00-\x08\x0b-\x1f\x7f-\x9f]/g
 // eslint-disable-next-line no-control-regex -- Escape sequences, whole.
 const escapes = /\u001b\[[0-9;?]*[ -/]*[@-~]|\u001b\][^\u0007\u001b]*(?:\u0007|\u001b\\)/g
-
-/**
- * What the agent said last since the person's latest prompt and its latest tool step, as
- * its transcript records it, through its harness's items, cleaned; null when it said
- * nothing since or the transcript can't be read. Words before a tool call are its working
- * notes, not its reply. Only the end of the transcript is read.
- */
-export const lastReply = async (path: string, items: Items): Promise<string | null> => {
-  const lines = await tailLines(path)
-  let reply: string | undefined
-  for (const line of lines ?? [])
-    for (const { role, kind, text } of items(line)) {
-      if (role === "user" || role === "tool" || kind === "tool-call") reply = undefined
-      else if (role === "assistant" && kind === "text" && text.trim()) reply = text
-    }
-  if (reply === undefined) return null
-  return reply.replace(escapes, "").replace(control, " ").trim() || null
-}
-
-/** What murmur is shown of a reply: all of it when short, else its first and last characters. */
-export const replyDigest = (reply: string, failed: boolean): ReplyDigest => {
-  const characters = [...reply]
-  return {
-    kind: "reply",
-    reply:
-      characters.length > replyHeadChars + replyTailChars
-        ? `${characters.slice(0, replyHeadChars).join("")}\n…\n${characters.slice(-replyTailChars).join("")}`
-        : reply,
-    failed,
-  }
-}
 
 /**
  * The command a plain shell's foreground program runs with, or its name where the
@@ -360,8 +311,6 @@ export class Descriptions<D = Digest, O = Description> {
 export type MurmurSubject = PeerTerminal & {
   /** The agent bound there, if one is; a terminal with none is a plain shell. */
   readonly agent: AgentName | null
-  /** The bound session's transcript, where its hooks named one. */
-  readonly transcript: string | null
   /** The program in the foreground. */
   readonly program: ForegroundProcess | null
   /**
@@ -395,14 +344,10 @@ export type MurmurHost = {
       }
     | undefined
   >
-  /** The harness's reader of its transcript's lines. */
-  items(agent: AgentName): Items | undefined
   projectFolder(sessionId: string): string | undefined
   /** Gives the terminal murmur's title; nothing when it is gone. */
   described(terminalId: string, description: { readonly title: string }): void
-  /** Gives the terminal's turn end at `at` its gist; nothing when that is no longer its last. */
-  gisted(terminalId: string, at: number, gist: string): void
-  /** Murmur was turned off or removed: every terminal loses its murmur title, saved ones too, and its gists. */
+  /** Murmur was turned off or removed: every terminal loses its murmur title, saved ones too. */
   cleared(): void
 }
 
@@ -437,15 +382,7 @@ type Watch = {
   screenKey: string | null
   /** When murmur first looked at the terminal, from which an expected agent is waited for. */
   since: number
-  /** The turn end (`lastTurn.at`) whose gist was asked for, so it is asked for once. */
-  gist: number | null
-  /** The gist asked for did not run: it is asked for again after `retryMs`. */
-  gistOwed: boolean
-  /** The timer that asks again for a gist that did not run. */
-  noteRetry: NodeJS.Timeout | undefined
 }
-
-const gistKey = (terminalId: string): string => `${terminalId}\0gist`
 
 /**
  * Whether a shell's screen shows only prompts: every row is the bottom row, or the line
@@ -501,8 +438,6 @@ const programKey = (program: ForegroundProcess | null): string | null =>
  */
 export class Murmur {
   private readonly descriptions: Descriptions
-  // The gists of replies (see `changed`, `replied`).
-  private readonly notes: Descriptions<NoteDigest, Note>
   private readonly watches = new Map<string, Watch>()
   private readonly times: MurmurTimes
   private readonly unwatch: () => void
@@ -517,17 +452,11 @@ export class Murmur {
   ) {
     this.times = { ...defaultTimes, ...times }
     this.descriptions = new Descriptions(describer)
-    this.notes = new Descriptions<NoteDigest, Note>({
-      describe: (digest, options) => describer.note(digest, options),
-    })
     this.unwatch = describer.watchUsable((usable) => {
       this.usable = usable
       if (usable) this.catchUp()
-      else {
-        // What waited is dropped; a summary's title stays owed for the catch-up.
-        this.descriptions.stop()
-        this.notes.stop()
-      }
+      // What waited is dropped; a summary's title stays owed for the catch-up.
+      else this.descriptions.stop()
     })
     this.unwatchCleared = describer.watchCleared(() => this.clear())
   }
@@ -536,10 +465,8 @@ export class Murmur {
   // the titles, so turning it on later starts from a clean slate.
   private clear(): void {
     this.descriptions.stop()
-    this.notes.stop()
     for (const watch of this.watches.values()) {
       clearTimeout(watch.retryTimer)
-      this.resetNotes(watch)
       watch.named = null
       watch.owed = false
       watch.shellTitled = false
@@ -555,53 +482,19 @@ export class Murmur {
     }
   }
 
-  // What was asked for and owed of the gist is forgotten.
-  private resetNotes(watch: Watch): void {
-    clearTimeout(watch.noteRetry)
-    watch.noteRetry = undefined
-    watch.gist = null
-    watch.gistOwed = false
-  }
-
-  // A gist that did not run is asked for again after `retryMs`.
-  private retryNotes(terminalId: string, watch: Watch): void {
-    clearTimeout(watch.noteRetry)
-    watch.noteRetry = setTimeout(() => {
-      watch.noteRetry = undefined
-      // Unusable meanwhile: what is owed stays, for the catch-up once murmur is usable.
-      if (!this.usable) return
-      const at = watch.gistOwed ? watch.gist : null
-      watch.gistOwed = false
-      if (at !== null) {
-        watch.gist = null
-        this.replied(terminalId, at)
-      }
-      this.changed(terminalId)
-    }, this.times.retryMs)
-    watch.noteRetry.unref()
-  }
-
   /** A terminal is gone or closed. */
   gone(terminalId: string): void {
     const watch = this.watches.get(terminalId)
-    if (watch) {
-      clearTimeout(watch.retryTimer)
-      this.resetNotes(watch)
-    }
+    if (watch) clearTimeout(watch.retryTimer)
     this.descriptions.cancel(terminalId)
-    this.notes.forget(terminalId)
     this.watches.delete(terminalId)
   }
 
   stop(): void {
     this.unwatch()
     this.unwatchCleared()
-    for (const watch of this.watches.values()) {
-      clearTimeout(watch.retryTimer)
-      this.resetNotes(watch)
-    }
+    for (const watch of this.watches.values()) clearTimeout(watch.retryTimer)
     this.descriptions.stop()
-    this.notes.stop()
     this.watches.clear()
   }
 
@@ -670,89 +563,6 @@ export class Murmur {
   }
 
   /**
-   * The terminal's agent activity changed: a job for a turn end that is no longer the last is
-   * called off.
-   */
-  changed(terminalId: string): void {
-    try {
-      this.look(terminalId)
-    } catch (error) {
-      log.error("murmur.notes-failed", "Novadeck could not look at a terminal to write its notes", {
-        err: error,
-      })
-    }
-  }
-
-  private look(terminalId: string): void {
-    const subject = this.host.subject(terminalId)
-    const watch = this.watches.get(terminalId)
-    if (!watch) return
-    const activity = subject?.agent ? subject.activity : null
-    if (!activity) {
-      this.forgetNotes(terminalId, watch)
-      return
-    }
-    if (watch.gist !== null && !endedAt(activity, watch.gist)) {
-      this.notes.cancel(gistKey(terminalId))
-      watch.gist = null
-      watch.gistOwed = false
-    }
-  }
-
-  private forgetNotes(terminalId: string, watch: Watch): void {
-    this.notes.forget(terminalId)
-    this.resetNotes(watch)
-  }
-
-  /**
-   * A client shows the turn end at `at` unread: its reply gets a gist once. Ignored while
-   * murmur isn't usable.
-   */
-  replied(terminalId: string, at: number): void {
-    if (!this.usable) return
-    try {
-      const subject = this.host.subject(terminalId)
-      if (!subject?.agent || !subject.activity) return
-      const watch = this.watch(terminalId)
-      if (watch.gist === at || !endedAt(subject.activity, at)) return
-      watch.gist = at
-      this.notes.request(
-        gistKey(terminalId),
-        this.times.noteMs,
-        () => this.replyDigestOf(terminalId, at),
-        (outcome, digest) => {
-          if (outcome === undefined) {
-            // The describer did not run: the same end is asked for again in a while.
-            if (digest && watch.gist === at) {
-              watch.gistOwed = true
-              this.retryNotes(terminalId, watch)
-            }
-          } else if (outcome?.kind === "gist") this.host.gisted(terminalId, at, outcome.text)
-        },
-        terminalId,
-      )
-    } catch (error) {
-      log.error("murmur.gist-failed", "Novadeck could not look at a terminal to write its gist", {
-        err: error,
-      })
-    }
-  }
-
-  // The reply that ended the turn at `at`, from its transcript; undefined once it is no longer the last.
-  private async replyDigestOf(terminalId: string, at: number): Promise<NoteDigest | undefined> {
-    if (!this.usable) return undefined
-    const subject = this.host.subject(terminalId)
-    if (!subject?.agent || !subject.transcript || !subject.activity) return undefined
-    if (!endedAt(subject.activity, at)) return undefined
-    const items = this.host.items(subject.agent)
-    if (!items) return undefined
-    const reply = await lastReply(subject.transcript, items)
-    const now = this.host.subject(terminalId)?.activity
-    if (reply === null || !now || !endedAt(now, at)) return undefined
-    return replyDigest(reply, now.lastTurn?.outcome === "failed")
-  }
-
-  /**
    * A plain shell showed its prompt, after a command or none: it is described once its
    * quiet passes, unless nothing it is made from changed since the last description.
    */
@@ -778,9 +588,6 @@ export class Murmur {
         shellOwed: false,
         screenKey: null,
         since: Date.now(),
-        gist: null,
-        gistOwed: false,
-        noteRetry: undefined,
       }
       this.watches.set(terminalId, watch)
     }
@@ -801,24 +608,12 @@ export class Murmur {
     for (const subject of subjects) {
       try {
         this.catchUpOne(subject)
-        this.catchUpNotes(subject.summary.id)
       } catch (error) {
         log.error("murmur.look-failed", "Novadeck could not look at a terminal to describe it", {
           err: error,
         })
       }
     }
-  }
-
-  // A reply without a gist is asked for again.
-  private catchUpNotes(terminalId: string): void {
-    const watch = this.watches.get(terminalId)
-    if (watch) {
-      const { gist } = watch
-      this.resetNotes(watch)
-      if (gist !== null) this.replied(terminalId, gist)
-    }
-    this.changed(terminalId)
   }
 
   private catchUpOne(subject: MurmurSubject): void {
@@ -1017,10 +812,3 @@ export class Murmur {
     return true
   }
 }
-
-/** Whether the activity's last turn ended at `at`, completed or failed, with none running and no gist yet. */
-const endedAt = (activity: Activity, at: number): boolean =>
-  activity.state !== "working" &&
-  activity.lastTurn?.at === at &&
-  (activity.lastTurn.outcome === "completed" || activity.lastTurn.outcome === "failed") &&
-  activity.lastTurn.gist === undefined

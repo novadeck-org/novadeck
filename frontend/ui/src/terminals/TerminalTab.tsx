@@ -4,7 +4,6 @@ import {
   clockTime,
   nextWaitingChange,
   waitingOf,
-  waitingText,
   wakeFill,
   wakePassed,
 } from "@novadeck/core/agent-waiting"
@@ -12,16 +11,12 @@ import { showsHandle, terminalLabel } from "@novadeck/core/handle"
 import { mailBadgeLabel, type MailBadge } from "@novadeck/core/messages"
 import { isWindow } from "@novadeck/core/roster"
 import {
-  doneText,
   endingText,
-  needText,
-  joinNote,
-  pausedText,
+  idleNote,
   pausedUntil,
   terminalEnding,
-  terminalNeedMark,
-  terminalPhase,
-  unheardText,
+  terminalNote,
+  type NeedDialog,
 } from "@novadeck/core/terminal-ending"
 import { nextTurnAge, turnAge } from "@novadeck/core/turn-age"
 import type { Tile } from "@novadeck/core/types"
@@ -66,6 +61,7 @@ export const TerminalTab = ({
   unread,
   need: inboxNeed,
   needSubject,
+  needDialog,
   reported = false,
   rename,
   mail = null,
@@ -101,6 +97,7 @@ export const TerminalTab = ({
   // adds its own need.
   need?: "unblock" | "ask" | undefined
   needSubject?: string | undefined
+  needDialog?: NeedDialog | undefined
   reported?: boolean
   rename: TerminalRename | null
   // What waits for its agent, when anything does: the tab says it in words.
@@ -132,33 +129,21 @@ export const TerminalTab = ({
   // program, what the agent needs of the person right after it, or a note while the shell
   // starts. A tab that has ended is hatched (styles.css); assistive technology says how it
   // ended.
-  const failed = unread === "failed"
-  const phase = shell ? terminalPhase(shell, reported || failed) : "idle"
-  const need = shell && phase !== "ended" ? terminalNeedMark(shell, inboxNeed) : undefined
-  // A reply the person hasn't read, on an agent that rests: its program brightens.
-  const brightened = unread === "unread" && phase === "idle"
+  const { phase, need, failed, brightened, text } = shell
+    ? terminalNote(
+        shell,
+        { need: inboxNeed, done: reported, subject: needSubject, dialog: needDialog },
+        unread,
+      )
+    : idleNote
   const ending = shell && terminalEnding(shell)
   const ended = ending ? endingText(ending) : undefined
-  // What the agent needs of the person, or that Novadeck can't hear from it, said like an
-  // ending, to assistive technology.
-  const needing = shell && needText(shell, inboxNeed, needSubject)
-  const unheard = shell && unheardText(shell)
   const resets = shell && phase === "paused" ? pausedUntil(shell) : undefined
   // What an idle agent waits on, which wakes it by itself, or the wake-up that passed
   // without a new turn: the glyph and the rows under the line say it.
   const waits = phase === "waiting" && shell ? waitingOf(shell) : undefined
   const passed = shell && (phase === "idle" || phase === "done") ? wakePassed(shell) : undefined
-  const waitNote = waits && shell ? waitingText(shell) : undefined
-  const note =
-    ended ??
-    joinNote([
-      needing,
-      unheard ??
-        (phase === "paused" && shell ? pausedText(shell) : undefined) ??
-        waitNote ??
-        (phase === "done" ? doneText(failed) : undefined) ??
-        (brightened ? "Reply unread" : undefined),
-    ])
+  const note = ended ?? text
   const messages = mail ? mailBadgeLabel(mail) : undefined
   // The subagents its agent runs: marked on its line, their kinds under it while selected,
   // and counted in words wherever it marks them.

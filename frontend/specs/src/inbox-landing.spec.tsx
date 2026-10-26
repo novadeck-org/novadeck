@@ -71,15 +71,18 @@ describe("The landing rule", () => {
     })
   })
 
+  // The report arrives and the person looks away in one task, so no dwell can pass between
+  // them however slow the runner is.
   context("when the person looks away from a done report before the dwell is over", () => {
     it("leaves it unread and lands it", async () => {
       await open(docs)
-
-      hostWindow.arrive(demoInboxIds.done)
-      await page
+      const away = page
         .getByRole("button", { name: /^Select / })
         .first()
-        .click()
+        .element() as HTMLElement
+
+      hostWindow.arrive(demoInboxIds.done)
+      away.click()
 
       await expectStaysAbsent(
         { shown: () => !hostWindow.itemIds().includes(demoInboxIds.done), name: "a read" },
@@ -87,6 +90,22 @@ describe("The landing rule", () => {
       )
       await sidebarPanel("Inbox").click()
       await expect.element(inboxRow("Search index rebuilt")).toBeVisible()
+    })
+  })
+
+  context("when the person looks away from an ask before the dwell is over", () => {
+    it("lands it as any other, and it rings", async () => {
+      await open(storefront)
+      const away = terminalTab("Checkout review").element() as HTMLElement
+
+      hostWindow.arrive(demoInboxIds.preview)
+      away.click()
+
+      await expect.element(bell()).toHaveAccessibleName("Inbox, 1 waiting")
+      // Not quiet: it rings its toast after the grace a new item waits.
+      await expect
+        .poll(() => document.querySelectorAll(".toast").length, { timeout: 8_000 })
+        .toBe(1)
     })
   })
 

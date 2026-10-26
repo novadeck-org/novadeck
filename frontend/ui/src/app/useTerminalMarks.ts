@@ -5,9 +5,9 @@ import {
   type InboxItem,
   type TerminalAt,
 } from "@novadeck/core/inbox"
+import { inboxMarks, type InboxMarks } from "@novadeck/core/inbox-marks"
 import { useEffect, useState } from "react"
 
-import { inboxMarks, type InboxMarks } from "../terminals/inbox-marks"
 import { useStoreSelector } from "./controller/useStoreSelector"
 
 const sameItems = (a: readonly InboxItem[], b: readonly InboxItem[]): boolean =>

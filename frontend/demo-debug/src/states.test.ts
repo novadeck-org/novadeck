@@ -569,30 +569,6 @@ describe("demo states", () => {
       expect(new Set(calls.map((call) => call.verb))).toEqual(new Set(["ask", "finish"]))
     })
 
-    it("gives the second round of finishes murmur's gists, and the rest none", () => {
-      const { run, calls } = panel("04")
-      run("Fill the Inbox")
-      expect(
-        calls
-          .flatMap((call) => {
-            const gist = (call.args[1] as { gist?: string } | undefined)?.gist
-            return call.verb === "finish" && gist ? [[call.args[0], gist]] : []
-          })
-          .toSorted(),
-      ).toEqual([
-        ["completed", "Checkout totals round per line, tests pass"],
-        ["failed", "Test suite no longer compiles"],
-      ])
-      // The first round reads as it did before murmur: a finish without a gist.
-      expect(
-        calls.filter(
-          (call) =>
-            call.verb === "finish" &&
-            (call.args[1] as { gist?: unknown } | undefined)?.gist === undefined,
-        ),
-      ).not.toHaveLength(0)
-    })
-
     it("adds what it needs without selecting it, so every finish lands elsewhere", () => {
       const { run, onScreen, plus, added, actionContext } = panel("04", { keeping: 3 })
       run("Fill the Inbox")

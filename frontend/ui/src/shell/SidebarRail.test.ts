@@ -9,7 +9,7 @@ import { SidebarRail } from "./SidebarRail"
 const unmounts: (() => void)[] = []
 afterEach(() => unmounts.splice(0).forEach((unmount) => unmount()))
 
-const waiting: BellBadge = { count: 1, label: "Inbox, 1 waiting", status: "question" }
+const waiting: BellBadge = { count: 1, label: "Inbox, 1 waiting", status: "ask" }
 
 const rail = (badge: BellBadge | undefined, bellRings: number) =>
   createElement(SidebarRail, {

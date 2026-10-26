@@ -65,7 +65,7 @@ describe("The agents demo's Inbox", () => {
     await openWorkspace("/?demo=agents")
     const skip = page.getByRole("button", { name: "Skip for now" })
     if (await skip.query()) await skip.click()
-    await expect.poll(() => tabDescription("Checkout review") ?? "").toContain("Needs you")
+    await expect.poll(() => tabDescription("Checkout review") ?? "").toContain("Needs permission")
     await sidebarPanel("Inbox").click()
     await expect.element(row("Approve the plan?").first()).toBeVisible()
     await expect.element(row("Which approach should I take?")).toBeVisible()

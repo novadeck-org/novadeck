@@ -135,7 +135,6 @@ const rowsOf = (workspace: Workspace, marks: Marks): InboxTurn[] =>
             at: end.at,
             outcome: mark === "done" ? "completed" : "failed",
             reply: end.reply ?? null,
-            gist: end.gist ?? null,
             error: end.error ?? null,
             files: end.files ?? [],
           },

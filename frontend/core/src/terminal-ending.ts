@@ -1,4 +1,4 @@
-import { clockTime, waitingOf } from "./agent-waiting"
+import { clockTime, waitingOf, waitingText as waitingNote } from "./agent-waiting"
 import { isAgentProgram } from "./process"
 import type { TerminalMetadata } from "./types"
 
@@ -49,7 +49,7 @@ export const endingText = ({ status, reason }: TerminalEnding): string =>
 // unheard: whether it works or waits, nothing tells. A clean exit closes the terminal, so a
 // finished one reads as idle for the moment it remains.
 //
-// `done` is what the caller says is unseen and final: a report the agent made itself (its
+// `outcome` is what the caller says is unseen and final: a report the agent made itself (its
 // MCP `done` call) or a turn that stopped on an error, never a turn that merely ended. A
 // reply the person hasn't read leaves an idle agent idle, for its tab to brighten its
 // program. A dialog the agent waits on (`attention`) rests it too. A limit pauses an agent that stopped on one until it works again. What an agent
@@ -73,18 +73,18 @@ export const pausedUntil = (terminal: TerminalMetadata): number | undefined =>
 
 export const terminalPhase = (
   terminal: TerminalMetadata,
-  done = false,
+  outcome = false,
   now = Date.now(),
 ): TerminalPhase => {
   if (terminal.state === "exited" || terminal.state === "failed") return "ended"
   if (terminal.state === "starting") return "starting"
-  if (terminal.state !== "running") return done ? "done" : "idle"
+  if (terminal.state !== "running") return outcome ? "done" : "idle"
   if (!terminal.agent && isAgentProgram(terminal.process)) return "unheard"
   // A dialog it shows stops it: its harness keeps the turn open, but nothing works until the
   // person answers, so it rests as far as the glyph and the window's line say.
   if (terminal.agent && (!terminal.agent.working || terminal.agent.attention)) {
     if (pausedUntil(terminal) !== undefined) return "paused"
-    if (done) return "done"
+    if (outcome) return "done"
     return waitingOf(terminal, now) ? "waiting" : "idle"
   }
   return "running"
@@ -176,19 +176,115 @@ export const attentionText = (terminal: TerminalMetadata): string | undefined =>
   return waitingText(what, attention.count)
 }
 
+// The kind of dialog a need comes from: what the agent's harness shows, or the request an
+// Inbox item stands for.
+export type NeedDialog = "permission" | "question" | "plan"
+
+const dialogLead: Record<NeedDialog, string> = {
+  question: "Asks",
+  permission: "Needs permission",
+  plan: "Plan ready for review",
+}
+
+const dialogBare: Record<NeedDialog, string> = { ...dialogLead, question: "Asks a question" }
+
 // What a terminal needs, in words for its description, from whichever source decided its mark
-// (`terminalNeedMark`): the Inbox item's subject where the Inbox decided it and there is one
-// (as in "Asks: Where should feedback go?"), else what the live dialog says when the dialog
-// decided it (as in "Plan ready for review"), else the need alone. `inbox` is the Inbox's need,
-// not the mark.
+// (`terminalNeedMark`). The kind comes first and the subject of the Inbox's item after it
+// where there is one: "Needs permission: pnpm test …", "Plan ready for review: Checkout flow",
+// "Asks: Where should feedback go?", "Needs you: wrangler login" for an item that is no dialog
+// (a held message, a sign-in, a limit). The kind is the item's own (`dialog`) while the Inbox
+// decided the mark, so the words keep their kind from the dialog's first moment, before the
+// Inbox's row, to the row. With no subject: what the live dialog says when it decided the mark
+// (as in "Plan ready for review"), else the item's kind, else the need alone. `inbox` is the
+// Inbox's need, not the mark.
 export const needText = (
   terminal: TerminalMetadata,
   inbox: TerminalNeed | undefined,
   subject?: string,
+  dialog?: NeedDialog,
 ): string | undefined => {
   const need = terminalNeedMark(terminal, inbox)
   if (!need) return undefined
-  if (inbox === need && subject) return `${need === "ask" ? "Asks" : "Needs you"}: ${subject}`
+  const fromInbox = inbox === need
+  const kind = fromInbox ? dialog : undefined
+  if (fromInbox && subject) {
+    const lead = kind ? dialogLead[kind] : need === "ask" ? "Asks" : "Needs you"
+    return `${lead}: ${subject}`
+  }
   if (attentionNeed(terminal) === need) return attentionText(terminal)
+  if (kind) return dialogBare[kind]
   return need === "ask" ? "Asks a question" : "Needs you"
+}
+
+// What the Inbox says of one terminal, for its tab, its window and its project's status: the
+// need its items make, a done report it has not been looked at for, and the subject and the
+// dialog kind of the item that makes the need.
+export type NoteMarks = {
+  readonly need: TerminalNeed | undefined
+  readonly done: boolean
+  readonly subject?: string | undefined
+  readonly dialog?: NeedDialog | undefined
+}
+
+// How a terminal reads at a glance, once, for its tab, its window and its project's status, so
+// that they cannot drift apart.
+export type TerminalGlance = {
+  readonly phase: TerminalPhase
+  // The mark after the program: none for an ended terminal.
+  readonly need: TerminalNeed | undefined
+  // Its final outcome shows as a stopped turn rather than a report.
+  readonly failed: boolean
+  // A reply the person hasn't read, on an agent that rests: its program brightens.
+  readonly brightened: boolean
+}
+
+// `unread` is how the terminal's last turn ended while the person looked away, if it did.
+export const terminalGlance = (
+  terminal: TerminalMetadata,
+  marks: NoteMarks,
+  unread: "unread" | "failed" | undefined,
+  now = Date.now(),
+): TerminalGlance => {
+  const failed = unread === "failed"
+  const phase = terminalPhase(terminal, marks.done || failed, now)
+  return {
+    phase,
+    need: phase === "ended" ? undefined : terminalNeedMark(terminal, marks.need),
+    failed,
+    brightened: unread === "unread" && phase === "idle",
+  }
+}
+
+// The glance with its description, in words for assistive technology and the tab's tooltip:
+// what the terminal needs, then whichever of these describes it first: not reporting, paused at
+// its limit, waiting on something that wakes it, done, a reply unread. Undefined text when it
+// says nothing.
+export type TerminalNote = TerminalGlance & { readonly text: string | undefined }
+
+// The note of what has no terminal to read, as a window that runs no program.
+export const idleNote: TerminalNote = {
+  phase: "idle",
+  need: undefined,
+  failed: false,
+  brightened: false,
+  text: undefined,
+}
+
+export const terminalNote = (
+  terminal: TerminalMetadata,
+  marks: NoteMarks,
+  unread: "unread" | "failed" | undefined,
+  now = Date.now(),
+): TerminalNote => {
+  const glance = terminalGlance(terminal, marks, unread, now)
+  const { phase, failed, brightened } = glance
+  const text = joinNote([
+    needText(terminal, marks.need, marks.subject, marks.dialog),
+    unheardText(terminal) ??
+      (phase === "paused" ? pausedText(terminal, now) : undefined) ??
+      (phase === "waiting" ? waitingNote(terminal, now) : undefined) ??
+      (phase === "done" ? doneText(failed) : undefined) ??
+      (brightened ? "Reply unread" : undefined),
+  ])
+  return { ...glance, text: text || undefined }
 }

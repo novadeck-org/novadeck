@@ -240,12 +240,6 @@ export const contextOnly: AgentUsage = {
   effort: null,
 }
 
-// What murmur would say of each finish, in its words, for the app to show without it.
-export const murmurGists = {
-  done: "Checkout totals round per line, tests pass",
-  failed: "Test suite no longer compiles",
-} as const
-
 // The live terminals of every session of every project but the one the person views,
 // project by project in turn, so each kind of wait lands in several projects. An
 // unread finish marks only a terminal the person doesn't look at.

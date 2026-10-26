@@ -6,7 +6,6 @@ import { InboxToasts, type ToastBoard } from "../inbox/InboxToasts"
 import { anyAgentWorking } from "../projects/project-status"
 import { useDesktop } from "../shell/desktop"
 import { useWorkspaceServices, useWorkspaceState } from "./controller/context"
-import { landedInbox, revealItem } from "./inbox-landing"
 import { clickNotice, noticeBoard } from "./inbox-pings"
 import { watchInboxToasts } from "./inbox-toasts"
 
@@ -15,7 +14,7 @@ import { watchInboxToasts } from "./inbox-toasts"
 
 // Hears a click on a terminal's notification (see `clickNotice`).
 const NoticeClicks = (): null => {
-  const { backend, commands } = useWorkspaceServices()
+  const { backend, commands, landing } = useWorkspaceServices()
   const opener = useInboxOpener()
   const { showInbox, reveal } = commands
   useEffect(
@@ -30,12 +29,12 @@ const NoticeClicks = (): null => {
             open: (id) => opener?.((items) => items.find((item) => item.id === id)),
             showInbox,
             reveal,
-            land: (id) => revealItem(backend.inbox, id),
+            land: landing.reveal,
           },
           noticeBoard(backend.notices)?.itemOf(terminalId),
         ),
       ),
-    [backend, opener, showInbox, reveal],
+    [backend, landing, opener, showInbox, reveal],
   )
   return null
 }
@@ -51,9 +50,9 @@ export const InboxHost = ({
   readonly active: boolean
   readonly children: ReactNode
 }): React.JSX.Element => {
-  const { backend, commands, ui, workspace } = useWorkspaceServices()
+  const { backend, commands, landing, ui } = useWorkspaceServices()
   const desktop = useDesktop()
-  const inbox = landedInbox(backend.inbox, workspace, ui)
+  const { inbox } = landing
   // Whether an agent is at work in any project, for the empty Inbox to say.
   const working = useWorkspaceState((state) => anyAgentWorking(state.projects))
   const { hideSidebar, toggleSidebar, reveal, showInbox } = commands

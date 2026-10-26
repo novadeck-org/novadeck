@@ -48,7 +48,7 @@ export const WorkspaceTab = memo(
     const unread = useUiState((state) => unreadEnd(state.unread, context, id))
     // What the raw Inbox says of it: a need, and a done report unseen. Not the landing rule's
     // Inbox, which hides rows from its list, never from the marks.
-    const { need, done, subject } = useTerminalMarks(backend.inbox, {
+    const { need, done, subject, dialog } = useTerminalMarks(backend.inbox, {
       ...target,
       terminalId: id,
     })
@@ -88,6 +88,7 @@ export const WorkspaceTab = memo(
         unread={unread}
         need={need}
         needSubject={subject}
+        needDialog={dialog}
         reported={done}
         rename={rename}
         mail={badge}

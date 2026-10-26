@@ -7,7 +7,6 @@ import { useMemo } from "react"
 
 import { useInboxOpener } from "../inbox/InboxProvider"
 import { useWorkspaceServices } from "./controller/context"
-import { revealItem } from "./inbox-landing"
 
 // The session's terminals as messages show them, a new value only when one of them shows
 // differently, for the views that draw them to subscribe to.
@@ -26,7 +25,7 @@ const peersOf = (workspace: WorkspaceStore): Store<Readonly<Record<string, MailP
 // What a terminal's Messages pane knows of the session around it: the other terminals by
 // handle, a way to each, and Answer on a letter, which opens the Inbox on its item.
 export const useMailLinks = (): MailLinks => {
-  const { commands, workspace, backend } = useWorkspaceServices()
+  const { commands, workspace, backend, landing } = useWorkspaceServices()
   const openInbox = useInboxOpener()
   const peers = useMemo(() => peersOf(workspace), [workspace])
   return useMemo(
@@ -37,11 +36,11 @@ export const useMailLinks = (): MailLinks => {
         // The ask may be held back from the Inbox because this terminal is in view: asking
         // to answer it lands it.
         const held = letterItem(backend.inbox?.state.getSnapshot().items ?? [], letter)
-        if (held) revealItem(backend.inbox, held.id)
+        if (held) landing.reveal(held.id)
         commands.showInbox()
         openInbox?.((items) => letterItem(items, letter))
       },
     }),
-    [peers, commands, openInbox, backend],
+    [peers, commands, openInbox, backend, landing],
   )
 }

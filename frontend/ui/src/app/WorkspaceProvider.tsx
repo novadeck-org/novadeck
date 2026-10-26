@@ -20,7 +20,7 @@ import { connectBackend } from "./controller/backend-connection"
 import { WorkspaceServicesContext, type WorkspaceServices } from "./controller/context"
 import { domEffects } from "./controller/effects"
 import { dialogDepthOf, useRouteSync } from "./controller/useRouteSync"
-import { landedInbox } from "./inbox-landing"
+import { landInbox, noLanding } from "./inbox-landing"
 import { noticeBoard, watchBellRings, watchInboxPings } from "./inbox-pings"
 import { nameFinished, watchFinishes } from "./murmur-offer"
 import { watchPageFocus } from "./page-focus"
@@ -81,6 +81,7 @@ const createServices = (
   const canvas = createRef<CanvasHandle>()
   const itemStore =
     backend.companions && createItemStore({ companions: backend.companions, workspace })
+  const landing = backend.inbox ? landInbox(backend.inbox, workspace, ui) : noLanding
   const commands = createWorkspaceCommands({
     workspace,
     ui,
@@ -107,6 +108,7 @@ const createServices = (
       commands,
       canvas,
       itemStore,
+      landing,
       drag: createDragSession(),
     },
     sync: { workspace, ui, now, panels, bind, settle },
@@ -163,8 +165,10 @@ export const WorkspaceProvider = ({
   useEffect(() => watchClosing(services.workspace, services.ui), [services])
   useEffect(() => watchChat(services.chat, services.workspace), [services])
   useEffect(() => watchPageFocus(services.ui, window, services.backend.windowFocus), [services])
+  // Before the watchers below and the Inbox's own, which read the landed Inbox.
+  useEffect(() => services.landing.start(), [services])
   useEffect(() => {
-    const { backend, workspace, ui } = services
+    const { backend, workspace, ui, landing } = services
     const board = noticeBoard(backend.notices)
     const stops = [watchFinishes(workspace, nameFinished(services))]
     if (backend.inbox)
@@ -174,10 +178,10 @@ export const WorkspaceProvider = ({
           clear: board && ((terminalId) => board.close("finish", terminalId)),
         }),
       )
-    if (backend.inbox) stops.push(watchBellRings(landedInbox(backend.inbox, workspace, ui), ui))
+    if (backend.inbox) stops.push(watchBellRings(landing.inbox, ui))
     if (backend.inbox && (board || backend.badge))
       stops.push(
-        watchInboxPings(landedInbox(backend.inbox, workspace, ui), ui, {
+        watchInboxPings(landing.inbox, ui, {
           board,
           badge: backend.badge,
         }),
