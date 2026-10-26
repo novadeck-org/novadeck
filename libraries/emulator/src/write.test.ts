@@ -12,8 +12,8 @@ import { writeTo } from "./write.js"
 // A chunk whose parsing throws used to leave xterm's write queue stalled: its callback never
 // ran and no later write was parsed, so a screen waiting on it never drew again. The patch
 // skips the chunk, hands its callback the error and throws it again on its own, as xterm does
-// for an async handler's. The runner's headless screens take the same patch: a host screen
-// stalled so stops sending output to every view.
+// for an async handler's. The runner's headless screens take the patch too, without throwing it
+// again: in Node that is an uncaught exception, which would end the runner and every shell in it.
 const require = createRequire(import.meta.url)
 const bundles = [
   ["@xterm/xterm", "xterm.js"],
@@ -29,7 +29,11 @@ describe("a write whose parsing throws", () => {
     const source = readFileSync(join(dirname(require.resolve(name)), bundle), "utf8")
     const start = source.indexOf("_innerWrite(e=0,")
     const body = source.slice(start, source.indexOf("setTimeout", start))
-    expect(body).toMatch(/try\{\w+=this\._action\(\w+,\w+\)\}catch\((\w+)\)\{queueMicrotask/)
+    expect(body).toMatch(
+      name === "@xterm/headless"
+        ? /try\{\w+=this\._action\(\w+,\w+\)\}catch\((\w+)\)\{(const|let) \w+=this\._callbacks/
+        : /try\{\w+=this\._action\(\w+,\w+\)\}catch\((\w+)\)\{queueMicrotask/,
+    )
     expect(body).toMatch(
       /\w+&&\w+\(\w+\),this\._bufferOffset\+\+,this\._pendingData-=\w+\.length;continue\}/,
     )
@@ -60,7 +64,7 @@ describe("a write whose parsing throws", () => {
     terminal.dispose()
   })
 
-  it("is skipped by a headless terminal, which goes on with the next", async () => {
+  it("is skipped by a headless terminal, which goes on with the next and throws nothing", async () => {
     const thrown: unknown[] = []
     vi.stubGlobal("queueMicrotask", (task: () => void) => {
       try {
@@ -81,7 +85,7 @@ describe("a write whose parsing throws", () => {
     expect(await written("\x1b[z")).toBe(broken)
     expect(await written("\x18after")).toBeUndefined()
     expect(terminal.buffer.active.getLine(0)?.translateToString(true)).toBe("after")
-    expect(thrown).toEqual([broken])
+    expect(thrown).toEqual([])
     terminal.dispose()
   })
 })

@@ -113,8 +113,9 @@ release fixes what it fixes.
   queued and its callback uncalled, and as the queue never emptied no write was parsed again: a
   screen waiting on one stayed on "Loading output…" for good. `writeTo` (`src/write.ts`) rejects
   with the error, and the terminal library's view then draws the host's screen afresh, as the parser
-  may be left mid-sequence. On the runner, a headless screen stalled so stopped sending output to
-  every view; it now goes on. Upstream has the same loop; drop the patch on an upgrade that catches
+  may be left mid-sequence. The headless bundles skip the chunk the same way but don't throw it
+  again: in the runner, as in any Node process, that is an uncaught exception, which ends it and
+  every shell in it. Upstream has the same loop; drop the patch on an upgrade that catches
   there. `src/write.test.ts` pins it in all four bundles.
 - `@xterm/xterm` 6.0.0 and `@xterm/headless` 6.0.0, in each package's two bundles: an empty buffer
   takes the line limit of its size (`_getCorrectBufferLength(this._rows)`) in `fillViewportRows`
