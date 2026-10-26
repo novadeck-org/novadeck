@@ -76,6 +76,22 @@ describe("the marks the raw Inbox makes", () => {
     expect(inboxMarks([ask({ type: "text" })], at, now).dialog).toBeUndefined()
   })
 
+  it("reads a settled ask as nothing, beside an open one it is not the subject", () => {
+    const settled = item(
+      { kind: "ask", ask: { subject: "Old", shape: { type: "text" } } },
+      { settled: { how: "dismissed", at: now } },
+    )
+    expect(inboxMarks([settled], at, now)).toEqual({
+      need: undefined,
+      subject: undefined,
+      dialog: undefined,
+    })
+    expect(inboxMarks([settled, ask({ type: "text" })], at, now)).toMatchObject({
+      need: "ask",
+      subject: "Which?",
+    })
+  })
+
   it("reads another terminal's items as nothing", () => {
     const mine = item({ kind: "ask", ask: { subject: "S", shape: { type: "text" } } })
     const other = { ...mine, source: { ...mine.source, terminalId: "02" } }

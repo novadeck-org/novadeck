@@ -191,6 +191,20 @@ describe("ordered", () => {
     expect(ordered(items).map((each) => each.id)).toEqual(["trouble", "early", "late", "update"])
   })
 
+  it("puts settled asks after everything, the latest settled first", () => {
+    const settled = (id: string, at: number) => ({
+      ...item(id, ask, true, 1),
+      settled: { how: "dismissed" as const, at },
+    })
+    const items = [
+      settled("s1", 100),
+      item("update", told, false, 1),
+      settled("s2", 200),
+      item("trouble", failed, true, 30),
+    ]
+    expect(ordered(items).map((each) => each.id)).toEqual(["trouble", "update", "s2", "s1"])
+  })
+
   it("leaves its input as it was", () => {
     const items = [item("b", told, false, 2), item("a", failed, true, 1)]
     ordered(items)

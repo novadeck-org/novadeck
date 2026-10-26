@@ -1345,6 +1345,12 @@ export class Terminals {
   readTells(ids: readonly string[]): void {
     this.inbox.read(ids)
   }
+  dismissAsk(id: string): void {
+    this.inbox.dismiss(id)
+  }
+  clearAsks(ids: readonly string[]): void {
+    this.inbox.clear(ids)
+  }
 
   /** A terminal's threads and messages with their states. */
   messages(terminalId: string): TerminalMessages {

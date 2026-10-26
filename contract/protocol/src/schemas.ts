@@ -1041,7 +1041,9 @@ export const agentMessage = z.strictObject({
   deliveredAt: z.number().nullable(),
   // Only the runner creates Inbox history and responses. Ordinary agent messages have none.
   inbox: z.enum(["ask", "tell", "done", "answer"]).optional(),
-  inboxState: z.enum(["open", "answered", "read", "withdrawn", "gone", "undelivered"]).optional(),
+  inboxState: z
+    .enum(["open", "answered", "read", "withdrawn", "dismissed", "gone", "undelivered"])
+    .optional(),
 })
 
 // A thread between a terminal and one other: the other's handle, how many messages it

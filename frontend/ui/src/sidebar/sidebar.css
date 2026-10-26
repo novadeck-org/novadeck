@@ -15,8 +15,10 @@
     visibility var(--motion-view);
 }
 
+/* It stays on one line beside the title, however many actions share the header. */
 .sidebar-panel-count {
   letter-spacing: normal;
+  white-space: nowrap;
 }
 /* A count with nothing to say, such as the Inbox's while nothing waits, takes no room. */
 .sidebar-panel-count:empty {

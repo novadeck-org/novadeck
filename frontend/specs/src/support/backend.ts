@@ -277,7 +277,13 @@ export const hostWindow = {
   /** The ids of the items the page's backend Inbox holds, whether or not it lists them (the
    * first host is the page's: StrictMode's second is dropped and never answered). */
   itemIds: (): string[] => hosts[0]?.inbox?.state.getSnapshot().items.map((item) => item.id) ?? [],
-  /** An ask leaves the Inbox, withdrawn by its agent. */
+  /** The ids of the asks the page's backend Inbox holds settled (dismissed, withdrawn or replied). */
+  settledIds: (): string[] =>
+    hosts[0]?.inbox?.state
+      .getSnapshot()
+      .items.filter((item) => item.settled)
+      .map((item) => item.id) ?? [],
+  /** An ask is settled as withdrawn by its agent, and stays listed. */
   withdraw: (id: string): void =>
     hosts.forEach((each) =>
       isDemoInbox(each.inbox) ? each.inbox.resolve(id, "withdrawn") : undefined,

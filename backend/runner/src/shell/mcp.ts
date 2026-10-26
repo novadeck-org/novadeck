@@ -641,7 +641,8 @@ const ask: Tool<{ readonly id: string; readonly withdrawn?: boolean }> = {
     "withdraw with its id; withdraw it too once the user answers it another way. An ask also " +
     "clears when answered, when the user writes to you in this terminal (Novadeck tells you " +
     "then, so ask again only what their message leaves open), or when your agent session " +
-    "ends. Agents' messages never count as the " +
+    "ends. The user can also dismiss an ask in their Inbox, and Novadeck tells you when they do; " +
+    "that is no answer. Agents' messages never count as the " +
     "user's answer.",
   inputSchema: {
     type: "object",

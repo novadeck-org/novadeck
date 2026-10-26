@@ -503,6 +503,75 @@ describe("Marking updates read", () => {
   })
 })
 
+describe("Dismissing an ask", () => {
+  const dismissButton = (subject: string) =>
+    page.getByRole("button", { name: new RegExp(`^Dismiss: .*${subject}`) })
+
+  it("settles the row in place: it counts no more, stays struck through, and opens nothing", async () => {
+    await openInbox()
+    await lookAway()
+    await expect.element(rows()).toHaveLength(settledRows)
+
+    // The agent's own asks have it; a permission prompt, which blocks the agent, does not.
+    await rows().filter({ hasText: "webhooks" }).hover()
+    await expect.element(dismissButton("webhooks")).toBeVisible()
+    await expect
+      .element(page.getByRole("button", { name: /^Dismiss: .*pnpm add/ }))
+      .not.toBeInTheDocument()
+    await dismissButton("webhooks").click()
+
+    await expect.element(rows()).toHaveLength(settledRows)
+    await expect.element(sidebarPanel("Inbox")).toHaveAccessibleName("Inbox, 11 waiting")
+    const settled = rows().filter({ hasText: "webhooks" })
+    await expect.element(settled).toMatchTextContent("Dismissed")
+    await expect.element(settled).toHaveAttribute("data-settled", "dismissed")
+    await expect.element(dismissButton("webhooks")).not.toBeInTheDocument()
+    await row("webhooks").click({ force: true })
+    await expect.element(page.getByRole("dialog")).not.toBeInTheDocument()
+  })
+
+  it("dismisses on Delete, with the keyboard on to the next row", async () => {
+    await openInbox()
+    await lookAway()
+    await expect.element(rows()).toHaveLength(settledRows)
+    row("vercel login").element().focus()
+    await userEvent.keyboard("{Delete}")
+
+    await expect
+      .element(rows().filter({ hasText: "vercel login" }))
+      .toHaveAttribute("data-settled", "dismissed")
+    expect(document.activeElement?.classList.contains("inbox-row-select")).toBe(true)
+    expect(document.activeElement).not.toBe(row("vercel login").element())
+    await expect.element(sidebarPanel("Inbox")).toHaveAccessibleName("Inbox, 11 waiting")
+  })
+
+  it("goes below the updates when the panel is opened again, and Clear removes it", async () => {
+    await openInbox()
+    await lookAway()
+    await expect.element(rows()).toHaveLength(settledRows)
+    await rows().filter({ hasText: "webhooks" }).hover()
+    await dismissButton("webhooks").click()
+    const order = (): string[] =>
+      Array.from(document.querySelectorAll("[data-inbox-row]")).map(
+        (each) => each.textContent ?? "",
+      )
+    expect(order().findIndex((each) => each.includes("webhooks"))).toBeLessThan(settledRows - 1)
+
+    await sidebarPanel("Terminals").click()
+    await sidebarPanel("Inbox").click()
+    await expect
+      .poll(() => order().findIndex((each) => each.includes("webhooks")))
+      .toBe(settledRows - 1)
+    await expect.element(rows().last()).toHaveAttribute("data-settled-start", "true")
+
+    await page.getByRole("button", { name: "Clear settled" }).click()
+    await expect.element(rows()).toHaveLength(settledRows - 1)
+    await expect
+      .element(page.getByRole("button", { name: "Clear settled" }))
+      .not.toBeInTheDocument()
+  })
+})
+
 describe("The Inbox on a phone", () => {
   afterEach(async () => {
     await page.viewport(1440, 900)
