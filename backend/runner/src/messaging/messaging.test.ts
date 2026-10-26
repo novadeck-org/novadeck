@@ -3239,6 +3239,7 @@ describe("the person's prompt, told to the asks", () => {
     person: Person,
     reported?: HarnessEvent[],
     deadline?: number,
+    words = "let's talk it over",
   ) => {
     const { bound } = run
     let events: HarnessEvent[]
@@ -3258,7 +3259,7 @@ describe("the person's prompt, told to the asks", () => {
                 ringing: undefined,
                 startedWith: undefined,
               },
-              () => Promise.resolve({ text: "let's talk it over", at: null, id: 2 }),
+              () => Promise.resolve({ text: words, at: null, id: 2 }),
               { waitMs: 2, gapMs: 1 },
             )
           : { events: [harnessTurn] }
@@ -3266,7 +3267,7 @@ describe("the person's prompt, told to the asks", () => {
     } else
       events =
         cause === "prompt"
-          ? [{ ...started(bound, "prompt"), prompt: "let's talk it over" } as HarnessEvent]
+          ? [{ ...started(bound, "prompt"), prompt: words } as HarnessEvent]
           : cause === "doorbell"
             ? [doorbellStarted(bound, "n1")]
             : [started(bound, "harness")]
@@ -3402,26 +3403,81 @@ describe("the person's prompt, told to the asks", () => {
     },
   )
 
+  // The turns of a run, each after the last one's Stop, the person's Enter before it. Whether the
+  // asks were withdrawn with the turn's answer.
+  const turn = async (run: Run, told: ReturnType<typeof who>, words: string) => {
+    run.stop(run.terminal, run.bound)
+    run.clock.now += 1_000
+    run.messaging.keys(run.terminal, ["enter"], false)
+    const answer = await start(run, "prompt", told.person, undefined, undefined, words)
+    return answer.stdout?.includes(notice) === true
+  }
+
   it.each(harnessesTold)(
-    "spends $name's mark on the person's next turn, whatever its words, and not on a doorbell's or the harness's",
+    "exempts each of two fixed lines sent to $name, whichever turn comes first",
     async ({ agent }) => {
       const run = setup(agent)
       const told = who()
       run.messaging.keys(run.terminal, ["enter"], false)
+      await start(run, "prompt", told.person)
       run.messaging.automatic(run.terminal, "continue")
-      // A turn the harness started leaves the mark for the line still to come.
+      run.messaging.automatic(run.terminal, "continue")
+      // Each line's own turn spends one mark; a third is the person's.
+      expect(await turn(run, told, "continue")).toBe(false)
+      expect(await turn(run, told, "continue")).toBe(false)
+      expect(await turn(run, told, "continue")).toBe(true)
+    },
+  )
+
+  it.each(harnessesTold)(
+    "keeps $name's marks for the lines still to come when the person's own turn comes first",
+    async ({ agent }) => {
+      const run = setup(agent)
+      const told = who()
+      run.messaging.keys(run.terminal, ["enter"], false)
+      await start(run, "prompt", told.person)
+      run.messaging.automatic(run.terminal, "continue")
+      run.messaging.automatic(run.terminal, "fix the build")
+      // Their words start first and spend no mark; a harness turn leaves them too.
+      expect(await turn(run, told, "blue, please")).toBe(true)
+      run.stop(run.terminal, run.bound)
       await start(run, "harness", told.person)
-      run.stop(run.terminal, run.bound)
-      // Their own words come first: theirs, and the mark is gone.
+      expect(await turn(run, told, "fix the build")).toBe(false)
+      expect(await turn(run, told, "continue")).toBe(false)
+      expect(await turn(run, told, "continue")).toBe(true)
+    },
+  )
+
+  it.each(harnessesTold)(
+    "exempts a turn of $name's that folds fixed lines queued together, in the order they were marked",
+    async ({ agent }) => {
+      const run = setup(agent)
+      const told = who()
       run.messaging.keys(run.terminal, ["enter"], false)
-      expect((await start(run, "prompt", told.person)).stdout).toContain(notice)
-      run.stop(run.terminal, run.bound)
+      await start(run, "prompt", told.person)
+      run.messaging.automatic(run.terminal, "fix the build")
+      run.messaging.automatic(run.terminal, "continue")
+      // Folded with words of the person's, or out of order, it is not entirely theirs to exempt.
+      expect(await turn(run, told, "continue\nfix the build")).toBe(true)
+      expect(await turn(run, told, "fix the build\nblue, please")).toBe(true)
+      expect(await turn(run, told, "fix the build\r\ncontinue")).toBe(false)
+      // Both were spent by the fold.
+      expect(await turn(run, told, "continue")).toBe(true)
+    },
+  )
+
+  it.each(harnessesTold)(
+    "removes one of $name's marks when one send failed, and the others stay",
+    async ({ agent }) => {
+      const run = setup(agent)
+      const told = who()
       run.messaging.keys(run.terminal, ["enter"], false)
-      told.withdraw.mockClear()
-      // The same words as the mark's now are theirs too: it was spent.
-      run.messaging.automatic(run.terminal, "x")
-      run.messaging.automaticFailed(run.terminal, "x")
-      expect((await start(run, "prompt", told.person)).stdout).toContain(notice)
+      await start(run, "prompt", told.person)
+      run.messaging.automatic(run.terminal, "continue")
+      run.messaging.automatic(run.terminal, "continue")
+      run.messaging.automaticFailed(run.terminal, "continue")
+      expect(await turn(run, told, "continue")).toBe(false)
+      expect(await turn(run, told, "continue")).toBe(true)
     },
   )
 

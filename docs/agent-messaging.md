@@ -497,11 +497,15 @@ Antigravity's) counts from their queuing Enter, not the turn's start, so an ask 
 at that turn's end is not taken for answered; if that time is unknown nothing is withdrawn. A
 fixed line an Inbox button sends ("continue") is the runner's `agents.prompt` with
 `automatic`: delivery still takes the turn as theirs, but it withdraws nothing and says
-nothing to the agent. The mark is the line's text as the prompt is sent (line ends as `\n`,
-trimmed) and lasts however long the line waits behind a running turn: it is spent by the
-next turn of the person's own (that line's, which it exempts, or any other words), and
-cleared when the send fails (refused, `PROMPT_FAILED`, `BOX_NOT_CLEARED`, any error) or the
-session ends or another binds. The person's own "Write your own" nudge is not marked. Words the person writes themselves, a nudge of their own from a
+nothing to the agent. Each send is its own mark, the line's text as the prompt is sent (line ends as `\n`,
+trimmed), kept in order for the terminal however long the line waits behind a running turn
+and whatever turns of the person's come first. A turn whose words are one marked line, or
+several marked lines in the order they were marked joined by line breaks (a harness may
+fold lines queued close together), is exempt and spends those marks; the person's own words
+spend none and withdraw as usual. A failed send (refused, `PROMPT_FAILED`,
+`BOX_NOT_CLEARED`, any error) removes one mark of its text, and the session ending or
+another binding clears them all. The demo keeps marks the same way, an interrupt that gives
+queued lines back included. The person's own "Write your own" nudge is not marked. Words the person writes themselves, a nudge of their own from a
 stuck agent's sheet or an answer to a harness request sent on as the next prompt, are theirs,
 and do withdraw.
 

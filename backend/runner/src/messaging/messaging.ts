@@ -132,10 +132,11 @@ type Live = Scope & {
    */
   withdrawing: { readonly submittedAt: number; readonly epoch: number } | null
   /**
-   * The fixed line an Inbox button sent, as the prompt reads once sent (see `sentText`), until
-   * the next turn of the person's own, which spends it, or its send fails.
+   * The fixed lines Inbox buttons sent, as the prompt reads once sent (see `sentText`), each
+   * until the turn of the person's that carries it spends it, or its send fails. One entry
+   * for each send, oldest first.
    */
-  automatic: string | null
+  automatic: string[]
   /** When the person's last key came; the doorbell's screen look before it is stale. */
   keyedAt: number
   /** Why the doorbell last found the idle agent unringable, from its screen; null if not. */
@@ -556,7 +557,7 @@ export class Messaging {
       escapeTold: null,
       lapsed: false,
       prompt: null,
-      automatic: null,
+      automatic: [],
       withdrawing: null,
       keyedAt: 0,
       waits: null,
@@ -921,19 +922,50 @@ export class Messaging {
 
   /**
    * Marks `text` as a fixed line an Inbox button is about to send the terminal's agent: the
-   * turn it starts is the person's to delivery, but takes no open ask out of the Inbox. The
-   * mark lasts until the person's next turn, however long the line waits behind a running
-   * one, and ends with its send failing (`automaticFailed`) or the session.
+   * turn it starts is the person's to delivery, but takes no open ask out of the Inbox. Each
+   * send is its own entry, kept however long the line waits behind a running turn or the
+   * person's own turns that come first, until a turn whose words are the line's (alone, or
+   * folded with other marked lines) spends it, its send fails (`automaticFailed`, which
+   * removes one entry) or the session ends.
    */
   automatic(terminalId: string, text: string): void {
-    const live = this.live.get(terminalId)
-    if (live) live.automatic = sentText(text)
+    this.live.get(terminalId)?.automatic.push(sentText(text))
   }
 
   /** The send of a fixed line marked `automatic` failed: no turn will come of it. */
   automaticFailed(terminalId: string, text: string): void {
-    const live = this.live.get(terminalId)
-    if (live?.automatic === sentText(text)) live.automatic = null
+    const marks = this.live.get(terminalId)?.automatic
+    const at = marks?.indexOf(sentText(text)) ?? -1
+    if (at >= 0) marks!.splice(at, 1)
+  }
+
+  /**
+   * Spends the marks `text` is made of, if it is entirely marked: one line, or several in
+   * the order they were marked, joined by line breaks, as a harness folds lines queued close
+   * together into one prompt. Whether it was; nothing is spent otherwise.
+   */
+  private spendAutomatic(live: Live, text: string): boolean {
+    const marks = live.automatic
+    const prompt = sentText(text)
+    const one = marks.indexOf(prompt)
+    if (one >= 0) {
+      marks.splice(one, 1)
+      return true
+    }
+    const taken: number[] = []
+    let rest = prompt
+    let from = 0
+    while (rest !== "") {
+      const next = marks.findIndex(
+        (mark, at) => at >= from && (rest === mark || rest.startsWith(`${mark}\n`)),
+      )
+      if (next < 0) return false
+      taken.push(next)
+      rest = rest.slice(marks[next]!.length + 1)
+      from = next + 1
+    }
+    for (const at of taken.toReversed()) marks.splice(at, 1)
+    return taken.length > 0
   }
 
   /**
@@ -950,7 +982,7 @@ export class Messaging {
     events: readonly HarnessEvent[],
     person: Person | undefined,
   ): void {
-    const { delivery, prompt, automatic } = live
+    const { delivery, prompt } = live
     if (!person || delivery.epoch === before.epoch || !delivery.byPerson || !running(delivery))
       return undefined
     const start = events.find(
@@ -959,9 +991,9 @@ export class Messaging {
     )
     if (!start) return
     const text = prompt?.epoch === delivery.epoch ? prompt.text : undefined
-    // The mark is spent by the person's next turn, theirs or the line's own.
-    live.automatic = null
-    if (automatic !== null && text !== undefined && sentText(text) === automatic) return
+    // A turn of Inbox lines alone spends their marks and withdraws nothing; the person's own
+    // words spend none, and wait for the lines still to come.
+    if (text !== undefined && this.spendAutomatic(live, text)) return
     // A queued prompt's time unknown: nothing says which asks it came after.
     if (before.queuedAt === null) return
     const submittedAt = Math.min(start.startedAt, before.queuedAt ?? start.startedAt)
@@ -2324,7 +2356,7 @@ export class Messaging {
         if (!live.root) continue
         live.root = null
         live.withdrawing = null
-        live.automatic = null
+        live.automatic = []
         this.loops.reset(live.terminalId)
         // A session already shown at its prompt in its place keeps the state it gave.
         if (!live.shown) this.step(live, { type: "unbound" })
@@ -2360,7 +2392,7 @@ export class Messaging {
   ): void {
     live.root = root
     live.withdrawing = null
-    live.automatic = null
+    live.automatic = []
     this.loops.reset(live.terminalId)
     // Its first session came: from now on, only a bound session takes messages.
     live.expecting = null
