@@ -74,6 +74,8 @@ const setup = ({
       appearance,
       notifyNeeds,
       notifyFinished,
+      sound: true,
+      soundVolume: 0.6,
       ligatures: false,
       chatView: false,
     },

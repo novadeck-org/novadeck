@@ -128,7 +128,7 @@ import {
   UpdateRejected,
 } from "./mac-update.js"
 import { linuxMenu, macMenu } from "./menu.js"
-import { notificationText, registerNoticeIpc, showNotices } from "./notices.js"
+import { notificationOptions, registerNoticeIpc, showNotices } from "./notices.js"
 import { limitPermissions, ownPage } from "./permissions.js"
 import {
   installedEnvironment,
@@ -140,6 +140,7 @@ import {
   type PlatformInstall,
   startAppImage,
 } from "./portable.js"
+import { ntdllQuery, platformQuiet, registerQuietIpc, windowsProbe } from "./quiet.js"
 import { quitOnShutdown, saveBeforeClose, saveOnSessionEnd, savePages } from "./quit.js"
 import { startRunner, type RunnerEvents, type RunnerHost } from "./runner.js"
 import { registerSandboxIpc, sandboxState } from "./sandbox.js"
@@ -1439,7 +1440,7 @@ const launch = async (): Promise<void> => {
   // the window to the front and tells its page which terminal to show.
   const notices = showNotices({
     supported: Notification.isSupported(),
-    create: (notice) => new Notification(notificationText(notice, process.platform)),
+    create: (notice) => new Notification(notificationOptions(notice, process.platform)),
     clicked: (window: BrowserWindow, id) => {
       if (window.isDestroyed()) return
       if (window.isMinimized()) window.restore()
@@ -1473,6 +1474,19 @@ const launch = async (): Promise<void> => {
     },
     close: notices.close,
   })
+  // The page asks whether the system holds notifications back before it plays its sound. The
+  // system's programs are asked in the environment they expect, outside an AppImage's mount.
+  const systemQuiet = platformQuiet(
+    process.platform,
+    installedEnvironment(process.env, appImageMounts()),
+    undefined,
+    windowsProbe(ntdllQuery(), (error) =>
+      warnings("quiet")("Focus Assist could not be read", error),
+    ),
+  )
+  registerQuietIpc(ipcMain, { window: appWindow, quiet: systemQuiet.quiet })
+  // Asked once now, so the first ring is not answered by the default.
+  systemQuiet.warm()
   // The page's Inbox count on the app's icon: the dock or launcher badge, or on Windows
   // the taskbar overlay.
   registerBadgeIpc(ipcMain, {

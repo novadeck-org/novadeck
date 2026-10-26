@@ -4,7 +4,8 @@
    set by the bell's data-project-status. It sits in the button's corner, clear of the icon's
    strokes, so it needs no cut-out edge (one wouldn't match a textured rail). Its
    `.bell-dot-ring`, which BellDot mounts afresh for each new item the bell rings for, rings
-   out twice; not at all with reduced motion. Forced colours: see accessibility.css. */
+   out twice and is dropped once played; not at all with reduced motion. Forced colours: see
+   accessibility.css. */
 .bell-dot {
   position: absolute;
   top: 4px;

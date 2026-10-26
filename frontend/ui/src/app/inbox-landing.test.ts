@@ -74,6 +74,8 @@ const setup = (initiallyWide = true) => {
         notifyFinished: true,
         ligatures: false,
         chatView: false,
+        sound: true,
+        soundVolume: 0.6,
       },
     }),
   )

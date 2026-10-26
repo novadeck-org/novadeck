@@ -4,9 +4,12 @@ productName: Novadeck
 # which builder names after it. The product name is what menus, the Dock and helpers show.
 executableName: novadeck
 asar: true
-# PTY libraries and their spawn helpers must run from the real filesystem.
+# PTY libraries and their spawn helpers must run from the real filesystem, as must koffi
+# (the Windows build's call into the system library) and its binary package.
 asarUnpack:
   - node_modules/node-pty/**
+  - node_modules/koffi/**
+  - node_modules/@koromix/**
 # node-pty ships N-API prebuilds for every target, which Electron loads unchanged.
 # Rebuilding from source would shadow them without the bundled ConPTY files.
 npmRebuild: false
@@ -88,11 +91,19 @@ mac:
     NSDownloadsFolderUsageDescription: A program running in Novadeck wants to use files in your Downloads folder.
     NSRemovableVolumesUsageDescription: A program running in Novadeck wants to use files on a removable volume.
     NSNetworkVolumesUsageDescription: A program running in Novadeck wants to use files on a network volume.
+  # Novadeck's notification sound, copied from the page's own file: macOS plays a
+  # notification's sound from the app's resources by name, and mutes it under Focus, which
+  # the page cannot see. See `notificationOptions` in src/main/notices.ts.
+  extraResources:
+    - from: ../../frontend/ui/src/app/ding.wav
+      to: ding.wav
   # Only this platform's PTY binaries: signing would otherwise reach the Linux and Windows
   # prebuilds, which codesign cannot sign as code.
   files:
     - "!node_modules/node-pty/prebuilds/{linux,win32}-*{,/**}"
     - "!node_modules/node-pty/third_party{,/**}"
+    # koffi is loaded on Windows only, so no other build carries it or its binaries.
+    - "!node_modules/{koffi,@koromix}{,/**}"
   # Signed with the Developer ID certificate in the keychain and notarized with the App
   # Store Connect key in APPLE_API_KEY*, when the release workflow has them; without a
   # certificate the app is left unsigned. See docs/release-signing.md.
@@ -126,6 +137,9 @@ win:
     - "!node_modules/node-pty/prebuilds/{darwin,linux}-*{,/**}"
     - "!node_modules/node-pty/prebuilds/win32-arm64{,/**}"
     - "!node_modules/node-pty/third_party{,/**}"
+    # Only koffi's x64 binary, for the same reason; its package holds one per platform.
+    - "!node_modules/@koromix/koffi-{android,darwin,freebsd,linux,openbsd}-*{,/**}"
+    - "!node_modules/@koromix/koffi-win32-{ia32,arm64}{,/**}"
   # The installer, and the ZIP of the unpacked app that runs from any folder: builder zips
   # win-unpacked after signing it, so both hold the same signed executables. The ZIP is no
   # update source: builder writes latest.yml for the installer alone, and a ZIP-run app
@@ -147,6 +161,9 @@ toolsets:
   appimage: 1.0.3
 linux:
   icon: resources/icons
+  # koffi is loaded on Windows only.
+  files:
+    - "!node_modules/{koffi,@koromix}{,/**}"
   category: Utility
   syncDesktopName: true
   # The AppImage is the only Linux package. Builder's default runtime needs libfuse2, which

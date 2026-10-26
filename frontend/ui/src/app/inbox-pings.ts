@@ -5,6 +5,7 @@ import type { Backend, Notice } from "@novadeck/core/port"
 import { needing, ringing } from "../inbox/inbox-state"
 import { fromNovadeck, labelOf, subjectOf } from "../inbox/inbox-text"
 import { isDesktop } from "../shell/desktop"
+import type { Ding } from "./ding"
 import type { LandedInbox } from "./inbox-landing"
 import { heldForToast, modalOpen } from "./selectors"
 import type { UiStore } from "./ui-store"
@@ -37,10 +38,11 @@ export type NoticeBoard = {
   readonly itemOf: (terminalId: string) => string | undefined
 }
 
-// A backend's board is the one: what rings notices and what hears their clicks share it.
+// A backend's board is the one: what rings notices and what hears their clicks share it. The
+// `ding` it sounds with each notice is the first caller's (a notice's id is its terminal's).
 const boards = new WeakMap<object, NoticeBoard>()
 
-export const noticeBoard = (notices: Backend["notices"]): NoticeBoard | undefined => {
+export const noticeBoard = (notices: Backend["notices"], ding: Ding): NoticeBoard | undefined => {
   if (!notices) return undefined
   const known = boards.get(notices)
   if (known) return known
@@ -48,7 +50,14 @@ export const noticeBoard = (notices: Backend["notices"]): NoticeBoard | undefine
   const board: NoticeBoard = {
     show: (owner, notice, item) => {
       latest.set(notice.id, { owner, item })
-      notices.show(notice)
+      if (notices.sounds) {
+        // The host's own notification plays the sound, so only a notice the ding lets
+        // through carries it: one of a burst, or a terminal's second, is silent.
+        notices.show({ ...notice, silent: !ding.take(notice.id) })
+      } else {
+        notices.show({ ...notice, silent: !ding.on() })
+        ding.ring(notice.id)
+      }
     },
     close: (owner, terminalId) => {
       if (latest.get(terminalId)?.owner !== owner) return

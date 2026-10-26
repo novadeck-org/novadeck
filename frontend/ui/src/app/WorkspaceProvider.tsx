@@ -20,6 +20,7 @@ import { connectBackend } from "./controller/backend-connection"
 import { WorkspaceServicesContext, type WorkspaceServices } from "./controller/context"
 import { domEffects } from "./controller/effects"
 import { dialogDepthOf, useRouteSync } from "./controller/useRouteSync"
+import { dingOf } from "./ding"
 import { landInbox, noLanding } from "./inbox-landing"
 import { noticeBoard, watchBellRings, watchInboxPings } from "./inbox-pings"
 import { nameFinished, watchFinishes } from "./murmur-offer"
@@ -170,7 +171,7 @@ export const WorkspaceProvider = ({
   useEffect(() => services.landing.start(), [services])
   useEffect(() => {
     const { backend, workspace, ui, landing } = services
-    const board = noticeBoard(backend.notices)
+    const board = noticeBoard(backend.notices, dingOf(backend, ui))
     const stops = [watchFinishes(workspace, nameFinished(services))]
     if (backend.inbox)
       stops.push(

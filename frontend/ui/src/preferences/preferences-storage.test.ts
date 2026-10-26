@@ -29,4 +29,22 @@ describe("readPreferences", () => {
       expect(readPreferences().appearance).toEqual({ theme: "graphite", scheme: "dark" })
     }
   })
+
+  it("reads the sound setting, and keeps a volume within 0 and 1", () => {
+    expect(readPreferences()).toMatchObject({ sound: true, soundVolume: 0.6 })
+    for (const [saved, volume] of [
+      [0.25, 0.25],
+      [3, 1],
+      [-1, 0],
+      ["loud", 0.6],
+      [null, 0.6],
+    ] as const) {
+      localStorage.setItem(
+        preferencesStorageKey,
+        JSON.stringify({ sound: false, soundVolume: saved }),
+      )
+
+      expect(readPreferences()).toMatchObject({ sound: false, soundVolume: volume })
+    }
+  })
 })
