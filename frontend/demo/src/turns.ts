@@ -99,7 +99,13 @@ export const demoTurns = (turnMs = demoTurnMs) => {
   // How many times each terminal's agent was taken some other way: a verb, a prompt, a Stop
   // or a release. What waits to act on it, an answer on its way, checks it hasn't moved.
   const epochs = new Map<string, number>()
-  const bump = (id: string): void => void epochs.set(id, (epochs.get(id) ?? 0) + 1)
+  // The terminals whose agent's `done` still stands: looking never ends it, only the agent
+  // being taken some other way, as the person's prompt does.
+  const reported = new Set<string>()
+  const bump = (id: string): void => {
+    epochs.set(id, (epochs.get(id) ?? 0) + 1)
+    reported.delete(id)
+  }
   const emit = (event: TurnEvent): void => watchers.forEach((watcher) => watcher(event))
   const cancel = (id: string): void => {
     active.get(id)?.forEach(clearTimeout)
@@ -125,7 +131,10 @@ export const demoTurns = (turnMs = demoTurnMs) => {
         type: "terminal/status",
         target,
         terminalId,
-        status: { state: "running", agent },
+        status: {
+          state: "running",
+          agent: reported.has(terminalKeyId(key)) ? { ...agent, reported: true } : agent,
+        },
       },
     ]
     sink?.dispatch(actions)
@@ -144,6 +153,7 @@ export const demoTurns = (turnMs = demoTurnMs) => {
       ...(tools ? [setTimeout(() => emit({ type: "tool", key }), turnMs / 2)] : []),
       setTimeout(() => {
         active.delete(id)
+        if (done) reported.add(id)
         status(key, {
           working: false,
           ...left(agent),
@@ -286,6 +296,7 @@ export const demoTurns = (turnMs = demoTurnMs) => {
             ...(limit ? { limit } : {}),
             at: Date.now(),
           }
+          if (done) reported.add(id)
           // Its subagents keep it working until they finish, as the runner reports it.
           const waiting = background !== undefined && background.agents > 0
           status(key, {

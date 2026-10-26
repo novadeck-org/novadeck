@@ -237,10 +237,10 @@ for the agent, is a step brighter with a small dot. A long name truncates before
 so they line up down the list.
 
 An agent that finishes the task it was given calls its `done` tool, a short report of
-its own. While you look at another terminal, or at another window altogether, that marks
-its terminal done until you look: a green "✓" before its program on its tab and "Done ·
-report unread" in its tooltip, and on its window a solid green line under the header
-(no glyph; red for an error). Only a `done` call makes a finish: a turn that ends
+its own. That marks its terminal done for as long as the report stands, whether or not
+you look at it, until you write to the agent or a message reaches it: a green "✓" before
+its program on its tab and "Done · reported" in its tooltip, and on its window a solid
+green line under the header (no glyph; red for an error). Only a `done` call makes a finish: a turn that ends
 without one, or with only a question, marks no state. The tab stays idle and its program
 name brightens ("Reply unread" in the tooltip) until you look. A turn that ended on an
 error is marked the same way in red, "✗" on its tab and "Stopped with an error · reply

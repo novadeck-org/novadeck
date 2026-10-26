@@ -564,7 +564,8 @@ Resolved history is limited to one hundred records per terminal and expires a da
 resolution or the reply's final delivered/gone outcome, on startup, after changes and
 on a minute timer. A person's reply still
 queued or leased pins its question; it is never pruned before delivery or a final gone
-state. Pruning a settled question also removes its settled message response. Removing
+state. The latest `done` of each terminal that still exists is never pruned, read or not,
+as it is the report that still stands; it goes with its terminal. Pruning a settled question also removes its settled message response. Removing
 a project deletes its entries with its messages.
 
 Only the authenticated UI's `inbox.answer` operation creates a person response. It checks

@@ -70,12 +70,10 @@ export type WindowShellProps = {
   // failed one says so until they look.
   unread?: "unread" | "failed" | undefined
   // What the Inbox says it needs of the person (`unblock` or `ask`), the subject of the item
-  // behind it, and whether its agent reported its task done, unseen. The agent's live dialog
-  // adds its own need.
+  // behind it. The agent's live dialog adds its own need.
   need?: "unblock" | "ask" | undefined
   needSubject?: string | undefined
   needDialog?: NeedDialog | undefined
-  reported?: boolean
   // The terminal that directs this one's work while it runs, by its handle and name.
   lead?: { handle: string; name: string }
   // The terminals this one directs while it leads: how many, and who in words.
@@ -112,7 +110,6 @@ export const WindowShell = ({
   need: inboxNeed,
   needSubject,
   needDialog,
-  reported = false,
   lead,
   leads,
   rename,
@@ -154,11 +151,7 @@ export const WindowShell = ({
     failed,
     text: note,
   } = shell
-    ? terminalNote(
-        shell,
-        { need: inboxNeed, done: reported, subject: needSubject, dialog: needDialog },
-        unread,
-      )
+    ? terminalNote(shell, { need: inboxNeed, subject: needSubject, dialog: needDialog }, unread)
     : idleNote
   const resets = shell && phase === "paused" ? pausedUntil(shell) : undefined
   // Said again once the limit it waits on resets, or its wake-up passes.

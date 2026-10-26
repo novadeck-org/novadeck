@@ -7,8 +7,8 @@ import type { WorkspaceProject } from "@novadeck/core/types"
 // What a project's terminals show at a glance, the most pressing of them, as the switcher
 // marks it, as their tabs do: an agent that asks the person a question (the tab's `?`, the
 // Inbox's `ask`) or is blocked on them for a permission, a plan or an action (its `!`, the
-// Inbox's `unblock`); one that failed while they looked elsewhere; one that reported its task
-// done, unseen; or one still working. Undefined while none shows anything.
+// Inbox's `unblock`); one that failed while they looked elsewhere; one whose report of its task
+// done still stands; or one still working. Undefined while none shows anything.
 export type ProjectStatus = "ask" | "unblock" | "failed" | "done" | "running"
 
 // Most pressing first: what blocks an agent before what it asks.
@@ -32,8 +32,8 @@ export const statusText: Record<ProjectStatus, string> = {
 }
 
 // The status of each terminal is what its tab shows: its need (the Inbox's raw `items`, as
-// the tab reads them, and the dialog its agent shows now), an unread turn that failed, an
-// unseen done report, or an agent at work. An ended terminal shows nothing, as its tab reads
+// the tab reads them, and the dialog its agent shows now), an unread turn that failed, a
+// done report that stands, or an agent at work. An ended terminal shows nothing, as its tab reads
 // ended, and only an agent at work counts as running, not a dev server or any other program.
 export const projectStatus = (
   project: WorkspaceProject,

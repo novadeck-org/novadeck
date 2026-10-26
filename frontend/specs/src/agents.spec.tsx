@@ -71,7 +71,7 @@ describe("An agent waiting on the person", () => {
       await expect.element(row("mobile-app")).toHaveAttribute("aria-description", "Working")
       await expect
         .element(row("design-system"), { timeout: 10_000 })
-        .toHaveAttribute("aria-description", "Done · report unread")
+        .toHaveAttribute("aria-description", "Done · reported")
       await expect
         .element(row("infra"), { timeout: 10_000 })
         .toHaveAttribute("aria-description", "Stopped with an error · reply unread")
@@ -214,32 +214,32 @@ describe("An agent that finishes", () => {
       .filter({ hasText: /Ship the docs|Now the changelog/ })
 
   context("while the person looks elsewhere", () => {
-    it("marks its terminal done, report unread, until they look at it", async () => {
+    it("marks its terminal done, and looking at it leaves the mark", async () => {
       await promptBuild()
       await terminalTab("Tests").click()
       await expect
         .poll(() => tabDescription("Build"), { timeout: 10_000 })
         // The command its turn left running still counts.
-        .toBe("Done · report unread, 1 task")
+        .toBe("Done · reported, 1 task")
       const row = terminalTab("Build").element().closest(".terminal-tab")!
       expect(row.getAttribute("data-terminal-phase")).toBe("done")
       await terminalTab("Build").click()
       const window = terminal("Build")
-      await expect.element(window).toHaveAttribute("data-terminal-phase", "idle")
-      await expect.element(window.getByText("Done · report unread")).not.toBeInTheDocument()
-      await expect.poll(() => tabDescription("Build")).toBe("1 task")
+      // The report stands until the person gives the agent more to do, looked at or not.
+      await expect.element(window).toHaveAttribute("data-terminal-phase", "done")
+      await expect.poll(() => tabDescription("Build")).toBe("Done · reported, 1 task")
     })
 
-    it("shows it on a window in view, and clears once the person selects it", async () => {
+    it("shows it on a window in view, and keeps it once the person selects it", async () => {
       await promptBuild("Grid")
       await terminalTab("Tests").click()
       const window = terminal("Build")
       await expect
         .element(window, { timeout: 10_000 })
         .toHaveAttribute("data-terminal-phase", "done")
-      await expect.element(window).toHaveAttribute("aria-description", "Done · report unread")
+      await expect.element(window).toHaveAttribute("aria-description", "Done · reported")
       await terminalTab("Build").click()
-      await expect.element(window).toHaveAttribute("data-terminal-phase", "idle")
+      await expect.element(window).toHaveAttribute("data-terminal-phase", "done")
     })
 
     it("brightens its program, with no glyph, where it replies without a done call", async () => {
@@ -261,7 +261,7 @@ describe("An agent that finishes", () => {
   })
 
   context("and then works another turn before they look", () => {
-    it("keeps its done mark through that turn, until they look at it", async () => {
+    it("keeps its done mark through that turn, and after they look at it", async () => {
       await promptBuild()
       // The person leaves the page with Build selected, as to another window.
       const visibility = (state: "hidden" | "visible") => {
@@ -289,7 +289,7 @@ describe("An agent that finishes", () => {
       visibility("visible")
       await sidebarPanel("Terminals").click()
       await terminalTab("Build").click()
-      await expect.element(window).toHaveAttribute("data-terminal-phase", "idle")
+      await expect.element(window).toHaveAttribute("data-terminal-phase", "done")
     })
   })
 
@@ -305,16 +305,13 @@ describe("An agent that finishes", () => {
   })
 
   context("while the person looks at it", () => {
-    it("leaves it as it was", async () => {
+    it("marks it done all the same", async () => {
       await promptBuild()
       const window = terminal("Build")
       await expect
         .element(window, { timeout: 10_000 })
-        .toHaveAttribute("data-terminal-phase", "idle")
-      // Past the grace a completed end waits before it is marked (`finishGraceMs`).
-      await expectStaysAbsent(window.getByText("Done · report unread"), { ms: 1500 })
-      // Only the command its turn left running.
-      expect(tabDescription("Build")).toBe("1 task")
+        .toHaveAttribute("data-terminal-phase", "done")
+      await expect.poll(() => tabDescription("Build")).toBe("Done · reported, 1 task")
     })
   })
 })

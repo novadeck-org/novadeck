@@ -285,6 +285,7 @@ export class Reports {
         if (!record.work) return
         record.work = personPrompted(record.work, at)
         this.host.save(record)
+        this.host.bindings().publishReported(record)
       },
     }
     if (deadline === undefined) {
