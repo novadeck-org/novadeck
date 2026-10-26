@@ -17,12 +17,19 @@ const openPreferences = async (): Promise<void> => {
   await expectFocusWithin(preferencesDialog())
 }
 
+/** Opens Preferences on its Appearance tab, which holds the theme, the mode and the sound. */
+const openAppearance = async (): Promise<void> => {
+  await openPreferences()
+  await tab("Appearance").click()
+  await expect.element(tab("Appearance")).toHaveAttribute("aria-selected", "true")
+}
+
 const closePreferences = async (): Promise<void> => {
   await preferencesDialog().getByRole("button", { name: "Close preferences" }).click()
   await expect.element(preferencesDialog()).not.toBeInTheDocument()
 }
 
-const tab = (name: "General" | "Addons" | "Shortcuts" | "About"): Locator =>
+const tab = (name: "General" | "Appearance" | "Addons" | "Shortcuts" | "About"): Locator =>
   preferencesDialog().getByRole("tab", { name })
 
 const viewModeChoice = (name: "Focus" | "Grid" | "Canvas"): Locator =>
@@ -118,7 +125,7 @@ describe("Preferences' version", () => {
   it("leaves About out where the backend gives no version and keeps no logs", async () => {
     await openWorkspace("/?version=none")
     await openPreferences()
-    await expect.element(preferencesDialog().getByText("Appearance")).toBeVisible()
+    await expect.element(tab("Appearance")).toBeVisible()
     await expect.element(tab("About")).not.toBeInTheDocument()
   })
 })
@@ -179,10 +186,6 @@ describe("Preferences", () => {
       await expect.element(tab("General")).toHaveAttribute("aria-selected", "true")
       await expect.element(tab("Shortcuts")).toHaveAttribute("aria-selected", "false")
       const general = preferencesDialog().getByRole("tabpanel", { name: "General" })
-      await expect
-        .element(general.getByRole("combobox", { name: "Theme" }))
-        .toHaveTextContent("Graphite")
-      await expect.element(modeChoice("System")).toBeChecked()
       await expect
         .element(general.getByRole("combobox", { name: "Text size" }))
         .toHaveTextContent("13px")
@@ -594,7 +597,7 @@ describe("appearance preference", () => {
       await systemScheme("light")
       await openWorkspace()
       expect(pageScheme()).toBe("light")
-      await openPreferences()
+      await openAppearance()
 
       await chooseMode("Dark")
 
@@ -605,7 +608,7 @@ describe("appearance preference", () => {
       await reloadWorkspace()
       expect(document.documentElement.dataset).toMatchObject({ theme: "graphite", scheme: "dark" })
       await expect.poll(pageScheme).toBe("dark")
-      await openPreferences()
+      await openAppearance()
       await expect.element(modeChoice("Dark")).toBeChecked()
     })
   })
@@ -615,7 +618,7 @@ describe("appearance preference", () => {
       await systemScheme("dark")
       await openWorkspace()
       await expect.poll(pageScheme).toBe("dark")
-      await openPreferences()
+      await openAppearance()
 
       await chooseMode("Light")
 
@@ -628,7 +631,7 @@ describe("appearance preference", () => {
       await systemScheme("light")
       await openWorkspace()
       await expect.poll(pageScheme).toBe("light")
-      await openPreferences()
+      await openAppearance()
 
       await preferencesDialog().getByRole("combobox", { name: "Theme" }).click()
       await preferencesDialog().getByRole("option", { name: "Phosphor Green" }).click()
@@ -648,7 +651,7 @@ describe("appearance preference", () => {
     it("keeps the theme after reloading and gives Graphite its mode back", async () => {
       await systemScheme("light")
       await openWorkspace()
-      await openPreferences()
+      await openAppearance()
       await chooseMode("Light")
       await preferencesDialog().getByRole("combobox", { name: "Theme" }).click()
       await preferencesDialog().getByRole("option", { name: "Phosphor Green" }).click()
@@ -663,7 +666,7 @@ describe("appearance preference", () => {
         theme: "phosphor-green",
         scheme: "dark",
       })
-      await openPreferences()
+      await openAppearance()
 
       await preferencesDialog().getByRole("combobox", { name: "Theme" }).click()
       await preferencesDialog().getByRole("option", { name: "Graphite" }).click()
@@ -677,7 +680,7 @@ describe("appearance preference", () => {
     it("draws and lists Graphite, and keeps the saved id", async () => {
       await systemScheme("light")
       await openWorkspace()
-      await openPreferences()
+      await openAppearance()
 
       const saved = JSON.parse(localStorage.getItem("novadeck.preferences") ?? "{}")
       saveFromAnotherWindow("novadeck.preferences", {
@@ -696,7 +699,7 @@ describe("appearance preference", () => {
     it("saves Graphite when the person picks it", async () => {
       await systemScheme("light")
       await openWorkspace()
-      await openPreferences()
+      await openAppearance()
       const saved = JSON.parse(localStorage.getItem("novadeck.preferences") ?? "{}")
       saveFromAnotherWindow("novadeck.preferences", {
         ...saved,
@@ -733,7 +736,7 @@ describe("appearance preference", () => {
     it("draws this window in it too and shows the choice", async () => {
       await systemScheme("light")
       await openWorkspace()
-      await openPreferences()
+      await openAppearance()
       await expect.element(modeChoice("System")).toBeChecked()
 
       const saved = JSON.parse(localStorage.getItem("novadeck.preferences") ?? "{}")
@@ -747,12 +750,83 @@ describe("appearance preference", () => {
     })
   })
 
+  context("the Appearance tab", () => {
+    it("holds the theme and the mode, which General no longer does", async () => {
+      await openWorkspace()
+      await openAppearance()
+
+      const appearance = preferencesDialog().getByRole("tabpanel", { name: "Appearance" })
+      await expect
+        .element(appearance.getByRole("combobox", { name: "Theme" }))
+        .toHaveTextContent("Graphite")
+      await expect.element(modeChoice("System")).toBeChecked()
+      await tab("General").click()
+      await expect
+        .element(preferencesDialog().getByRole("combobox", { name: "Theme" }))
+        .not.toBeInTheDocument()
+      await expect
+        .element(preferencesDialog().getByRole("combobox", { name: "Text size" }))
+        .toBeVisible()
+    })
+  })
+
   context("the notification sound", () => {
+    const sound = () => preferencesDialog().getByRole("combobox", { name: "Notification sound" })
+    const savedChoice = () =>
+      JSON.parse(localStorage.getItem("novadeck.preferences") ?? "{}").soundChoice
+
+    it("follows the theme until another sound is chosen, which it keeps", async () => {
+      await openWorkspace("/?host=on")
+      await openAppearance()
+
+      await expect.element(sound()).toHaveTextContent("Theme's sound (Felt)")
+      await preferencesDialog().getByRole("combobox", { name: "Theme" }).click()
+      await preferencesDialog().getByRole("option", { name: "Phosphor Amber" }).click()
+      await expect.element(sound()).toHaveTextContent("Theme's sound (Afterglow)")
+
+      await sound().click()
+      // The theme's own first, then every sound, by name.
+      await expect
+        .poll(() =>
+          preferencesDialog()
+            .getByRole("option")
+            .elements()
+            .map((option) => option.textContent),
+        )
+        .toEqual(["Theme's sound (Afterglow)", "Felt", "Afterglow", "Settle", "Beam"])
+      await preferencesDialog().getByRole("option", { name: "Beam" }).click()
+      await expect.element(sound()).toHaveTextContent("Beam")
+      await expect.poll(savedChoice).toBe("beam")
+      await closePreferences()
+      await openAppearance()
+      await expect.element(sound()).toHaveTextContent("Beam")
+    })
+
+    it("plays a sound as it is picked", async () => {
+      const played: string[] = []
+      const play = HTMLMediaElement.prototype.play
+      HTMLMediaElement.prototype.play = function (this: HTMLMediaElement) {
+        played.push(this.src)
+        return Promise.resolve()
+      }
+      try {
+        await openWorkspace("/?host=on")
+        await openAppearance()
+
+        await sound().click()
+        await preferencesDialog().getByRole("option", { name: "Settle" }).click()
+        await expect.poll(() => played).toHaveLength(1)
+        expect(played[0]).toContain("settle")
+      } finally {
+        HTMLMediaElement.prototype.play = play
+      }
+    })
+
     const soundSwitch = () => preferencesDialog().getByRole("switch", { name: "Play a sound" })
 
     it("is set on a host that shows desktop notifications, the volume following the switch", async () => {
       await openWorkspace("/?host=on")
-      await openPreferences()
+      await openAppearance()
       const volume = preferencesDialog().getByRole("slider", { name: "Volume" })
 
       await expect.element(soundSwitch()).toBeChecked()
@@ -767,14 +841,14 @@ describe("appearance preference", () => {
 
     it("keeps the volume it is set to, said as a percentage", async () => {
       await openWorkspace("/?host=on")
-      await openPreferences()
+      await openAppearance()
       const volume = () => preferencesDialog().getByRole("slider", { name: "Volume" })
 
       await expect.element(volume()).toHaveAttribute("aria-valuetext", "60%")
       await volume().fill("0.3")
       await expect.element(volume()).toHaveAttribute("aria-valuetext", "30%")
       await closePreferences()
-      await openPreferences()
+      await openAppearance()
       await expect.element(volume()).toHaveValue("0.3")
     })
 
@@ -788,6 +862,14 @@ describe("appearance preference", () => {
         )
         .toBeVisible()
       await expect.element(soundSwitch()).not.toBeInTheDocument()
+      await tab("Appearance").click()
+      await expect.element(soundSwitch()).not.toBeInTheDocument()
+      await expect
+        .element(preferencesDialog().getByRole("combobox", { name: "Theme" }))
+        .toBeVisible()
+      await expect
+        .element(preferencesDialog().getByRole("combobox", { name: "Notification sound" }))
+        .not.toBeInTheDocument()
     })
   })
 })

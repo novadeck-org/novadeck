@@ -6,7 +6,7 @@ import { noticeChannel, noticeCloseChannel } from "../bridge.js"
 import { context, describe, expect, it } from "../test"
 import {
   desktopNoticeOf,
-  noticeSound,
+  noticeSoundFile,
   notificationOptions,
   notificationText,
   registerNoticeIpc,
@@ -119,7 +119,12 @@ class FakeNotification extends EventEmitter implements NotificationLike {
   shown = false
   closed = false
   constructor(
-    readonly options: { readonly title: string; readonly body: string; readonly silent: boolean },
+    readonly options: {
+      readonly title: string
+      readonly body: string
+      readonly silent: boolean
+      readonly sound?: string | undefined
+    },
   ) {
     super()
   }
@@ -235,6 +240,39 @@ describe("a notification's text", () => {
   })
 })
 
+describe("a notice's sound", () => {
+  it("passes when it names a sound the app has", () => {
+    expect(desktopNoticeOf({ ...notice, sound: "afterglow" })).toEqual({
+      ...notice,
+      sound: "afterglow",
+    })
+    expect(desktopNoticeOf({ ...notice, silent: true, sound: "felt" })).toEqual({
+      ...notice,
+      silent: true,
+      sound: "felt",
+    })
+  })
+
+  it("is dropped, the notice staying, when it names anything else", () => {
+    for (const sound of ["ding", "../afterglow", "AFTERGLOW", "graphite", "toString", 1, null, {}])
+      expect(desktopNoticeOf({ ...notice, sound })).toEqual(notice)
+  })
+
+  it("reaches the notification", () => {
+    const made: unknown[] = []
+    const { show } = showNotices<string>({
+      supported: true,
+      create: (options) => {
+        made.push(options)
+        return new FakeNotification(options)
+      },
+      clicked: () => {},
+    })
+    show("window", { ...notice, sound: "afterglow" })
+    expect(made).toEqual([{ title: notice.title, body: "", silent: false, sound: "afterglow" }])
+  })
+})
+
 describe("a notice's silent flag", () => {
   it("passes when it is a boolean", () => {
     expect(desktopNoticeOf({ ...notice, silent: true })).toEqual({ ...notice, silent: true })
@@ -273,8 +311,21 @@ describe("a notice as Electron's notification", () => {
     expect(notificationOptions(text, "darwin")).toEqual({
       title: "t1 is done",
       body: "All green.",
-      sound: noticeSound,
+      sound: "felt.wav",
     })
+  })
+
+  it("plays the sound the notice names on macOS, the default's for none or one it lacks", () => {
+    const sound = (named?: unknown) =>
+      notificationOptions(
+        { ...text, ...(named === undefined ? {} : { sound: named as never }) },
+        "darwin",
+      ).sound
+    for (const id of ["felt", "afterglow", "settle", "beam"]) expect(sound(id)).toBe(`${id}.wav`)
+    expect(sound()).toBe("felt.wav")
+    expect(sound("../../etc/passwd")).toBe("felt.wav")
+    expect(sound("toString")).toBe("felt.wav")
+    expect(noticeSoundFile(undefined)).toBe("felt.wav")
   })
 
   it("stays silent on macOS when the person turned the sound off", () => {

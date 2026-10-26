@@ -1,4 +1,5 @@
 import { MURMUR_NAME } from "@novadeck/core/murmur"
+import type { NoticeSound } from "@novadeck/core/sounds"
 import { viewModes } from "@novadeck/core/state"
 import type { PreferencesValue } from "@novadeck/core/types"
 import { Checkbox } from "@novadeck/toolkit/Checkbox"
@@ -13,6 +14,7 @@ import { useRef, useState, type ReactNode } from "react"
 
 import { shortcutGroups } from "../interaction/keymap"
 import { currentPlatform } from "../interaction/shortcuts"
+import { soundChoiceOf, soundInEffect, soundName, sounds } from "../sounds"
 import { themes, type ThemeEntry, type ThemeId } from "../theme/themes"
 import { AddonRow } from "./addon-parts"
 import { AgentSwitches, agentsExplanation, type AgentSwitch } from "./AgentSwitches"
@@ -133,7 +135,7 @@ export const Preferences = ({
   // volume, as on macOS.
   hostSounds?: boolean
   // Plays the notification sound at a volume, for the person to hear what they set.
-  hearSound?: (volume: number) => void
+  hearSound?: (volume: number, sound?: NoticeSound) => void
   // Whether the backend reads agents' conversations, which the chat view shows.
   chat?: boolean
   // Agents whose sessions resume once connected; absent where the backend has none.
@@ -200,6 +202,12 @@ export const Preferences = ({
     themes.find((entry) => entry.id === appearance.theme) ?? themes[0]
   // A theme drawn in one scheme leaves nothing to choose.
   const onlyScheme = theme.schemes.length === 1 ? theme.schemes[0] : undefined
+  // The first sound is the theme's own, which the choice follows; the rest override it.
+  const soundItems = [
+    { label: `Theme's sound (${soundName(theme.sound)})`, value: "theme" },
+    ...sounds.map(({ id, name }) => ({ label: name, value: id })),
+  ]
+  const { soundChoice } = value
   return (
     <Dialog
       open={open}
@@ -248,8 +256,8 @@ export const Preferences = ({
           </TabList>
         </div>
         <div ref={panels} className="preferences-panels grid min-h-0 flex-1 overflow-y-auto">
-          <TabPanel value="general" className={panelClasses}>
-            <Section title="Appearance">
+          <TabPanel value="appearance" className={panelClasses}>
+            <Section title="Theme">
               <div className={settingsCardClasses}>
                 <Select
                   className={`preference-row ${settingRowClasses} [&_[data-part=trigger]]:w-36`}
@@ -264,7 +272,7 @@ export const Preferences = ({
                     if (chosen)
                       onChange({ ...value, appearance: { ...appearance, theme: chosen.id } })
                   }}
-                  open={open && shown === "general" && openSelect === "theme"}
+                  open={open && shown === "appearance" && openSelect === "theme"}
                   onOpenChange={(expanded) => setOpenSelect(expanded ? "theme" : null)}
                   portalContainer={dialog}
                 />
@@ -303,6 +311,81 @@ export const Preferences = ({
                 </fieldset>
               </div>
             </Section>
+            {/* Only where Novadeck rings through desktop notifications. */}
+            {notices && (
+              <Section title="Sound">
+                <div className={settingsCardClasses}>
+                  <div className={`preference-row ${settingRowClasses}`}>
+                    <SettingText
+                      id="sound-label"
+                      label="Play a sound"
+                      description="Novadeck's own sound when an agent needs you or finishes. Holds off during Do Not Disturb where the system says so."
+                      descriptionId="sound-description"
+                    />
+                    <Switch
+                      checked={value.sound}
+                      onChange={(sound) => onChange({ ...value, sound })}
+                      labelledBy="sound-label"
+                      describedBy="sound-description"
+                    />
+                  </div>
+                  <Select
+                    className={`preference-row ${settingRowClasses} [&_[data-part=trigger]]:w-56`}
+                    label="Notification sound"
+                    items={soundItems}
+                    value={soundChoice}
+                    onValueChange={(next) => {
+                      const chosen = { ...value, soundChoice: soundChoiceOf(next) }
+                      onChange(chosen)
+                      // Picking a sound plays it, as the system's own sound settings do.
+                      hearSound?.(value.soundVolume, soundInEffect(chosen))
+                    }}
+                    open={open && shown === "appearance" && openSelect === "sound"}
+                    onOpenChange={(expanded) => setOpenSelect(expanded ? "sound" : null)}
+                    portalContainer={dialog}
+                  />
+                  <div className={`preference-row ${settingRowClasses}`}>
+                    {hostSounds ? (
+                      <SettingText
+                        id="sound-volume-label"
+                        label="Volume"
+                        description="For the sound inside Novadeck. Desktop notifications play at the system's alert volume."
+                        descriptionId="sound-volume-description"
+                      />
+                    ) : (
+                      <span id="sound-volume-label">Volume</span>
+                    )}
+                    <span className="flex items-center gap-3">
+                      <input
+                        type="range"
+                        min={0}
+                        max={1}
+                        step={0.05}
+                        value={value.soundVolume}
+                        onChange={(event) =>
+                          onChange({ ...value, soundVolume: Number(event.target.value) })
+                        }
+                        aria-labelledby="sound-volume-label"
+                        aria-valuetext={`${Math.round(value.soundVolume * 100)}%`}
+                        {...(hostSounds ? { "aria-describedby": "sound-volume-description" } : {})}
+                        disabled={!value.sound}
+                        className="settings-range w-32 cursor-pointer disabled:cursor-not-allowed"
+                      />
+                      <button
+                        type="button"
+                        className="button min-h-8 shrink-0 px-3 text-control"
+                        // Stays enabled with the sound off: hear it before turning it on.
+                        onClick={() => hearSound?.(value.soundVolume)}
+                      >
+                        Hear it
+                      </button>
+                    </span>
+                  </div>
+                </div>
+              </Section>
+            )}
+          </TabPanel>
+          <TabPanel value="general" className={panelClasses}>
             <fieldset
               className="view-preferences settings-fieldset m-0 min-w-0 p-0"
               aria-describedby="view-modes-description"
@@ -433,64 +516,6 @@ export const Preferences = ({
                     disabled={!notices}
                   />
                 </div>
-                {/* Only where Novadeck rings through desktop notifications. */}
-                {notices && (
-                  <>
-                    <div className={`preference-row ${settingRowClasses}`}>
-                      <SettingText
-                        id="sound-label"
-                        label="Play a sound"
-                        description="Novadeck's own sound when an agent needs you or finishes, the same on every system. Holds off during Do Not Disturb where the system says so."
-                        descriptionId="sound-description"
-                      />
-                      <Switch
-                        checked={value.sound}
-                        onChange={(sound) => onChange({ ...value, sound })}
-                        labelledBy="sound-label"
-                        describedBy="sound-description"
-                      />
-                    </div>
-                    <div className={`preference-row ${settingRowClasses}`}>
-                      {hostSounds ? (
-                        <SettingText
-                          id="sound-volume-label"
-                          label="Volume"
-                          description="For the sound inside Novadeck. Desktop notifications play at the system's alert volume."
-                          descriptionId="sound-volume-description"
-                        />
-                      ) : (
-                        <span id="sound-volume-label">Volume</span>
-                      )}
-                      <span className="flex items-center gap-3">
-                        <input
-                          type="range"
-                          min={0}
-                          max={1}
-                          step={0.05}
-                          value={value.soundVolume}
-                          onChange={(event) =>
-                            onChange({ ...value, soundVolume: Number(event.target.value) })
-                          }
-                          aria-labelledby="sound-volume-label"
-                          aria-valuetext={`${Math.round(value.soundVolume * 100)}%`}
-                          {...(hostSounds
-                            ? { "aria-describedby": "sound-volume-description" }
-                            : {})}
-                          disabled={!value.sound}
-                          className="settings-range w-32 cursor-pointer disabled:cursor-not-allowed"
-                        />
-                        <button
-                          type="button"
-                          className="button min-h-8 shrink-0 px-3 text-control"
-                          // Stays enabled with the sound off: hear it before turning it on.
-                          onClick={() => hearSound?.(value.soundVolume)}
-                        >
-                          Hear it
-                        </button>
-                      </span>
-                    </div>
-                  </>
-                )}
               </div>
             </Section>
             {agents && (

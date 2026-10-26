@@ -113,3 +113,44 @@ describe("the Experimental tab", () => {
     ).not.toBeNull()
   })
 })
+
+describe("the Appearance tab", () => {
+  const panel = (): Element | null =>
+    document.querySelector('[role="tabpanel"][aria-labelledby$="appearance"]')
+
+  it("comes right after General, and a URL naming it opens it", async () => {
+    await show({ tab: "appearance" })
+
+    expect(tabs().slice(0, 2)).toEqual(["General", "Appearance"])
+    expect(selected()).toBe("Appearance")
+  })
+
+  it("holds the theme alone where the backend shows no desktop notifications", async () => {
+    await show({ tab: "appearance" })
+
+    expect(panel()?.textContent).toContain("Theme")
+    expect(panel()?.textContent).not.toContain("Notification sound")
+    expect(panel()?.textContent).not.toContain("Hear it")
+  })
+
+  it("holds the sound, led by the theme's own, where it does", async () => {
+    await show({ tab: "appearance", notices: true })
+
+    expect(panel()?.textContent).toContain("Notification sound")
+    expect(panel()?.textContent).toContain("Theme's sound (Felt)")
+    expect(panel()?.textContent).toContain("Hear it")
+  })
+
+  it("names the sound of the theme in effect", async () => {
+    await show({
+      tab: "appearance",
+      notices: true,
+      value: {
+        ...readPreferences(),
+        appearance: { theme: "phosphor-green", scheme: "dark" },
+      },
+    })
+
+    expect(panel()?.textContent).toContain("Theme's sound (Afterglow)")
+  })
+})

@@ -1,5 +1,6 @@
 import type { Backend, Notice } from "@novadeck/core/port"
 import { maxFixLength, type SandboxState } from "@novadeck/core/sandbox"
+import { noticeSoundOf } from "@novadeck/core/sounds"
 import {
   maxUninstallPath,
   maxUninstallReason,
@@ -38,13 +39,15 @@ export const noticeText = (text: string, length: number): string => {
 }
 
 // A notice as the host takes it, or undefined for one it would drop: an id that is no
-// terminal's, or nothing to say.
-export const hostNotice = ({ id, title, body, silent }: Notice): Notice | undefined => {
+// terminal's, or nothing to say. A sound the app does not have is left off.
+export const hostNotice = ({ id, title, body, silent, sound }: Notice): Notice | undefined => {
+  const named = noticeSoundOf(sound)
   const notice = {
     id,
     title: noticeText(title, noticeTitleLength),
     body: noticeText(body, noticeBodyLength),
     ...(typeof silent === "boolean" ? { silent } : {}),
+    ...(named ? { sound: named } : {}),
   }
   return noticeIdPattern.test(id) && notice.title ? notice : undefined
 }

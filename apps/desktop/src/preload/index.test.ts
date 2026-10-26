@@ -328,6 +328,16 @@ describe("notifications that play the sound", () => {
   })
 })
 
+describe("the sound a notice names", () => {
+  it("is sent with the notice for the main process to check", () => {
+    electron.exposed.showNotice?.({ id: "01", title: "t", body: "", sound: "afterglow" })
+    expect(electron.messages.at(-1)).toEqual([
+      noticeChannel,
+      { id: "01", title: "t", body: "", silent: undefined, sound: "afterglow" },
+    ])
+  })
+})
+
 describe("asking whether notifications are held back", () => {
   it("passes a boolean answer, and anything else is false", async () => {
     electron.answer = true
