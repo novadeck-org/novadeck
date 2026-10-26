@@ -746,4 +746,48 @@ describe("appearance preference", () => {
       await expect.element(modeChoice("Dark")).toBeChecked()
     })
   })
+
+  context("the notification sound", () => {
+    const soundSwitch = () => preferencesDialog().getByRole("switch", { name: "Play a sound" })
+
+    it("is set on a host that shows desktop notifications, the volume following the switch", async () => {
+      await openWorkspace("/?host=on")
+      await openPreferences()
+      const volume = preferencesDialog().getByRole("slider", { name: "Volume" })
+
+      await expect.element(soundSwitch()).toBeChecked()
+      await expect.element(volume).toBeEnabled()
+      await soundSwitch().click()
+      await expect.element(volume).toBeDisabled()
+      // Stays to try: hearing it before turning the sound on is the point.
+      await expect
+        .element(preferencesDialog().getByRole("button", { name: "Hear it" }))
+        .toBeEnabled()
+    })
+
+    it("keeps the volume it is set to, said as a percentage", async () => {
+      await openWorkspace("/?host=on")
+      await openPreferences()
+      const volume = () => preferencesDialog().getByRole("slider", { name: "Volume" })
+
+      await expect.element(volume()).toHaveAttribute("aria-valuetext", "60%")
+      await volume().fill("0.3")
+      await expect.element(volume()).toHaveAttribute("aria-valuetext", "30%")
+      await closePreferences()
+      await openPreferences()
+      await expect.element(volume()).toHaveValue("0.3")
+    })
+
+    it("is left out where the app shows no desktop notifications", async () => {
+      await openWorkspace()
+      await openPreferences()
+
+      await expect
+        .element(
+          preferencesDialog().getByRole("switch", { name: "Notify when an agent needs you" }),
+        )
+        .toBeVisible()
+      await expect.element(soundSwitch()).not.toBeInTheDocument()
+    })
+  })
 })

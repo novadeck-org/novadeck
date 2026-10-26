@@ -1,0 +1,148 @@
+import { describe, expect, it } from "vitest"
+
+import { createDing, dingGapMs, dingOf, dingTerminalMs } from "./ding"
+
+const setup = (
+  options: {
+    on?: boolean
+    volume?: number
+    quiet?: () => Promise<boolean>
+    play?: () => Promise<void>
+  } = {},
+) => {
+  const { on = true, volume = 0.6, quiet, play } = options
+  const heard: number[] = []
+  let clock = 1000
+  const ding = createDing({
+    sound: () => ({ on, volume }),
+    quiet,
+    audio: (at) => ({
+      play: () => {
+        heard.push(at)
+        return play?.()
+      },
+    }),
+    now: () => clock,
+  })
+  const later = (ms: number) => void (clock += ms)
+  return { ding, heard, later }
+}
+
+const settle = () => new Promise((resolve) => setTimeout(resolve, 0))
+
+describe("the ding", () => {
+  it("says whether the person wants it", () => {
+    expect(setup({ on: false }).ding.on()).toBe(false)
+  })
+
+  it("plays at the person's volume", async () => {
+    const { ding, heard } = setup({ volume: 0.3 })
+
+    ding.ring("t")
+    await settle()
+
+    expect(heard).toEqual([0.3])
+  })
+
+  it("sounds once for rings that come together", async () => {
+    const { ding, heard, later } = setup()
+
+    ding.ring("a")
+    later(100)
+    ding.ring("b")
+    later(dingGapMs - 200)
+    ding.ring("c")
+    await settle()
+    expect(heard).toHaveLength(1)
+
+    later(dingGapMs)
+    ding.ring("d")
+    await settle()
+    expect(heard).toHaveLength(2)
+  })
+
+  it("sounds a terminal once in its window, and another terminal after the gap", async () => {
+    const { ding, heard, later } = setup()
+
+    ding.ring("t")
+    later(2000)
+    ding.ring("t")
+    later(100)
+    ding.ring("u")
+    await settle()
+    expect(heard).toHaveLength(2)
+
+    later(dingTerminalMs)
+    ding.ring("t")
+    await settle()
+    expect(heard).toHaveLength(3)
+  })
+
+  it("lets a host that plays the sound itself take a ring by the same rules", () => {
+    const { ding, later } = setup()
+
+    expect(ding.take("t")).toBe(true)
+    later(dingGapMs)
+    expect(ding.take("t")).toBe(false)
+    expect(ding.take("u")).toBe(true)
+    expect(setup({ on: false }).ding.take("t")).toBe(false)
+  })
+
+  it("stays quiet when the person turned the sound off", async () => {
+    const { ding, heard } = setup({ on: false })
+
+    ding.ring("t")
+    await settle()
+
+    expect(heard).toEqual([])
+  })
+
+  it("stays quiet while the system holds notifications", async () => {
+    const { ding, heard } = setup({ quiet: async () => true })
+
+    ding.ring("t")
+    await settle()
+
+    expect(heard).toEqual([])
+  })
+
+  it("plays when the system's check fails", async () => {
+    const { ding, heard } = setup({ quiet: () => Promise.reject(new Error("no")) })
+
+    ding.ring("t")
+    await settle()
+
+    expect(heard).toEqual([0.6])
+  })
+
+  it("swallows a page that may not play yet", async () => {
+    const { ding, heard } = setup({ play: () => Promise.reject(new Error("NotAllowedError")) })
+
+    expect(() => ding.ring("t")).not.toThrow()
+    await settle()
+
+    expect(heard).toHaveLength(1)
+  })
+
+  it("previews at the given volume whatever the settings and the system say", async () => {
+    const { ding, heard } = setup({ on: false, quiet: async () => true })
+
+    ding.preview(0.9)
+    ding.preview(0.9)
+    await settle()
+
+    expect(heard).toEqual([0.9, 0.9])
+  })
+})
+
+describe("the ding on a backend", () => {
+  it("never sounds without desktop notifications", () => {
+    const ding = dingOf(
+      {} as never,
+      { getSnapshot: () => ({ preferences: { sound: true } }) } as never,
+    )
+
+    expect(ding.on()).toBe(false)
+    expect(ding.take("t")).toBe(false)
+  })
+})

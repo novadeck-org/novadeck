@@ -108,6 +108,8 @@ export const Preferences = ({
   logs,
   uninstall,
   notices = false,
+  hostSounds = false,
+  hearSound,
   chat = false,
 }: {
   open: boolean
@@ -127,6 +129,11 @@ export const Preferences = ({
   }
   // Whether the page can show desktop notifications, as the desktop app can.
   notices?: boolean
+  // Whether the system's notifications play the sound themselves, at the system's alert
+  // volume, as on macOS.
+  hostSounds?: boolean
+  // Plays the notification sound at a volume, for the person to hear what they set.
+  hearSound?: (volume: number) => void
   // Whether the backend reads agents' conversations, which the chat view shows.
   chat?: boolean
   // Agents whose sessions resume once connected; absent where the backend has none.
@@ -426,6 +433,64 @@ export const Preferences = ({
                     disabled={!notices}
                   />
                 </div>
+                {/* Only where Novadeck rings through desktop notifications. */}
+                {notices && (
+                  <>
+                    <div className={`preference-row ${settingRowClasses}`}>
+                      <SettingText
+                        id="sound-label"
+                        label="Play a sound"
+                        description="Novadeck's own sound when an agent needs you or finishes, the same on every system. Holds off during Do Not Disturb where the system says so."
+                        descriptionId="sound-description"
+                      />
+                      <Switch
+                        checked={value.sound}
+                        onChange={(sound) => onChange({ ...value, sound })}
+                        labelledBy="sound-label"
+                        describedBy="sound-description"
+                      />
+                    </div>
+                    <div className={`preference-row ${settingRowClasses}`}>
+                      {hostSounds ? (
+                        <SettingText
+                          id="sound-volume-label"
+                          label="Volume"
+                          description="For the sound inside Novadeck. Desktop notifications play at the system's alert volume."
+                          descriptionId="sound-volume-description"
+                        />
+                      ) : (
+                        <span id="sound-volume-label">Volume</span>
+                      )}
+                      <span className="flex items-center gap-3">
+                        <input
+                          type="range"
+                          min={0}
+                          max={1}
+                          step={0.05}
+                          value={value.soundVolume}
+                          onChange={(event) =>
+                            onChange({ ...value, soundVolume: Number(event.target.value) })
+                          }
+                          aria-labelledby="sound-volume-label"
+                          aria-valuetext={`${Math.round(value.soundVolume * 100)}%`}
+                          {...(hostSounds
+                            ? { "aria-describedby": "sound-volume-description" }
+                            : {})}
+                          disabled={!value.sound}
+                          className="settings-range w-32 cursor-pointer disabled:cursor-not-allowed"
+                        />
+                        <button
+                          type="button"
+                          className="button min-h-8 shrink-0 px-3 text-control"
+                          // Stays enabled with the sound off: hear it before turning it on.
+                          onClick={() => hearSound?.(value.soundVolume)}
+                        >
+                          Hear it
+                        </button>
+                      </span>
+                    </div>
+                  </>
+                )}
               </div>
             </Section>
             {agents && (

@@ -48,6 +48,8 @@ const ui = () =>
         appearance,
         notifyNeeds: true,
         notifyFinished: true,
+        sound: true,
+        soundVolume: 0.6,
         ligatures: false,
         chatView: false,
       },

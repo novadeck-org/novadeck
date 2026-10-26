@@ -293,6 +293,12 @@ export type BackendFields = {
   readonly notices?: {
     readonly show: (notice: Notice) => void
     readonly close?: (terminalId: string) => void
+    // Optional. Resolves true while the system holds notifications back (Do Not Disturb,
+    // Focus), so the app's own sound stays silent; false when it does not or cannot tell.
+    readonly quiet?: () => Promise<boolean>
+    // Optional. True where the host's own notifications play Novadeck's sound (macOS), so
+    // the app plays none of its own for them.
+    readonly sounds?: boolean
     readonly onClick: (listener: (terminalId: string) => void) => () => void
   }
   // Optional. Shows how many items wait in the Inbox on the app's icon (the dock or
@@ -392,6 +398,9 @@ export type Notice = {
   readonly id: string
   readonly title: string
   readonly body: string
+  // True when the notification should make no sound: the person turned Novadeck's sound off,
+  // or it sounded just now for another. Only a host that plays the sound (`sounds`) heeds it.
+  readonly silent?: boolean
 }
 
 // An agent the backend can connect, as the Preferences switches show it.

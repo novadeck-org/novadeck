@@ -94,6 +94,40 @@ describe("desktop notices", () => {
     })
   })
 
+  context("when the host's notifications play the sound", () => {
+    it("says so, and passes the person's silent choice", () => {
+      const { bridge, shown } = host()
+      const notices = desktopNotices({ ...bridge, notificationsSound: true } as DesktopHost)!
+      expect(notices.sounds).toBe(true)
+      notices.show({ id: "01", title: "@moth is done", body: "", silent: true })
+      notices.show({ id: "02", title: "@moth is done", body: "", silent: "no" as never })
+      expect(shown).toEqual([
+        { id: "01", title: "@moth is done", body: "", silent: true },
+        { id: "02", title: "@moth is done", body: "" },
+      ])
+    })
+
+    it("claims no sound in a host that lacks it", () => {
+      expect(desktopNotices(host().bridge)!.sounds).toBeUndefined()
+    })
+  })
+
+  context("when the host can tell whether notifications are held back", () => {
+    it("passes a boolean answer, and a failure or anything else is false", async () => {
+      const { bridge } = host()
+      const ask = (answer: () => Promise<unknown>) =>
+        desktopNotices({ ...bridge, notificationsQuiet: answer } as unknown as DesktopHost)!
+          .quiet!()
+      expect(await ask(async () => true)).toBe(true)
+      expect(await ask(async () => "yes")).toBe(false)
+      expect(await ask(() => Promise.reject(new Error("gone")))).toBe(false)
+    })
+
+    it("has no quiet in a host that lacks it", () => {
+      expect(desktopNotices(host().bridge)!.quiet).toBeUndefined()
+    })
+  })
+
   context("when the host can take one away", () => {
     it("closes by a terminal id and drops anything else", () => {
       const { bridge, closed } = host()

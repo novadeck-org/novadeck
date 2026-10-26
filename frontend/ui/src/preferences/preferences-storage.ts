@@ -13,6 +13,8 @@ export const readPreferences = (): PreferencesValue => {
     appearance: defaultPreference(themes),
     notifyNeeds: true,
     notifyFinished: true,
+    sound: true,
+    soundVolume: 0.6,
     ligatures: false,
     chatView: false,
   }
@@ -31,6 +33,11 @@ export const readPreferences = (): PreferencesValue => {
         typeof saved?.notifyNeeds === "boolean" ? saved.notifyNeeds : defaults.notifyNeeds,
       notifyFinished:
         typeof saved?.notifyFinished === "boolean" ? saved.notifyFinished : defaults.notifyFinished,
+      sound: typeof saved?.sound === "boolean" ? saved.sound : defaults.sound,
+      soundVolume:
+        typeof saved?.soundVolume === "number" && Number.isFinite(saved.soundVolume)
+          ? Math.min(1, Math.max(0, saved.soundVolume))
+          : defaults.soundVolume,
       ligatures: typeof saved?.ligatures === "boolean" ? saved.ligatures : defaults.ligatures,
       chatView: typeof saved?.chatView === "boolean" ? saved.chatView : defaults.chatView,
     }

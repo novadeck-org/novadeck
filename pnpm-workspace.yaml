@@ -30,6 +30,8 @@ publicHoistPattern:
 allowBuilds:
   electron-winstaller: true
   esbuild: true
+  # Its binaries come in per-platform packages; the install script only checks for them.
+  koffi: false
   msw: false
   node-pty: true
 minimumReleaseAgeExclude:
