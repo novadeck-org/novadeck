@@ -413,7 +413,7 @@ describe("Novadeck's MCP server", () => {
         "With a lead, ask all the same, and send it the question too",
       )
       expect(ask.description).toContain(
-        "if your lead answers it first, act on that as its instruction and withdraw the ask, unless it asks approval of an action, such as opening a pull request: only the user gives that",
+        "if your lead answers it first, act on that as its instruction and withdraw the ask, unless the question asks approval of an action, such as opening a pull request: only the user gives that",
       )
       expect(ask.description).toContain("needs no approval of theirs")
       expect(ask.description).toContain("A pick that is hard to undo waits for their answer")
@@ -941,7 +941,7 @@ describe("Novadeck's MCP server", () => {
           "Ask the user your questions for them with the ask tool, beside any in your reply, lead or not",
         )
         expect(description).toContain(
-          "withdraw an ask your lead answers first, unless it asks approval of an action",
+          "withdraw an ask your lead answers first, unless that ask is for approval of an action",
         )
         expect(description).toContain("waiting on the user, as agents says")
         expect(description).toContain(
