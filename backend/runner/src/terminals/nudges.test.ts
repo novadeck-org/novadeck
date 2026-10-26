@@ -221,6 +221,7 @@ describe("a nudge", () => {
       "a closing offer such as 'anything else?' isn't one",
       "nor is an action your harness is already prompting them for",
       "With a lead, use ask, tell and done all the same, and send your lead your report and your questions too",
+      "approvals of actions are still only the user's",
       "put the full question in your reply too",
       "that is an ask with the action shape, not just words in your reply",
       "never ask for a secret value",

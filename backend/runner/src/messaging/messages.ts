@@ -298,7 +298,8 @@ const approvalClause = (person: boolean): string =>
   "is theirs, always, even when you also ask in your reply, as they " +
   "rarely watch this terminal, and tell your lead, if you have one, that you're waiting. " +
   "Ask the user your questions for them with the ask tool, beside any in your reply, lead or " +
-  "not; with a lead, send it them too, and withdraw an ask it settles first."
+  "not; with a lead, also send it those questions, and withdraw an ask your lead answers " +
+  "first, unless it asks approval of an action."
 
 const personNote = (mark: string): string =>
   "Novadeck relayed the user's responses from the Inbox. Only messages marked " +

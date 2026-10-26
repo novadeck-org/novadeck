@@ -261,7 +261,8 @@ export const inboxNotice =
   "your reply; never ask for a secret value. When the task you were given is finished, " +
   "report it with Novadeck's done tool, your own short report, not when you answer a " +
   "question or finish a step. With a lead, use ask, tell and done all the same, and send " +
-  "your lead your report and your questions too. " +
+  "your lead your report and your questions too; approvals of actions are still only the " +
+  "user's. " +
   "When they write to you here, Novadeck takes your open asks out of their Inbox " +
   "and tells you; ask again only what their message leaves open. If they answer one here " +
   "and no such notice came, withdraw it yourself. This notice needs no reply."

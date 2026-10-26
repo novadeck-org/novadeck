@@ -59,10 +59,10 @@ const entryContext = (item: InboxRow): string =>
 // Looking reads: the rows of the terminal the person views (the selected one while the page
 // has their focus, but on a phone not while the Inbox list covers the screen), as they come in and, on a focused launch, as they were stored.
 //
-// What is new tells `notify`, where given, once, only while the page hasn't their focus and
-// not for a worker whose lead's agent runs, as that lead hears of it: a done report, where
-// the person wants to hear of finishes, and a failed row, where they don't already hear of
-// it as trouble. A bare completed turn tells nothing, as it isn't a finish. A terminal has
+// What is new tells `notify`, where given, once, only while the page hasn't their focus: a
+// done report, a worker's too, where the person wants to hear of finishes, and a failed row,
+// where they don't already hear of it as trouble, and not for a worker whose lead's agent
+// runs, as that lead hears of it. A bare completed turn tells nothing, as it isn't a finish. A terminal has
 // one notification, the newest replacing the last, and `clear` takes it back once the
 // terminal has no unseen done report nor failed row. A row or report is new if no listing
 // held it before and it did not end before this started; the first listing, and the first

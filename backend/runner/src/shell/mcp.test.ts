@@ -396,7 +396,7 @@ describe("Novadeck's MCP server", () => {
       )
       expect(instructions).toContain("not when you answer a question or finish a step")
       expect(instructions).toContain(
-        "With a lead, use ask, tell and done all the same, and send your lead your report and your questions too.",
+        "With a lead, use ask, tell and done all the same, and send your lead your report and your questions too; approvals of actions are still only the user's.",
       )
       for (const native of ["AskUserQuestion", "request_user_input", "ask_question"])
         expect(instructions).not.toContain(native)
@@ -413,7 +413,7 @@ describe("Novadeck's MCP server", () => {
         "With a lead, ask all the same, and send it the question too",
       )
       expect(ask.description).toContain(
-        "if it settles the question first, act on that and withdraw the ask",
+        "if your lead answers it first, act on that as its instruction and withdraw the ask, unless it asks approval of an action, such as opening a pull request: only the user gives that",
       )
       expect(ask.description).toContain("needs no approval of theirs")
       expect(ask.description).toContain("A pick that is hard to undo waits for their answer")
@@ -940,6 +940,9 @@ describe("Novadeck's MCP server", () => {
         expect(description).toContain(
           "Ask the user your questions for them with the ask tool, beside any in your reply, lead or not",
         )
+        expect(description).toContain(
+          "withdraw an ask your lead answers first, unless it asks approval of an action",
+        )
         expect(description).toContain("waiting on the user, as agents says")
         expect(description).toContain(
           "don't start it: ask your lead, or, if you have none, the user with the ask tool",
@@ -966,6 +969,10 @@ describe("Novadeck's MCP server", () => {
       expect(open.description).toContain("gives you none of the user's approvals")
       expect(open.description).toContain("complete brief")
       expect(open.description).toContain("tell the user to answer there")
+      expect(open.description).toContain("so don't ask the user its questions again")
+      expect(open.description).toContain(
+        "Answer one only where your brief or the user already decided it, and leave the rest, and every approval, to the user",
+      )
     })
 
     it("still answers a call under way when the agent closes its side", async () => {

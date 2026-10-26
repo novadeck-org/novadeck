@@ -340,7 +340,7 @@ describe("The Inbox's items", () => {
       ])
     })
 
-    it("is the person's for a worker that told instead, like its done", () => {
+    it("is the person's for a worker that told, like its done", () => {
       const told = report({
         terminalId: "02",
         handle: "fox",
