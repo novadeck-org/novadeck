@@ -73,6 +73,19 @@ describe("terminal activity", () => {
     })
   })
 
+  context("while an agent shows its own prompt, before it binds a session", () => {
+    it("carries its standing done too, as after a runner restart", () => {
+      const prompt = { process: { name: "codex", argv: null }, ready: "codex" as const }
+      expect(
+        terminalActivity(summary({ ...prompt, reported: { subject: "Fixed it", at: 5 } })).status,
+      ).toEqual({ state: "running", agent: { working: false, reported: true } })
+      expect(terminalActivity(summary(prompt)).status).toEqual({
+        state: "running",
+        agent: { working: false },
+      })
+    })
+  })
+
   context("while another program runs", () => {
     it("is running and names the program", () => {
       expect(terminalActivity(named("/opt/bin/Vim"))).toEqual({

@@ -190,7 +190,7 @@
    as command-line tools show work, and a faint hatch once it has ended. Each tab keeps a
    one-glyph slot before its program, so the text never shifts. Only what needs a look
    is marked: a spinner while a program runs, a dot while the shell starts, a check when an
-   agent reported its task done and a cross when its turn failed, until they look, `∅` while
+   agent reported its task done (while that report stands) and a cross when its turn failed, until they look, `∅` while
    it is paused at its usage limit, and a cross once it has ended; an idle tab leaves it
    blank. The glyph says what the agent does, never what it needs: that is the mark after
    the program. Reduced motion holds the spinner still. */
@@ -216,10 +216,10 @@
 .terminal-tab[data-terminal-phase="unheard"] .terminal-glyph::before {
   content: "○";
 }
-/* An agent that reported its task done (its `done` call) while the person looked elsewhere
-   is marked by a bold glyph, "✓" in the success colour, or "✗" in the danger colour where
-   its turn ended on an error. Its program stays beside it, its name bold (TerminalTab.tsx),
-   with how long ago it finished, until they look. */
+/* An agent that reported its task done (its `done` call) is marked by a bold glyph, "✓" in
+   the success colour, as long as the report stands, looked at or not; "✗" in the danger
+   colour where its turn ended on an error, until they look. Its program stays beside it,
+   its name bold (TerminalTab.tsx), with how long ago it finished. */
 .terminal-tab[data-terminal-phase="done"] .terminal-glyph {
   color: var(--tab-done-fg, var(--color-success-fg));
   font-weight: 700;

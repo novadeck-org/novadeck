@@ -236,11 +236,19 @@ describe("the done report that stands", () => {
     const run = {
       done: report as { subject: string; at: number } | null,
       deliveredAt: null as number | null,
+      saved: undefined as { agent: string; sessionId: string } | undefined,
     }
     const announce = vi.fn<(record: Record) => void>()
     const host = {
       messaging: () => ({ shownAgent: () => undefined, deliveredAt: () => run.deliveredAt }),
-      turns: () => ({ inbox: { reports: () => ({ tell: null, done: run.done }) } }),
+      turns: () => ({
+        inbox: {
+          reports: (_id: string, saved?: { agent: string; sessionId: string }) => {
+            run.saved = saved
+            return { tell: null, done: run.done }
+          },
+        },
+      }),
       typing: () => ({ dialogsChanged: () => {} }),
       rebound: () => {},
       announce,
@@ -281,11 +289,22 @@ describe("the done report that stands", () => {
     expect(bound.summary.reported).toBeNull()
   })
 
-  it("goes with the session: none once the binding ended, and publishAgent shows it as well", () => {
-    const { ends, bound } = standing()
+  it("is shown by publishAgent as well, and follows the Inbox's word once the binding ended", () => {
+    const { run, ends, bound } = standing()
     ends.publishAgent(bound, false)
     expect(bound.summary.reported).toEqual(report)
+    // The Inbox answers for the session now bound, or the saved one: none of another.
+    run.done = null
     ends.endBinding(bound)
     expect(bound.summary.reported).toBeNull()
+  })
+
+  it("survives a restart for any harness: unbound, it asks for the session its work was of", () => {
+    const { run, ends, bound } = standing()
+    bound.bound = null
+    bound.work = { ...bound.work!, session: "codex:s:1" }
+    ends.publishReported(bound)
+    expect(run.saved).toEqual({ agent: "codex", sessionId: "s:1" })
+    expect(bound.summary.reported).toEqual(report)
   })
 })

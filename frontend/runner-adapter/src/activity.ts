@@ -118,7 +118,7 @@ export const terminalActivity = (
           ...(summary.reported ? { reported: true as const } : {}),
         }
       : !summary.agent && summary.ready === program
-        ? { working: false }
+        ? { working: false, ...(summary.reported ? { reported: true as const } : {}) }
         : undefined
   const usage = summary.agent && summary.activity ? usageOf(summary.telemetry) : undefined
   return {

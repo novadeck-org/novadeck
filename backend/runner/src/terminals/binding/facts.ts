@@ -449,9 +449,14 @@ export class Bindings {
    */
   private reportedOf(record: Record): TerminalSummary["reported"] {
     const id = record.summary.id
-    if (!record.bound) return null
+    // Before its agent binds a session again, as after a restart, the session its work was of.
+    const [agent, ...rest] = record.work?.session.split(":") ?? []
+    const saved =
+      record.bound || !agent || rest.length === 0
+        ? undefined
+        : { agent: agent as AgentName, sessionId: rest.join(":") }
     const done = standingDone(
-      this.host.turns().inbox.reports(id),
+      this.host.turns().inbox.reports(id, saved),
       record.work?.personAt,
       this.host.messaging().deliveredAt(id),
     )

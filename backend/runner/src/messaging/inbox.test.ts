@@ -535,6 +535,50 @@ describe("done entries", () => {
     })
   })
 
+  it("reports the saved session's while none is bound, as after a restart", ({ resources }) => {
+    const records = memoryInbox()
+    const run = setup(records)
+    resources.defer(run.stop)
+    run.inbox.call(identity.terminalId, "done", { subject: "Fixed it", body: "Body" })
+    run.stop()
+    const saved = { agent: identity.agent, sessionId: identity.sessionId }
+    const bare = new Inbox(
+      {
+        owner: () => undefined,
+        reply: () => {},
+        replyState: () => undefined,
+        forgetReplies: () => {},
+        changed: () => {},
+        exists: () => true,
+      },
+      records,
+    )
+    expect(bare.reports(identity.terminalId).done).toBeNull()
+    expect(bare.reports(identity.terminalId, saved).done?.subject).toBe("Fixed it")
+    expect(bare.reports(identity.terminalId, { ...saved, sessionId: "other" }).done).toBeNull()
+    bare.close()
+  })
+
+  it("keeps the bound session's latest done past retention, read or not, and prunes the older ones", ({
+    resources,
+  }) => {
+    const clock = inboxClock()
+    const run = setup(memoryInbox(), undefined, clock)
+    resources.defer(run.stop)
+    const send = (subject: string) => {
+      clock.advance(1000)
+      const sent = run.inbox.call(identity.terminalId, "done", { subject, body: "Body" })
+      if (!sent.ok) throw new Error(sent.reason)
+      return sent.id
+    }
+    const first = send("First")
+    const second = send("Second")
+    run.inbox.read([first, second])
+    clock.advance(retentionMs + 1)
+    run.inbox.prune()
+    expect(run.inbox.reports(identity.terminalId).done?.subject).toBe("Second")
+  })
+
   it("refuses a done with no subject or an oversized subject or body", ({ resources }) => {
     const run = setup()
     resources.defer(() => run.messaging.close())

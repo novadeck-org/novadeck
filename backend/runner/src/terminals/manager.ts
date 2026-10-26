@@ -1634,6 +1634,7 @@ export class Terminals {
       ready: null,
       activity: null,
       telemetry: null,
+      reported: null,
     }
     cancelResume(record)
     this.saves.save(record, true)
