@@ -5,10 +5,12 @@ import { shorten } from "./work.js"
  * When Novadeck nudges a terminal's agent to summarize its work (see
  * docs/agent-messaging.md, "Naming"): a new root session; a compaction, where the harness
  * reports one; the work drifting from where it was at the last `summarize` (its plan's
- * title, the folder it writes in most, or its branch); and, as a backstop,
- * `backstopPrompts` of the person's prompts since the last `summarize`.
+ * title, the folder it writes in most, or its branch); as a backstop, `backstopPrompts` of
+ * the person's prompts since the last `summarize`; and every prompt while the terminal has
+ * no summary at all (`unsummarized`), since an agent whose first prompt gave it no work yet
+ * puts the first nudge off, and the terminal has no title until it summarizes.
  */
-export type Trigger = "session" | "compaction" | "drift" | "prompts"
+export type Trigger = "session" | "compaction" | "drift" | "prompts" | "unsummarized"
 
 /**
  * What drift is told by: the root's plan title, its main "works in" folder, its branch.
@@ -168,20 +170,24 @@ export const take = (
 
 /**
  * The person prompted: one more toward the backstop, drift looked at where `facts` were
- * read, and whether the answer nudges, which it does only when it is `quiet`: it carries
- * nothing else and will reach the hook in time. A trigger that can't nudge now waits.
+ * read, a summary asked for again while there is none, and whether the answer nudges,
+ * which it does only when it is `quiet`: it carries nothing else and will reach the hook
+ * in time. A trigger that can't nudge now waits.
  */
 export const atPrompt = (
   nudges: Nudges,
   input: {
     readonly quiet: boolean
     readonly facts?: Facts | undefined
+    /** Whether the terminal has no summary on record. */
+    readonly unsummarized?: boolean
     /** Whether an answer with the notices of a `Taken` stays within what a hook may print. */
     readonly fits?: Parameters<typeof take>[2]
   },
 ): Taken => {
   const counted = personPrompted(nudges)
-  return take(input.facts ? drifted(counted, input.facts) : counted, input.quiet, input.fits)
+  const looked = input.facts ? drifted(counted, input.facts) : counted
+  return take(input.unsummarized ? fired(looked, "unsummarized") : looked, input.quiet, input.fits)
 }
 
 /**
