@@ -11,7 +11,7 @@
    data-needs while it asks something of the person and isn't answered, data-updates-start on
    the row after the last that asks (the updates' line), data-arrived while it has just joined the list, and, being
    an item, data-selected for the one whose sheet is open. A row that asks keeps its colour
-   until it is answered: opening it only takes away its weight. While a sheet is
+   until it is answered, opened or not. While a sheet is
    open the updates step back. The header's
    `.inbox-held` pill says items wait to join; an empty panel shows `.inbox-empty`.
 
@@ -141,13 +141,10 @@
   line-clamp: 3;
   color: var(--color-muted);
 }
-/* What asks is bright until it is answered, opened or not; unopened, it is bold too. Gray is
-   for updates and answered rows. */
+/* What asks is bright until it is answered, opened or not. Gray is for updates and answered
+   rows. */
 .inbox-row[data-needs="true"] .inbox-row-subject {
   color: var(--color-ink);
-}
-.inbox-row[data-needs="true"][data-seen="false"] .inbox-row-subject {
-  font-weight: 500;
 }
 .inbox-row[data-selected="true"] .inbox-row-subject {
   color: var(--color-ink);

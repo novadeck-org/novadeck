@@ -21,8 +21,7 @@ const answeredIn = (
 
 // One row, for triage only: the type's icon tinted by how urgent it is, the subject, how
 // long the agent has waited if it stopped, and under it the project and what is extra. A row
-// that asks something stays bright until it is answered: opening it only takes away its
-// bold. `first` marks the row after the last that asks, where the updates' line goes.
+// that asks something stays bright until it is answered, opened or not. `first` marks the row after the last that asks, where the updates' line goes.
 const Row = ({
   item,
   asks,

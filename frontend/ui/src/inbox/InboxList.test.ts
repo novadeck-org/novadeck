@@ -224,7 +224,7 @@ describe("The Inbox's list", () => {
   })
 
   context("when a row that asks has been opened", () => {
-    it("keeps it bright, and takes away only its bold", async () => {
+    it("keeps it asking, marked as opened", async () => {
       const inbox = mount([permission("a", 1), permission("b", 2)])
       expect(inbox.row("a").dataset).toMatchObject({ needs: "true", seen: "false" })
 
