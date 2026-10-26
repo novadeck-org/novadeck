@@ -471,7 +471,7 @@ So does the person writing to the agent in its terminal. When a root turn starts
 person's own submission, as delivery judges it (see [What counts](#what-counts):
 a doorbell ring, a turn the harness or the agent started, and the first prompt an
 agent's command line gave never count), Novadeck withdraws that agent session's open asks
-made before the turn's hook started, in every harness: the same `withdrawn` state as the
+made before the person submitted it, in every harness: the same `withdrawn` state as the
 agent's own withdrawal, so the row leaves the Inbox, and its toast or OS notification
 clears with it, and Messages shows it withdrawn. Tells, done rows and turn rows stay, and
 so does an ask the agent makes during the new turn. The same prompt's hook answer carries a
@@ -489,13 +489,12 @@ answered it in the terminal and no notice came). A Stop is never used, as printi
 would continue the turn. The debt is also dropped when the session ends or another binds.
 A notice paid at a later model call of Antigravity's turn is given again on the turn's
 remaining calls, as one paid at its first. A message that then no longer fits the delivery budget (`maxDeliveryBytes`)
-waits for the next hook, and the notice goes alone. Where a harness's injected text lasts one
-model call (Antigravity's), the notice is given again on each later call of the turn. A
+waits for the next hook, and the notice goes alone. A
 prompt the person steers into a running turn counts when delivery takes it as theirs by the
 same Enter. A prompt they queued during the previous turn (Claude Code's and Codex's queues,
 Antigravity's) counts from their queuing Enter, not the turn's start, so an ask the agent made
 at that turn's end is not taken for answered; if that time is unknown nothing is withdrawn. A
-fixed line an Inbox button sends ("continue") is the runner's `agents.prompt` with
+fixed line an Inbox button sends (Continue, the default Nudge, Ask it to fix) is the runner's `agents.prompt` with
 `automatic`: delivery still takes the turn as theirs, but it withdraws nothing and says
 nothing to the agent. Each send is its own mark, the line's text as the prompt is sent (line ends as `\n`,
 trimmed), kept in order for the terminal however long the line waits behind a running turn
@@ -504,7 +503,10 @@ several marked lines in the order they were marked joined by line breaks (a harn
 fold lines queued close together), is exempt and spends those marks; the person's own words
 spend none and withdraw as usual. A failed send (refused, `PROMPT_FAILED`,
 `BOX_NOT_CLEARED`, any error) removes one mark of its text, and the session ending or
-another binding clears them all. The demo keeps marks the same way, an interrupt that gives
+another binding clears them all. A mark no turn matches (its line folded in with the
+person's words, a turn not taken for theirs, or a given-back line the person deleted) stays
+until then, so the person typing exactly that line themselves withdraws nothing; the asks
+stay open and the agent's own withdrawal covers it. The demo keeps marks the same way, an interrupt that gives
 queued lines back included. The person's own "Write your own" nudge is not marked. Words the person writes themselves, a nudge of their own from a
 stuck agent's sheet or an answer to a harness request sent on as the next prompt, are theirs,
 and do withdraw.

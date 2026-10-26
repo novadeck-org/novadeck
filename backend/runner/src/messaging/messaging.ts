@@ -984,7 +984,7 @@ export class Messaging {
   ): void {
     const { delivery, prompt } = live
     if (!person || delivery.epoch === before.epoch || !delivery.byPerson || !running(delivery))
-      return undefined
+      return
     const start = events.find(
       (event): event is Extract<HarnessEvent, { type: "turn-started" }> =>
         event.type === "turn-started" && event.cause === "prompt" && rootedIn(live.root, event),
