@@ -201,10 +201,10 @@ export const TerminalCompanion = ({
 }): React.JSX.Element => {
   const { terminalId: terminal, projectId, workspaceSessionId } = companionKey
   const target = useMemo(() => ({ projectId, workspaceSessionId }), [projectId, workspaceSessionId])
-  const messagesView = useMessages(messages, companionKey)
+  const messagesHandle = useMessages(messages, companionKey)
   const members = useMemo(
-    () => barMembers({ terminalId: terminal, bar, items, fresh, messages: messagesView.present }),
-    [terminal, bar, items, fresh, messagesView.present],
+    () => barMembers({ terminalId: terminal, bar, items, fresh, messages: messagesHandle.present }),
+    [terminal, bar, items, fresh, messagesHandle.present],
   )
   const slots = useMemo(() => composeBar(bar, members), [bar, members])
   const planIds = useMemo(
@@ -263,7 +263,7 @@ export const TerminalCompanion = ({
   const actions: Omit<SlotActions, "grab"> = {
     showing,
     stacked: bar.stack,
-    draw: terminalDrawing({ itemStore, target, view: messagesView, links, plans }),
+    draw: terminalDrawing({ itemStore, target, messagesHandle, links, plans }),
     originOf,
     // Clicking what the pane is showing minimizes it, as a taskbar does the active window;
     // anything else comes to the top.
@@ -338,7 +338,7 @@ export const TerminalCompanion = ({
     itemStore,
     target,
     agent,
-    view: messagesView,
+    messagesHandle,
     links,
     plans,
     originOf,

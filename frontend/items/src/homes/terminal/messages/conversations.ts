@@ -117,7 +117,7 @@ export type Note = "queued" | "leased" | "gone" | "delivered"
 // quiet minutes), a New line before the first of the person's unread entries, rounds that
 // repeat folded to one line, and the messages, each on its side, grouped under the one
 // before it from the same sender.
-export type ChatEntry =
+export type ChatLine =
   | { readonly kind: "time"; readonly key: string; readonly at: number }
   | { readonly kind: "new"; readonly key: string }
   | {
@@ -193,26 +193,26 @@ export const chatOf = (
   conversation: Conversation,
   self: string,
   unfolded: boolean,
-): readonly ChatEntry[] => {
+): readonly ChatLine[] => {
   const you = conversation.key === youKey
   const mine = you ? "you" : self
   const lastMine = conversation.messages.findLast((message) => message.from === mine)
-  const entries: ChatEntry[] = []
+  const lines: ChatLine[] = []
   let prev: AgentMessage | null = null
   let fresh = false
   const burst = (message: AgentMessage): void => {
     if (prev && message.sentAt - prev.sentAt < burstMs) return
-    entries.push({ kind: "time", key: `time-${message.id}`, at: message.sentAt })
+    lines.push({ kind: "time", key: `time-${message.id}`, at: message.sentAt })
     prev = null
   }
   const one = (message: AgentMessage): void => {
     burst(message)
     if (you && !fresh && message.inboxState === "open" && message.from !== "you") {
-      entries.push({ kind: "new", key: "new" })
+      lines.push({ kind: "new", key: "new" })
       fresh = true
       prev = null
     }
-    entries.push({
+    lines.push({
       kind: "message",
       key: message.id,
       message,
@@ -230,9 +230,9 @@ export const chatOf = (
     else {
       const first = run.fold[0]!
       burst(first)
-      entries.push({ kind: "fold", key: `fold-${first.id}`, rounds: run.rounds, first })
+      lines.push({ kind: "fold", key: `fold-${first.id}`, rounds: run.rounds, first })
       prev = run.fold.at(-1)!
     }
   }
-  return entries
+  return lines
 }

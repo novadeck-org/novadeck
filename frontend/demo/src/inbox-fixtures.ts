@@ -230,7 +230,7 @@ const retryOptions: readonly AskOption[] = [
     },
   },
   {
-    label: "No retries: a dead-entry queue you replay by hand",
+    label: "No retries: a dead-letter queue you replay by hand",
     summary: "Nothing retries automatically. Someone has to watch the queue.",
     details:
       "- Fine if failures are rare and someone checks daily.\n- Needs a small admin page to replay events.",

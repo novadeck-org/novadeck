@@ -10,7 +10,7 @@ import {
   listed,
   openAsks,
   youKey,
-  type ChatEntry,
+  type ChatLine,
 } from "./conversations"
 
 let sequence = 0
@@ -171,19 +171,19 @@ describe("an entry's label", () => {
 })
 
 describe("a chat", () => {
-  const kinds = (entries: readonly ChatEntry[]): string[] =>
-    entries.map((entry) =>
-      entry.kind === "message"
-        ? `${entry.side}${entry.grouped ? "+" : ""}:${entry.message.text}${entry.note ? `(${entry.note})` : ""}`
-        : entry.kind === "fold"
-          ? `fold ${entry.rounds}`
-          : entry.kind,
+  const kinds = (lines: readonly ChatLine[]): string[] =>
+    lines.map((line) =>
+      line.kind === "message"
+        ? `${line.side}${line.grouped ? "+" : ""}:${line.message.text}${line.note ? `(${line.note})` : ""}`
+        : line.kind === "fold"
+          ? `fold ${line.rounds}`
+          : line.kind,
     )
   const owl = (messages: readonly AgentMessage[]) =>
     conversationsOf(messagesOf(thread("t-owl", "owl", messages)))[0]!
 
   it("says the time where a burst starts, puts the terminal's agent on the right, and Delivered under its last", () => {
-    const entries = chatOf(
+    const lines = chatOf(
       owl([
         message("owl", "moth", 0, "a"),
         message("owl", "moth", minute, "b"),
@@ -194,7 +194,7 @@ describe("a chat", () => {
       "moth",
       false,
     )
-    expect(kinds(entries)).toEqual([
+    expect(kinds(lines)).toEqual([
       "time",
       "in:a",
       "in+:b",
@@ -206,7 +206,7 @@ describe("a chat", () => {
   })
 
   it("notes a message only while on its way, held or lost", () => {
-    const entries = chatOf(
+    const lines = chatOf(
       owl([
         message("moth", "owl", 0, "a", { state: "leased", deliveredAt: null }),
         message("moth", "owl", 1, "b", { state: "queued", deliveredAt: null }),
@@ -216,7 +216,7 @@ describe("a chat", () => {
       "moth",
       false,
     )
-    expect(kinds(entries).slice(1)).toEqual([
+    expect(kinds(lines).slice(1)).toEqual([
       "out:a(leased)",
       "out+:b(queued)",
       "out+:c(queued)",

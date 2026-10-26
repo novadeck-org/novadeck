@@ -211,7 +211,7 @@ for (const setup of setups) {
         run.deck.terminals.inboxEntries().filter((each) => each.content.kind !== "turn")
       expect(waiting().map((each) => each.id)).toEqual([ask.id])
       const mark = terminal.mark()
-      // This is the same runner operation that the authenticated UI's asks.answer calls.
+      // This is the same runner operation that the authenticated UI's inbox.answer calls.
       run.deck.terminals.answerAsk(ask.id, { type: "reply", option: 1, text: "Use green, please." })
       expect(() =>
         run.deck.terminals.answerAsk(ask.id, { type: "reply", option: null, text: "Again" }),

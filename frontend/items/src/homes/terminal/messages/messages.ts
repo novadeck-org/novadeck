@@ -85,14 +85,14 @@ export const useMessages = (messages: Messages | undefined, key: CompanionKey): 
 }
 
 // What the messages' views know of the session around the terminal: the other terminals
-// by handle, and the ways out of the pane, to another terminal and to the Inbox item a
-// letter waits in.
+// by handle, and the ways out of the pane, to another terminal and to the Inbox item an
+// entry waits in.
 // The peers are a store, which only the views that draw them subscribe to, so a terminal
 // whose pane is shut never renders again as an agent starts or stops working.
 export type MessageLinks = {
   readonly peers: Store<Readonly<Record<string, MessagePeer>>>
   readonly goTo: (terminalId: string) => void
-  readonly answer: (letter: AgentMessage) => void
+  readonly answer: (entry: AgentMessage) => void
 }
 
 const nobody: Readonly<Record<string, MessagePeer>> = {}

@@ -31,20 +31,24 @@ export const slotIcon = (slot: BarSlot): LucideIcon =>
 
 // What the messages' views read beside the item store.
 type MessagesProps = {
-  readonly view: MessagesHandle
+  readonly messagesHandle: MessagesHandle
   readonly links: MessageLinks
 }
 
-// Where what's drawn comes from: the item store for items, the view for the messages.
+// Where what's drawn comes from: the item store for items, the handle for the messages.
 type Sources = MessagesProps & { readonly itemStore: ItemStore; readonly target: WorkspaceTarget }
 
 // The messages' count waiting for their agent, or the pause mark.
-const MessagesCount = ({ view }: { view: MessagesHandle }): React.JSX.Element | null =>
-  view.badge ? (
-    <b className="plan-tb-count" data-messages={view.badge.kind} aria-hidden="true">
-      {view.badge.count}
+const MessagesCount = ({
+  messagesHandle,
+}: {
+  messagesHandle: MessagesHandle
+}): React.JSX.Element | null =>
+  messagesHandle.badge ? (
+    <b className="plan-tb-count" data-messages={messagesHandle.badge.kind} aria-hidden="true">
+      {messagesHandle.badge.count}
     </b>
-  ) : view.paused ? (
+  ) : messagesHandle.paused ? (
     <b className="plan-tb-count" data-messages="paused" aria-hidden="true">
       <Pause size={8} strokeWidth={2.5} />
     </b>
@@ -58,7 +62,7 @@ export const terminalDrawing = ({
   look: (member) => memberLook(member, { plans }),
   preview: (member) => {
     if (member.kind === "messages")
-      return <MessagesThumb view={sources.view} links={sources.links} />
+      return <MessagesThumb messagesHandle={sources.messagesHandle} links={sources.links} />
     const { Thumb } = registrationOf(member.item)
     return <Thumb item={member.item} itemStore={sources.itemStore} target={sources.target} />
   },
@@ -66,10 +70,10 @@ export const terminalDrawing = ({
     member.kind !== "messages"
       ? undefined
       : {
-          mark: <MessagesCount view={sources.view} />,
-          label: sources.view.badge
-            ? `, ${messageBadgeLabel(sources.view.badge)}`
-            : sources.view.paused
+          mark: <MessagesCount messagesHandle={sources.messagesHandle} />,
+          label: sources.messagesHandle.badge
+            ? `, ${messageBadgeLabel(sources.messagesHandle.badge)}`
+            : sources.messagesHandle.paused
               ? ", messaging paused"
               : "",
         },
@@ -80,12 +84,12 @@ export const MemberView = ({
   member,
   itemStore,
   target,
-  view,
+  messagesHandle,
   links,
   actions,
 }: Sources & { member: BarMember; actions: ReactNode }): React.JSX.Element => {
   if (member.kind === "messages")
-    return <MessagesView view={view} links={links} actions={actions} />
+    return <MessagesView messagesHandle={messagesHandle} links={links} actions={actions} />
   const { View } = registrationOf(member.item)
   return <View item={member.item} itemStore={itemStore} target={target} actions={actions} />
 }

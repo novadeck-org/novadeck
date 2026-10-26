@@ -1957,4 +1957,33 @@ describe("the Inbox table's rename", () => {
       database.close()
     }
   })
+
+  it.for([2, 5])(
+    "carries a version %i database last opened before the asks table existed",
+    (version, { directory }) => {
+      const path = join(directory(), "workspace.sqlite")
+      const old = new DatabaseSync(path)
+      old.exec(`${readFileSync(new URL(`schemas/${version}.sql`, import.meta.url), "utf8")}
+        DROP TABLE asks;
+        PRAGMA user_version = ${version};
+        INSERT INTO projects (position, id, name, cwd) VALUES (1, 'p', 'Shop', '/shop');`)
+      old.close()
+      const workspace = new WorkspaceStore(path)
+      try {
+        expect(workspace.projects().map(({ id }) => id)).toEqual(["p"])
+        expect(workspace.entries()).toEqual([])
+      } finally {
+        workspace.close()
+      }
+      const database = new DatabaseSync(path)
+      try {
+        expect(database.prepare("PRAGMA user_version").get()?.user_version).toBe(6)
+        expect(
+          database.prepare("SELECT name FROM sqlite_schema WHERE name = 'asks'").get(),
+        ).toBeUndefined()
+      } finally {
+        database.close()
+      }
+    },
+  )
 })

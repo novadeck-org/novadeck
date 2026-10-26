@@ -419,7 +419,15 @@ const migrations: Readonly<Record<number, string>> = {
     DROP TABLE message_threads_4;
   `,
   // Made again under the new name, as a rename would quote the name in the table's schema.
+  // `asks` came with `extras`, so a database last opened before it existed has none.
   5: `
+    CREATE TABLE IF NOT EXISTS asks (
+      id TEXT PRIMARY KEY,
+      project_id TEXT NOT NULL,
+      terminal_id TEXT NOT NULL,
+      at REAL NOT NULL,
+      record TEXT NOT NULL
+    ) STRICT;
     CREATE TABLE inbox (
       id TEXT PRIMARY KEY,
       project_id TEXT NOT NULL,

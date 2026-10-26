@@ -23,7 +23,7 @@ import {
 // The person forking a session, the same for every harness (see messaging.e2e.ts for the
 // rule on parity). A fork is a session of its own carrying its parent's conversation. A
 // message is for the session bound when it was sent, so the parent's never go to its fork
-// (docs/agent-messaging.md, "Messages" and "Message states").
+// (docs/agent-messaging.md, "Message store" and "Message states").
 
 // Whether the call's conversation holds a user turn with `text`.
 const holding = (

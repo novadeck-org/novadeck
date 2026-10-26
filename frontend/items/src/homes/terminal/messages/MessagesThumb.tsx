@@ -5,14 +5,16 @@ import { usePeers, type MessagesHandle, type MessageLinks } from "./messages"
 
 // The conversations: who they're with, as the pane lists them.
 export const MessagesThumb = ({
-  view,
+  messagesHandle,
   links,
 }: {
-  view: MessagesHandle
+  messagesHandle: MessagesHandle
   links: MessageLinks
 }): React.JSX.Element => {
   const peers = usePeers(links)
-  const conversations = view.threads ? listed(conversationsOf(view.threads)) : []
+  const conversations = messagesHandle.threads
+    ? listed(conversationsOf(messagesHandle.threads))
+    : []
   return (
     <span className="peek-plan peek-messages">
       <b>{conversations.length ? "Conversations" : "No messages yet"}</b>

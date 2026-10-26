@@ -44,8 +44,8 @@ const messagesOf = (waits: MessageWaits | null, paused = false): MessagesHandle 
 const unmounts: (() => void)[] = []
 afterEach(() => unmounts.splice(0).forEach((unmount) => unmount()))
 
-const html = (view: MessagesHandle): string => {
-  const rendered = render(createElement(MessagesView, { view, links: noLinks }))
+const html = (messagesHandle: MessagesHandle): string => {
+  const rendered = render(createElement(MessagesView, { messagesHandle, links: noLinks }))
   unmounts.push(rendered.unmount)
   return rendered.container.innerHTML
 }

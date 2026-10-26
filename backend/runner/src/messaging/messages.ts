@@ -5,7 +5,7 @@ import { harnesses, type AgentName, type MessageState } from "@novadeck/protocol
 
 /**
  * The message rules, as pure functions over its records (see docs/agent-messaging.md,
- * "Messages" and "Guards"). `Messaging` keeps the records and applies these.
+ * "Message store" and "Guards"). `Messaging` keeps the records and applies these.
  */
 
 /** A terminal that sent a message: its handle, and its agent session when one was bound. */

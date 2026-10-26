@@ -772,7 +772,7 @@ describe("The Inbox's items", () => {
     })
   })
 
-  describe("a entry", () => {
+  describe("an entry", () => {
     const attention: AgentStatus = { working: true, attention: { kind: "permission", count: 1 } }
     const told = (id = "told-1"): InboxEntry =>
       entry({ id, content: { kind: "tell", subject: "Preview ready", body: "Open the preview." } })

@@ -27,7 +27,7 @@ import {
   openAsks,
   waitsOnPerson,
   youKey,
-  type ChatEntry,
+  type ChatLine,
   type Conversation,
   type Corner,
   type Note,
@@ -187,17 +187,17 @@ const Row = ({
 // other side's, an entry's label in plain words, the question a reply answers, Answer on a
 // question still open, and its note under it while there's one worth a look.
 const Bubble = ({
-  entry,
+  line,
   conversation,
   peers,
   links,
 }: {
-  entry: Extract<ChatEntry, { kind: "message" }>
+  line: Extract<ChatLine, { kind: "message" }>
   conversation: Conversation
   peers: Readonly<Record<string, MessagePeer>>
   links: MessageLinks
 }): React.JSX.Element => {
-  const { message, side, grouped, note } = entry
+  const { message, side, grouped, note } = line
   const label = entryLabel(message)
   const asked = conversation.asked.get(message.id)
   const open = message.inbox === "ask" && message.inboxState === "open"
@@ -266,25 +266,25 @@ const Bubble = ({
   )
 }
 
-const ChatEntryItem = ({
-  entry,
+const ChatLineItem = ({
+  line,
   conversation,
   peers,
   links,
   onUnfold,
 }: {
-  entry: ChatEntry
+  line: ChatLine
   conversation: Conversation
   peers: Readonly<Record<string, MessagePeer>>
   links: MessageLinks
   onUnfold: () => void
 }): React.JSX.Element => {
-  switch (entry.kind) {
+  switch (line.kind) {
     case "time":
       return (
         <li className="message-time">
-          <time dateTime={new Date(entry.at).toISOString()} title={exact(entry.at)}>
-            {clock(entry.at)}
+          <time dateTime={new Date(line.at).toISOString()} title={exact(line.at)}>
+            {clock(line.at)}
           </time>
         </li>
       )
@@ -299,15 +299,15 @@ const ChatEntryItem = ({
         <li className="message-fold">
           <button type="button" onClick={onUnfold}>
             <span className="message-fold-count">
-              {entry.rounds} more round{entry.rounds === 1 ? "" : "s"} like this
+              {line.rounds} more round{line.rounds === 1 ? "" : "s"} like this
             </span>
-            <span className="message-fold-text">{entry.first.text.replace(/\s+/g, " ")}</span>
+            <span className="message-fold-text">{line.first.text.replace(/\s+/g, " ")}</span>
             <span className="message-fold-show">Show</span>
           </button>
         </li>
       )
     case "message":
-      return <Bubble entry={entry} conversation={conversation} peers={peers} links={links} />
+      return <Bubble line={line} conversation={conversation} peers={peers} links={links} />
   }
 }
 
@@ -329,10 +329,7 @@ const Chat = ({
 }): React.JSX.Element => {
   const peer = peers[conversation.peer]
   const [unfolded, setUnfolded] = useState(false)
-  const entries = useMemo(
-    () => chatOf(conversation, self, unfolded),
-    [conversation, self, unfolded],
-  )
+  const lines = useMemo(() => chatOf(conversation, self, unfolded), [conversation, self, unfolded])
   const you = conversation.key === youKey
   const name = nameOf(conversation.peer, peer)
   const asks = openAsks(conversation)
@@ -340,11 +337,11 @@ const Chat = ({
   const atEnd = useRef(true)
   const back = useRef<HTMLButtonElement>(null)
   useEffect(() => back.current?.focus({ preventScroll: true }), [])
-  // At its end as entries come, unless the person scrolled up.
+  // At its end as lines come, unless the person scrolled up.
   useLayoutEffect(() => {
     const element = scroll.current
-    if (element && atEnd.current && entries.length) element.scrollTop = element.scrollHeight
-  }, [entries])
+    if (element && atEnd.current && lines.length) element.scrollTop = element.scrollHeight
+  }, [lines])
   const gone =
     !you &&
     liveOf(peer) === "gone" &&
@@ -399,10 +396,10 @@ const Chat = ({
         }}
       >
         <ol className="message-chat" aria-label={`Messages with ${you ? "you" : name}`}>
-          {entries.map((entry) => (
-            <ChatEntryItem
-              key={entry.key}
-              entry={entry}
+          {lines.map((line) => (
+            <ChatLineItem
+              key={line.key}
+              line={line}
               conversation={conversation}
               peers={peers}
               links={links}
@@ -429,11 +426,11 @@ const Chat = ({
 // pause for messages between agents; the person's replies go through. Holds stay with the
 // runner and the Inbox, never here.
 export const MessagesView = ({
-  view,
+  messagesHandle,
   links,
   actions,
 }: {
-  view: MessagesHandle
+  messagesHandle: MessagesHandle
   links: MessageLinks
   // What the pane does, at the end of the header.
   actions?: ReactNode
@@ -444,13 +441,13 @@ export const MessagesView = ({
   const list = useRef<HTMLUListElement>(null)
   const returnTo = useRef<string | null>(null)
   const conversations = useMemo(
-    () => (view.threads ? listed(conversationsOf(view.threads)) : []),
-    [view.threads],
+    () => (messagesHandle.threads ? listed(conversationsOf(messagesHandle.threads)) : []),
+    [messagesHandle.threads],
   )
   const opened = conversations.find((each) => each.key === open)
   const latest = opened ? latestOf(opened) : 0
   const peers = usePeers(links)
-  const { seen } = view
+  const { seen } = messagesHandle
   // What the person has open on screen, they've seen, up to its latest message: not one
   // left open in a terminal kept out of sight, or in a window in the background, until it
   // comes back.
@@ -471,7 +468,7 @@ export const MessagesView = ({
     <div className="message-view">
       <ArtifactMeta className="message-meta" actions={actions}>
         <code>Messages</code>
-        {view.threads && <span>{handleText(view.threads.handle)}</span>}
+        {messagesHandle.threads && <span>{handleText(messagesHandle.threads.handle)}</span>}
         <span className="message-pause">
           <span id={label} className="message-pause-label">
             Pause all agents' messages
@@ -481,34 +478,34 @@ export const MessagesView = ({
             through.
           </span>
           <Switch
-            checked={view.paused}
-            onChange={view.pause}
+            checked={messagesHandle.paused}
+            onChange={messagesHandle.pause}
             labelledBy={label}
             describedBy={hint}
-            pending={view.pending}
+            pending={messagesHandle.pending}
           />
         </span>
       </ArtifactMeta>
-      {view.error && (
+      {messagesHandle.error && (
         <p className="message-error" data-tone="danger" role="alert">
-          {view.error}
+          {messagesHandle.error}
         </p>
       )}
-      {view.paused && (
+      {messagesHandle.paused && (
         <p className="message-paused" data-tone="warning" role="status">
           Messaging is paused between agents. Your replies still go through.
         </p>
       )}
-      {view.threads?.waits && view.badge?.kind === "waiting" && (
+      {messagesHandle.threads?.waits && messagesHandle.badge?.kind === "waiting" && (
         <p className="message-waits" data-tone="warning" role="status">
-          {waitsText[view.threads.waits]}
+          {waitsText[messagesHandle.threads.waits]}
         </p>
       )}
-      {opened && view.threads ? (
+      {opened && messagesHandle.threads ? (
         <Chat
           key={opened.key}
           conversation={opened}
-          self={view.threads.handle}
+          self={messagesHandle.threads.handle}
           peers={peers}
           links={links}
           onBack={() => {
@@ -525,7 +522,7 @@ export const MessagesView = ({
                   key={conversation.key}
                   conversation={conversation}
                   peer={peers[conversation.peer]}
-                  seenAt={view.seenAt(conversation.key)}
+                  seenAt={messagesHandle.seenAt(conversation.key)}
                   onOpen={() => setOpen(conversation.key)}
                 />
               ))}

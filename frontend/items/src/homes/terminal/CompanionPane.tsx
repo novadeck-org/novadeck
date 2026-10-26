@@ -202,7 +202,7 @@ export const CompanionPane = ({
   itemStore,
   target,
   agent,
-  view,
+  messagesHandle,
   links,
   presentation,
   plans,
@@ -222,7 +222,7 @@ export const CompanionPane = ({
   target: WorkspaceTarget
   // Who showed what's here, as the pane's label names them.
   agent: string
-  view: MessagesHandle
+  messagesHandle: MessagesHandle
   links: MessageLinks
   presentation: PlanPresentation
   // The bar's plans, as the taskbar names them.
@@ -300,7 +300,7 @@ export const CompanionPane = ({
       member={member}
       itemStore={itemStore}
       target={target}
-      view={view}
+      messagesHandle={messagesHandle}
       links={links}
       actions={
         <PaneActions

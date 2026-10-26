@@ -1,8 +1,8 @@
-/* The mail recipe: a terminal's conversations with the other agents in its session and
-   the person's letters (`.message-view`), under the viewer's header (`.artifact-meta`, see
+/* The messages recipe: a terminal's conversations with the other agents in its session and
+   the person's Inbox entries (`.message-view`), under the viewer's header (`.artifact-meta`, see
    artifact.css) with the pause. A list of rows (`.message-rows`, each a `.message-row`) opens
    one as a chat (`.message-chat-head` over `.message-chat`): bubbles without borders, tinted in
-   their sender's hue, the terminal's own agent (or the person, in their letters) on the
+   their sender's hue, the terminal's own agent (or the person, in their Inbox entries) on the
    right. The bars that say messaging is paused (`.message-paused`), waiting on a screen the
    doorbell cannot ring (`.message-waits`) or failed (`.message-error`) take their tone from
    `data-tone`.
@@ -15,7 +15,7 @@
    data-big on one of 28px or more; data-unread on a row; data-side="in" | "out",
    data-grouped, data-open (a question still open) and data-state on a bubble row;
    data-note="queued" | "leased" | "gone" | "delivered" on its note; data-tone="warning" |
-   "danger" on a row's chip; data-kind and data-open on a letter's label.
+   "danger" on a row's chip; data-kind and data-open on an entry's label.
 
    Tokens, each optional (its fallback in brackets):
    --message-border-color (line): under the chat's head and the bars.

@@ -201,13 +201,13 @@ describe("ordered", () => {
 describe("entryRow", () => {
   const entry = "8f1c2a3b-0d4e-4f5a-9b6c-7d8e9f0a1b2c"
 
-  it("finds the item a entry came from, as the runner names the entry", () => {
+  it("finds the item an entry came from, as the runner names the entry", () => {
     const items = [item("other", told, false), item(entry, ask, true)]
     expect(entryRow(items, { id: `m-${entry.replaceAll("-", "")}` })?.id).toBe(entry)
     expect(entryRow(items, { id: entry })?.id).toBe(entry)
   })
 
-  it("finds nothing for a entry with no item, not another item of its terminal", () => {
+  it("finds nothing for an entry with no item, not another item of its terminal", () => {
     expect(entryRow([item("other", held, true)], { id: "m-gone" })).toBeUndefined()
   })
 })

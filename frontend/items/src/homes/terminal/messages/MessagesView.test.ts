@@ -77,7 +77,7 @@ const mount = (
     createElement(
       Shown.Provider,
       { value: shown },
-      createElement(MessagesView, { view: handle, links }),
+      createElement(MessagesView, { messagesHandle: handle, links }),
     ),
   )
   unmounts.push(view.unmount)

@@ -272,8 +272,8 @@ export const urgency = (item: InboxRow): number => {
 export const ordered = (items: readonly InboxRow[]): InboxRow[] =>
   items.toSorted((a, b) => urgency(a) - urgency(b) || a.at - b.at)
 
-// The item a entry in a terminal's messages waits in: the one it came from, by id, as the
-// runner lists a entry as `m-` and its item's id without dashes.
+// The item an entry in a terminal's messages waits in: the one it came from, by id, as the
+// runner lists an entry as `m-` and its item's id without dashes.
 export const entryRow = (
   items: readonly InboxRow[],
   entry: { readonly id: string },

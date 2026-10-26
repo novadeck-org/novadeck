@@ -23,7 +23,7 @@ const peersOf = (workspace: WorkspaceStore): Store<Readonly<Record<string, Messa
 }
 
 // What a terminal's Messages pane knows of the session around it: the other terminals by
-// handle, a way to each, and Answer on a letter, which opens the Inbox on its item.
+// handle, a way to each, and Answer on an entry, which opens the Inbox on its item.
 export const useMessageLinks = (): MessageLinks => {
   const { commands, workspace, backend, landing } = useWorkspaceServices()
   const openInbox = useInboxOpener()
@@ -32,13 +32,13 @@ export const useMessageLinks = (): MessageLinks => {
     () => ({
       peers,
       goTo: commands.reveal,
-      answer: (letter) => {
+      answer: (entry) => {
         // The ask may be held back from the Inbox because this terminal is in view: asking
         // to answer it lands it.
-        const held = entryRow(backend.inbox?.state.getSnapshot().items ?? [], letter)
+        const held = entryRow(backend.inbox?.state.getSnapshot().items ?? [], entry)
         if (held) landing.reveal(held.id)
         commands.showInbox()
-        openInbox?.((items) => entryRow(items, letter))
+        openInbox?.((items) => entryRow(items, entry))
       },
     }),
     [peers, commands, openInbox, backend, landing],

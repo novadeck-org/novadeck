@@ -156,7 +156,7 @@ describe("a terminal's drawing of its bar", () => {
             plans: held as Parameters<typeof terminalDrawing>[0]["plans"],
             itemStore: {} as ItemStore,
             target: { projectId: "project", workspaceSessionId: "initial" },
-            view: {} as MessagesHandle,
+            messagesHandle: {} as MessagesHandle,
             links: noLinks,
           }),
           originOf: () => origin,

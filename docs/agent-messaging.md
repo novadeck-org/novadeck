@@ -235,7 +235,7 @@ terminal's running lead (the one `ledBy` names, running in the same project and
 session), for `agents()` and for fixing a message's `fromLead` and `toLead` as it is sent.
 Delivery marks the messages whose `fromLead` is set.
 
-## Messages
+## Message store
 
 ### Handles
 
