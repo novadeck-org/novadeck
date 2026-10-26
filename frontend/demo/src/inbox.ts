@@ -9,6 +9,7 @@ import {
   type InboxBinding,
   type InboxContent,
   type InboxRow,
+  type AskSettled,
   type InboxState,
   type InboxTurn,
 } from "@novadeck/core/inbox"
@@ -36,15 +37,18 @@ import { deliveryMs } from "./messages"
 export const answerMs = 600
 
 // The Inbox with what only the demo does: an item of its own arriving or leaving, and its
-// own items emptied (`clear` leaves what its agents wait on).
+// own items emptied (`empty` leaves what its agents wait on).
 export type DemoInbox = Inbox & {
   readonly add: (item: InboxRow) => void
-  readonly clear: () => void
+  readonly empty: () => void
   // The next answer fails instead of taking, so the sheet shows why.
   readonly failNext: (reason?: string) => void
+  // An ask leaves: "withdrawn" by its agent stays as a settled row, "gone" (its session
+  // ended) is removed.
   readonly resolve: (id: string, outcome: "withdrawn" | "gone") => void
   // The person wrote to the terminal's agent: its open asks from before are withdrawn, as
   // the runner withdraws them at the person's own prompt: those made before they sent it.
+  // They stay as settled rows, replied.
   readonly withdrawAsks: (key: TerminalKey, before: number) => void
   readonly dropReplyNext: () => void
   // The terminal's agent called `done`: its report becomes an Update once the terminal is
@@ -56,7 +60,7 @@ export type DemoInbox = Inbox & {
 export const isDemoInbox = (inbox: Inbox | undefined): inbox is DemoInbox =>
   inbox !== undefined &&
   "add" in inbox &&
-  "clear" in inbox &&
+  "empty" in inbox &&
   "failNext" in inbox &&
   "done" in inbox
 
@@ -220,13 +224,28 @@ export const createDemoInbox = (
   const ownItem = (id: string): InboxRow | undefined =>
     own.getSnapshot().items.find((each) => each.id === id)
 
-  // An ask of the demo's own leaves the Inbox, kept in the Messages history as `outcome`.
-  const resolve = (id: string, outcome: "withdrawn" | "gone"): void => {
+  // An ask of the demo's own is no longer open, kept in the Messages history as `outcome`:
+  // settled in place, or removed where its session ended.
+  const settle = (id: string, how: AskSettled["how"] | "gone"): void => {
     const found = ownItem(id)
-    if (found?.kind !== "ask") return
-    record(found, undefined, outcome)
-    change((current) => ({ ...current, items: current.items.filter((each) => each.id !== id) }))
+    if (found?.kind !== "ask" || found.settled) return
+    record(
+      found,
+      undefined,
+      how === "gone" ? "gone" : how === "dismissed" ? "dismissed" : "withdrawn",
+    )
+    change((current) => ({
+      ...current,
+      items:
+        how === "gone"
+          ? current.items.filter((each) => each.id !== id)
+          : current.items.map((each) =>
+              each.id === id ? { ...each, stopped: false, settled: { how, at: Date.now() } } : each,
+            ),
+      failed: withoutKey(current.failed, id),
+    }))
   }
+  const resolve = (id: string, outcome: "withdrawn" | "gone"): void => settle(id, outcome)
 
   let binding: InboxBinding | null = null
   // What was seen, answered or failed among the agents' items.
@@ -384,7 +403,7 @@ export const createDemoInbox = (
         if (theirs) answerDerived(theirs, answer)
         return
       }
-      if (own.getSnapshot().answering[id]) return
+      if (own.getSnapshot().answering[id] || found.settled) return
       if (!answers(found, answer))
         return change((current) => ({
           ...current,
@@ -473,16 +492,36 @@ export const createDemoInbox = (
       }))
     },
     resolve,
+    dismiss: (id) => {
+      const found = ownItem(id)
+      if (found?.kind !== "ask" || found.settled || own.getSnapshot().answering[id]) return
+      if (failing) {
+        const why = failing
+        failing = null
+        return change((current) => ({ ...current, failed: { ...current.failed, [id]: why } }))
+      }
+      settle(id, "dismissed")
+    },
+    clear: (ids) => {
+      const gone = new Set(ids)
+      change((current) => ({
+        ...current,
+        items: current.items.filter(
+          (each) => !(gone.has(each.id) && each.kind === "ask" && each.settled),
+        ),
+      }))
+    },
     withdrawAsks: (key, before) => {
       for (const each of own.getSnapshot().items)
         if (
           each.kind === "ask" &&
+          !each.settled &&
           each.at < before &&
           each.source.projectId === key.projectId &&
           each.source.workspaceSessionId === key.workspaceSessionId &&
           each.source.terminalId === key.terminalId
         )
-          resolve(each.id, "withdrawn")
+          settle(each.id, "replied")
     },
     dropReplyNext: () => {
       dropping = true
@@ -516,7 +555,7 @@ export const createDemoInbox = (
         update: { type: "done", ...report },
       })
     },
-    clear: () => change(() => emptyInbox),
+    empty: () => change(() => emptyInbox),
     failNext: (reason = "The agent didn't take that answer. Try again.") => {
       failing = reason
     },

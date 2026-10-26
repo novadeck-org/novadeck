@@ -339,6 +339,12 @@ export type Person = {
   }) => boolean
   /** Withdraws the session's open asks made before `before`; the notice for the agent, if any. */
   readonly withdraw: (before: number) => string | undefined
+  /**
+   * The notice of the asks the person dismissed from the Inbox since the agent's last hook,
+   * for the session bound as `agent`'s `sessionId`; none for another session. It only rides
+   * a hook answer: it wakes nothing.
+   */
+  readonly dismissed: (agent: AgentName, sessionId: string) => string | undefined
   /** Notes that the person's own prompt started a root turn at `at`, whether it counts or not. */
   readonly prompted: (at: number) => void
 }
@@ -1025,6 +1031,19 @@ export class Messaging {
   }
 
   /**
+   * The notices an answer that can print them carries: the asks the person's prompt took out
+   * of the Inbox, then those they dismissed there (see `Person.dismissed`).
+   */
+  private notices(live: Live, root: Root, person: Person | undefined): string[] {
+    const withdrawn = this.withdrawn(live, person)
+    const dismissed = person?.dismissed(root.agent, root.sessionId)
+    return [
+      ...(withdrawn === undefined ? [] : [withdrawn]),
+      ...(dismissed === undefined ? [] : [dismissed]),
+    ]
+  }
+
+  /**
    * What a Stop, prompt-time or tool-call hook prints, as it asks once its report is
    * applied: the messages waiting for the terminal's root session, leased to it, when its
    * report is a root turn event that may take them and its `deadline` leaves time to print
@@ -1133,8 +1152,7 @@ export class Messaging {
     // What this terminal sent that waits long goes with whatever the hook prints, once.
     // The asks the person's prompt took out go with their notice, while the hook has time to
     // print it; else they stay, and the next answer that can does both.
-    const note = time ? this.withdrawn(live, person) : undefined
-    const notes = note === undefined ? [] : [note]
+    const notes = time ? this.notices(live, root, person) : []
     const holds = [...notes, ...(time ? this.heldFrom(live.terminalId) : [])]
     const again = kept === undefined ? undefined : profile.prompt(noted(kept, holds))
     if (start.cause === "call") {
@@ -1200,8 +1218,7 @@ export class Messaging {
     )
     if (!call || !called || !time || !running(live.delivery)) return silent
     // What this terminal sent that waits long goes beside the result too, once.
-    const note = this.withdrawn(live, person)
-    const holds = [...(note === undefined ? [] : [note]), ...this.heldFrom(live.terminalId)]
+    const holds = [...this.notices(live, root, person), ...this.heldFrom(live.terminalId)]
     const print = (text: string) => call(noted(text, holds), event)
     const lease = this.lease(live, root, { kind: "midturn", print, only: isFromLead })
     if (lease) return { leaseId: lease.id, stdout: print(lease.text) }

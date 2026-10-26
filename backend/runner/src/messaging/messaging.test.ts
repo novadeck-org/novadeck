@@ -3217,7 +3217,14 @@ describe("the person's prompt, told to the asks", () => {
     const counts = vi.fn<Person["counts"]>(() => true)
     const withdraw = vi.fn<Person["withdraw"]>(() => note)
     const prompted = vi.fn<Person["prompted"]>()
-    return { counts, withdraw, prompted, person: { counts, withdraw, prompted } satisfies Person }
+    const dismissed = vi.fn<Person["dismissed"]>(() => undefined)
+    return {
+      counts,
+      withdraw,
+      prompted,
+      dismissed,
+      person: { counts, withdraw, prompted, dismissed } satisfies Person,
+    }
   }
   type Run = ReturnType<typeof create> & {
     readonly bound: Binding
@@ -3654,6 +3661,112 @@ describe("the person's prompt, told to the asks", () => {
       expect(told.withdraw).toHaveBeenCalledTimes(1)
     },
   )
+
+  describe("asks the person dismissed", () => {
+    const dismissal = "Novadeck: automatic notice, not from the user: dismissed."
+    // A person whose dismissals notice is due once, for the session `bound` only.
+    const dismissing = (run: Run) => {
+      let due: string | undefined = dismissal
+      const told = who(undefined)
+      told.dismissed.mockImplementation((agent, sessionId) => {
+        const taken = due
+        due = undefined
+        return agent === run.bound.agent && sessionId === run.bound.sessionId ? taken : undefined
+      })
+      return told
+    }
+
+    it.each(harnessesTold)(
+      "prints it on $name's prompt hook, asking for its session",
+      async ({ agent }) => {
+        const run = setup(agent)
+        const told = dismissing(run)
+        const answer = await start(run, "harness", told.person)
+        expect(told.dismissed).toHaveBeenCalledWith(run.bound.agent, run.bound.sessionId)
+        expect(answer.stdout).toContain(dismissal)
+        expect(answer.leaseId).toBeNull()
+      },
+    )
+
+    it.each(["claude", "codex"] as const)("prints it on %s's tool hook", async (agent) => {
+      const run = setup(agent)
+      const told = dismissing(run)
+      await start(run, "harness", who().person)
+      const answer = run.ask(
+        run.terminal,
+        run.bound,
+        "PostToolUse",
+        [toolCalled(run.bound)],
+        undefined,
+        told.person,
+      )
+      expect(answer.stdout).toContain(dismissal)
+      expect(answer.leaseId).toBeNull()
+      // Once.
+      const next = run.ask(
+        run.terminal,
+        run.bound,
+        "PostToolUse",
+        [toolCalled(run.bound)],
+        undefined,
+        told.person,
+      )
+      expect(next.stdout).not.toContain(dismissal)
+    })
+
+    it("prints it at Antigravity's next model call, and again on the turn's remaining calls", async () => {
+      const run = setup("agy")
+      const told = dismissing(run)
+      const call = () =>
+        run.ask("G", agy, "PreInvocation", [started(agy, "call")], undefined, told.person)
+      await start(run, "harness", who().person)
+      expect(call().stdout).toContain(dismissal)
+      expect(call().stdout).toContain(dismissal)
+      // Not in the next turn.
+      run.stop("G", agy)
+      await start(run, "harness", who().person)
+      expect(call().stdout).not.toContain(dismissal)
+    })
+
+    it.each(harnessesTold)(
+      "waits for $name's next hook after a turn ends, and wakes nothing",
+      async ({ agent }) => {
+        const run = setup(agent)
+        const told = dismissing(run)
+        await start(run, "harness", who().person)
+        run.stop(run.terminal, run.bound)
+        run.clock.now += 60_000
+        // Idle: nothing is queued for the doorbell, and nothing asked yet.
+        expect(told.dismissed).not.toHaveBeenCalled()
+        expect(run.messaging.delivery(run.terminal)?.state).toBe("settled")
+        const answer = await start(run, "harness", told.person)
+        expect(answer.stdout).toContain(dismissal)
+      },
+    )
+
+    it.each(harnessesTold)("tells $name's replaced session nothing", async ({ agent }) => {
+      const run = setup(agent)
+      const told = dismissing(run)
+      const other = binding(run.bound.agent, "s-new", "9")
+      run.follow(run.terminal, other)
+      run.messaging.rooted(run.terminal, [
+        { type: "ended", root: { ...run.bound, source: "binding" } } as never,
+      ])
+      run.messaging.rooted(run.terminal, [
+        { type: "new", root: { ...other, source: "binding" }, guess: false, ready: true } as never,
+      ])
+      const answer = run.ask(
+        run.terminal,
+        other,
+        run.event,
+        [started(other, "harness")],
+        undefined,
+        told.person,
+      )
+      expect(told.dismissed).toHaveBeenCalledWith(other.agent, other.sessionId)
+      expect(answer.stdout).not.toContain(dismissal)
+    })
+  })
 
   it("drops the pending withdrawal when the session ends or another binds", async () => {
     const run = setup("codex")

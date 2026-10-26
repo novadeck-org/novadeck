@@ -230,7 +230,7 @@ describe("the demo Inbox", () => {
       inbox.add(first)
       inbox.add({ ...first, at: now + 1 })
       expect(inbox.state.getSnapshot().items).toEqual([{ ...first, at: now + 1 }])
-      inbox.clear()
+      inbox.empty()
       expect(ids(inbox)).toEqual([])
     })
   })
@@ -394,7 +394,7 @@ describe("the agents demo's Inbox", () => {
     expect(ids(inbox)).toContain("ask-here")
   })
 
-  it("withdraws an agent's open asks when the person writes to it, and no other item", async () => {
+  it("settles an agent's open asks as replied when the person writes to it, and no other item", async () => {
     const { inbox, turns, store } = boot()
     const found = store
       .getSnapshot()
@@ -431,9 +431,41 @@ describe("the agents demo's Inbox", () => {
     await vi.advanceTimersByTimeAsync(1)
     expect(ids(inbox)).toContain("ask-later")
     const left = ids(inbox)
-    expect(left).not.toContain("ask-here")
-    // An ask on another terminal, and an update on this one, stay.
+    // It stays, settled; an ask on another terminal, and an update on this one, are as they were.
+    const row = (id: string) => inbox.state.getSnapshot().items.find((each) => each.id === id)!
+    expect(row("ask-here").settled).toMatchObject({ how: "replied" })
+    expect(row("ask-elsewhere").settled).toBeUndefined()
+    expect(row("update-here").settled).toBeUndefined()
     expect(left).toEqual(expect.arrayContaining(["update-here", "ask-elsewhere"]))
+  })
+
+  it("dismisses an open ask in place, lists it last, and clears only settled asks", async () => {
+    const { inbox } = boot()
+    const all = demoInboxRowsAll(now)
+    const question = all.find((each) => each.kind === "ask")!
+    inbox.add({ ...question, id: "ask-a" })
+    inbox.add({ ...question, id: "ask-b" })
+    const row = (id: string) => inbox.state.getSnapshot().items.find((each) => each.id === id)
+    inbox.dismiss!("ask-a")
+    expect(row("ask-a")?.settled).toMatchObject({ how: "dismissed" })
+    expect(row("ask-a")?.stopped).toBe(false)
+    expect(ids(inbox).at(-1)).toBe("ask-a")
+    // A withdrawn ask, and one whose agent's session ended.
+    inbox.resolve("ask-b", "withdrawn")
+    expect(row("ask-b")?.settled).toMatchObject({ how: "withdrawn" })
+    // Clearing leaves what is open, and a settled ask goes.
+    const open = inbox.state.getSnapshot().items.filter((each) => !each.settled).length
+    inbox.clear!(["ask-a", ...ids(inbox).filter((id) => !row(id)?.settled)])
+    expect(row("ask-a")).toBeUndefined()
+    expect(row("ask-b")).toBeDefined()
+    expect(inbox.state.getSnapshot().items.filter((each) => !each.settled)).toHaveLength(open)
+    inbox.add({ ...question, id: "ask-c" })
+    inbox.resolve("ask-c", "gone")
+    expect(row("ask-c")).toBeUndefined()
+    // A settled ask cannot be answered or dismissed again.
+    inbox.answer("ask-b", { kind: "ask", answer: { type: "reply", option: null, text: "x" } })
+    inbox.dismiss!("ask-b")
+    expect(row("ask-b")?.settled).toMatchObject({ how: "withdrawn" })
   })
 
   it("shows the draft an Ask made beside a held thread, and no row for the agent's finish", async () => {

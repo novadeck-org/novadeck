@@ -4,7 +4,7 @@ import { nextFrame, render } from "@novadeck/test-kit/render"
 import { act, createElement } from "react"
 
 import { context, describe, expect, it } from "../test"
-import { HeldPill, InboxList } from "./InboxList"
+import { HeldPill, InboxClear, InboxList } from "./InboxList"
 import { InboxProvider } from "./InboxProvider"
 import { InboxSheet } from "./InboxSheet"
 
@@ -67,7 +67,18 @@ const told = (id: string, at: number): InboxRow => ({
 
 // An Inbox whose items the test changes, with the list, the held pill and the sheets as the
 // sidebar and the workspace wire them.
-const mount = (items: readonly InboxRow[], working = false) => {
+const agentAsk = (id: string, at: number, settled?: InboxRow["settled"]): InboxRow => ({
+  id,
+  source,
+  at,
+  stopped: !settled,
+  seen: false,
+  kind: "ask",
+  ask: { subject: id, body: "", details: null, hardToUndo: null, shape: { type: "text" } },
+  ...(settled ? { settled } : {}),
+})
+
+const mount = (items: readonly InboxRow[], working = false, dismissing = false) => {
   const state = createStore<InboxState>({ ...emptyInbox, items })
   const answered: string[] = []
   const inbox: Inbox = {
@@ -79,15 +90,32 @@ const mount = (items: readonly InboxRow[], working = false) => {
         items: current.items.map((item) => (item.id === id ? { ...item, seen: true } : item)),
       })),
     readAll: () => {},
+    ...(dismissing
+      ? {
+          dismiss: (id: string) =>
+            state.update((current) => ({
+              ...current,
+              items: current.items.map((item) =>
+                item.id === id ? { ...item, settled: { how: "dismissed", at: 99 } } : item,
+              ),
+            })),
+          clear: (ids: readonly string[]) =>
+            state.update((current) => ({
+              ...current,
+              items: current.items.filter((item) => !ids.includes(item.id)),
+            })),
+        }
+      : {}),
   }
   const view = render(
     createElement(
       InboxProvider,
-      { inbox, reveal: () => {}, working },
+      { inbox, reveal: () => {}, working, active: true },
       createElement(
         "div",
         { id: "inbox-panel" },
         createElement(HeldPill),
+        createElement(InboxClear),
         createElement(InboxList),
       ),
       createElement(InboxSheet, { active: true }),
@@ -254,6 +282,99 @@ describe("The Inbox's list", () => {
       const inbox = mount([told("u1", 1), told("u2", 2)])
 
       expect(inbox.row("u1").dataset.updatesStart).toBe("false")
+      await nextFrame()
+      inbox.view.unmount()
+    })
+  })
+
+  context("when an ask can be dismissed", () => {
+    const dismissButton = (inbox: ReturnType<typeof mount>, id: string): HTMLElement | null =>
+      inbox.row(id).querySelector<HTMLElement>(".inbox-row-dismiss")
+
+    it("offers it on a Novadeck ask only, and only where the backend can", async () => {
+      const inbox = mount([agentAsk("a", 1), permission("p", 2), told("u", 3)], false, true)
+
+      expect(dismissButton(inbox, "a")?.getAttribute("aria-label")).toBe("Dismiss: a")
+      expect(dismissButton(inbox, "p")).toBeNull()
+      expect(dismissButton(inbox, "u")).toBeNull()
+      inbox.view.unmount()
+
+      const without = mount([agentAsk("a", 1)])
+      expect(without.row("a").querySelector(".inbox-row-dismiss")).toBeNull()
+      await nextFrame()
+      without.view.unmount()
+    })
+
+    it("settles the row in place on the button, and the count and Clear follow", async () => {
+      const inbox = mount([agentAsk("a", 1), agentAsk("b", 2), told("u", 3)], false, true)
+      expect(inbox.view.container.querySelector('[aria-label="Clear settled"]')).toBeNull()
+      act(() => dismissButton(inbox, "a")!.click())
+
+      expect(inbox.subjects()).toEqual(["a", "b", "u"])
+      expect(inbox.row("a").dataset).toMatchObject({ settled: "dismissed", needs: "false" })
+      expect(inbox.row("a").querySelector(".inbox-row-extra")?.textContent).toBe("· Dismissed")
+      expect(dismissButton(inbox, "a")).toBeNull()
+      expect(inbox.view.container.querySelector('[aria-label="Clear settled"]')).not.toBeNull()
+      await nextFrame()
+      inbox.view.unmount()
+    })
+
+    it("settles on Delete, and the keyboard goes on to the next row", async () => {
+      const inbox = mount([agentAsk("a", 1), agentAsk("b", 2)], false, true)
+      const select = (id: string): HTMLElement =>
+        inbox.row(id).querySelector<HTMLElement>(".inbox-row-select")!
+      select("a").focus()
+      act(() => {
+        select("a").dispatchEvent(
+          new KeyboardEvent("keydown", { key: "Delete", bubbles: true, cancelable: true }),
+        )
+      })
+
+      expect(inbox.row("a").dataset.settled).toBe("dismissed")
+      expect(document.activeElement).toBe(select("b"))
+      await nextFrame()
+      inbox.view.unmount()
+    })
+
+    it("opens no sheet once settled, and j and k skip it", async () => {
+      const inbox = mount(
+        [agentAsk("a", 1), agentAsk("b", 2, { how: "withdrawn", at: 5 }), agentAsk("c", 3)],
+        false,
+        true,
+      )
+      inbox.open("b")
+      expect(document.querySelector(".inbox-sheet")).toBeNull()
+      inbox.open("a")
+      inbox.press("j")
+
+      expect(inbox.row("c").dataset.selected).toBe("true")
+      await nextFrame()
+      inbox.view.unmount()
+    })
+
+    it("closes a sheet whose ask settles", async () => {
+      const inbox = mount([agentAsk("a", 1), agentAsk("b", 2)], false, true)
+      inbox.open("a")
+      expect(document.querySelector(".inbox-sheet")).not.toBeNull()
+      act(() => dismissButton(inbox, "a")!.click())
+      await nextFrame()
+
+      expect(document.querySelector(".inbox-sheet")).toBeNull()
+      inbox.view.unmount()
+    })
+
+    it("clears every settled ask", async () => {
+      const inbox = mount(
+        [agentAsk("a", 1), agentAsk("b", 2, { how: "replied", at: 5 })],
+        false,
+        true,
+      )
+      expect(inbox.row("b").dataset.settledStart).toBe("true")
+      act(() =>
+        inbox.view.container.querySelector<HTMLElement>('[aria-label="Clear settled"]')!.click(),
+      )
+
+      expect(inbox.subjects()).toEqual(["a"])
       await nextFrame()
       inbox.view.unmount()
     })

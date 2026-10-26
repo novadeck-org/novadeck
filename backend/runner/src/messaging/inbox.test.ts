@@ -15,6 +15,7 @@ import {
   askSweepMs,
   maxResolvedEntries,
   memoryInbox,
+  dismissedNotice,
   withdrawnNotice,
   type InboxRecords,
 } from "./inbox.js"
@@ -142,7 +143,8 @@ describe("Inbox asks and updates", () => {
       id,
       withdrawn: true,
     })
-    expect(inbox.list()).toEqual([])
+    // It stays listed, settled by its agent's withdrawal.
+    expect(inbox.list()).toMatchObject([{ id, settled: { how: "withdrawn", at: 123 } }])
   })
 
   it("refuses secrets, forged identities, malformed shapes and recommendations outside the offered options", () => {
@@ -312,7 +314,7 @@ describe("Inbox asks and updates", () => {
     expect((await a.next()).value?.[0]?.id).toBe(id)
     expect((await b.next()).value?.[0]?.id).toBe(id)
     inbox.call(identity.terminalId, "ask", { withdraw: id })
-    expect((await a.next()).value).toEqual([])
+    expect((await a.next()).value).toMatchObject([{ id, settled: { how: "withdrawn" } }])
     inbox.close()
     expect((await a.next()).done).toBe(true)
     expect((await b.next()).done).toBe(true)
@@ -1520,7 +1522,7 @@ describe("Inbox asks over a record failure", () => {
     const id = run.create()
     failing = true
     expect(run.inbox.call(identity.terminalId, "ask", { withdraw: id }).ok).toBe(true)
-    expect(run.inbox.list()).toEqual([])
+    expect(run.inbox.list()).toMatchObject([{ id, settled: { how: "withdrawn" } }])
   })
 
   it("skips a stored row it can't read, so the rest of the asks list", ({ resources }) => {
@@ -1669,13 +1671,13 @@ describe("asks the person's own prompt withdraws", () => {
     expect(notice).not.toContain("Pick a font")
     expect(notice).toBe(withdrawnNotice(["Pick a colour"]))
     expect(inbox.list().map(({ id }) => id)).toContain(later)
-    expect(inbox.list().map(({ id }) => id)).not.toContain(early)
+    expect(inbox.list().find(({ id }) => id === early)?.settled).toMatchObject({ how: "replied" })
     expect(
       inbox
         .list()
         .map(({ content }) => content.kind)
         .toSorted(),
-    ).toEqual(["ask", "done", "tell", "turn"])
+    ).toEqual(["ask", "ask", "done", "tell", "turn"])
     // The agent can no longer withdraw what is already out.
     expect(inbox.call(identity.terminalId, "ask", { withdraw: early }).ok).toBe(false)
   })
@@ -1690,7 +1692,7 @@ describe("asks the person's own prompt withdraws", () => {
     expect(inbox.withdrawBefore(identity.terminalId, 2_000)).toContain('"Pick a colour"')
     expect(inbox.withdrawBefore("another", 9_000)).toBeUndefined()
     expect(inbox.withdrawBefore(identity.terminalId, 2_000)).toBeUndefined()
-    expect(inbox.list()).toHaveLength(1)
+    expect(inbox.list().filter(({ settled }) => !settled)).toHaveLength(1)
   })
 
   it("keeps an answered ask answered, and shows a withdrawn one as withdrawn in the history", () => {
@@ -1701,7 +1703,7 @@ describe("asks the person's own prompt withdraws", () => {
     create({ ...entry, subject: "Which one?" })
     time.now = 1_500
     expect(inbox.withdrawBefore(identity.terminalId, 1_500)).toContain('"Which one?"')
-    expect(inbox.list()).toEqual([])
+    expect(inbox.list()).toMatchObject([{ settled: { how: "replied" } }])
     const messages = inbox
       .history(identity.terminalId, messaging.list(identity.terminalId, identity.handle))
       .threads.flatMap((thread) => thread.messages)
@@ -1719,5 +1721,163 @@ describe("asks the person's own prompt withdraws", () => {
     expect(notice).toContain("and 3 more")
     expect(notice).not.toContain("\n")
     expect(Buffer.byteLength(notice)).toBeLessThan(1_000)
+  })
+})
+
+describe("asks the person dismisses", () => {
+  const clocked = () => {
+    const time = { now: 1_000 }
+    return { time, ...setup(memoryInbox(), undefined, { now: () => time.now }) }
+  }
+
+  it("settles an open ask as dismissed, keeps it listed, and tells its session once", () => {
+    const { inbox, create, time } = clocked()
+    const id = create()
+    const other = create({ ...entry, subject: "Pick a font" })
+    time.now = 1_500
+    inbox.dismiss(id)
+    const listed = inbox.list()
+    expect(listed.find((each) => each.id === id)).toMatchObject({
+      settled: { how: "dismissed", at: 1_500 },
+    })
+    expect(listed.find((each) => each.id === other)?.settled).toBeUndefined()
+    const notice = inbox.dismissed(identity.terminalId, identity.agent, identity.sessionId)
+    expect(notice).toBe(dismissedNotice([{ subject: "Pick a colour", action: "options" }]))
+    expect(inbox.dismissed(identity.terminalId, identity.agent, identity.sessionId)).toBeUndefined()
+  })
+
+  it("keeps a dismissed ask in the terminal's messages as dismissed", () => {
+    const { inbox, create, messaging } = clocked()
+    const id = create()
+    inbox.dismiss(id)
+    const states = inbox
+      .history(identity.terminalId, messaging.list(identity.terminalId, identity.handle))
+      .threads.flatMap((thread) => thread.messages)
+      .filter((message) => message.inbox === "ask")
+      .map(({ inboxState }) => inboxState)
+    expect(states).toEqual(["dismissed"])
+  })
+
+  it("refuses to dismiss what is not an open ask", () => {
+    const { inbox, create } = clocked()
+    const id = create()
+    const tell = inbox.call(identity.terminalId, "tell", { subject: "PR", body: "Opened." })
+    if (!tell.ok) throw new Error(tell.reason)
+    for (const missing of ["nothing", tell.id])
+      expect(() => inbox.dismiss(missing)).toThrow(expect.objectContaining({ code: "NOT_FOUND" }))
+    inbox.dismiss(id)
+    expect(() => inbox.dismiss(id)).toThrow(expect.objectContaining({ code: "NOT_FOUND" }))
+    const answered = create()
+    inbox.answer(answered, { type: "reply", option: 0, text: "Blue" })
+    expect(() => inbox.dismiss(answered)).toThrow(expect.objectContaining({ code: "NOT_FOUND" }))
+  })
+
+  it("lists settled asks only while their terminal exists, and answered ones never", () => {
+    const { inbox, create, forget } = clocked()
+    const dismissed = create()
+    const answered = create()
+    inbox.dismiss(dismissed)
+    inbox.answer(answered, { type: "reply", option: 0, text: "Blue" })
+    expect(inbox.list().map(({ id }) => id)).toEqual([dismissed])
+    forget()
+    expect(inbox.list()).toEqual([])
+  })
+
+  it("keeps a settled ask listed after its session changes", () => {
+    const { inbox, create, bind } = clocked()
+    const id = create()
+    inbox.dismiss(id)
+    bind("second")
+    expect(inbox.list()).toMatchObject([{ id, settled: { how: "dismissed" } }])
+  })
+
+  it("drops the notice of a session that was replaced, and never tells the new one", () => {
+    const { inbox, create, bind } = clocked()
+    inbox.dismiss(create())
+    bind("second")
+    expect(inbox.dismissed(identity.terminalId, identity.agent, "second")).toBeUndefined()
+    expect(inbox.dismissed(identity.terminalId, identity.agent, identity.sessionId)).toBeUndefined()
+  })
+
+  it("joins several dismissals into one notice", () => {
+    const { inbox, create } = clocked()
+    for (const subject of ["A", "B"]) inbox.dismiss(create({ ...entry, subject }))
+    const notice = inbox.dismissed(identity.terminalId, identity.agent, identity.sessionId)
+    expect(notice).toContain('"A", "B"')
+    expect(notice).toContain("your asks")
+  })
+
+  it("words the notice by the ask's shape", () => {
+    const options = dismissedNotice([{ subject: "S", action: "options" }])
+    expect(options).toBe(
+      'Novadeck: automatic notice, not from the user: the user dismissed your ask "S" from their Inbox without answering it. ' +
+        "Don't read that as an answer: they chose none of its options. Take it that they don't need it now, and don't ask it again unless it matters again. This notice needs no reply.",
+    )
+    expect(dismissedNotice([{ subject: "S", action: "text" }])).toContain(
+      "Don't read that as an answer. Take it",
+    )
+    expect(dismissedNotice([{ subject: "S", action: "action" }])).toBe(
+      'Novadeck: automatic notice, not from the user: the user dismissed your ask "S" from their Inbox. ' +
+        "They won't do it for now: go on without it, or stop at that step and say so. This notice needs no reply.",
+    )
+  })
+
+  it("lets the agent withdraw an ask already dismissed quietly, and refuses other closed asks", () => {
+    const { inbox, create } = clocked()
+    const id = create()
+    inbox.dismiss(id)
+    expect(inbox.call(identity.terminalId, "ask", { withdraw: id })).toEqual({
+      ok: true,
+      id,
+      withdrawn: true,
+    })
+    expect(inbox.list()).toMatchObject([{ id, settled: { how: "dismissed" } }])
+    const answered = create()
+    inbox.answer(answered, { type: "reply", option: 0, text: "Blue" })
+    expect(inbox.call(identity.terminalId, "ask", { withdraw: answered }).ok).toBe(false)
+    const withdrawn = create()
+    inbox.call(identity.terminalId, "ask", { withdraw: withdrawn })
+    expect(inbox.call(identity.terminalId, "ask", { withdraw: withdrawn }).ok).toBe(false)
+  })
+
+  it("clears settled asks only", () => {
+    const { inbox, create } = clocked()
+    const dismissed = create()
+    const open = create()
+    const withdrawn = create()
+    inbox.dismiss(dismissed)
+    inbox.call(identity.terminalId, "ask", { withdraw: withdrawn })
+    const tell = inbox.call(identity.terminalId, "tell", { subject: "PR", body: "Opened." })
+    inbox.clear([dismissed, withdrawn, open, "unknown", tell.ok ? tell.id : ""])
+    expect(
+      inbox
+        .list()
+        .map(({ id }) => id)
+        .toSorted(),
+    ).toEqual([open, tell.ok ? tell.id : ""].toSorted())
+  })
+
+  it("keeps a cause across a reload and drops settled asks at the usual retention", () => {
+    const records = memoryInbox()
+    const first = setup(records, undefined, { now: () => 1_000 })
+    const id = first.create()
+    first.inbox.dismiss(id)
+    first.stop()
+    const time = { now: 1_000 }
+    const second = setup(records, undefined, { now: () => time.now })
+    expect(second.inbox.list()).toMatchObject([{ id, settled: { how: "dismissed" } }])
+    time.now += retentionMs + 1
+    second.inbox.prune()
+    expect(second.inbox.list()).toEqual([])
+  })
+
+  it("leaves a withdrawn ask from before causes were recorded unlisted", () => {
+    const records = memoryInbox()
+    const first = setup(records)
+    const id = first.create()
+    const stored = records.entries().find((each) => each.id === id)!
+    records.saveEntry({ ...stored, state: "withdrawn", settledAt: 123 })
+    first.stop()
+    expect(setup(records).inbox.list()).toEqual([])
   })
 })

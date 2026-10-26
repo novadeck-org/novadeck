@@ -116,6 +116,9 @@ export const createInboxTracker = ({
       const ids = new Set(found.map((item) => item.id))
       for (const id of seen) if (!ids.has(id)) seen.delete(id)
       for (const id of submitted) if (!ids.has(id) && !inFlight.has(id)) submitted.delete(id)
+      // A dismissed ask that the backend now lists settled has taken: it no longer answers.
+      for (const item of found)
+        if (item.settled && !inFlight.has(item.id)) submitted.delete(item.id)
       const items = found.map((item) => (seen.has(item.id) ? { ...item, seen: true } : item))
       const answering: Record<string, true> = Object.fromEntries(
         [...inFlight].map((id) => [id, true]),

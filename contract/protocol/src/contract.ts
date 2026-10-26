@@ -384,6 +384,11 @@ export const contract = {
     // Marks entries read: a tell stays as history, a finished turn is removed, an ask is
     // not touched. Unknown ids are skipped.
     read: procedure.input(z.strictObject({ ids: z.array(id).max(1000) })).output(z.void()),
+    // The person dismisses an open ask without answering it: it stays listed, settled, and its
+    // agent is told at its next hook. One that isn't an open ask is NOT_FOUND.
+    dismiss: procedure.input(z.strictObject({ id })).output(z.void()),
+    // Removes settled asks. Unknown ids, and any entry that isn't a settled ask, are skipped.
+    clear: procedure.input(z.strictObject({ ids: z.array(id).max(1000) })).output(z.void()),
   },
   messages: {
     // A terminal's threads and messages with their states. An unknown terminal is

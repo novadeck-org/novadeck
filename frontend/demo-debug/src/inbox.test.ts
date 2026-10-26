@@ -78,7 +78,7 @@ describe("the debug panel's Inbox group", () => {
     const inbox = createDemoInbox(1, [])
     const notes: string[] = []
     // Lifecycle controls and variants change or add items rather than adding a kind.
-    const kinds = inboxGroups(inbox, seed)[0]!.actions.length - 11
+    const kinds = inboxGroups(inbox, seed)[0]!.actions.length - 12
     for (let each = 0; each < kinds; each += 1) run(inbox, "A new item arrives", notes)
     expect(inbox.state.getSnapshot().items).toHaveLength(kinds)
     run(inbox, "A new item arrives", notes)
@@ -139,9 +139,21 @@ describe("the debug panel's Inbox group", () => {
       if (outcome) outcomes.push(outcome)
     })
     run(inbox, "Ask withdrawn")
+    // The withdrawn ask stays as a settled row; the ended session's is gone.
+    expect(inbox.state.getSnapshot().items).toMatchObject([
+      { id: demoInboxIds.preview, settled: { how: "withdrawn" } },
+    ])
     run(inbox, "Ask session ended")
     expect(outcomes).toEqual(["withdrawn", "gone"])
     expect(inbox.state.getSnapshot().items).toEqual([])
+  })
+
+  it("leaves an ask replied in its terminal as a settled row", () => {
+    const inbox = createDemoInbox(1, [])
+    run(inbox, "Ask replied in terminal")
+    expect(inbox.state.getSnapshot().items).toMatchObject([
+      { id: demoInboxIds.preview, settled: { how: "replied" } },
+    ])
   })
 
   it("makes a queued reply's delivery failure reachable", () => {

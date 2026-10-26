@@ -36,6 +36,12 @@ const log = logs.for("inbox")
 export type StoredEntry = InboxEntry & {
   readonly state: "open" | "answered" | "read" | "withdrawn" | "gone"
   readonly settledAt?: number
+  /**
+   * How a withdrawn ask ended: the person dismissed it, its agent withdrew it, or the
+   * person's reply in the terminal did. Such an ask stays listed, settled; one withdrawn
+   * before this was recorded has no cause and is not listed.
+   */
+  readonly cause?: "dismissed" | "withdrawn" | "replied"
   /** Ended for want of its session after a restart, not by a different one: it reopens if it binds. */
   readonly lapsed?: true
 }
@@ -270,6 +276,38 @@ export const withdrawnNotice = (subjects: readonly string[]): string => {
   )
 }
 
+/**
+ * Novadeck's quiet notice to an agent whose open asks the user dismissed from their Inbox
+ * without answering: printed beside the agent's next hook answer, waking nothing.
+ */
+export const dismissedNotice = (
+  asks: readonly { readonly subject: string; readonly action: string }[],
+): string => {
+  const named = asks
+    .slice(0, noticedSubjects)
+    .map((each) => JSON.stringify(shorten(each.subject, 80)))
+  const more = asks.length - named.length
+  const list = `${named.join(", ")}${more > 0 ? ` and ${more} more` : ""}`
+  const one = asks.length === 1
+  const head = "Novadeck: automatic notice, not from the user: the user dismissed "
+  const tail = " This notice needs no reply."
+  const acts = asks.filter((each) => each.action === "action").length
+  if (acts === asks.length)
+    return (
+      `${head}your ${one ? "ask" : "asks"} ${list} from their Inbox. ` +
+      `They won't do ${one ? "it" : "them"} for now: go on without ${one ? "it" : "them"}, ` +
+      `or stop at that step and say so.${tail}`
+    )
+  const options = asks.some((each) => each.action === "options")
+  return (
+    `${head}your ${one ? "ask" : "asks"} ${list} from their Inbox without answering ` +
+    `${one ? "it" : "them"}. Don't read that as an answer` +
+    (options ? `: they chose none of ${one ? "its" : "their"} options` : "") +
+    `. Take it that they don't need ${one ? "it" : "them"} now, and don't ask ` +
+    `${one ? "it" : "them"} again unless ${one ? "it matters" : "they matter"} again.${tail}`
+  )
+}
+
 export class Inbox {
   private readonly byTerminal = new Map<string, Map<string, StoredEntry>>()
   private readonly open = new Map<string, StoredEntry>()
@@ -282,6 +320,15 @@ export class Inbox {
   private readonly readers = new Set<Latest<InboxEntry[]>>()
   /** Since when each terminal with open asks has had no agent bound (from the runner's start). */
   private readonly unbound = new Map<string, number>()
+  /** The asks the person dismissed that their terminal's agent session is yet to be told of. */
+  private readonly dismissals = new Map<
+    string,
+    {
+      readonly agent: string
+      readonly sessionId: string
+      readonly asks: { readonly subject: string; readonly action: string }[]
+    }
+  >()
   private readonly resumeGraceMs: number
   private closed = false
   constructor(
@@ -344,15 +391,17 @@ export class Inbox {
       const withdrawing = withdrawRequest.safeParse(request)
       if (kind === "ask" && withdrawing.success) {
         const entry = this.entries.get(withdrawing.data.withdraw)
-        if (
-          !entry ||
-          entry.terminalId !== terminalId ||
-          !same(entry, owner) ||
-          entry.content.kind !== "ask" ||
-          entry.state !== "open"
-        )
+        const mine =
+          entry !== undefined &&
+          entry.terminalId === terminalId &&
+          same(entry, owner) &&
+          entry.content.kind === "ask"
+        // An ask the person already dismissed is withdrawn quietly: nothing changes.
+        if (mine && entry.state === "withdrawn" && entry.cause === "dismissed")
+          return { ok: true, id: entry.id, withdrawn: true }
+        if (!mine || entry.state !== "open")
           throw new Error("That ask is no longer open in your session.")
-        this.put({ ...entry, state: "withdrawn" })
+        this.put({ ...entry, state: "withdrawn", cause: "withdrawn" })
         this.maintain(terminalId)
         return { ok: true, id: entry.id, withdrawn: true }
       }
@@ -437,7 +486,7 @@ export class Inbox {
 
   list(): InboxEntry[] {
     const exists = this.existence()
-    return [...this.open.values()]
+    const open: InboxEntry[] = [...this.open.values()]
       .filter(
         (each) =>
           each.state === "open" &&
@@ -446,6 +495,75 @@ export class Inbox {
             : exists(each.terminalId)),
       )
       .map(({ state: _state, ...entry }) => entry)
+    const settled = [...this.entries.values()]
+      .filter(
+        (each) =>
+          each.state === "withdrawn" &&
+          each.cause !== undefined &&
+          each.content.kind === "ask" &&
+          exists(each.terminalId),
+      )
+      .map(({ state: _state, cause, settledAt, lapsed: _lapsed, ...entry }) => ({
+        ...entry,
+        settled: { how: cause!, at: settledAt ?? entry.at },
+      }))
+    return [...open, ...settled]
+  }
+
+  /**
+   * The person dismisses an open ask without answering it: it stays listed, settled, and
+   * its agent is told at its next hook (see `dismissed`). Anything but an open ask of the
+   * terminal's bound session is NOT_FOUND.
+   */
+  dismiss(id: string): void {
+    if (this.closed) throw new DomainError("CLOSING")
+    const entry = this.entries.get(id)
+    const owner = entry ? this.host.owner(entry.terminalId) : undefined
+    if (
+      !entry ||
+      entry.state !== "open" ||
+      entry.content.kind !== "ask" ||
+      !owner ||
+      !same(entry, owner)
+    )
+      throw new DomainError("NOT_FOUND", "This ask is not open.")
+    this.put({ ...entry, state: "withdrawn", cause: "dismissed" })
+    const queued = this.dismissals.get(entry.terminalId)
+    const note = { subject: entry.content.ask.subject, action: entry.content.ask.shape.type }
+    if (queued && queued.agent === owner.agent && queued.sessionId === owner.sessionId)
+      queued.asks.push(note)
+    else
+      this.dismissals.set(entry.terminalId, {
+        agent: owner.agent,
+        sessionId: owner.sessionId,
+        asks: [note],
+      })
+    this.maintain(entry.terminalId)
+  }
+
+  /** Removes settled asks; any other id, or an unknown one, is skipped. */
+  clear(ids: readonly string[]): void {
+    if (this.closed) throw new DomainError("CLOSING")
+    const settled = [...new Set(ids)]
+      .map((id) => this.entries.get(id))
+      .filter(
+        (entry): entry is StoredEntry =>
+          entry?.state === "withdrawn" && entry.cause !== undefined && entry.content.kind === "ask",
+      )
+    this.remove(settled)
+  }
+
+  /**
+   * The notice for an agent session of the asks the person dismissed since its last hook, or
+   * undefined when none. Asks of a session other than `agent`'s `sessionId` are dropped
+   * unspoken: a new session is never told of an old one's.
+   */
+  dismissed(terminalId: string, agent: string, sessionId: string): string | undefined {
+    const queued = this.dismissals.get(terminalId)
+    if (!queued) return undefined
+    this.dismissals.delete(terminalId)
+    if (queued.agent !== agent || queued.sessionId !== sessionId) return undefined
+    return dismissedNotice(queued.asks)
   }
 
   answer(id: string, input: AskAnswer): void {
@@ -597,7 +715,7 @@ export class Inbox {
     if (taken.length === 0) return undefined
     const subjects: string[] = []
     for (const entry of taken) {
-      this.put({ ...entry, state: "withdrawn" })
+      this.put({ ...entry, state: "withdrawn", cause: "replied" })
       if (entry.content.kind === "ask") subjects.push(entry.content.ask.subject)
     }
     this.maintain(terminalId)
@@ -679,6 +797,7 @@ export class Inbox {
     if (!owner) this.guesses.delete(terminalId)
     const exists = this.existence()
     if (!exists(terminalId)) {
+      this.dismissals.delete(terminalId)
       const turns = [...(this.byTerminal.get(terminalId)?.values() ?? [])].filter(isTurn)
       if (turns.length > 0) this.save(() => this.records.removeEntries(turns.map(({ id }) => id)))
       this.forgetTurns(turns)
@@ -725,7 +844,9 @@ export class Inbox {
       const inboxState =
         entry.state === "answered" && reply?.state === "gone" && reply.deliveredAt === null
           ? ("undelivered" as const)
-          : entry.state
+          : entry.state === "withdrawn" && entry.cause === "dismissed"
+            ? ("dismissed" as const)
+            : entry.state
       const trace = {
         id: `m-${entry.id.replaceAll("-", "")}`,
         thread,
@@ -770,6 +891,7 @@ export class Inbox {
       const owner = this.host.owner(id)
       if (!owner || owner.projectId === projectId || terminals.has(id)) this.guesses.delete(id)
     }
+    for (const id of terminals) this.dismissals.delete(id)
     this.remove(gone)
   }
 

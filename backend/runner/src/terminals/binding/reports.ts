@@ -274,6 +274,8 @@ export class Reports {
     const person: Person = {
       counts: ({ prompt }) => !this.byCommand(record, prompt),
       withdraw: (before) => this.host.inbox().withdrawBefore(record.summary.id, before),
+      dismissed: (agent, sessionId) =>
+        this.host.inbox().dismissed(record.summary.id, agent, sessionId),
       // Kept with its work, so a restart still knows the agent's done was before it.
       prompted: (at) => {
         if (!record.work) return

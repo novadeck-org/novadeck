@@ -3,7 +3,7 @@ import type { SidebarPanel as PanelId, Tile, WorkspaceSession } from "@novadeck/
 import { Plus } from "lucide-react"
 import type { ComponentProps } from "react"
 
-import { HeldPill, InboxCount, InboxList, InboxMarkAll } from "../inbox/InboxList"
+import { HeldPill, InboxClear, InboxCount, InboxList, InboxMarkAll } from "../inbox/InboxList"
 import { shortcutBindings } from "../interaction/shortcuts"
 import { SessionsPanel } from "../sidebar/SessionsPanel"
 import { SidebarPanel, sidebarCreateClasses } from "../sidebar/SidebarPanel"
@@ -135,7 +135,12 @@ export const WorkspaceSidebar = ({
       titleExtra={<HeldPill />}
       active={sidebarPanel === "inbox"}
       onClose={onHide}
-      actions={<InboxMarkAll />}
+      actions={
+        <>
+          <InboxClear />
+          <InboxMarkAll />
+        </>
+      }
     >
       <InboxList />
     </SidebarPanel>

@@ -355,7 +355,7 @@ describe("the Babcia demo", () => {
           kind: "ask",
           answer: { type: "reply", option: null, text: typed },
         })
-      } else inbox.clear()
+      } else inbox.empty()
       // eslint-disable-next-line no-await-in-loop -- Each demo runs on its own.
       await vi.advanceTimersByTimeAsync(10_000)
       // It waits at its prompt, as an agent told no does, and cue 6 leaves it; its lead ends.
