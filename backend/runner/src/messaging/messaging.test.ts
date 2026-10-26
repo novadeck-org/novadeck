@@ -662,9 +662,6 @@ describe("delivery through hooks", () => {
 
   it("says how to print a turn the person or the doorbell began with notices after its messages", () => {
     const { send, answer, codex, clock: time } = create()
-    const context = (stdout: string) =>
-      (JSON.parse(stdout) as { hookSpecificOutput: { additionalContext: string } })
-        .hookSpecificOutput.additionalContext
     // The person's prompt with nothing waiting: silent, with the whole answer for notices.
     const quiet = answer("B", codex, "UserPromptSubmit", [started(codex)])
     expect(quiet.stdout).toBe("")

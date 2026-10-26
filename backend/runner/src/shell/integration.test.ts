@@ -3323,12 +3323,10 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))(
       const { start, step } = driver(shell, manager)
       await start(lead.id, "claude", "s-lead")
       const ring = "[Novadeck: automatic notice, agent messages waiting, abc123]"
-      for (const agent of ["claude", "codex"] as const) {
+      const teammate = async (agent: "claude" | "codex") => {
         const worker = await create(manager, shell)
         await start(worker.id, agent, `s-${agent}`)
-        await expect
-          .poll(() => manager.messages(worker.id).delivery)
-          .toMatch(/^(?:fresh|ready)$/)
+        await expect.poll(() => manager.messages(worker.id).delivery).toMatch(/^(?:fresh|ready)$/)
         const { handle } = manager.get(worker.id)
         await step(lead.id, { call: "send", request: { to: handle, text: "Build the page." } })
         // Its first turn is the doorbell's: the message, then the bar's, the Inbox's and the
@@ -3355,6 +3353,8 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))(
         expect(again).toContain("this terminal has no summary yet")
         expect(again).not.toContain("beside this terminal is a bar")
       }
+      await teammate("claude")
+      await teammate("codex")
     })
 
     it("tells a terminal's watchers nothing of messages between two others", async ({ shell }) => {
