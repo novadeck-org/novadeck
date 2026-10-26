@@ -33,7 +33,6 @@ describe("the marks the raw Inbox makes", () => {
   it("is a need with its item's subject, an unblock before an ask", () => {
     expect(inboxMarks([ask({ type: "text" })], at, now)).toEqual({
       need: "ask",
-      done: false,
       subject: "Which?",
       dialog: undefined,
     })
@@ -84,7 +83,6 @@ describe("the marks the raw Inbox makes", () => {
     )
     expect(inboxMarks([settled], at, now)).toEqual({
       need: undefined,
-      done: false,
       subject: undefined,
       dialog: undefined,
     })
@@ -99,7 +97,6 @@ describe("the marks the raw Inbox makes", () => {
     const other = { ...mine, source: { ...mine.source, terminalId: "02" } }
     expect(inboxMarks([other], at, now)).toEqual({
       need: undefined,
-      done: false,
       subject: undefined,
       dialog: undefined,
     })
@@ -112,8 +109,8 @@ describe("the marks the raw Inbox makes", () => {
     expect(inboxMarks([limit(later, true)], at, later + 1).need).toBeUndefined()
   })
 
-  it("knows a done report unseen, and not once seen", () => {
-    expect(inboxMarks([done()], at, now).done).toBe(true)
-    expect(inboxMarks([done(true)], at, now).done).toBe(false)
+  it("makes no mark of a done report, seen or not: that stands with the agent", () => {
+    expect(inboxMarks([done()], at, now)).toEqual(inboxMarks([], at, now))
+    expect(inboxMarks([done(true)], at, now)).toEqual(inboxMarks([], at, now))
   })
 })

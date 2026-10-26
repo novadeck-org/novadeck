@@ -376,6 +376,17 @@ const isFromLead = (message: Message): boolean => message.fromLead
 const joined = (kept: string | undefined, text: string): string =>
   kept ? `${kept}\n${text}` : text
 
+/**
+ * What a hook prints, and, at the start of a root turn the person's prompt or the doorbell
+ * began with time left to print, the same answer with more after what it says: how
+ * Novadeck's automatic notices go beside messages (see terminals/nudges.ts).
+ */
+export type Answer = HookAnswer & { readonly adding?: (extra: string) => string }
+
+/** What a turn's start says, with Novadeck's notices after it, a paragraph apart. */
+const withNotices = (text: string, notices: string): string =>
+  text ? `${text}\n\n${notices}` : notices
+
 /** A hook's delivery with the sender's hold notices after it, if any; empty with neither. */
 const noted = (text: string | undefined, holds: readonly string[]): string =>
   [...(text ? [text] : []), ...holds].join("\n")
@@ -1049,7 +1060,9 @@ export class Messaging {
    * report is a root turn event that may take them and its `deadline` leaves time to print
    * them. A harness whose injected messages last one call gets a turn's delivery again on
    * each later call of it. At a root tool call, or a later model call of such a harness,
-   * only the lead's messages are leased: what directs the worker reaches it mid-turn.
+   * only the lead's messages are leased: what directs the worker reaches it mid-turn. At
+   * the start of a root turn the person's prompt or the doorbell began, with time to print,
+   * the answer also says how to print it with Novadeck's notices after it (`adding`).
    */
   ask(
     terminalId: string,
@@ -1061,7 +1074,7 @@ export class Messaging {
       /** Told of a root turn the person's own prompt started; the notice it answers goes to the agent. */
       readonly person?: Person
     },
-  ): HookAnswer {
+  ): Answer {
     const profile = harnesses[report.agent].messaging
     const silent = { leaseId: null, stdout: silentFor(profile, report.event) }
     const kind = profile.asks[report.event]
@@ -1139,7 +1152,7 @@ export class Messaging {
    * harness whose injected messages last one call also gets the turn's delivery again, with
    * the lead's messages that came since joined to it.
    */
-  private askPrompt({ live, root, profile, silent, events, time, person }: Asked): HookAnswer {
+  private askPrompt({ live, root, profile, silent, events, time, person }: Asked): Answer {
     const start = events.find(
       (event): event is Extract<HarnessEvent, { type: "turn-started" }> =>
         event.type === "turn-started" && rootedIn(root, event),
@@ -1154,7 +1167,6 @@ export class Messaging {
     // print it; else they stay, and the next answer that can does both.
     const notes = time ? this.notices(live, root, person) : []
     const holds = [...notes, ...(time ? this.heldFrom(live.terminalId) : [])]
-    const again = kept === undefined ? undefined : profile.prompt(noted(kept, holds))
     if (start.cause === "call") {
       // A notice paid at a later call is given again on the turn's remaining ones, as one
       // paid at its first is.
@@ -1176,6 +1188,14 @@ export class Messaging {
       return rest ? { leaseId: null, stdout: profile.prompt(rest) } : silent
     }
     const print = (text: string) => profile.prompt(noted(text, holds))
+    // A turn the person's prompt or the doorbell began, with time to print, can take
+    // Novadeck's notices after what it says; they last one call, never kept with a delivery.
+    const begun = time && (start.cause === "prompt" || start.cause === "doorbell")
+    const answered = (leaseId: string | null, text: string): Answer => ({
+      leaseId,
+      stdout: text || holds.length > 0 ? print(text) : silent.stdout,
+      ...(begun && { adding: (extra: string) => print(withNotices(text, extra)) }),
+    })
     const lease =
       time &&
       this.lease(live, root, {
@@ -1183,13 +1203,12 @@ export class Messaging {
         print,
         ...(profile.reinjectPerCall && { keeps: (text: string) => noted(text, notes) }),
       })
-    if (lease) return { leaseId: lease.id, stdout: print(lease.text) }
-    if (again) return { leaseId: null, stdout: again }
+    if (lease) return answered(lease.id, lease.text)
+    if (kept !== undefined) return answered(null, kept)
     // A harness whose injected messages last one call gives the notice on each later call.
     if (profile.reinjectPerCall && notes.length > 0)
       this.leases.remember(live.terminalId, live.delivery.epoch, noted("", notes))
-    if (start.cause !== "doorbell")
-      return holds.length > 0 ? { leaseId: null, stdout: print("") } : silent
+    if (start.cause !== "doorbell") return answered(null, "")
     // A doorbell whose messages couldn't be leased now, as too late or while paused, says
     // they still wait; one with none left, as when they went another way, that none do.
     const waits = [...this.messages.values()].some(
@@ -1198,7 +1217,7 @@ export class Messaging {
         undelivered(message) &&
         this.addressed(message, root),
     )
-    return { leaseId: null, stdout: print(waits ? stillWaiting : nothingWaiting) }
+    return answered(null, waits ? stillWaiting : nothingWaiting)
   }
 
   /**
@@ -2169,6 +2188,11 @@ export class Messaging {
         peer.sessionId === live.sessionId &&
         peer.terminalId !== live.terminalId,
     )
+  }
+
+  /** When the latest message was delivered to the terminal: see `deliveredTo`. */
+  deliveredAt(terminalId: string): number | null {
+    return deliveredTo(this.messages.values(), terminalId)
   }
 
   /** The caller's peers, described. */

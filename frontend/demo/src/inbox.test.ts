@@ -871,7 +871,7 @@ describe("an agent that calls done", () => {
     expect(found.inbox.state.getSnapshot().items).toEqual(waiting)
   })
 
-  it("is held back from the person while its lead's agent runs", async () => {
+  it("is the person's for a worker too, while its lead's agent runs", async () => {
     const found = boot()
     await vi.advanceTimersByTimeAsync(10_000)
     const worker = found.terminalOf("mobile-app", 1)!
@@ -894,6 +894,6 @@ describe("an agent that calls done", () => {
     expect(found.terminalOf("mobile-app", 1)).toMatchObject({ ledBy: lead.handle })
     await call(found)
 
-    expect(updateOn(found)).toBeUndefined()
+    expect(updateOn(found)).toMatchObject({ update: { type: "done", ...report } })
   })
 })

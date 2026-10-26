@@ -499,8 +499,7 @@ export const createRunnerInbox = (
       }
     },
     readAll: () => {
-      // The updates and the failed rows that only inform, as shown: a done hidden under its
-      // running lead is the lead's, and stays.
+      // The updates and the failed rows that only inform, as shown.
       const ids = state
         .getSnapshot()
         .items.filter((item) => item.kind === "update" || (isTurnRow(item) && !item.stopped))

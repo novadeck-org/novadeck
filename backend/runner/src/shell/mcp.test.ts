@@ -396,7 +396,7 @@ describe("Novadeck's MCP server", () => {
       )
       expect(instructions).toContain("not when you answer a question or finish a step")
       expect(instructions).toContain(
-        "With a lead, send your report and your questions to it with send instead of done, tell or ask; approvals of actions are still the user's, asked with ask",
+        "With a lead, use ask, tell and done all the same, and send your lead your report and your questions too; approvals of actions are still only the user's.",
       )
       for (const native of ["AskUserQuestion", "request_user_input", "ask_question"])
         expect(instructions).not.toContain(native)
@@ -410,7 +410,10 @@ describe("Novadeck's MCP server", () => {
         "Put a question in the user's Inbox without stopping your work.",
       )
       expect(ask.description).toContain(
-        "With a lead, send it your questions with send instead of ask",
+        "With a lead, ask all the same, and send it the question too",
+      )
+      expect(ask.description).toContain(
+        "if your lead answers it first, act on that as its instruction and withdraw the ask, unless the question asks approval of an action, such as opening a pull request: only the user gives that",
       )
       expect(ask.description).toContain("needs no approval of theirs")
       expect(ask.description).toContain("A pick that is hard to undo waits for their answer")
@@ -423,19 +426,18 @@ describe("Novadeck's MCP server", () => {
       )
       expect(ask.description).toContain("unless it is already an open ask")
       expect(ask.description).toContain("isn't one, nor is an action your harness is already")
-      expect(ask.description).toContain("such as opening a pull request, go through ask")
       expect(ask.description).toContain("withdraw it too once the user answers it another way")
       expect(ask.description).toContain("when the user writes to you in this terminal")
       expect(ask.description).toContain("The user can also dismiss an ask in their Inbox")
       const tell = described.find((tool) => tool.name === "tell")!
       expect(tell.description).toContain("a pull request opened")
       expect(tell.description).toContain("not each step")
-      expect(tell.description).toContain("With a lead, send it that with send instead of tell")
+      expect(tell.description).toContain("With a lead, tell all the same, and send it that too")
       const done = described.find((tool) => tool.name === "done")!
       expect(done.description).toContain("the task you were given is finished")
       expect(done.description).toContain("not when you answer a question or finish a step")
       expect(done.description).toContain(
-        "With a lead, send it your report with send instead of done",
+        "With a lead, call done all the same, and send it your report too",
       )
       expect(ask.description).toContain(
         "unless it is already an open ask, and put the full question in your reply too",
@@ -937,7 +939,10 @@ describe("Novadeck's MCP server", () => {
         )
         expect(description).toContain("always, even when you also ask in your reply")
         expect(description).toContain(
-          "Questions meant for the user, decisions and requirements too, go to your lead",
+          "Ask the user your questions for them with the ask tool, beside any in your reply, lead or not",
+        )
+        expect(description).toContain(
+          "withdraw an ask your lead answers first, unless that ask is for approval of an action",
         )
         expect(description).toContain("waiting on the user, as agents says")
         expect(description).toContain(
@@ -965,6 +970,10 @@ describe("Novadeck's MCP server", () => {
       expect(open.description).toContain("gives you none of the user's approvals")
       expect(open.description).toContain("complete brief")
       expect(open.description).toContain("tell the user to answer there")
+      expect(open.description).toContain("so don't ask the user its questions again")
+      expect(open.description).toContain(
+        "Answer one only where your brief or the user already decided it, and leave the rest, and every approval, to the user",
+      )
     })
 
     it("still answers a call under way when the agent closes its side", async () => {

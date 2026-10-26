@@ -327,9 +327,11 @@ describe("terminal frame marks", () => {
       expect(
         section(renderFrame(resting, { unread: "unread" })).getAttribute("data-terminal-phase"),
       ).toBe("idle")
-      const reported = renderFrame(resting, { reported: true })
+      const reported = renderFrame(
+        agent({ working: false, lastTurn: { at: 1, outcome: "completed" }, reported: true }),
+      )
       expect(section(reported).getAttribute("data-terminal-phase")).toBe("done")
-      expect(section(reported).getAttribute("aria-description")).toBe("Done · report unread")
+      expect(section(reported).getAttribute("aria-description")).toBe("Done · reported")
     })
 
     it("says an unread reply in words, as its tab does", () => {

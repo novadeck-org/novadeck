@@ -1223,7 +1223,7 @@ describe("Inbox entries", () => {
     expect(ids()).toEqual(["done-1"])
   })
 
-  it("leaves a worker's done unread under its running lead when everything is read", async () => {
+  it("reads a worker's done under its running lead when everything is read, as the person's", async () => {
     const worker: TerminalMetadata = { ...agentTerminal(2, { working: false }), ledBy: "moth" }
     const { entries, inbox, streams, ids } = setup(workspaceOf(agentTerminal(1), worker))
     entries.push([
@@ -1236,10 +1236,10 @@ describe("Inbox entries", () => {
       told(),
     ])
     await settle()
-    expect(ids()).toEqual(["told-1"])
+    expect(ids()).toEqual(["worker-done", "told-1"])
     inbox.readAll()
     await settle()
-    expect(streams.inbox.read).toHaveBeenCalledExactlyOnceWith(["told-1"])
+    expect(streams.inbox.read).toHaveBeenCalledExactlyOnceWith(["worker-done", "told-1"])
   })
 
   it("reads all known tells in batches, beside the more urgent ask", async () => {

@@ -8,6 +8,7 @@ import {
   maxCommandLines,
   replyPreviewLength,
   type AgentAsk,
+  type AgentName,
   type AskAnswer,
   type InboxEntry,
   type TerminalMessages,
@@ -744,15 +745,23 @@ export class Inbox {
   /**
    * The latest `tell` and the latest `done` of the agent session now bound in the terminal,
    * read or not, while Inbox keeps them, as other agents read them; none of a session before
-   * it, and none once closed.
+   * it, and none once closed. With no session bound (as after a runner restart, until its
+   * agent binds one), those of `saved`, the session the terminal last worked with.
    */
-  reports(terminalId: string): Reports {
+  reports(terminalId: string, saved?: { agent: AgentName; sessionId: string }): Reports {
     const owner = this.closed ? undefined : this.host.owner(terminalId)
+    const sought = this.closed || owner ? undefined : saved
     let tell: Report | null = null
     let done: Report | null = null
-    for (const entry of owner ? (this.byTerminal.get(terminalId)?.values() ?? []) : []) {
+    for (const entry of owner || sought ? (this.byTerminal.get(terminalId)?.values() ?? []) : []) {
       const { content } = entry
-      if ((content.kind !== "tell" && content.kind !== "done") || !same(entry, owner)) continue
+      if (content.kind !== "tell" && content.kind !== "done") continue
+      if (
+        sought
+          ? entry.agent !== sought.agent || entry.sessionId !== sought.sessionId
+          : !same(entry, owner)
+      )
+        continue
       const report = { subject: content.subject, at: entry.at }
       if (content.kind === "tell" && (!tell || tell.at < report.at)) tell = report
       if (content.kind === "done" && (!done || done.at < report.at)) done = report
@@ -938,9 +947,17 @@ export class Inbox {
       : [...this.byTerminal]
     this.abandon(groups, at)
     const exists = this.existence()
-    for (const [, entries] of groups) {
+    for (const [id, entries] of groups) {
+      // The latest done of a terminal that still exists outlives its retention, whatever
+      // session is bound (none is, at boot): it stands, read or not, until the agent has
+      // more to do (`reports`), so one per terminal is kept, until the terminal is closed.
+      const standing = exists(id)
+        ? [...entries.values()]
+            .filter((entry) => entry.content.kind === "done")
+            .toSorted((a, b) => b.at - a.at)[0]
+        : undefined
       const resolved = [...entries.values()]
-        .filter((entry) => entry.state !== "open")
+        .filter((entry) => entry.state !== "open" && entry !== standing)
         .map((entry) => {
           const reply = this.host.replyState(entry.id)
           return {

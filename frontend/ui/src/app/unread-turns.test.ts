@@ -413,7 +413,7 @@ describe("unread turns", () => {
       stopQuiet()
     })
 
-    it("are none for a worker whose lead's agent runs", () => {
+    it("are a worker's too, while its lead's agent runs", () => {
       const app = setup({ rows: [], pageFocused: false })
       app.workspace.dispatch({ type: "terminal/update", target, terminalId: "01", handle: "moth" })
       app.workspace.dispatch({ type: "terminal/update", target, terminalId: "02", ledBy: "moth" })
@@ -426,7 +426,8 @@ describe("unread turns", () => {
       app.status("01", { working: true })
       const stop = app.watch()
       app.entries.set([entry("l1", 10)])
-      expect(app.notices).toEqual([])
+      expect(app.notices).toHaveLength(1)
+      expect(app.noticeItems).toEqual(["l1"])
       stop()
     })
 

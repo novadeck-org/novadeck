@@ -9,6 +9,7 @@ import {
   type Peer,
   renderAgents,
   renderPeer,
+  standingDone,
   unknownHandle,
   type Waiting,
   waitsOnNote,
@@ -545,5 +546,22 @@ describe("a peer whose agent waits to be woken", () => {
       waiting: { kind: "question", tool: "AskUserQuestion", subject: null, more: 0 },
     })
     expect(read(listing({ where: asking }))[0]).toContain("waiting on the user: a question")
+  })
+})
+
+describe("the done that stands", () => {
+  const done = { subject: "Fixed it", at: 100 }
+  const reports = { tell: null, done }
+
+  it("stands until the person's prompt or a delivered message comes after it", () => {
+    expect(standingDone(reports, undefined, null)).toBe(done)
+    expect(standingDone(reports, 99, 50)).toBe(done)
+    expect(standingDone(reports, 100, null)).toBeNull()
+    expect(standingDone(reports, 10, 150)).toBeNull()
+  })
+
+  it("is none without a done", () => {
+    expect(standingDone({ tell: null, done: null }, undefined, null)).toBeNull()
+    expect(standingDone(undefined, undefined, null)).toBeNull()
   })
 })
