@@ -53,6 +53,8 @@ export type InboxStreams = {
     readonly watch: () => AsyncIterableIterator<InboxEntry[], undefined>
     readonly answer: (id: string, answer: AskAnswer) => Promise<void>
     readonly read: (ids: readonly string[]) => Promise<void>
+    readonly dismiss: (id: string) => Promise<void>
+    readonly clear: (ids: readonly string[]) => Promise<void>
   }
   readonly detail: (terminalId: string) => AsyncIterableIterator<AgentDetail, undefined>
   readonly answer: (key: ConversationKey, request: string, answer: ChatAnswer) => Promise<void>
@@ -412,7 +414,8 @@ export const createRunnerInbox = (
 
   const answer = (id: string, given: InboxAnswer): void => {
     const item = find(id)
-    if (!item || !binding || state.getSnapshot().answering[id]) return
+    // A settled ask is no longer the agent's to be answered.
+    if (!item || item.settled || !binding || state.getSnapshot().answering[id]) return
     const key = keyOf(item)
     if (item.kind === "ask" && given.kind === "ask") {
       replies.delete(id)
@@ -463,6 +466,37 @@ export const createRunnerInbox = (
           )
           .map(({ id }) => id),
       )
+    },
+    dismiss: (id) => {
+      const item = find(id)
+      // Only an open Novadeck ask: a harness's own question is answered in its dialog.
+      if (
+        !item ||
+        item.kind !== "ask" ||
+        item.settled ||
+        !binding ||
+        state.getSnapshot().answering[id]
+      )
+        return
+      tracker.call(id, () => streams.inbox.dismiss(id), { silent: true })
+    },
+    clear: (ids) => {
+      const settled = new Set(
+        state
+          .getSnapshot()
+          .items.filter((item) => item.kind === "ask" && item.settled)
+          .map((item) => item.id),
+      )
+      const wanted = ids.filter((id) => settled.has(id))
+      if (wanted.length === 0) return
+      const live = tracker.guard()
+      for (let start = 0; start < wanted.length; start += 1000) {
+        const batch = wanted.slice(start, start + 1000)
+        track(Promise.resolve().then(() => streams.inbox.clear(batch))).catch((error: unknown) => {
+          if (!live()) return
+          for (const id of batch) tracker.fail(id, answerFailure(error))
+        })
+      }
     },
     readAll: () => {
       // The updates and the failed rows that only inform, as shown.

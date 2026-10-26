@@ -355,7 +355,7 @@ describe("the Babcia demo", () => {
           kind: "ask",
           answer: { type: "reply", option: null, text: typed },
         })
-      } else inbox.clear()
+      } else inbox.empty()
       // eslint-disable-next-line no-await-in-loop -- Each demo runs on its own.
       await vi.advanceTimersByTimeAsync(10_000)
       // It waits at its prompt, as an agent told no does, and cue 6 leaves it; its lead ends.
@@ -823,7 +823,7 @@ describe("the Babcia demo", () => {
       answer: { type: "reply" as const, option: label === "Yes" ? 0 : 1, text: "" },
     })
     // The open ask's subject, as the person reads it.
-    const subjects = (items: readonly InboxItem[]) =>
+    const subjects = (items: readonly InboxRow[]) =>
       items.flatMap((item) => (item.kind === "ask" ? [item.ask.subject] : []))
 
     it("asks to force-push to main, as an Ask row with Yes and No, and the badge reads one", () => {
@@ -895,13 +895,14 @@ describe("the Babcia demo", () => {
       cues.finishAll()
       await vi.advanceTimersByTimeAsync(500)
       expect(agent(babcia.manners)?.lastTurn).toBeUndefined()
-      expect(items()).toEqual([])
+      // Cue 6 also has the other agents report done; only the asks matter here.
+      expect(subjects(items())).toEqual([])
       await vi.advanceTimersByTimeAsync(politeAfterMs)
-      expect(items()).toHaveLength(1)
+      expect(subjects(items())).toEqual(["Could I open a pull request instead, please?"])
       cues.finishAll()
       await vi.advanceTimersByTimeAsync(5000)
       expect(agent(babcia.manners)?.lastTurn).toBeUndefined()
-      inbox.answer(items()[0]!.id, pick("Yes"))
+      inbox.answer(items().find((item) => item.kind === "ask")!.id, pick("Yes"))
       await vi.advanceTimersByTimeAsync(5000)
       cues.finishAll()
       await vi.advanceTimersByTimeAsync(5000)

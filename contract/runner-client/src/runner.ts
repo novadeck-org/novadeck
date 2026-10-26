@@ -396,6 +396,8 @@ export type Runner = {
     watch(): AsyncIterableIterator<InboxEntry[], undefined>
     answer(id: string, answer: AskAnswer): Promise<void>
     read(ids: readonly string[]): Promise<void>
+    dismiss(id: string): Promise<void>
+    clear(ids: readonly string[]): Promise<void>
   }
   readonly messages: {
     /** A terminal's threads and messages with their states; `TERMINAL_NOT_FOUND` when unknown. */
@@ -732,6 +734,8 @@ export const connectRunner = async (
         resubscribe(connection, (wire, signal) => wire.inbox.watch(undefined, { signal })),
       answer: (id, answer) => call((wire) => wire.inbox.answer({ id, answer })),
       read: (ids) => call((wire) => wire.inbox.read({ ids: [...ids] })),
+      dismiss: (id) => call((wire) => wire.inbox.dismiss({ id })),
+      clear: (ids) => call((wire) => wire.inbox.clear({ ids: [...ids] })),
     },
     messages: {
       list: (terminalId) => call((wire) => wire.messages.list({ terminalId })),

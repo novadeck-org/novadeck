@@ -753,7 +753,7 @@ const yesOrNo = ["Yes", "No"].map((label) => ({
   details: null,
   code: null,
 }))
-const mannersAsk = (kind: keyof typeof mannersIds, now: number): InboxItem => {
+const mannersAsk = (kind: keyof typeof mannersIds, now: number): InboxRow => {
   const job = jobs[babcia.manners - 1]!
   return {
     id: mannersIds[kind],

@@ -25,7 +25,7 @@ const subjectOf = (item: InboxRow): string | undefined => {
 // limit has reset.
 export const inboxMarks = (items: readonly InboxRow[], at: TerminalAt, now: number): InboxMarks => {
   const need = terminalNeed(items, at, now)
-  const mine = items.filter((item) => here(item, at))
+  const mine = items.filter((item) => here(item, at) && !item.settled)
   const behind = need && mine.find((item) => inboxType(item) === need)
   return {
     need,

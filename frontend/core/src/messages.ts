@@ -13,7 +13,14 @@ import type { Store } from "./store"
 // (`held`), or no longer deliverable since its recipient's session ended (`gone`).
 export type MessageState = "queued" | "leased" | "delivered" | "held" | "gone"
 
-export type InboxHistory = "open" | "answered" | "read" | "withdrawn" | "gone" | "undelivered"
+export type InboxHistory =
+  | "open"
+  | "answered"
+  | "read"
+  | "withdrawn"
+  | "dismissed"
+  | "gone"
+  | "undelivered"
 
 export type AgentMessage = {
   readonly id: string

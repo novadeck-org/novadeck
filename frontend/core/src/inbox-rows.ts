@@ -4,6 +4,7 @@ import type { AgentName } from "./harnesses"
 import {
   ordered,
   type AgentAsk,
+  type AskSettled,
   type InboxContent,
   type InboxRow,
   type InboxSource,
@@ -48,6 +49,8 @@ export type InboxEntry = {
     | { readonly kind: "ask"; readonly ask: AgentAsk }
     | { readonly kind: "tell"; readonly subject: string; readonly body: string }
     | { readonly kind: "done"; readonly subject: string; readonly body: string }
+  // Only on an ask that is no longer open.
+  readonly settled?: AskSettled | undefined
 }
 
 export type InboxInputs = {
@@ -255,7 +258,7 @@ export const inboxRows = (inputs: InboxInputs): InboxRow[] => {
         session.id === entry.workspaceSessionId &&
         terminal.id === entry.terminalId &&
         (terminal.handle ?? "") === entry.handle &&
-        (entry.content.kind !== "ask" || agentOf(terminal) === entry.agent),
+        (entry.content.kind !== "ask" || entry.settled || agentOf(terminal) === entry.agent),
     )
     if (!here) continue
     const { content: entryContent } = entry
@@ -274,9 +277,10 @@ export const inboxRows = (inputs: InboxInputs): InboxRow[] => {
       id: entry.id,
       source: sourceOf(here, entry.agent),
       at: entry.at,
-      stopped: entry.content.kind === "ask" && !agentWorking(here.terminal),
+      stopped: entry.content.kind === "ask" && !entry.settled && !agentWorking(here.terminal),
       seen: false,
       ...content,
+      ...(entry.settled ? { settled: entry.settled } : {}),
     })
   }
 

@@ -8,11 +8,13 @@ import {
   initialView,
   hasUpdates,
   needing,
+  needs,
   ringing,
   nextItem,
   openItem,
   release,
   settle,
+  settledStart,
   stepFrom,
   updatesStart,
   visible,
@@ -272,5 +274,86 @@ describe("The line above the updates", () => {
       expect(updatesStart([false, true, false])).toBe(2)
       expect(updatesStart([true, false, true, false])).toBe(3)
     })
+  })
+})
+
+// An ask the agent wrote, open or settled `how` at `at`.
+const ask = (
+  id: string,
+  at: number,
+  settled?: { how: "dismissed" | "withdrawn" | "replied"; at: number },
+): InboxRow => ({
+  id,
+  source,
+  at,
+  stopped: !settled,
+  seen: false,
+  kind: "ask",
+  ask: {
+    subject: id,
+    body: "",
+    details: null,
+    hardToUndo: null,
+    shape: { type: "text" },
+  },
+  ...(settled ? { settled } : {}),
+})
+
+describe("An ask that has settled", () => {
+  const items = [ask("a", 1), ask("b", 2, { how: "dismissed", at: 9 })]
+
+  it("is not held as news while a sheet is open", () => {
+    const open = openItem(settle(initialView, [items[0]!]), "a", [items[0]!])
+    expect(ids(held(open, items))).toEqual([])
+  })
+
+  it("asks nothing: the count, the bell and the rings leave it out", () => {
+    expect(needs(items[1]!)).toBe(false)
+    expect(ids(needing(items))).toEqual(["a"])
+    expect(ids(ringing(items))).toEqual(["a"])
+  })
+
+  it("is never what asks next", () => {
+    expect(nextItem(items, null, { answering: {} })?.id).toBe("a")
+    expect(nextItem([items[1]!], null, { answering: {} })).toBeUndefined()
+  })
+
+  it("lists below the rest, the latest settled first", () => {
+    const all = [ask("c", 3, { how: "withdrawn", at: 5 }), items[1]!, update("u", 4), items[0]!]
+
+    expect(ids(visible(settle(initialView, all), all))).toEqual(["a", "u", "b", "c"])
+  })
+
+  it("keeps its place while the panel is on screen, and drops below when it is shown again", () => {
+    const open = [ask("a", 1), ask("b", 2), update("u", 3)]
+    let view = settle(initialView, open, true)
+    const after = [open[0]!, ask("b", 2, { how: "dismissed", at: 9 }), open[2]!]
+    view = settle(view, after, true)
+
+    expect(ids(visible(view, after))).toEqual(["a", "b", "u"])
+    expect(ids(visible(settle(view, after, false), after))).toEqual(["a", "u", "b"])
+  })
+
+  it("does not move when a sheet closes with the panel still on screen", () => {
+    const open = [ask("a", 1), ask("b", 2), update("u", 3)]
+    let view = settle(initialView, open, true)
+    view = openItem(view, "a", open)
+    const after = [open[0]!, ask("b", 2, { how: "dismissed", at: 9 }), open[2]!]
+    view = settle(view, after, true)
+
+    expect(ids(visible(closeSheet(view, after), after))).toEqual(["a", "b", "u"])
+  })
+})
+
+describe("The line above the settled asks", () => {
+  it("goes on the first of the settled rows that end the list", () => {
+    expect(settledStart([false, false, true, true])).toBe(2)
+  })
+
+  it("goes nowhere without settled rows at the end, or with nothing above them", () => {
+    expect(settledStart([false, false])).toBe(-1)
+    expect(settledStart([true, true])).toBe(-1)
+    expect(settledStart([false, true, false])).toBe(-1)
+    expect(settledStart([])).toBe(-1)
   })
 })

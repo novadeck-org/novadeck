@@ -85,6 +85,9 @@ export type InboxContextValue = {
   // Changes how an item is handled without answering it, as turning auto-resume on or off.
   readonly change: (item: InboxRow, answer: InboxAnswer) => void
   readonly readAll: () => void
+  // Dismisses an open ask, and clears the settled ones; absent where the backend has no such.
+  readonly dismiss: ((id: string) => void) | undefined
+  readonly clear: (() => void) | undefined
   readonly reveal: (item: InboxRow) => void
 }
 
@@ -124,6 +127,7 @@ export const InboxProvider = ({
   reveal,
   phone,
   working = false,
+  active = false,
   feedbackAbout,
   children,
 }: {
@@ -134,6 +138,8 @@ export const InboxProvider = ({
   readonly phone?: Phone | undefined
   // Whether any agent in the workspace is at work.
   readonly working?: boolean
+  // Whether the Inbox's panel is on screen: the asks that settle meanwhile keep their place.
+  readonly active?: boolean
   // Asks what goes along with feedback (`Feedback.about`); absent where there is none.
   readonly feedbackAbout?: (() => Promise<FeedbackAbout>) | undefined
   readonly children?: ReactNode
@@ -151,7 +157,7 @@ export const InboxProvider = ({
   }, [])
 
   // With no sheet open, new items join the list; the ones that do are marked a moment.
-  const settled = settle(view, state.items)
+  const settled = settle(view, state.items, active)
   if (settled !== view) setView(settled)
   useEffect(() => {
     if (view.arrived.length === 0) return
@@ -206,9 +212,15 @@ export const InboxProvider = ({
     latest.current = { state, view, phone, ghosts }
   })
   const heldItems = useMemo(() => held(view, state.items), [view, state.items])
-  const current =
-    state.items.find(({ id }) => id === view.open) ??
-    (view.open === null ? undefined : sent[view.open]?.item)
+  // A settled ask has no sheet, even where an answer was sent to it meanwhile.
+  const standing = state.items.find(({ id }) => id === view.open)
+  const current = standing
+    ? standing.settled
+      ? undefined
+      : standing
+    : view.open === null
+      ? undefined
+      : sent[view.open]?.item
 
   const dropSent = useCallback((id: string | null): void => {
     if (id !== null)
@@ -224,9 +236,11 @@ export const InboxProvider = ({
     (id: string, items?: readonly InboxRow[]): void => {
       const { state: snapshot, view: before, phone: screen } = latest.current
       const list = items ?? snapshot.items
+      const found = list.find((item) => item.id === id)
+      // A settled ask has no sheet.
+      if (found?.settled) return
       if (before.open !== id) dropSent(before.open)
       setView(openItem(before, id, list))
-      const found = list.find((item) => item.id === id)
       if (found && !found.seen) inbox.see(id)
       if (before.open === null) screen?.hideList()
     },
@@ -283,6 +297,21 @@ export const InboxProvider = ({
     if (opened?.kind === "update" || (opened && informing(opened))) close()
   }, [inbox, close])
 
+  const dismiss = useMemo(
+    () => (inbox.dismiss ? (id: string): void => inbox.dismiss?.(id) : undefined),
+    [inbox],
+  )
+  const clear = useMemo(
+    () =>
+      inbox.clear
+        ? (): void =>
+            inbox.clear?.(
+              latest.current.state.items.filter((item) => item.settled).map(({ id }) => id),
+            )
+        : undefined,
+    [inbox],
+  )
+
   const revealItem = useCallback(
     (item: InboxRow): void => {
       close()
@@ -330,7 +359,7 @@ export const InboxProvider = ({
       if (live.open === null && !inList) return
       if (!inSheet && !inList && target !== document.body && target !== document) return
       const to = stepFrom(
-        visible(live, snapshot.items, dropped),
+        visible(live, snapshot.items, dropped).filter((item) => !item.settled),
         live.open,
         event.key === "j" ? 1 : -1,
       )
@@ -370,6 +399,8 @@ export const InboxProvider = ({
       submit,
       change,
       readAll,
+      dismiss,
+      clear,
       reveal: revealItem,
     }),
     [
@@ -395,6 +426,8 @@ export const InboxProvider = ({
       submit,
       change,
       readAll,
+      dismiss,
+      clear,
       revealItem,
     ],
   )

@@ -428,6 +428,7 @@ describe("Novadeck's MCP server", () => {
       expect(ask.description).toContain("isn't one, nor is an action your harness is already")
       expect(ask.description).toContain("withdraw it too once the user answers it another way")
       expect(ask.description).toContain("when the user writes to you in this terminal")
+      expect(ask.description).toContain("The user can also dismiss an ask in their Inbox")
       const tell = described.find((tool) => tool.name === "tell")!
       expect(tell.description).toContain("a pull request opened")
       expect(tell.description).toContain("not each step")

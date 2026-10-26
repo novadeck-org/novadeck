@@ -614,6 +614,13 @@ describe("a click on a terminal's notification", () => {
     }
   }
 
+  it("skips a settled row, which has no sheet to open", () => {
+    const { calls, ...handlers } = to()
+    const settled = { ...ask("s"), settled: { how: "dismissed" as const, at: 2 } }
+    clickNotice("t1", [settled, ask("a")], handlers)
+    expect(calls).toEqual(["land a", "inbox", "open a"])
+  })
+
   it("opens that terminal's item in the Inbox when one stands", () => {
     const { calls, ...handlers } = to()
     clickNotice("t1", [update("u"), ask("a")], handlers)
