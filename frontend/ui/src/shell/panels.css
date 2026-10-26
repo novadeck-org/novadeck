@@ -17,21 +17,6 @@
 .workspace-panels .main-area {
   @apply h-full;
 }
-.sidebar-transition .workspace-sidebar-pane,
-.sidebar-transition .workspace-main-pane {
-  transition:
-    width var(--motion-state) var(--ease-interface),
-    left var(--motion-state) var(--ease-interface);
-}
-.sidebar-transition .sidebar-content {
-  display: block;
-  width: var(--_sidebar-expanded-width);
-}
-.sidebar-transition .sash,
-.sidebar-transition .sidebar-keyboard-resize {
-  pointer-events: none;
-  opacity: 0;
-}
 .sidebar-keyboard-resize:focus-visible {
   outline: none;
   /* The sash's own colour under the pointer (the separator recipe's token). */
