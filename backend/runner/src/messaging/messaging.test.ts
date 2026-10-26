@@ -180,8 +180,8 @@ const create = (
   messaging.register("B", here, "fox", null)
   follow("A", claude)
   follow("B", codex)
-  // What a hook of the terminal's agent asks, with plenty of time left.
-  const ask = (
+  // What a hook of the terminal's agent asks, with plenty of time left: the whole answer.
+  const answer = (
     terminalId: string,
     bound: Binding,
     event: string,
@@ -199,6 +199,11 @@ const create = (
       ...(person && { person }),
     })
   }
+  // What the hook prints of it, without the notices `adding` takes, the terminals side's.
+  const ask = (...args: Parameters<typeof answer>) => {
+    const { leaseId, stdout } = answer(...args)
+    return { leaseId, stdout }
+  }
   const prompt = (terminalId: string, bound: Binding, cause?: "prompt" | "harness" | "call") =>
     ask(terminalId, bound, bound.agent === "agy" ? "PreInvocation" : "UserPromptSubmit", [
       started(bound, cause),
@@ -215,6 +220,7 @@ const create = (
     codex,
     follow,
     observe,
+    answer,
     ask,
     prompt,
     stop,
@@ -652,6 +658,28 @@ describe("delivery through hooks", () => {
     })
     // Nothing more waits.
     expect(prompt("B", codex)).toEqual({ leaseId: null, stdout: "" })
+  })
+
+  it("says how to print a turn the person or the doorbell began with notices after its messages", () => {
+    const { send, answer, codex, clock: time } = create()
+    // The person's prompt with nothing waiting: silent, with the whole answer for notices.
+    const quiet = answer("B", codex, "UserPromptSubmit", [started(codex)])
+    expect(quiet.stdout).toBe("")
+    expect(context(quiet.adding!("Novadeck: a notice."))).toBe("Novadeck: a notice.")
+    // The doorbell's turn, with the lead's brief: the notices go after the messages.
+    sent(send("A", "fox", "Review a.ts"))
+    const rung = answer("B", codex, "UserPromptSubmit", [doorbellStarted(codex, "n-1")])
+    expect(rung.leaseId).toEqual(expect.any(String))
+    const both = context(rung.adding!("Novadeck: a notice."))
+    expect(both.indexOf("Review a.ts")).toBeGreaterThan(-1)
+    expect(both.indexOf("Review a.ts")).toBeLessThan(both.indexOf("Novadeck: a notice."))
+    // A hook's own continuation, or a turn with no time left to print: none.
+    expect(
+      answer("B", codex, "UserPromptSubmit", [started(codex, "harness")]).adding,
+    ).toBeUndefined()
+    expect(
+      answer("B", codex, "UserPromptSubmit", [started(codex)], time.now + 100).adding,
+    ).toBeUndefined()
   })
 
   it("continues a working agent's Stop with its messages, at most twice a turn", () => {
@@ -4069,6 +4097,22 @@ const joinedTurn = (first: string, lead: string) => {
 }
 
 describe("an Antigravity delivery joined mid-turn", () => {
+  it("takes notices after its brief at the doorbell's turn, never kept for its later calls", () => {
+    const { messaging, send, answer } = agyWorker()
+    const root = binding("agy", "c-root", "7")
+    sent(send("A", "owl", "First brief."))
+    const rung = answer("G", root, "PreInvocation", [observed(root), doorbellStarted(root, "n-1")])
+    expect(rung.adding).toBeDefined()
+    const printed = text(rung.adding!("Novadeck: a notice."))
+    expect(printed.indexOf("First brief.")).toBeLessThan(printed.indexOf("Novadeck: a notice."))
+    messaging.acknowledge("G", rung.leaseId!)
+    // Its next model call is given the brief again, without the notice, and takes none.
+    const later = answer("G", root, "PreInvocation", [started(root, "call")])
+    expect(later.stdout).toContain("First brief.")
+    expect(later.stdout).not.toContain("Novadeck: a notice.")
+    expect(later.adding).toBeUndefined()
+  })
+
   it("adds the lead's later message to what the turn was given, for every later call", () => {
     const { messaging, send, call, given } = joinedTurn("From a peer.", "Lead: change course.")
     // A peer's later message waits for the turn's end.

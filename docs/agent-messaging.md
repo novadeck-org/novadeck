@@ -1784,17 +1784,30 @@ model behind a `Describer` (`murmur/`).
 
 ### Nudges
 
-The prompt-time hook (`UserPromptSubmit`, Antigravity's `PreInvocation`) of a root prompt
-its decoder calls the person's (cause `prompt`) adds Novadeck's automatic notices, a
-paragraph each, when any is due; otherwise it adds nothing. Never at Stop, never in an
-answer that carries messages or a notice of another kind (the messages-waiting one: what
-is due waits for the next quiet prompt), and never in an answer that might miss the
-hook's deadline, which doesn't spend what is due.
+The prompt-time hook (`UserPromptSubmit`, Antigravity's `PreInvocation`) of a root turn
+the person's prompt began (cause `prompt`) or the doorbell did (cause `doorbell`) adds
+Novadeck's automatic notices, a paragraph each, when any is due; otherwise it adds
+nothing. The doorbell counts because an agent its lead started gets its brief, and every
+later instruction, through it: with only the person's prompts, an agent no one types to
+would never hear a notice. Never at Stop, at a hook's own continuation or at a later model
+call, and never in an answer that might miss the hook's deadline, which doesn't spend
+what is due.
+
+The notices share the answer with what it already says, as the messages it delivers:
+messages are leased first, as ever, and the notices go after them, each only as far as the
+whole printed answer stays within the 8 KB delivery budget (see "Hook output has limits"),
+in turn the summary's request (short, and it asks for something), the bar's and the
+Inbox's, then pages' troubles. What doesn't fit waits for the next turn the person or the
+doorbell begins (messaging hands the terminals side the answer to add to as `adding`, in
+`messaging.ts`; `take` in `terminals/nudges.ts` decides). Drift's facts are read only for
+an answer that delivers no messages, so a delivery never waits on them. On Antigravity the
+notices last one model call, as before: they are never kept with a delivery it is given
+again on each call.
 
 - **The bar.** Once a new root session or a compaction happened, a notice of the bar
   beside the terminal (see [Agent workspace](agent-workspace.md), "Companion pane") says
   what to show there and what not to. A `summarize` doesn't clear it, so it still comes at
-  the next quiet prompt when the agent summarized first.
+  the next turn's start when the agent summarized first.
 - **The Inbox.** With the bar's notice, its own paragraph after it: the person rarely
   watches the terminal, so every question the agent's turn ends waiting on goes to the
   Inbox with `ask`, beside its reply (see [Inbox asks and updates](#inbox-asks-and-updates)).
@@ -1817,11 +1830,11 @@ hook's deadline, which doesn't spend what is due.
      most or its branch differ from both the facts at the last `summarize` and those
      drift last fired for, so work going back and forth between two folders fires once.
      A fact not known (no plan, no folder yet, a branch not read in time) is no change.
-     They are read only for a prompt whose answer would otherwise be empty and with time
-     left, so a delivery never waits on them;
-  4. as a backstop, 5 of those prompts since the last `summarize`, or since the backstop
-     last fired;
-  5. every prompt while the terminal has no summary at all: an agent whose first prompt
+     They are read only for an answer that delivers no messages and with time left, so a
+     delivery never waits on them;
+  4. as a backstop, 5 of the person's prompts since the last `summarize`, or since the
+     backstop last fired (the doorbell's turns don't count);
+  5. every turn's start while the terminal has no summary at all: an agent whose first prompt
      gives it no work yet (a question) puts the first nudge off, as the notice allows, and
      without this would hear nothing more until the backstop, its terminal untitled.
 
@@ -1848,9 +1861,9 @@ hook's deadline, which doesn't spend what is due.
   4. once per show: the notice is spent when it is decided, as every notice is, and further
      troubles of that show are ignored. At most 4 pages are told in a prompt, and only as
      many as keep the whole printed answer within the 8 KB delivery budget (see
-     "Hook output has limits"); the rest wait for the next quiet prompt. A page that could
+     "Hook output has limits"); the rest wait for the next turn's start. A page that could
      not fit even as the only notice is let go untold, while one that only fails to fit beside
-     the bar's, the Inbox's or the summary's notice waits;
+     the messages or the bar's, the Inbox's or the summary's notice waits;
   5. closing or showing the item again drops its entry, and so does a new root session in
      the terminal, which didn't show the page. A `summarize` and a compaction leave it.
 

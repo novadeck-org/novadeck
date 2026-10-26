@@ -232,6 +232,19 @@ describe("the size of page notices", () => {
     expect(take(first.nudges, true, alone).pages).toHaveLength(1)
   })
 
+  it("keep a page waiting that only fails to fit beside a delivery's messages", () => {
+    // Beside the messages nothing fits; as the only thing an answer says, the page does.
+    const taken = take(
+      many(1),
+      true,
+      () => false,
+      () => true,
+    )
+    expect(taken.nudge).toBe(false)
+    expect(due(taken.nudges.troubles)).toBe(true)
+    expect(take(taken.nudges, true).pages).toHaveLength(1)
+  })
+
   it("let a page go untold that could never fit", () => {
     const taken = take(many(1), true, () => false)
     expect(taken.pages).toEqual([])

@@ -85,8 +85,8 @@ export const due = (troubles: Troubles): boolean =>
 /**
  * The pages to tell of now, at most `listedPages` of them, as many as `fits` accepts as a
  * whole, and the troubles after: each of those is told, so it hears nothing more of that
- * show. The rest wait for the next prompt, a page that only fails to fit beside the other
- * notices among them. A page `fitsAlone` can't, as the only thing an answer says, would
+ * show. The rest wait for the next turn's start, a page that only fails to fit beside the
+ * messages or the other notices among them. A page `fitsAlone` can't, as the only thing an answer says, would
  * never fit, so it is let go untold.
  */
 export const spend = (
