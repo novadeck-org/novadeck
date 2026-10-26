@@ -502,6 +502,37 @@ describe("done letters", () => {
     expect(trace?.text).toBe("Fixed it\n\nAll green.")
   })
 
+  it("reports the bound session's latest tell and done, read or not, and none of another session", ({
+    resources,
+  }) => {
+    let at = 1_000_000
+    const run = setup(memoryAsks(), undefined, { now: () => at })
+    resources.defer(run.stop)
+    expect(run.asks.reports(identity.terminalId)).toEqual({ tell: null, done: null })
+    const send = (kind: "tell" | "done", subject: string) => {
+      at += 10_000
+      const sent = run.asks.call(identity.terminalId, kind, { subject, body: "Body" })
+      if (!sent.ok) throw new Error(sent.reason)
+      return sent.id
+    }
+    send("tell", "PR opened")
+    const done = send("done", "Fixed it")
+    send("tell", "Review fixes pushed")
+    run.asks.read([done])
+    expect(run.asks.reports(identity.terminalId)).toEqual({
+      tell: { subject: "Review fixes pushed", at: 1_030_000 },
+      done: { subject: "Fixed it", at: 1_020_000 },
+    })
+    expect(run.asks.reports(randomUUID())).toEqual({ tell: null, done: null })
+    run.bind("second")
+    expect(run.asks.reports(identity.terminalId)).toEqual({ tell: null, done: null })
+    send("done", "Second task")
+    expect(run.asks.reports(identity.terminalId)).toEqual({
+      tell: null,
+      done: { subject: "Second task", at: 1_040_000 },
+    })
+  })
+
   it("refuses a done with no subject or an oversized subject or body", ({ resources }) => {
     const run = setup()
     resources.defer(() => run.messaging.close())
@@ -610,6 +641,48 @@ describe("Inbox creation limits", () => {
     expect(run.asks.list().map((each) => each.id)).toEqual([original, temporary])
     run.asks.answer(original, { type: "reply", option: 0, text: "Keep this one" })
     expect(run.messaging.inboxReply(original)?.to.sessionId).toBe(identity.sessionId)
+  })
+
+  it("moves the reports made while a guess stood to the session a correction names", ({
+    resources,
+  }) => {
+    let at = 1_000_000
+    const run = setup(memoryAsks(), undefined, { now: () => at })
+    resources.defer(run.stop)
+    // The guessed session's own report, made before it was ever a guess, stays its own.
+    run.bind("tentative")
+    const own = run.asks.call(identity.terminalId, "tell", { subject: "Its own", body: "Body" })
+    expect(own.ok).toBe(true)
+    at += 10_000
+    const guess = {
+      type: "new" as const,
+      root: {
+        agent: identity.agent,
+        sessionId: "tentative",
+        instance: null,
+        source: "binding" as const,
+      },
+      guess: true,
+      ready: true,
+    }
+    run.messaging.rooted(identity.terminalId, [guess])
+    run.asks.rooted(identity.terminalId, [guess])
+    at += 10_000
+    expect(
+      run.asks.call(identity.terminalId, "done", { subject: "Fixed it", body: "Body" }).ok,
+    ).toBe(true)
+    const correction = {
+      type: "corrected" as const,
+      from: "tentative",
+      root: { ...guess.root, sessionId: "real", source: "status-line" as const },
+      confirmed: true,
+    }
+    run.messaging.rooted(identity.terminalId, [correction])
+    run.asks.rooted(identity.terminalId, [correction])
+    expect(run.asks.reports(identity.terminalId)).toEqual({
+      tell: null,
+      done: { subject: "Fixed it", at: 1_020_000 },
+    })
   })
 
   it("excludes earlier asks from a guessed session cap and retires them on confirmation", ({

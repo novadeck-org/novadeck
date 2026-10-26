@@ -60,6 +60,7 @@ describe("what a terminal's dictation hint is made of", () => {
     terminal: () => undefined,
     running: () => [],
     projectFolder: () => "/w/repo",
+    reports: () => ({ tell: null, done: null }),
     stopping: () => false,
   })
   const terminal = (fields: Partial<PeerTerminal>): PeerTerminal => ({
@@ -112,6 +113,7 @@ describe("what a terminal's dictation hint is made of", () => {
       terminal: () => undefined,
       running: () => [],
       projectFolder: () => undefined,
+      reports: () => ({ tell: null, done: null }),
       stopping: () => false,
     })
     const work = {

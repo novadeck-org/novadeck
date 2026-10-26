@@ -1917,6 +1917,7 @@ const whereabouts = (overrides: Partial<Whereabouts> = {}): Whereabouts => ({
   working: false,
   waiting: null,
   waitsOn: null,
+  reports: { tell: null, done: null },
   place: (path) => path,
   ...overrides,
 })
@@ -3287,6 +3288,33 @@ describe("the person's prompt, told to the asks", () => {
       })
       expect(told.withdraw).toHaveBeenCalledWith(run.clock.now)
       expect(answer.stdout).toContain(notice)
+    },
+  )
+
+  it.each(harnessesTold)(
+    "clears $name's reported done for other agents with the person's own prompt alone",
+    async ({ agent }) => {
+      const run = setup(agent)
+      const done = { subject: "Fixed it", at: run.clock.now - 1 }
+      const where = (id: string) =>
+        id === run.terminal ? whereabouts({ reports: { tell: null, done } }) : undefined
+      const caller = run.terminal === "A" ? "B" : "A"
+      const listed = () => {
+        const answer = run.messaging.agents(caller, where)
+        return answer.ok ? answer.text : answer.reason
+      }
+      // The harness's own turn, as a self-wake, or a prompt with no Enter of theirs, isn't it.
+      run.messaging.keys(run.terminal, ["enter"], false)
+      await start(run, "harness", who().person)
+      run.stop(run.terminal, run.bound)
+      run.clock.now += 60_000
+      await start(run, "prompt", who().person)
+      run.stop(run.terminal, run.bound)
+      expect(listed()).toContain("  reported done 1 min ago: Fixed it")
+      run.messaging.keys(run.terminal, ["enter"], false)
+      await start(run, "prompt", who().person)
+      expect(listed()).toContain("  latest update 1 min ago: Fixed it")
+      expect(listed()).not.toContain("reported done")
     },
   )
 

@@ -66,6 +66,7 @@ import {
   type Thread,
 } from "./mailbox.js"
 import {
+  deliveredTo,
   lastBetween,
   peerOf,
   renderAgents,
@@ -131,6 +132,11 @@ type Live = Scope & {
    * submitted it, and the delivery epoch of the turn it started, which alone may pay it.
    */
   withdrawing: { readonly submittedAt: number; readonly epoch: number } | null
+  /**
+   * When the person's latest prompt, as delivery judges it theirs, started a root turn;
+   * null before one in this runner's lifetime. Never a doorbell's, a hook's or a self-wake's.
+   */
+  personAt: number | null
   /**
    * The fixed lines Inbox buttons sent, as the prompt reads once sent (see `sentText`), each
    * until the turn of the person's that carries it spends it, or its send fails. One entry
@@ -559,6 +565,7 @@ export class Messaging {
       prompt: null,
       automatic: [],
       withdrawing: null,
+      personAt: null,
       keyedAt: 0,
       waits: null,
       idleSince: null,
@@ -990,6 +997,7 @@ export class Messaging {
         event.type === "turn-started" && event.cause === "prompt" && rootedIn(live.root, event),
     )
     if (!start) return
+    live.personAt = Math.max(live.personAt ?? 0, start.startedAt)
     const text = prompt?.epoch === delivery.epoch ? prompt.text : undefined
     // A turn of Inbox lines alone spends their marks and withdraws nothing; the person's own
     // words spend none, and wait for the lines still to come.
@@ -2165,6 +2173,10 @@ export class Messaging {
         where: about(peer.terminalId),
         withYou: lastBetween(this.messages.values(), live.terminalId, peer),
         lead: this.leadOf(peer.terminalId) ?? null,
+        since: Math.max(
+          peer.personAt ?? 0,
+          deliveredTo(this.messages.values(), peer.terminalId) ?? 0,
+        ),
       }),
     )
   }
