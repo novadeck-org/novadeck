@@ -6,14 +6,22 @@ import { CheckCheck, CircleCheck, LoaderCircle } from "lucide-react"
 
 import { focusSheet, focusSheetSoon } from "./inbox-dom"
 import { icons, typeWords } from "./inbox-icons"
-import { hasUpdates, needing } from "./inbox-state"
+import { hasUpdates, needing, needs } from "./inbox-state"
 import { readLabel, resumesLabel, subjectOf, toneOf, waitLabel } from "./inbox-text"
 import { started, useInboxContext } from "./InboxProvider"
 import { Text } from "./sheet-parts"
 
 // One row, for triage only: the type's icon tinted by how urgent it is, the subject, how
-// long the agent has waited if it stopped, and under it the project and what is extra.
-const Row = ({ item }: { readonly item: InboxItem }): React.JSX.Element => {
+// long the agent has waited if it stopped, and under it the project and what is extra. A row
+// that asks something stays bright until it is answered: opening it only takes away its
+// unread dot. `first` marks the first of the updates that follow what asks.
+const Row = ({
+  item,
+  first,
+}: {
+  readonly item: InboxItem
+  readonly first: boolean
+}): React.JSX.Element => {
   const { state, view, now, drafts, ghosts, open } = useInboxContext()
   const type = inboxType(item)
   const pending = Boolean(state.answering[item.id])
@@ -34,9 +42,12 @@ const Row = ({ item }: { readonly item: InboxItem }): React.JSX.Element => {
       data-type={type}
       data-urgency={answered ? "answered" : toneOf(item)}
       data-seen={item.seen}
+      data-needs={needs(item) && !answered}
+      data-updates-start={first}
       data-arrived={view.arrived.includes(item.id)}
       data-selected={current}
     >
+      <span className="inbox-row-unread" aria-hidden="true" />
       <button
         type="button"
         className="inbox-row-select"
@@ -122,6 +133,8 @@ export const InboxMarkAll = (): React.JSX.Element | null => {
 // Everything across the workspace that asks for the person, one row each.
 export const InboxList = (): React.JSX.Element => {
   const { shown, view, working } = useInboxContext()
+  // Updates rank last, so where the first one stands is where a line sets them apart.
+  const updates = shown.findIndex((item) => !needs(item))
   return (
     <div
       className="inbox-panel flex min-h-0 min-w-0 w-full flex-1 flex-col"
@@ -143,8 +156,8 @@ export const InboxList = (): React.JSX.Element => {
           role="list"
           aria-label="Messages from your agents"
         >
-          {shown.map((item) => (
-            <Row key={item.id} item={item} />
+          {shown.map((item, index) => (
+            <Row key={item.id} item={item} first={index > 0 && index === updates} />
           ))}
         </div>
       )}

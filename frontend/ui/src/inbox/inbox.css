@@ -2,13 +2,17 @@
    rows, and the sheet that opens beside the one the person picks.
 
    The panel (`.inbox-panel`, data-sheet="open" | "closed") holds a `.inbox-list` of
-   `.inbox-row`s, each an item (the item recipe) with a `.inbox-row-select` button and its
-   parts: `.inbox-row-icon`, `.inbox-row-subject`, `.inbox-row-wait` and `.inbox-row-meta`,
+   `.inbox-row`s, each an item (the item recipe) with an `.inbox-row-unread` dot and a
+   `.inbox-row-select` button and its parts: `.inbox-row-icon`, `.inbox-row-subject`,
+   `.inbox-row-wait` and `.inbox-row-meta`,
    which holds the `.inbox-row-project` and its `.inbox-row-extra`s (one is
    data-extra="draft"). A row says its type in data-type="unblock" | "ask" | "trouble" |
    "update" | "feedback", how it asks in data-urgency="urgent" | "waiting" | "quiet" | "answered", data-seen,
-   data-arrived while it has just joined the list, and, being an item, data-selected for the
-   one whose sheet is open. While a sheet is open the other rows step back. The header's
+   data-needs while it asks something of the person and isn't answered, data-updates-start on
+   the first update after what asks, data-arrived while it has just joined the list, and, being
+   an item, data-selected for the one whose sheet is open. A row that asks keeps its colour
+   until it is answered: opening it only takes away its dot and its weight. While a sheet is
+   open the updates step back. The header's
    `.inbox-held` pill says items wait to join; an empty panel shows `.inbox-empty`.
 
    The sheet is the sheet recipe's card holding an `.inbox-sheet` (data-type, data-state=
@@ -30,8 +34,9 @@
    --inbox-urgent-fg (danger-fg), --inbox-waiting-fg (warning-fg), --inbox-quiet-fg (muted),
    --inbox-answered-fg (success-fg): a row's icon and wait, and the sheet's icon and status.
    --inbox-row-radius (radius-panel), --inbox-row-lifted-shadow (shadow-panel): the rows,
-   and the one whose sheet is open, lifted. --inbox-dim-opacity (0.4): the other rows while
+   and the one whose sheet is open, lifted. --inbox-dim-opacity (0.4): the updates while
    a sheet is open; under the pointer they come back to --inbox-dim-hover-opacity (0.8).
+   --inbox-rule-color (line): the line above the updates.
    --inbox-arrived-bg (the strong colour at 14%): a row that has just joined the list.
    --inbox-draft-fg (danger-fg): the word "Draft".
    --inbox-held-fg (strong), --inbox-held-bg (the strong colour at 10%),
@@ -68,12 +73,15 @@
 .item.inbox-row[data-selected="true"] {
   --_shadow: var(--inbox-row-lifted-shadow, var(--shadow-panel));
 }
-.inbox-panel[data-sheet="open"] .inbox-row:not([data-selected="true"]) {
+/* While a sheet is open only what asks nothing steps back: what still asks keeps its place
+   in the person's eye. */
+.inbox-panel[data-sheet="open"] .inbox-row[data-needs="false"]:not([data-selected="true"]) {
   opacity: var(--inbox-dim-opacity, 0.4);
 }
 @media (hover: hover) {
-  .inbox-panel[data-sheet="open"] .inbox-row:not([data-selected="true"]):hover,
-  .inbox-panel[data-sheet="open"] .inbox-row:not([data-selected="true"]):focus-within {
+  .inbox-panel[data-sheet="open"] .inbox-row[data-needs="false"]:not([data-selected="true"]):hover,
+  .inbox-panel[data-sheet="open"]
+    .inbox-row[data-needs="false"]:not([data-selected="true"]):focus-within {
     opacity: var(--inbox-dim-hover-opacity, 0.8);
   }
 }
@@ -88,6 +96,36 @@
       color-mix(in srgb, var(--color-strong) 14%, transparent)
     );
   }
+}
+/* A line above the updates, so gray has a place of its own. */
+.inbox-row[data-updates-start="true"] {
+  margin-top: 9px;
+}
+.inbox-row[data-updates-start="true"]::after {
+  content: "";
+  position: absolute;
+  top: -6px;
+  right: 6px;
+  left: 6px;
+  height: var(--border-width);
+  background-color: var(--inbox-rule-color, var(--color-line));
+  pointer-events: none;
+}
+/* Not opened yet: a dot in the row's tone at its leading edge, level with the icon. */
+.inbox-row-unread {
+  position: absolute;
+  top: 20px;
+  left: 2px;
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background-color: var(--_fg);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity var(--motion-state) var(--ease-interface);
+}
+.inbox-row[data-needs="true"][data-seen="false"]:not([data-selected="true"]) .inbox-row-unread {
+  opacity: 1;
 }
 .inbox-row-select {
   display: grid;
@@ -119,10 +157,12 @@
   line-clamp: 3;
   color: var(--color-muted);
 }
-/* Unread and asking is bright; opened but not answered steps back. */
-.inbox-row:is([data-urgency="urgent"], [data-urgency="waiting"])[data-seen="false"]
-  .inbox-row-subject {
+/* What asks is bright until it is answered, opened or not; unopened, it is bold too. Gray is
+   for updates and answered rows. */
+.inbox-row[data-needs="true"] .inbox-row-subject {
   color: var(--color-ink);
+}
+.inbox-row[data-needs="true"][data-seen="false"] .inbox-row-subject {
   font-weight: 500;
 }
 .inbox-row[data-selected="true"] .inbox-row-subject {

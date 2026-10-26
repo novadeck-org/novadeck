@@ -122,10 +122,12 @@ export const informing = (item: InboxItem): boolean =>
   !!item.trouble.stored &&
   !item.stopped
 
-// What the rail's badge counts: everything that isn't an update, nor a failed turn that only
-// informs.
-export const needing = (items: readonly InboxItem[]): InboxItem[] =>
-  items.filter((item) => inboxType(item) !== "update" && !informing(item))
+// Whether an item asks something of the person: anything but an update or a failed turn that
+// only informs.
+export const needs = (item: InboxItem): boolean => inboxType(item) !== "update" && !informing(item)
+
+// What the rail's badge counts: everything that asks something of the person.
+export const needing = (items: readonly InboxItem[]): InboxItem[] => items.filter(needs)
 
 // What rings the person (a toast, the OS ping): what needs them, except a feedback draft.
 // It waits in the Inbox and the badge counts it, but the person asked for it and nothing is
