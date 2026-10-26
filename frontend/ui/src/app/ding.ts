@@ -46,7 +46,8 @@ export const createDing = ({
   sound,
   quiet,
   audio = element,
-  now = Date.now,
+  // A clock that never steps back, as the wall clock may when it is set.
+  now = () => performance.now(),
 }: {
   // The person's setting, read as the ding rings.
   sound: () => { readonly on: boolean; readonly volume: number }

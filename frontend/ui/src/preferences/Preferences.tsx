@@ -440,7 +440,7 @@ export const Preferences = ({
                       <SettingText
                         id="sound-label"
                         label="Play a sound"
-                        description="Novadeck's own sound when it needs you, the same on every system. Holds off during Do Not Disturb where the system says so."
+                        description="Novadeck's own sound when an agent needs you or finishes, the same on every system. Holds off during Do Not Disturb where the system says so."
                         descriptionId="sound-description"
                       />
                       <Switch
@@ -472,6 +472,7 @@ export const Preferences = ({
                             onChange({ ...value, soundVolume: Number(event.target.value) })
                           }
                           aria-labelledby="sound-volume-label"
+                          aria-valuetext={`${Math.round(value.soundVolume * 100)}%`}
                           {...(hostSounds
                             ? { "aria-describedby": "sound-volume-description" }
                             : {})}

@@ -60,10 +60,48 @@ const koffi = join(resources, "app.asar.unpacked", "node_modules", "@koromix")
 const ffi = join(koffi, `koffi-win32-${process.arch}`, `win32_${process.arch}`, "koffi.node")
 if (process.platform === "win32") {
   if (!existsSync(ffi)) fail(`koffi's binary is missing: ${ffi}`)
+  // Loaded as the app loads it, from app.asar with its binary unpacked beside it, making the
+  // call quiet.ts declares: a build that can't would play the sound through Focus Assist.
+  const probe = join(mkdtempSync(join(tmpdir(), "novadeck-smoke-koffi-")), "koffi.mjs")
+  writeFileSync(
+    probe,
+    `import { createRequire } from "node:module"
+import { dirname, join } from "node:path"
+import { pathToFileURL } from "node:url"
+// Its module entry, as the app's import takes it, found from the app's own code.
+const folder = dirname(createRequire(process.argv[2]).resolve("koffi"))
+const { default: koffi } = await import(pathToFileURL(join(folder, "index.js")).href)
+const query = koffi.load("ntdll.dll").func(
+  "int __stdcall NtQueryWnfStateData(uint64_t *name, void *type, void *scope, _Out_ uint32_t *stamp, _Out_ uint32_t *buffer, _Inout_ uint32_t *size)",
+)
+const status = query(new BigUint64Array([0x0d83063ea3bf1c75n]), null, null, new Uint32Array(1), new Uint32Array(4), new Uint32Array([16]))
+console.log((status >>> 0).toString(16))
+`,
+  )
+  try {
+    const status = execFileSync(
+      executable,
+      [probe, join(resources, "app.asar", "out", "main", "index.js")],
+      {
+        env: { ...process.env, ELECTRON_RUN_AS_NODE: "1" },
+        timeout: 30_000,
+        stdio: ["ignore", "pipe", "pipe"],
+      },
+    )
+    console.log(
+      `koffi loads in the packaged app and reads Focus Assist (status ${status.toString().trim()}).`,
+    )
+  } catch (error) {
+    fail(`koffi did not load in the packaged app: ${error.stderr?.toString().trim() || error}`)
+  }
 } else {
   for (const path of [koffi, join(resources, "app.asar.unpacked", "node_modules", "koffi")])
     if (existsSync(path)) fail(`koffi is packaged outside Windows: ${path}`)
 }
+
+// macOS plays the notification sound by name from the bundle's resources.
+if (process.platform === "darwin" && !existsSync(join(resources, "ding.wav")))
+  fail(`The notification sound is missing: ${join(resources, "ding.wav")}`)
 
 // The relay agents start for Novadeck's MCP server and hooks ships beside the UI, and answers the
 // handshake by itself outside Novadeck's terminals.

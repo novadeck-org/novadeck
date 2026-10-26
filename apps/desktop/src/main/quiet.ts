@@ -162,7 +162,8 @@ export const windowsProbe = (
  */
 export const notificationsQuiet = (
   probe: (() => Promise<boolean>) | undefined,
-  now: () => number = Date.now,
+  // A clock that never steps back, as the wall clock may when it is set.
+  now: () => number = () => performance.now(),
   wait: number = patience,
 ): (() => Promise<boolean>) => {
   let known = false

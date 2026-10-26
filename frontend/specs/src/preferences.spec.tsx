@@ -765,6 +765,19 @@ describe("appearance preference", () => {
         .toBeEnabled()
     })
 
+    it("keeps the volume it is set to, said as a percentage", async () => {
+      await openWorkspace("/?host=on")
+      await openPreferences()
+      const volume = () => preferencesDialog().getByRole("slider", { name: "Volume" })
+
+      await expect.element(volume()).toHaveAttribute("aria-valuetext", "60%")
+      await volume().fill("0.3")
+      await expect.element(volume()).toHaveAttribute("aria-valuetext", "30%")
+      await closePreferences()
+      await openPreferences()
+      await expect.element(volume()).toHaveValue("0.3")
+    })
+
     it("is left out where the app shows no desktop notifications", async () => {
       await openWorkspace()
       await openPreferences()
