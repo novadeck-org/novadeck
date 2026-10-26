@@ -189,10 +189,10 @@
 /* A tab reads its terminal's phase as text: a braille spinner beside a running program,
    as command-line tools show work, and a faint hatch once it has ended. Each tab keeps a
    one-glyph slot before its program, so the text never shifts. Only what needs a look
-   is marked: a spinner while a program runs, a dot while the shell starts, a check when an
-   agent reported its task done (while that report stands) and a cross when its turn failed, until they look, `∅` while
-   it is paused at its usage limit, and a cross once it has ended; an idle tab leaves it
-   blank. The glyph says what the agent does, never what it needs: that is the mark after
+   is marked: a spinner while a program runs, a dot while the shell starts, a check while
+   an agent's report of its task done stands and a cross when its turn failed, until they
+   look, `∅` while it is paused at its usage limit, and a cross once it has ended; an idle
+   tab leaves it blank. The glyph says what the agent does, never what it needs: that is the mark after
    the program. Reduced motion holds the spinner still. */
 .terminal-glyph {
   color: var(--tab-glyph-fg, var(--color-ink));

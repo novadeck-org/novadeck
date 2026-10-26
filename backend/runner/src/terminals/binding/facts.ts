@@ -22,6 +22,7 @@ import type { Record } from "../record.js"
 import { hasRun } from "../records.js"
 import { TurnEnds, type TurnsHost } from "../turn-ends.js"
 import type { Typing } from "../typing.js"
+import { savedSession } from "./standing.js"
 
 /**
  * How long after the person's Enter at an agent's own prompt, before its first, a session
@@ -105,6 +106,7 @@ export class Bindings {
    */
   private endSession(record: Record): void {
     record.bound = null
+    record.resumeEnded = true
     this.unwatch(record)
   }
 
@@ -449,12 +451,8 @@ export class Bindings {
    */
   private reportedOf(record: Record): TerminalSummary["reported"] {
     const id = record.summary.id
-    // Before its agent binds a session again, as after a restart, the session its work was of.
-    const [agent, ...rest] = record.work?.session.split(":") ?? []
-    const saved =
-      record.bound || !agent || rest.length === 0
-        ? undefined
-        : { agent: agent as AgentName, sessionId: rest.join(":") }
+    // Before its agent binds a session again, as after a runner restart, the one resumed.
+    const saved = savedSession(record)
     const done = standingDone(
       this.host.turns().inbox.reports(id, saved),
       record.work?.personAt,

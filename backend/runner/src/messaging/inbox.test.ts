@@ -535,6 +535,42 @@ describe("done entries", () => {
     })
   })
 
+  it("keeps a read done across a restart a day later, with no session bound at boot", ({
+    resources,
+  }) => {
+    const clock = inboxClock()
+    const records = memoryInbox()
+    const run = setup(records, undefined, clock)
+    resources.defer(run.stop)
+    const sent = run.inbox.call(identity.terminalId, "done", { subject: "Fixed it", body: "Body" })
+    if (!sent.ok) throw new Error(sent.reason)
+    run.inbox.read([sent.id])
+    run.stop()
+    clock.advance(retentionMs + 60 * 60_000)
+    const saved = { agent: identity.agent, sessionId: identity.sessionId }
+    const booted = (exists: boolean) =>
+      new Inbox(
+        {
+          owner: () => undefined,
+          reply: () => {},
+          replyState: () => undefined,
+          forgetReplies: () => {},
+          changed: () => {},
+          exists: () => exists,
+        },
+        records,
+        clock.now,
+        { sweepMs: 0 },
+      )
+    const after = booted(true)
+    expect(after.reports(identity.terminalId, saved).done?.subject).toBe("Fixed it")
+    after.close()
+    // A terminal closed for good keeps nothing past the day.
+    const closed = booted(false)
+    expect(closed.reports(identity.terminalId, saved).done).toBeNull()
+    closed.close()
+  })
+
   it("reports the saved session's while none is bound, as after a restart", ({ resources }) => {
     const records = memoryInbox()
     const run = setup(records)

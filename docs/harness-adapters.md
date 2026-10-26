@@ -287,8 +287,9 @@ An agent that reported its task done through the MCP `done` tool is done for as 
 that report stands: a green "✓" in its tab and a solid green line on its window, whether
 or not the person looks, until they write to it or a message is delivered to it. The
 runner decides this (`TerminalSummary.reported`, the same rule as the agents listing's
-"reported done"), and it survives a runner restart for every harness, from the session
-the terminal's work was of. An error turn's mark, and a bare reply's brightened program,
+"reported done"). After a runner restart it comes back for every harness from the session
+the runner resumed in the terminal, before Codex or Antigravity bind it again at their
+first prompt, and ends with the first binding that ends there. An error turn's mark, and a bare reply's brightened program,
 are the client's own, from `TerminalSummary.activity.lastTurn` (see
 [Harness coverage](harness-coverage.md#a-finished-turn-and-its-last-reply)) until the
 person looks; the runner keeps no unread state.

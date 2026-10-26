@@ -42,6 +42,7 @@ import { type AnswerOptions } from "./answers.js"
 import { Bindings } from "./binding/facts.js"
 import { Reports } from "./binding/reports.js"
 import { Shown } from "./binding/shown.js"
+import { savedSession } from "./binding/standing.js"
 import { sameToken } from "./callers.js"
 import { Calls } from "./calls.js"
 import { type CloseAnswer } from "./closes.js"
@@ -607,7 +608,7 @@ export class Terminals {
           (record) => record.summary.sessionId === sessionId && record.terminal.exit === null,
         ),
       projectFolder: (sessionId) => this.projectFolder(sessionId),
-      reports: (terminalId) => this.inbox.reports(terminalId),
+      reports: (id) => this.inbox.reports(id, savedSession(this.records.get(id))),
       stopping: () => this.stopping,
     })
     this.murmur = options.describer

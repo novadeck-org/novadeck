@@ -239,13 +239,15 @@ describe("the done report that stands", () => {
       saved: undefined as { agent: string; sessionId: string } | undefined,
     }
     const announce = vi.fn<(record: Record) => void>()
+    const bound = record({ reported: null })
     const host = {
       messaging: () => ({ shownAgent: () => undefined, deliveredAt: () => run.deliveredAt }),
       turns: () => ({
         inbox: {
+          // As the Inbox answers: for the session bound now, or the saved one asked for.
           reports: (_id: string, saved?: { agent: string; sessionId: string }) => {
             run.saved = saved
-            return { tell: null, done: run.done }
+            return { tell: null, done: bound.bound || saved ? run.done : null }
           },
         },
       }),
@@ -255,7 +257,6 @@ describe("the done report that stands", () => {
       detailed: () => {},
     } as unknown as BindingsHost
     const ends = new Bindings(host)
-    const bound = record({ reported: null })
     bound.work = { session: "claude:s1", first: null, latest: null, folders: {}, activeAt: null }
     return { run, ends, bound, announce }
   }
@@ -289,22 +290,34 @@ describe("the done report that stands", () => {
     expect(bound.summary.reported).toBeNull()
   })
 
-  it("is shown by publishAgent as well, and follows the Inbox's word once the binding ended", () => {
-    const { run, ends, bound } = standing()
+  it("is shown by publishAgent as well, and gone once the binding ended", () => {
+    const { ends, bound } = standing()
     ends.publishAgent(bound, false)
     expect(bound.summary.reported).toEqual(report)
-    // The Inbox answers for the session now bound, or the saved one: none of another.
-    run.done = null
     ends.endBinding(bound)
     expect(bound.summary.reported).toBeNull()
   })
 
-  it("survives a restart for any harness: unbound, it asks for the session its work was of", () => {
+  it("shows before the agent rebinds after a restart, for the session the runner resumed", () => {
     const { run, ends, bound } = standing()
     bound.bound = null
-    bound.work = { ...bound.work!, session: "codex:s:1" }
+    bound.resumeClaim = "codex:s:1"
     ends.publishReported(bound)
     expect(run.saved).toEqual({ agent: "codex", sessionId: "s:1" })
     expect(bound.summary.reported).toEqual(report)
+  })
+
+  it("shows nothing of a fresh agent after the resumed one exited, or in a plain shell", () => {
+    const { ends, bound } = standing()
+    // A resumed session bound, then exited: a new `codex` is unbound with no session of its own.
+    bound.resumeClaim = "claude:s1"
+    ends.endBinding(bound)
+    ends.publishReported(bound)
+    expect(bound.summary.reported).toBeNull()
+    // A shell with no resumed session, as after a plain restart of the terminal.
+    const plain = standing()
+    plain.bound.bound = null
+    plain.ends.publishReported(plain.bound)
+    expect(plain.bound.summary.reported).toBeNull()
   })
 })

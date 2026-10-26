@@ -792,12 +792,12 @@ export class Inbox {
     this.abandon(groups, at)
     const exists = this.existence()
     for (const [id, entries] of groups) {
-      // The latest done of the session bound now outlives its retention: it stands, read or
-      // not, until the agent has more to do (`reports`), so one per terminal is kept.
-      const owner = this.host.owner(id)
-      const standing = owner
+      // The latest done of a terminal that still exists outlives its retention, whatever
+      // session is bound (none is, at boot): it stands, read or not, until the agent has
+      // more to do (`reports`), so one per terminal is kept, until the terminal is closed.
+      const standing = exists(id)
         ? [...entries.values()]
-            .filter((entry) => entry.content.kind === "done" && same(entry, owner))
+            .filter((entry) => entry.content.kind === "done")
             .toSorted((a, b) => b.at - a.at)[0]
         : undefined
       const resolved = [...entries.values()]
@@ -826,8 +826,7 @@ export class Inbox {
       for (const entry of entries.values())
         if (
           ids.has(entry.id) ||
-          (entry !== standing &&
-            !exists(entry.terminalId) &&
+          (!exists(entry.terminalId) &&
             at - (entry.settledAt ?? entry.at) >= retentionMs &&
             !this.host.replyState(entry.id))
         )
