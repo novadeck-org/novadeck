@@ -262,14 +262,14 @@ delivered or held, never those delivered, and whether a thread is held for your 
 or messaging is paused. A terminal that has had messages gets a **Messages** icon in its
 taskbar, with that count, which opens its
 conversations in the companion pane: one per peer, each with its critter, and **You**
-for its letters to you, first while one waits on you, then latest first. Opening one
+for its entries to you, first while one waits on you, then latest first. Opening one
 reads it as a chat, the agent's text exactly as written, never formatted, saying where a
 message is only while it's on its way or lost. A thread held for your release is answered
 in the Inbox, not here. The pane's header has **Pause all agents' messages**, one switch
 for every project and session. It pauses only messages between agents; your Inbox replies
 still go through. It all updates as messages move. The content preview
 (`pnpm dev:previews`) shows a conversation between its two agents; the behaviour specs'
-demo (`?demo=messages`) has every state, letters to you and the pause.
+demo (`?demo=messages`) has every state, entries to you and the pause.
 
 Right-click a window's header for the same menu as its sidebar tab: Rename, Reset to
 automatic for a name you gave, Dock in for an undocked window, and Close.
@@ -319,7 +319,7 @@ can do, such as a sign-in, access or a key); an Ask ("?"), a question from the h
 sent through the agent's `ask` tool; Trouble, a failed turn, a usage limit or messages held
 long; an Update, an agent's `done` report or a `tell`; and Feedback you asked for. Click a
 row to read it and answer in place, or reveal its terminal. An `ask` returns immediately so
-the agent can keep working; your answer reaches that exact agent session later as mail. Its
+the agent can keep working; your answer reaches that exact agent session later as a message. Its
 ask clears when answered, withdrawn by the agent, or its session ends; an update clears when
 marked read. Asks, tells, done reports and your replies remain in that terminal's Messages
 pane, in the conversation **You**. A turn that ends without a `done` call or an ask makes no row; its tab
@@ -869,7 +869,7 @@ Agents:
   says while messages wait for it. "News from a peer" has its latest peer write to it, so the
   peer's row in its Messages list says Unread until the person opens it; "News from a
   repeated handle" has `fox2` (or `moth2`) write, whose critter carries its 2. The variant's
-  Messages pane has the rest at rest: the person's letters (an answered ask, an unread tell,
+  Messages pane has the rest at rest: the person's entries (an answered ask, an unread tell,
   an open ask with Answer), a thread folded to one line, messages waiting, delivering and
   not delivered, and the critters of agents working (hopping), at rest and gone (dim).
 - **Waiting agents:** "Fill the Inbox" has up to 12 terminals across
@@ -1379,7 +1379,7 @@ windowed view from the workspace store, and a new App seeds sessions with it. Th
 item store in `frontend/items/src/state.ts` holds what it loads for the items,
 by item: each plan as the person edits it, what each item last loaded, and the secret
 files the person chose to see; it follows the backend's companions from an effect, and
-`followMail` (`frontend/items/src/homes/terminal/messages/mail.ts`) puts messages on their
+`followMessages` (`frontend/items/src/homes/terminal/messages/messages.ts`) puts messages on their
 terminal's bar from another. What an item loaded stays 30 seconds after nothing shows it, then goes, so a
 large image doesn't stay in memory. What a taskbar shows is derived from it and the workspace in
 `frontend/items/src/bar.ts`, never stored.

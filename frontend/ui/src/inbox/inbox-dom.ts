@@ -2,8 +2,8 @@
 export const rowOf = (id: string | null): HTMLElement | null =>
   id === null
     ? null
-    : (Array.from(document.querySelectorAll<HTMLElement>("[data-inbox-item]")).find(
-        (element) => element.dataset.inboxItem === id,
+    : (Array.from(document.querySelectorAll<HTMLElement>("[data-inbox-row]")).find(
+        (element) => element.dataset.inboxRow === id,
       ) ?? null)
 
 const controls =
@@ -38,8 +38,8 @@ export const focusSheetSoon = (frames = 12): void => {
 
 // The select button of the row after an item's; none where it is the last.
 export const nextRowButton = (id: string): HTMLElement | null => {
-  const rows = Array.from(document.querySelectorAll<HTMLElement>("[data-inbox-item]"))
-  const at = rows.findIndex((row) => row.dataset.inboxItem === id)
+  const rows = Array.from(document.querySelectorAll<HTMLElement>("[data-inbox-row]"))
+  const at = rows.findIndex((row) => row.dataset.inboxRow === id)
   const row = rows[at + 1]
   return row?.querySelector<HTMLElement>(".inbox-row-select") ?? null
 }

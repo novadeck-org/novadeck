@@ -2,7 +2,7 @@ import type { AgentActivity, AgentName, TitleSource } from "@novadeck/protocol"
 
 import { mention } from "../terminals/handles.js"
 import { busiestFolders, firstFrom, shorten, type Work } from "../terminals/work.js"
-import { agentLabel, clock, holdOf, type Message } from "./mailbox.js"
+import { agentLabel, clock, holdOf, type Message } from "./messages.js"
 
 /**
  * What the terminal manager knows of a terminal beyond messaging: its title and who it

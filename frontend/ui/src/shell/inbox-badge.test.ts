@@ -1,9 +1,9 @@
-import type { InboxContent, InboxItem } from "@novadeck/core/inbox"
+import type { InboxContent, InboxRow } from "@novadeck/core/inbox"
 import { describe, expect, it } from "vitest"
 
 import { inboxBadge } from "./inbox-badge"
 
-const entry = (content: InboxContent, index = 0, stopped = true): InboxItem => ({
+const entry = (content: InboxContent, index = 0, stopped = true): InboxRow => ({
   ...content,
   id: `item-${index}`,
   source: {

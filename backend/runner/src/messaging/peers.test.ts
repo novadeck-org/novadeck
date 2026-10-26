@@ -1,5 +1,5 @@
 import { describe, expect, it } from "../test.js"
-import type { Message } from "./mailbox.js"
+import type { Message } from "./messages.js"
 import {
   ago,
   lastBetween,

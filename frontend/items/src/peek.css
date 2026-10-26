@@ -176,11 +176,11 @@
   opacity: 0.5;
 }
 /* The agents its threads are with, by name: no heading marks. */
-.peek-mail {
+.peek-messages {
   font-size: var(--text-label);
   line-height: var(--text-label--line-height);
 }
-.peek-mail span::before {
+.peek-messages span::before {
   content: none;
 }
 .peek-page {

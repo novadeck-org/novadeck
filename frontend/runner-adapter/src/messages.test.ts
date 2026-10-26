@@ -2,7 +2,7 @@ import { companionKeyId } from "@novadeck/core/items"
 import type { TerminalMessages } from "@novadeck/protocol"
 import { vi } from "vitest"
 
-import { createRunnerMessages, mailOf, type MailStreams } from "./messages"
+import { createRunnerMessages, messagesOf, type MessageStreams } from "./messages"
 import { context, describe, expect, it } from "./test"
 
 const key = { projectId: "p", workspaceSessionId: "s", terminalId: "a" }
@@ -50,7 +50,7 @@ const listing = (change: Partial<TerminalMessages> = {}): TerminalMessages => ({
 const streamed = () => {
   const queued: (TerminalMessages | "end")[] = []
   let wake: (() => void) | undefined
-  const watch = vi.fn<MailStreams["watch"]>(() => {
+  const watch = vi.fn<MessageStreams["watch"]>(() => {
     const iterator: AsyncIterableIterator<TerminalMessages, undefined> = {
       [Symbol.asyncIterator]: () => iterator,
       next: async () => {
@@ -70,13 +70,13 @@ const streamed = () => {
   return { watch, push }
 }
 
-const streams = (overrides: Partial<MailStreams> = {}) => {
+const streams = (overrides: Partial<MessageStreams> = {}) => {
   const { watch, push } = streamed()
   const api = {
     watch,
-    pause: vi.fn<MailStreams["pause"]>(async () => {}),
-    release: vi.fn<MailStreams["release"]>(async () => {}),
-    stop: vi.fn<MailStreams["stop"]>(async () => {}),
+    pause: vi.fn<MessageStreams["pause"]>(async () => {}),
+    release: vi.fn<MessageStreams["release"]>(async () => {}),
+    stop: vi.fn<MessageStreams["stop"]>(async () => {}),
     ...overrides,
   }
   return { api, push, messages: createRunnerMessages(api) }
@@ -354,7 +354,7 @@ it("keeps Inbox history's kind and You as the person", () => {
   const example = listing()
   const thread = example.threads[0]!
   const message = thread.messages[0]!
-  const mail = mailOf({
+  const terminalMessages = messagesOf({
     ...example,
     threads: [
       {
@@ -364,7 +364,7 @@ it("keeps Inbox history's kind and You as the person", () => {
       },
     ],
   })
-  expect(mail.threads[0]).toMatchObject({
+  expect(terminalMessages.threads[0]).toMatchObject({
     peer: "you",
     messages: [{ inbox: "answer", from: "you" }],
   })
@@ -373,7 +373,7 @@ it("keeps Inbox history's kind and You as the person", () => {
 it("keeps Inbox history's lifecycle outcome", () => {
   const example = listing()
   const original = example.threads[0]!
-  const mail = mailOf({
+  const terminalMessages = messagesOf({
     ...example,
     threads: [
       {
@@ -383,5 +383,5 @@ it("keeps Inbox history's lifecycle outcome", () => {
       },
     ],
   })
-  expect(mail.threads[0]?.messages[0]?.inboxState).toBe("withdrawn")
+  expect(terminalMessages.threads[0]?.messages[0]?.inboxState).toBe("withdrawn")
 })

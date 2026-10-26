@@ -1,9 +1,9 @@
-import type { InboxItem } from "@novadeck/core/inbox"
+import type { InboxRow } from "@novadeck/core/inbox"
 
 import { describe, expect, it } from "../test"
 import { toastText } from "./toast-text"
 
-const source: InboxItem["source"] = {
+const source: InboxRow["source"] = {
   projectId: "p",
   workspaceSessionId: "s",
   terminalId: "t",
@@ -14,7 +14,7 @@ const source: InboxItem["source"] = {
 }
 const base = { id: "i", source, at: 0, stopped: true, seen: false }
 
-const permission = (tool: string, subject: string | null): InboxItem => ({
+const permission = (tool: string, subject: string | null): InboxRow => ({
   ...base,
   kind: "request",
   request: {

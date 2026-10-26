@@ -2,7 +2,7 @@ import type { AgentName } from "@novadeck/protocol"
 import { vi } from "vitest"
 
 import { apply, started } from "../../harnesses/activity.js"
-import { Asks, memoryAsks, type TurnOwner } from "../../messaging/asks.js"
+import { Inbox, memoryInbox, type TurnOwner } from "../../messaging/inbox.js"
 import { describe, expect, it } from "../../test.js"
 import type { Record } from "../record.js"
 import { Bindings, type BindingsHost } from "./facts.js"
@@ -16,7 +16,7 @@ const bindings = (shown?: AgentName) => {
   const detailed = vi.fn<(record: Record) => void>()
   const host = {
     messaging: () => ({ shownAgent: () => shown, inboxOwner: () => undefined }),
-    turns: () => ({ asks: undefined, redactor: undefined }),
+    turns: () => ({ inbox: undefined, redactor: undefined }),
     typing: () => ({ dialogsChanged: () => {} }),
     murmurChanged: () => {},
     rebound: () => {},
@@ -136,9 +136,9 @@ describe("a turn that ends within its grace as its session does", () => {
   const fact = (fields: object) =>
     ({ agent: "claude", sessionId: "s1", instance: "41", startedAt: 5, ...fields }) as never
 
-  /** Bindings over a real Asks, and a terminal whose agent just finished a turn at `at`. */
+  /** Bindings over a real Inbox, and a terminal whose agent just finished a turn at `at`. */
   const finished = (outcome: "completed" | "interrupted" = "completed") => {
-    const asks = new Asks(
+    const inbox = new Inbox(
       {
         owner: () => owner,
         reply: () => {},
@@ -147,7 +147,7 @@ describe("a turn that ends within its grace as its session does", () => {
         changed: () => {},
         exists: () => true,
       },
-      memoryAsks(),
+      memoryInbox(),
       Date.now,
       { sweepMs: 0 },
     )
@@ -158,7 +158,7 @@ describe("a turn that ends within its grace as its session does", () => {
       rebound: () => {},
       announce: () => {},
       detailed: () => {},
-      turns: () => ({ asks, redactor: undefined }),
+      turns: () => ({ inbox, redactor: undefined }),
     } as unknown as BindingsHost
     const ends = new Bindings(host)
     const bound = record({ agent: "claude", agentRan: true })
@@ -178,8 +178,8 @@ describe("a turn that ends within its grace as its session does", () => {
       telemetry: null,
     }
     ends.publishAgent(bound, false)
-    const turns = () => asks.list().filter((letter) => letter.content.kind === "turn")
-    return { ends, bound, turns, asks }
+    const turns = () => inbox.list().filter((entry) => entry.content.kind === "turn")
+    return { ends, bound, turns, inbox }
   }
 
   it("is stored when the binding ends, is replaced by another session, or the shell exits", () => {

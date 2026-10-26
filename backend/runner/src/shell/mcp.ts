@@ -20,7 +20,7 @@
 import { plugin } from "@novadeck/harness-core/harness"
 import { harnessIds, harnesses } from "@novadeck/protocol"
 
-import { maxMessageBytes } from "../messaging/mailbox.js"
+import { maxMessageBytes } from "../messaging/messages.js"
 import { unboundNote } from "../messaging/peers.js"
 import { mention } from "../terminals/handles.js"
 import type { CallType } from "./reports.js"
@@ -597,7 +597,7 @@ const summarize: Tool<unknown> = {
   failed: "Novadeck couldn't summarize the terminal.",
 }
 
-const letterFields = {
+const entryFields = {
   subject: { type: "string", description: "One-line subject.", maxLength: 256 },
   body: {
     type: "string",
@@ -623,7 +623,7 @@ const ask: Tool<{ readonly id: string; readonly withdrawn?: boolean }> = {
     "answer, and where your pick is easy to undo and needs no approval of theirs " +
     "(reversible, local, not yet pushed or shared), go ahead with it and change course if " +
     "they choose otherwise. A pick that is hard to undo waits for their answer. Their answer " +
-    "arrives later as mail, marked by Novadeck as relayed from the user. Stop only for what " +
+    "arrives later as a message, marked by Novadeck as relayed from the user. Stop only for what " +
     "truly needs it; once nothing else is left, end your turn, and their answer wakes you. " +
     "It suits a decision between options where you have a pick (give an options shape with " +
     "recommend, and hard_to_undo when it is), and what only the user can do: an " +
@@ -641,7 +641,7 @@ const ask: Tool<{ readonly id: string; readonly withdrawn?: boolean }> = {
   inputSchema: {
     type: "object",
     properties: {
-      ...letterFields,
+      ...entryFields,
       details: { type: "string", description: "Optional additional Markdown.", maxLength: 16384 },
       hard_to_undo: {
         type: "string",
@@ -726,7 +726,7 @@ const ask: Tool<{ readonly id: string; readonly withdrawn?: boolean }> = {
   said: (answer) =>
     answer.withdrawn
       ? `Withdrew ask ${answer.id} from the Inbox.`
-      : `Ask ${answer.id} is in the user's Inbox. Their answer arrives later as mail; keep working on what doesn't depend on it, and end your turn once nothing else is left.`,
+      : `Ask ${answer.id} is in the user's Inbox. Their answer arrives later as a message; keep working on what doesn't depend on it, and end your turn once nothing else is left.`,
   failed: "Novadeck couldn't save the ask.",
 }
 const tell: Tool<{ readonly id: string }> = {
@@ -740,7 +740,7 @@ const tell: Tool<{ readonly id: string }> = {
     "the user's answers stay in Messages.",
   inputSchema: {
     type: "object",
-    properties: letterFields,
+    properties: entryFields,
     required: ["subject", "body"],
     additionalProperties: false,
   },
@@ -760,7 +760,7 @@ const done: Tool<{ readonly id: string }> = {
     "Use ask when you need an answer. Reports stay in Messages.",
   inputSchema: {
     type: "object",
-    properties: letterFields,
+    properties: entryFields,
     required: ["subject", "body"],
     additionalProperties: false,
   },

@@ -3,7 +3,7 @@ import { isWindow } from "@novadeck/core/roster"
 import { activeProject } from "@novadeck/core/state"
 import type { Tile } from "@novadeck/core/types"
 import { barMembers, composeBar } from "@novadeck/items/bar"
-import { useHasMail, useMailBadge } from "@novadeck/items/mail"
+import { useHasMessages, useMessageBadge } from "@novadeck/items/messages"
 import { TabKinds } from "@novadeck/items/TabKinds"
 import { memo, useMemo } from "react"
 
@@ -66,13 +66,14 @@ export const WorkspaceTab = memo(
         ? projectFolder(item.path, directory)
         : undefined
     const companionKey = { ...target, terminalId: id }
-    const badge = useMailBadge(backend.messages, companionKey)
+    const badge = useMessageBadge(backend.messages, companionKey)
     // What its companion bar holds, as the bar itself draws it.
-    const hasMail = useHasMail(backend.messages, companionKey)
+    const hasMessages = useHasMessages(backend.messages, companionKey)
     const { bar, items, fresh } = useTerminalBar(id)
     const slots = useMemo(
-      () => composeBar(bar, barMembers({ terminalId: id, bar, items, fresh, messages: hasMail })),
-      [id, bar, items, fresh, hasMail],
+      () =>
+        composeBar(bar, barMembers({ terminalId: id, bar, items, fresh, messages: hasMessages })),
+      [id, bar, items, fresh, hasMessages],
     )
     const dockIn = useDockTarget(terminal)
     const askFeedback = useAskFeedback(terminal)
@@ -91,8 +92,8 @@ export const WorkspaceTab = memo(
         needDialog={dialog}
         reported={done}
         rename={rename}
-        mail={badge}
-        companion={<TabKinds slots={slots} mail={badge !== null} />}
+        messageBadge={badge}
+        companion={<TabKinds slots={slots} messagesWait={badge !== null} />}
         onVisibilityChange={(isHidden) => commands.setVisibility(target, id, isHidden)}
         onSelect={() => commands.select(id)}
         onBeginRename={() => commands.startRename(terminal, "sidebar")}

@@ -3,7 +3,7 @@ import { afterEach, beforeEach, vi } from "vitest"
 
 import { apply, escapeVerdictMs, started, summary, type Activity } from "../harnesses/activity.js"
 import type { Binding } from "../harnesses/bindings.js"
-import { Asks, memoryAsks, type TurnOwner } from "../messaging/asks.js"
+import { Inbox, memoryInbox, type TurnOwner } from "../messaging/inbox.js"
 import { describe, expect, it } from "../test.js"
 import type { Record } from "./record.js"
 import type { TranscriptRedactor } from "./redaction.js"
@@ -45,8 +45,8 @@ const redactor = (answer?: (text: string) => string | null | undefined) => {
 
 const setup = (options: { redactor?: TranscriptRedactor; known?: boolean } = {}) => {
   let alive = true
-  const mails = vi.fn<(terminalId: string) => void>()
-  const asks = new Asks(
+  const messages = vi.fn<(terminalId: string) => void>()
+  const inbox = new Inbox(
     {
       owner: () => owner,
       reply: () => {
@@ -54,15 +54,15 @@ const setup = (options: { redactor?: TranscriptRedactor; known?: boolean } = {})
       },
       replyState: () => undefined,
       forgetReplies: () => {},
-      changed: mails,
+      changed: messages,
       exists: () => alive,
     },
-    memoryAsks(),
+    memoryInbox(),
     Date.now,
     { sweepMs: 0 },
   )
   const ends = new TurnEnds({
-    turns: () => ({ asks, redactor: options.redactor }),
+    turns: () => ({ inbox, redactor: options.redactor }),
     owner: () => (options.known === false ? undefined : owner),
   })
   const record = {
@@ -78,14 +78,14 @@ const setup = (options: { redactor?: TranscriptRedactor; known?: boolean } = {})
     })
   }
   const turns = () =>
-    asks.list().flatMap((letter) => (letter.content.kind === "turn" ? [letter] : []))
+    inbox.list().flatMap((entry) => (entry.content.kind === "turn" ? [entry] : []))
   return {
-    asks,
+    inbox,
     ends,
     record,
     show,
     turns,
-    mails,
+    messages,
     close: () => {
       alive = false
     },
@@ -240,8 +240,8 @@ describe("the same end told again", () => {
     run.show(end(begin(run.record.bound!.activity, 1), 100, { reply: "First." }))
     await wait(finishGraceMs)
     const [first] = run.turns()
-    const asks = run.asks
-    const saved = vi.spyOn(asks as unknown as { save: () => void }, "save")
+    const inbox = run.inbox
+    const saved = vi.spyOn(inbox as unknown as { save: () => void }, "save")
     // Same end, nothing new: no write.
     run.show(run.record.bound!.activity)
     await settle()
@@ -275,7 +275,7 @@ describe("the same end told again", () => {
     const ended = end(begin(run.record.bound!.activity, 1), 100)
     run.show(ended)
     await wait(finishGraceMs)
-    run.asks.read(run.turns().map(({ id }) => id))
+    run.inbox.read(run.turns().map(({ id }) => id))
     run.show(
       on(ended, { type: "turn-ended", outcome: "completed", startedAt: 100, reply: "More." }),
     )
@@ -318,10 +318,10 @@ describe("an end whose session ends in its grace (B1)", () => {
     expect(run.turns()).toEqual([])
   })
 
-  it("stores nothing after Asks closes, and a hook error is caught", async () => {
+  it("stores nothing after Inbox closes, and a hook error is caught", async () => {
     const run = setup()
     rest(run)
-    run.asks.close()
+    run.inbox.close()
     run.ends.flush(terminalId)
     await wait(finishGraceMs * 2)
     expect(run.turns()).toEqual([])
@@ -341,7 +341,7 @@ describe("an end whose session ends in its grace (B1)", () => {
     const run = setup()
     let current: TurnOwner | undefined = owner
     const ends = new TurnEnds({
-      turns: () => ({ asks: run.asks, redactor: undefined }),
+      turns: () => ({ inbox: run.inbox, redactor: undefined }),
       owner: () => current,
     })
     const bound = end(begin(run.record.bound!.activity, 1), 100)

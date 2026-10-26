@@ -230,11 +230,11 @@ export const createRouter = (options: {
         items.renameWindow(input.windowId, null),
       ),
     },
-    asks: {
-      list: api.asks.list.handler(() => terminals.inboxLetters()),
-      watch: api.asks.watch.handler(({ signal }) => terminals.watchAsks(signal)),
-      answer: api.asks.answer.handler(({ input }) => terminals.answerAsk(input.id, input.answer)),
-      read: api.asks.read.handler(({ input }) => terminals.readTells(input.ids)),
+    inbox: {
+      list: api.inbox.list.handler(() => terminals.inboxEntries()),
+      watch: api.inbox.watch.handler(({ signal }) => terminals.watchInbox(signal)),
+      answer: api.inbox.answer.handler(({ input }) => terminals.answerAsk(input.id, input.answer)),
+      read: api.inbox.read.handler(({ input }) => terminals.readTells(input.ids)),
     },
     messages: {
       list: api.messages.list.handler(({ input }) => terminals.messages(input.terminalId)),

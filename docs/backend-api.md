@@ -278,25 +278,25 @@ not when it answers a question or finishes a step. With a lead, they go to it in
 the instructions say and the runner doesn't enforce. Claude Code reads the instructions up
 front, before it loads a tool's description; the prompt-time notice every harness gets says the
 same for Antigravity, which reads none. A client follows
-all active letters across projects and sessions, answers an ask, or marks tells and done
+all active entries across projects and sessions, answers an ask, or marks tells and done
 reports read:
 
 ```ts
-for await (const letters of runner.asks.watch()) showInbox(letters)
-const letters = await runner.asks.list()
-await runner.asks.answer(askId, { type: "reply", option: null, text: "Use green" })
-await runner.asks.answer(actionAskId, { type: "done" })
-await runner.asks.read(updateIds)
+for await (const entries of runner.inbox.watch()) showInbox(entries)
+const entries = await runner.inbox.list()
+await runner.inbox.answer(askId, { type: "reply", option: null, text: "Use green" })
+await runner.inbox.answer(actionAskId, { type: "done" })
+await runner.inbox.read(updateIds)
 ```
 
-A letter includes its id, terminal, project and workspace session ids, exact agent
+An entry includes its id, terminal, project and workspace session ids, exact agent
 session, handle, creation time and `content`: `{ kind: "ask", ask }` or
 `{ kind: "tell", subject, body }` or `{ kind: "done", subject, body }` (a tell's fields, and
 the report an agent called `done` with). An ask's shape is text, up to three options, or an
 action for the person to run. Secret shapes are unavailable. `answer` rejects stale or
 already answered asks with `CONFLICT`, invalid answers with `ANSWER_FAILED`, and a
-full mailbox with `RESOURCE_LIMIT`. Resolving the ask and storing its answer are atomic;
-answers arrive later through ordinary mail delivery. `read` affects tells and done reports only and takes
+full message queue with `RESOURCE_LIMIT`. Resolving the ask and storing its answer are atomic;
+answers arrive later through ordinary message delivery. `read` affects tells and done reports only and takes
 at most 1,000 ids per call. A done report, like a tell, outlives its agent and turns into
 Messages history once read. `watch` resubscribes with a fresh listing on reconnect.
 

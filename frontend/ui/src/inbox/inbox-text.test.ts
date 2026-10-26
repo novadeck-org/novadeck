@@ -1,5 +1,5 @@
 import type { ChatDialogOption } from "@novadeck/core/conversation"
-import type { InboxItem } from "@novadeck/core/inbox"
+import type { InboxRow } from "@novadeck/core/inbox"
 
 import { context, describe, expect, it } from "../test"
 import {
@@ -19,7 +19,7 @@ import {
   waitLabel,
 } from "./inbox-text"
 
-const source: InboxItem["source"] = {
+const source: InboxRow["source"] = {
   projectId: "p",
   workspaceSessionId: "s",
   terminalId: "t",
@@ -30,7 +30,7 @@ const source: InboxItem["source"] = {
 }
 const base = { id: "i", source, at: 0, stopped: true, seen: false }
 
-const permission = (tool: string, subject: string | null): InboxItem => ({
+const permission = (tool: string, subject: string | null): InboxRow => ({
   ...base,
   kind: "request",
   request: {
@@ -45,7 +45,7 @@ const permission = (tool: string, subject: string | null): InboxItem => ({
   },
 })
 
-const asking = (subject: string | null, questions: number): InboxItem => ({
+const asking = (subject: string | null, questions: number): InboxRow => ({
   ...base,
   kind: "request",
   request: {
@@ -121,7 +121,7 @@ describe("A recommended option", () => {
   })
 })
 
-const draft = (text: string): InboxItem => ({
+const draft = (text: string): InboxRow => ({
   ...base,
   stopped: false,
   kind: "feedback",
@@ -154,7 +154,7 @@ describe("An item's subject", () => {
   })
 
   it("names where a held message goes", () => {
-    const item: InboxItem = {
+    const item: InboxRow = {
       ...base,
       kind: "held",
       held: {
@@ -170,7 +170,7 @@ describe("An item's subject", () => {
   })
 
   it("names a limit's window and whose it is", () => {
-    const item: InboxItem = {
+    const item: InboxRow = {
       ...base,
       kind: "trouble",
       trouble: { type: "limit", minutes: 300, resetsAt: 0, autoResume: true, evidence: [] },
@@ -179,7 +179,7 @@ describe("An item's subject", () => {
   })
 
   it("counts the messages a hold keeps from the agent, and says what holds them", () => {
-    const held = (count: number, waits: "draft" | "dialog"): InboxItem => ({
+    const held = (count: number, waits: "draft" | "dialog"): InboxRow => ({
       ...base,
       kind: "trouble",
       trouble: { type: "waits", waits, count },
@@ -208,7 +208,7 @@ describe("A sheet's label", () => {
 })
 
 describe("An item's reading time", () => {
-  const ask = (body: string): InboxItem => ({
+  const ask = (body: string): InboxRow => ({
     ...base,
     kind: "ask",
     ask: { subject: "s", body, details: null, hardToUndo: null, shape: { type: "text" } },
@@ -222,7 +222,7 @@ describe("An item's reading time", () => {
 })
 
 describe("A limit that resumes", () => {
-  const limit = (autoResume: boolean | null): InboxItem => ({
+  const limit = (autoResume: boolean | null): InboxRow => ({
     ...base,
     stopped: !autoResume,
     kind: "trouble",
@@ -249,7 +249,7 @@ describe("How an item stands", () => {
   })
 
   it("says how long ago a failed turn that no longer stands as the current end happened", () => {
-    const old: InboxItem = {
+    const old: InboxRow = {
       ...base,
       stopped: false,
       kind: "trouble",
@@ -270,7 +270,7 @@ describe("How an item stands", () => {
   })
 
   it("says a limit whose reset has passed is resuming, not resuming in now", () => {
-    const limit: InboxItem = {
+    const limit: InboxRow = {
       ...base,
       stopped: false,
       kind: "trouble",

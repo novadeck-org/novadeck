@@ -63,7 +63,7 @@ export const messageItems = (within: Locator): Locator => within.getByRole("list
 
 /** The messages alone of a chat, oldest first. */
 export const bubbles = (chat: Locator): Element[] => [
-  ...chat.element().querySelectorAll(".mail-bubble-row"),
+  ...chat.element().querySelectorAll(".message-bubble-row"),
 ]
 
 export const pauseSwitch = (pane: Locator): Locator =>

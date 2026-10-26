@@ -3,7 +3,7 @@ import {
   emptyInbox,
   type Inbox,
   type InboxAnswer,
-  type InboxItem,
+  type InboxRow,
   type InboxState,
 } from "@novadeck/core/inbox"
 import { createStore } from "@novadeck/core/store"
@@ -27,8 +27,8 @@ Object.assign(globalThis, {
 const item = (
   options: readonly ChatDialogOption[],
   kind: "permission" | "plan" = "permission",
-  agent: InboxItem["source"]["agent"] = "codex",
-): InboxItem => ({
+  agent: InboxRow["source"]["agent"] = "codex",
+): InboxRow => ({
   id: "i",
   source: {
     projectId: "p",
@@ -75,10 +75,10 @@ const mount = (
     agent = "codex",
     only,
   }: {
-    only?: InboxItem
+    only?: InboxRow
     kind?: "permission" | "plan"
     failing?: boolean
-    agent?: InboxItem["source"]["agent"]
+    agent?: InboxRow["source"]["agent"]
   } = {},
 ) => {
   const state = createStore<InboxState>({
@@ -394,7 +394,7 @@ describe("An item that takes the place of one answered", () => {
 })
 
 describe("A held message's sheet", () => {
-  const held = (heldFor: "loop" | null): InboxItem => ({
+  const held = (heldFor: "loop" | null): InboxRow => ({
     ...item([]),
     kind: "held",
     held: {

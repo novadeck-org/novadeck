@@ -16,7 +16,7 @@ import {
   wrap,
   type Message,
   type Thread,
-} from "./mailbox.js"
+} from "./messages.js"
 
 const message = (fields: Partial<Message> = {}): Message => ({
   id: "m-1",

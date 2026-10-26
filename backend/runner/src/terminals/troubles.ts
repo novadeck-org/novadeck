@@ -1,6 +1,6 @@
 import { hiddenCharacter, type PageTrouble } from "@novadeck/protocol"
 
-import { byteLength } from "../messaging/mailbox.js"
+import { byteLength } from "../messaging/messages.js"
 
 /**
  * What the pane told of a page an agent showed, held for the terminal it was shown from

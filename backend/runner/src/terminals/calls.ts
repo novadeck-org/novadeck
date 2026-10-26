@@ -5,8 +5,8 @@ import type { AgentName } from "@novadeck/protocol"
 import { freshNonce } from "@novadeck/tui-input"
 
 import { harnesses } from "../harnesses/registry.js"
-import type { Asks } from "../messaging/asks.js"
-import { agentLabel } from "../messaging/mailbox.js"
+import type { Inbox } from "../messaging/inbox.js"
+import { agentLabel } from "../messaging/messages.js"
 import type { AgentsAnswer, Messaging, SendAnswer } from "../messaging/messaging.js"
 import { unansweredCalls, type Call } from "../shell/reports.js"
 import { callerOf } from "./callers.js"
@@ -53,7 +53,7 @@ export type CallsHost = {
   /** The runner is stopping: no call is answered any more. */
   readonly stopping: () => boolean
   readonly messaging: () => Messaging
-  readonly asks: () => Asks
+  readonly inbox: () => Inbox
   readonly peers: () => TerminalPeers
   /** Agents' requests for a new terminal, on their way to the client. */
   readonly opens: () => OpenRequests
@@ -331,7 +331,7 @@ export class Calls {
       case "tell":
       case "done": {
         if (!callerOf(this.host.records(), call)) return Promise.resolve(unansweredCalls[call.type])
-        return Promise.resolve(this.host.asks().call(call.terminalId, call.type, call.request))
+        return Promise.resolve(this.host.inbox().call(call.terminalId, call.type, call.request))
       }
       case "send":
         return this.host.send(call)

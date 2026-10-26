@@ -1,6 +1,11 @@
 import { emptyBar, messagesKey } from "@novadeck/core/companion-bar"
 import { emptyCompanions, isOnBar } from "@novadeck/core/items"
-import { noMail, type AgentMessage, type MailState, type Messages } from "@novadeck/core/messages"
+import {
+  noMessages,
+  type AgentMessage,
+  type MessagesState,
+  type Messages,
+} from "@novadeck/core/messages"
 import { activeSession, workspaceReducer, type WorkspaceAction } from "@novadeck/core/state"
 import { createStore, createWorkspaceStore, type WorkspaceStore } from "@novadeck/core/store"
 import { itemFixture, workspaceFixture } from "@novadeck/core/testing"
@@ -12,7 +17,7 @@ import { afterEach, vi } from "vitest"
 import { createDragSession, DragSessionContext } from "../../drag-session"
 import { createItemStore, type ItemStore } from "../../state"
 import { context, describe, expect, it } from "../../test"
-import { followMail, noLinks } from "./messages/mail"
+import { followMessages, noLinks } from "./messages/messages"
 import { TerminalCompanion, type ItemCommands } from "./TerminalCompanion"
 
 // jsdom has no layout and no resizes; the taskbar's drag-to-reorder asks for them.
@@ -86,7 +91,7 @@ const Terminal = ({
 }
 
 // Renders the terminal as the app does: its item store made first, following the backend and
-// the mail only once it has mounted.
+// the messages only once it has mounted.
 const renderTerminal = (
   initial: Workspace,
   messages?: Messages,
@@ -101,10 +106,10 @@ const renderTerminal = (
     ),
   )
   unmounts.push(unmount)
-  // Following the mail tells the terminal its messages: a render of its own, inside act.
+  // Following the messages tells the terminal its messages: a render of its own, inside act.
   act(() => {
     unmounts.push(itemStore.connect())
-    if (messages) unmounts.push(followMail(workspace, messages))
+    if (messages) unmounts.push(followMessages(workspace, messages))
   })
   return { container, workspace }
 }
@@ -121,8 +126,8 @@ const message = (id: string): AgentMessage => ({
   held: null,
   deliveredAt: 0,
 })
-const mailOf = (messages: readonly AgentMessage[]): MailState => ({
-  ...noMail,
+const messagesOf = (messages: readonly AgentMessage[]): MessagesState => ({
+  ...noMessages,
   terminals: {
     "project/initial/01": {
       handle: "moth",
@@ -231,10 +236,10 @@ describe("a terminal's taskbar", () => {
   })
 
   context("the messages' icon", () => {
-    // The terminal with `mail`, and its messages' icon.
-    const messagesWith = (mail: MailState) => {
+    // The terminal with `state`, and its messages' icon.
+    const messagesWith = (initial: MessagesState) => {
       const { container } = renderTerminal(workspaceFixture(), {
-        state: createStore(mail),
+        state: createStore(initial),
         pause: () => {},
         release: () => {},
         stop: () => {},
@@ -244,29 +249,29 @@ describe("a terminal's taskbar", () => {
     const waiting = { ...message("m2"), state: "queued" } as const
 
     it("says nothing more while nothing waits and messaging runs", () => {
-      const button = messagesWith(mailOf([message("m1")]))
+      const button = messagesWith(messagesOf([message("m1")]))
       expect(button.getAttribute("aria-label")).toBe("Messages")
       expect(button.querySelector(".plan-tb-count")).toBeNull()
     })
 
     it("counts what waits for the agent, and says so", () => {
-      const button = messagesWith(mailOf([message("m1"), waiting]))
+      const button = messagesWith(messagesOf([message("m1"), waiting]))
       expect(button.getAttribute("aria-label")).toBe("Messages, 1 message waiting")
       const count = button.querySelector(".plan-tb-count")
-      expect(count?.getAttribute("data-mail")).toBe("waiting")
+      expect(count?.getAttribute("data-messages")).toBe("waiting")
       expect(count?.textContent).toBe("1")
     })
 
     it("marks messaging paused while nothing waits", () => {
-      const button = messagesWith({ ...mailOf([message("m1")]), paused: true })
+      const button = messagesWith({ ...messagesOf([message("m1")]), paused: true })
       expect(button.getAttribute("aria-label")).toBe("Messages, messaging paused")
-      expect(button.querySelector(".plan-tb-count")?.getAttribute("data-mail")).toBe("paused")
+      expect(button.querySelector(".plan-tb-count")?.getAttribute("data-messages")).toBe("paused")
     })
   })
 
   context("when the person closed the messages", () => {
     it("brings them back with the next message", async () => {
-      const state = createStore(mailOf([message("m1")]))
+      const state = createStore(messagesOf([message("m1")]))
       const { container, workspace } = renderTerminal(
         workspaceReducer(workspaceFixture(), shown()),
         {
@@ -284,7 +289,7 @@ describe("a terminal's taskbar", () => {
           void workspace.dispatch({ type: "bar/hide", target, terminalId: "01", key: messagesKey }),
       )
       expect(messagesIcon()).toBeNull()
-      await act(async () => state.update(() => mailOf([message("m1"), message("m2")])))
+      await act(async () => state.update(() => messagesOf([message("m1"), message("m2")])))
       expect(messagesIcon()).not.toBeNull()
     })
   })

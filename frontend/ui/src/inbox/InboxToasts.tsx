@@ -1,4 +1,4 @@
-import type { InboxItem } from "@novadeck/core/inbox"
+import type { InboxRow } from "@novadeck/core/inbox"
 import { HandleChip } from "@novadeck/toolkit/HandleChip"
 import { NovaMark } from "@novadeck/toolkit/NovaLogo"
 import { createToasts, ToastRegion } from "@novadeck/toolkit/Toast"
@@ -13,7 +13,7 @@ import { toastText } from "./toast-text"
 // What shows the Inbox's toasts: one per terminal.
 export type ToastBoard = {
   // Shows the item's toast, replacing (in place, moved to the front) any its terminal shows.
-  readonly show: (item: InboxItem) => void
+  readonly show: (item: InboxRow) => void
   // Takes the terminal's toast away if it still shows that item.
   readonly close: (terminalId: string, itemId: string) => void
 }
@@ -25,7 +25,7 @@ const InboxToast = ({
   item,
   now,
 }: {
-  readonly item: InboxItem
+  readonly item: InboxRow
   readonly now: number
 }): React.JSX.Element => {
   const text = toastText(item, now)
@@ -69,7 +69,7 @@ export const InboxToasts = ({
   readonly showInbox: () => void
 }): React.JSX.Element => {
   const { open, now } = useInboxContext()
-  const toasts = useMemo(() => createToasts<InboxItem>(), [])
+  const toasts = useMemo(() => createToasts<InboxRow>(), [])
   useEffect(() => {
     // The item each terminal's toast shows.
     const shown = new Map<string, string>()

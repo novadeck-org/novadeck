@@ -1,4 +1,4 @@
-import { emptyInbox, type InboxItem, type InboxState } from "@novadeck/core/inbox"
+import { emptyInbox, type InboxRow, type InboxState } from "@novadeck/core/inbox"
 import type { Notice } from "@novadeck/core/port"
 import { createStore } from "@novadeck/core/store"
 import { appearance } from "@novadeck/core/testing"
@@ -13,7 +13,7 @@ import { createUiStore, initialUi, type UiState } from "./ui-store"
 // A ding that sounds nothing: the board under test is about its notices.
 const testDing = createDing({ sound: () => ({ on: false, volume: 0, name: "felt" }) })
 
-const sourceOf = (terminalId: string): InboxItem["source"] => ({
+const sourceOf = (terminalId: string): InboxRow["source"] => ({
   projectId: "p",
   workspaceSessionId: "s",
   terminalId,
@@ -23,7 +23,7 @@ const sourceOf = (terminalId: string): InboxItem["source"] => ({
   projectName: "Project",
 })
 
-const ask = (id: string, terminalId = "t1", at = Date.now()): InboxItem => ({
+const ask = (id: string, terminalId = "t1", at = Date.now()): InboxRow => ({
   id,
   source: sourceOf(terminalId),
   at,
@@ -39,7 +39,7 @@ const ask = (id: string, terminalId = "t1", at = Date.now()): InboxItem => ({
   },
 })
 
-const update = (id: string): InboxItem => ({
+const update = (id: string): InboxRow => ({
   id,
   source: sourceOf("t1"),
   at: Date.now(),
@@ -49,7 +49,7 @@ const update = (id: string): InboxItem => ({
   update: { type: "told", subject: "Done", body: "" },
 })
 
-const draft = (id: string): InboxItem => ({
+const draft = (id: string): InboxRow => ({
   id,
   source: sourceOf("t1"),
   at: Date.now(),
@@ -59,7 +59,7 @@ const draft = (id: string): InboxItem => ({
   draft: { kind: "bug", text: "It broke." },
 })
 
-const setup = (items: InboxItem[] = [], pings = true) => {
+const setup = (items: InboxRow[] = [], pings = true) => {
   const inbox = createStore<InboxState>({ ...emptyInbox, items })
   const ui = createUiStore(
     initialUi({
@@ -93,7 +93,7 @@ const setup = (items: InboxItem[] = [], pings = true) => {
   const shown: string[] = []
   const closed: string[] = []
   const board = {
-    show: (item: InboxItem) => void shown.push(`${item.source.terminalId}:${item.id}`),
+    show: (item: InboxRow) => void shown.push(`${item.source.terminalId}:${item.id}`),
     close: (terminalId: string, itemId: string) => void closed.push(`${terminalId}:${itemId}`),
   }
   const dings: string[] = []
@@ -102,7 +102,7 @@ const setup = (items: InboxItem[] = [], pings = true) => {
     ding: (terminalId) => void dings.push(terminalId),
     desktop: () => true,
   })
-  const set = (next: InboxItem[]) => inbox.update((state) => ({ ...state, items: next }))
+  const set = (next: InboxRow[]) => inbox.update((state) => ({ ...state, items: next }))
   const change = (patch: (state: UiState) => UiState) => ui.update(patch)
   const route = (patch: Partial<UiState["location"]["route"]>) =>
     change((state) => ({

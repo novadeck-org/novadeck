@@ -4,7 +4,7 @@ import type { AgentActivity } from "@novadeck/protocol"
 import { escapeVerdictMs, summary as activitySummary } from "../harnesses/activity.js"
 import type { LastTurn } from "../harnesses/activity.js"
 import { logs } from "../log.js"
-import type { Asks, TurnFields, TurnOwner } from "../messaging/asks.js"
+import type { Inbox, TurnFields, TurnOwner } from "../messaging/inbox.js"
 import type { Record } from "./record.js"
 import type { TranscriptRedactor } from "./redaction.js"
 
@@ -18,16 +18,16 @@ const log = logs.for("inbox")
  */
 export const finishGraceMs = 700
 
-/** What the recorder reaches beyond the bindings: the Inbox's letters and the redactor. */
+/** What the recorder reaches beyond the bindings: the Inbox's entries and the redactor. */
 export type TurnsHost = {
-  readonly asks: Asks
+  readonly inbox: Inbox
   /** Absent where records are off: the text is kept as it is, and nothing persists there. */
   readonly redactor: TranscriptRedactor | undefined
 }
 
 export type TurnEndsHost = {
   readonly turns: () => TurnsHost
-  /** Whose the terminal's agent session is, for a letter; undefined while none is known. */
+  /** Whose the terminal's agent session is, for an entry; undefined while none is known. */
   readonly owner: (terminalId: string) => TurnOwner | undefined
 }
 
@@ -46,7 +46,7 @@ type Seen = {
   flushed: boolean
   /** Its text is being redacted. */
   settling: boolean
-  /** Its letter exists. */
+  /** Its entry exists. */
   row: boolean
   timer: ReturnType<typeof setTimeout> | undefined
   /** The text as last redacted, with what it was redacted from. */
@@ -71,12 +71,12 @@ const raw = (seen: Seen): string =>
   JSON.stringify([seen.outcome, seen.reply, seen.error, seen.files])
 
 /**
- * Stores each completed or failed turn end of an agent as an Inbox letter (`Asks.recordTurn`),
+ * Stores each completed or failed turn end of an agent as an Inbox entry (`Inbox.recordTurn`),
  * where it stays until the person reads it. A failed end is stored at once; a completed one
  * after `finishGraceMs`, once the agent is not working and no Escape's verdict is due, so an
  * end the harness then corrects to an interruption is never stored. An end an Escape settled
  * waits the verdict's window out too. Ends with a request waiting on the person, ends
- * that were interrupted, are unknown or hit a usage limit (a state, not a letter), and ends
+ * that were interrupted, are unknown or hit a usage limit (a state, not an entry), and ends
  * of an agent that bound no Inbox owner are not stored.
  *
  * An end whose binding ends within its grace is stored all the same, by `flush`, without
@@ -105,15 +105,15 @@ export class TurnEnds {
     try {
       const ends = this.ends.get(terminalId)
       if (!ends) return
-      const { asks } = this.host.turns()
+      const { inbox } = this.host.turns()
       for (const seen of ends.seen.values()) {
         if (seen.corrected || seen.flushed || seen.row) continue
         clearTimeout(seen.timer)
         seen.timer = undefined
         seen.flushed = true
-        if (!asks.accepts(terminalId)) continue
+        if (!inbox.accepts(terminalId)) continue
         this.write(seen, { reply: null, error: null })
-        // The text follows once redacted, if Asks is still open then.
+        // The text follows once redacted, if Inbox is still open then.
         if (!seen.settling) void this.settle(seen)
       }
       this.ends.delete(terminalId)
@@ -126,9 +126,9 @@ export class TurnEnds {
     const id = record.summary.id
     const last = record.bound?.activity.lastTurn
     if (!last || !activity || activity.state === "working") return
-    const { asks } = this.host.turns()
+    const { inbox } = this.host.turns()
     const ends = this.ends.get(id) ?? { seen: new Map<number, Seen>(), considered: undefined }
-    if (!asks.accepts(id)) {
+    if (!inbox.accepts(id)) {
       for (const seen of ends.seen.values()) this.retire(seen)
       this.ends.delete(id)
       return
@@ -145,7 +145,7 @@ export class TurnEnds {
       if (seen.at < at && (seen.row || seen.corrected) && !seen.settling) ends.seen.delete(seen.at)
     const known = ends.seen.get(at)
     if (known) {
-      this.update(known, last, ok, id, asks)
+      this.update(known, last, ok, id, inbox)
       return
     }
     if (ends.considered === at) return
@@ -180,11 +180,11 @@ export class TurnEnds {
   }
 
   /** The same end told again: it fills in its reply, error and files, or is corrected. */
-  private update(seen: Seen, last: LastTurn, ok: boolean, id: string, asks: Asks): void {
+  private update(seen: Seen, last: LastTurn, ok: boolean, id: string, inbox: Inbox): void {
     if (seen.corrected) return
     if (!ok) {
       this.retire(seen)
-      asks.amendTurn(id, seen.at, null)
+      inbox.amendTurn(id, seen.at, null)
       return
     }
     const before = raw(seen)
@@ -241,14 +241,14 @@ export class TurnEnds {
   /** Redacts the end's text and stores it, again while it changes meanwhile. */
   private async settle(seen: Seen): Promise<void> {
     const id = seen.owner.terminalId
-    const { asks } = this.host.turns()
+    const { inbox } = this.host.turns()
     seen.settling = true
     try {
       for (;;) {
         const before = raw(seen)
         // eslint-disable-next-line no-await-in-loop -- Each pass starts from what the end holds now.
         const text = await this.masked(seen)
-        if (seen.corrected || !asks.accepts(id)) return
+        if (seen.corrected || !inbox.accepts(id)) return
         if (raw(seen) !== before) continue
         this.write(seen, text)
         return
@@ -261,15 +261,15 @@ export class TurnEnds {
   }
 
   private write(seen: Seen, text: Text): void {
-    const { asks } = this.host.turns()
+    const { inbox } = this.host.turns()
     const fields: TurnFields = {
       outcome: seen.outcome,
       reply: text.reply,
       error: seen.error === null ? null : text.error,
       files: [...seen.files],
     }
-    if (seen.row) asks.amendTurn(seen.owner.terminalId, seen.at, fields)
-    else asks.recordTurn(seen.owner, seen.at, fields)
+    if (seen.row) inbox.amendTurn(seen.owner.terminalId, seen.at, fields)
+    else inbox.recordTurn(seen.owner, seen.at, fields)
     seen.row = true
   }
 

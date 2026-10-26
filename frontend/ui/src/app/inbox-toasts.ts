@@ -1,4 +1,4 @@
-import type { InboxItem } from "@novadeck/core/inbox"
+import type { InboxRow } from "@novadeck/core/inbox"
 
 import { ringing } from "../inbox/inbox-state"
 import type { ToastBoard } from "../inbox/InboxToasts"
@@ -42,10 +42,10 @@ export const watchInboxToasts = (
   } = {},
 ): (() => void) => {
   // The items held back by a dialog, by terminal: a newer one replaces the older.
-  const held = new Map<string, InboxItem>()
+  const held = new Map<string, InboxRow>()
   // The toasts this put up that may still show, by terminal.
-  const shown = new Map<string, InboxItem>()
-  const show = (item: InboxItem): void => {
+  const shown = new Map<string, InboxRow>()
+  const show = (item: InboxRow): void => {
     shown.set(item.source.terminalId, item)
     ding?.(item.source.terminalId)
     board.show(item)

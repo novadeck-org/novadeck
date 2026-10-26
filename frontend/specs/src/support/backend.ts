@@ -1,4 +1,4 @@
-import type { InboxItem } from "@novadeck/core/inbox"
+import type { InboxRow } from "@novadeck/core/inbox"
 import type { Backend, Notice } from "@novadeck/core/port"
 import type { PortableInstall } from "@novadeck/core/portable"
 import type { SandboxState } from "@novadeck/core/sandbox"
@@ -21,7 +21,7 @@ import { createDemoUpdates } from "@novadeck/demo-debug/updates"
 import { babciaCuesOf, type BabciaCues } from "@novadeck/demo/babcia"
 import { createContentDemo } from "@novadeck/demo/content"
 import { isDemoInbox } from "@novadeck/demo/inbox"
-import { demoInboxItemsAll } from "@novadeck/demo/inbox-fixtures"
+import { demoInboxRowsAll } from "@novadeck/demo/inbox-fixtures"
 import { demoTurns } from "@novadeck/demo/turns"
 import { createDemo } from "@novadeck/demo/variants"
 import { visitorDemo } from "@novadeck/demo/visitor/index"
@@ -268,9 +268,9 @@ export const hostWindow = {
     for (const each of hosts) {
       if (!isDemoInbox(each.inbox)) continue
       for (const id of ids) {
-        const found = demoInboxItemsAll(now).find((item) => item.id === id)
+        const found = demoInboxRowsAll(now).find((item) => item.id === id)
         if (!found) throw new Error(`No Inbox fixture ${id}`)
-        each.inbox.add({ ...found, at: now } satisfies InboxItem)
+        each.inbox.add({ ...found, at: now } satisfies InboxRow)
       }
     }
   },

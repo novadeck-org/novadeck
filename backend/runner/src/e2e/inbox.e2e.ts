@@ -88,11 +88,11 @@ const usable = (schema: unknown) => {
   })
 }
 
-// The same MCP tools and mail path for every supported harness.
+// The same MCP tools and message path for every supported harness.
 for (const setup of setups) {
   describe.skipIf(!supported)(setup.name, () => {
     const it = e2e(setup)
-    it("asks and tells through Inbox immediately, then receives the person's answer as mail", async ({
+    it("asks and tells through Inbox immediately, then receives the person's answer as a message", async ({
       e2e: run,
     }) => {
       run.model.use(
@@ -153,7 +153,9 @@ for (const setup of setups) {
             }
           }
           if (
-            result(call)?.includes(" is in the user's Inbox. Their answer arrives later as mail")
+            result(call)?.includes(
+              " is in the user's Inbox. Their answer arrives later as a message",
+            )
           ) {
             const name = tool(call, "tell")
             if (!name)
@@ -181,9 +183,9 @@ for (const setup of setups) {
       const terminal = await start(run, setup)
       // Reaching a final reply before answering proves ask did not wait synchronously.
       await turn(terminal, "Ask through Inbox", "I continued without waiting for the answer.")
-      const letters = run.deck.terminals.inboxLetters()
-      const ask = letters.find((each) => each.content.kind === "ask")!
-      const told = letters.find((each) => each.content.kind === "tell")!
+      const entries = run.deck.terminals.inboxEntries()
+      const ask = entries.find((each) => each.content.kind === "ask")!
+      const told = entries.find((each) => each.content.kind === "tell")!
       expect(ask.terminalId).toBe(terminal.id)
       expect(ask.content).toMatchObject({
         kind: "ask",
@@ -204,12 +206,12 @@ for (const setup of setups) {
           .every((message) => message.state === "delivered"),
       ).toBe(true)
       run.deck.terminals.readTells([told.id])
-      // The agent's finished turn is a letter too, stored once it rests: not what is asked here.
+      // The agent's finished turn is an entry too, stored once it rests: not what is asked here.
       const waiting = () =>
-        run.deck.terminals.inboxLetters().filter((each) => each.content.kind !== "turn")
+        run.deck.terminals.inboxEntries().filter((each) => each.content.kind !== "turn")
       expect(waiting().map((each) => each.id)).toEqual([ask.id])
       const mark = terminal.mark()
-      // This is the same runner operation that the authenticated UI's asks.answer calls.
+      // This is the same runner operation that the authenticated UI's inbox.answer calls.
       run.deck.terminals.answerAsk(ask.id, { type: "reply", option: 1, text: "Use green, please." })
       expect(() =>
         run.deck.terminals.answerAsk(ask.id, { type: "reply", option: null, text: "Again" }),
@@ -237,7 +239,7 @@ for (const setup of setups) {
       expect(history.some((message) => message.inbox === "tell")).toBe(true)
     })
 
-    it("shows an action ask and receives its confirmation as mail", async ({ e2e: run }) => {
+    it("shows an action ask and receives its confirmation as a message", async ({ e2e: run }) => {
       run.model.use(
         own((call) => {
           if (delivered(call, "you")) return { text: "I received your action confirmation." }
@@ -269,7 +271,7 @@ for (const setup of setups) {
       )
       const terminal = await start(run, setup)
       await turn(terminal, "Ask for an action", "I continued while you sign in.")
-      const action = run.deck.terminals.inboxLetters().find((each) => each.content.kind === "ask")!
+      const action = run.deck.terminals.inboxEntries().find((each) => each.content.kind === "ask")!
       expect(action.content).toMatchObject({
         kind: "ask",
         ask: {

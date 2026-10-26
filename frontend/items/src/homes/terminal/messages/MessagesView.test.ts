@@ -1,11 +1,11 @@
-import type { AgentMessage, MailPeer, MessageThread } from "@novadeck/core/messages"
+import type { AgentMessage, MessagePeer, MessageThread } from "@novadeck/core/messages"
 import { render } from "@novadeck/test-kit/render"
 import { Shown } from "@novadeck/toolkit/shown"
 import { act, createElement } from "react"
 import { afterEach } from "vitest"
 
 import { context, describe, expect, it } from "../../../test"
-import type { MailHandle, MailLinks } from "./mail"
+import type { MessagesHandle, MessageLinks } from "./messages"
 import { MessagesView } from "./MessagesView"
 
 let sequence = 0
@@ -39,7 +39,7 @@ const thread = (id: string, peer: string, messages: readonly AgentMessage[]): Me
 })
 
 const now = Date.now()
-const peers: Readonly<Record<string, MailPeer>> = {
+const peers: Readonly<Record<string, MessagePeer>> = {
   owl: { name: "Tests", terminalId: "03", program: "claude", live: "working" },
   fox: { name: "Dev server", terminalId: "02", program: "zsh", live: "gone" },
   moth: { name: "Checkout", terminalId: "01", program: "claude", live: "working" },
@@ -57,8 +57,8 @@ const mount = (
   }: { paused?: boolean; seenAt?: number; shown?: boolean } = {},
 ) => {
   const did = { goTo: [] as string[], answer: [] as string[], seen: [] as [string, number][] }
-  const mail: MailHandle = {
-    mail: { handle: "moth", agent: true, threads },
+  const handle: MessagesHandle = {
+    threads: { handle: "moth", agent: true, threads },
     paused,
     pending: false,
     error: null,
@@ -68,20 +68,24 @@ const mount = (
     seenAt: () => seenAt,
     seen: (conversation, at) => did.seen.push([conversation, at]),
   }
-  const links: MailLinks = {
+  const links: MessageLinks = {
     peers: { getSnapshot: () => peers, subscribe: () => () => {} },
     goTo: (terminalId) => did.goTo.push(terminalId),
-    answer: (letter) => did.answer.push(letter.id),
+    answer: (entry) => did.answer.push(entry.id),
   }
   const view = render(
-    createElement(Shown.Provider, { value: shown }, createElement(MessagesView, { mail, links })),
+    createElement(
+      Shown.Provider,
+      { value: shown },
+      createElement(MessagesView, { messagesHandle: handle, links }),
+    ),
   )
   unmounts.push(view.unmount)
   const $ = (selector: string) => view.container.querySelector<HTMLElement>(selector)
   const rows = () =>
-    [...view.container.querySelectorAll<HTMLElement>(".mail-row")].map((row) => ({
-      name: row.querySelector(".mail-row-name")?.textContent,
-      corner: row.querySelector(".mail-row-end")?.textContent,
+    [...view.container.querySelectorAll<HTMLElement>(".message-row")].map((row) => ({
+      name: row.querySelector(".message-row-name")?.textContent,
+      corner: row.querySelector(".message-row-end")?.textContent,
       unread: row.hasAttribute("data-unread"),
     }))
   const open = (key: string) => act(() => $(`[data-conversation="${key}"]`)!.click())
@@ -92,7 +96,7 @@ const ask = (state: "open" | "answered", at = now) =>
   message("moth", "you", at, "Which route?", { inbox: "ask", inboxState: state })
 
 describe("the Messages pane's list", () => {
-  it("names each conversation by its terminal, the person's letters first while they wait", () => {
+  it("names each conversation by its terminal, the person's entries first while they wait", () => {
     const { rows } = mount([
       thread("t-owl", "owl", [message("owl", "moth", now - 1000, "3 of 10 failed.")]),
       thread("t-a", "you", [ask("open", now - 60 * 60_000)]),
@@ -124,7 +128,7 @@ describe("the Messages pane's list", () => {
     const { $ } = mount([
       thread("t-owl", "owl", [message("owl", "moth", now, "Line one\nline two")]),
     ])
-    expect($(".mail-preview")?.textContent).toBe("@owl: Line one line two")
+    expect($(".message-preview")?.textContent).toBe("@owl: Line one line two")
   })
 
   it("explains the person can reply while messaging is paused", () => {
@@ -148,12 +152,12 @@ describe("an open conversation", () => {
     it("reads as a chat, the terminal's agent on the right, notes only where worth a look", () => {
       const { $, view, open, did } = mount(threads)
       open("owl")
-      expect($(".mail-chat-name")?.textContent).toBe("Tests@owl")
-      const sides = [...view.container.querySelectorAll(".mail-bubble-row")].map((row) =>
+      expect($(".message-chat-name")?.textContent).toBe("Tests@owl")
+      const sides = [...view.container.querySelectorAll(".message-bubble-row")].map((row) =>
         row.getAttribute("data-side"),
       )
       expect(sides).toEqual(["in", "out", "in"])
-      const notes = [...view.container.querySelectorAll(".mail-note")].map(
+      const notes = [...view.container.querySelectorAll(".message-note")].map(
         (note) => note.textContent,
       )
       expect(notes).toEqual(["Delivered", "Waiting"])
@@ -169,15 +173,15 @@ describe("an open conversation", () => {
     it("goes to the other agent's terminal, and back to the list onto its row", () => {
       const { $, open, did } = mount(threads)
       open("owl")
-      act(() => $(".mail-go")!.click())
+      act(() => $(".message-go")!.click())
       expect(did.goTo).toEqual(["03"])
-      act(() => $(".mail-back")!.click())
+      act(() => $(".message-back")!.click())
       expect(document.activeElement?.getAttribute("data-conversation")).toBe("owl")
     })
   })
 
   context("with the person", () => {
-    const letters = [
+    const entries = [
       thread("t-a", "you", [
         message("moth", "you", now - 3000, "Tax before shipping?", {
           inbox: "ask",
@@ -188,19 +192,19 @@ describe("an open conversation", () => {
       thread("t-b", "you", [ask("open")]),
     ]
 
-    it("labels letters in plain words, quotes the question a reply answers, and offers Answer", () => {
-      const { $, view, open, did } = mount(letters)
+    it("labels entries in plain words, quotes the question a reply answers, and offers Answer", () => {
+      const { $, view, open, did } = mount(entries)
       open("you")
-      expect($(".mail-asks")?.textContent).toBe("1 question waits for you")
-      const labels = [...view.container.querySelectorAll(".mail-letter")].map(
+      expect($(".message-asks")?.textContent).toBe("1 question waits for you")
+      const labels = [...view.container.querySelectorAll(".message-entry")].map(
         (label) => label.textContent,
       )
       expect(labels).toEqual(["Asked you · answered", "Asks you"])
-      expect($(".mail-quote")?.textContent).toBe("Tax before shipping?")
+      expect($(".message-quote")?.textContent).toBe("Tax before shipping?")
       // The terminal's own agent is there, working, whoever the conversation is with.
-      expect($(".mail-bubble-av .mail-av")?.getAttribute("data-live")).toBe("working")
-      expect($(".mail-new")).not.toBeNull()
-      act(() => $(".mail-answer button")!.click())
+      expect($(".message-bubble-av .message-av")?.getAttribute("data-live")).toBe("working")
+      expect($(".message-new")).not.toBeNull()
+      act(() => $(".message-answer button")!.click())
       expect(did.answer).toHaveLength(1)
     })
 
@@ -216,7 +220,7 @@ describe("an open conversation", () => {
         ]),
       ])
       open("you")
-      expect($(".mail-note[data-note=gone]")?.textContent).toBe("Reply not delivered")
+      expect($(".message-note[data-note=gone]")?.textContent).toBe("Reply not delivered")
     })
   })
 })

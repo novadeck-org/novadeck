@@ -1,7 +1,7 @@
-import type { InboxItem } from "@novadeck/core/inbox"
+import type { InboxRow } from "@novadeck/core/inbox"
 import type { WorkspaceSeed } from "@novadeck/core/seed"
 import type { DemoInbox } from "@novadeck/demo/inbox"
-import { demoHiddenCommand, demoInboxIds, demoInboxItemsAll } from "@novadeck/demo/inbox-fixtures"
+import { demoHiddenCommand, demoInboxIds, demoInboxRowsAll } from "@novadeck/demo/inbox-fixtures"
 
 import type { DemoActionGroup } from "./types"
 
@@ -122,9 +122,9 @@ const kinds: readonly { readonly label: string; readonly name: Named; readonly h
 ]
 
 // A fixture as a fresh item, waiting from now.
-const fresh = (id: string): InboxItem | undefined => {
+const fresh = (id: string): InboxRow | undefined => {
   const now = Date.now()
-  const found = demoInboxItemsAll(now).find((each) => each.id === id)
+  const found = demoInboxRowsAll(now).find((each) => each.id === id)
   return found && { ...found, at: now }
 }
 
@@ -135,7 +135,7 @@ const together: readonly Named[] = ["webhook", "codexPermission", "login", "ques
 // Whether the demo's workspace has the sample projects the Inbox's items are about: the
 // content showcase has its own.
 const samplesIn = (seed: WorkspaceSeed): boolean =>
-  demoInboxItemsAll(0).every((item) =>
+  demoInboxRowsAll(0).every((item) =>
     seed.projects.some((project) => project.id === item.source.projectId),
   )
 

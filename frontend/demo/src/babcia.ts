@@ -1,5 +1,5 @@
 import type { ChatAnswer, Conversations } from "@novadeck/core/conversation"
-import type { InboxItem } from "@novadeck/core/inbox"
+import type { InboxRow } from "@novadeck/core/inbox"
 import { itemIdOf, type Item } from "@novadeck/core/items"
 import type { Backend, BackendSink, TerminalKey } from "@novadeck/core/port"
 import type { WorkspaceSeed } from "@novadeck/core/seed"
@@ -14,7 +14,7 @@ import type {
 
 import { demoHandle } from "./handles"
 import { isDemoInbox } from "./inbox"
-import { createDemoMessages, type DemoMailbox } from "./messages"
+import { createDemoMessages, type DemoSessionMessages } from "./messages"
 import { demoTerminalId, terminalSlot, type ChatAgent } from "./samples"
 import { callBlock, requestBlock, resultBlock } from "./screen/agent"
 import { banner } from "./screen/openings"
@@ -599,8 +599,8 @@ export const babciaIntroOf = (
   ])
 }
 
-// The mail between the milk bar's terminals: every one takes part, and none has yet written.
-const mailbox = (): DemoMailbox => {
+// The messages between the milk bar's terminals: every one takes part, and none has yet written.
+const sessionMessages = (): DemoSessionMessages => {
   const target = { projectId: bar, workspaceSessionId: session }
   return {
     target,
@@ -708,7 +708,7 @@ const preview: SampleArtifact = {
 
 // The question the asking helper puts to the person: only its lead can answer it.
 const helperAskId = "babcia-helper-ask"
-const helperAsk = (helper: number, now: number): InboxItem => ({
+const helperAsk = (helper: number, now: number): InboxRow => ({
   id: helperAskId,
   source: {
     projectId: bar,
@@ -772,12 +772,12 @@ const cuesOf = new WeakMap<Backend, BabciaCues>()
 export const babciaCuesOf = (backend: Backend): BabciaCues | undefined => cuesOf.get(backend)
 
 // The Babcia demo's parts, for `plainDemo` to put round the demo's own: `under` the
-// conversations (the seed, its mail, its pane, and a view of the workspace and the sink), `wrap`
+// conversations (the seed, its messages, its pane, and a view of the workspace and the sink), `wrap`
 // round them (an agent that is answered or told goes back to work, and works until it finishes),
 // and `over` the whole (the cues). The helper's ask, once the person's answer reaches it, goes
 // on to its lead.
 export const createBabcia = (turns: DemoTurns, now: number) => {
-  const messages = createDemoMessages([mailbox()], false, (target, terminalId) =>
+  const messages = createDemoMessages([sessionMessages()], false, (target, terminalId) =>
     latest === undefined ? true : terminalOf(latest, { ...target, terminalId }) !== undefined,
   )
   const showcase = createShowcase({
@@ -1003,17 +1003,17 @@ export const createBabcia = (turns: DemoTurns, now: number) => {
     // Refused, as the lead closed: nothing is on its way to wait for.
     if (!sent) exchanged = true
   }
-  const answerLetter = `answer:${helperAskId}`
+  const answerEntry = `answer:${helperAskId}`
   messages.state.subscribe(() => {
     if (answered) return
-    const letter = Object.values(messages.state.getSnapshot().terminals)
+    const entry = Object.values(messages.state.getSnapshot().terminals)
       .flatMap((each) => each.threads)
       .flatMap((thread) => thread.messages)
-      .find((each) => each.id === answerLetter && each.state !== "queued")
-    if (!letter) return
-    if (letter.state !== "delivered") return released()
+      .find((each) => each.id === answerEntry && each.state !== "queued")
+    if (!entry) return
+    if (entry.state !== "delivered") return released()
     answered = true
-    relay(letter.text)
+    relay(entry.text)
   })
   // The Inbox clears the helper's ask with no answer made: nothing will reach the helper.
   const watchInbox = (inbox: NonNullable<ReturnType<typeof backendInbox>>): void => {
@@ -1023,14 +1023,14 @@ export const createBabcia = (turns: DemoTurns, now: number) => {
       if (answering[helperAskId] || items.some((item) => item.id === helperAskId)) return
       const answerMade = Object.values(messages.state.getSnapshot().terminals)
         .flatMap((each) => each.threads)
-        .some((thread) => thread.messages.some((each) => each.id === answerLetter))
+        .some((thread) => thread.messages.some((each) => each.id === answerEntry))
       if (!answerMade) released()
     })
   }
 
   return {
     transcripts: babciaTranscripts(now),
-    // The seed with its mail and pane, and a view of the workspace and the sink.
+    // The seed with its messages and pane, and a view of the workspace and the sink.
     under: (backend: Backend): Backend => ({
       ...backend,
       seed: babciaSeed(now),

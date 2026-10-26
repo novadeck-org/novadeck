@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, vi } from "vitest"
 
-import { emptyInbox, type InboxItem } from "./inbox"
+import { emptyInbox, type InboxRow } from "./inbox"
 import {
   answerFailure,
   answerItem,
@@ -22,7 +22,7 @@ const source = {
 } as const
 
 // Failed trouble derived from a limited end: no stored row stands behind it.
-const trouble: InboxItem = {
+const trouble: InboxRow = {
   id: "limit:01:1",
   source,
   at: 1,
@@ -32,7 +32,7 @@ const trouble: InboxItem = {
   trouble: { type: "failed", error: "boom" },
 }
 
-const request: InboxItem = {
+const request: InboxRow = {
   id: "request:r1",
   source,
   at: 1,
@@ -51,7 +51,7 @@ const request: InboxItem = {
   },
 }
 
-const held: InboxItem = {
+const held: InboxRow = {
   id: "held:th1",
   source,
   at: 1,
@@ -68,7 +68,7 @@ const held: InboxItem = {
   },
 }
 
-const reported: InboxItem = {
+const reported: InboxRow = {
   id: "update:01:100",
   source,
   at: 1,
@@ -361,7 +361,7 @@ describe("Answering an item", () => {
     it("is not the runner's to answer", () => {
       const { tracker } = setup()
       const done = actions()
-      const draft: InboxItem = {
+      const draft: InboxRow = {
         id: "fb",
         source,
         at: 1,
@@ -457,7 +457,7 @@ describe("Answering an item", () => {
     })
 
     describe("a stored failed turn", () => {
-      const row = (stopped: boolean): InboxItem => ({
+      const row = (stopped: boolean): InboxRow => ({
         ...trouble,
         id: "row-1",
         stopped,

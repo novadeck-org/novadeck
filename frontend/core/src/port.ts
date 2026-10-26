@@ -260,7 +260,7 @@ export type BackendFields = {
   // Optional. The Inbox: what the agents in every project wait on the person for, one
   // item per agent terminal, answered in place, behind the bell. The runner's and the
   // demo's build it from the app's workspace (`bind`) and their own facts (see core's
-  // `inbox-items`). Absent where the backend has none: the Inbox then lists nothing.
+  // `inbox-rows`). Absent where the backend has none: the Inbox then lists nothing.
   readonly inbox?: Inbox
   // Optional. Each project's files, folder by folder, and on a demo backend what its agents
   // change in them, for the sidebar's Source panel (see core's `source`). Absent where the

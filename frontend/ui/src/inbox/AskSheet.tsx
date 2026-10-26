@@ -17,7 +17,7 @@ import { noDraft, useInboxContext } from "./InboxProvider"
 import { Lead, Page, type SheetContentProps } from "./Page"
 import { CommandCard, Disclosure, Failure, QuietLink, ReplyBox, Sent, Text } from "./sheet-parts"
 
-// Ask: what the agent asks, as a letter, and the answer it asked for: its options as
+// Ask: what the agent asks, as an entry, and the answer it asked for: its options as
 // cards, something only the person can do, or words. The person may always
 // write their own.
 
@@ -98,9 +98,9 @@ const optionDetails = (option: AskOption): ReactNode =>
     </div>
   ) : undefined
 
-// A letter: its subject, what makes the answer hard to take back, its body and, behind
+// An entry: its subject, what makes the answer hard to take back, its body and, behind
 // "More detail", the rest.
-const Letter = (
+const Entry = (
   props: SheetContentProps & { readonly ask: AgentAsk; readonly children?: ReactNode },
 ): React.JSX.Element => {
   const { ask, children } = props
@@ -190,7 +190,7 @@ const Asked = (props: SheetContentProps & { readonly ask: AgentAsk }): React.JSX
     !sent && (shape.type === "options" || shape.type === "text") ? footerReply : undefined
   return (
     <Page footer={footer}>
-      <Letter {...props} ask={ask}>
+      <Entry {...props} ask={ask}>
         {!sent && shape.type === "options" && (
           <Cards
             label="Its options"
@@ -238,7 +238,7 @@ const Asked = (props: SheetContentProps & { readonly ask: AgentAsk }): React.JSX
         )}
         <Failure message={failed} />
         {sent && <Sent note={sent.note} onNext={onNext} />}
-      </Letter>
+      </Entry>
     </Page>
   )
 }

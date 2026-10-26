@@ -1,4 +1,4 @@
-import { inboxType, ordered, type InboxItem, type InboxState } from "@novadeck/core/inbox"
+import { inboxType, ordered, type InboxRow, type InboxState } from "@novadeck/core/inbox"
 
 // Which item the person has open, and what the list shows meanwhile. While a sheet is
 // open the list neither reorders nor grows: items that arrive are held, counted by the
@@ -20,7 +20,7 @@ export type InboxView = {
 
 export const initialView: InboxView = { open: null, known: null, order: [], arrived: [] }
 
-const idsOf = (items: readonly InboxItem[]): string[] => items.map(({ id }) => id)
+const idsOf = (items: readonly InboxRow[]): string[] => items.map(({ id }) => id)
 
 const same = (a: readonly string[], b: readonly string[]): boolean =>
   a.length === b.length && a.every((id, index) => id === b[index])
@@ -30,9 +30,9 @@ const same = (a: readonly string[], b: readonly string[]): boolean =>
 // they keep their place, answered, until the sheet closes.
 export const visible = (
   view: InboxView,
-  items: readonly InboxItem[],
-  ghosts: Readonly<Record<string, InboxItem>> = {},
-): InboxItem[] =>
+  items: readonly InboxRow[],
+  ghosts: Readonly<Record<string, InboxRow>> = {},
+): InboxRow[] =>
   view.open === null || view.known === null
     ? ordered(items)
     : view.order.flatMap((id) => {
@@ -41,14 +41,14 @@ export const visible = (
       })
 
 // The items waiting to join, oldest first.
-export const held = (view: InboxView, items: readonly InboxItem[]): InboxItem[] =>
+export const held = (view: InboxView, items: readonly InboxRow[]): InboxRow[] =>
   view.open === null || view.known === null
     ? []
     : items.filter(({ id }) => !view.known?.includes(id)).toSorted((a, b) => a.at - b.at)
 
 // With no sheet open, the list shows everything: what is new since it last looked is
 // marked as arrived. Where a sheet is open the view stays as it is.
-export const settle = (view: InboxView, items: readonly InboxItem[]): InboxView => {
+export const settle = (view: InboxView, items: readonly InboxRow[]): InboxView => {
   if (view.open !== null) return view
   const ids = idsOf(items)
   const arrived = view.known === null ? [] : ids.filter((id) => !view.known?.includes(id))
@@ -57,7 +57,7 @@ export const settle = (view: InboxView, items: readonly InboxItem[]): InboxView 
 }
 
 // Opens an item's sheet. From a closed Inbox that freezes the list as it stands.
-export const openItem = (view: InboxView, id: string, items: readonly InboxItem[]): InboxView => {
+export const openItem = (view: InboxView, id: string, items: readonly InboxRow[]): InboxView => {
   const fresh = view.open === null || view.known === null
   return {
     open: id,
@@ -68,7 +68,7 @@ export const openItem = (view: InboxView, id: string, items: readonly InboxItem[
 }
 
 // Closes the sheet: what was held joins the list, marked.
-export const closeSheet = (view: InboxView, items: readonly InboxItem[]): InboxView => ({
+export const closeSheet = (view: InboxView, items: readonly InboxRow[]): InboxView => ({
   open: null,
   known: idsOf(items),
   order: [],
@@ -76,7 +76,7 @@ export const closeSheet = (view: InboxView, items: readonly InboxItem[]): InboxV
 })
 
 // Lets what is held join the list while the sheet stays open.
-export const release = (view: InboxView, items: readonly InboxItem[]): InboxView => ({
+export const release = (view: InboxView, items: readonly InboxRow[]): InboxView => ({
   ...view,
   known: idsOf(items),
   order: idsOf(ordered(items)),
@@ -90,10 +90,10 @@ export const clearArrived = (view: InboxView): InboxView =>
 // draft (which asks nothing of them now), other than `from` and those whose answer is on its
 // way.
 export const nextItem = (
-  items: readonly InboxItem[],
+  items: readonly InboxRow[],
   from: string | null,
   state: Pick<InboxState, "answering">,
-): InboxItem | undefined =>
+): InboxRow | undefined =>
   ordered(items).find(
     (item) =>
       item.id !== from &&
@@ -106,17 +106,17 @@ export const nextItem = (
 // The item `step` rows from `from` in the list (1 down, -1 up), within its ends; the
 // first when nothing is open.
 export const stepFrom = (
-  shown: readonly InboxItem[],
+  shown: readonly InboxRow[],
   from: string | null,
   step: 1 | -1,
-): InboxItem | undefined => {
+): InboxRow | undefined => {
   const at = shown.findIndex(({ id }) => id === from)
   return shown[Math.max(0, Math.min(shown.length - 1, at + step))]
 }
 
 // A stored failed turn that is no longer the agent's current end: it only informs, ranks with
 // updates, and is read, not answered.
-export const informing = (item: InboxItem): boolean =>
+export const informing = (item: InboxRow): boolean =>
   item.kind === "trouble" &&
   item.trouble.type === "failed" &&
   !!item.trouble.stored &&
@@ -124,7 +124,7 @@ export const informing = (item: InboxItem): boolean =>
 
 // Whether an item asks something of the person: anything but an update or a failed turn that
 // only informs.
-export const needs = (item: InboxItem): boolean => inboxType(item) !== "update" && !informing(item)
+export const needs = (item: InboxRow): boolean => inboxType(item) !== "update" && !informing(item)
 
 // Which row the line above the updates goes on, from whether each row asks, in the list's
 // order: the one after the last that asks, or -1 where none asks or nothing follows. Updates
@@ -136,14 +136,14 @@ export const updatesStart = (asks: readonly boolean[]): number => {
 }
 
 // What the rail's badge counts: everything that asks something of the person.
-export const needing = (items: readonly InboxItem[]): InboxItem[] => items.filter(needs)
+export const needing = (items: readonly InboxRow[]): InboxRow[] => items.filter(needs)
 
 // What rings the person (a toast, the OS ping): what needs them, except a feedback draft.
 // It waits in the Inbox and the badge counts it, but the person asked for it and nothing is
 // urgent about it, so it never interrupts.
-export const ringing = (items: readonly InboxItem[]): InboxItem[] =>
+export const ringing = (items: readonly InboxRow[]): InboxRow[] =>
   needing(items).filter((item) => inboxType(item) !== "feedback")
 
 // Whether Mark all read has anything to read: an update, or a failed turn that only informs.
-export const hasUpdates = (items: readonly InboxItem[]): boolean =>
+export const hasUpdates = (items: readonly InboxRow[]): boolean =>
   items.some((item) => inboxType(item) === "update" || informing(item))
