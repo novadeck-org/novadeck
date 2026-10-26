@@ -15,7 +15,7 @@ import { FolderGit2, History, Inbox, Terminal as TerminalIcon } from "lucide-rea
 import { useCallback, useLayoutEffect, useRef, useState, type ComponentProps } from "react"
 
 import { shortcutBindings } from "../interaction/shortcuts"
-import { BellCount } from "./BellCount"
+import { BellDot } from "./BellDot"
 import type { BellBadge } from "./inbox-badge"
 import { movedPanel } from "./rail-order"
 
@@ -60,6 +60,7 @@ export const SidebarRail = ({
   sidebarPanel,
   zen,
   badge,
+  bellRings,
   hasSource = false,
   order = sidebarPanels,
   onOrder,
@@ -71,6 +72,8 @@ export const SidebarRail = ({
   sidebarPanel: SidebarPanel
   zen: boolean
   badge: BellBadge | undefined
+  // How many new items the bell has rung for, which its dot rings with.
+  bellRings: number
   // Whether the backend has a Source panel to toggle.
   hasSource?: boolean
   // Every panel, the ones this backend doesn't show included, in the person's order.
@@ -124,6 +127,7 @@ export const SidebarRail = ({
             index={index}
             count={shown.length}
             badge={id === "inbox" ? badge : undefined}
+            bellRings={bellRings}
             dragging={dragging}
             focusRequest={focusRequest}
             onFocused={focused}
@@ -145,6 +149,7 @@ const RailToggle = ({
   index,
   count,
   badge,
+  bellRings,
   dragging,
   focusRequest,
   onFocused,
@@ -156,6 +161,8 @@ const RailToggle = ({
   count: number
   // What the Inbox holds, on its toggle.
   badge: BellBadge | undefined
+  // How many new items the bell has rung for, which its dot rings with.
+  bellRings: number
   // Some toggle is being dragged, which leaves no tooltip open.
   dragging: boolean
   // Asks the toggle with this id to take the focus, once it has settled in its place.
@@ -189,7 +196,9 @@ const RailToggle = ({
       tooltip={
         value === "terminals"
           ? `Terminals · ${shortcutBindings().terminals.display.join(" ")}`
-          : label
+          : badge
+            ? `${label} · ${badge.count} waiting`
+            : label
       }
       tooltipDisabled={dragging}
       value={value}
@@ -213,7 +222,7 @@ const RailToggle = ({
       }}
     >
       <Icon size={16} />
-      {badge && <BellCount text={badge.text} />}
+      {badge && <BellDot rings={bellRings} />}
     </ToggleGroupItem>
   )
 }

@@ -33,7 +33,7 @@ import { CompanionItems } from "../companions/items.js"
 import { readyReturnMs } from "../terminals/binding/facts.js"
 import { handleWords } from "../terminals/handles.js"
 import { Terminals, type TerminalOptions } from "../terminals/index.js"
-import type { TerminalRecords } from "../terminals/records.js"
+import type { AgentTurn, TerminalRecords } from "../terminals/records.js"
 import { createTranscriptRedactor } from "../terminals/redaction.js"
 import { describe, expect, it as base } from "../test.js"
 import { FakeDescriber } from "../testing/describer.js"
@@ -59,7 +59,7 @@ type Fixture = {
   ) => (match: (terminal: TerminalSummary) => boolean) => Promise<TerminalSummary>
   until: (manager: Terminals, terminalId: string, text: string | RegExp) => Promise<string>
   /** Saves the session `agent` last reported in the terminal, as an earlier runner did. */
-  saveSession: (id: string, agent: AgentName, sessionId: string) => void
+  saveSession: (id: string, agent: AgentName, sessionId: string, turn?: AgentTurn) => void
 }
 
 /** Everything the terminal printed so far, read from its screen. */
@@ -156,7 +156,7 @@ const it = base.extend<{ shell: Fixture }>({
       )
     }
     const plugins = join(root, "data", "shell", "plugins")
-    const saveSession = (id: string, agent: AgentName, sessionId: string) =>
+    const saveSession = (id: string, agent: AgentName, sessionId: string, turn?: AgentTurn) =>
       store.saveTerminal({
         id,
         sessionId: session.id,
@@ -173,7 +173,7 @@ const it = base.extend<{ shell: Fixture }>({
         command: null,
         lastProgram: null,
         work: null,
-        agents: { [agent]: { sessionId, seq: 1 } },
+        agents: { [agent]: { sessionId, seq: 1, ...(turn && { turn }) } },
         promptedAt: null,
       })
     const items = (terminals: Terminals) => companions.get(terminals)!
@@ -639,6 +639,52 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))("bash shell i
     await create(manager, shell, { id, restore: true, resume: "claude" })
     await next((summary) => summary.id === id && summary.agent === "claude")
     expect(manager.reportedSession(id, "claude")).toBe(session)
+  })
+
+  it("tells a resumed agent whose turn the stop cut short to carry on, once, and drops the saved flag", async ({
+    shell,
+  }) => {
+    const session = randomUUID()
+    fakeClaude(shell.home, shell.plugins, session)
+    writeFileSync(join(shell.home, ".bashrc"), 'export PATH="$HOME/bin:$PATH"\n')
+    const id = randomUUID()
+    shell.saveSession(id, "claude", session, "running")
+    const manager = shell.manager()
+    const next = shell.watch(manager)
+    await create(manager, shell, { id, restore: true, resume: "claude" })
+    await next((summary) => summary.id === id && summary.agent === "claude")
+    // The notice is no peer's conversation, so only the mailbox holds it.
+    const told = () => shell.store.messages().filter(({ to }) => to.terminalId === id)
+    await expect.poll(told).toMatchObject([
+      {
+        from: { handle: "novadeck" },
+        text: expect.stringContaining("while your turn was running"),
+      },
+    ])
+    // What it was doing is this run's own now: the saved flag went with the restore.
+    await expect.poll(() => shell.store.terminal(id)?.agents.claude?.turn).toBeUndefined()
+    expect(told()).toHaveLength(1)
+  })
+
+  it("tells a resumed agent nothing where it was not mid-turn, or the shell does not resume it", async ({
+    shell,
+  }) => {
+    const session = randomUUID()
+    fakeClaude(shell.home, shell.plugins, session)
+    writeFileSync(join(shell.home, ".bashrc"), 'export PATH="$HOME/bin:$PATH"\n')
+    const idle = randomUUID()
+    shell.saveSession(idle, "claude", session)
+    const manager = shell.manager()
+    const next = shell.watch(manager)
+    await create(manager, shell, { id: idle, restore: true, resume: "claude" })
+    await next((summary) => summary.id === idle && summary.agent === "claude")
+    // A terminal restored without a resume drops the flag it was saved with, telling no one.
+    const plain = randomUUID()
+    shell.saveSession(plain, "claude", randomUUID(), "waking")
+    await create(manager, shell, { id: plain, restore: true })
+    await expect.poll(() => shell.store.terminal(plain)?.agents.claude?.turn).toBeUndefined()
+    await new Promise((resolve) => setTimeout(resolve, 500))
+    expect(shell.store.messages()).toEqual([])
   })
 
   it("tells which agent session runs, through a connected agent's plugin", async ({ shell }) => {

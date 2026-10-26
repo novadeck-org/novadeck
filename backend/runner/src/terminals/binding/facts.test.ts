@@ -113,6 +113,17 @@ describe("the ends of a session", () => {
   })
 })
 
+describe("the turn kept for a restart of Novadeck", () => {
+  it("ends with a shell that exited mid-turn, so a restart is never told it was running", () => {
+    const { bindings: ends } = bindings()
+    const bound = record({ agent: "claude", agentRan: true })
+    bound.agents = { claude: { sessionId: "s1", turn: "running" } } as unknown as Record["agents"]
+    ends.exited(bound)
+    expect(bound.agents.claude?.turn).toBeUndefined()
+    expect(bound.changed).toBe(true)
+  })
+})
+
 describe("a turn that ends within its grace as its session does", () => {
   const owner: TurnOwner = {
     projectId: "00000000-0000-4000-8000-000000000003",

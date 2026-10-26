@@ -6,13 +6,14 @@ import { Bell, ChevronLeft, Plus, X } from "lucide-react"
 import { useEffect, useId, useRef, useState } from "react"
 
 import { shortcutBindings } from "../interaction/shortcuts"
-import { BellCount } from "./BellCount"
+import { BellDot } from "./BellDot"
 import type { BellBadge } from "./inbox-badge"
 
 export const ZenDock = ({
   view,
   enabledViews,
   badge,
+  bellRings,
   onCreate,
   onViewChange,
   onInbox,
@@ -21,6 +22,8 @@ export const ZenDock = ({
   view: ViewMode
   enabledViews: ViewMode[]
   badge: BellBadge | undefined
+  // How many new items the bell has rung for, which its dot rings with.
+  bellRings: number
   onCreate: () => void
   onViewChange: (view: ViewMode) => void
   onInbox: () => void
@@ -72,7 +75,7 @@ export const ZenDock = ({
         </button>
       </Tooltip>
       {badge && (
-        <Tooltip content="Inbox">
+        <Tooltip content={`Inbox · ${badge.count} waiting`}>
           <button
             className="icon-button zen-inbox relative"
             aria-label={badge.label}
@@ -80,7 +83,7 @@ export const ZenDock = ({
             onClick={onInbox}
           >
             <Bell size={16} />
-            <BellCount text={badge.text} />
+            <BellDot rings={bellRings} />
           </button>
         </Tooltip>
       )}

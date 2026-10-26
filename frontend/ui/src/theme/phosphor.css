@@ -273,6 +273,13 @@
   --segmented-active-border-color: var(--color-strong);
   --segmented-active-shadow: 0 0 10px color-mix(in srgb, var(--color-strong) 45%, transparent);
 }
+/* A tone would vanish on the lit toggle, so the open Inbox's dot takes the toggle's ink; the
+   Inbox beside it shows the tone. */
+:root:is([data-theme="phosphor-green"], [data-theme="phosphor-amber"])
+  .segment[aria-checked="true"]
+  > .bell-dot {
+  color: var(--segmented-active-fg);
+}
 
 /* Labels in brackets, and a dialog's buttons in angles: [ TERMINALS ], < Cancel >. */
 :root:is([data-theme="phosphor-green"], [data-theme="phosphor-amber"]) .section-label::before {

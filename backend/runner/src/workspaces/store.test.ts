@@ -1005,6 +1005,42 @@ const numbered = (id: string, handle: string) => ({
 })
 
 describe("saved terminals", () => {
+  it("keep what a session was doing in its agent's report, and read a row saved without it as having none", async ({
+    directory,
+    store,
+  }) => {
+    const path = join(directory(), "workspace.sqlite")
+    const first = store(path)
+    first.saveTerminal({
+      ...numbered("a", "moth"),
+      agents: { claude: { sessionId: "abc", seq: 2, turn: "running" } },
+    })
+    first.saveTerminal({
+      ...numbered("b", "owl"),
+      agents: {
+        claude: { sessionId: "def", seq: 3, turn: "waking" },
+        codex: { sessionId: "x", seq: 1 },
+      },
+    })
+    first.close()
+    // A row an earlier build saved holds no turn in its JSON, and the schema is unchanged.
+    const raw = new DatabaseSync(path)
+    raw.exec(`
+      INSERT INTO terminals (id, session_id, cwd, agents, updated_at, handle)
+        VALUES ('c', 's', '/', '{"claude":{"sessionId":"old","seq":1}}', 1, 'fox');
+    `)
+    raw.close()
+    const reopened = store(path)
+    expect(reopened.terminal("a")?.agents).toEqual({
+      claude: { sessionId: "abc", seq: 2, turn: "running" },
+    })
+    expect(reopened.terminal("b")?.agents).toEqual({
+      claude: { sessionId: "def", seq: 3, turn: "waking" },
+      codex: { sessionId: "x", seq: 1 },
+    })
+    expect(reopened.terminal("c")?.agents).toEqual({ claude: { sessionId: "old", seq: 1 } })
+  })
+
   it("keep what restores a terminal, in the owner-only metadata file", async ({
     directory,
     store,

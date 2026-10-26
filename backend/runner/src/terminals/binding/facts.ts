@@ -16,6 +16,7 @@ import { limitOf, observeTelemetry, telemetrySummary } from "../../harnesses/tel
 import type { Messaging } from "../../messaging/messaging.js"
 import type { Companion } from "../companion.js"
 import { failed } from "../failures.js"
+import { markTurn } from "../interrupted.js"
 import type { Record } from "../record.js"
 import { hasRun } from "../records.js"
 import { TurnEnds, type TurnsHost } from "../turn-ends.js"
@@ -143,10 +144,13 @@ export class Bindings {
   /**
    * The shell exited: the session ends, and what the shell held with it, its root not
    * followed anew, nothing suspended and no entry seen in a transcript, as a restart starts
-   * from (`restarted`). The caller shows neither agent nor ready prompt, and announces.
+   * from (`restarted`). The caller shows neither agent nor ready prompt, and announces and
+   * saves. The turn kept for a restart of Novadeck (`markTurn`) ends with the session: a shell
+   * that died, or was restarted, mid-turn has nothing cut for a later restart to tell of.
    */
   exited(record: Record): void {
     this.endSession(record)
+    if (markTurn(record, null)) record.changed = true
     Object.assign(record, this.shellEnded())
   }
 
@@ -418,6 +422,11 @@ export class Bindings {
     const activity = bound ? activitySummary(bound.activity) : null
     // Before the early return below: an Escape that settles changes nothing the summary shows.
     this.ends.sight(record, activity)
+    // What the turn was doing is kept for a restart of Novadeck (`markTurn`), saved at once.
+    if (markTurn(record, activity)) {
+      record.changed = true
+      this.host.save(record)
+    }
     const telemetry = bound?.telemetry ? telemetrySummary(bound.telemetry) : null
     const agentRan = hasRun(record.agents)
     const { summary } = record

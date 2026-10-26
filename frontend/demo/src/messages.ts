@@ -657,7 +657,9 @@ export const checkoutMailboxes = (
               ],
             },
             // A letter: moth asked the person, who answered, as the runner keeps a thread a
-            // letter. Those still open come from the Inbox's items (`demoLetters`).
+            // letter. Those still open come from the Inbox's items (`demoLetters`). The
+            // question is a real one's length, wider than a reply's bubble, as the Messages
+            // spec checks the reply's quote of it stays in the chat.
             {
               id: "t-demotaxask",
               between: ["moth", "you"],
@@ -671,7 +673,19 @@ export const checkoutMailboxes = (
                     "moth",
                     "you",
                     "delivered",
-                    "Should the order summary show tax before or after shipping?",
+                    [
+                      "Should the order summary show tax before or after shipping?",
+                      "",
+                      "The cart adds it after shipping today, so either way one of them changes.",
+                      "",
+                      "1. After shipping (recommended)",
+                      "",
+                      "Same as the cart, so the two totals always match.",
+                      "",
+                      "2. Before shipping",
+                      "",
+                      "Tax on the items alone, and change the cart to match.",
+                    ].join("\n"),
                   ),
                   inbox: "ask",
                   inboxState: "answered",

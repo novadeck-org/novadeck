@@ -3979,6 +3979,17 @@ describe("the loop hold", () => {
   }
   const thread = (messaging: Messaging) => messaging.list("A", "moth").threads[0]!
 
+  it("sends a notice though only a message held for the person's release waits", () => {
+    const { messaging, rounds, prompt, claude } = setup()
+    rounds(8, "B")
+    const notice = "Novadeck: automatic notice, not from the user: go on"
+    // Queued messages for moth's agent still wait, and wake it as a notice would.
+    expect(messaging.notice("A", notice)).toBe(false)
+    const answer = prompt("A", claude)
+    messaging.acknowledge("A", answer.leaseId!)
+    expect(messaging.notice("A", notice)).toBe(true)
+  })
+
   it("never holds a pair that works between messages", () => {
     const { messaging, rounds, working } = setup()
     working.set("B", true)
@@ -4041,6 +4052,64 @@ describe("the loop hold", () => {
     // It takes six more.
     expect(rounds(5).every((each) => sent(each).state === "queued")).toBe(true)
     expect(rounds(1).map(sent)[0]).toMatchObject({ state: "held" })
+  })
+
+  it("delivers Novadeck's own notice to a session as a message from novadeck, held while paused", () => {
+    const { messaging, records, prompt, claude } = setup()
+    expect(
+      messaging.notice("nowhere", "Novadeck: automatic notice, not from the user: go on"),
+    ).toBe(false)
+    messaging.pause(true)
+    expect(messaging.notice("A", "Novadeck: automatic notice, not from the user: go on")).toBe(true)
+    expect(records.messages()).toMatchObject([{ from: { handle: "novadeck" }, state: "held" }])
+    // At most one waits, and none while any message does.
+    expect(messaging.notice("A", "Novadeck: automatic notice, not from the user: again")).toBe(
+      false,
+    )
+    // It is no peer's conversation: no listing shows it.
+    expect(messaging.list("A", "moth").threads).toEqual([])
+    messaging.pause(false)
+    const answer = prompt("A", claude)
+    expect(answer.stdout).toContain('from=\\"novadeck\\"')
+    expect(answer.stdout).toContain("go on")
+    expect(answer.stdout).toContain("automatic notice from Novadeck itself")
+    expect(answer.stdout).not.toContain("Reply with the send tool")
+    messaging.acknowledge("A", answer.leaseId!)
+    expect(records.messages().map(({ state }) => state)).toContain("delivered")
+  })
+
+  it("counts no notice as a message a peer's close loses, nor as a wait", () => {
+    const { messaging, send } = setup()
+    expect(messaging.notice("A", "Novadeck: automatic notice, not from the user: go on")).toBe(true)
+    expect(messaging.waitingFor("A", "B")).toBe(0)
+    expect(messaging.waitedMs("A")).toBeNull()
+    sent(send("B", "moth", "real"))
+    expect(messaging.waitingFor("A", "A")).toBe(1)
+  })
+
+  it("drops a notice whose session ended, never reviving it when that session roots again", () => {
+    const { messaging, records, follow, claude } = setup()
+    expect(messaging.notice("A", "Novadeck: automatic notice, not from the user: go on")).toBe(true)
+    follow("A", null)
+    expect(records.messages()).toEqual([])
+    follow("A", claude)
+    expect(records.messages()).toEqual([])
+  })
+
+  it("addresses Novadeck's notice, where no session is bound yet, to the agent whose prompt shows", () => {
+    const records = memoryMailbox()
+    const messaging = new Messaging({ records, sweepMs: 0, exists: () => true })
+    messaging.register("B", here, "fox", null)
+    const notice = "Novadeck: automatic notice, not from the user: go on"
+    // Nothing shows there yet, nor is any agent expected.
+    expect(messaging.notice("B", notice)).toBe(false)
+    messaging.shown("B", "codex", "01a0f932")
+    expect(messaging.notice("B", notice)).toBe(true)
+    expect(records.messages()).toMatchObject([
+      { from: { handle: "novadeck" }, to: { agent: "codex", sessionId: null }, state: "queued" },
+    ])
+    expect(messaging.ringable("B")).toBe(true)
+    messaging.close()
   })
 
   it("keeps ten messages waiting held for a pair and refuses the next, spending no hop", () => {

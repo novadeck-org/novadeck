@@ -49,7 +49,7 @@ describe("inboxBadge", () => {
 
   it("counts what waits, and no update, and says so in the bell's name", () => {
     expect(inboxBadge([entry(finished), entry(held, 1), entry(held, 2)])).toEqual({
-      text: "2",
+      count: 2,
       label: "Inbox, 2 waiting",
       status: "attention",
     })
@@ -63,14 +63,14 @@ describe("inboxBadge", () => {
   it("counts a feedback draft, as needing attention", () => {
     const draft: InboxContent = { kind: "feedback", draft: { kind: "bug", text: "It broke." } }
     expect(inboxBadge([entry(draft, 0, false)])).toEqual({
-      text: "1",
+      count: 1,
       label: "Inbox, 1 waiting",
       status: "attention",
     })
   })
 
-  it("caps the printed count at 9+ but keeps the full count in the name", () => {
+  it("counts past nine", () => {
     const list = Array.from({ length: 12 }, (_, index) => entry(held, index))
-    expect(inboxBadge(list)).toMatchObject({ text: "9+", label: "Inbox, 12 waiting" })
+    expect(inboxBadge(list)).toMatchObject({ count: 12, label: "Inbox, 12 waiting" })
   })
 })
