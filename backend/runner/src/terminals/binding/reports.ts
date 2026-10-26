@@ -18,6 +18,7 @@ import { sameToken } from "../callers.js"
 import { promptIn } from "../commands.js"
 import type { Companion } from "../companion.js"
 import { failed } from "../failures.js"
+import { tellInterrupted } from "../interrupted.js"
 import type { Murmur } from "../murmur.js"
 import { atPrompt, fired, noticesAt, sessionBegan } from "../nudges.js"
 import { peerOf, type TerminalPeers } from "../peers.js"
@@ -418,8 +419,16 @@ export class Reports {
       this.host.typing().settleBox(record)
     }
     // A new root session has yet to hear of the bar beside its terminal.
-    if (changes.some((change) => change.type === "new"))
+    if (changes.some((change) => change.type === "new")) {
       record.nudges = sessionBegan(record.nudges, Date.now())
+      if (record.root)
+        tellInterrupted(
+          record,
+          record.root.agent,
+          { sessionId: record.root.sessionId },
+          this.host.messaging(),
+        )
+    }
     return changes
   }
 

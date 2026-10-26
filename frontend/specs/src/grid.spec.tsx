@@ -231,6 +231,102 @@ describe("Grid view", () => {
     })
   })
 
+  context("when the wheel turns over a window", () => {
+    afterEach(async () => {
+      await page.viewport(1440, 900)
+    })
+
+    const stage = (): HTMLElement => gridView().element().querySelector(".grid-stage")!
+
+    /** Counts the wheels that reach what the terminal draws in its window. */
+    const wheelsInside = (name: string): { count: number } => {
+      const reached = { count: 0 }
+      terminal(name)
+        .element()
+        .querySelector("[data-terminal-content]")!
+        .addEventListener("wheel", () => reached.count++)
+      return reached
+    }
+
+    it("scrolls the grid, not the window, while another window is selected", async () => {
+      await page.viewport(1440, 560)
+      await openGrid()
+      await clickInto("Dev server")
+      const reached = wheelsInside("Tests")
+
+      await userEvent.wheel(terminal("Tests"), { delta: { y: 200 } })
+
+      await expect.poll(() => stage().scrollTop).toBeGreaterThan(0)
+      expect(reached.count).toBe(0)
+    })
+
+    it("scrolls the grid while the window is selected but the focus is elsewhere", async () => {
+      await page.viewport(1440, 560)
+      await openGrid()
+      await clickInto("Tests")
+      await focusStage()
+      await expectSelected("Tests")
+      const reached = wheelsInside("Tests")
+
+      await userEvent.wheel(terminal("Tests"), { delta: { y: 200 } })
+
+      await expect.poll(() => stage().scrollTop).toBeGreaterThan(0)
+      expect(reached.count).toBe(0)
+    })
+
+    /** Lays `element` over what a window shows, where the wheel turns. */
+    const cover = (name: string, element: HTMLElement): HTMLElement => {
+      element.style.cssText += "; position: absolute; inset: 0; z-index: 50"
+      terminal(name).element().querySelector("[data-terminal-content]")!.append(element)
+      return element
+    }
+
+    it("scrolls the grid over a scroller in the window that keeps its scroll to itself", async () => {
+      await page.viewport(1440, 560)
+      await openGrid()
+      await clickInto("Dev server")
+      const scroller = document.createElement("div")
+      scroller.style.cssText = "overflow-y: auto; overscroll-behavior: contain"
+      scroller.innerHTML = '<div style="height: 2000px"></div>'
+      cover("Tests", scroller)
+      // At its foot, where it can scroll no further down and lets nothing past it.
+      scroller.scrollTop = scroller.scrollHeight
+      const foot = scroller.scrollTop
+      expect(foot).toBeGreaterThan(0)
+
+      await userEvent.wheel(terminal("Tests"), { delta: { y: 200 } })
+
+      await expect.poll(() => stage().scrollTop).toBeGreaterThan(0)
+      expect(scroller.scrollTop).toBe(foot)
+    })
+
+    it("scrolls the grid over a page the window shows in its own frame", async () => {
+      await page.viewport(1440, 560)
+      await openGrid()
+      await clickInto("Dev server")
+      const frame = document.createElement("iframe")
+      frame.srcdoc = '<div style="height: 2000px"></div>'
+      cover("Tests", frame)
+      await expect.poll(() => frame.contentDocument?.body?.scrollHeight ?? 0).toBeGreaterThan(1000)
+
+      await userEvent.wheel(terminal("Tests"), { delta: { y: 200 } })
+
+      await expect.poll(() => stage().scrollTop).toBeGreaterThan(0)
+      expect(frame.contentWindow!.scrollY).toBe(0)
+    })
+
+    it("hands the wheel to the window that is selected and holds the focus", async () => {
+      await page.viewport(1440, 560)
+      await openGrid()
+      await clickInto("Tests")
+      const reached = wheelsInside("Tests")
+
+      await userEvent.wheel(terminal("Tests"), { delta: { y: 200 } })
+
+      await expect.poll(() => reached.count).toBeGreaterThan(0)
+    })
+  })
+
   context("when creating a terminal from the background", () => {
     it("offers Terminal and creates one and focuses its input", async () => {
       await openGrid()

@@ -236,6 +236,24 @@ export const followNeeds = (
   }
 }
 
+// Counts each new item that needs the person in `ui`'s `bellRings`, after the grace the toast
+// and the OS ping wait (see `followNeeds`), so the Inbox's dot rings for it. Unlike them it
+// rings whatever the person's focus, view or notification settings: it is the app's own quiet
+// mark, there while they look. Returns the stop.
+export const watchBellRings = (
+  inbox: Pick<Inbox, "state">,
+  ui: UiStore,
+  { graceMs = needGraceMs }: { graceMs?: number } = {},
+): (() => void) =>
+  followNeeds(inbox, {
+    graceMs,
+    ring: () => {
+      ui.update((state) => ({ ...state, bellRings: state.bellRings + 1 }))
+      return true
+    },
+    leave: () => {},
+  })
+
 // Follows the Inbox for the person who isn't looking at it. A new item that needs them
 // pings once (see `followNeeds`), only if the page still hasn't their focus and the person
 // wants them (`notifyNeeds`); an item that pinged and then leaves the Inbox takes its

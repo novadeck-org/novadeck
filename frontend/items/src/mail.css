@@ -344,11 +344,14 @@
   flex-shrink: 0;
   width: 22px;
 }
+/* On the right it's as wide as its bubble, which a quote's one unwrapped line would make the
+   whole question's width, so it's held to its row. */
 .mail-bubble-col {
   display: flex;
   flex-direction: column;
   gap: 2px;
   min-width: 0;
+  max-width: 100%;
 }
 .mail-bubble-row[data-side="out"] .mail-bubble-col {
   align-items: flex-end;

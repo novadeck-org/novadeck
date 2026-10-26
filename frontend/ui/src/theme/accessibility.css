@@ -44,6 +44,12 @@
     outline: 1px solid Highlight;
     outline-offset: -1px;
   }
+  /* The Inbox's dot (bell-dot.css), whose fill a forced background would erase: in the
+     highlight, as what needs the person. */
+  .bell-dot {
+    forced-color-adjust: none;
+    color: Highlight;
+  }
   /* The what's-new card's tape (region.css): with its tint gone, an edge still shows where
      it is, whole, so not torn. */
   .whats-new-tape {

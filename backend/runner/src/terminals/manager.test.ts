@@ -2071,6 +2071,47 @@ describe("saving a terminal that was closed", () => {
     }
   })
 
+  it("keeps what a running turn was doing through the runner's stop, whatever the killed shell reports", async ({
+    terminals,
+  }) => {
+    const { store, sessionId } = await stored()
+    try {
+      const manager = terminals.manager({ ...ptyOptions, records: store })
+      const { id } = await manager.create(
+        { id: randomUUID(), sessionId, cwd, cols: 80, rows: 24 },
+        "creator",
+      )
+      const inside = manager as unknown as {
+        records: Map<string, { agents: object; bound: object | null }>
+        bindings: { publishAgent: (record: unknown, moved: boolean) => void }
+      }
+      const record = inside.records.get(id)!
+      const binding = { agent: "claude", sessionId: "s1", instance: "1" }
+      record.agents = { claude: { sessionId: "s1", seq: 1 } }
+      record.bound = { binding, activity: fresh(0), telemetry: null }
+      inside.bindings.publishAgent(record, false)
+      // A turn starts: saved at once, not on the next tick.
+      record.bound = { binding, activity: { ...fresh(0), state: "working" }, telemetry: null }
+      inside.bindings.publishAgent(record, false)
+      expect(store.terminal(id)?.agents).toEqual({
+        claude: { sessionId: "s1", seq: 1, turn: "running" },
+      })
+      // The stop kills the shell: its agent is gone, and the turn with it, but only after
+      // the last save, which the stop makes while the shell still runs.
+      await manager.shutdown()
+      // Whatever the dying shell's agent reports after that, a turn that reads idle then,
+      // is no longer saved over it.
+      record.bound = { binding, activity: fresh(0), telemetry: null }
+      inside.bindings.publishAgent(record, false)
+      expect(record.agents).toEqual({ claude: { sessionId: "s1", seq: 1 } })
+      expect(store.terminal(id)?.agents).toEqual({
+        claude: { sessionId: "s1", seq: 1, turn: "running" },
+      })
+    } finally {
+      store.close()
+    }
+  })
+
   it("forgets one closed as the runner stops, before its shell has ended", async ({
     terminals,
   }) => {

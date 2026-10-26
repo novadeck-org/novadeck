@@ -18,6 +18,10 @@
 .sidebar-panel-count {
   letter-spacing: normal;
 }
+/* A count with nothing to say, such as the Inbox's while nothing waits, takes no room. */
+.sidebar-panel-count:empty {
+  display: none;
+}
 
 .button.sidebar-create {
   --_border-color: var(--sidebar-create-border-color, var(--color-line));

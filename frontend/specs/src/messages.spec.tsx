@@ -160,6 +160,14 @@ describe("A terminal's messages", () => {
           () => bubbles(chat).find((each) => each.getAttribute("data-side") === "out")?.textContent,
         )
         .toMatch(/Should the order summary show tax.*After shipping, same as the cart\./)
+      // However long the question, its quote stays in the reply's bubble, and the reply in the
+      // chat, so the answer is on screen.
+      const reply = bubbles(chat)
+        .find((each) => each.getAttribute("data-side") === "out")!
+        .querySelector(".mail-bubble")!
+      const bounds = chat.element().getBoundingClientRect()
+      expect(reply.getBoundingClientRect().left).toBeGreaterThanOrEqual(bounds.left)
+      expect(reply.getBoundingClientRect().right).toBeLessThanOrEqual(bounds.right)
       await chat.getByRole("button", { name: "Answer: Where should the empty cart link?" }).click()
       await expect
         .element(page.getByRole("heading", { name: "Where should the empty cart link?" }))

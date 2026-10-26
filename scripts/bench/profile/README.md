@@ -113,7 +113,7 @@ trace or Electron shows software rendering.
   as its default of 14 is 16 less two. The run **fails** should a screen hold a lost context,
   or an addon be told one is lost, in any sample or phase: so a run with 20 or 40 terminals
   and `--contexts 40` that finishes shows no context was lost past 16. Without the flag the
-  app raises the limit to 64 itself (the pool takes 62), and the page learns a limit given
+  app raises the limit to 256 itself (the pool takes 254), and the page learns a limit given
   by the flag the same way, so the patch only restates it. A page of the browser build keeps
   14, and its screens past that draw with the DOM renderer.
 

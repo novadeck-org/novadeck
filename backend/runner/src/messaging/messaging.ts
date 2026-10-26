@@ -58,6 +58,8 @@ import {
   undelivered,
   waiting,
   markLength,
+  isNotice,
+  novadeckSender,
   newMark,
   wrap,
   type Message,
@@ -482,7 +484,9 @@ export class Messaging {
   /** How long the oldest message waiting for the terminal has waited, in milliseconds; null for none. */
   waitedMs(terminalId: string): number | null {
     const [wait] = longWaits(
-      [...this.messages.values()].filter((message) => message.to.terminalId === terminalId),
+      [...this.messages.values()].filter(
+        (message) => message.to.terminalId === terminalId && !isNotice(message),
+      ),
       this.now(),
     )
     return wait ? this.now() - wait.oldestAt : null
@@ -650,6 +654,65 @@ export class Messaging {
     this.messages.set(message.id, message)
     this.responses.set(askId, message.id)
     this.changed(terminalId)
+  }
+
+  /**
+   * Queues an automatic notice from Novadeck itself for the terminal's root session, which
+   * its agent gets as any message, waking it when idle (the doorbell). It belongs to no
+   * thread, so no loop or hold guards it, and no sender is told of its fate. Where no
+   * session is bound yet it is addressed as any message is, to the agent whose prompt
+   * shows (or is expected) there, whose first session to bind takes it; false where
+   * there is no such agent. It is no peer's conversation: listings leave it out. None is
+   * sent while a message that will be delivered to that agent soon already waits, queued
+   * or leased and addressed to it (`soon`), whose delivery wakes it as well and stands in
+   * for it, which also keeps at most one notice waiting. A message held for the person's
+   * release, or for another session, does not.
+   */
+  notice(terminalId: string, text: string): boolean {
+    const live = this.live.get(terminalId)
+    if (!live || this.closed) return false
+    const agent = live.root?.agent ?? live.shown?.agent ?? live.expecting
+    if (!agent) return false
+    for (const message of this.messages.values()) if (this.soon(live, message)) return false
+    const id = this.freshMessageId()
+    this.put({
+      id,
+      projectId: live.projectId,
+      thread: `t-notice-${id}`,
+      hop: 1,
+      from: novadeckSender,
+      to: {
+        terminalId,
+        handle: live.handle,
+        agent,
+        sessionId: live.root?.sessionId ?? null,
+      },
+      text: cleanText(text),
+      sentAt: this.now(),
+      state: this.paused ? "held" : "queued",
+      deliveredAt: null,
+      notified: true,
+      stopped: false,
+      fromLead: false,
+      toLead: false,
+    })
+    return true
+  }
+
+  /**
+   * Whether a message will be delivered to the agent at the terminal soon: queued or leased,
+   * addressed to its root session or, where none is bound, to the agent about to bind. Not
+   * one held for the person's release, gone, or for another session; one held only while
+   * messaging is paused arrives once it is resumed.
+   */
+  private soon(live: Live, message: Message): boolean {
+    if (message.to.terminalId !== live.terminalId) return false
+    if (!undelivered(message) || this.holdOf(message) === "release") return false
+    if (live.root) return this.addressed(message, live.root)
+    if (this.awaiting(live, message)) return true
+    return (
+      message.to.sessionId === null && message.to.agent === (live.shown?.agent ?? live.expecting)
+    )
   }
 
   /** The reply for one Inbox ask, used to retain pending replies with their question. */
@@ -1314,6 +1377,7 @@ export class Messaging {
       (message) =>
         message.to.terminalId === terminalId &&
         message.from.terminalId !== except &&
+        !isNotice(message) &&
         undelivered(message),
     ).length
   }
@@ -1695,7 +1759,11 @@ export class Messaging {
   list(terminalId: string, handle: string): TerminalMessages {
     const live = this.live.get(terminalId)
     const mine = [...this.messages.values()]
-      .filter(({ from, to }) => from.terminalId === terminalId || to.terminalId === terminalId)
+      .filter(
+        (message) =>
+          !isNotice(message) &&
+          (message.from.terminalId === terminalId || message.to.terminalId === terminalId),
+      )
       .toSorted((a, b) => a.sentAt - b.sentAt)
     const byThread = new Map<string, Message[]>()
     for (const message of mine)
@@ -2017,6 +2085,8 @@ export class Messaging {
   /** The message can't be delivered now, for `reason`; it waits again if its session comes back. */
   private gone(message: Message, reason: string): void {
     this.noteGone(message, reason)
+    // Novadeck's notice for a session that cannot take it is dropped, never revived later.
+    if (isNotice(message)) return this.discard(message)
     const response =
       message.response && message.state !== "gone" && message.deliveredAt === null
         ? { ...message.response, goneAt: this.now() }
@@ -2309,6 +2379,16 @@ export class Messaging {
     let id = freshId("t")
     while (this.threads.has(id)) id = freshId("t")
     return id
+  }
+
+  /** Forgets a message wholly, as a notice that went gone is. */
+  private discard(message: Message): void {
+    if (this.closed) return
+    this.messages.delete(message.id)
+    this.holdsTold.delete(message.id)
+    this.queuedSince.delete(message.id)
+    this.write(() => this.records.removeMessages([message.id]))
+    this.changed(message.to.terminalId)
   }
 
   private put(message: Message): void {
