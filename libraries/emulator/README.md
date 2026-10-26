@@ -106,6 +106,15 @@ release fixes what it fixes.
   unless the DOM renderer rounds the same way. `src/cell.test.ts` pins it in each bundle, and
   terminal-views' `src/grid.spec.ts` checks both renderers fit the same columns and rows in a real
   browser at ratios 1, 1.25, 1.5 and 2.
+- `@xterm/xterm` 6.0.0, the same two bundles: `WriteBuffer._innerWrite` catches a chunk whose
+  parsing throws, as one does when a buffer row the cursor or renderer expects is missing. It throws
+  the error again on its own (`queueMicrotask`, as xterm does for an async handler's), calls that
+  chunk's callback with it, and goes on with the next chunk. Unpatched, the throw left the chunk
+  queued and its callback uncalled, and as the queue never emptied no write was parsed again: a
+  screen waiting on one stayed on "Loading output…" for good. `writeTo` (`src/write.ts`) rejects
+  with the error, and the terminal library's view then draws the host's screen afresh, as the parser
+  may be left mid-sequence. Upstream has the same loop; drop the patch on an upgrade that catches
+  there. `src/write.test.ts` pins it in each bundle.
 - `@xterm/addon-webgl` 0.19.0: `WebglRenderer` registers its cursor-blink manager with the renderer
   (`this._register(new be)` in `lib/addon-webgl.mjs`, `this._register(new m.MutableDisposable)` in
   `lib/addon-webgl.js`) in place of leaving it undisposed. The manager exists once a program turns

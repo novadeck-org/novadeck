@@ -197,6 +197,86 @@ describe("following a terminal", () => {
       followed.stop()
     })
   })
+
+  context("when the screen fails to draw", () => {
+    // A screen whose writes of `failing` reject, as the emulator's do once its buffer is in
+    // doubt, recording what is drawn and whether a stream draws it.
+    const failingOn = (failing: string, drawn: string[]) => ({
+      ...drawing(drawn),
+      write: async (data: string) => {
+        drawn.push(data)
+        if (data === failing) throw new Error("no such row")
+      },
+      live: (live: boolean) => void drawn.push(`live:${live}`),
+    })
+
+    it("lets go of the stream and draws the host's screen afresh, its shell not lost", async () => {
+      const first = streamOf([snapshot("$ garbled")])
+      const second = streamOf([snapshot("$ fresh")])
+      const attach = attaching()
+        .mockResolvedValueOnce(first.attached)
+        .mockResolvedValue(second.attached)
+      const lost = vi.fn<(key: string, error: unknown) => void>()
+      const drawn: string[] = []
+      const followed = followTerminal(
+        optionsOf({ attach, on: { lost } }),
+        key,
+        failingOn("$ garbled", drawn),
+      )
+      await vi.waitFor(() =>
+        expect(drawn).toEqual([
+          "reset",
+          "$ garbled",
+          "live:false",
+          "reset",
+          "$ fresh",
+          "live:true",
+        ]),
+      )
+      expect(first.close).toHaveBeenCalled()
+      expect(lost).not.toHaveBeenCalled()
+      followed.stop()
+    })
+
+    it("draws afresh after output it failed to draw", async () => {
+      const first = streamOf([snapshot("$ before"), output("garbled", 2), output("after", 3)])
+      const attach = attaching()
+        .mockResolvedValueOnce(first.attached)
+        .mockResolvedValue(streamOf([snapshot("$ fresh")]).attached)
+      const drawn: string[] = []
+      const followed = followTerminal(optionsOf({ attach }), key, failingOn("garbled", drawn))
+      await vi.waitFor(() => expect(drawn.at(-1)).toBe("live:true"))
+      await vi.waitFor(() => expect(drawn.slice(-3)).toEqual(["reset", "$ fresh", "live:true"]))
+      // The output after the one it failed is not drawn over the screen in doubt.
+      expect(drawn).not.toContain("after")
+      followed.stop()
+    })
+
+    it("waits longer after each failure in a row", async () => {
+      vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout", "Date"] })
+      try {
+        const attach = attaching().mockImplementation(
+          async () => streamOf([snapshot("$ garbled")]).attached,
+        )
+        const followed = followTerminal(optionsOf({ attach }), key, failingOn("$ garbled", []))
+        await vi.advanceTimersByTimeAsync(0)
+        expect(attach).toHaveBeenCalledTimes(1)
+        // 250 ms, then 500, then 1000.
+        const waited = async (ms: number, calls: number): Promise<void> => {
+          await vi.advanceTimersByTimeAsync(ms - 1)
+          expect(attach).toHaveBeenCalledTimes(calls - 1)
+          await vi.advanceTimersByTimeAsync(1)
+          expect(attach).toHaveBeenCalledTimes(calls)
+        }
+        await waited(250, 2)
+        await waited(500, 3)
+        await waited(1000, 4)
+        followed.stop()
+      } finally {
+        vi.useRealTimers()
+      }
+    })
+  })
 })
 
 describe("following over the terminal library's stream", () => {
