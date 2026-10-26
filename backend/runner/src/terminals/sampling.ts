@@ -1,12 +1,34 @@
 import { basename } from "node:path"
 
-import type { ForegroundProcess } from "@novadeck/protocol"
+import type { AgentName, ForegroundProcess } from "@novadeck/protocol"
 import { sampleForeground } from "@novadeck/terminal/pty"
 
 import type { Record } from "./record.js"
 
 /** What sampling reads of a terminal's record, and what it keeps there. */
-export type SampledRecord = Pick<Record, "terminal" | "foreground" | "summary" | "changed">
+export type SampledRecord = Pick<
+  Record,
+  "terminal" | "foreground" | "summary" | "changed" | "bound"
+>
+
+// Whether the platform hides a terminal's foreground program, as Windows does: no sample
+// names it there.
+const foregroundHidden = (): boolean => process.platform === "win32"
+
+/**
+ * An agent's session bound the terminal. Where no sample names the foreground program,
+ * the agent is the program a fresh shell resumes, should this one be lost; the sampler
+ * says so elsewhere. Whether that changed it, which the caller saves.
+ */
+export const boundProgram = (
+  record: Pick<Record, "summary" | "changed">,
+  agent: AgentName,
+): boolean => {
+  if (!foregroundHidden() || record.summary.lastProgram === agent) return false
+  record.summary = { ...record.summary, lastProgram: agent }
+  record.changed = true
+  return true
+}
 
 export type SamplerHost<R extends SampledRecord> = {
   /** The runner is stopping: no sampling starts. */
@@ -56,9 +78,29 @@ export class Sampler<R extends SampledRecord> {
 
   /** Starts sampling foreground processes, which continues while some terminal runs. */
   start(): void {
-    if (this.sampler || this.host.stopping() || process.platform === "win32") return
+    if (this.sampler || this.host.stopping() || foregroundHidden()) return
     this.sampler = setInterval(() => this.sample(), this.pollMs)
     this.sampler.unref()
+  }
+
+  /**
+   * The shell showed its prompt. Where no sample names the foreground program, the agent
+   * `boundProgram` named is no longer the one to resume, but only once the shell has held
+   * its prompt for a sample's time, as a sample would tell. An agent ended just before its
+   * shell, as Windows ends every console program while it shuts down, has its shell show a
+   * prompt for the moment before the runner stops: that agent stays the one to resume. An
+   * agent bound again meanwhile, the shell ended or replaced, or the runner stopping keeps
+   * it too.
+   */
+  prompted(record: R): void {
+    if (!foregroundHidden() || record.summary.lastProgram === null) return
+    const shell = record.terminal.pty
+    setTimeout(() => {
+      if (this.host.stopping() || record.bound !== null || record.terminal.pty !== shell) return
+      if (record.terminal.exit !== null || record.terminal.exiting) return
+      record.summary = { ...record.summary, lastProgram: null }
+      record.changed = true
+    }, this.pollMs).unref()
   }
 
   /** Stops sampling, as the runner shuts down. */

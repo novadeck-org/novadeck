@@ -109,7 +109,7 @@ export const draftTextOf = (
 
 // The demo's feedback, with the one thing only the demo does: `failNext`, so the next note is
 // not sent, as when offline.
-export type DemoFeedback = Feedback & {
+export type DemoFeedback = Required<Feedback> & {
   readonly failNext: () => void
   // The next `ask` rejects as if no agent ran there, so the agent card shows why.
   readonly failNextAsk: () => void

@@ -23,6 +23,7 @@ import type { Murmur } from "../murmur.js"
 import { atPrompt, fired, noticesAt, sessionBegan } from "../nudges.js"
 import { peerOf, type TerminalPeers } from "../peers.js"
 import type { Record } from "../record.js"
+import { boundProgram } from "../sampling.js"
 import type { Typing } from "../typing.js"
 import { judgedFirst, workAfter } from "../work.js"
 import type { Bindings } from "./facts.js"
@@ -237,6 +238,7 @@ export class Reports {
         if (record.suspended !== null && next.binding.instance !== record.suspended)
           this.host.bindings().endLead(record)
         record.suspended = null
+        boundProgram(record, next.binding.agent)
       }
       changed = true
       if (!same) {

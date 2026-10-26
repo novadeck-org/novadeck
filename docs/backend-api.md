@@ -252,7 +252,9 @@ it across renames. A session never gives a word twice, even once its terminal cl
 once all are given, they come again numbered (`moth2`). Terminals list in the order they
 were created. `command` is what it was opened to run, and
 `lastProgram` the program it last had in its foreground, which a fresh shell resumes
-where that is an agent.
+where that is an agent. Windows doesn't tell a terminal's foreground program, so there it
+is the agent whose session last bound the terminal, until the shell has shown its prompt
+for a second (`processPollMs`), as a sample would tell elsewhere.
 
 `runner.terminals.upload(terminalId, { name, data })` saves a file pasted into a
 terminal on the runner's machine and resolves with its absolute path there, for the UI
