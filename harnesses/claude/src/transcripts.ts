@@ -33,7 +33,7 @@ const shellOutput = /^<bash-stdout>([\s\S]*)<\/bash-stdout><bash-stderr>([\s\S]*
 /**
  * The person's prompt that a `queued_command` attachment carries, and when they gave it:
  * Claude Code writes one for a prompt it takes into the running turn, as a tool's result
- * comes, rather than as a turn of its own (2.1.304; its queue logs `absorbed_mid_turn`).
+ * comes, rather than as a turn of its own (since at least 2.1.289; its queue logs `absorbed_mid_turn`).
  * Only a human origin is the person's: a background task's notice, a peer's or a
  * coordinator's message comes the same way, as do Claude Code's own (`isMeta`), and an
  * attachment that names no origin is left out with them. A prompt with an image is a list
