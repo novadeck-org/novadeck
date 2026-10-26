@@ -1,4 +1,6 @@
-import type { WindowedView } from "@novadeck/core/types"
+import type { SidebarPanel, WindowedView } from "@novadeck/core/types"
+
+import { railOrder } from "./rail-order"
 
 export const collapsedStorageKey = "novadeck.sidebar-collapsed"
 export const readSidebarCollapsed = (): boolean => {
@@ -28,6 +30,17 @@ export const readSubscriptionOrder = (): readonly string[] => {
   }
 }
 
+// The order the person left the rail's panels in.
+export const sidebarOrderStorageKey = "novadeck.sidebar-order"
+export const readSidebarOrder = (): readonly SidebarPanel[] => {
+  try {
+    const stored: unknown = JSON.parse(localStorage.getItem(sidebarOrderStorageKey) ?? "[]")
+    return railOrder(Array.isArray(stored) ? stored.filter((each) => typeof each === "string") : [])
+  } catch {
+    return railOrder([])
+  }
+}
+
 export const writeSidebarCollapsed = (collapsed: boolean): void => {
   try {
     localStorage.setItem(collapsedStorageKey, String(collapsed))
@@ -47,6 +60,14 @@ export const writeWindowedView = (view: WindowedView): void => {
 export const writeSubscriptionOrder = (order: readonly string[]): void => {
   try {
     localStorage.setItem(subscriptionOrderStorageKey, JSON.stringify(order))
+  } catch {
+    /* The order holds for this session when storage is unavailable. */
+  }
+}
+
+export const writeSidebarOrder = (order: readonly SidebarPanel[]): void => {
+  try {
+    localStorage.setItem(sidebarOrderStorageKey, JSON.stringify(order))
   } catch {
     /* The order holds for this session when storage is unavailable. */
   }
