@@ -340,21 +340,12 @@ for (const setup of setups) {
           run.model.calls.filter((call) => !call.side && asked(call, pair.second)),
         ).toHaveLength(1)
       // Each once, as its own prompt; or, where the harness steers, maybe in the turn it
-      // joined. A harness that sent both prompts in one request may record the second not
-      // as a turn of its own: Claude Code 2.1.304 did so under load, and whether our reader
-      // misses where it put it is being looked into. The model's call held it, so none is lost.
-      for (const pair of pairs) {
-        const sentTogether =
-          !setup.steers &&
-          run.model.calls.some(
-            (call) => !call.side && asked(call, pair.first) && asked(call, pair.second),
-          )
-        for (const sent of [pair.first, pair.second]) {
-          const found = users.filter((text) => (setup.steers ? text.includes(sent) : text === sent))
-          if (sentTogether && sent === pair.second) expect(found.length).toBeLessThanOrEqual(1)
-          else expect(found).toHaveLength(1)
-        }
-      }
+      // joined. A prompt Claude Code takes into a running turn is its queued command, which
+      // the transcript shows as the person's own (see harnesses/claude transcripts).
+      for (const sent of pairs.flatMap((pair) => [pair.first, pair.second]))
+        expect(
+          users.filter((text) => (setup.steers ? text.includes(sent) : text === sent)),
+        ).toHaveLength(1)
     })
 
     it("queues a prompt given mid-turn as the person's would be, and answers both", async ({
