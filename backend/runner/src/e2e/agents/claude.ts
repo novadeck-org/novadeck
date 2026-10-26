@@ -188,6 +188,8 @@ export const claude: AgentSetup = {
     }),
   },
   // Its Bash tool, running its own print mode, which its settings allow (`Bash(claude -p:*)`).
+  // A pasted image file's path becomes an image of the prompt (probed 2026-10-26, 2.1.304).
+  image: { shows: "[Image #1]" },
   shell: {
     run: (_call, command) => ({
       calls: [{ name: "Bash", input: { command, description: "Run a command" } }],

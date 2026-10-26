@@ -108,6 +108,17 @@ describe("desktop notices", () => {
       ])
     })
 
+    it("passes the theme's sound, and drops a name the host does not have", () => {
+      const { bridge, shown } = host()
+      const notices = desktopNotices({ ...bridge, notificationsSound: true } as DesktopHost)!
+      notices.show({ id: "01", title: "@moth is done", body: "", sound: "afterglow" })
+      notices.show({ id: "02", title: "@moth is done", body: "", sound: "../x" as never })
+      expect(shown).toEqual([
+        { id: "01", title: "@moth is done", body: "", sound: "afterglow" },
+        { id: "02", title: "@moth is done", body: "" },
+      ])
+    })
+
     it("claims no sound in a host that lacks it", () => {
       expect(desktopNotices(host().bridge)!.sounds).toBeUndefined()
     })

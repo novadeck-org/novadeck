@@ -1,0 +1,5 @@
+# absorbed
+user: First quick
+tools: ToolSearch [other] · select:SendMessage | Call: 1 line: select:SendMessage → empty
+user: Second quick
+assistant: Did first. Did second.

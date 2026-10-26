@@ -16,7 +16,7 @@ import {
 import { createUiStore, initialUi } from "./ui-store"
 
 // A ding that sounds nothing: the board under test is about its notices.
-const testDing = createDing({ sound: () => ({ on: false, volume: 0 }) })
+const testDing = createDing({ sound: () => ({ on: false, volume: 0, name: "felt" }) })
 
 const source: InboxItem["source"] = {
   projectId: "p",
@@ -106,6 +106,7 @@ const backgrounded = (notifyNeeds = true) => {
       notifyFinished: true,
       sound: true,
       soundVolume: 0.6,
+      soundChoice: "theme",
       ligatures: false,
       chatView: false,
     },
@@ -510,6 +511,7 @@ describe("the board of notifications", () => {
         },
         {
           on: () => on,
+          sound: () => "afterglow",
           take: (key) => {
             taken.push(key)
             return on && key !== "again"
@@ -527,7 +529,7 @@ describe("the board of notifications", () => {
       const heard: number[] = []
       let clock = 1000
       const ding = createDing({
-        sound: () => ({ on: true, volume: 0.6 }),
+        sound: () => ({ on: true, volume: 0.6, name: "felt" }),
         audio: (volume) => ({ play: () => void heard.push(volume) }),
         now: () => clock,
       })
@@ -550,6 +552,14 @@ describe("the board of notifications", () => {
       expect(rung).toEqual([])
       expect(taken).toEqual(["t", "u", "again"])
       expect(shown.map((notice) => notice.silent)).toEqual([false, false, true])
+    })
+
+    it("names the theme's sound on a notice for a host that plays it", () => {
+      expect(withDing(true, true).shown.map((notice) => notice.sound)).toEqual([
+        "afterglow",
+        "afterglow",
+        "afterglow",
+      ])
     })
 
     it("marks the notice silent when the person turned the sound off", () => {

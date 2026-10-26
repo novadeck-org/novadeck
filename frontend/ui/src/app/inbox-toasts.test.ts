@@ -11,7 +11,7 @@ import { watchInboxToasts } from "./inbox-toasts"
 import { createUiStore, initialUi, type UiState } from "./ui-store"
 
 // A ding that sounds nothing: the board under test is about its notices.
-const testDing = createDing({ sound: () => ({ on: false, volume: 0 }) })
+const testDing = createDing({ sound: () => ({ on: false, volume: 0, name: "felt" }) })
 
 const sourceOf = (terminalId: string): InboxItem["source"] => ({
   projectId: "p",
@@ -84,6 +84,7 @@ const setup = (items: InboxItem[] = [], pings = true) => {
         notifyFinished: true,
         sound: true,
         soundVolume: 0.6,
+        soundChoice: "theme",
         ligatures: false,
         chatView: false,
       },

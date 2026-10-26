@@ -182,6 +182,16 @@ export const fixtures: readonly Fixture[] = [
     extract: () => scenarioLists("claude", "transcript.probe.json"),
   },
   {
+    golden: "claude/queued",
+    harness: "claude",
+    agent: "Claude",
+    transcripts: claude,
+    tools: true,
+    count: 1,
+    skipped: [],
+    extract: () => scenarioLists("claude", "queued.probe.json"),
+  },
+  {
     golden: "claude/shell",
     harness: "claude",
     agent: "Claude",

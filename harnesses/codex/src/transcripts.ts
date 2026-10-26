@@ -16,6 +16,26 @@ const context =
 const shell =
   /^\s*<user_shell_command>\n<command>\n([\s\S]*?)\n<\/command>\n<result>\nExit code: (-?\d+)\nDuration: [^\n]*\nOutput:\n([\s\S]*?)\n?<\/result>\n<\/user_shell_command>\s*$/
 
+// The tags Codex writes around an image the person gave (0.163), naming its file: the
+// prompt's own text holds the image's place (`[Image #1]`), so they stay out.
+const imageTag = /^<image name=[^\n]*>$|^<\/image>$/
+
+// A message's parts without the tags around its images.
+const withoutImageTags = (content: unknown): unknown => {
+  if (!Array.isArray(content)) return content
+  const parts = content as ({ type?: unknown; text?: unknown } | null)[]
+  const image = (index: number) => parts[index]?.type === "input_image"
+  return parts.filter(
+    (part, index) =>
+      !(
+        part?.type === "input_text" &&
+        typeof part.text === "string" &&
+        imageTag.test(part.text) &&
+        (image(index - 1) || image(index + 1))
+      ),
+  )
+}
+
 // How many days after its parent's a subagent's rollout may start: Codex files each
 // rollout under the day it starts, and a session can outlast midnight.
 const days = 7
@@ -81,7 +101,7 @@ export const transcripts: NonNullable<Harness["transcripts"]> = {
       case "message": {
         const { role } = payload
         if (role !== "user" && role !== "assistant") return []
-        const text = joined(payload.content, ["input_text", "output_text"])
+        const text = joined(withoutImageTags(payload.content), ["input_text", "output_text"])
         const ran = role === "user" ? shell.exec(text) : null
         if (ran) {
           const [, command, code, printed] = ran as unknown as [string, string, string, string]
