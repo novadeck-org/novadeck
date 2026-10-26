@@ -14,6 +14,7 @@ import {
   release,
   settle,
   stepFrom,
+  updatesStart,
   visible,
 } from "./inbox-state"
 
@@ -251,6 +252,25 @@ describe("What the rail counts", () => {
         "f",
         "u",
       ])
+    })
+  })
+})
+
+describe("The line above the updates", () => {
+  it("goes on the row after the last that asks", () => {
+    expect(updatesStart([true, true, false, false])).toBe(2)
+  })
+
+  it("goes nowhere when nothing asks, or nothing follows what asks", () => {
+    expect(updatesStart([false, false])).toBe(-1)
+    expect(updatesStart([true, true])).toBe(-1)
+    expect(updatesStart([])).toBe(-1)
+  })
+
+  context("while a sheet holds the order and a row above has stopped asking", () => {
+    it("still sits under the last row that asks", () => {
+      expect(updatesStart([false, true, false])).toBe(2)
+      expect(updatesStart([true, false, true, false])).toBe(3)
     })
   })
 })

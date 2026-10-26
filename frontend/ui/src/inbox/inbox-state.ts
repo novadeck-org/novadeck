@@ -126,6 +126,15 @@ export const informing = (item: InboxItem): boolean =>
 // only informs.
 export const needs = (item: InboxItem): boolean => inboxType(item) !== "update" && !informing(item)
 
+// Which row the line above the updates goes on, from whether each row asks, in the list's
+// order: the one after the last that asks, or -1 where none asks or nothing follows. Updates
+// rank last, but while a sheet is open the order stays as it opened, so a row that has since
+// stopped asking keeps its place above the line.
+export const updatesStart = (asks: readonly boolean[]): number => {
+  const last = asks.lastIndexOf(true)
+  return last >= 0 && last < asks.length - 1 ? last + 1 : -1
+}
+
 // What the rail's badge counts: everything that asks something of the person.
 export const needing = (items: readonly InboxItem[]): InboxItem[] => items.filter(needs)
 

@@ -50,6 +50,13 @@
     forced-color-adjust: none;
     color: Highlight;
   }
+  /* The Inbox rows' unread dot and the line above the updates (inbox.css), whose fills a
+     forced background would erase: in the text's colour. */
+  .inbox-row-unread,
+  .inbox-row[data-updates-start="true"]::after {
+    forced-color-adjust: none;
+    background-color: CanvasText;
+  }
   /* The what's-new card's tape (region.css): with its tint gone, an edge still shows where
      it is, whole, so not torn. */
   .whats-new-tape {
