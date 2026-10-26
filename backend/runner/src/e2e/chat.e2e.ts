@@ -12,7 +12,7 @@ import { occurrences, type DeckTerminal } from "./deck.js"
 import { describe, e2e, expect, gated, supported } from "./fixture.js"
 import { losesAstral } from "./known-gaps.js"
 import { asked, gate, latest, type Call } from "./model/script.js"
-import { lacking, own, replies, start, through, turn } from "./scenarios.js"
+import { lacking, nestedRuns, own, replies, start, through, turn } from "./scenarios.js"
 
 // A 1x1 PNG, for a prompt with an image.
 const picture = Buffer.from(
@@ -402,7 +402,7 @@ for (const setup of setups) {
         async ({ e2e: run }) => {
           const { shell } = setup
           const held = gate()
-          const nestedAsk = "Say the nested word"
+          const nestedAsk = nestedRuns.whileQueued
           // The nested run's own call: it is asked nothing else.
           const nested = (call: Call) =>
             !call.side &&
@@ -439,6 +439,10 @@ for (const setup of setups) {
             const path = join(run.sandbox.project, "picture.png")
             writeFileSync(path, picture)
             t1.press(`${given[0]} `)
+            // Codex on Windows reads keys that come fast as one paste, flushed once they
+            // stop for 60 ms (paste_burst.rs, 0.163): the path pasted right after the words
+            // would join them as one paste, words and not a path, so the words land first.
+            await t1.until(given[0]!)
             await t1.confirm(setup.image!.shows, async () => t1.press(`\x1b[200~${path}\x1b[201~`))
           } else for (const prompt of given) await t1.prompt(prompt)
           // Every prompt waits in the harness's queue, shown on its screen, before the tool ends.
