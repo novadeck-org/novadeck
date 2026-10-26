@@ -55,6 +55,16 @@ const permission = (id: string, at: number): InboxItem => ({
   },
 })
 
+const told = (id: string, at: number): InboxItem => ({
+  id,
+  source,
+  at,
+  stopped: false,
+  seen: false,
+  kind: "update",
+  update: { type: "told", subject: id, body: "" },
+})
+
 // An Inbox whose items the test changes, with the list, the held pill and the sheets as the
 // sidebar and the workspace wire them.
 const mount = (items: readonly InboxItem[], working = false) => {
@@ -63,7 +73,11 @@ const mount = (items: readonly InboxItem[], working = false) => {
   const inbox: Inbox = {
     state,
     answer: (id) => answered.push(id),
-    see: () => {},
+    see: (id) =>
+      state.update((current) => ({
+        ...current,
+        items: current.items.map((item) => (item.id === id ? { ...item, seen: true } : item)),
+      })),
     readAll: () => {},
   }
   const view = render(
@@ -98,7 +112,9 @@ const mount = (items: readonly InboxItem[], working = false) => {
     act(() => {
       document.dispatchEvent(new KeyboardEvent("keydown", { key, bubbles: true }))
     })
-  return { view, subjects, pill, open, arrive, press, answered }
+  const row = (id: string): HTMLElement =>
+    view.container.querySelector<HTMLElement>(`[data-inbox-item="${id}"]`)!
+  return { view, subjects, pill, open, arrive, press, answered, row }
 }
 
 describe("The Inbox's list", () => {
@@ -202,6 +218,42 @@ describe("The Inbox's list", () => {
       expect(current()).toBe("c")
       await press("k")
       expect(current()).toBe("b")
+      await nextFrame()
+      inbox.view.unmount()
+    })
+  })
+
+  context("when a row that asks has been opened", () => {
+    it("keeps it bright, and takes away only its unread mark", async () => {
+      const inbox = mount([permission("a", 1), permission("b", 2)])
+      expect(inbox.row("a").dataset).toMatchObject({ needs: "true", seen: "false" })
+
+      inbox.open("a")
+      await nextFrame()
+      inbox.press("Escape")
+      await nextFrame()
+
+      expect(inbox.row("a").dataset).toMatchObject({ needs: "true", seen: "true" })
+      inbox.view.unmount()
+    })
+  })
+
+  context("when updates follow what asks", () => {
+    it("marks the updates as asking nothing, with a line above the first", async () => {
+      const inbox = mount([told("u1", 1), permission("a", 2), told("u2", 3)])
+
+      expect(inbox.subjects()).toEqual(["Run a?", "u1", "u2"])
+      expect(inbox.row("a").dataset).toMatchObject({ needs: "true", updatesStart: "false" })
+      expect(inbox.row("u1").dataset).toMatchObject({ needs: "false", updatesStart: "true" })
+      expect(inbox.row("u2").dataset).toMatchObject({ needs: "false", updatesStart: "false" })
+      await nextFrame()
+      inbox.view.unmount()
+    })
+
+    it("draws no line when only updates wait", async () => {
+      const inbox = mount([told("u1", 1), told("u2", 2)])
+
+      expect(inbox.row("u1").dataset.updatesStart).toBe("false")
       await nextFrame()
       inbox.view.unmount()
     })
