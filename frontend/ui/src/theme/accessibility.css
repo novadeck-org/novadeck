@@ -50,9 +50,8 @@
     forced-color-adjust: none;
     color: Highlight;
   }
-  /* The Inbox rows' unread dot and the line above the updates (inbox.css), whose fills a
-     forced background would erase: in the text's colour. */
-  .inbox-row-unread,
+  /* The line above the Inbox's updates (inbox.css), whose fill a forced background would
+     erase: in the text's colour. */
   .inbox-row[data-updates-start="true"]::after {
     forced-color-adjust: none;
     background-color: CanvasText;
