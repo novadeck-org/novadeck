@@ -523,6 +523,24 @@ describe("the board of notifications", () => {
       return { shown, rung, taken }
     }
 
+    it("sounds a terminal's finish notice and its toast just after once, with the app's ding", async () => {
+      const heard: number[] = []
+      let clock = 1000
+      const ding = createDing({
+        sound: () => ({ on: true, volume: 0.6 }),
+        audio: (volume) => ({ play: () => void heard.push(volume) }),
+        now: () => clock,
+      })
+      const board = noticeBoard({ show: () => {}, onClick: () => () => {} }, ding)!
+      board.show("finish", { id: "t", title: "", body: "" })
+      // The terminal's question toasts once its grace has passed, as the toast rings it.
+      clock += 2500
+      ding.ring("t")
+      // The sound waits on the system's check.
+      await vi.advanceTimersByTimeAsync(0)
+      expect(heard).toEqual([0.6])
+    })
+
     it("sounds it by the notice's terminal", () => {
       expect(withDing(true).rung).toEqual(["t", "u", "again"])
     })

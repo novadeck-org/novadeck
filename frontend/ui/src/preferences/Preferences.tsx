@@ -108,6 +108,7 @@ export const Preferences = ({
   logs,
   uninstall,
   notices = false,
+  hostSounds = false,
   hearSound,
   chat = false,
 }: {
@@ -128,6 +129,9 @@ export const Preferences = ({
   }
   // Whether the page can show desktop notifications, as the desktop app can.
   notices?: boolean
+  // Whether the system's notifications play the sound themselves, at the system's alert
+  // volume, as on macOS.
+  hostSounds?: boolean
   // Plays the notification sound at a volume, for the person to hear what they set.
   hearSound?: (volume: number) => void
   // Whether the backend reads agents' conversations, which the chat view shows.
@@ -447,7 +451,16 @@ export const Preferences = ({
                       />
                     </div>
                     <div className={`preference-row ${settingRowClasses}`}>
-                      <span id="sound-volume-label">Volume</span>
+                      {hostSounds ? (
+                        <SettingText
+                          id="sound-volume-label"
+                          label="Volume"
+                          description="For the sound inside Novadeck. Desktop notifications play at the system's alert volume."
+                          descriptionId="sound-volume-description"
+                        />
+                      ) : (
+                        <span id="sound-volume-label">Volume</span>
+                      )}
                       <span className="flex items-center gap-3">
                         <input
                           type="range"
@@ -459,6 +472,9 @@ export const Preferences = ({
                             onChange({ ...value, soundVolume: Number(event.target.value) })
                           }
                           aria-labelledby="sound-volume-label"
+                          {...(hostSounds
+                            ? { "aria-describedby": "sound-volume-description" }
+                            : {})}
                           disabled={!value.sound}
                           className="settings-range w-32 cursor-pointer disabled:cursor-not-allowed"
                         />

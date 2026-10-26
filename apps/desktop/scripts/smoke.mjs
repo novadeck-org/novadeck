@@ -60,7 +60,10 @@ const koffi = join(resources, "app.asar.unpacked", "node_modules", "@koromix")
 const ffi = join(koffi, `koffi-win32-${process.arch}`, `win32_${process.arch}`, "koffi.node")
 if (process.platform === "win32") {
   if (!existsSync(ffi)) fail(`koffi's binary is missing: ${ffi}`)
-} else if (existsSync(koffi)) fail(`koffi is packaged outside Windows: ${koffi}`)
+} else {
+  for (const path of [koffi, join(resources, "app.asar.unpacked", "node_modules", "koffi")])
+    if (existsSync(path)) fail(`koffi is packaged outside Windows: ${path}`)
+}
 
 // The relay agents start for Novadeck's MCP server and hooks ships beside the UI, and answers the
 // handshake by itself outside Novadeck's terminals.

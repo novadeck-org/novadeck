@@ -1,6 +1,7 @@
 import type { Backend } from "@novadeck/core/port"
 
-import dingUrl from "./ding.wav"
+// Always its own file, however small: the page's content policy refuses an inlined data: URL.
+import dingUrl from "./ding.wav?no-inline"
 import type { UiStore } from "./ui-store"
 
 // Novadeck's own sound for ringing the person, the same on every system: the host's

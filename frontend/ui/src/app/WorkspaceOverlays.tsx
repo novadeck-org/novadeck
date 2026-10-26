@@ -330,6 +330,7 @@ export const WorkspaceOverlays = memo((): React.JSX.Element => {
           onClose={closeDialog}
           {...(transcripts ? { transcripts } : {})}
           notices={backend.notices !== undefined}
+          hostSounds={backend.notices?.sounds === true}
           hearSound={dingOf(backend, ui).preview}
           chat={backend.conversations !== undefined}
           {...(voice ? { voice } : {})}
