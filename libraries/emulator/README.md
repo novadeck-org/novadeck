@@ -106,15 +106,26 @@ release fixes what it fixes.
   unless the DOM renderer rounds the same way. `src/cell.test.ts` pins it in each bundle, and
   terminal-views' `src/grid.spec.ts` checks both renderers fit the same columns and rows in a real
   browser at ratios 1, 1.25, 1.5 and 2.
-- `@xterm/xterm` 6.0.0, the same two bundles: `WriteBuffer._innerWrite` catches a chunk whose
-  parsing throws, as one does when a buffer row the cursor or renderer expects is missing. It throws
+- `@xterm/xterm` 6.0.0 and `@xterm/headless` 6.0.0, in each package's two bundles:
+  `WriteBuffer._innerWrite` catches a chunk whose parsing throws, as one does when a buffer row the cursor or renderer expects is missing. It throws
   the error again on its own (`queueMicrotask`, as xterm does for an async handler's), calls that
   chunk's callback with it, and goes on with the next chunk. Unpatched, the throw left the chunk
   queued and its callback uncalled, and as the queue never emptied no write was parsed again: a
   screen waiting on one stayed on "Loading output…" for good. `writeTo` (`src/write.ts`) rejects
   with the error, and the terminal library's view then draws the host's screen afresh, as the parser
-  may be left mid-sequence. Upstream has the same loop; drop the patch on an upgrade that catches
-  there. `src/write.test.ts` pins it in each bundle.
+  may be left mid-sequence. On the runner, a headless screen stalled so stopped sending output to
+  every view; it now goes on. Upstream has the same loop; drop the patch on an upgrade that catches
+  there. `src/write.test.ts` pins it in all four bundles.
+- `@xterm/xterm` 6.0.0 and `@xterm/headless` 6.0.0, in each package's two bundles: an empty buffer
+  takes the line limit of its size (`_getCorrectBufferLength(this._rows)`) in `fillViewportRows`
+  before it fills its rows. `Buffer.resize` lowers the limit only while the buffer holds lines, and
+  the alternate one holds none until a program switches to it, so one shrunk before that (a reset
+  then the snapshot's size, or any refit to fewer rows) kept the taller limit. On the alternate
+  screen it then scrolled into scrollback it must not have, and a taller size after dropped rows the
+  cursor and the renderer still read: `print` and the WebGL renderer threw on the missing row (the
+  throw the write patch above recovers from). The runner's headless screens resize the same way.
+  Upstream keeps the same guard; make it again on 6.1 unless it is gone. `src/alt-buffer.test.ts`
+  pins it in all four bundles, and runs the steps that dropped rows in each package.
 - `@xterm/addon-webgl` 0.19.0: `WebglRenderer` registers its cursor-blink manager with the renderer
   (`this._register(new be)` in `lib/addon-webgl.mjs`, `this._register(new m.MutableDisposable)` in
   `lib/addon-webgl.js`) in place of leaving it undisposed. The manager exists once a program turns

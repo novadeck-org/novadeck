@@ -81,9 +81,9 @@ export type FollowedTerminal = {
 
 // How long a screen that failed to draw waits before it attaches again: the first, doubling
 // with each failure in a row up to the most. A failure `apart` after the one before it is the
-// first again, so one that fails on every snapshot, or on every output after one, settles at
-// a redraw every `most`.
-const redrawMs = { first: 250, most: 30_000, apart: 60_000 }
+// first again. One that fails on every snapshot, or soon after each, settles at a redraw every
+// `most`: short, as the screen shows "Loading output…" meanwhile, and a snapshot costs little.
+const redrawMs = { first: 250, most: 5_000, apart: 60_000 }
 
 // Attaches to the terminal, draws what it sends, and passes input and size back until
 // stopped. When its shell exits, or the host loses it, the view waits for a fresh
@@ -198,7 +198,7 @@ export const followTerminal = <K>(
           // eslint-disable-next-line no-await-in-loop -- Drawing paces acknowledgement.
           await apply(event)
         } catch {
-          // The screen is in doubt; the emulator logged why.
+          // The screen is in doubt; the emulator threw the error again, for the page's log.
           failed = !stopped
           break
         }

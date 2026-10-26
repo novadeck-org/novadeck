@@ -276,6 +276,64 @@ describe("following a terminal", () => {
         vi.useRealTimers()
       }
     })
+
+    it("waits the least again after a minute without failing", async () => {
+      vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout", "Date"] })
+      try {
+        const streams: ReturnType<typeof streamOf>[] = []
+        const attach = attaching().mockImplementation(async () => {
+          const stream = streamOf([snapshot("$ fine")])
+          streams.push(stream)
+          return stream.attached
+        })
+        const drawn: string[] = []
+        const followed = followTerminal(optionsOf({ attach }), key, failingOn("garbled", drawn))
+        const fail = async (): Promise<void> => {
+          streams.at(-1)!.push(output("garbled", 2))
+          await vi.advanceTimersByTimeAsync(0)
+        }
+        await vi.advanceTimersByTimeAsync(0)
+        // Two failures in a row: the second waits 500 ms.
+        await fail()
+        await vi.advanceTimersByTimeAsync(250)
+        await fail()
+        await vi.advanceTimersByTimeAsync(499)
+        expect(attach).toHaveBeenCalledTimes(2)
+        await vi.advanceTimersByTimeAsync(1)
+        expect(attach).toHaveBeenCalledTimes(3)
+        // A minute later, the next waits 250 ms again.
+        await vi.advanceTimersByTimeAsync(60_000)
+        await fail()
+        await vi.advanceTimersByTimeAsync(249)
+        expect(attach).toHaveBeenCalledTimes(3)
+        await vi.advanceTimersByTimeAsync(1)
+        expect(attach).toHaveBeenCalledTimes(4)
+        followed.stop()
+      } finally {
+        vi.useRealTimers()
+      }
+    })
+
+    it("waits no longer than 5 s", async () => {
+      vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout", "Date"] })
+      try {
+        const attach = attaching().mockImplementation(
+          async () => streamOf([snapshot("$ garbled")]).attached,
+        )
+        const followed = followTerminal(optionsOf({ attach }), key, failingOn("$ garbled", []))
+        await vi.advanceTimersByTimeAsync(0)
+        // 250 + 500 + 1000 + 2000 + 4000 ms, then 5000 each.
+        await vi.advanceTimersByTimeAsync(7_750)
+        expect(attach).toHaveBeenCalledTimes(6)
+        await vi.advanceTimersByTimeAsync(4_999)
+        expect(attach).toHaveBeenCalledTimes(6)
+        await vi.advanceTimersByTimeAsync(1)
+        expect(attach).toHaveBeenCalledTimes(7)
+        followed.stop()
+      } finally {
+        vi.useRealTimers()
+      }
+    })
   })
 })
 
