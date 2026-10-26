@@ -57,10 +57,11 @@ if (logger) {
 }
 
 // Whether the host's main process still beats: a freeze of the whole app shows here,
-// where the runner's log still lands. Its timer never keeps the runner alive.
+// where the runner's log still lands. Its timer never keeps the runner alive, and stops
+// once the host closes the runner, as the host's beats do.
 const checkMs = 500
 const host = logger && watchHost({ log: logger.for("host"), now: () => performance.now(), checkMs })
-if (host) setInterval(() => host.check(), checkMs).unref()
+const checks = host && setInterval(() => host.check(), checkMs).unref()
 
 // Runs in an Electron utility process, so PTYs live outside the main process.
 const database = argument(databaseArgumentPrefix)
@@ -120,6 +121,9 @@ process.parentPort.on(
       giveTranscriptKey(data.key === null ? null : Buffer.from(data.key, "base64"))
     if (data.type === "persist") runner.persist()
     if (data.type === "beat") host?.beat()
-    if (data.type === "close") void runner.close().finally(() => process.exit(0))
+    if (data.type === "close") {
+      clearInterval(checks)
+      void runner.close().finally(() => process.exit(0))
+    }
   },
 )

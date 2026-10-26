@@ -79,6 +79,16 @@ describe("watchHost", () => {
   })
 
   context("when the runner itself was held up", () => {
+    it("doesn't blame the host for a hold-up shorter than a stall", () => {
+      const { watch, lines, run, skip } = watched()
+      run(2_000, 1_000)
+      skip(3_000)
+      watch.check()
+      watch.beat()
+      run(20_000, 1_000)
+      expect(lines).toEqual([])
+    })
+
     it("doesn't blame the host for the beats waiting in its queue", () => {
       const { watch, lines, run, skip } = watched()
       run(2_000, 1_000)

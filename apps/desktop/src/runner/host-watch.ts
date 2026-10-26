@@ -33,7 +33,7 @@ export const watchHost = (options: {
     },
     check(): void {
       const at = now()
-      const late = lastCheck !== undefined && at - lastCheck > checkMs + stallMs
+      const late = lastCheck !== undefined && at - lastCheck > 2 * checkMs
       lastCheck = at
       if (lastBeat === undefined || stalled) return
       // The runner was the one held up, or the computer slept: the host's beats wait in
