@@ -9,7 +9,7 @@
    data-extra="draft"). A row says its type in data-type="unblock" | "ask" | "trouble" |
    "update" | "feedback", how it asks in data-urgency="urgent" | "waiting" | "quiet" | "answered", data-seen,
    data-needs while it asks something of the person and isn't answered, data-updates-start on
-   the first update after what asks, data-arrived while it has just joined the list, and, being
+   the row after the last that asks (the updates' line), data-arrived while it has just joined the list, and, being
    an item, data-selected for the one whose sheet is open. A row that asks keeps its colour
    until it is answered: opening it only takes away its dot and its weight. While a sheet is
    open the updates step back. The header's
@@ -97,7 +97,7 @@
     );
   }
 }
-/* A line above the updates, so gray has a place of its own. */
+/* A line under the last row that asks, above the updates, so gray has a place of its own. */
 .inbox-row[data-updates-start="true"] {
   margin-top: 9px;
 }
