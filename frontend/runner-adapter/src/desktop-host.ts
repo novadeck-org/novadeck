@@ -169,6 +169,38 @@ export const desktopVersion = (host: DesktopHost | undefined): Backend["version"
   }
 }
 
+// The OS as the card shows it, by the name the website takes it under.
+const osLabels = { macos: "macOS", windows: "Windows", linux: "Linux" } as const
+
+// The host's feedback, where it sends notes: what it says goes along with a note is checked,
+// and the card shows it as the demo does (`Linux x64`). A note crosses as its kind and text.
+export const desktopFeedback = (host: DesktopHost | undefined): Backend["feedback"] => {
+  const about = host?.feedbackAbout
+  const send = host?.sendFeedback
+  if (host?.feedback !== true || !about || !send) return undefined
+  return {
+    about: async () => {
+      const found: unknown = await about()
+      const { version, os, arch } = (typeof found === "object" && found !== null ? found : {}) as {
+        version?: unknown
+        os?: unknown
+        arch?: unknown
+      }
+      if (
+        typeof version !== "string" ||
+        !updateVersionPattern.test(version) ||
+        typeof os !== "string" ||
+        !Object.hasOwn(osLabels, os) ||
+        typeof arch !== "string" ||
+        !/^[a-z0-9_]{2,16}$/.test(arch)
+      )
+        throw new Error("Unknown feedback details")
+      return { version, os: `${osLabels[os as keyof typeof osLabels]} ${arch}` }
+    },
+    send: (note) => send({ kind: note.kind, text: note.text }),
+  }
+}
+
 // The host's account of its sandbox, where it gives one: what crosses the bridge is
 // checked, and a fix that is not a single plain line, which the person would paste into a
 // terminal, is dropped, leaving the notice without a command.

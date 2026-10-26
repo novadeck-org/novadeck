@@ -290,7 +290,7 @@ export const WorkspaceOverlays = memo((): React.JSX.Element => {
         }
       />
       <NameOffer />
-      {backend.feedback && <AskAgent feedback={backend.feedback} />}
+      {backend.feedback?.ask && <AskAgent feedback={backend.feedback} />}
       {switcher && (
         <TerminalSwitcher
           mode={switcher.mode}
