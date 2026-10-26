@@ -1,4 +1,4 @@
-import { inboxType, type InboxItem, type InboxState } from "@novadeck/core/inbox"
+import { inboxType, type InboxRow, type InboxState } from "@novadeck/core/inbox"
 import { NovaMark } from "@novadeck/toolkit/NovaLogo"
 import { sidebarListClasses } from "@novadeck/toolkit/SidebarItem"
 import { Tooltip } from "@novadeck/toolkit/Tooltip"
@@ -14,9 +14,9 @@ import { Text } from "./sheet-parts"
 // Whether the person answered the item, here, and it has since gone: it keeps its place in
 // the list, answered, until the sheet closes.
 const answeredIn = (
-  item: InboxItem,
+  item: InboxRow,
   state: Pick<InboxState, "answering" | "failed">,
-  ghosts: Readonly<Record<string, InboxItem>>,
+  ghosts: Readonly<Record<string, InboxRow>>,
 ): boolean => item.id in ghosts && !state.answering[item.id] && !state.failed[item.id]
 
 // One row, for triage only: the type's icon tinted by how urgent it is, the subject, how
@@ -27,7 +27,7 @@ const Row = ({
   asks,
   first,
 }: {
-  readonly item: InboxItem
+  readonly item: InboxRow
   readonly asks: boolean
   readonly first: boolean
 }): React.JSX.Element => {
@@ -47,7 +47,7 @@ const Row = ({
     <div
       role="listitem"
       className="item inbox-row"
-      data-inbox-item={item.id}
+      data-inbox-row={item.id}
       data-type={type}
       data-urgency={answered ? "answered" : toneOf(item)}
       data-seen={item.seen}

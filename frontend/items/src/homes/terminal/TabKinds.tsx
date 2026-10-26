@@ -7,17 +7,17 @@ import { slotIcon } from "./drawing"
 // dot. How many, and whether they're held or paused, the tab's description says in words.
 export const TabKinds = ({
   slots,
-  mail,
+  messagesWait,
 }: {
   slots: readonly BarSlot[]
   // Whether messages wait for the agent.
-  mail: boolean
+  messagesWait: boolean
 }): React.JSX.Element => (
   <span aria-hidden className="terminal-tab-kinds">
     {slots.map((slot) => {
       const Icon = slotIcon(slot)
       const messages = !slot.stack && slot.members[0]!.kind === "messages"
-      const fresh = messages ? mail : slot.members.some(isNew)
+      const fresh = messages ? messagesWait : slot.members.some(isNew)
       return (
         <span key={slot.key} className="terminal-tab-kind" data-state={fresh ? "new" : "seen"}>
           <Icon size={12} strokeWidth={1.75} />

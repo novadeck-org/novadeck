@@ -1,4 +1,4 @@
-import { emptyInbox, type Inbox, type InboxAnswer, type InboxItem } from "@novadeck/core/inbox"
+import { emptyInbox, type Inbox, type InboxAnswer, type InboxRow } from "@novadeck/core/inbox"
 import { createStore } from "@novadeck/core/store"
 import { nextFrame, render } from "@novadeck/test-kit/render"
 import { act, createElement } from "react"
@@ -17,7 +17,7 @@ Object.assign(globalThis, {
   },
 })
 
-const limit = (autoResume: boolean | null, resetsAt: number, minutes = 300): InboxItem => ({
+const limit = (autoResume: boolean | null, resetsAt: number, minutes = 300): InboxRow => ({
   id: "i",
   source: {
     projectId: "p",
@@ -36,7 +36,7 @@ const limit = (autoResume: boolean | null, resetsAt: number, minutes = 300): Inb
 })
 
 // The sheet of one limit item, open, and the answers it gives, and the terminals it shows.
-const mount = (item: InboxItem) => {
+const mount = (item: InboxRow) => {
   const sent: InboxAnswer[] = []
   const revealed: string[] = []
   const inbox: Inbox = {
@@ -102,7 +102,7 @@ describe("A usage limit's sheet", () => {
 
 describe("A long hold's sheet", () => {
   it("says what holds the messages and shows the terminal, answering nothing", async () => {
-    const { trouble: _, ...item } = limit(null, 0) as Extract<InboxItem, { kind: "trouble" }>
+    const { trouble: _, ...item } = limit(null, 0) as Extract<InboxRow, { kind: "trouble" }>
     const open = mount({ ...item, trouble: { type: "waits", waits: "draft", count: 2 } })
 
     expect(open.sheet()).toContain("2 messages for @moth wait behind text in its box")
@@ -120,8 +120,8 @@ describe("A long hold's sheet", () => {
 })
 
 describe("A failed turn's sheet", () => {
-  const failed = (stopped: boolean): InboxItem => ({
-    ...(limit(null, 0) as Extract<InboxItem, { kind: "trouble" }>),
+  const failed = (stopped: boolean): InboxRow => ({
+    ...(limit(null, 0) as Extract<InboxRow, { kind: "trouble" }>),
     stopped,
     trouble: { type: "failed", error: "API Error: 529", stored: true },
   })
@@ -163,8 +163,8 @@ describe("A failed turn's sheet", () => {
 })
 
 describe("A stuck agent's sheet", () => {
-  const stuck: InboxItem = {
-    ...(limit(null, 0) as Extract<InboxItem, { kind: "trouble" }>),
+  const stuck: InboxRow = {
+    ...(limit(null, 0) as Extract<InboxRow, { kind: "trouble" }>),
     trouble: {
       type: "stuck",
       summary: "Loops on the same test.",

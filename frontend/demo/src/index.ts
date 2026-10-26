@@ -1,5 +1,5 @@
 import type { Conversations } from "@novadeck/core/conversation"
-import type { InboxItem } from "@novadeck/core/inbox"
+import type { InboxRow } from "@novadeck/core/inbox"
 import type {
   AgentConnection,
   Backend,
@@ -26,8 +26,8 @@ import { createDemoEngine, type DemoEngine } from "./engine"
 import { withFeedback } from "./feedback"
 import { demoHandle } from "./handles"
 import { createDemoInbox, isDemoInbox } from "./inbox"
-import { demoInboxItems, demoLetters } from "./inbox-fixtures"
-import { checkoutMailboxes, createDemoMessages, isDemoMessages } from "./messages"
+import { demoInboxRows, demoEntries } from "./inbox-fixtures"
+import { checkoutMessages, createDemoMessages, isDemoMessages } from "./messages"
 import { createDemoMurmur, heldMurmurTiming, requestedMurmur } from "./murmur"
 import {
   createMockTerminal,
@@ -249,7 +249,7 @@ export const withMessages = (backend: Backend, now: number): Backend => {
     // Its terminals show nothing in the pane but their messages, and what the person opens
     // from the Source panel.
     companions: showcase,
-    messages: createDemoMessages(checkoutMailboxes(now, targets)),
+    messages: createDemoMessages(checkoutMessages(now, targets)),
     resetTitle: (key) => {
       const { projectId, workspaceSessionId, terminalId } = key
       const slot = terminalSlot(terminalId)
@@ -347,7 +347,7 @@ export const withConversations = (
 export const withInbox = (
   backend: Backend,
   turns: DemoTurns,
-  items: readonly InboxItem[] = [],
+  items: readonly InboxRow[] = [],
 ): Backend => {
   const { conversations, messages } = backend
   if (!conversations) throw new Error("withInbox wraps a backend withConversations made")
@@ -524,7 +524,7 @@ const plainBackend = (
           turns,
         ),
         turns,
-        demoLetters(now),
+        demoEntries(now),
       ),
       turns,
     )
@@ -539,7 +539,7 @@ const plainBackend = (
   if (variant === "plain" || variant === "welcome") return withInbox(conversing, turns)
   if (variant === "agents") return withSource(withInbox(conversing, turns), turns)
   return withSource(
-    withInbox({ ...conversing, messages: createDemoMessages([]) }, turns, demoInboxItems(now)),
+    withInbox({ ...conversing, messages: createDemoMessages([]) }, turns, demoInboxRows(now)),
     turns,
   )
 }

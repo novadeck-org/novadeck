@@ -532,7 +532,7 @@ with every safety check again at that time:
   listed only inside Novadeck's terminals like the others: an agent messages another
   terminal of its project and session by its handle, such as `@moth`, which `open_terminal` also
   answers with, and the message reaches that agent through its own hooks. The runner
-  keeps the mailbox with the workspace and lists, pauses and releases it through
+  keeps the messages with the workspace and lists, pauses and releases it through
   `messages.list`, `messages.pause` and `messages.release`. Its `agents` listing carries
   the summaries the terminals' agents gave through `summarize`. See
   [Agent messaging](agent-messaging.md).

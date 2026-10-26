@@ -1,4 +1,4 @@
-import { inboxType, type InboxItem } from "@novadeck/core/inbox"
+import { inboxType, type InboxRow } from "@novadeck/core/inbox"
 import { HandleChip } from "@novadeck/toolkit/HandleChip"
 import { Sheet } from "@novadeck/toolkit/Sheet"
 import { Tooltip } from "@novadeck/toolkit/Tooltip"
@@ -22,7 +22,7 @@ const workspace = (): HTMLElement | null =>
   document.querySelector<HTMLElement>(".workspace-main-pane")
 
 // One item's sheet: its title bar, then the page of its type.
-const SheetBody = ({ item }: { readonly item: InboxItem }): React.JSX.Element => {
+const SheetBody = ({ item }: { readonly item: InboxRow }): React.JSX.Element => {
   const { state, sent, now, phone, next, close, submit, change, reveal } = useInboxContext()
   const answered = sent[item.id]
   const failed = state.failed[item.id]

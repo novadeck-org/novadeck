@@ -109,10 +109,10 @@ export const notes: Record<string, Note> = {
   },
   "backend/runner/messaging": {
     purpose:
-      "Lets agents in one project and session message each other: mailboxes with size and rate limits, leads and peers, held threads, and delivery through each harness's hooks and the terminal doorbell.",
+      "Lets agents in one project and session message each other: messages with size and rate limits, leads and peers, held threads, and delivery through each harness's hooks and the terminal doorbell.",
     entries: [
       { file: `${runner}/messaging/messaging.ts`, text: "export type Scope" },
-      { file: `${runner}/messaging/mailbox.ts`, text: "export const maxMessageBytes" },
+      { file: `${runner}/messaging/messages.ts`, text: "export const maxMessageBytes" },
       { file: `${runner}/messaging/delivery.ts` },
     ],
     docs: ["docs/agent-messaging.md"],

@@ -2,7 +2,7 @@ import {
   emptyInbox,
   type Inbox,
   type InboxFinish,
-  type InboxItem,
+  type InboxRow,
   type InboxTurn,
   type InboxState,
 } from "@novadeck/core/inbox"
@@ -89,9 +89,9 @@ const setup = ({
   }
   const readCalls: InboxFinish[][] = []
   const inboxState = createStore<InboxState>(emptyInbox)
-  const letters = {
+  const entries = {
     ...inboxState,
-    set: (items: readonly InboxItem[]) =>
+    set: (items: readonly InboxRow[]) =>
       void inboxState.update((current) => ({ ...current, items })),
   }
   const inbox: Pick<Inbox, "turns" | "readFinishes" | "state"> = {
@@ -146,7 +146,7 @@ const setup = ({
     workspace,
     ui,
     turns,
-    letters,
+    entries,
     readCalls,
     notices,
     noticeItems,
@@ -162,7 +162,7 @@ const setup = ({
 const done = { "project/initial": { "02": "unread" } }
 
 // A done report of terminal 02, as the Inbox lists it.
-const letter = (id: string, at: number, seen = false): InboxItem => ({
+const entry = (id: string, at: number, seen = false): InboxRow => ({
   id,
   source: {
     projectId: "project",
@@ -325,11 +325,11 @@ describe("unread turns", () => {
   context("the notices", () => {
     it("are none for the reports and rows stored when it starts, nor for any after the backend lost them", () => {
       const app = setup({ rows: [row("a", 10, "failed")], pageFocused: false, notifyNeeds: false })
-      app.letters.set([letter("l1", 10)])
+      app.entries.set([entry("l1", 10)])
       const stop = app.watch()
       expect(app.notices).toEqual([])
       app.turns.set(undefined)
-      app.letters.set([letter("l1", 10), letter("l2", 20)])
+      app.entries.set([entry("l1", 10), entry("l2", 20)])
       app.turns.set([row("a", 10, "failed"), row("b", 20, "failed")])
       expect(app.notices).toEqual([])
       stop()
@@ -338,7 +338,7 @@ describe("unread turns", () => {
     it("fire for a new done report, with its subject, while the page isn't focused", () => {
       const app = setup({ rows: [], pageFocused: false })
       const stop = app.watch()
-      app.letters.set([letter("l1", 10)])
+      app.entries.set([entry("l1", 10)])
       expect(app.notices).toEqual([
         { id: "02", title: "@fox is done: Checkout", body: "Totals round per line" },
       ])
@@ -358,12 +358,12 @@ describe("unread turns", () => {
     it("are none while the page has the person's focus, or when they turned them off", () => {
       const focused = setup({ rows: [] })
       const stopFocused = focused.watch()
-      focused.letters.set([letter("l1", 10)])
+      focused.entries.set([entry("l1", 10)])
       expect(focused.notices).toEqual([])
       stopFocused()
       const off = setup({ rows: [], pageFocused: false, notifyFinished: false })
       const stopOff = off.watch()
-      off.letters.set([letter("l1", 10)])
+      off.entries.set([entry("l1", 10)])
       expect(off.notices).toEqual([])
       stopOff()
     })
@@ -371,7 +371,7 @@ describe("unread turns", () => {
     it("are none for a report from well before this started", () => {
       const app = setup({ rows: [], pageFocused: false })
       const stop = app.watch()
-      app.letters.set([letter("old", -60_000)])
+      app.entries.set([entry("old", -60_000)])
       expect(app.notices).toEqual([])
       stop()
     })
@@ -379,11 +379,11 @@ describe("unread turns", () => {
     it("are none for a report that comes back after a failed read", () => {
       const app = setup({ rows: [], pageFocused: false })
       const stop = app.watch()
-      app.letters.set([letter("l1", 10)])
+      app.entries.set([entry("l1", 10)])
       expect(app.notices).toHaveLength(1)
       app.turns.set(undefined)
       app.turns.set([])
-      app.letters.set([letter("l1", 10)])
+      app.entries.set([entry("l1", 10)])
       expect(app.notices).toHaveLength(1)
       stop()
     })
@@ -391,7 +391,7 @@ describe("unread turns", () => {
     it("are one for a terminal, its newest report's", () => {
       const app = setup({ rows: [], pageFocused: false })
       const stop = app.watch()
-      app.letters.set([letter("a", 10), letter("b", 20)])
+      app.entries.set([entry("a", 10), entry("b", 20)])
       expect(app.notices).toHaveLength(1)
       expect(app.noticeItems).toEqual(["b"])
       stop()
@@ -425,7 +425,7 @@ describe("unread turns", () => {
       })
       app.status("01", { working: true })
       const stop = app.watch()
-      app.letters.set([letter("l1", 10)])
+      app.entries.set([entry("l1", 10)])
       expect(app.notices).toEqual([])
       stop()
     })
@@ -433,7 +433,7 @@ describe("unread turns", () => {
     it("close once the terminal has no unseen report: the person views it", () => {
       const app = setup({ rows: [], pageFocused: false })
       const stop = app.watch()
-      app.letters.set([letter("l1", 10)])
+      app.entries.set([entry("l1", 10)])
       expect(app.cleared).toEqual([])
       app.select("02")
       app.focus(true)
@@ -444,10 +444,10 @@ describe("unread turns", () => {
     it("close once the report is seen elsewhere, and not before the last of two is", () => {
       const app = setup({ rows: [], pageFocused: false })
       const stop = app.watch()
-      app.letters.set([letter("a", 10), letter("b", 20)])
-      app.letters.set([letter("a", 10, true), letter("b", 20)])
+      app.entries.set([entry("a", 10), entry("b", 20)])
+      app.entries.set([entry("a", 10, true), entry("b", 20)])
       expect(app.cleared).toEqual([])
-      app.letters.set([letter("a", 10, true), letter("b", 20, true)])
+      app.entries.set([entry("a", 10, true), entry("b", 20, true)])
       expect(app.cleared).toEqual(["02"])
       stop()
     })

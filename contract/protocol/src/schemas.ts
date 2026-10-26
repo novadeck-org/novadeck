@@ -68,7 +68,7 @@ export const agentSessionId = z.string().regex(/^[A-Za-z0-9][A-Za-z0-9._-]{0,127
 // for a notification's line, and never the whole reply.
 export const replyPreviewLength = 120
 
-// Fields of an agent's last turn, shared by its summary and by a stored turn letter.
+// Fields of an agent's last turn, shared by its summary and by a stored turn entry.
 export const turnReply = z.string().min(1).max(replyPreviewLength)
 export const turnError = z.string().min(1).max(2048)
 export const turnFiles = z.array(z.string().min(1).max(1024)).max(16)
@@ -1035,7 +1035,7 @@ export const agentMessage = z.strictObject({
   state: messageState,
   held: z.enum(["paused", "release"]).nullable(),
   deliveredAt: z.number().nullable(),
-  // Only the runner creates Inbox history and responses. Ordinary agent mail has none.
+  // Only the runner creates Inbox history and responses. Ordinary agent messages have none.
   inbox: z.enum(["ask", "tell", "done", "answer"]).optional(),
   inboxState: z.enum(["open", "answered", "read", "withdrawn", "gone", "undelivered"]).optional(),
 })

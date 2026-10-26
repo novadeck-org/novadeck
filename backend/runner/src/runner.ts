@@ -140,7 +140,7 @@ const openStore = (database: string | undefined): WorkspaceStore => {
 /**
  * The runner's parts, wired together: its metadata store, the shell files it writes once,
  * the agents that install Novadeck's plugin, the terminals, which keep their records and
- * mailboxes in the store, and the items shown beside them. `createRunner` serves them; the end-to-end deck drives them
+ * messages in the store, and the items shown beside them. `createRunner` serves them; the end-to-end deck drives them
  * in process, so both run the same wiring. Internal: not exported from the package.
  */
 export const wire = (options: RunnerOptions) => {
@@ -242,9 +242,9 @@ export const wire = (options: RunnerOptions) => {
     install: (agent) => agents.install(agent),
     transcripts: store.settings().transcripts,
     projectFolder: (sessionId) => store.project(store.session(sessionId).projectId).cwd,
-    // Agents message each other within a project, and the mailbox is kept with it.
-    mailbox: store,
-    asks: store,
+    // Agents message each other within a project, and their messages are kept with it.
+    messages: store,
+    inbox: store,
     projectOf: (sessionId) => store.session(sessionId).projectId,
     items,
     // Without an engine nothing is described, so terminals have nothing to wait for.

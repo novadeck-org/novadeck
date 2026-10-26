@@ -1,10 +1,10 @@
 import { companionKeyId } from "@novadeck/core/items"
-import { mailBadge } from "@novadeck/core/messages"
+import { messageBadge } from "@novadeck/core/messages"
 import { afterEach, vi } from "vitest"
 
 import { createDemoInbox } from "./inbox"
-import { demoInboxIds, demoInboxItems, demoInboxItemsAll } from "./inbox-fixtures"
-import { checkoutMailboxes, createDemoMessages, rungMs } from "./messages"
+import { demoInboxIds, demoInboxRows, demoInboxRowsAll } from "./inbox-fixtures"
+import { checkoutMessages, createDemoMessages, rungMs } from "./messages"
 import { demoTerminalId } from "./samples"
 import { describe, expect, it } from "./test"
 
@@ -14,7 +14,7 @@ const elsewhere = { projectId: "api-service", workspaceSessionId: "initial" }
 const at = (slot: string, target = storefront) =>
   companionKeyId({ ...target, terminalId: demoTerminalId(target, Number(slot)) })
 
-const demo = () => createDemoMessages(checkoutMailboxes(1_000_000, [storefront, elsewhere]))
+const demo = () => createDemoMessages(checkoutMessages(1_000_000, [storefront, elsewhere]))
 
 describe("the demo's messages", () => {
   // Six idle messages in a row between moth and crow of the second session: a loop, held.
@@ -28,8 +28,10 @@ describe("the demo's messages", () => {
   it("show every state, a thread held for release, and an agent with none yet", () => {
     const { terminals } = looped().state.getSnapshot()
     const states = new Set(
-      Object.values(terminals).flatMap((mail) =>
-        mail.threads.flatMap((thread) => thread.messages.map((message) => message.state)),
+      Object.values(terminals).flatMap((terminalMessages) =>
+        terminalMessages.threads.flatMap((thread) =>
+          thread.messages.map((message) => message.state),
+        ),
       ),
     )
     expect([...states].toSorted()).toEqual(["delivered", "gone", "held", "leased", "queued"])
@@ -49,7 +51,7 @@ describe("the demo's messages", () => {
     const messages = demo()
     const badge = () => {
       const { terminals, paused } = messages.state.getSnapshot()
-      return mailBadge(terminals[at("04")], paused)
+      return messageBadge(terminals[at("04")], paused)
     }
     expect(badge()).toEqual({ count: 2, kind: "waiting" })
     messages.pause(true)
@@ -83,8 +85,8 @@ it("records asks, tells and accepted person replies in the demo's You threads", 
     const messages = createDemoMessages([])
     const inbox = createDemoInbox(Date.now(), undefined, messages.record)
     const history = () =>
-      Object.values(messages.state.getSnapshot().terminals).flatMap((mail) =>
-        mail.threads.flatMap((thread) => thread.messages),
+      Object.values(messages.state.getSnapshot().terminals).flatMap((terminalMessages) =>
+        terminalMessages.threads.flatMap((thread) => thread.messages),
       )
     expect(new Set(history().map((message) => message.inbox))).toEqual(
       new Set(["ask", "tell", "done"]),
@@ -114,7 +116,7 @@ it("records asks, tells and accepted person replies in the demo's You threads", 
 
 it("keeps no Inbox history of a feedback draft, nor of its answers", () => {
   const messages = createDemoMessages([])
-  const draft = demoInboxItemsAll(Date.now()).find((item) => item.id === demoInboxIds.feedback)!
+  const draft = demoInboxRowsAll(Date.now()).find((item) => item.id === demoInboxIds.feedback)!
   const before = messages.state.getSnapshot()
   messages.record(draft)
   messages.record(draft, { kind: "feedback", answer: { type: "send", text: "sent" } })
@@ -124,13 +126,13 @@ it("keeps no Inbox history of a feedback draft, nor of its answers", () => {
 
 it("keeps options, recommendations, code and action labels in separate Inbox history threads", () => {
   const messages = createDemoMessages([])
-  const samples = demoInboxItems(Date.now())
+  const samples = demoInboxRows(Date.now())
   const options = samples.find((item) => item.id === demoInboxIds.webhook)!
   const action = samples.find((item) => item.id === demoInboxIds.login)!
   messages.record(options)
   messages.record(action)
   const threads = Object.values(messages.state.getSnapshot().terminals).flatMap(
-    (mail) => mail.threads,
+    (terminalMessages) => terminalMessages.threads,
   )
   expect(threads).toHaveLength(2)
   const decision = threads.find((thread) => thread.id === `t-${options.id.replaceAll("-", "")}`)!
@@ -142,7 +144,7 @@ it("keeps options, recommendations, code and action labels in separate Inbox his
   try {
     messages.record(action, { kind: "ask", answer: { type: "done" } })
     const reply = Object.values(messages.state.getSnapshot().terminals)
-      .flatMap((mail) => mail.threads.flatMap((thread) => thread.messages))
+      .flatMap((terminalMessages) => terminalMessages.threads.flatMap((thread) => thread.messages))
       .find((message) => message.inbox === "answer")
     expect(reply?.text).toBe("I've logged in")
     vi.runAllTimers()
@@ -155,7 +157,7 @@ it("delivers the person's reply while messages between agents are paused", () =>
   vi.useFakeTimers()
   try {
     const messages = createDemoMessages([], true)
-    const ask = demoInboxItems(Date.now()).find((item) => item.id === demoInboxIds.preview)!
+    const ask = demoInboxRows(Date.now()).find((item) => item.id === demoInboxIds.preview)!
     messages.record(ask)
     messages.record(ask, { kind: "ask", answer: { type: "reply", option: null, text: "Samples" } })
     const thread = () => Object.values(messages.state.getSnapshot().terminals)[0]!.threads[0]!
@@ -174,8 +176,8 @@ it("records an ask's withdrawal and ended session without losing its text", () =
   const inbox = createDemoInbox(Date.now(), undefined, messages.record)
   inbox.resolve(demoInboxIds.preview, "withdrawn")
   inbox.resolve(demoInboxIds.login, "gone")
-  const history = Object.values(messages.state.getSnapshot().terminals).flatMap((mail) =>
-    mail.threads.flatMap((thread) => thread.messages),
+  const history = Object.values(messages.state.getSnapshot().terminals).flatMap(
+    (terminalMessages) => terminalMessages.threads.flatMap((thread) => thread.messages),
   )
   expect(history.find((message) => message.id === demoInboxIds.preview)).toMatchObject({
     inboxState: "withdrawn",
@@ -198,8 +200,8 @@ it("keeps an undelivered reply and its ask's outcome in history", () => {
       answer: { type: "reply", option: null, text: "Samples" },
     })
     vi.runAllTimers()
-    const history = Object.values(messages.state.getSnapshot().terminals).flatMap((mail) =>
-      mail.threads.flatMap((thread) => thread.messages),
+    const history = Object.values(messages.state.getSnapshot().terminals).flatMap(
+      (terminalMessages) => terminalMessages.threads.flatMap((thread) => thread.messages),
     )
     expect(history.find((message) => message.id === demoInboxIds.preview)?.inboxState).toBe(
       "undelivered",
@@ -220,8 +222,8 @@ it("marks told history read when updates are read together", () => {
   const messages = createDemoMessages([])
   const inbox = createDemoInbox(Date.now(), undefined, messages.record)
   inbox.readAll()
-  const history = Object.values(messages.state.getSnapshot().terminals).flatMap((mail) =>
-    mail.threads.flatMap((thread) => thread.messages),
+  const history = Object.values(messages.state.getSnapshot().terminals).flatMap(
+    (terminalMessages) => terminalMessages.threads.flatMap((thread) => thread.messages),
   )
   expect(history.find((message) => message.id === demoInboxIds.told)?.inboxState).toBe("read")
 })
@@ -231,7 +233,7 @@ describe("the demo's sent messages", () => {
 
   const hop = (messages: ReturnType<typeof demo>, from: string, to: string) =>
     Object.values(messages.state.getSnapshot().terminals)
-      .flatMap((mail) => mail.threads)
+      .flatMap((terminalMessages) => terminalMessages.threads)
       .flatMap((thread) => thread.messages)
       .filter((message) => message.from === from && message.to === to)
       .map((message) => message.state)
@@ -310,7 +312,7 @@ describe("the demo's sent messages", () => {
 
   const crowThread = (messages: ReturnType<typeof demo>) =>
     Object.values(messages.state.getSnapshot().terminals)
-      .flatMap((mail) => mail.threads)
+      .flatMap((terminalMessages) => terminalMessages.threads)
       .find((each) => each.id === "t-crow-moth")!
 
   it("holds the sixth idle message in a row, as a loop, until the person releases it", async () => {
@@ -365,13 +367,13 @@ describe("the demo's sent messages", () => {
     messages.send(storefront, "crow", "moth", "Thanks, looks right now.")
     const thread = () =>
       Object.values(messages.state.getSnapshot().terminals)
-        .flatMap((mail) => mail.threads)
+        .flatMap((terminalMessages) => terminalMessages.threads)
         .find((each) => each.id === "t-review")!
     expect(thread().messages.at(-1)).toMatchObject({ hop: 5, state: "queued" })
     expect(thread().hops).toBe(5)
     // No second thread opened between the pair.
     const ids = Object.values(messages.state.getSnapshot().terminals)
-      .flatMap((mail) => mail.threads)
+      .flatMap((terminalMessages) => terminalMessages.threads)
       .map((each) => each.id)
     expect(ids).not.toContain("t-crow-moth")
     await vi.advanceTimersByTimeAsync(rungMs)
@@ -389,7 +391,7 @@ describe("the demo's sent messages", () => {
     expect(delivered).not.toHaveBeenCalled()
     const all = () =>
       Object.values(messages.state.getSnapshot().terminals)
-        .flatMap((mail) => mail.threads)
+        .flatMap((terminalMessages) => terminalMessages.threads)
         .filter((thread) => thread.id === "t-crow-moth")
         .flatMap((thread) => thread.messages)
     // The runner adds nothing to the thread: the message is gone, and none is the person's.
@@ -420,7 +422,7 @@ describe("the demo's loop hold, as the runner keeps it", () => {
   ]
   const threadOf = (messages: ReturnType<typeof demo>, id: string) =>
     Object.values(messages.state.getSnapshot().terminals)
-      .flatMap((mail) => mail.threads)
+      .flatMap((terminalMessages) => terminalMessages.threads)
       .find((each) => each.id === id)!
 
   it("ends the hold at a stop, as a release does, so the next messages count afresh", async () => {

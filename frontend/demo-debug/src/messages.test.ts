@@ -1,5 +1,5 @@
 import { companionKeyId } from "@novadeck/core/items"
-import { checkoutMailboxes, createDemoMessages } from "@novadeck/demo/messages"
+import { checkoutMessages, createDemoMessages } from "@novadeck/demo/messages"
 
 import { messageGroups } from "./messages"
 import { describe, expect, it } from "./test"
@@ -14,7 +14,7 @@ describe("the debug panel's Messages group", () => {
   })
 
   it("has the selected terminal's latest peer write to it", () => {
-    const boxes = checkoutMailboxes(Date.now(), [target]).map((box) => ({
+    const boxes = checkoutMessages(Date.now(), [target]).map((box) => ({
       ...box,
       terminals: box.terminals.map((each, index) =>
         index === 0 ? { ...each, terminalId: "01" } : each,
@@ -40,7 +40,7 @@ describe("the debug panel's Messages group", () => {
   })
 
   it("has a handle given again write to the selected terminal", () => {
-    const boxes = checkoutMailboxes(Date.now(), [target]).map((box) => ({
+    const boxes = checkoutMessages(Date.now(), [target]).map((box) => ({
       ...box,
       terminals: box.terminals.map((each, index) =>
         index === 0 ? { ...each, terminalId: "01" } : each,

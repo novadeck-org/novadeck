@@ -10,8 +10,8 @@ import { harnesses } from "../../harnesses/registry.js"
 import { unreplied, withReplies } from "../../harnesses/replies.js"
 import { followRoot, rootedIn, type RootChange } from "../../harnesses/roots.js"
 import { transcriptWaitMs, typedPromptStart } from "../../harnesses/typed-prompts.js"
-import type { Asks } from "../../messaging/asks.js"
-import { byteLength, maxDeliveryBytes } from "../../messaging/mailbox.js"
+import type { Inbox } from "../../messaging/inbox.js"
+import { byteLength, maxDeliveryBytes } from "../../messaging/messages.js"
 import { leaseMargin, type Messaging, type Person } from "../../messaging/messaging.js"
 import type { HookAnswer } from "../../shell/reports.js"
 import { sameToken } from "../callers.js"
@@ -37,7 +37,7 @@ export type ReportsHost = {
   /** Every terminal the runner holds, by id. */
   readonly records: () => ReadonlyMap<string, Record>
   readonly messaging: () => Messaging
-  readonly asks: () => Asks
+  readonly inbox: () => Inbox
   readonly peers: () => TerminalPeers
   readonly murmur: () => Murmur | undefined
   readonly bindings: () => Bindings
@@ -273,7 +273,7 @@ export class Reports {
     // the hook that can still print it (see `Messaging.withdrawn`).
     const person: Person = {
       counts: ({ prompt }) => !this.byCommand(record, prompt),
-      withdraw: (before) => this.host.asks().withdrawBefore(record.summary.id, before),
+      withdraw: (before) => this.host.inbox().withdrawBefore(record.summary.id, before),
     }
     if (deadline === undefined) {
       this.host.messaging().observe(report.terminalId, told, person)
@@ -435,7 +435,7 @@ export class Reports {
     record.root = root
     if (changes.length > 0) {
       this.host.messaging().rooted(id, changes)
-      this.host.asks().rooted(id, changes)
+      this.host.inbox().rooted(id, changes)
       this.host.typing().settleBox(record)
     }
     // A new root session has yet to hear of the bar beside its terminal.

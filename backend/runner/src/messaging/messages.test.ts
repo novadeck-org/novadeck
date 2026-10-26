@@ -16,7 +16,7 @@ import {
   wrap,
   type Message,
   type Thread,
-} from "./mailbox.js"
+} from "./messages.js"
 
 const message = (fields: Partial<Message> = {}): Message => ({
   id: "m-1",
@@ -207,7 +207,7 @@ describe("a delivery", () => {
     expect(leadNote).toContain(clause)
   })
 
-  it("makes a new mark for each delivery, of eight letters and digits", () => {
+  it("makes a new mark for each delivery, of eight entries and digits", () => {
     const marks = new Set(Array.from({ length: 50 }, () => newMark()))
     expect(marks.size).toBe(50)
     for (const each of marks) expect(each).toMatch(/^[0-9A-Za-z]{8}$/)

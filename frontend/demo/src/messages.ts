@@ -1,21 +1,21 @@
-import type { AgentAsk, InboxAnswer, InboxItem } from "@novadeck/core/inbox"
+import type { AgentAsk, InboxAnswer, InboxRow } from "@novadeck/core/inbox"
 import { companionKeyId } from "@novadeck/core/items"
 import {
-  noMail,
+  noMessages,
   type AgentMessage,
   type InboxHistory,
-  type MailWaits,
-  type MailState,
+  type MessageWaits,
+  type MessagesState,
   type MessageThread,
   type Messages,
-  type TerminalMail,
+  type TerminalThreads,
 } from "@novadeck/core/messages"
 import { createStore } from "@novadeck/core/store"
 import type { WorkspaceTarget } from "@novadeck/core/types"
 
 import { demoTerminalId } from "./samples"
 
-// A demo mailbox: threads between the sample terminals, kept the way the runner keeps
+// A demo set of messages: threads between the sample terminals, kept the way the runner keeps
 // them, so pausing holds what waits and releasing a thread lets it go on, as there.
 
 // The runner's loop hold: a thread is held at its sixth idle message in a row, and a pair
@@ -55,14 +55,14 @@ const stopBlocks = (thread: DemoThread): boolean =>
 
 // A session's terminals that take part: each by id, with its handle and whether an agent
 // is there to take messages.
-export type DemoMailbox = {
+export type DemoSessionMessages = {
   readonly target: WorkspaceTarget
   readonly terminals: readonly {
     readonly terminalId: string
     readonly handle: string
     readonly agent: boolean
     // Why the doorbell can't ring it, where the debug panel put it so.
-    readonly waits?: MailWaits | null
+    readonly waits?: MessageWaits | null
   }[]
   readonly threads: readonly DemoThread[]
 }
@@ -110,13 +110,13 @@ const shown = (message: DemoMessage, thread: DemoThread, paused: boolean): Agent
     : { ...listed, held: null }
 }
 
-const mailOf = (
-  box: DemoMailbox,
+const messagesOf = (
+  box: DemoSessionMessages,
   handle: string,
   agent: boolean,
   paused: boolean,
-  waits: MailWaits | null,
-): TerminalMail => ({
+  waits: MessageWaits | null,
+): TerminalThreads => ({
   handle,
   agent,
   waits,
@@ -137,14 +137,14 @@ const mailOf = (
     .toSorted((a, b) => (b.messages.at(-1)?.sentAt ?? 0) - (a.messages.at(-1)?.sentAt ?? 0)),
 })
 
-const stateOf = (boxes: readonly DemoMailbox[], paused: boolean): MailState => ({
-  ...noMail,
+const stateOf = (boxes: readonly DemoSessionMessages[], paused: boolean): MessagesState => ({
+  ...noMessages,
   paused,
   terminals: Object.fromEntries(
     boxes.flatMap((box) =>
       box.terminals.map(({ terminalId, handle, agent, waits }) => [
         companionKeyId({ ...box.target, terminalId }),
-        mailOf(box, handle, agent, paused, waits ?? null),
+        messagesOf(box, handle, agent, paused, waits ?? null),
       ]),
     ),
   ),
@@ -190,7 +190,7 @@ const askText = (ask: AgentAsk): string => {
 }
 
 export type DemoMessages = Messages & {
-  readonly record: (item: InboxItem, answer?: InboxAnswer, outcome?: InboxHistory) => void
+  readonly record: (item: InboxRow, answer?: InboxAnswer, outcome?: InboxHistory) => void
   // An agent's message to another of a session, by handle: queued at first, and delivered once
   // the doorbell has rung (`rungMs` later), nothing holds it (a pause, a loop hold on its
   // thread, a recipient the doorbell can't ring) and its thread wasn't stopped; `delivered`
@@ -232,12 +232,12 @@ type Ring = {
 // What of the workspace the demo's messages can't know: whether a terminal still exists. A send
 // to one closed is refused, and a message queued for one that closes is gone, as in the runner;
 // what a closed terminal sent still lands.
-export type MailExists = (target: WorkspaceTarget, terminalId: string) => boolean
+export type TerminalExists = (target: WorkspaceTarget, terminalId: string) => boolean
 
 export const createDemoMessages = (
-  initial: readonly DemoMailbox[],
+  initial: readonly DemoSessionMessages[],
   paused = false,
-  exists: MailExists = () => true,
+  exists: TerminalExists = () => true,
 ): DemoMessages => {
   let boxes = initial
   let isPaused = paused
@@ -311,7 +311,7 @@ export const createDemoMessages = (
           box.target.projectId === target.projectId &&
           box.target.workspaceSessionId === target.workspaceSessionId,
       )
-      const box: DemoMailbox = boxes[index] ?? { target, terminals: [], threads: [] }
+      const box: DemoSessionMessages = boxes[index] ?? { target, terminals: [], threads: [] }
       const id = `t-${item.id.replaceAll("-", "")}`
       const thread = box.threads.find((each) => each.id === id)
       const content = item.kind === "ask" ? item.ask : item.kind === "update" ? item.update : null
@@ -333,7 +333,7 @@ export const createDemoMessages = (
         : item.kind === "ask"
           ? askText(item.ask)
           : `${content.subject}\n\n${content.body}`
-      const letter: DemoMessage = {
+      const entry: DemoMessage = {
         id: reply ? `answer:${item.id}` : item.id,
         inbox: reply
           ? "answer"
@@ -353,13 +353,13 @@ export const createDemoMessages = (
       }
       const messages = [
         ...(thread?.messages ?? [])
-          .filter((each) => each.id !== letter.id)
+          .filter((each) => each.id !== entry.id)
           .map((each) =>
             reply && each.inbox === "ask" ? { ...each, inboxState: "answered" as const } : each,
           ),
-        letter,
+        entry,
       ]
-      const updated: DemoMailbox = {
+      const updated: DemoSessionMessages = {
         ...box,
         terminals: box.terminals.some((each) => each.terminalId === source.terminalId)
           ? box.terminals
@@ -389,7 +389,7 @@ export const createDemoMessages = (
               messages: current.messages.map((message) =>
                 current.id !== id
                   ? message
-                  : message.id === letter.id
+                  : message.id === entry.id
                     ? {
                         ...message,
                         state: outcome === "undelivered" ? "gone" : "delivered",
@@ -526,7 +526,7 @@ export const createDemoMessages = (
       }
       return found
     },
-    // Thread ids are the demo's own, unique across its mailboxes.
+    // Thread ids are the demo's own, unique across its sessions.
     release: (thread) => {
       boxes = boxes.map((box) => ({
         ...box,
@@ -598,10 +598,10 @@ const message = (
 // it folds and is never held, a message to the dev server's terminal (fox) whose agent left, a
 // word each with the runtime's (kite) and the build's (raven), and a question moth asked the
 // person, which they answered. Every other session's Claude Code has had no messages yet.
-export const checkoutMailboxes = (
+export const checkoutMessages = (
   now: number,
   targets: readonly WorkspaceTarget[],
-): readonly DemoMailbox[] =>
+): readonly DemoSessionMessages[] =>
   targets.map((target, index) => ({
     target,
     terminals: [
@@ -657,8 +657,8 @@ export const checkoutMailboxes = (
                 ),
               ],
             },
-            // A letter: moth asked the person, who answered, as the runner keeps a thread a
-            // letter. Those still open come from the Inbox's items (`demoLetters`). The
+            // An entry: moth asked the person, who answered, as the runner keeps a thread a
+            // entry. Those still open come from the Inbox's items (`demoEntries`). The
             // question is a real one's length, wider than a reply's bubble, as the Messages
             // spec checks the reply's quote of it stays in the chat.
             {
@@ -827,7 +827,7 @@ export const checkoutMailboxes = (
 
 // The content preview's two agents: Codex building the studio (moth) asks Claude Code,
 // refactoring auth (owl), about the session API, and waits on its answer.
-export const studioMailbox = (now: number, target: WorkspaceTarget): DemoMailbox => ({
+export const studioMessages = (now: number, target: WorkspaceTarget): DemoSessionMessages => ({
   target,
   terminals: [
     { terminalId: demoTerminalId(target, 1), handle: "moth", agent: true },

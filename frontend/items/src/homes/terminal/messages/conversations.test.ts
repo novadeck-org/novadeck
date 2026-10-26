@@ -1,4 +1,4 @@
-import type { AgentMessage, MessageThread, TerminalMail } from "@novadeck/core/messages"
+import type { AgentMessage, MessageThread, TerminalThreads } from "@novadeck/core/messages"
 
 import { context, describe, expect, it } from "../../../test"
 import {
@@ -6,7 +6,7 @@ import {
   chatOf,
   conversationsOf,
   cornerOf,
-  letterLabel,
+  entryLabel,
   listed,
   openAsks,
   youKey,
@@ -43,7 +43,7 @@ const thread = (id: string, peer: string, messages: readonly AgentMessage[]): Me
   messages,
 })
 
-const mailOf = (...threads: readonly MessageThread[]): TerminalMail => ({
+const messagesOf = (...threads: readonly MessageThread[]): TerminalThreads => ({
   handle: "moth",
   agent: true,
   threads,
@@ -52,7 +52,7 @@ const mailOf = (...threads: readonly MessageThread[]): TerminalMail => ({
 const minute = 60_000
 
 describe("a terminal's conversations", () => {
-  it("gather the person's letters, a thread each at the runner, into one, oldest first", () => {
+  it("gather the person's entries, a thread each at the runner, into one, oldest first", () => {
     const ask = message("moth", "you", 3 * minute, "Which route?", {
       inbox: "ask",
       inboxState: "answered",
@@ -60,7 +60,7 @@ describe("a terminal's conversations", () => {
     const answer = message("you", "moth", 4 * minute, "The first.", { inbox: "answer" })
     const tell = message("moth", "you", 1 * minute, "Done.", { inbox: "tell", inboxState: "read" })
     const conversations = conversationsOf(
-      mailOf(
+      messagesOf(
         thread("t-a", "you", [ask, answer]),
         thread("t-b", "you", [tell]),
         thread("t-owl", "owl", [message("owl", "moth", 2 * minute, "Hi")]),
@@ -74,7 +74,7 @@ describe("a terminal's conversations", () => {
 
   it("gather an agent's threads, as the runner starts a new one after a quiet spell, into one", () => {
     const conversations = conversationsOf(
-      mailOf(
+      messagesOf(
         thread("t-late", "owl", [message("owl", "moth", 60 * minute, "After lunch")]),
         thread("t-early", "owl", [message("moth", "owl", 1 * minute, "Morning")]),
       ),
@@ -85,9 +85,9 @@ describe("a terminal's conversations", () => {
   })
 
   context("listed", () => {
-    it("put the person's letters first while a question or news waits, then latest first", () => {
+    it("put the person's entries first while a question or news waits, then latest first", () => {
       const conversations = conversationsOf(
-        mailOf(
+        messagesOf(
           thread("t-owl", "owl", [message("owl", "moth", 9 * minute, "Late")]),
           thread("t-fox", "fox", [message("fox", "moth", 5 * minute, "Early")]),
           thread("t-l", "you", [
@@ -98,9 +98,9 @@ describe("a terminal's conversations", () => {
       expect(listed(conversations).map(({ key }) => key)).toEqual([youKey, "owl", "fox"])
     })
 
-    it("keep the person's letters in time order once nothing in them waits", () => {
+    it("keep the person's entries in time order once nothing in them waits", () => {
       const conversations = conversationsOf(
-        mailOf(
+        messagesOf(
           thread("t-owl", "owl", [message("owl", "moth", 9 * minute, "Late")]),
           thread("t-l", "you", [
             message("moth", "you", 1 * minute, "?", { inbox: "tell", inboxState: "read" }),
@@ -114,7 +114,7 @@ describe("a terminal's conversations", () => {
 
 describe("a row's corner", () => {
   const owl = (messages: readonly AgentMessage[]) =>
-    conversationsOf(mailOf(thread("t-owl", "owl", messages)))[0]!
+    conversationsOf(messagesOf(thread("t-owl", "owl", messages)))[0]!
 
   it("says Unread for a message from the agent since the person last looked", () => {
     const conversation = owl([message("owl", "moth", 10 * minute, "News")])
@@ -136,9 +136,9 @@ describe("a row's corner", () => {
   })
 
   it("says the person is asked over an unread tell, and Unread for a tell alone", () => {
-    const letters = (state: "open" | "answered") =>
+    const entries = (state: "open" | "answered") =>
       conversationsOf(
-        mailOf(
+        messagesOf(
           thread("t-a", "you", [
             message("moth", "you", 1, "?", { inbox: "ask", inboxState: state }),
           ]),
@@ -147,13 +147,13 @@ describe("a row's corner", () => {
           ]),
         ),
       )[0]!
-    expect(cornerOf(letters("open"), Infinity)).toEqual({ kind: "asks" })
-    expect(openAsks(letters("open"))).toBe(1)
-    expect(cornerOf(letters("answered"), Infinity)).toEqual({ kind: "unread" })
+    expect(cornerOf(entries("open"), Infinity)).toEqual({ kind: "asks" })
+    expect(openAsks(entries("open"))).toBe(1)
+    expect(cornerOf(entries("answered"), Infinity)).toEqual({ kind: "unread" })
   })
 })
 
-describe("a letter's label", () => {
+describe("an entry's label", () => {
   it.each([
     [{ inbox: "ask", inboxState: "open" }, "Asks you"],
     [{ inbox: "ask", inboxState: "answered" }, "Asked you · answered"],
@@ -166,7 +166,7 @@ describe("a letter's label", () => {
     [{ inbox: "done", inboxState: "read" }, "Reported done"],
     [{ inbox: "answer" }, undefined],
   ] as const)("reads %o as %s", (extra, label) => {
-    expect(letterLabel(message("moth", "you", 0, "", extra))).toBe(label)
+    expect(entryLabel(message("moth", "you", 0, "", extra))).toBe(label)
   })
 })
 
@@ -180,7 +180,7 @@ describe("a chat", () => {
           : entry.kind,
     )
   const owl = (messages: readonly AgentMessage[]) =>
-    conversationsOf(mailOf(thread("t-owl", "owl", messages)))[0]!
+    conversationsOf(messagesOf(thread("t-owl", "owl", messages)))[0]!
 
   it("says the time where a burst starts, puts the terminal's agent on the right, and Delivered under its last", () => {
     const entries = chatOf(
@@ -260,9 +260,9 @@ describe("a chat", () => {
     expect(kinds(chatOf(conversation, "moth", false))).not.toContain("fold 1")
   })
 
-  it("puts the person on the right in their letters, a New line before the first unread", () => {
+  it("puts the person on the right in their entries, a New line before the first unread", () => {
     const conversation = conversationsOf(
-      mailOf(
+      messagesOf(
         thread("t-a", "you", [
           message("moth", "you", 0, "Tax?", { inbox: "ask", inboxState: "answered" }),
           message("you", "moth", 1, "After.", { inbox: "answer" }),

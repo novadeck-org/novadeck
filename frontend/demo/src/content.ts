@@ -15,7 +15,7 @@ import type {
 import { createDemoEngine } from "./engine"
 import { withFeedback } from "./feedback"
 import { demoBackend, windowReset, withConversations, withInbox } from "./index"
-import { createDemoMessages, studioMailbox } from "./messages"
+import { createDemoMessages, studioMessages } from "./messages"
 import { defaultName, demoTerminalId } from "./samples"
 import { fixedIntro } from "./screen/terminal"
 import { authAgent, studioAgent, type SampleAgent } from "./showcase/agents"
@@ -203,7 +203,7 @@ export const contentDemo = (
       )
     },
     companions: showcase,
-    messages: createDemoMessages([studioMailbox(Date.now(), session)]),
+    messages: createDemoMessages([studioMessages(Date.now(), session)]),
     seed: {
       projects: [
         {

@@ -3,7 +3,7 @@ import { wireContract, wireErrors } from "@novadeck/wire"
 import { eventIterator, oc, type ContractRouterClient } from "@orpc/contract"
 import { z } from "zod"
 
-import { askAnswer, inboxLetter } from "./inbox.js"
+import { askAnswer, inboxEntry } from "./inbox.js"
 import {
   agentDetail,
   agentIntegration,
@@ -377,11 +377,11 @@ export const contract = {
     resetWindowTitle: procedure.input(z.strictObject({ windowId: id })).output(z.void()),
   },
   // Messages between agents in Novadeck's terminals (see docs/agent-messaging.md).
-  asks: {
-    list: procedure.input(z.void()).output(z.array(inboxLetter)),
-    watch: procedure.input(z.void()).output(eventIterator(z.array(inboxLetter))),
+  inbox: {
+    list: procedure.input(z.void()).output(z.array(inboxEntry)),
+    watch: procedure.input(z.void()).output(eventIterator(z.array(inboxEntry))),
     answer: procedure.input(z.strictObject({ id, answer: askAnswer })).output(z.void()),
-    // Marks letters read: a tell stays as history, a finished turn is removed, an ask is
+    // Marks entries read: a tell stays as history, a finished turn is removed, an ask is
     // not touched. Unknown ids are skipped.
     read: procedure.input(z.strictObject({ ids: z.array(id).max(1000) })).output(z.void()),
   },

@@ -17,7 +17,7 @@ import { KeyedChanges } from "@novadeck/wire/server"
 
 import { DomainError } from "../errors.js"
 import { logs } from "../log.js"
-import { agentLabel } from "../messaging/mailbox.js"
+import { agentLabel } from "../messaging/messages.js"
 import { mention } from "../terminals/handles.js"
 import {
   changesContent,

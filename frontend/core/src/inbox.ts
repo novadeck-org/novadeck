@@ -1,7 +1,7 @@
 import type { ChatAnswer, ChatRequest } from "./conversation"
 import type { FeedbackDraft } from "./feedback"
 import type { AgentName } from "./harnesses"
-import type { MailWaits } from "./messages"
+import type { MessageWaits } from "./messages"
 import { createStore, type Store } from "./store"
 import type { Workspace } from "./types"
 
@@ -119,7 +119,7 @@ export type Trouble =
   // `stored` where it is a stored turn row (read by id), not a state derived from the
   // terminal's current end.
   | { readonly type: "failed"; readonly error: string | null; readonly stored?: true }
-  | { readonly type: "waits"; readonly waits: MailWaits | null; readonly count: number }
+  | { readonly type: "waits"; readonly waits: MessageWaits | null; readonly count: number }
 
 // What the agent reported through the MCP `done` tool (its task is finished), or told the
 // person through `tell`. A finished turn alone makes none.
@@ -138,7 +138,7 @@ export type InboxContent =
 // One item. `at` is when it started waiting, in epoch milliseconds. `stopped` whether the
 // agent waits on the person (a gate, an ask after which it ended its turn, a stuck or
 // failed agent) rather than working on. `seen` once the person opened it.
-export type InboxItem = InboxContent & {
+export type InboxRow = InboxContent & {
   readonly id: string
   readonly source: InboxSource
   readonly at: number
@@ -194,7 +194,7 @@ export type InboxAnswer =
 // Every item, waiting ones first by how long they waited. `answering` the items whose
 // answer is on its way, until the backend drops them; `failed` why an answer didn't take.
 export type InboxState = {
-  readonly items: readonly InboxItem[]
+  readonly items: readonly InboxRow[]
   readonly answering: Readonly<Record<string, true>>
   readonly failed: Readonly<Record<string, string>>
 }
@@ -256,7 +256,7 @@ export type Inbox = {
 // or a feedback draft, which waits on the person but not the agent, then updates, and with
 // them a failed turn that is no longer the agent's current end (not `stopped`), which only
 // informs.
-export const urgency = (item: InboxItem): number => {
+export const urgency = (item: InboxRow): number => {
   const type = inboxType(item)
   if (type === "update") return 4
   if (type === "feedback") return 3
@@ -269,16 +269,16 @@ export const urgency = (item: InboxItem): number => {
 }
 
 // The Inbox's order: by urgency, then the longest waiting first.
-export const ordered = (items: readonly InboxItem[]): InboxItem[] =>
+export const ordered = (items: readonly InboxRow[]): InboxRow[] =>
   items.toSorted((a, b) => urgency(a) - urgency(b) || a.at - b.at)
 
-// The item a letter in a terminal's messages waits in: the one it came from, by id, as the
-// runner lists a letter as `m-` and its item's id without dashes.
-export const letterItem = (
-  items: readonly InboxItem[],
-  letter: { readonly id: string },
-): InboxItem | undefined =>
-  items.find((item) => item.id === letter.id || `m-${item.id.replaceAll("-", "")}` === letter.id)
+// The item a entry in a terminal's messages waits in: the one it came from, by id, as the
+// runner lists a entry as `m-` and its item's id without dashes.
+export const entryRow = (
+  items: readonly InboxRow[],
+  entry: { readonly id: string },
+): InboxRow | undefined =>
+  items.find((item) => item.id === entry.id || `m-${item.id.replaceAll("-", "")}` === entry.id)
 
 // The Inbox of a backend that has none: it lists nothing, and has nothing to answer.
 export const noInbox: Inbox = {
@@ -295,7 +295,7 @@ export type TerminalAt = {
   readonly terminalId: string
 }
 
-const atTerminal = (item: InboxItem, at: TerminalAt): boolean =>
+const atTerminal = (item: InboxRow, at: TerminalAt): boolean =>
   item.source.projectId === at.projectId &&
   item.source.workspaceSessionId === at.workspaceSessionId &&
   item.source.terminalId === at.terminalId
@@ -305,12 +305,12 @@ const atTerminal = (item: InboxItem, at: TerminalAt): boolean =>
 // otherwise nothing. Trouble and updates don't count. Takes every item, as the backend
 // lists them: the landing rule hides rows from the Inbox, never from the marks.
 export const terminalNeed = (
-  items: readonly InboxItem[],
+  items: readonly InboxRow[],
   at: TerminalAt,
   now: number,
 ): "unblock" | "ask" | undefined => {
   const mine = items.filter((item) => atTerminal(item, at))
-  const limitReset = (item: InboxItem): boolean =>
+  const limitReset = (item: InboxRow): boolean =>
     item.kind === "trouble" &&
     item.trouble.type === "limit" &&
     item.trouble.resetsAt <= now &&
@@ -321,7 +321,7 @@ export const terminalNeed = (
 
 // When the next usage limit among `items` that is still ahead of `now` resets, which turns
 // its terminal into an Unblock where auto-resume is off (see `terminalNeed`); undefined when none.
-export const nextLimitReset = (items: readonly InboxItem[], now: number): number | undefined =>
+export const nextLimitReset = (items: readonly InboxRow[], now: number): number | undefined =>
   items.reduce<number | undefined>(
     (soonest, item) =>
       item.kind === "trouble" &&
@@ -334,7 +334,7 @@ export const nextLimitReset = (items: readonly InboxItem[], now: number): number
   )
 
 // Whether the terminal has a `done` report the person hasn't seen.
-export const terminalDone = (items: readonly InboxItem[], at: TerminalAt): boolean =>
+export const terminalDone = (items: readonly InboxRow[], at: TerminalAt): boolean =>
   items.some(
     (item) =>
       atTerminal(item, at) && !item.seen && item.kind === "update" && item.update.type === "done",

@@ -1,11 +1,11 @@
-import type { MailWaits } from "@novadeck/core/messages"
+import type { MessageWaits } from "@novadeck/core/messages"
 import type { Backend } from "@novadeck/core/port"
 
 import type { DemoActionGroup } from "./types"
 
 const states: readonly {
   readonly label: string
-  readonly waits: MailWaits | null
+  readonly waits: MessageWaits | null
   readonly hint: string
 }[] = [
   {

@@ -1,4 +1,4 @@
-import type { InboxItem } from "@novadeck/core/inbox"
+import type { InboxRow } from "@novadeck/core/inbox"
 import { workspaceFromSeed } from "@novadeck/core/seed"
 import { activeSession } from "@novadeck/core/state"
 import { createWorkspaceStore } from "@novadeck/core/store"
@@ -37,7 +37,7 @@ const open = () => {
     const found = terminal(number)
     return found?.state === "running" ? found.agent : undefined
   }
-  const items = (): readonly InboxItem[] => inbox.state.getSnapshot().items
+  const items = (): readonly InboxRow[] => inbox.state.getSnapshot().items
   return { backend, store, inbox, cues, terminals, terminal, agent, items }
 }
 
@@ -91,15 +91,15 @@ describe("the Babcia demo", () => {
     const { cues, inbox, items, agent } = open()
     cues.asks()
     const answers = {
-      "Order form": (item: InboxItem) =>
+      "Order form": (item: InboxRow) =>
         item.kind === "request" && item.request.dialog?.type === "choices"
           ? { type: "choice" as const, dialog: item.request.dialog.id, option: "1" }
           : undefined,
-      Accessibility: (item: InboxItem) =>
+      Accessibility: (item: InboxRow) =>
         item.kind === "request" && item.request.dialog?.type === "choices"
           ? { type: "choice" as const, dialog: item.request.dialog.id, option: "2" }
           : undefined,
-      "Menu page": (item: InboxItem) =>
+      "Menu page": (item: InboxRow) =>
         item.kind === "request" && item.request.dialog?.type === "questions"
           ? {
               type: "questions" as const,
@@ -168,8 +168,8 @@ describe("the Babcia demo", () => {
     expect(terminals()).toHaveLength(15)
   })
 
-  // What of the mail the helper and its lead wrote, in order, as (from, to, state, text).
-  const mail = (backend: ReturnType<typeof open>["backend"]) => {
+  // The messages the helper and its lead wrote, in order, as (from, to, state, text).
+  const terminalMessages = (backend: ReturnType<typeof open>["backend"]) => {
     const { messages } = backend
     if (!isDemoMessages(messages)) throw new Error("the Babcia demo has the demo's messages")
     const seen = new Map<string, { from: string; to: string; state: string; text: string }>()
@@ -206,11 +206,11 @@ describe("the Babcia demo", () => {
     })
     // The answer is on its way and not yet delivered: the helper has said nothing.
     await vi.advanceTimersByTimeAsync(800)
-    expect(mail(backend)).toEqual([])
+    expect(terminalMessages(backend)).toEqual([])
     expect(agent(babcia.lead)).toMatchObject({ working: false })
     // Delivered, the helper writes to its lead, which the doorbell then rings awake.
     await vi.advanceTimersByTimeAsync(2400)
-    expect(mail(backend)[0]).toMatchObject({
+    expect(terminalMessages(backend)[0]).toMatchObject({
       from: asking,
       to: lead,
       text: expect.stringContaining(typed),
@@ -219,7 +219,7 @@ describe("the Babcia demo", () => {
     expect(agent(babcia.lead)).toMatchObject({ working: true })
     await vi.advanceTimersByTimeAsync(5000)
     expect(items()).toEqual([])
-    expect(mail(backend).map(({ from, to, state }) => ({ from, to, state }))).toEqual([
+    expect(terminalMessages(backend).map(({ from, to, state }) => ({ from, to, state }))).toEqual([
       { from: asking, to: lead, state: "delivered" },
       { from: lead, to: asking, state: "delivered" },
     ])
@@ -236,10 +236,10 @@ describe("the Babcia demo", () => {
       answer: { type: "reply", option: null, text: typed },
     })
     await vi.advanceTimersByTimeAsync(10_000)
-    expect(mail(backend)).toEqual([])
+    expect(terminalMessages(backend)).toEqual([])
   })
 
-  it("relays the helper's answer once, however often its mail changes after it", async () => {
+  it("relays the helper's answer once, however often its messages change after it", async () => {
     const { backend, cues, inbox, items } = open()
     cues.helpers()
     cues.helperAsks()
@@ -250,13 +250,13 @@ describe("the Babcia demo", () => {
     await vi.advanceTimersByTimeAsync(10_000)
     const { messages } = backend
     if (!isDemoMessages(messages)) throw new Error("the demo's messages")
-    // The mail changes again, as a pause or a release changes it: the delivered answer is still
+    // The messages change again, as a pause or a release changes it: the delivered answer is still
     // there to be found, and must not be relayed again.
     messages.pause(true)
     await vi.advanceTimersByTimeAsync(300)
     messages.pause(false)
     await vi.advanceTimersByTimeAsync(10_000)
-    expect(mail(backend).filter((each) => each.from === asking)).toHaveLength(1)
+    expect(terminalMessages(backend).filter((each) => each.from === asking)).toHaveLength(1)
   })
 
   it("words the helper's message to its lead for an empty or unpunctuated reply", async () => {
@@ -271,7 +271,7 @@ describe("the Babcia demo", () => {
       })
       // eslint-disable-next-line no-await-in-loop -- Each demo runs on its own.
       await vi.advanceTimersByTimeAsync(5000)
-      texts.push(mail(backend).find((each) => each.from === asking)!.text)
+      texts.push(terminalMessages(backend).find((each) => each.from === asking)!.text)
     }
     expect(texts).toEqual([
       "Nyx had nothing to add. Do you know which API the site calls? I need it for the orders route.",
@@ -303,7 +303,7 @@ describe("the Babcia demo", () => {
       .flatMap((each) => each.messages)
       .filter((one) => one.id.startsWith("t-") && (one.from === "you" || one.to === "you"))
     expect(sent).toEqual([])
-    expect(mail(backend).map(({ from, state }) => ({ from, state }))).toEqual([
+    expect(terminalMessages(backend).map(({ from, state }) => ({ from, state }))).toEqual([
       { from: asking, state: "gone" },
     ])
     expect(agent(babcia.lead)).toMatchObject({ working: false })
@@ -337,7 +337,7 @@ describe("the Babcia demo", () => {
     expect(agent(babcia.lead)).toMatchObject({ working: true })
     await backend.conversations!.interrupt(key(babcia.lead))
     await vi.advanceTimersByTimeAsync(10_000)
-    expect(mail(backend).filter((each) => each.from === lead)).toEqual([])
+    expect(terminalMessages(backend).filter((each) => each.from === lead)).toEqual([])
     // Nothing holds the pair after it: cue 6 ends the helper's turn too.
     cues.finishAll()
     await vi.advanceTimersByTimeAsync(5000)
@@ -697,7 +697,7 @@ describe("the Babcia demo", () => {
     // Twenty messages that aren't idle: a lead is no exception, but nothing here loops.
     for (let index = 0; index < 20; index += 1) messages.send(target, asking, lead, `Hi ${index}`)
     await vi.advanceTimersByTimeAsync(rungMs + 50)
-    expect(mail(backend).every((each) => each.state === "delivered")).toBe(true)
+    expect(terminalMessages(backend).every((each) => each.state === "delivered")).toBe(true)
     // Idle messages between two terminals are held at the sixth, a lead's pair no different.
     for (let index = 0; index < 8; index += 1)
       messages.send(
@@ -711,7 +711,9 @@ describe("the Babcia demo", () => {
       )
     await vi.advanceTimersByTimeAsync(rungMs + 50)
     expect(
-      mail(backend).filter((each) => each.from === demoHandle(1) && each.state === "held"),
+      terminalMessages(backend).filter(
+        (each) => each.from === demoHandle(1) && each.state === "held",
+      ),
     ).toHaveLength(3)
   })
 
@@ -756,13 +758,13 @@ describe("the Babcia demo", () => {
     const delivered = vi.fn<() => void>()
     expect(messages.send(target, asking, lead, "Hi", delivered, stopped)).toBe(true)
     close(babcia.lead)
-    expect(mail(backend).map((each) => each.state)).toEqual(["gone"])
+    expect(terminalMessages(backend).map((each) => each.state)).toEqual(["gone"])
     expect(stopped).toHaveBeenCalledOnce()
     await vi.advanceTimersByTimeAsync(rungMs + 50)
     expect(delivered).not.toHaveBeenCalled()
     // A send to it now is refused, and leaves nothing in the thread.
     expect(messages.send(target, asking, lead, "Hello?")).toBe(false)
-    expect(mail(backend)).toHaveLength(1)
+    expect(terminalMessages(backend)).toHaveLength(1)
     // What a closed sender wrote still reaches its recipient.
     const arrived = vi.fn<() => void>()
     expect(

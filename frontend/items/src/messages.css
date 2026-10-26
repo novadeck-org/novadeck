@@ -1,13 +1,13 @@
 /* The mail recipe: a terminal's conversations with the other agents in its session and
-   the person's letters (`.mail-view`), under the viewer's header (`.artifact-meta`, see
-   artifact.css) with the pause. A list of rows (`.mail-rows`, each a `.mail-row`) opens
-   one as a chat (`.mail-chat-head` over `.mail-chat`): bubbles without borders, tinted in
+   the person's letters (`.message-view`), under the viewer's header (`.artifact-meta`, see
+   artifact.css) with the pause. A list of rows (`.message-rows`, each a `.message-row`) opens
+   one as a chat (`.message-chat-head` over `.message-chat`): bubbles without borders, tinted in
    their sender's hue, the terminal's own agent (or the person, in their letters) on the
-   right. The bars that say messaging is paused (`.mail-paused`), waiting on a screen the
-   doorbell cannot ring (`.mail-waits`) or failed (`.mail-error`) take their tone from
+   right. The bars that say messaging is paused (`.message-paused`), waiting on a screen the
+   doorbell cannot ring (`.message-waits`) or failed (`.message-error`) take their tone from
    `data-tone`.
 
-   Avatars (`.mail-av`) are each handle's critter on a small LED screen, dark in any theme:
+   Avatars (`.message-av`) are each handle's critter on a small LED screen, dark in any theme:
    lit cells in the word's hue, unlit ones faintly there. Only this pane draws them.
 
    Hooks: data-hue="1"…"8" | "you" on an avatar and a bubble row; data-live="idle" |
@@ -18,9 +18,9 @@
    "danger" on a row's chip; data-kind and data-open on a letter's label.
 
    Tokens, each optional (its fallback in brackets):
-   --mail-border-color (line): under the chat's head and the bars.
-   --mail-fg (ink): names, the pause's label and a row's unread preview.
-   --mail-meta-fg (muted): handles, times, previews and notes.
+   --message-border-color (line): under the chat's head and the bars.
+   --message-fg (ink): names, the pause's label and a row's unread preview.
+   --message-meta-fg (muted): handles, times, previews and notes.
    --avatar-hue-1-fg … --avatar-hue-8-fg (terminal-ansi magenta, red, yellow, blue,
      magenta-bright, green, red-bright, cyan): the hues handles take by their word's rank,
      on their critters and the bubbles they send.
@@ -32,10 +32,10 @@
    --avatar-frame-border-color (line): the screen's frame, tinted with its hue.
    --avatar-eye-fg (terminal-ansi-black): dark eyes and the imp's silhouette.
    --avatar-glint-fg (terminal-ansi-white-bright): bright cells and eyes. */
-.mail-view {
-  --_fg: var(--mail-fg, var(--color-ink));
-  --_meta-fg: var(--mail-meta-fg, var(--color-muted));
-  --_border-color: var(--mail-border-color, var(--color-line));
+.message-view {
+  --_fg: var(--message-fg, var(--color-ink));
+  --_meta-fg: var(--message-meta-fg, var(--color-muted));
+  --_border-color: var(--message-border-color, var(--color-line));
   display: flex;
   flex: 1;
   flex-direction: column;
@@ -43,19 +43,19 @@
 }
 /* The switch centred on its label, the pair on the header's baseline by the label's: at
    the end of the header's first line while there's room, else under what's before it. */
-.mail-pause {
+.message-pause {
   display: flex;
   margin-left: auto;
   align-items: center;
   gap: 12px;
 }
-.mail-pause-label {
+.message-pause-label {
   color: var(--_fg);
 }
 /* The tone recipe paints the bars, their rule included. */
-.mail-paused,
-.mail-waits,
-.mail-error {
+.message-paused,
+.message-waits,
+.message-error {
   margin: 0;
   padding: 6px 14px;
   border-bottom-width: var(--border-width);
@@ -63,24 +63,24 @@
   font-size: var(--text-control);
   line-height: var(--text-control--line-height);
 }
-.mail-scroll {
+.message-scroll {
   flex: 1;
   min-height: 0;
   overflow: auto;
   overscroll-behavior: contain;
 }
-.mail-empty {
+.message-empty {
   padding: 0 24px;
   text-align: center;
 }
-.mail-view code {
+.message-view code {
   font-family: var(--font-mono);
   font-size: var(--text-control);
   font-weight: normal;
   color: var(--_meta-fg);
 }
 /* The agent's text, as it wrote it: its line breaks kept, nothing rendered. */
-.mail-text {
+.message-text {
   margin: 0;
   font-size: var(--text-body);
   line-height: 1.5;
@@ -90,7 +90,7 @@
 }
 
 /* ---------- The list ---------- */
-.mail-rows {
+.message-rows {
   display: flex;
   flex-direction: column;
   gap: 2px;
@@ -98,7 +98,7 @@
   padding: 8px;
   list-style: none;
 }
-.mail-row {
+.message-row {
   display: flex;
   align-items: flex-start;
   gap: 10px;
@@ -112,30 +112,30 @@
   text-align: left;
   cursor: pointer;
 }
-.mail-row:hover {
+.message-row:hover {
   background: var(--color-soft);
 }
-.mail-row:focus-visible {
+.message-row:focus-visible {
   outline: var(--focus-ring-width) solid var(--focus-ring-color, var(--color-strong));
   outline-offset: -2px;
 }
-.mail-row .mail-av {
+.message-row .message-av {
   margin-top: 1px;
 }
-.mail-row-main {
+.message-row-main {
   display: flex;
   flex: 1;
   flex-direction: column;
   gap: 2px;
   min-width: 0;
 }
-.mail-row-top {
+.message-row-top {
   display: flex;
   align-items: center;
   gap: 8px;
   min-width: 0;
 }
-.mail-row-name {
+.message-row-name {
   overflow: hidden;
   font-size: var(--text-body);
   line-height: var(--text-body--line-height);
@@ -144,10 +144,10 @@
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-.mail-row-handle {
+.message-row-handle {
   flex-shrink: 0;
 }
-.mail-preview {
+.message-preview {
   overflow: hidden;
   font-size: var(--text-control);
   line-height: var(--text-control--line-height);
@@ -155,31 +155,31 @@
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-.mail-preview-who {
+.message-preview-who {
   font-family: var(--font-mono);
   font-size: var(--text-caption);
 }
-.mail-row[data-unread] .mail-row-name {
+.message-row[data-unread] .message-row-name {
   font-weight: 600;
 }
-.mail-row[data-unread] .mail-preview {
+.message-row[data-unread] .message-preview {
   color: var(--_fg);
 }
-.mail-row-end {
+.message-row-end {
   display: flex;
   flex-shrink: 0;
   align-items: center;
   align-self: center;
 }
 /* Unread says itself exactly as the time it stands in for. */
-.mail-row-time {
+.message-row-time {
   font-size: var(--text-control);
   line-height: var(--text-control--line-height);
   color: var(--_meta-fg);
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
 }
-.mail-chip {
+.message-chip {
   display: inline-flex;
   align-items: center;
   height: 18px;
@@ -190,15 +190,15 @@
   font-weight: 500;
   white-space: nowrap;
 }
-.mail-chip[data-tone="warning"] {
+.message-chip[data-tone="warning"] {
   background: var(--color-warning);
   color: var(--color-warning-fg);
 }
-.mail-chip[data-tone="danger"] {
+.message-chip[data-tone="danger"] {
   background: var(--color-danger);
   color: var(--color-danger-fg);
 }
-.mail-row-go {
+.message-row-go {
   flex-shrink: 0;
   align-self: center;
   color: var(--_meta-fg);
@@ -206,7 +206,7 @@
 }
 
 /* ---------- An open conversation ---------- */
-.mail-chat-head {
+.message-chat-head {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
@@ -215,10 +215,10 @@
   padding: 6px 14px;
   border-bottom: var(--border-width) solid var(--_border-color);
 }
-.mail-back {
+.message-back {
   margin-left: -6px;
 }
-.mail-chat-name {
+.message-chat-name {
   display: flex;
   flex: 1;
   align-items: baseline;
@@ -229,23 +229,23 @@
   line-height: var(--text-body--line-height);
   font-weight: normal;
 }
-.mail-chat-name strong {
+.message-chat-name strong {
   overflow: hidden;
   font-weight: 500;
   color: var(--_fg);
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-.mail-chat-side {
+.message-chat-side {
   display: flex;
   align-items: center;
   gap: 12px;
 }
-.mail-asks {
+.message-asks {
   font-size: var(--text-control);
   color: var(--color-warning-fg);
 }
-.mail-chat {
+.message-chat {
   display: flex;
   flex-direction: column;
   gap: 2px;
@@ -253,14 +253,14 @@
   padding: 8px 14px 14px;
   list-style: none;
 }
-.mail-time {
+.message-time {
   margin: 12px 0 0;
   font-size: var(--text-caption);
   color: var(--_meta-fg);
   font-variant-numeric: tabular-nums;
   text-align: center;
 }
-.mail-new {
+.message-new {
   display: flex;
   align-items: center;
   gap: 10px;
@@ -269,19 +269,19 @@
   font-weight: 600;
   color: var(--color-strong);
 }
-.mail-new::before,
-.mail-new::after {
+.message-new::before,
+.message-new::after {
   content: "";
   flex: 1;
   border-top: var(--border-width) solid color-mix(in srgb, var(--color-strong) 45%, transparent);
 }
-.mail-new::before {
+.message-new::before {
   flex: 0 0 12px;
 }
-.mail-fold {
+.message-fold {
   margin: 10px 0 0;
 }
-.mail-fold button {
+.message-fold button {
   display: flex;
   align-items: baseline;
   gap: 10px;
@@ -296,31 +296,31 @@
   text-align: left;
   cursor: pointer;
 }
-.mail-fold button:hover {
+.message-fold button:hover {
   background: var(--color-soft);
 }
-.mail-fold button:focus-visible {
+.message-fold button:focus-visible {
   outline: var(--focus-ring-width) solid var(--focus-ring-color, var(--color-strong));
   outline-offset: 1px;
 }
-.mail-fold-count {
+.message-fold-count {
   flex-shrink: 0;
   color: var(--_fg);
 }
-.mail-fold-text {
+.message-fold-text {
   flex: 1;
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-.mail-fold-show {
+.message-fold-show {
   flex-shrink: 0;
   color: var(--color-strong);
 }
 
 /* A bubble: its sender's face at the start of a run on the left, none on the right. */
-.mail-bubble-row {
+.message-bubble-row {
   display: flex;
   flex-direction: column;
   align-items: flex-start;
@@ -328,36 +328,36 @@
   max-width: min(78%, 560px);
   margin-top: 8px;
 }
-.mail-bubble-row[data-grouped] {
+.message-bubble-row[data-grouped] {
   margin-top: 2px;
 }
-.mail-bubble-row[data-side="in"] {
+.message-bubble-row[data-side="in"] {
   flex-direction: row;
   gap: 8px;
 }
-.mail-bubble-row[data-side="out"] {
+.message-bubble-row[data-side="out"] {
   align-self: flex-end;
   align-items: flex-end;
 }
-.mail-bubble-av {
+.message-bubble-av {
   display: flex;
   flex-shrink: 0;
   width: 22px;
 }
 /* On the right it's as wide as its bubble, which a quote's one unwrapped line would make the
    whole question's width, so it's held to its row. */
-.mail-bubble-col {
+.message-bubble-col {
   display: flex;
   flex-direction: column;
   gap: 2px;
   min-width: 0;
   max-width: 100%;
 }
-.mail-bubble-row[data-side="out"] .mail-bubble-col {
+.message-bubble-row[data-side="out"] .message-bubble-col {
   align-items: flex-end;
 }
 /* Its edge is drawn even where it shows none, so forced colours keep each message's shape. */
-.mail-bubble {
+.message-bubble {
   min-width: 0;
   max-width: 100%;
   padding: 5px 9px 6px;
@@ -366,31 +366,31 @@
   background: color-mix(in srgb, var(--_h) 13%, var(--color-paper));
   color: var(--_fg);
 }
-.mail-bubble-row[data-side="out"] .mail-bubble {
+.message-bubble-row[data-side="out"] .message-bubble {
   background: color-mix(in srgb, var(--_h) 20%, var(--color-paper));
 }
 /* Lost: an outline of its hue, no fill. */
-.mail-bubble-row[data-state="gone"] .mail-bubble {
+.message-bubble-row[data-state="gone"] .message-bubble {
   border-color: color-mix(in srgb, var(--_h) 40%, transparent);
   background: transparent;
 }
-.mail-bubble-row[data-open] .mail-bubble {
+.message-bubble-row[data-open] .message-bubble {
   border-color: color-mix(in srgb, var(--color-warning-fg) 40%, transparent);
 }
-.mail-letter {
+.message-entry {
   display: block;
   margin-bottom: 2px;
   font-size: var(--text-caption);
   font-weight: 600;
   color: var(--_meta-fg);
 }
-.mail-letter[data-open][data-kind="ask"] {
+.message-entry[data-open][data-kind="ask"] {
   color: var(--color-warning-fg);
 }
-.mail-letter[data-open][data-kind="tell"] {
+.message-entry[data-open][data-kind="tell"] {
   color: var(--color-strong);
 }
-.mail-quote {
+.message-quote {
   display: block;
   max-width: 100%;
   margin: 2px 0 4px;
@@ -402,21 +402,21 @@
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-.mail-answer {
+.message-answer {
   display: flex;
   justify-content: flex-end;
   margin-top: 6px;
 }
-.mail-answer .button {
+.message-answer .button {
   height: 26px;
   padding: 0 10px;
 }
-.mail-bubble-meta {
+.message-bubble-meta {
   display: flex;
   padding: 0 2px;
 }
 /* A note, only while it's worth a look: a dot of its colour and a word. */
-.mail-note {
+.message-note {
   display: inline-flex;
   align-items: center;
   gap: 5px;
@@ -425,25 +425,25 @@
   color: var(--_meta-fg);
   white-space: nowrap;
 }
-.mail-note:not([data-note="delivered"])::before {
+.message-note:not([data-note="delivered"])::before {
   content: "";
   width: 5px;
   height: 5px;
   border-radius: 50%;
   background: currentColor;
 }
-.mail-note[data-note="leased"]::before {
-  animation: mail-pulse 1.2s ease-in-out infinite;
+.message-note[data-note="leased"]::before {
+  animation: message-pulse 1.2s ease-in-out infinite;
 }
-.mail-note[data-note="gone"] {
+.message-note[data-note="gone"] {
   color: var(--color-danger-fg);
 }
-@keyframes mail-pulse {
+@keyframes message-pulse {
   50% {
     opacity: 0.25;
   }
 }
-.mail-footnote {
+.message-footnote {
   margin: 12px 14px 16px;
   font-size: var(--text-control);
   line-height: var(--text-control--line-height);
@@ -452,36 +452,36 @@
 }
 
 /* ---------- Hues ---------- */
-:is(.mail-av, .mail-bubble-row)[data-hue="1"] {
+:is(.message-av, .message-bubble-row)[data-hue="1"] {
   --_h: var(--avatar-hue-1-fg, var(--terminal-ansi-magenta));
 }
-:is(.mail-av, .mail-bubble-row)[data-hue="2"] {
+:is(.message-av, .message-bubble-row)[data-hue="2"] {
   --_h: var(--avatar-hue-2-fg, var(--terminal-ansi-red));
 }
-:is(.mail-av, .mail-bubble-row)[data-hue="3"] {
+:is(.message-av, .message-bubble-row)[data-hue="3"] {
   --_h: var(--avatar-hue-3-fg, var(--terminal-ansi-yellow));
 }
-:is(.mail-av, .mail-bubble-row)[data-hue="4"] {
+:is(.message-av, .message-bubble-row)[data-hue="4"] {
   --_h: var(--avatar-hue-4-fg, var(--terminal-ansi-blue));
 }
-:is(.mail-av, .mail-bubble-row)[data-hue="5"] {
+:is(.message-av, .message-bubble-row)[data-hue="5"] {
   --_h: var(--avatar-hue-5-fg, var(--terminal-ansi-magenta-bright));
 }
-:is(.mail-av, .mail-bubble-row)[data-hue="6"] {
+:is(.message-av, .message-bubble-row)[data-hue="6"] {
   --_h: var(--avatar-hue-6-fg, var(--terminal-ansi-green));
 }
-:is(.mail-av, .mail-bubble-row)[data-hue="7"] {
+:is(.message-av, .message-bubble-row)[data-hue="7"] {
   --_h: var(--avatar-hue-7-fg, var(--terminal-ansi-red-bright));
 }
-:is(.mail-av, .mail-bubble-row)[data-hue="8"] {
+:is(.message-av, .message-bubble-row)[data-hue="8"] {
   --_h: var(--avatar-hue-8-fg, var(--terminal-ansi-cyan));
 }
-:is(.mail-av, .mail-bubble-row)[data-hue="you"] {
+:is(.message-av, .message-bubble-row)[data-hue="you"] {
   --_h: var(--avatar-you-fg, color-mix(in oklab, var(--color-strong) 62%, var(--color-muted)));
 }
 
 /* ---------- Avatars ---------- */
-.mail-av {
+.message-av {
   --_glint: var(--avatar-glint-fg, var(--terminal-ansi-white-bright));
   --_led: color-mix(in oklab, var(--_h), var(--_glint) var(--avatar-led-lift, 0%));
   --_eye: var(--avatar-eye-fg, var(--terminal-ansi-black));
@@ -502,7 +502,7 @@
     var(--avatar-screen-bg, var(--terminal-bg))
   );
 }
-.mail-av::after {
+.message-av::after {
   content: "";
   position: absolute;
   inset: 0;
@@ -510,48 +510,48 @@
   box-shadow: inset 0 0 0 var(--border-width) var(--_frame);
   pointer-events: none;
 }
-.mail-av-screen {
+.message-av-screen {
   position: absolute;
   inset: 0;
   width: 100%;
   height: 100%;
 }
-.mail-led-off {
+.message-led-off {
   fill: color-mix(in srgb, var(--_led) 14%, transparent);
 }
-.mail-led-on {
+.message-led-on {
   fill: var(--_led);
 }
-.mail-led-dim {
+.message-led-dim {
   fill: color-mix(in srgb, var(--_led) 50%, transparent);
 }
-.mail-led-hot {
+.message-led-hot {
   fill: var(--_glint);
 }
 /* Dark eyes: darker than an unlit cell, so a one-cell eye still reads. */
-.mail-led-eye {
+.message-led-eye {
   fill: var(--_eye);
 }
-.mail-led-bright {
+.message-led-bright {
   fill: color-mix(in oklab, var(--_led) 25%, var(--_glint));
 }
-.mail-av[data-big] .mail-led-on {
+.message-av[data-big] .message-led-on {
   filter: drop-shadow(0 0 1.2px color-mix(in srgb, var(--_led) 80%, transparent));
 }
 /* The person: the screen lit softly behind a dark imp, the frame lit, the eyes glowing. */
-.mail-av[data-hue="you"] {
+.message-av[data-hue="you"] {
   --_led: var(--_h);
   --_frame: color-mix(in srgb, var(--_led) 40%, transparent);
 }
-.mail-led-back {
+.message-led-back {
   fill: color-mix(in srgb, var(--_led) 42%, transparent);
 }
-.mail-led-glow {
+.message-led-glow {
   fill: color-mix(in oklab, var(--_led) 35%, var(--_glint));
 }
 /* A word given again: its number in the corner, in its hue; the lower left one, as the
    program's mark takes the right. */
-.mail-av-n {
+.message-av-n {
   position: absolute;
   left: -3px;
   bottom: -3px;
@@ -568,7 +568,7 @@
   text-align: center;
 }
 /* The agent's program, small in the corner. */
-.mail-av-program {
+.message-av-program {
   position: absolute;
   right: -5px;
   bottom: -5px;
@@ -583,18 +583,18 @@
 
 /* At rest a critter only blinks, on a slow clock of its word's; it hops while its agent
    works; once its agent has gone it is still and dim. */
-.mail-av-hop {
+.message-av-hop {
   opacity: 0;
 }
-.mail-led-lid {
+.message-led-lid {
   opacity: 0;
-  animation: mail-lid var(--_blink) steps(1) var(--_blink-at) infinite;
+  animation: message-lid var(--_blink) steps(1) var(--_blink-at) infinite;
 }
-.mail-led-bright,
-.mail-led-glow {
-  animation: mail-blink var(--_blink) steps(1) var(--_blink-at) infinite;
+.message-led-bright,
+.message-led-glow {
+  animation: message-blink var(--_blink) steps(1) var(--_blink-at) infinite;
 }
-@keyframes mail-lid {
+@keyframes message-lid {
   0% {
     opacity: 0;
   }
@@ -605,7 +605,7 @@
     opacity: 0;
   }
 }
-@keyframes mail-blink {
+@keyframes message-blink {
   0% {
     opacity: 1;
   }
@@ -616,13 +616,13 @@
     opacity: 1;
   }
 }
-.mail-av[data-live="working"] .mail-av-rest {
-  animation: mail-hop-rest var(--_hop) steps(1) var(--_hop-at) infinite;
+.message-av[data-live="working"] .message-av-rest {
+  animation: message-hop-rest var(--_hop) steps(1) var(--_hop-at) infinite;
 }
-.mail-av[data-live="working"] .mail-av-hop {
-  animation: mail-hop var(--_hop) steps(1) var(--_hop-at) infinite;
+.message-av[data-live="working"] .message-av-hop {
+  animation: message-hop var(--_hop) steps(1) var(--_hop-at) infinite;
 }
-@keyframes mail-hop-rest {
+@keyframes message-hop-rest {
   0% {
     opacity: 1;
   }
@@ -630,7 +630,7 @@
     opacity: 0;
   }
 }
-@keyframes mail-hop {
+@keyframes message-hop {
   0% {
     opacity: 0;
   }
@@ -638,15 +638,22 @@
     opacity: 1;
   }
 }
-.mail-av[data-live="gone"] :is(.mail-led-lid, .mail-led-bright) {
+.message-av[data-live="gone"] :is(.message-led-lid, .message-led-bright) {
   animation: none;
 }
-.mail-av[data-live="gone"] .mail-av-rest {
+.message-av[data-live="gone"] .message-av-rest {
   opacity: 0.45;
 }
 @media (prefers-reduced-motion: reduce) {
-  .mail-note[data-note="leased"]::before,
-  .mail-av :is(.mail-av-rest, .mail-av-hop, .mail-led-lid, .mail-led-bright, .mail-led-glow) {
+  .message-note[data-note="leased"]::before,
+  .message-av
+    :is(
+      .message-av-rest,
+      .message-av-hop,
+      .message-led-lid,
+      .message-led-bright,
+      .message-led-glow
+    ) {
     animation: none;
   }
 }

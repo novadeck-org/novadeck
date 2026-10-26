@@ -49,7 +49,7 @@ broadcast rooms; and agents starting conversations nobody asked for.
    block of text away from it may vanish, whole, as Codex's logo does. It counts once
    the agent's hook confirms it. Novadeck knows nothing of how any harness draws its
    screen: the checks are the same for every TUI.
-5. **The mailbox is the record.** Every message is stored and visible in Novadeck, with
+5. **The messages are the record.** Every message is stored and visible in Novadeck, with
    its delivery state; the person can pause all traffic.
 6. **Every harness is supported.** Claude Code, Codex and Antigravity all send and
    receive. Where one falls short of the ideal, the rule bends for it, as
@@ -112,7 +112,7 @@ All three harnesses get every path. Where one falls short, the design accepts it
 flowchart LR
   A[Agent A] -->|MCP send| S[Novadeck MCP server]
   S -->|report endpoint, terminal token| R[Runner]
-  R --> M[(Mailbox)]
+  R --> M[(Messages)]
   M --> D[Delivery, per recipient]
   H[Decoded activity: turns, requests] --> D
   K[Person's input, screen state] --> D
@@ -124,7 +124,7 @@ flowchart LR
 | Part         | Where                                                                                                                   | Owns                                                                                |
 | ------------ | ----------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------- |
 | MCP tools    | `shell/mcp.ts`, beside `show`, `showing`, `close`, `open_terminal`, `close_terminal`                                    | `send`, `agents` and `summarize`; the terminal's token on every call                |
-| Mailbox      | Runner, stored with the workspace (`WorkspaceStore`)                                                                    | Messages, threads, guards, pause, retention                                         |
+| Messages     | Runner, stored with the workspace (`WorkspaceStore`)                                                                    | Messages, threads, guards, pause, retention                                         |
 | Delivery     | Runner, one state machine per recipient terminal                                                                        | When and how a recipient notices: leases to hooks and the doorbell                  |
 | Hook answers | `shell/hook.ts` asks the runner; the runner returns stdout                                                              | Each harness's output encoding, in its adapter beside its decoder                   |
 | Doorbell     | `messaging/doorbell.ts`, behind `DoorbellHost` (built in `terminals/ringing.ts`); the manager owns every PTY and screen | The settle window, the calm check, the test paste, Enter, holding input and resizes |
@@ -235,7 +235,7 @@ terminal's running lead (the one `ledBy` names, running in the same project and
 session), for `agents()` and for fixing a message's `fromLead` and `toLead` as it is sent.
 Delivery marks the messages whose `fromLead` is set.
 
-## Mailbox
+## Messages
 
 ### Handles
 
@@ -518,7 +518,7 @@ shows stopped only once the agent has ended its turn, not because it called the 
 An unread tell stays until read while its terminal exists, including when the agent exits
 or starts a new session; it keeps the original agent attribution.
 
-A third kind of letter is the runner's own, not an agent's: a **finished turn**
+A third kind of entry is the runner's own, not an agent's: a **finished turn**
 (`content.kind: "turn"`, outcome `completed` or `failed`, with the reply, error and the files written). The runner records one for each turn end it sees, in
 `terminals/turn-ends.ts`. A failed end is recorded at once; a completed one after 700 ms
 (`finishGraceMs`, mirrored in the client), once the agent is not working and the person's
@@ -533,13 +533,13 @@ request waits on the person, or an agent with no Inbox owner. The same end told 
 its row in place; an end that turns limited removes it (an Escape's correction is a new end,
 which never had a row). The reply and error go through the transcript redactor before
 they are stored (null where it fails, never the unmasked text); file paths are kept as the
-activity has them. A turn row never reaches Messages and is not mail; it stays until
+activity has them. A turn row never reaches Messages and is not a message; it stays until
 read, which removes it, up to fifty unread per terminal (the oldest goes first), and it goes with
 its terminal. A usage limit is no row: it is derived from `lastTurn.limited` and the
 limit window, and leaves when the agent works again.
 
-The runner's `asks` table keeps these lifetimes and their Messages history. Every
-letter is bound to the terminal, project, workspace session and exact agent session.
+The runner's `inbox` table keeps these lifetimes and their Messages history. Every
+entry is bound to the terminal, project, workspace session and exact agent session.
 An ask clears when answered, withdrawn (by the agent, or by Novadeck at the person's own
 prompt in its terminal) or its agent session ends. A runner restart
 keeps pending asks for the resumed session; one whose terminal has had no agent bound for
@@ -561,16 +561,16 @@ Resolved history is limited to one hundred records per terminal and expires a da
 resolution or the reply's final delivered/gone outcome, on startup, after changes and
 on a minute timer. A person's reply still
 queued or leased pins its question; it is never pruned before delivery or a final gone
-state. Pruning a settled question also removes its settled mailbox response. Removing
-a project deletes its letters with its mail.
+state. Pruning a settled question also removes its settled message response. Removing
+a project deletes its entries with its messages.
 
-Only the authenticated UI's `asks.answer` operation creates a person response. It checks
+Only the authenticated UI's `inbox.answer` operation creates a person response. It checks
 that the ask is still open in the same session and that the answer fits the offered
 shape. Saving the answer message and resolving the ask is one SQLite transaction;
 failed storage or an oversized answer leaves the ask answerable. Answers take the
 existing Stop lease and doorbell delivery path in Claude Code, Codex and Antigravity,
 including escaped-output bounds and recipient-session fencing. The pause switch holds
-only agent-to-agent mail: the person's replies bypass it, even after a restart or a lost
+only agent-to-agent messages: the person's replies bypass it, even after a restart or a lost
 lease. Person replies and peer messages have separate fifty-message waiting limits,
 so a paused peer queue cannot block an answer. A full person queue leaves the ask and
 draft available to retry. Replies are never held as a loop, nor counted in one.
@@ -583,7 +583,7 @@ are escaped, so a send claiming to be the person, or quoting an earlier mark, ca
 
 Messages lists a **You** thread for each ask or tell. Ask and Tell entries are already
 received history, not pending agent delivery. The complete subject, body, details,
-options and code remain after the Inbox clears. **Your reply** shows its actual mail
+options and code remain after the Inbox clears. **Your reply** shows its actual message
 state: queued, leased, delivered, or gone when its session ended. Ask history explicitly
 shows withdrawn, session ended, or a reply that did not arrive. A reply already delivered
 does not become undelivered when the session later ends. The protocol's `inboxState`
@@ -1226,7 +1226,7 @@ and names it in its note, which then reads:
 </novadeck-messages>
 ```
 
-Both notes are built in `messaging/mailbox.ts` from shared clauses, so they can't drift,
+Both notes are built in `messaging/messages.ts` from shared clauses, so they can't drift,
 and are written for the model, so they say "the user". The note writes the mark in
 single quotes, as it sits in a double-quoted attribute; the value is the same as in the
 message's `lead="AbCd1234"`. A peer's text is escaped, and a mark written in it, a past
@@ -1508,7 +1508,7 @@ output, not that the model acted on it.
   message of the thread after it, idle or not; a message that isn't idle sets the count
   back to none. While held, each message is still judged idle or not, for its answer,
   but the count stays as it was. A message at or past the hold is held `release` even
-  while messaging is paused, so the hold's Inbox item stays. The hold is the thread's,
+  while messaging is paused, so the hold's Inbox row stays. The hold is the thread's,
   and lasts until the person releases or stops it: a held message that goes `gone` (as
   with its session) is like any other, and one that comes back waits held again, its hop
   being past the hold. A held thread is continued like any thread, within ten minutes of its last message; after
@@ -1973,8 +1973,8 @@ optional `messages` capability (`core/messages.ts`):
 - **Messages view.** A terminal that has had messages gets a Messages icon in its
   companion pane's taskbar, with the same count; an agent with none yet keeps its bar
   clear. The view is one list of the terminal's conversations, 1:1 as messaging is: one per
-  peer, and **You**, which gathers the letters its agent wrote the person (the runner lists
-  a thread a letter) with their replies. You comes first while a question is open or a tell
+  peer, and **You**, which gathers the entries its agent wrote the person (the runner lists
+  a thread an entry) with their replies. You comes first while a question is open or a tell
   unread, then the rest, latest first. A row shows the peer's critter (below), title and
   handle, and its last message as "who: text"; its corner says one thing: **Asks you** or
   **Not delivered** as chips, else **Unread**, styled as the time it stands in for, else the
@@ -1990,10 +1990,10 @@ optional `messages` capability (`core/messages.ts`):
   and Delivered under the last of the right side's. Three or more rounds that repeat (the
   same senders, the same text numbers aside) fold to "N more rounds like this · Show", for
   reading only: the runner holds on work, never on repeated text (see Guards). Its
-  head has the way back, and the way to the peer's terminal. In You, letters say what they
+  head has the way back, and the way to the peer's terminal. In You, entries say what they
   are (Asks you, Asked you · answered, withdrawn, session ended or reply not delivered;
   Tells you, Told you), a reply quotes its question, a New line comes before the first
-  unread letter, an open question has **Answer**, which opens its Inbox item, and the head
+  unread entry, an open question has **Answer**, which opens its Inbox row, and the head
   counts the questions that wait. The view shows no holds: a thread held as a loop is
   the runner's and the Inbox's (`messages.release`), never released or stopped here.
 - **Critters.** Each handle has an 8×8 critter drawn for its word
@@ -2018,7 +2018,7 @@ optional `messages` capability (`core/messages.ts`):
   While paused, the view says so and every badge shows it.
 
 The person answers MCP asks through the Inbox; those answers are relayed as person
-mail, not as an agent send. They can also type in the terminal. The chat view's
+messages, not as an agent send. They can also type in the terminal. The chat view's
 prompts (`agents.prompt`, `agents.interrupt`; see `backend-api.md`) are the person typing:
 the runner writes them as one bracketed paste and an Enter, or an Escape, through the same
 key bookkeeping as the person's own keys (`Terminals.keyed`), so "What counts" and
@@ -2069,7 +2069,7 @@ again.
 
 ## Rollout
 
-1. **Mailbox and hook delivery:** handles, the mailbox, `send` and `agents`, leases and
+1. **Message and hook delivery:** handles, the messages, `send` and `agents`, leases and
    asks for all three harnesses, the states except the doorbell, guards, pause and the
    runner API. Built: `backend/runner/src/messaging/`, with the runner API as
    `messages.list`, `messages.pause` and `messages.release`.
@@ -2207,7 +2207,7 @@ resume probes sent it one prompt:
 | The person presses Esc mid-turn with messages waiting                                          | Unknown; no doorbell until the screen shows its box empty, then rung; or the next turn event delivers                                                                                                                                                            |
 | A harness shows its own popup after Stop                                                       | The test paste is swallowed or changes far rows; nothing is pressed; Unknown                                                                                                                                                                                     |
 | The person opened a picker with Esc-Esc when a message arrives                                 | Settled still, so rung: a picker that swallows the paste gets nothing pressed, Unknown; one the paste leaves takes the line in the prompt, and the ring delivers                                                                                                 |
-| A nested `claude -p` runs inside Claude's turn                                                 | Its hooks get nothing; the mailbox is untouched                                                                                                                                                                                                                  |
+| A nested `claude -p` runs inside Claude's turn                                                 | Its hooks get nothing; the messages are untouched                                                                                                                                                                                                                |
 | The hook times out after the runner leased messages                                            | The lease lapses; the messages return to queued and arrive later, by id                                                                                                                                                                                          |
 | The runner restarts while messages are leased                                                  | They return to queued                                                                                                                                                                                                                                            |
 | The person starts a different agent in Codex's terminal                                        | Codex's messages become gone; the sender is told                                                                                                                                                                                                                 |

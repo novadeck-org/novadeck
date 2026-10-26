@@ -57,7 +57,7 @@ const extractTools = (anchors: Anchors, adapters: Adapter[]): McpTool[] => {
   // The constants the literals spread or name, each ending at a blank line or a comment.
   const preamble = [
     ...source.matchAll(
-      /^const (rules|agentChoices|letterFields)\b[^=]*=\s*([\s\S]*?)\n(?=\n|\/\/)/gm,
+      /^const (rules|agentChoices|entryFields)\b[^=]*=\s*([\s\S]*?)\n(?=\n|\/\/)/gm,
     ),
   ]
     .map(([, name, value]) => `const ${name} = ${value}`)
