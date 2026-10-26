@@ -7,6 +7,9 @@ import { afterEach, beforeEach, vi } from "vitest"
 
 import {
   apiUrlArgumentPrefix,
+  feedbackAboutChannel,
+  feedbackArgumentPrefix,
+  feedbackSendChannel,
   webglContextsArgumentPrefix,
   appearanceChannel,
   installAppChannel,
@@ -738,5 +741,35 @@ describe("the WebGL context limit", () => {
 
   it.each([undefined, "", "2", "9999", "64.5", "lots"])("is left out for %j", async (value) => {
     expect(await loadWith(value)).not.toHaveProperty("webglContexts")
+  })
+})
+
+describe("feedback", () => {
+  const loadWith = async (given: string[]): Promise<DesktopHost> => {
+    process.argv.push(...given)
+    vi.resetModules()
+    await import("./index")
+    process.argv.splice(process.argv.length - given.length, given.length)
+    return electron.exposed
+  }
+
+  it("is offered only when the host says it sends notes", async () => {
+    expect((await loadWith([`${feedbackArgumentPrefix}1`])).feedback).toBe(true)
+    expect(await loadWith([])).not.toHaveProperty("feedback")
+    expect(await loadWith([`${feedbackArgumentPrefix}0`])).not.toHaveProperty("feedback")
+  })
+
+  it("hands a note to the host as its kind and text alone", async () => {
+    electron.messages.length = 0
+    await electron.exposed.sendFeedback!({ kind: "bug", text: "x", extra: 1 } as never)
+    expect(electron.sent).toEqual([feedbackSendChannel])
+    expect(electron.messages).toEqual([[feedbackSendChannel, { kind: "bug", text: "x" }]])
+  })
+
+  it("asks the host what goes along with a note", async () => {
+    const about = { version: "1.0.0", os: "linux", arch: "x64" }
+    electron.answer = about
+    expect(await electron.exposed.feedbackAbout!()).toEqual(about)
+    expect(electron.sent).toEqual([feedbackAboutChannel])
   })
 })

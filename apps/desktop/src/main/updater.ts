@@ -60,7 +60,21 @@ export type UpdateFeed = {
   readonly site?: string | undefined
 }
 
-const novadeckSite = "https://novadeck.dev"
+export const novadeckSite = "https://novadeck.dev"
+
+/**
+ * The origin of an address on this computer (localhost, 127.0.0.1 or [::1], over http or
+ * https), which is all a replacement for the website may be; anything else is undefined.
+ */
+export const localOrigin = (site: string): string | undefined => {
+  try {
+    const url = new URL(site)
+    const local = ["localhost", "127.0.0.1", "[::1]"].includes(url.hostname)
+    return local && (url.protocol === "https:" || url.protocol === "http:") ? url.origin : undefined
+  } catch {
+    return undefined
+  }
+}
 
 /**
  * The address, ending in "/", whose `latest*.yml` the channel's checks read: the website
@@ -70,16 +84,7 @@ const novadeckSite = "https://novadeck.dev"
  * https); anything else is ignored.
  */
 export const feedUrl = (channel: UpdateChannel, site?: string): string => {
-  let origin = novadeckSite
-  if (site !== undefined) {
-    try {
-      const url = new URL(site)
-      const local = ["localhost", "127.0.0.1", "[::1]"].includes(url.hostname)
-      if (local && (url.protocol === "https:" || url.protocol === "http:")) origin = url.origin
-    } catch {
-      // Not an address: the website stays.
-    }
-  }
+  const origin = (site !== undefined && localOrigin(site)) || novadeckSite
   return `${origin}/update/${channel}/`
 }
 

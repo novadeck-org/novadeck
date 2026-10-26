@@ -350,7 +350,7 @@ describe("the agents demo's Inbox", () => {
       workspaceSessionId: "initial",
       terminalId: found.terminal.id,
     }
-    await backend.feedback!.ask(key, "")
+    await backend.feedback!.ask!(key, "")
     await vi.advanceTimersByTimeAsync(3 * 1500 + 100)
     // The writing turn ended unseen: the agent finished while the person looked elsewhere, and
     // the demo stored its finish as a row, which is no Inbox item.

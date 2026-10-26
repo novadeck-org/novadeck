@@ -172,6 +172,16 @@ export type DesktopBridge = {
    */
   openLogs?(): void
   /**
+   * What goes along with a feedback note: the app's version, the OS and the architecture.
+   * Present with `DesktopHost.feedback`.
+   */
+  feedbackAbout?(): Promise<FeedbackHostAbout>
+  /**
+   * Sends a feedback note: the host posts it, the page never reaches the network itself.
+   * Resolves once the website took it; rejects otherwise. Present with `DesktopHost.feedback`.
+   */
+  sendFeedback?(note: FeedbackHostNote): Promise<void>
+  /**
    * Tells the host of an error the page didn't catch, which it logs: its name, message and
    * stack, each cut to size; the host drops a report that is anything else. Absent from hosts
    * that came before it.
@@ -191,6 +201,19 @@ export type DesktopBridge = {
    * nothing yet. Absent from hosts that came before it.
    */
   pagePicture?(page: number): Promise<string | undefined>
+}
+
+/** A feedback note as it crosses to the host: the kind the person picked, or none, and the text. */
+export type FeedbackHostNote = {
+  readonly kind: "bug" | "idea" | "other" | null
+  readonly text: string
+}
+
+/** What a host says goes along with a feedback note; `os` and `arch` as the website takes them. */
+export type FeedbackHostAbout = {
+  readonly version: string
+  readonly os: "macos" | "windows" | "linux"
+  readonly arch: string
 }
 
 /** The counts of the page's WebGL pool; see `DesktopBridge.reportRendererPool`. */
@@ -552,6 +575,12 @@ export type DesktopHost = DesktopBridge & {
    * hosts that came before it.
    */
   readonly webglContexts?: number
+  /**
+   * True when the host sends the person's feedback notes to the Novadeck website, so the
+   * page offers the footer's card: `feedbackAbout` and `sendFeedback` work. Absent where it
+   * does not (a development run without a feedback address) and from hosts that came before it.
+   */
+  readonly feedback?: true
 }
 
 /** The fewest and most WebGL contexts a host may say its page is allowed. */

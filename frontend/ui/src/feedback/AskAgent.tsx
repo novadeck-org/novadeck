@@ -49,7 +49,10 @@ const Card = ({
     if (asking) return
     setAsking(true)
     setFailed(false)
-    feedback.ask(target.key, hint.trim()).then(
+    const asked = feedback.ask
+      ? feedback.ask(target.key, hint.trim())
+      : Promise.reject(new Error("This backend can't ask an agent."))
+    asked.then(
       () => {
         // A late answer closes only this card, not one opened for another window since.
         if (askAgentStore.getSnapshot() !== target) return
