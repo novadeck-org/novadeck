@@ -33,20 +33,9 @@ Terminals ask for a description when something worth a new one happened (see
   screen is read as any screen is: procps `top`, `less -X`, and git's pager, which git runs
   with `LESS=FRX` unless `LESS` is set.
 
-A gist is handed its own digest: the agent's last reply, whole when short, else its first and last 4000 characters.
-The prompt strips what is no prose, after redaction (fenced code becomes `[code]`, link
-addresses and bare URLs go, table rows become their first row and `[table]`), then budgets
-what is left by what it costs the model in tokens, as a ceiling that does not undercount: 3100 of
-the 4096-token window. A plain word costs 0.65 a character, other ASCII and a digit 1 (and a
-number its leading space, each line break 1, and every word at least 1), Chinese, Japanese and Korean 2 to 2.4, other scripts 1.5 to 3, and
-anything beyond the basic plane 4. It was measured on the engine's own tokenizer against random
-digits, hex, base64, symbols, path lists, emoji and rare characters. That is about 2900
-characters of English each at the start and the end, and far fewer of dense text. Fenced code
-is a line that begins with three or more backticks, up to a line of at least as many, so a
-stray ``` in a sentence is no fence. A request that is still too big for the context (the
-engine answers 400 `exceed_context_size_error`) is a refusal of that job: no text, counted as a refusal for that terminal's kind, and no engine
-failure, back-off or restart. A cut reply is shown as "The start of the agent's reply:", `[…]`, "The end of the
-agent's reply:", so the two pieces are not read as one text.
+A request that is too big for the context (the engine answers 400 `exceed_context_size_error`)
+is a refusal of that job: no text, counted as a refusal for that terminal's kind, and no engine
+failure, back-off or restart.
 
 Nothing else is read, and nothing leaves the machine: the server listens on `127.0.0.1`
 behind a random API key made for each launch and passed in the environment

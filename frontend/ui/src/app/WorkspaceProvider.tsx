@@ -165,7 +165,8 @@ export const WorkspaceProvider = ({
   useEffect(() => watchClosing(services.workspace, services.ui), [services])
   useEffect(() => watchChat(services.chat, services.workspace), [services])
   useEffect(() => watchPageFocus(services.ui, window, services.backend.windowFocus), [services])
-  // Before the watchers below and the Inbox's own, which read the landed Inbox.
+  // Before the watchers below, which read the landed Inbox. The Inbox's own watchers, in child
+  // effects, subscribe first; until it starts, the landed Inbox holds the rule's computed state.
   useEffect(() => services.landing.start(), [services])
   useEffect(() => {
     const { backend, workspace, ui, landing } = services
