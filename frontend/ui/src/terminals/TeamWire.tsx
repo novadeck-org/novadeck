@@ -4,7 +4,7 @@ import { useEffect, useLayoutEffect, useRef, useState } from "react"
 import { blinkMs, wireShape, type WireMember, type WireShape } from "./team-wire"
 
 // How long the wire keeps measuring after something that moves the tabs without a layout
-// change it can observe: a drop's settle (180ms) and the sidebar's slide.
+// change it can observe: a drop's settle (180ms) and the sidebar's first frames once shown.
 const settleMs = 400
 
 const sameWires = (a: Wires, b: Wires) => JSON.stringify(a) === JSON.stringify(b)
@@ -99,7 +99,7 @@ export const TeamWire = ({
       setWires((current) => (sameWires(current, next) ? current : next))
     }
     // Measures every frame until `until`, through moves no observer reports: a drag, its
-    // drop and the sidebar sliding in.
+    // drop and the sidebar being shown.
     let frame = 0
     let until = 0
     const follow = (ms: number) => {
