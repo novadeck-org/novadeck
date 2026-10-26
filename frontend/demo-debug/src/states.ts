@@ -3,9 +3,9 @@ import type { BackendAction, TerminalKey } from "@novadeck/core/port"
 import { isAgentProgram } from "@novadeck/core/process"
 import { terminalKeyId } from "@novadeck/core/registry"
 import { createStore } from "@novadeck/core/store"
-import { terminalAsks } from "@novadeck/core/terminal-ending"
 import type { TerminalMetadata, Workspace } from "@novadeck/core/types"
 import type { DemoAgentVerbs, DemoWaiting } from "@novadeck/demo/agent-link"
+import { isDemoInbox } from "@novadeck/demo/inbox"
 import type { DemoScreenState } from "@novadeck/demo/runtime"
 import { terminalOf } from "@novadeck/demo/terminals"
 
@@ -19,13 +19,14 @@ import {
   cleanExit,
   contextOnly,
   dealKinds,
+  doneReport,
   exitedWithCode,
   failedToStart,
   killedBy,
   killedForMemory,
+  mcpAsk,
   leadsNext,
   leadsOthers,
-  murmurGists,
   noisyAgents,
   openedByAgent,
   othersOf,
@@ -52,10 +53,6 @@ const crowd = 12
 const calmMs = 100
 // How long a screen takes to arrive, as the runner's.
 const attachMs = 2500
-
-// The second round of kinds reads as murmur wrote it, the first as it never ran.
-const murmured = (index: number): boolean =>
-  index >= terminalAsks.length && index < 2 * terminalAsks.length
 
 const pause = (ms: number): Promise<void> => new Promise((resolve) => setTimeout(resolve, ms))
 
@@ -168,17 +165,27 @@ const waitingForWake: DemoWaiting = {
   inMinutes: 8,
 }
 
+// How long from now the gallery's paused agent's usage limit resets.
+const limitResetMs = 80 * 60_000
+
 // One terminal per state, named after it, so every tab and window shows one at a time.
 // The last stays selected; a done mark needs the person to be looking elsewhere, so the
 // finished ones come first, ending their turns a moment later. An agent's state is its
-// verb's, the rest the terminal's metadata.
+// verb's, the rest the terminal's metadata; what an agent asks through its MCP `ask` is an
+// Inbox item of the demo's own, added once the terminal is in its state.
 const gallery: readonly {
   readonly name: string
   readonly state?: (key: TerminalKey) => BackendAction[]
   readonly agent?: (verbs: DemoAgentVerbs, key: TerminalKey) => void
+  readonly asks?: "text" | "action"
 }[] = [
   {
-    name: "Finished turn",
+    name: "Done",
+    agent: (verbs, key) =>
+      verbs.finish(key, undefined, "completed", { after: turnMs, done: doneReport }),
+  },
+  {
+    name: "Replied, unread",
     agent: (verbs, key) => verbs.finish(key, undefined, "completed", { after: turnMs }),
   },
   {
@@ -216,6 +223,22 @@ const gallery: readonly {
     agent: (verbs, key) =>
       verbs.finish(key, undefined, "completed", { after: turnMs, waiting: waitingForWake }),
   },
+  {
+    name: "Working, a side question",
+    agent: (verbs, key) => verbs.work(key, undefined),
+    asks: "text",
+  },
+  {
+    name: "Paused at its limit",
+    agent: (verbs, key) =>
+      verbs.finish(key, undefined, "failed", {
+        after: turnMs,
+        error: "Usage limit reached",
+        limit: { minutes: 300, resetsAt: Date.now() + limitResetMs },
+      }),
+  },
+  { name: "Asks (MCP)", state: (key) => runAgent(key, "claude"), asks: "text" },
+  { name: "Needs a sign-in", state: (key) => runAgent(key, "claude"), asks: "action" },
   { name: "Unheard agent", state: (key) => unheardAgent(key, "claude") },
   { name: "Running a program", state: (key) => runProgram(key, "sleep") },
   { name: "Opened by an agent", state: (key) => openedByAgent(key, "pnpm") },
@@ -234,10 +257,10 @@ const gallery: readonly {
   },
 ]
 
-const everyState = (verbs: DemoAgentVerbs): DemoAction => ({
+const everyState = (verbs: DemoAgentVerbs, inbox: () => Inbox | undefined): DemoAction => ({
   label: "Every state at once",
   hint: `${gallery.length} terminals, one per state`,
-  run: ({ addTerminal, dispatch }) => {
+  run: ({ addTerminal, dispatch, workspace }) => {
     if (!dispatch) return
     // Added first, so each finish lands while the person looks at the last one.
     const keys = gallery.map(() => addTerminal())
@@ -249,6 +272,12 @@ const everyState = (verbs: DemoAgentVerbs): DemoAction => ({
       }),
     )
     gallery.forEach(({ agent }, index) => agent?.(verbs, keys[index]!))
+    const own = inbox()
+    if (!isDemoInbox(own)) return
+    gallery.forEach(({ asks }, index) => {
+      const item = asks && mcpAsk(workspace(), keys[index]!, asks, Date.now())
+      if (item) own.add(item)
+    })
   },
 })
 
@@ -278,11 +307,11 @@ const createWaitingActions = (
       slots.forEach((key, index) => {
         const kind = kinds[index]!
         const terminal = terminalOf(workspace(), key)
-        const murmur = murmured(index)
         if (kind === "done" || kind === "failed")
           verbs.finish(key, terminal, kind === "done" ? "completed" : "failed", {
             after: turnMs,
-            ...(murmur ? { gist: murmurGists[kind] } : {}),
+            // A done agent called `done`; a failed one only stopped.
+            ...(kind === "done" ? { done: doneReport } : {}),
           })
         else verbs.ask(key, terminal, kind, 1)
       })
@@ -441,7 +470,7 @@ export const createDemoStates = (
       section: "Terminals",
       title: "New terminals",
       actions: [
-        everyState(verbs),
+        everyState(verbs, inbox),
         failingTerminal(
           "Quick failure",
           "Fails right after starting",
@@ -530,7 +559,13 @@ export const createDemoStates = (
         ),
         verb(
           "Completes",
-          "Works, then done; unread once you look away",
+          "Works, then calls done; the tab marks it until you look away",
+          (v, k, t) => v.finish(k, t, "completed", { after: turnMs, done: doneReport }),
+          verbs,
+        ),
+        verb(
+          "Replies, no done call",
+          "Works, then rests; its program brightens until you look, no Inbox row",
           (v, k, t) => v.finish(k, t, "completed", { after: turnMs }),
           verbs,
         ),

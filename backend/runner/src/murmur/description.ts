@@ -2,7 +2,7 @@
 // title bar, tidies them, and drops the rest, so nothing downstream checks again.
 import { maskedSpans, redacted } from "@novadeck/secrets"
 
-import type { Description, Gist } from "./describer.js"
+import type { Description } from "./describer.js"
 
 // A title is a short noun name, like a ticket or a branch: the prompt asks for one to three
 // words, and the parser lets one more through, so a name a little long is kept, not lost.
@@ -18,16 +18,6 @@ export const exampleTitles = [
   "Walidacja rejestracji",
   "Awaria testów",
   "Nginx access log",
-] as const
-
-export const gistWords = { min: 3, max: 10 }
-export const gistCharacters = 60
-
-/** The gists the prompt shows as examples, refused like the titles. */
-export const exampleGists = [
-  "Checkout totals now round per line",
-  "Walidacja gotowa, brakuje jeszcze migracji",
-  "Build fails on a missing type",
 ] as const
 
 // Text as `words` sees it before it splits: lower case, accents stripped.
@@ -143,7 +133,6 @@ const spacelessChat = new Set([
 const spaceless =
   /[\p{Script=Han}\p{Script=Hiragana}\p{Script=Katakana}\p{Script=Hangul}\p{Script=Thai}]/u
 export const spacelessCharacters = { min: 2, max: 10 }
-export const spacelessGistCharacters = { min: 4, max: 30 }
 
 const tidy = (text: string): string => text.replace(/\s+/g, " ").trim()
 
@@ -271,41 +260,18 @@ export const looksSecret = (title: string): boolean =>
     (span) => providerKeys.test(span) || tokenLike(span) || (span.length >= 12 && /\d/.test(span)),
   )
 
-type Limits = {
+export type Limits = {
   readonly words: { readonly min: number; readonly max: number }
   readonly characters: number
   readonly spaceless: { readonly min: number; readonly max: number }
   readonly examples: readonly string[]
-  /**
-   * Whether it may open like an English question: a title may, and a gist may unless a
-   * pronoun follows ("Should I...", but not "Did not touch the files").
-   */
-  readonly opener: "allowed" | "asking"
-  /** Whether a verb phrase's filler ("Working on") is taken off, and a title of filler refused. */
-  readonly fillers: boolean
 }
-
-// How an English question begins. A gist is a statement, so one that opens like this, with a
-// pronoun after it, is the question itself, and is refused.
-const questionOpeners = new Set("should shall can could would will do does did is are".split(" "))
-// Who a question is put to or about: after an opener, one of these makes a gist a question.
-const askedOf = new Set("i we you he she it they".split(" "))
 
 const titleLimits: Limits = {
   words: titleWords,
   characters: titleCharacters,
   spaceless: spacelessCharacters,
   examples: exampleTitles,
-  opener: "allowed",
-  fillers: true,
-}
-const gistLimits: Limits = {
-  words: gistWords,
-  characters: gistCharacters,
-  spaceless: spacelessGistCharacters,
-  examples: exampleGists,
-  opener: "asking",
-  fillers: false,
 }
 
 const object = (raw: string): Record<string, unknown> | undefined => {
@@ -504,7 +470,7 @@ export const sharesContentWord = (a: string, b: string): boolean => {
 // The line the model wrote, tidied, or undefined when it doesn't fit `limits`, names nothing,
 // copies an example or looks like a secret. `source` is the text the model was shown, and
 // `project` a name to leave out of it.
-const line = (
+export const line = (
   text: string,
   limits: Limits,
   source: string | undefined,
@@ -513,7 +479,7 @@ const line = (
   const tidied = plain(text).replace(/[.:;,\s]+$/, "")
   const stripped = withoutProject(tidied, project)
   if (stripped === undefined) return undefined
-  const clean = limits.fillers ? withoutFiller(stripped) : stripped
+  const clean = withoutFiller(stripped)
   if (clean.length > limits.characters) return undefined
   if (spaceless.test(clean)) {
     const characters = [...clean.replaceAll(/\s/g, "")].length
@@ -525,15 +491,8 @@ const line = (
   // A question, or a greeting or request echoed back, names nothing.
   if (clean.endsWith("?")) return undefined
   const given = words(clean)
-  if (
-    limits.opener !== "allowed" &&
-    questionOpeners.has(given[0] ?? "") &&
-    askedOf.has(given[1] ?? "")
-  )
-    return undefined
   if (given.length > 0 && given.every((word) => chatWords.has(word))) return undefined
-  if (limits.fillers && given.every((word) => workFiller.has(word) || chatWords.has(word)))
-    return undefined
+  if (given.every((word) => workFiller.has(word) || chatWords.has(word))) return undefined
   if (spacelessChat.has(clean.replaceAll(/\s/g, ""))) return undefined
   const shown = source === undefined ? undefined : fold(source)
   // A provider's key is looked for in the line as the model wrote it as well: tidying turns
@@ -559,12 +518,4 @@ export const parseDescription = (
   const { title } = value
   const clean = typeof title === "string" ? line(title, titleLimits, source, project) : undefined
   return clean === undefined ? undefined : { title: clean }
-}
-
-/** The gist in `raw`, or undefined when it can't be used. */
-export const parseGist = (raw: string, source?: string): Gist | undefined => {
-  const value = object(raw)
-  if (value === undefined) return undefined
-  const clean = typeof value.gist === "string" ? line(value.gist, gistLimits, source) : undefined
-  return clean === undefined ? undefined : { kind: "gist", text: clean }
 }

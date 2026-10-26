@@ -31,7 +31,7 @@ export const inboxBadge = (items: readonly InboxItem[]): BellBadge | undefined =
       type === "trouble" && toneOf(first) === "urgent"
         ? "failed"
         : type === "ask"
-          ? "question"
-          : "attention",
+          ? "ask"
+          : "unblock",
   }
 }

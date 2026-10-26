@@ -613,9 +613,9 @@ const ask: Tool<{ readonly id: string; readonly withdrawn?: boolean }> = {
     "Put a question in the user's Inbox without stopping your work. The user rarely watches " +
     "this terminal, so a question only in your reply goes unseen: always ask every question " +
     "you end your turn waiting on, such as which option to take or whether to open a pull " +
-    "request, beside your reply, unless it is already an open ask. A closing offer such as " +
+    "request, unless it is already an open ask, and put the full question in your reply too. A closing offer such as " +
     "'anything else?' isn't one, nor is an action your harness is already prompting them " +
-    "for. With a lead, send it your questions with send instead, working around them as " +
+    "for. With a lead, send it your questions with send instead of ask, working around them as " +
     "below; only approvals of actions, which are always the user's, such as opening a pull " +
     "request, go through ask, and you tell your lead you're waiting. Most decisions aren't blocking: ask, keep going on what doesn't depend on the " +
     "answer, and where your pick is easy to undo and needs no approval of theirs " +
@@ -625,7 +625,9 @@ const ask: Tool<{ readonly id: string; readonly withdrawn?: boolean }> = {
     "truly needs it; once nothing else is left, end your turn, and their answer wakes you. " +
     "It suits a decision between options where you have a pick (give an options shape with " +
     "recommend, and hard_to_undo when it is), and what only the user can do: an " +
-    "action shape shows them a command to run; Novadeck never runs it. Returns at once with " +
+    "action shape shows them a command to run; Novadeck never runs it. When you can't go on " +
+    "without something only they can do, such as a sign-in, access to a service or repo, or " +
+    "a key put in place, that is an ask with the action shape, not just words in your reply. Returns at once with " +
     "the ask's id. Give a subject and Markdown body, optionally details, hard_to_undo and " +
     "shape. The user can always write their own answer. Secret shapes are unavailable; never " +
     "ask for a secret value in a reply. To withdraw your own open ask instead, give only " +
@@ -730,7 +732,7 @@ const tell: Tool<{ readonly id: string }> = {
     "It appears as an Update they can mark read, without badging the bell. It suits a " +
     "milestone they'd want to hear of while they're elsewhere: a pull request opened, its " +
     "checks passed or failed, a merge, or that you now wait on someone else; not each step. " +
-    "With a lead, report to it instead. Use ask when you need an answer. Asks, updates and " +
+    "With a lead, send it that with send instead of tell. Use ask when you need an answer. Asks, updates and " +
     "the user's answers stay in Messages.",
   inputSchema: {
     type: "object",
@@ -744,9 +746,30 @@ const tell: Tool<{ readonly id: string }> = {
   failed: "Novadeck couldn't save the update.",
 }
 
+const done: Tool<{ readonly id: string }> = {
+  name: "done",
+  description:
+    "Report to the user through Novadeck's Inbox that the task you were given is finished: " +
+    "a one-line subject and a Markdown body with your own short report. It appears as an " +
+    "Update they can mark read. Call it once the task is finished, not when you answer a " +
+    "question or finish a step. With a lead, send it your report with send instead of done. " +
+    "Use ask when you need an answer. Reports stay in Messages.",
+  inputSchema: {
+    type: "object",
+    properties: letterFields,
+    required: ["subject", "body"],
+    additionalProperties: false,
+  },
+  call: "done",
+  request: (args) => args,
+  said: (answer) => `Report ${answer.id} is in the user's Inbox.`,
+  failed: "Novadeck couldn't save the report.",
+}
+
 const tools: readonly Tool<unknown>[] = [
   ask,
   tell,
+  done,
   show,
   showing,
   close,
@@ -788,15 +811,22 @@ const instructions =
   "Novadeck's ask puts a question in the user's Inbox, where they see it: they rarely " +
   "watch this terminal, so a question only in your reply goes unseen. Always ask there " +
   "every question you end your turn waiting on, such as which option to take or whether " +
-  "to open a pull request, beside your reply, unless it is already an open ask; a closing " +
+  "to open a pull request, unless it is already an open ask, and put the full question " +
+  "in your reply too; a closing " +
   "offer such as 'anything else?' isn't one, nor is an action your harness is already " +
-  "prompting them for; if they answer here instead, withdraw the ask. Mid-work, ask " +
+  "prompting them for; if they answer here instead, withdraw the ask. When you can't go on " +
+  "without something only the user can do, such as a sign-in, access to a service or repo, " +
+  "or a key put in place, that is an ask with the action shape, not just words in your " +
+  "reply; never ask for a secret value. Mid-work, ask " +
   "without stopping your work: for " +
   "a decision the user should make, ask there and keep going on what doesn't depend on the " +
   "answer; most such decisions aren't blocking. Its tell puts a milestone there for " +
   "when they're elsewhere: a pull request " +
-  "opened, its checks done, a merge, or that you now wait on someone else. With a lead, " +
-  "both go to it instead, except approvals of actions, which are always the user's."
+  "opened, its checks done, a merge, or that you now wait on someone else. Its done is " +
+  "your own short report when the task you were given is finished, not when you answer a " +
+  "question or finish a step. With a lead, send your report and your questions to it with " +
+  "send instead of done, tell or ask; approvals of actions are still the user's, asked " +
+  "with ask."
 
 const respond = async (line: string, call?: McpCall): Promise<Reply | undefined> => {
   if (line.trim() === "") return undefined

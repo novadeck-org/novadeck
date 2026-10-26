@@ -12,9 +12,7 @@ import {
   started,
   subagentRef,
   summary,
-  withGist,
   withLimit,
-  withoutNotes,
   type Activity,
 } from "./activity.js"
 import type { Binding } from "./bindings.js"
@@ -81,7 +79,6 @@ const ongoing = { lastTurn: null }
 const replied = {
   outcome: "completed",
   reply: "<text>",
-  gist: null,
   error: null,
   limit: null,
   files: [] as string[],
@@ -143,7 +140,6 @@ describe("activity from captured hooks", () => {
       idle({
         outcome: "interrupted",
         reply: null,
-        gist: null,
         error: null,
         limit: null,
         files: [],
@@ -195,7 +191,7 @@ describe("activity from captured hooks", () => {
     })
     // Its Stop names no reply; its transcript does, which the runner reads apart.
     expect(states).toContainEqual(
-      idle({ outcome: "completed", reply: null, gist: null, error: null, limit: null, files: [] }),
+      idle({ outcome: "completed", reply: null, error: null, limit: null, files: [] }),
     )
   })
 })
@@ -1080,7 +1076,6 @@ describe("how an agent's latest turn ended", () => {
       outcome: "completed",
       reply: "Fixed the flaky spec.",
       at: 2,
-      gist: null,
       error: null,
       limit: null,
       files: [],
@@ -1089,7 +1084,6 @@ describe("how an agent's latest turn ended", () => {
       outcome: "completed",
       reply: null,
       at: 2,
-      gist: null,
       error: null,
       limit: null,
       files: [],
@@ -1099,7 +1093,6 @@ describe("how an agent's latest turn ended", () => {
       outcome: "failed",
       reply: null,
       at: 2,
-      gist: null,
       error: null,
       limit: null,
       files: [],
@@ -1117,7 +1110,6 @@ describe("how an agent's latest turn ended", () => {
       outcome: "unknown",
       reply: null,
       at: 2,
-      gist: null,
       error: null,
       limit: null,
       files: [],
@@ -1133,7 +1125,6 @@ describe("how an agent's latest turn ended", () => {
         outcome: "completed",
         reply: "Waiting on two agents.",
         at: 2,
-        gist: null,
         error: null,
         limit: null,
         files: [],
@@ -1152,7 +1143,6 @@ describe("how an agent's latest turn ended", () => {
       outcome: "completed",
       reply: "First answer.",
       at: 2,
-      gist: null,
       error: null,
       limit: null,
       files: [],
@@ -1165,7 +1155,6 @@ describe("how an agent's latest turn ended", () => {
       outcome: "completed",
       reply: null,
       at: 3,
-      gist: null,
       error: null,
       limit: null,
       files: [],
@@ -1174,7 +1163,6 @@ describe("how an agent's latest turn ended", () => {
       outcome: "completed",
       reply: "All green.",
       at: 3,
-      gist: null,
       error: null,
       limit: null,
       files: [],
@@ -1188,7 +1176,6 @@ describe("how an agent's latest turn ended", () => {
       outcome: "completed",
       reply: "Second.",
       at: 5,
-      gist: null,
       error: null,
       limit: null,
       files: [],
@@ -1221,7 +1208,6 @@ describe("a turn the person's Escape ended", () => {
       outcome: "interrupted",
       reply: null,
       at: 20,
-      gist: null,
       error: null,
       limit: null,
       files: [],
@@ -1235,7 +1221,6 @@ describe("a turn the person's Escape ended", () => {
       outcome: "interrupted",
       reply: null,
       at: 20,
-      gist: null,
       error: null,
       limit: null,
       files: [],
@@ -1244,7 +1229,6 @@ describe("a turn the person's Escape ended", () => {
       outcome: "completed",
       reply: "Too late.",
       at: 25,
-      gist: null,
       error: null,
       limit: null,
       files: [],
@@ -1257,7 +1241,6 @@ describe("a turn the person's Escape ended", () => {
       outcome: "completed",
       reply: "Too late.",
       at: 25,
-      gist: null,
       error: null,
       limit: null,
       files: [],
@@ -1272,7 +1255,6 @@ describe("a turn the person's Escape ended", () => {
       outcome: "completed",
       reply: "Too late.",
       at: 25,
-      gist: null,
       error: null,
       limit: null,
       files: [],
@@ -1282,7 +1264,6 @@ describe("a turn the person's Escape ended", () => {
       outcome: "completed",
       reply: null,
       at: 30,
-      gist: null,
       error: null,
       limit: null,
       files: [],
@@ -1295,7 +1276,6 @@ describe("a turn the person's Escape ended", () => {
       outcome: "completed",
       reply: "Too late.",
       at: 21,
-      gist: null,
       error: null,
       limit: null,
       files: [],
@@ -1309,7 +1289,6 @@ describe("a turn the person's Escape ended", () => {
       outcome: "interrupted",
       reply: null,
       at: 30,
-      gist: null,
       error: null,
       limit: null,
       files: [],
@@ -1322,7 +1301,6 @@ describe("a turn the person's Escape ended", () => {
       outcome: "interrupted",
       reply: null,
       at: 20,
-      gist: null,
       error: null,
       limit: null,
       files: [],
@@ -1336,7 +1314,6 @@ describe("a turn the person's Escape ended", () => {
       outcome: "interrupted",
       reply: null,
       at: 22,
-      gist: null,
       error: null,
       limit: null,
       files: [],
@@ -1349,7 +1326,6 @@ describe("a turn the person's Escape ended", () => {
       outcome: "interrupted",
       reply: null,
       at: 20,
-      gist: null,
       error: null,
       limit: null,
       files: [],
@@ -1369,7 +1345,6 @@ describe("a turn the person's Escape ended", () => {
       outcome: "completed",
       reply: "Too late.",
       at: 21,
-      gist: null,
       error: null,
       limit: null,
       files: [],
@@ -1384,7 +1359,6 @@ describe("a turn the person's Escape ended", () => {
       outcome: "completed",
       reply: "Told.",
       at: 25,
-      gist: null,
       error: null,
       limit: null,
       files: [],
@@ -1402,7 +1376,6 @@ describe("a turn the person's Escape ended", () => {
       outcome: "interrupted",
       reply: null,
       at: 20,
-      gist: null,
       error: null,
       limit: null,
       files: [],
@@ -1440,7 +1413,6 @@ describe("a turn the person's Escape ended", () => {
       outcome: "completed",
       reply: "Late.",
       at: 40,
-      gist: null,
       error: null,
       limit: null,
       files: [],
@@ -1512,7 +1484,6 @@ describe("a turn the person's Escape ended", () => {
       outcome: "completed",
       reply: "Done.",
       at: 30,
-      gist: null,
       error: null,
       limit: null,
       files: [],
@@ -1522,7 +1493,6 @@ describe("a turn the person's Escape ended", () => {
       outcome: "completed",
       reply: "Done, fully.",
       at: 30,
-      gist: null,
       error: null,
       limit: null,
       files: [],
@@ -1545,92 +1515,10 @@ describe("a turn the person's Escape ended", () => {
       outcome: "completed",
       reply: "Done.",
       at: 40,
-      gist: null,
       error: null,
       limit: null,
       files: [],
     })
-  })
-})
-
-describe("murmur's gists", () => {
-  const binding: Binding = { agent: "claude", sessionId: "s", instance: "7" }
-  type Fields = Parameters<typeof fact>[0]
-  const on = (activity: Activity, fields: object) =>
-    apply(activity, binding, fact(fields as Fields))!
-  const turn = (activity: Activity, startedAt: number) =>
-    on(activity, { type: "turn-started", cause: "prompt", startedAt })
-  const stop = (activity: Activity, startedAt: number, extra: object = {}) =>
-    on(activity, { type: "turn-ended", outcome: "completed", startedAt, ...extra })
-  const running = turn(started(0), 1)
-
-  it("puts a gist on the end it was written for, while it is the last and none runs", () => {
-    const done = stop(running, 2, { reply: "Done." })
-    expect(withGist(done, 3, "Fixed it")).toBeUndefined()
-    const gisted = withGist(done, 2, "Fixed the rounding bug")!
-    expect(summary(gisted).lastTurn).toEqual({
-      outcome: "completed",
-      reply: "Done.",
-      at: 2,
-      gist: "Fixed the rounding bug",
-      error: null,
-      limit: null,
-      files: [],
-    })
-    // Once only; and the outcome is never changed by it.
-    expect(withGist(gisted, 2, "Other")).toBeUndefined()
-    // A new turn drops it, and a late gist for the old end is refused.
-    const next = turn(gisted, 5)
-    expect(summary(next).lastTurn).toBeNull()
-    expect(withGist(next, 2, "Late")).toBeUndefined()
-    expect(summary(stop(next, 6)).lastTurn?.gist).toBeNull()
-  })
-
-  it("writes no gist for an interrupted turn or one that is running", () => {
-    expect(withGist(running, 1, "Nothing")).toBeUndefined()
-    const interrupted = stop(running, 2, { outcome: "interrupted" })
-    expect(withGist(interrupted, 2, "Nothing")).toBeUndefined()
-    const failed = stop(running, 2, { outcome: "failed" })
-    expect(withGist(failed, 2, "Build broke")).toBeDefined()
-  })
-
-  it("keeps the gist when the hook's Stop fills in an end its records already told", () => {
-    const recorded = stop(running, 3, { recorded: true })
-    const gisted = withGist(recorded, 3, "Fixed it")!
-    const filled = stop(gisted, 4, { reply: "All green." })
-    expect(summary(filled).lastTurn).toEqual({
-      outcome: "completed",
-      reply: "All green.",
-      at: 3,
-      gist: "Fixed it",
-      error: null,
-      limit: null,
-      files: [],
-    })
-    // Another end of its own is a new one.
-    const other = stop(turn(gisted, 5), 6, { reply: "More." })
-    expect(summary(other).lastTurn?.gist).toBeNull()
-  })
-
-  it("drops the gist when the hook's Stop tells the same end another way", () => {
-    const recorded = stop(running, 3, { recorded: true })
-    const gisted = withGist(recorded, 3, "Fixed it")!
-    const other = stop(gisted, 4, { outcome: "failed" })
-    expect(summary(other).lastTurn).toMatchObject({
-      outcome: "failed",
-      at: 3,
-      gist: null,
-      error: null,
-      limit: null,
-      files: [],
-    })
-  })
-
-  it("takes the gist away when murmur is turned off, and says when it had none", () => {
-    expect(withoutNotes(started(0))).toBeUndefined()
-    const gisted = withGist(stop(running, 2), 2, "Fixed it")!
-    expect(summary(withoutNotes(gisted)!).lastTurn?.gist).toBeNull()
-    expect(withoutNotes(withoutNotes(gisted)!)).toBeUndefined()
   })
 })
 

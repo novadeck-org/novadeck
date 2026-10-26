@@ -18,7 +18,7 @@
    Hooks: on a row, data-pinned="true" for a pinned project and data-dragging="true" while
    it is dragged. On the trigger, aria-expanded="true" while the popover is open; on a row,
    aria-current="true" and data-selected="true" for the current project. On the trigger
-   and on a row, data-project-status="question" | "attention" | "failed" | "done" |
+   and on a row, data-project-status="ask" | "unblock" | "failed" | "done" |
    "running" (never "running" on the trigger), which the status mark inside reads.
 
    Tokens, each optional (its fallback in brackets):

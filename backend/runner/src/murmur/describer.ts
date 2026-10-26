@@ -39,26 +39,11 @@ export type ShellDigest = {
 
 export type Digest = AgentDigest | ShellDigest
 
-/** What murmur is shown of the reply that ended an agent's turn. */
-export type ReplyDigest = {
-  readonly kind: "reply"
-  /** The whole reply when short, else its first and last 4000 characters joined by "\n…\n". */
-  readonly reply: string
-  /** The turn ended on an error. */
-  readonly failed: boolean
-}
-
-export type NoteDigest = ReplyDigest
-
 /** Everything murmur may be shown: what the worker redacts and writes a chat for. */
-export type Input = Digest | NoteDigest
+export type Input = Digest
 
 /** A terminal's title, written by murmur and already validated. */
 export type Description = { readonly title: string }
-
-export type Gist = { readonly kind: "gist"; readonly text: string }
-/** A gist for a reply; already validated. */
-export type Note = Gist
 
 export type Describer = {
   /**
@@ -76,14 +61,6 @@ export type Describer = {
     digest: Digest,
     options: { readonly signal?: AbortSignal; readonly terminal: string },
   ): Promise<Description | null | undefined>
-  /**
-   * As `describe`: a `Note` (the gist of a reply), null when it ran and was refused,
-   * undefined when it did not run.
-   */
-  note(
-    digest: NoteDigest,
-    options: { readonly signal?: AbortSignal; readonly terminal: string },
-  ): Promise<Note | null | undefined>
   /**
    * Calls `listener` at once with whether murmur is usable now, then whenever that changes;
    * returns an unsubscribe.

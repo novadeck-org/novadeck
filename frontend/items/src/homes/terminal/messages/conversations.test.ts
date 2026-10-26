@@ -162,6 +162,8 @@ describe("a letter's label", () => {
     [{ inbox: "ask", inboxState: "undelivered" }, "Asked you · reply not delivered"],
     [{ inbox: "tell", inboxState: "open" }, "Tells you"],
     [{ inbox: "tell", inboxState: "read" }, "Told you"],
+    [{ inbox: "done", inboxState: "open" }, "Reports done"],
+    [{ inbox: "done", inboxState: "read" }, "Reported done"],
     [{ inbox: "answer" }, undefined],
   ] as const)("reads %o as %s", (extra, label) => {
     expect(letterLabel(message("moth", "you", 0, "", extra))).toBe(label)

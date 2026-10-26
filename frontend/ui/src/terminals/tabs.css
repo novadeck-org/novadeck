@@ -3,18 +3,23 @@
    it.
 
    Hooks on `.terminal-tab`: data-terminal-phase="idle" | "done" | "running" | "waiting" |
-   "starting" | "attention" | "unheard" | "ended", data-terminal-wait="job" | "wake" (what
+   "paused" | "starting" | "unheard" | "ended" (what the agent does: the glyph before the
+   program), data-terminal-need="unblock" | "ask" (what it needs of the person: the mark
+   right after the program; a dialog its agent shows counts at once),
+   data-terminal-unread="true" (an idle agent whose reply the person hasn't read: its program
+   brightens, no glyph), data-terminal-wait="job" | "wake" (what
    a waiting agent waits on; its glyph, a `.terminal-tab-wait`, holds data-wait the same and
    data-wake-fill="0" | "1" | "2" | "3": a drip for jobs it left running, a mark that fills
    as the wake-up it set comes near),
-   data-terminal-attention="question" | "permission",
    data-terminal-hidden="true" | "false", data-terminal-failed="true" (a done tab whose turn
    ended on an error), data-terminal-subagents="working" | "background" (its agent runs
    subagents, working on while they do, or they run on without it), data-team="lead" |
    "worker" (its place in the selected terminal's team, which the rail's wire joins:
    TeamWire.tsx). Parts: `.terminal-glyph`,
-   `.terminal-tab-process`, `.terminal-tab-starting`, `.terminal-tab-age` (how long ago
-   a done tab's agent finished, after its program), `.terminal-tab-action` (an
+   `.terminal-tab-process`, `.terminal-tab-need` (`!` or `?` right after the program, its
+   data-need the same as the tab's), `.terminal-tab-starting`, `.terminal-tab-age` (how long
+   ago a done tab's agent finished, or when a paused one's usage limit resets, after its
+   program), `.terminal-tab-action` (an
    `.icon-button.small.dim.quiet`, pressed while it hides the tab but looking as it does
    at rest, so a hidden tab doesn't draw the eye; `.terminal-tab-revealed` on Hide and
    Rename, which show under the pointer or with keyboard focus), `.terminal-tab-slot`
@@ -35,15 +40,20 @@
 
    Tokens, each optional (its fallback in brackets):
    --tab-glyph-fg (ink): the phase glyph. --tab-starting-fg (muted): the glyph while the
-   shell starts. --tab-attention-fg (warning-fg): the glyph while an agent waits.
+   shell starts. --tab-need-fg (warning-fg): the need mark after the program, the only
+   warning colour on the tab. --tab-paused-fg (muted): the glyph while an agent is paused at
+   its usage limit; its program and time are muted too.
    --tab-unheard-fg (muted): the glyph while Novadeck can't hear from an agent.
    --tab-waiting-fg (muted): the glyph while an agent waits on something that wakes it, and
    the rows under the tab. --tab-passed-opacity (0.6): the trace of a wake-up that passed.
-   --tab-done-fg (success-fg): the glyph while an agent's reply waits unread.
+   --tab-done-fg (success-fg): the glyph while an agent's done report waits unseen.
    --tab-failed-fg (danger-fg): the same, where its turn ended on an error.
    --tab-age-fg (muted): how long ago it finished.
-   --tab-process-font (mono): the program and the glyph.
-   --tab-active-process-fg (ink): the program while it runs, waits or is done.
+   --tab-process-font (mono with the symbols font first, --font-glyphs): the program and
+   the glyph.
+   --tab-active-process-fg (ink): the program while it works, or is done, or while an idle
+   agent's reply is unread. A program waiting, paused or idle is muted: ink means the agent
+   works or you haven't looked.
    --tab-ended-image (the window's --window-ended-image, a faint ink hatch),
    --tab-ended-fg (muted): an ended tab, and its name and icon.
    --tab-hidden-opacity (0.5): a tab hidden from Grid and Canvas.
@@ -130,12 +140,12 @@
 .terminal-tab-starting,
 .terminal-tab-subagents,
 .terminal-tab-branches {
-  font-family: var(--tab-process-font, var(--font-mono));
+  font-family: var(--tab-process-font, var(--font-glyphs));
 }
 .terminal-tab:is(
     [data-terminal-phase="running"],
-    [data-terminal-phase="attention"],
-    [data-terminal-phase="done"]
+    [data-terminal-phase="done"],
+    [data-terminal-unread]
   )
   .sidebar-item-select
   .terminal-tab-process {
@@ -179,10 +189,11 @@
 /* A tab reads its terminal's phase as text: a braille spinner beside a running program,
    as command-line tools show work, and a faint hatch once it has ended. Each tab keeps a
    one-glyph slot before its program, so the text never shifts. Only what needs a look
-   is marked: a spinner while a program runs, a dot while the shell starts, a check or
-   a cross while a finished agent's reply waits, and a cross once it has ended; an idle
-   tab leaves it blank. Reduced motion holds the spinner
-   still. */
+   is marked: a spinner while a program runs, a dot while the shell starts, a check when an
+   agent reported its task done and a cross when its turn failed, until they look, `∅` while
+   it is paused at its usage limit, and a cross once it has ended; an idle tab leaves it
+   blank. The glyph says what the agent does, never what it needs: that is the mark after
+   the program. Reduced motion holds the spinner still. */
 .terminal-glyph {
   color: var(--tab-glyph-fg, var(--color-ink));
 }
@@ -205,10 +216,10 @@
 .terminal-tab[data-terminal-phase="unheard"] .terminal-glyph::before {
   content: "○";
 }
-/* An agent that finished while the person looked elsewhere is marked as one waiting on
-   them is: a bold glyph, "✓" in the success colour, or "✗" in the danger colour where
-   its turn ended on an error. Its program stays beside it, its name bold
-   (TerminalTab.tsx), with how long ago it finished, until they look. */
+/* An agent that reported its task done (its `done` call) while the person looked elsewhere
+   is marked by a bold glyph, "✓" in the success colour, or "✗" in the danger colour where
+   its turn ended on an error. Its program stays beside it, its name bold (TerminalTab.tsx),
+   with how long ago it finished, until they look. */
 .terminal-tab[data-terminal-phase="done"] .terminal-glyph {
   color: var(--tab-done-fg, var(--color-success-fg));
   font-weight: 700;
@@ -223,20 +234,36 @@
   content: "✗";
 }
 .terminal-tab-age {
-  font-family: var(--tab-process-font, var(--font-mono));
+  font-family: var(--tab-process-font, var(--font-glyphs));
   color: var(--tab-age-fg, var(--color-muted));
 }
-/* An agent waiting on the person is marked in the warning colour: "?" for a question,
-   "!" for a permission. */
-.terminal-tab[data-terminal-phase="attention"] .terminal-glyph {
-  color: var(--tab-attention-fg, var(--color-warning-fg));
+/* The reset time takes room the program would otherwise keep, in a tab as narrow as the
+   sidebar's: the program stays whole and the handle, which Hide and Rename hide anyway, gives
+   way. */
+.terminal-tab[data-terminal-phase="paused"] .terminal-tab-process {
+  flex-shrink: 0;
+}
+@media (hover: hover) {
+  .terminal-tab[data-terminal-phase="paused"] .terminal-tab-handle {
+    min-width: 0;
+    overflow: hidden;
+  }
+}
+/* An agent paused at its usage limit: a muted empty set, its program and the reset time
+   beside it muted too (the program is muted unless the agent works or its reply is unread). */
+.terminal-tab[data-terminal-phase="paused"] .terminal-glyph {
+  color: var(--tab-paused-fg, var(--color-muted));
+}
+.terminal-tab[data-terminal-phase="paused"] .terminal-glyph::before {
+  content: "∅";
+}
+/* What the agent needs of the person, right after its program, in the glyph's style: "!" where
+   it can't go on without them (a permission, a plan, held messages, a sign-in, a limit
+   that has reset), "?" where it asks. The only warning colour on the tab. */
+.terminal-tab-need {
+  font-family: var(--tab-process-font, var(--font-glyphs));
   font-weight: 700;
-}
-.terminal-tab[data-terminal-phase="attention"] .terminal-glyph::before {
-  content: "!";
-}
-.terminal-tab[data-terminal-attention="question"] .terminal-glyph::before {
-  content: "?";
+  color: var(--tab-need-fg, var(--color-warning-fg));
 }
 /* A working agent's spinner: the braille frames stand in a column, one line of which the
    glyph shows, and the column steps up a line every 80ms. Moving it is a transform, which

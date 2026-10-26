@@ -9,6 +9,7 @@ import { createContext, useContext, type RefObject } from "react"
 import type { CanvasHandle } from "../../layouts/canvas/types"
 import type { WorkspaceCommands } from "../commands/workspace"
 import type { FeatureFlag } from "../feature-flags"
+import type { Landing } from "../inbox-landing"
 import type { WorkspaceNavigator } from "../routing"
 import type { UiState, UiStore } from "../ui-store"
 import { useStoreSelector } from "./useStoreSelector"
@@ -27,6 +28,9 @@ export type WorkspaceServices = {
   readonly canvas: RefObject<CanvasHandle | null>
   // The item store, where the backend has companions.
   readonly itemStore: ItemStore | undefined
+  // The backend's Inbox as the landing rule lands it, shared by the list, the bell, the toasts
+  // and the pings; the provider starts and stops it.
+  readonly landing: Landing
   // Whatever is being dragged off a terminal's taskbar.
   readonly drag: DragSession
 }

@@ -478,7 +478,6 @@ export class Terminals {
       announce: (record) => this.announce(record),
       save: (record) => this.saves.save(record, false),
       detailed: (record) => this.streams.detailed(record),
-      murmurChanged: (terminalId) => this.murmur?.changed(terminalId),
       trackRoot: (record, events, statusLine) =>
         this.reporting.trackRoot(record, events, statusLine),
       rebound: (record) => this.reporting.rebound(record),
@@ -613,11 +612,9 @@ export class Terminals {
             records: () => this.records.values(),
             holds: (terminalId) => this.records.has(terminalId),
             projectFolder: (sessionId) => this.projectFolder(sessionId),
-            publishAgent: (record) => this.bindings.publishAgent(record, false),
             names: () => this.names,
             saves: () => this.saves,
             streams: () => this.streams,
-            clearGists: () => this.asks.clearGists(),
           }),
           options.murmurTimes,
         )
@@ -1310,15 +1307,6 @@ export class Terminals {
   /** Closes another terminal of the caller's project and session (see `Calls.closePeer`). */
   closePeer(call: Call): Promise<CloseAnswer> {
     return this.calls.closePeer(call)
-  }
-
-  /**
-   * A client shows the terminal's turn end at `at` unread: murmur is asked for the gist of
-   * its reply. Nothing happens without murmur, for an unknown terminal, or an end that is
-   * no longer the last.
-   */
-  gistWanted(terminalId: string, at: number): void {
-    this.murmur?.replied(terminalId, at)
   }
 
   /** Sends another terminal's agent a message, as an agent asked through Novadeck's MCP server. */

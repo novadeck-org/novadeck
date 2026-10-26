@@ -1,7 +1,12 @@
-import { nextWaitingChange, waitingText } from "@novadeck/core/agent-waiting"
+import { clockTime, nextWaitingChange } from "@novadeck/core/agent-waiting"
 import { handleText, terminalLabel } from "@novadeck/core/handle"
 import { isWindow } from "@novadeck/core/roster"
-import { attentionText, doneText, terminalPhase, unheardText } from "@novadeck/core/terminal-ending"
+import {
+  idleNote,
+  pausedUntil,
+  terminalNote,
+  type NeedDialog,
+} from "@novadeck/core/terminal-ending"
 import type { Tile } from "@novadeck/core/types"
 import { ContextMenu, type ContextMenuItem } from "@novadeck/toolkit/ContextMenu"
 import { HandleChip } from "@novadeck/toolkit/HandleChip"
@@ -61,9 +66,16 @@ export type WindowShellProps = {
   compact?: boolean
   active?: boolean
   fresh?: boolean
-  // Its agent finished while the person looked elsewhere, on its own or on an error: the
-  // window says so until they look.
-  unread?: "done" | "failed" | undefined
+  // Its agent ended a turn while the person looked elsewhere, on its own or on an error: a
+  // failed one says so until they look.
+  unread?: "unread" | "failed" | undefined
+  // What the Inbox says it needs of the person (`unblock` or `ask`), the subject of the item
+  // behind it, and whether its agent reported its task done, unseen. The agent's live dialog
+  // adds its own need.
+  need?: "unblock" | "ask" | undefined
+  needSubject?: string | undefined
+  needDialog?: NeedDialog | undefined
+  reported?: boolean
   // The terminal that directs this one's work while it runs, by its handle and name.
   lead?: { handle: string; name: string }
   // The terminals this one directs while it leads: how many, and who in words.
@@ -97,6 +109,10 @@ export const WindowShell = ({
   active = false,
   fresh = false,
   unread,
+  need: inboxNeed,
+  needSubject,
+  needDialog,
+  reported = false,
   lead,
   leads,
   rename,
@@ -127,17 +143,26 @@ export const WindowShell = ({
   const renaming = Boolean(rename)
   const shell = isWindow(terminal) ? undefined : terminal
   const label = terminalLabel(terminal.name, shell?.handle)
-  const phase = shell ? terminalPhase(shell, unread !== undefined) : "idle"
-  const failed = unread === "failed"
-  useRenderAt(phase === "waiting" && shell ? nextWaitingChange(shell) : undefined)
-  // What the agent waits on the person for, that Novadeck can't hear from it, what it
-  // waits on that wakes it, or that it finished with its reply unread.
-  const note =
-    shell &&
-    (attentionText(shell) ??
-      unheardText(shell) ??
-      (phase === "waiting" ? waitingText(shell) : undefined) ??
-      (phase === "done" ? doneText(failed) : undefined))
+  // Its phase, the need mark after its name, and its note for assistive technology, from the
+  // same derivation as its tab: what the agent needs of the person, that Novadeck can't hear
+  // from it, that it is paused at its limit, what it waits on that wakes it, that it reported
+  // done or stopped on an error, or that its reply is unread. The window draws the phase as
+  // the line under its header and shows no state glyph of its own.
+  const {
+    phase,
+    need,
+    failed,
+    text: note,
+  } = shell
+    ? terminalNote(
+        shell,
+        { need: inboxNeed, done: reported, subject: needSubject, dialog: needDialog },
+        unread,
+      )
+    : idleNote
+  const resets = shell && phase === "paused" ? pausedUntil(shell) : undefined
+  // Said again once the limit it waits on resets, or its wake-up passes.
+  useRenderAt(phase === "waiting" && shell ? nextWaitingChange(shell) : resets)
   const headerDoubleAction = onFlyTo
   // The project window is named by its file, so its name is no rename's: a double-click on it
   // is the header's own.
@@ -275,7 +300,20 @@ export const WindowShell = ({
               </Tooltip>
             )}
           </span>
+          {/* Right after the name: `!` where the agent can't go on without the person, `?`
+              where it asks. */}
+          {!renaming && need && (
+            <span aria-hidden className="terminal-need nodrag nopan" data-need={need}>
+              {need === "unblock" ? "!" : "?"}
+            </span>
+          )}
           {!renaming && titleExtra}
+          {/* Paused at its usage limit, where the wait's line would be, with the reset. */}
+          {!renaming && resets !== undefined && (
+            <span aria-hidden className="terminal-paused nodrag nopan">
+              ∅ {clockTime(resets)}
+            </span>
+          )}
           {!renaming && !compact && phase === "waiting" && shell && (
             <Suspense fallback={null}>
               <WindowWait terminal={shell} />
@@ -389,6 +427,7 @@ export const WindowShell = ({
       data-terminal={terminal.id}
       data-terminal-phase={phase}
       {...(phase === "done" && failed ? { "data-terminal-failed": true } : {})}
+      {...(need ? { "data-terminal-need": need } : {})}
       {...(note ? { "aria-description": note } : {})}
       data-process-window={processWindow}
       data-new={fresh}

@@ -20,9 +20,9 @@ const entry = (content: InboxContent, index = 0, stopped = true): InboxItem => (
   seen: false,
 })
 
-const finished: InboxContent = {
+const done: InboxContent = {
   kind: "update",
-  update: { type: "finished", subject: "Done", reply: "Done", files: [] },
+  update: { type: "done", subject: "Done", body: "Done" },
 }
 const failed: InboxContent = { kind: "trouble", trouble: { type: "failed", error: null } }
 const asked: InboxContent = {
@@ -44,20 +44,20 @@ const held: InboxContent = {
 describe("inboxBadge", () => {
   it("shows nothing while nothing but updates is there", () => {
     expect(inboxBadge([])).toBeUndefined()
-    expect(inboxBadge([entry(finished)])).toBeUndefined()
+    expect(inboxBadge([entry(done)])).toBeUndefined()
   })
 
   it("counts what waits, and no update, and says so in the bell's name", () => {
-    expect(inboxBadge([entry(finished), entry(held, 1), entry(held, 2)])).toEqual({
+    expect(inboxBadge([entry(done), entry(held, 1), entry(held, 2)])).toEqual({
       count: 2,
       label: "Inbox, 2 waiting",
-      status: "attention",
+      status: "unblock",
     })
   })
 
   it("takes the tone of the most pressing item", () => {
     expect(inboxBadge([entry(held), entry(failed, 1)])?.status).toBe("failed")
-    expect(inboxBadge([entry(asked), entry(held, 1, false)])?.status).toBe("question")
+    expect(inboxBadge([entry(asked), entry(held, 1, false)])?.status).toBe("ask")
   })
 
   it("counts a feedback draft, as needing attention", () => {
@@ -65,7 +65,7 @@ describe("inboxBadge", () => {
     expect(inboxBadge([entry(draft, 0, false)])).toEqual({
       count: 1,
       label: "Inbox, 1 waiting",
-      status: "attention",
+      status: "unblock",
     })
   })
 

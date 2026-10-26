@@ -1,7 +1,6 @@
-import { noInbox, type Inbox } from "@novadeck/core/inbox"
 import { useCallback, useEffect, useMemo, type ReactNode } from "react"
 
-import { InboxProvider, useInboxContext } from "../inbox/InboxProvider"
+import { InboxProvider, useInboxOpener } from "../inbox/InboxProvider"
 import { InboxSheet } from "../inbox/InboxSheet"
 import { InboxToasts, type ToastBoard } from "../inbox/InboxToasts"
 import { anyAgentWorking } from "../projects/project-status"
@@ -11,25 +10,32 @@ import { dingOf } from "./ding"
 import { clickNotice, noticeBoard } from "./inbox-pings"
 import { watchInboxToasts } from "./inbox-toasts"
 
-// The Inbox: the backend's, read from the backend the app runs on, or, where it has none,
-// one that lists nothing.
+// The Inbox: the backend's, as it lands (see `inbox-landing.ts`), or, where the backend has
+// none, one that lists nothing.
 
 // Hears a click on a terminal's notification (see `clickNotice`).
-const NoticeClicks = ({ inbox }: { readonly inbox: Inbox }): null => {
-  const { backend, commands, ui } = useWorkspaceServices()
-  const { open } = useInboxContext()
+const NoticeClicks = (): null => {
+  const { backend, commands, landing, ui } = useWorkspaceServices()
+  const opener = useInboxOpener()
   const { showInbox, reveal } = commands
   useEffect(
     () =>
       backend.notices?.onClick((terminalId) =>
+        // The backend's items, as the terminal being viewed may hold the one the notice is
+        // about back from the Inbox: the click lands it before it opens.
         clickNotice(
           terminalId,
-          inbox.state.getSnapshot().items,
-          { open, showInbox, reveal },
+          backend.inbox?.state.getSnapshot().items ?? [],
+          {
+            open: (id) => opener?.((items) => items.find((item) => item.id === id)),
+            showInbox,
+            reveal,
+            land: landing.reveal,
+          },
           noticeBoard(backend.notices, dingOf(backend, ui))?.itemOf(terminalId),
         ),
       ),
-    [backend, ui, inbox, open, showInbox, reveal],
+    [backend, ui, landing, opener, showInbox, reveal],
   )
   return null
 }
@@ -45,11 +51,11 @@ export const InboxHost = ({
   readonly active: boolean
   readonly children: ReactNode
 }): React.JSX.Element => {
-  const { backend, commands, ui } = useWorkspaceServices()
+  const { backend, commands, landing, ui } = useWorkspaceServices()
   const desktop = useDesktop()
-  const inbox = backend.inbox ?? noInbox
+  const { inbox } = landing
   // Whether an agent is at work in any project, for the empty Inbox to say.
-  const working = useWorkspaceState((workspace) => anyAgentWorking(workspace.projects))
+  const working = useWorkspaceState((state) => anyAgentWorking(state.projects))
   const { hideSidebar, toggleSidebar, reveal, showInbox } = commands
   const phone = useMemo(
     () => (desktop ? undefined : { hideList: hideSidebar, showList: () => toggleSidebar("inbox") }),
@@ -71,7 +77,7 @@ export const InboxHost = ({
       feedbackAbout={backend.feedback?.about}
     >
       {children}
-      <NoticeClicks inbox={inbox} />
+      <NoticeClicks />
       <InboxSheet active={active} />
       <InboxToasts follow={follow} showInbox={showInbox} />
     </InboxProvider>

@@ -89,7 +89,6 @@ const agentStatus = ({
         lastTurn: {
           outcome: lastTurn.outcome,
           ...(lastTurn.reply === null ? {} : { reply: lastTurn.reply }),
-          ...(lastTurn.gist ? { gist: lastTurn.gist } : {}),
           ...(lastTurn.error === null ? {} : { error: lastTurn.error }),
           ...(lastTurn.limit === null ? {} : { limit: lastTurn.limit }),
           ...(lastTurn.limited ? { limited: true as const } : {}),

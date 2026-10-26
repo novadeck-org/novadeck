@@ -76,17 +76,6 @@ describe.skipIf(!engine || !model)("murmur with the real engine", () => {
       )
       console.info("described", JSON.stringify(description))
       expect(description).toBeDefined()
-
-      const gist = await murmur.note(
-        {
-          kind: "reply",
-          reply: "I rounded the checkout totals per line and the tests pass. Want me to add more?",
-          failed: false,
-        },
-        { terminal: "moth" },
-      )
-      console.info("gist", JSON.stringify(gist))
-      expect(gist).toMatchObject({ kind: "gist" })
     },
   )
 })

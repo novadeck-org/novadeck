@@ -86,7 +86,9 @@ it("records asks, tells and accepted person replies in the demo's You threads", 
       Object.values(messages.state.getSnapshot().terminals).flatMap((mail) =>
         mail.threads.flatMap((thread) => thread.messages),
       )
-    expect(new Set(history().map((message) => message.inbox))).toEqual(new Set(["ask", "tell"]))
+    expect(new Set(history().map((message) => message.inbox))).toEqual(
+      new Set(["ask", "tell", "done"]),
+    )
     inbox.failNext()
     inbox.answer(demoInboxIds.preview, {
       kind: "ask",

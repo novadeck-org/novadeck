@@ -25,7 +25,7 @@ const peersOf = (workspace: WorkspaceStore): Store<Readonly<Record<string, MailP
 // What a terminal's Messages pane knows of the session around it: the other terminals by
 // handle, a way to each, and Answer on a letter, which opens the Inbox on its item.
 export const useMailLinks = (): MailLinks => {
-  const { commands, workspace } = useWorkspaceServices()
+  const { commands, workspace, backend, landing } = useWorkspaceServices()
   const openInbox = useInboxOpener()
   const peers = useMemo(() => peersOf(workspace), [workspace])
   return useMemo(
@@ -33,10 +33,14 @@ export const useMailLinks = (): MailLinks => {
       peers,
       goTo: commands.reveal,
       answer: (letter) => {
+        // The ask may be held back from the Inbox because this terminal is in view: asking
+        // to answer it lands it.
+        const held = letterItem(backend.inbox?.state.getSnapshot().items ?? [], letter)
+        if (held) landing.reveal(held.id)
         commands.showInbox()
         openInbox?.((items) => letterItem(items, letter))
       },
     }),
-    [peers, commands, openInbox],
+    [peers, commands, openInbox, backend, landing],
   )
 }

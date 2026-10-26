@@ -21,8 +21,8 @@
    the page is up, from which it slides; data-receiving="true" while a project dragged
    from the switcher can be dropped on it, and data-over="true" while its pin is over the
    bar. On the drop hint, data-shown="true" while it shows. On a pin,
-   aria-current="true" for the current project, and data-project-status="question" |
-   "attention" | "failed" | "done" (never "running"); data-dragging="true" on the pin
+   aria-current="true" for the current project, and data-project-status="ask" |
+   "unblock" | "failed" | "done" (never "running"); data-dragging="true" on the pin
    being dragged along the bar, which lifts as a dragged row of the switcher does, fading
    in, while the others slide aside;
    data-leaving="true" on it once dragged well off the bar, where letting go unpins it;

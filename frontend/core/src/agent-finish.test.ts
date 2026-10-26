@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, vi } from "vitest"
 
 import {
+  doneNotice,
   finishNotice,
   followFinishes,
   sightTurnEnd,
@@ -205,5 +206,15 @@ describe("following finishes", () => {
     show(working)
     show(agent({ working: false, lastTurn: { outcome: "failed", at: 12 } }))
     expect(told).toHaveLength(1)
+  })
+})
+
+describe("a done report's notice", () => {
+  it("names the terminal as a finish does, and says the report's subject", () => {
+    const terminal = { ...working, handle: "moth", name: "Checkout review" }
+    expect(doneNotice(terminal, { subject: "Checkout totals round per line" })).toEqual({
+      title: "@moth is done: Checkout review",
+      body: "Checkout totals round per line",
+    })
   })
 })
