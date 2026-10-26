@@ -20,7 +20,13 @@ import type { Companion } from "../companion.js"
 import { failed } from "../failures.js"
 import { tellInterrupted } from "../interrupted.js"
 import type { Murmur } from "../murmur.js"
-import { atTurnStart, fired, noticesAt, sessionBegan } from "../nudges.js"
+import {
+  atTurnStart,
+  fired,
+  noticesAt,
+  personPrompted as promptCounted,
+  sessionBegan,
+} from "../nudges.js"
 import { peerOf, type TerminalPeers } from "../peers.js"
 import type { Record } from "../record.js"
 import { boundProgram } from "../sampling.js"
@@ -382,7 +388,16 @@ export class Reports {
   ): Promise<HookAnswer> {
     const { leaseId, stdout, adding } = answer
     const given = { leaseId, stdout }
-    if (!adding) return given
+    const person = events.some(
+      (event) =>
+        event.type === "turn-started" && event.cause === "prompt" && rootedIn(record.root, event),
+    )
+    // A prompt of the person's counts toward the backstop even when its answer can take no
+    // notices, as one too late to print them.
+    if (!adding) {
+      if (person) record.nudges = promptCounted(record.nudges)
+      return given
+    }
     const { messaging } = harnesses[report.agent]
     const inTime = (ms: number) => deadline - Date.now() >= ms
     // Read only for an answer that delivers nothing, so a delivery never waits on it, and
@@ -394,10 +409,7 @@ export class Reports {
     const current = { summary: record.naming.summary }
     const notices = (took: Parameters<typeof noticesAt>[0]) => noticesAt(took, current)
     const taken = atTurnStart(record.nudges, {
-      person: events.some(
-        (event) =>
-          event.type === "turn-started" && event.cause === "prompt" && rootedIn(record.root, event),
-      ),
+      person,
       // A nudge that may miss the hook's deadline is never spent: its trigger waits.
       inTime: inTime(leaseMargin),
       facts,

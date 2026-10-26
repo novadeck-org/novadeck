@@ -286,7 +286,7 @@ export const inboxNotice =
   "and no such notice came, withdraw it yourself. This notice needs no reply."
 
 /**
- * What a quiet prompt's answer says for what it `took`: the bar beside the terminal and
+ * What a turn's notices say for what it `took`: the bar beside the terminal and
  * the Inbox, for a session that begins or forgot, the terminal's description, and each
  * page that had problems, each a paragraph of its own.
  */

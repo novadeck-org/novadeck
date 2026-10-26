@@ -1827,8 +1827,8 @@ again on each call.
      most or its branch differ from both the facts at the last `summarize` and those
      drift last fired for, so work going back and forth between two folders fires once.
      A fact not known (no plan, no folder yet, a branch not read in time) is no change.
-     They are read only for a prompt whose answer would otherwise be empty and with time
-     left, so a delivery never waits on them;
+     They are read only for an answer that delivers no messages and with time left, so a
+     delivery never waits on them;
   4. as a backstop, 5 of the person's prompts since the last `summarize`, or since the
      backstop last fired (the doorbell's turns don't count);
   5. every turn's start while the terminal has no summary at all: an agent whose first prompt
