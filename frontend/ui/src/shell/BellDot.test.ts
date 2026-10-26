@@ -1,5 +1,5 @@
 import { render } from "@novadeck/test-kit/render"
-import { createElement } from "react"
+import { act, createElement } from "react"
 import { afterEach } from "vitest"
 
 import { describe, expect, it } from "../test"
@@ -35,5 +35,21 @@ describe("the Inbox's dot", () => {
   it("keeps its last ring while the bell rings nothing new", () => {
     const [, rang, held] = ringsThrough([0, 1, 1])
     expect(held).toBe(rang)
+  })
+
+  it("lets its ring go once played, and rings again for the next", () => {
+    const { container, rerender, unmount } = render(createElement(BellDot, { rings: 0 }))
+    unmounts.push(unmount)
+    const ring = (): Element | null => container.querySelector(".bell-dot-ring")
+    rerender(createElement(BellDot, { rings: 1 }))
+    // Under both names: React listens for the prefixed one where, as in jsdom, the window has
+    // no AnimationEvent.
+    act(() => {
+      for (const name of ["animationend", "webkitAnimationEnd"])
+        ring()?.dispatchEvent(new Event(name, { bubbles: true }))
+    })
+    expect(ring()).toBeNull()
+    rerender(createElement(BellDot, { rings: 2 }))
+    expect(ring()).not.toBeNull()
   })
 })

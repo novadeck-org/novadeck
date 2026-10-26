@@ -11,7 +11,8 @@
    The rail's toggles are segments (the segmented recipe). Hooks: on the footer,
    data-tone="success" | "warning" | "danger" while the backend link is in trouble or
    has just recovered: the tone recipe then paints the whole bar, and its edges, in that
-   tone.
+   tone. On a rail's toggle, data-dragging="true" while it's carried along the rail to a new
+   place (SidebarRail.tsx).
 
    Tokens, each optional (its fallback in brackets):
    --region-header-bg (paper), --region-header-fg (ink),
@@ -303,6 +304,13 @@
   background-color: var(--_bg);
   background-image: var(--region-rail-image, none);
   color: var(--_fg);
+}
+/* A toggle being dragged rises over the others, as the footer's pills do. */
+.sidebar-tools .segment[data-dragging="true"] {
+  z-index: 1;
+  background-color: var(--color-soft);
+  color: var(--color-ink);
+  cursor: grabbing;
 }
 
 .sidebar {
