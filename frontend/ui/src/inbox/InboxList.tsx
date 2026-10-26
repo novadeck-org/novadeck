@@ -1,4 +1,4 @@
-import { inboxType, type InboxItem } from "@novadeck/core/inbox"
+import { inboxType, type InboxItem, type InboxState } from "@novadeck/core/inbox"
 import { NovaMark } from "@novadeck/toolkit/NovaLogo"
 import { sidebarListClasses } from "@novadeck/toolkit/SidebarItem"
 import { Tooltip } from "@novadeck/toolkit/Tooltip"
@@ -6,18 +6,36 @@ import { CheckCheck, CircleCheck, LoaderCircle } from "lucide-react"
 
 import { focusSheet, focusSheetSoon } from "./inbox-dom"
 import { icons, typeWords } from "./inbox-icons"
-import { hasUpdates, needing } from "./inbox-state"
+import { hasUpdates, needing, needs, updatesStart } from "./inbox-state"
 import { readLabel, resumesLabel, subjectOf, toneOf, waitLabel } from "./inbox-text"
 import { started, useInboxContext } from "./InboxProvider"
 import { Text } from "./sheet-parts"
 
+// Whether the person answered the item, here, and it has since gone: it keeps its place in
+// the list, answered, until the sheet closes.
+const answeredIn = (
+  item: InboxItem,
+  state: Pick<InboxState, "answering" | "failed">,
+  ghosts: Readonly<Record<string, InboxItem>>,
+): boolean => item.id in ghosts && !state.answering[item.id] && !state.failed[item.id]
+
 // One row, for triage only: the type's icon tinted by how urgent it is, the subject, how
-// long the agent has waited if it stopped, and under it the project and what is extra.
-const Row = ({ item }: { readonly item: InboxItem }): React.JSX.Element => {
+// long the agent has waited if it stopped, and under it the project and what is extra. A row
+// that asks something stays bright until it is answered: opening it only takes away its
+// unread dot. `first` marks the row after the last that asks, where the updates' line goes.
+const Row = ({
+  item,
+  asks,
+  first,
+}: {
+  readonly item: InboxItem
+  readonly asks: boolean
+  readonly first: boolean
+}): React.JSX.Element => {
   const { state, view, now, drafts, ghosts, open } = useInboxContext()
   const type = inboxType(item)
   const pending = Boolean(state.answering[item.id])
-  const answered = item.id in ghosts && !pending && !state.failed[item.id]
+  const answered = answeredIn(item, state, ghosts)
   const answering = pending || answered
   const Icon = pending ? LoaderCircle : answered ? CircleCheck : icons[type]
   const current = view.open === item.id
@@ -34,9 +52,12 @@ const Row = ({ item }: { readonly item: InboxItem }): React.JSX.Element => {
       data-type={type}
       data-urgency={answered ? "answered" : toneOf(item)}
       data-seen={item.seen}
+      data-needs={asks}
+      data-updates-start={first}
       data-arrived={view.arrived.includes(item.id)}
       data-selected={current}
     >
+      <span className="inbox-row-unread" aria-hidden="true" />
       <button
         type="button"
         className="inbox-row-select"
@@ -121,7 +142,12 @@ export const InboxMarkAll = (): React.JSX.Element | null => {
 
 // Everything across the workspace that asks for the person, one row each.
 export const InboxList = (): React.JSX.Element => {
-  const { shown, view, working } = useInboxContext()
+  const { shown, view, working, state, ghosts } = useInboxContext()
+  const rows = shown.map((item) => ({
+    item,
+    asks: needs(item) && !answeredIn(item, state, ghosts),
+  }))
+  const updates = updatesStart(rows.map(({ asks }) => asks))
   return (
     <div
       className="inbox-panel flex min-h-0 min-w-0 w-full flex-1 flex-col"
@@ -143,8 +169,8 @@ export const InboxList = (): React.JSX.Element => {
           role="list"
           aria-label="Messages from your agents"
         >
-          {shown.map((item) => (
-            <Row key={item.id} item={item} />
+          {rows.map(({ item, asks }, index) => (
+            <Row key={item.id} item={item} asks={asks} first={index === updates} />
           ))}
         </div>
       )}
