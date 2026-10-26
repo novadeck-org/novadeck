@@ -4908,7 +4908,8 @@ describe.runIf(process.platform === "win32")("Windows shell integration", () => 
  * its hooks find its instance. `askafter` asks a permission after its first turn's Stop;
  * `askpaste` asks one as a paste comes after it, drawing the paste once told to; `asking`
  * puts a question in the Inbox after its first turn's Stop, `askbox` too, with Codex's own box
- * marker, so a prompt the runner gives it finds its box.
+ * marker, so a prompt the runner gives it finds its box. `donecall` reports its task done after
+ * its first turn's Stop.
  */
 const standInTui = (home: string): string => {
   const bin = join(home, "bin")
@@ -5030,6 +5031,9 @@ const turn = (prompt, typed = true) => {
             fs.writeFileSync(raw + ".asked", JSON.stringify(answer)),
           )
         }
+        // With "donecall", its agent reports its task done after its first turn's Stop.
+        if (mode === "donecall" && turns === 1)
+          toolCall("done", { subject: "Shipped it", body: "All done." }, process.env.NOVADECK_REPORT_TOKEN, () => {})
         // With "askafter", a call asks a permission after its first turn's Stop, as a
         // background task's may: its dialog draws nothing, and Enter allows it, so only the
         // request's own resolution tells Novadeck it no longer waits.
@@ -6456,6 +6460,44 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))(
         expect(printed).toContain("took your open ask out of their Inbox")
         expect(printed).toContain("Which colour?")
       })
+
+    for (const agent of ["codex", "claude", "agy"] as const)
+      it(`shows ${agent}'s standing done in its summary until the person's prompt or a message gives it more`, async ({
+        shell,
+      }) => {
+        const tui = await ringing(shell, "donecall", "tui", agent)
+        if (agent === "agy") await agyStarted(tui)
+        else await tui.first()
+        const reported = () => tui.manager.get(tui.idle.id).reported?.subject
+        await expect.poll(reported, { timeout: 10_000 }).toBe("Shipped it")
+        // Reading the entry leaves the Inbox, not the report that stands.
+        const entries = tui.manager.inboxEntries().filter(({ content }) => content.kind === "done")
+        expect(entries).toHaveLength(1)
+        tui.manager.readTells(entries.map(({ id }) => id))
+        expect(tui.manager.inboxEntries()).toEqual([])
+        expect(reported()).toBe("Shipped it")
+        // The person writes to it in its terminal: more to do.
+        const turns = tui.received().length
+        tui.type("one more thing")
+        await shell.until(tui.manager, tui.idle.id, "one more thing")
+        tui.type("\r")
+        await vi.waitFor(() => expect(tui.received()).toHaveLength(turns + 1), { timeout: 10_000 })
+        await expect.poll(reported, { timeout: 10_000 }).toBeUndefined()
+      })
+
+    it("clears a standing done when a peer's message is delivered to the agent", async ({
+      shell,
+    }) => {
+      const tui = await ringing(shell, "donecall", "tui", "codex")
+      await tui.first()
+      await expect
+        .poll(() => tui.manager.get(tui.idle.id).reported?.subject, { timeout: 10_000 })
+        .toBe("Shipped it")
+      await tui.back(1)
+      await tui.send("Review a.ts")
+      await vi.waitFor(() => expect(tui.received().length).toBeGreaterThan(1), { timeout: 10_000 })
+      await expect.poll(() => tui.manager.get(tui.idle.id).reported, { timeout: 10_000 }).toBeNull()
+    })
 
     it("sends an Inbox button's fixed line through agents.prompt without taking Codex's asks out, but the person's next words do", async ({
       shell,

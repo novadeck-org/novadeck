@@ -233,6 +233,7 @@ export class Launcher {
         resumes: launched.resumes,
         resumeFile,
         resumeClaim: undefined,
+        resumeEnded: undefined,
         resumeTurn: undefined,
         resumeTold: undefined,
       },

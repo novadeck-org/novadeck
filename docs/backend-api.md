@@ -256,6 +256,14 @@ where that is an agent. Windows doesn't tell a terminal's foreground program, so
 is the agent whose session last bound the terminal, until the shell has shown its prompt
 for a second (`processPollMs`), as a sample would tell elsewhere.
 
+`reported` is the agent's `done` report that still stands, `{ subject, at }`, or null: the
+latest `done` of the session bound in the terminal, read or not, unless the person's
+prompt or a message delivered to the agent came after it. It follows the Inbox and those
+inputs as they change, so a client's done mark needs no Inbox row, and looking at the
+terminal never ends it. After a runner restart it is the resumed session's until a binding
+has ended; Codex and Antigravity bind only at their first prompt, so until then it comes
+from that saved session. The agents listing's "reported done" follows the same rule.
+
 `runner.terminals.upload(terminalId, { name, data })` saves a file pasted into a
 terminal on the runner's machine and resolves with its absolute path there, for the UI
 to paste into the terminal. The desktop app, whose runner is on its own machine, pastes
@@ -298,7 +306,8 @@ already answered asks with `CONFLICT`, invalid answers with `ANSWER_FAILED`, and
 full message queue with `RESOURCE_LIMIT`. Resolving the ask and storing its answer are atomic;
 answers arrive later through ordinary message delivery. `read` affects tells and done reports only and takes
 at most 1,000 ids per call. A done report, like a tell, outlives its agent and turns into
-Messages history once read. `watch` resubscribes with a fresh listing on reconnect.
+Messages history once read; the latest done of each terminal that still exists is kept
+past the usual day, as the report that still stands (`TerminalSummary.reported`). `watch` resubscribes with a fresh listing on reconnect.
 
 Agents in a project's terminals message each other (see
 [Agent messaging](agent-messaging.md)); the runner API lets a client see and steer it:

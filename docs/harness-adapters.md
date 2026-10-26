@@ -283,12 +283,16 @@ which shows but keeps nothing working (see
 (Claude Code, Codex or Antigravity in the foreground) with disabled or untrusted
 hooks is Not reporting: a muted "○" in its tab and a muted dashed line on its window,
 said in words to assistive technology, not process-derived running.
-An agent that finished while the person looked elsewhere is done, its reply unread: a
-green "●" in its tab and a solid green line on its window, until they look at that
-terminal or it starts another turn. That mark is the client's own, from
-`TerminalSummary.activity.lastTurn` (see
-[Harness coverage](harness-coverage.md#a-finished-turn-and-its-last-reply)); the runner
-keeps no unread state.
+An agent that reported its task done through the MCP `done` tool is done for as long as
+that report stands: a green "✓" in its tab and a solid green line on its window, whether
+or not the person looks, until they write to it or a message is delivered to it. The
+runner decides this (`TerminalSummary.reported`, the same rule as the agents listing's
+"reported done"). After a runner restart it comes back for every harness from the session
+the runner resumed in the terminal, before Codex or Antigravity bind it again at their
+first prompt, and ends with the first binding that ends there. An error turn's mark, and a bare reply's brightened program,
+are the client's own, from `TerminalSummary.activity.lastTurn` (see
+[Harness coverage](harness-coverage.md#a-finished-turn-and-its-last-reply)) until the
+person looks; the runner keeps no unread state.
 Codex and Antigravity at their own prompt before their first, their hooks running,
 are idle there: `TerminalSummary.ready` names them, until the person presses Enter there, and again should that Enter start nothing within moments (a command such as `/status`). Silence never means idle, and no timeout turns a long
 turn idle. Loss of the runner connection is reported separately; clients never

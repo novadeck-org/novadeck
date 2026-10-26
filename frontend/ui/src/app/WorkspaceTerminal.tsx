@@ -73,7 +73,7 @@ const useWindowFrame = (
   )
   const target = useWorkspaceState(currentTarget, sameTarget)
   // What the raw Inbox says of it, not the landing rule's, which hides rows from its list only.
-  const { need, done, subject, dialog } = useTerminalMarks(backend.inbox, {
+  const { need, subject, dialog } = useTerminalMarks(backend.inbox, {
     ...target,
     terminalId: id,
   })
@@ -90,7 +90,6 @@ const useWindowFrame = (
     need,
     needSubject: subject,
     needDialog: dialog,
-    reported: done,
     rename: renameView(rename),
     onBeginRename: () => startRename(tile, "header"),
     onRenameDraft: (draft) => changeRenameDraft(id, draft),

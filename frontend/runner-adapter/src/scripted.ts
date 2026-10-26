@@ -99,6 +99,7 @@ export const keptSummary = (
   ready: null,
   activity: null,
   telemetry: null,
+  reported: null,
   ...change,
 })
 
