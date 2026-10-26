@@ -14,13 +14,13 @@ describe("the debug panel's Messages group", () => {
   })
 
   it("has the selected terminal's latest peer write to it", () => {
-    const boxes = checkoutMessages(Date.now(), [target]).map((box) => ({
+    const sessions = checkoutMessages(Date.now(), [target]).map((box) => ({
       ...box,
       terminals: box.terminals.map((each, index) =>
         index === 0 ? { ...each, terminalId: "01" } : each,
       ),
     }))
-    const messages = createDemoMessages(boxes)
+    const messages = createDemoMessages(sessions)
     const [group] = messageGroups(messages)
     const run = (selected = key, action = 0) => {
       const notes: string[] = []
@@ -40,13 +40,13 @@ describe("the debug panel's Messages group", () => {
   })
 
   it("has a handle given again write to the selected terminal", () => {
-    const boxes = checkoutMessages(Date.now(), [target]).map((box) => ({
+    const sessions = checkoutMessages(Date.now(), [target]).map((box) => ({
       ...box,
       terminals: box.terminals.map((each, index) =>
         index === 0 ? { ...each, terminalId: "01" } : each,
       ),
     }))
-    const messages = createDemoMessages(boxes)
+    const messages = createDemoMessages(sessions)
     const [group] = messageGroups(messages)
     void group!.actions[1]!.run({
       selected: () => key,

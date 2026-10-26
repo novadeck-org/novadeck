@@ -376,7 +376,7 @@ export const contract = {
     // Gives a window its item's name again; errors as `renameWindow` does.
     resetWindowTitle: procedure.input(z.strictObject({ windowId: id })).output(z.void()),
   },
-  // Messages between agents in Novadeck's terminals (see docs/agent-messaging.md).
+  // The person's Inbox: what agents ask and tell them (see docs/agent-messaging.md).
   inbox: {
     list: procedure.input(z.void()).output(z.array(inboxEntry)),
     watch: procedure.input(z.void()).output(eventIterator(z.array(inboxEntry))),

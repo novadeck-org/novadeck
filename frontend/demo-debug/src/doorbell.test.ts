@@ -15,13 +15,13 @@ describe("the debug panel's Doorbell group", () => {
   })
 
   it("puts the selected agent where the doorbell cannot ring, and back", () => {
-    const boxes = checkoutMessages(Date.now(), [target]).map((box) => ({
+    const sessions = checkoutMessages(Date.now(), [target]).map((box) => ({
       ...box,
       terminals: box.terminals.map((each, index) =>
         index === 0 ? { ...each, terminalId: "01" } : each,
       ),
     }))
-    const messages = createDemoMessages(boxes)
+    const messages = createDemoMessages(sessions)
     const [group] = doorbellGroups(messages)
     const waits = () => {
       const state: MessagesState = messages.state.getSnapshot()

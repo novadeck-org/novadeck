@@ -132,7 +132,7 @@ export const followMessages = (workspace: WorkspaceStore, messages: Messages): (
   }
   note(messages.state.getSnapshot())
   // Heard once the turn is over, as messages may change inside a workspace commit, which can't
-  // take this transaction: a closed terminal's messages goes as the backend commits its close.
+  // take this transaction: a closed terminal's messages go as the backend commits its close.
   // What changed meanwhile is read then, once.
   let heard = false
   let following = true

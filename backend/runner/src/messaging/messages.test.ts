@@ -207,7 +207,7 @@ describe("a delivery", () => {
     expect(leadNote).toContain(clause)
   })
 
-  it("makes a new mark for each delivery, of eight entries and digits", () => {
+  it("makes a new mark for each delivery, of eight letters and digits", () => {
     const marks = new Set(Array.from({ length: 50 }, () => newMark()))
     expect(marks.size).toBe(50)
     for (const each of marks) expect(each).toMatch(/^[0-9A-Za-z]{8}$/)

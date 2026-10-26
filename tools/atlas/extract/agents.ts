@@ -27,7 +27,7 @@ const handlers: Record<string, { readonly file: string; readonly method: string 
   send: { file: managerFile, method: "send" },
   agents: { file: managerFile, method: "agents" },
   summarize: { file: callsFile, method: "summarize" },
-  // The Inbox's, which the calls' dispatch hands to its Inbox.
+  // The Inbox's tools, which the calls' dispatch hands to the Inbox.
   ask: { file: callsFile, method: "call" },
   tell: { file: callsFile, method: "call" },
   done: { file: callsFile, method: "call" },

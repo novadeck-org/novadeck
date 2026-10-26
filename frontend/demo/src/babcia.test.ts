@@ -250,7 +250,7 @@ describe("the Babcia demo", () => {
     await vi.advanceTimersByTimeAsync(10_000)
     const { messages } = backend
     if (!isDemoMessages(messages)) throw new Error("the demo's messages")
-    // The messages change again, as a pause or a release changes it: the delivered answer is still
+    // The messages change again, as a pause or a release changes them: the delivered answer is still
     // there to be found, and must not be relayed again.
     messages.pause(true)
     await vi.advanceTimersByTimeAsync(300)
