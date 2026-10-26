@@ -240,8 +240,8 @@ export const artifactsNotice =
  * through its harness's own question tool where it would use one, which the Inbox shows
  * as it is, else with `ask` and in the reply in full; that something only they can do (a sign-in, access,
  * a key) is an `ask` with the action shape; that a finished task is reported with `done`;
- * and that with a lead, reports and questions go to it with `send`, while approvals of
- * actions stay the user's; and that the person writing in the terminal withdraws the
+ * and that with a lead, it uses `ask`, `tell` and `done` all the same and sends the lead its
+ * reports and questions too; and that the person writing in the terminal withdraws the
  * agent's open asks. It says so in every harness at the prompt, Antigravity's
  * too, which reads no server instructions (there `ask`'s description is what lasts, as an
  * injection lasts one model call), and again after a compaction where the harness reports
@@ -260,10 +260,10 @@ export const inboxNotice =
   "repo, or a key put in place, that is an ask with the action shape, not just words in " +
   "your reply; never ask for a secret value. When the task you were given is finished, " +
   "report it with Novadeck's done tool, your own short report, not when you answer a " +
-  "question or finish a step. With a lead, send your report and your questions to it with " +
-  "send instead of done, tell or ask; approvals of actions, such as opening a pull " +
-  "request, are still the user's, asked with ask, and you send your lead that you're " +
-  "waiting. When they write to you here, Novadeck takes your open asks out of their Inbox " +
+  "question or finish a step. With a lead, use ask, tell and done all the same, and send " +
+  "your lead your report and your questions too; approvals of actions are still only the " +
+  "user's. " +
+  "When they write to you here, Novadeck takes your open asks out of their Inbox " +
   "and tells you; ask again only what their message leaves open. If they answer one here " +
   "and no such notice came, withdraw it yourself. This notice needs no reply."
 

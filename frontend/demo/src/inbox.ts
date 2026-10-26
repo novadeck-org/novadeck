@@ -48,7 +48,7 @@ export type DemoInbox = Inbox & {
   readonly withdrawAsks: (key: TerminalKey, before: number) => void
   readonly dropReplyNext: () => void
   // The terminal's agent called `done`: its report becomes an Update once the terminal is
-  // there, as the runner's done entry does, and a lead's workers' hide as its own do.
+  // there, as the runner's done entry does, a worker's as any other's.
   readonly done: (key: TerminalKey, report: { subject: string; body: string }) => void
 }
 

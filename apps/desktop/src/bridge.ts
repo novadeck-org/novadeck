@@ -184,6 +184,11 @@ export type RunnerCommand =
   | { readonly type: "transcriptKey"; readonly key: string | null }
   | { readonly type: "persist" }
   | { readonly type: "close" }
+  // The host's main process is alive and answering; see ./runner/host-watch.ts.
+  | { readonly type: "beat" }
+
+/** How often the host's main process beats to the runner, in ms. */
+export const hostBeatMs = 1_000
 
 /** Messages from the runner's utility process to the main process: it is ready to serve. */
 export type RunnerReport = { readonly type: "ready" }

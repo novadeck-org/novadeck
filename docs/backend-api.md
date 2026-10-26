@@ -274,8 +274,8 @@ The MCP `ask`, `tell` and `done` tools add questions and updates to the Inbox. I
 terminal the server's `instructions` say when each serves: `ask` doesn't stop the work, as
 most decisions aren't blocking, and its question is also put in the reply; `tell` is for
 milestones; `done` is the agent's own short report when the task it was given is finished,
-not when it answers a question or finishes a step. With a lead, they go to it instead, which
-the instructions say and the runner doesn't enforce. Claude Code reads the instructions up
+not when it answers a question or finishes a step. With a lead, the agent uses them all the
+same and also sends its lead the same. Claude Code reads the instructions up
 front, before it loads a tool's description; the prompt-time notice every harness gets says the
 same for Antigravity, which reads none. A client follows
 all active entries across projects and sessions, answers an ask, or marks tells and done
