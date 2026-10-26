@@ -1,8 +1,11 @@
-import { existsSync, readFileSync, realpathSync } from "node:fs"
+import { existsSync, readdirSync, readFileSync, realpathSync } from "node:fs"
 import { createRequire } from "node:module"
 import { dirname, join } from "node:path"
 import { fileURLToPath } from "node:url"
 
+import { noticeSounds } from "@novadeck/protocol/sounds"
+
+import { noticeSoundFile } from "./main/notices"
 import { describe, expect, it } from "./test"
 
 const app = fileURLToPath(new URL("..", import.meta.url))
@@ -30,9 +33,9 @@ const copied = (): string[] =>
   )
 /**
  * The files copied as they are checked in, not built: the license the GPL asks to ship, and
- * the notification sound.
+ * the notification sounds.
  */
-const checkedIn = ["../../LICENSE", "../../frontend/ui/src/app/ding.wav"]
+const checkedIn = ["../../LICENSE", "../../frontend/ui/src/sounds"]
 /** The `from:`s that are a package's build output. */
 const built = (): string[] => copied().filter((from) => !checkedIn.includes(from))
 /** The package folder a `from:` is a build output of: the app's own for its `dist`. */
@@ -71,6 +74,21 @@ describe("the packaged app's resources", () => {
       return [name]
     })
     expect(checked).toEqual(expect.arrayContaining(["@novadeck/relay"]))
+  })
+
+  // The sounds folder is copied whole, so a sound is bundled by being a file there; this holds
+  // the folder and `noticeSounds`, which the main process checks a notice against, to each other.
+  it("bundles each notification sound the main process names, and names each one bundled", () => {
+    const folder = join(app, "../../frontend/ui/src/sounds")
+    expect(
+      readdirSync(folder)
+        .filter((file) => file.endsWith(".wav"))
+        .toSorted(),
+    ).toEqual(noticeSounds.map(({ id }) => noticeSoundFile(id)).toSorted())
+    expect(readFileSync(join(app, "electron-builder.yml"), "utf8")).toMatch(
+      // Any line ending: a Windows checkout reads the config with \r\n.
+      /from: \.\.\/\.\.\/frontend\/ui\/src\/sounds\s+to: \.\s+filter:\s+- "\*\.wav"/,
+    )
   })
 
   it("copies each checked-in file from where it is", () => {

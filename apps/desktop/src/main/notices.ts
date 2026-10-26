@@ -4,6 +4,7 @@ import {
   noticeTitleLength,
   type DesktopNotice,
 } from "@novadeck/protocol/bridge"
+import { defaultNoticeSound, noticeSoundOf, type NoticeSound } from "@novadeck/protocol/sounds"
 import type { IpcMainEvent } from "electron"
 
 import { noticeChannel, noticeCloseChannel } from "../bridge.js"
@@ -19,16 +20,25 @@ const line = (value: unknown, length: number): value is string =>
 /**
  * The page's notice when it is one, or undefined. The page is not trusted with more: a
  * terminal id, and a title and body each one line of plain text within its length, the
- * title not empty, and `silent`, when there, a boolean; nothing else of the value passes.
+ * title not empty, `silent`, when there, a boolean, and `sound`, when it is the id of one of
+ * `noticeSounds`; nothing else of the value passes. A sound that is not one is dropped, not
+ * the notice, which then plays the default.
  */
 export const desktopNoticeOf = (value: unknown): DesktopNotice | undefined => {
   if (typeof value !== "object" || value === null) return undefined
-  const { id, title, body, silent } = value as Record<string, unknown>
+  const { id, title, body, silent, sound } = value as Record<string, unknown>
   if (typeof id !== "string" || !noticeIdPattern.test(id)) return undefined
   if (!line(title, noticeTitleLength) || !title.trim()) return undefined
   if (!line(body, noticeBodyLength)) return undefined
   if (silent !== undefined && typeof silent !== "boolean") return undefined
-  return silent === undefined ? { id, title, body } : { id, title, body, silent }
+  const named = noticeSoundOf(sound)
+  return {
+    id,
+    title,
+    body,
+    ...(silent === undefined ? {} : { silent }),
+    ...(named === undefined ? {} : { sound: named }),
+  }
 }
 
 type NoticeIpc = {
@@ -90,22 +100,33 @@ export type NotificationOptions = {
   readonly sound?: string
 }
 
-/** The bundled sound macOS plays for a notification, named by file in the app's resources. */
-export const noticeSound = "ding.wav"
+/**
+ * The bundled file macOS plays for a notice's sound, by name in the app's resources:
+ * `<id>.wav` of an id in `noticeSounds`, never built from the page's string.
+ * electron-builder.yml copies the files in.
+ */
+export const noticeSoundFile = (sound: unknown): string =>
+  `${noticeSoundOf(sound) ?? defaultNoticeSound}.wav`
 
 /**
  * A notice as Electron's `Notification` takes it. The app plays its own sound where it can,
  * so the notification is silent, but on macOS the page cannot tell whether Focus holds
  * notifications back and the system can: there the notification plays the bundled sound,
- * which Focus mutes, unless the person turned the sound off (`silent`).
+ * which Focus mutes, unless the person turned the sound off (`silent`). The sound is the
+ * one the notice names, the person's choice or else the theme's.
  */
 export const notificationOptions = (
-  notice: { readonly title: string; readonly body: string; readonly silent: boolean },
+  notice: {
+    readonly title: string
+    readonly body: string
+    readonly silent: boolean
+    readonly sound?: NoticeSound | undefined
+  },
   platform: NodeJS.Platform,
 ): NotificationOptions => {
   const text = notificationText(notice, platform)
   return platform === "darwin" && !notice.silent
-    ? { ...text, sound: noticeSound }
+    ? { ...text, sound: noticeSoundFile(notice.sound) }
     : { ...text, silent: true }
 }
 
@@ -135,6 +156,7 @@ export const showNotices = <Window>({
     readonly title: string
     readonly body: string
     readonly silent: boolean
+    readonly sound?: NoticeSound | undefined
   }) => NotificationLike
   readonly clicked: (window: Window, id: string) => void
 }): {
@@ -143,10 +165,10 @@ export const showNotices = <Window>({
   readonly closeAll: () => void
 } => {
   const showing = new Map<string, NotificationLike>()
-  const show = (window: Window, { id, title, body, silent }: DesktopNotice): void => {
+  const show = (window: Window, { id, title, body, silent, sound }: DesktopNotice): void => {
     if (!supported) return
     showing.get(id)?.close()
-    const notification = create({ title, body, silent: silent === true })
+    const notification = create({ title, body, silent: silent === true, sound })
     const forget = (): void => {
       if (showing.get(id) === notification) showing.delete(id)
     }

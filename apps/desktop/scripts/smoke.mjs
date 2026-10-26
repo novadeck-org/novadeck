@@ -99,9 +99,12 @@ console.log((status >>> 0).toString(16))
     if (existsSync(path)) fail(`koffi is packaged outside Windows: ${path}`)
 }
 
-// macOS plays the notification sound by name from the bundle's resources.
-if (process.platform === "darwin" && !existsSync(join(resources, "ding.wav")))
-  fail(`The notification sound is missing: ${join(resources, "ding.wav")}`)
+// macOS plays the notification sound by name from the bundle's resources: every file of the
+// page's sounds folder is copied in.
+if (process.platform === "darwin")
+  for (const sound of readdirSync(join(host, "../../frontend/ui/src/sounds")))
+    if (sound.endsWith(".wav") && !existsSync(join(resources, sound)))
+      fail(`The notification sound is missing: ${join(resources, sound)}`)
 
 // The relay agents start for Novadeck's MCP server and hooks ships beside the UI, and answers the
 // handshake by itself outside Novadeck's terminals.

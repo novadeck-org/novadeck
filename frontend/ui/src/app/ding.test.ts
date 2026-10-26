@@ -1,3 +1,4 @@
+import type { NoticeSound } from "@novadeck/core/sounds"
 import { describe, expect, it } from "vitest"
 
 import { createDing, dingGapMs, dingOf, dingTerminalMs } from "./ding"
@@ -12,20 +13,24 @@ const setup = (
 ) => {
   const { on = true, volume = 0.6, quiet, play } = options
   const heard: number[] = []
+  const names: string[] = []
   let clock = 1000
+  let name: NoticeSound = "felt"
   const ding = createDing({
-    sound: () => ({ on, volume }),
+    sound: () => ({ on, volume, name }),
     quiet,
-    audio: (at) => ({
+    audio: (at, sound) => ({
       play: () => {
         heard.push(at)
+        names.push(sound)
         return play?.()
       },
     }),
     now: () => clock,
   })
   const later = (ms: number) => void (clock += ms)
-  return { ding, heard, later }
+  const theme = (next: NoticeSound) => void (name = next)
+  return { ding, heard, names, later, theme }
 }
 
 const settle = () => new Promise((resolve) => setTimeout(resolve, 0))
@@ -124,6 +129,38 @@ describe("the ding", () => {
     expect(heard).toHaveLength(1)
   })
 
+  it("rings with the sound of the theme in effect as it rings", async () => {
+    const { ding, names, later, theme } = setup()
+
+    ding.ring("a")
+    theme("afterglow")
+    later(dingGapMs)
+    ding.ring("b")
+    await settle()
+
+    expect(names).toEqual(["felt", "afterglow"])
+    expect(ding.sound()).toBe("afterglow")
+  })
+
+  it("previews the sound of the theme in effect", async () => {
+    const { ding, names, theme } = setup({ on: false })
+
+    theme("afterglow")
+    ding.preview(0.5)
+    await settle()
+
+    expect(names).toEqual(["afterglow"])
+  })
+
+  it("previews a sound just picked, before the settings hold it", async () => {
+    const { ding, names } = setup({ on: false })
+
+    ding.preview(0.5, "beam")
+    await settle()
+
+    expect(names).toEqual(["beam"])
+  })
+
   it("previews at the given volume whatever the settings and the system say", async () => {
     const { ding, heard } = setup({ on: false, quiet: async () => true })
 
@@ -144,5 +181,30 @@ describe("the ding on a backend", () => {
 
     expect(ding.on()).toBe(false)
     expect(ding.take("t")).toBe(false)
+  })
+
+  it("names the sound in effect: the person's choice, else the theme's, else the default's", () => {
+    const sounds = (theme: string, soundChoice: string = "theme") =>
+      dingOf(
+        { notices: {} } as never,
+        {
+          getSnapshot: () => ({
+            preferences: {
+              sound: true,
+              soundVolume: 1,
+              soundChoice,
+              appearance: { theme, scheme: "dark" },
+            },
+          }),
+        } as never,
+      ).sound()
+
+    expect(sounds("graphite")).toBe("felt")
+    expect(sounds("phosphor-green")).toBe("afterglow")
+    expect(sounds("phosphor-amber")).toBe("afterglow")
+    expect(sounds("retired-theme")).toBe("felt")
+    expect(sounds("graphite", "beam")).toBe("beam")
+    expect(sounds("phosphor-green", "settle")).toBe("settle")
+    expect(sounds("phosphor-green", "removed-sound")).toBe("afterglow")
   })
 })

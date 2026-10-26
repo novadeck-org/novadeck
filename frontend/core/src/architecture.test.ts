@@ -10,12 +10,13 @@ import { describe, expect, it } from "./test"
 
 // The files in the core that read the protocol, each through one data-only entry: its table of
 // harnesses, the key that tells pages apart, what draws as nothing in a command, and the icons
-// a release's highlight may name. An entry is added here when the core needs one; never the
+// a release's highlight may name, and the notification sounds. An entry is added here when the core needs one; never the
 // wire, or the runner client, which is a package of its own.
 const protocolData: Record<string, string> = {
   "harnesses.ts": "@novadeck/protocol/harnesses",
   "pages.ts": "@novadeck/protocol/pages",
   "command-text.ts": "@novadeck/protocol/text",
+  "sounds.ts": "@novadeck/protocol/sounds",
   "update.ts": "@novadeck/protocol/release-notes",
 }
 

@@ -9,10 +9,16 @@ import { isEmpty } from "@novadeck/tui-input/box"
 import { harnesses } from "../harnesses/registry.js"
 import { setups } from "./agents/index.js"
 import { occurrences, type DeckTerminal } from "./deck.js"
-import { describe, e2e, expect, supported } from "./fixture.js"
+import { describe, e2e, expect, gated, supported } from "./fixture.js"
 import { losesAstral } from "./known-gaps.js"
-import { asked, gate, latest } from "./model/script.js"
-import { own, replies, start, through, turn } from "./scenarios.js"
+import { asked, gate, latest, type Call } from "./model/script.js"
+import { lacking, nestedRuns, own, replies, start, through, turn } from "./scenarios.js"
+
+// A 1x1 PNG, for a prompt with an image.
+const picture = Buffer.from(
+  "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==",
+  "base64",
+)
 
 // The chat view's way to an agent, the same for every harness (see messaging.e2e.ts for
 // the rule on parity): `agents.prompt` and `agents.interrupt`, read back through
@@ -278,13 +284,12 @@ for (const setup of setups) {
           own(async (call) => {
             if (!asked(call, pair.first)) return undefined
             await pair.held.opened
-            // A harness that steers can give one model call both queued prompts.
-            return {
-              text:
-                setup.steers && asked(call, pair.second)
-                  ? `${pair.reply} ${pair.next}`
-                  : pair.reply,
-            }
+            // One model call can hold both prompts: a harness that steers gives it the
+            // queued one, and Claude Code, when the second reaches it before the first
+            // turn's request is built (a loaded machine), sends them as one request
+            // (reproduced under CPU load, 2.1.304; both prompts reach the model, none lost).
+            // That call answers both, as a person's model would.
+            return { text: asked(call, pair.second) ? `${pair.reply} ${pair.next}` : pair.reply }
           }),
         ),
         ...pairs.map((pair) => replies(pair.second, pair.next)),
@@ -329,8 +334,14 @@ for (const setup of setups) {
       for (const reply of pairs.flatMap((pair) => [pair.reply, pair.next]))
         await item(t1, "assistant", (text) => text.includes(reply))
       const users = await texts(t1, "user")
+      // Each reaches the model once, whether queued, steered or sent with the first.
+      for (const pair of pairs)
+        expect(
+          run.model.calls.filter((call) => !call.side && asked(call, pair.second)),
+        ).toHaveLength(1)
       // Each once, as its own prompt; or, where the harness steers, maybe in the turn it
-      // joined.
+      // joined. A prompt Claude Code takes into a running turn is its queued command, which
+      // the transcript shows as the person's own (see harnesses/claude transcripts).
       for (const sent of pairs.flatMap((pair) => [pair.first, pair.second]))
         expect(
           users.filter((text) => (setup.steers ? text.includes(sent) : text === sent)),
@@ -375,6 +386,104 @@ for (const setup of setups) {
       await item(t1, "assistant", (text) => text.includes("Long job done."))
       await item(t1, "assistant", (text) => text.includes("Summed up."))
     })
+
+    // Prompts given while the agent's shell tool runs: Claude Code takes them into the turn
+    // beside the tool's result (as a `queued_command` attachment, not a user record), Codex
+    // steers them into it, and Antigravity holds them for a turn of their own. Whichever,
+    // the chat shows each once, as the person's, after the tool's result and before the
+    // reply that answers it; prompts that Antigravity merges into one message (`merges`)
+    // show as that one message, as its model got them. The tool is a nested run of the
+    // harness, held at the fake model until the prompts wait in the harness's queue, so
+    // nothing races the tool.
+    for (const { what, given, image } of [
+      { what: "a prompt", given: ["Also check the logs"] },
+      { what: "two prompts", given: ["Also check the logs", "Then tidy up"] },
+      // Typed into its box with the image's path pasted after the words, as the chat sends
+      // no images.
+      { what: "a prompt with an image", given: ["Look at this picture"], image: true },
+    ])
+      gated(it, image ? lacking(setup, "image") : undefined)(
+        `shows ${what} given while a tool runs in the chat, once each, in order, as the person's`,
+        async ({ e2e: run }) => {
+          const { shell } = setup
+          const held = gate()
+          const nestedAsk = nestedRuns.whileQueued
+          // The nested run's own call: it is asked nothing else.
+          const nested = (call: Call) =>
+            !call.side &&
+            call.turns.some((each) => each.role === "user" && each.text.includes(nestedAsk)) &&
+            !call.turns.some((each) => each.role === "user" && each.text.includes("Run the tool"))
+          run.model.use(
+            own(async (call) => {
+              if (!nested(call)) return undefined
+              await held.opened
+              return { text: "Nested word." }
+            }),
+            own((call) =>
+              !call.side && asked(call, "Run the tool")
+                ? shell!.run(call, shell!.nested(nestedAsk))
+                : undefined,
+            ),
+            own((call) => {
+              if (call.side || nested(call)) return undefined
+              const read = given.filter((prompt) => asked(call, prompt))
+              if (read.length > 0) return { text: `Read: ${read.join("; ")}.` }
+              return call.turns.some((each) => each.role === "tool")
+                ? { text: "Tool done." }
+                : undefined
+            }),
+          )
+          const t1 = await start(run, setup)
+          const profile = harnesses[setup.agent].box!
+          const calls = run.model.mark()
+          const mark = t1.mark()
+
+          await t1.prompt("Run the tool")
+          await run.model.waitFor(nested, { after: calls })
+          if (image) {
+            const path = join(run.sandbox.project, "picture.png")
+            writeFileSync(path, picture)
+            t1.press(`${given[0]} `)
+            // Codex on Windows reads keys that come fast as one paste, flushed once they
+            // stop for 60 ms (paste_burst.rs, 0.163): the path pasted right after the words
+            // would join them as one paste, words and not a path, so the words land first.
+            await t1.until(given[0]!)
+            await t1.confirm(setup.image!.shows, async () => t1.press(`\x1b[200~${path}\x1b[201~`))
+          } else for (const prompt of given) await t1.prompt(prompt)
+          // Every prompt waits in the harness's queue, shown on its screen, before the tool ends.
+          await t1.poll(async () => {
+            const shown = await t1.screenText()
+            const rows = shown?.rows.join("\n") ?? ""
+            return shown && profile.queued(shown) && given.every((prompt) => rows.includes(prompt))
+              ? true
+              : undefined
+          }, "the prompts to be queued while the tool runs")
+          held.open()
+
+          for (const prompt of given)
+            await item(t1, "assistant", (text) => text.includes("Read:") && text.includes(prompt))
+          await through(t1, ["working", "settled"], { after: mark })
+          const items = await t1.transcript()
+          const users = items.filter((one) => one.role === "user" && one.kind === "text")
+          const sent = setup.merges ? [given.join("\n")] : given
+          expect(users.map((one) => one.text)).toEqual([
+            "Run the tool",
+            // The image holds its place in the prompt's text, as its box showed it.
+            ...sent.map((prompt) => (image ? `${prompt} ${setup.image!.shows}` : prompt)),
+          ])
+          const result = items.findIndex((one) => one.kind === "tool-result")
+          const at = sent.map((prompt) =>
+            items.findIndex((one) => one.role === "user" && one.text.includes(prompt)),
+          )
+          const answered = items.findIndex(
+            (one) => one.role === "assistant" && one.kind === "text" && one.text.includes("Read:"),
+          )
+          const order = [result, ...at, answered]
+          expect(result).toBeGreaterThanOrEqual(0)
+          expect(order).toEqual(order.toSorted((a, b) => a - b))
+          expect(new Set(order).size).toBe(order.length)
+        },
+      )
 
     it("interrupts a running turn, which ends without a normal stop, and takes the next prompt", async ({
       e2e: run,

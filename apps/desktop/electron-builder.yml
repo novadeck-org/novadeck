@@ -91,12 +91,14 @@ mac:
     NSDownloadsFolderUsageDescription: A program running in Novadeck wants to use files in your Downloads folder.
     NSRemovableVolumesUsageDescription: A program running in Novadeck wants to use files on a removable volume.
     NSNetworkVolumesUsageDescription: A program running in Novadeck wants to use files on a network volume.
-  # Novadeck's notification sound, copied from the page's own file: macOS plays a
-  # notification's sound from the app's resources by name, and mutes it under Focus, which
-  # the page cannot see. See `notificationOptions` in src/main/notices.ts.
+  # Novadeck's notification sounds, every file of the page's own sounds folder: macOS plays
+  # a notification's sound from the app's resources by name (`<id>.wav`), and mutes it under
+  # Focus, which the page cannot see. See `notificationOptions` in src/main/notices.ts.
   extraResources:
-    - from: ../../frontend/ui/src/app/ding.wav
-      to: ding.wav
+    - from: ../../frontend/ui/src/sounds
+      to: .
+      filter:
+        - "*.wav"
   # Only this platform's PTY binaries: signing would otherwise reach the Linux and Windows
   # prebuilds, which codesign cannot sign as code.
   files:

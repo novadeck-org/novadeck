@@ -208,13 +208,14 @@ const bridge = {
       if (beforeQuit === save) beforeQuit = undefined
     }
   },
-  // Only the three fields cross; the main process checks them.
+  // Only the fields of a notice cross; the main process checks them.
   showNotice: (notice) => {
     ipcRenderer.send(noticeChannel, {
       id: notice?.id,
       title: notice?.title,
       body: notice?.body,
       silent: notice?.silent,
+      sound: notice?.sound,
     })
   },
   // Only a terminal id crosses; the main process checks it.
