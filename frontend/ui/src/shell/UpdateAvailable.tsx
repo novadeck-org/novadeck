@@ -61,7 +61,7 @@ export const UpdateAvailable = ({
         >
           <span className="footer-chip-icon" aria-hidden="true">
             <CircleArrowUp size={12} strokeWidth={1.75} />
-            <span className="footer-chip-dot" />
+            <span className="attention-dot footer-chip-dot" />
           </span>
           <span className={`footer-chip-text ${iconOnly ? "hidden" : "max-[701px]:hidden"}`}>
             {available.onAllow ? "Allow updates" : "Update available"}

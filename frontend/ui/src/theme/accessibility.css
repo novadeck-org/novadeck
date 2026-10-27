@@ -44,9 +44,9 @@
     outline: 1px solid Highlight;
     outline-offset: -1px;
   }
-  /* The Inbox's dot (bell-dot.css), whose fill a forced background would erase: in the
-     highlight, as what needs the person. */
-  .bell-dot {
+  /* The attention dot (attention-dot.css), whose fill a forced background would erase: in
+     the highlight, as what needs the person. */
+  .attention-dot {
     forced-color-adjust: none;
     color: Highlight;
   }

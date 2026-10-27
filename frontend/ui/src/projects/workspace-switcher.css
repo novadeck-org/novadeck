@@ -11,9 +11,10 @@
    `.button.quiet`.
 
    Each row marks what its project's terminals show, the most pressing of them, with
-   `.project-status-mark`, and the trigger's `.workspace-switcher-dot` (also a
-   `.project-status-dot`) marks what another project has waiting on the person; a project
-   only working doesn't mark it. Their glyphs and tones are project-status.css's.
+   `.project-status-mark`, whose glyphs and tones are project-status.css's, and the
+   trigger's `.workspace-switcher-dot` (an `.attention-dot`, see attention-dot.css) marks
+   that another project has something waiting on the person; a project only working
+   doesn't mark it.
 
    Hooks: on a row, data-pinned="true" for a pinned project and data-dragging="true" while
    it is dragged. On the trigger, aria-expanded="true" while the popover is open; on a row,
@@ -89,15 +90,10 @@
   border-top: var(--border-width) solid var(--separator-bg, var(--color-line));
 }
 
-/* The dot on the trigger: over the folder's corner, ringed in the header's ground. */
+/* The attention dot on the trigger: over the folder's corner, ringed in the header's
+   ground. */
 .workspace-switcher-dot {
-  position: absolute;
+  --_dot-ground: var(--workspace-switcher-dot-ring, var(--region-header-bg, var(--color-paper)));
   top: 9px;
-  left: 18px;
-  width: 7px;
-  height: 7px;
-  border-radius: 50%;
-  box-shadow: 0 0 0 1.5px
-    var(--workspace-switcher-dot-ring, var(--region-header-bg, var(--color-paper)));
-  background-color: currentColor;
+  left: 19px;
 }
