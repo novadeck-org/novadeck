@@ -3418,6 +3418,13 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))(
           worker: worker!,
           said: answer!.text,
           command: commands[0],
+          // What the agent's start hook printed: Antigravity's invocation takes its messages.
+          started: () => readFileSync(join(shell.home, `steps-${worker}.start`), "utf8"),
+          // The opener sends the agent a message of its own.
+          sends: async (text) =>
+            present(shell, manager, terminal.id, [
+              { type: "send" as "open", request: { to: "fox", text } },
+            ]),
           prompt: async (text, ends = false) => {
             // Antigravity's turn ends with its Stop, which takes what waits for a turn's end.
             const out = await step(worker!, {
@@ -3451,6 +3458,8 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))(
       manager: Terminals
       worker: string
       said: string
+      started: () => string
+      sends: (text: string) => Promise<unknown[]>
       command: string | undefined
       prompt: (text: string, ends?: boolean) => Promise<string>
     }
@@ -3464,16 +3473,28 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))(
           shell,
           agent,
           { message: "Review a.ts, please.", lead: false },
-          async ({ manager, worker, said, command, prompt }) => {
+          async ({ manager, worker, said, command, prompt, started, sends }) => {
             // Antigravity here started plain, its task waiting for the first session.
             expect(said.includes("doesn't trust this folder yet")).toBe(agent === "agy")
             expect(command === agent).toBe(agent === "agy")
-            // Antigravity's first invocation binds and takes the brief at once, so only the
-            // others show the lead's mark in a prompt of their own; led until the brief lands.
-            if (agent !== "agy") {
+            const marked = /lead="[^"]+"[^>]*>Review a.ts, please.<\/message>/
+            if (agent === "agy") {
+              // Its first invocation binds and takes the brief at once: the mark is there.
+              const printed = JSON.parse(started()) as {
+                injectSteps: { ephemeralMessage: string }[]
+              }
+              expect(printed.injectSteps[0]!.ephemeralMessage).toMatch(marked)
+            } else {
+              // Led until the brief lands. While it waits, the opener's other messages go as a
+              // peer's: unmarked, and not the brief's end.
               expect(manager.get(worker).ledBy).toBe("moth")
-              expect(await prompt("go")).toMatch(
-                /lead="[^"]+"[^>]*>Review a.ts, please.<\/message>/,
+              expect(await sends("Also this.")).toEqual([
+                { ok: true, text: expect.stringContaining("Message m-") },
+              ])
+              const first = await prompt("go")
+              expect(first).toMatch(marked)
+              expect(first).toMatch(
+                /<message [^>]*from="moth"(?![^>]*lead=)[^>]*>Also this.<\/message>/,
               )
             }
             await expect
@@ -3541,7 +3562,9 @@ const standIn = (home: string): string => {
       "const agy = agent === 'agy'",
       "const named = (event, fields) => agy ? { conversationId: session, workspacePaths: [process.cwd()], ...fields } : { hook_event_name: event, session_id: session, ...fields }",
       "const start = agy ? named('PreInvocation', { invocationNum: 0 }) : { hook_event_name: 'SessionStart', source: 'startup', session_id: session, cwd: process.cwd() }",
-      "hook(agy ? 'PreInvocation' : 'SessionStart', start, () => {",
+      // What the start hook printed (Antigravity's invocation takes its messages) is kept.
+      "hook(agy ? 'PreInvocation' : 'SessionStart', start, (printed) => {",
+      "  fs.writeFileSync(steps + '.start', printed)",
       '  console.log(agent + " ready")',
       "  next()",
       "})",

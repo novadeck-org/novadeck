@@ -104,7 +104,13 @@ const programOf = (words: readonly string[], platform: NodeJS.Platform): AgentNa
  * prompt of loose words (`codex write a test`) is not read as one. The value of each option
  * the agent is known to take one (`harness.nonSession.takesValue`, as `codex -c key=value
  * mcp list`) is skipped first. One it does not know reads as the first word, so
- * `claude --unknown x mcp list` is refused though it need not be. Help and version flags count anywhere.
+ * `claude --unknown x mcp list` is refused though it need not be.
+ * So does an option with an optional value (`claude -r x mcp`) and a Go-style long option
+ * with one dash (`agy -model x mcp`), which the lists spell with two.
+ *
+ * Help and version flags count anywhere. So do the agent's print flags
+ * (`harness.nonSession.print`), which run it on the words that follow: unless a help flag
+ * is also there, the command is a session's use whatever else it has, as `agy -p mcp "do x"`.
  *
  * This steers an agent to `open_agent`; it is not a security boundary, so a wrapper such as
  * `env X=1 claude`, `cd x && claude` or `npx` goes unseen.
@@ -116,9 +122,10 @@ export const sessionLaunch = (
   const words = commandWords(command, platform)
   const agent = programOf(words, platform)
   if (agent === null) return null
-  const { commands, flags, takesValue } = harnesses[agent].nonSession
+  const { commands, flags, takesValue, print } = harnesses[agent].nonSession
   const rest = words.slice(1)
   if (rest.some((word) => flags.includes(word))) return null
+  if (rest.some((word) => print.includes(word))) return agent
   for (let index = 0; index < rest.length; index += 1) {
     const word = rest[index]!
     if (!word.startsWith("-")) return commands.includes(word) ? null : agent

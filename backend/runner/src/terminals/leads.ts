@@ -394,15 +394,16 @@ export class Leads {
   }
 
   /**
-   * Ends the lead `lead` has over the terminal `ledId` once its brief, the message
-   * `messageId` (see `Messaging.sendBrief`), is delivered: the brief went with the lead
-   * mark, so it is the agent's task, and the lead is a peer's from then on, as `release`
-   * makes it, with its own notice. The terminal is found by its id each time, as a restored
-   * worker is a new record. A brief that is gone for now may come back, so it is waited for
-   * still; one forgotten ends the lead, with the notice if the agent may have seen it. It
-   * stops, ending nothing, once the lead ended or was set again (messaging no longer holds
-   * the brief for the terminal), or the terminal is gone. In memory only: a runner that
-   * restarts before the brief lands leaves the terminal an ordinary lead's.
+   * Ends the lead `lead` has over the terminal `ledId` at the first of its brief, the
+   * message `messageId` (see `Messaging.sendBrief`), being delivered or gone: the brief
+   * went with the lead mark, so it is the agent's task, and the lead is a peer's from then
+   * on, as `release` makes it, with its own notice. A brief that is gone stays marked, and
+   * stays the agent's task, should it come back. The notice goes unless the agent can't have
+   * seen the brief (it was never leased). The terminal is found by its id each time, as a
+   * restored worker is a new record, and kept waiting for while it is between records. It
+   * stops, ending nothing, once the lead ended or was set again, or the terminal closed
+   * (messaging no longer holds the brief for it). In memory only: a runner that restarts
+   * before the brief lands leaves the terminal an ordinary lead's.
    */
   releaseAfterBrief(ledId: string, lead: string, messageId: string): void {
     const { host } = this
@@ -412,8 +413,7 @@ export class Leads {
       const state = host.messaging().stateOf(messageId)
       if (state === "leased" || state === "delivered") seen = true
       const pending = host.messaging().briefOf(ledId) === messageId
-      const led = host.records().get(ledId)
-      if (pending && led && state !== undefined && state !== "delivered") return
+      if (pending && state !== undefined && state !== "delivered" && state !== "gone") return
       stop()
       // After the change that told of it is through, which may still be going over messages.
       queueMicrotask(() => {

@@ -157,7 +157,8 @@ export const codex = {
       ? [{ path: "codex.cmd", content: cmdShim }]
       : [{ path: "codex", content: posixShim, mode: 0o700 }],
   // Its subcommands other than a session (`codex --help`, 0.164.0), with help and version.
-  // Its `exec` and `review` run it on the caller's text, so they are a session's use.
+  // Its `exec` and `review` run it on the caller's text, as `queue` (a message into a
+  // session) and `cloud` (`cloud exec` submits a task) do, so they are a session's use.
   nonSession: {
     commands: [
       "agents",
@@ -174,18 +175,18 @@ export const codex = {
       "debug",
       "apply",
       "a",
-      "queue",
       "archive",
       "delete",
       "migrate-rollouts",
       "migrate-nfs-db",
       "unarchive",
-      "cloud",
       "exec-server",
       "features",
       "help",
     ],
     flags: ["-h", "--help", "-V", "--version"],
+    // Its `exec` runs it on a prompt, but that is a command; its `-p` is `--profile`.
+    print: [],
     takesValue: [
       "-c",
       "--config",

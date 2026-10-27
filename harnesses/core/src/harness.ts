@@ -111,13 +111,14 @@ export type Harness = {
    * What shows a command starts no interactive session (see the runner's
    * `terminals/commands.ts`): its `commands` other than a session, as the first word that is
    * not an option; its help and version `flags`, anywhere; and the options that `takesValue`,
-   * whose next word is theirs. Print and exec modes are none of these: they run the agent on
-   * a prompt.
+   * whose next word is theirs. Its `print` flags, anywhere, run it on a prompt, so they make
+   * the command a session's use whatever else it has; none where it has none.
    */
   readonly nonSession: {
     readonly commands: readonly string[]
     readonly flags: readonly string[]
     readonly takesValue: readonly string[]
+    readonly print: readonly string[]
   }
   /**
    * The words that continue its session by id, which a shell runs as they are, with the

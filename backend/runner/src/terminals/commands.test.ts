@@ -81,6 +81,10 @@ describe("the agent whose session a command would start", () => {
       "codex exec 'fix it'",
       "codex e 'fix it'",
       "codex review",
+      "codex queue --thread abc --message hi",
+      "codex cloud exec do-x",
+      "claude ultrareview 12",
+      "agy -model m mcp list",
       "codex exec resume --last",
       "codex write a test",
       "codex fix the update",
@@ -88,6 +92,11 @@ describe("the agent whose session a command would start", () => {
       "agy -p 'hi'",
       "agy --print 'hi'",
       "agy --prompt 'hi'",
+      "agy -v mcp",
+      "agy -p mcp",
+      "agy --prompt mcp list",
+      "claude -p mcp",
+      "claude --print update",
     ]) {
       const agent = command.split(" ")[0]
       expect([command, sessionLaunch(command, "linux")]).toEqual([command, agent])
@@ -112,6 +121,8 @@ describe("the agent whose session a command would start", () => {
       "codex login",
       "codex mcp add x",
       "codex -c key=value mcp list",
+      "codex -p prof mcp list",
+      "agy -p --help",
       "codex --config k=v -m gpt-5 login",
       "codex --enable fast apply",
       "agy --model m mcp list",

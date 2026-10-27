@@ -156,8 +156,8 @@ export const agy = {
   settings: statusLineSettings(cli),
   limited: statusLineLimit(cli),
   // Its subcommands (`agy --help`, 1.4.8), with help and version (`-v` is no version flag
-  // there: it takes an argument). Its print mode runs it on the caller's text, so it is a
-  // session's use.
+  // there: it takes an argument, as `agy -v` says). Its print mode, `--print`, `-p` and
+  // `--prompt`, runs it on the caller's text, so it is a session's use.
   nonSession: {
     commands: [
       "agent",
@@ -174,6 +174,7 @@ export const agy = {
       "update",
     ],
     flags: ["-h", "--help", "--version"],
+    print: ["-p", "--print", "--prompt"],
     takesValue: [
       "--add-dir",
       "--agent",
@@ -188,8 +189,8 @@ export const agy = {
       "--output-format",
       "--print-timeout",
       "--project",
-      "--prompt",
       "--prompt-interactive",
+      "-v",
     ],
   },
   resume: (session, choice = {}) => ["agy", ...messaging.choose(choice), "--conversation", session],

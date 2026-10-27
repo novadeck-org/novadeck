@@ -608,10 +608,10 @@ export class Messaging {
    * belongs to a session stays, with the authority it had when sent.
    */
   endLead(terminalId: string): void {
+    this.briefs.delete(terminalId)
     const live = this.live.get(terminalId)
     if (!live) return
     live.ledBy = null
-    this.briefs.delete(terminalId)
     for (const message of this.messages.values())
       if (
         message.to.terminalId === terminalId &&
@@ -711,9 +711,13 @@ export class Messaging {
 
   /**
    * A terminal stops running, as it exits or closes: every message for it is gone, those
-   * waiting for its first session too, until its session runs there again.
+   * waiting for its first session too, until its session runs there again. With `forGood`,
+   * as it closes, the brief its lead waits on is let go too; otherwise it is kept, as the
+   * terminal may be restored with its lead.
    */
-  unregister(terminalId: string): void {
+  unregister(terminalId: string, forGood = false): void {
+    // Told to those waiting on it, which stop.
+    if (forGood && this.briefs.delete(terminalId)) this.changed(terminalId)
     const live = this.live.get(terminalId)
     if (!live) return
     this.applyRoot(live, [{ type: "ended" }])
@@ -721,7 +725,6 @@ export class Messaging {
       if (message.to.terminalId === terminalId && undelivered(message))
         this.gone(message, "terminal-closed")
     this.live.delete(terminalId)
-    this.briefs.delete(terminalId)
     this.loops.forget(terminalId)
   }
 

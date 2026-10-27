@@ -1230,7 +1230,7 @@ export class Terminals {
   private forget(terminalId: string, { claims = true } = {}): void {
     // Its items go first, so watchers hear of each before its record cascades them away.
     this.companion.closed(terminalId)
-    this.messaging.unregister(terminalId)
+    this.messaging.unregister(terminalId, true)
     this.inbox.reconcile(terminalId)
     this.typing.forget(terminalId)
     this.murmur?.gone(terminalId)

@@ -1,7 +1,7 @@
 import type { AgentName } from "@novadeck/protocol"
 import { afterEach, beforeEach, vi } from "vitest"
 
-import type { Messaging, PeerAnswer } from "../messaging/messaging.js"
+import { Messaging, type PeerAnswer } from "../messaging/messaging.js"
 import { describe, expect, it } from "../test.js"
 import { Approvals } from "./approvals.js"
 import type { Bindings } from "./binding/facts.js"
@@ -620,17 +620,20 @@ describe("a lead that lasts only for its brief", () => {
     expect(run.listening()).toBe(0)
   })
 
-  it("waits on for a brief that is gone, which may come back, and ends when it lands", async () => {
-    const { run } = led()
-    run.moved("m1", "gone", "id-fox")
+  it("ends at once when the brief is gone, telling the agent only if it may have seen it", async () => {
+    const unseen = led()
+    unseen.run.moved("m1", "queued", "id-fox")
+    unseen.run.moved("m1", "gone", "id-fox")
     await settle()
-    expect(run.records.get("id-fox")!.summary.ledBy).toBe("moth")
-    expect(run.listening()).toBe(1)
-    run.moved("m1", "queued", "id-fox")
-    run.moved("m1", "delivered", "id-fox")
+    expect(unseen.fox.summary.ledBy).toBeNull()
+    expect(unseen.run.notices).toEqual([])
+    expect(unseen.run.listening()).toBe(0)
+    const seen = led()
+    seen.run.moved("m1", "leased", "id-fox")
+    seen.run.moved("m1", "gone", "id-fox")
     await settle()
-    expect(run.records.get("id-fox")!.summary.ledBy).toBeNull()
-    expect(run.notices).toHaveLength(1)
+    expect(seen.fox.summary.ledBy).toBeNull()
+    expect(seen.run.notices).toHaveLength(1)
   })
 
   it("ends a lead whose brief was forgotten, telling the agent only if it may have seen it", async () => {
@@ -659,25 +662,17 @@ describe("a lead that lasts only for its brief", () => {
     expect(run.listening()).toBe(0)
   })
 
-  it("follows its terminal when a restored worker replaces the record", async () => {
-    const { run } = led()
-    const restored = terminal("fox", "codex", "moth")
-    run.records.set("id-fox", restored)
-    run.moved("m1", "queued", "id-fox")
-    expect(run.listening()).toBe(1)
-    run.moved("m1", "delivered", "id-fox")
+  it("keeps listening while its terminal is between records, and stops when the runner does", async () => {
+    const between = led()
+    between.run.records.delete("id-fox")
+    between.run.moved("m1", "queued", "id-fox")
     await settle()
-    expect(restored.summary.ledBy).toBeNull()
-    expect(run.notices).toHaveLength(1)
-  })
-
-  it("stops listening when its terminal is gone or the runner stops", async () => {
-    const gone = led()
-    gone.run.records.delete("id-fox")
-    gone.run.moved("m1", "queued", "id-fox")
-    await settle()
-    expect(gone.run.listening()).toBe(0)
-    expect(gone.run.notices).toEqual([])
+    expect(between.run.listening()).toBe(1)
+    expect(between.run.notices).toEqual([])
+    // Closed for good, messaging lets go of the brief and says so.
+    between.run.unbrief("id-fox")
+    between.run.moved("m1", "queued", "id-fox")
+    expect(between.run.listening()).toBe(0)
     const stopped = led()
     stopped.run.stop()
     stopped.run.moved("m1", "delivered", "id-fox")
@@ -709,5 +704,62 @@ describe("the user releasing a terminal", () => {
     expect(() => run.leads.releaseByPerson("id-none")).toThrow(
       expect.objectContaining({ code: "TERMINAL_NOT_FOUND" }),
     )
+  })
+})
+
+describe("a lead that lasts only for its brief, over the real messaging", () => {
+  // moth leads fox, whose agent is expected; its brief is sent as the lead's alone.
+  const world = () => {
+    const messaging = new Messaging({ sweepMs: 0, restoreMs: 0, waitsMs: 0, platform: "linux" })
+    const scope = { projectId: "p", sessionId: "session" }
+    messaging.register("id-moth", scope, "moth", null)
+    const records = new Map<string, Record>([
+      ["id-moth", terminal("moth", "claude", null)],
+      ["id-fox", terminal("fox", "codex", "moth")],
+    ])
+    messaging.register("id-fox", scope, "fox", "moth")
+    messaging.expect("id-fox", "codex")
+    const host = {
+      records: () => records,
+      stopping: () => false,
+      messaging: () => messaging,
+      bindings: () =>
+        ({
+          endLead: (record: Record) => {
+            record.summary = { ...record.summary, ledBy: null }
+            messaging.endLead(record.summary.id)
+          },
+        }) as unknown as Bindings,
+    } as unknown as LeadsHost
+    const leads = new Leads(host)
+    const brief = messaging.sendBrief("id-moth", { to: "fox", text: "Fix the build." })
+    if (!brief.ok) throw new Error(brief.reason)
+    leads.releaseAfterBrief("id-fox", "moth", brief.id)
+    return { messaging, records, scope, brief, leads }
+  }
+
+  it("ends the lead when the worker exits and is restored, and later messages are a peer's", async () => {
+    const { messaging, records, scope, brief } = world()
+    expect(messaging.briefOf("id-fox")).toBe(brief.id)
+    // Its shell exits before any session bound: the brief goes with it.
+    messaging.unregister("id-fox")
+    await settle()
+    expect(messaging.stateOf(brief.id)).toBe("gone")
+    expect(records.get("id-fox")!.summary.ledBy).toBeNull()
+    expect(messaging.briefOf("id-fox")).toBeUndefined()
+    // Restored as a new record, it is no one's to lead: nothing the opener sends is marked.
+    records.set("id-fox", terminal("fox", "codex", null))
+    messaging.register("id-fox", scope, "fox", null)
+    messaging.expect("id-fox", "codex")
+    const later = messaging.send("id-moth", { to: "fox", text: "Also this." })
+    expect(later.ok && messaging.isFromLead(later.id)).toBe(false)
+  })
+
+  it("keeps waiting on the brief while the terminal is only between records, and lets go when it closes", () => {
+    const { messaging, brief } = world()
+    messaging.unregister("id-fox")
+    expect(messaging.briefOf("id-fox")).toBe(brief.id)
+    messaging.unregister("id-fox", true)
+    expect(messaging.briefOf("id-fox")).toBeUndefined()
   })
 })

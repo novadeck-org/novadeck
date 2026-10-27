@@ -91,6 +91,9 @@ const messaging: MessagingProfile = {
   ],
 }
 
+// Its commands that start work for an agent though they open no session here.
+const sessionCommands = ["attach", "ultrareview"]
+
 export const claude = {
   id: "claude",
   plugin: "claude",
@@ -167,11 +170,13 @@ export const claude = {
       ? [{ path: "claude.cmd", content: cmdShim }]
       : [{ path: "claude", content: posixShim, mode: 0o700 }],
   // Its commands other than a session, but `attach`, which opens a background session in
-  // the terminal; its print mode runs it on the caller's text, so it is none. Its options
+  // the terminal, and `ultrareview`, which submits a cloud review; its print mode runs it
+  // on the caller's text, so it is none. Its options
   // that take a value, which the words after them are not commands for.
   nonSession: {
-    commands: commands.filter((command) => command !== "attach"),
+    commands: commands.filter((command) => !sessionCommands.includes(command)),
     flags: ["-h", "--help", "-v", "--version"],
+    print: ["-p", "--print"],
     takesValue: [
       "--add-dir",
       "--agent",
