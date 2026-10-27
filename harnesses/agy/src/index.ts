@@ -155,7 +155,45 @@ export const agy = {
   // the person, and its context and quotas.
   settings: statusLineSettings(cli),
   limited: statusLineLimit(cli),
-  resume: (session) => ["agy", "--conversation", session],
+  // Its subcommands (`agy --help`, 1.4.8), with help and version (`-v` is no version flag
+  // there: it takes an argument, as `agy -v` says). Its print mode, `--print`, `-p` and
+  // `--prompt`, runs it on the caller's text, so it is a session's use.
+  nonSession: {
+    commands: [
+      "agent",
+      "agents",
+      "changelog",
+      "help",
+      "install",
+      "mcp",
+      "mic-serve",
+      "models",
+      "plugin",
+      "plugins",
+      "remote-control",
+      "update",
+    ],
+    flags: ["-h", "--help", "--version"],
+    print: ["-p", "--print", "--prompt"],
+    takesValue: [
+      "--add-dir",
+      "--agent",
+      "--conversation",
+      "--effort",
+      "-i",
+      "--input-format",
+      "--json-schema",
+      "--log-file",
+      "--mode",
+      "--model",
+      "--output-format",
+      "--print-timeout",
+      "--project",
+      "--prompt-interactive",
+      "-v",
+    ],
+  },
+  resume: (session, choice = {}) => ["agy", ...messaging.choose(choice), "--conversation", session],
   transcripts,
   // Its hooks name no subagents; its status line counts them; see docs/harness-coverage.md.
   // A background subagent's end wakes it with a message saying it went idle.

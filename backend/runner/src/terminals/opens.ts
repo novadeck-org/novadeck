@@ -3,22 +3,27 @@ import { randomUUID } from "node:crypto"
 import { efforts } from "@novadeck/harness-core/harness"
 import {
   agentName,
+  agentSessionId,
   startupCommand,
   terminalTitle,
+  type AgentName,
   type TerminalRequest,
   type TerminalRequestAnswer,
 } from "@novadeck/protocol"
 import { z } from "zod"
 
 import { DomainError } from "../errors.js"
+import { agentLabel } from "../messaging/messages.js"
 import type { SendAnswer } from "../messaging/messaging.js"
 import { Followers } from "./followers.js"
 
 /**
  * What an agent asks to open, through Novadeck's MCP server: a new terminal beside its
  * own, in a folder, absolute or from the terminal's directory, starting a command at its
- * first prompt, or an `agent` with a `message` as its task, and optionally the `model` and
- * reasoning `effort` it starts with, with a name; and `focus` when the person asked to see it.
+ * first prompt, or an `agent`, which starts at its prompt, or with a `message` as its task,
+ * and optionally the `model` and reasoning `effort` it starts with, whether the opener
+ * leads it (`lead`, by default when there is a message), and a past `resume` session of
+ * that agent to continue; with a name; and `focus` when the person asked to see it.
  */
 export const openRequest = z
   .strictObject({
@@ -30,21 +35,27 @@ export const openRequest = z
       .optional(),
     model: z.string().min(1).max(128).optional(),
     effort: z.enum(efforts).optional(),
+    lead: z.boolean().optional(),
+    resume: agentSessionId.optional(),
     cwd: z.string().min(1).max(4096).optional(),
     title: terminalTitle.optional(),
     focus: z.boolean().optional(),
   })
-  .refine((request) => (request.agent === undefined) === (request.message === undefined), {
-    message: "An agent and its message come together.",
-    path: ["agent"],
-  })
   .refine(
     (request) =>
-      request.agent !== undefined || (request.model === undefined && request.effort === undefined),
-    { message: "A model or effort goes with an agent.", path: ["model"] },
+      request.agent !== undefined ||
+      (request.message === undefined &&
+        request.model === undefined &&
+        request.effort === undefined &&
+        request.lead === undefined &&
+        request.resume === undefined),
+    {
+      message: "A message, model, effort, lead or resume goes with an agent.",
+      path: ["agent"],
+    },
   )
   .refine((request) => request.agent === undefined || request.command === undefined, {
-    message: "A command can't be combined with an agent and its message.",
+    message: "A command can't be combined with an agent.",
     path: ["command"],
   })
 
@@ -66,7 +77,18 @@ export type OpenAnswer =
       readonly title?: string
       readonly cwd: string
       readonly command?: string
-      /** Where the task sent to an agent it started is, as `send` would answer. */
+      /**
+       * Whether the caller leads the agent it started and keeps leading it: false for a
+       * plain agent the caller doesn't lead, and for a brief-only lead, which ends once
+       * the task (the lead's brief) is delivered. Absent for a plain terminal.
+       */
+      readonly led?: boolean
+      /** The session id of the past session the agent it started resumes. */
+      readonly resumed?: string
+      /**
+       * Where the task sent to an agent it started is, as `send` would answer; absent when
+       * it was started without one.
+       */
       readonly task?: SendAnswer
       /**
        * The agent started without its task as its first prompt, as Antigravity in a folder
@@ -76,6 +98,20 @@ export type OpenAnswer =
       readonly taskWaits?: true
     }
   | OpenFailure
+
+// How each harness runs a session on a prompt without its interface.
+const printForms: { readonly [agent in AgentName]: string } = {
+  claude: "claude -p",
+  codex: "codex exec",
+  agy: "agy -p",
+}
+
+/** Why a command that would run an agent session isn't opened by `open_terminal`. */
+export const sessionCommandRefusal = (agent: AgentName): string =>
+  `That command would run a ${agentLabel(agent)} session (interactive, or on a prompt such ` +
+  `as ${printForms[agent]}), which open_terminal doesn't open: use open_agent, which can also ` +
+  "give it a task, a model, a lead and a past session to resume. A command that runs no " +
+  "agent, such as a version or help flag or a subcommand like claude mcp list, is fine here."
 
 export const refused = (reason: string): OpenFailure => ({ ok: false, reason })
 
@@ -89,6 +125,11 @@ export const readOpenRequest = (
   if (issue?.path[0] === "command" && issue.code === "invalid_format")
     return refused("The command must be one line, without control characters.")
   if (issue?.code === "custom") return refused(issue.message)
+  if (issue?.path[0] === "resume")
+    return refused(
+      "resume is the id of a past session: letters, digits, dots, dashes and underscores, " +
+        "up to 128 characters.",
+    )
   if (issue?.path[0] === "effort")
     return refused(
       `effort is one of ${efforts.slice(0, -1).join(", ")} or ${efforts.at(-1)}; leave it out for the agent's default.`,
@@ -136,8 +177,14 @@ export type Opener = {
   readonly by: string
   readonly title?: string
   readonly command?: string
-  /** Whether it opened the terminal with a brief for an agent there, so it leads it. */
-  readonly withBrief: boolean
+  /**
+   * Whether it opened the terminal to lead the agent there: from the start, so the brief it
+   * sends next carries the lead mark. A lead that ends once the brief lands (`lead` false
+   * with a brief) is led here too, until then.
+   */
+  readonly leads: boolean
+  /** The agent session it resumes there, to claim for the terminal once its shell runs it. */
+  readonly resume?: { readonly agent: AgentName; readonly session: string }
 }
 
 /**

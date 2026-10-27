@@ -2,7 +2,7 @@ import { basename, win32 } from "node:path"
 
 import type { AgentName } from "@novadeck/protocol"
 
-import { agents } from "../harnesses/registry.js"
+import { agents, harnesses } from "../harnesses/registry.js"
 
 // Text on one line and in one case, as prompts and commands are compared.
 const oneLine = (text: string): string =>
@@ -80,8 +80,56 @@ export const expectedAgent = (
   platform: NodeJS.Platform = process.platform,
 ): AgentName | null => {
   if (resume) return resume
-  const [first = ""] = command === undefined ? [] : commandWords(command, platform)
+  return programOf(command === undefined ? [] : commandWords(command, platform), platform)
+}
+
+// The agent whose program a command's words start with, by its file name.
+const programOf = (words: readonly string[], platform: NodeJS.Platform): AgentName | null => {
+  const [first = ""] = words
   const base = platform === "win32" ? win32.basename(first) : basename(first)
-  const program = base.replace(/\.(?:exe|cmd)$/i, "")
+  // Windows file names are not case-sensitive.
+  const bare = base.replace(/\.(?:exe|cmd)$/i, "")
+  const program = platform === "win32" ? bare.toLowerCase() : bare
   return agents.find((agent) => agent === program) ?? null
+}
+
+/**
+ * The agent whose interactive session a command would start, or null for any other program
+ * and for an agent's other uses: its help and version flags, and its commands other than a
+ * session (`harness.nonSession`). A bare launch, options only, a prompt argument, its print
+ * and exec modes (they run it on a prompt) and resuming, continuing or forking a session all
+ * start one.
+ *
+ * A command counts only as the first word after the program that is not an option, so a
+ * prompt of loose words (`codex write a test`) is not read as one. The value of each option
+ * the agent is known to take one (`harness.nonSession.takesValue`, as `codex -c key=value
+ * mcp list`) is skipped first. One it does not know reads as the first word, so
+ * `claude --unknown x mcp list` is refused though it need not be.
+ * So does an option with an optional value (`claude -r x mcp`) and a Go-style long option
+ * with one dash (`agy -model x mcp`), which the lists spell with two.
+ *
+ * Help and version flags count anywhere. So do the agent's print flags
+ * (`harness.nonSession.print`), which run it on the words that follow: unless a help flag
+ * is also there, the command is a session's use whatever else it has, as `agy -p mcp "do x"`.
+ *
+ * This steers an agent to `open_agent`; it is not a security boundary, so a wrapper such as
+ * `env X=1 claude`, `cd x && claude` or `npx` goes unseen.
+ */
+export const sessionLaunch = (
+  command: string,
+  platform: NodeJS.Platform = process.platform,
+): AgentName | null => {
+  const words = commandWords(command, platform)
+  const agent = programOf(words, platform)
+  if (agent === null) return null
+  const { commands, flags, takesValue, print } = harnesses[agent].nonSession
+  const rest = words.slice(1)
+  if (rest.some((word) => flags.includes(word))) return null
+  if (rest.some((word) => print.includes(word))) return agent
+  for (let index = 0; index < rest.length; index += 1) {
+    const word = rest[index]!
+    if (!word.startsWith("-")) return commands.includes(word) ? null : agent
+    if (takesValue.includes(word)) index += 1
+  }
+  return agent
 }
