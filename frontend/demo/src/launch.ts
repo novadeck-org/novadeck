@@ -305,40 +305,53 @@ export const launchSeed = (now: number): WorkspaceSeed => ({
 // come: the checkout tests a permission, the order emails a plan, the cart drawer a question
 // with its own pick.
 export const launchTranscripts = (now: number): Readonly<Record<string, DemoTranscript>> =>
-  deskTranscripts(now, allJobs, home, {
-    permission: launch.permission,
-    plan: {
-      number: launch.plan,
-      subject: "Order emails plan",
-      steps:
-        "1. Add a shipped-order email template\n2. Queue it when an order is marked shipped\n3. Test it with a sandbox order",
+  deskTranscripts(
+    now,
+    allJobs,
+    home,
+    {
+      permission: launch.permission,
+      plan: {
+        number: launch.plan,
+        subject: "Order emails plan",
+        steps:
+          "1. Add a shipped-order email template\n2. Queue it when an order is marked shipped\n3. Test it with a sandbox order",
+      },
+      question: {
+        number: launch.question,
+        id: "cart",
+        header: "Cart",
+        question: "Where should the cart be kept between visits?",
+        options: [
+          {
+            id: "account",
+            label: "In the customer's account (Recommended)",
+            description: "Follows them across devices, with a cookie for guests.",
+          },
+          {
+            id: "browser",
+            label: "In the browser only",
+            description: "Simple, but a new device starts with an empty cart.",
+          },
+          {
+            id: "session",
+            label: "In the server session",
+            description: "No storage in the browser, but it expires with the session.",
+          },
+        ],
+      },
     },
-    question: {
-      number: launch.question,
-      id: "cart",
-      header: "Cart",
-      question: "Where should the cart be kept between visits?",
-      options: [
-        {
-          id: "account",
-          label: "In the customer's account (Recommended)",
-          description: "Follows them across devices, with a cookie for guests.",
-        },
-        {
-          id: "browser",
-          label: "In the browser only",
-          description: "Simple, but a new device starts with an empty cart.",
-        },
-        {
-          id: "session",
-          label: "In the server session",
-          description: "No storage in the browser, but it expires with the session.",
-        },
-      ],
-    },
-  })
+    promptOf,
+  )
 
-export const launchIntroOf = deskIntroOf(shop, allJobs)
+// A teammate's agent starts on Novadeck's doorbell notice, which it answers by reading the brief
+// its lead sent it: the person never typed its task.
+const noticeOf = (number: number): string =>
+  `[Novadeck: automatic notice, agent messages waiting, ${["Q7mT2c", "R4kW9x", "H2nB6p"][number - jobs.length - 1]}]`
+const promptOf = (number: number, job: Job): string =>
+  number > jobs.length ? noticeOf(number) : job.ask
+
+export const launchIntroOf = deskIntroOf(shop, allJobs, promptOf)
 
 // The page the order-status agent shows in the pane: its dev server's, as a snapshot. A
 // page half built: the layout and the timeline are in, the tracking map is still a placeholder.
@@ -369,7 +382,8 @@ const preview: SampleArtifact = {
     id: "northwind-order-preview",
     kind: "page",
     name: "localhost:3000",
-    detail: "Dev server preview",
+    // A page's detail is its address, as the runner writes it.
+    detail: "http://localhost:3000/orders/1042",
     path: null,
     url: "http://localhost:3000/orders/1042",
     lines: null,
@@ -421,8 +435,9 @@ const changes: SampleArtifact = {
   item: {
     id: "northwind-order-changes",
     kind: "changes",
-    name: "Changes",
-    detail: "Working tree against HEAD · 3 files",
+    // As the runner names a change: its folder, and its totals (`describeChange`).
+    name: "Changes · northwind",
+    detail: "3 files · +23 −1",
     path: changesRoot,
     url: null,
     lines: null,
@@ -481,10 +496,17 @@ const changes: SampleArtifact = {
 }
 
 const asking = demoHandle(launch.asking)
+const reporting = demoHandle(launch.reports)
 const lead = demoHandle(launch.lead)
 
-// The question the asking teammate puts to the person: only its lead can answer it.
+// The question the asking teammate puts to the person, and to its lead too, as the `ask` tool
+// has it do: the lead knows the answer.
 const teammateAskId = "launch-teammate-ask"
+const question = {
+  subject: "Which API version does the storefront call?",
+  body: "The cart route has to match what the storefront sends. I can't tell from the code whether it calls v1 or v2, and I'd rather not guess.",
+} as const
+const leadsAnswer = "The storefront calls v2, on port 8787. v1 is retired."
 const teammateAsk = (number: number, now: number): InboxRow => {
   const job = allJobs[number - 1]!
   return {
@@ -502,18 +524,13 @@ const teammateAsk = (number: number, now: number): InboxRow => {
     stopped: false,
     seen: false,
     kind: "ask",
-    ask: {
-      subject: "Which API version does the storefront call?",
-      body: "The cart route has to match what the storefront sends. I can't tell from the code whether it calls v1 or v2, and I'd rather not guess.",
-      details: null,
-      hardToUndo: null,
-      shape: { type: "text" },
-    },
+    ask: { ...question, details: null, hardToUndo: null, shape: { type: "text" } },
   }
 }
 
 // How long the lead takes to answer its teammate once the doorbell rang it awake.
-const answersMs = 1500
+// (long enough for a capture to show the teammate's ask on its own first)
+const answersMs = 4000
 
 // How far apart the agents finish, so the Canvas turns green in a ripple.
 const rippleMs = 60
@@ -521,15 +538,16 @@ const finishesAfterMs = 200
 
 // The video's beats, one cue each, for the debug panel's "Launch" group to fire at the frame a
 // capture wants (see `launchGroups`). Each does nothing twice, nor before it can: a cue
-// already fired, or one whose ground isn't there yet (the teammate's ask before the teammates
-// open), is ignored. `finishAll` leaves an agent waiting on the person to wait, as it would:
-// the cues that make it ask are for the person to answer first.
+// already fired, one whose ground isn't there yet (the teammate's ask before the teammates
+// open), or one whose agent has ended its turn since `finishAll`, is ignored. `finishAll` leaves
+// an agent waiting on the person to wait, as it would: the cues that make it ask are for the
+// person to answer first.
 export type LaunchCues = {
   // One agent asks to run its tests, one fails its turn and one finishes with a report: the
   // marks the windows and tabs show for asking, failed and done, beside all that work.
   readonly states: () => void
   // A permission ("Run `pnpm test:e2e`?"), a plan to approve and a question with the agent's
-  // pick: the Inbox's badge reads 3. Each can be rung alone.
+  // pick, all at once: the Inbox's badge reads 3. Each can be rung alone.
   readonly asks: () => void
   readonly permission: () => void
   readonly plan: () => void
@@ -539,18 +557,22 @@ export type LaunchCues = {
   // One agent ends its turn with a report: a done mark and an Update row.
   readonly finishOne: () => void
   // The lead opens three teammates, which its team wire draws to, and rests while they work.
+  // Each starts on the doorbell's notice, and its lead's brief arrives as a message.
   readonly teammates: () => void
-  // A teammate asks the person what only its lead knows. Answered from the Inbox, it writes
-  // to its lead; the idle lead, rung awake, works and answers it.
+  // A teammate asks the person what only its lead knows, and messages the lead the same
+  // question at once. The ask shows as an Inbox row; the idle lead, rung awake, works and
+  // answers (its message lands about 5 s after the cue); when that lands (about 6 s), the teammate acts on it and
+  // withdraws its ask: the row stays, settled, "Withdrawn". The person types nothing.
   readonly teammateAsks: () => void
-  // A teammate ends its turn reporting done: it reads "Reported done" in its messages.
+  // A teammate ends its turn and reports done to its lead, as a message: the lead is rung.
   readonly teammateDone: () => void
   // The order-status agent shows its page in the pane beside its window, and then its
   // changes, as diffs.
   readonly show: () => void
   readonly showChanges: () => void
   // Every agent of both projects ends its turn, one after another, but the ones still waiting
-  // on the person: an unanswered request or a teammate's unanswered ask.
+  // on the person: an unanswered request, or a teammate and its lead while their exchange is
+  // on its way.
   readonly finishAll: () => void
 }
 
@@ -559,11 +581,14 @@ const cuesOf = new WeakMap<Backend, LaunchCues>()
 /** The cues of a backend `createLaunch` made, however wrapped. Nothing for any other. */
 export const launchCuesOf = (backend: Backend): LaunchCues | undefined => cuesOf.get(backend)
 
+// The agent is at work and waits on nothing: the one state a cue may take on.
+const busy = (found: TerminalMetadata | undefined): found is TerminalMetadata =>
+  found?.state === "running" && found.agent?.working === true && !found.agent.attention
+
 // The launch demo's parts, for `plainDemo` to put round the demo's own: `under` the
 // conversations (the seed, its messages, its pane, and a view of the workspace and the sink),
 // `wrap` round them (an agent that is answered or told goes back to work, and works until it
-// finishes), and `over` the whole (the cues). The teammate's ask, once the person's answer
-// reaches it, goes on to its lead.
+// finishes), and `over` the whole (the cues).
 export const createLaunch = (turns: DemoTurns, now: number) => {
   const messages = createDemoMessages([deskMessages(shop, allJobs.length)], false, (target, id) =>
     latest === undefined ? true : terminalOf(latest, { ...target, terminalId: id }) !== undefined,
@@ -580,6 +605,7 @@ export const createLaunch = (turns: DemoTurns, now: number) => {
   })
   let latest: Workspace | undefined
   let sink: BackendSink | undefined
+  const target = { projectId: shop, workspaceSessionId: session }
   const terminal = (number: number): TerminalMetadata | undefined =>
     terminalOf(latest, keyOf(number))
 
@@ -587,11 +613,21 @@ export const createLaunch = (turns: DemoTurns, now: number) => {
     const found = terminalOf(latest, key)
     if (found?.state === "running" && found.agent) turns.work(key, found)
   }
+  // Rings an agent awake if it rests: one already at work is left to it.
+  const wake = (key: TerminalKey): void => {
+    const found = terminalOf(latest, key)
+    if (found?.state === "running" && found.agent && !found.agent.working) work(key)
+  }
 
-  // A cue that acts on one terminal's agent, if it's there.
-  const on = (number: number, act: (key: TerminalKey, found: TerminalMetadata) => void): void => {
+  // A cue that acts on one terminal's agent, if it's there and at work.
+  const on = (
+    number: number,
+    act: (key: TerminalKey, found: TerminalMetadata) => void,
+  ): boolean => {
     const found = terminal(number)
-    if (found) act(keyOf(number), found)
+    if (!busy(found)) return false
+    act(keyOf(number), found)
+    return true
   }
   const asked = new Set<string>()
   const ask = (number: number, kind: "permission" | "plan" | "question"): void => {
@@ -604,51 +640,48 @@ export const createLaunch = (turns: DemoTurns, now: number) => {
   // The agents the person told no, or whose words they took without going on, or that ended
   // a turn a cue of its own chose: they wait at their prompt, and no cue ends a turn for them.
   const resting = new Set<string>()
+  const shown = new Set<string>()
   let opened = false
   let teammateAsked = false
-  let answered = false
   let failed = false
   let finished = false
   let reported = false
-  // Whether the teammate and its lead have had their exchange out: the lead's reply landed, or
+  // Once `finishAll` ran, no cue starts an agent's turn again.
+  let ended = false
+  // Whether the teammate and its lead have had their exchange out: the lead's answer landed, or
   // a stop ended it.
   let exchanged = false
 
-  // The agent ends its turn with its `done` report.
-  const report = (number: number, reply: string, subject: string): void =>
-    on(number, (key, found) =>
-      turns.finish(key, found, "completed", {
-        after: finishesAfterMs,
-        reply,
-        done: { subject, body: reply },
-      }),
-    )
-
   const cues: LaunchCues = {
-    permission: () => ask(launch.permission, "permission"),
-    plan: () => ask(launch.plan, "plan"),
-    question: () => ask(launch.question, "question"),
+    permission: () => !ended && ask(launch.permission, "permission"),
+    plan: () => !ended && ask(launch.plan, "plan"),
+    question: () => !ended && ask(launch.question, "question"),
     asks: () => {
       cues.permission()
       cues.plan()
       cues.question()
     },
     fail: () => {
-      if (failed) return
-      on(launch.failing, (key, found) => {
-        failed = true
+      if (failed || ended) return
+      failed = on(launch.failing, (key, found) => {
         resting.add(found.id)
         // As Codex records a turn the API cut short: its `task_complete` carries the error, and
-        // the agent said nothing.
+        // the agent said nothing. The message is the one harnesses/codex/src/failures.test.ts
+        // uses for such a turn.
         turns.finish(key, found, "failed", { after: finishesAfterMs, error: "stream disconnected" })
       })
     },
     finishOne: () => {
-      if (finished) return
+      if (finished || ended) return
       const job = jobs[launch.finishes - 1]!
-      finished = true
-      resting.add(terminal(launch.finishes)?.id ?? "")
-      report(launch.finishes, job.done, `${job.name} is done`)
+      finished = on(launch.finishes, (key, found) => {
+        resting.add(found.id)
+        turns.finish(key, found, "completed", {
+          after: finishesAfterMs,
+          reply: job.done,
+          done: { subject: `${job.name} is done`, body: job.done },
+        })
+      })
     },
     states: () => {
       cues.permission()
@@ -656,12 +689,12 @@ export const createLaunch = (turns: DemoTurns, now: number) => {
       cues.finishOne()
     },
     teammates: () => {
-      if (opened || !sink) return
+      if (opened || ended || !sink) return
       opened = true
       sink.dispatch(
         teammates.map((job, index) => ({
           type: "terminal/add" as const,
-          target: { projectId: shop, workspaceSessionId: session },
+          target,
           terminal: agentTerminal(
             shop,
             jobs.length + index + 1,
@@ -669,6 +702,7 @@ export const createLaunch = (turns: DemoTurns, now: number) => {
             job.agent,
             working,
             lead,
+            true,
           ),
           // At the desk's window size, in the places beside and under the lead, wherever the
           // person's selection is.
@@ -677,27 +711,75 @@ export const createLaunch = (turns: DemoTurns, now: number) => {
           select: false,
         })),
       )
+      // Each teammate's brief, from its lead, which its first turn reads.
+      teammates.forEach((job, index) =>
+        messages.send(target, lead, demoHandle(jobs.length + index + 1), job.ask),
+      )
       on(launch.lead, (key, found) => turns.rest(key, found))
     },
     teammateAsks: () => {
-      // Its teammate has to be there to ask.
-      if (teammateAsked || !opened) return
+      // Its teammate has to be there, and at work, to ask.
+      if (teammateAsked || ended || !opened) return
       const inbox = backendInbox()
       if (!inbox) return
+      if (!on(launch.asking, () => undefined)) return
       teammateAsked = true
       inbox.add(teammateAsk(launch.asking, Date.now()))
+      // And its lead, so it knows what the teammate waits on; the rung lead answers.
+      const sent = messages.send(
+        target,
+        asking,
+        lead,
+        `${question.subject} ${question.body}`,
+        () => {
+          wake(keyOf(launch.lead))
+          // The lead answers unless the person took it some other way meanwhile, as Escape does.
+          const epoch = turns.epoch(keyOf(launch.lead))
+          setTimeout(() => {
+            if (turns.epoch(keyOf(launch.lead)) !== epoch) {
+              exchanged = true
+              return
+            }
+            const replied = messages.send(
+              target,
+              lead,
+              asking,
+              leadsAnswer,
+              // Its lead answered first: the teammate acts on that, and withdraws its ask.
+              () => {
+                exchanged = true
+                backendInbox()?.resolve(teammateAskId, "withdrawn")
+                work(keyOf(launch.asking))
+              },
+              () => {
+                exchanged = true
+              },
+            )
+            if (!replied) exchanged = true
+          }, answersMs)
+        },
+        () => {
+          exchanged = true
+        },
+      )
+      // Refused, as the lead closed: nothing is on its way to wait for.
+      if (!sent) exchanged = true
     },
     teammateDone: () => {
-      if (reported || !opened) return
+      if (reported || ended || !opened) return
       const job = allJobs[launch.reports - 1]!
-      reported = true
-      resting.add(terminal(launch.reports)?.id ?? "")
-      report(launch.reports, job.done, `${job.name} is done`)
+      reported = on(launch.reports, (key, found) => {
+        resting.add(found.id)
+        turns.finish(key, found, "completed", { after: finishesAfterMs, reply: job.done })
+        // To its lead, as a message: the lead is rung, if it rests.
+        messages.send(target, reporting, lead, `Done. ${job.done}`, () => wake(keyOf(launch.lead)))
+      })
     },
     show: () => upsert(preview),
     showChanges: () => upsert(changes),
     finishAll: () => {
       if (!latest) return
+      ended = true
       let count = 0
       for (const each of latest.projects)
         for (const history of each.history)
@@ -724,9 +806,10 @@ export const createLaunch = (turns: DemoTurns, now: number) => {
   }
 
   // The agent shows something in the pane, as the show tool does: the page, then its changes,
-  // on its own bar. Showing the same again updates it.
+  // on its own bar. Each is shown once.
   const upsert = (artifact: SampleArtifact): void => {
-    if (!sink) return
+    if (!sink || shown.has(artifact.item.id) || !busy(terminal(launch.shows))) return
+    shown.add(artifact.item.id)
     const holder = keyOf(launch.shows)
     const item: Item = {
       id: itemIdOf(artifact.item.id),
@@ -758,8 +841,8 @@ export const createLaunch = (turns: DemoTurns, now: number) => {
 
   // Whether `finishAll` leaves an agent as it is: it ended its turn already (a failed one stays
   // failed until the person prompts it again, which takes it back to work), it waits on a
-  // request, was told no, or it is the teammate whose ask is open or whose answer is on its way,
-  // or the lead that teammate is to write to: neither can say what it hasn't been asked.
+  // request, was told no, or it is the teammate whose question is out or the lead that is to
+  // answer it: neither can say what it hasn't been asked.
   const waitsOnPerson = (found: TerminalMetadata): boolean => {
     if (found.state !== "running") return true
     const { agent } = found
@@ -771,85 +854,19 @@ export const createLaunch = (turns: DemoTurns, now: number) => {
     )
   }
 
-  // The teammate's ask closed with no answer reaching it (the reply was not delivered, or the
-  // item was cleared): it waits for the person's words at its prompt, as an agent told no does,
-  // and `finishAll` no longer holds it or its lead.
-  const released = (): void => {
-    if (!teammateAsked || exchanged) return
-    exchanged = true
-    resting.add(keyOf(launch.asking).terminalId)
-    on(launch.asking, (key, found) => turns.rest(key, found))
-  }
-
-  // The teammate's answer reaches the teammate, which the Inbox's record of it says: only then
-  // does the teammate write to its lead, of what it was told. The idle lead, rung awake,
-  // works, and answers.
-  const relay = (told: string): void => {
-    const target = { projectId: shop, workspaceSessionId: session }
-    const said = told.trim()
-    const quoted = said
-      ? `The person said: "${said}"${/[.!?…]$/.test(said) ? "" : "."}`
-      : "The person had nothing to add."
-    const leadKey = keyOf(launch.lead)
-    const sent = messages.send(
-      target,
-      asking,
-      lead,
-      `${quoted} Do you know which API version the storefront calls? I need it for the cart route.`,
-      () => {
-        work(leadKey)
-        // The lead answers unless the person took it some other way meanwhile, as Escape does.
-        const epoch = turns.epoch(leadKey)
-        setTimeout(() => {
-          if (turns.epoch(leadKey) !== epoch) {
-            exchanged = true
-            return
-          }
-          const replied = messages.send(
-            target,
-            lead,
-            asking,
-            "The storefront calls v2, on port 8787. v1 is retired.",
-            () => {
-              exchanged = true
-            },
-            () => {
-              exchanged = true
-            },
-          )
-          if (!replied) exchanged = true
-        }, answersMs)
-      },
-      () => {
-        exchanged = true
-      },
-    )
-    // Refused, as the lead closed: nothing is on its way to wait for.
-    if (!sent) exchanged = true
-  }
+  // The person answers the teammate's ask from the Inbox before its lead does: the answer
+  // reaches the teammate, which goes on with it, and the lead's later answer withdraws nothing.
   const answerEntry = `answer:${teammateAskId}`
-  const answerMade = () =>
-    Object.values(messages.state.getSnapshot().terminals)
+  messages.state.subscribe(() => {
+    if (exchanged) return
+    const entry = Object.values(messages.state.getSnapshot().terminals)
       .flatMap((each) => each.threads)
       .flatMap((thread) => thread.messages)
-      .find((each) => each.id === answerEntry)
-  messages.state.subscribe(() => {
-    if (answered) return
-    const entry = answerMade()
-    if (!entry || entry.state === "queued") return
-    if (entry.state !== "delivered") return released()
-    answered = true
-    relay(entry.text)
+      .find((each) => each.id === answerEntry && each.state === "delivered")
+    if (!entry) return
+    exchanged = true
+    work(keyOf(launch.asking))
   })
-  // The Inbox clears the teammate's ask with no answer made: nothing will reach the teammate.
-  const watchInbox = (inbox: NonNullable<ReturnType<typeof backendInbox>>): void => {
-    inbox.state.subscribe(() => {
-      if (!teammateAsked || answered || exchanged) return
-      const { items, answering } = inbox.state.getSnapshot()
-      if (answering[teammateAskId] || items.some((item) => item.id === teammateAskId)) return
-      if (!answerMade()) released()
-    })
-  }
 
   return {
     transcripts: launchTranscripts(now),
@@ -906,8 +923,6 @@ export const createLaunch = (turns: DemoTurns, now: number) => {
     // The cues belong to the backend returned, and add to its Inbox.
     over: (backend: Backend): Backend => {
       inboxOf = () => backend.inbox
-      const own = backendInbox()
-      if (own) watchInbox(own)
       cuesOf.set(backend, cues)
       return backend
     },

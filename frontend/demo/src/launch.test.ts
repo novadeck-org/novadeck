@@ -9,7 +9,7 @@ import { answerMs, answeredMs } from "./chat"
 import { demoHandle } from "./handles"
 import { isDemoInbox } from "./inbox"
 import { launch, launchCuesOf, launchIntroOf } from "./launch"
-import { isDemoMessages, rungMs } from "./messages"
+import { isDemoMessages } from "./messages"
 import { demoTerminalId } from "./samples"
 import { demoTurns } from "./turns"
 import { createDemo } from "./variants"
@@ -94,7 +94,7 @@ describe("the launch demo", () => {
     expect(items().map((item) => item.kind)).toEqual(expect.arrayContaining(["request", "trouble"]))
   })
 
-  it("has three asks arrive one at a time, then makes the badge read three", () => {
+  it("raises three asks one at a time, and all at once, so the Inbox waits on three", () => {
     const { cues, items } = open()
     expect(items()).toEqual([])
     cues.permission()
@@ -113,6 +113,7 @@ describe("the launch demo", () => {
     // Ringing them again asks nothing more.
     cues.asks()
     expect(items()).toHaveLength(3)
+    expect(items().filter((item) => !("settled" in item && item.settled))).toHaveLength(3)
   })
 
   it("sends each agent back to work when its ask is answered", async () => {
@@ -178,45 +179,83 @@ describe("the launch demo", () => {
     )
   })
 
-  it("routes the person's reply to the lead, which wakes and answers", async () => {
-    const { backend, cues, inbox, items, agent } = open()
-    cues.teammates()
-    cues.teammateAsks()
-    inbox.answer(items()[0]!.id, {
-      kind: "ask",
-      answer: { type: "reply", option: null, text: "Ask the lead." },
-    })
+  // The messages between agents, in order, as (from, to, state, text).
+  const exchange = (backend: ReturnType<typeof open>["backend"]) => {
     const { messages } = backend
     if (!isDemoMessages(messages)) throw new Error("the demo's messages")
-    const between = () => {
-      const seen = new Map<string, { from: string; to: string; state: string; text: string }>()
-      for (const each of Object.values(messages.state.getSnapshot().terminals))
-        for (const thread of each.threads)
-          for (const message of thread.messages)
-            if (message.from !== "you" && message.to !== "you") seen.set(message.id, message)
-      return [...seen.values()]
-    }
-    // Not delivered yet: the teammate has said nothing to its lead.
-    await vi.advanceTimersByTimeAsync(800)
-    expect(between()).toEqual([])
-    await vi.advanceTimersByTimeAsync(2400)
-    expect(between()[0]).toMatchObject({
-      from: demoHandle(launch.asking),
-      to: demoHandle(launch.lead),
-      text: expect.stringContaining("Ask the lead."),
-    })
-    await vi.advanceTimersByTimeAsync(rungMs + 50)
-    expect(agent(launch.lead)).toMatchObject({ working: true })
-    await vi.advanceTimersByTimeAsync(5000)
-    expect(between().map(({ from, to, state }) => ({ from, to, state }))).toEqual([
-      { from: demoHandle(launch.asking), to: demoHandle(launch.lead), state: "delivered" },
-      { from: demoHandle(launch.lead), to: demoHandle(launch.asking), state: "delivered" },
+    const seen = new Map<string, { from: string; to: string; state: string; text: string }>()
+    for (const each of Object.values(messages.state.getSnapshot().terminals))
+      for (const thread of each.threads)
+        for (const message of thread.messages)
+          if (message.from !== "you" && message.to !== "you") seen.set(message.id, message)
+    return [...seen.values()]
+  }
+  const lead = demoHandle(launch.lead)
+  const asking = demoHandle(launch.asking)
+
+  it("opens teammates its lead opened and briefed, on the doorbell's notice, not the person's words", async () => {
+    const { backend, cues, terminals } = open()
+    cues.teammates()
+    const teammates = terminals().slice(10)
+    for (const each of teammates) expect(each).toMatchObject({ ledBy: lead, openedBy: lead })
+    await vi.advanceTimersByTimeAsync(4000)
+    expect(exchange(backend).map(({ from, to, text }) => ({ from, to, text }))).toEqual([
+      { from: lead, to: demoHandle(11), text: "Serve prices from the API." },
+      { from: lead, to: demoHandle(12), text: "Serve stock levels from the API." },
+      { from: lead, to: demoHandle(13), text: "Keep the cart in the API." },
     ])
-    expect(items()).toEqual([])
+    // The conversation opens on the notice, so the sheet shows no other agent's words as the
+    // person's.
+    const first = await backend.conversations!.conversation(key(launch.asking)).getSnapshot()
+    expect(first.items[0]).toMatchObject({
+      role: "user",
+      text: expect.stringContaining("[Novadeck: automatic notice"),
+    })
   })
 
-  it("has a teammate report done, which stands as its report", async () => {
-    const { cues, agent, items } = open()
+  it("has a teammate ask the person and its lead at once; the lead answers first and the ask is withdrawn", async () => {
+    const { backend, cues, items, agent } = open()
+    cues.teammates()
+    cues.teammateAsks()
+    expect(items()).toMatchObject([
+      { kind: "ask", source: { title: "Cart endpoint" }, ask: { shape: { type: "text" } } },
+    ])
+    expect(items()[0]).not.toHaveProperty("settled")
+    // The question reached the lead as a message too; the person types nothing.
+    await vi.advanceTimersByTimeAsync(3000)
+    expect(
+      exchange(backend).find((each) => each.to === lead && each.from === asking),
+    ).toMatchObject({ text: expect.stringContaining("Which API version") })
+    expect(agent(launch.lead)).toMatchObject({ working: true })
+    // Still open while the lead has not answered.
+    expect(items()[0]).not.toHaveProperty("settled")
+    await vi.advanceTimersByTimeAsync(6000)
+    expect(
+      exchange(backend)
+        .filter(
+          (each) =>
+            each.from === lead && each.to === asking && each.text.startsWith("The storefront"),
+        )
+        .map((each) => ({ state: each.state, text: each.text })),
+    ).toEqual([
+      { state: "delivered", text: "The storefront calls v2, on port 8787. v1 is retired." },
+    ])
+    expect(items()).toMatchObject([{ kind: "ask", settled: { how: "withdrawn" } }])
+    expect(agent(launch.asking)).toMatchObject({ working: true })
+  })
+
+  it("holds the teammate and its lead through finishAll until the exchange is out", async () => {
+    const { cues, agent } = open()
+    cues.teammates()
+    cues.teammateAsks()
+    cues.finishAll()
+    await vi.advanceTimersByTimeAsync(3000)
+    expect(agent(launch.asking)).not.toHaveProperty("lastTurn")
+    expect(agent(launch.lead)).not.toHaveProperty("lastTurn")
+  })
+
+  it("has a teammate report done to its lead as a message, which rings the lead", async () => {
+    const { backend, cues, agent } = open()
     cues.teammateDone()
     expect(agent(launch.reports)).toBeUndefined()
     cues.teammates()
@@ -224,10 +263,59 @@ describe("the launch demo", () => {
     await vi.advanceTimersByTimeAsync(500)
     expect(agent(launch.reports)).toMatchObject({
       working: false,
-      reported: true,
       lastTurn: { outcome: "completed" },
     })
-    expect(items()).toMatchObject([{ source: { title: "Pricing endpoint" } }])
+    await vi.advanceTimersByTimeAsync(4000)
+    expect(
+      exchange(backend).find(
+        (each) => each.from === demoHandle(launch.reports) && each.to === lead,
+      ),
+    ).toMatchObject({
+      state: "delivered",
+      text: expect.stringContaining("pricing endpoint answers"),
+    })
+    expect(agent(launch.lead)).toMatchObject({ working: true })
+  })
+
+  it("does nothing twice, nor before it can, nor after everyone finished", async () => {
+    const { cues, items, terminals, store } = open()
+    // Before the teammates are open.
+    cues.teammateAsks()
+    cues.teammateDone()
+    expect(items()).toEqual([])
+    expect(terminals()).toHaveLength(10)
+    cues.teammates()
+    cues.teammates()
+    expect(terminals()).toHaveLength(13)
+    cues.teammateAsks()
+    cues.teammateAsks()
+    expect(items()).toHaveLength(1)
+    cues.show()
+    cues.show()
+    cues.showChanges()
+    cues.showChanges()
+    expect(activeSession(store.getSnapshot())!.state.items).toHaveLength(2)
+    cues.fail()
+    cues.fail()
+    cues.finishOne()
+    cues.finishOne()
+    cues.teammateDone()
+    cues.teammateDone()
+    await vi.advanceTimersByTimeAsync(10_000)
+    cues.finishAll()
+    await vi.advanceTimersByTimeAsync(3000)
+    // Cues after everyone finished start nobody's turn again.
+    const before = items().length
+    cues.permission()
+    cues.plan()
+    cues.question()
+    cues.fail()
+    cues.finishOne()
+    cues.teammateDone()
+    await vi.advanceTimersByTimeAsync(3000)
+    expect(items()).toHaveLength(before)
+    for (const each of terminals())
+      expect(each).toMatchObject({ agent: { working: false, lastTurn: expect.anything() } })
   })
 
   it("shows the page, then the changes, in the pane beside the order-status window", () => {

@@ -131,6 +131,20 @@ describe("demo terminal engine", () => {
     expect(runtime.getSnapshot(third)).toMatchObject({ cleared: true, entries: [] })
   })
 
+  it("opens a terminal an agent opened on its own opening, not blank", () => {
+    const workspace = fixture()
+    const runtime = createDemoEngine()
+    runtime.reconcile(workspace, [])
+    const third = { ...target, terminalId: demoTerminalId(target, 3) }
+    const add = {
+      type: "terminal/add",
+      target,
+      terminal: { ...createMockTerminal(target, 3, "~/project"), openedBy: "moth" },
+    } as const
+    runtime.reconcile(workspaceReducer(workspace, add), [add])
+    expect(runtime.getSnapshot(third).cleared).toBe(false)
+  })
+
   it("tells a terminal's listeners when its metadata changes, with its project's name", () => {
     let workspace = fixture()
     const runtime = createDemoEngine()

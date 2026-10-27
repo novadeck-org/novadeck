@@ -29,7 +29,7 @@ const connectionTone = (connection: BackendConnectionState) =>
   connection === "connected" ? undefined : connection === "reconnecting" ? "warning" : "danger"
 
 // The variants the header switches between; the welcome one is the Welcome dialog's, and
-// Chirp's, Babcia's and Launch's are one-offs for videos, opened with `?demo=chirp`, `?demo=babcia` and `?demo=launch`.
+// Chirp's, Babcia's and Launch's are one-offs for videos, opened with `?demo=` and their names.
 const variantItems = demoVariants.filter(
   (variant) =>
     variant !== "welcome" && variant !== "chirp" && variant !== "babcia" && variant !== "launch",

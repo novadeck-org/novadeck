@@ -78,9 +78,10 @@ export const createDemoEngine = (): DemoEngine => {
   const publish = (key: TerminalKey): void =>
     listeners.get(terminalKeyId(key))?.forEach((listener) => listener())
   const registry = createTerminalRegistry<{ snapshot: DemoTerminalSnapshot }>({
-    // Created terminals start blank instead of showing the sample transcript.
+    // Created terminals start blank instead of showing the sample transcript, but one an agent
+    // opened (with its agent started in it) shows its own opening.
     open: (_key, terminal, created) => ({
-      snapshot: { ...empty, opening: openingOf(terminal), cleared: created },
+      snapshot: { ...empty, opening: openingOf(terminal), cleared: created && !terminal.openedBy },
     }),
     close: (_entry, key) => publish(key),
   })

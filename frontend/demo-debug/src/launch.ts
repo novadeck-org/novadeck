@@ -14,7 +14,7 @@ export const launchGroups = (cues: LaunchCues | undefined): readonly DemoActionG
           actions: [
             {
               label: "3 · A spread of states",
-              hint: "Checkout tests asks to run its end-to-end tests (asking), Stripe webhooks' turn ends in an API error (failed), Inventory sync finishes with a report (done): the rest keep working. Each can be rung alone as 3a, 3b and 3c",
+              hint: "Checkout tests asks to run its end-to-end tests (asking), Stripe webhooks' turn ends in an API error (failed), Inventory sync finishes with a done report (done): the rest keep working. Each can be rung alone as 3a, 3b and 3c",
               run: () => cues.states(),
             },
             {
@@ -34,7 +34,7 @@ export const launchGroups = (cues: LaunchCues | undefined): readonly DemoActionG
             },
             {
               label: "4 · The three asks",
-              hint: "Inbox header counts 3: Checkout tests asks to run pnpm test:e2e, Order emails has a plan to approve, Cart drawer asks a question with its own pick",
+              hint: "Inbox header counts 3, all at once: Checkout tests asks to run pnpm test:e2e, Order emails has a plan to approve, Cart drawer asks a question with its own pick",
               run: () => cues.asks(),
             },
             {
@@ -58,13 +58,13 @@ export const launchGroups = (cues: LaunchCues | undefined): readonly DemoActionG
               run: () => cues.teammates(),
             },
             {
-              label: "5b · Teammate asks its lead's question",
-              hint: "Cart endpoint asks which API version the storefront calls: a free-text Ask row. Run 5a first. Once the person's answer has reached it, it writes to Orders API, which wakes, works and answers",
+              label: "5b · Teammate asks, and its lead answers",
+              hint: "Cart endpoint asks which API version the storefront calls (an Ask row) and messages Orders API the same question at once. Run 5a first. The rung lead works and answers (its message lands about 5 s on); when that lands (about 6 s), Cart endpoint acts on it and withdraws its ask: the row stays, struck, Withdrawn. The person types nothing",
               run: () => cues.teammateAsks(),
             },
             {
-              label: "5c · Teammate reports done",
-              hint: "Pricing endpoint ends its turn with a done report: it reads Reported done in its messages. Run 5a first",
+              label: "5c · Teammate reports done to its lead",
+              hint: "Pricing endpoint ends its turn and messages Orders API that it is done: the lead is rung, and the message reads in either Messages pane. Run 5a first",
               run: () => cues.teammateDone(),
             },
             {

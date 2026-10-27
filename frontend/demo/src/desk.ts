@@ -41,6 +41,8 @@ export const agentTerminal = (
   agent: ChatAgent,
   status: AgentStatus,
   ledBy?: string,
+  // The terminal's lead also opened it, which gave the agent its brief as a message.
+  opened = false,
 ): TerminalMetadata => ({
   id: demoTerminalId({ projectId, workspaceSessionId: session }, number),
   name,
@@ -50,7 +52,7 @@ export const agentTerminal = (
   state: "running",
   handle: demoHandle(number),
   agent: status,
-  ...(ledBy ? { ledBy } : {}),
+  ...(ledBy ? { ledBy, ...(opened ? { openedBy: ledBy } : {}) } : {}),
 })
 
 export const deskKey = (projectId: string, number: number): TerminalKey => ({
@@ -98,7 +100,11 @@ export const declined = (answer: ChatAnswer): boolean =>
 // person's ask, and the command it's running with what it has printed so far: no plan
 // between, so the banner naming the agent stays on screen in a small window.
 export const deskIntroOf =
-  (projectId: string, jobs: readonly Job[]) =>
+  (
+    projectId: string,
+    jobs: readonly Job[],
+    promptOf: (number: number, job: Job) => string = (_, job) => job.ask,
+  ) =>
   (terminal: TerminalMetadata, key: TerminalKey): DemoIntro | undefined => {
     if (key.projectId !== projectId) return undefined
     const job = jobs[Number(terminalSlot(terminal.id)) - 1]
@@ -106,7 +112,7 @@ export const deskIntroOf =
     const tool = job.agent === "codex" ? "Ran" : "Bash"
     return fixedIntro([
       banner(job.agent, terminal.directory),
-      requestBlock(job.agent, job.ask),
+      requestBlock(job.agent, promptOf(Number(terminalSlot(terminal.id)), job)),
       // Antigravity's banner is five rows tall, so what it ran stays off its small window: its
       // name and model, which the banner is for, would scroll out of sight under it.
       ...(job.agent === "agy"
@@ -185,13 +191,19 @@ export const deskTranscripts = (
   allJobs: readonly Job[],
   home: string,
   asks: DeskAsks,
+  // What an agent's conversation opens on: the person's ask, unless a lead briefed it.
+  promptOf: (number: number, job: Job) => string = (_, job) => job.ask,
 ): Readonly<Record<string, DemoTranscript>> =>
   Object.fromEntries(
     allJobs.map((job, index) => {
       const number = index + 1
       const id = slot(number)
       const call = `${job.agent === "claude" ? "toolu" : "call"}_${id}a`
-      const items = written(id, now, [user(job.ask), say(job.plan), runCall(job, call, home)])
+      const items = written(id, now, [
+        user(promptOf(number, job)),
+        say(job.plan),
+        runCall(job, call, home),
+      ])
       const plain: DemoTranscript = { items, requests: [] }
       if (number === asks.permission) {
         const request = permission(id, job, home)

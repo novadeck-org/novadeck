@@ -204,7 +204,16 @@ three helpers, 4 a helper's free-text question, whose answer reaches its lead th
 and the doorbell, 5 a page shown in the pane, 6 every agent finishes but those waiting on the
 person (an open ask, one told No, a failed turn until prompted again, and the helper and its lead
 while the helper's answer is on its way); a second press ends whoever works by then. Answered or
-told, an agent works until cue 6; `frontend/demo/src/babcia.ts`) or `launch` (a one-off for the launch walkthrough video: project northwind's ten Claude Code, Codex and Antigravity agents on the Canvas, all working, beside a second project, northwind-docs; its beats are the debug panel's "Launch" group, numbered by the video's beat: 3 a spread of states (an agent asking, one failed, one done), 4 the three asks, one at a time, 5 the lead Orders API opens three teammates, one teammate's free-text question whose answer reaches its lead through a message, another teammate's done report, 6 the page and then the changes (`show { changes }`) shown in the pane, 7 every agent finishes; `frontend/demo/src/launch.ts`, sharing the desk's builders with Babcia in `desk.ts`). Every variant's Inbox
+told, an agent works until cue 6; `frontend/demo/src/babcia.ts`) or `launch` (a one-off for the
+launch walkthrough video: project northwind's ten Claude Code, Codex and Antigravity agents on the
+Canvas, all working, beside a second project, northwind-docs; its beats are the debug panel's
+"Launch" group, numbered by the video's beat: 3 a spread of states (an agent asking, one failed, one
+done), 4 three asks at once (or each alone: a permission, a plan, a question with its own pick), 5
+the lead Orders API opens three teammates, each briefed by its lead as a message; one asks the
+person a question and messages its lead the same one, the lead answers first and the teammate
+withdraws its ask; another reports done to its lead as a message, 6 the page and then the changes
+(`show { changes }`) shown in the pane, 7 every agent finishes; `frontend/demo/src/launch.ts`,
+sharing the desk's builders with Babcia in `desk.ts`). Every variant's Inbox
 lists what its agents wait on, built as the runner's is. In it each
 agent carries a transcript, and api-service's worker a brief from its lead, so an item's
 sheet shows the context block built from its transcript: the person's last words to the agent
