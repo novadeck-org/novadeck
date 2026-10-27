@@ -65,6 +65,14 @@ suite("what an Antigravity tool call was", () => {
     ["open_terminal", { command: "pnpm dev" }, "agent", "Opened a terminal", "pnpm dev"],
     ["close_terminal", { to: "owl" }, "agent", "Close owl", ""],
     [
+      "lead",
+      { to: "owl", message: "Fix the lint\nerrors" },
+      "agent",
+      "Asked to lead owl",
+      "Fix the lint",
+    ],
+    ["release", { to: "owl" }, "agent", "Released owl", ""],
+    [
       "show",
       { page: { url: "http://localhost:5173/" } },
       "web",

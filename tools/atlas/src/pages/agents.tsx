@@ -2,10 +2,12 @@ import {
   Bot,
   Eye,
   FileText,
+  Link,
   Monitor,
   Send,
   SquarePlus,
   SquareX,
+  Unlink,
   Users,
   Wrench,
   X,
@@ -35,6 +37,8 @@ const icons: Record<string, LucideIcon> = {
   send: Send,
   agents: Users,
   summarize: FileText,
+  lead: Link,
+  release: Unlink,
 }
 
 const firstSentence = (text: string) => /^.*?[.!?](?=\s|$)/s.exec(text.trim())?.[0] ?? text.trim()

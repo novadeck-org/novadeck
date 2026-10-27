@@ -328,6 +328,16 @@ describe("the lead of an agent found gone", () => {
       expect(ended).not.toHaveBeenCalled()
     }
   })
+
+  it("keeps a lead the person approved meanwhile, on Windows", () => {
+    on("win32")
+    const { ends, worker, ended } = led()
+    ends.endLeadGone(worker)
+    worker.summary = { ...worker.summary, ledBy: "owl" }
+    vi.advanceTimersByTime(pollMs)
+    expect(worker.summary.ledBy).toBe("owl")
+    expect(ended).not.toHaveBeenCalled()
+  })
 })
 
 describe("the done report that stands", () => {

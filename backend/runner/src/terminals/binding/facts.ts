@@ -92,17 +92,20 @@ export class Bindings {
    * prompt telling. Windows ends every console program just before its shell as it shuts
    * down, and the runner stops only after: there the lead ends once the shell has outlived
    * its agent for a sample's time, so an agent ended that way resumes still led, as its
-   * session resumes (`Sampler.prompted`). The runner stopping, or the shell ending or
-   * replaced meanwhile, keeps it. It is kept with the terminal's next save, as the
+   * session resumes (`Sampler.prompted`). The runner stopping, the shell ending or
+   * replaced meanwhile, or another lead meanwhile, keeps it. It is kept with the terminal's next save, as the
    * session the sampler let go of at the same moment is, so no saved terminal resumes its
    * agent unled.
    */
   endLeadGone(record: Record): void {
     if (process.platform !== "win32") return this.endLead(record)
     const shell = record.terminal.pty
+    const lead = record.summary.ledBy
     setTimeout(() => {
       if (this.host.stopping() || record.closed || record.terminal.pty !== shell) return
       if (record.terminal.exit !== null || record.terminal.exiting) return
+      // A lead the person approved meanwhile is a new one, not the one that ended.
+      if (record.summary.ledBy !== lead) return
       this.endLead(record, false)
     }, this.host.pollMs).unref()
   }
@@ -119,6 +122,18 @@ export class Bindings {
     this.host.messaging().endLead(record.summary.id)
     if (now) this.host.save(record)
     else record.changed = true
+    this.host.announce(record)
+  }
+
+  /**
+   * Gives the terminal a lead the person approved, to a terminal that already runs an
+   * agent: kept, shown to watchers, and told to messaging, so what the lead sends reads
+   * as a lead's from then on. The inverse of `endLead`.
+   */
+  setLead(record: Record, handle: string): void {
+    record.summary = { ...record.summary, ledBy: handle }
+    this.host.messaging().setLead(record.summary.id, handle)
+    this.host.save(record)
     this.host.announce(record)
   }
 

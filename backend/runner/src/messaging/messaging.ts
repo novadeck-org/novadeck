@@ -176,6 +176,8 @@ export type SendAnswer =
         readonly to: string
         /** The person stopped the thread it was in. */
         readonly stopped?: true
+        /** The person released its recipient from the lead that sent it. */
+        readonly released?: true
       }[]
       /** Its messages held long behind what keeps their recipient from them, told once each hold. */
       readonly holds?: readonly string[]
@@ -289,7 +291,7 @@ export const nothingWaiting =
   "Novadeck: no agent messages are waiting any more; this automatic notice can be ignored."
 
 /** Why a message's text, cleaned, can't be sent; undefined when it can. */
-const refusalOfText = (text: string): string | undefined => {
+export const refusalOfText = (text: string): string | undefined => {
   if (!text.trim()) return "The message is empty."
   if (byteLength(text) > maxMessageBytes)
     return (
@@ -456,6 +458,9 @@ export class Messaging {
   private readonly runs = new Map<string, { count: number; senders: readonly string[] }>()
   /** The messages judged idle when sent, for the reason their sender is told; in memory only. */
   private readonly idled = new Set<string>()
+  // Messages gone because the person released their recipient from the lead that sent them.
+  // (Dropped with the message when it is pruned, or once its sender is told.)
+  private readonly releasedMessages = new Set<string>()
   private readonly leases: Leases
   private paused: boolean
   // Send times, for the rates: by sender, by sender and recipient, and all.
@@ -605,6 +610,46 @@ export class Messaging {
         (message.state === "queued" || message.state === "held")
       )
         this.gone(message, "lead-ended")
+  }
+
+  /**
+   * The terminal gains a lead, as the person let an agent lead it: messages that lead sends
+   * after carry the lead mark. The terminal's `ledBy`, as `register` sets it for one opened
+   * with a brief.
+   */
+  setLead(terminalId: string, handle: string): void {
+    const live = this.live.get(terminalId)
+    if (live) live.ledBy = handle
+  }
+
+  /** Whether the message was sent by its recipient's running lead, so it is marked so. */
+  isFromLead(messageId: string): boolean {
+    return this.messages.get(messageId)?.fromLead === true
+  }
+
+  /**
+   * The person releases the terminal from its lead: the lead's messages to it that were not
+   * delivered yet, queued or held, whatever session they wait for, are gone, and their
+   * sender is told they went because the user released it. One a lease holds is marked, so
+   * that it is dropped the same way should its lease lapse.
+   */
+  dropLeadMessages(terminalId: string): void {
+    for (const message of this.messages.values())
+      if (
+        message.to.terminalId === terminalId &&
+        message.fromLead &&
+        (message.state === "queued" || message.state === "held" || message.state === "leased")
+      ) {
+        this.releasedMessages.add(message.id)
+        // Kept as the person's stop of a thread is: `stopped` is saved, so no session that
+        // binds again, and no restart, brings it back. A leased one is left to finish; if
+        // its lease lapses, or the runner restarts, it is gone then (`wait`).
+        if (message.state === "leased") this.put({ ...message, stopped: true })
+        else {
+          this.noteGone(message, "lead-released")
+          this.put({ ...message, state: "gone", notified: false, stopped: true })
+        }
+      }
   }
 
   /**
@@ -789,6 +834,7 @@ export class Messaging {
     this.records.removeMessages(messages.map((message) => message.id))
     for (const message of messages) {
       this.messages.delete(message.id)
+      this.releasedMessages.delete(message.id)
       this.holdsTold.delete(message.id)
       this.queuedSince.delete(message.id)
       this.responses.delete(message.response!.askId)
@@ -1592,19 +1638,26 @@ export class Messaging {
   }
 
   /** The caller's messages gone since it was last told, told now, as every answer tells them. */
-  goneFrom(
-    terminalId: string,
-  ): readonly { readonly id: string; readonly to: string; readonly stopped?: true }[] {
+  goneFrom(terminalId: string): readonly {
+    readonly id: string
+    readonly to: string
+    readonly stopped?: true
+    readonly released?: true
+  }[] {
     const gone = [...this.messages.values()].filter(
       (message) =>
         message.from.terminalId === terminalId && message.state === "gone" && !message.notified,
     )
     for (const message of gone) this.put({ ...message, notified: true })
-    return gone.map((message) => ({
+    const told = gone.map((message) => ({
       id: message.id,
       to: message.to.handle,
-      ...(message.stopped && { stopped: true as const }),
+      ...(message.stopped && !this.releasedMessages.has(message.id) && { stopped: true as const }),
+      ...(this.releasedMessages.has(message.id) && { released: true as const }),
     }))
+    // Told: the flag has done its work.
+    for (const message of gone) this.releasedMessages.delete(message.id)
+    return told
   }
 
   /**
@@ -1619,6 +1672,48 @@ export class Messaging {
     const answer = this.sendFrom(live, request, about)
     // Refused too, a sender whose own session never bound learns replies can't reach it.
     return answer.ok || !this.unbound(live) ? answer : { ...answer, unbound: true }
+  }
+
+  /**
+   * The agent Novadeck can deliver messages to in a terminal, with its root session's id
+   * once one is bound; or why there is none, as `send` refuses a recipient.
+   */
+  private deliverableAgent(
+    recipient: Live,
+  ):
+    | { readonly ok: true; readonly agent: AgentName; readonly sessionId: string | null }
+    | { readonly ok: false; readonly reason: string; readonly code: "untrusted" | "none" } {
+    const { root } = recipient
+    if (!root && !recipient.shown && recipient.untrusted)
+      return {
+        ok: false,
+        code: "untrusted",
+        reason:
+          `${mention(recipient.handle)} has no agent Novadeck can deliver to: ` +
+          `${untrustedNote(recipient.untrusted)}.`,
+      }
+    const agent = root?.agent ?? recipient.shown?.agent ?? recipient.expecting
+    if (!agent)
+      return {
+        ok: false,
+        code: "none",
+        reason: `${mention(recipient.handle)} has no agent running there that Novadeck can deliver to.`,
+      }
+    return { ok: true, agent, sessionId: root?.sessionId ?? null }
+  }
+
+  /**
+   * The agent messages to the terminal reach, and its root session once bound, as `send`
+   * judges a recipient; or why none does. Undefined for a terminal messaging doesn't hold.
+   */
+  agentIn(
+    terminalId: string,
+  ):
+    | { readonly ok: true; readonly agent: AgentName; readonly sessionId: string | null }
+    | { readonly ok: false; readonly reason: string; readonly code: "untrusted" | "none" }
+    | undefined {
+    const live = this.live.get(terminalId)
+    return live && this.deliverableAgent(live)
   }
 
   private sendFrom(live: Live, request: unknown, about: About): SendAnswer {
@@ -1641,16 +1736,9 @@ export class Messaging {
         ),
       )
     const root = recipient.root
-    if (!root && !recipient.shown && recipient.untrusted)
-      return refused(
-        `${mention(recipient.handle)} has no agent Novadeck can deliver to: ` +
-          `${untrustedNote(recipient.untrusted)}.`,
-      )
-    const agent = root?.agent ?? recipient.shown?.agent ?? recipient.expecting
-    if (!agent)
-      return refused(
-        `${mention(recipient.handle)} has no agent running there that Novadeck can deliver to.`,
-      )
+    const deliverable = this.deliverableAgent(recipient)
+    if (!deliverable.ok) return refused(deliverable.reason)
+    const { agent } = deliverable
     const now = this.now()
     const known = threadBetween(this.threads.values(), terminalId, recipient.terminalId, now)
     // The person stopped it: nothing continues it, and the refusal leaves its clock alone.
@@ -2125,6 +2213,7 @@ export class Messaging {
     for (const [id, message] of this.messages)
       if (message.projectId === projectId) {
         this.messages.delete(id)
+        this.releasedMessages.delete(id)
         this.holdsTold.delete(id)
         this.queuedSince.delete(id)
         this.idled.delete(id)
@@ -2152,6 +2241,7 @@ export class Messaging {
     )
     for (const { id, response } of old) {
       this.messages.delete(id)
+      this.releasedMessages.delete(id)
       this.holdsTold.delete(id)
       this.queuedSince.delete(id)
       this.idled.delete(id)
@@ -2271,8 +2361,15 @@ export class Messaging {
 
   /** Puts an undelivered message back to waiting: held for a reason, else queued. */
   private wait(message: Message): void {
-    // A stopped thread's message never waits again: one a lease held is gone with it.
-    if (message.stopped) return
+    // A stopped thread's message never waits again: one a lease held is gone with it (a lead
+    // message the person released, kept leased to finish, is marked so too).
+    if (message.stopped) {
+      if (message.state === "leased") {
+        this.noteGone(message, "stopped")
+        this.put({ ...message, state: "gone", notified: false })
+      }
+      return
+    }
     const thread = this.threads.get(message.thread)
     if (thread?.stoppedAt != null && undelivered(message)) {
       this.noteGone(message, "thread-stopped")
@@ -2363,7 +2460,10 @@ export class Messaging {
   private lapse(lease: Lease): void {
     for (const id of lease.messages) {
       const message = this.messages.get(id)
-      if (message?.state === "leased") this.wait(message)
+      if (message?.state !== "leased") continue
+      // One the person's release marked stopped is gone (`wait`); any other end of the lead
+      // leaves a message its authority, as it had when sent.
+      this.wait(message)
     }
     const live = this.live.get(lease.terminalId)
     if (!live || lease.kind !== "stop") return
@@ -2604,6 +2704,7 @@ export class Messaging {
   private discard(message: Message): void {
     if (this.closed) return
     this.messages.delete(message.id)
+    this.releasedMessages.delete(message.id)
     this.holdsTold.delete(message.id)
     this.queuedSince.delete(message.id)
     this.write(() => this.records.removeMessages([message.id]))

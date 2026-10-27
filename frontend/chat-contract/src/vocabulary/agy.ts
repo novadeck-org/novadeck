@@ -132,6 +132,8 @@ export const agy: readonly { name: string; records: readonly object[] }[] = [
         [`${novadeck}open_terminal`, { command: "npm run dev" }, "Opened"],
         [`${novadeck}close_terminal`, { to: "builder" }, "Closed"],
         [`${novadeck}close_terminal`, {}, "Closed"],
+        [`${novadeck}lead`, { to: "builder", message: "Fix the tests" }, "Asked"],
+        [`${novadeck}release`, { to: "builder" }, "Released"],
         [`${novadeck}show`, { page: { url: "http://localhost:5173" } }, "Showing"],
         [`${novadeck}show`, { file: { path: "/home/user/project/plan.md" } }, "Showing"],
         [`${novadeck}close`, { file: { path: "/home/user/project/plan.md" } }, "Closed"],

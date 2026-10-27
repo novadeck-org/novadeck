@@ -746,24 +746,33 @@ export const terminalRequestAnswer = z.union([
   z.strictObject({ requestId: id, reason: z.string().trim().min(1).max(512) }),
 ])
 
-// `terminals.closeAsks` items: an agent in terminal `from` asked, through Novadeck's MCP
-// server, to close `terminalId`, a terminal of its session that runs an agent it doesn't
-// lead, so the client asks the person first and answers with `answerCloseAsk`.
-// `withdrawn` takes back an ask the runner no longer waits for, as either terminal closed.
-export const closeAsk = z.discriminatedUnion("type", [
+// What an agent asks the person to approve, through Novadeck's MCP server: `close`, a
+// terminal of its session that runs an agent it doesn't lead, or `lead`, to lead the agent
+// there from now on, with `brief` as the first message it sends it.
+export const approvalAction = z.discriminatedUnion("type", [
+  z.strictObject({ type: z.literal("close") }),
+  z.strictObject({ type: z.literal("lead"), brief: z.string().min(1).max(4096) }),
+])
+
+// `terminals.approvals` items: an agent in terminal `from` asked, through Novadeck's MCP
+// server, to do `action` to `terminalId`, a terminal of its session that runs an agent, so
+// the client asks the person first and answers with `answerApproval`. `withdrawn` takes
+// back an ask the runner no longer waits for, as either terminal closed.
+export const approval = z.discriminatedUnion("type", [
   z.strictObject({
     type: z.literal("ask"),
     requestId: id,
     from: id,
     terminalId: id,
     sessionId: id,
+    action: approvalAction,
   }),
   z.strictObject({ type: z.literal("withdrawn"), requestId: id }),
 ])
 
-// The person's answer to a close ask: `close` when they confirmed it, false when they kept
-// the terminal open.
-export const closeAskAnswer = z.strictObject({ requestId: id, close: z.boolean() })
+// The person's answer to an approval: `approved` when they let it happen, false when they
+// kept things as they are.
+export const approvalAnswer = z.strictObject({ requestId: id, approved: z.boolean() })
 
 // `terminals.watch` events: every terminal's summary, then each later change.
 export const terminalChange = z.discriminatedUnion("type", [
@@ -1135,8 +1144,9 @@ export type ChangedFile = z.infer<typeof changedFile>
 export type PlanSaveResult = z.infer<typeof planSaveResult>
 export type TerminalRequest = z.infer<typeof terminalRequest>
 export type TerminalRequestAnswer = z.infer<typeof terminalRequestAnswer>
-export type CloseAsk = z.infer<typeof closeAsk>
-export type CloseAskAnswer = z.infer<typeof closeAskAnswer>
+export type ApprovalAction = z.infer<typeof approvalAction>
+export type Approval = z.infer<typeof approval>
+export type ApprovalAnswer = z.infer<typeof approvalAnswer>
 export type TerminalEvent = z.infer<typeof terminalEvent>
 export type TerminalAttached = z.infer<typeof terminalAttached>
 export type AgentName = z.infer<typeof agentName>

@@ -151,21 +151,29 @@ export type TerminalRequest = {
   readonly answer: (result: { readonly terminalId: string } | { readonly reason: string }) => void
 }
 
-// An agent in terminal `from` asked to close `terminalId`, a terminal that runs an agent it
-// doesn't lead, so the app asks the person first. It waits, with no time limit, until the
-// person answers or the backend takes it back, as when either terminal closed meanwhile.
-export type CloseAsk = {
+// What an agent asks the person to allow: closing a terminal that runs an agent it doesn't
+// lead, which ends that agent, or leading a terminal that runs an agent, with a brief, so
+// it then directs that agent and may close it.
+export type ApprovalAction =
+  | { readonly type: "close" }
+  | { readonly type: "lead"; readonly brief: string }
+
+// An agent in terminal `from` asked for `action` on `terminalId`, so the app asks the person
+// first. It waits, with no time limit, until the person answers or the backend takes it
+// back, as when either terminal closed meanwhile.
+export type Approval = {
   readonly requestId: string
   readonly from: string
   readonly terminalId: string
+  readonly action: ApprovalAction
 }
 
-export type CloseAsks = {
-  // The asks waiting on the person, oldest first.
-  readonly pending: Store<readonly CloseAsk[]>
-  // Answers an ask: `close` when the person confirmed, false when they kept the terminal.
-  // The backend then closes it, or not; one it no longer waits for is ignored.
-  readonly answer: (requestId: string, close: boolean) => void
+export type Approvals = {
+  // The approvals waiting on the person, oldest first.
+  readonly pending: Store<readonly Approval[]>
+  // Answers one: `approved` when the person allowed it, false when they declined. The
+  // backend then acts, or not; one it no longer waits for is ignored.
+  readonly answer: (requestId: string, approved: boolean) => void
 }
 
 export type BackendSink = {
@@ -279,9 +287,13 @@ export type BackendFields = {
   // demo's build it from the app's workspace (`bind`) and their own facts (see core's
   // `inbox-rows`). Absent where the backend has none: the Inbox then lists nothing.
   readonly inbox?: Inbox
-  // Optional. Agents' asks to close a terminal that runs an agent they don't lead, for the
-  // app to confirm with the person. Absent where agents can't ask.
-  readonly closeAsks?: CloseAsks
+  // Optional. What agents ask the person to allow (closing a terminal they don't lead,
+  // leading a terminal), for the app to confirm. Absent where agents can't ask.
+  readonly approvals?: Approvals
+  // Optional. The person ends a terminal's lead: the terminal stays, its agent no longer
+  // answers to the one that led it, and the backend reports `ledBy: null`. Absent where
+  // agents can't lead.
+  readonly releaseLead?: (key: TerminalKey) => void
   // Optional. Each project's files, folder by folder, and on a demo backend what its agents
   // change in them, for the sidebar's Source panel (see core's `source`). Absent where the
   // backend can't read the projects' folders: the panel isn't drawn.

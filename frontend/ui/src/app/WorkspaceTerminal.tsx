@@ -30,6 +30,7 @@ import { useMessageLinks } from "./message-links"
 import { MountedTerminal } from "./MountedTerminal"
 import { plainTitle } from "./murmur-offer"
 import { NameChip } from "./NameChip"
+import { useReleaseLead } from "./release-lead"
 import {
   currentContext,
   currentState,
@@ -82,6 +83,7 @@ const useWindowFrame = (
   const windowedLabel = destination === "canvas" ? "Canvas" : "Grid"
   const dockIn = useDockTarget(tile)
   const askFeedback = useAskFeedback(tile)
+  const releaseLead = useReleaseLead(tile)
   return {
     terminal: tile,
     active,
@@ -101,6 +103,7 @@ const useWindowFrame = (
       onResetTitle: backend.resetTitle ? () => resetTitle(id) : undefined,
       dockIn,
       askFeedback,
+      releaseLead,
       onClose: () => close(id),
     }),
     compact,
