@@ -6,12 +6,20 @@ import { useWorkspaceServices, useWorkspaceState } from "./controller/context"
 import { currentTarget, sameTarget } from "./selectors"
 
 // What a terminal's menu offers to end its lead: only a terminal an agent leads, on a
-// backend that lets the person end that. Undefined for anything else.
+// backend that lets the person end that, while its shell runs: the runner has nothing
+// to release on one that ended. Undefined for anything else.
 export const useReleaseLead = (tile: Tile): ReleaseLead | undefined => {
   const { backend } = useWorkspaceServices()
   const target = useWorkspaceState(currentTarget, sameTarget)
   const { releaseLead } = backend
-  if (!releaseLead || isWindow(tile) || !tile.ledBy) return undefined
+  if (
+    !releaseLead ||
+    isWindow(tile) ||
+    !tile.ledBy ||
+    tile.state === "exited" ||
+    tile.state === "failed"
+  )
+    return undefined
   return {
     lead: tile.ledBy,
     onRelease: () => releaseLead({ ...target, terminalId: tile.id }),

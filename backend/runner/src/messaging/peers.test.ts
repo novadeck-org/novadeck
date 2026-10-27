@@ -202,7 +202,7 @@ describe("a peer as agents read it", () => {
     // moth leads fox: moth reads it as its worker.
     expect(read(led("fox", "moth", "moth"))[1]).toBe("  led by you")
     // fox reads moth as its lead, whoever opened or leads moth.
-    const lead = "  your lead: it opened this terminal and directs your work"
+    const lead = "  your lead: it directs your work"
     const reader = { handle: "fox", lead: "moth" }
     expect(renderPeer(led("moth", null, null), now, reader)[1]).toBe(lead)
     expect(renderPeer(led("moth", "dusk", "dusk"), now, reader)[1]).toBe(lead)

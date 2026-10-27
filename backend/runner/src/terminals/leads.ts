@@ -1,8 +1,9 @@
+import type { AgentName } from "@novadeck/protocol"
 import { z } from "zod"
 
 import { DomainError } from "../errors.js"
-import { agentLabel, maxMessageBytes } from "../messaging/messages.js"
-import type { Messaging } from "../messaging/messaging.js"
+import { agentLabel, cleanInboxText } from "../messaging/messages.js"
+import { refusalOfText, type Messaging } from "../messaging/messaging.js"
 import { unansweredCalls } from "../shell/reports.js"
 import type { Call } from "../shell/reports.js"
 import type { Approvals, ApprovalOutcome } from "./approvals.js"
@@ -97,8 +98,14 @@ export const leadNotice = {
   userReleasedFrom: (handle: string, title: string): string =>
     notice +
     `The user released ${mention(handle)} · ${title}: you no longer lead it, and its ` +
-    "messages are a peer's from now.",
+    "messages are a peer's from now. What you sent it that hadn't arrived is gone.",
 }
+
+/** An agent in a terminal, as messages reach it: its harness and root session, once bound. */
+type Identity = { readonly agent: AgentName; readonly sessionId: string | null }
+
+/** The agents in both terminals when the person was asked. */
+type Seen = { readonly caller: Identity; readonly target: Identity }
 
 type SentBrief =
   | { readonly ok: true; readonly id: string }
@@ -146,6 +153,36 @@ export class Leads {
     return false
   }
 
+  /** The agent and root session messages reach in the terminal now; undefined without one. */
+  private identity(record: Record): Identity | undefined {
+    const found = this.host.messaging().agentIn(record.summary.id)
+    return found?.ok ? { agent: found.agent, sessionId: found.sessionId } : undefined
+  }
+
+  /**
+   * Why the agents asked about are not the ones now, in a sentence for the caller;
+   * undefined when both are as they were. The caller must still run its bound session, and
+   * the target the same agent, in the same session once one was bound.
+   */
+  private changed(caller: Record, target: Record, seen: Seen): string | undefined {
+    const now = this.identity(caller)
+    if (
+      !now ||
+      now.sessionId === null ||
+      now.agent !== seen.caller.agent ||
+      now.sessionId !== seen.caller.sessionId
+    )
+      return "your agent session there is not the one that asked."
+    const there = this.identity(target)
+    if (
+      !there ||
+      there.agent !== seen.target.agent ||
+      (seen.target.sessionId !== null && there.sessionId !== seen.target.sessionId)
+    )
+      return `the agent in ${mention(target.summary.handle)} is not the one you asked about.`
+    return undefined
+  }
+
   /**
    * Why `caller` can't lead `target` now, in a sentence the agent can act on; undefined
    * when it can. Read when asked and again once the person approved.
@@ -154,11 +191,15 @@ export class Leads {
     const { handle } = target.summary
     if (this.host.closingNow(target.summary.id) || target.closed)
       return `${mention(handle)} is closing.`
-    if (target.bound === null)
-      return (
-        `${mention(handle)} runs no agent to lead. To start an agent with a task, use ` +
-        "open_agent."
-      )
+    // Messaging's own judgment of the agent messages reach there, as `send` makes it.
+    const deliverable = this.host.messaging().agentIn(target.summary.id)
+    if (!deliverable?.ok)
+      return deliverable
+        ? deliverable.reason +
+            (deliverable.reason.includes("running there")
+              ? " To start an agent with a task, use open_agent."
+              : "")
+        : `${mention(handle)} runs no agent to lead. To start an agent with a task, use open_agent.`
     const lead = this.host.messaging().leadOf(target.summary.id)
     if (lead === caller.summary.handle) return `You already lead ${mention(handle)}.`
     if (lead !== undefined)
@@ -188,12 +229,12 @@ export class Leads {
         "A lead needs `to`, the exact handle of a terminal, and `message`, the brief for its " +
           "agent, and nothing else.",
       )
-    const { to, message } = parsed.data
-    if (Buffer.byteLength(message, "utf8") > maxMessageBytes)
-      return refused(
-        `The brief is over the ${maxMessageBytes} bytes a message may hold: shorten it, or ` +
-          "put longer content in a file and give its path.",
-      )
+    const { to } = parsed.data
+    // The person approves exactly the text that is delivered: cleaned of controls, invisible
+    // characters and direction changes (delivery's own cleaning leaves it as it is).
+    const message = cleanInboxText(parsed.data.message)
+    const textRefusal = refusalOfText(message)
+    if (textRefusal) return refused(textRefusal.replace("The message", "The brief"))
     if (to === caller.summary.handle)
       return refused("You can't lead yourself: give the handle of another terminal.")
     const target = await host.peers().target(peerOf(caller), to)
@@ -204,6 +245,10 @@ export class Leads {
       return unansweredCalls.lead
     const unfit = this.unfit(caller, led)
     if (unfit) return refused(unfit)
+    const callerAgent = this.identity(caller)
+    const targetAgent = this.identity(led)
+    if (!callerAgent || !targetAgent) return unansweredCalls.lead
+    const seen: Seen = { caller: callerAgent, target: targetAgent }
     const waiting = host.approvals().refusal(led.summary.id)
     if (waiting === "waiting")
       return refused(`${mention(target.handle)} is already waiting for the user's approval.`)
@@ -218,7 +263,7 @@ export class Leads {
         action: { type: "lead", brief: message },
       },
       (outcome) => {
-        void this.asked(caller, led, message, outcome).catch(() => undefined)
+        void this.asked(caller, led, message, seen, outcome).catch(() => undefined)
       },
     )
     return { ok: true, asked: true, handle, title, ...(ran !== undefined && { ran }) }
@@ -229,6 +274,7 @@ export class Leads {
     caller: Record,
     led: Record,
     brief: string,
+    seen: Seen,
     outcome: ApprovalOutcome,
   ): Promise<void> {
     const { host } = this
@@ -243,7 +289,7 @@ export class Leads {
     if (outcome === "withdrawn" || !here(caller) || !here(led))
       return void tell(leadNotice.vanished(handle))
     // The person approved what was true when the agent asked: it must be true still.
-    const unfit = this.unfit(caller, led)
+    const unfit = this.unfit(caller, led) ?? this.changed(caller, led, seen)
     if (unfit) return void tell(leadNotice.unfit(unfit))
     host.bindings().setLead(led, caller.summary.handle)
     host.messaging().notice(led.summary.id, leadNotice.nowLed(caller.summary.handle), {
@@ -302,6 +348,7 @@ export class Leads {
     if (handle === null) return
     const lead = this.byHandle(led.summary.sessionId, handle)
     host.bindings().endLead(led)
+    host.messaging().dropLeadMessages(terminalId)
     host.messaging().notice(terminalId, leadNotice.userReleased(handle), { always: true })
     if (lead)
       host

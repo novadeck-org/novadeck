@@ -18,7 +18,6 @@ const terminal = (handle: string, agent: AgentName | null, ledBy: string | null)
     terminal: { exiting: false },
     token,
     closed: false,
-    bound: agent === null ? null : {},
   }) as unknown as Record
 
 // Leads over a runner of fakes: terminals with the agent each runs and who leads them
@@ -31,9 +30,18 @@ const setup = (terminals: { [handle: string]: { agent: AgentName | null; ledBy?:
     ]),
   )
   const approvals = new Approvals()
+  // The agent messages reach in each terminal, by handle, with its root session: what the
+  // tests change to end or swap an agent while its shell stays open.
+  const agents = new Map<string, { agent: AgentName; sessionId: string } | undefined>(
+    Object.entries(terminals).map(([handle, { agent }]) => [
+      handle,
+      agent === null ? undefined : { agent, sessionId: `s-${handle}` },
+    ]),
+  )
   const notices: { to: string; text: string; always?: true }[] = []
   const sent: { from: string; to: string; text: string }[] = []
   const saved: string[] = []
+  const dropped: string[] = []
   let stopping = false
   let sending: { ok: true; id: string } | { ok: false; reason: string } = { ok: true, id: "m1" }
   // The running lead is the one `ledBy` names, in the same session.
@@ -49,6 +57,18 @@ const setup = (terminals: { [handle: string]: { agent: AgentName | null; ledBy?:
     messaging: () =>
       ({
         leadOf,
+        agentIn: (id: string) => {
+          const found = agents.get(records.get(id)?.summary.handle ?? "")
+          return found
+            ? { ok: true, ...found }
+            : {
+                ok: false,
+                reason: `@${records.get(id)?.summary.handle} has no agent running there that Novadeck can deliver to.`,
+              }
+        },
+        dropLeadMessages: (id: string) => {
+          dropped.push(id)
+        },
         notice: (to: string, text: string, options?: { always?: boolean }) => {
           notices.push({ to, text, ...(options?.always && { always: true }) })
           return true
@@ -97,6 +117,8 @@ const setup = (terminals: { [handle: string]: { agent: AgentName | null; ledBy?:
     notices,
     sent,
     saved,
+    dropped,
+    agents,
     lead: (from: string, to: string, message = "Review the diff.") =>
       leads.lead(call("lead", from, { to, message })),
     release: (from: string, to: string) => leads.release(call("release", from, { to })),
@@ -163,7 +185,7 @@ describe("an agent asking to lead another terminal's agent", () => {
       { moth: { agent: "claude" as const }, fox: { agent: null } },
       "moth",
       "fox",
-      /runs no agent.*open_agent/,
+      /no agent running there.*open_agent/,
     ],
     [
       "a terminal it already leads",
@@ -233,11 +255,33 @@ describe("an agent asking to lead another terminal's agent", () => {
     person(run.approvals)
     await expect(run.lead("moth", "fox", "x".repeat(4097))).resolves.toMatchObject({
       ok: false,
-      reason: expect.stringMatching(/over the 4096 bytes/),
+      reason: expect.stringMatching(/The brief is 4097 bytes, over the 4096/),
     })
     await expect(
       run.leads.lead({ type: "lead", terminalId: "id-moth", token, request: { to: "fox" } }),
     ).resolves.toMatchObject({ ok: false, reason: expect.stringMatching(/needs `to`/) })
+  })
+
+  it("asks the user about the brief as it will be delivered, cleaned of invisible characters", async () => {
+    const run = setup({ moth: { agent: "claude" }, fox: { agent: "codex" } })
+    const asked = person(run.approvals)
+    await run.lead("moth", "fox", "Fix\u202e the\u200b lint.")
+    await settle()
+    expect(asked[0]).toMatchObject({ action: { type: "lead", brief: "Fix the lint." } })
+    run.approvals.answer({ requestId: asked[0]!.requestId, approved: true }, "person")
+    await settle()
+    expect(run.sent).toEqual([{ from: "id-moth", to: "fox", text: "Fix the lint." }])
+  })
+
+  it("refuses a brief that is empty once cleaned, before asking the user", async () => {
+    const run = setup({ moth: { agent: "claude" }, fox: { agent: "codex" } })
+    const asked = person(run.approvals)
+    await expect(run.lead("moth", "fox", "\u200b \u202e")).resolves.toMatchObject({
+      ok: false,
+      reason: "The brief is empty.",
+    })
+    await settle()
+    expect(asked).toEqual([])
   })
 
   it("learns nothing without the terminal's own token", async () => {
@@ -294,7 +338,7 @@ describe("the user answering an ask to lead", () => {
 
   it("links nothing when the target lost its agent meanwhile, and tells the caller", async () => {
     const { run, answer } = await asking()
-    ;(run.records.get("id-fox") as { bound: unknown }).bound = null
+    run.agents.set("fox", undefined)
     await answer(true)
     expect(run.records.get("id-fox")!.summary.ledBy).toBeNull()
     expect(run.sent).toEqual([])
@@ -302,9 +346,61 @@ describe("the user answering an ask to lead", () => {
       {
         to: "id-moth",
         always: true,
-        text: expect.stringContaining("The user approved, but nothing changed: @fox runs no agent"),
+        text: expect.stringContaining(
+          "The user approved, but nothing changed: @fox has no agent running there",
+        ),
       },
     ])
+  })
+
+  it("links nothing when the caller's agent exited while its shell stayed open", async () => {
+    const { run, answer } = await asking()
+    run.agents.set("moth", undefined)
+    await answer(true)
+    expect(run.records.get("id-fox")!.summary.ledBy).toBeNull()
+    expect(run.sent).toEqual([])
+    expect(run.notices).toEqual([
+      {
+        to: "id-moth",
+        always: true,
+        text: expect.stringContaining("nothing changed: your agent session there"),
+      },
+    ])
+  })
+
+  it("links nothing when the caller's agent was replaced by another session", async () => {
+    const { run, answer } = await asking()
+    run.agents.set("moth", { agent: "claude", sessionId: "s-new" })
+    await answer(true)
+    expect(run.records.get("id-fox")!.summary.ledBy).toBeNull()
+    expect(run.sent).toEqual([])
+  })
+
+  it("links nothing when the target's agent was swapped for another in the same shell", async () => {
+    const { run, answer } = await asking()
+    run.agents.set("fox", { agent: "claude", sessionId: "s-other" })
+    await answer(true)
+    expect(run.records.get("id-fox")!.summary.ledBy).toBeNull()
+    expect(run.sent).toEqual([])
+    expect(run.notices).toEqual([
+      {
+        to: "id-moth",
+        always: true,
+        text: expect.stringContaining("the agent in @fox is not the one you asked about"),
+      },
+    ])
+  })
+
+  it("still links when the target's session binds between the ask and the answer", async () => {
+    const run = setup({ moth: { agent: "claude" }, fox: { agent: "codex" } })
+    run.agents.set("fox", { agent: "codex", sessionId: "s-fox" })
+    const asked = person(run.approvals)
+    await run.lead("moth", "fox")
+    await settle()
+    run.agents.set("fox", { agent: "codex", sessionId: "s-fox" })
+    run.approvals.answer({ requestId: asked[0]!.requestId, approved: true }, "person")
+    await settle()
+    expect(run.records.get("id-fox")!.summary.ledBy).toBe("moth")
   })
 
   it("links nothing when another agent came to lead it meanwhile", async () => {
@@ -404,6 +500,7 @@ describe("the user releasing a terminal", () => {
     const run = setup({ moth: { agent: "claude" }, fox: { agent: "codex", ledBy: "moth" } })
     run.leads.releaseByPerson("id-fox")
     expect(run.records.get("id-fox")!.summary.ledBy).toBeNull()
+    expect(run.dropped).toEqual(["id-fox"])
     expect(run.notices).toEqual([
       { to: "id-fox", always: true, text: leadNotice.userReleased("moth") },
       { to: "id-moth", always: true, text: leadNotice.userReleasedFrom("fox", "Terminal") },

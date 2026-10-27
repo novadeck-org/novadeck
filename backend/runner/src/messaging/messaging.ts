@@ -176,6 +176,8 @@ export type SendAnswer =
         readonly to: string
         /** The person stopped the thread it was in. */
         readonly stopped?: true
+        /** The person released its recipient from the lead that sent it. */
+        readonly released?: true
       }[]
       /** Its messages held long behind what keeps their recipient from them, told once each hold. */
       readonly holds?: readonly string[]
@@ -289,7 +291,7 @@ export const nothingWaiting =
   "Novadeck: no agent messages are waiting any more; this automatic notice can be ignored."
 
 /** Why a message's text, cleaned, can't be sent; undefined when it can. */
-const refusalOfText = (text: string): string | undefined => {
+export const refusalOfText = (text: string): string | undefined => {
   if (!text.trim()) return "The message is empty."
   if (byteLength(text) > maxMessageBytes)
     return (
@@ -456,6 +458,8 @@ export class Messaging {
   private readonly runs = new Map<string, { count: number; senders: readonly string[] }>()
   /** The messages judged idle when sent, for the reason their sender is told; in memory only. */
   private readonly idled = new Set<string>()
+  // Messages gone because the person released their recipient from the lead that sent them.
+  private readonly releasedMessages = new Set<string>()
   private readonly leases: Leases
   private paused: boolean
   // Send times, for the rates: by sender, by sender and recipient, and all.
@@ -615,6 +619,23 @@ export class Messaging {
   setLead(terminalId: string, handle: string): void {
     const live = this.live.get(terminalId)
     if (live) live.ledBy = handle
+  }
+
+  /**
+   * The person releases the terminal from its lead: the lead's messages to it that were not
+   * delivered yet, queued or held, whatever session they wait for, are gone, and their
+   * sender is told they went because the user released it.
+   */
+  dropLeadMessages(terminalId: string): void {
+    for (const message of this.messages.values())
+      if (
+        message.to.terminalId === terminalId &&
+        message.fromLead &&
+        (message.state === "queued" || message.state === "held")
+      ) {
+        this.releasedMessages.add(message.id)
+        this.gone(message, "lead-released")
+      }
   }
 
   /**
@@ -1602,9 +1623,12 @@ export class Messaging {
   }
 
   /** The caller's messages gone since it was last told, told now, as every answer tells them. */
-  goneFrom(
-    terminalId: string,
-  ): readonly { readonly id: string; readonly to: string; readonly stopped?: true }[] {
+  goneFrom(terminalId: string): readonly {
+    readonly id: string
+    readonly to: string
+    readonly stopped?: true
+    readonly released?: true
+  }[] {
     const gone = [...this.messages.values()].filter(
       (message) =>
         message.from.terminalId === terminalId && message.state === "gone" && !message.notified,
@@ -1614,6 +1638,7 @@ export class Messaging {
       id: message.id,
       to: message.to.handle,
       ...(message.stopped && { stopped: true as const }),
+      ...(this.releasedMessages.has(message.id) && { released: true as const }),
     }))
   }
 
@@ -1629,6 +1654,46 @@ export class Messaging {
     const answer = this.sendFrom(live, request, about)
     // Refused too, a sender whose own session never bound learns replies can't reach it.
     return answer.ok || !this.unbound(live) ? answer : { ...answer, unbound: true }
+  }
+
+  /**
+   * The agent Novadeck can deliver messages to in a terminal, with its root session's id
+   * once one is bound; or why there is none, as `send` refuses a recipient.
+   */
+  private deliverableAgent(
+    recipient: Live,
+  ):
+    | { readonly ok: true; readonly agent: AgentName; readonly sessionId: string | null }
+    | { readonly ok: false; readonly reason: string } {
+    const { root } = recipient
+    if (!root && !recipient.shown && recipient.untrusted)
+      return {
+        ok: false,
+        reason:
+          `${mention(recipient.handle)} has no agent Novadeck can deliver to: ` +
+          `${untrustedNote(recipient.untrusted)}.`,
+      }
+    const agent = root?.agent ?? recipient.shown?.agent ?? recipient.expecting
+    if (!agent)
+      return {
+        ok: false,
+        reason: `${mention(recipient.handle)} has no agent running there that Novadeck can deliver to.`,
+      }
+    return { ok: true, agent, sessionId: root?.sessionId ?? null }
+  }
+
+  /**
+   * The agent messages to the terminal reach, and its root session once bound, as `send`
+   * judges a recipient; or why none does. Undefined for a terminal messaging doesn't hold.
+   */
+  agentIn(
+    terminalId: string,
+  ):
+    | { readonly ok: true; readonly agent: AgentName; readonly sessionId: string | null }
+    | { readonly ok: false; readonly reason: string }
+    | undefined {
+    const live = this.live.get(terminalId)
+    return live && this.deliverableAgent(live)
   }
 
   private sendFrom(live: Live, request: unknown, about: About): SendAnswer {
@@ -1651,16 +1716,9 @@ export class Messaging {
         ),
       )
     const root = recipient.root
-    if (!root && !recipient.shown && recipient.untrusted)
-      return refused(
-        `${mention(recipient.handle)} has no agent Novadeck can deliver to: ` +
-          `${untrustedNote(recipient.untrusted)}.`,
-      )
-    const agent = root?.agent ?? recipient.shown?.agent ?? recipient.expecting
-    if (!agent)
-      return refused(
-        `${mention(recipient.handle)} has no agent running there that Novadeck can deliver to.`,
-      )
+    const deliverable = this.deliverableAgent(recipient)
+    if (!deliverable.ok) return refused(deliverable.reason)
+    const { agent } = deliverable
     const now = this.now()
     const known = threadBetween(this.threads.values(), terminalId, recipient.terminalId, now)
     // The person stopped it: nothing continues it, and the refusal leaves its clock alone.

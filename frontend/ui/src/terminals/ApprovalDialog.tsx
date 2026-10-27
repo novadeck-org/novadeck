@@ -78,7 +78,7 @@ const descriptionOf = ({ action, asker, target }: ApprovalView): React.ReactNode
       <pre
         tabIndex={0}
         aria-label="The brief"
-        className="mt-2 mb-0 max-h-[min(240px,40vh)] overflow-auto whitespace-pre-wrap break-words rounded-[var(--radius-panel)] border border-[var(--color-line)] bg-[var(--color-shell)] p-2.5 font-[family-name:var(--font-mono)] text-caption text-[var(--color-ink)]"
+        className="approval-brief mt-2 mb-0 max-h-[min(240px,40vh)] overflow-auto whitespace-pre-wrap break-words text-caption"
       >
         {action.brief}
       </pre>
@@ -109,6 +109,7 @@ export const ApprovalDialog = ({ ask, onAnswer }: ApprovalDialogProps): React.JS
       subject={ask}
       title={titleOf}
       description={descriptionOf}
+      confirmDisabled={lead && !(ask?.asker && ask.target)}
       confirmLabel={lead ? "Let it lead" : "Close terminal"}
       cancelLabel={lead ? "Decline" : "Keep open"}
       onConfirm={() => ask && onAnswer(ask.requestId, true)}

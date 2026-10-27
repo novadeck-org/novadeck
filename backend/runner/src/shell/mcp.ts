@@ -73,12 +73,19 @@ type Opened = {
     | { readonly ok: false; readonly reason: string }
   readonly taskWaits?: boolean
 }
-type Gone = { readonly id: string; readonly to: string; readonly stopped?: true }
+type Gone = {
+  readonly id: string
+  readonly to: string
+  readonly stopped?: true
+  readonly released?: true
+}
 // Why an earlier message of the caller's won't arrive, after "to @x".
 const wontArrive = (gone: Gone): string =>
-  gone.stopped
-    ? " won't arrive: the user stopped that thread in Novadeck."
-    : " won't arrive: the agent session it was for ended there."
+  gone.released
+    ? " won't arrive: the user released that terminal from your lead in Novadeck."
+    : gone.stopped
+      ? " won't arrive: the user stopped that thread in Novadeck."
+      : " won't arrive: the agent session it was for ended there."
 type Closed = {
   readonly handle: string
   readonly title: string
@@ -635,7 +642,7 @@ const leadTerminal: Tool<{
     "send. The brief goes then, wrapped as a message from you, its lead; write it as " +
     "complete as open_agent's: what to do, where, how to tell it is done, and when to report " +
     "back. Being its lead gives you none of the user's approvals of actions. It is refused " +
-    "where the agent already has a lead, runs in no agent, or leads you. The link ends when " +
+    "where the agent already has a lead, runs no agent, or leads you. The link ends when " +
     "its agent exits, or when you call release or the user ends it.",
   inputSchema: {
     type: "object",

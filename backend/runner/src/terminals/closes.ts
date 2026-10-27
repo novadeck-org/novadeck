@@ -41,6 +41,7 @@ export type CloseAnswer =
         readonly id: string
         readonly to: string
         readonly stopped?: true
+        readonly released?: true
       }[]
       /** Messages other terminals sent it, undelivered, which won't arrive now. */
       readonly others?: number

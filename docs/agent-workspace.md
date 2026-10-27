@@ -530,7 +530,10 @@ with every safety check again at that time:
   teammate's: it ends when the agent exits and the lead may close it at once. `release`
   (`to`) ends it from the lead's side and notices the terminal; anyone else is refused.
   The person ends it with `terminals.release` (a no-op for a terminal with no lead),
-  which notices the terminal and its former lead.
+  which notices the terminal and its former lead, and drops the lead's messages to it that
+  were not delivered yet (their sender is told the user released it). The brief is cleaned as
+  any message is before the person is asked, so they approve exactly what is delivered, and
+  the approval holds only while both terminals run the same agent sessions they did when asked.
 - **Closing terminals** comes from the same server's `close_terminal`, listed only
   inside Novadeck's terminals like the others. An agent closes another terminal of its
   project and session, an agent's or a plain shell, by its exact handle, as `send`

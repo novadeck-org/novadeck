@@ -3991,6 +3991,24 @@ describe("a lead", () => {
     expect(prompt("X", session).stdout).toBe("")
   })
 
+  it("drops the lead's undelivered messages when the person releases the worker, and tells the lead", () => {
+    const { messaging, send, records } = withWorker()
+    messaging.register("X", here, "crow", "moth")
+    messaging.expect("X", "codex")
+    const waiting = sent(send("A", "owl", "Keep going."))
+    const unbound = sent(send("A", "crow", "Take the auth bug."))
+    expect(waiting.state).toBe("queued")
+    messaging.dropLeadMessages("W")
+    messaging.dropLeadMessages("X")
+    expect(records.messages().find(({ id }) => id === waiting.id)?.state).toBe("gone")
+    expect(records.messages().find(({ id }) => id === unbound.id)?.state).toBe("gone")
+    // The lead hears once that they went because the user released their recipient.
+    expect(send("A", "owl", "Anyone?")).toMatchObject({
+      ok: true,
+      gone: expect.arrayContaining([{ id: waiting.id, to: "owl", released: true }]),
+    })
+  })
+
   it("is no lead once the terminal's agent exits, for what is sent after", () => {
     const { messaging, records, send, worker, prompt } = withWorker()
     sent(send("A", "owl", "Before."))
@@ -4326,7 +4344,7 @@ describe("the listing's lead lines", () => {
       if (!answer.ok) throw new Error(answer.reason)
       return answer.text
     }
-    expect(listed("W")).toContain("your lead: it opened this terminal")
+    expect(listed("W")).toContain("your lead: it directs your work")
     expect(listed("A")).toContain("led by you")
     messaging.unregister("A")
     expect(listed("W")).not.toContain("led by")

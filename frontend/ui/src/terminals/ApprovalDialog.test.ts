@@ -90,6 +90,22 @@ describe("approval dialog", () => {
       expect(dialog()?.textContent).toContain("Let an agent lead a terminal?")
     })
 
+    it("can't be let through before the app knows both terminals, but can be declined", async () => {
+      const { button, onAnswer } = show({ ...lead(), asker: undefined })
+      await settle()
+      expect(button("Let it lead").disabled).toBe(true)
+      act(() => button("Let it lead").click())
+      expect(onAnswer).not.toHaveBeenCalled()
+      act(() => button("Decline").click())
+      expect(onAnswer).toHaveBeenCalledExactlyOnceWith("ask-1", false)
+    })
+
+    it("can still close a terminal whose names are unknown", async () => {
+      const { button } = show(view({ asker: undefined, target: undefined }))
+      await settle()
+      expect(button("Close terminal").disabled).toBe(false)
+    })
+
     it("lets it lead on Let it lead, and declines on Decline", async () => {
       const { button, onAnswer, showNext } = show(lead())
       await settle()
