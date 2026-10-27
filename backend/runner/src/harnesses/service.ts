@@ -36,8 +36,9 @@ export type HarnessesOptions = {
   /**
    * How long an agent's list of models is fresh, in milliseconds (10 minutes), after which
    * it is refreshed in the background; how long to wait before asking again after none
-   * was found (a minute); how long its command may take (5 seconds); and how long a caller
-   * waits for a lookup (4 seconds); and when a lookup is let go of unsettled (the command's time and two seconds).
+   * was found (a minute); how long its command may take (5 seconds); how long a caller
+   * waits for a lookup (4 seconds); and when a lookup still unsettled is let go of (the
+   * command's time and two seconds).
    */
   readonly models?: {
     readonly keepMs?: number
