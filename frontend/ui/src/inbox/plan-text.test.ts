@@ -176,7 +176,7 @@ describe("the plan text a plan approval's sheet shows", () => {
 
   it("waits for a revised plan, never showing the round the person sent back", () => {
     const workspace = createWorkspaceStore(workspaceFixture())
-    upsert(workspace, planItem(1, asked - 30_000))
+    upsert(workspace, planItem(1, asked - 5 * 60_000))
     const { companions, follows, report } = following()
     const sheet = show(workspace, companions, approval())
 
