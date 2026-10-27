@@ -183,7 +183,10 @@ The rules that keep this safe:
   the shell's next prompt; when the agent exits before any session bound (a failed
   login, Ctrl-C at startup, a declined trust); when the terminal is restored or
   restarted as a shell that resumes nothing; and when typing cancels the startup
-  before the shell took it, as the person then took the terminal over. On Windows,
+  before the shell took it, as the person then took the terminal over. A worker
+  restored while still led, before any agent session reported there, as a reboot can
+  leave one behind its agent's trust screen, starts its agent again with the command
+  it was opened with, so it stays led and its brief still waits. On Windows,
   which ends every console program just before its shell as it shuts down, an agent
   found gone ends its lead only once its shell has outlived it for a sample's time
   (`processPollMs`, a second), unless the runner stops or the shell ends or restarts

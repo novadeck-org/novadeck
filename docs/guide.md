@@ -484,7 +484,9 @@ program a terminal runs, the agent whose session the terminal reported is the on
 resume, until its shell has shown its prompt for a second: Windows ends the agents before
 their shells as it shuts down, and an agent ended that way still resumes. The same second
 keeps a worker led there: its lead ends only once its shell has outlived its agent for
-that long, so a team comes back as a team after a reboot.
+that long, so a team comes back as a team after a reboot. A worker whose agent hadn't
+started its first session yet, as one still at its trust screen, starts that agent again
+with its task, still led.
 
 ## Zen mode
 

@@ -66,7 +66,7 @@ import type { Record } from "./record.js"
 import { hasRun, type TerminalRecords } from "./records.js"
 import { createTranscriptRedactor, type TranscriptRedactor } from "./redaction.js"
 import { restoredSeparator } from "./restored.js"
-import { cancelResume, Claims } from "./resumes.js"
+import { cancelResume, Claims, restartedTask } from "./resumes.js"
 import { agentWorking } from "./ringing.js"
 import { Sampler, shellProcess } from "./sampling.js"
 import { Saves } from "./saving.js"
@@ -735,10 +735,12 @@ export class Terminals {
           saved?.agents[input.resume]?.sessionId,
           connected,
         )
+      // A worker lost before its agent's first session starts that agent again, still led.
+      const task = resume ? undefined : restartedTask(saved, kept?.ledBy)
       const startup =
         input.command !== undefined
           ? { command: input.command, required: true }
-          : resume && { command: resume.argv.join(" ") }
+          : (resume && { command: resume.argv.join(" ") }) || task
       const { spec, started } = this.launcher.launch(
         shell,
         cwd,
@@ -803,6 +805,7 @@ export class Terminals {
         work,
         openedBy,
         openerCommand: opener?.command ?? null,
+        ...(task?.nonce && { startedWith: task.nonce }),
         // Only a session the opener's command started, running an agent, is the opener's.
         awaitsOpened:
           opener !== undefined && !kept && expectedAgent(opener.command, undefined) !== null,
@@ -815,7 +818,7 @@ export class Terminals {
       // Restored as a shell that resumes nothing, there is no agent left to lead.
       const unled = record.summary.ledBy !== null && !started.resumes
       if (unled) record.summary = { ...record.summary, ledBy: null }
-      this.register(record, expectedAgent(input.command, input.resume))
+      this.register(record, expectedAgent(input.command ?? task?.command, input.resume))
       if (unled) this.messaging.endLead(record.summary.id)
       // The resumed agent shows its own history; a shell that resumes none, the transcript.
       if (opened && !started.resumes) void this.show(record, opened.text, new Date(opened.at))
