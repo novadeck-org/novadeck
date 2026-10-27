@@ -240,10 +240,12 @@ export const createDemoChat = (
     const terminal = terminals?.find((each) => each.id === key.terminalId)
     return terminal ? { key, terminal } : undefined
   }
+  // A terminal's own, by `projectId/slot`, else, in the first project, its slot's.
   const transcriptOf = (found: Found): DemoTranscript | undefined =>
-    found.key.projectId === seed.projects[0]?.id
+    transcripts[`${found.key.projectId}/${terminalSlot(found.terminal.id)}`] ??
+    (found.key.projectId === seed.projects[0]?.id
       ? transcripts[terminalSlot(found.terminal.id)]
-      : undefined
+      : undefined)
   // What answering a request does, where the demo can answer it.
   const outcomeOf = (
     found: Found,
@@ -308,7 +310,8 @@ export const createDemoChat = (
   ): Conversation => {
     if (!runs(found)) return noConversation
     // The sample transcripts belong to the first project's terminals, as the engine's
-    // sample terminals do; another project's agents start empty.
+    // sample terminals do; another project's agents start empty, but for those a transcript
+    // names by project.
     const transcript = transcriptOf(found)
     const attention = agentOf(found.terminal).attention
     made.clear()

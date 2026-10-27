@@ -27,6 +27,7 @@ import { withFeedback } from "./feedback"
 import { demoHandle } from "./handles"
 import { createDemoInbox, isDemoInbox } from "./inbox"
 import { demoInboxRows, demoEntries } from "./inbox-fixtures"
+import { inboxLeadMessages, inboxTranscripts, withInboxLead } from "./inbox-transcripts"
 import { checkoutMessages, createDemoMessages, isDemoMessages } from "./messages"
 import { createDemoMurmur, heldMurmurTiming, requestedMurmur } from "./murmur"
 import {
@@ -528,18 +529,29 @@ const plainBackend = (
       ),
       turns,
     )
+  // The Inbox demo's agents elsewhere have done things before their items came, and one
+  // has a lead, for the sheets to show (see `inbox-transcripts.ts`).
+  const inbox = variant === "inbox"
+  const seed = demoSeed(now, true)
   const conversing = withConversations(
-    variant === "agents" || variant === "inbox"
-      ? withFinishes(withStorefrontArtifacts({ ...backend, seed: demoSeed(now, true) }), turns)
+    variant === "agents" || inbox
+      ? withFinishes(
+          withStorefrontArtifacts({ ...backend, seed: inbox ? withInboxLead(seed) : seed }),
+          turns,
+        )
       : backend,
-    transcripts,
+    inbox ? { ...transcripts, ...inboxTranscripts(now) } : transcripts,
     turns,
   )
   // Only where the storefront's terminals run agents: the plain and welcome shells don't.
   if (variant === "plain" || variant === "welcome") return withInbox(conversing, turns)
   if (variant === "agents") return withSource(withInbox(conversing, turns), turns)
   return withSource(
-    withInbox({ ...conversing, messages: createDemoMessages([]) }, turns, demoInboxRows(now)),
+    withInbox(
+      { ...conversing, messages: createDemoMessages([inboxLeadMessages(now)]) },
+      turns,
+      demoInboxRows(now),
+    ),
     turns,
   )
 }
