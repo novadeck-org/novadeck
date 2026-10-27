@@ -34,7 +34,7 @@ import { logs } from "../log.js"
 import type { InboxRecords, StoredEntry } from "../messaging/inbox.js"
 import { novadeckSender, type Message, type Thread } from "../messaging/messages.js"
 import type { MessageRecords } from "../messaging/records.js"
-import { nextHandle, wordOf } from "../terminals/handles.js"
+import { handleOrder, nextHandle } from "../terminals/handles.js"
 import type { Naming } from "../terminals/naming.js"
 import type {
   ListedTerminal,
@@ -1284,7 +1284,7 @@ export class WorkspaceStore implements TerminalRecords, MessageRecords, InboxRec
     return rows.map(listed)
   }
 
-  giveHandle(sessionId: string): string {
+  giveHandle(sessionId: string, order = handleOrder(sessionId)): string {
     return this.transaction(() => {
       const given = column(
         this.queries.all`SELECT handle FROM session_handles WHERE session_id = ${sessionId}`,
@@ -1292,13 +1292,11 @@ export class WorkspaceStore implements TerminalRecords, MessageRecords, InboxRec
       const open = column(
         this.queries.all`SELECT handle FROM terminals WHERE session_id = ${sessionId}`,
       )
-      const elsewhere = column(
-        this.queries.all`SELECT handle FROM terminals WHERE session_id != ${sessionId}`,
-      )
-      const handle = nextHandle(
-        { given: new Set([...given, ...open]), open },
-        new Set(elsewhere.map(wordOf)),
-      )
+      const handle = nextHandle({
+        order,
+        given: new Set([...given, ...open]),
+        open,
+      })
       void this.queries
         .run`INSERT INTO session_handles (session_id, handle) VALUES (${sessionId}, ${handle})`
       return handle
