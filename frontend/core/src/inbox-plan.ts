@@ -1,6 +1,6 @@
 import type { AgentName } from "./harnesses"
 import type { InboxRow } from "./inbox"
-import { isOnBar, type Item, type ItemContent } from "./items"
+import type { Item, ItemContent } from "./items"
 import type { Workspace, WorkspaceTarget } from "./types"
 
 // The plan a plan approval in the Inbox asks the person to approve, for its sheet. No
@@ -16,7 +16,9 @@ import type { Workspace, WorkspaceTarget } from "./types"
 // one the person sent back, whose plan the agent is still rewriting.
 export const planLeadMs: Readonly<Record<AgentName, number>> = {
   claude: 1000,
-  codex: 60_000,
+  // Measured after the dialog (+303 ms), so the wait covers it; kept short so a sent-back
+  // round's plan, still on the bar when the next dialog comes, isn't taken for the new one.
+  codex: 10_000,
   agy: 15 * 60_000,
 }
 
@@ -46,7 +48,15 @@ export const sessionItems = (workspace: Workspace, target: WorkspaceTarget): rea
 // (the root's, or a subagent's), on its terminal's bar or undocked from it, shown no longer
 // before the dialog than its harness shows one, the latest of them. Hidden from the bar it
 // is still there. `now` says whether one may yet come.
-export const planItemOf = (items: readonly Item[], row: InboxRow, now: number): PlanPick => {
+export const planItemOf = (
+  items: readonly Item[],
+  row: InboxRow,
+  now: number,
+  // Plan versions (`planKey`) another plan approval already showed: one is never a later
+  // round's plan, so a sent-back round's text isn't shown for the next while the new version
+  // is on its way.
+  used: ReadonlySet<string> = new Set(),
+): PlanPick => {
   if (row.kind !== "request" || row.request.kind !== "plan") return none
   const { terminalId, agent } = row.source
   const role = row.request.subagent ? "subagent" : "root"
@@ -56,17 +66,22 @@ export const planItemOf = (items: readonly Item[], row: InboxRow, now: number): 
       (item) =>
         item.kind === "plan" &&
         item.plan?.role === role &&
-        (isOnBar(item, terminalId) || item.from?.terminalId === terminalId) &&
+        // Shown from this terminal, wherever it sits now: a plan docked here from another
+        // terminal is that terminal's.
+        item.from?.terminalId === terminalId &&
         item.shownAt >= since,
     )
     .reduce<Item | undefined>(
       (latest, item) => (latest && latest.shownAt >= item.shownAt ? latest : item),
       undefined,
     )
-  if (found) return { state: "found", item: found }
+  if (found && !used.has(planKey(found))) return { state: "found", item: found }
   const until = row.at + planWaitMs
   return now < until ? { state: "waiting", until } : none
 }
+
+// A plan item's version, which one plan approval shows.
+export const planKey = (item: Pick<Item, "id" | "version">): string => `${item.id}:${item.version}`
 
 // What a plan item's content gives the sheet: its Markdown, undefined while it loads, null
 // where it can't be read. A plan cut short says so at its end, as the plan pane does.

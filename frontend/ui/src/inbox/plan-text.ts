@@ -1,5 +1,5 @@
 import type { InboxRow } from "@novadeck/core/inbox"
-import { planItemOf, planTextOf, sessionItems } from "@novadeck/core/inbox-plan"
+import { planItemOf, planKey, planTextOf, sessionItems } from "@novadeck/core/inbox-plan"
 import type { Companions, Item, ItemContent } from "@novadeck/core/items"
 import type { WorkspaceStore } from "@novadeck/core/store"
 import {
@@ -19,7 +19,13 @@ import {
 // plan. Each is the asking terminal's plan item (`core/inbox-plan.ts` picks it), read as the
 // plan pane reads it, through the backend's companions.
 
-type PlanSource = { readonly workspace: WorkspaceStore; readonly companions: Companions }
+type PlanSource = {
+  readonly workspace: WorkspaceStore
+  readonly companions: Companions
+  // Which plan approval showed each plan version (`planKey` to the Inbox item's id), so one
+  // version is never shown for a second approval.
+  readonly shown: Map<string, string>
+}
 
 const PlanContext = createContext<PlanSource | undefined>(undefined)
 
@@ -35,7 +41,7 @@ export const PlanTextProvider = ({
   readonly children?: ReactNode
 }): React.JSX.Element => {
   const value = useMemo(
-    () => (companions ? { workspace, companions } : undefined),
+    () => (companions ? { workspace, companions, shown: new Map<string, string>() } : undefined),
     [workspace, companions],
   )
   return createElement(PlanContext.Provider, { value }, children)
@@ -60,7 +66,13 @@ export const usePlanText = (item: InboxRow): string | null | undefined => {
   )
   // Whether a plan may still come is a matter of time: looked at again once the wait is over.
   const [now, setNow] = useState(Date.now)
-  const pick = useMemo(() => planItemOf(items, item, now), [items, item, now])
+  const pick = useMemo(() => {
+    const shown = source?.shown
+    const used = new Set(
+      shown ? [...shown].filter(([, by]) => by !== item.id).map(([key]) => key) : [],
+    )
+    return planItemOf(items, item, now, used)
+  }, [source, items, item, now])
   const until = pick.state === "waiting" ? pick.until : undefined
   useEffect(() => {
     if (until === undefined) return
@@ -70,7 +82,11 @@ export const usePlanText = (item: InboxRow): string | null | undefined => {
 
   // Followed anew for each version of the plan, so its text is never an earlier round's.
   const found = pick.state === "found" ? pick.item : undefined
-  const key = found && `${found.id}:${found.version}`
+  const key = found && planKey(found)
+  // This approval shows that version now: no later approval may.
+  useEffect(() => {
+    if (key && source && !source.shown.has(key)) source.shown.set(key, item.id)
+  }, [key, source, item.id])
   const [loaded, setLoaded] = useState<{ key: string; content: ItemContent }>()
   const companions = source?.companions
   const foundId = found?.id

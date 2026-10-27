@@ -117,6 +117,32 @@ describe("the plan text a plan approval's sheet shows", () => {
     expect(follows[0]!.stopped).toBe(true)
   })
 
+  it("never shows a plan version a second approval on the same terminal, though it's still in the window", () => {
+    const workspace = createWorkspaceStore(workspaceFixture())
+    upsert(workspace, planItem(1, asked - 60_000))
+    const { companions, report } = following()
+    const first: InboxRow = { ...approval("agy"), id: "request:first" }
+    const second: InboxRow = { ...approval("agy"), id: "request:second", at: asked + 1000 }
+    // One sheet at a time, as the Inbox shows them, under one provider.
+    const Sheet = ({ row }: { readonly row: InboxRow }): React.JSX.Element => {
+      const text = usePlanText(row)
+      return createElement("output", null, text === undefined ? "loading" : String(text))
+    }
+    const shown = (row: InboxRow): React.JSX.Element =>
+      createElement(
+        PlanTextProvider,
+        { workspace, companions },
+        createElement(Sheet, { key: row.id, row }),
+      )
+    const rendered = render(shown(first))
+    report(ready("# Round one"))
+    expect(rendered.container.textContent).toBe("# Round one")
+    // The next approval comes while the sent-back round's plan is still within its window.
+    rendered.rerender(shown(second))
+    expect(rendered.container.textContent).toBe("loading")
+    rendered.unmount()
+  })
+
   it("waits for a revised plan, never showing the round the person sent back", () => {
     const workspace = createWorkspaceStore(workspaceFixture())
     upsert(workspace, planItem(1, asked - 30_000))

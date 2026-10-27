@@ -1,6 +1,6 @@
 import type { AgentName } from "./harnesses"
 import type { InboxRow } from "./inbox"
-import { planItemOf, planTextOf, planWaitMs, sessionItems } from "./inbox-plan"
+import { planItemOf, planKey, planTextOf, planWaitMs, sessionItems } from "./inbox-plan"
 import { itemIdOf, type Item } from "./items"
 import { context, describe, expect, it } from "./test"
 import { workspaceFixture } from "./testing"
@@ -114,6 +114,30 @@ describe("the plan a plan approval asks about", () => {
   it("is none for another terminal's plan", () => {
     const other = plan("claude", asked, { terminalId: "u" })
     expect(planItemOf([other], approval("claude"), asked + planWaitMs)).toEqual({ state: "none" })
+  })
+
+  it("is none for another terminal's plan docked on this terminal's bar", () => {
+    const docked = plan("claude", asked, { terminalId: "u", holder: { terminalId: "t" } })
+    expect(planItemOf([docked], approval("claude"), asked + planWaitMs)).toEqual({ state: "none" })
+  })
+
+  it("is never a plan version an earlier approval showed: a sent-back round's waits for its new one", () => {
+    const sentBack = plan("agy", asked - 60_000)
+    const used = new Set([planKey(sentBack)])
+    expect(planItemOf([sentBack], approval("agy"), asked, used)).toEqual({
+      state: "waiting",
+      until: asked + planWaitMs,
+    })
+    const rewritten = plan("agy", asked + 400, { version: 2 })
+    expect(planItemOf([rewritten], approval("agy"), asked + 500, used)).toEqual({
+      state: "found",
+      item: rewritten,
+    })
+  })
+
+  it("is not Codex's plan from a round more than 10 s before its dialog", () => {
+    const earlier = plan("codex", asked - 30_000)
+    expect(planItemOf([earlier], approval("codex"), asked + planWaitMs)).toEqual({ state: "none" })
   })
 
   it("is none for an item that is no plan approval", () => {
