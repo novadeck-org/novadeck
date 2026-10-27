@@ -3,6 +3,7 @@ import { hookShellSlackMs, silentFor, type MessagingProfile } from "@novadeck/ha
 import {
   longHoldMs,
   type AgentName,
+  type MessageState,
   type MessageThread,
   type TerminalMessages,
 } from "@novadeck/protocol"
@@ -620,6 +621,11 @@ export class Messaging {
   setLead(terminalId: string, handle: string): void {
     const live = this.live.get(terminalId)
     if (live) live.ledBy = handle
+  }
+
+  /** Where the message is now; undefined once it is forgotten. */
+  stateOf(messageId: string): MessageState | undefined {
+    return this.messages.get(messageId)?.state
   }
 
   /** Whether the message was sent by its recipient's running lead, so it is marked so. */

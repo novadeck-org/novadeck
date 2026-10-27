@@ -34,6 +34,7 @@ import { CompanionItems } from "../companions/items.js"
 import { readyReturnMs } from "../terminals/binding/facts.js"
 import { handleOrder, handleWords } from "../terminals/handles.js"
 import { Terminals, type TerminalOptions } from "../terminals/index.js"
+import { sessionCommandRefusal } from "../terminals/opens.js"
 import type { AgentTurn, TerminalRecords } from "../terminals/records.js"
 import { createTranscriptRedactor } from "../terminals/redaction.js"
 import { describe, expect, it as base } from "../test.js"
@@ -2925,21 +2926,26 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))(
       })()
       try {
         const answers = await present(shell, manager, terminal.id, [
-          open({ command: "claude --fresh", cwd: "project", title: "Agent", focus: true }),
+          open({ command: "claude --version", cwd: "project", title: "Agent", focus: true }),
           open({ title: "Refused" }),
           open({ cwd: "nowhere" }),
           open({ command: "claude\nrm -rf ~" }),
+          // An interactive agent session is open_agent's, however the command spells it.
+          open({ command: "claude --resume s-1" }),
+          open({ command: "/usr/bin/codex 'fix it'" }),
           open({}, "0".repeat(48)),
         ])
         expect(answers).toEqual([
           // Its handle, which agents message it by.
           {
             ok: true,
-            text: `Opened a new terminal, @fox · Agent, running claude --fresh in ${project}.`,
+            text: `Opened a new terminal, @fox · Agent, running claude --version in ${project}.`,
           },
           { ok: false, reason: "Not now." },
           { ok: false, reason: "nowhere isn't a folder a terminal can open in." },
           { ok: false, reason: "The command must be one line, without control characters." },
+          { ok: false, reason: sessionCommandRefusal("claude") },
+          { ok: false, reason: sessionCommandRefusal("codex") },
           unansweredCalls.open,
         ])
         const asked = {
@@ -2949,7 +2955,7 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))(
         }
         expect(requests).toEqual([
           // The title it asked for never goes to the client, which could give it as the person's.
-          { ...asked, cwd: project, command: "claude --fresh", focus: true },
+          { ...asked, cwd: project, command: "claude --version", focus: true },
           { ...asked, cwd: shell.home, focus: false },
         ])
         const [opened] = created
@@ -2975,7 +2981,7 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))(
         // It is still known as the opener's.
         expect(manager.get(opened!).openedBy).toBe("moth")
         expect(shell.store.terminalIdentity(opened!)).toMatchObject({ ledBy: null })
-        await shell.until(manager, opened!, "claude args: --fresh")
+        await shell.until(manager, opened!, "claude args: --version")
         // Five a minute, counting each request that was asked, opened or not: two more,
         // and the next waits.
         const more = await present(
@@ -3244,6 +3250,218 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))(
         controller.abort()
         await client
       }
+    })
+  },
+)
+
+describe.skipIf(process.platform === "win32" || !existsSync(bash))(
+  "agents opening an agent with no task, a lead or a past session from a bash terminal",
+  () => {
+    it("starts each harness at its prompt, led or not, and resumes a session in one terminal only", async ({
+      shell,
+    }) => {
+      const bin = presenter(shell.home)
+      for (const agent of ["claude", "codex", "agy"] as const) fakeAgent(shell.home, agent)
+      const lists = {
+        claude: [{ id: "opus", efforts: ["low", "max"] }],
+        codex: [{ id: "gpt-a", efforts: ["low", "high"] }],
+        agy: [{ id: "flash-high", efforts: ["high"] }],
+      } as const
+      const manager = shell.manager({
+        env: {
+          HOME: shell.home,
+          PS1: "$ ",
+          PATH: `${bin}:${join(shell.home, "bin")}:${process.env.PATH}`,
+        },
+        install: (agent) =>
+          Promise.resolve({
+            env: {},
+            home: shell.home,
+            platform: process.platform,
+            plugin: join(shell.plugins, agent),
+          }),
+        models: (agent) => Promise.resolve(lists[agent]),
+      })
+      const openAgent = (request: object) => ({ ...open(request), type: "open_agent" as "open" })
+      const terminal = await create(manager, shell)
+      const controller = new AbortController()
+      const requests: TerminalRequest[] = []
+      const created: string[] = []
+      const client = (async () => {
+        for await (const request of manager.requests("client", controller.signal)) {
+          requests.push(request)
+          const id = randomUUID()
+          created.push(id)
+          // eslint-disable-next-line no-await-in-loop -- Requests are opened in turn.
+          await manager.create(
+            {
+              id,
+              sessionId: request.sessionId,
+              cwd: request.cwd,
+              cols: 100,
+              rows: 20,
+              ...(request.command && { command: request.command }),
+              requestId: request.requestId,
+            },
+            "client",
+          )
+          manager.answerRequest({ requestId: request.requestId, terminalId: id }, "client")
+        }
+      })()
+      try {
+        const answers = (await present(shell, manager, terminal.id, [
+          openAgent({ agent: "claude" }),
+          openAgent({ agent: "codex", model: "gpt-a", lead: true }),
+          openAgent({ agent: "agy", model: "flash-high", effort: "high", lead: true }),
+          openAgent({ agent: "claude", resume: "sess-1", model: "opus", lead: true }),
+          openAgent({ agent: "agy", resume: "sess-3" }),
+          openAgent({ agent: "claude", resume: "sess-1" }),
+          openAgent({ agent: "claude", resume: "no way" }),
+        ])) as { ok: boolean; reason?: string }[]
+        expect(requests.map(({ command }) => command)).toEqual([
+          "claude",
+          "codex --model gpt-a",
+          "agy --model flash-high --effort high",
+          "claude --model opus --resume sess-1",
+          "agy --conversation sess-3",
+        ])
+        expect(answers.slice(0, 5).map(({ ok }) => ok)).toEqual(Array(5).fill(true))
+        // One session runs in one terminal: refused while the first has it.
+        expect(answers[5]).toMatchObject({
+          ok: false,
+          reason: expect.stringContaining("already open in a terminal"),
+        })
+        expect(answers[6]).toMatchObject({ ok: false, reason: expect.stringContaining("session") })
+        // Led only where asked to; a plain agent has none, but is still known as the opener's.
+        expect(created.map((id) => manager.get(id).ledBy)).toEqual([
+          null,
+          "moth",
+          "moth",
+          "moth",
+          null,
+        ])
+        expect(created.map((id) => manager.get(id).openedBy)).toEqual(Array(5).fill("moth"))
+        await shell.until(manager, created[3]!, "claude args: --model opus --resume sess-1")
+      } finally {
+        controller.abort()
+        await client
+      }
+    })
+  },
+)
+
+describe.skipIf(process.platform === "win32" || !existsSync(bash))(
+  "an agent opened to be led, with a brief or without",
+  () => {
+    // Opens an agent as `moth` asks, in a terminal where `claude` is a stand-in that reports
+    // its session and takes hooks; `prompt` is the hook of its prompt, read as its context.
+    const opened = async (
+      shell: Fixture,
+      request: object,
+      run: (agent: Opened) => Promise<void>,
+    ) => {
+      const bin = presenter(shell.home)
+      const stand = standIn(shell.home)
+      writeFileSync(
+        join(stand, "claude"),
+        '#!/bin/sh\nmkdir -p "$HOME/steps-$NOVADECK_TERMINAL_ID"\n' +
+          'exec agent claude s-worker "$HOME/steps-$NOVADECK_TERMINAL_ID"\n',
+        { mode: 0o755 },
+      )
+      const manager = shell.manager({
+        env: { HOME: shell.home, PS1: "$ ", PATH: `${bin}:${stand}:${process.env.PATH}` },
+        install: (agent) =>
+          Promise.resolve({
+            env: {},
+            home: shell.home,
+            platform: process.platform,
+            plugin: join(shell.plugins, agent),
+          }),
+      })
+      const terminal = await create(manager, shell)
+      const controller = new AbortController()
+      const created: string[] = []
+      const client = (async () => {
+        for await (const asked of manager.requests("client", controller.signal)) {
+          const id = randomUUID()
+          created.push(id)
+          // eslint-disable-next-line no-await-in-loop -- Requests are opened in turn.
+          await manager.create(
+            {
+              id,
+              sessionId: asked.sessionId,
+              cwd: asked.cwd,
+              cols: 100,
+              rows: 20,
+              ...(asked.command && { command: asked.command }),
+              requestId: asked.requestId,
+            },
+            "client",
+          )
+          manager.answerRequest({ requestId: asked.requestId, terminalId: id }, "client")
+        }
+      })()
+      try {
+        const [answer] = (await present(shell, manager, terminal.id, [
+          { ...open(request), type: "open_agent" as "open" },
+        ])) as { ok: boolean }[]
+        expect(answer!.ok).toBe(true)
+        const [worker] = created
+        await shell.until(manager, worker!, "claude ready")
+        const { step } = driver(shell, manager)
+        await run({
+          manager,
+          worker: worker!,
+          prompt: async (text) => {
+            const out = await step(worker!, {
+              hook: "UserPromptSubmit",
+              payload: { prompt: text },
+            })
+            return (JSON.parse(out) as { hookSpecificOutput: { additionalContext: string } })
+              .hookSpecificOutput.additionalContext
+          },
+        })
+      } finally {
+        controller.abort()
+        await client
+      }
+    }
+    type Opened = {
+      manager: Terminals
+      worker: string
+      prompt: (text: string) => Promise<string>
+    }
+
+    it("marks a brief as its lead's, then releases the lead once it is delivered, and tells the agent", async ({
+      shell,
+    }) => {
+      await opened(
+        shell,
+        { agent: "claude", message: "Review a.ts, please.", lead: false },
+        async ({ manager, worker, prompt }) => {
+          // Led until the brief lands, so the brief is its lead's, not a peer's.
+          expect(manager.get(worker).ledBy).toBe("moth")
+          expect(await prompt("go")).toMatch(/lead="[^"]+"[^>]*>Review a.ts, please.<\/message>/)
+          await expect
+            .poll(() => manager.messages(worker).threads[0]?.messages[0]?.state)
+            .toBe("delivered")
+          await expect.poll(() => manager.get(worker).ledBy).toBeNull()
+          expect(shell.store.terminalIdentity(worker)).toMatchObject({ ledBy: null })
+          // Its next prompt tells it so: the lead's messages are a peer's from now.
+          expect(await prompt("more")).toContain("@moth no longer leads you")
+        },
+      )
+    })
+
+    it("tells an agent opened without a brief that its opener leads it, and keeps the lead", async ({
+      shell,
+    }) => {
+      await opened(shell, { agent: "claude", lead: true }, async ({ manager, worker, prompt }) => {
+        expect(manager.get(worker).ledBy).toBe("moth")
+        expect(manager.messages(worker).threads).toEqual([])
+        expect(await prompt("go")).toContain("@moth started you and leads you")
+        expect(manager.get(worker).ledBy).toBe("moth")
+      })
     })
   },
 )
@@ -4756,8 +4974,9 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))(
         const answer = JSON.parse(
           await step(opener.id, {
             call: "open",
-            // Its program quoted, as a shell takes it all the same.
-            request: { command: `'claude' s-opened ${steps} fix-the-build` },
+            // Its program quoted, as a shell takes it all the same. The trailing help flag lets
+            // open_terminal take it, as a wrapper would, while the runner still sees the agent.
+            request: { command: `'claude' s-opened ${steps} fix-the-build --help` },
           }),
         ) as Told
         expect(answer.ok).toBe(true)
@@ -4869,7 +5088,7 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))(
       try {
         await step(opener.id, {
           call: "open",
-          request: { command: `'claude' s-opened ${steps} fix-the-build` },
+          request: { command: `'claude' s-opened ${steps} fix-the-build --help` },
         })
         const [opened] = created as [string]
         symlinkSync(steps, join(shell.home, `steps-${opened}`))

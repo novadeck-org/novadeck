@@ -154,6 +154,7 @@ export const claude: readonly { name: string; records: readonly object[] }[] = [
           { agent: "claude", message: "Review the PR", model: "opus", effort: "high" },
           "Opened terminal 02",
         ],
+        [`${novadeck}open_agent`, { agent: "claude", model: "opus", effort: "high" }, "Opened 03"],
         [`${novadeck}open_terminal`, { command: "npm run dev", title: "dev" }, "Opened 03"],
         [`${novadeck}close_terminal`, { to: "builder" }, "Closed"],
         [`${novadeck}close_terminal`, {}, "Closed"],

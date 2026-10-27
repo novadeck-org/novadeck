@@ -176,6 +176,36 @@ describe("the harness registry", () => {
     expect(harnesses.agy.resume?.("s")).toEqual(["agy", "--conversation", "s"])
   })
 
+  it("resumes with the model and effort chosen, where each takes its options", () => {
+    const choice = { model: "m", effort: "high" } as const
+    expect(harnesses.claude.resume?.("s", choice)).toEqual([
+      "claude",
+      "--model",
+      "m",
+      "--effort",
+      "high",
+      "--resume",
+      "s",
+    ])
+    expect(harnesses.codex.resume?.("s", choice)).toEqual([
+      "codex",
+      "resume",
+      "--model",
+      "m",
+      "-c",
+      "model_reasoning_effort=high",
+      "s",
+    ])
+    expect(harnesses.agy.resume?.("s", { effort: "low" })).toEqual([
+      "agy",
+      "--effort",
+      "low",
+      "--conversation",
+      "s",
+    ])
+    expect(harnesses.codex.resume?.("s", {})).toEqual(["codex", "resume", "s"])
+  })
+
   it("gives Claude Code and Codex a shim everywhere", () => {
     expect(shimmed("linux")).toEqual(["claude", "codex"])
     expect(shimmed("win32")).toEqual(["claude", "codex"])

@@ -107,8 +107,18 @@ export type Harness = {
   }
   /** Programs Novadeck's shells put first on PATH while it is connected. */
   readonly shims?: (platform: NodeJS.Platform) => readonly File[]
-  /** The words that continue its session by id, which a shell runs as they are. */
-  readonly resume?: (session: string) => readonly string[]
+  /**
+   * The words that, among a command's arguments, show it starts no interactive session: its
+   * subcommands other than a session, and its print, help and version flags. A command with
+   * none of them starts one (see the runner's `terminals/commands.ts`).
+   */
+  readonly nonSession: readonly string[]
+  /**
+   * The words that continue its session by id, which a shell runs as they are, with the
+   * model and effort `choose` puts, where each is given: after its program, or where its
+   * resume command takes its options.
+   */
+  readonly resume?: (session: string, choice?: Choice) => readonly string[]
   /** Where its actors' transcripts are, and what each of their records says. */
   readonly transcripts?: {
     /**
@@ -290,10 +300,7 @@ export type MessagingProfile = {
    */
   readonly models: (install: Install) => Promise<readonly Model[]>
   /** The words that go right after its program to start it with this model and effort. */
-  readonly choose: (choice: {
-    readonly model?: string
-    readonly effort?: Effort
-  }) => readonly string[]
+  readonly choose: (choice: Choice) => readonly string[]
   /**
    * Where its hooks name no prompt (as Antigravity's, whose every turn decodes as
    * harness-started), what one line of its transcript records as typed into its box, if
@@ -301,6 +308,12 @@ export type MessagingProfile = {
    * prompt.
    */
   readonly typedEntry?: (line: string) => UserEntry | undefined
+}
+
+/** The model and reasoning effort an agent starts with; none leaves its own. */
+export type Choice = {
+  readonly model?: string
+  readonly effort?: Effort
 }
 
 /**

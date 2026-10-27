@@ -2,7 +2,7 @@ import { basename, win32 } from "node:path"
 
 import type { AgentName } from "@novadeck/protocol"
 
-import { agents } from "../harnesses/registry.js"
+import { agents, harnesses } from "../harnesses/registry.js"
 
 // Text on one line and in one case, as prompts and commands are compared.
 const oneLine = (text: string): string =>
@@ -80,8 +80,39 @@ export const expectedAgent = (
   platform: NodeJS.Platform = process.platform,
 ): AgentName | null => {
   if (resume) return resume
-  const [first = ""] = command === undefined ? [] : commandWords(command, platform)
+  return programOf(command === undefined ? [] : commandWords(command, platform), platform)
+}
+
+// The agent whose program a command's words start with, by its file name.
+const programOf = (words: readonly string[], platform: NodeJS.Platform): AgentName | null => {
+  const [first = ""] = words
   const base = platform === "win32" ? win32.basename(first) : basename(first)
   const program = base.replace(/\.(?:exe|cmd)$/i, "")
   return agents.find((agent) => agent === program) ?? null
+}
+
+/**
+ * The agent whose interactive session a command would start, or null for any other program
+ * and for an agent's other uses (its help, version, print mode and subcommands other than a
+ * session, as `harness.nonSession` lists). A bare launch, options only, a prompt argument and
+ * resuming, continuing or forking a session all start one.
+ *
+ * Options can take values (`codex -c key=value exec`, `claude --model opus "do x"`), so the
+ * words are not read as options and arguments. The command is a non-session use if any word
+ * after the program is one of the agent's `nonSession` words, and a session otherwise. The
+ * trade-off: a prompt written as loose words (`claude fix the update`) that includes one is
+ * let through, which is rare and only misses a refusal.
+ *
+ * This steers an agent to `open_agent`; it is not a security boundary, so a wrapper such as
+ * `env X=1 claude`, `cd x && claude` or `npx` goes unseen.
+ */
+export const sessionLaunch = (
+  command: string,
+  platform: NodeJS.Platform = process.platform,
+): AgentName | null => {
+  const words = commandWords(command, platform)
+  const agent = programOf(words, platform)
+  if (agent === null) return null
+  const outside = harnesses[agent].nonSession
+  return words.slice(1).some((word) => outside.includes(word)) ? null : agent
 }

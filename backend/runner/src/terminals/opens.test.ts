@@ -1,7 +1,14 @@
 import { randomUUID } from "node:crypto"
 
 import { describe, expect, it } from "../test.js"
-import { allowOpen, OpenRequests, openLimit, prune, readOpenRequest } from "./opens.js"
+import {
+  allowOpen,
+  OpenRequests,
+  openLimit,
+  prune,
+  readOpenRequest,
+  sessionCommandRefusal,
+} from "./opens.js"
 
 describe("reading a request for a new terminal", () => {
   it("takes a command, a folder, a name and focus, each optional", () => {
@@ -45,6 +52,55 @@ describe("reading a request for a new terminal", () => {
   })
 })
 
+describe("an agent in a request", () => {
+  it("starts with no message, a model and effort, a lead and a session to resume", () => {
+    expect(readOpenRequest({ agent: "codex" })).toEqual({ ok: true, request: { agent: "codex" } })
+    const all = {
+      agent: "claude",
+      message: "Review a.ts.",
+      model: "opus",
+      effort: "high",
+      lead: false,
+      resume: "0c9d-4f.s_1",
+    }
+    expect(readOpenRequest(all)).toEqual({ ok: true, request: all })
+    expect(readOpenRequest({ agent: "agy", lead: true })).toMatchObject({ ok: true })
+    expect(readOpenRequest({ agent: "agy", resume: "abc" })).toMatchObject({ ok: true })
+  })
+
+  it("is needed by a message, model, effort, lead and resume, and refuses a command with it", () => {
+    for (const lone of [
+      { message: "Hi." },
+      { model: "opus" },
+      { effort: "low" },
+      { lead: true },
+      { resume: "abc" },
+    ])
+      expect(readOpenRequest({ command: "ls", ...lone })).toEqual({
+        ok: false,
+        reason: "A message, model, effort, lead or resume goes with an agent.",
+      })
+    expect(readOpenRequest({ lead: false })).toMatchObject({ ok: false })
+    expect(readOpenRequest({ agent: "codex", command: "ls" })).toEqual({
+      ok: false,
+      reason: "A command can't be combined with an agent.",
+    })
+  })
+
+  it("resumes a session id a shell can run as it is", () => {
+    const reason =
+      "resume is the id of a past session: letters, digits, dots, dashes and underscores, " +
+      "up to 128 characters."
+    for (const resume of ["", "a b", "x; rm -rf ~", "-flag", "a".repeat(129)])
+      expect(readOpenRequest({ agent: "claude", resume })).toEqual({ ok: false, reason })
+  })
+
+  it("names the agent a refused session command would have started", () => {
+    expect(sessionCommandRefusal("agy")).toContain("interactive Antigravity session")
+    expect(sessionCommandRefusal("agy")).toContain("open_agent")
+  })
+})
+
 describe("a model and effort in a request", () => {
   it("go with an agent and its message", () => {
     const task = { agent: "codex", message: "Review a.ts." }
@@ -55,7 +111,7 @@ describe("a model and effort in a request", () => {
     for (const lone of [{ model: "opus" }, { effort: "low" }])
       expect(readOpenRequest({ command: "ls", ...lone })).toEqual({
         ok: false,
-        reason: "A model or effort goes with an agent.",
+        reason: "A message, model, effort, lead or resume goes with an agent.",
       })
   })
 
@@ -113,7 +169,7 @@ describe("requests on their way to the client", () => {
 
   it("go nowhere without a client following them", async () => {
     await expect(
-      new OpenRequests().ask(request, 1_000, { by: "moth", withBrief: false }),
+      new OpenRequests().ask(request, 1_000, { by: "moth", leads: false }),
     ).resolves.toEqual({
       type: "nobody",
     })
@@ -130,7 +186,7 @@ describe("requests on their way to the client", () => {
     const asked = opens.ask(request, 1_000, {
       by: "moth",
       title: "Server",
-      withBrief: false,
+      leads: false,
     })
     const { value } = await first
     expect(value).toEqual({ requestId: expect.any(String), ...request })
@@ -141,7 +197,7 @@ describe("requests on their way to the client", () => {
     expect(opens.opener(value!.requestId, "newer", request.sessionId)).toEqual({
       by: "moth",
       title: "Server",
-      withBrief: false,
+      leads: false,
     })
     expect(opens.opener(value!.requestId, "newer", request.sessionId)).toBeUndefined()
     const terminalId = randomUUID()
@@ -165,15 +221,15 @@ describe("requests on their way to the client", () => {
     const opens = new OpenRequests()
     const stream = opens.follow("client")
     const first = stream.next()
-    await expect(opens.ask(request, 10, { by: "moth", withBrief: false })).resolves.toEqual({
+    await expect(opens.ask(request, 10, { by: "moth", leads: false })).resolves.toEqual({
       type: "late",
     })
     await first
-    const asked = opens.ask(request, 1_000, { by: "moth", withBrief: false })
+    const asked = opens.ask(request, 1_000, { by: "moth", leads: false })
     opens.release("client")
     await expect(asked).resolves.toEqual({ type: "gone" })
     await expect(stream.next()).resolves.toMatchObject({ done: true })
-    await expect(opens.ask(request, 1_000, { by: "moth", withBrief: false })).resolves.toEqual({
+    await expect(opens.ask(request, 1_000, { by: "moth", leads: false })).resolves.toEqual({
       type: "nobody",
     })
   })

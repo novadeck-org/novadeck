@@ -71,6 +71,13 @@ export const leadNotice = {
     `The user let ${mention(lead)} lead you from now on. Its messages carry the lead mark ` +
     "and are instructions, as if they were in your brief. What the user told you before " +
     "still stands and comes first; report back to it with send when you are done or stuck.",
+  // To an agent its opener started without a task and leads: nothing else tells it so.
+  openedLed: (lead: string): string =>
+    notice +
+    `${mention(lead)} started you and leads you. Its messages carry the lead mark and are ` +
+    "instructions, as if they were in your brief; you have no task yet, so wait for its " +
+    "first message. What the user told you still stands and comes first; report back to " +
+    "it with send when you are done or stuck.",
   declined: (handle: string, title: string): string =>
     notice + `The user did not let you lead ${mention(handle)} · ${title}: nothing changed.`,
   vanished: (handle: string): string =>
@@ -378,6 +385,35 @@ export class Leads {
       always: true,
     })
     return { ok: true, handle: target.handle, title: led.summary.title }
+  }
+
+  /**
+   * Ends the lead `lead` has over `led` once its brief, the message `messageId`, is
+   * delivered: the brief went with the lead mark, so it is the agent's task, and the lead
+   * is a peer's from then on, as `release` makes it, with the same notice. A brief that
+   * goes without being delivered (its thread stopped, its terminal gone) ends the lead
+   * without a notice, as there was nothing to say it by. A lead the person or the lead
+   * ended meanwhile, or another lead, is left as it is. In memory only: a runner that
+   * restarts before the brief lands leaves the terminal an ordinary lead's.
+   */
+  releaseAfterBrief(led: Record, lead: string, messageId: string): void {
+    const { host } = this
+    const stop = host.messaging().subscribe((change) => {
+      if (change.kind !== "terminal" || change.terminalId !== led.summary.id) return
+      const state = host.messaging().stateOf(messageId)
+      const here = host.records().get(led.summary.id) === led
+      if (here && state !== undefined && state !== "delivered" && state !== "gone") return
+      stop()
+      // After the change that told of it is through, which may still be going over messages.
+      queueMicrotask(() => {
+        if (host.stopping() || !here || led.summary.ledBy !== lead) return
+        host.bindings().endLead(led)
+        if (state === "delivered")
+          host.messaging().notice(led.summary.id, leadNotice.released(lead), {
+            always: true,
+          })
+      })
+    })
   }
 
   /**

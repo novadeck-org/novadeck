@@ -57,6 +57,9 @@ const setup = (terminals: { [handle: string]: { agent: AgentName | null; ledBy?:
     | { ok: false; reason: string }
   let sending: Sending = { ok: true, id: "m1" }
   let marked = true
+  // The state of each message and who hears of a terminal's messages changing, as messaging does.
+  const states = new Map<string, string>()
+  const listeners = new Set<(change: { kind: "terminal"; terminalId: string }) => void>()
   // The running lead is the one `ledBy` names, in the same session.
   const leadOf = (id: string) => {
     const by = records.get(id)?.summary.ledBy
@@ -71,6 +74,11 @@ const setup = (terminals: { [handle: string]: { agent: AgentName | null; ledBy?:
       ({
         leadOf,
         isFromLead: () => marked,
+        stateOf: (id: string) => states.get(id),
+        subscribe: (listener: (change: { kind: "terminal"; terminalId: string }) => void) => {
+          listeners.add(listener)
+          return () => listeners.delete(listener)
+        },
         agentIn: (id: string) => {
           const found = agents.get(records.get(id)?.summary.handle ?? "")
           return found
@@ -141,6 +149,12 @@ const setup = (terminals: { [handle: string]: { agent: AgentName | null; ledBy?:
     sending: (next: Sending) => (sending = next),
     marking: (next: boolean) => (marked = next),
     stop: () => (stopping = true),
+    listening: () => listeners.size,
+    // A message of the terminal moves to `state`, which its listeners hear.
+    moved: (id: string, state: string, terminalId: string) => {
+      states.set(id, state)
+      for (const listener of listeners) listener({ kind: "terminal", terminalId })
+    },
   }
 }
 
@@ -565,6 +579,71 @@ describe("a lead releasing the terminal it leads", () => {
     await expect(run.release("moth", "moth")).resolves.toMatchObject({ ok: false })
     expect(run.records.get("id-fox")!.summary.ledBy).toBe("owl")
     expect(run.saved).toEqual([])
+  })
+})
+
+describe("a lead that lasts only for its brief", () => {
+  const led = () => {
+    const run = setup({ moth: { agent: "claude" }, fox: { agent: "codex", ledBy: "moth" } })
+    const fox = run.records.get("id-fox")!
+    run.leads.releaseAfterBrief(fox, "moth", "m1")
+    return { run, fox }
+  }
+
+  it("holds while the brief waits, and ends once it is delivered, as a release does", async () => {
+    const { run } = led()
+    run.moved("m1", "queued", "id-fox")
+    run.moved("m1", "leased", "id-fox")
+    // Another terminal's messages changing says nothing about it.
+    run.moved("m1", "delivered", "id-owl")
+    await settle()
+    expect(run.records.get("id-fox")!.summary.ledBy).toBe("moth")
+    expect(run.listening()).toBe(1)
+    run.moved("m1", "delivered", "id-fox")
+    await settle()
+    expect(run.records.get("id-fox")!.summary.ledBy).toBeNull()
+    expect(run.saved).toEqual(["fox unled"])
+    expect(run.notices).toEqual([{ to: "id-fox", always: true, text: leadNotice.released("moth") }])
+    expect(run.listening()).toBe(0)
+  })
+
+  it("ends silently when the brief goes without being delivered", async () => {
+    const { run } = led()
+    run.moved("m1", "gone", "id-fox")
+    await settle()
+    expect(run.records.get("id-fox")!.summary.ledBy).toBeNull()
+    expect(run.notices).toEqual([])
+    expect(run.listening()).toBe(0)
+  })
+
+  it("leaves a lead the user ended, or another's, as it is", async () => {
+    const ended = led()
+    ended.fox.summary = { ...ended.fox.summary, ledBy: null }
+    ended.run.moved("m1", "delivered", "id-fox")
+    await settle()
+    expect(ended.run.saved).toEqual([])
+    expect(ended.run.notices).toEqual([])
+    const taken = led()
+    taken.fox.summary = { ...taken.fox.summary, ledBy: "owl" }
+    taken.run.moved("m1", "delivered", "id-fox")
+    await settle()
+    expect(taken.fox.summary.ledBy).toBe("owl")
+    expect(taken.run.notices).toEqual([])
+  })
+
+  it("stops listening once its terminal is replaced or the runner stops", async () => {
+    const replaced = led()
+    replaced.run.records.set("id-fox", terminal("fox", "codex", "moth"))
+    replaced.run.moved("m1", "queued", "id-fox")
+    await settle()
+    expect(replaced.run.listening()).toBe(0)
+    expect(replaced.run.notices).toEqual([])
+    const stopped = led()
+    stopped.run.stop()
+    stopped.run.moved("m1", "delivered", "id-fox")
+    await settle()
+    expect(stopped.fox.summary.ledBy).toBe("moth")
+    expect(stopped.run.listening()).toBe(0)
   })
 })
 

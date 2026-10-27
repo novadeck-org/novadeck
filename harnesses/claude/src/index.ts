@@ -18,7 +18,7 @@ import { hookCommand, type Dialect } from "@novadeck/harness-core/hook-command"
 import { box } from "./box.js"
 import { decode, transcriptPlans } from "./decode.js"
 import { dialogs } from "./dialogs.js"
-import { cmdShim, posixShim } from "./shim.js"
+import { cmdShim, commands, posixShim } from "./shim.js"
 import { transcriptEvents, type Calls } from "./transcript.js"
 import { transcripts } from "./transcripts.js"
 
@@ -166,7 +166,9 @@ export const claude = {
     platform === "win32"
       ? [{ path: "claude.cmd", content: cmdShim }]
       : [{ path: "claude", content: posixShim, mode: 0o700 }],
-  resume: (session) => ["claude", "--resume", session],
+  // Its commands other than a session, and print, help and version.
+  nonSession: [...commands, "-p", "--print", "-h", "--help", "-v", "--version"],
+  resume: (session, choice = {}) => ["claude", ...messaging.choose(choice), "--resume", session],
   transcripts,
   plans: transcriptPlans,
   // Its hooks, transcript and status line; see docs/harness-coverage.md.

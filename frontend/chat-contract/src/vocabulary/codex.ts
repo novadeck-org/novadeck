@@ -118,6 +118,12 @@ export const codex: readonly { name: string; records: readonly object[] }[] = [
           "Opened",
           "mcp__novadeck",
         ],
+        [
+          "open_agent",
+          { agent: "codex", model: "gpt-5", effort: "high" },
+          "Opened",
+          "mcp__novadeck",
+        ],
         ["open_terminal", { command: "npm run dev" }, "Opened", "mcp__novadeck"],
         ["close_terminal", { to: "builder" }, "Closed", "mcp__novadeck"],
         ["close_terminal", {}, "Closed", "mcp__novadeck"],

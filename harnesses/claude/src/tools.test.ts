@@ -41,6 +41,14 @@ suite("what a Claude Code tool call was", () => {
       "Opened an agent",
       "codex: Fix the lint",
     ],
+    [
+      "open_agent",
+      { agent: "claude", resume: "abc-123" },
+      "agent",
+      "Resumed an agent",
+      "claude (resumed abc-123)",
+    ],
+    ["open_agent", { agent: "claude", effort: "high" }, "agent", "Opened an agent", "claude"],
     ["open_terminal", { command: "pnpm dev" }, "agent", "Opened a terminal", "pnpm dev"],
     ["close_terminal", { to: "owl" }, "agent", "Close owl", ""],
     [
