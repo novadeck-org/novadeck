@@ -472,20 +472,22 @@ through `ask` in the Inbox, is its job; false, the default without a message, st
 agent the caller doesn't lead, as when the person only asked for "another codex". True
 without a message is a teammate with no task yet, to be sent work later; false with a
 message is the brief-only lead: the brief arrives marked as the lead's, and the lead is
-released once it is delivered. `resume` is the id of a past session of that harness,
+released once it is delivered, so the agent then reports to the person, not the caller.
+With `lead` false the brief asks for no report back. `resume` is the id of a past session of that harness,
 continued in the new terminal, and combines with `model`, `effort`, `message` and `lead`;
 it is refused for an id that isn't a session id's shape, one open in another terminal, and a
 harness that can't resume; the runner keeps no list of past sessions, so an id the harness
-doesn't know fails in the new terminal, where the agent says so. A brief-only lead's release
+doesn't know fails in the new terminal, not at the call. The agent it belongs to must be
+known too, so a caller unsure of it asks the person. A brief-only lead's release
 waits in memory: a runner restart before the brief is delivered leaves an ordinary lead. The caller gets the id from the person or from what it knows of
 the work, never a guess. The answer says whether the caller leads the agent. Its `title` is
 the opener's (see [Naming](#naming)).
 
 `open_terminal({ command?, cwd?, title?, focus? })` is the generic form: a plain shell or
-a command, never a lead. It starts no agent session: a `command` that would (a bare
-`claude`, `codex` or `agy`, with flags or a prompt, or resuming, continuing or forking a
-session) is refused, naming `open_agent`; a command that is no session, such as
-`claude mcp list`, `codex exec ...`, `agy -p ...` or `--help`, runs.
+a command, never a lead. It runs no agent: a `command` that does (a bare `claude`, `codex`
+or `agy`, with flags, on a prompt such as `claude -p`, `codex exec` or `agy -p`, or
+resuming, continuing or forking a session) is refused, naming `open_agent`; a command that
+runs no agent, such as `claude mcp list`, `codex login`, `agy update` or `--help`, runs.
 Both make the runner's `open` call with one request shape. `model` and `effort` are only
 set when the person asked or the brief needs one; `effort` is one of `low`, `medium`,
 `high`, `xhigh` or `max`, and `model` one id the runner lists for the harness (the

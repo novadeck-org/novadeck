@@ -57,6 +57,7 @@ describe("the open call", () => {
     const ended: string[] = []
     let listener: ((change: { kind: "terminal"; terminalId: string }) => void) | undefined
     let state = "queued"
+    let briefed = false
     const opened = {
       summary: { id: "t2", handle: "fox", title: "claude", ledBy: "moth" },
       terminal: { exiting: false },
@@ -83,10 +84,12 @@ describe("the open call", () => {
       }),
       messaging: () => ({
         refusal: () => undefined,
-        send: (_from: string, request: { to: string; text: string }) => {
+        sendBrief: (_from: string, request: { to: string; text: string }) => {
           sent.push(request)
+          briefed = true
           return { ok: true, id: "m1", to: request.to, state: "queued" }
         },
+        briefOf: () => (briefed ? "m1" : undefined),
         notice: (to: string, text: string) => {
           notices.push({ to, text })
           return true
@@ -184,7 +187,7 @@ describe("the open call", () => {
     await Promise.resolve()
     expect(run.ended).toEqual(["t2"])
     expect(run.opened.summary.ledBy).toBeNull()
-    expect(run.notices).toEqual([{ to: "t2", text: leadNotice.released("moth") }])
+    expect(run.notices).toEqual([{ to: "t2", text: leadNotice.briefDone("moth") }])
   })
 
   it("leads a brief and keeps leading it when asked to", async () => {

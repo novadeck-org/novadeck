@@ -108,11 +108,17 @@ export type Harness = {
   /** Programs Novadeck's shells put first on PATH while it is connected. */
   readonly shims?: (platform: NodeJS.Platform) => readonly File[]
   /**
-   * The words that, among a command's arguments, show it starts no interactive session: its
-   * subcommands other than a session, and its print, help and version flags. A command with
-   * none of them starts one (see the runner's `terminals/commands.ts`).
+   * What shows a command starts no interactive session (see the runner's
+   * `terminals/commands.ts`): its `commands` other than a session, as the first word that is
+   * not an option; its help and version `flags`, anywhere; and the options that `takesValue`,
+   * whose next word is theirs. Print and exec modes are none of these: they run the agent on
+   * a prompt.
    */
-  readonly nonSession: readonly string[]
+  readonly nonSession: {
+    readonly commands: readonly string[]
+    readonly flags: readonly string[]
+    readonly takesValue: readonly string[]
+  }
   /**
    * The words that continue its session by id, which a shell runs as they are, with the
    * model and effort `choose` puts, where each is given: after its program, or where its

@@ -3916,6 +3916,22 @@ describe("a lead", () => {
     expect(next?.[1]).not.toBe(mark)
   })
 
+  it("marks only its brief while that is what the lead lasts for, and sends the rest as a peer's", () => {
+    const { messaging, records } = withWorker()
+    const brief = messaging.sendBrief("A", { to: "owl", text: "Fix the build." })
+    expect(latestFor(records, "W")).toMatchObject({ fromLead: true })
+    expect(messaging.briefOf("W")).toBe(brief.ok ? brief.id : undefined)
+    messaging.send("A", { to: "owl", text: "Also this." })
+    expect(latestFor(records, "W")).toMatchObject({ text: "Also this.", fromLead: false })
+    // Once its lead ends, or is set again, nothing waits for the brief.
+    messaging.setLead("W", "moth")
+    expect(messaging.briefOf("W")).toBeUndefined()
+    messaging.sendBrief("A", { to: "owl", text: "Again." })
+    expect(messaging.briefOf("W")).toBeDefined()
+    messaging.endLead("W")
+    expect(messaging.briefOf("W")).toBeUndefined()
+  })
+
   it("is a peer, with the peer note, to the one it opened, when it is not the one's lead", () => {
     const { records, send, prompt, claude } = withWorker()
     sent(send("W", "moth", "Done."))

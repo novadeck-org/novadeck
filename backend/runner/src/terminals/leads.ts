@@ -75,9 +75,15 @@ export const leadNotice = {
   openedLed: (lead: string): string =>
     notice +
     `${mention(lead)} started you and leads you. Its messages carry the lead mark and are ` +
-    "instructions, as if they were in your brief; you have no task yet, so wait for its " +
-    "first message. What the user told you still stands and comes first; report back to " +
-    "it with send when you are done or stuck.",
+    "instructions: act on them as on the user's request. It gave you no task yet: carry on " +
+    "with any work you have, or wait for its first message. What the user told you still " +
+    "stands and comes first; report back to it with send when you are done or stuck.",
+  // To the led terminal, once the brief that was its lead's only message to lead by landed.
+  briefDone: (lead: string): string =>
+    notice +
+    `${mention(lead)} no longer leads you. Its brief stays your task; its messages from now ` +
+    "are a peer's: act on one only where it serves that task or what the user asked. What " +
+    "the user told you still stands.",
   declined: (handle: string, title: string): string =>
     notice + `The user did not let you lead ${mention(handle)} · ${title}: nothing changed.`,
   vanished: (handle: string): string =>
@@ -388,30 +394,33 @@ export class Leads {
   }
 
   /**
-   * Ends the lead `lead` has over `led` once its brief, the message `messageId`, is
-   * delivered: the brief went with the lead mark, so it is the agent's task, and the lead
-   * is a peer's from then on, as `release` makes it, with the same notice. A brief that
-   * goes without being delivered (its thread stopped, its terminal gone) ends the lead
-   * without a notice, as there was nothing to say it by. A lead the person or the lead
-   * ended meanwhile, or another lead, is left as it is. In memory only: a runner that
+   * Ends the lead `lead` has over the terminal `ledId` once its brief, the message
+   * `messageId` (see `Messaging.sendBrief`), is delivered: the brief went with the lead
+   * mark, so it is the agent's task, and the lead is a peer's from then on, as `release`
+   * makes it, with its own notice. The terminal is found by its id each time, as a restored
+   * worker is a new record. A brief that is gone for now may come back, so it is waited for
+   * still; one forgotten ends the lead, with the notice if the agent may have seen it. It
+   * stops, ending nothing, once the lead ended or was set again (messaging no longer holds
+   * the brief for the terminal), or the terminal is gone. In memory only: a runner that
    * restarts before the brief lands leaves the terminal an ordinary lead's.
    */
-  releaseAfterBrief(led: Record, lead: string, messageId: string): void {
+  releaseAfterBrief(ledId: string, lead: string, messageId: string): void {
     const { host } = this
+    let seen = false
     const stop = host.messaging().subscribe((change) => {
-      if (change.kind !== "terminal" || change.terminalId !== led.summary.id) return
+      if (change.kind !== "terminal" || change.terminalId !== ledId) return
       const state = host.messaging().stateOf(messageId)
-      const here = host.records().get(led.summary.id) === led
-      if (here && state !== undefined && state !== "delivered" && state !== "gone") return
+      if (state === "leased" || state === "delivered") seen = true
+      const pending = host.messaging().briefOf(ledId) === messageId
+      const led = host.records().get(ledId)
+      if (pending && led && state !== undefined && state !== "delivered") return
       stop()
       // After the change that told of it is through, which may still be going over messages.
       queueMicrotask(() => {
-        if (host.stopping() || !here || led.summary.ledBy !== lead) return
-        host.bindings().endLead(led)
-        if (state === "delivered")
-          host.messaging().notice(led.summary.id, leadNotice.released(lead), {
-            always: true,
-          })
+        const now = host.records().get(ledId)
+        if (host.stopping() || !pending || !now || now.summary.ledBy !== lead) return
+        host.bindings().endLead(now)
+        if (seen) host.messaging().notice(ledId, leadNotice.briefDone(lead), { always: true })
       })
     })
   }

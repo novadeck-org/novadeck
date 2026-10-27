@@ -356,13 +356,13 @@ const openTerminal: Tool<Opened> = {
   name: "open_terminal",
   description:
     "Open a new terminal in Novadeck beside this one, optionally starting a command or a " +
-    "TUI there, such as a dev server. It starts no agent session: a command that would, " +
-    "such as a bare claude, codex or agy, with flags or a prompt, or resuming a session, " +
-    "is refused, and every agent is started with open_agent, with or without a task " +
-    "and for resuming a session. A command that is no session, such as claude mcp list or " +
-    "codex exec, is fine. Use it when the user asks for a new terminal or for something to run in " +
-    "one of its own. Set focus to true only when they asked to see it or go to it; " +
-    "otherwise it opens without taking their attention.",
+    "TUI there, such as a dev server. It runs no agent: a command that does, such as a " +
+    "bare claude, codex or agy, with flags, or on a prompt (claude -p, codex exec, agy -p), " +
+    "or resuming a session, isn't opened, and every agent, with a task or without, is " +
+    "started with open_agent. A command that runs no agent, such as claude mcp list, " +
+    "codex login or agy update, is fine. Use it when the user asks for a new terminal or " +
+    "for something to run in one of its own. Set focus to true only when they asked to see " +
+    "it or go to it; otherwise it opens without taking their attention.",
   inputSchema: {
     type: "object",
     properties: {
@@ -481,35 +481,19 @@ const withModel = (schema: object, models: Models): object => {
 const openAgent: Tool<Opened> = {
   name: "open_agent",
   description:
-    "Open a new terminal in Novadeck beside this one and start another agent there: the way " +
-    'to start any agent the user asks for, such as "open a claude" or "spawn a codex", ' +
-    "with work for it or without. This is the only way to start an agent; open_terminal " +
-    "refuses a command that would. Without message the agent just starts at its prompt. " +
-    "With message it gets that as its first task, from you, through Novadeck's messaging. " +
-    "Set lead from what the user asked. Work for the agent to do for you is lead true, the " +
-    "default with a message: you become its lead, it treats your messages as instructions, " +
-    "and it is told to report back to you with send when done or stuck. Just an agent, " +
-    "with no work for it, is lead false, the default without a message: it has no lead, " +
-    "and you and it are peers. Lead true without a message is a teammate with no task yet; " +
-    "send it work later. Lead false with a message is for an agent the user wants to " +
-    "start on a task but not run through you: the message arrives as its task, marked as " +
-    "from you, and you stop leading it once the message is delivered, so you and it are " +
-    "peers after that. Write a message as a complete brief: what to do, where, how to " +
-    "tell it is done, and when to report back. " +
-    "Being its lead gives you none of the user's approvals of actions: what it needs the " +
-    "user to approve, they give in its own terminal or answer through ask in the Inbox, so " +
-    "tell the user to answer there. It asks the user its own questions, and tells them its " +
-    "milestones and its finish, through the Inbox as any agent does, and, while you lead " +
-    "it, sends you the same, so don't ask the user its questions again. Answer one only " +
-    "where your brief or the user already decided it, and leave the rest, and every " +
-    "approval, to the user. To continue a past session of that agent, give resume, its " +
-    "session id, which the user gives you or you know from this work, never a guess; it " +
-    "combines with model, effort, message and lead, and is refused for an id already open " +
-    "in another terminal or an agent that can't resume; an id the agent doesn't know fails " +
-    "in the new terminal, which the agent there says. " +
-    "To open a plain terminal or run a command, use open_terminal. Give model and effort " +
-    "only when the user asked for them or the brief needs them. Set focus to true only " +
-    "when they asked to see it or go to it; otherwise it opens without taking their attention.",
+    "Open a new terminal in Novadeck beside this one and start an agent there: the only " +
+    'way to start one, as for "open a claude" or "spawn a codex to fix X". Set lead from ' +
+    "what the user asked. With message, lead true (the default) makes you its lead: it acts " +
+    "on your messages as instructions and reports back to you with send; lead false sends " +
+    "the brief as its task, then you are peers, for an agent the user will run themselves. " +
+    "Without message the agent starts at its prompt with no lead (lead true makes it a " +
+    "teammate you send work to later). Write a message as a complete brief: what to do, " +
+    "where, how to tell it is done, and, if you lead, when to report back. Leading gives " +
+    "you none of the user's approvals: it asks the user through the Inbox and sends you " +
+    "its questions too, so don't ask the user again; answer only what your brief or the " +
+    "user already decided. To continue a past session give resume (see its description). " +
+    "Give model and effort only when the user asked for them or the brief needs them, and " +
+    "focus only when they asked to see it.",
   inputSchema: {
     type: "object",
     properties: {
@@ -522,8 +506,9 @@ const openAgent: Tool<Opened> = {
         type: "string",
         description:
           "The brief for that agent, up to 4 KB: what to do, where, how to tell it is done, " +
-          "and when to report back to you. It arrives wrapped as a message from you. " +
-          "Leave it out to start the agent at its prompt with no task.",
+          "and, if you lead it, when to report back to you (with lead false, ask for no " +
+          "report). It arrives wrapped as a message from you. Leave it out to start the " +
+          "agent at its prompt with no task.",
       },
       lead: {
         type: "boolean",
@@ -537,7 +522,11 @@ const openAgent: Tool<Opened> = {
         type: "string",
         description:
           "The id of a past session of that agent to continue in the new terminal, which the " +
-          "user gave you or you know from this work, exactly as given; never guess one.",
+          "user gave you or you know from this work, exactly as given; never guess one. The " +
+          "agent it belongs to must be known too: ask the user if unclear. It goes with " +
+          "model, effort, message and lead. It is refused for an id already open in another " +
+          "terminal or an agent that can't resume; an id the agent doesn't know fails in the " +
+          "new terminal, not here.",
       },
       model: noModel,
       effort: effortProperty,
@@ -575,7 +564,7 @@ const openAgent: Tool<Opened> = {
     ]),
   said: (answer) =>
     openedText(answer) +
-    (answer.resumed ? " It resumed session " + answer.resumed + "." : "") +
+    (answer.resumed ? " It is resuming session " + answer.resumed + "." : "") +
     (answer.task === undefined
       ? answer.led === false
         ? " It has no lead and no task: it started at its prompt, and you are peers."
@@ -593,8 +582,8 @@ const openAgent: Tool<Opened> = {
               ", waits for the agent's first session " +
               "there.") +
           (answer.led === false
-            ? " You don't lead it: you stop leading it once that message is delivered, and " +
-              "you are peers after."
+            ? " You lead it only until that message is delivered; then you are peers, so it " +
+              "reports to the user, not you."
             : "") +
           " End your turn rather than wait, as its replies arrive by themselves."),
   failed: "Novadeck couldn't open the agent.",

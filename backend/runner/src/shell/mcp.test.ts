@@ -303,7 +303,7 @@ describe("Novadeck's MCP server", () => {
         },
       ])
       const text = (peer!.result as { content: { text: string }[] }).content[0]!.text
-      expect(text).toContain("It resumed session abc.")
+      expect(text).toContain("It is resuming session abc.")
       expect(text).toContain("no lead and no task")
       answer = { ok: true, terminalId: "t", cwd: "/work", led: true }
       const [, teammate] = await session(terminal(), [
@@ -333,7 +333,7 @@ describe("Novadeck's MCP server", () => {
         },
       ])
       expect((briefOnly!.result as { content: { text: string }[] }).content[0]!.text).toContain(
-        "you stop leading it once that message is delivered",
+        "You lead it only until that message is delivered",
       )
     })
 
@@ -1271,21 +1271,21 @@ describe("Novadeck's MCP server", () => {
       expect(send.description).toContain("exact handle")
       expect(send.description).not.toMatch(/agent's name/)
       const open = described.find((tool) => tool.name === "open_terminal")!
-      expect(open.description).toContain("refused")
+      expect(open.description).toContain("isn't opened")
       expect(open.description).toContain("open_agent")
       expect(open.description).not.toContain("complete brief")
       const agent = described.find((tool) => tool.name === "open_agent")!
-      expect(agent.description).toContain("you become its lead")
-      expect(agent.description).toContain("Without message the agent just starts at its prompt")
-      expect(agent.description).toContain("Lead false with a message")
-      expect(agent.description).toContain("never a guess")
-      expect(agent.description).toContain("gives you none of the user's approvals")
+      expect(agent.description).toContain("makes you its lead")
+      expect(agent.description).toContain("Without message the agent starts at its prompt")
+      expect(agent.description).toContain("lead false sends the brief as its task")
+      expect(agent.description).toContain("see its description")
+      expect(agent.description).toContain("Leading gives you none of the user's approvals")
       expect(agent.description).toContain("complete brief")
-      expect(agent.description).toContain("tell the user to answer there")
-      expect(agent.description).toContain("so don't ask the user its questions again")
-      expect(agent.description).toContain(
-        "Answer one only where your brief or the user already decided it, and leave the rest, and every approval, to the user",
-      )
+      expect(agent.description).toContain("if you lead, when to report back")
+      expect(agent.description).toContain("so don't ask the user again")
+      expect(agent.description).toContain("answer only what your brief or the user already decided")
+      expect(open.description).toContain("claude -p, codex exec, agy -p")
+      expect(open.description).not.toContain("codex exec, is fine")
     })
 
     it("still answers a call under way when the agent closes its side", async () => {

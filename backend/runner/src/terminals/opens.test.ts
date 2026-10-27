@@ -96,7 +96,8 @@ describe("an agent in a request", () => {
   })
 
   it("names the agent a refused session command would have started", () => {
-    expect(sessionCommandRefusal("agy")).toContain("interactive Antigravity session")
+    expect(sessionCommandRefusal("agy")).toContain("would run a Antigravity session")
+    expect(sessionCommandRefusal("agy")).toContain("agy -p")
     expect(sessionCommandRefusal("agy")).toContain("open_agent")
   })
 })

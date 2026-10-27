@@ -16,6 +16,7 @@ export const commands = [
   "plugin",
   "plugins",
   "project",
+  "purge",
   "respawn",
   "rm",
   "setup-token",

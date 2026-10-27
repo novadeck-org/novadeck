@@ -87,21 +87,24 @@ export const expectedAgent = (
 const programOf = (words: readonly string[], platform: NodeJS.Platform): AgentName | null => {
   const [first = ""] = words
   const base = platform === "win32" ? win32.basename(first) : basename(first)
-  const program = base.replace(/\.(?:exe|cmd)$/i, "")
+  // Windows file names are not case-sensitive.
+  const bare = base.replace(/\.(?:exe|cmd)$/i, "")
+  const program = platform === "win32" ? bare.toLowerCase() : bare
   return agents.find((agent) => agent === program) ?? null
 }
 
 /**
  * The agent whose interactive session a command would start, or null for any other program
- * and for an agent's other uses (its help, version, print mode and subcommands other than a
- * session, as `harness.nonSession` lists). A bare launch, options only, a prompt argument and
- * resuming, continuing or forking a session all start one.
+ * and for an agent's other uses: its help and version flags, and its commands other than a
+ * session (`harness.nonSession`). A bare launch, options only, a prompt argument, its print
+ * and exec modes (they run it on a prompt) and resuming, continuing or forking a session all
+ * start one.
  *
- * Options can take values (`codex -c key=value exec`, `claude --model opus "do x"`), so the
- * words are not read as options and arguments. The command is a non-session use if any word
- * after the program is one of the agent's `nonSession` words, and a session otherwise. The
- * trade-off: a prompt written as loose words (`claude fix the update`) that includes one is
- * let through, which is rare and only misses a refusal.
+ * A command counts only as the first word after the program that is not an option, so a
+ * prompt of loose words (`codex write a test`) is not read as one. The value of each option
+ * the agent is known to take one (`harness.nonSession.takesValue`, as `codex -c key=value
+ * mcp list`) is skipped first. One it does not know reads as the first word, so
+ * `claude --unknown x mcp list` is refused though it need not be. Help and version flags count anywhere.
  *
  * This steers an agent to `open_agent`; it is not a security boundary, so a wrapper such as
  * `env X=1 claude`, `cd x && claude` or `npx` goes unseen.
@@ -113,6 +116,13 @@ export const sessionLaunch = (
   const words = commandWords(command, platform)
   const agent = programOf(words, platform)
   if (agent === null) return null
-  const outside = harnesses[agent].nonSession
-  return words.slice(1).some((word) => outside.includes(word)) ? null : agent
+  const { commands, flags, takesValue } = harnesses[agent].nonSession
+  const rest = words.slice(1)
+  if (rest.some((word) => flags.includes(word))) return null
+  for (let index = 0; index < rest.length; index += 1) {
+    const word = rest[index]!
+    if (!word.startsWith("-")) return commands.includes(word) ? null : agent
+    if (takesValue.includes(word)) index += 1
+  }
+  return agent
 }

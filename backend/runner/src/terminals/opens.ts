@@ -99,12 +99,19 @@ export type OpenAnswer =
     }
   | OpenFailure
 
-/** Why a command that would start an interactive agent session isn't opened by `open_terminal`. */
+// How each harness runs a session on a prompt without its interface.
+const printForms: { readonly [agent in AgentName]: string } = {
+  claude: "claude -p",
+  codex: "codex exec",
+  agy: "agy -p",
+}
+
+/** Why a command that would run an agent session isn't opened by `open_terminal`. */
 export const sessionCommandRefusal = (agent: AgentName): string =>
-  `That command would start an interactive ${agentLabel(agent)} session, which open_terminal ` +
-  "doesn't open: use open_agent, which can also give it a task, a model, a lead and a past " +
-  "session to resume. A command that is no session, such as a version or help flag or a " +
-  "subcommand, is fine here."
+  `That command would run a ${agentLabel(agent)} session (interactive, or on a prompt such ` +
+  `as ${printForms[agent]}), which open_terminal doesn't open: use open_agent, which can also ` +
+  "give it a task, a model, a lead and a past session to resume. A command that runs no " +
+  "agent, such as a version or help flag or a subcommand like claude mcp list, is fine here."
 
 export const refused = (reason: string): OpenFailure => ({ ok: false, reason })
 

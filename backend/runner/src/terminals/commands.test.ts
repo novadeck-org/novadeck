@@ -8,6 +8,7 @@ describe("the agent a new terminal expects", () => {
     expect(expectedAgent("  /usr/local/bin/agy", undefined)).toBe("agy")
     expect(expectedAgent("C:\\Tools\\codex.exe --full-auto", undefined, "win32")).toBe("codex")
     expect(expectedAgent("C:\\Tools\\codex.exe --full-auto", undefined, "linux")).toBeNull()
+    expect(expectedAgent("C:\\Tools\\Codex.EXE", undefined, "win32")).toBe("codex")
     expect(expectedAgent("npm run dev", undefined)).toBeNull()
     expect(expectedAgent(undefined, undefined)).toBeNull()
   })
@@ -73,6 +74,20 @@ describe("the agent whose session a command would start", () => {
       `agy --prompt-interactive "do x"`,
       "agy --model m --effort low",
       `agy "do x"`,
+      "claude -p 'hi'",
+      "claude --print hi",
+      "claude attach abc",
+      "claude --bg 'do x'",
+      "codex exec 'fix it'",
+      "codex e 'fix it'",
+      "codex review",
+      "codex exec resume --last",
+      "codex write a test",
+      "codex fix the update",
+      "codex -a never --model gpt-5 resume x",
+      "agy -p 'hi'",
+      "agy --print 'hi'",
+      "agy --prompt 'hi'",
     ]) {
       const agent = command.split(" ")[0]
       expect([command, sessionLaunch(command, "linux")]).toEqual([command, agent])
@@ -81,8 +96,6 @@ describe("the agent whose session a command would start", () => {
 
   it("is null for the other uses of an agent's program", () => {
     for (const command of [
-      "claude -p 'hi'",
-      "claude --print hi",
       "claude --version",
       "claude -v",
       "claude --help",
@@ -92,24 +105,24 @@ describe("the agent whose session a command would start", () => {
       "claude auth login",
       "claude update",
       "claude doctor",
-      "codex exec 'fix it'",
-      "codex e 'fix it'",
-      "codex -c key=value exec --json",
-      "codex review",
+      "claude purge",
+      "claude --model opus mcp list",
+      "claude --settings x.json plugin list",
+      'claude "do x" --help',
       "codex login",
       "codex mcp add x",
+      "codex -c key=value mcp list",
+      "codex --config k=v -m gpt-5 login",
+      "codex --enable fast apply",
+      "agy --model m mcp list",
       "codex apply",
       "codex a",
       "codex sandbox linux ls",
-      "codex exec resume --last",
       "codex features list",
       "codex help resume",
       "codex --help",
       "codex -V",
       "codex --version",
-      "agy -p 'hi'",
-      "agy --print 'hi'",
-      "agy --prompt 'hi'",
       "agy models",
       "agy mcp list",
       "agy plugins list",
@@ -129,6 +142,14 @@ describe("the agent whose session a command would start", () => {
     expect(sessionLaunch("C:\\Tools\\claude.cmd", "win32")).toBe("claude")
     expect(sessionLaunch("C:\\Tools\\agy.exe mcp list", "win32")).toBeNull()
     expect(sessionLaunch("C:\\Tools\\codex.exe resume x", "linux")).toBeNull()
+    expect(sessionLaunch("C:\\Tools\\CODEX.EXE resume x", "win32")).toBe("codex")
+    expect(sessionLaunch("Claude --resume x", "win32")).toBe("claude")
+    expect(sessionLaunch("Claude mcp list", "win32")).toBeNull()
+    expect(sessionLaunch("Claude", "linux")).toBeNull()
+  })
+
+  it("refuses a command after an option it does not know takes a value", () => {
+    expect(sessionLaunch("claude --unknown x mcp list", "linux")).toBe("claude")
   })
 
   it("is null for another program and for no command", () => {

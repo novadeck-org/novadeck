@@ -290,7 +290,7 @@ export class Calls {
           opened.startedWith = started.nonce
         if (request.message !== undefined) {
           this.host.save(opened)
-          task = this.host.messaging().send(call.terminalId, {
+          task = this.host.messaging().sendBrief(call.terminalId, {
             to: opened.summary.handle,
             text: request.message,
           })
@@ -302,7 +302,8 @@ export class Calls {
               always: true,
             })
         if (briefOnly) this.endLeadAfter(record, opened, task)
-      }
+      } else if (request.message !== undefined)
+        task = { ok: false, reason: "the new terminal closed before the task could be sent." }
     }
     const answer = this.opening(asked, cwd, command)
     if (!answer.ok) return answer
@@ -316,11 +317,13 @@ export class Calls {
 
   /**
    * A lead that lasts only for its brief: the brief, once sent, ends the lead when it is
-   * delivered. One that couldn't be sent has no delivery to wait for, so the lead ends now.
+   * delivered. One that wasn't sent as the lead's has no delivery to wait for, so the lead
+   * ends now.
    */
   private endLeadAfter(lead: Record, led: Record, task: SendAnswer | undefined): void {
-    if (task?.ok && task.state !== "gone")
-      this.leads.releaseAfterBrief(led, lead.summary.handle, task.id)
+    const { id } = led.summary
+    if (task?.ok && this.host.messaging().briefOf(id) === task.id)
+      this.leads.releaseAfterBrief(id, lead.summary.handle, task.id)
     else this.host.bindings().endLead(led)
   }
 

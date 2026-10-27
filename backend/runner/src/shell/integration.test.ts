@@ -3353,36 +3353,40 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))(
 describe.skipIf(process.platform === "win32" || !existsSync(bash))(
   "an agent opened to be led, with a brief or without",
   () => {
-    // Opens an agent as `moth` asks, in a terminal where `claude` is a stand-in that reports
-    // its session and takes hooks; `prompt` is the hook of its prompt, read as its context.
+    // Opens `agent` as `moth` asks, in a terminal where its program is a stand-in that
+    // reports its session and takes hooks; `prompt` is the hook of its prompt, read as the
+    // text it carries into the agent (Antigravity's ephemeral message, the others' context).
     const opened = async (
       shell: Fixture,
+      agent: AgentName,
       request: object,
-      run: (agent: Opened) => Promise<void>,
+      run: (opened: Opened) => Promise<void>,
     ) => {
       const bin = presenter(shell.home)
       const stand = standIn(shell.home)
       writeFileSync(
-        join(stand, "claude"),
+        join(stand, agent),
         '#!/bin/sh\nmkdir -p "$HOME/steps-$NOVADECK_TERMINAL_ID"\n' +
-          'exec agent claude s-worker "$HOME/steps-$NOVADECK_TERMINAL_ID"\n',
+          `exec agent ${agent} s-worker "$HOME/steps-$NOVADECK_TERMINAL_ID"\n`,
         { mode: 0o755 },
       )
       const manager = shell.manager({
         env: { HOME: shell.home, PS1: "$ ", PATH: `${bin}:${stand}:${process.env.PATH}` },
-        install: (agent) =>
+        install: (name) =>
           Promise.resolve({
             env: {},
             home: shell.home,
             platform: process.platform,
-            plugin: join(shell.plugins, agent),
+            plugin: join(shell.plugins, name),
           }),
       })
       const terminal = await create(manager, shell)
       const controller = new AbortController()
       const created: string[] = []
+      const commands: (string | undefined)[] = []
       const client = (async () => {
         for await (const asked of manager.requests("client", controller.signal)) {
+          commands.push(asked.command)
           const id = randomUUID()
           created.push(id)
           // eslint-disable-next-line no-await-in-loop -- Requests are opened in turn.
@@ -3403,22 +3407,39 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))(
       })()
       try {
         const [answer] = (await present(shell, manager, terminal.id, [
-          { ...open(request), type: "open_agent" as "open" },
-        ])) as { ok: boolean }[]
+          { ...open({ agent, ...request }), type: "open_agent" as "open" },
+        ])) as { ok: boolean; text: string }[]
         expect(answer!.ok).toBe(true)
         const [worker] = created
-        await shell.until(manager, worker!, "claude ready")
+        await shell.until(manager, worker!, `${agent} ready`)
         const { step } = driver(shell, manager)
         await run({
           manager,
           worker: worker!,
-          prompt: async (text) => {
+          said: answer!.text,
+          command: commands[0],
+          prompt: async (text, ends = false) => {
+            // Antigravity's turn ends with its Stop, which takes what waits for a turn's end.
             const out = await step(worker!, {
-              hook: "UserPromptSubmit",
-              payload: { prompt: text },
+              hook: agent === "agy" ? (ends ? "Stop" : "PreInvocation") : "UserPromptSubmit",
+              payload:
+                agent === "agy"
+                  ? ends
+                    ? { fullyIdle: true }
+                    : { invocationNum: 1 }
+                  : { prompt: text },
             })
-            return (JSON.parse(out) as { hookSpecificOutput: { additionalContext: string } })
-              .hookSpecificOutput.additionalContext
+            const parsed = JSON.parse(out) as {
+              hookSpecificOutput?: { additionalContext: string }
+              injectSteps?: { ephemeralMessage: string }[]
+              reason?: string
+            }
+            return (
+              parsed.hookSpecificOutput?.additionalContext ??
+              parsed.injectSteps?.map(({ ephemeralMessage }) => ephemeralMessage).join("\n") ??
+              parsed.reason ??
+              ""
+            )
           },
         })
       } finally {
@@ -3429,40 +3450,57 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))(
     type Opened = {
       manager: Terminals
       worker: string
-      prompt: (text: string) => Promise<string>
+      said: string
+      command: string | undefined
+      prompt: (text: string, ends?: boolean) => Promise<string>
     }
 
-    it("marks a brief as its lead's, then releases the lead once it is delivered, and tells the agent", async ({
-      shell,
-    }) => {
-      await opened(
+    // Antigravity's folder here is not one it trusts: it starts without its prompt.
+    for (const agent of ["claude", "codex", "agy"] as const) {
+      it(`marks ${agent}'s brief as its lead's, then releases the lead once it is delivered, and tells it`, async ({
         shell,
-        { agent: "claude", message: "Review a.ts, please.", lead: false },
-        async ({ manager, worker, prompt }) => {
-          // Led until the brief lands, so the brief is its lead's, not a peer's.
-          expect(manager.get(worker).ledBy).toBe("moth")
-          expect(await prompt("go")).toMatch(/lead="[^"]+"[^>]*>Review a.ts, please.<\/message>/)
-          await expect
-            .poll(() => manager.messages(worker).threads[0]?.messages[0]?.state)
-            .toBe("delivered")
-          await expect.poll(() => manager.get(worker).ledBy).toBeNull()
-          expect(shell.store.terminalIdentity(worker)).toMatchObject({ ledBy: null })
-          // Its next prompt tells it so: the lead's messages are a peer's from now.
-          expect(await prompt("more")).toContain("@moth no longer leads you")
-        },
-      )
-    })
-
-    it("tells an agent opened without a brief that its opener leads it, and keeps the lead", async ({
-      shell,
-    }) => {
-      await opened(shell, { agent: "claude", lead: true }, async ({ manager, worker, prompt }) => {
-        expect(manager.get(worker).ledBy).toBe("moth")
-        expect(manager.messages(worker).threads).toEqual([])
-        expect(await prompt("go")).toContain("@moth started you and leads you")
-        expect(manager.get(worker).ledBy).toBe("moth")
+      }) => {
+        await opened(
+          shell,
+          agent,
+          { message: "Review a.ts, please.", lead: false },
+          async ({ manager, worker, said, command, prompt }) => {
+            // Antigravity here started plain, its task waiting for the first session.
+            expect(said.includes("doesn't trust this folder yet")).toBe(agent === "agy")
+            expect(command === agent).toBe(agent === "agy")
+            // Antigravity's first invocation binds and takes the brief at once, so only the
+            // others show the lead's mark in a prompt of their own; led until the brief lands.
+            if (agent !== "agy") {
+              expect(manager.get(worker).ledBy).toBe("moth")
+              expect(await prompt("go")).toMatch(
+                /lead="[^"]+"[^>]*>Review a.ts, please.<\/message>/,
+              )
+            }
+            await expect
+              .poll(() => manager.messages(worker).threads[0]?.messages[0]?.state)
+              .toBe("delivered")
+            await expect.poll(() => manager.get(worker).ledBy).toBeNull()
+            expect(shell.store.terminalIdentity(worker)).toMatchObject({ ledBy: null })
+            // Its next prompt tells it so: the brief stays its task, the lead's messages are a peer's.
+            // (Antigravity's first invocation took the brief, so its notice may come a prompt later.)
+            await expect
+              .poll(() => prompt("more", true), { interval: 20 })
+              .toContain("@moth no longer leads you. Its brief stays")
+          },
+        )
       })
-    })
+
+      it(`tells ${agent} opened without a brief that its opener leads it, and keeps the lead`, async ({
+        shell,
+      }) => {
+        await opened(shell, agent, { lead: true }, async ({ manager, worker, prompt }) => {
+          expect(manager.get(worker).ledBy).toBe("moth")
+          expect(manager.messages(worker).threads).toEqual([])
+          expect(await prompt("go")).toContain("@moth started you and leads you")
+          expect(manager.get(worker).ledBy).toBe("moth")
+        })
+      })
+    }
   },
 )
 
@@ -3499,8 +3537,11 @@ const standIn = (home: string): string => {
       "}",
       toolCall,
       "const call = (type, request, done) => toolCall(type, request, token, (answer) => done(JSON.stringify(answer)))",
-      "const start = { hook_event_name: 'SessionStart', source: 'startup', session_id: session, cwd: process.cwd() }",
-      "hook('SessionStart', start, () => {",
+      // Antigravity names no start: its first invocation binds the conversation.
+      "const agy = agent === 'agy'",
+      "const named = (event, fields) => agy ? { conversationId: session, workspacePaths: [process.cwd()], ...fields } : { hook_event_name: event, session_id: session, ...fields }",
+      "const start = agy ? named('PreInvocation', { invocationNum: 0 }) : { hook_event_name: 'SessionStart', source: 'startup', session_id: session, cwd: process.cwd() }",
+      "hook(agy ? 'PreInvocation' : 'SessionStart', start, () => {",
       '  console.log(agent + " ready")',
       "  next()",
       "})",
@@ -3514,7 +3555,7 @@ const standIn = (home: string): string => {
       '    console.log("done " + require("node:path").basename(step.out))',
       "    next()",
       "  }",
-      "  if (step.hook) hook(step.hook, { hook_event_name: step.hook, session_id: session, ...step.payload }, finish)",
+      "  if (step.hook) hook(step.hook, named(step.hook, step.payload), finish)",
       "  else call(step.call, step.request, finish)",
       "}",
       "process.stdin.resume()",
