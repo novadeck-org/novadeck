@@ -740,7 +740,9 @@ one from an earlier runner.
 
 - `terminals.create({ …, restore: true, resume? })` continues the saved terminal of
   that ID in the same session: in its last directory when that still exists, with its
-  agent sessions, showing its transcript above a separator before the shell's output.
+  agent sessions, showing its transcript above a separator before the shell's output. On
+  Windows both go up into the scrollback, as ConPTY places its cursor at rows counted
+  from the top of a screen it takes as its own and would draw over them.
   `resume` names the agent (`claude`, `codex` or `agy`) that ran there. While it is
   connected, the runner builds the command that resumes the session it last reported
   in this terminal (`claude --resume <id>`, `codex resume <id>`,

@@ -33,7 +33,7 @@ type Program = ReturnType<typeof nativeStandIn>
  * draws what `draw` gives it and exits as `exit` says.
  */
 const terminalOf = (
-  o: { cols?: number; rows?: number; runs?: number } & Partial<
+  o: { cols?: number; rows?: number; runs?: number; platform?: NodeJS.Platform } & Partial<
     Pick<TerminalOptions, "limits" | "controller">
   > = {},
 ) => {
@@ -51,7 +51,7 @@ const terminalOf = (
     spec: specOf(o.cols, o.rows),
     scrollback: 1000,
     controller: o.controller,
-    pty: { native, platform: "linux" },
+    pty: { native, platform: o.platform ?? "linux" },
   })
   onTestFinished(() => terminal.dispose())
   const program = runs[0] as Program
@@ -403,6 +403,18 @@ describe("a terminal's screen reads", () => {
     const { terminal } = terminalOf()
     void terminal.replay("restored")
     expect((await terminal.readScreen()).rows[0]?.trimEnd()).toBe("restored")
+  })
+
+  it("leave a Windows pseudoconsole a blank screen, as it draws at rows from its top", async () => {
+    const { terminal, program } = terminalOf({ platform: "win32" })
+    void terminal.replay("restored", "--")
+    // ConPTY echoes a key at the row its prompt is on, counted from the top.
+    program.draw("C:\\>\x1b[1;5Hx")
+    expect((await terminal.readScreen()).rows[0]?.trimEnd()).toBe("C:\\>x")
+    const first = await terminal.readScreen((screen) =>
+      screen.buffer.active.getLine(0)?.translateToString(true),
+    )
+    expect(first).toBe("restored")
   })
 })
 

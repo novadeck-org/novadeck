@@ -56,6 +56,17 @@ describe("transcripts", () => {
     expect(shown[4]?.trim()).toBe("$")
   })
 
+  it("replay into the scrollback when scrolled, leaving a blank screen from its top", async () => {
+    const old = screen()
+    await write(old, "one\r\ntwo")
+    const fresh = screen()
+    await replay(fresh, transcript(old, 10_000)!, "-- end --", true)
+    // A Windows pseudoconsole draws at rows counted from the top of the screen.
+    await write(fresh, "C:\\>\x1b[1;5Hx")
+    expect(fresh.buffer.active.baseY).toBe(3)
+    expect(lines(fresh)).toEqual(["one", "two", "-- end --", "C:\\>x", "", "", "", ""])
+  })
+
   it("replay alone when given no separator", async () => {
     const old = screen()
     await write(old, "one\r\ntwo")
