@@ -223,6 +223,8 @@ const setup = (workspace: Workspace, unread: Marks = {}, messages: MessagesState
     inbox: {
       watch: vi.fn<InboxStreams["inbox"]["watch"]>(() => feed.stream),
       answer: vi.fn<InboxStreams["inbox"]["answer"]>(async () => {}),
+      dismiss: vi.fn<InboxStreams["inbox"]["dismiss"]>(async () => {}),
+      clear: vi.fn<InboxStreams["inbox"]["clear"]>(async () => {}),
       read: vi.fn<InboxStreams["inbox"]["read"]>(async (ids) => {
         const gone = ({ id, content }: InboxEntry) => content.kind === "turn" && ids.includes(id)
         if (!rows.some(gone) && !others.some(gone)) return
@@ -1221,7 +1223,7 @@ describe("Inbox entries", () => {
     expect(ids()).toEqual(["done-1"])
   })
 
-  it("leaves a worker's done unread under its running lead when everything is read", async () => {
+  it("reads a worker's done under its running lead when everything is read, as the person's", async () => {
     const worker: TerminalMetadata = { ...agentTerminal(2, { working: false }), ledBy: "moth" }
     const { entries, inbox, streams, ids } = setup(workspaceOf(agentTerminal(1), worker))
     entries.push([
@@ -1234,10 +1236,10 @@ describe("Inbox entries", () => {
       told(),
     ])
     await settle()
-    expect(ids()).toEqual(["told-1"])
+    expect(ids()).toEqual(["worker-done", "told-1"])
     inbox.readAll()
     await settle()
-    expect(streams.inbox.read).toHaveBeenCalledExactlyOnceWith(["told-1"])
+    expect(streams.inbox.read).toHaveBeenCalledExactlyOnceWith(["worker-done", "told-1"])
   })
 
   it("reads all known tells in batches, beside the more urgent ask", async () => {
@@ -1254,6 +1256,80 @@ describe("Inbox entries", () => {
     // Submitted tells stay listed, answering, until the runner drops them.
     expect(ids()).toHaveLength(1002)
     expect(ids()).toContain("entry-1")
+  })
+})
+
+describe("Dismissing an ask", () => {
+  const settledEntry = (id = "entry-1", at = 9000): InboxEntry =>
+    entry({ id, settled: { how: "dismissed", at } })
+
+  it("asks the runner to dismiss an open ask, which answers until the runner lists it settled", async () => {
+    const { entries, inbox, streams, ids } = setup(workspaceOf(agentTerminal(1)))
+    entries.push([entry()])
+    await settle()
+    inbox.dismiss!("entry-1")
+    expect(streams.inbox.dismiss).toHaveBeenCalledExactlyOnceWith("entry-1")
+    await settle()
+    expect(inbox.state.getSnapshot().answering).toEqual({ "entry-1": true })
+    entries.push([settledEntry()])
+    await settle()
+    expect(ids()).toEqual(["entry-1"])
+    expect(inbox.state.getSnapshot().items[0]).toMatchObject({
+      kind: "ask",
+      stopped: false,
+      settled: { how: "dismissed", at: 9000 },
+    })
+    expect(inbox.state.getSnapshot().answering).toEqual({})
+  })
+
+  it("leaves the ask open, with no answer error, when the runner refuses", async () => {
+    const { entries, inbox, streams } = setup(workspaceOf(agentTerminal(1)))
+    entries.push([entry()])
+    await settle()
+    streams.inbox.dismiss.mockRejectedValueOnce(new Error("no such ask"))
+    inbox.dismiss!("entry-1")
+    await settle()
+    const state = inbox.state.getSnapshot()
+    expect(state.answering).toEqual({})
+    expect(state.failed["entry-1"]).toBeUndefined()
+    expect(state.items[0]!.settled).toBeUndefined()
+  })
+
+  it("does not send an answer to a settled ask", async () => {
+    const { entries, inbox, streams } = setup(workspaceOf(agentTerminal(1)))
+    entries.push([settledEntry()])
+    await settle()
+    inbox.answer("entry-1", { kind: "ask", answer: { type: "reply", option: null, text: "x" } })
+    expect(streams.inbox.answer).not.toHaveBeenCalled()
+  })
+
+  it("does not dismiss a settled ask, an update or an unknown id", async () => {
+    const { entries, inbox, streams } = setup(workspaceOf(agentTerminal(1)))
+    entries.push([settledEntry(), told()])
+    await settle()
+    for (const id of ["entry-1", "told-1", "nope"]) inbox.dismiss!(id)
+    expect(streams.inbox.dismiss).not.toHaveBeenCalled()
+  })
+
+  it("clears settled asks in batches of a thousand, and no open ask or update", async () => {
+    const { entries, inbox, streams } = setup(workspaceOf(agentTerminal(1)))
+    const settled = Array.from({ length: 1001 }, (_, index) => settledEntry(`old-${index}`))
+    entries.push([entry({ id: "open" }), told(), ...settled])
+    await settle()
+    inbox.clear!(["open", "told-1", "unknown", ...settled.map(({ id }) => id)])
+    await settle()
+    expect(streams.inbox.clear.mock.calls.map(([batch]) => batch.length)).toEqual([1000, 1])
+    expect(streams.inbox.clear.mock.calls.flat(2)).not.toContain("open")
+  })
+
+  it("surfaces a failed clear on the rows it was for", async () => {
+    const { entries, inbox, streams } = setup(workspaceOf(agentTerminal(1)))
+    entries.push([settledEntry()])
+    await settle()
+    streams.inbox.clear.mockRejectedValueOnce(new Error("down"))
+    inbox.clear!(["entry-1"])
+    await settle()
+    expect(inbox.state.getSnapshot().failed["entry-1"]).toBeTruthy()
   })
 })
 
@@ -1291,7 +1367,13 @@ describe("Turn rows", () => {
   it("is undefined again when the iterator ends on its own", async () => {
     const feed = pushed<InboxEntry[]>()
     const streams = {
-      inbox: { watch: () => feed.stream, answer: async () => {}, read: async () => {} },
+      inbox: {
+        watch: () => feed.stream,
+        answer: async () => {},
+        read: async () => {},
+        dismiss: async () => {},
+        clear: async () => {},
+      },
       detail: () => pushed<AgentDetail>().stream,
       answer: async () => {},
       send: async () => {},

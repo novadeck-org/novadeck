@@ -62,7 +62,6 @@ export const TerminalTab = ({
   need: inboxNeed,
   needSubject,
   needDialog,
-  reported = false,
   rename,
   messageBadge = null,
   companion,
@@ -93,12 +92,10 @@ export const TerminalTab = ({
   // its program, or on an error, which marks it failed, until they look.
   unread?: "unread" | "failed" | undefined
   // What the Inbox says it needs of the person (`unblock` or `ask`), the subject of the item
-  // behind it, and whether its agent reported its task done, unseen. The agent's live dialog
-  // adds its own need.
+  // behind it. The agent's live dialog adds its own need.
   need?: "unblock" | "ask" | undefined
   needSubject?: string | undefined
   needDialog?: NeedDialog | undefined
-  reported?: boolean
   rename: TerminalRename | null
   // What waits for its agent, when anything does: the tab says it in words.
   messageBadge?: MessageBadge | null
@@ -130,11 +127,7 @@ export const TerminalTab = ({
   // starts. A tab that has ended is hatched (styles.css); assistive technology says how it
   // ended.
   const { phase, need, failed, brightened, text } = shell
-    ? terminalNote(
-        shell,
-        { need: inboxNeed, done: reported, subject: needSubject, dialog: needDialog },
-        unread,
-      )
+    ? terminalNote(shell, { need: inboxNeed, subject: needSubject, dialog: needDialog }, unread)
     : idleNote
   const ending = shell && terminalEnding(shell)
   const ended = ending ? endingText(ending) : undefined

@@ -240,6 +240,7 @@ export const wire = (options: RunnerOptions) => {
     connected: (agent) => agents.connected(agent),
     // Where each harness lives, which says how it may start with a task.
     install: (agent) => agents.install(agent),
+    models: (agent) => agents.models(agent),
     transcripts: store.settings().transcripts,
     projectFolder: (sessionId) => store.project(store.session(sessionId).projectId).cwd,
     // Agents message each other within a project, and their messages are kept with it.

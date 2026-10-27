@@ -169,7 +169,7 @@ export type Deck = {
     options?: { readonly resume?: AgentName },
   ) => Promise<DeckTerminal>
   /**
-   * Answers agents' requests for a new terminal (`open_terminal`) as the app does: opens
+   * Answers agents' requests for a new terminal (`open_terminal`, `open_agent`) as the app does: opens
    * one in the request's folder, starting its command, created for the request, and
    * answers with it once its shell has started. It answers every request from the call
    * on, across restarts, until the deck closes, and gives the terminals it opened in the

@@ -8,6 +8,7 @@ import {
   marketplace,
   mcpServer,
   plugin,
+  efforts,
   type MessagingProfile,
   type Harness,
   type Install,
@@ -52,6 +53,8 @@ const hookDialect = (platform: NodeJS.Platform, event?: string): Dialect =>
 const hook = (platform: NodeJS.Platform, event: string): string =>
   hookCommand(hookDialect(platform, event), { agent: "claude", event })
 
+const claudeModels = ["opus", "sonnet", "haiku", "fable"].map((alias) => ({ id: alias, efforts }))
+
 // A Stop's reason continues the turn, and reaches the model as the Stop hook's feedback;
 // a prompt's context is an attachment beside the prompt, never the prompt itself; a tool
 // call's context (PostToolUse, or PostToolUseFailure) is a system reminder next to the
@@ -80,6 +83,12 @@ const messaging: MessagingProfile = {
   // It holds a command-line prompt behind its trust and startup screens.
   initialPrompt: (line) => Promise.resolve(["claude", line]),
   start: ["claude"],
+  // Its aliases, which it resolves to the latest model of each family.
+  models: () => Promise.resolve(claudeModels),
+  choose: ({ model, effort }) => [
+    ...(model !== undefined ? ["--model", model] : []),
+    ...(effort !== undefined ? ["--effort", effort] : []),
+  ],
 }
 
 export const claude = {

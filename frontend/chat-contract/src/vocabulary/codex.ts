@@ -112,7 +112,12 @@ export const codex: readonly { name: string; records: readonly object[] }[] = [
         ["send", { to: "reviewer", text: "Please look" }, "Sent", "mcp__novadeck"],
         ["send", { text: "Anyone?" }, "Sent", "mcp__novadeck"],
         ["agents", {}, "reviewer", "mcp__novadeck"],
-        ["open_terminal", { agent: "codex", message: "Review" }, "Opened", "mcp__novadeck"],
+        [
+          "open_agent",
+          { agent: "codex", message: "Review", effort: "high" },
+          "Opened",
+          "mcp__novadeck",
+        ],
         ["open_terminal", { command: "npm run dev" }, "Opened", "mcp__novadeck"],
         ["close_terminal", { to: "builder" }, "Closed", "mcp__novadeck"],
         ["close_terminal", {}, "Closed", "mcp__novadeck"],

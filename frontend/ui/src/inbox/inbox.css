@@ -5,15 +5,24 @@
    `.inbox-row`s, each an item (the item recipe) with a `.inbox-row-select` button and its
    parts: `.inbox-row-icon`, `.inbox-row-subject`,
    `.inbox-row-wait` and `.inbox-row-meta`,
-   which holds the `.inbox-row-project` and its `.inbox-row-extra`s (one is
+   and, on an open Novadeck ask, a `.inbox-row-dismiss` button (an icon button) beside the select
+   button, in the wait time's place: it shows on hover and keyboard focus (at rest on a screen
+   with no hover) and the wait time hides meanwhile. The meta
+   holds the `.inbox-row-project` and its `.inbox-row-extra`s (one is
    data-extra="draft"). A row says its type in data-type="unblock" | "ask" | "trouble" |
    "update" | "feedback", how it asks in data-urgency="urgent" | "waiting" | "quiet" | "answered", data-seen,
    data-needs while it asks something of the person and isn't answered, data-updates-start on
-   the row after the last that asks (the updates' line), data-arrived while it has just joined the list, and, being
+   the row after the last that asks (the updates' line), data-dismissable while its dismiss
+   button shows, data-settled="dismissed" | "withdrawn" | "replied" on an ask that no longer
+   waits (it stays, struck through unless replied, its wait time the age since it settled, and
+   opens no sheet), data-settled-start on the first of the settled asks that end the list (their
+   line, as the updates' line; a row that settles while the panel is on screen keeps its place
+   and the list regroups when the panel is shown again), data-arrived while it has just joined the list, and, being
    an item, data-selected for the one whose sheet is open. A row that asks keeps its colour
    until it is answered, opened or not. While a sheet is
    open the updates step back. The header's
-   `.inbox-held` pill says items wait to join; an empty panel shows `.inbox-empty`.
+   `.inbox-held` pill says items wait to join; Clear (an icon button in the panel's header) removes
+   the settled asks; an empty panel shows `.inbox-empty`.
 
    The sheet is the sheet recipe's card holding an `.inbox-sheet` (data-type, data-state=
    "waiting" | "asking" | "answered"): its `.inbox-sheet-head` (`.inbox-sheet-icon`,
@@ -36,7 +45,10 @@
    --inbox-row-radius (radius-panel), --inbox-row-lifted-shadow (shadow-panel): the rows,
    and the one whose sheet is open, lifted. --inbox-dim-opacity (0.4): the updates while
    a sheet is open; under the pointer they come back to --inbox-dim-hover-opacity (0.8).
-   --inbox-rule-color (line): the line above the updates.
+   --inbox-rule-color (line): the line above the updates and the settled asks.
+   --inbox-settled-fg (muted), --inbox-settled-line-color (line-strong): a settled ask's icon,
+   subject and wait, and the strike through the subject.
+   --inbox-settled-icon-opacity (0.55): a settled ask's icon.
    --inbox-arrived-bg (the strong colour at 14%): a row that has just joined the list.
    --inbox-draft-fg (danger-fg): the word "Draft".
    --inbox-held-fg (strong), --inbox-held-bg (the strong colour at 10%),
@@ -69,6 +81,9 @@
 .inbox-row[data-urgency="answered"] {
   --_fg: var(--inbox-answered-fg, var(--color-success-fg));
 }
+.inbox-row[data-settled] {
+  --_fg: var(--inbox-settled-fg, var(--color-muted));
+}
 /* The open row is lifted out of the list its sheet comes from. */
 .item.inbox-row[data-selected="true"] {
   --_shadow: var(--inbox-row-lifted-shadow, var(--shadow-panel));
@@ -98,10 +113,12 @@
   }
 }
 /* A line under the last row that asks, above the updates, so gray has a place of its own. */
-.inbox-row[data-updates-start="true"] {
+.inbox-row[data-updates-start="true"],
+.inbox-row[data-settled-start="true"] {
   margin-top: 9px;
 }
-.inbox-row[data-updates-start="true"]::after {
+.inbox-row[data-updates-start="true"]::after,
+.inbox-row[data-settled-start="true"]::after {
   content: "";
   position: absolute;
   top: -6px;
@@ -159,6 +176,47 @@
   line-height: 20px;
   text-align: right;
   font-variant-numeric: tabular-nums;
+}
+/* A settled ask: no longer bright, struck through unless its agent was answered in the terminal. */
+.inbox-row[data-settled] .inbox-row-subject {
+  color: var(--inbox-settled-fg, var(--color-muted));
+  font-weight: 400;
+}
+.inbox-row[data-settled="dismissed"] .inbox-row-subject,
+.inbox-row[data-settled="withdrawn"] .inbox-row-subject {
+  text-decoration: line-through;
+  text-decoration-color: var(--inbox-settled-line-color, var(--color-line-strong));
+}
+.inbox-row[data-settled] .inbox-row-icon {
+  opacity: var(--inbox-settled-icon-opacity, 0.55);
+}
+.inbox-row[data-settled] .inbox-row-select {
+  cursor: default;
+}
+/* The dismiss button takes the wait time's place while the row is hovered or has focus. */
+.inbox-row-dismiss {
+  position: absolute;
+  top: 9px;
+  right: 6px;
+  z-index: 1;
+  display: none;
+}
+.inbox-row[data-dismissable="true"]:hover .inbox-row-dismiss,
+.inbox-row[data-dismissable="true"]:focus-within .inbox-row-dismiss {
+  display: inline-flex;
+}
+.inbox-row[data-dismissable="true"]:hover .inbox-row-wait,
+.inbox-row[data-dismissable="true"]:focus-within .inbox-row-wait {
+  visibility: hidden;
+}
+/* With no hover to show it, it is there at rest. */
+@media (hover: none) {
+  .inbox-row[data-dismissable="true"] .inbox-row-dismiss {
+    display: inline-flex;
+  }
+  .inbox-row[data-dismissable="true"] .inbox-row-wait {
+    visibility: hidden;
+  }
 }
 /* Line two: the project, then anything extra. The project gives way first, and only when
    it is very long. */

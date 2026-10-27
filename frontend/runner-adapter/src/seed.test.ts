@@ -43,6 +43,7 @@ const summary = (
   ready: null,
   activity: null,
   telemetry: null,
+  reported: null,
   ...change,
 })
 const kept = (n: number, session: number, change: Partial<TerminalSummary> = {}) =>

@@ -326,10 +326,11 @@ describe("The Inbox's items", () => {
       expect(inboxRows(inputs(workspaceOf(), { entries: [report()] }))).toEqual([])
     })
 
-    it("is its lead's while that lead runs, and the person's once it doesn't", () => {
+    it("is the person's for a worker too, while its lead runs or not", () => {
       const entries = [report({ terminalId: "02", handle: "fox" })]
-      expect(inboxRows(inputs(workspaceOf(agentTerminal(1), worker()), { entries }))).toEqual([])
-      // A lead whose agent stopped, or whose terminal closed, hears nothing: the person does.
+      expect(inboxRows(inputs(workspaceOf(agentTerminal(1), worker()), { entries }))).toMatchObject(
+        [{ id: "entry:done-1", update: { type: "done" } }],
+      )
       const shell = { ...agentTerminal(1), process: "bash" }
       expect(inboxRows(inputs(workspaceOf(shell, worker()), { entries }))).toMatchObject([
         { id: "entry:done-1" },
@@ -339,7 +340,7 @@ describe("The Inbox's items", () => {
       ])
     })
 
-    it("is not its lead's when the lead told instead: only a done is held back", () => {
+    it("is the person's for a worker that told, like its done", () => {
       const told = report({
         terminalId: "02",
         handle: "fox",
@@ -788,6 +789,45 @@ describe("The Inbox's items", () => {
           expect(items[0]).toMatchObject({ kind: "ask", stopped: !working, source: { agent } })
         }
       }
+    })
+
+    it("lists a settled ask as a settled row, stopped false, whatever its terminal's agent does now", () => {
+      const settled = entry({ settled: { how: "dismissed", at: 5000 } })
+      // Working, resting, another agent's session in the terminal, and an ended one.
+      const exited: TerminalMetadata = {
+        ...agentTerminal(1),
+        state: "exited",
+        exitCode: 0,
+        signal: null,
+      }
+      for (const terminal of [
+        agentTerminal(1, { working: true }),
+        agentTerminal(1, { working: false }),
+        agentTerminal(1, { working: false }, "codex"),
+        exited,
+      ]) {
+        expect(inboxRows(inputs(workspaceOf(terminal), { entries: [settled] }))).toMatchObject([
+          { id: "entry-1", kind: "ask", stopped: false, settled: { how: "dismissed", at: 5000 } },
+        ])
+      }
+      // An open ask of an agent that is no longer there is dropped, a settled one is not; neither
+      // outlives its terminal.
+      const other = workspaceOf(agentTerminal(1, { working: false }, "codex"))
+      expect(inboxRows(inputs(other, { entries: [entry()] }))).toEqual([])
+      expect(inboxRows(inputs(workspaceOf(), { entries: [settled] }))).toEqual([])
+    })
+
+    it("lists settled asks after everything else, the latest settled first", () => {
+      const entries = [
+        entry({ id: "old", settled: { how: "withdrawn", at: 6000 } }),
+        entry({ id: "new", settled: { how: "replied", at: 9000 } }),
+        told("told"),
+        entry({ id: "open" }),
+      ]
+      const items = inboxRows(
+        inputs(workspaceOf(agentTerminal(1, { working: false })), { entries }),
+      )
+      expect(items.map(({ id }) => id)).toEqual(["open", "told", "new", "old"])
     })
 
     it("keeps an unread tell after its agent exits, with its original attribution", () => {

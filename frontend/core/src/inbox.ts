@@ -135,15 +135,24 @@ export type InboxContent =
   | { readonly kind: "update"; readonly update: Update }
   | { readonly kind: "feedback"; readonly draft: FeedbackDraft }
 
+// How an agent's ask ended without an answer from the Inbox, and when: the person dismissed
+// it, its agent withdrew it, or the person wrote to the agent in its terminal.
+export type AskSettled = {
+  readonly how: "dismissed" | "withdrawn" | "replied"
+  readonly at: number
+}
+
 // One item. `at` is when it started waiting, in epoch milliseconds. `stopped` whether the
 // agent waits on the person (a gate, an ask after which it ended its turn, a stuck or
-// failed agent) rather than working on. `seen` once the person opened it.
+// failed agent) rather than working on. `seen` once the person opened it. `settled` only on
+// an ask that no longer waits (see `AskSettled`): it stays listed until the person clears it.
 export type InboxRow = InboxContent & {
   readonly id: string
   readonly source: InboxSource
   readonly at: number
   readonly stopped: boolean
   readonly seen: boolean
+  readonly settled?: AskSettled
 }
 
 // The five ways the Inbox presents an item: Unblock (the agent can't go on without the
@@ -239,6 +248,11 @@ export type Inbox = {
   readonly see: (id: string) => void
   // Reads every update, leaving everything that waits on the person.
   readonly readAll: () => void
+  // Optional. Dismisses an agent's open ask without answering it: it stays, settled, and its
+  // agent is told. Absent where asks can't be dismissed.
+  readonly dismiss?: (id: string) => void
+  // Optional. Removes these settled asks.
+  readonly clear?: (ids: readonly string[]) => void
   // The stored finished turns, newest last as the backend lists them, undefined until the
   // backend first lists them (and again where it stops). Includes the rows the Inbox hides
   // under a running lead, and none the person already read. Absent where the backend
@@ -268,9 +282,14 @@ export const urgency = (item: InboxRow): number => {
   return item.stopped ? 1 : 2
 }
 
-// The Inbox's order: by urgency, then the longest waiting first.
+// The Inbox's order: by urgency, then the longest waiting first; settled asks after all of it.
 export const ordered = (items: readonly InboxRow[]): InboxRow[] =>
-  items.toSorted((a, b) => urgency(a) - urgency(b) || a.at - b.at)
+  items.toSorted((a, b) => {
+    // Settled asks come last, the latest settled first.
+    if (a.settled || b.settled)
+      return a.settled && b.settled ? b.settled.at - a.settled.at : a.settled ? 1 : -1
+    return urgency(a) - urgency(b) || a.at - b.at
+  })
 
 // The item an entry in a terminal's messages waits in: the one it came from, by id, as the
 // runner lists an entry as `m-` and its item's id without dashes.
@@ -302,14 +321,14 @@ const atTerminal = (item: InboxRow, at: TerminalAt): boolean =>
 
 // What a terminal needs of the person, for its tab's mark: "unblock" for any Unblock item
 // or a limit past its reset that Novadeck won't resume from; otherwise "ask" for any Ask;
-// otherwise nothing. Trouble and updates don't count. Takes every item, as the backend
+// otherwise nothing. Trouble, updates and settled asks don't count. Takes every item, as the backend
 // lists them: the landing rule hides rows from the Inbox, never from the marks.
 export const terminalNeed = (
   items: readonly InboxRow[],
   at: TerminalAt,
   now: number,
 ): "unblock" | "ask" | undefined => {
-  const mine = items.filter((item) => atTerminal(item, at))
+  const mine = items.filter((item) => atTerminal(item, at) && !item.settled)
   const limitReset = (item: InboxRow): boolean =>
     item.kind === "trouble" &&
     item.trouble.type === "limit" &&

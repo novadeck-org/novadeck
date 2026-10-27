@@ -1,4 +1,4 @@
-import { inboxType, terminalDone, terminalNeed, type InboxRow, type TerminalAt } from "./inbox"
+import { inboxType, terminalNeed, type InboxRow, type TerminalAt } from "./inbox"
 import type { NoteMarks } from "./terminal-ending"
 
 // What the Inbox says of one terminal for its tab and window (see `NoteMarks`).
@@ -25,11 +25,10 @@ const subjectOf = (item: InboxRow): string | undefined => {
 // limit has reset.
 export const inboxMarks = (items: readonly InboxRow[], at: TerminalAt, now: number): InboxMarks => {
   const need = terminalNeed(items, at, now)
-  const mine = items.filter((item) => here(item, at))
+  const mine = items.filter((item) => here(item, at) && !item.settled)
   const behind = need && mine.find((item) => inboxType(item) === need)
   return {
     need,
-    done: terminalDone(mine, at),
     subject: behind ? subjectOf(behind) : undefined,
     dialog: behind ? dialogOf(behind) : undefined,
   }

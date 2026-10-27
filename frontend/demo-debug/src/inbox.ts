@@ -229,7 +229,7 @@ export const inboxGroups = (
           label: outcome === "withdrawn" ? "Ask withdrawn" : "Ask session ended",
           hint:
             outcome === "withdrawn"
-              ? "Removes the sample preview ask; its Messages record says Withdrawn"
+              ? "Leaves the sample preview ask as a settled row, withdrawn; its Messages record says Withdrawn"
               : "Removes the sample preview ask; its Messages record says Agent session ended",
           run: () => {
             const item = fresh(demoInboxIds.preview)
@@ -238,6 +238,16 @@ export const inboxGroups = (
             inbox.resolve(item.id, outcome)
           },
         })),
+        {
+          label: "Ask replied in terminal",
+          hint: "Leaves the sample preview ask as a settled row, replied: the person wrote to its agent",
+          run: () => {
+            const item = fresh(demoInboxIds.preview)
+            if (!item) return
+            inbox.add(item)
+            inbox.withdrawAsks(item.source, item.at + 1)
+          },
+        },
         {
           label: "Next reply not delivered",
           hint: "The next ask reply queues, then fails delivery; its Inbox confirmation and Messages history say it did not arrive",
@@ -267,7 +277,7 @@ export const inboxGroups = (
         {
           label: "Clear the added items",
           hint: "The hardcoded items and those added here go; what the agents wait on stays",
-          run: () => inbox.clear(),
+          run: () => inbox.empty(),
         },
       ],
     },

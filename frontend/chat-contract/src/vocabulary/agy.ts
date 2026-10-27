@@ -128,7 +128,7 @@ export const agy: readonly { name: string; records: readonly object[] }[] = [
         [`${novadeck}send`, { to: "reviewer", text: "Please look" }, "Sent"],
         [`${novadeck}send`, { text: "Anyone?" }, "Sent"],
         [`${novadeck}agents`, {}, "reviewer"],
-        [`${novadeck}open_terminal`, { agent: "agy", message: "Review" }, "Opened"],
+        [`${novadeck}open_agent`, { agent: "agy", message: "Review", effort: "high" }, "Opened"],
         [`${novadeck}open_terminal`, { command: "npm run dev" }, "Opened"],
         [`${novadeck}close_terminal`, { to: "builder" }, "Closed"],
         [`${novadeck}close_terminal`, {}, "Closed"],
@@ -166,7 +166,7 @@ export const agy: readonly { name: string; records: readonly object[] }[] = [
           "call_mcp_tool",
           {
             ServerName: "novadeck_novadeck",
-            ToolName: "open_terminal",
+            ToolName: "open_agent",
             Arguments: { agent: "agy", message: "Review" },
           },
           "Opened",

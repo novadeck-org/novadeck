@@ -58,14 +58,6 @@ const askItem = (projectId: string, terminal: TerminalMetadata, type: "text" | "
           : { type: "action", command: "x login", directory: null, doneLabel: "Done" },
     },
   })
-const doneItem = (projectId: string, terminal: TerminalMetadata, seen = false) =>
-  itemOf(
-    projectId,
-    terminal,
-    { kind: "update", update: { type: "done", subject: "Done", body: "" } },
-    { seen },
-  )
-
 const agent = (status: Partial<AgentStatus> = {}): AgentStatus => ({
   working: false,
   ...status,
@@ -110,7 +102,7 @@ describe("A project's status", () => {
   context("when its terminals show several things", () => {
     it("is the most pressing of them", () => {
       const working = running(1, { working: true })
-      const finished = running(2, {})
+      const finished = running(2, { reported: true })
       const failed = running(3, {})
       const waiting = running(4, {
         attention: { kind: "permission", count: 1 },
@@ -120,11 +112,9 @@ describe("A project's status", () => {
         "p/initial": { [finished.id]: "unread", [failed.id]: "failed" },
       }
       expect(projectStatus(project("p", [working]), ends)).toBe("running")
-      // A bare end reads unread, which no status marks; a done report does.
-      expect(projectStatus(project("p", [working, finished]), ends)).toBe("running")
-      expect(
-        projectStatus(project("p", [working, finished]), ends, [doneItem("p", finished)]),
-      ).toBe("done")
+      // A bare end reads unread, which no status marks; a done report that stands does.
+      expect(projectStatus(project("p", [working, running(6, {})]), ends)).toBe("running")
+      expect(projectStatus(project("p", [working, finished]), ends)).toBe("done")
       expect(projectStatus(project("p", [finished, failed, working]), ends)).toBe("failed")
       expect(projectStatus(project("p", [failed, waiting]), ends)).toBe("unblock")
       expect(projectStatus(project("p", [waiting, asking, failed]), ends)).toBe("unblock")
@@ -164,14 +154,13 @@ describe("A project's status", () => {
       ).toBe("failed")
     })
 
-    it("counts a done report only while unseen, and not of another project", () => {
-      const finished = running(1, {})
+    it("counts a done report while it stands, looked at or not", () => {
+      expect(projectStatus(project("p", [running(1, { reported: true })]), noUnread)).toBe("done")
+      expect(projectStatus(project("p", [running(1, {})]), noUnread)).toBe(undefined)
+      // At work again, it is running.
       expect(
-        projectStatus(project("p", [finished]), noUnread, [doneItem("p", finished, true)]),
-      ).toBe(undefined)
-      expect(projectStatus(project("p", [finished]), noUnread, [doneItem("q", finished)])).toBe(
-        undefined,
-      )
+        projectStatus(project("p", [running(1, { working: true, reported: true })]), noUnread),
+      ).toBe("running")
     })
 
     it("counts a plan to review as waiting on the person", () => {
@@ -187,9 +176,7 @@ describe("A project's status", () => {
         signal: "SIGKILL",
       }
       expect(
-        projectStatus(project("p", [killed]), unread("p", killed.id, "failed"), [
-          doneItem("p", killed),
-        ]),
+        projectStatus(project("p", [killed]), unread("p", killed.id, "failed")),
       ).toBeUndefined()
     })
 

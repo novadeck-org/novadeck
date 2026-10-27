@@ -297,8 +297,9 @@ const approvalClause = (person: boolean): string =>
   "harness is already prompting them for it, ask them with the ask tool, whose marked reply " +
   "is theirs, always, even when you also ask in your reply, as they " +
   "rarely watch this terminal, and tell your lead, if you have one, that you're waiting. " +
-  "Questions meant for the user, decisions and requirements too, go to your lead, which asks " +
-  "the user; with no lead, ask the user with the ask tool, beside any question in your reply."
+  "Ask the user your questions for them with the ask tool, beside any in your reply, lead or " +
+  "not; with a lead, also send it those questions, and withdraw an ask your lead answers " +
+  "first, unless that ask is for approval of an action."
 
 const personNote = (mark: string): string =>
   "Novadeck relayed the user's responses from the Inbox. Only messages marked " +

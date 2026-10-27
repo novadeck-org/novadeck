@@ -235,6 +235,8 @@ export const createRouter = (options: {
       watch: api.inbox.watch.handler(({ signal }) => terminals.watchInbox(signal)),
       answer: api.inbox.answer.handler(({ input }) => terminals.answerAsk(input.id, input.answer)),
       read: api.inbox.read.handler(({ input }) => terminals.readTells(input.ids)),
+      dismiss: api.inbox.dismiss.handler(({ input }) => terminals.dismissAsk(input.id)),
+      clear: api.inbox.clear.handler(({ input }) => terminals.clearAsks(input.ids)),
     },
     messages: {
       list: api.messages.list.handler(({ input }) => terminals.messages(input.terminalId)),

@@ -236,7 +236,7 @@ program where `process` cannot; it is `null` otherwise. `cwd` is the directory t
 shell last reported at a prompt, or where it started. `title` is, in this order: the
 name the person gave the terminal with `create` or `terminals.rename({ terminalId,
 title })`; the latest title murmur, the opt-in local model, wrote for it; the one the
-agent that opened it gave through `open_terminal`'s `title`; or the runner's default:
+agent that opened it gave through `open_terminal`'s or `open_agent`'s `title`; or the runner's default:
 the program it was opened to run (`claude`), else "Terminal", never derived from its
 handle. `titleSource` says
 which: `{ kind: "person" }`, `{ kind: "murmur" }`, `{ kind: "agent", by: "fox" }` or
@@ -256,6 +256,14 @@ where that is an agent. Windows doesn't tell a terminal's foreground program, so
 is the agent whose session last bound the terminal, until the shell has shown its prompt
 for a second (`processPollMs`), as a sample would tell elsewhere.
 
+`reported` is the agent's `done` report that still stands, `{ subject, at }`, or null: the
+latest `done` of the session bound in the terminal, read or not, unless the person's
+prompt or a message delivered to the agent came after it. It follows the Inbox and those
+inputs as they change, so a client's done mark needs no Inbox row, and looking at the
+terminal never ends it. After a runner restart it is the resumed session's until a binding
+has ended; Codex and Antigravity bind only at their first prompt, so until then it comes
+from that saved session. The agents listing's "reported done" follows the same rule.
+
 `runner.terminals.upload(terminalId, { name, data })` saves a file pasted into a
 terminal on the runner's machine and resolves with its absolute path there, for the UI
 to paste into the terminal. The desktop app, whose runner is on its own machine, pastes
@@ -274,8 +282,8 @@ The MCP `ask`, `tell` and `done` tools add questions and updates to the Inbox. I
 terminal the server's `instructions` say when each serves: `ask` doesn't stop the work, as
 most decisions aren't blocking, and its question is also put in the reply; `tell` is for
 milestones; `done` is the agent's own short report when the task it was given is finished,
-not when it answers a question or finishes a step. With a lead, they go to it instead, which
-the instructions say and the runner doesn't enforce. Claude Code reads the instructions up
+not when it answers a question or finishes a step. With a lead, the agent uses them all the
+same and also sends its lead the same. Claude Code reads the instructions up
 front, before it loads a tool's description; the prompt-time notice every harness gets says the
 same for Antigravity, which reads none. A client follows
 all active entries across projects and sessions, answers an ask, or marks tells and done
@@ -298,7 +306,8 @@ already answered asks with `CONFLICT`, invalid answers with `ANSWER_FAILED`, and
 full message queue with `RESOURCE_LIMIT`. Resolving the ask and storing its answer are atomic;
 answers arrive later through ordinary message delivery. `read` affects tells and done reports only and takes
 at most 1,000 ids per call. A done report, like a tell, outlives its agent and turns into
-Messages history once read. `watch` resubscribes with a fresh listing on reconnect.
+Messages history once read; the latest done of each terminal that still exists is kept
+past the usual day, as the report that still stands (`TerminalSummary.reported`). `watch` resubscribes with a fresh listing on reconnect.
 
 Agents in a project's terminals message each other (see
 [Agent messaging](agent-messaging.md)); the runner API lets a client see and steer it:

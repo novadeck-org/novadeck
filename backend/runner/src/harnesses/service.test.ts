@@ -442,4 +442,35 @@ describe.skipIf(windows)("resuming an agent's saved session", () => {
     await client.agents.set("claude", false)
     expect(saved.terminal(after)?.agents).toEqual({})
   })
+
+  it("lists the models an agent starts with, as its harness tells them", async ({ fixture }) => {
+    mkdirSync(join(fixture.home, ".claude"), { recursive: true })
+    const agents = fixture.agents()
+    expect((await agents.models("claude")).map(({ id }) => id)).toContain("opus")
+    // Codex's are the ones its own cache lists.
+    mkdirSync(join(fixture.home, ".codex"), { recursive: true })
+    writeFileSync(
+      join(fixture.home, ".codex", "models_cache.json"),
+      JSON.stringify({
+        models: [
+          {
+            slug: "gpt-x",
+            visibility: "list",
+            supported_reasoning_levels: [{ effort: "low" }, { effort: "high" }],
+          },
+        ],
+      }),
+    )
+    expect(await agents.models("codex")).toEqual([{ id: "gpt-x", efforts: ["low", "high"] }])
+  })
+
+  it("lists none for an agent that isn't installed, or whose list can't be read", async ({
+    fixture,
+  }) => {
+    const agents = fixture.agents()
+    expect(await agents.models("claude")).toEqual([])
+    mkdirSync(join(fixture.home, ".codex"), { recursive: true })
+    writeFileSync(join(fixture.home, ".codex", "models_cache.json"), "{ not json")
+    expect(await agents.models("codex")).toEqual([])
+  })
 })

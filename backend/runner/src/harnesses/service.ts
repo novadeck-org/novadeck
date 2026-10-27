@@ -3,7 +3,7 @@ import { access, readFile, rm, writeFile } from "node:fs/promises"
 import { homedir } from "node:os"
 import { delimiter, join } from "node:path"
 
-import type { Harness, Install } from "@novadeck/harness-core/harness"
+import type { Harness, Install, Model } from "@novadeck/harness-core/harness"
 import type { AgentIntegration, AgentName } from "@novadeck/protocol"
 import { relayPath } from "@novadeck/relay"
 import { refreshPath } from "@novadeck/terminal/shell"
@@ -254,6 +254,24 @@ export const createHarnesses = (
     return after
   }
   const api = {
+    /**
+     * The models the agent can start with on this machine, each with its efforts, as the
+     * harness tells them; none where it isn't installed or can't tell.
+     */
+    models: async (agent: AgentName): Promise<readonly Model[]> => {
+      try {
+        const where = (await installs())?.(agent)
+        const harness = harnesses[agent]
+        if (!where || !(await exists(harness.home(where)))) return []
+        return await harness.messaging.models(where)
+      } catch (error) {
+        log.warn("harnesses.models-failed", `Novadeck could not list ${agent}'s models`, {
+          data: { agent },
+          err: error,
+        })
+        return []
+      }
+    },
     /** Where the agent lives on this machine, once the shell files say where its plugin is. */
     install: async (agent: AgentName): Promise<Install | undefined> => (await installs())?.(agent),
     /** Whether Novadeck's plugin is installed into the agent. */
