@@ -355,9 +355,9 @@ describe("the IS_EXPERIMENTAL flag", () => {
   const into = (ui: ReturnType<typeof createUiStore>) => (on: boolean) =>
     setFeatureFlag(ui, "IS_EXPERIMENTAL", on)
 
-  it("is on where the desktop app follows early builds", async () => {
+  it("is on where the desktop app follows experimental builds", async () => {
     const ui = createUiStore(initial())
-    watchExperimental(updates(Promise.resolve("early")), into(ui))
+    watchExperimental(updates(Promise.resolve("experimental")), into(ui))
     expect(flag(ui)).toBe(false)
     await vi.waitFor(() => expect(flag(ui)).toBe(true))
   })
@@ -374,7 +374,7 @@ describe("the IS_EXPERIMENTAL flag", () => {
 
   it("is not set once the watch is stopped", async () => {
     const ui = createUiStore(initial())
-    watchExperimental(updates(Promise.resolve("early")), into(ui))()
+    watchExperimental(updates(Promise.resolve("experimental")), into(ui))()
     await Promise.resolve()
     expect(flag(ui)).toBe(false)
   })

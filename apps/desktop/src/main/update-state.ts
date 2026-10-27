@@ -43,6 +43,10 @@ export type UpdateState = {
   readonly whatsNewCheckedAt: number | undefined
 }
 
+// The channel's name before the rename: a file written then reads as the new name, so a
+// copy that followed it is not moved to stable.
+const formerChannels: Readonly<Record<string, UpdateChannel>> = { early: "experimental" }
+
 const defaults: UpdateState = {
   channel: "stable",
   installFailedOn: undefined,
@@ -58,6 +62,11 @@ const defaults: UpdateState = {
 // that is compared against later launches.
 const versionOf = (value: unknown): string | undefined =>
   typeof value === "string" && updateVersionPattern.test(value) ? value : undefined
+
+const channelOf = (value: unknown): UpdateChannel =>
+  updateChannels.find((known) => known === value) ??
+  (typeof value === "string" ? formerChannels[value] : undefined) ??
+  defaults.channel
 
 /**
  * The state in a file's text. The file is the host's own, but a damaged or edited one
@@ -83,7 +92,7 @@ export const updateStateOf = (text: string): UpdateState => {
     whatsNewCheckedAt,
   } = kept as Record<string, unknown>
   return {
-    channel: updateChannels.find((known) => known === channel) ?? defaults.channel,
+    channel: channelOf(channel),
     installFailedOn: typeof installFailedOn === "string" ? installFailedOn : undefined,
     installing: typeof installing === "string" ? installing : undefined,
     lastRunVersion: versionOf(lastRunVersion),

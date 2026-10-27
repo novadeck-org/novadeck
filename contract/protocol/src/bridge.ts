@@ -367,13 +367,13 @@ export type SandboxState =
   | { readonly sandboxed: false; readonly fix: string }
 
 /**
- * Which releases a build follows: `stable` the releases promoted to stable, `early` every
+ * Which releases a build follows: `stable` the releases promoted to stable, `experimental` every
  * release as it is published. Builds start on `stable`. Switching back to `stable` never
  * downgrades: the build waits until stable passes its version.
  */
-export type UpdateChannel = "stable" | "early"
+export type UpdateChannel = "stable" | "experimental"
 
-export const updateChannels: readonly UpdateChannel[] = ["stable", "early"]
+export const updateChannels: readonly UpdateChannel[] = ["stable", "experimental"]
 
 /**
  * An update the host tells the page of. `downloading`: a release the host is downloading,

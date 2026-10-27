@@ -411,24 +411,24 @@ describe("taking the page's requests about updates", () => {
   })
 
   it("answers the channel the build follows", () => {
-    expect(registered(true, "early").send(updateChannelChannel)).toBe("early")
+    expect(registered(true, "experimental").send(updateChannelChannel)).toBe("experimental")
   })
 
   it("follows a channel the page names, when it is a known one", () => {
     const { send, calls } = registered(true)
-    send(setUpdateChannelChannel, "early")
+    send(setUpdateChannelChannel, "experimental")
     send(setUpdateChannelChannel, "nightly")
-    send(setUpdateChannelChannel, { channel: "early" })
+    send(setUpdateChannelChannel, { channel: "experimental" })
     send(setUpdateChannelChannel)
-    expect(calls).toEqual(["channel early"])
+    expect(calls).toEqual(["channel experimental"])
   })
 
   it("ignores any other sender, and tells it only the default channel", () => {
-    const { send, calls } = registered(false, "early")
+    const { send, calls } = registered(false, "experimental")
     send(updateRequestChannel)
     send(openUpdatePageChannel)
     send(allowUpdatesChannel)
-    send(setUpdateChannelChannel, "early")
+    send(setUpdateChannelChannel, "experimental")
     expect(send(updateChannelChannel)).toBe("stable")
     expect(calls).toEqual([])
   })
@@ -596,9 +596,9 @@ describe("checking for updates", () => {
     })
   })
 
-  it("follows only releases that are not prereleases on the stable channel, and every release on early", () => {
+  it("follows only releases that are not prereleases on the stable channel, and every release on experimental", () => {
     expect(checking({ channel: "stable" }).updater.allowPrerelease).toBe(false)
-    expect(checking({ channel: "early" }).updater.allowPrerelease).toBe(true)
+    expect(checking({ channel: "experimental" }).updater.allowPrerelease).toBe(true)
   })
 
   it("checks once shortly after launch, then every few hours", async () => {
@@ -847,7 +847,7 @@ describe("checking for updates", () => {
       it("keeps a channel switch's check soon while a retry waits", async () => {
         const checks = checking()
         checks.updater.downloadResult = () => Promise.reject(new Error("download failed"))
-        checks.setChannel("early")
+        checks.setChannel("experimental")
         checks.updater.emit("update-available", { version: "1.2.3" })
         await vi.advanceTimersByTimeAsync(switchCheckMs)
         expect(checks.updater.checks).toBe(1)
@@ -1095,7 +1095,7 @@ describe("checking for updates", () => {
   context("when the channel is switched", () => {
     it("follows the new channel and checks soon, in place of the first check", async () => {
       const checks = checking()
-      checks.setChannel("early")
+      checks.setChannel("experimental")
       expect(checks.updater.allowPrerelease).toBe(true)
       await vi.advanceTimersByTimeAsync(switchCheckMs - 1)
       expect(checks.updater.checks).toBe(0)
@@ -1109,10 +1109,10 @@ describe("checking for updates", () => {
 
     it("makes one check for a few switches in a row", async () => {
       const checks = checking()
-      checks.setChannel("early")
+      checks.setChannel("experimental")
       await vi.advanceTimersByTimeAsync(switchCheckMs - 1)
       checks.setChannel("stable")
-      checks.setChannel("early")
+      checks.setChannel("experimental")
       await vi.advanceTimersByTimeAsync(switchCheckMs * 2)
       expect(checks.updater.checks).toBe(1)
     })
@@ -1120,7 +1120,7 @@ describe("checking for updates", () => {
     it("checks soon after an update has downloaded too, as a newer release replaces it", async () => {
       const checks = checking()
       checks.updater.emit("update-downloaded", { version: "1.2.3" })
-      checks.setChannel("early")
+      checks.setChannel("experimental")
       await vi.advanceTimersByTimeAsync(switchCheckMs)
       expect(checks.updater.checks).toBe(1)
     })
@@ -1128,7 +1128,7 @@ describe("checking for updates", () => {
     it("applies from the next launch once the schedule has ended", async () => {
       const checks = checking()
       checks.stop()
-      checks.setChannel("early")
+      checks.setChannel("experimental")
       expect(checks.updater.allowPrerelease).toBe(true)
       await vi.advanceTimersByTimeAsync(checkIntervalMs)
       expect(checks.updater.checks).toBe(0)
@@ -1302,9 +1302,9 @@ const generic = (url: string) => ({ provider: "generic", url, useMultipleRangeRe
 describe("the update feed", () => {
   it("is the channel's address on novadeck.dev, or on the site NOVADECK_UPDATE_URL names", () => {
     expect(feedUrl("stable")).toBe("https://novadeck.dev/update/stable/")
-    expect(feedUrl("early")).toBe("https://novadeck.dev/update/early/")
-    expect(feedUrl("early", "http://127.0.0.1:8787/ignored")).toBe(
-      "http://127.0.0.1:8787/update/early/",
+    expect(feedUrl("experimental")).toBe("https://novadeck.dev/update/experimental/")
+    expect(feedUrl("experimental", "http://127.0.0.1:8787/ignored")).toBe(
+      "http://127.0.0.1:8787/update/experimental/",
     )
     expect(feedUrl("stable", "file:///tmp/updates")).toBe("https://novadeck.dev/update/stable/")
     expect(feedUrl("stable", "https://localhost:8787")).toBe(
@@ -1402,11 +1402,11 @@ describe("checking through novadeck.dev", () => {
   }
 
   it("checks the channel's address, saying it is the launch's check", async () => {
-    const { updater } = checking({ channel: "early" })
+    const { updater } = checking({ channel: "experimental" })
     await vi.advanceTimersByTimeAsync(firstCheckMs)
     expect(updater.seen).toEqual([
       {
-        feed: generic("https://novadeck.dev/update/early/"),
+        feed: generic("https://novadeck.dev/update/experimental/"),
         headers: expect.objectContaining({ "x-novadeck-check": "launch" }),
       },
     ])
@@ -1420,7 +1420,7 @@ describe("checking through novadeck.dev", () => {
       )
     await vi.advanceTimersByTimeAsync(firstCheckMs)
     await vi.advanceTimersByTimeAsync(checkIntervalMs)
-    setChannel("early")
+    setChannel("experimental")
     await vi.advanceTimersByTimeAsync(switchCheckMs)
     updater.downloadResult = () => Promise.reject(new Error("disk full"))
     updater.emit("update-available", { version: "1.5.0" })
@@ -1432,13 +1432,13 @@ describe("checking through novadeck.dev", () => {
   it("follows a channel switch with the new channel's address", async () => {
     const { updater, setChannel } = checking()
     await vi.advanceTimersByTimeAsync(firstCheckMs)
-    setChannel("early")
+    setChannel("experimental")
     await vi.advanceTimersByTimeAsync(switchCheckMs)
     setChannel("stable")
     await vi.advanceTimersByTimeAsync(switchCheckMs)
     expect(updater.seen.map(({ feed }) => feed)).toEqual([
       generic("https://novadeck.dev/update/stable/"),
-      generic("https://novadeck.dev/update/early/"),
+      generic("https://novadeck.dev/update/experimental/"),
       generic("https://novadeck.dev/update/stable/"),
     ])
   })
@@ -1513,7 +1513,7 @@ describe("checking through novadeck.dev", () => {
       )
     }
     await vi.advanceTimersByTimeAsync(firstCheckMs + 100)
-    setChannel("early")
+    setChannel("experimental")
     await vi.advanceTimersByTimeAsync(10_000)
     expect(offered).toEqual(["available 1.6.0"])
     expect(updater.checks).toBe(2)
@@ -1537,7 +1537,7 @@ describe("checking through novadeck.dev", () => {
       feed?.provider === "generic" ? "1.5.0" : "1.6.0"
 
     it("does not step back to the older release after taking GitHub's", async () => {
-      const { updater } = checking({ channel: "early" })
+      const { updater } = checking({ channel: "experimental" })
       const taken: (string | undefined)[] = []
       updater.downloadResult = () => {
         taken.push(updater.newest(updater.feed))
@@ -1551,7 +1551,7 @@ describe("checking through novadeck.dev", () => {
     })
 
     it("does not offer the older release again in tell mode", async () => {
-      const { updater, offered } = checking({ mode: "tell", channel: "early" })
+      const { updater, offered } = checking({ mode: "tell", channel: "experimental" })
       updater.newest = lagging
       updater.failFeed = (feed) => feed?.provider === "generic" && updater.checks === 1
       await vi.advanceTimersByTimeAsync(firstCheckMs)
@@ -1560,7 +1560,7 @@ describe("checking through novadeck.dev", () => {
     })
 
     it("leaves the newer download alone when the older release was withdrawn", async () => {
-      const { updater, offered } = checking({ channel: "early" })
+      const { updater, offered } = checking({ channel: "experimental" })
       const downloads: (string | undefined)[] = []
       updater.downloadResult = () => {
         const version = updater.newest(updater.feed)
@@ -1591,7 +1591,7 @@ describe("checking through novadeck.dev", () => {
     })
 
     it("takes an older answer from GitHub, as a withdrawn release leaves it", async () => {
-      const { updater } = checking({ channel: "early" })
+      const { updater } = checking({ channel: "experimental" })
       const taken: (string | undefined)[] = []
       updater.downloadResult = () => {
         taken.push(updater.newest(updater.feed))
@@ -1606,8 +1606,8 @@ describe("checking through novadeck.dev", () => {
       expect(taken).toEqual(["1.6.0", "1.5.0"])
     })
 
-    it("takes the site's older early answer once its trust window has passed", async () => {
-      const { updater } = checking({ channel: "early" })
+    it("takes the site's older experimental answer once its trust window has passed", async () => {
+      const { updater } = checking({ channel: "experimental" })
       const taken: (string | undefined)[] = []
       updater.downloadResult = () => {
         taken.push(updater.newest(updater.feed))
@@ -1624,7 +1624,7 @@ describe("checking through novadeck.dev", () => {
     })
 
     it("drops the answer of a check made for a channel left meanwhile", async () => {
-      const { updater, offered, setChannel } = checking({ mode: "tell", channel: "early" })
+      const { updater, offered, setChannel } = checking({ mode: "tell", channel: "experimental" })
       updater.checkForUpdates = () => {
         updater.checks += 1
         const early = updater.allowPrerelease
@@ -1642,7 +1642,7 @@ describe("checking through novadeck.dev", () => {
     })
 
     it("takes the older release of the other channel after a switch", async () => {
-      const { updater, setChannel } = checking({ channel: "early" })
+      const { updater, setChannel } = checking({ channel: "experimental" })
       const taken: (string | undefined)[] = []
       updater.downloadResult = () => {
         taken.push(updater.newest(updater.feed))
@@ -1686,11 +1686,11 @@ describe("checking through novadeck.dev", () => {
   })
 
   it("makes the same check against GitHub at once when novadeck.dev fails, then returns", async () => {
-    const { updater, logged } = checking({ channel: "early" })
+    const { updater, logged } = checking({ channel: "experimental" })
     updater.failFeed = (feed) => feed?.provider === "generic"
     await vi.advanceTimersByTimeAsync(firstCheckMs)
     expect(updater.seen.map(({ feed }) => feed)).toEqual([
-      generic("https://novadeck.dev/update/early/"),
+      generic("https://novadeck.dev/update/experimental/"),
       github,
     ])
     expect(updater.seen[1]?.headers).toBeNull()
@@ -1699,7 +1699,7 @@ describe("checking through novadeck.dev", () => {
     updater.failFeed = () => false
     await vi.advanceTimersByTimeAsync(checkIntervalMs)
     expect(updater.seen.map(({ feed }) => feed).slice(2)).toEqual([
-      generic("https://novadeck.dev/update/early/"),
+      generic("https://novadeck.dev/update/experimental/"),
     ])
   })
 

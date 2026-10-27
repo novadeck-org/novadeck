@@ -32,7 +32,7 @@ export const switchCheckMs = 2_000
 export const retryCheckMs = 5 * 60 * 1000
 
 /**
- * How long the website's `early` answer is trusted, as the website itself counts it: the
+ * How long the website's `experimental` answer is trusted, as the website itself counts it: the
  * app holds a release against an older answer from the website for this long.
  */
 export const earlyTrustMs = 6 * 60 * 60 * 1000
@@ -414,7 +414,7 @@ export type Updater = {
  * Checks for updates shortly after launch and every hour; a check that fails,
  * offline, rate limited, or on a channel with no release yet, is logged and the next one
  * tries again. `channel` decides which releases count: `stable` is GitHub's latest
- * release that is not a prerelease, `early` every release. Updating never downgrades.
+ * release that is not a prerelease, `experimental` every release. Updating never downgrades.
  *
  * In `install` mode it downloads what it finds and installs it when the app next quits.
  * `offer` is told the update is `downloading` at each whole percent electron-updater
@@ -468,10 +468,10 @@ export type Updater = {
  * which is how the website counts active copies; the headers go with that check and
  * nothing else. A site that can't be reached or fails never blocks updating: a check
  * through it that fails, for whatever reason, is made again at once against GitHub's
- * releases, and the next check goes to novadeck.dev again. Its answer for `early` lags
+ * releases, and the next check goes to novadeck.dev again. Its answer for `experimental` lags
  * GitHub's by up to a minute, or by hours should the site fall back to its own build's
  * record, which it distrusts after six hours; a wrong one, which only a bug of the site
- * gives, delays updates until it is fixed. Whichever feed answers, an `early` answer
+ * gives, delays updates until it is fixed. Whichever feed answers, an `experimental` answer
  * from the website that names a release older than one offered or taken
  * for download within `earlyTrustMs` is ignored, so a lagging answer never steps back
  * (per run, in memory); GitHub's answers and the stable channel's are taken as they are,
@@ -534,7 +534,7 @@ export const checkForUpdates = (
   // electron-updater installs on quitting, but on macOS, where the host does: there its
   // updater hands a download to Squirrel.Mac only while this is on.
   updater.autoInstallOnAppQuit = mode === "install" && prepare === undefined
-  updater.allowPrerelease = channel === "early"
+  updater.allowPrerelease = channel === "experimental"
   // The channel the next check follows, which the generic feed needs: it has no notion of
   // prereleases, so the address itself names the channel.
   let following = channel
@@ -557,7 +557,7 @@ export const checkForUpdates = (
   // The release last offered in `tell` mode or taken for download, on the channel then
   // followed and when (by the monotonic clock, so a clock change moves nothing), which an
   // older answer from the website does not replace; see `earlyTrustMs`. Held on `stable`,
-  // it does not protect after a switch to `early`: the guard is for `early` alone.
+  // it does not protect after a switch to `experimental`: the guard is for `experimental` alone.
   let held:
     | { readonly version: string; readonly channel: UpdateChannel; readonly at: number }
     | undefined
@@ -597,7 +597,7 @@ export const checkForUpdates = (
   updater.on("update-available", (info) => {
     // The answer of a check made for a channel the person has since left is dropped.
     if (checkedChannel !== following) return
-    // Never a step back to an older early release the website names: its `early` answer can
+    // Never a step back to an older experimental release the website names: its `experimental` answer can
     // lag GitHub's (by hours, should the site fall back to its build's record), and following
     // it would replace a newer release already offered or fetched. This holds for
     // `earlyTrustMs`, after which a withdrawn release can give way. GitHub's answers and
@@ -605,7 +605,7 @@ export const checkForUpdates = (
     // (isNewerVersion compares prerelease tags as text; the releases' versions have none.)
     if (
       via === "novadeck" &&
-      following === "early" &&
+      following === "experimental" &&
       held?.channel === following &&
       performance.now() - held.at < earlyTrustMs &&
       isNewerVersion(held.version, info.version)
@@ -785,7 +785,7 @@ export const checkForUpdates = (
   }
   return {
     setChannel: (next) => {
-      updater.allowPrerelease = next === "early"
+      updater.allowPrerelease = next === "experimental"
       following = next
       if (ended) return
       clearTimeout(first)

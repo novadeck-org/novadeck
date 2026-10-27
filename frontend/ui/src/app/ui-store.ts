@@ -277,7 +277,7 @@ export const setFeatureFlag = (ui: UiStore, flag: FeatureFlag, on: boolean): voi
   )
 }
 
-// Asks the backend once, as the workspace comes up, whether the desktop app follows early
+// Asks the backend once, as the workspace comes up, whether the desktop app follows experimental
 // builds, which is what turns IS_EXPERIMENTAL on, through `set`. A host that fails to say
 // leaves it off.
 export const watchExperimental = (
@@ -287,7 +287,7 @@ export const watchExperimental = (
   let live = true
   void updates?.channel?.get().then(
     (channel) => {
-      if (live) set(channel === "early")
+      if (live) set(channel === "experimental")
     },
     () => undefined,
   )
