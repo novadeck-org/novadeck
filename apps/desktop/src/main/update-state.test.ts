@@ -40,18 +40,6 @@ describe("what the host remembers about updating", () => {
       expect(keepUpdateState(file).read().channel).toBe("stable")
     })
 
-    it("keeps experimental under its name from before the rename, which older builds read", () => {
-      expect(updateStateOf('{"channel":"early","installFailedOn":"1.2.3"}')).toMatchObject({
-        channel: "experimental",
-        installFailedOn: "1.2.3",
-      })
-      keepUpdateState(file).setChannel("experimental")
-      expect(readFileSync(file, "utf8")).toContain('"channel":"early"')
-      keepUpdateState(file).clearInstalling()
-      expect(readFileSync(file, "utf8")).toContain('"channel":"early"')
-      expect(updateStateOf('{"channel":"experimental"}').channel).toBe("experimental")
-    })
-
     it("falls back to stable for anything that is not a channel", () => {
       for (const channel of [
         "nightly",

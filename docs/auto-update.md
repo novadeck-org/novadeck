@@ -33,9 +33,7 @@ A build follows one channel, which the person picks with Preferences' Experiment
 (on is `experimental`, which also turns on the IS_EXPERIMENTAL flag) and the host keeps
 across launches in `update.json` in the data folder. The same file keeps what the card of what is
 new needs (see "What is new"): `lastRunVersion`, `whatsNewPending`, `whatsNewFrom`,
-`whatsNewSettled` and `whatsNewCheckedAt`. The experimental channel was named `early`
-until it was renamed, and the file still keeps it as `early`, so a build from before the
-rename that shares the file, as a portable copy may, does not take it for stable.
+`whatsNewSettled` and `whatsNewCheckedAt`.
 
 | Channel        | Follows                                          |
 | -------------- | ------------------------------------------------ |

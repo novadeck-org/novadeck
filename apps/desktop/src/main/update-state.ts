@@ -43,12 +43,6 @@ export type UpdateState = {
   readonly whatsNewCheckedAt: number | undefined
 }
 
-// The file keeps `experimental` under its name from before the rename, `early`, which
-// builds from before it read too: one sharing the file, as a portable copy may, would
-// otherwise take the channel for stable and write that back.
-const storedChannel = (channel: UpdateChannel): string =>
-  channel === "experimental" ? "early" : channel
-
 const defaults: UpdateState = {
   channel: "stable",
   installFailedOn: undefined,
@@ -64,11 +58,6 @@ const defaults: UpdateState = {
 // that is compared against later launches.
 const versionOf = (value: unknown): string | undefined =>
   typeof value === "string" && updateVersionPattern.test(value) ? value : undefined
-
-const channelOf = (value: unknown): UpdateChannel =>
-  value === "early"
-    ? "experimental"
-    : (updateChannels.find((known) => known === value) ?? defaults.channel)
 
 /**
  * The state in a file's text. The file is the host's own, but a damaged or edited one
@@ -94,7 +83,7 @@ export const updateStateOf = (text: string): UpdateState => {
     whatsNewCheckedAt,
   } = kept as Record<string, unknown>
   return {
-    channel: channelOf(channel),
+    channel: updateChannels.find((known) => known === channel) ?? defaults.channel,
     installFailedOn: typeof installFailedOn === "string" ? installFailedOn : undefined,
     installing: typeof installing === "string" ? installing : undefined,
     lastRunVersion: versionOf(lastRunVersion),
@@ -142,8 +131,7 @@ export const keepUpdateState = (file: string) => {
   const change = (patch: Partial<UpdateState>): void => {
     const temporary = `${file}.${randomUUID()}.tmp`
     try {
-      const state = { ...read(), ...patch }
-      writeFileSync(temporary, JSON.stringify({ ...state, channel: storedChannel(state.channel) }))
+      writeFileSync(temporary, JSON.stringify({ ...read(), ...patch }))
       renameSync(temporary, file)
     } catch (error) {
       rmSync(temporary, { force: true })
