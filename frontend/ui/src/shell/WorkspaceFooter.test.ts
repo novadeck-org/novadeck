@@ -576,7 +576,7 @@ describe("workspace footer", () => {
         expect(region.textContent).not.toContain("Keeps your workspace")
         act(() =>
           [...region.querySelectorAll("button")]
-            .find((b) => b.textContent === "Show folder")!
+            .find((b) => b.getAttribute("aria-label") === "Show folder")!
             .click(),
         )
         expect(onShowFolder).toHaveBeenCalledOnce()

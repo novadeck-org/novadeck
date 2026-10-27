@@ -1,7 +1,8 @@
 import type { PortableInstall as InstallState } from "@novadeck/core/portable"
 import type { UpdateOffer, WhatsNew as Notes } from "@novadeck/core/update"
 import { Progress } from "@novadeck/toolkit/Progress"
-import { ExternalLink, X } from "lucide-react"
+import { Tooltip } from "@novadeck/toolkit/Tooltip"
+import { ExternalLink, FolderOpen, X } from "lucide-react"
 import { useEffect, useId, useRef, useState } from "react"
 
 import { currentPlatform, type Platform } from "../interaction/shortcuts"
@@ -388,17 +389,21 @@ export const PortableInstall = ({
               )}
               {dataLine !== undefined && (
                 <p className="update-progress-note portable-data">
-                  <span>
-                    Your workspace stays in <code className="portable-path">{dataLine}</code>
+                  <span className="portable-data-words">
+                    <span>Your workspace stays in</span>{" "}
+                    <code className="portable-path">{dataLine}</code>
                   </span>
                   {portable.onShowFolder && (
-                    <button
-                      type="button"
-                      className="button link shrink-0 text-control"
-                      onClick={portable.onShowFolder}
-                    >
-                      Show folder
-                    </button>
+                    <Tooltip content="Show folder">
+                      <button
+                        type="button"
+                        className="icon-button small portable-data-show"
+                        aria-label="Show folder"
+                        onClick={portable.onShowFolder}
+                      >
+                        <FolderOpen size={14} />
+                      </button>
+                    </Tooltip>
                   )}
                 </p>
               )}

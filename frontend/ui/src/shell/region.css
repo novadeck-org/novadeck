@@ -402,9 +402,10 @@
   margin-inline-start: auto;
 }
 /* A portable copy's card (PortableInstall.tsx) is as wide as the changelog it can carry,
-   which it shows in the what's-new look below. The workspace's folder reads as a path, in
-   mono, with a small button to show it beside the words, set apart from the highlights
-   above it and the buttons below by more than the highlights are from each other. */
+   which it shows in the what's-new look below. The workspace's folder sits in a soft well of
+   its own, apart from the highlights above it and the buttons below: the words, an icon
+   button in the well's corner to show the folder, and the path under both, in mono, on a line
+   of its own so it breaks only when it must. */
 .update-card.portable-card {
   width: 20.5rem;
 }
@@ -413,22 +414,27 @@
   margin-block-start: 8px;
 }
 .portable-data {
-  display: flex;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
   align-items: baseline;
-  justify-content: space-between;
-  gap: 8px;
+  gap: 2px 8px;
+  padding: 8px 10px;
+  border-radius: 4px;
+  background-color: var(--color-soft);
 }
-/* The words give way to the button, however long the path: the item may shrink below its
-   longest chunk (`min-width`), and the chunk breaks only when it must. The path ends the line
-   with no full stop, which would wrap alone when the path just fills it. */
-.portable-data > span,
+.portable-data-words {
+  display: contents;
+}
+/* Pulled into the well's corner, as the card's × is into the card's. */
+.portable-data-show {
+  align-self: start;
+  margin-block: -4px;
+  margin-inline: 0 -6px;
+}
 .portable-path {
+  grid-row: 2;
+  grid-column: 1 / -1;
   overflow-wrap: break-word;
-}
-.portable-data > span {
-  min-width: 0;
-}
-.portable-path {
   color: var(--color-ink);
   font-family: var(--font-mono);
   font-size: 0.92em;
