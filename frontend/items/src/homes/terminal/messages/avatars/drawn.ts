@@ -184,11 +184,11 @@ export const drawnCritters: readonly (readonly [word: string, rows: string])[] =
   // Fizzy drop sending up bubbles.
   ["fizz", ".o...o../...o...o/o.o..o../.######./#x####x#/########/#++++++#/.######."],
   // Front-on rook, one bright lens eye, pale beak.
-  ["rook", "..#..#../.######./#oeo##x#/##o#####/.##++##./.######./#.####.#/..#..#.."],
+  ["rook", "..#..#../.######./#oeo##x#/########/.##++##./.######./#.####.#/..#..#.."],
   // Hexagon with a glyph between its eyes.
-  ["hex", "..####../.#....#./#.x..x.#/#......#/#.+##+.#/#......#/.#....#./..####.."],
+  ["hex", "..####../.#....#./#.e..e.#/#......#/#.+##+.#/#......#/.#....#./..####.."],
   // Straw hat, sword at its side.
   ["ronin", "...##.../.######./########/..#x#x#./..####../.######o/.#.##.o./...##o.."],
-  // Pale egret, plumes and a dark bill.
+  // Pale egret, plumes and a bill.
   ["egret", ".+....../..+ooo../...oxoo#/...oo.../..ooo.../.ooooo../..oooo../...o.o.."],
 ]
