@@ -4009,6 +4009,58 @@ describe("a lead", () => {
     })
   })
 
+  describe("a lead's message the person released", () => {
+    it("is never delivered, though the same session binds again", () => {
+      const { messaging, send, records, follow, prompt, worker } = withWorker()
+      const message = sent(send("A", "owl", "Keep going."))
+      messaging.dropLeadMessages("W")
+      messaging.endLead("W")
+      follow("W", binding("codex", "s-other", "4"))
+      follow("W", worker)
+      expect(records.messages().find(({ id }) => id === message.id)).toMatchObject({
+        state: "gone",
+        stopped: true,
+      })
+      expect(prompt("W", worker).stdout).not.toContain("Keep going.")
+    })
+
+    it("stays undelivered when a new runner over the same records binds the session", () => {
+      const records = memoryMessages()
+      const first = create(records)
+      const worker = binding("codex", "s-worker", "3")
+      first.messaging.register("W", here, "owl", "moth")
+      first.follow("W", worker)
+      const message = sent(first.send("A", "owl", "Keep going."))
+      first.messaging.dropLeadMessages("W")
+      first.messaging.endLead("W")
+      first.messaging.close()
+      const second = create(records)
+      second.messaging.register("W", here, "owl", null)
+      second.follow("W", worker)
+      expect(records.messages().find(({ id }) => id === message.id)?.state).toBe("gone")
+      expect(second.prompt("W", worker).stdout).not.toContain("Keep going.")
+    })
+
+    it("is gone, not leased, in a new runner when it was leased at the release", () => {
+      const records = memoryMessages()
+      const first = create(records)
+      const worker = binding("codex", "s-worker", "3")
+      first.messaging.register("W", here, "owl", "moth")
+      first.follow("W", worker)
+      const message = sent(first.send("A", "owl", "Keep going."))
+      expect(first.prompt("W", worker).leaseId).not.toBeNull()
+      first.messaging.dropLeadMessages("W")
+      first.messaging.endLead("W")
+      expect(records.messages().find(({ id }) => id === message.id)?.state).toBe("leased")
+      first.messaging.close()
+      const second = create(records)
+      second.messaging.register("W", here, "owl", null)
+      second.follow("W", worker)
+      expect(records.messages().find(({ id }) => id === message.id)?.state).toBe("gone")
+      expect(second.prompt("W", worker).stdout).not.toContain("Keep going.")
+    })
+  })
+
   describe("a lead's leased message whose lease lapses", () => {
     const lapsing = () => {
       vi.useFakeTimers()

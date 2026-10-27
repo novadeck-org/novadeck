@@ -641,9 +641,14 @@ export class Messaging {
         (message.state === "queued" || message.state === "held" || message.state === "leased")
       ) {
         this.releasedMessages.add(message.id)
-        // A leased one may still be acknowledged; if its lease lapses it is dropped then
-        // (`lapse`), as its sender's no longer the lead.
-        if (message.state !== "leased") this.gone(message, "lead-released")
+        // Kept as the person's stop of a thread is: `stopped` is saved, so no session that
+        // binds again, and no restart, brings it back. A leased one is left to finish; if
+        // its lease lapses, or the runner restarts, it is gone then (`wait`).
+        if (message.state === "leased") this.put({ ...message, stopped: true })
+        else {
+          this.noteGone(message, "lead-released")
+          this.put({ ...message, state: "gone", notified: false, stopped: true })
+        }
       }
   }
 
@@ -1647,7 +1652,7 @@ export class Messaging {
     const told = gone.map((message) => ({
       id: message.id,
       to: message.to.handle,
-      ...(message.stopped && { stopped: true as const }),
+      ...(message.stopped && !this.releasedMessages.has(message.id) && { stopped: true as const }),
       ...(this.releasedMessages.has(message.id) && { released: true as const }),
     }))
     // Told: the flag has done its work.
@@ -2356,8 +2361,15 @@ export class Messaging {
 
   /** Puts an undelivered message back to waiting: held for a reason, else queued. */
   private wait(message: Message): void {
-    // A stopped thread's message never waits again: one a lease held is gone with it.
-    if (message.stopped) return
+    // A stopped thread's message never waits again: one a lease held is gone with it (a lead
+    // message the person released, kept leased to finish, is marked so too).
+    if (message.stopped) {
+      if (message.state === "leased") {
+        this.noteGone(message, "stopped")
+        this.put({ ...message, state: "gone", notified: false })
+      }
+      return
+    }
     const thread = this.threads.get(message.thread)
     if (thread?.stoppedAt != null && undelivered(message)) {
       this.noteGone(message, "thread-stopped")
@@ -2449,10 +2461,9 @@ export class Messaging {
     for (const id of lease.messages) {
       const message = this.messages.get(id)
       if (message?.state !== "leased") continue
-      // The person released the recipient from the lead meanwhile: it waits for no one. Any
-      // other end of the lead leaves it its authority, as it had when sent.
-      if (message.fromLead && this.releasedMessages.has(id)) this.gone(message, "lead-released")
-      else this.wait(message)
+      // One the person's release marked stopped is gone (`wait`); any other end of the lead
+      // leaves a message its authority, as it had when sent.
+      this.wait(message)
     }
     const live = this.live.get(lease.terminalId)
     if (!live || lease.kind !== "stop") return

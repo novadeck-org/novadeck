@@ -97,7 +97,7 @@ export const leadNotice = {
   userReleasedFrom: (handle: string, title: string): string =>
     notice +
     `The user released ${mention(handle)} · ${title}: you no longer lead it, and its ` +
-    "messages are a peer's from now. What you sent it that hadn't arrived is gone.",
+    "messages are a peer's from now. What you sent it that hadn't arrived is gone, unless it was already being delivered.",
 }
 
 /** An agent in a terminal, as messages reach it: its harness and root session, once bound. */
@@ -130,15 +130,18 @@ const briefText = (
   marked: boolean,
 ): string => {
   const lines = [
-    !marked
-      ? `Your brief matched message ${sent.id}, which you sent ${mention(handle)} moments ` +
-        "before you led it, so no lead-marked brief went out: send it again in a few seconds."
-      : sent.state === "held"
-        ? `Your brief, message ${sent.id}, is held: ` +
-          (sent.held === "release"
-            ? (sent.why ?? "it waits for the user to release its thread in Novadeck.")
-            : "the user paused messaging in Novadeck, and it goes once they resume it.")
-        : `Your brief, message ${sent.id}, is sent; its replies arrive by themselves.`,
+    sent.state === "gone"
+      ? `Your brief matched message ${sent.id}, an earlier identical one that won't arrive: ` +
+        "no brief went out. Send it again with send."
+      : !marked
+        ? `Your brief matched message ${sent.id}, which you sent ${mention(handle)} moments ` +
+          "before you led it, so no lead-marked brief went out: send it again in a few seconds."
+        : sent.state === "held"
+          ? `Your brief, message ${sent.id}, is held: ` +
+            (sent.held === "release"
+              ? (sent.why ?? "it waits for the user to release its thread in Novadeck.")
+              : "the user paused messaging in Novadeck, and it goes once they resume it.")
+          : `Your brief, message ${sent.id}, is sent; its replies arrive by themselves.`,
   ]
   for (const gone of sent.gone ?? [])
     lines.push(`Your earlier message ${gone.id} to ${mention(gone.to)}${wontArrive(gone)}`)
@@ -196,24 +199,16 @@ export class Leads {
 
   /**
    * Why the agents asked about are not the ones now, in a sentence for the caller;
-   * undefined when both are as they were. The caller must still run its bound session, and
-   * the target the same agent, in the same session once one was bound.
+   * undefined when both are as they were: the caller still runs a bound session of the
+   * same agent, and the target the same agent. A session's id is not compared, as a guess
+   * at it may be corrected, and a new session of the same agent keeps its terminal's lead.
    */
   private changed(caller: Record, target: Record, seen: Seen): string | undefined {
     const now = this.identity(caller)
-    if (
-      !now ||
-      now.sessionId === null ||
-      now.agent !== seen.caller.agent ||
-      now.sessionId !== seen.caller.sessionId
-    )
+    if (!now || now.sessionId === null || now.agent !== seen.caller.agent)
       return "your agent session there is not the one that asked."
     const there = this.identity(target)
-    if (
-      !there ||
-      there.agent !== seen.target.agent ||
-      (seen.target.sessionId !== null && there.sessionId !== seen.target.sessionId)
-    )
+    if (!there || there.agent !== seen.target.agent)
       return `the agent in ${mention(target.summary.handle)} is not the one you asked about.`
     return undefined
   }

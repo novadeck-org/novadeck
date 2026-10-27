@@ -383,6 +383,15 @@ describe("the user answering an ask to lead", () => {
     expect(text).not.toContain("is sent")
   })
 
+  it("says no brief went out when the identical earlier message it matched is gone", async () => {
+    const { run, answer } = await asking()
+    run.sending({ ok: true, id: "m3", state: "gone" })
+    await answer(true)
+    const text = run.notices.at(-1)!.text
+    expect(text).toContain("won't arrive: no brief went out")
+    expect(text).not.toContain("is sent")
+  })
+
   it("does not claim a lead-marked brief went when an identical earlier message stood in", async () => {
     const { run, answer } = await asking()
     run.marking(false)
@@ -432,12 +441,12 @@ describe("the user answering an ask to lead", () => {
     ])
   })
 
-  it("links nothing when the caller's agent was replaced by another session", async () => {
+  it("still links when a session id was corrected or replaced, as the agent is the same", async () => {
     const { run, answer } = await asking()
-    run.agents.set("moth", { agent: "claude", sessionId: "s-new" })
+    run.agents.set("moth", { agent: "claude", sessionId: "s-corrected" })
+    run.agents.set("fox", { agent: "codex", sessionId: "s-corrected" })
     await answer(true)
-    expect(run.records.get("id-fox")!.summary.ledBy).toBeNull()
-    expect(run.sent).toEqual([])
+    expect(run.records.get("id-fox")!.summary.ledBy).toBe("moth")
   })
 
   it("links nothing when the target's agent was swapped for another in the same shell", async () => {

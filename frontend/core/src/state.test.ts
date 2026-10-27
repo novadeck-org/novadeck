@@ -607,7 +607,24 @@ describe("terminals agents open", () => {
       expect(order(run(dragged, lead("03", "moth")))).toEqual(["02", "01", "03"])
     })
 
-    it("moves nothing on a restore, a change of lead or a release", () => {
+    it("moves nothing on a restore, which seeds the lead, nor on the same lead announced again", () => {
+      // As the runner adapter's seed builds it: led from the start, in the saved order.
+      const restored = apply(
+        handled,
+        {
+          type: "terminal/add",
+          target,
+          terminal: { ...terminalFixture(3, "~/project"), ledBy: "moth" },
+          select: false,
+        },
+        named("03"),
+        { type: "terminal/reorder", target, tabOrder: ["02", "01", "03"] },
+      )
+      expect(order(run(restored))).toEqual(["02", "01", "03"])
+      expect(order(run(restored, lead("03", "moth")))).toEqual(["02", "01", "03"])
+    })
+
+    it("moves nothing on a change of lead or a release", () => {
       const led = apply(three, lead("03", "moth"))
       const dragged = apply(led, { type: "terminal/reorder", target, tabOrder: ["02", "01", "03"] })
       expect(order(run(dragged, lead("03", "wren")))).toEqual(["02", "01", "03"])
