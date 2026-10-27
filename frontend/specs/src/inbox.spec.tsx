@@ -149,6 +149,28 @@ describe("An item's sheet", () => {
       await expect.element(sheet("Checkout review")).not.toBeInTheDocument()
     })
 
+    it("closes when its row is pressed again", async () => {
+      await openInbox()
+      await row("Run pnpm add").click()
+      await expect.element(sheet("Checkout review")).toBeVisible()
+      await row("Run pnpm add").click()
+
+      await expect.element(sheet("Checkout review")).not.toBeInTheDocument()
+      await expect.element(row("Run pnpm add")).not.toHaveAttribute("aria-current")
+    })
+
+    it("closes on a click in the sidebar off the list's buttons", async () => {
+      await openInbox()
+      await row("Run pnpm add").click()
+      await expect.element(sheet("Checkout review")).toBeVisible()
+      await page
+        .getByRole("region", { name: /^Inbox/ })
+        .getByRole("heading", { name: /^Inbox/ })
+        .click()
+
+      await expect.element(sheet("Checkout review")).not.toBeInTheDocument()
+    })
+
     it("moves to another item when another row is pressed, and with j and k", async () => {
       await openInbox()
       await row("Run pnpm add").click()

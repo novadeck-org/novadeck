@@ -177,10 +177,14 @@ export const InboxSheet = ({ active }: { readonly active: boolean }): React.JSX.
       boundary={workspace}
       anchorKey={item.id}
       onDismiss={close}
-      // A click in the sidebar is the list's own: it opens another item or this one again. The
-      // demo's debug drawer is where items arrive from, and is not the workspace.
+      // A press on one of the list's buttons is the list's own: a row opens its item, or closes
+      // the sheet when it is the open one. Anywhere else in the sidebar closes it, as outside
+      // does. The demo's debug drawer is where items arrive from, and is not the workspace.
       onInteractOutside={(event) => {
-        if (event.target instanceof Element && event.target.closest("#inbox-panel, .debug-drawer"))
+        if (
+          event.target instanceof Element &&
+          event.target.closest("#inbox-panel button, .debug-drawer")
+        )
           event.preventDefault()
       }}
     >
