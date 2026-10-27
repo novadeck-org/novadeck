@@ -3,7 +3,7 @@ import { itemIdOf, type Item } from "./items"
 import { orderedTiles } from "./roster"
 import { activeSession, workspaceReducer, type WorkspaceAction } from "./state"
 import { context, describe, expect, it } from "./test"
-import { itemFixture, workspaceFixture } from "./testing"
+import { itemFixture, terminalFixture, workspaceFixture } from "./testing"
 import type { CompanionWindowMeta, Workspace, WorkspaceState } from "./types"
 
 const target = { projectId: "project", workspaceSessionId: "initial" }
@@ -515,5 +515,91 @@ describe("a terminal's name from murmur", () => {
       titleSource: { kind: "murmur" },
     })
     expect(state.roster.terminals[0]?.titleSource).toEqual({ kind: "murmur" })
+  })
+})
+
+describe("terminals agents open", () => {
+  // 01 and 02 as the person opened them; the rest as agents open them.
+  const handles: Record<string, string> = {
+    "01": "moth",
+    "02": "wren",
+    "03": "fern",
+    "04": "kite",
+    "05": "lark",
+    "06": "hawk",
+  }
+  const named = (id: string): WorkspaceAction => ({
+    type: "terminal/update",
+    target,
+    terminalId: id,
+    handle: handles[id]!,
+  })
+  // Terminal `number`, as the agent in `from` asks for it, and its backend then names it.
+  const opened = (number: number, from: string): WorkspaceAction[] => {
+    const by = handles[from]
+    const terminal = { ...terminalFixture(number, "~/project"), ...(by && { openedBy: by }) }
+    return [
+      { type: "terminal/add", target, terminal, anchor: from, select: false },
+      named(terminal.id),
+    ]
+  }
+  const order = (state: WorkspaceState) => orderedTiles(state.roster).map((tile) => tile.id)
+  const handled = apply(workspaceFixture(), named("01"), named("02"))
+
+  it("lists each under its opener, after the ones it opened before", () => {
+    const state = run(handled, ...opened(3, "01"), ...opened(4, "01"))
+    expect(order(state)).toEqual(["01", "03", "04", "02"])
+  })
+
+  it("lists one a teammate opened in its lead's group, under the teammate", () => {
+    const state = run(
+      handled,
+      ...opened(3, "01"),
+      ...opened(4, "01"),
+      ...opened(5, "03"),
+      ...opened(6, "01"),
+    )
+    expect(order(state)).toEqual(["01", "03", "05", "04", "06", "02"])
+  })
+
+  it("keeps teammates in the order they came when only their lead is known", () => {
+    // As the demo adds a lead's helpers at once: led by it, before anything says who opened them.
+    const helper = (number: number): WorkspaceAction => ({
+      type: "terminal/add",
+      target,
+      terminal: { ...terminalFixture(number, "~/project"), ledBy: "moth" },
+      anchor: "01",
+      select: false,
+    })
+    const state = run(handled, helper(3), named("03"), helper(4), named("04"), helper(5))
+    expect(order(state)).toEqual(["01", "03", "04", "05", "02"])
+  })
+
+  it("follows the order the person dragged the list into", () => {
+    const dragged = apply(handled, { type: "terminal/reorder", target, tabOrder: ["02", "01"] })
+    expect(order(run(dragged, ...opened(3, "01")))).toEqual(["02", "01", "03"])
+    expect(order(run(dragged, ...opened(3, "02")))).toEqual(["02", "03", "01"])
+  })
+
+  it("leaves windows after the terminals the person opens later", () => {
+    const undocked = apply(
+      shown(hero),
+      { type: "item/undock", target, itemId: hero.id, window: windowFor(hero) },
+      named("01"),
+      named("02"),
+    )
+    const own = terminalFixture(4, "~/project")
+    const after = run(undocked, ...opened(3, "01"), { type: "terminal/add", target, terminal: own })
+    expect(order(after)).toEqual(["01", "03", "02", "04", "w1"])
+  })
+
+  it("goes last when its opener isn't in the session, as the person's own do", () => {
+    expect(order(run(handled, ...opened(3, "gone")))).toEqual(["01", "02", "03"])
+    const own = terminalFixture(3, "~/project")
+    expect(order(run(handled, { type: "terminal/add", target, terminal: own }))).toEqual([
+      "01",
+      "02",
+      "03",
+    ])
   })
 })

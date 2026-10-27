@@ -1,4 +1,5 @@
 import type { InboxRow } from "@novadeck/core/inbox"
+import { orderedTiles } from "@novadeck/core/roster"
 import { workspaceFromSeed } from "@novadeck/core/seed"
 import { activeSession } from "@novadeck/core/state"
 import { createWorkspaceStore } from "@novadeck/core/store"
@@ -155,13 +156,19 @@ describe("the Babcia demo", () => {
   })
 
   it("has the lead open three helpers its team wire draws to, and rest", () => {
-    const { cues, terminals, agent } = open()
+    const { cues, terminals, agent, store } = open()
     cues.helpers()
     expect(terminals()).toHaveLength(15)
     const lead = terminals().find((each) => each.id === key(babcia.lead).terminalId)!
     const helpers = terminals().slice(12)
     expect(helpers.map((each) => each.ledBy)).toEqual([lead.handle, lead.handle, lead.handle])
     expect(helpers.map((each) => each.process)).toEqual(["codex", "agy", "claude"])
+    // Listed under their lead, in the order it opened them.
+    const listed = orderedTiles(activeSession(store.getSnapshot())!.state.roster).map(
+      (each) => each.id,
+    )
+    const below = listed.indexOf(lead.id) + 1
+    expect(listed.slice(below, below + 3)).toEqual(helpers.map((each) => each.id))
     expect(agent(babcia.lead)).toMatchObject({ working: false })
     // Opening them twice opens no more.
     cues.helpers()
