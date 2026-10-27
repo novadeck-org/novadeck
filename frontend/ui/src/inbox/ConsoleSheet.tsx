@@ -46,11 +46,6 @@ const Context = ({ item }: { readonly item: InboxRow }): React.JSX.Element | nul
             ›
           </span>
           <span className="console-line" title={said.text}>
-            {said.by && (
-              <>
-                <HandleChip handle={said.by} /> said{" "}
-              </>
-            )}
             <q>{said.text}</q>
           </span>
         </div>
