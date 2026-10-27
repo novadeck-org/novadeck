@@ -92,7 +92,7 @@ const messaging: MessagingProfile = {
 }
 
 // Its commands that start work for an agent though they open no session here.
-const sessionCommands = ["attach", "ultrareview"]
+const sessionCommands = new Set(["attach", "ultrareview"])
 
 export const claude = {
   id: "claude",
@@ -174,7 +174,7 @@ export const claude = {
   // on the caller's text, so it is none. Its options
   // that take a value, which the words after them are not commands for.
   nonSession: {
-    commands: commands.filter((command) => !sessionCommands.includes(command)),
+    commands: commands.filter((command) => !sessionCommands.has(command)),
     flags: ["-h", "--help", "-v", "--version"],
     print: ["-p", "--print"],
     takesValue: [
