@@ -204,12 +204,12 @@ export const sends = (text: string, to: string, message: string): Rule =>
 
 /**
  * Answers the agent's first look at a user turn holding `text` by opening a terminal that
- * starts `agent` with `message` as its task (`open_terminal`). The calls after the tool
+ * starts `agent` with `message` as its task (`open_agent`). The calls after the tool
  * answered go to the next rules.
  */
 export const opens = (text: string, agent: AgentName, message: string): Rule =>
   own((call) => {
-    const open = tool(call, "open_terminal")
+    const open = tool(call, "open_agent")
     if (!open || !asked(call, text)) return undefined
     return { calls: [{ name: open, input: { agent, message } }] }
   })
@@ -247,7 +247,7 @@ export const withoutSandbox = (text: string, root: string): string => {
   return text
 }
 
-/** Whether the call is the agent's next look after its `open_terminal` opened `handle`. */
+/** Whether the call is the agent's next look after its `open_agent` or `open_terminal` opened `handle`. */
 export const opened = (call: Call, handle: string): boolean => {
   const last = call.turns.at(-1)
   return last?.role === "tool" && lead("Opened a new terminal, ", handle).test(last.text)

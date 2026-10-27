@@ -300,14 +300,14 @@ export const agentTranscripts = (now: number): Readonly<Record<string, DemoTrans
       ),
       use(
         "call_04n",
-        "mcp__novadeck__open_terminal",
+        "mcp__novadeck__open_agent",
         {
           agent: "claude",
           message: "Check that the export job still rounds cents the old way.",
         },
         {
           kind: "agent",
-          title: "Opened a terminal",
+          title: "Opened an agent",
           detail: "claude: Check that the export job still rounds cents the old way.",
         },
       ),

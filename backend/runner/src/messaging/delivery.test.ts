@@ -1147,7 +1147,7 @@ describe("a new session at its own prompt", () => {
   })
 
   it("goes to Working at its own command-line doorbell prompt, with no ring", () => {
-    // `claude "<line>"`, as `open_terminal(claude, message)` starts it.
+    // `claude "<line>"`, as `open_agent(claude, message)` starts it.
     const started = transition(ready, doorbell)
     expect(started).toMatchObject({ state: "working", phase: "turn", box: { empty: true } })
     expect(ringableSince(started)).toBeUndefined()

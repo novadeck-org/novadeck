@@ -212,13 +212,19 @@ const novadeckTool = (tool: string, fields: Fields | null): ToolSummary | undefi
       }
     case "agents":
       return { kind: "agent", title: "Listed agents", detail: "" }
-    case "open_terminal": {
+    case "open_terminal":
+      return {
+        kind: "agent",
+        title: "Opened a terminal",
+        detail: text("command", "title", "cwd"),
+      }
+    case "open_agent": {
       const agent = text("agent")
       const task = text("message")
       return {
         kind: "agent",
-        title: "Opened a terminal",
-        detail: agent ? (task ? `${agent}: ${task}` : agent) : text("command", "title", "cwd"),
+        title: "Opened an agent",
+        detail: agent ? (task ? `${agent}: ${task}` : agent) : task,
       }
     }
     case "close_terminal":

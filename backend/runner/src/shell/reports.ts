@@ -52,6 +52,7 @@ const callTypes = [
   "send",
   "agents",
   "summarize",
+  "models",
   "ask",
   "tell",
   "done",
@@ -74,6 +75,7 @@ export const unansweredCalls = {
   tell: { ok: false, reason: "Novadeck couldn't save the update." },
   done: { ok: false, reason: "Novadeck couldn't save the report." },
   summarize: { ok: false, reason: "Novadeck couldn't summarize the terminal." },
+  models: { ok: false, reason: "Novadeck couldn't list the models." },
 } as const satisfies { readonly [type in CallType]: { ok: false; reason: string } }
 
 const object = (value: unknown): value is { readonly [key: string]: unknown } =>

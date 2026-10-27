@@ -23,6 +23,7 @@ const handlers: Record<string, { readonly file: string; readonly method: string 
   showing: { file: companionFile, method: "showing" },
   close: { file: companionFile, method: "dismiss" },
   open_terminal: { file: callsFile, method: "open" },
+  open_agent: { file: callsFile, method: "open" },
   close_terminal: { file: callsFile, method: "closePeer" },
   send: { file: managerFile, method: "send" },
   agents: { file: managerFile, method: "agents" },
@@ -50,6 +51,11 @@ const extractTools = (anchors: Anchors, adapters: Adapter[]): McpTool[] => {
   if (!listing)
     anchors.report("mcp tools", mcpFile, "expected `const tools: readonly Tool<unknown>[] = [`")
   const listed = listing?.[1] ?? ""
+  // The efforts the tools name, read from the contract they come from.
+  const effortList = /export const efforts = (\[[^\]]*\])/.exec(
+    anchors.read(contractFile) ?? "",
+  )?.[1]
+  if (!effortList) anchors.report("mcp tools", contractFile, "expected `export const efforts = [`")
   const variables = listed
     .split(",")
     .map((name) => name.trim())
@@ -57,7 +63,7 @@ const extractTools = (anchors: Anchors, adapters: Adapter[]): McpTool[] => {
   // The constants the literals spread or name, each ending at a blank line or a comment.
   const preamble = [
     ...source.matchAll(
-      /^const (rules|agentChoices|entryFields)\b[^=]*=\s*([\s\S]*?)\n(?=\n|\/\/)/gm,
+      /^const (rules|agentChoices|entryFields|cwdProperty|focusProperty|effortProperty|noModel)\b[^=]*=\s*([\s\S]*?)\n(?=\n|\/\/)/gm,
     ),
   ]
     .map(([, name, value]) => `const ${name} = ${value}`)
@@ -74,10 +80,12 @@ const extractTools = (anchors: Anchors, adapters: Adapter[]): McpTool[] => {
       const evaluate = new Function(
         "harnessIds",
         "harnesses",
+        "efforts",
         `${preamble}\nreturn ${literal}`,
       ) as (
         ids: string[],
         list: { id: string; name: string }[],
+        efforts: string[],
       ) => {
         name: string
         description: string
@@ -86,6 +94,7 @@ const extractTools = (anchors: Anchors, adapters: Adapter[]): McpTool[] => {
       const tool = evaluate(
         adapters.map((each) => each.id),
         adapters.map((each) => ({ id: each.id, name: each.title })),
+        effortList ? (JSON.parse(effortList.replaceAll(/,\s*]/g, "]")) as string[]) : [],
       )
       const mapped = handlers[tool.name]
       const line =
