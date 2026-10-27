@@ -275,7 +275,7 @@ Agents:
   shell mode, text in its box, a dialog, asking you, failed, away), which its Messages pane
   says while messages wait for it. "News from a peer" has its latest peer write to it, so the
   peer's row in its Messages list says Unread until the person opens it; "News from a
-  repeated handle" has `fox2` (or `moth2`) write, whose critter carries its 2. The variant's
+  repeated handle" has `foxz` (or `mothz`) write, whose critter is its word's. The variant's
   Messages pane has the rest at rest: the person's entries (an answered ask, an unread tell,
   an open ask with Answer), a thread folded to one line, messages waiting, delivering and
   not delivered, and the critters of agents working (hopping), at rest and gone (dim).
