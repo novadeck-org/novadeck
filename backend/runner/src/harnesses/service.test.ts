@@ -44,9 +44,9 @@ if (agent === "codex") {
   if (command === "remove novadeck@novadeck") write(file, "")
 }
 if (agent === "agy" && args[0] === "models") {
-  if (process.env.FAKE_MODELS_FAIL) { console.error("offline"); process.exit(1) }
-  if (process.env.FAKE_MODELS_SLOW) setTimeout(() => {}, 60000)
-  else process.stdout.write("Fetching available models...\\nfake-pro\\tFake Pro\\nfake-lite\\tFake Lite\\n")
+  if (process.env.FAKE_MODELS_FAIL || (process.env.FAKE_FAIL_FILE && fs.existsSync(process.env.FAKE_FAIL_FILE))) { console.error("offline"); process.exit(1) }
+  // FAKE_MODELS_SLOW: milliseconds it takes to answer.
+  setTimeout(() => process.stdout.write("Fetching available models...\\nfake-pro\\tFake Pro\\nfake-lite\\tFake Lite\\n"), Number(process.env.FAKE_MODELS_SLOW ?? 0))
 } else if (agent === "agy") {
   // It copies the plugin folder it installs, as the real one does.
   const folder = path.join(home, ".gemini", "config", "plugins", "novadeck")
@@ -466,7 +466,7 @@ describe.skipIf(windows)("resuming an agent's saved session", () => {
     expect((await agents.models("claude")).map(({ id }) => id)).toContain("opus")
   })
 
-  it("answers a list older than its time at once, and refreshes it in the background", async ({
+  it("answers a list older than its time at once, and refreshes it once in the background", async ({
     fixture,
   }) => {
     withAntigravity(fixture)
@@ -484,46 +484,54 @@ describe.skipIf(windows)("resuming an agent's saved session", () => {
     const old = await Promise.all([kept.models("agy"), kept.models("agy")])
     expect(old[0]?.map(({ id }) => id)).toEqual(["fake-pro", "fake-lite"])
     await expect.poll(list).toBe(2)
+    // Settled: a fresh list is asked for no more.
+    await new Promise((done) => setTimeout(done, 100))
+    expect(list()).toBe(2)
   })
 
-  it("keeps the last good list when a refresh finds none, and asks a minute later", async ({
+  it("keeps a good list when a later refresh of it finds none", async ({ fixture }) => {
+    withAntigravity(fixture)
+    const list = () => fixture.calls().filter((call) => call[1] === "models").length
+    // The same object, its agent going offline once it has a list: FAKE_MODELS_FAIL is
+    // read from the file this flag names, which the stand-in checks at each run.
+    const env = fixture.environment({ FAKE_FAIL_FILE: join(fixture.root, "offline") })
+    const agents = createHarnesses(() => Promise.resolve(fixture.paths), {
+      home: fixture.home,
+      env,
+      models: { keepMs: 50, emptyMs: 5_000 },
+    })
+    expect(await agents.models("agy")).toHaveLength(2)
+    writeFileSync(join(fixture.root, "offline"), "")
+    await new Promise((done) => setTimeout(done, 100))
+    // Old, so refreshed behind the answer, and the refresh fails.
+    expect(await agents.models("agy")).toHaveLength(2)
+    await expect.poll(list).toBe(2)
+    await new Promise((done) => setTimeout(done, 50))
+    // Still the good list, and the failed agent is left alone for a while.
+    expect(await agents.models("agy")).toHaveLength(2)
+    await new Promise((done) => setTimeout(done, 100))
+    await agents.models("agy")
+    expect(list()).toBe(2)
+  })
+
+  it("answers none for a lookup that outlasts the wait, which still fills the list", async ({
     fixture,
   }) => {
     withAntigravity(fixture)
     const list = () => fixture.calls().filter((call) => call[1] === "models").length
-    const good = createHarnesses(() => Promise.resolve(fixture.paths), {
-      home: fixture.home,
-      env: fixture.environment(),
-      models: { keepMs: 50, emptyMs: 150 },
-    })
-    expect(await good.models("agy")).toHaveLength(2)
-    // The same agent, now offline: a second harnesses object has no list to keep.
-    const failing = createHarnesses(() => Promise.resolve(fixture.paths), {
-      home: fixture.home,
-      env: fixture.environment({ FAKE_MODELS_FAIL: "1" }),
-      models: { keepMs: 60_000, emptyMs: 150 },
-    })
-    expect(await failing.models("agy")).toEqual([])
-    expect(await failing.models("agy")).toEqual([])
-    expect(list()).toBe(2)
-    await new Promise((done) => setTimeout(done, 200))
-    await failing.models("agy")
-    expect(list()).toBe(3)
-  })
-
-  it("gives up on a lookup that never settles, and on an agent that isn't installed", async ({
-    fixture,
-  }) => {
-    withAntigravity(fixture)
     const slow = createHarnesses(() => Promise.resolve(fixture.paths), {
       home: fixture.home,
-      env: fixture.environment({ FAKE_MODELS_SLOW: "1" }),
-      models: { commandMs: 60_000, lookupMs: 200 },
+      env: fixture.environment({ FAKE_MODELS_SLOW: "800" }),
+      models: { commandMs: 10_000, lookupMs: 200 },
     })
-    const started = Date.now()
     expect(await slow.models("agy")).toEqual([])
-    expect(Date.now() - started).toBeLessThan(5_000)
+    // Another caller meanwhile starts no second command.
+    expect(await slow.models("agy")).toEqual([])
+    await expect.poll(async () => (await slow.models("agy")).length, { timeout: 5_000 }).toBe(2)
+    expect(list()).toBe(1)
+  })
 
+  it("asks nothing of an agent that isn't installed", async ({ fixture }) => {
     const bare = createHarnesses(() => Promise.resolve(fixture.paths), {
       home: fixture.home,
       env: fixture.environment({ CODEX_HOME: join(fixture.root, "nothing") }),

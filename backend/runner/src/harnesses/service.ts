@@ -1,4 +1,4 @@
-import { spawn } from "node:child_process"
+import { spawn, type ChildProcess } from "node:child_process"
 import { access, readFile, rm, writeFile } from "node:fs/promises"
 import { homedir } from "node:os"
 import { delimiter, join } from "node:path"
@@ -122,6 +122,24 @@ const locate = async (program: string, harness: Harness, install: Install): Prom
  * Runs one of an agent's commands the way the person would in a terminal: with their
  * login environment, and through cmd on Windows, where agents install as .cmd files.
  */
+// Ends the command and what it started: cmd.exe's children outlive it on Windows, and a
+// command's own children hold its pipes open on POSIX.
+const endTree = (child: ChildProcess, platform: NodeJS.Platform) => {
+  const { pid } = child
+  if (pid === undefined) return void child.kill()
+  if (platform === "win32") {
+    spawn("taskkill", ["/pid", String(pid), "/T", "/F"], { stdio: "ignore", windowsHide: true })
+      .on("error", () => child.kill())
+      .unref()
+    return
+  }
+  try {
+    process.kill(-pid, "SIGKILL")
+  } catch {
+    child.kill()
+  }
+}
+
 const run = (
   argv: readonly string[],
   {
@@ -140,7 +158,8 @@ const run = (
             windowsVerbatimArguments: true,
             windowsHide: true,
           })
-        : spawn(program, args, { env, stdio: ["ignore", "pipe", "pipe"] })
+        : // Its own process group, so a timeout ends what it started too.
+          spawn(program, args, { env, stdio: ["ignore", "pipe", "pipe"], detached: true })
     let errors = ""
     let output = ""
     child.stdout.setEncoding("utf8")
@@ -151,7 +170,7 @@ const run = (
     child.stderr.on("data", (chunk: string) => {
       errors = (errors + chunk).slice(-2000)
     })
-    const timer = setTimeout(() => child.kill(), timeoutMs)
+    const timer = setTimeout(() => endTree(child, platform), timeoutMs)
     child.on("error", (error) => {
       clearTimeout(timer)
       reject(error)
@@ -290,14 +309,10 @@ export const createHarnesses = (
       return run([located, ...args], { env: where.env, platform, timeoutMs: commandMs })
     })
   }
-  // One lookup, bound by its own timer: a command whose pipes a grandchild holds open never
-  // settles, and no caller waits on it past `lookupMs`.
+  // One lookup, which runs on until it settles, then fills the list and lets go of
+  // `looking`: so none starts beside it, and one that outlasts a caller's wait still counts.
   const refresh = (agent: AgentName): Promise<readonly Model[]> => {
-    let timer: NodeJS.Timeout | undefined
-    const gaveUp = new Promise<readonly Model[]>((resolve) => {
-      timer = setTimeout(() => resolve([]), lookupMs)
-    })
-    const lookup = Promise.race([lookUpModels(agent), gaveUp])
+    const lookup = lookUpModels(agent)
       .catch((error: unknown) => {
         log.warn("harnesses.models-failed", `Novadeck could not list ${agent}'s models`, {
           data: { agent },
@@ -306,7 +321,6 @@ export const createHarnesses = (
         return [] as readonly Model[]
       })
       .then((models) => {
-        clearTimeout(timer)
         if (models.length > 0) {
           known.set(agent, { at: Date.now(), models })
           lastEmpty.delete(agent)
@@ -319,6 +333,17 @@ export const createHarnesses = (
     looking.set(agent, lookup)
     return lookup
   }
+  // What a caller gets of a lookup: its result, or none once `lookupMs` has passed, when it
+  // goes on without them (a command whose pipes a grandchild holds never settles at all).
+  const waited = (lookup: Promise<readonly Model[]>): Promise<readonly Model[]> =>
+    new Promise((resolve) => {
+      const timer = setTimeout(() => resolve([]), lookupMs)
+      timer.unref()
+      void lookup.then((models) => {
+        clearTimeout(timer)
+        resolve(models)
+      })
+    })
   const api = {
     /**
      * The models the agent can start with on this machine, each with its efforts; none
@@ -334,8 +359,8 @@ export const createHarnesses = (
         if (Date.now() - held.at >= keepMs && !running && !resting) void refresh(agent)
         return Promise.resolve(held.models)
       }
-      if (running) return running
-      return resting ? Promise.resolve([]) : refresh(agent)
+      if (running) return waited(running)
+      return resting ? Promise.resolve([]) : waited(refresh(agent))
     },
     /** Where the agent lives on this machine, once the shell files say where its plugin is. */
     install: async (agent: AgentName): Promise<Install | undefined> => (await installs())?.(agent),
