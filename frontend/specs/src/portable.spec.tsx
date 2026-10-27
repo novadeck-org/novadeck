@@ -88,7 +88,6 @@ describe("a portable copy's install card", () => {
       await page.viewport(600, 800)
       await openWorkspace("/?portable=no-release")
       await expect.element(install()).toBeVisible()
-      await expect.element(install()).toBeVisible()
       expect(
         install().element().querySelector("svg")!.getBoundingClientRect().width,
       ).toBeGreaterThan(0)

@@ -107,8 +107,8 @@ const cardWords = (
 // to the card, so Escape there folds it back into the chip and returns to it.
 // A finished install says so for a few seconds, as the update bar does, then fades and
 // leaves "Installed" on the chip. Novadeck never restarts itself. Once the person closes the
-// card, the chip folds to its icon (and dot) for that release; a newer one brings the word
-// back.
+// card on a release, the chip folds to its icon (and dot) for it; any other release brings the
+// word back, and with none the chip keeps its words.
 export const PortableInstall = ({
   portable: card,
   hidden,
@@ -165,13 +165,15 @@ export const PortableInstall = ({
     return () => cancelAnimationFrame(frame)
   }, [visible])
   const lost = useRecoverFocus(blocked || hidden, chip)
-  // The release the chip speaks for, and the one the person last folded it on.
-  const subject = offer ? offer.version : "install"
+  // The release the person last folded the chip on. Only a release folds it: with none, the
+  // chip keeps "Install Novadeck", and a run that hears of none forgets no fold.
   const [folded, setFolded] = useState(readFoldedChip)
   const finish = (): void => {
     if (!card) return
-    setFolded(subject)
-    writeFoldedChip(subject)
+    if (offer) {
+      setFolded(offer.version)
+      writeFoldedChip(offer.version)
+    }
     const inside = panel.current?.contains(document.activeElement) === true
     const back = opener.current === "chip"
     requested.current = false
@@ -251,7 +253,7 @@ export const PortableInstall = ({
       ? { ...heard, highlights: heard.highlights.slice(0, 4) }
       : undefined
   const chipText = running ? "Installing…" : done ? "Installed" : word
-  const iconOnly = folded === subject && !running && !done
+  const iconOnly = offer !== undefined && folded === offer.version && !running && !done
   // Where the workspace is, said in the phases where the person weighs installing or
   // installing; the others have their own words about it.
   const dataLine =

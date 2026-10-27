@@ -10,7 +10,7 @@ import { readFoldedChip, writeFoldedChip } from "./shell-storage"
 // (UpdateProgress.tsx) instead. A macOS copy the person can't write to has one more way:
 // an administrator can let it install updates itself, so the chip reads "Allow updates"
 // and asks for that (`onAllow`) in place of opening the page. Once the person opened the
-// page, the chip folds to its icon (and dot) for that release; a newer one brings the word
+// page, the chip folds to its icon (and dot) for that release; any other brings the word
 // back.
 export type FooterAvailable = {
   readonly version: string
@@ -49,7 +49,14 @@ export const UpdateAvailable = ({
               : `Update available: Novadeck ${available.version}`
           }
           aria-description={available.onAllow ? allowNote : "Opens the release page"}
-          title={available.onAllow ? allowNote : "Opens the release page"}
+          // Folded to its icon, it says what it is on hover too.
+          title={
+            available.onAllow
+              ? allowNote
+              : iconOnly
+                ? "Update available · Opens the release page"
+                : "Opens the release page"
+          }
           onClick={available.onAllow ?? openPage}
         >
           <span className="footer-chip-icon" aria-hidden="true">

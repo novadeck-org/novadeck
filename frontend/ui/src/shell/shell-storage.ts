@@ -42,8 +42,7 @@ export const readSidebarOrder = (): readonly SidebarPanel[] => {
 }
 
 // The release whose footer update chip the person folded to its icon, by closing its card
-// or opening its page; "install" for a portable copy's chip with no release. A newer release
-// brings the word back.
+// or opening its page. Any other release brings the word back.
 export const foldedChipStorageKey = "novadeck.update-chip-folded"
 export const readFoldedChip = (): string | null => {
   try {
