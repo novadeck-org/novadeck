@@ -29,7 +29,7 @@ window.addEventListener("vite:preloadError", (event) => {
 })
 
 // Framed in another page, as the website's hero frames it, the demo is addressed with
-// `?embed` (see README "Visitor build"): read here once, and nowhere else.
+// `?embed` (see docs/development.md, "Visitor build"): read here once, and nowhere else.
 const embedded = new URLSearchParams(window.location.search).has("embed")
 
 start(<App selection={visitor} embedded={embedded} />)

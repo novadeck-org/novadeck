@@ -5,7 +5,7 @@ name: Try
 # unreleased work. Until launch, Release calls this with each version it publishes,
 # prereleases included; then it moves to Promote to Stable, so the demo shows what Download
 # gives people. Run workflow deploys a tag by hand. Quality's "Build (try)" builds it on
-# every pull request first. Without Cloudflare set up (README "Visitor build") it deploys
+# every pull request first. Without Cloudflare set up (docs/development.md, "Visitor build") it deploys
 # nothing and says so.
 
 on:
