@@ -134,6 +134,10 @@ export const recordingRunner = (runner: Runner, io: string[]): RunnerApi => {
       list: () => runner.projects.list(),
       create: (input) => note(`create project ${input.id}`, () => runner.projects.create(input)),
       rename: (input) => runner.projects.rename(input),
+      arrange: (input) =>
+        note(`arrange ${input.order.join(",")}|${input.pinned.join(",")}`, () =>
+          runner.projects.arrange(input),
+        ),
       remove: (input) =>
         note(`remove project ${input.projectId}`, () => runner.projects.remove(input)),
       folder: (input) => runner.projects.folder(input),

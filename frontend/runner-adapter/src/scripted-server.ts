@@ -150,9 +150,12 @@ export const scriptedRunner = ({
       handshake: api.wire.handshake.handler(() => ({ epoch: id(99), protocolVersion })),
     },
     projects: {
-      list: api.projects.list.handler(() => [{ id: projectId, name: "Agents", cwd: "/tmp" }]),
+      list: api.projects.list.handler(() => [
+        { id: projectId, name: "Agents", cwd: "/tmp", pinned: false },
+      ]),
       create: api.projects.create.handler(unplayed("projects.create")),
       rename: api.projects.rename.handler(unplayed("projects.rename")),
+      arrange: api.projects.arrange.handler(() => {}),
       remove: api.projects.remove.handler(unplayed("projects.remove")),
       folder: api.projects.folder.handler(unplayed("projects.folder")),
     },

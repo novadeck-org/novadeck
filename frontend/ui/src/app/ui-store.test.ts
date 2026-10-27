@@ -5,12 +5,15 @@ import { appearance, workspaceFixture } from "@novadeck/core/testing"
 import type { UpdateChannel, UpdateOffer, WhatsNew } from "@novadeck/core/update"
 import { beforeEach, vi } from "vitest"
 
+import type { ProjectArrangement } from "../projects/project-arrangement"
+import { projectArrangementStorageKey } from "../projects/project-arrangement-storage"
 import { context, describe, expect, it } from "../test"
 import {
   chatViewOn,
   createUiStore,
   dismissWhatsNew,
   initialUi,
+  keepProjectArrangement,
   notePortableCardShown,
   persist,
   setFeatureFlag,
@@ -547,4 +550,47 @@ describe("a portable copy", () => {
       })
     },
   )
+})
+
+describe("keeping the project arrangement", () => {
+  const stored = { order: ["b", "a"], pinned: ["b"] }
+  beforeEach(() => localStorage.removeItem(projectArrangementStorageKey))
+
+  it("sends nothing when a client opens, and each change after it", () => {
+    const ui = createUiStore(initial())
+    const arrange = vi.fn<(arrangement: ProjectArrangement) => Promise<void>>(async () => {})
+    const stop = keepProjectArrangement(ui, arrange)
+    expect(arrange).not.toHaveBeenCalled()
+    ui.update((state) => ({ ...state, shell: { ...state.shell, sidebarCollapsed: true } }))
+    expect(arrange).not.toHaveBeenCalled()
+    ui.update((state) => ({ ...state, projectArrangement: stored }))
+    expect(arrange).toHaveBeenCalledExactlyOnceWith(stored)
+    stop()
+    ui.update((state) => ({ ...state, projectArrangement: { order: [], pinned: [] } }))
+    expect(arrange).toHaveBeenCalledOnce()
+  })
+
+  it("sends what an earlier client kept in storage once, and forgets it when kept", async () => {
+    localStorage.setItem(projectArrangementStorageKey, JSON.stringify(stored))
+    const ui = createUiStore(initial())
+    const arrange = vi.fn<(arrangement: ProjectArrangement) => Promise<void>>(async () => {})
+    // A second start, as StrictMode makes of effects, finds it still on its way.
+    keepProjectArrangement(ui, arrange)()
+    keepProjectArrangement(ui, arrange)
+    expect(arrange).toHaveBeenCalledExactlyOnceWith(stored)
+    expect(localStorage.getItem(projectArrangementStorageKey)).not.toBeNull()
+    await vi.waitFor(() => expect(localStorage.getItem(projectArrangementStorageKey)).toBeNull())
+  })
+
+  it("keeps it in storage when the backend could not take it", async () => {
+    localStorage.setItem(projectArrangementStorageKey, JSON.stringify(stored))
+    const arrange = vi.fn<(arrangement: ProjectArrangement) => Promise<void>>(async () => {
+      throw new Error("down")
+    })
+    keepProjectArrangement(createUiStore(initial()), arrange)
+    await Promise.resolve()
+    await Promise.resolve()
+    expect(arrange).toHaveBeenCalledOnce()
+    expect(localStorage.getItem(projectArrangementStorageKey)).not.toBeNull()
+  })
 })

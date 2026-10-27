@@ -13,6 +13,7 @@ import {
 import {
   noMessages,
   type AgentMessage,
+  type MessageParty,
   type MessagesState,
   type MessageThread,
   type TerminalThreads,
@@ -20,6 +21,8 @@ import {
 import { createTerminalState } from "./state"
 import { describe, expect, it } from "./test"
 import type { AgentStatus, AgentTurnEnd, TerminalMetadata, Workspace } from "./types"
+
+const agent = (handle: string): MessageParty => ({ kind: "agent", handle, agent: null })
 
 const choices: ChatDialog = {
   type: "choices",
@@ -87,8 +90,8 @@ const asked = (id: string, askedAt: number, dialog: ChatDialog | null = choices)
 const message = (change: Partial<AgentMessage> = {}): AgentMessage => ({
   id: "m1",
   hop: 3,
-  from: "moth",
-  to: "fox",
+  from: agent("moth"),
+  to: agent("fox"),
   text: "Is the schema ready?",
   sentAt: 50,
   state: "held",
@@ -99,7 +102,7 @@ const message = (change: Partial<AgentMessage> = {}): AgentMessage => ({
 
 const thread = (change: Partial<MessageThread> = {}): MessageThread => ({
   id: "th1",
-  peer: "fox",
+  peer: agent("fox"),
   hops: 3,
   idle: 0,
   held: true,
@@ -519,7 +522,7 @@ describe("The Inbox's items", () => {
         ...noMessages,
         terminals: {
           "p/s/01": { handle: "moth", agent: true, threads: [thread()] },
-          "p/s/02": { handle: "fox", agent: true, threads: [thread({ peer: "moth" })] },
+          "p/s/02": { handle: "fox", agent: true, threads: [thread({ peer: agent("moth") })] },
         },
       }
 
@@ -574,7 +577,7 @@ describe("The Inbox's items", () => {
           agent: true,
           waits,
           waitsSince: 1_000,
-          threads: [thread({ peer: "moth", held: false, messages })],
+          threads: [thread({ peer: agent("moth"), held: false, messages })],
         },
       },
     })
@@ -631,7 +634,7 @@ describe("The Inbox's items", () => {
       }
       expect(inboxRows(inputs(pair, { messages: ended, now: at }))).toEqual([])
       // Moth's own messages to fox wait in its listing, not for it.
-      const sent = heldFor([waiting({ from: "fox", to: "moth" })])
+      const sent = heldFor([waiting({ from: agent("fox"), to: agent("moth") })])
       expect(inboxRows(inputs(pair, { messages: sent, now: at }))).toEqual([])
     })
 

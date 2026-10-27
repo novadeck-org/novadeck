@@ -27,6 +27,15 @@ export class Projects {
     return this.store.projects().filter(({ id }) => !this.removing.has(id))
   }
 
+  /** Keeps the person's arrangement; a project being removed is left out, as good as gone. */
+  arrange(order: readonly string[], pinned: readonly string[]): void {
+    const going = (id: string) => this.removing.has(id)
+    this.store.arrangeProjects(
+      order.filter((id) => !going(id)),
+      pinned.filter((id) => !going(id)),
+    )
+  }
+
   /** Refuses anything new in a project being removed, as `NOT_FOUND`: it is as good as gone. */
   ensureNotRemoving(projectId: string): void {
     if (this.removing.has(projectId)) throw new DomainError("NOT_FOUND", "Project not found")

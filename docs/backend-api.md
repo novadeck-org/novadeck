@@ -184,6 +184,12 @@ second call while it goes shares the first, and one after it, like one for a pro
 the runner never had, rejects with `NOT_FOUND`. A runner that shuts down before the
 removal is done rejects it with `CLOSING` and keeps the project, for a client to
 remove again from the next runner.
+`projects.list` gives the projects in the order the person arranged them, each with
+`pinned`; `projects.arrange({ order, pinned })` keeps that arrangement: `order` is project
+ids, first to last, and `pinned` the ones pinned, at most nine, the first in `order`.
+Unknown ids are ignored, projects `order` leaves out follow in the order they were added
+(with no pin), and a project being removed is left out. Other clients see the change when
+they next list the projects.
 `projects.folder({ projectId, folder })` lists one folder of the project's directory,
 `folder` being its path from the project's root with `/` between names (`""` for the
 root). Entries come sorted, folders first, then by name ignoring case and a leading dot

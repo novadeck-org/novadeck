@@ -174,7 +174,7 @@ export const scripted = ({
     }
   const api = {
     watch: () => statuses.iterator,
-    projects: { list: unused, create: unused, rename: unused, remove: unused },
+    projects: { list: unused, create: unused, rename: unused, remove: unused, arrange: unused },
     sessions: {
       list: unused,
       create: note("create session", createSession),
@@ -237,7 +237,7 @@ export const scripted = ({
   } as unknown as RunnerApi
   const listing: RunnerListing = [
     {
-      project: { id: "p", name: "P", cwd: "/tmp" },
+      project: { id: "p", name: "P", cwd: "/tmp", pinned: false },
       sessions: [
         {
           session: {

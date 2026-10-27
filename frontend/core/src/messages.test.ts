@@ -4,9 +4,12 @@ import {
   messageBadgeLabel,
   waitingFor,
   type AgentMessage,
+  type MessageParty,
   type TerminalThreads,
 } from "./messages"
 import { context, describe, expect, it } from "./test"
+
+const agent = (handle: string): MessageParty => ({ kind: "agent", handle, agent: null })
 
 const message = (
   id: string,
@@ -22,14 +25,14 @@ const message = (
 })
 
 // moth's thread with fox, when it has messages.
-const terminalMessages = (messages: readonly AgentMessage[], agent = true): TerminalThreads => ({
+const terminalMessages = (messages: readonly AgentMessage[], bound = true): TerminalThreads => ({
   handle: "moth",
-  agent,
+  agent: bound,
   threads: messages.length
     ? [
         {
           id: "t-1",
-          peer: "fox",
+          peer: agent("fox"),
           hops: messages.length,
           idle: 0,
           held: false,
@@ -41,16 +44,21 @@ const terminalMessages = (messages: readonly AgentMessage[], agent = true): Term
 })
 
 const inbound = [
-  message("queued", { from: "fox", to: "moth", state: "queued" }),
-  message("leased", { from: "fox", to: "moth", state: "leased" }),
-  message("delivered", { from: "fox", to: "moth", state: "delivered" }),
-  message("gone", { from: "fox", to: "moth", state: "gone" }),
+  message("queued", { from: agent("fox"), to: agent("moth"), state: "queued" }),
+  message("leased", { from: agent("fox"), to: agent("moth"), state: "leased" }),
+  message("delivered", { from: agent("fox"), to: agent("moth"), state: "delivered" }),
+  message("gone", { from: agent("fox"), to: agent("moth"), state: "gone" }),
 ]
-const outbound = [message("sent", { from: "moth", to: "fox", state: "queued" })]
+const outbound = [message("sent", { from: agent("moth"), to: agent("fox"), state: "queued" })]
 
 describe("messages waiting for a terminal's agent", () => {
   it("are those to it still on their way: queued, leased or held", () => {
-    const held = message("held", { from: "fox", to: "moth", state: "held", held: "paused" })
+    const held = message("held", {
+      from: agent("fox"),
+      to: agent("moth"),
+      state: "held",
+      held: "paused",
+    })
     expect(
       waitingFor(terminalMessages([...inbound, held, ...outbound])).map(({ id }) => id),
     ).toEqual(["queued", "leased", "held"])
@@ -85,7 +93,12 @@ describe("a terminal's badge", () => {
   })
 
   it("keeps the person's reply waiting while messages between agents are paused", () => {
-    const reply = message("reply", { from: "you", to: "moth", state: "queued", inbox: "answer" })
+    const reply = message("reply", {
+      from: { kind: "person" },
+      to: agent("moth"),
+      state: "queued",
+      inbox: "answer",
+    })
     expect(messageBadge(terminalMessages([reply]), true)).toEqual({ count: 1, kind: "waiting" })
     expect(messageBadge(terminalMessages([...inbound, reply]), true)).toEqual({
       count: 3,
@@ -95,7 +108,12 @@ describe("a terminal's badge", () => {
 
   context("with a thread held for release", () => {
     it("says the person must release it, even while paused", () => {
-      const held = message("held", { from: "fox", to: "moth", state: "held", held: "release" })
+      const held = message("held", {
+        from: agent("fox"),
+        to: agent("moth"),
+        state: "held",
+        held: "release",
+      })
       const badge = messageBadge(terminalMessages([held]), true)
       expect(badge).toEqual({ count: 1, kind: "held" })
       expect(messageBadgeLabel(badge!)).toBe("1 message waiting, held until you release it")
