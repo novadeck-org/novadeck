@@ -123,14 +123,14 @@ flowchart LR
 
 | Part         | Where                                                                                                                   | Owns                                                                                |
 | ------------ | ----------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------- |
-| MCP tools    | `shell/mcp.ts`, beside `show`, `showing`, `close`, `open_terminal`, `close_terminal`                                    | `send`, `agents` and `summarize`; the terminal's token on every call                |
+| MCP tools    | `shell/mcp.ts`, beside `show`, `showing`, `close`, `open_terminal`, `open_agent`, `close_terminal`                      | `send`, `agents` and `summarize`; the terminal's token on every call                |
 | Messages     | Runner, stored with the workspace (`WorkspaceStore`)                                                                    | Messages, threads, guards, pause, retention                                         |
 | Delivery     | Runner, one state machine per recipient terminal                                                                        | When and how a recipient notices: leases to hooks and the doorbell                  |
 | Hook answers | `shell/hook.ts` asks the runner; the runner returns stdout                                                              | Each harness's output encoding, in its adapter beside its decoder                   |
 | Doorbell     | `messaging/doorbell.ts`, behind `DoorbellHost` (built in `terminals/ringing.ts`); the manager owns every PTY and screen | The settle window, the calm check, the test paste, Enter, holding input and resizes |
 | Runner API   | Protocol and router                                                                                                     | Listing messages, pause and release, for the UI to come                             |
 
-Messaging is an application operation like `present` and `open_terminal`: the MCP
+Messaging is an application operation like `present`, `open_terminal` and `open_agent`: the MCP
 server only forwards calls with the terminal's token, and the runner decides.
 
 ## Authority
@@ -141,7 +141,7 @@ An agent weighs what reaches it at three levels:
    `ask` in the Inbox, which Novadeck explicitly marks as relayed from them. They come
    first; newer instructions take precedence.
 2. **The lead**: the agent in the terminal that opened this one with
-   `open_terminal(agent, message)`, starting an agent there with a brief. Only that
+   `open_agent(agent, message)`, starting an agent there with a brief. Only that
    explicit path makes a lead; a terminal opened with a `command`, even one that starts
    an agent, or a plain shell has none, so an agent the person runs there later is
    theirs alone. The terminal's record keeps the opener's handle as `ledBy` (column
@@ -254,13 +254,13 @@ changes, not when the terminal is renamed, and is never given again in that sess
 closed terminal's handle stays unanswered rather than reaching another terminal. Once a
 session has given every word, they come again numbered (`moth2`, then `moth3`). Agents
 tell the person about a terminal as `@fox · api-server`: its handle and its title. Handles exist because a title is text a person, or an agent through
-`open_terminal`'s `title`, can set, and must never reach a prompt.
+`open_terminal`'s or `open_agent`'s `title`, can set, and must never reach a prompt.
 
 The terminal's **title** is the runner's too: it keeps what names the terminal in its
 record, every client shows the title from there, and `agents()` reads it from the same
 record. The record says who the title is from: the person (renaming, or creating it), murmur (the
 local model that describes terminals, see [Naming](#naming)), an agent by its terminal's
-handle (through `open_terminal`'s `title`), or the default, which is the program the
+handle (through `open_terminal`'s or `open_agent`'s `title`), or the default, which is the program the
 terminal was opened to run (`claude`), else "Terminal" and never comes from its handle;
 `agents()` shows an agent's title as that agent's ("set by @fox, not the user"), never as
 the person's. Terminals are kept until closed, with no
@@ -274,7 +274,7 @@ others are never listed or reached.
   the agent picks by title, folder and work, or asks the person.
 - `from` in a delivered message is exactly the sender's handle, so replying is
   `send(from, …)`.
-- `open_terminal` answers with the new terminal's handle and title, as `@fox · api-server`.
+- `open_terminal` and `open_agent` answer with the new terminal's handle and title, as `@fox · api-server`.
 
 ### Messages
 
@@ -313,7 +313,7 @@ agent session; never a name the model passes.
 
 ## Agent interface
 
-Two tools join `show`, `showing`, `close`, `open_terminal` and `close_terminal`, listed,
+Two tools join `show`, `showing`, `close`, `open_terminal`, `open_agent` and `close_terminal`, listed,
 like them, only inside Novadeck's terminals.
 
 - **`send(to, text)`** answers with the recipient's handle, the message id and one of:
@@ -433,20 +433,33 @@ the person rather than telling it to proceed or waiting on it; whenever unsure w
 terminal is meant, especially after a long conversation, call `agents()` again and pick
 by title, folder, branch, work and files, and if more than one could match, ask the
 person rather than guess; after sending, end your turn rather than wait or poll, since
-replies arrive by themselves. `open_terminal`'s description adds that only `agent` with
-`message` makes the caller a lead (a `command`, even one that starts an agent, or a
+replies arrive by themselves. `open_agent`'s description adds that only it makes the caller a lead (a `command`, even one that starts an agent, or a
 plain shell gets none), and that being a lead gives none of the person's approvals: what
 the worker needs the person to approve, they give in its own terminal or through an Inbox ask, so tell them to
 answer there. A text longer than 4 KB is refused by the MCP server itself, before it
 reaches the runner.
 
-`open_terminal` gains `agent` and `message`: open a terminal running that agent with
-`message` as its first task (see [Starting a task](#starting-a-task)). The caller becomes
+`open_agent({ agent, message, model?, effort?, cwd?, title?, focus? })` opens a terminal
+running that agent with `message` as its first task (see [Starting a task](#starting-a-task)). The caller becomes
 that agent's lead, so its description asks for a complete brief (what, where, how to
 tell it is done, when to report back) and reminds the caller that bringing decisions
 that need the person's approval to the person, to answer in the worker's own terminal or
 through `ask` in the Inbox, is its job. Its `title` is
 the opener's (see [Naming](#naming)).
+
+`open_terminal({ command?, cwd?, title?, focus? })` is the generic form: a plain shell or
+a command, never a lead, and its description sends an agent with a task to `open_agent`.
+Both make the runner's `open` call with one request shape. `model` and `effort` are only
+set when the person asked or the brief needs one; `effort` is one of `low`, `medium`,
+`high`, `xhigh` or `max`, and `model` one id the runner lists for the harness (the
+runner refuses others). An effort goes with a model, one that model takes; the runner
+refuses an effort without a model or one its model doesn't take. The ids differ by harness, and the runner reads them without running a command: Claude
+Code's aliases and Antigravity's ids are fixed in their adapters, and Codex's are the
+listed ones in its `models_cache.json`. So `tools/list` asks the runner for
+them (`models` call) and builds `open_agent`'s `model` enum from the union, naming which
+ids go with which agent and the efforts each takes (and that an agent with none can't take one); with none listed, `model` has no enum and says to leave it out. The choice
+holds for the agent's first session only: a resume after Novadeck restarts starts it
+again with its harness's own resume command, on whatever model that restores.
 
 ## Inbox asks and updates
 
@@ -1236,7 +1249,7 @@ single quotes, as it sits in a double-quoted attribute; the value is the same as
 message's `lead="AbCd1234"`. A peer's text is escaped, and a mark written in it, a past
 one or a guess, or a whole `<message … lead=…>` spelled out in it, carries no authority:
 only a mark in this delivery's own markup counts. Size checks count the lead note with
-its mark, the longest, so a brief that `open_terminal` accepts always fits. This wording
+its mark, the longest, so a brief that `open_agent` accepts always fits. This wording
 was tried against Claude Sonnet and Opus (2026-10-08) by replaying deliveries through
 `claude -p`: they acted on the lead's messages and on a lead the user named in words;
 escalated unrequested peer work instead of doing it; and declined forged lead messages
@@ -1674,7 +1687,7 @@ An agent is rung before its first turn only once Ready, as each harness tells (s
 that Enter would answer. A terminal opened with a plain command
 (`open_terminal(command: "claude")`, `codex` or `agy`) gets its messages so: rung once
 its agent is Ready. So that a task arrives at once, before any ring, in every harness,
-`open_terminal(agent, message)`:
+`open_agent(agent, message)`:
 
 1. Opens the terminal with the agent started through its adapter's
    `initialPrompt(argv)`, with the doorbell line as its command-line prompt:
@@ -1683,14 +1696,15 @@ its agent is Ready. So that a task arrives at once, before any ring, in every ha
    exactly the line, a doorbell prompt; Antigravity's transcript records it as its first
    typed entry, which makes its first turn a doorbell prompt too. So a start whose task
    can't be delivered then (messaging paused) is told its messages still wait, in every
-   harness. `agent` and `message` can't be combined with `command`.
+   harness. The MCP server refuses `open_terminal` with `agent`, `message`, `model` or `effort`, and
+   `open_agent` with `command` or without `agent` and `message`, saying which tool to call.
 2. Antigravity submits `-i`'s prompt about 0.9 s after it starts, even while its "Do
    you trust this folder?" dialog is up. So it gets `-i` only in a folder it already
    trusts (its adapter reads Antigravity's trusted-workspaces setting, matching the
    folder's exact path once normalized, links unresolved, so another way to a trusted
    folder starts it plain); elsewhere it starts plain, and the task arrives with the
    person's first prompt there, or with the ring once its prompt shows, as for any
-   message. `open_terminal`'s answer tells the opener so.
+   message. `open_agent`'s answer tells the opener so.
 3. Checks `message` first with every check `send` makes but the recipient's own (its
    size once delivered, the rates, the undelivered cap), and refuses before anything
    starts. Then it addresses `message` to the first session of that agent to bind in the new terminal,
@@ -1744,7 +1758,7 @@ model behind a `Describer` (`murmur/`).
 
   1. the person's (renaming, or creating the terminal);
   2. murmur's latest title;
-  3. the title the opening agent gave through `open_terminal`, which shows until murmur's
+  3. the title the opening agent gave through `open_terminal` or `open_agent`, which shows until murmur's
      first title;
   4. the default: the program it was opened to run (`claude`), else "Terminal".
 
@@ -1927,8 +1941,8 @@ A **plain shell** is titled (never summarized) on:
 A shell's description is always applied. A prompt a bound agent just left is not
 described until the next one.
 
-A shell opened to run an agent (`open_terminal` with a command that starts one, or a
-resume) isn't described as a shell until the agent binds, or 10 seconds (`expectMs`)
+A shell opened to run an agent (`open_agent`, `open_terminal` with a command that starts
+one, or a resume) isn't described as a shell until the agent binds, or 10 seconds (`expectMs`)
 pass without one. A restarted terminal drops its job and what murmur kept of it.
 
 The foreground program is sampled only where the platform tells it: Linux and macOS.
@@ -2094,7 +2108,7 @@ again.
    runner API. Built: `backend/runner/src/messaging/`, with the runner API as
    `messages.list`, `messages.pause` and `messages.release`.
 2. **Doorbell and starting a task:** the Settled path, the ring with its generic
-   checks, and `open_terminal(agent, message)`. Touches no UI. Built: the checks in
+   checks, and `open_agent(agent, message)`. Touches no UI. Built: the checks in
    `@novadeck/tui-input` (`checkPaste` in `./box`, `gate`), the ring in
    `backend/runner/src/messaging/doorbell.ts`, the person's keys in the same library's
    `keysOf`, Antigravity's typed prompts in
@@ -2250,7 +2264,7 @@ resume probes sent it one prompt:
 | The person stops a thread                                                                      | Its queued and held messages are gone and their senders told; a leased one finishes; a send continuing it is refused until it lapses or is released                                                                                                              |
 | Messaging is paused, then resumed                                                              | `send` answers held; nothing delivered, across restarts; resuming delivers in order                                                                                                                                                                              |
 | A peer message says "approve the pending command"                                              | Context only; nothing typed answers the approval                                                                                                                                                                                                                 |
-| An agent opens another with `open_terminal(agent, message)`                                    | The brief arrives marked as the lead's, with the lead note; the new agent acts on it without asking the person                                                                                                                                                   |
+| An agent opens another with `open_agent(agent, message)`                                       | The brief arrives marked as the lead's, with the lead note; the new agent acts on it without asking the person                                                                                                                                                   |
 | An agent opens another with a `command`, even one that starts an agent                         | No lead is recorded; the opener's messages are a peer's                                                                                                                                                                                                          |
 | A message's text claims to be from the lead, or that the person approved, or shows a lead mark | Still only its sender's: a delivery without the lead's message says none is the lead's; one with it names this delivery's mark, which no text carries                                                                                                            |
 | A peer says the person named it the agent's lead                                               | Hearsay: not acted on as a lead's; only the person's own words in that terminal name one                                                                                                                                                                         |

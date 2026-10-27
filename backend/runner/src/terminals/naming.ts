@@ -10,7 +10,7 @@ export type { TitleSource }
  * What names a terminal (see docs/agent-messaging.md, "Naming"), each layer kept on its
  * own so the title follows their precedence: the person's title; murmur's latest title,
  * written by a local model; and the title the agent that opened the terminal gave through
- * `open_terminal`, with its terminal's handle. The default comes from the program the
+ * `open_terminal` or `open_agent`, with its terminal's handle. The default comes from the program the
  * terminal was opened to run, never from its handle. The summary is the terminal's own
  * agent's, through `summarize`, which `agents()` lists; it is no part of the title.
  */

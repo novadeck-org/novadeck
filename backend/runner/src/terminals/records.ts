@@ -38,7 +38,7 @@ export type SavedTerminal = {
   readonly openedBy: string | null
   /**
    * The handle of its lead: the terminal whose agent opened it with a brief to run an
-   * agent there (`open_terminal` with `agent` and `message`); null otherwise, even for a
+   * agent there (`open_agent`); null otherwise, even for a
    * terminal an agent opened for a command or a plain shell.
    */
   readonly ledBy: string | null
