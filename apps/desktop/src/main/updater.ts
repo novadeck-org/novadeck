@@ -35,7 +35,7 @@ export const retryCheckMs = 5 * 60 * 1000
  * How long the website's `experimental` answer is trusted, as the website itself counts it: the
  * app holds a release against an older answer from the website for this long.
  */
-export const earlyTrustMs = 6 * 60 * 60 * 1000
+export const experimentalTrustMs = 6 * 60 * 60 * 1000
 
 /** Why a check runs: the launch's, the schedule's, a channel switch's or a failed download's retry. */
 export type CheckReason = "launch" | "interval" | "switch" | "retry"
@@ -473,7 +473,7 @@ export type Updater = {
  * record, which it distrusts after six hours; a wrong one, which only a bug of the site
  * gives, delays updates until it is fixed. Whichever feed answers, an `experimental` answer
  * from the website that names a release older than one offered or taken
- * for download within `earlyTrustMs` is ignored, so a lagging answer never steps back
+ * for download within `experimentalTrustMs` is ignored, so a lagging answer never steps back
  * (per run, in memory); GitHub's answers and the stable channel's are taken as they are,
  * and an answer for a channel left during the check is dropped, the channel's check
  * then made again at once. The hold lasts while the newer release is offered or ready, not
@@ -556,7 +556,7 @@ export const checkForUpdates = (
   let failedOn = failedVersion
   // The release last offered in `tell` mode or taken for download, on the channel then
   // followed and when (by the monotonic clock, so a clock change moves nothing), which an
-  // older answer from the website does not replace; see `earlyTrustMs`. Held on `stable`,
+  // older answer from the website does not replace; see `experimentalTrustMs`. Held on `stable`,
   // it does not protect after a switch to `experimental`: the guard is for `experimental` alone.
   let held:
     | { readonly version: string; readonly channel: UpdateChannel; readonly at: number }
@@ -600,14 +600,14 @@ export const checkForUpdates = (
     // Never a step back to an older experimental release the website names: its `experimental` answer can
     // lag GitHub's (by hours, should the site fall back to its build's record), and following
     // it would replace a newer release already offered or fetched. This holds for
-    // `earlyTrustMs`, after which a withdrawn release can give way. GitHub's answers and
+    // `experimentalTrustMs`, after which a withdrawn release can give way. GitHub's answers and
     // the stable channel's are taken as they are.
     // (isNewerVersion compares prerelease tags as text; the releases' versions have none.)
     if (
       via === "novadeck" &&
       following === "experimental" &&
       held?.channel === following &&
-      performance.now() - held.at < earlyTrustMs &&
+      performance.now() - held.at < experimentalTrustMs &&
       isNewerVersion(held.version, info.version)
     )
       return

@@ -25,7 +25,7 @@ import {
   checkIntervalMs,
   developerIdSigned,
   feedUrl,
-  earlyTrustMs,
+  experimentalTrustMs,
   firstCheckMs,
   retryCheckMs,
   installOnlyOnOrderlyQuit,
@@ -1617,7 +1617,7 @@ describe("checking through novadeck.dev", () => {
       updater.newest = () => version
       await vi.advanceTimersByTimeAsync(firstCheckMs)
       version = "1.5.0"
-      await vi.advanceTimersByTimeAsync(earlyTrustMs - checkIntervalMs * 2)
+      await vi.advanceTimersByTimeAsync(experimentalTrustMs - checkIntervalMs * 2)
       expect(taken).toEqual(["1.6.0"])
       await vi.advanceTimersByTimeAsync(checkIntervalMs * 3)
       expect(taken).toEqual(["1.6.0", "1.5.0"])

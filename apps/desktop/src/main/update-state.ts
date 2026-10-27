@@ -43,9 +43,11 @@ export type UpdateState = {
   readonly whatsNewCheckedAt: number | undefined
 }
 
-// The channel's name before the rename: a file written then reads as the new name, so a
-// copy that followed it is not moved to stable.
-const formerChannels: Readonly<Record<string, UpdateChannel>> = { early: "experimental" }
+// The file keeps `experimental` under its name from before the rename, `early`, which
+// builds from before it read too: one sharing the file, as a portable copy may, would
+// otherwise take the channel for stable and write that back.
+const storedChannel = (channel: UpdateChannel): string =>
+  channel === "experimental" ? "early" : channel
 
 const defaults: UpdateState = {
   channel: "stable",
@@ -64,9 +66,9 @@ const versionOf = (value: unknown): string | undefined =>
   typeof value === "string" && updateVersionPattern.test(value) ? value : undefined
 
 const channelOf = (value: unknown): UpdateChannel =>
-  updateChannels.find((known) => known === value) ??
-  (typeof value === "string" ? formerChannels[value] : undefined) ??
-  defaults.channel
+  value === "early"
+    ? "experimental"
+    : (updateChannels.find((known) => known === value) ?? defaults.channel)
 
 /**
  * The state in a file's text. The file is the host's own, but a damaged or edited one
@@ -140,7 +142,8 @@ export const keepUpdateState = (file: string) => {
   const change = (patch: Partial<UpdateState>): void => {
     const temporary = `${file}.${randomUUID()}.tmp`
     try {
-      writeFileSync(temporary, JSON.stringify({ ...read(), ...patch }))
+      const state = { ...read(), ...patch }
+      writeFileSync(temporary, JSON.stringify({ ...state, channel: storedChannel(state.channel) }))
       renameSync(temporary, file)
     } catch (error) {
       rmSync(temporary, { force: true })
