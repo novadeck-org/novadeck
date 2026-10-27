@@ -106,6 +106,8 @@ export type TerminalOptions = {
   shellFiles?: Promise<InstalledShell | undefined>
   /** Where terminals are saved for restoring; unsaved when omitted. */
   records?: TerminalRecords
+  /** The order each session gives handle words in: its own shuffle when omitted (see `handleOrder`). */
+  handleOrder?: (sessionId: string) => readonly string[]
   /** The connected harnesses whose shims new shells put first on PATH. */
   shims?: () => Promise<readonly AgentName[]>
   /**
@@ -289,6 +291,7 @@ export class Terminals {
       | "shellArgs"
       | "shellFiles"
       | "records"
+      | "handleOrder"
       | "shims"
       | "connected"
       | "transcripts"
@@ -478,7 +481,7 @@ export class Terminals {
         ),
       messages: (terminalId) => this.messages(terminalId),
     })
-    this.names = new Names<Record>(Boolean(this.options.records), this.saves, this.streams, {
+    this.names = new Names<Record>(options, this.saves, this.streams, {
       stopping: () => this.stopping,
       records: () => this.records.values(),
       record: (terminalId) => this.records.get(terminalId),

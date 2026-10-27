@@ -32,7 +32,7 @@ import { vi } from "vitest"
 
 import { CompanionItems } from "../companions/items.js"
 import { readyReturnMs } from "../terminals/binding/facts.js"
-import { handleWords } from "../terminals/handles.js"
+import { handleOrder, handleWords } from "../terminals/handles.js"
 import { Terminals, type TerminalOptions } from "../terminals/index.js"
 import type { AgentTurn, TerminalRecords } from "../terminals/records.js"
 import { createTranscriptRedactor } from "../terminals/redaction.js"
@@ -115,6 +115,8 @@ const it = base.extend<{ shell: Fixture }>({
         // Seals nothing: these tests read the transcripts saved.
         sealer: plainSealer(),
         transcriptMs: 50,
+        // The list's order, not each session's shuffle, so tests know the handles given.
+        handleOrder: () => handleWords,
         ...options,
       })
       resources.defer(() => terminals.shutdown())
@@ -2078,9 +2080,9 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))("bash shell i
     const records: TerminalRecords = {
       terminal: (terminalId) => shell.store.terminal(terminalId),
       terminals: (sessionId) => shell.store.terminals(sessionId),
-      giveHandle: (sessionId) => {
+      giveHandle: (sessionId, order) => {
         if (refuse) throw new Error("disk full")
-        return shell.store.giveHandle(sessionId)
+        return shell.store.giveHandle(sessionId, order)
       },
       renameTerminal: (terminalId, title) => shell.store.renameTerminal(terminalId, title),
       terminalIdentity: (terminalId) => shell.store.terminalIdentity(terminalId),
@@ -2545,7 +2547,7 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))("bash shell i
     expect(shell.store.terminalIdentity(id)?.openedBy).toBeNull()
   })
 
-  it("gives each session its own handles, preferring words open nowhere else and never reusing one", async ({
+  it("gives each session its own handles, whatever other sessions have open, and never reuses one", async ({
     shell,
   }) => {
     const manager = shell.manager()
@@ -2562,14 +2564,18 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))("bash shell i
       return given
     }
     expect(await handles(shell.sessionId, 2)).toEqual(["moth", "fox"])
-    // "moth" and "fox" are open in the first session, so the second takes others first.
-    expect(await handles(other.id, 2)).toEqual(["owl", "crow"])
-    // A word closed in one session is free for the other, and never for its own again.
+    // "moth" and "fox" being open in the first session changes nothing for the second.
+    expect(await handles(other.id, 2)).toEqual(["moth", "fox"])
+    // A closed terminal's word is never given again in its session.
     const closing = manager.list(shell.sessionId)[0]!
     await manager.close({ terminalId: closing.id })
     expect(closing.handle).toBe("moth")
-    expect(await handles(shell.sessionId, 1)).toEqual(["kite"])
-    expect(await handles(other.id, 1)).toEqual(["moth"])
+    expect(await handles(shell.sessionId, 1)).toEqual(["owl"])
+  })
+
+  it("gives a session's words in its own shuffled order", async ({ shell }) => {
+    const manager = shell.manager({ handleOrder })
+    expect((await create(manager, shell)).handle).toBe(handleOrder(shell.sessionId)[0])
   })
 
   it("names terminals by session, renames them, and tells watchers", async ({ shell }) => {

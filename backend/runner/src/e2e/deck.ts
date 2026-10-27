@@ -18,6 +18,7 @@ import type {
 
 import { wire } from "../runner.js"
 import { shellPaths, type ShellPaths } from "../shell/scripts.js"
+import { handleWords } from "../terminals/handles.js"
 import type { Terminals } from "../terminals/index.js"
 import type { WorkspaceStore } from "../workspaces/store.js"
 import { createHistory, type Reach, type ReachOptions, type Snapshot } from "./history.js"
@@ -618,6 +619,8 @@ export const createDeck = async (options: DeckOptions): Promise<Deck> => {
         shell: process.platform === "win32" ? (options.env.ComSpec ?? "cmd.exe") : "/bin/bash",
         baseEnv: options.env,
         freshPath: options.freshPath ?? false,
+        // The list's order, not each session's shuffle, so scenarios know the handles given.
+        handleOrder: () => handleWords,
       },
     })
     // The runner carries on without its shell files; a test can't, as no agent would report.

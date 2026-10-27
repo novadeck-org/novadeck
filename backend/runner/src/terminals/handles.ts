@@ -5,8 +5,9 @@
  *
  * The words are the Night Flock: night-sky and neon-street glow, a street alias or two,
  * and night birds. Each is short, said as it is spelled, and rare in agent output and in
- * code, so `@moth` stands out where an agent mentions it. The best words come first; the
- * rules they follow are in handles.test.ts.
+ * code, so `@moth` stands out where an agent mentions it. The best words come first, and
+ * each session draws them in its own order (see `handleOrder`); the rules they follow are
+ * in handles.test.ts.
  */
 export const handleWords: readonly string[] = [
   // The first words a session gives, one per first letter.
@@ -93,8 +94,51 @@ export const handleWords: readonly string[] = [
   "glimmer",
 ]
 
+/** The best words, one per first letter, that every session gives before the rest. */
+const bestWords = 25
+
+/** A 32-bit FNV-1a hash of the text, the seed of a session's order. */
+const seedOf = (text: string): number => {
+  let hash = 0x811c9dc5
+  for (let index = 0; index < text.length; index++)
+    hash = Math.imul(hash ^ text.charCodeAt(index), 0x01000193)
+  return hash >>> 0
+}
+
+/** Mulberry32: numbers in [0, 1), the same ones for the same seed. */
+const randomFrom = (seed: number) => () => {
+  seed = (seed + 0x6d2b79f5) | 0
+  let mixed = Math.imul(seed ^ (seed >>> 15), seed | 1)
+  mixed ^= mixed + Math.imul(mixed ^ (mixed >>> 7), mixed | 61)
+  return ((mixed ^ (mixed >>> 14)) >>> 0) / 4294967296
+}
+
+const shuffled = (words: readonly string[], random: () => number): string[] => {
+  const order = [...words]
+  for (let index = order.length - 1; index > 0; index--) {
+    const other = Math.floor(random() * (index + 1))
+    ;[order[index], order[other]] = [order[other]!, order[index]!]
+  }
+  return order
+}
+
+/**
+ * The order a session gives the words in: the best words shuffled, then the rest
+ * shuffled, so sessions don't all start with the same handles. The session's id seeds
+ * it, so a session keeps its order across restarts.
+ */
+export const handleOrder = (sessionId: string): readonly string[] => {
+  const random = randomFrom(seedOf(sessionId))
+  return [
+    ...shuffled(handleWords.slice(0, bestWords), random),
+    ...shuffled(handleWords.slice(bestWords), random),
+  ]
+}
+
 /** The handles a session has given, and those of its terminals open now. */
 export type HandleSession = {
+  /** The order the session gives words in (see `handleOrder`). */
+  readonly order: readonly string[]
   /** Every handle the session has given, its closed terminals' too. */
   readonly given: ReadonlySet<string>
   /** The handles of its terminals open now. */
@@ -102,27 +146,21 @@ export type HandleSession = {
 }
 
 /**
- * The handle a session gives its next terminal: the best word it has never given,
- * preferring one whose first letter no terminal open there starts with (so a jump by
- * letter lands in one key), then one no terminal open in another session has (so a
- * list across sessions seldom shows the same word twice). Once every word is given,
- * the words come again with a number: `moth2`, then `moth3`.
+ * The handle a session gives its next terminal: the first word in its order it has never
+ * given, preferring one whose first letter no terminal open there starts with, so a jump
+ * by letter lands in one key. Once every word is given, the words come again with a
+ * number: `moth2`, then `moth3`.
  */
-export const nextHandle = (session: HandleSession, elsewhere: ReadonlySet<string>): string => {
+export const nextHandle = (session: HandleSession): string => {
   const letters = new Set(session.open.map((handle) => handle[0]))
   for (let round = 1; ; round++) {
-    const fresh = handleWords
+    const fresh = session.order
       .map((word) => (round === 1 ? word : `${word}${round}`))
       .filter((handle) => !session.given.has(handle))
     if (fresh.length === 0) continue
-    const best = (handle: string) =>
-      (letters.has(handle[0]) ? 2 : 0) + (elsewhere.has(wordOf(handle)) ? 1 : 0)
-    return fresh.reduce((chosen, handle) => (best(handle) < best(chosen) ? handle : chosen))
+    return fresh.find((handle) => !letters.has(handle[0])) ?? fresh[0]!
   }
 }
-
-/** A handle's word, without the number a later round gives it: `moth2` is `moth`. */
-export const wordOf = (handle: string): string => handle.replace(/[0-9]+$/, "")
 
 /** The handle an agent wrote, as `@moth`, `moth` or `@Moth`, the way sessions keep it. */
 export const bareHandle = (written: string): string =>
