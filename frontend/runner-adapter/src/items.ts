@@ -221,7 +221,7 @@ export const createRunnerItems = ({
     const window = "windowId" in item.holder ? windows.get(item.holder.windowId) : undefined
     return [
       // Put back, it doesn't open again on its own.
-      { type: "item/upsert", target, item: { ...itemOf(item), asked: false } },
+      { type: "item/upsert", target, item: { ...itemOf(item), openAsked: false } },
       ...(window ? [{ type: "window/upsert", target, window: windowOf(window) } as const] : []),
     ]
   }

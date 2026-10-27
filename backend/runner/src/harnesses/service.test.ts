@@ -400,7 +400,7 @@ describe.skipIf(windows)("resuming an agent's saved session", () => {
         agents: { claude: { sessionId, seq: 1 } },
         promptedAt: null,
         handle: id === before ? "moth" : "fox",
-        naming: { person: null, agent: null, murmur: null, summary: null },
+        naming: { person: null, opener: null, murmur: null, summary: null },
         openedBy: null,
         ledBy: null,
         command: null,

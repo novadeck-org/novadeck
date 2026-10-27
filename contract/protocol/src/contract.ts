@@ -122,8 +122,13 @@ export const contract = {
     list: procedure.input(z.strictObject({ projectId: id })).output(z.array(workspaceSession)),
     create: procedure.input(z.strictObject({ id, projectId: id, name })).output(workspaceSession),
     rename: procedure.input(z.strictObject({ sessionId: id, name })).output(workspaceSession),
-    // Replaces the session's client state; the runner stores it without reading it.
-    save: procedure.input(z.strictObject({ sessionId: id, state: clientState })).output(z.void()),
+    // Replaces the session's client state, which the runner stores without reading it, and
+    // when the person last visited the session (null: never).
+    save: procedure
+      .input(
+        z.strictObject({ sessionId: id, state: clientState, visitedAt: z.number().nullable() }),
+      )
+      .output(z.void()),
   },
   terminals: {
     // Every terminal of the session, running or saved to restore, oldest first.
@@ -313,9 +318,9 @@ export const contract = {
     // reported, or one whose removal follows. They agree once the stream is idle.
     watch: procedure.input(z.void()).output(eventIterator(companionChange)),
     // What an item points at, read now, then again each time it changes, until it is
-    // deleted. A file that may hold secrets is `held` unless `reveal` is the path the item
-    // points at, the file the person chose to show: an item pointed at another file since
-    // (a project window re-pointed) is `held` again, and revealed again if pointed back.
+    // deleted. A file that may hold secrets is unavailable as `secret` unless `reveal` is the
+    // path the item points at, the file the person chose to show: an item pointed at
+    // another file since (a project window re-pointed) is `secret` again, and revealed again if pointed back.
     // An unknown item is NOT_FOUND.
     content: procedure
       .input(z.strictObject({ itemId: id, reveal: z.string().max(4096).optional() }))

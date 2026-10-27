@@ -292,7 +292,7 @@ describe("workspace metadata API", () => {
     const { project, session } = await app.setup(client)
     await client.projects.rename({ projectId: project.id, name: "Renamed project" })
     await client.sessions.rename({ sessionId: session.id, name: "Renamed session" })
-    await client.sessions.save({ sessionId: session.id, state: '{"panes":[]}' })
+    await client.sessions.save({ sessionId: session.id, state: '{"panes":[]}', visitedAt: null })
     await disconnect()
     await app.server.close()
     const restarted = await fixture(resources, {

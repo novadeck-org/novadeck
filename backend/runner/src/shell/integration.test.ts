@@ -167,7 +167,7 @@ const it = base.extend<{ shell: Fixture }>({
         handle: store.terminal(id)?.handle ?? store.giveHandle(session.id),
         naming: store.terminal(id)?.naming ?? {
           person: null,
-          agent: null,
+          opener: null,
           murmur: null,
           summary: null,
         },
@@ -400,7 +400,7 @@ const keepLed = (shell: Fixture, ids: { lead: string; worker: string }, session?
       sessionId: shell.sessionId,
       cwd: shell.home,
       handle,
-      naming: { person: null, agent: null, murmur: null, summary: null },
+      naming: { person: null, opener: null, murmur: null, summary: null },
       openedBy: ledBy,
       ledBy,
       command: null,
@@ -2179,7 +2179,7 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))("bash shell i
         sessionId: shell.sessionId,
         cwd: shell.home,
         handle,
-        naming: { person: null, agent: null, murmur: null, summary: null },
+        naming: { person: null, opener: null, murmur: null, summary: null },
         openedBy,
         ledBy: leader,
         command,
@@ -2213,7 +2213,7 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))("bash shell i
       sessionId: shell.sessionId,
       cwd: shell.home,
       handle: "fox",
-      naming: { person: null, agent: null, murmur: null, summary: null },
+      naming: { person: null, opener: null, murmur: null, summary: null },
       openedBy: null,
       ledBy: null,
       command: null,
@@ -2249,7 +2249,7 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))("bash shell i
         sessionId: shell.sessionId,
         cwd: shell.home,
         handle,
-        naming: { person: null, agent: null, murmur: null, summary: null },
+        naming: { person: null, opener: null, murmur: null, summary: null },
         openedBy: ledBy,
         ledBy,
         command: null,
@@ -2287,7 +2287,7 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))("bash shell i
         sessionId: shell.sessionId,
         cwd: shell.home,
         handle,
-        naming: { person: null, agent: null, murmur: null, summary: null },
+        naming: { person: null, opener: null, murmur: null, summary: null },
         openedBy: ledBy,
         ledBy,
         command: ledBy ? task : null,
@@ -2538,7 +2538,7 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))("bash shell i
         sessionId: shell.sessionId,
         cwd: shell.home,
         handle,
-        naming: { person: null, agent: null, murmur: null, summary: null },
+        naming: { person: null, opener: null, murmur: null, summary: null },
         openedBy: ledBy,
         ledBy,
         command: null,
@@ -2573,7 +2573,7 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))("bash shell i
       sessionId: other.id,
       cwd: shell.home,
       handle: "moth",
-      naming: { person: null, agent: null, murmur: null, summary: null },
+      naming: { person: null, opener: null, murmur: null, summary: null },
       openedBy: "moth",
       ledBy: "moth",
       command: "claude",
@@ -2751,7 +2751,7 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))(
           name: "a.ts",
           detail: "a.ts",
           version: 1,
-          asked: false,
+          openAsked: false,
         },
         {
           id: expect.any(String),
@@ -2760,7 +2760,7 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))(
           name: "w.txt",
           detail: "w.txt",
           version: 1,
-          asked: true,
+          openAsked: true,
         },
         {
           id: expect.any(String),
@@ -2769,7 +2769,7 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))(
           name: "The plan",
           detail: join(plans, "p.md"),
           version: 1,
-          asked: false,
+          openAsked: false,
         },
         {
           id: expect.any(String),
@@ -2778,7 +2778,7 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))(
           name: "elsewhere.txt",
           detail: join(shell.home, "elsewhere.txt"),
           version: 1,
-          asked: false,
+          openAsked: false,
         },
         {
           id: expect.any(String),
@@ -2787,8 +2787,8 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))(
           name: ".env",
           detail: ".env",
           version: 1,
-          asked: false,
-          held: true,
+          openAsked: false,
+          secret: true,
         },
       ])
       const [first, , , , env] = bar()
@@ -2825,7 +2825,7 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))(
         content: { lines: ["const a = 2"] },
       })
       // Held, it opens only as the person picks it.
-      await expect(items.load(env!.id, false)).resolves.toMatchObject({ reason: "held" })
+      await expect(items.load(env!.id, false)).resolves.toMatchObject({ reason: "secret" })
       await expect(items.load(env!.id, true)).resolves.toMatchObject({
         content: { lines: ["TOKEN=x"] },
       })
@@ -2963,7 +2963,7 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))(
           handle: "fox",
           naming: {
             person: null,
-            agent: { title: "Agent", by: "moth" },
+            opener: { title: "Agent" },
             murmur: null,
             summary: null,
           },
@@ -4188,7 +4188,7 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))(
       )
       expect(shell.store.terminalIdentity(codex.id)?.naming).toEqual({
         person: null,
-        agent: null,
+        opener: null,
         murmur: { title: "Login fix" },
         summary: "Fixes the login bug.\nThen its tests.",
       })

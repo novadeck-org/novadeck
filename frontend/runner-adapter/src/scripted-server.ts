@@ -110,6 +110,7 @@ export const scriptedRunner = ({
     id: sessionId,
     projectId,
     name: "Agents",
+    visitedAt: 5,
     state: encodeSession(
       savedSession(
         terminalIds.map((terminalId) => ({ id: terminalId, lastProcess: "claude" })),
@@ -117,7 +118,6 @@ export const scriptedRunner = ({
         sessionId,
         canvas,
       ),
-      0,
     ),
   }
   // Tells every watcher of a change, as the runner announces one.

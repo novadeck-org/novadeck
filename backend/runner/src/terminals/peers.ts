@@ -254,7 +254,7 @@ export class TerminalPeers {
    */
   async hint(
     terminal: PeerTerminal,
-    shown: readonly Pick<CompanionItem, "kind" | "path" | "held">[],
+    shown: readonly Pick<CompanionItem, "kind" | "path" | "secret">[],
   ): Promise<Omit<HintFacts, "project" | "handles">> {
     const { cwd, sessionId } = terminal.summary
     const base = this.options.projectFolder(sessionId) ?? cwd
@@ -263,7 +263,7 @@ export class TerminalPeers {
       return within.startsWith("..") || isAbsolute(within) ? undefined : within
     }
     const files = [
-      ...shown.flatMap((item) => (item.kind === "file" && !item.held && item.path) || []),
+      ...shown.flatMap((item) => (item.kind === "file" && !item.secret && item.path) || []),
       ...(terminal.work?.files ?? []),
     ]
     return {

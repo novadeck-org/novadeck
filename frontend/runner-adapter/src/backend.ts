@@ -1214,7 +1214,7 @@ export const runnerBackend = (
 
   // Every changed session is sent after a quiet spell, or at once on pagehide.
   const saves = createSessionSaves({
-    save: (sessionId, state) => runner.sessions.save({ sessionId, state }),
+    save: (sessionId, state, visitedAt) => runner.sessions.save({ sessionId, state, visitedAt }),
     ready: (id) => sessions.get(id),
     latest: () => latest,
     track,
@@ -1222,7 +1222,9 @@ export const runnerBackend = (
     delay: saveDelay,
     saved: listing.flatMap(({ sessions: listed }) =>
       listed.flatMap(({ session }) =>
-        session.state === null ? [] : [[session.id, session.state] as const],
+        session.state === null
+          ? []
+          : [[session.id, { state: session.state, visitedAt: session.visitedAt }] as const],
       ),
     ),
   })

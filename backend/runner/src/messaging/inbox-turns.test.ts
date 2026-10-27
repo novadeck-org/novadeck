@@ -6,7 +6,7 @@ import { join } from "node:path"
 import { vi } from "vitest"
 
 import { describe, expect, it } from "../test.js"
-import { WorkspaceStore } from "../workspaces/store.js"
+import { storeWith } from "../testing/workspace.js"
 import {
   Inbox,
   maxUnreadTurns,
@@ -257,7 +257,10 @@ describe("finished turns across a restart", () => {
   }) => {
     const folder = mkdtempSync(join(tmpdir(), "novadeck-turns-"))
     resources.defer(() => rmSync(folder, { recursive: true, force: true }))
-    const store = new WorkspaceStore(join(folder, "workspace.sqlite"))
+    const store = storeWith(join(folder, "workspace.sqlite"), {
+      projectId: owner.projectId,
+      sessionId: owner.workspaceSessionId,
+    })
     resources.defer(() => store.close())
     const first = setup(store)
     first.inbox.recordTurn(owner, 5, fields("Before the restart."))

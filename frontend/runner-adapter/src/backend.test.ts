@@ -1001,16 +1001,14 @@ describe("runner backend", () => {
       )
       await runner.client.sessions.create({ id, projectId, name: "many" })
       await runner.client.sessions.save({
+        visitedAt: Date.now() + 200_000,
         sessionId: id,
-        state: encodeSession(
-          {
-            id,
-            name: "many",
-            visitedAt: Date.now() + 200_000,
-            state: createTerminalState(terminals, "grid", "grid"),
-          },
-          2,
-        ),
+        state: encodeSession({
+          id,
+          name: "many",
+          visitedAt: Date.now() + 200_000,
+          state: createTerminalState(terminals, "grid", "grid"),
+        }),
       })
       const app = open(keeping(await runner.reload(), id, terminals))
       expect(activeSession(app.workspace())!.id).toBe(id)
@@ -1033,16 +1031,14 @@ describe("runner backend", () => {
       await runner.client.sessions.create({ id, projectId, name: "away" })
       await runner.client.terminals.create({ id: done.id, sessionId: id, cols: 80, rows: 24 })
       await runner.client.sessions.save({
+        visitedAt: 1,
         sessionId: id,
-        state: encodeSession(
-          {
-            id,
-            name: "away",
-            visitedAt: 1,
-            state: { ...createTerminalState([done], "grid", "grid"), selected: done.id },
-          },
-          0,
-        ),
+        state: encodeSession({
+          id,
+          name: "away",
+          visitedAt: 1,
+          state: { ...createTerminalState([done], "grid", "grid"), selected: done.id },
+        }),
       })
       // The shell starts, takes the input and exits in its own time, which can take
       // seconds on a busy Windows machine: this waits for the runner's exit itself rather
@@ -1079,16 +1075,14 @@ describe("runner backend", () => {
       )
       await runner.client.sessions.create({ id, projectId, name: "boot" })
       await runner.client.sessions.save({
+        visitedAt: Date.now() + 600_000,
         sessionId: id,
-        state: encodeSession(
-          {
-            id,
-            name: "boot",
-            visitedAt: Date.now() + 600_000,
-            state: createTerminalState(terminals, "grid", "grid"),
-          },
-          2,
-        ),
+        state: encodeSession({
+          id,
+          name: "boot",
+          visitedAt: Date.now() + 600_000,
+          state: createTerminalState(terminals, "grid", "grid"),
+        }),
       })
       const app = open(keeping(await runner.reload(), id, terminals))
       expect(activeSession(app.workspace())!.id).toBe(id)
@@ -1226,19 +1220,16 @@ describe("runner backend", () => {
       const [home] = runner.listing
       const projectId = home!.project.id
       const saved = (id: string, terminalId: string, visitedAt: number) =>
-        encodeSession(
-          {
-            id,
-            name: id,
-            visitedAt,
-            state: createTerminalState(
-              [{ ...startingTerminal(terminalId, home!.project.cwd), name: "kept" }],
-              "grid",
-              "grid",
-            ),
-          },
-          0,
-        )
+        encodeSession({
+          id,
+          name: id,
+          visitedAt,
+          state: createTerminalState(
+            [{ ...startingTerminal(terminalId, home!.project.cwd), name: "kept" }],
+            "grid",
+            "grid",
+          ),
+        })
       const [shown, later] = [crypto.randomUUID(), crypto.randomUUID()]
       const [first, second] = [crypto.randomUUID(), crypto.randomUUID()]
       const seeded: readonly (readonly [string, string, number])[] = [
@@ -1250,6 +1241,7 @@ describe("runner backend", () => {
         seeded.map(async ([id, terminalId, visitedAt]) => {
           await runner.client.sessions.create({ id, projectId, name: id })
           await runner.client.sessions.save({
+            visitedAt,
             sessionId: id,
             state: saved(id, terminalId, visitedAt),
           })

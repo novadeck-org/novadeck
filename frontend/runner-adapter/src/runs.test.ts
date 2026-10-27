@@ -105,7 +105,13 @@ const scripted = (reported: TerminalSummary, lastProgram = "") => {
       project: { id: "p", name: "P", cwd: "/tmp" },
       sessions: [
         {
-          session: { id: "s", projectId: "p", name: "S", state: encodeSession(session, 2) },
+          session: {
+            id: "s",
+            projectId: "p",
+            name: "S",
+            visitedAt: 5,
+            state: encodeSession(session),
+          },
           terminals: [listed],
         },
       ],

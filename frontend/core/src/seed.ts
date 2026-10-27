@@ -51,8 +51,8 @@ export type SessionSeed = {
   readonly windows: readonly CompanionWindowMeta[]
   readonly items: readonly Item[]
   readonly canvasLayout?: CanvasLayout
-  // When the session was last visited; the seed's time when omitted.
-  readonly visitedAt?: number
+  // When the session was last visited; omitted or null if never, which stamps nothing.
+  readonly visitedAt?: number | null
   // How the session was shown, as saved earlier: terminals it laid out keep their place,
   // order and layout, and the others are laid out after them as new terminals would be.
   // What it kept of terminals, windows and items the backend no longer has goes.
@@ -204,13 +204,12 @@ export const workspaceFromSeed = (seed: WorkspaceSeed, defaults: SeedDefaults): 
       }, workspace),
     createWorkspace({ projects, activeProjectId: active.id }),
   )
-  // Adding a session marks the one it replaces as visited; keep the seeded times instead.
+  // Adding a session stamps visits; keep the seeded ones instead, and none for a session
+  // never visited.
   const visited = new Map(
     seed.projects.flatMap((project) =>
-      project.sessions.flatMap((session) =>
-        session.visitedAt === undefined
-          ? []
-          : [[JSON.stringify([project.id, session.id]), session.visitedAt] as const],
+      project.sessions.map(
+        (session) => [JSON.stringify([project.id, session.id]), session.visitedAt ?? null] as const,
       ),
     ),
   )
@@ -220,7 +219,7 @@ export const workspaceFromSeed = (seed: WorkspaceSeed, defaults: SeedDefaults): 
       ...project,
       history: project.history.map((session) => ({
         ...session,
-        visitedAt: visited.get(JSON.stringify([project.id, session.id])) ?? session.visitedAt,
+        visitedAt: visited.get(JSON.stringify([project.id, session.id])) ?? null,
       })),
     })),
   }

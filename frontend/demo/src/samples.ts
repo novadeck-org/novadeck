@@ -319,12 +319,13 @@ export const demoTelemetry = (now: number): Telemetry =>
   }, noTelemetry)
 
 export const demoSeed = (now: number, agents = false): WorkspaceSeed => ({
-  projects: initialProjects.map((project) => ({
+  projects: initialProjects.map((project, place) => ({
     ...project,
     sessions: [
       {
         id: initialSession,
         name: sessionName(now),
+        visitedAt: now - place * 20 * 60_000,
         terminals: projectTerminals(project, agents),
         items: [],
         windows: [],

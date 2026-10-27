@@ -105,7 +105,13 @@ const openCrashing = () => {
       project: { id: "p", name: "P", cwd: "/tmp" },
       sessions: [
         {
-          session: { id: "s", projectId: "p", name: "S", state: encodeSession(session, 2) },
+          session: {
+            id: "s",
+            projectId: "p",
+            name: "S",
+            visitedAt: 5,
+            state: encodeSession(session),
+          },
           terminals: [keptSummary(terminal.id, "s")],
         },
       ],
@@ -161,20 +167,18 @@ describe("a runner that crashes while shells start", () => {
 })
 
 // A saved session in project "p" holding one terminal that waits for a shell.
-const saved = (id: string, terminalId: string, visitedAt: number, rank: number) => ({
+const saved = (id: string, terminalId: string, visitedAt: number) => ({
   session: {
     id,
     projectId: "p",
     name: id,
-    state: encodeSession(
-      {
-        id,
-        name: id,
-        visitedAt,
-        state: createTerminalState([startingTerminal(terminalId, "/tmp")], "grid", "grid"),
-      },
-      rank,
-    ),
+    visitedAt,
+    state: encodeSession({
+      id,
+      name: id,
+      visitedAt,
+      state: createTerminalState([startingTerminal(terminalId, "/tmp")], "grid", "grid"),
+    }),
   },
   terminals: [keptSummary(terminalId, id)],
 })
@@ -187,8 +191,8 @@ const openInStore = () => {
     {
       project: { id: "p", name: "P", cwd: "/tmp" },
       sessions: [
-        saved("s", "00000000-0000-4000-8000-000000000001", 5, 2),
-        saved("s2", "00000000-0000-4000-8000-000000000002", 1, 0),
+        saved("s", "00000000-0000-4000-8000-000000000001", 5),
+        saved("s2", "00000000-0000-4000-8000-000000000002", 1),
       ],
     },
   ]

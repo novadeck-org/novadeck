@@ -59,7 +59,7 @@ type Shown = {
   readonly opened?: boolean
   readonly again?: boolean
   readonly moved?: string
-  readonly held?: boolean
+  readonly secret?: boolean
   readonly tooLarge?: boolean
 }
 type Listing = { readonly text: string }
@@ -232,13 +232,13 @@ const show: Tool<Shown> = {
     (answer.moved !== undefined
       ? `${answer.name} was moved by the user ${answer.moved}, so it's updated there` +
         (answer.opened ? " and opened." : ".") +
-        (answer.held ? " It may hold secrets, so it doesn't open by itself." : "")
+        (answer.secret ? " It may hold secrets, so it doesn't open by itself." : "")
       : answer.opened
         ? "Showing " +
           answer.name +
           (answer.again ? " again, updated," : "") +
           " to the user in Novadeck."
-        : answer.held
+        : answer.secret
           ? answer.name +
             " may hold secrets, so it doesn't open by itself: it's waiting for the user in " +
             "Novadeck, marked new, to open if they choose."

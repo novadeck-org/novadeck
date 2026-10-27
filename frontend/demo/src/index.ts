@@ -503,7 +503,7 @@ const demoPlanItem = (
   by: "agent",
   from: { terminalId, handle },
   version: 1,
-  asked: false,
+  openAsked: false,
   shownAt: at,
   plan: { agent: "Claude Code", role, source: "file" },
 })

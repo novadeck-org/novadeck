@@ -733,12 +733,12 @@ export class Terminals {
       // asked for, as it requested the terminal, is that agent's.
       let naming: Naming = kept?.naming ?? unnamed
       if (input.title !== undefined) naming = renamedTo(naming, input.title)
-      if (opener?.title !== undefined) naming = openedWith(naming, opener.title, opener.by)
+      if (opener?.title !== undefined) naming = openedWith(naming, opener.title)
       const openedBy = kept?.openedBy ?? opener?.by ?? null
       const ledBy = kept ? kept.ledBy : opener?.withBrief ? opener.by : null
       const work = saved?.work ?? null
       const command = input.command ?? saved?.command ?? null
-      const titled = summaryTitle(naming, { command })
+      const titled = summaryTitle(naming, { command, openedBy })
       const resume =
         input.command === undefined &&
         input.resume &&

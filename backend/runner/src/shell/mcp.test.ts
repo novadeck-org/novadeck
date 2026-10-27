@@ -830,7 +830,7 @@ describe("Novadeck's MCP server", () => {
         isError: false,
       })
       await expect(
-        said({ ok: true, id: "b", kind: "file", name: ".env", opened: false, held: true }),
+        said({ ok: true, id: "b", kind: "file", name: ".env", opened: false, secret: true }),
       ).resolves.toMatchObject({
         content: [{ type: "text", text: expect.stringContaining(".env may hold secrets") }],
         isError: false,
@@ -881,7 +881,7 @@ describe("Novadeck's MCP server", () => {
           opened: false,
           again: true,
           moved: "to fox",
-          held: true,
+          secret: true,
         }),
       ).resolves.toMatchObject({
         content: [

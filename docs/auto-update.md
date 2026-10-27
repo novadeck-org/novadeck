@@ -382,10 +382,10 @@ does nothing either. On Linux:
     schema version is higher than its own, or, at its own version, one where no table lacks a
     column it writes and some table has more. A database of a lower version is carried forward
     in place, one step per version; the version rises, with a step, for any change to a
-    table's columns or constraints, and a test pins the schema's digest to its version as a
-    reminder. A new table needs neither: it is created where missing. Only a database from
-    before the first step, one whose step doesn't fit it or finds it damaged, or one whose
-    tables differ from its version's is set aside for a new one; any other failure of a
+    table's columns or constraints and for a new table, and a test pins the schema's digest
+    to its version as a reminder. Only a database older than the oldest version a build
+    carries (6 since schema 7), one whose step doesn't fit it or finds it damaged, or one
+    whose tables differ from its version's is set aside for a new one; any other failure of a
     step, such as a full disk, fails that start and leaves the database for a later one.
 - A failure, such as a full disk or a folder that cannot be written, is returned with a short
   reason, as is a request while the app is already quitting ("Novadeck is quitting.").

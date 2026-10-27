@@ -571,7 +571,7 @@ read, which removes it, up to fifty unread per terminal (the oldest goes first),
 its terminal. A usage limit is no row: it is derived from `lastTurn.limited` and the
 limit window, and leaves when the agent works again.
 
-The runner's `inbox` table keeps these lifetimes and their Messages history. Every
+The runner's `inbox_entries` table keeps these lifetimes and their Messages history. Every
 entry is bound to the terminal, project, workspace session and exact agent session.
 An ask clears when answered, withdrawn (by the agent, or by Novadeck at the person's own
 prompt in its terminal) or its agent session ends. A runner restart
@@ -1676,7 +1676,7 @@ output, not that the model acted on it.
   _Stored_, a thread keeps where its hold starts (`held_from`, a hop, null while not
   held) and why (`held_for`: `loop`), in place of `allowed`; a message is held for its
   thread when its hop is at or past `held_from`, and Release and Stop set both to null.
-  The schema goes from 4 to 5 with a migration (`schemas/4.sql`, tested from version 4):
+  The schema went from 4 to 5 with a migration (since removed, with every step before version 6):
   a thread with a message the twelve-message rule held, or would hold again should it
   come back (one neither from nor to a lead, past `allowed`, stored `held`, or `gone`
   and not stopped), keeps a hold from `allowed + 1`, with no reason; its messages at or
@@ -1806,10 +1806,10 @@ model behind a `Describer` (`murmur/`).
   details. It is updated when the work moves to another subject, not as it progresses; the
   later nudge shows the current summary and asks for an update only then, or when it
   holds what a summary leaves out.
-- **Who wins the title.** The record keeps each layer apart (`naming`: `person`; `agent`,
-  the opener's title with the handle of the terminal that gave it; `murmur`, its title;
+- **Who wins the title.** The record keeps each layer apart (`naming`: `person`; `opener`,
+  the opener's title, which says who it is from by the terminal's `openedBy`; `murmur`, its title;
   and `summary`, the agent's own), and the store persists only these (`person_title`,
-  `agent_title`, `agent_titled_by`, `murmur_title`, `summary`). The terminal manager
+  `opener_title`, `murmur_title`, `summary`). The terminal manager
   derives the title by precedence:
 
   1. the person's (renaming, or creating the terminal);

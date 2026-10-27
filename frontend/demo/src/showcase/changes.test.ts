@@ -53,7 +53,7 @@ describe("the sample changes", () => {
     expect(moves[2]!.hunks).toEqual([])
     expect(moves[0]!.oldPath).toBe("src/pages/Projects.tsx")
     expect(changeOf("change-binary").files.some((file) => file.binary)).toBe(true)
-    expect(changeOf("change-held").files.some((file) => file.held)).toBe(true)
+    expect(changeOf("change-held").files.some((file) => file.secret)).toBe(true)
     const truncated = changeOf("change-truncated")
     expect(truncated.truncated).toBe(true)
     expect(truncated.files.some((file) => file.listed)).toBe(true)

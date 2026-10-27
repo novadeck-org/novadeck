@@ -313,9 +313,16 @@ const deskLayout = (): CanvasLayout => ({
   ),
 })
 
-const sessionOf = (now: number, terminals: TerminalMetadata[], canvasLayout?: CanvasLayout) => ({
+// The open session was visited just now; the others a while before.
+const sessionOf = (
+  now: number,
+  terminals: TerminalMetadata[],
+  canvasLayout?: CanvasLayout,
+  visitedAt = now,
+) => ({
   id: session,
   name: sessionName(now),
+  visitedAt,
   terminals,
   items: [],
   windows: [],
@@ -343,6 +350,8 @@ export const babciaSeed = (now: number): WorkspaceSeed => ({
           elsewhere.map(([name, agent], index) =>
             agentTerminal(gig, index + 1, name, agent, working),
           ),
+          undefined,
+          now - 20 * 60_000,
         ),
       ],
     },
@@ -645,7 +654,7 @@ const preview: SampleArtifact = {
     path: null,
     url: "http://localhost:4321/",
     lines: null,
-    held: false,
+    secret: false,
   },
   content: ready({
     kind: "page",
@@ -949,12 +958,12 @@ export const createBabcia = (turns: DemoTurns, now: number) => {
         path: null,
         url: preview.item.url,
         lines: null,
-        held: false,
+        secret: false,
         by: "agent",
         from: { terminalId: holder.terminalId, handle: demoHandle(babcia.shows) },
         version: 1,
         // The agent opens it for the person, as the show tool does.
-        asked: true,
+        openAsked: true,
         shownAt: Date.now(),
         plan: null,
       }
