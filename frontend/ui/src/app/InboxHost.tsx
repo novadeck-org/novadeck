@@ -74,6 +74,7 @@ export const InboxHost = ({
       reveal={reveal}
       phone={phone}
       working={working}
+      active={active}
       feedbackAbout={backend.feedback?.about}
     >
       {children}

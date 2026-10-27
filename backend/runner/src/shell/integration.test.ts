@@ -3422,6 +3422,51 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))(
       expect(queued.hookSpecificOutput.additionalContext).toContain("One more thing.")
     })
 
+    it("tells an agent no one types to Novadeck's notices with the messages its doorbell delivers", async ({
+      shell,
+    }) => {
+      const bin = standIn(shell.home)
+      const manager = shell.manager({
+        env: { HOME: shell.home, PS1: "$ ", PATH: `${bin}:${process.env.PATH}` },
+      })
+      const lead = await create(manager, shell)
+      const { start, step } = driver(shell, manager)
+      await start(lead.id, "claude", "s-lead")
+      const ring = "[Novadeck: automatic notice, agent messages waiting, abc123]"
+      const teammate = async (agent: "claude" | "codex") => {
+        const worker = await create(manager, shell)
+        await start(worker.id, agent, `s-${agent}`)
+        await expect.poll(() => manager.messages(worker.id).delivery).toMatch(/^(?:fresh|ready)$/)
+        const { handle } = manager.get(worker.id)
+        await step(lead.id, { call: "send", request: { to: handle, text: "Build the page." } })
+        // Its first turn is the doorbell's: the message, then the bar's, the Inbox's and the
+        // summary's notices, a paragraph each.
+        const rung = context(
+          await step(worker.id, { hook: "UserPromptSubmit", payload: { prompt: ring } }),
+        )
+        expect(rung).toContain(">Build the page.</message>")
+        const notices = rung.slice(rung.indexOf("</novadeck-messages>")).split("\n\n").slice(1)
+        expect(notices).toHaveLength(3)
+        expect(notices[0]).toMatch(/^Novadeck: automatic notice, not from the user: beside this/)
+        expect(notices[1]).toMatch(/the user rarely watches this terminal/)
+        expect(notices[2]).toMatch(/this terminal has no summary yet/)
+        await expect
+          .poll(() => manager.messages(worker.id).threads[0]?.messages[0]?.state)
+          .toBe("delivered")
+        await step(worker.id, { hook: "Stop", payload: {} })
+        // The next message's turn asks for the summary again, and only that, until one comes.
+        await step(lead.id, { call: "send", request: { to: handle, text: "And the footer." } })
+        const again = context(
+          await step(worker.id, { hook: "UserPromptSubmit", payload: { prompt: ring } }),
+        )
+        expect(again).toContain(">And the footer.</message>")
+        expect(again).toContain("this terminal has no summary yet")
+        expect(again).not.toContain("beside this terminal is a bar")
+      }
+      await teammate("claude")
+      await teammate("codex")
+    })
+
     it("tells a terminal's watchers nothing of messages between two others", async ({ shell }) => {
       const bin = standIn(shell.home)
       const manager = shell.manager({
@@ -4663,7 +4708,8 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))(
           payload: { prompt: "blue, please" },
         })
         expect(next).toContain("took your open ask out of their Inbox")
-        expect(asks()).toEqual([])
+        expect(asks().filter(({ settled }) => !settled)).toEqual([])
+        expect(asks().map(({ settled }) => settled?.how)).toEqual(["replied"])
       } finally {
         controller.abort()
         await client
@@ -4693,13 +4739,17 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))(
           payload: { session_id: session, source: "clear", cwd: shell.home },
         })
       expect(manager.get(terminal.id).title).toBe("Terminal")
-      // A doorbell's line is never the person's prompt, so never kept as one.
-      await prompt("s-1", "[Novadeck: automatic notice, agent messages waiting, abc123]")
+      // A doorbell's line is never the person's prompt, so never kept as one; its turn, the
+      // session's first, takes the notices of the bar, the Inbox and the summary.
+      await expect(
+        prompt("s-1", "[Novadeck: automatic notice, agent messages waiting, abc123]"),
+      ).resolves.toContain("beside this terminal is a bar")
       expect(shell.store.terminal(terminal.id)?.work?.first ?? null).toBeNull()
-      // Prompts title nothing; the first of a session prints the notices of the bar, the Inbox
-      // and the summary.
+      // Prompts title nothing; while there is no summary, each asks for one.
       const bar = /^Novadeck: automatic notice, not from the user: beside this terminal/
-      await expect(prompt("s-1", "Fix the login bug")).resolves.toMatch(bar)
+      await expect(prompt("s-1", "Fix the login bug")).resolves.toMatch(
+        /^Novadeck: automatic notice, not from the user: this terminal has no summary yet/,
+      )
       await prompt("s-1", "Now its tests")
       expect(manager.get(terminal.id)).toMatchObject({
         title: "Terminal",
@@ -4763,12 +4813,11 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))(
         },
       ]
       items.pageTrouble({ itemId, shown: 1, troubles })
-      // A doorbell's line is not the person's prompt: the notice waits.
-      expect(
-        await prompt("[Novadeck: automatic notice, agent messages waiting, abc123]"),
-      ).not.toContain("the page you showed")
-      const told = await prompt("How does it look?")
-      expect(told).toMatch(/^Novadeck: automatic notice, not from the user: the page you showed, /)
+      // A doorbell's turn takes it as the person's prompt would, after what it says.
+      const told = await prompt("[Novadeck: automatic notice, agent messages waiting, abc123]")
+      expect(told).toMatch(
+        /\n\nNovadeck: automatic notice, not from the user: the page you showed, /,
+      )
       expect(told).toContain('error "x is undefined" at "/a.js:3".')
       // Told once for that show, however often the page repeats itself.
       items.pageTrouble({ itemId, shown: 1, troubles })
@@ -4970,7 +5019,8 @@ describe.runIf(process.platform === "win32")("Windows shell integration", () => 
  * its hooks find its instance. `askafter` asks a permission after its first turn's Stop;
  * `askpaste` asks one as a paste comes after it, drawing the paste once told to; `asking`
  * puts a question in the Inbox after its first turn's Stop, `askbox` too, with Codex's own box
- * marker, so a prompt the runner gives it finds its box.
+ * marker, so a prompt the runner gives it finds its box. `donecall` reports its task done after
+ * its first turn's Stop.
  */
 const standInTui = (home: string): string => {
   const bin = join(home, "bin")
@@ -5092,6 +5142,9 @@ const turn = (prompt, typed = true) => {
             fs.writeFileSync(raw + ".asked", JSON.stringify(answer)),
           )
         }
+        // With "donecall", its agent reports its task done after its first turn's Stop.
+        if (mode === "donecall" && turns === 1)
+          toolCall("done", { subject: "Shipped it", body: "All done." }, process.env.NOVADECK_REPORT_TOKEN, () => {})
         // With "askafter", a call asks a permission after its first turn's Stop, as a
         // background task's may: its dialog draws nothing, and Enter allows it, so only the
         // request's own resolution tells Novadeck it no longer waits.
@@ -6513,11 +6566,50 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))(
         await shell.until(tui.manager, tui.idle.id, "> blue, please")
         tui.type("\r")
         await vi.waitFor(() => expect(tui.received()).toHaveLength(turns + 2), { timeout: 10_000 })
-        expect(asking()).toEqual([])
+        expect(asking().filter(({ settled }) => !settled)).toEqual([])
+        expect(asking().map(({ settled }) => settled?.how)).toEqual(["replied"])
         const printed = tui.received().at(-1)!.printed
         expect(printed).toContain("took your open ask out of their Inbox")
         expect(printed).toContain("Which colour?")
       })
+
+    for (const agent of ["codex", "claude", "agy"] as const)
+      it(`shows ${agent}'s standing done in its summary until the person's prompt or a message gives it more`, async ({
+        shell,
+      }) => {
+        const tui = await ringing(shell, "donecall", "tui", agent)
+        if (agent === "agy") await agyStarted(tui)
+        else await tui.first()
+        const reported = () => tui.manager.get(tui.idle.id).reported?.subject
+        await expect.poll(reported, { timeout: 10_000 }).toBe("Shipped it")
+        // Reading the entry leaves the Inbox, not the report that stands.
+        const entries = tui.manager.inboxEntries().filter(({ content }) => content.kind === "done")
+        expect(entries).toHaveLength(1)
+        tui.manager.readTells(entries.map(({ id }) => id))
+        expect(tui.manager.inboxEntries()).toEqual([])
+        expect(reported()).toBe("Shipped it")
+        // The person writes to it in its terminal: more to do.
+        const turns = tui.received().length
+        tui.type("one more thing")
+        await shell.until(tui.manager, tui.idle.id, "one more thing")
+        tui.type("\r")
+        await vi.waitFor(() => expect(tui.received()).toHaveLength(turns + 1), { timeout: 10_000 })
+        await expect.poll(reported, { timeout: 10_000 }).toBeUndefined()
+      })
+
+    it("clears a standing done when a peer's message is delivered to the agent", async ({
+      shell,
+    }) => {
+      const tui = await ringing(shell, "donecall", "tui", "codex")
+      await tui.first()
+      await expect
+        .poll(() => tui.manager.get(tui.idle.id).reported?.subject, { timeout: 10_000 })
+        .toBe("Shipped it")
+      await tui.back(1)
+      await tui.send("Review a.ts")
+      await vi.waitFor(() => expect(tui.received().length).toBeGreaterThan(1), { timeout: 10_000 })
+      await expect.poll(() => tui.manager.get(tui.idle.id).reported, { timeout: 10_000 }).toBeNull()
+    })
 
     it("sends an Inbox button's fixed line through agents.prompt without taking Codex's asks out, but the person's next words do", async ({
       shell,
@@ -6544,7 +6636,8 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))(
       await shell.until(tui.manager, tui.idle.id, "\u203a blue, please")
       tui.type("\r")
       await vi.waitFor(() => expect(tui.received()).toHaveLength(3), { timeout: 10_000 })
-      expect(asking()).toEqual([])
+      expect(asking().filter(({ settled }) => !settled)).toEqual([])
+      expect(asking().map(({ settled }) => settled?.how)).toEqual(["replied"])
       expect(tui.received()[2]!.printed).toContain("took your open ask out of their Inbox")
     })
 

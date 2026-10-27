@@ -65,6 +65,7 @@ const summary = (change: Partial<TerminalSummary>): TerminalSummary => ({
   ready: null,
   activity: null,
   telemetry: null,
+  reported: null,
   ...change,
 })
 

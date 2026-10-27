@@ -58,11 +58,16 @@ export type InboxTracker = {
   readonly see: (id: string) => void
   // Runs an answer: its item shows answering until the backend drops it or the answer fails.
   // With `settles`, an answer that took but left its item standing (a prompt that started no
-  // turn) gives the buttons back after `settleMs`. `onError` runs when the answer fails.
+  // turn) gives the buttons back after `settleMs`. `onError` runs when the answer fails;
+  // with `silent`, a failure leaves no error behind: the item just stands as it was.
   readonly call: (
     id: string,
     work: () => Promise<unknown>,
-    options?: { readonly settles?: boolean; readonly onError?: () => void },
+    options?: {
+      readonly settles?: boolean
+      readonly silent?: boolean
+      readonly onError?: () => void
+    },
   ) => void
   // Marks answers as sent, for the ones the backend sends itself.
   readonly submit: (ids: readonly string[]) => void
@@ -116,6 +121,9 @@ export const createInboxTracker = ({
       const ids = new Set(found.map((item) => item.id))
       for (const id of seen) if (!ids.has(id)) seen.delete(id)
       for (const id of submitted) if (!ids.has(id) && !inFlight.has(id)) submitted.delete(id)
+      // A dismissed ask that the backend now lists settled has taken: it no longer answers.
+      for (const item of found)
+        if (item.settled && !inFlight.has(item.id)) submitted.delete(item.id)
       const items = found.map((item) => (seen.has(item.id) ? { ...item, seen: true } : item))
       const answering: Record<string, true> = Object.fromEntries(
         [...inFlight].map((id) => [id, true]),
@@ -130,7 +138,7 @@ export const createInboxTracker = ({
       seen.add(id)
       changed()
     },
-    call: (id, work, { settles = false, onError } = {}) => {
+    call: (id, work, { settles = false, silent = false, onError } = {}) => {
       clearTimeout(settling.get(id))
       settling.delete(id)
       failed.delete(id)
@@ -156,7 +164,10 @@ export const createInboxTracker = ({
           if (binds !== round) return
           inFlight.delete(id)
           onError?.()
-          fail(id, answerFailure(error))
+          if (silent) {
+            submitted.delete(id)
+            changed()
+          } else fail(id, answerFailure(error))
         },
       )
     },

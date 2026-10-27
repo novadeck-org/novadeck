@@ -105,7 +105,7 @@ export const clickNotice = (
   },
   itemId?: string,
 ): void => {
-  const its = items.filter(({ source }) => source.terminalId === terminalId)
+  const its = items.filter(({ source, settled }) => source.terminalId === terminalId && !settled)
   const item =
     its.find(({ id }) => id === itemId) ??
     (itemId === undefined

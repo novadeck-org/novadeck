@@ -25,6 +25,7 @@ const summary = (change: Partial<TerminalSummary>): TerminalSummary => ({
   ready: null,
   activity: null,
   telemetry: null,
+  reported: null,
   ...change,
 })
 const named = (name: string, argv: string[] | null = null) => summary({ process: { name, argv } })
@@ -43,6 +44,45 @@ describe("terminal activity", () => {
         (name) => terminalActivity(named(name)).status,
       )
       expect(states).toEqual(Array.from({ length: 5 }, () => ({ state: "idle" })))
+    })
+  })
+
+  context("while an agent's done report stands", () => {
+    it("shows it on the agent's status, and not on one without a report", () => {
+      const claude = {
+        process: { name: "claude", argv: null },
+        agent: "claude" as const,
+        activity: {
+          state: "idle",
+          attention: { pending: 0, kind: null },
+          subagents: [],
+          planning: false,
+          background: null,
+          waiting: null,
+          lastTurn: null,
+        } as unknown as TerminalSummary["activity"],
+      }
+      const standing = terminalActivity(
+        summary({ ...claude, reported: { subject: "Fixed it", at: 5 } }),
+      )
+      expect(standing.status).toMatchObject({ state: "running", agent: { reported: true } })
+      expect(terminalActivity(summary(claude)).status).toEqual({
+        state: "running",
+        agent: { working: false },
+      })
+    })
+  })
+
+  context("while an agent shows its own prompt, before it binds a session", () => {
+    it("carries its standing done too, as after a runner restart", () => {
+      const prompt = { process: { name: "codex", argv: null }, ready: "codex" as const }
+      expect(
+        terminalActivity(summary({ ...prompt, reported: { subject: "Fixed it", at: 5 } })).status,
+      ).toEqual({ state: "running", agent: { working: false, reported: true } })
+      expect(terminalActivity(summary(prompt)).status).toEqual({
+        state: "running",
+        agent: { working: false },
+      })
     })
   })
 

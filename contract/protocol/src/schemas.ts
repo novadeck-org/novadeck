@@ -521,6 +521,10 @@ export const terminalSummary = z.strictObject({
   activity: agentActivity.nullable(),
   // Its tokens and quotas, once its records named any; null otherwise.
   telemetry: agentTelemetry.nullable(),
+  // The agent's latest `done` that still stands, read or not: nothing the person prompted
+  // or a message delivered to it came after. The terminal's done mark follows it, not
+  // the person looking; null without one.
+  reported: z.strictObject({ subject: z.string().max(256), at: z.number() }).nullable(),
 })
 
 // What agents show and the person attaches beside a terminal: a pointer to a file, a
@@ -1037,7 +1041,9 @@ export const agentMessage = z.strictObject({
   deliveredAt: z.number().nullable(),
   // Only the runner creates Inbox history and responses. Ordinary agent messages have none.
   inbox: z.enum(["ask", "tell", "done", "answer"]).optional(),
-  inboxState: z.enum(["open", "answered", "read", "withdrawn", "gone", "undelivered"]).optional(),
+  inboxState: z
+    .enum(["open", "answered", "read", "withdrawn", "dismissed", "gone", "undelivered"])
+    .optional(),
 })
 
 // A thread between a terminal and one other: the other's handle, how many messages it

@@ -180,8 +180,8 @@ const create = (
   messaging.register("B", here, "fox", null)
   follow("A", claude)
   follow("B", codex)
-  // What a hook of the terminal's agent asks, with plenty of time left.
-  const ask = (
+  // What a hook of the terminal's agent asks, with plenty of time left: the whole answer.
+  const answer = (
     terminalId: string,
     bound: Binding,
     event: string,
@@ -199,12 +199,17 @@ const create = (
       ...(person && { person }),
     })
   }
+  // What the hook prints of it, without the notices `adding` takes, the terminals side's.
+  const ask = (...args: Parameters<typeof answer>) => {
+    const { leaseId, stdout } = answer(...args)
+    return { leaseId, stdout }
+  }
   const prompt = (terminalId: string, bound: Binding, cause?: "prompt" | "harness" | "call") =>
     ask(terminalId, bound, bound.agent === "agy" ? "PreInvocation" : "UserPromptSubmit", [
       started(bound, cause),
     ])
-  const stop = (terminalId: string, bound: Binding, background = false) =>
-    ask(terminalId, bound, "Stop", [stopped(bound, background)])
+  const stop = (terminalId: string, bound: Binding, background = false, person?: Person) =>
+    ask(terminalId, bound, "Stop", [stopped(bound, background)], undefined, person)
   const send = (from: string, to: string, text: string) => messaging.send(from, { to, text })
   return {
     messaging,
@@ -215,6 +220,7 @@ const create = (
     codex,
     follow,
     observe,
+    answer,
     ask,
     prompt,
     stop,
@@ -652,6 +658,28 @@ describe("delivery through hooks", () => {
     })
     // Nothing more waits.
     expect(prompt("B", codex)).toEqual({ leaseId: null, stdout: "" })
+  })
+
+  it("says how to print a turn the person or the doorbell began with notices after its messages", () => {
+    const { send, answer, codex, clock: time } = create()
+    // The person's prompt with nothing waiting: silent, with the whole answer for notices.
+    const quiet = answer("B", codex, "UserPromptSubmit", [started(codex)])
+    expect(quiet.stdout).toBe("")
+    expect(context(quiet.adding!("Novadeck: a notice."))).toBe("Novadeck: a notice.")
+    // The doorbell's turn, with the lead's brief: the notices go after the messages.
+    sent(send("A", "fox", "Review a.ts"))
+    const rung = answer("B", codex, "UserPromptSubmit", [doorbellStarted(codex, "n-1")])
+    expect(rung.leaseId).toEqual(expect.any(String))
+    const both = context(rung.adding!("Novadeck: a notice."))
+    expect(both.indexOf("Review a.ts")).toBeGreaterThan(-1)
+    expect(both.indexOf("Review a.ts")).toBeLessThan(both.indexOf("Novadeck: a notice."))
+    // A hook's own continuation, or a turn with no time left to print: none.
+    expect(
+      answer("B", codex, "UserPromptSubmit", [started(codex, "harness")]).adding,
+    ).toBeUndefined()
+    expect(
+      answer("B", codex, "UserPromptSubmit", [started(codex)], time.now + 100).adding,
+    ).toBeUndefined()
   })
 
   it("continues a working agent's Stop with its messages, at most twice a turn", () => {
@@ -3217,7 +3245,14 @@ describe("the person's prompt, told to the asks", () => {
     const counts = vi.fn<Person["counts"]>(() => true)
     const withdraw = vi.fn<Person["withdraw"]>(() => note)
     const prompted = vi.fn<Person["prompted"]>()
-    return { counts, withdraw, prompted, person: { counts, withdraw, prompted } satisfies Person }
+    const dismissed = vi.fn<Person["dismissed"]>(() => undefined)
+    return {
+      counts,
+      withdraw,
+      prompted,
+      dismissed,
+      person: { counts, withdraw, prompted, dismissed } satisfies Person,
+    }
   }
   type Run = ReturnType<typeof create> & {
     readonly bound: Binding
@@ -3655,6 +3690,112 @@ describe("the person's prompt, told to the asks", () => {
     },
   )
 
+  describe("asks the person dismissed", () => {
+    const dismissal = "Novadeck: automatic notice, not from the user: dismissed."
+    // A person whose dismissals notice is due once, for the session `bound` only.
+    const dismissing = (run: Run) => {
+      let due: string | undefined = dismissal
+      const told = who(undefined)
+      told.dismissed.mockImplementation((agent, sessionId) => {
+        const taken = due
+        due = undefined
+        return agent === run.bound.agent && sessionId === run.bound.sessionId ? taken : undefined
+      })
+      return told
+    }
+
+    it.each(harnessesTold)(
+      "prints it on $name's prompt hook, asking for its session",
+      async ({ agent }) => {
+        const run = setup(agent)
+        const told = dismissing(run)
+        const answer = await start(run, "harness", told.person)
+        expect(told.dismissed).toHaveBeenCalledWith(run.bound.agent, run.bound.sessionId)
+        expect(answer.stdout).toContain(dismissal)
+        expect(answer.leaseId).toBeNull()
+      },
+    )
+
+    it.each(["claude", "codex"] as const)("prints it on %s's tool hook", async (agent) => {
+      const run = setup(agent)
+      const told = dismissing(run)
+      await start(run, "harness", who().person)
+      const answer = run.ask(
+        run.terminal,
+        run.bound,
+        "PostToolUse",
+        [toolCalled(run.bound)],
+        undefined,
+        told.person,
+      )
+      expect(answer.stdout).toContain(dismissal)
+      expect(answer.leaseId).toBeNull()
+      // Once.
+      const next = run.ask(
+        run.terminal,
+        run.bound,
+        "PostToolUse",
+        [toolCalled(run.bound)],
+        undefined,
+        told.person,
+      )
+      expect(next.stdout).not.toContain(dismissal)
+    })
+
+    it("prints it at Antigravity's next model call, and again on the turn's remaining calls", async () => {
+      const run = setup("agy")
+      const told = dismissing(run)
+      const call = () =>
+        run.ask("G", agy, "PreInvocation", [started(agy, "call")], undefined, told.person)
+      await start(run, "harness", who().person)
+      expect(call().stdout).toContain(dismissal)
+      expect(call().stdout).toContain(dismissal)
+      // Not in the next turn.
+      run.stop("G", agy)
+      await start(run, "harness", who().person)
+      expect(call().stdout).not.toContain(dismissal)
+    })
+
+    it.each(harnessesTold)(
+      "waits for $name's next hook after a turn ends, and wakes nothing",
+      async ({ agent }) => {
+        const run = setup(agent)
+        const told = dismissing(run)
+        await start(run, "harness", who().person)
+        run.stop(run.terminal, run.bound, false, told.person)
+        run.clock.now += 60_000
+        // Idle: nothing is queued for the doorbell, and nothing asked yet.
+        expect(told.dismissed).not.toHaveBeenCalled()
+        expect(run.messaging.delivery(run.terminal)?.state).toBe("settled")
+        const answer = await start(run, "harness", told.person)
+        expect(answer.stdout).toContain(dismissal)
+      },
+    )
+
+    it.each(harnessesTold)("tells $name's replaced session nothing", async ({ agent }) => {
+      const run = setup(agent)
+      const told = dismissing(run)
+      const other = binding(run.bound.agent, "s-new", "9")
+      run.follow(run.terminal, other)
+      run.messaging.rooted(run.terminal, [
+        { type: "ended", root: { ...run.bound, source: "binding" } } as never,
+      ])
+      run.messaging.rooted(run.terminal, [
+        { type: "new", root: { ...other, source: "binding" }, guess: false, ready: true } as never,
+      ])
+      const answer = run.ask(
+        run.terminal,
+        other,
+        run.event,
+        [started(other, "harness")],
+        undefined,
+        told.person,
+      )
+      expect(told.dismissed).toHaveBeenCalledWith(other.agent, other.sessionId)
+      expect(answer.stdout).not.toContain(dismissal)
+    })
+  })
+
   it("drops the pending withdrawal when the session ends or another binds", async () => {
     const run = setup("codex")
     run.messaging.keys("B", ["enter"], false)
@@ -4069,6 +4210,22 @@ const joinedTurn = (first: string, lead: string) => {
 }
 
 describe("an Antigravity delivery joined mid-turn", () => {
+  it("takes notices after its brief at the doorbell's turn, never kept for its later calls", () => {
+    const { messaging, send, answer } = agyWorker()
+    const root = binding("agy", "c-root", "7")
+    sent(send("A", "owl", "First brief."))
+    const rung = answer("G", root, "PreInvocation", [observed(root), doorbellStarted(root, "n-1")])
+    expect(rung.adding).toBeDefined()
+    const printed = text(rung.adding!("Novadeck: a notice."))
+    expect(printed.indexOf("First brief.")).toBeLessThan(printed.indexOf("Novadeck: a notice."))
+    messaging.acknowledge("G", rung.leaseId!)
+    // Its next model call is given the brief again, without the notice, and takes none.
+    const later = answer("G", root, "PreInvocation", [started(root, "call")])
+    expect(later.stdout).toContain("First brief.")
+    expect(later.stdout).not.toContain("Novadeck: a notice.")
+    expect(later.adding).toBeUndefined()
+  })
+
   it("adds the lead's later message to what the turn was given, for every later call", () => {
     const { messaging, send, call, given } = joinedTurn("From a peer.", "Lead: change course.")
     // A peer's later message waits for the turn's end.

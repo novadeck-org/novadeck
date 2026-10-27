@@ -194,6 +194,24 @@ describe("demo turns", () => {
       expect(done.lastTurn).toEqual(lastTurn)
     })
 
+    it("keeps its done report standing once it ends, until the agent is taken some other way", async () => {
+      const { turns, held, agent } = open()
+      const done = { subject: "Shipped", body: "All of it." }
+      turns.finish(key("06"), held(key("06")), "completed", { after: 100, done })
+      await vi.advanceTimersByTimeAsync(99)
+      expect(agent(key("06"))?.reported).toBeUndefined()
+      await vi.advanceTimersByTimeAsync(1)
+      expect(agent(key("06"))?.reported).toBe(true)
+      // Taking the agent some other way (a rest, as a prompt would) ends it.
+      turns.rest(key("06"), held(key("06")))
+      expect(agent(key("06"))?.reported).toBeUndefined()
+      turns.finish(key("06"), held(key("06")), "completed", { after: 100, done })
+      await vi.advanceTimersByTimeAsync(100)
+      expect(agent(key("06"))?.reported).toBe(true)
+      turns.finish(key("06"), held(key("06")), "completed", { after: 100 })
+      expect(agent(key("06"))?.reported).toBeUndefined()
+    })
+
     it("rests waiting on a job it left running, or a wake-up it set", async () => {
       const { turns, held, agent } = open()
       turns.finish(key("06"), held(key("06")), "completed", {

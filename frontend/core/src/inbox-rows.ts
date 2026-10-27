@@ -4,6 +4,7 @@ import type { AgentName } from "./harnesses"
 import {
   ordered,
   type AgentAsk,
+  type AskSettled,
   type InboxContent,
   type InboxRow,
   type InboxSource,
@@ -48,6 +49,8 @@ export type InboxEntry = {
     | { readonly kind: "ask"; readonly ask: AgentAsk }
     | { readonly kind: "tell"; readonly subject: string; readonly body: string }
     | { readonly kind: "done"; readonly subject: string; readonly body: string }
+  // Only on an ask that is no longer open.
+  readonly settled?: AskSettled | undefined
 }
 
 export type InboxInputs = {
@@ -143,9 +146,9 @@ const heldLong = (
 }
 
 // Whether a terminal's agent reports to a lead whose agent still runs in its project and
-// session: that lead hears of its dones, so they are the lead's, not the person's. Stricter
-// than messaging's running lead, a live terminal whatever runs in it, on purpose: a lead whose
-// agent stopped hears nothing, so its workers' dones come to the person, once each.
+// session: that lead hears of its finished turns, so they are the lead's, not the person's.
+// Stricter than messaging's running lead, a live terminal whatever runs in it, on purpose: a
+// lead whose agent stopped hears nothing, so its workers' finishes come to the person.
 const reportsToLead = ({ project, session, terminal }: Where, where: readonly Where[]): boolean =>
   !!terminal.ledBy &&
   where.some(
@@ -255,12 +258,9 @@ export const inboxRows = (inputs: InboxInputs): InboxRow[] => {
         session.id === entry.workspaceSessionId &&
         terminal.id === entry.terminalId &&
         (terminal.handle ?? "") === entry.handle &&
-        (entry.content.kind !== "ask" || agentOf(terminal) === entry.agent),
+        (entry.content.kind !== "ask" || entry.settled || agentOf(terminal) === entry.agent),
     )
     if (!here) continue
-    // A worker's done is its lead's to hear while the lead's agent runs: a team reports
-    // one finish.
-    if (entry.content.kind === "done" && reportsToLead(here, where)) continue
     const { content: entryContent } = entry
     const content: InboxContent =
       entryContent.kind === "ask"
@@ -277,9 +277,10 @@ export const inboxRows = (inputs: InboxInputs): InboxRow[] => {
       id: entry.id,
       source: sourceOf(here, entry.agent),
       at: entry.at,
-      stopped: entry.content.kind === "ask" && !agentWorking(here.terminal),
+      stopped: entry.content.kind === "ask" && !entry.settled && !agentWorking(here.terminal),
       seen: false,
       ...content,
+      ...(entry.settled ? { settled: entry.settled } : {}),
     })
   }
 

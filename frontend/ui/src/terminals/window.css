@@ -451,9 +451,9 @@
   border-top-style: dashed;
   border-top-color: var(--window-phase-ended-border-color, var(--color-strong));
 }
-/* An agent that finished while the person looked elsewhere: a solid line in the success
-   colour, or the danger colour where its turn ended on an error, and its name bold
-   (WindowShell.tsx), until they look. The line alone marks it, as it does an agent
+/* An agent whose done report stands: a solid line in the success colour, or the danger
+   colour where its turn ended on an error (until they look), and its name bold
+   (WindowShell.tsx). The line alone marks it, as it does an agent
    waiting on them; its description says it in words. */
 .terminal-window[data-terminal-phase="done"] .terminal-heading::after {
   border-top: var(--window-phase-done-border-width, 2px) solid

@@ -99,6 +99,8 @@ export const entryLabel = (message: AgentMessage): string | undefined => {
       return "Asked you · answered"
     case "withdrawn":
       return "Asked you · withdrawn"
+    case "dismissed":
+      return "Asked you · dismissed"
     case "gone":
       return "Asked you · session ended"
     case "undelivered":

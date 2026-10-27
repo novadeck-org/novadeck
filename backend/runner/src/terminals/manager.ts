@@ -42,6 +42,7 @@ import { type AnswerOptions } from "./answers.js"
 import { Bindings } from "./binding/facts.js"
 import { Reports } from "./binding/reports.js"
 import { Shown } from "./binding/shown.js"
+import { savedSession } from "./binding/standing.js"
 import { sameToken } from "./callers.js"
 import { Calls } from "./calls.js"
 import { type CloseAnswer } from "./closes.js"
@@ -539,7 +540,11 @@ export class Terminals {
           this.messaging.personReply(id, ask, subject, text, commit, choice),
         replyState: (id) => this.messaging.inboxReply(id),
         forgetReplies: (ids) => this.messaging.forgetResponses(ids),
-        changed: (id) => this.streams.messagesChanged(id),
+        changed: (id) => {
+          this.streams.messagesChanged(id)
+          const record = this.records.get(id)
+          if (record) this.bindings.publishReported(record)
+        },
         exists: (id) =>
           !this.closedIds.has(id) &&
           (this.records.has(id) || this.saves.identity(id) !== undefined),
@@ -554,6 +559,7 @@ export class Terminals {
       if (record) {
         this.reporting.lapsed(record)
         this.typing.settleBox(record)
+        this.bindings.publishReported(record)
       }
     })
     this.typing = new Typing(
@@ -610,7 +616,7 @@ export class Terminals {
           (record) => record.summary.sessionId === sessionId && record.terminal.exit === null,
         ),
       projectFolder: (sessionId) => this.projectFolder(sessionId),
-      reports: (terminalId) => this.inbox.reports(terminalId),
+      reports: (id) => this.inbox.reports(id, savedSession(this.records.get(id))),
       stopping: () => this.stopping,
     })
     this.murmur = options.describer
@@ -760,6 +766,7 @@ export class Terminals {
           ready: null,
           activity: null,
           telemetry: null,
+          reported: null,
         },
         ...started,
         terminal,
@@ -1061,6 +1068,7 @@ export class Terminals {
                     ready: null,
                     activity: null,
                     telemetry: null,
+                    reported: null,
                   } satisfies AgentSummary,
                   foreground: undefined,
                   ...this.bindings.restarted(),
@@ -1345,6 +1353,12 @@ export class Terminals {
   }
   readTells(ids: readonly string[]): void {
     this.inbox.read(ids)
+  }
+  dismissAsk(id: string): void {
+    this.inbox.dismiss(id)
+  }
+  clearAsks(ids: readonly string[]): void {
+    this.inbox.clear(ids)
   }
 
   /** A terminal's threads and messages with their states. */
@@ -1636,6 +1650,7 @@ export class Terminals {
       ready: null,
       activity: null,
       telemetry: null,
+      reported: null,
     }
     cancelResume(record)
     this.saves.save(record, true)

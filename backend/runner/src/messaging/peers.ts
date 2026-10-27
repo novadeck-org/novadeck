@@ -113,6 +113,21 @@ export const excerptChars = 80
 export const reportChars = 120
 
 /**
+ * The `done` of an agent session that still stands: its latest, read or not, unless the
+ * person's prompt or a message delivered to the agent came after it and gave it more to do.
+ * The one rule behind a peer's `done` in the agents listing and the terminal summary's
+ * `reported`, so they never differ.
+ */
+export const standingDone = (
+  reports: Reports | undefined,
+  personAt: number | undefined,
+  deliveredAt: number | null,
+): Report | null => {
+  const since = Math.max(personAt ?? 0, deliveredAt ?? 0)
+  return reports?.done && reports.done.at > since ? reports.done : null
+}
+
+/**
  * When the latest message delivered to a terminal was delivered, a peer's or the person's,
  * never one of Novadeck's own notices, which give its agent nothing to do; null before one.
  */
@@ -177,9 +192,7 @@ export const peerOf = (input: {
   const openedBy = where?.openedBy ?? null
   const place = where?.place ?? ((path: string) => path)
   const reports = agent ? where?.reports : undefined
-  // The person's prompt or a message after its report gave it more to do.
-  const since = Math.max(work?.personAt ?? 0, input.deliveredAt ?? 0)
-  const done = reports?.done && reports.done.at > since ? reports.done : null
+  const done = standingDone(reports, work?.personAt, input.deliveredAt)
   const [latest] = [reports?.tell, reports?.done]
     .filter((report): report is Report => Boolean(report))
     .toSorted((a, b) => b.at - a.at)

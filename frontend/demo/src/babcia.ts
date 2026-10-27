@@ -67,6 +67,8 @@ export const babcia = {
   lead: 10,
   // The helper that asks the person what only its lead knows.
   asking: 15,
+  // Asks to force-push to main, is told no, and asks again, politely.
+  manners: 12,
 } as const
 
 const jobs: readonly Job[] = [
@@ -732,6 +734,54 @@ const helperAsk = (helper: number, now: number): InboxRow => ({
   },
 })
 
+// The two asks of the agent with manners: the same agent, one after the other. Its harness
+// (Antigravity) ships Novadeck's `ask` as Claude Code's and Codex's do.
+const mannersIds = { rude: "babcia-rude-ask", polite: "babcia-polite-ask" } as const
+const mannersAsks = {
+  rude: {
+    subject: "Can I force-push to main?",
+    body: "The preview branch has fallen behind main, and a normal push is rejected.",
+  },
+  polite: {
+    subject: "Could I open a pull request instead, please?",
+    body: "I would push to a branch of its own and leave main as it is.",
+  },
+} as const
+const yesOrNo = ["Yes", "No"].map((label) => ({
+  label,
+  summary: null,
+  details: null,
+  code: null,
+}))
+const mannersAsk = (kind: keyof typeof mannersIds, now: number): InboxRow => {
+  const job = jobs[babcia.manners - 1]!
+  return {
+    id: mannersIds[kind],
+    source: {
+      projectId: bar,
+      workspaceSessionId: session,
+      terminalId: demoTerminalId({ projectId: bar, workspaceSessionId: session }, babcia.manners),
+      handle: demoHandle(babcia.manners),
+      agent: job.agent,
+      title: job.name,
+      projectName: bar,
+    },
+    at: now,
+    stopped: false,
+    seen: false,
+    kind: "ask",
+    ask: {
+      ...mannersAsks[kind],
+      details: null,
+      hardToUndo: null,
+      shape: { type: "options", options: yesOrNo, recommend: null },
+    },
+  }
+}
+
+// How long after the person's No the same agent asks again, politely.
+export const politeAfterMs = 1000
+
 // How long the lead takes to answer its helper once the doorbell rang it awake.
 const answersMs = 1500
 
@@ -756,6 +806,10 @@ export type BabciaCues = {
   // The lead opens three helper terminals, which its team wire draws to, and rests while they
   // work.
   readonly helpers: () => void
+  // The agent with manners asks to force-push to main (an Ask row, Yes or No). Told No, its
+  // turn goes on, and a moment later it asks, politely, to open a pull request instead; told
+  // Yes to that, it works on.
+  readonly manners: () => void
   // A helper asks the person what only its lead knows. Answered from the Inbox, it writes to
   // its lead; the idle lead, rung awake, works and answers it.
   readonly helperAsks: () => void
@@ -821,6 +875,9 @@ export const createBabcia = (turns: DemoTurns, now: number) => {
   let answered = false
   let failed = false
   let shown = false
+  // Where the agent with manners is: not yet asked, on its first ask, between the No and its
+  // second ask, on its second, or done with both.
+  let manners: "idle" | "rude" | "between" | "polite" | "done" = "idle"
   // Whether the helper and its lead have had their exchange out: the lead's reply landed, or
   // a stop ended it.
   let exchanged = false
@@ -863,6 +920,13 @@ export const createBabcia = (turns: DemoTurns, now: number) => {
         })),
       )
       on(babcia.lead, (key, found) => turns.rest(key, found))
+    },
+    manners: () => {
+      if (manners !== "idle" || !terminal(babcia.manners)) return
+      const inbox = backendInbox()
+      if (!inbox) return
+      manners = "rude"
+      inbox.add(mannersAsk("rude", Date.now()))
     },
     helperAsks: () => {
       // Its helper has to be there to ask.
@@ -939,6 +1003,11 @@ export const createBabcia = (turns: DemoTurns, now: number) => {
     const { agent } = found
     if (agent?.attention || declinedIds.has(found.id)) return true
     if (agent?.lastTurn && !agent.working) return true
+    if (
+      found.id === keyOf(babcia.manners).terminalId &&
+      (manners === "rude" || manners === "between" || manners === "polite")
+    )
+      return true
     if (!asked || exchanged) return false
     return (
       found.id === keyOf(babcia.asking).terminalId || found.id === keyOf(babcia.lead).terminalId
@@ -1028,6 +1097,65 @@ export const createBabcia = (turns: DemoTurns, now: number) => {
     })
   }
 
+  // The agent with manners: its answer, once the mail has delivered it. Told No to the first
+  // ask, its turn carries on (an answered ask is a tool result) and it asks again; told No to
+  // the second, it waits for the person's words; anything else, it works on.
+  const mannersKey = keyOf(babcia.manners)
+  const heard = (kind: "rude" | "polite", told: string): void => {
+    const said = told.split("\n")[0]!.trim()
+    if (kind === "polite" && said === "No") {
+      manners = "done"
+      declinedIds.add(mannersKey.terminalId)
+      on(babcia.manners, (key, found) => turns.rest(key, found))
+      return
+    }
+    work(mannersKey)
+    if (kind === "polite" || said !== "No") {
+      manners = "done"
+      return
+    }
+    manners = "between"
+    const epoch = turns.epoch(mannersKey)
+    setTimeout(() => {
+      // Not if the person took the agent some other way meanwhile, as Escape does.
+      const inbox = backendInbox()
+      if (turns.epoch(mannersKey) !== epoch || !inbox) {
+        manners = "done"
+        return
+      }
+      manners = "polite"
+      inbox.add(mannersAsk("polite", Date.now()))
+    }, politeAfterMs)
+  }
+  const mannersLetter = (kind: "rude" | "polite") =>
+    Object.values(messages.state.getSnapshot().terminals)
+      .flatMap((each) => each.threads)
+      .flatMap((thread) => thread.messages)
+      .find((each) => each.id === `answer:${mannersIds[kind]}`)
+  // An ask whose answer will not reach the agent: it waits for the person's words, as one told
+  // no does.
+  const abandoned = (): void => {
+    manners = "done"
+    declinedIds.add(mannersKey.terminalId)
+    on(babcia.manners, (key, found) => turns.rest(key, found))
+  }
+  messages.state.subscribe(() => {
+    if (manners !== "rude" && manners !== "polite") return
+    const letter = mannersLetter(manners)
+    if (!letter || letter.state === "queued") return
+    if (letter.state !== "delivered") return abandoned()
+    heard(manners, letter.text)
+  })
+  const watchManners = (inbox: NonNullable<ReturnType<typeof backendInbox>>): void => {
+    inbox.state.subscribe(() => {
+      if (manners !== "rude" && manners !== "polite") return
+      const { items, answering } = inbox.state.getSnapshot()
+      const id = mannersIds[manners]
+      if (answering[id] || items.some((item) => item.id === id)) return
+      if (!mannersLetter(manners)) abandoned()
+    })
+  }
+
   return {
     transcripts: babciaTranscripts(now),
     // The seed with its messages and pane, and a view of the workspace and the sink.
@@ -1085,7 +1213,10 @@ export const createBabcia = (turns: DemoTurns, now: number) => {
       const wrapped = backend
       inboxOf = () => wrapped.inbox
       const own = backendInbox()
-      if (own) watchInbox(own)
+      if (own) {
+        watchInbox(own)
+        watchManners(own)
+      }
       cuesOf.set(wrapped, cues)
       return wrapped
     },

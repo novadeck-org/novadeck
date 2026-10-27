@@ -149,6 +149,46 @@ describe("An item's sheet", () => {
       await expect.element(sheet("Checkout review")).not.toBeInTheDocument()
     })
 
+    it("closes when its row is pressed again", async () => {
+      await openInbox()
+      await row("Run pnpm add").click()
+      await expect.element(sheet("Checkout review")).toBeVisible()
+      await row("Run pnpm add").click()
+
+      await expect.element(sheet("Checkout review")).not.toBeInTheDocument()
+      await expect.element(row("Run pnpm add")).not.toHaveAttribute("aria-current")
+    })
+
+    it("closes on a click in the sidebar off the list's buttons", async () => {
+      await openInbox()
+      await row("Run pnpm add").click()
+      await expect.element(sheet("Checkout review")).toBeVisible()
+      await page
+        .getByRole("region", { name: /^Inbox/ })
+        .getByRole("heading", { name: /^Inbox/ })
+        .click()
+
+      await expect.element(sheet("Checkout review")).not.toBeInTheDocument()
+    })
+
+    it("stays open on a press on the list's scrollbar", async () => {
+      await openInbox()
+      await row("Run pnpm add").click()
+      await expect.element(sheet("Checkout review")).toBeVisible()
+      const list = page.getByRole("list", { name: "Messages from your agents" }).element()
+      // A list too short to scroll has no scrollbar to press.
+      expect(list.scrollHeight).toBeGreaterThan(list.clientHeight)
+      // The test browser draws no scrollbar, so the press is sent as one lands on it: on the
+      // list itself, not on a row.
+      for (const type of ["pointerdown", "pointerup", "click"])
+        list.dispatchEvent(new PointerEvent(type, { bubbles: true, composed: true, button: 0 }))
+
+      await expectStaysAbsent({
+        shown: () => sheet("Checkout review").query() === null,
+        name: "the sheet closing",
+      })
+    })
+
     it("moves to another item when another row is pressed, and with j and k", async () => {
       await openInbox()
       await row("Run pnpm add").click()
@@ -499,6 +539,75 @@ describe("Marking updates read", () => {
     await expect.element(rows()).toHaveLength(12)
     await expect
       .element(page.getByRole("button", { name: "Mark all read" }))
+      .not.toBeInTheDocument()
+  })
+})
+
+describe("Dismissing an ask", () => {
+  const dismissButton = (subject: string) =>
+    page.getByRole("button", { name: new RegExp(`^Dismiss: .*${subject}`) })
+
+  it("settles the row in place: it counts no more, stays struck through, and opens nothing", async () => {
+    await openInbox()
+    await lookAway()
+    await expect.element(rows()).toHaveLength(settledRows)
+
+    // The agent's own asks have it; a permission prompt, which blocks the agent, does not.
+    await rows().filter({ hasText: "webhooks" }).hover()
+    await expect.element(dismissButton("webhooks")).toBeVisible()
+    await expect
+      .element(page.getByRole("button", { name: /^Dismiss: .*pnpm add/ }))
+      .not.toBeInTheDocument()
+    await dismissButton("webhooks").click()
+
+    await expect.element(rows()).toHaveLength(settledRows)
+    await expect.element(sidebarPanel("Inbox")).toHaveAccessibleName("Inbox, 11 waiting")
+    const settled = rows().filter({ hasText: "webhooks" })
+    await expect.element(settled).toMatchTextContent("Dismissed")
+    await expect.element(settled).toHaveAttribute("data-settled", "dismissed")
+    await expect.element(dismissButton("webhooks")).not.toBeInTheDocument()
+    await row("webhooks").click({ force: true })
+    await expect.element(page.getByRole("dialog")).not.toBeInTheDocument()
+  })
+
+  it("dismisses on Delete, with the keyboard on to the next row", async () => {
+    await openInbox()
+    await lookAway()
+    await expect.element(rows()).toHaveLength(settledRows)
+    row("vercel login").element().focus()
+    await userEvent.keyboard("{Delete}")
+
+    await expect
+      .element(rows().filter({ hasText: "vercel login" }))
+      .toHaveAttribute("data-settled", "dismissed")
+    expect(document.activeElement?.classList.contains("inbox-row-select")).toBe(true)
+    expect(document.activeElement).not.toBe(row("vercel login").element())
+    await expect.element(sidebarPanel("Inbox")).toHaveAccessibleName("Inbox, 11 waiting")
+  })
+
+  it("goes below the updates when the panel is opened again, and Clear removes it", async () => {
+    await openInbox()
+    await lookAway()
+    await expect.element(rows()).toHaveLength(settledRows)
+    await rows().filter({ hasText: "webhooks" }).hover()
+    await dismissButton("webhooks").click()
+    const order = (): string[] =>
+      Array.from(document.querySelectorAll("[data-inbox-row]")).map(
+        (each) => each.textContent ?? "",
+      )
+    expect(order().findIndex((each) => each.includes("webhooks"))).toBeLessThan(settledRows - 1)
+
+    await sidebarPanel("Terminals").click()
+    await sidebarPanel("Inbox").click()
+    await expect
+      .poll(() => order().findIndex((each) => each.includes("webhooks")))
+      .toBe(settledRows - 1)
+    await expect.element(rows().last()).toHaveAttribute("data-settled-start", "true")
+
+    await page.getByRole("button", { name: "Clear settled" }).click()
+    await expect.element(rows()).toHaveLength(settledRows - 1)
+    await expect
+      .element(page.getByRole("button", { name: "Clear settled" }))
       .not.toBeInTheDocument()
   })
 })
