@@ -13,6 +13,9 @@ export type PortableState =
       readonly run: string
       // How installing the app from this copy stands in this run; the host owns it.
       readonly install: PortableInstall
+      // Where the workspace is kept, as the person finds it in their file manager; absent
+      // when the host can't say.
+      readonly dataFolder?: string
     }
 
 // How installing the app from a portable copy stands in this run; mirrors the protocol's

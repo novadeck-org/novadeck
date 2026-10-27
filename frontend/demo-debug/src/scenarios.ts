@@ -123,6 +123,35 @@ const installs: DemoPortable = {
   progress: true,
 }
 
+// What the release a portable copy is offered names, as its notes would.
+const news = (version: string): NonNullable<DemoPortable["news"]> => ({
+  version,
+  highlights: [
+    {
+      title: "Word handles for terminals",
+      line: 'Talk to @moth instead of "terminal 3".',
+      icon: "users",
+    },
+    {
+      title: "Inbox keeps what you dismissed",
+      line: "Settled asks stay struck for a day.",
+      icon: "inbox",
+    },
+    {
+      title: "Quieter bells",
+      line: "Each theme has its own gentle sound.",
+      icon: "bell",
+    },
+  ],
+})
+
+// A portable copy with a release waiting and, unless `notes` is off, its notes known.
+const offered = (version: string, notes = true): DemoPortable => ({
+  ...installs,
+  offer: { kind: "available", version },
+  ...(notes ? { news: news(version) } : {}),
+})
+
 export const portableScenarios = {
   "no-release": {
     label: "No release known",
@@ -131,8 +160,21 @@ export const portableScenarios = {
   },
   update: {
     label: "Update available",
-    hint: "Card for a new release, Update available chip; Install takes 4 s",
-    setup: (version) => ({ ...installs, offer: { kind: "available", version } }),
+    hint: "Changelog card for a new release, Update available chip; Install takes 4 s",
+    setup: offered,
+  },
+  "update-no-news": {
+    label: "Update, no highlights",
+    hint: "The host has no notes to show: the card says the release is out",
+    setup: (version) => offered(version, false),
+  },
+  "update-long-path": {
+    label: "Update, long data folder",
+    hint: "A Windows-length data folder: the path wraps and Show folder stays inside the card",
+    setup: (version) => ({
+      ...offered(version),
+      dataFolder: "C:\\Users\\Mateusz.Kowalczyk\\AppData\\Roaming\\novadeck",
+    }),
   },
   never: {
     label: "Install never finishes",

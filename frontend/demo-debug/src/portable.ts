@@ -1,6 +1,6 @@
 import type { Backend } from "@novadeck/core/port"
 import type { PortableInstall, PortableState } from "@novadeck/core/portable"
-import type { UpdateOffer } from "@novadeck/core/update"
+import type { UpdateOffer, WhatsNew } from "@novadeck/core/update"
 
 import { portableScenarios } from "./scenarios"
 import type { DemoActionGroup } from "./types"
@@ -20,12 +20,19 @@ export type DemoPortable = {
   // opened again after this run installed the app.
   readonly opens?: PortableInstall
   readonly offer?: UpdateOffer
+  // What is new in the offered release, as the host tells it; none when absent.
+  readonly news?: WhatsNew
+  // Where the workspace lives, as the person would find it; the Linux default when absent.
+  readonly dataFolder?: string
   // How long the host takes to say it is a portable copy; at once when absent.
   readonly answerAfterMs?: number
 }
 
 // The version of the portable copy the demo plays.
 export const portableVersion = "0.0.70"
+
+// Where the demo's workspace lives, as the person would find it.
+export const portableDataFolder = "/home/you/.config/novadeck"
 
 // The run the demo plays: new at each load of the page, so a reload is a new launch.
 export const portableRun = crypto.randomUUID()
@@ -45,6 +52,8 @@ export const createDemoPortable = (
     progress = false,
     opens = { phase: "idle" },
     answerAfterMs = 0,
+    news,
+    dataFolder = portableDataFolder,
   }: DemoPortable,
   {
     schedule = (apply, _next, ms) => void setTimeout(apply, ms),
@@ -56,6 +65,7 @@ export const createDemoPortable = (
     version: portableVersion,
     run: portableRun,
     install,
+    dataFolder,
   })
   const watchers = new Set<(state: PortableState) => void>()
   const step = (next: PortableInstall): void => {
@@ -85,6 +95,11 @@ export const createDemoPortable = (
         }
         if (ends !== "never") later(ends, installAfterMs)
       },
+      // Opening the download page does nothing visible here, which has no browser to open; the real host offers it always.
+      openDownload: () => {},
+      showDataFolder: () => {},
+      // The release's notes name no version it is new since: this copy's is.
+      ...(news ? { news: () => Promise.resolve({ ...news, from: portableVersion }) } : {}),
     },
   }
 }

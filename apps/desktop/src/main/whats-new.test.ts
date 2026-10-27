@@ -7,6 +7,7 @@ import { dismissWhatsNewChannel, whatsNewChannel } from "../bridge.js"
 import { context, describe, expect, it } from "../test"
 import { isNewerVersion } from "./applications-folder"
 import {
+  keepUpdateNews,
   keepWhatsNew,
   prereleaseRecheckMs,
   readRetryMs,
@@ -712,5 +713,118 @@ describe("taking the page's requests about what is new", () => {
     expect(await send(whatsNewChannel)).toBeUndefined()
     send(dismissWhatsNewChannel)
     expect(calls).toEqual([])
+  })
+})
+
+describe("what is new in the version a portable copy is offered", () => {
+  const listed = (version: string, titles: readonly string[], prerelease = true) => ({
+    tag_name: `v${version}`,
+    prerelease,
+    body: notesBlock({
+      version,
+      kind: "release",
+      highlights: titles.map((title) => ({ title, line: `${title} line.`, prs: [1] })),
+      changes: [],
+      fixes: 0,
+    }),
+  })
+  const json = (answer: unknown, status = 200) => ({
+    status,
+    ok: status >= 200 && status < 300,
+    headers: jsonType,
+    json: async () => answer,
+  })
+  // The offer's own release from `own`, the list from `list`.
+  const reading = (own: unknown, list: unknown, options: { offered?: string | undefined } = {}) => {
+    const urls: string[] = []
+    const logged: string[] = []
+    let offer = "offered" in options ? options.offered : "0.6.0"
+    const news = keepUpdateNews({
+      version: "0.4.2",
+      offered: () => offer,
+      repository: async () => repository,
+      fetch: async (url) => {
+        urls.push(url)
+        if (url.includes("/releases/tags/")) return json(own)
+        return json(Number(new URL(url).searchParams.get("page")) === 1 ? list : [])
+      },
+      newer: isNewerVersion,
+      log: (message) => void logged.push(message),
+    })
+    return { news, urls, logged, offer: (next: string | undefined) => void (offer = next) }
+  }
+
+  it("tells the offered version's highlights and those of the releases skipped since this one, newest first", async () => {
+    const own = listed("0.6.0", ["Own"])
+    const list = [
+      own,
+      listed("0.5.0", ["Fifth"]),
+      listed("0.4.3", ["Third"]),
+      listed("0.4.2", ["Gone"]),
+    ]
+    const { news, urls } = reading(own, list)
+    const found = await news()
+    expect(found?.version).toBe("0.6.0")
+    expect(found?.from).toBe("0.4.2")
+    expect(found?.highlights.map(({ title }) => title)).toEqual(["Own", "Fifth", "Third"])
+    expect(urls[0]).toBe("https://api.github.com/repos/novadeck-org/novadeck/releases/tags/v0.6.0")
+  })
+
+  it("reads once for an offered version, and again for another", async () => {
+    const own = listed("0.6.0", ["Own"])
+    const { news, urls, offer } = reading(own, [own])
+    await news()
+    await news()
+    expect(urls).toHaveLength(2)
+    offer("0.7.0")
+    await news()
+    expect(urls.filter((url) => url.includes("/releases/tags/v0.7.0"))).toHaveLength(1)
+  })
+
+  it("is nothing before an offer, and for a version that is not newer than this copy", async () => {
+    const own = listed("0.6.0", ["Own"])
+    expect(await reading(own, [own], { offered: undefined }).news()).toBeUndefined()
+    const same = reading(own, [own], { offered: "0.4.2" })
+    expect(await same.news()).toBeUndefined()
+    expect(same.urls).toEqual([])
+  })
+
+  it("is nothing, and read again at the next ask, when the notes can't be read now", async () => {
+    const down = reading({}, [])
+    const results = [await down.news(), await down.news()]
+    expect(results).toEqual([undefined, undefined])
+    expect(down.urls.filter((url) => url.includes("/releases/tags/"))).toHaveLength(2)
+  })
+
+  it("is nothing for a prerelease whose notes are not written yet, until they are", async () => {
+    const own = { tag_name: "v0.6.0", prerelease: true, body: "Changelog only." }
+    const { news, urls } = reading(own, [own])
+    expect(await news()).toBeUndefined()
+    await news()
+    expect(urls.filter((url) => url.includes("/releases/tags/"))).toHaveLength(2)
+  })
+
+  it("is nothing, for good, for a release with no highlights", async () => {
+    const own = listed("0.6.0", [], false)
+    const { news, urls } = reading(own, [own])
+    expect(await news()).toBeUndefined()
+    await news()
+    expect(urls).toHaveLength(2)
+  })
+
+  it("logs a thrown failure and answers nothing", async () => {
+    const logged: string[] = []
+    const news = keepUpdateNews({
+      version: "0.4.2",
+      offered: () => "0.6.0",
+      repository: async () => repository,
+      fetch: async () => {
+        throw new TypeError("fetch failed")
+      },
+      newer: isNewerVersion,
+      log: (message) => void logged.push(message),
+    })
+    expect(await news()).toBeUndefined()
+    expect(logged).toEqual(["The release notes of the offered version were not read."])
   })
 })

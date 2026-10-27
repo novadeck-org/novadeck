@@ -195,8 +195,9 @@ describe("compiled desktop host", () => {
       expect(main).toContain("runSetup(")
       // Only a copy the installer did not make is portable, which the launch checks.
       expect(main).toContain("windowsInstalled")
-      // The setup is never opened through the shell, which would apply SmartScreen.
-      expect(main).not.toContain("shell.openPath")
+      // The setup is never opened through the shell, which would apply SmartScreen. Only the
+      // data folder is, for the person to look at.
+      expect(main).not.toMatch(/shell\.openPath\((?!app\.getPath\("userData"\))/u)
       // The Windows copy, unlike Linux's, lets go of the lock inside startDetached.
       expect(main).toContain("startWindowsCopy")
       // Downloads go through Electron's network stack, which honours the system proxy.

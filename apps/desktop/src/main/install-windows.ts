@@ -513,20 +513,31 @@ export type DownloadResponse = {
   readonly body: AsyncIterable<Uint8Array> | null
 }
 
+/** How a download is summed: the hash algorithm and how its digest is written. */
+export type Digest = {
+  readonly algorithm: "sha256" | "sha512"
+  readonly encoding: "hex" | "base64"
+}
+
+/** What `latest.yml` lists a file by: the base64 SHA-512. */
+export const sha512Base64: Digest = { algorithm: "sha512", encoding: "base64" }
+
 /**
  * Streams a response's body into `write`, hashing it on the way, and stops past `maxBytes`.
  * `received` is told the bytes written so far after each chunk.
- * Returns the base64 SHA-512 of the body.
+ * Returns the `digest` of the body, the base64 SHA-512 `latest.yml` lists unless another
+ * is asked for.
  */
 export const hashBody = async (
   response: DownloadResponse,
   write: (chunk: Uint8Array) => Promise<void>,
   maxBytes: number,
   received: (total: number) => void = () => {},
+  digest: Digest = sha512Base64,
 ): Promise<string> => {
   if (!response.ok || response.body === null)
     throw new Error(`The download answered ${response.status}.`)
-  const hash = createHash("sha512")
+  const hash = createHash(digest.algorithm)
   let total = 0
   for await (const chunk of response.body) {
     total += chunk.byteLength
@@ -535,7 +546,7 @@ export const hashBody = async (
     await write(chunk)
     received(total)
   }
-  return hash.digest("base64")
+  return hash.digest(digest.encoding)
 }
 
 /**

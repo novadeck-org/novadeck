@@ -42,6 +42,9 @@ import {
   feedbackSendChannel,
   installAppChannel,
   portableStateChannel,
+  openPortableDownloadChannel,
+  showDataFolderChannel,
+  updateNewsChannel,
   noticeChannel,
   noticeClickChannel,
   noticeCloseChannel,
@@ -321,6 +324,15 @@ const bridge = {
       ipcRenderer.removeListener(portableStateChannel, relay)
     }
   },
+  // The host builds the address; the page names none.
+  openPortableDownload: () => {
+    ipcRenderer.send(openPortableDownloadChannel)
+  },
+  showDataFolder: () => {
+    ipcRenderer.send(showDataFolderChannel)
+  },
+  // Only an answer the contract allows reaches the page, as with `whatsNew`.
+  updateNews: async () => parseWhatsNew(await ipcRenderer.invoke(updateNewsChannel)),
   uninstallPlan: async () => uninstallPlanOf(await ipcRenderer.invoke(uninstallPlanChannel)),
   // Only a boolean crosses; the main process keeps data unless it is told exactly `false`.
   uninstallApp: async (options) =>

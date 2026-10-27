@@ -348,6 +348,62 @@ export const keepWhatsNew = ({
   }
 }
 
+/**
+ * What is new in the version a copy that cannot install it is offered: the highlights of
+ * `offered` and of the releases between this copy's `version` and it, newest first, as
+ * `keepWhatsNew` tells them after an update, with `from` this version. Undefined when there
+ * is no offer, when none of the releases names highlights, and when they can't be read;
+ * nothing is thrown. A read is kept for the version it was made for, except one that failed
+ * for a reason that may pass, or found a prerelease whose notes are not written yet, which
+ * are tried again at the next ask.
+ */
+export const keepUpdateNews = ({
+  version,
+  offered,
+  repository,
+  fetch,
+  newer,
+  log,
+}: {
+  /** This build's version. */
+  readonly version: string
+  /** The version the last update offer names, if there is one. */
+  readonly offered: () => string | undefined
+  readonly repository: () => Promise<ReleaseRepository | undefined>
+  readonly fetch: ReleaseFetch
+  /** Whether the first version is newer than the second. */
+  readonly newer: (a: string, b: string) => boolean
+  readonly log: (message: string, error: unknown) => void
+}): (() => Promise<WhatsNew | undefined>) => {
+  const kept = new Map<string, WhatsNew | undefined>()
+  const read = async (target: string): Promise<WhatsNew | undefined | "later"> => {
+    try {
+      const source = await repository()
+      if (source === undefined) return undefined
+      const own = await readRelease(fetch, source, target)
+      if (own === "later") return "later"
+      if (own === "none") return undefined
+      const skipped = await readSkipped(fetch, source, version, target, newer)
+      if (skipped === "later") return "later"
+      const news = gather(target, version, [own, ...skipped], newer)
+      // A prerelease whose notes are not written yet gets them when it is promoted.
+      return news === undefined && own.prerelease && own.notes === undefined ? "later" : news
+    } catch (error) {
+      log("The release notes of the offered version were not read.", error)
+      return "later"
+    }
+  }
+  return async () => {
+    const target = offered()
+    if (target === undefined || !newer(target, version)) return undefined
+    if (kept.has(target)) return kept.get(target)
+    const news = await read(target)
+    if (news === "later") return undefined
+    kept.set(target, news)
+    return news
+  }
+}
+
 type WhatsNewIpc = {
   on(channel: string, listener: (event: IpcMainEvent, ...values: unknown[]) => void): unknown
   handle(
