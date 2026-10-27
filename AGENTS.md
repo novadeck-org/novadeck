@@ -2,7 +2,8 @@
 
 Before changing this repository, read each file in this list:
 
-- [README.md](README.md) for the project's scope and setup.
+- [README.md](README.md) for what Novadeck is.
+- [docs/development.md](docs/development.md) for setup, the repository map and releases.
 - [CODING.md](CODING.md) for code and test style.
 - [CONTRIBUTING.md](CONTRIBUTING.md) for issues and pull requests.
 - [SECURITY.md](SECURITY.md) for credentials and security findings.
@@ -38,7 +39,7 @@ window phase, a backend field it never sets — add it in the same change:
 - Startup, boot-failure, runner (connection, crash loop) and sandbox states go in `frontend/demo-debug/src/shell-groups.ts`.
 - Every group names its `section` (Terminals, Agents or App), and an action that boots
   the demo again sets `reboots: true` instead of saying so in its hint.
-- Give each action a hint that names what appears, and keep README "Debug panel"
+- Give each action a hint that names what appears, and keep "Debug panel" in docs/development.md
   current.
 
 # Architecture Briefs
