@@ -446,9 +446,13 @@ agent.
   account only, with up to 256 KiB kept per terminal; the key keeps the file alone from
   showing them, not other programs running as you on Windows or Linux.
 
-Codex may ask you to review Novadeck's hook ("Hooks need review") and records the
-answer itself; it asks again only when Novadeck changes how its hook is registered, as
-when the hook gained its time limit for agent messaging.
+Codex may ask you to review Novadeck's hooks ("Hooks need review") and records the
+answer itself; it asks again when Novadeck changes how its hooks are registered, as when
+they gained their time limit for agent messaging, and, from Codex 0.164.0, when any
+file of Novadeck's plugin changes: switching between two Novadeck builds (an installed
+app and a development build) asks each time, as each names its own launcher there.
+Until you trust them (in Codex, `/hooks`), Novadeck's hooks don't run there, so
+messages can't reach that session.
 Interactive Codex normally runs its sessions, hooks included, in a shared background
 server that cannot tell which terminal a session belongs to. So while Codex is
 connected, Novadeck's shells run `codex` through a small shim that adds `--no-daemon`,

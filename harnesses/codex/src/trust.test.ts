@@ -145,6 +145,22 @@ describe.skipIf(process.platform === "win32")("asking Codex whether Novadeck's h
     expect(starts()).toBe(3)
   })
 
+  it("asks again once any file of Novadeck's plugin changes, as another build's launcher does", async () => {
+    const plugin = join(home, "plugins", "cache", "novadeck", "novadeck", "1.2.0")
+    writeFileSync(join(plugin, ".mcp.json"), "{}")
+    answer(trusted)
+    await hooksTrusted(where, "/work")
+    // Codex from 0.164.0 hashes the plugin's whole folder, so its hooks read "modified".
+    answer(listed(...ours.map((event) => hook(event, "modified"))))
+    touch(join(plugin, ".mcp.json"), Date.now() + 5_000)
+    expect(await hooksTrusted(where, "/work")).toBe(false)
+    // A file added beside them changes it too.
+    answer(trusted)
+    writeFileSync(join(plugin, "extra.txt"), "")
+    expect(await hooksTrusted(where, "/work")).toBe(true)
+    expect(starts()).toBe(3)
+  })
+
   it("shares an ask under way", async () => {
     answer(trusted)
     const both = await Promise.all([hooksTrusted(where, "/work"), hooksTrusted(where, "/work")])
