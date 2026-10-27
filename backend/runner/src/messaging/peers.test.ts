@@ -435,9 +435,7 @@ describe("what agents and a refused send say", () => {
         now,
       })
     expect(told({})).toMatch(/won't arrive: the agent session it was for ended$/m)
-    expect(told({ stopped: true })).toMatch(
-      /won't arrive: the user stopped it in Novadeck$/m,
-    )
+    expect(told({ stopped: true })).toMatch(/won't arrive: the user stopped it in Novadeck$/m)
   })
 
   it("refuses a name that is no handle by describing every terminal there", () => {
