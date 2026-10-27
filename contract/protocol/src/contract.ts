@@ -123,9 +123,9 @@ export const contract = {
     create: procedure.input(z.strictObject({ id, projectId: id, name })).output(workspaceSession),
     rename: procedure.input(z.strictObject({ sessionId: id, name })).output(workspaceSession),
     // Replaces the session's client state, which the runner stores without reading it, and
-    // when the person last visited the session.
+    // when the person last visited the session (null: never).
     save: procedure
-      .input(z.strictObject({ sessionId: id, state: clientState, visitedAt: z.number() }))
+      .input(z.strictObject({ sessionId: id, state: clientState, visitedAt: z.number().nullable() }))
       .output(z.void()),
   },
   terminals: {
