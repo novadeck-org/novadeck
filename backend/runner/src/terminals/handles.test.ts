@@ -58,6 +58,15 @@ describe("a session's order", () => {
     expect(sorted(order.slice(25))).toEqual(sorted(handleWords.slice(25)))
   })
 
+  it("deals the words round the UI's eight hues, so a session's first eight look different", () => {
+    const hue = (word: string) => handleWords.indexOf(word) % 8
+    for (let index = 0; index < 50; index++) {
+      const order = handleOrder(`s${index}`)
+      expect(new Set(order.slice(0, 8).map(hue)).size).toBe(8)
+      expect(new Set(order.slice(8, 16).map(hue)).size).toBe(8)
+    }
+  })
+
   it("stays the same for a session, so a restart keeps it", () => {
     expect(handleOrder("session-1")).toEqual(handleOrder("session-1"))
   })

@@ -113,8 +113,8 @@ const randomFrom = (seed: number) => () => {
   return ((mixed ^ (mixed >>> 14)) >>> 0) / 4294967296
 }
 
-const shuffled = (words: readonly string[], random: () => number): string[] => {
-  const order = [...words]
+const shuffled = <T>(items: readonly T[], random: () => number): T[] => {
+  const order = [...items]
   for (let index = order.length - 1; index > 0; index--) {
     const other = Math.floor(random() * (index + 1))
     ;[order[index], order[other]] = [order[other]!, order[index]!]
@@ -122,16 +122,43 @@ const shuffled = (words: readonly string[], random: () => number): string[] => {
   return order
 }
 
+/** The hues the UI colours handles by, going round in the words' rank (see `hueOf` in its critters). */
+const hues = 8
+
 /**
- * The order a session gives the words in: the best words shuffled, then the rest
- * shuffled, so sessions don't all start with the same handles. The session's id seeds
- * it, so a session keeps its order across restarts.
+ * The words shuffled, dealt round the hues: a word of each hue in turn, the turn and each
+ * hue's words shuffled, so eight in a row look different, as in the list's own order.
+ */
+const dealt = (words: readonly string[], random: () => number): string[] => {
+  const byHue = Array.from({ length: hues }, (_, hue) =>
+    shuffled(
+      words.filter((word) => handleWords.indexOf(word) % hues === hue),
+      random,
+    ),
+  )
+  const turn = shuffled(
+    byHue.map((_, hue) => hue),
+    random,
+  )
+  const order: string[] = []
+  for (let round = 0; order.length < words.length; round++)
+    for (const hue of turn) {
+      const word = byHue[hue]![round]
+      if (word !== undefined) order.push(word)
+    }
+  return order
+}
+
+/**
+ * The order a session gives the words in: the best words, then the rest, each dealt in
+ * its own shuffle (see `dealt`), so sessions don't all start with the same handles. The
+ * session's id seeds it, so a session keeps its order across restarts.
  */
 export const handleOrder = (sessionId: string): readonly string[] => {
   const random = randomFrom(seedOf(sessionId))
   return [
-    ...shuffled(handleWords.slice(0, bestWords), random),
-    ...shuffled(handleWords.slice(bestWords), random),
+    ...dealt(handleWords.slice(0, bestWords), random),
+    ...dealt(handleWords.slice(bestWords), random),
   ]
 }
 
