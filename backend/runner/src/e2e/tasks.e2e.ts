@@ -3,16 +3,20 @@ import { describe, e2e, expect, supported } from "./fixture.js"
 import { latest } from "./model/script.js"
 import {
   askedToClose,
+  askedToLead,
   closed,
   closes,
   closingSelf,
   deliveries,
   delivered,
   holds,
+  leads,
   opened,
   opens,
   own,
   result,
+  released,
+  releases,
   ring,
   start,
   through,
@@ -92,7 +96,7 @@ for (const setup of setups) {
     it("closes another agent's terminal once the user confirms, and tells the agent that asked", async ({
       e2e: run,
     }) => {
-      const asks = run.deck.answerCloseAsks(true)
+      const asks = run.deck.answerApprovals(true)
       run.model.use(
         closes("Close fox", "fox"),
         own((call) => (askedToClose(call, "fox") ? { text: "Asked." } : undefined)),
@@ -129,7 +133,7 @@ for (const setup of setups) {
     it("keeps another agent's terminal open when the user declines, and tells the agent", async ({
       e2e: run,
     }) => {
-      const asks = run.deck.answerCloseAsks(false)
+      const asks = run.deck.answerApprovals(false)
       run.model.use(
         closes("Close fox", "fox"),
         own((call) => (askedToClose(call, "fox") ? { text: "Asked." } : undefined)),
@@ -151,6 +155,43 @@ for (const setup of setups) {
       ])
       await t1.until("Left it.")
       expect(run.deck.terminals.get(t2.id).exit).toBeNull()
+    })
+
+    it("leads an agent already running once the user approves, sends its brief, and releases it", async ({
+      e2e: run,
+    }) => {
+      const asks = run.deck.answerApprovals(true)
+      run.model.use(
+        leads("Lead fox", "fox", "Count the files in src."),
+        own((call) => (askedToLead(call, "fox") ? { text: "Asked." } : undefined)),
+        own((call) => (delivered(call, "novadeck") ? { text: "Leading fox." } : undefined)),
+        releases("Release fox", "fox"),
+        own((call) => (released(call, "fox") ? { text: "Released." } : undefined)),
+        own((call) => (delivered(call, "moth") ? { text: "Counting now." } : undefined)),
+      )
+      const t1 = await start(run, setup)
+      const t2 = await start(run, setup)
+      expect(t2.handle).toBe("fox")
+      const calls = run.model.mark()
+
+      await t1.submit("Lead fox")
+
+      const ask = await asks.next()
+      expect(ask).toMatchObject({
+        from: t1.id,
+        terminalId: t2.id,
+        action: { type: "lead", brief: "Count the files in src." },
+      })
+      // The brief reaches fox from moth, as from its lead.
+      const brief = await run.model.waitFor((call) => delivered(call, "moth"), { after: calls })
+      expect(deliveries(brief).map((one) => one.text)).toContain("Count the files in src.")
+      await t1.until("Leading fox.")
+      expect(run.deck.store.terminal(t2.id)?.ledBy).toBe("moth")
+
+      await t1.submit("Release fox")
+
+      await t1.until("Released.")
+      expect(run.deck.store.terminal(t2.id)?.ledBy ?? null).toBeNull()
     })
 
     it("closes its own terminal when the agent asks, a moment after answering", async ({

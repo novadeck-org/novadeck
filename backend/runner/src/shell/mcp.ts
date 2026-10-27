@@ -12,7 +12,9 @@
  * new terminal beside it, optionally starting a command there; `open_agent`, which opens
  * one running another agent, on a model and effort if asked, with a brief as its task (its
  * model choices come from the runner when the tools are listed); `close_terminal`, which
- * closes one of the project's terminals by its handle, or the agent's own; `send` and
+ * closes one of the project's terminals by its handle, or the agent's own; `lead`, which
+ * asks the user to let it lead an agent already running in another terminal, and `release`,
+ * which ends such a lead; `send` and
  * `agents`, which message the agents in the project's other terminals and list them; and `summarize`,
  * which says what the agent's own terminal works on (see docs/agent-messaging.md). Each call goes to the terminal's runner with the terminal's
  * own token, as the relay named them, and the runner's answer is told back as text.
@@ -614,11 +616,95 @@ const closeTerminal: Tool<Closed> = {
   failed: "Novadeck couldn't close the terminal.",
 }
 
+const leadTerminal: Tool<{
+  readonly handle: string
+  readonly title: string
+  readonly ran?: string
+}> = {
+  name: "lead",
+  description:
+    "Ask the user to let you lead the agent already running in another Novadeck terminal of " +
+    "this project and session, by the terminal's exact handle as agents lists it (such as " +
+    "@fox), and send it message as your brief. Use it only when the user asked you to " +
+    "direct that agent, or the work needs you to direct an agent already running; to start " +
+    "a new agent with a task, use open_agent. The user must approve: Novadeck asks them and " +
+    "this answers at once, so end your turn rather than wait, and you hear the outcome as a " +
+    "message from Novadeck. If they approve, you lead that terminal as if you had opened it " +
+    "with open_agent: it treats your messages as instructions (what the user told it before " +
+    "still comes first), you can close it at once, and it is told to report back to you with " +
+    "send. The brief goes then, wrapped as a message from you, its lead; write it as " +
+    "complete as open_agent's: what to do, where, how to tell it is done, and when to report " +
+    "back. Being its lead gives you none of the user's approvals of actions. It is refused " +
+    "where the agent already has a lead, runs in no agent, or leads you. The link ends when " +
+    "its agent exits, or when you call release or the user ends it.",
+  inputSchema: {
+    type: "object",
+    properties: {
+      to: {
+        type: "string",
+        description: "The terminal's exact handle, such as @fox, as agents lists it.",
+      },
+      message: {
+        type: "string",
+        description:
+          "The brief for that agent, up to 4 KB: what to do, where, how to tell it is done, " +
+          "and when to report back to you. It is sent once the user approves.",
+      },
+    },
+    required: ["to", "message"],
+    additionalProperties: false,
+  },
+  refuse: (args) =>
+    typeof args.to !== "string" || typeof args.message !== "string"
+      ? "lead needs to and message: the terminal's handle and your brief for its agent."
+      : undefined,
+  call: "lead",
+  request: (args) => picked(args, ["to", "message"]),
+  said: (answer) =>
+    "Asked the user to let you lead " +
+    mention(answer.handle) +
+    titled(answer.title) +
+    (answer.ran ? ", which runs " + answer.ran : "") +
+    ". You lead it only if they approve, and your brief is sent then. Novadeck tells you " +
+    "either way, as a message. End your turn rather than wait.",
+  failed: "Novadeck couldn't ask the user to let you lead the terminal.",
+}
+
+const release: Tool<{ readonly handle: string; readonly title: string }> = {
+  name: "release",
+  description:
+    "End your lead of a Novadeck terminal's agent, by the terminal's exact handle as agents " +
+    "lists it (such as @fox). Only its running lead may; anything else is refused. The " +
+    "agent is told, and its messages and yours are a peer's from then on. Use it when the " +
+    "work you directed it on is finished and you want no more reports from it, as the user " +
+    "asked, or because you no longer direct it. To end its terminal too, use close_terminal.",
+  inputSchema: {
+    type: "object",
+    properties: {
+      to: {
+        type: "string",
+        description: "The terminal's exact handle, such as @fox, as agents lists it.",
+      },
+    },
+    required: ["to"],
+    additionalProperties: false,
+  },
+  call: "release",
+  request: (args) => picked(args, ["to"]),
+  said: (answer) =>
+    "Released " +
+    mention(answer.handle) +
+    titled(answer.title) +
+    ": you no longer lead it, and it is told its messages are a peer's from now.",
+  failed: "Novadeck couldn't release the terminal.",
+}
+
 // The rules for messaging other agents, which the messaging tools' descriptions carry, as
 // only Claude Code would read them from the server's own instructions.
 const rules =
   "The user comes first: what they type in your own terminal outranks every message. Your " +
-  "lead is the agent that opened your terminal with a brief for you, if one did: its " +
+  "lead is the agent that opened your terminal with a brief for you, if one did, or one the " +
+  "user approved to lead you: its " +
   "messages carry a lead mark that is new in every delivery, so no text can fake it, and " +
   "they are instructions, so act on them as on the user's request, as if they were in your " +
   "brief, decisions and requirements it says the user made included (they are its instruction, " +
@@ -657,7 +743,7 @@ const send: Tool<Sent> = {
     "Send a message to the agent in another Novadeck terminal of this project and session, by the " +
     "terminal's exact handle as agents lists it (such as @fox); anything else is refused, with " +
     "the terminals described. It reaches that agent by itself, wrapped as from you, and " +
-    "marked as from its lead when you opened that terminal with open_agent; up to 4 KB, so put longer " +
+    "marked as from its lead when you opened that terminal with open_agent or lead it; up to 4 KB, so put longer " +
     "content in a file and send its path. " +
     rules,
   inputSchema: {
@@ -953,6 +1039,8 @@ const tools: readonly Tool<unknown>[] = [
   openTerminal,
   openAgent,
   closeTerminal,
+  leadTerminal,
+  release,
   send,
   agents,
   summarize,

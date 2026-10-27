@@ -13,10 +13,10 @@ import { freshNonce } from "@novadeck/tui-input"
 import { agents, harnesses } from "../harnesses/registry.js"
 import type { Inbox } from "../messaging/inbox.js"
 import { agentLabel } from "../messaging/messages.js"
-import type { AgentsAnswer, Messaging, SendAnswer } from "../messaging/messaging.js"
+import type { AgentsAnswer, SendAnswer } from "../messaging/messaging.js"
 import { unansweredCalls, type Call } from "../shell/reports.js"
+import { closeWay, type ApprovalOutcome } from "./approvals.js"
 import { callerOf } from "./callers.js"
-import { closeWay, type CloseAsks, type CloseOutcome } from "./closeasks.js"
 import {
   allowClose,
   closeLimit,
@@ -32,6 +32,7 @@ import {
 import type { Companion } from "./companion.js"
 import { mention } from "./handles.js"
 import type { Launcher } from "./launching.js"
+import { Leads, type LeadsHost } from "./leads.js"
 import { cleanSummary, summarized, summaryRefusal } from "./naming.js"
 import { afterSummary } from "./nudges.js"
 import {
@@ -45,7 +46,7 @@ import {
   type OpenAnswer,
   type OpenRequests,
 } from "./opens.js"
-import { peerOf, type TerminalPeers } from "./peers.js"
+import { peerOf } from "./peers.js"
 import type { Record } from "./record.js"
 import { readSummarizeRequest, type SummarizeAnswer } from "./summarize.js"
 
@@ -63,26 +64,18 @@ const unopened = {
   late: "Novadeck didn't confirm the new terminal in time; it may still open, so check before asking again.",
 }
 
-export type CallsHost = {
-  /** Every terminal the runner holds, by id. */
-  readonly records: () => ReadonlyMap<string, Record>
-  /** The runner is stopping: no call is answered any more. */
-  readonly stopping: () => boolean
-  readonly messaging: () => Messaging
+// `LeadsHost` holds the runner's records and stop, its messaging, peers, approvals,
+// bindings, and whether a terminal is closing.
+export type CallsHost = LeadsHost & {
   readonly inbox: () => Inbox
-  readonly peers: () => TerminalPeers
   /** Agents' requests for a new terminal, on their way to the client. */
   readonly opens: () => OpenRequests
-  /** Agents' asks to close a terminal, on their way to the client that asks the person. */
-  readonly closeAsks: () => CloseAsks
   readonly companion: () => Companion
   readonly launcher: () => Launcher
   /** Where a harness lives on this machine, which says how it may start with a task. */
   readonly install: (agent: AgentName) => Promise<Install | undefined>
   /** The models a harness can start with here, none where that can't be told. */
   readonly models: (agent: AgentName) => Promise<readonly Model[]>
-  /** Whether the terminal host is closing the terminal, its shell not yet ended. */
-  readonly closingNow: (terminalId: string) => boolean
   // A close, in the manager's steps: `closePeer` checks the runner's stop between them.
   readonly closeForGood: (record: Record) => void
   readonly terminate: (record: Record) => Promise<void>
@@ -125,11 +118,16 @@ export class Calls {
   // The terminals closing themselves a moment after they said so.
   private readonly selfClosing = new Set<string>()
 
+  /** Leads formed and ended after the fact. */
+  readonly leads: Leads
+
   constructor(
     /** How long an agent's request for a new terminal waits for the client's answer. */
     private readonly openMs: number,
     readonly host: CallsHost,
-  ) {}
+  ) {
+    this.leads = new Leads(host)
+  }
 
   /**
    * Which chain the terminal belongs to goes, as it closes or is let go; the chain's times
@@ -137,7 +135,7 @@ export class Calls {
    */
   forgetOpener(terminalId: string): void {
     this.openers.delete(terminalId)
-    this.host.closeAsks().withdraw(terminalId)
+    this.host.approvals().withdraw(terminalId)
   }
 
   /** Whether the session's terminal with this handle is closing, its shell not yet ended. */
@@ -359,7 +357,7 @@ export class Calls {
       agent: target.agent,
     })
     if (way === "ask") {
-      const waiting = this.host.closeAsks().refusal(target.terminalId)
+      const waiting = this.host.approvals().refusal(target.terminalId)
       if (waiting)
         return refused(waiting === "nobody" ? nobodyRefusal : waitingRefusal(target.handle))
     }
@@ -422,16 +420,21 @@ export class Calls {
   }
 
   /**
-   * Asks the person, through the client that follows `closeAsks`, to confirm closing a
+   * Asks the person, through the client that follows `approvals`, to confirm closing a
    * terminal that runs an agent the caller doesn't lead. The call doesn't wait for them:
    * it answers `asked` at once, and the caller hears the outcome as a notice.
    */
   private askToClose(caller: Record, closing: Record, agent: AgentName | null): CloseAnswer {
     const { id, handle, title, sessionId } = closing.summary
     const ran = agent === null ? undefined : agentLabel(agent)
-    this.host.closeAsks().ask({ from: caller.summary.id, terminalId: id, sessionId }, (outcome) => {
-      void this.closeAsked(caller.summary.id, closing, ran, outcome).catch(() => undefined)
-    })
+    this.host
+      .approvals()
+      .ask(
+        { from: caller.summary.id, terminalId: id, sessionId, action: { type: "close" } },
+        (outcome) => {
+          void this.closeAsked(caller.summary.id, closing, ran, outcome).catch(() => undefined)
+        },
+      )
     return { ok: true, asked: true, handle, title, ...(ran !== undefined && { ran }) }
   }
 
@@ -440,7 +443,7 @@ export class Calls {
     callerId: string,
     closing: Record,
     ran: string | undefined,
-    outcome: CloseOutcome,
+    outcome: ApprovalOutcome,
   ): Promise<void> {
     if (this.host.stopping()) return
     const { id, handle, title } = closing.summary
@@ -469,6 +472,10 @@ export class Calls {
         return this.open(call)
       case "close":
         return this.closePeer(call)
+      case "lead":
+        return this.leads.lead(call)
+      case "release":
+        return this.leads.release(call)
       case "ask":
       case "tell":
       case "done": {

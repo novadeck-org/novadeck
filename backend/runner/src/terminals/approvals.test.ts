@@ -1,13 +1,18 @@
-import type { CloseAsk } from "@novadeck/protocol"
+import type { Approval } from "@novadeck/protocol"
 
 import { describe, expect, it } from "../test.js"
-import { closeWay, CloseAsks, type CloseOutcome } from "./closeasks.js"
+import { closeWay, Approvals, type ApprovalOutcome } from "./approvals.js"
 
-const ask = { from: "caller", terminalId: "target", sessionId: "session" }
+const ask = {
+  from: "caller",
+  terminalId: "target",
+  sessionId: "session",
+  action: { type: "close" as const },
+}
 
 // Collects what a client's stream yields, until it ends.
-const collect = (stream: AsyncGenerator<CloseAsk>) => {
-  const items: CloseAsk[] = []
+const collect = (stream: AsyncGenerator<Approval>) => {
+  const items: Approval[] = []
   const done = (async () => {
     for await (const item of stream) items.push(item)
   })()
@@ -34,22 +39,22 @@ describe("how a close of another terminal goes", () => {
 
 describe("asks to close a terminal, on their way to the client", () => {
   it("sends the ask to the client that subscribed last, and settles it with the user's answer", async () => {
-    const asks = new CloseAsks()
+    const asks = new Approvals()
     const first = collect(asks.follow("old"))
     const second = collect(asks.follow("new"))
-    const outcomes: CloseOutcome[] = []
+    const outcomes: ApprovalOutcome[] = []
     asks.ask(ask, (outcome) => outcomes.push(outcome))
     await tick()
     expect(first.items).toEqual([])
     expect(second.items).toEqual([{ type: "ask", requestId: expect.any(String), ...ask }])
     const requestId = second.items[0]!.requestId
     // Another client's answer doesn't count.
-    expect(() => asks.answer({ requestId, close: true }, "old")).toThrow(
+    expect(() => asks.answer({ requestId, approved: true }, "old")).toThrow(
       expect.objectContaining({ code: "NOT_FOUND" }),
     )
-    asks.answer({ requestId, close: true }, "new")
+    asks.answer({ requestId, approved: true }, "new")
     expect(outcomes).toEqual(["confirmed"])
-    expect(() => asks.answer({ requestId, close: true }, "new")).toThrow(
+    expect(() => asks.answer({ requestId, approved: true }, "new")).toThrow(
       expect.objectContaining({ code: "NOT_FOUND" }),
     )
     asks.finish()
@@ -57,15 +62,15 @@ describe("asks to close a terminal, on their way to the client", () => {
   })
 
   it("settles a no as declined", async () => {
-    const asks = new CloseAsks()
+    const asks = new Approvals()
     const client = collect(asks.follow("owner"))
-    const outcomes: CloseOutcome[] = []
+    const outcomes: ApprovalOutcome[] = []
     asks.ask(ask, (outcome) => outcomes.push(outcome))
     await tick()
     asks.answer(
       {
         requestId: client.items[0]!.requestId,
-        close: false,
+        approved: false,
       },
       "owner",
     )
@@ -75,7 +80,7 @@ describe("asks to close a terminal, on their way to the client", () => {
   })
 
   it("has no ask to make with no client following, nor a second for a terminal that waits", async () => {
-    const asks = new CloseAsks()
+    const asks = new Approvals()
     expect(asks.refusal("target")).toBe("nobody")
     const client = collect(asks.follow("owner"))
     expect(asks.refusal("target")).toBeUndefined()
@@ -87,9 +92,9 @@ describe("asks to close a terminal, on their way to the client", () => {
   })
 
   it("takes an ask back when either terminal closes, and tells the client", async () => {
-    const asks = new CloseAsks()
+    const asks = new Approvals()
     const client = collect(asks.follow("owner"))
-    const outcomes: CloseOutcome[] = []
+    const outcomes: ApprovalOutcome[] = []
     asks.ask(ask, (outcome) => outcomes.push(outcome))
     asks.ask({ ...ask, from: "other", terminalId: "elsewhere" }, (outcome) =>
       outcomes.push(outcome),
@@ -103,7 +108,7 @@ describe("asks to close a terminal, on their way to the client", () => {
     expect(asks.refusal("target")).toBeUndefined()
     // Nothing is left to answer.
     const requestId = client.items[0]!.requestId
-    expect(() => asks.answer({ requestId, close: true }, "owner")).toThrow(
+    expect(() => asks.answer({ requestId, approved: true }, "owner")).toThrow(
       expect.objectContaining({ code: "NOT_FOUND" }),
     )
     asks.finish()
@@ -111,10 +116,10 @@ describe("asks to close a terminal, on their way to the client", () => {
   })
 
   it("settles what waits as gone once its client goes away", async () => {
-    const asks = new CloseAsks()
+    const asks = new Approvals()
     const controller = new AbortController()
     const client = collect(asks.follow("owner", controller.signal))
-    const outcomes: CloseOutcome[] = []
+    const outcomes: ApprovalOutcome[] = []
     asks.ask(ask, (outcome) => outcomes.push(outcome))
     await tick()
     controller.abort()
@@ -124,11 +129,11 @@ describe("asks to close a terminal, on their way to the client", () => {
   })
 
   it("keeps what waits while the client still follows on another stream", async () => {
-    const asks = new CloseAsks()
+    const asks = new Approvals()
     const first = new AbortController()
     const one = collect(asks.follow("owner", first.signal))
     const two = collect(asks.follow("owner"))
-    const outcomes: CloseOutcome[] = []
+    const outcomes: ApprovalOutcome[] = []
     asks.ask(ask, (outcome) => outcomes.push(outcome))
     await tick()
     first.abort()
@@ -140,9 +145,9 @@ describe("asks to close a terminal, on their way to the client", () => {
   })
 
   it("settles what waits as gone as the runner stops, and follows no more", async () => {
-    const asks = new CloseAsks()
+    const asks = new Approvals()
     const client = collect(asks.follow("owner"))
-    const outcomes: CloseOutcome[] = []
+    const outcomes: ApprovalOutcome[] = []
     asks.ask(ask, (outcome) => outcomes.push(outcome))
     asks.finish()
     await client.done

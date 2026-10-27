@@ -76,7 +76,7 @@ export const nobodyRefusal = "Novadeck isn't open to ask the user, so nothing cl
 const named = (handle: string, title: string, ran: string | undefined): string =>
   `${mention(handle)} · ${title}` + (ran ? `, which ran ${ran}` : "")
 
-const notice = "Novadeck: automatic notice, not from the user: "
+export const notice = "Novadeck: automatic notice, not from the user: "
 
 /** What the asking agent is told once the person answered, or the ask ended without them. */
 export const closeNotice = {

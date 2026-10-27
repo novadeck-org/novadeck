@@ -151,6 +151,18 @@ export const novadeckTool = (tool: string, fields: Fields | null): ToolRun | und
         title: `Close${text("to") ? ` ${text("to")}` : " a terminal"}`,
         detail: "",
       }
+    case "lead":
+      return {
+        kind: "agent",
+        title: `Asked to lead${text("to") ? ` ${text("to")}` : " an agent"}`,
+        detail: text("message"),
+      }
+    case "release":
+      return {
+        kind: "agent",
+        title: `Released${text("to") ? ` ${text("to")}` : " an agent"}`,
+        detail: "",
+      }
     case "show":
     case "close": {
       const page = nested(fields?.page)

@@ -23,11 +23,11 @@ import type { VoiceAddon } from "../preferences/VoiceInput"
 import { WelcomeDialog } from "../preferences/WelcomeDialog"
 import { CrashLoopDialog } from "../shell/CrashLoopDialog"
 import {
-  CloseAskDialog,
-  closeAskView,
-  sameCloseAskView,
-  type CloseAskView,
-} from "../terminals/CloseAskDialog"
+  ApprovalDialog,
+  approvalView,
+  sameApprovalView,
+  type ApprovalView,
+} from "../terminals/ApprovalDialog"
 import { CloseTerminalDialog } from "../terminals/CloseTerminalDialog"
 import { visibleSwitcher } from "../terminals/recent"
 import { TerminalSwitcher } from "../terminals/TerminalSwitcher"
@@ -81,15 +81,15 @@ const useTranscripts = (
 }
 
 const noAsks: readonly never[] = []
-// The first close ask an agent made that waits on the person, with the terminals it names.
-const useCloseAsk = (closeAsks: Backend["closeAsks"]): CloseAskView | null => {
+// The first approval an agent asked for that waits on the person, with the terminals it names.
+const useApproval = (approvals: Backend["approvals"]): ApprovalView | null => {
   const first = useSyncExternalStore(
-    closeAsks?.pending.subscribe ?? always,
-    () => closeAsks?.pending.getSnapshot() ?? noAsks,
+    approvals?.pending.subscribe ?? always,
+    () => approvals?.pending.getSnapshot() ?? noAsks,
   )[0]
   return useWorkspaceState(
-    (workspace) => (first ? closeAskView(first, workspace) : null),
-    sameCloseAskView,
+    (workspace) => (first ? approvalView(first, workspace) : null),
+    sameApprovalView,
   )
 }
 
@@ -239,7 +239,7 @@ export const WorkspaceOverlays = memo((): React.JSX.Element => {
   const { backend, commands, navigation, ui } = useWorkspaceServices()
   const transcripts = useTranscripts(backend.transcripts)
   const agents = useAgents(backend.agents)
-  const closeAsk = useCloseAsk(backend.closeAsks)
+  const approval = useApproval(backend.approvals)
   const voice = useVoice(backend.voice)
   const murmur = useMurmur(backend.murmur)
   const { go, closeDialog } = navigation
@@ -309,7 +309,7 @@ export const WorkspaceOverlays = memo((): React.JSX.Element => {
           terminalElement(id)?.querySelector<HTMLElement>("[data-terminal-input]") ?? null
         }
       />
-      {backend.closeAsks && <CloseAskDialog ask={closeAsk} onAnswer={backend.closeAsks.answer} />}
+      {backend.approvals && <ApprovalDialog ask={approval} onAnswer={backend.approvals.answer} />}
       <NameOffer />
       {backend.feedback?.ask && <AskAgent feedback={backend.feedback} />}
       {switcher && (

@@ -1,19 +1,19 @@
 import { randomUUID } from "node:crypto"
 
-import type { AgentName, CloseAsk, CloseAskAnswer } from "@novadeck/protocol"
+import type { AgentName, Approval, ApprovalAction, ApprovalAnswer } from "@novadeck/protocol"
 
 import { DomainError } from "../errors.js"
 import { Followers } from "./followers.js"
 
-/** How a close ask went: the person confirmed or kept it, or it ended with neither. */
-export type CloseOutcome =
-  /** The person confirmed closing the terminal. */
+/** How an approval went: the person approved or declined it, or it ended with neither. */
+export type ApprovalOutcome =
+  /** The person approved it. */
   | "confirmed"
-  /** The person kept it open. */
+  /** The person declined it: things stay as they are. */
   | "declined"
   /** The client that was asked went away, or the runner stopped, before the person answered. */
   | "gone"
-  /** Either terminal closed, so there is nothing left to confirm. */
+  /** Either terminal closed, so there is nothing left to approve. */
   | "withdrawn"
 
 /** How a close of another terminal goes: at once, or once the person confirms. */
@@ -34,14 +34,14 @@ export const closeWay = (input: {
 }
 
 /**
- * Agents' asks to close a terminal that runs an agent they don't lead, on their way to a
- * client that confirms them with the person. Each goes to the client that subscribed last
+ * Agents' asks to close a terminal that runs an agent they don't lead, or to lead one, on
+ * their way to a client that approves them with the person. Each goes to the client that subscribed last
  * and waits, with no time limit, for the person's answer, until either terminal closes or
  * that client goes away. One waits at most for each terminal.
  */
-export class CloseAsks {
+export class Approvals {
   /** Each client's stream, oldest first. */
-  private readonly followers = new Followers<CloseAsk>()
+  private readonly followers = new Followers<Approval>()
   /** Asks waiting for the person, by id, with the client each went to. */
   private readonly pending = new Map<
     string,
@@ -49,7 +49,7 @@ export class CloseAsks {
       readonly owner: string
       readonly from: string
       readonly terminalId: string
-      readonly settle: (outcome: CloseOutcome) => void
+      readonly settle: (outcome: ApprovalOutcome) => void
     }
   >()
 
@@ -57,7 +57,7 @@ export class CloseAsks {
    * The asks sent to `owner`'s client, until `signal` aborts, the owner is released, or the
    * runner shuts down. Those still waiting once it ends are settled as `gone`.
    */
-  follow(owner: string, signal?: AbortSignal): AsyncGenerator<CloseAsk> {
+  follow(owner: string, signal?: AbortSignal): AsyncGenerator<Approval> {
     return this.followers.follow(owner, (each) => this.abandon(each), signal)
   }
 
@@ -69,8 +69,8 @@ export class CloseAsks {
   }
 
   /**
-   * Sends the newest client the ask for `from` to close `terminalId`, in `sessionId`;
-   * `settled` hears how it went, once. Call `refusal` first: with no client, or one
+   * Sends the newest client the ask for `from` to do `action` to `terminalId`, in
+   * `sessionId`; `settled` hears how it went, once. Call `refusal` first: with no client, or one
    * already waiting for `terminalId`, nothing is sent and `settled` hears `gone`.
    */
   ask(
@@ -78,8 +78,9 @@ export class CloseAsks {
       readonly from: string
       readonly terminalId: string
       readonly sessionId: string
+      readonly action: ApprovalAction
     },
-    settled: (outcome: CloseOutcome) => void,
+    settled: (outcome: ApprovalOutcome) => void,
   ): void {
     const follower = this.followers.newest()
     if (!follower || this.refusal(ask.terminalId)) return settled("gone")
@@ -100,10 +101,10 @@ export class CloseAsks {
   }
 
   /** The client's answer; NOT_FOUND once nothing waits for it from this client. */
-  answer(answer: CloseAskAnswer, owner: string): void {
+  answer(answer: ApprovalAnswer, owner: string): void {
     const waiting = this.pending.get(answer.requestId)
     if (!waiting || waiting.owner !== owner) throw new DomainError("NOT_FOUND")
-    waiting.settle(answer.close ? "confirmed" : "declined")
+    waiting.settle(answer.approved ? "confirmed" : "declined")
   }
 
   /** Takes back the asks that name `terminalId`, as the asker or the target, as it closes. */

@@ -608,6 +608,16 @@ export class Messaging {
   }
 
   /**
+   * The terminal gains a lead, as the person let an agent lead it: messages that lead sends
+   * after carry the lead mark. The terminal's `ledBy`, as `register` sets it for one opened
+   * with a brief.
+   */
+  setLead(terminalId: string, handle: string): void {
+    const live = this.live.get(terminalId)
+    if (live) live.ledBy = handle
+  }
+
+  /**
    * The handle of the running terminal that leads the terminal, if there is one: the one
    * its `ledBy` names, still running in its project and session.
    */

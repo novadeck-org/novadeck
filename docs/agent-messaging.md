@@ -144,7 +144,7 @@ An agent weighs what reaches it at three levels:
    `open_agent(agent, message)`, starting an agent there with a brief. Only that
    explicit path makes a lead; a terminal opened with a `command`, even one that starts
    an agent, or a plain shell has none, so an agent the person runs there later is
-   theirs alone. The terminal's record keeps the opener's handle as `ledBy` (column
+   theirs alone. The terminal's record keeps the opener's handle (or, after the person approved an agent's `lead`, that agent's) as `ledBy` (column
    `led_by`), beside `openedBy`, which every opened terminal keeps. It is kept through a
    restore within the same Novadeck session only; a terminal restored under another
    session takes nothing from a record saved in a different one. `ledBy` on a summary is
@@ -313,7 +313,7 @@ agent session; never a name the model passes.
 
 ## Agent interface
 
-Two tools join `show`, `showing`, `close`, `open_terminal`, `open_agent` and `close_terminal`, listed,
+Two tools join `show`, `showing`, `close`, `open_terminal`, `open_agent`, `close_terminal`, `lead` and `release`, listed,
 like them, only inside Novadeck's terminals.
 
 - **`send(to, text)`** answers with the recipient's handle, the message id and one of:

@@ -99,6 +99,18 @@ export class Bindings {
   }
 
   /**
+   * Gives the terminal a lead the person approved, to a terminal that already runs an
+   * agent: kept, shown to watchers, and told to messaging, so what the lead sends reads
+   * as a lead's from then on. The inverse of `endLead`.
+   */
+  setLead(record: Record, handle: string): void {
+    record.summary = { ...record.summary, ledBy: handle }
+    this.host.messaging().setLead(record.summary.id, handle)
+    this.host.save(record)
+    this.host.announce(record)
+  }
+
+  /**
    * Ends the bound session, the one way every end takes: its binding, with its activity and
    * telemetry (`Record.bound`), and the sources that follow it. What is left after is
    * the shell's: still there (`endBinding`, `forgotten`), gone (`exited`), or new
