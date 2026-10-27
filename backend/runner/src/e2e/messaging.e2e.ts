@@ -125,7 +125,7 @@ for (const setup of setups) {
         // The copy the harness installed, not only Novadeck's own source of it.
         const rewritten = renamePlugins(run.sandbox.root, run.deck.shell.mcp, decoy)
         expect(rewritten.some((path) => path.startsWith(run.sandbox.home))).toBe(true)
-        // What a harness asks of the person once a plugin changed, as after setup: Codex from
+        // The person answers what a harness asks once a plugin changed, as at setup: Codex from
         // 0.164.0 hashes a plugin's whole folder into each hook's hash, so another build's
         // launcher in `.mcp.json` leaves them "modified" and shows "Hooks need review", which
         // the person answers by trusting them again (probed 2026-10-27, 0.164.0; 0.163.0 hashes

@@ -117,7 +117,7 @@ for (const setup of setups) {
             const home = /^App Data Directory: (.+)$/m.exec(call.system)?.[1]?.trim()
             if (named.includes("<appDataDir>") && !home)
               throw new Error("Antigravity named no app data directory")
-            const folder = home ? named.replace("<appDataDir>", home) : named
+            const folder = home ? named.replace("<appDataDir>", () => home) : named
             return {
               calls: [
                 {
