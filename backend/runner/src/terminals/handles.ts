@@ -194,18 +194,53 @@ export type HandleSession = {
   readonly open: readonly string[]
 }
 
+/** The letters later rounds add, the alphabet backwards, so the first reads `mothz`. */
+const suffixLetters = "zyxwvutsrqponmlkjihgfedcba"
+
+/**
+ * The endings a round's letter skips besides its own, which read badly before it: `nimbusz`,
+ * `foxz`, `koiy`. A round skips a word that ends in its letter too, as `fizz` in the `z` round.
+ * Only the first three rounds have any: a session reaches the fourth after some 280 terminals.
+ */
+const clashes: Readonly<Record<string, string>> = { z: "sx", y: "i", x: "sz" }
+
+/** Handles a round never gives, a word plus its letters making one no terminal should carry. */
+const refused: ReadonlySet<string> = new Set(["pikey"])
+
+/** Whether a round's suffix reads well after the word: the first round's empty one always does. */
+const follows = (word: string, suffix: string): boolean => {
+  const letter = suffix[0]
+  if (letter === undefined) return true
+  return !`${letter}${clashes[letter] ?? ""}`.includes(word.at(-1)!) && !refused.has(word + suffix)
+}
+
+/**
+ * What a round adds to each word: nothing the first time, then `z`, `y` and on to `a`, then
+ * `zz`, `zy` and so on, where the word takes it (see `follows`).
+ */
+const suffixOf = (round: number): string => {
+  let suffix = ""
+  for (let left = round - 1; left > 0; left = Math.floor(left / suffixLetters.length)) {
+    left--
+    suffix = suffixLetters[left % suffixLetters.length]! + suffix
+  }
+  return suffix
+}
+
 /**
  * The handle a session gives its next terminal: the first word in its order it has never
  * given, preferring one whose first letter no terminal open there starts with, so a jump
  * by letter lands in one key. Once every word is given, the words come again with a
- * number: `moth2`, then `moth3`.
+ * letter from the end of the alphabet (see `suffixOf`): `mothz`, then `mothy`.
  */
 export const nextHandle = (session: HandleSession): string => {
   if (session.order.length === 0) throw new Error("A session's order has no words to give.")
   const letters = new Set(session.open.map((handle) => handle[0]))
   for (let round = 1; ; round++) {
+    const suffix = suffixOf(round)
     const fresh = session.order
-      .map((word) => (round === 1 ? word : `${word}${round}`))
+      .filter((word) => follows(word, suffix))
+      .map((word) => `${word}${suffix}`)
       .filter((handle) => !session.given.has(handle))
     if (fresh.length === 0) continue
     return fresh.find((handle) => !letters.has(handle[0])) ?? fresh[0]!

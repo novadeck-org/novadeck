@@ -308,7 +308,7 @@ export const closingSelf = (call: Call, handle: string): boolean => {
 
 /**
  * `before` and then `@handle`, ending where the handle does: "Closed @fox." and
- * "Closed @fox · Build, which ran…" name fox, never another handle that begins the same, as @fox2.
+ * "Closed @fox · Build, which ran…" name fox, never another handle that begins the same, as @foxz.
  */
 const lead = (before: string, handle: string): RegExp => new RegExp(`${before}@${handle}(?![\\w])`)
 

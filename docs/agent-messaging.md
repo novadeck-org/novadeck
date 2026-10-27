@@ -270,7 +270,8 @@ session records every handle it gives (`session_handles`), because terminal rows
 terminals. Terminals sort by creation order, never by their handle. A handle never
 changes, not when the terminal is renamed, and is never given again in that session: a
 closed terminal's handle stays unanswered rather than reaching another terminal. Once a
-session has given every word, they come again numbered (`moth2`, then `moth3`). Agents
+session has given every word, they come again with a letter from the end of the alphabet
+(`mothz`, then `mothy`), skipping one that reads badly after the word (`fizzz`, `foxz`). Agents
 tell the person about a terminal as `@fox · api-server`: its handle and its title. Handles exist because a title is text a person, or an agent through
 `open_terminal`'s or `open_agent`'s `title`, can set, and must never reach a prompt.
 
@@ -2113,8 +2114,9 @@ optional `messages` capability (`core/messages.ts`):
   the runner's and the Inbox's (`messages.release`), never released or stopped here.
 - **Critters.** Each handle has an 8×8 critter drawn for its word
   (`items/…/messages/avatars/drawn.ts`, in the runner's word order), lit on a small dark
-  LED screen in one of eight hues by the word's rank; a later round's handle (`moth2`)
-  carries its number, and a word with no drawing gets a generated one. The cells land on
+  LED screen in one of eight hues by the word's rank; a later round's handle (`mothz`)
+  has its word's critter (an older session's `moth2` carries its number), and a word with
+  no drawing gets a generated one. The cells land on
   whole device pixels (the screen's ratio times any zoom of the view), with a one-pixel gap
   from three pixels a cell, drawn again as the scale changes. A critter blinks every 6 to
   11 s on its word's clock, hops a row while its agent works, and is still and dim once its

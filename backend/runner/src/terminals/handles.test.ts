@@ -112,10 +112,42 @@ describe("the next handle", () => {
     expect(nextHandle({ order, given: none, open })).toBe("moth")
   })
 
-  it("comes round again with a number once every word is given", () => {
+  it("comes round again with a letter from the end of the alphabet once every word is given", () => {
     const given = new Set(handleWords)
-    expect(nextHandle({ order, given, open: [] })).toBe("moth2")
-    expect(nextHandle({ order, given: new Set([...given, "moth2"]), open: [] })).toBe("fox2")
+    expect(nextHandle({ order, given, open: [] })).toBe("mothz")
+    expect(nextHandle({ order, given: new Set([...given, "mothz"]), open: [] })).toBe("owlz")
+    const zRound = new Set([...given, ...handleWords.map((word) => `${word}z`)])
+    expect(nextHandle({ order, given: zRound, open: [] })).toBe("mothy")
+  })
+
+  it("goes on to two letters after a, and never doubles a word's last letter", () => {
+    const rounds = (words: readonly string[], count: number): string[] => {
+      const given = new Set(words)
+      for (let index = 0; index < count; index++)
+        given.add(nextHandle({ order: words, given, open: [] }))
+      return [...given].slice(words.length)
+    }
+    expect(rounds(["moth"], 27)).toEqual([
+      ..."zyxwvutsrqponmlkjigfedcba".split("").map((letter) => `moth${letter}`),
+      "mothzz",
+      "mothzy",
+    ])
+    expect(rounds(["fizz", "moth"], 4)).toEqual(["mothz", "fizzy", "mothy", "mothx"])
+  })
+
+  it("skips endings that read badly before a round's letter, and refused handles", () => {
+    const zRound = (word: string) => nextHandle({ order: [word], given: new Set([word]), open: [] })
+    expect(["nimbus", "fox", "fizz", "koi", "pike", "owl"].map(zRound)).toEqual([
+      "nimbusy",
+      "foxy",
+      "fizzy",
+      "koiz",
+      "pikez",
+      "owlz",
+    ])
+    const given = new Set(["koi", "koiz", "pike", "pikez"])
+    expect(nextHandle({ order: ["koi"], given, open: [] })).toBe("koix")
+    expect(nextHandle({ order: ["pike"], given, open: [] })).toBe("pikex")
   })
 })
 
@@ -126,7 +158,7 @@ describe("a handle as written", () => {
     expect(bareHandle("@Moth")).toBe("moth")
     // Only the handle: nothing after it is dropped quietly, so a title or a second handle is refused.
     expect(bareHandle("@moth · api-server")).toBe("moth · api-server")
-    expect(bareHandle("moth2")).toBe("moth2")
+    expect(bareHandle("mothz")).toBe("mothz")
     expect(mention("moth")).toBe("@moth")
   })
 })

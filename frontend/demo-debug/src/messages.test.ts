@@ -55,6 +55,6 @@ describe("the debug panel's Messages group", () => {
     const peers = messages.state
       .getSnapshot()
       .terminals[companionKeyId(key)]!.threads.map((thread) => thread.peer)
-    expect(peers).toContain("fox2")
+    expect(peers).toContain("foxz")
   })
 })
