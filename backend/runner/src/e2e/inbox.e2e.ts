@@ -18,6 +18,8 @@ const parameters = (call: Call, name: string, reading: boolean): unknown => {
       result(call)
         ?.split("\n")
         .filter((line) => /^\d+: /.test(line)) ?? []
+    // A failed read has no numbered lines, and parsing nothing would only fail as a bad body.
+    if (lines.length === 0) throw new Error("read_file gave no schema: " + result(call))
     return record(JSON.parse(lines.map((line) => line.replace(/^\d+: /, "")).join("\n"))).parameters
   }
   const offered = (call.rawTools ?? [])
@@ -107,8 +109,15 @@ for (const setup of setups) {
                   entry.name === "read_file" && /[/\\]ask\.json$/.test(String(entry.input.Path)),
               ) === true
           if (asked(call, "Ask through Inbox") && call.tools.includes("call_mcp_tool")) {
-            const folder = /directory `([^`]+)[/\\]<serverName>`/.exec(call.system)?.[1]
-            if (!folder) throw new Error("Antigravity named no MCP schema folder")
+            const named = /directory `([^`]+)[/\\]<serverName>`/.exec(call.system)?.[1]
+            if (!named) throw new Error("Antigravity named no MCP schema folder")
+            // 1.4.3 names the folder in full. 1.4.7 names it under a literal `<appDataDir>`
+            // that read_file refuses as "not an absolute path", and gives that folder on its
+            // own line of the system prompt, for the model to put in (probed 2026-10-27).
+            const home = /^App Data Directory: (.+)$/m.exec(call.system)?.[1]?.trim()
+            if (named.includes("<appDataDir>") && !home)
+              throw new Error("Antigravity named no app data directory")
+            const folder = home ? named.replace("<appDataDir>", home) : named
             return {
               calls: [
                 {
