@@ -4,6 +4,7 @@ import {
   existsSync,
   mkdirSync,
   mkdtempSync,
+  readdirSync,
   readFileSync,
   realpathSync,
   renameSync,
@@ -1987,4 +1988,82 @@ describe("the Inbox table's rename", () => {
       }
     },
   )
+})
+
+describe("the snapshot taken before a migration", () => {
+  const writeOld = (path: string, version = 5) => {
+    const old = new DatabaseSync(path)
+    old.exec(`${readFileSync(new URL(`schemas/${version}.sql`, import.meta.url), "utf8")}
+      DROP TABLE asks;
+      PRAGMA user_version = ${version};
+      INSERT INTO projects (position, id, name, cwd) VALUES (1, 'p', 'Shop', '/shop');`)
+    old.close()
+  }
+  const snapshots = (path: string) => {
+    try {
+      return readdirSync(join(path, "..", "snapshots")).toSorted()
+    } catch {
+      return []
+    }
+  }
+
+  it("holds the database as it was, at its old version", ({ directory }) => {
+    const path = join(directory(), "workspace.sqlite")
+    writeOld(path)
+    new WorkspaceStore(path).close()
+    const [name, ...rest] = snapshots(path)
+    expect(rest).toEqual([])
+    expect(name).toMatch(/^workspace-v5-[\dTZ-]+\.sqlite$/)
+    const copy = new DatabaseSync(join(path, "..", "snapshots", name ?? ""), {
+      readOnly: true,
+    })
+    try {
+      expect(copy.prepare("PRAGMA user_version").get()?.user_version).toBe(5)
+      expect(
+        copy
+          .prepare("SELECT id FROM projects")
+          .all()
+          .map((row) => row.id),
+      ).toEqual(["p"])
+    } finally {
+      copy.close()
+    }
+  })
+
+  it("is not taken for a current or a new database", ({ directory }) => {
+    const path = join(directory(), "workspace.sqlite")
+    new WorkspaceStore(path).close()
+    new WorkspaceStore(path).close()
+    expect(snapshots(path)).toEqual([])
+  })
+
+  it("keeps the newest three", ({ directory }) => {
+    const root = directory()
+    const path = join(root, "workspace.sqlite")
+    const folder = join(root, "snapshots")
+    mkdirSync(folder)
+    for (const day of ["01", "02", "03", "04"]) {
+      writeFileSync(join(folder, `workspace-v2-2026-10-${day}T00-00-00-000Z.sqlite`), "")
+    }
+    writeOld(path)
+    new WorkspaceStore(path).close()
+    const kept = readdirSync(folder).toSorted()
+    expect(kept).toHaveLength(3)
+    expect(kept.some((name) => name.includes("2026-10-01") || name.includes("2026-10-02"))).toBe(
+      false,
+    )
+    expect(kept.some((name) => name.startsWith("workspace-v5-"))).toBe(true)
+  })
+
+  it("never stops the migration when it fails", ({ directory }) => {
+    const path = join(directory(), "workspace.sqlite")
+    writeOld(path)
+    writeFileSync(join(path, "..", "snapshots"), "in the way")
+    const workspace = new WorkspaceStore(path)
+    try {
+      expect(workspace.projects().map(({ id }) => id)).toEqual(["p"])
+    } finally {
+      workspace.close()
+    }
+  })
 })

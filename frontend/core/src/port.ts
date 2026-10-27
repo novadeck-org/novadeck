@@ -363,6 +363,13 @@ export type BackendFields = {
     readonly state: () => Promise<PortableState>
     readonly onState: (listener: (state: PortableState) => void) => () => void
     readonly install: () => void
+    // Optional. Opens the page to download the newest portable copy in the browser;
+    // `showDataFolder` shows the folder that holds the workspace in the file manager. `news`
+    // is what is new in the offered version, for the card (absent or undefined: none to
+    // show). Each is absent in a host that came before it.
+    readonly openDownload?: () => void
+    readonly showDataFolder?: () => void
+    readonly news?: () => Promise<WhatsNew | undefined>
   }
   // Optional. Removing the desktop app from this computer. `plan` says what that would do
   // here, asked each time Preferences opens; `run` removes the app, after the page has

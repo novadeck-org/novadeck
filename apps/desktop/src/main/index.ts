@@ -1,10 +1,22 @@
 import { execFile, spawn } from "node:child_process"
 import { randomUUID } from "node:crypto"
-import { accessSync, existsSync, realpathSync, rmSync, statSync, writeFileSync } from "node:fs"
+import {
+  accessSync,
+  existsSync,
+  mkdirSync,
+  readFileSync,
+  realpathSync,
+  renameSync,
+  rmSync,
+  statSync,
+  writeFileSync,
+} from "node:fs"
 import {
   access,
+  chmod,
   constants,
   mkdir,
+  mkdtemp,
   open,
   readFile,
   readlink,
@@ -85,7 +97,9 @@ import { dataFolderName, logsFolder } from "./data-folder.js"
 import { feedbackAbout, feedbackOrigin, registerFeedbackIpc, sendFeedback } from "./feedback.js"
 import { detectSoftwareGraphics } from "./graphics.js"
 import {
+  currentOrNewerCopy,
   extractWithProcess,
+  failureReason,
   findInstalled,
   installAppImage,
   installLayout,
@@ -93,7 +107,8 @@ import {
 import { isInstalledImage } from "./install-location.js"
 import {
   findInstalledWindows,
-  hashBody,
+  sha512Base64,
+  type Digest,
   insideInstallFolder,
   installedAtLeast,
   installedByInstaller,
@@ -102,7 +117,6 @@ import {
   powershellUsable,
   prepareSetup,
   readInstallRecord,
-  reportPercents,
   runSetup,
   SetupBusyError,
   setupResult,
@@ -133,6 +147,12 @@ import { linuxMenu, macMenu } from "./menu.js"
 import { notificationOptions, registerNoticeIpc, showNotices } from "./notices.js"
 import { limitPermissions, ownPage } from "./permissions.js"
 import {
+  leaveForNewerPortable,
+  portableRecordName,
+  recordPortableCopy,
+} from "./portable-handoff.js"
+import { registerPortableLinksIpc, shownPath } from "./portable-links.js"
+import {
   installedEnvironment,
   leaveForNewerInstalled,
   portableInstaller,
@@ -144,6 +164,8 @@ import {
 } from "./portable.js"
 import { ntdllQuery, platformQuiet, registerQuietIpc, windowsProbe } from "./quiet.js"
 import { quitOnShutdown, saveBeforeClose, saveOnSessionEnd, savePages } from "./quit.js"
+import { prepareAppImage } from "./release-appimage.js"
+import { portableAssets, streamToFile, type Download, type Fetched } from "./release-download.js"
 import { startRunner, type RunnerEvents, type RunnerHost } from "./runner.js"
 import { registerSandboxIpc, sandboxState } from "./sandbox.js"
 import { keepSpellcheckOffline } from "./spellcheck.js"
@@ -171,7 +193,7 @@ import {
   type UpdaterKind,
 } from "./updater.js"
 import { raiseWebglContexts, webglContextsArgument } from "./webgl.js"
-import { keepWhatsNew, registerWhatsNewIpc, whatsNewAtLaunch } from "./whats-new.js"
+import { keepUpdateNews, keepWhatsNew, registerWhatsNewIpc, whatsNewAtLaunch } from "./whats-new.js"
 import { registerWindowFocusIpc } from "./window-focus.js"
 
 const appId = "dev.mzpk.novadeck"
@@ -695,6 +717,19 @@ const whatsNew = keepWhatsNew({
   log: updateWarning,
 })
 
+// What is new in the version a portable copy is offered, which it cannot install itself.
+const updateNews = keepUpdateNews({
+  version: app.getVersion(),
+  offered: () => {
+    const offer = offers.current()
+    return offer?.kind === "available" ? offer.version : undefined
+  },
+  repository: releaseRepository,
+  fetch: (url, init) => net.fetch(url, init),
+  newer: isNewerVersion,
+  log: updateWarning,
+})
+
 // The macOS download being made ready, so one finished after a newer one began is let go.
 let preparing = 0
 // How long what an update left must sit unchanged before it is removed, as another copy
@@ -1093,11 +1128,30 @@ const fetchText = async (url: string): Promise<string | undefined> => {
 // before each download, so no more than one setup is ever kept.
 const setupFolder = (): string => join(app.getPath("temp"), "novadeck-setup")
 
-// How long a download may go without data before it is given up.
-const downloadStallMs = 60_000
+// Streams `url` into `file` through Electron's network stack, which honours the system and
+// PAC proxies as the update check does, hashing as it goes; see `streamToFile`. The file is
+// written by this app, so it carries no Mark of the Web; the hash is what vouches for it.
+const downloadTo = (
+  url: string,
+  file: string,
+  maxBytes: number,
+  progress: (percent: number) => void,
+  digest: Digest,
+  size?: number,
+): Promise<string> =>
+  streamToFile({
+    url,
+    file,
+    maxBytes,
+    size,
+    digest,
+    progress,
+    fetch: async (address, init) => (await net.fetch(address, init)) as unknown as Fetched,
+    open: (path) => open(path, "w"),
+    remove: (path) => rm(path, { force: true }),
+  })
 
-// Downloads `url` into the setup folder, hashing as it goes. The file is written by this
-// app, so it carries no Mark of the Web; the hash is what vouches for it.
+// Downloads `url` into the setup folder, emptied first; see `downloadTo`.
 const downloadSetup = async (
   url: string,
   maxBytes: number,
@@ -1116,41 +1170,13 @@ const downloadSetup = async (
   }
   await mkdir(folder, { recursive: true })
   const file = join(folder, setupName)
-  // Through Electron's network stack, which honours the system and PAC proxies as the
-  // update check does. The download is given up only when no data comes for a while, so a
-  // slow link is not cut off.
-  const controller = new AbortController()
-  let stall: ReturnType<typeof setTimeout> | undefined
-  const alive = (): void => {
-    clearTimeout(stall)
-    stall = setTimeout(() => controller.abort(), downloadStallMs)
-  }
-  alive()
-  const handle = await open(file, "w")
-  try {
-    const response = await net.fetch(url, { signal: controller.signal })
-    // The release's size for the file; else what the server says it is sending.
-    const length = Number(response.headers.get("content-length"))
-    const report = reportPercents(size ?? (length > 0 ? length : undefined), progress)
-    const sha512 = await hashBody(
-      response as unknown as Parameters<typeof hashBody>[0],
-      (chunk) => {
-        alive()
-        return handle.write(chunk).then(() => undefined)
-      },
-      maxBytes,
-      report,
-    )
-    await handle.close()
-    return { file, sha512 }
-  } catch (error) {
-    await handle.close().catch(() => {})
-    await rm(file, { force: true })
-    throw error
-  } finally {
-    clearTimeout(stall)
-  }
+  const sha512 = await downloadTo(url, file, maxBytes, progress, sha512Base64, size)
+  return { file, sha512 }
 }
+
+// A SHA-256 download of a portable file; see `Download`.
+const downloadPortable: Download = (url, file, maxBytes, progress) =>
+  downloadTo(url, file, maxBytes, progress, { algorithm: "sha256", encoding: "hex" })
 
 // LEGACY. Whether PowerShell passes the two tests of the old uninstaller's running-app check,
 // as it would run them: its stub is 32-bit, so the 32-bit PowerShell is the one it finds.
@@ -1270,34 +1296,154 @@ const installedCopies = () =>
         })
       : findInstalled({ env: process.env, home: homedir() }, installedExtract())
 
-// Installs the AppImage that is running, over the installed copy `target` or at the
-// installer's path.
-const installAppImageOver = (
+// Installs the release's AppImage, the offered version's or the latest, over the installed
+// copy `target` or at the installer's path; see `prepareAppImage`. This copy is not what is
+// installed: it is older than the release the card advertised.
+const installAppImageOver = async (
   target: string | undefined,
   progress: (step: InstallStep) => void,
 ): Promise<PlatformInstall> => {
   progress({ phase: "installing" })
-  return installAppImage(
-    process.env.APPIMAGE ?? "",
-    installLayout({ env: process.env, home: homedir() }),
-    installedExtract(),
-    target,
-  )
+  // A private folder of its own, so a leftover of another user's or another run's cannot
+  // be in the way, and it is gone afterwards.
+  let folder = app.getPath("temp")
+  try {
+    folder = await mkdtemp(join(app.getPath("temp"), "novadeck-install-"))
+    const repository = await releaseRepository()
+    const offer = offers.current()
+    const prepared = await prepareAppImage(
+      {
+        downloads: {
+          offered:
+            repository && offer?.kind === "available"
+              ? releaseDownloadsUrl(repository, offer.version)
+              : undefined,
+          latest: repository && releaseLatestUrl(repository),
+          own: repository && releaseDownloadsUrl(repository, app.getVersion()),
+        },
+        version: app.getVersion(),
+        text: fetchText,
+        download: downloadPortable,
+        remove: (file) => rm(file, { force: true }),
+        makeExecutable: (file) => chmod(file, 0o755),
+        progress: (percent) => progress({ phase: "downloading", percent }),
+        log: warnings("install"),
+      },
+      join(folder, portableAssets.linux),
+    )
+    if (prepared.kind === "failed") return prepared
+    progress({ phase: "installing" })
+    return await installAppImage(
+      prepared.file,
+      installLayout({ env: process.env, home: homedir() }),
+      installedExtract(),
+      target,
+    )
+  } catch (error) {
+    warnings("install")("The AppImage could not be installed.", error)
+    return { kind: "failed", reason: failureReason(error, folder) }
+  } finally {
+    await rm(folder, { recursive: true, force: true }).catch(() => {})
+  }
 }
 
+// The notes a portable launch leaves in the data folder, as files.
+const markerFiles = {
+  modified: (file: string) => statSync(file).mtimeMs,
+  write: (file: string) => writeFileSync(file, ""),
+  remove: (file: string) => rmSync(file, { force: true }),
+}
 // The note a portable launch leaves when it redirects to the installed copy, and how long it holds.
 const redirectWindowMs = 30_000
 const redirect = redirectMarker(
   join(app.getPath("userData"), "redirected-at"),
   redirectWindowMs,
-  {
-    modified: (file) => statSync(file).mtimeMs,
-    write: (file) => writeFileSync(file, ""),
-    remove: (file) => rmSync(file, { force: true }),
-  },
+  markerFiles,
   Date.now,
   warnings("portable"),
 )
+// The same for a launch handed to a newer portable copy, which clears it as it starts.
+const handoff = redirectMarker(
+  join(app.getPath("userData"), "handed-off-at"),
+  redirectWindowMs,
+  markerFiles,
+  Date.now,
+  warnings("portable"),
+)
+
+// What the system runs to start this copy, which a portable copy records for the older ones
+// to hand their launches to: the AppImage file, the Windows executable, the macOS bundle.
+const ownCopy = (): string =>
+  process.platform === "darwin"
+    ? bundleOf(app.getPath("exe"))
+    : process.platform === "win32"
+      ? process.execPath
+      : (process.env.APPIMAGE ?? "")
+
+// A path as it compares: resolved, and on Windows without regard to case.
+const comparable = (path: string): string => {
+  const resolved = realpathOrUndefined(path) ?? path
+  return process.platform === "win32" ? resolved.toLowerCase() : resolved
+}
+
+// The record of the newest portable copy, and what is asked of the machine to use it.
+const portableRecordFile = join(app.getPath("userData"), portableRecordName)
+const portableRecord = {
+  read: (): string | undefined => {
+    try {
+      return readFileSync(portableRecordFile, "utf8")
+    } catch {
+      return undefined
+    }
+  },
+  // Written whole beside the file and renamed over it, so a reader never sees half of it.
+  write: (text: string): void => {
+    const staged = `${portableRecordFile}.${process.pid}.tmp`
+    mkdirSync(dirname(portableRecordFile), { recursive: true })
+    try {
+      writeFileSync(staged, text)
+      renameSync(staged, portableRecordFile)
+    } catch (error) {
+      rmSync(staged, { force: true })
+      throw error
+    }
+  },
+  isSelf: (path: string): boolean => comparable(path) === comparable(ownCopy()),
+  // Whether a copy is there to start and whole: an AppImage that is a file with the
+  // executable bit; the Windows executable with its `resources` folder; the macOS bundle
+  // with its property list and the executable.
+  usable: (path: string): boolean => {
+    try {
+      if (process.platform === "darwin")
+        return (
+          existsSync(join(path, "Contents", "Info.plist")) &&
+          existsSync(join(path, "Contents", "MacOS", basename(app.getPath("exe"))))
+        )
+      if (process.platform === "win32")
+        return statSync(path).isFile() && existsSync(join(dirname(path), "resources"))
+      accessSync(path, constants.X_OK)
+      return statSync(path).isFile()
+    } catch {
+      return false
+    }
+  },
+  log: warnings("portable"),
+}
+
+// Whether a macOS app runs translocated: from a random read-only copy the system makes of
+// an app that was downloaded and opened in place. That path is gone with the run, so it is
+// no place to hand a later launch to.
+const translocated = (path: string): boolean => path.includes("/AppTranslocation/")
+
+// Tells the person that the newer portable copy at `path` would not start, which leaves the
+// app with nothing to do but quit.
+const alertPortableNotStarted = async (path: string): Promise<void> => {
+  await dialog.showMessageBox({
+    type: "error",
+    message: "A newer Novadeck did not start.",
+    detail: `This copy is older than the one you last used, which may have upgraded your workspace, so it was not opened. Open the newer copy yourself. It is at ${path}.`,
+  })
+}
 
 // What the host logs of the runner's starts, ends and output.
 const runnerEvents = (): RunnerEvents => {
@@ -1387,14 +1533,33 @@ const launch = async (): Promise<void> => {
   // and a half-made one; tidy before looking for installed copies.
   if (portable && process.platform === "darwin")
     await recoverBundles({ ...bundleMachine(), names: installedNames() }).catch(() => undefined)
-  // A portable copy gives way to an installed copy of the same version or a newer one,
-  // which may have upgraded the data this copy cannot open; nothing has started yet, so
-  // there is nothing to shut down.
+  // A portable copy gives way to the newest copy there is: an installed copy of the same
+  // version or a newer one, or the newest portable copy that ran in this data folder if it
+  // is newer than the installed one; either may have upgraded the data this copy cannot
+  // open. Nothing has started yet, so there is nothing to shut down. The portable record is
+  // looked at first only to pick the newer of the two; on a tie the installed copy wins.
+  let found: ReturnType<typeof installedCopies> | undefined
+  const foundCopies = () => (found ??= installedCopies())
+  if (
+    await leaveForNewerPortable({
+      portable,
+      version: app.getVersion(),
+      ...portableRecord,
+      installedVersion: async () =>
+        currentOrNewerCopy(await foundCopies(), app.getVersion())?.version,
+      start: startInstalledCopy,
+      alert: alertPortableNotStarted,
+      recentHandoff: handoff.recent,
+      markHandoff: handoff.mark,
+      quit: () => exitApp(0),
+    })
+  )
+    return
   if (
     await leaveForNewerInstalled({
       portable,
       version: app.getVersion(),
-      find: installedCopies,
+      find: foundCopies,
       start: startInstalledCopy,
       alert: alertNotStarted,
       recentRedirect: redirect.recent,
@@ -1404,6 +1569,12 @@ const launch = async (): Promise<void> => {
     })
   )
     return
+  // This launch stays, so the copy it was handed over to, if it was one, has answered; and
+  // this copy is the one to hand a later launch to, unless a newer one is there. A translocated
+  // macOS copy has no lasting path to record.
+  handoff.clear()
+  if (portable && ownCopy() !== "" && !translocated(ownCopy()))
+    recordPortableCopy(portableRecord, { path: ownCopy(), version: app.getVersion() })
   // The installed copy has no use for a setup the portable copy left; the installer that
   // started this copy may still hold it for a moment, so this waits, and gives up quietly.
   if (process.platform === "win32" && app.isPackaged && !portable)
@@ -1561,40 +1732,59 @@ const launch = async (): Promise<void> => {
   })
   // The page learns whether this is a portable copy and may install the app from it,
   // while this copy keeps running, and is told how the install goes.
+  const installer = portableInstaller({
+    portable,
+    version: app.getVersion(),
+    run,
+    dataFolder: shownPath(app.getPath("userData"), {
+      platform: process.platform,
+      home: homedir(),
+    }),
+    uncheckedAdvice:
+      process.platform === "darwin"
+        ? "Check the copy in your Applications folder, or reinstall Novadeck from the disk image."
+        : process.platform === "win32"
+          ? "Open the installed Novadeck from the Start menu, or uninstall it in Windows Settings and try again."
+          : "Try again, or reinstall Novadeck with install.sh.",
+    find: installedCopies,
+    install: (target, progress) =>
+      process.platform === "darwin"
+        ? installMacBundle(target, progress)
+        : process.platform === "win32"
+          ? installWindowsSetup(progress)
+          : installAppImageOver(target, progress),
+    changed: (state) => {
+      for (const page of appPages(BrowserWindow.getAllWindows())) {
+        try {
+          page.send(portableStateChannel, state)
+        } catch (error) {
+          log.warn("portable.send-failed", "The portable state was not sent to a window.", {
+            err: error,
+          })
+        }
+      }
+    },
+    stopping: () => stopping,
+    log: warnings("portable"),
+  })
   registerPortableIpc(ipcMain, {
     window: (event) => appWindow(event)?.webContents,
     log: warnings("portable"),
-    installer: portableInstaller({
-      portable,
-      version: app.getVersion(),
-      run,
-      uncheckedAdvice:
-        process.platform === "darwin"
-          ? "Check the copy in your Applications folder, or reinstall Novadeck from the disk image."
-          : process.platform === "win32"
-            ? "Open the installed Novadeck from the Start menu, or uninstall it in Windows Settings and try again."
-            : "Try again, or reinstall Novadeck with install.sh.",
-      find: installedCopies,
-      install: (target, progress) =>
-        process.platform === "darwin"
-          ? installMacBundle(target, progress)
-          : process.platform === "win32"
-            ? installWindowsSetup(progress)
-            : installAppImageOver(target, progress),
-      changed: (state) => {
-        for (const page of appPages(BrowserWindow.getAllWindows())) {
-          try {
-            page.send(portableStateChannel, state)
-          } catch (error) {
-            log.warn("portable.send-failed", "The portable state was not sent to a window.", {
-              err: error,
-            })
-          }
-        }
-      },
-      stopping: () => stopping,
-      log: warnings("portable"),
-    }),
+    installer,
+  })
+  // A portable copy's card opens the download page, shows the data folder and tells what is
+  // new in the offered version.
+  registerPortableLinksIpc(ipcMain, {
+    window: (event) => appWindow(event)?.webContents,
+    portable,
+    openDownload: (url) => shell.openExternal(url),
+    showDataFolder: () => {
+      void shell.openPath(app.getPath("userData")).then((problem) => {
+        if (problem !== "") warnings("portable")("The data folder did not open.", problem)
+      })
+    },
+    news: updateNews,
+    log: warnings("portable"),
   })
   // The page learns what removing this copy would do, removes it, and quits afterwards.
   registerUninstallIpc(ipcMain, {

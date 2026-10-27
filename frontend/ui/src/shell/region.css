@@ -401,6 +401,33 @@
 .update-card-foot > :only-child {
   margin-inline-start: auto;
 }
+/* A portable copy's card (PortableInstall.tsx) is as wide as the changelog it can carry,
+   which it shows in the what's-new look below. The workspace's folder reads as a path, in
+   mono, with a small button to show it beside the words. */
+.update-card.portable-card {
+  width: 20.5rem;
+}
+.portable-data {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+}
+/* The words give way to the button, however long the path: the item may shrink below its
+   longest chunk (`min-width`), and the chunk breaks only when it must, so a short path keeps
+   its full stop beside it. */
+.portable-data > span,
+.portable-path {
+  overflow-wrap: break-word;
+}
+.portable-data > span {
+  min-width: 0;
+}
+.portable-path {
+  color: var(--color-ink);
+  font-family: var(--font-mono);
+  font-size: 0.92em;
+}
 /* What's new after an update (WhatsNew.tsx), on the update card's recipe: wider for a list.
    A strip of label tape stuck across the top edge says "New in" and the version; beside the
    × a small stamp names the version it is new since, when the host knows it. Each highlight

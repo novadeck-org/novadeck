@@ -683,6 +683,55 @@ export const restoreSetAside = (path: string, now = new Date()): string | undefi
   return earlier
 }
 
+/** How many snapshots of the database from before a migration are kept. */
+const snapshotsKept = 3
+
+const snapshotName = /^workspace-v\d+-([\dTZ-]+)\.sqlite$/
+
+/**
+ * Saves the database as it is, of `version`, before a migration changes it, so an upgrade
+ * can be undone by hand: one self-contained file (`VACUUM INTO` reads what the write-ahead
+ * log holds too) in `snapshots/` beside it, named for the version it came from and the
+ * time. The newest `snapshotsKept` stay. It can't run in a transaction, and a failure
+ * (a full disk, permissions) is logged, never thrown: a runner that can't keep a copy
+ * still starts and carries the workspace forward, as one without this did.
+ */
+const snapshotWorkspace = (
+  database: DatabaseSync,
+  path: string,
+  version: number,
+  now = new Date(),
+): void => {
+  try {
+    const directory = join(dirname(path), "snapshots")
+    mkdirSync(directory, { recursive: true, mode: 0o700 })
+    const snapshot = join(
+      directory,
+      `workspace-v${version}-${now.toISOString().replace(/[:.]/g, "-")}.sqlite`,
+    )
+    // Made first, so it is only ever the person's to read.
+    closeSync(openSync(snapshot, "wx", 0o600))
+    try {
+      database.exec(`VACUUM INTO '${snapshot.replaceAll("'", "''")}'`)
+    } catch (error) {
+      rmSync(snapshot, { force: true })
+      throw error
+    }
+    const old = readdirSync(directory)
+      .map((name) => ({ name, time: snapshotName.exec(name)?.[1] }))
+      .filter((entry) => entry.time !== undefined)
+      .toSorted((a, b) => String(b.time).localeCompare(String(a.time)))
+      .slice(snapshotsKept)
+    for (const { name } of old) rmSync(join(directory, name), { force: true })
+  } catch (error) {
+    log.error(
+      "workspace.snapshot-failed",
+      `Novadeck could not save a copy of its workspace database before carrying it from version ${version}`,
+      { err: error instanceof Error ? error.message : String(error) },
+    )
+  }
+}
+
 /**
  * Creates the schema in a new database, and carries one of a lower version forward
  * (`migrate`). Refuses one written by a newer runner, by its version or by columns this
@@ -690,6 +739,10 @@ export const restoreSetAside = (path: string, now = new Date()): string | undefi
  * changing neither.
  */
 const prepareSchema = (database: DatabaseSync, path: string): void => {
+  const before = database.prepare("PRAGMA user_version").get()?.user_version
+  if (typeof before === "number" && before !== 0 && before < schemaVersion && path !== ":memory:") {
+    snapshotWorkspace(database, path, before)
+  }
   database.exec("BEGIN IMMEDIATE")
   try {
     const version = database.prepare("PRAGMA user_version").get()?.user_version
