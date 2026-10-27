@@ -242,9 +242,10 @@ export const artifactsNotice =
   "show the user what you make, with Novadeck's show tool. Show a deliverable when it is " +
   "done, not each file you touch: an image or screenshot, a rendered page or a dev " +
   "server's address, a report, mockup, diagram or generated document, the one file the " +
-  "user asked you for, or whatever they ask to see. A page is one served on this machine, " +
-  "such as a dev server; a link to another site, which often wants a sign-in, goes in " +
-  "your reply unless they ask to see it here. A source file is one too while it is " +
+  "user asked you for, or whatever they ask to see. Show a page you serve or just " +
+  "deployed, such as a dev server or a preview; a link to someone else's site, which often " +
+  "wants a sign-in in the pane, goes in your reply unless they ask to see it there. A " +
+  "source file is one too while it is " +
   "the file you are working on together, so show it and keep it shown; the files a change " +
   "touches on the way aren't: once a piece of work is done, show the working tree's " +
   "changes with changes, as diffs. Show a deliverable " +

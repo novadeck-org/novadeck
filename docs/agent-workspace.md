@@ -262,9 +262,9 @@ What belongs there is a deliverable: something made to be looked at (an image or
 screenshot, a rendered page or dev server, a report, mockup, diagram or generated
 document, the one file the user asked for, or whatever they ask to see), shown once it
 is done, with `open` so it opens at once; without `open` for anything supporting, which
-waits marked new. A page is one served on this machine, such as a dev server: a link to
-another site often wants a sign-in in the pane and helps little there, so it goes in the
-agent's reply unless the user asks to see it in the pane. A source file counts while it is the one
+waits marked new. A page is one the agent serves or just deployed, such as a dev server
+or a preview: a link to someone else's site often wants a sign-in in the pane and helps
+little there, so it goes in the agent's reply unless the user asks to see it in the pane. A source file counts while it is the one
 the user and the agent work on together; the files a change touches on the way do not,
 and the user reads those in the diff. Every harness hears this two ways, as no plugin ships a skill: the `show` tool's
 own description carries the rule, which every harness reads alike from `tools/list`,
