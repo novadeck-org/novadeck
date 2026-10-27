@@ -21,7 +21,7 @@ import { actionOf, agentName, limitWindow, recommended, subjectOf } from "./inbo
 import { noDraft, useInboxContext } from "./InboxProvider"
 import { Menu, type MenuHandle, type MenuItem } from "./Menu"
 import type { SheetContentProps } from "./Page"
-import { usePlanText } from "./plan-text"
+import { usePlanAnswered, usePlanText } from "./plan-text"
 import { CommandBox, Disclosure, Failure, Text } from "./sheet-parts"
 
 // The Console sheet: one layout for every kind. The person's last words to the agent and the
@@ -529,8 +529,18 @@ const QuestionsMenu = ({
 }
 
 // One item's page under the head: its context, the thing, and the menu that answers it.
-export const ConsoleSheet = (props: SheetContentProps): React.JSX.Element => {
-  const { item, failed, sent } = props
+export const ConsoleSheet = (shown: SheetContentProps): React.JSX.Element => {
+  const { item, failed, sent } = shown
+  // A plan approval answered spends the plan its sheet showed: a round sent back is never the
+  // next approval's plan.
+  const planAnswered = usePlanAnswered()
+  const props: SheetContentProps = {
+    ...shown,
+    submit: (answer, note) => {
+      if (item.kind === "request" && item.request.kind === "plan") planAnswered(item)
+      shown.submit(answer, note)
+    },
+  }
   const { now, drafts, receipt } = useInboxContext()
   // An answered item opened again says what its answer did, in place of its menu.
   const settled = settledLine(item) ?? sent?.note ?? null

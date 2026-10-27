@@ -114,6 +114,9 @@ export const useInboxContext = (): InboxContextValue => {
   return value
 }
 
+// An answer's item, by id and when it started waiting: a newer item may take an old id.
+const answerKey = (item: InboxRow): string => `${item.id}@${item.at}`
+
 // How long a freshly arrived item stays marked, and how often waits are read again.
 const arrivedMs = 1700
 const tickMs = 30_000
@@ -154,7 +157,8 @@ export const InboxProvider = ({
   const [view, setView] = useState<InboxView>(initialView)
   const [answered, setAnswered] = useState<Readonly<Record<string, Sent>>>({})
   const [receipt, setReceipt] = useState<Receipt | null>(null)
-  // The answers the sheet has moved on from: opened again, their sheet stays, answered.
+  // The answers the sheet has moved on from, by item id and when it started waiting (a newer
+  // item may take an old id): opened again, their sheet stays, answered.
   const movedOn = useRef(new Set<string>())
   const [drafts, setDrafts] = useState<Readonly<Record<string, Draft>>>({})
   const [feedbackEdits, setFeedbackEdits] = useState<Readonly<Record<string, string>>>({})
@@ -226,15 +230,6 @@ export const InboxProvider = ({
   const standing = state.items.find(({ id }) => id === view.open)
   const current = standing ?? (view.open === null ? undefined : sent[view.open]?.item)
 
-  const dropSent = useCallback((id: string | null): void => {
-    if (id !== null)
-      setAnswered((record) =>
-        id in record
-          ? Object.fromEntries(Object.entries(record).filter(([key]) => key !== id))
-          : record,
-      )
-  }, [])
-
   const open = useCallback(
     // `items` where the caller read them newer than the last commit.
     (id: string, items?: readonly InboxRow[]): void => {
@@ -243,15 +238,13 @@ export const InboxProvider = ({
       const found = list.find((item) => item.id === id)
       // A settled ask has no sheet.
       if (found?.settled) return
-      if (before.open !== id) {
-        dropSent(before.open)
-        setReceipt(null)
-      }
+      // Answered rows keep their place, and their answers, until the sheet closes.
+      if (before.open !== id) setReceipt(null)
       setView(openItem(before, id, list))
       if (found && !found.seen) inbox.see(id)
       if (before.open === null) screen?.hideList()
     },
-    [inbox, dropSent],
+    [inbox],
   )
 
   // Closing forgets every answer the sheet moved on from: their rows go with it.
@@ -273,13 +266,13 @@ export const InboxProvider = ({
   // Once an answer has taken, on to what asks next, with the receipt; with nothing left, the
   // sheet closes. The answered row keeps its place, answered, until it does.
   const moveOn = useCallback(
-    (from: string, note: string): void => {
+    (from: InboxRow, note: string): void => {
       const { state: snapshot, view: before } = latest.current
-      if (before.open !== from || movedOn.current.has(from)) return
-      movedOn.current.add(from)
-      const target = nextItem(snapshot.items, from, snapshot)
+      if (before.open !== from.id || movedOn.current.has(answerKey(from))) return
+      movedOn.current.add(answerKey(from))
+      const target = nextItem(snapshot.items, from.id, snapshot)
       if (!target) return close()
-      setReceipt({ from, note })
+      setReceipt({ from: from.id, note })
       // The list stays as it is, the answered row in it, unless what is next has yet to join.
       const kept = before.order.includes(target.id) ? before : release(before, snapshot.items)
       setView(openItem(kept, target.id, snapshot.items))
@@ -298,8 +291,8 @@ export const InboxProvider = ({
       ? sent[view.open]
       : undefined
   useEffect(() => {
-    if (done && view.open !== null) moveOn(view.open, done.note)
-  }, [done, view.open, moveOn])
+    if (done) moveOn(done.item, done.note)
+  }, [done, moveOn])
 
   const setDraft = useCallback((id: string, patch: Partial<Draft>): void => {
     setDrafts((record) => {
