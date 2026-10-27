@@ -62,8 +62,15 @@ describe("a page view as it attaches", () => {
       webSecurity: true,
       allowRunningInsecureContent: false,
       webviewTag: false,
+      transparent: false,
       partition: pagesPartition,
     })
+  })
+
+  it("paints its own ground, as a browser does, whatever it asked", () => {
+    const preferences: WebPreferences = { transparent: true }
+    attachPage(preferences, { src: "https://example.com" }, pagesPartition)
+    expect(preferences.transparent).toBe(false)
   })
 
   it("is refused for anything but an http(s) address", () => {

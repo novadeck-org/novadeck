@@ -102,6 +102,21 @@ describe("the browser viewer", () => {
       expect(loads.at(-1)).toBe("failed")
     })
 
+    it("keeps its ground under the page only while it loads", () => {
+      const host = hostIn()
+      host.style.setProperty("--browser-page-bg", "rgb(255, 255, 255)")
+      live(host)
+      const page = pageOf(host)
+      attach(page, { url: "http://localhost:5173/", back: false, forward: false })
+      const ground = (): string => getComputedStyle(page).backgroundColor
+      expect(ground()).toBe("rgb(255, 255, 255)")
+      // Loaded, nothing is under it: a page drawn a device pixel short shows no line.
+      page.dispatchEvent(event("did-stop-loading"))
+      expect(ground()).toBe("rgba(0, 0, 0, 0)")
+      page.dispatchEvent(event("did-start-loading"))
+      expect(ground()).toBe("rgb(255, 255, 255)")
+    })
+
     it("goes back, forward and reloads when asked, and stays quiet when told", () => {
       const host = hostIn()
       const calls: string[] = []
@@ -646,12 +661,16 @@ describe("the browser viewer", () => {
         expect(pageOf(host)!.getAttribute("src")).toBe(url)
         expect(loads.at(-1)).toBe("loading")
         ready()
-        // Loading: the picture stays over it.
+        // Loading: the picture stays over it, on the page's ground.
         expect(pictureOf(host)).not.toBeNull()
+        const viewerOf = host.querySelector(".browser-viewer")!
+        expect(getComputedStyle(viewerOf).backgroundColor).toBe("rgb(255, 255, 255)")
         fire("did-stop-loading")
         expect(calls.some((call) => call.includes("scrollTo(0, 640)"))).toBe(true)
         await vi.advanceTimersByTimeAsync(uncoverMs)
         expect(pictureOf(host)!.hasAttribute("data-fading")).toBe(true)
+        // Fading off a page that has drawn, with no ground to show at its edge.
+        expect(getComputedStyle(viewerOf).backgroundColor).toBe("rgba(0, 0, 0, 0)")
         await vi.advanceTimersByTimeAsync(fadeMs)
         expect(pictureOf(host)).toBeNull()
         // Woken, it's live again: back, forward and the rest work on it.
