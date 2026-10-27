@@ -1,4 +1,5 @@
 import {
+  useEffect,
   useImperativeHandle,
   useLayoutEffect,
   useRef,
@@ -7,7 +8,7 @@ import {
   type Ref,
 } from "react"
 
-import { menuKey, startCursor, type Cursor } from "./menu-keys"
+import { answering, menuKey, startCursor, type Cursor } from "./menu-keys"
 import { Text } from "./sheet-parts"
 
 // A sheet's numbered menu, as a terminal's prompt draws one: `❯` on the row the cursor is
@@ -48,6 +49,10 @@ export type MenuHandle = {
   readonly key: (key: string) => boolean
 }
 
+// How long a sheet the Inbox moved on to takes no answer from the keyboard: a key pressed
+// twice, or held, for the one before never answers the next.
+const arrivalGuardMs = 400
+
 // What a box may hold, as the runner limits a reply.
 export const wordsLimit = 4096
 
@@ -62,6 +67,7 @@ export const Menu = ({
   onWords,
   onSend,
   handle,
+  arrived = false,
 }: {
   readonly label: string
   readonly items: readonly MenuItem[]
@@ -78,6 +84,9 @@ export const Menu = ({
   // Enter, in a menu of several picks.
   readonly onSend?: () => void
   readonly handle?: Ref<MenuHandle>
+  // Whether the Inbox moved on to this sheet from an answer: focus comes to its first row,
+  // and for a moment no key answers.
+  readonly arrived?: boolean
 }): React.JSX.Element => {
   const [cursor, setCursor] = useState<Cursor>(startCursor)
   // The words row whose box has the keys.
@@ -95,6 +104,20 @@ export const Menu = ({
     multi,
     arms: (index: number) => hard && !items[index]?.words,
   }
+
+  // Until when keys don't answer: set as it arrives.
+  const guard = useRef(0)
+  useEffect(() => {
+    if (!arrived) return
+    guard.current = Date.now() + arrivalGuardMs
+    // The sheet before had focus, and went: it comes here, so the keyboard keeps its place.
+    const active = document.activeElement
+    if (!active || active === document.body || active.closest(".inbox-sheet"))
+      (rows.current[0] ?? boxes.current[0])?.focus()
+  }, [arrived])
+  // Whether a key is to be let through: no repeat answers, nor anything as the sheet arrives.
+  const held = (key: string, repeat: boolean): boolean =>
+    answering(key) && (repeat || Date.now() < guard.current)
 
   // Focus follows the cursor once it has moved there.
   useLayoutEffect(() => {
@@ -131,7 +154,7 @@ export const Menu = ({
     return true
   }
 
-  useImperativeHandle(handle, () => ({ key: apply }))
+  useImperativeHandle(handle, () => ({ key: (key) => (held(key, false) ? true : apply(key)) }))
 
   const sendWords = (index: number, words: Words): void => {
     if (busy || words.refused) return
@@ -154,6 +177,9 @@ export const Menu = ({
         if (event.defaultPrevented || event.nativeEvent.isComposing) return
         if (event.ctrlKey || event.metaKey || event.altKey) return
         if (event.target instanceof HTMLTextAreaElement) return
+        // An option's details are read, scrolled and followed, not answered from.
+        if (event.target instanceof Element && event.target.closest(".console-more")) return
+        if (held(event.key, event.repeat)) return event.preventDefault()
         if (apply(event.key)) event.preventDefault()
       }}
     >
@@ -222,6 +248,7 @@ export const Menu = ({
                   if (event.key !== "Enter" || event.shiftKey) return
                   if (event.ctrlKey || event.metaKey || event.altKey) return
                   event.preventDefault()
+                  if (held(event.key, event.repeat)) return
                   sendWords(index, words)
                 }}
               />
@@ -231,7 +258,9 @@ export const Menu = ({
                     ? `${(words.value.length - wordsLimit).toLocaleString("en-US")} over the 4,096 character limit. Shorten it to send.`
                     : armed
                       ? "↵ again to send it"
-                      : `↵ ${words.hint} · Esc back to the options`)}
+                      : words.required && words.value.trim() === ""
+                        ? "type your answer · Esc back to the options"
+                        : `↵ ${words.hint} · Esc back to the options`)}
               </span>
             </div>
           )

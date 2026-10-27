@@ -30,6 +30,8 @@ export type Row =
       readonly details: Pick<AskOption, "details" | "code"> | null
       readonly answer: InboxAnswer
       readonly receipt: string
+      // Shows the agent's terminal once it has answered, as a follow-up does.
+      readonly reveal?: true
     }
   // The row that becomes a box for the person's words, in place. `required` where an
   // empty box sends nothing; else the empty box sends `answer("")`.
@@ -61,6 +63,21 @@ export type Menu = {
 }
 
 const none: Menu = { rows: [], hard: false }
+
+// A prompt that can't be answered from here: the way to its terminal.
+const inTerminal: Menu = {
+  rows: [{ type: "reveal", label: "Go to terminal", effect: null }],
+  hard: false,
+}
+
+// Whether the sheet can answer a request: its dialog read, and its options ones the menu
+// can tell apart (a yes among them). Every other item it can.
+export const answerable = (item: InboxRow): boolean => {
+  if (item.kind !== "request") return true
+  const { dialog } = item.request
+  if (dialog?.type === "questions") return true
+  return dialog?.type === "choices" && choicesOf(dialog.options) !== null
+}
 
 // A field takes one line, so the words' line breaks (and other control characters) go as
 // spaces.
@@ -101,7 +118,7 @@ const permissionMenu = (item: InboxRow, request: ChatRequest): Menu => {
   const dialog = request.dialog
   if (dialog?.type !== "choices") return none
   const choices = choicesOf(dialog.options)
-  if (!choices) return none
+  if (!choices) return inTerminal
   const { agent, handle } = item.source
   const who = `@${handle}'s ${thing(request)}`
   const plan = actionOf(request) === "plan"
@@ -330,8 +347,7 @@ const troubleMenu = (item: InboxRow, trouble: Trouble, now: number): Menu => {
 export const menuOf = (item: InboxRow, now: number): Menu => {
   switch (item.kind) {
     case "request": {
-      if (item.request.dialog?.type !== "choices")
-        return { rows: [{ type: "reveal", label: "Go to terminal", effect: null }], hard: false }
+      if (item.request.dialog?.type !== "choices") return inTerminal
       return permissionMenu(item, item.request)
     }
     case "held": {
@@ -375,6 +391,16 @@ export const menuOf = (item: InboxRow, now: number): Menu => {
             details: null,
             answer: { kind: "update", action: "read" },
             receipt: `Marked @${item.source.handle}'s update read.`,
+          },
+          {
+            type: "answer",
+            label: `Give @${item.source.handle} a follow-up`,
+            effect: "Marks it read and shows its terminal.",
+            pick: false,
+            details: null,
+            answer: { kind: "update", action: "read" },
+            receipt: `Marked @${item.source.handle}'s update read.`,
+            reveal: true,
           },
         ],
         hard: false,

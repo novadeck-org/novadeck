@@ -54,3 +54,8 @@ export const menuKey = (shape: MenuShape, cursor: Cursor, key: string): KeyResul
       return null
   }
 }
+
+// Whether a key answers (or ticks): a number, Enter or Space. A held one repeats, and a
+// repeat must never answer, nor send what its first press armed.
+export const answering = (key: string): boolean =>
+  /^[1-9]$/.test(key) || key === "Enter" || key === " "
