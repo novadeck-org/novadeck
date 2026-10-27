@@ -47,6 +47,9 @@ export const workspaceSession = z.strictObject({
   name,
   // Last value saved with `sessions.save`, or null before the first save.
   state: clientState.nullable(),
+  // When the person last visited it, as last saved with `sessions.save`; null before. The
+  // latest visit picks a project's current session, and the latest of all the project open.
+  visitedAt: z.number().nullable(),
 })
 
 // `name` is the process's own name. `argv` is the foreground process group leader's
@@ -531,8 +534,8 @@ export const terminalSummary = z.strictObject({
 // page or a plan, never a copy of it, which `companions.content` reads when it loads.
 // Each item has one holder, a terminal's bar or a window; `from` is the terminal it was
 // shown or attached in, null for a file the person opened in their project window, which
-// came from no terminal. `version` counts its shows, `asked` says the
-// latest one asked to open it, and `held` marks a file that may hold secrets, which
+// came from no terminal. `version` counts its shows, `openAsked` says the
+// latest one asked to open it, and `secret` marks a file that may hold secrets, which
 // opens only when the person picks it. A plan names its agent, its actor's role, and
 // whether it is a file or text in the agent's own transcript or rollout.
 export const itemHolder = z.union([
@@ -549,11 +552,11 @@ export const companionItem = z.strictObject({
   path: z.string().max(4096).nullable(),
   url: z.string().max(8192).nullable(),
   lines: z.strictObject({ from: z.int().min(1), to: z.int().min(1) }).nullable(),
-  held: z.boolean(),
+  secret: z.boolean(),
   by: z.enum(["agent", "person"]),
   from: z.strictObject({ terminalId: id, handle }).nullable(),
   version: z.int().min(1),
-  asked: z.boolean(),
+  openAsked: z.boolean(),
   shownAt: z.number(),
   plan: z
     .strictObject({
@@ -637,7 +640,7 @@ export const maxChangesBytes = 4 * 1024 * 1024
 
 // One file of a change: its path (and its old one when renamed), how it changed, how many
 // lines were added and removed, and its diff as hunks of lines, each with a line's kind and
-// text. A `binary` file, one that may hold secrets (`held`), or one past the change's bounds
+// text. A `binary` file, one that may hold secrets (`secret`), or one past the change's bounds
 // (`listed`) has no hunks: it is listed by name. Line numbers count from each hunk's start.
 export const changedFile = z.strictObject({
   path: z.string().max(4096),
@@ -646,7 +649,7 @@ export const changedFile = z.strictObject({
   added: z.int().nonnegative(),
   removed: z.int().nonnegative(),
   binary: z.boolean(),
-  held: z.boolean(),
+  secret: z.boolean(),
   listed: z.boolean(),
   hunks: z.array(
     z.strictObject({
@@ -721,7 +724,7 @@ export const itemContent = z.discriminatedUnion("state", [
   }),
   z.strictObject({
     state: z.literal("unavailable"),
-    reason: z.enum(["missing", "unreadable", "not-a-file", "too-large", "binary", "held", "gone"]),
+    reason: z.enum(["missing", "unreadable", "not-a-file", "too-large", "binary", "secret", "gone"]),
     size: z.number().nullable(),
   }),
 ])
