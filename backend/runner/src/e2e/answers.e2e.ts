@@ -538,6 +538,22 @@ for (const setup of setups) {
       await t1.prompt("Plan the button")
       const request = await dialogOf(t1, "choices")
       const dialog = choices(request)
+      // The plan it asks about is the terminal's plan item, which the Inbox's sheet shows.
+      await t1.poll(
+        async () => {
+          const item = run.deck.items
+            .bar(t1.id)
+            .find((each) => each.kind === "plan" && each.plan?.role === "root")
+          const content = item && (await run.deck.items.load(item.id, false))
+          return content?.state === "ready" &&
+            content.content.kind === "plan" &&
+            content.content.text.includes("Do the thing")
+            ? true
+            : undefined
+        },
+        "its plan on the terminal's bar",
+        30_000,
+      )
       const approve = dialog.options.find(
         (each) => /^(Yes|Approve)/.test(each.label) && each.text === null,
       )

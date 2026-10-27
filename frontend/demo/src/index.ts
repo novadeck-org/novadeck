@@ -1,5 +1,6 @@
 import type { Conversations } from "@novadeck/core/conversation"
 import type { InboxRow } from "@novadeck/core/inbox"
+import type { Item } from "@novadeck/core/items"
 import type {
   AgentConnection,
   Backend,
@@ -416,6 +417,57 @@ export const withStorefrontArtifacts = (backend: Backend): Backend => {
   }
 }
 
+// A plan approval comes with its plan, as each harness shows the plan it asks about as it
+// asks: when one reaches the Inbox, the plan on its terminal's bar is shown again, at the
+// approval's time, for the sheet to find it the runner's way.
+export const withPlanShows = (backend: Backend): Backend => {
+  const { inbox } = backend
+  if (!inbox) return backend
+  let latest: Workspace | undefined
+  return {
+    ...backend,
+    commit: (workspace, actions) => {
+      latest = workspace
+      backend.commit(workspace, actions)
+    },
+    start: (sink) => {
+      const stop = backend.start?.(sink)
+      const shown = new Set<string>()
+      const look = (): void => {
+        for (const row of inbox.state.getSnapshot().items) {
+          if (row.kind !== "request" || row.request.kind !== "plan" || shown.has(row.id)) continue
+          shown.add(row.id)
+          const { projectId, workspaceSessionId, terminalId } = row.source
+          const target = { projectId, workspaceSessionId }
+          const plan = (latest ? itemsOf(latest) : seedItems(backend.seed)).find(
+            (item) =>
+              item.kind === "plan" &&
+              item.from?.terminalId === terminalId &&
+              item.plan?.role === (row.request.subagent ? "subagent" : "root"),
+          )
+          if (plan)
+            sink.dispatch([
+              {
+                type: "item/upsert",
+                target,
+                item: { ...plan, version: plan.version + 1, shownAt: row.at },
+              },
+            ])
+        }
+      }
+      look()
+      const stopInbox = inbox.state.subscribe(look)
+      return () => {
+        stopInbox()
+        stop?.()
+      }
+    },
+  }
+}
+
+const seedItems = (seed: WorkspaceSeed): readonly Item[] =>
+  seed.projects.flatMap((project) => project.sessions.flatMap((each) => each.items))
+
 // How long after the agents demo opens its agents in other projects finish.
 const finishAfterMs = 2500
 
@@ -537,9 +589,11 @@ const plainBackend = (
   )
   // Only where the storefront's terminals run agents: the plain and welcome shells don't.
   if (variant === "plain" || variant === "welcome") return withInbox(conversing, turns)
-  if (variant === "agents") return withSource(withInbox(conversing, turns), turns)
+  if (variant === "agents") return withSource(withPlanShows(withInbox(conversing, turns)), turns)
   return withSource(
-    withInbox({ ...conversing, messages: createDemoMessages([]) }, turns, demoInboxRows(now)),
+    withPlanShows(
+      withInbox({ ...conversing, messages: createDemoMessages([]) }, turns, demoInboxRows(now)),
+    ),
     turns,
   )
 }

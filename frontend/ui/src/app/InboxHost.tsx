@@ -3,6 +3,7 @@ import { useCallback, useEffect, useMemo, type ReactNode } from "react"
 import { InboxProvider, useInboxOpener } from "../inbox/InboxProvider"
 import { InboxSheet } from "../inbox/InboxSheet"
 import { InboxToasts, type ToastBoard } from "../inbox/InboxToasts"
+import { PlanTextProvider } from "../inbox/plan-text"
 import { anyAgentWorking } from "../projects/project-status"
 import { useDesktop } from "../shell/desktop"
 import { useWorkspaceServices, useWorkspaceState } from "./controller/context"
@@ -51,7 +52,7 @@ export const InboxHost = ({
   readonly active: boolean
   readonly children: ReactNode
 }): React.JSX.Element => {
-  const { backend, commands, landing, ui } = useWorkspaceServices()
+  const { backend, commands, landing, ui, workspace } = useWorkspaceServices()
   const desktop = useDesktop()
   const { inbox } = landing
   // Whether an agent is at work in any project, for the empty Inbox to say.
@@ -79,7 +80,9 @@ export const InboxHost = ({
     >
       {children}
       <NoticeClicks />
-      <InboxSheet active={active} />
+      <PlanTextProvider workspace={workspace} companions={backend.companions}>
+        <InboxSheet active={active} />
+      </PlanTextProvider>
       <InboxToasts follow={follow} showInbox={showInbox} />
     </InboxProvider>
   )
