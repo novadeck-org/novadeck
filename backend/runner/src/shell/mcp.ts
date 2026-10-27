@@ -119,7 +119,9 @@ const show: Tool<Shown> = {
     "deliverable when it is done, not each file you touch: an image or screenshot, a " +
     "rendered page or a dev server's address, a report, mockup, diagram or generated " +
     "document, the lines you mean, the one file the user asked you for, or whatever they ask " +
-    "to see. A source file is " +
+    "to see. A page is one served on this machine, such as a dev server; a link to another " +
+    "site, which often wants a sign-in there, goes in your reply unless they ask to see it " +
+    "here. A source file is " +
     "one too while it is the file you are working on together, so show it and keep it " +
     "shown; the files a change touches on the way aren't: once a piece of work is done, " +
     "show the changes themselves with changes, the repository's working tree against HEAD as " +
@@ -158,8 +160,10 @@ const show: Tool<Shown> = {
       page: {
         type: "object",
         description:
-          "Instead of file: a web page, which Novadeck's desktop app opens live in its " +
-          "browser view, and the part of it to bring into view there.",
+          "Instead of file: a web page served on this machine, such as a dev server, which " +
+          "Novadeck's desktop app opens live in its browser view, and the part of it to bring " +
+          "into view there. A link to another site goes in your reply instead, unless the " +
+          "user asks to see it here.",
         properties: {
           url: {
             type: "string",
