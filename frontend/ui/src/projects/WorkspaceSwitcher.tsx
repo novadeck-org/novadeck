@@ -75,7 +75,7 @@ export const WorkspaceSwitcher = ({
             data-project-status={elsewhere}
           >
             {elsewhere && (
-              <span aria-hidden="true" className="project-status-dot workspace-switcher-dot" />
+              <span aria-hidden="true" className="attention-dot workspace-switcher-dot" />
             )}
             <Folder aria-hidden="true" className="shrink-0" size={14} strokeWidth={1.55} />
             <span className="min-w-0 flex-1 truncate">{current.name}</span>

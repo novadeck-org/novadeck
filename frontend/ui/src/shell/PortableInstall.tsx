@@ -310,7 +310,9 @@ export const PortableInstall = ({
               ) : (
                 <Download size={12} strokeWidth={1.75} />
               )}
-              {offer && install.phase === "idle" && <span className="footer-chip-dot" />}
+              {offer && install.phase === "idle" && (
+                <span className="attention-dot footer-chip-dot" />
+              )}
             </span>
             {running || done ? (
               <span className="footer-chip-text">{chipText}</span>
