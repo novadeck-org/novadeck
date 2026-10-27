@@ -2,6 +2,7 @@ import {
   contract,
   type WireClient,
   type AskAnswer,
+  type FeedbackDraftEntry,
   type InboxEntry,
   maxUploadBytes,
   maxUploadPartLength,
@@ -420,6 +421,14 @@ export type Runner = {
     dismiss(id: string): Promise<void>
     clear(ids: readonly string[]): Promise<void>
   }
+  readonly feedback: {
+    /** The agents' feedback drafts waiting for the app, oldest first, then again on each change. */
+    watch(): AsyncIterableIterator<FeedbackDraftEntry[], undefined>
+    /** Drops a draft the app sent or the person discarded; `NOT_FOUND` when none is held. */
+    settle(id: string, outcome: "sent" | "discarded"): Promise<void>
+    /** Asks the agent in a terminal for feedback, with the person's hint (empty for none). */
+    ask(terminalId: string, hint: string): Promise<void>
+  }
   readonly messages: {
     /** A terminal's threads and messages with their states; `TERMINAL_NOT_FOUND` when unknown. */
     list(terminalId: string): Promise<TerminalMessages>
@@ -761,6 +770,12 @@ export const connectRunner = async (
       read: (ids) => call((wire) => wire.inbox.read({ ids: [...ids] })),
       dismiss: (id) => call((wire) => wire.inbox.dismiss({ id })),
       clear: (ids) => call((wire) => wire.inbox.clear({ ids: [...ids] })),
+    },
+    feedback: {
+      watch: () =>
+        resubscribe(connection, (wire, signal) => wire.feedback.watch(undefined, { signal })),
+      settle: (id, outcome) => call((wire) => wire.feedback.settle({ id, outcome })),
+      ask: (terminalId, hint) => call((wire) => wire.feedback.ask({ terminalId, hint })),
     },
     messages: {
       list: (terminalId) => call((wire) => wire.messages.list({ terminalId })),

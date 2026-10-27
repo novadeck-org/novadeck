@@ -11,6 +11,7 @@ import type { AgentName } from "@novadeck/protocol"
 import { freshNonce } from "@novadeck/tui-input"
 
 import { agents, harnesses } from "../harnesses/registry.js"
+import type { Feedback } from "../messaging/feedback.js"
 import type { Inbox } from "../messaging/inbox.js"
 import { agentLabel } from "../messaging/messages.js"
 import type { AgentsAnswer, SendAnswer } from "../messaging/messaging.js"
@@ -68,6 +69,7 @@ const unopened = {
 // bindings, and whether a terminal is closing.
 export type CallsHost = LeadsHost & {
   readonly inbox: () => Inbox
+  readonly feedback: () => Feedback
   /** Agents' requests for a new terminal, on their way to the client. */
   readonly opens: () => OpenRequests
   readonly companion: () => Companion
@@ -482,6 +484,9 @@ export class Calls {
         if (!callerOf(this.host.records(), call)) return Promise.resolve(unansweredCalls[call.type])
         return Promise.resolve(this.host.inbox().call(call.terminalId, call.type, call.request))
       }
+      case "feedback":
+        if (!callerOf(this.host.records(), call)) return Promise.resolve(unansweredCalls.feedback)
+        return Promise.resolve(this.host.feedback().call(call.terminalId, call.request))
       case "send":
         return this.host.send(call)
       case "agents":

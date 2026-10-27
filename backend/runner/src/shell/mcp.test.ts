@@ -163,6 +163,7 @@ describe("Novadeck's MCP server", () => {
         "send",
         "agents",
         "summarize",
+        "feedback",
       ])
       // Each as MCP lists a tool, without what the server keeps for itself.
       for (const tool of tools?.result?.tools ?? [])
@@ -1052,6 +1053,69 @@ describe("Novadeck's MCP server", () => {
       })
     })
 
+    it("forwards a feedback draft and tells it waits for the user", async () => {
+      calls.length = 0
+      answer = { ok: true, id: "f-1" }
+      const [, drafted] = await session(terminal(), [
+        initialize,
+        {
+          id: 3,
+          method: "tools/call",
+          params: {
+            name: "feedback",
+            arguments: { kind: "bug", text: "tell failed twice.", extra: "dropped" },
+          },
+        },
+      ])
+      expect(calls).toMatchObject([
+        { type: "feedback", request: { kind: "bug", text: "tell failed twice." } },
+      ])
+      expect(calls[0]?.request).not.toHaveProperty("extra")
+      expect(drafted?.result).toMatchObject({
+        isError: false,
+        content: [{ text: expect.stringContaining("Nothing is sent until they") }],
+      })
+    })
+
+    it("nudges toward feedback after a failure of Novadeck's own, never after a refusal or its own", async () => {
+      const call = async (name: string, reply: unknown) => {
+        answer = reply
+        const [, result] = await session(terminal(), [
+          initialize,
+          {
+            id: 3,
+            method: "tools/call",
+            params: { name, arguments: { subject: "s", body: "b", kind: "bug", text: "t" } },
+          },
+        ])
+        return JSON.stringify(result?.result)
+      }
+      const nudge = "you can draft feedback with the feedback tool"
+      // A call that failed or timed out, or came back with no reason, is Novadeck's.
+      expect(
+        await call("tell", {
+          ok: false,
+          reason: "Novadeck couldn't save the update.",
+          unexplained: true,
+        }),
+      ).toContain(nudge)
+      // The runner's generic words for its own shutdown or a race are no bug to report.
+      expect(
+        await call("tell", { ok: false, reason: "Novadeck couldn't save the update." }),
+      ).not.toContain(nudge)
+      expect(await call("tell", { ok: false })).toContain(nudge)
+      // A reason of its own is the agent's to fix.
+      expect(
+        await call("tell", { ok: false, reason: "Use one line for the subject" }),
+      ).not.toContain(nudge)
+      // The runner's generic words for its own shutdown or a race are no bug to report.
+      expect(
+        await call("tell", { ok: false, reason: "Novadeck couldn't save the update." }),
+      ).not.toContain(nudge)
+      expect(await call("tell", { ok: true, id: "u-1" })).not.toContain(nudge)
+      expect(await call("feedback", { ok: false })).not.toContain(nudge)
+    })
+
     it("refuses a message too long to send, without calling the runner", async () => {
       calls.length = 0
       const [, refused] = await session(terminal(), [
@@ -1232,6 +1296,7 @@ describe("Novadeck's MCP server", () => {
           "send",
           "agents",
           "summarize",
+          "feedback",
         ])
         expect(shown?.result).toMatchObject({ isError: false })
         // Listing the tools asks the runner for the models, then the show goes through.

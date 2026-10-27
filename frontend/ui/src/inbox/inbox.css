@@ -10,7 +10,7 @@
    with no hover) and the wait time hides meanwhile. The meta
    holds the `.inbox-row-project` and its `.inbox-row-extra`s (one is
    data-extra="draft"). A row says its type in data-type="unblock" | "ask" | "trouble" |
-   "update" | "feedback", how it asks in data-urgency="urgent" | "waiting" | "quiet" | "answered", data-seen,
+   "update", how it asks in data-urgency="urgent" | "waiting" | "quiet" | "answered", data-seen,
    data-needs while it asks something of the person and isn't answered, data-updates-start on
    the row after the last that asks (the updates' line), data-dismissable while its dismiss
    button shows, data-settled="dismissed" | "withdrawn" | "replied" on an ask that no longer
@@ -38,8 +38,7 @@
    `.console-planscroll`); the `.console-menu` of `.console-option`s (data-on for the cursor's
    row, data-armed, data-pressed; `.console-cur`, `.console-n`, `.console-t`, `.console-s`,
    `.console-pick`, `.console-confirm`, `.console-more`), a `.console-own` row with its
-   `.console-own-box` and `.console-own-hint`; `.console-settled`; `.inbox-failure`. A feedback
-   draft's sheet keeps its own page (`.inbox-sheet-page`, `.inbox-sheet-footer`).
+   `.console-own-box` and `.console-own-hint`; `.console-settled`; `.inbox-failure`.
 
    Tokens, each optional (its fallback in brackets):
    --inbox-urgent-fg (danger-fg), --inbox-waiting-fg (warning-fg), --inbox-quiet-fg (muted),
@@ -339,18 +338,6 @@
   flex: 0 1 auto;
   min-height: 0;
   overflow-y: auto;
-}
-.inbox-sheet-page {
-  display: flex;
-  flex-direction: column;
-  gap: 18px;
-  padding: 18px 18px 20px;
-}
-.inbox-sheet-footer {
-  flex-shrink: 0;
-  padding: 12px 18px 14px;
-  border-top: var(--border-width) solid var(--color-line);
-  background-color: var(--color-paper);
 }
 .inbox-fullscreen {
   position: fixed;
@@ -858,11 +845,6 @@ pre.console-box {
   align-items: flex-start;
   gap: 8px;
 }
-.inbox-sheet .inbox-sheet-footer .button:not(.inbox-link) {
-  height: 32px;
-  padding-inline: 14px;
-  font-weight: 500;
-}
 .inbox-link {
   padding: 0;
   text-align: left;
@@ -896,115 +878,4 @@ pre.console-box {
   .console-sep {
     display: none;
   }
-}
-
-/* A feedback draft's sheet (FeedbackSheet.tsx): the draft is a plain textarea over a mirror
-   (`.inbox-feedback-mirror`) that draws the same text with what would identify the person
-   struck through (`.inbox-feedback-struck`, data-strike="path" | "user" | "host" | "email").
-   Both take the same box, font and wrapping, so the text in the box is transparent and the
-   mirror shows through. `.inbox-feedback-struck-line` counts what is struck;
-   `.inbox-feedback-privacy` is the nowrap line under it; `.inbox-feedback-foot` holds the
-   issue link, Discard and Send. */
-.inbox-feedback-kind {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-}
-.inbox-feedback-field {
-  position: relative;
-  display: grid;
-  padding: 10px 12px;
-  border-radius: var(--radius-panel);
-}
-.inbox-feedback-field:focus-within {
-  --_border-color: var(--inbox-focus-border-color, var(--color-strong));
-}
-.inbox-feedback-mirror,
-.inbox-feedback-input {
-  grid-area: 1 / 1;
-  min-width: 0;
-  min-height: 140px;
-  margin: 0;
-  padding: 0;
-  border: 0;
-  font-family: inherit;
-  font-size: inherit;
-  line-height: 21px;
-  letter-spacing: inherit;
-  white-space: pre-wrap;
-  overflow-wrap: anywhere;
-  tab-size: 4;
-}
-.inbox-feedback-mirror {
-  pointer-events: none;
-  color: var(--color-ink);
-}
-.inbox-feedback-input {
-  height: 100%;
-  resize: none;
-  overflow: hidden;
-  background: transparent;
-  color: transparent;
-  caret-color: var(--color-ink);
-}
-.inbox-feedback-input::selection {
-  background-color: color-mix(in srgb, var(--color-ink) 20%, transparent);
-  color: transparent;
-}
-.inbox-feedback-struck {
-  color: var(--color-muted);
-  text-decoration-line: line-through;
-  text-decoration-color: var(--inbox-urgent-fg, var(--color-danger-fg));
-  text-decoration-thickness: 1.5px;
-  background-color: color-mix(
-    in srgb,
-    var(--inbox-urgent-fg, var(--color-danger-fg)) 10%,
-    transparent
-  );
-  border-radius: 2px;
-}
-.inbox-feedback-struck-line {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  margin: 0;
-  color: var(--color-muted);
-}
-.inbox-feedback-struck-line[data-struck] {
-  color: var(--color-ink);
-}
-.inbox-feedback-privacy {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  min-width: 0;
-  margin: 0;
-  color: var(--color-muted);
-}
-.inbox-feedback-privacy svg {
-  flex: none;
-}
-.inbox-feedback-privacy-text {
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.inbox-feedback-mono {
-  color: var(--color-ink);
-  font-family: var(--font-mono);
-}
-.inbox-feedback-reply a {
-  color: var(--color-ink);
-}
-.inbox-feedback-foot {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-.inbox-feedback-reply {
-  flex: none;
-  margin-inline-end: auto;
-  color: var(--color-muted);
-  white-space: nowrap;
 }

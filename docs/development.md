@@ -357,8 +357,7 @@ App:
   about; "Plan still loading" keeps that plan's box on Loading, and "Plan not found" shows no
   plan, so the box waits five seconds and the dialog's own words stand in), a failed turn, a free-text ask, a permission
   whose Deny is a plain no, messages held long behind what keeps the doorbell from an idle
-  agent, a feedback draft (an agent's bug report with a path in it, to Send or Discard), a
-  heads-up and an agent's done report. "Several asks at once" adds four asks from four
+  agent, a heads-up and an agent's done report. "Several asks at once" adds four asks from four
   projects together, so three toasts stack with a "+1 more" pill behind (the page needs focus
   and the Inbox panel closed, and an item from the selected terminal never lands until you look away: with
   storefront's terminal 4 selected you get three toasts and no pill). "Fail the next answer" makes
@@ -410,8 +409,10 @@ App:
   `novadeck.feedback-opened` and boots the demo again, so the button shows "Feedback" as on a new
   install. "A feedback draft from the selected agent" asks the selected terminal's agent to write
   feedback, as the window menu does: it works a moment (after its current turn, if it is in one),
-  then a Feedback item from it joins the Inbox with a path under the home folder to strike. The
-  demo's card says version 0.0.219 and the browser's OS.
+  then its draft, with a path under the home folder to strike, waits in the demo's feedback
+  drafts (the `drafts` port a feedback card reads; no card shows them yet). "An unasked feedback
+  draft from the selected agent" puts one there at once, as when an agent wrote it on its own.
+  The demo's card says version 0.0.219 and the browser's OS.
 - **Voice input:** the demo starts with it installed and on, as the try demo shows it, and
   never offers it. `&voice=uninstalled` in the address starts it without, and
   `&voice=failing` starts it without and makes its first install fail. Voice input's setup

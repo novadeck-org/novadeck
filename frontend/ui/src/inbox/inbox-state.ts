@@ -124,9 +124,8 @@ export const release = (view: InboxView, items: readonly InboxRow[]): InboxView 
 export const clearArrived = (view: InboxView): InboxView =>
   view.arrived.length === 0 ? view : { ...view, arrived: [] }
 
-// What the person is asked for next: the most urgent item that is not an update or a feedback
-// draft (which asks nothing of them now), other than `from` and those whose answer is on its
-// way.
+// What the person is asked for next: the most urgent item that is not an update (which asks
+// nothing of them now), other than `from` and those whose answer is on its way.
 export const nextItem = (
   items: readonly InboxRow[],
   from: string | null,
@@ -138,7 +137,6 @@ export const nextItem = (
       !state.answering[item.id] &&
       !item.settled &&
       inboxType(item) !== "update" &&
-      inboxType(item) !== "feedback" &&
       !informing(item),
   )
 
@@ -187,12 +185,6 @@ export const settledStart = (settled: readonly boolean[]): number => {
 
 // What the rail's badge counts: everything that asks something of the person.
 export const needing = (items: readonly InboxRow[]): InboxRow[] => items.filter(needs)
-
-// What rings the person (a toast, the OS ping): what needs them, except a feedback draft.
-// It waits in the Inbox and the badge counts it, but the person asked for it and nothing is
-// urgent about it, so it never interrupts.
-export const ringing = (items: readonly InboxRow[]): InboxRow[] =>
-  needing(items).filter((item) => inboxType(item) !== "feedback")
 
 // Whether any ask has settled, for Clear to offer itself.
 export const hasSettled = (items: readonly InboxRow[]): boolean =>

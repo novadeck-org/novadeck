@@ -7,7 +7,7 @@ import type { DemoLaunch } from "./with-debug"
 // set the button is just its icon.
 const openedKey = "novadeck.feedback-opened"
 
-// The panel's Feedback group: the footer's card and the agent route into the Inbox, where the
+// The panel's Feedback group: the footer's card and the agent route into its drafts, where the
 // demo has feedback (everywhere but the visitor's). The card and the window menu need no
 // action; these reach what normal use can't, or takes long to.
 export const feedbackGroups = (
@@ -45,11 +45,22 @@ export const feedbackGroups = (
             },
             {
               label: "A feedback draft from the selected agent",
-              hint: "The selected agent works a moment, then a Feedback draft from it joins the Inbox with a path to strike; waits for its turn to end if it is working",
+              hint: "The selected agent works a moment, then its asked-for draft, with a path to strike, waits in the drafts; waits for its turn to end if it is working",
               run: ({ selected, note }) => {
                 const key = selected()
                 if (!key) return note("Select a terminal first.")
                 feedback.ask(key, "").catch(() => note("Select a terminal running an agent first."))
+              },
+            },
+            {
+              label: "An unasked feedback draft from the selected agent",
+              hint: "The selected agent's draft waits in the drafts at once, as when it hit a Novadeck bug and wrote one on its own",
+              run: ({ selected, note }) => {
+                const key = selected()
+                if (!key) return note("Select a terminal first.")
+                feedback
+                  .draftUnasked(key)
+                  .catch(() => note("Select a terminal running an agent first."))
               },
             },
           ],

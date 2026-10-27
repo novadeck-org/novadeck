@@ -16,11 +16,12 @@ import { focusTerminalInput } from "../interaction/dom"
 
 import "./ask-agent.css"
 import { askAgentStore, closeAskAgent, headerOf, type AskTarget } from "./ask-agent-state"
+import { feedbackLimit } from "./feedback-state"
 
 // The small card that asks the agent in a window to write feedback from what it just did:
 // opened from that window's menu, hung from its header. There is no kind to pick (the agent
 // decides) and an optional hint. Ask sends the request and closes the card; the draft
-// arrives later in the Inbox.
+// opens later in the feedback card.
 // The hint box starts at three lines and grows to six before it scrolls.
 const fit = (element: HTMLTextAreaElement): void => {
   element.style.height = "auto"
@@ -96,6 +97,7 @@ const Card = ({
             aria-label="Anything it should cover? (optional)"
             placeholder="Anything it should cover? (optional)"
             rows={3}
+            maxLength={feedbackLimit}
             value={hint}
             onChange={(event) => {
               fit(event.target)
@@ -117,7 +119,7 @@ const Card = ({
       <div className="ask-agent-foot modal-footer">
         <span className="ask-agent-inbox">
           <Inbox size={12} strokeWidth={1.75} aria-hidden="true" />
-          The draft comes to your Inbox.
+          The draft opens in the feedback card.
         </span>
         <button
           type="button"

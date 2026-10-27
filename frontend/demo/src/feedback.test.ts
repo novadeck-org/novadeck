@@ -1,4 +1,4 @@
-import type { InboxRow } from "@novadeck/core/inbox"
+import type { AgentFeedbackDraft } from "@novadeck/core/feedback"
 import type { TerminalKey } from "@novadeck/core/port"
 import { workspaceFromSeed } from "@novadeck/core/seed"
 import { createWorkspaceStore } from "@novadeck/core/store"
@@ -90,8 +90,8 @@ const boot = () => {
   )
   backend.commit(store.getSnapshot(), [])
   backend.start!({ dispatch: (actions) => store.transact(actions as never), open: () => {} })
-  const { feedback, inbox } = backend
-  if (!isDemoFeedback(feedback) || !inbox) throw new Error("the agents demo has feedback")
+  const { feedback } = backend
+  if (!isDemoFeedback(feedback)) throw new Error("the agents demo has feedback")
   const terminals = store.getSnapshot().projects.flatMap((project) =>
     (project.history[0]?.state.roster.terminals ?? []).map((terminal) => ({
       terminal,
@@ -107,9 +107,11 @@ const boot = () => {
     !each.terminal.agent?.working &&
     !each.terminal.agent?.attention &&
     chatAgent(each.terminal)
-  const feedbackItems = (): InboxRow[] =>
-    inbox.state.getSnapshot().items.filter((each) => each.kind === "feedback")
-  return { turns, backend, feedback, inbox, store, terminals, resting, feedbackItems }
+  // The drafts waiting, as a listener of the drafts port hears them.
+  let waiting: readonly AgentFeedbackDraft[] = []
+  feedback.drafts.watch((drafts) => (waiting = drafts))
+  const feedbackItems = (): readonly AgentFeedbackDraft[] => waiting
+  return { turns, backend, feedback, store, terminals, resting, feedbackItems }
 }
 
 describe("the demo's feedback", () => {
@@ -155,7 +157,7 @@ describe("the demo's feedback", () => {
       ).rejects.toThrow(/No agent/)
     })
 
-    it("has the agent work, then puts its draft in the Inbox as its own item", async () => {
+    it("has the agent work, then puts its asked-for draft in the drafts", async () => {
       const { feedback, terminals, resting, store, feedbackItems } = boot()
       const found = terminals.find(resting)!
       await feedback.ask(found.key, "an idea for the sidebar")
@@ -171,13 +173,9 @@ describe("the demo's feedback", () => {
       expect(feedbackItems()).toEqual([])
       await vi.advanceTimersByTimeAsync(writeMs)
       const [item] = feedbackItems()
-      expect(item).toMatchObject({
-        kind: "feedback",
-        draft: { kind: "idea" },
-        source: { terminalId: found.key.terminalId, projectId: found.key.projectId },
-      })
-      expect(item?.kind === "feedback" && item.draft.text).toMatch(/~\/Workspace\//)
-      expect(item?.source.handle).toMatch(/^[a-z]+$/)
+      expect(item).toMatchObject({ kind: "idea", asked: true, terminal: found.key })
+      expect(item?.text).toMatch(/~\/Workspace\//)
+      expect(item?.handle).toMatch(/^[a-z]+$/)
     })
 
     it("waits for an agent mid-turn to end its turn first", async () => {
@@ -206,26 +204,28 @@ describe("the demo's feedback", () => {
       )!
       expect(found).toBeDefined()
       await feedback.ask(found.key, "")
-      await feedback.ask(found.key, "")
-      await vi.advanceTimersByTimeAsync(2 * writeMs + 100)
-      expect(feedbackItems()).toHaveLength(2)
+      await feedback.ask(found.key, "an idea for the sidebar")
+      await vi.advanceTimersByTimeAsync(writeMs + 100)
+      expect(feedbackItems().map((each) => each.kind)).toEqual(["bug"])
+      await vi.advanceTimersByTimeAsync(writeMs + 100)
+      // One draft for each terminal: the newer one replaced the older.
+      expect(feedbackItems().map((each) => each.kind)).toEqual(["idea"])
     })
 
-    it("writes one draft for each request, in order, and none for a later turn", async () => {
+    it("writes one draft for each request, in order, a newer one replacing the older, and none for a later turn", async () => {
       const { feedback, terminals, resting, turns, feedbackItems } = boot()
       const found = terminals.find(resting)!
       await feedback.ask(found.key, "")
       await vi.advanceTimersByTimeAsync(10)
       await feedback.ask(found.key, "an idea for the sidebar")
       await vi.advanceTimersByTimeAsync(writeMs)
-      expect(feedbackItems()).toHaveLength(1)
+      expect(feedbackItems().map((each) => each.kind)).toEqual(["bug"])
       await vi.advanceTimersByTimeAsync(writeMs)
-      const kinds = feedbackItems().map((each) => each.kind === "feedback" && each.draft.kind)
-      expect(kinds.toSorted()).toEqual(["bug", "idea"])
+      expect(feedbackItems().map((each) => each.kind)).toEqual(["idea"])
       turns.work(found.key, found.terminal)
       turns.rest(found.key, found.terminal)
       await vi.advanceTimersByTimeAsync(5000)
-      expect(feedbackItems()).toHaveLength(2)
+      expect(feedbackItems()).toHaveLength(1)
     })
 
     it("starts a request queued behind a dialog once the person answers it", async () => {
@@ -240,6 +240,35 @@ describe("the demo's feedback", () => {
       turns.resume(found.key, found.terminal, { waits: true })
       await vi.advanceTimersByTimeAsync(writeMs)
       expect(feedbackItems()).toHaveLength(1)
+    })
+
+    it("drops a settled draft, tells the listeners, and takes a second settle quietly", async () => {
+      const { feedback, terminals, resting, feedbackItems } = boot()
+      const found = terminals.find(resting)!
+      const heard: number[] = []
+      const stop = feedback.drafts.watch((drafts) => heard.push(drafts.length))
+      expect(heard).toEqual([0])
+      await feedback.ask(found.key, "")
+      await vi.advanceTimersByTimeAsync(writeMs)
+      const [draft] = feedbackItems()
+      await feedback.drafts.settle(draft!.id, "sent")
+      expect(feedbackItems()).toEqual([])
+      await feedback.drafts.settle(draft!.id, "discarded")
+      expect(heard).toEqual([0, 1, 0])
+      stop()
+      await feedback.ask(found.key, "")
+      await vi.advanceTimersByTimeAsync(writeMs)
+      expect(heard).toEqual([0, 1, 0])
+    })
+
+    it("has a draft the agent wrote unasked", async () => {
+      const { feedback, terminals, resting, feedbackItems } = boot()
+      const found = terminals.find(resting)!
+      await feedback.draftUnasked(found.key)
+      expect(feedbackItems()).toMatchObject([{ asked: false, terminal: found.key }])
+      await expect(
+        feedback.draftUnasked({ projectId: "nowhere", workspaceSessionId: "x", terminalId: "y" }),
+      ).rejects.toThrow(/No agent/)
     })
 
     it("rejects once when armed, as if no agent ran there", async () => {

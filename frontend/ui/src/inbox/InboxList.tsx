@@ -50,7 +50,7 @@ const Row = ({
   const extras = settled
     ? [settledWords[settled.how]]
     : [
-        item.kind !== "feedback" && started(drafts[item.id]) && !answering ? "Draft" : null,
+        started(drafts[item.id]) && !answering ? "Draft" : null,
         answering ? null : resumesLabel(item),
         readLabel(item),
       ].filter((extra): extra is string => extra !== null)

@@ -159,6 +159,10 @@ describe("relay sessions", () => {
     expect(calls).toEqual(halfOpen ? [call, call] : [call])
   })
 
+  // What a failure of Novadeck's own adds to its tool's words.
+  const nudge =
+    "\nIf this looks like a bug in Novadeck, you can draft feedback with the feedback tool."
+
   it("tells each call the runner fails or doesn't answer in time in its tool's own words", async ({
     resources,
   }) => {
@@ -188,9 +192,9 @@ describe("relay sessions", () => {
     expect(answers).toEqual(
       expect.arrayContaining([
         told(1, "Opened a new terminal in /work.", false),
-        told(2, unansweredCalls.open.reason, true),
-        told(3, "Novadeck couldn't close the terminal.", true),
-        told(4, unansweredCalls.present.reason, true),
+        told(2, unansweredCalls.open.reason + nudge, true),
+        told(3, "Novadeck couldn't close the terminal." + nudge, true),
+        told(4, unansweredCalls.present.reason + nudge, true),
       ]),
     )
     const from = { terminalId: "t", token }

@@ -299,8 +299,6 @@ const Thing = ({ item, now }: { readonly item: InboxRow; readonly now: number })
       return <TroubleThing item={item} trouble={item.trouble} now={now} />
     case "update":
       return <Prose text={item.update.body} />
-    case "feedback":
-      return null
   }
 }
 

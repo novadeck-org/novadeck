@@ -73,14 +73,7 @@ export const InboxHost = ({
   )
   return (
     <AgentContextProvider conversations={backend.conversations} messages={backend.messages}>
-      <InboxProvider
-        inbox={inbox}
-        reveal={reveal}
-        phone={phone}
-        working={working}
-        active={active}
-        feedbackAbout={backend.feedback?.about}
-      >
+      <InboxProvider inbox={inbox} reveal={reveal} phone={phone} working={working} active={active}>
         {children}
         <NoticeClicks />
         <PlanTextProvider workspace={workspace} companions={backend.companions}>
