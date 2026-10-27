@@ -808,8 +808,9 @@ const send: Tool<Sent> = {
 const agents: Tool<Listing> = {
   name: "agents",
   description:
-    "List the other terminals in this Novadeck project and session, after naming your team " +
-    "there (your lead and the others it leads, and the terminals you lead), each with what Novadeck " +
+    "Name your team in this Novadeck project and session, if you are in one (your lead and " +
+    "the others it leads, and the terminals you lead), then list every other terminal there, " +
+    "each with what Novadeck " +
     "knows of it: its handle, its agent and whether that is busy, idle, or idle but " +
     "waiting on something that wakes it by itself when that ends (a background command, " +
     "a wake-up it set; a message still reaches it), its title (the user's, " +
