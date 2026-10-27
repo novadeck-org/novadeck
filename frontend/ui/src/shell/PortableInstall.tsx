@@ -1,12 +1,13 @@
 import type { PortableInstall as InstallState } from "@novadeck/core/portable"
-import type { UpdateOffer } from "@novadeck/core/update"
+import type { UpdateOffer, WhatsNew as Notes } from "@novadeck/core/update"
 import { Progress } from "@novadeck/toolkit/Progress"
-import { X } from "lucide-react"
+import { ExternalLink, X } from "lucide-react"
 import { useEffect, useId, useRef, useState } from "react"
 
 import { currentPlatform, type Platform } from "../interaction/shortcuts"
 import { useLinger } from "./linger"
 import { KeepFocus, useOverlayOpen, useRecoverFocus } from "./notice-focus"
+import { Highlights, useOverflow } from "./WhatsNew"
 
 // A portable copy, which never updates itself and is the way to install the app that does.
 export type FooterPortable = {
@@ -18,6 +19,14 @@ export type FooterPortable = {
   // Where installing stands in this run: the host owns it, so a window opened again, or
   // another window's install, shows as it is.
   readonly install: InstallState
+  // Where the workspace is kept, as the person finds it in their file manager; absent when
+  // the host can't say.
+  readonly dataFolder?: string | undefined
+  // Opens the page to download the newest portable in the browser; absent where the host
+  // can't.
+  readonly onDownload?: (() => void) | undefined
+  // Shows the workspace's folder in the file manager; absent where the host can't.
+  readonly onShowFolder?: (() => void) | undefined
 }
 
 // A portable copy's install entry. A copy that updates itself has none: its downloads show
@@ -26,6 +35,11 @@ export type PortableInstallProps = {
   // The release this copy is missing; absent while there is none, when the chip only
   // offers to install.
   readonly offer?: UpdateOffer | undefined
+  // What is new in that release, when the host tells: the card then lists the highlights.
+  readonly news?: Notes | undefined
+  // Whether the first answer about the notes is in, or none is coming. The automatic raise
+  // waits for it, so the card comes up in its final look; the chip opens it at once.
+  readonly newsSettled?: boolean | undefined
   readonly portable: FooterPortable
   // Whether the card is raised: it shows only while the footer does, and while nothing
   // else asks for the person's attention (`blocked`).
@@ -117,10 +131,21 @@ export const PortableInstall = ({
   const [forgotten, setForgotten] = useState(false)
   const install: InstallState = forgotten && hosted.phase === "failed" ? { phase: "idle" } : hosted
   const running = install.phase === "downloading" || install.phase === "installing"
-  const wanted = (card?.open ?? false) && !hidden && !card?.blocked
+  // Whether the person opened the card from the chip, which brings it up without waiting for
+  // the notes.
+  const [personOpened, setPersonOpened] = useState(false)
+  const holding = !(card?.newsSettled ?? true) && !personOpened && install.phase === "idle"
+  const wanted = (card?.open ?? false) && !hidden && !card?.blocked && !holding
   const overlay = useOverlayOpen(wanted)
   const blocked = (card?.blocked ?? false) || overlay
-  const visible = (card?.open ?? false) && !hidden && !blocked
+  const visible = (card?.open ?? false) && !hidden && !blocked && !holding
+  // The notes the card came up with, for as long as it shows: an answer arriving later does
+  // not swap its look under the person.
+  const [frozen, setFrozen] = useState<{ readonly news: Notes | undefined } | null>(null)
+  if (visible && frozen === null) setFrozen({ news: card?.news })
+  if (!visible && frozen !== null) setFrozen(null)
+  const [setList, scrolls] = useOverflow()
+  const downloadId = useId()
   const onShown = card?.onShown
   useEffect(() => {
     if (visible) onShown?.()
@@ -142,6 +167,7 @@ export const PortableInstall = ({
     const back = opener.current === "chip"
     requested.current = false
     opener.current = "auto"
+    setPersonOpened(false)
     setLingering(null)
     if (hosted.phase === "failed") setForgotten(true)
     card.onOpenChange(false)
@@ -209,7 +235,20 @@ export const PortableInstall = ({
     if (raise) onOpenChange?.(true)
   }, [phase, onOpenChange, askedNow])
   const { title, line } = cardWords(offer, install, card?.platform ?? currentPlatform())
+  // The release's highlights, up to four, stand in for the title and line while there is
+  // nothing under way or to report: the changelog.
+  const heard = frozen ? frozen.news : card?.news
+  const news =
+    offer && heard && heard.version === offer.version && install.phase === "idle"
+      ? { ...heard, highlights: heard.highlights.slice(0, 4) }
+      : undefined
   const chipText = running ? "Installing…" : done ? "Installed" : word
+  // Where the workspace is, said in the phases where the person weighs installing or
+  // installing; the others have their own words about it.
+  const dataLine =
+    portable?.dataFolder !== undefined && (install.phase === "idle" || install.phase === "failed")
+      ? portable.dataFolder
+      : undefined
   return (
     <>
       {/* Always mounted, so filling it announces the arrival; out of the layout, and kept
@@ -249,6 +288,7 @@ export const PortableInstall = ({
               }
               requested.current = true
               opener.current = "chip"
+              setPersonOpened(true)
               card.onOpenChange(true)
             }}
           >
@@ -270,7 +310,7 @@ export const PortableInstall = ({
               id={panelId}
               data-workspace-notice
               aria-labelledby={titleId}
-              className="floating update-card portable-card"
+              className={`floating update-card portable-card ${news ? "whats-new" : ""}`}
               data-state={lingering === "fading" ? "closed" : "open"}
               tabIndex={-1}
               // A click anywhere on it leaves focus where it was, in a terminal.
@@ -285,22 +325,43 @@ export const PortableInstall = ({
               }}
             >
               <KeepFocus lost={lost} selector=".portable-card" />
-              <p className="update-progress-head">
-                <span id={titleId} className="update-progress-title">
-                  {title}
-                </span>
-                {install.phase === "downloading" && (
-                  <span className="update-progress-percent">{install.percent}%</span>
-                )}
-                <button
-                  type="button"
-                  className="icon-button small update-card-close"
-                  aria-label="Dismiss"
-                  onClick={finish}
-                >
-                  <X size={14} />
-                </button>
-              </p>
+              {news ? (
+                <p className="whats-new-head">
+                  {/* The tape shows "New in" and the version; a screen reader hears the app's name too. */}
+                  <span id={titleId} className="whats-new-tape">
+                    New in <span className="sr-only">Novadeck </span>
+                    {news.version}
+                  </span>
+                  {news.from !== undefined && (
+                    <span className="whats-new-from">From {news.from}</span>
+                  )}
+                  <button
+                    type="button"
+                    className="icon-button small update-card-close"
+                    aria-label="Dismiss"
+                    onClick={finish}
+                  >
+                    <X size={14} />
+                  </button>
+                </p>
+              ) : (
+                <p className="update-progress-head">
+                  <span id={titleId} className="update-progress-title">
+                    {title}
+                  </span>
+                  {install.phase === "downloading" && (
+                    <span className="update-progress-percent">{install.percent}%</span>
+                  )}
+                  <button
+                    type="button"
+                    className="icon-button small update-card-close"
+                    aria-label="Dismiss"
+                    onClick={finish}
+                  >
+                    <X size={14} />
+                  </button>
+                </p>
+              )}
               {(running || installed) && (
                 <Progress
                   label={title}
@@ -308,12 +369,39 @@ export const PortableInstall = ({
                   max={100}
                 />
               )}
-              <p
-                role={install.phase === "failed" ? "alert" : undefined}
-                className={`update-progress-note ${install.phase === "failed" ? "update-card-error" : ""}`}
-              >
-                {line}
-              </p>
+              {news ? (
+                <ul
+                  ref={setList}
+                  className="whats-new-list"
+                  tabIndex={scrolls ? 0 : undefined}
+                  aria-labelledby={scrolls ? titleId : undefined}
+                >
+                  <Highlights highlights={news.highlights} />
+                </ul>
+              ) : (
+                <p
+                  role={install.phase === "failed" ? "alert" : undefined}
+                  className={`update-progress-note ${install.phase === "failed" ? "update-card-error" : ""}`}
+                >
+                  {line}
+                </p>
+              )}
+              {dataLine !== undefined && (
+                <p className="update-progress-note portable-data">
+                  <span>
+                    Your workspace stays in <code className="portable-path">{dataLine}</code>.
+                  </span>
+                  {portable.onShowFolder && (
+                    <button
+                      type="button"
+                      className="button link shrink-0 text-control"
+                      onClick={portable.onShowFolder}
+                    >
+                      Show folder
+                    </button>
+                  )}
+                </p>
+              )}
               {portable.unsandboxed && install.phase === "idle" && (
                 <p className="update-progress-note">
                   Installing also lets you turn on the sandbox.
@@ -321,13 +409,33 @@ export const PortableInstall = ({
               )}
               {(install.phase === "idle" || install.phase === "failed") && (
                 <div className="update-card-foot">
-                  {install.phase === "idle" && <span>Keeps your workspace</span>}
+                  {install.phase === "idle" && dataLine === undefined && (
+                    <span>Keeps your workspace</span>
+                  )}
+                  {(install.phase === "idle" || install.phase === "failed") &&
+                    offer &&
+                    portable.onDownload && (
+                      <>
+                        <button
+                          type="button"
+                          className="button quiet min-h-7 gap-1.5 px-2"
+                          aria-describedby={downloadId}
+                          onClick={portable.onDownload}
+                        >
+                          Get new portable
+                          <ExternalLink size={12} aria-hidden="true" />
+                        </button>
+                        <span id={downloadId} className="sr-only">
+                          Opens novadeck.dev in your browser
+                        </span>
+                      </>
+                    )}
                   <button
                     type="button"
                     className="button primary min-h-7 px-3"
                     onClick={startInstall}
                   >
-                    {install.phase === "failed" ? "Try again" : "Install"}
+                    {install.phase === "failed" ? "Try again" : "Install Novadeck"}
                   </button>
                 </div>
               )}

@@ -68,6 +68,11 @@ describe("what a portable copy reports", () => {
     })
   })
 
+  it("holds where the workspace is", () => {
+    const { host } = hosting({ dataFolder: "~/.config/novadeck" })
+    expect(portableInstaller(host).state()).toMatchObject({ dataFolder: "~/.config/novadeck" })
+  })
+
   it("is not portable for an installed copy", () => {
     expect(portableInstaller(hosting({ portable: false }).host).state()).toEqual({
       portable: false,

@@ -25,6 +25,9 @@ import {
   portableChannel,
   portableStateChannel,
   quitAppChannel,
+  openPortableDownloadChannel,
+  showDataFolderChannel,
+  updateNewsChannel,
   runnerPortChannel,
   sandboxChannel,
   saveBeforeQuitChannel,
@@ -583,6 +586,13 @@ describe("whether this copy is portable", () => {
     expect(await Promise.all(states)).toEqual(installs.map(portableState))
   })
 
+  it("carries where the workspace is, leaving out a data folder that is no path", async () => {
+    electron.answer = { ...portableState({ phase: "idle" }), dataFolder: "~/.config/novadeck" }
+    expect(await electron.exposed.portable!()).toEqual(electron.answer)
+    electron.answer = { ...portableState({ phase: "idle" }), dataFolder: "bell\u0007" }
+    expect(await electron.exposed.portable!()).toEqual(portableState({ phase: "idle" }))
+  })
+
   it("cleans a failure's reason into one short plain line, or shows an unknown one", async () => {
     const reasons = [undefined, "", "  \n ", "bell\u0007 ring\nagain", "x".repeat(400)]
     const states = reasons.map((reason) => {
@@ -630,6 +640,41 @@ describe("installing the app from a portable copy", () => {
     expect(electron.exposed.installApp!()).toBeUndefined()
     expect(electron.sent).toEqual([installAppChannel])
     expect(electron.messages).toEqual([])
+  })
+})
+
+describe("the portable copy's links", () => {
+  it("tells the host, naming nothing, for each of its requests, and expects no answer", () => {
+    expect(electron.exposed.openPortableDownload!()).toBeUndefined()
+    expect(electron.exposed.showDataFolder!()).toBeUndefined()
+    expect(electron.sent).toEqual([openPortableDownloadChannel, showDataFolderChannel])
+    expect(electron.messages).toEqual([])
+  })
+})
+
+describe("what is new in the offered version", () => {
+  it("is what the host answers, when the contract allows it", async () => {
+    electron.answer = {
+      version: "0.6.0",
+      from: "0.5.0",
+      highlights: [{ title: "Faster", line: "Grid is quick." }],
+    }
+    expect(await electron.exposed.updateNews!()).toEqual(electron.answer)
+    expect(electron.sent).toEqual([updateNewsChannel])
+  })
+
+  it("is nothing when the host answers anything else", async () => {
+    const answers = [
+      undefined,
+      "0.6.0",
+      { version: "latest", highlights: [] },
+      { version: "0.6.0" },
+    ]
+    const results = answers.map((answer) => {
+      electron.answer = answer
+      return electron.exposed.updateNews!()
+    })
+    expect(await Promise.all(results)).toEqual(answers.map(() => undefined))
   })
 })
 

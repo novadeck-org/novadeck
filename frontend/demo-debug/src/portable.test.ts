@@ -1,7 +1,7 @@
 import type { PortableState } from "@novadeck/core/portable"
 import { afterEach, vi } from "vitest"
 
-import { createDemoPortable, portableRun, portableVersion } from "./portable"
+import { createDemoPortable, portableDataFolder, portableRun, portableVersion } from "./portable"
 import { describe, expect, it } from "./test"
 
 const phases = (heard: PortableState[]): string[] =>
@@ -19,6 +19,7 @@ describe("demo portable copy", () => {
       version: portableVersion,
       run: portableRun,
       install: { phase: "idle" },
+      dataFolder: portableDataFolder,
     })
   })
 
@@ -111,5 +112,16 @@ describe("demo portable copy", () => {
     portable.onState((state) => heard.push(state))
     portable.install()
     expect(heard).toEqual([])
+  })
+
+  it("tells the offered release's news, with the version it is new since, and opens the download", async () => {
+    const offer = { kind: "available", version: "0.0.80" } as const
+    const news = { version: "0.0.80", highlights: [{ title: "A", line: "B" }] }
+    const { portable } = createDemoPortable({ ends: "never", offer, news })
+    expect(await portable.news?.()).toEqual({ ...news, from: portableVersion })
+    expect(portable.openDownload).toBeTypeOf("function")
+    const bare = createDemoPortable({ ends: "never" }).portable
+    expect(bare.openDownload).toBeTypeOf("function")
+    expect(bare.news).toBeUndefined()
   })
 })
