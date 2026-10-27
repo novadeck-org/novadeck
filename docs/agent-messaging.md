@@ -455,7 +455,9 @@ set when the person asked or the brief needs one; `effort` is one of `low`, `med
 runner refuses others). An effort goes with a model, one that model takes; the runner
 refuses an effort without a model or one its model doesn't take. The ids differ by harness, so `tools/list` asks the runner for
 them (`models` call) and builds `open_agent`'s `model` enum from the union, naming which
-ids go with which agent (and that an agent with none can't take one); with none listed, `model` has no enum and says to leave it out.
+ids go with which agent and the efforts each takes (and that an agent with none can't take one); with none listed, `model` has no enum and says to leave it out. The choice
+holds for the agent's first session only: a resume after Novadeck restarts starts it
+again with its harness's own resume command, on whatever model that restores.
 
 ## Inbox asks and updates
 
@@ -1937,8 +1939,8 @@ A **plain shell** is titled (never summarized) on:
 A shell's description is always applied. A prompt a bound agent just left is not
 described until the next one.
 
-A shell opened to run an agent (`open_terminal` with a command that starts one, or a
-resume) isn't described as a shell until the agent binds, or 10 seconds (`expectMs`)
+A shell opened to run an agent (`open_agent`, `open_terminal` with a command that starts
+one, or a resume) isn't described as a shell until the agent binds, or 10 seconds (`expectMs`)
 pass without one. A restarted terminal drops its job and what murmur kept of it.
 
 The foreground program is sampled only where the platform tells it: Linux and macOS.

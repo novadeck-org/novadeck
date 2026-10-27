@@ -318,7 +318,7 @@ describe("Novadeck's MCP server", () => {
 
     it("refuses an agent's fields on open_terminal and a command on open_agent", async () => {
       calls.length = 0
-      const [, plain, agent] = await session(terminal(), [
+      const [, plain, agent, briefless] = await session(terminal(), [
         initialize,
         {
           id: 3,
@@ -333,6 +333,11 @@ describe("Novadeck's MCP server", () => {
             arguments: { agent: "claude", message: "Go", command: "ls" },
           },
         },
+        {
+          id: 5,
+          method: "tools/call",
+          params: { name: "open_agent", arguments: { agent: "claude", title: "x" } },
+        },
       ])
       expect(plain?.result).toMatchObject({
         isError: true,
@@ -341,6 +346,10 @@ describe("Novadeck's MCP server", () => {
       expect(agent?.result).toMatchObject({
         isError: true,
         content: [{ text: expect.stringContaining("open_agent takes no command") }],
+      })
+      expect(briefless?.result).toMatchObject({
+        isError: true,
+        content: [{ text: expect.stringContaining("open_agent needs agent and message") }],
       })
       expect(calls).toEqual([])
     })
@@ -367,8 +376,10 @@ describe("Novadeck's MCP server", () => {
       expect(calls[0]).toMatchObject({ type: "models", request: {} })
       expect(listed.required).toEqual(["agent", "message"])
       expect(listed.properties.model.enum).toEqual(["opus", "sonnet", "gpt-5"])
-      expect(listed.properties.model.description).toContain("claude (Claude Code): opus, sonnet")
-      expect(listed.properties.model.description).toContain("codex (Codex): gpt-5")
+      expect(listed.properties.model.description).toContain(
+        "claude (Claude Code): opus (low, high), sonnet (no effort)",
+      )
+      expect(listed.properties.model.description).toContain("codex (Codex): gpt-5 (medium)")
       expect(listed.properties.model.description).toContain("leave it out")
       expect(listed.properties.model.description).not.toContain("can't take a model now")
       expect(listed.properties.effort.enum).toEqual(["low", "medium", "high", "xhigh", "max"])

@@ -387,20 +387,29 @@ const noModel = {
   description: "The model to start the agent on. No model can be chosen now: leave it out.",
 }
 
-/** The models each harness offers, as the runner lists them. */
-type Models = { readonly [harness: string]: readonly string[] }
+/** The models each harness offers, with the efforts each takes, as the runner lists them. */
+type Models = {
+  readonly [harness: string]: readonly {
+    readonly id: string
+    readonly efforts: readonly string[]
+  }[]
+}
+
+// A model as the description names it: its id, and the efforts it takes.
+const modelChoice = ({ id, efforts: takes }: Models[string][number]): string =>
+  `${id} (${takes.length > 0 ? takes.join(", ") : "no effort"})`
 
 // The model property for the models the runner offers: an enum of their ids, none when no
 // harness lists one.
 const modelProperty = (models: Models): object => {
-  const ids = [...new Set(Object.values(models).flat())]
+  const ids = [...new Set(Object.values(models).flatMap((list) => list.map(({ id }) => id)))]
   const guidance =
     "Set it only when the user asked for a model or the brief needs one; otherwise leave " +
     "it out and the agent keeps the user's own default."
   if (ids.length === 0) return noModel
   const per = harnesses
     .filter(({ id }) => (models[id] ?? []).length > 0)
-    .map(({ id, name }) => `${id} (${name}): ${models[id]!.join(", ")}`)
+    .map(({ id, name }) => `${id} (${name}): ${models[id]!.map(modelChoice).join(", ")}`)
     .join("; ")
   const missing = harnesses.some(({ id }) => (models[id] ?? []).length === 0)
     ? " An agent not named here can't take a model now: leave model out for it."
@@ -408,7 +417,7 @@ const modelProperty = (models: Models): object => {
   return {
     type: "string",
     enum: ids,
-    description: `The model to start the agent on; the ids differ by agent, so give one of its own: ${per}. ${guidance}${missing}`,
+    description: `The model to start the agent on; the ids differ by agent, so give one of its own, each with the efforts it takes: ${per}. ${guidance}${missing}`,
   }
 }
 
@@ -417,10 +426,21 @@ const listModels = async (call: McpCall): Promise<Models> => {
   try {
     const answer = await call("models", {})
     if (!object(answer) || answer.ok !== true || !object(answer.models)) return {}
-    const models: { [harness: string]: string[] } = {}
+    const models: { [harness: string]: Models[string][number][] } = {}
     for (const [harness, list] of Object.entries(answer.models))
       models[harness] = Array.isArray(list)
-        ? list.flatMap((each) => (object(each) && typeof each.id === "string" ? [each.id] : []))
+        ? list.flatMap((each) =>
+            object(each) && typeof each.id === "string"
+              ? [
+                  {
+                    id: each.id,
+                    efforts: Array.isArray(each.efforts)
+                      ? each.efforts.filter((effort) => typeof effort === "string")
+                      : [],
+                  },
+                ]
+              : [],
+          )
         : []
     return models
   } catch {
@@ -484,7 +504,9 @@ const openAgent: Tool<Opened> = {
   refuse: (args) =>
     "command" in args
       ? "open_agent takes no command: leave it out, or use open_terminal to run a command."
-      : undefined,
+      : typeof args.agent !== "string" || typeof args.message !== "string"
+        ? "open_agent needs agent and message: the agent to start and its brief."
+        : undefined,
   schema: async (call) => withModel(openAgent.inputSchema, await listModels(call)),
   call: "open",
   request: (args) => picked(args, ["agent", "message", "model", "effort", "cwd", "title", "focus"]),
@@ -606,7 +628,7 @@ const send: Tool<Sent> = {
     "Send a message to the agent in another Novadeck terminal of this project and session, by the " +
     "terminal's exact handle as agents lists it (such as @fox); anything else is refused, with " +
     "the terminals described. It reaches that agent by itself, wrapped as from you, and " +
-    "marked as from its lead when you opened that terminal with agent and message; up to 4 KB, so put longer " +
+    "marked as from its lead when you opened that terminal with open_agent; up to 4 KB, so put longer " +
     "content in a file and send its path. " +
     rules,
   inputSchema: {
