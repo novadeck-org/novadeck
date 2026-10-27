@@ -3,7 +3,7 @@ import { emptyCompanions, type Companions, type Item, type ItemContent } from "@
 import { createWorkspaceStore, type WorkspaceStore } from "@novadeck/core/store"
 import { itemFixture, workspaceFixture } from "@novadeck/core/testing"
 import { render } from "@novadeck/test-kit/render"
-import { act, createElement } from "react"
+import { act, createElement, useEffect } from "react"
 import { afterEach, beforeEach, vi } from "vitest"
 
 import { describe, expect, it } from "../test"
@@ -124,11 +124,13 @@ describe("the plan text a plan approval's sheet shows", () => {
     const first: InboxRow = { ...approval("agy"), id: "request:first" }
     const second: InboxRow = { ...approval("agy"), id: "request:second", at: asked + 1000 }
     // One sheet at a time, as the Inbox shows them, under one provider; `answer` sends it.
-    let answer = (): void => {}
+    const sheet: { answer?: () => void } = {}
     const Sheet = ({ row }: { readonly row: InboxRow }): React.JSX.Element => {
       const text = usePlanText(row)
       const answered = usePlanAnswered()
-      answer = () => answered(row)
+      useEffect(() => {
+        sheet.answer = () => answered(row)
+      }, [answered, row])
       return createElement("output", null, text === undefined ? "loading" : String(text))
     }
     const shown = (row: InboxRow): React.JSX.Element =>
@@ -140,7 +142,7 @@ describe("the plan text a plan approval's sheet shows", () => {
     const rendered = render(shown(first))
     report(ready("# Round one"))
     expect(rendered.container.textContent).toBe("# Round one")
-    act(() => answer())
+    act(() => sheet.answer?.())
     // The next approval comes while the sent-back round's plan is still within its window.
     rendered.rerender(shown(second))
     expect(rendered.container.textContent).toBe("loading")
