@@ -1,7 +1,12 @@
 import type { InboxRow } from "@novadeck/core/inbox"
 import type { WorkspaceSeed } from "@novadeck/core/seed"
 import type { DemoInbox } from "@novadeck/demo/inbox"
-import { demoHiddenCommand, demoInboxIds, demoInboxRowsAll } from "@novadeck/demo/inbox-fixtures"
+import {
+  demoHiddenCommand,
+  demoInboxIds,
+  demoInboxRowsAll,
+  demoLongCommand,
+} from "@novadeck/demo/inbox-fixtures"
 
 import type { DemoActionGroup } from "./types"
 
@@ -181,6 +186,40 @@ export const inboxGroups = (
           },
         },
         {
+          label: "Long command",
+          hint: "Unblock row whose command is a 12-line script: the sheet shows every line, scrolling in its box, and counts them",
+          run: () => {
+            const item = fresh(demoInboxIds.plainDeny)
+            if (item?.kind !== "request" || item.request.dialog?.type !== "choices") return
+            inbox.add({
+              ...item,
+              request: {
+                ...item.request,
+                subject: "for pkg in core ui toolkit …",
+                dialog: { ...item.request.dialog, detail: demoLongCommand },
+              },
+            })
+          },
+        },
+        {
+          label: "Pick several, with your own words",
+          hint: "Ask row with Claude's question that takes several picks and the person's words: numbers and Space tick, the last row opens a box, Enter sends the picks and the words together",
+          run: () => {
+            const item = fresh(demoInboxIds.questions)
+            if (item?.kind !== "request" || item.request.dialog?.type !== "questions") return
+            const several = item.request.dialog.questions.find((each) => each.multiSelect)
+            if (!several) return
+            inbox.add({
+              ...item,
+              request: {
+                ...item.request,
+                subject: several.question,
+                dialog: { ...item.request.dialog, questions: [{ ...several, text: true }] },
+              },
+            })
+          },
+        },
+        {
           label: "Plan with a change field",
           hint: "Unblock row with Claude Code 2.1.287's plan: Deny opens a note that must say what to change",
           run: () => {
@@ -229,7 +268,7 @@ export const inboxGroups = (
           label: outcome === "withdrawn" ? "Ask withdrawn" : "Ask session ended",
           hint:
             outcome === "withdrawn"
-              ? "Leaves the sample preview ask as a settled row, withdrawn; its Messages record says Withdrawn"
+              ? "Leaves the sample preview ask as a settled row, withdrawn; its Messages record says Withdrawn. With its sheet open, the sheet stays and says it was withdrawn"
               : "Removes the sample preview ask; its Messages record says Agent session ended",
           run: () => {
             const item = fresh(demoInboxIds.preview)

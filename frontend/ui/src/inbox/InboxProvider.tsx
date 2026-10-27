@@ -34,6 +34,10 @@ import {
 // after the backend drops the item.
 export type Sent = { readonly item: InboxRow; readonly note: string }
 
+// The line the next sheet opens with once an answer has taken: what it did, said with the
+// agent's handle (`note`), for the item `from`.
+export type Receipt = { readonly from: string; readonly note: string }
+
 // What the person has started to answer with and not sent: their words, the option they
 // picked on an agent's own ask, and the picks on a dialog's questions.
 export type Draft = {
@@ -59,8 +63,11 @@ export type InboxContextValue = {
   readonly held: readonly InboxRow[]
   readonly view: InboxView
   readonly now: number
-  // The item whose sheet is open: as the backend has it, or, once answered, as it was.
+  // The item whose sheet is open: as the backend has it (settled, where it settled while
+  // open), or, once answered, as it was.
   readonly current: InboxRow | undefined
+  // What the last answer did, which the sheet it moved on to says.
+  readonly receipt: Receipt | null
   readonly sent: Readonly<Record<string, Sent>>
   readonly drafts: Readonly<Record<string, Draft>>
   // A feedback draft's text as the person edited it, where they have, by item: kept until the
@@ -79,7 +86,6 @@ export type InboxContextValue = {
   readonly open: (id: string) => void
   readonly close: () => void
   readonly showHeld: () => void
-  readonly next: () => void
   readonly setDraft: (id: string, patch: Partial<Draft>) => void
   readonly submit: (item: InboxRow, answer: InboxAnswer, note: string) => void
   // Changes how an item is handled without answering it, as turning auto-resume on or off.
@@ -147,6 +153,7 @@ export const InboxProvider = ({
   const state = useSyncExternalStore(inbox.state.subscribe, inbox.state.getSnapshot)
   const [view, setView] = useState<InboxView>(initialView)
   const [answered, setAnswered] = useState<Readonly<Record<string, Sent>>>({})
+  const [receipt, setReceipt] = useState<Receipt | null>(null)
   const [drafts, setDrafts] = useState<Readonly<Record<string, Draft>>>({})
   const [feedbackEdits, setFeedbackEdits] = useState<Readonly<Record<string, string>>>({})
   const [now, setNow] = useState(() => Date.now())
@@ -212,15 +219,10 @@ export const InboxProvider = ({
     latest.current = { state, view, phone, ghosts }
   })
   const heldItems = useMemo(() => held(view, state.items), [view, state.items])
-  // A settled ask has no sheet, even where an answer was sent to it meanwhile.
+  // An ask that settles while its sheet is open stays open, settled, to say so; one settled
+  // before opens no sheet (`open`).
   const standing = state.items.find(({ id }) => id === view.open)
-  const current = standing
-    ? standing.settled
-      ? undefined
-      : standing
-    : view.open === null
-      ? undefined
-      : sent[view.open]?.item
+  const current = standing ?? (view.open === null ? undefined : sent[view.open]?.item)
 
   const dropSent = useCallback((id: string | null): void => {
     if (id !== null)
@@ -239,7 +241,10 @@ export const InboxProvider = ({
       const found = list.find((item) => item.id === id)
       // A settled ask has no sheet.
       if (found?.settled) return
-      if (before.open !== id) dropSent(before.open)
+      if (before.open !== id) {
+        dropSent(before.open)
+        setReceipt(null)
+      }
       setView(openItem(before, id, list))
       if (found && !found.seen) inbox.see(id)
       if (before.open === null) screen?.hideList()
@@ -247,27 +252,50 @@ export const InboxProvider = ({
     [inbox, dropSent],
   )
 
+  // Closing forgets every answer the sheet moved on from: their rows go with it.
   const close = useCallback((): void => {
     const { state: snapshot, view: before, phone: screen } = latest.current
     if (before.open === null) return
-    dropSent(before.open)
+    setAnswered({})
+    setReceipt(null)
     setView(closeSheet(before, snapshot.items))
     screen?.showList()
-  }, [dropSent])
+  }, [])
 
   const showHeld = useCallback((): void => {
     const { state: snapshot, view: before } = latest.current
     setView(release(before, snapshot.items))
   }, [])
 
-  const next = useCallback((): void => {
-    const { state: snapshot, view: before } = latest.current
-    const target = nextItem(snapshot.items, before.open, snapshot)
-    dropSent(before.open)
-    if (!target) return close()
-    setView(openItem(release(before, snapshot.items), target.id, snapshot.items))
-    if (!target.seen) inbox.see(target.id)
-  }, [inbox, dropSent, close])
+  // Once an answer has taken, on to what asks next, with the receipt; with nothing left, the
+  // sheet closes. The answered row keeps its place, answered, until it does.
+  const moveOn = useCallback(
+    (from: string, note: string): void => {
+      const { state: snapshot, view: before } = latest.current
+      if (before.open !== from) return
+      const target = nextItem(snapshot.items, from, snapshot)
+      if (!target) return close()
+      setReceipt({ from, note })
+      // The list stays as it is, the answered row in it, unless what is next has yet to join.
+      const kept = before.order.includes(target.id) ? before : release(before, snapshot.items)
+      setView(openItem(kept, target.id, snapshot.items))
+      if (!target.seen) inbox.see(target.id)
+      // Its row comes into view, for the sheet to sit beside.
+      requestAnimationFrame(() => rowOf(target.id)?.scrollIntoView({ block: "nearest" }))
+    },
+    [inbox, close],
+  )
+  const done =
+    view.open !== null &&
+    sent[view.open] !== undefined &&
+    !state.answering[view.open] &&
+    state.failed[view.open] === undefined &&
+    !state.items.some(({ id }) => id === view.open)
+      ? sent[view.open]
+      : undefined
+  useEffect(() => {
+    if (done && view.open !== null) moveOn(view.open, done.note)
+  }, [done, view.open, moveOn])
 
   const setDraft = useCallback((id: string, patch: Partial<Draft>): void => {
     setDrafts((record) => {
@@ -359,7 +387,9 @@ export const InboxProvider = ({
       if (live.open === null && !inList) return
       if (!inSheet && !inList && target !== document.body && target !== document) return
       const to = stepFrom(
-        visible(live, snapshot.items, dropped).filter((item) => !item.settled),
+        visible(live, snapshot.items, dropped).filter(
+          (item) => !item.settled || item.id === live.open,
+        ),
         live.open,
         event.key === "j" ? 1 : -1,
       )
@@ -383,6 +413,7 @@ export const InboxProvider = ({
       view,
       now,
       current,
+      receipt,
       sent,
       drafts,
       feedbackEdits,
@@ -394,7 +425,6 @@ export const InboxProvider = ({
       open,
       close,
       showHeld,
-      next,
       setDraft,
       submit,
       change,
@@ -410,6 +440,7 @@ export const InboxProvider = ({
       view,
       now,
       current,
+      receipt,
       sent,
       drafts,
       feedbackEdits,
@@ -421,7 +452,6 @@ export const InboxProvider = ({
       open,
       close,
       showHeld,
-      next,
       setDraft,
       submit,
       change,

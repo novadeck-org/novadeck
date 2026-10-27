@@ -964,14 +964,22 @@ App:
   also appear in the terminal's Messages pane, in the conversation You; replies show queued and delivered states.
   "Stale next answer" makes the next answer report that the ask is no longer available,
   keeping the draft. "Ask withdrawn" and "Ask session ended" remove the sample preview ask
-  and keep its outcome in Messages. "Next reply not delivered" queues the next reply, then
-  shows the delivery failure in its Inbox confirmation and Messages history. Reply boxes
-  hint at about 4,000 characters, fewer with emoji or some languages, and stop at 4,096. Pausing messages between agents leaves
+  and keep its outcome in Messages; with the preview ask's sheet open, "Ask withdrawn" leaves
+  the sheet open, tagged Withdrawn, saying so in place of its answers. "Next reply not delivered" queues the next reply, then
+  shows the delivery failure in its Inbox receipt (on the sheet the Inbox moved on to, with
+  Back to it) and Messages history. A box for your own words says when it is over 4,096
+  characters, and won't send until it isn't. Pausing messages between agents leaves
   your replies going through. "Usage limit, reset passed" adds the limit Novadeck can't resume, with its
   window reset, offering Continue now. "Command hiding lines" adds a permission whose command
-  buries a line under blank lines and spaces; its card counts the lines and marks what draws
-  as nothing. "Plan with a change field" adds Claude Code 2.1.287's plan, whose only way
-  back is "Tell Claude what to change": Deny opens a note that must say what. "A new item
+  buries a line under blank lines and spaces; its box counts the lines and marks what draws
+  as nothing. "Long command" adds a permission for a 12-line script, every line in a box that
+  scrolls. "Pick several, with your own words" adds Claude's question that takes several picks
+  and words: numbers and Space tick, the last row opens a box, and Enter sends the picks with
+  the words. "Plan with a change field" adds Claude Code 2.1.287's plan, whose only way
+  back is "Tell Claude what to change": that row opens a box that must say what. Answering any
+  item moves the sheet on to the next that needs you (updates skipped) with a one-line receipt,
+  and closes it once nothing is left; "Decision with options" is hard to undo, so its first
+  press only arms the answer. "A new item
   arrives" adds the next kind not there yet, and "Clear the added items" takes away the
   hardcoded items and those added here, leaving what the agents wait on. An added item
   is its own row; one that waits on the person for its agent (a request, an ask, trouble) takes the place of a dialog its agent's
