@@ -88,7 +88,11 @@ const open = (failAnswer = false) => {
     link.push({ state: "reconnecting", error: new WireError("DISCONNECTED") })
     wakeLink?.()
   }
-  return { backend, drop, answers, ask, pending, push: sent.push, settled, stop }
+  const reconnect = () => {
+    link.push({ state: "connected", epoch: "r2" })
+    wakeLink?.()
+  }
+  return { backend, drop, reconnect, answers, ask, pending, push: sent.push, settled, stop }
 }
 
 describe("asks to close a terminal through the runner backend", () => {
@@ -142,13 +146,19 @@ describe("asks to close a terminal through the runner backend", () => {
   })
 
   context("when the link to the runner drops", () => {
-    it("forgets the asks, which the runner settled, and lists the ones sent after", async () => {
+    it("forgets the asks, which the runner settled, and lists the ones sent once it reconnects", async () => {
       const app = open()
       app.ask()
       await app.settled()
       app.drop()
       await app.settled()
       expect(app.pending()).toEqual([])
+      // One still on its way as the link dropped was settled too: it never shows.
+      app.ask()
+      await app.settled()
+      expect(app.pending()).toEqual([])
+      app.reconnect()
+      await app.settled()
       const later = app.ask()
       await app.settled()
       expect(app.pending().map((each) => each.requestId)).toEqual([later.requestId])

@@ -3805,11 +3805,18 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))(
         ok: true,
         text: expect.stringMatching(/^Closing @moth · Terminal, your own terminal, in a moment/),
       })
-      // The shell ends after the answer, and the terminal is forgotten like any closed.
-      await expect.poll(() => shell.store.terminal(claude.id), { timeout: 10_000 }).toBeUndefined()
-      expect(() => manager.get(claude.id)).toThrow(
-        expect.objectContaining({ code: "TERMINAL_NOT_FOUND" }),
-      )
+      // The shell ends after the answer, and the terminal is forgotten like any closed: the
+      // store lets it go a step before the manager does, so wait for both.
+      const held = () => {
+        try {
+          manager.get(claude.id)
+          return true
+        } catch {
+          return false
+        }
+      }
+      await expect.poll(held, { timeout: 10_000 }).toBe(false)
+      expect(shell.store.terminal(claude.id)).toBeUndefined()
       expect(manager.get(other.id).exit).toBeNull()
     })
 

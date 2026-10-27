@@ -1418,6 +1418,8 @@ export const runnerBackend = (
     // An ask waits on the person until they answer or the runner takes it back.
     const onCloseAsk = (ask: RunnerCloseAsk): void => {
       if (!live) return
+      // One still on its way as the link dropped was settled with the rest: never show it.
+      if (ask.type === "ask" && lastStatus && lastStatus.state !== "connected") return
       closeAsks.update((waiting) =>
         ask.type === "withdrawn"
           ? waiting.filter((each) => each.requestId !== ask.requestId)

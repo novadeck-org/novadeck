@@ -1552,7 +1552,8 @@ export class Messaging {
   /**
    * The other running terminal in the caller's project and session whose exact handle
    * `to` is, as `send` finds its recipient, with the agent running there as `agents`
-   * names it, or the one it is opened to run and expects to bind; or why there is none, describing every terminal there as `send` does.
+   * names it, or the one it is opened to run and expects to bind; or why there is none,
+   * describing every terminal there as `send` does.
    */
   peer(terminalId: string, to: string, about: About = () => undefined): PeerAnswer {
     const live = this.live.get(terminalId)
