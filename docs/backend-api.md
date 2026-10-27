@@ -257,7 +257,7 @@ again (see [Agent messaging](agent-messaging.md#naming)). `handle` is its
 handle for agents' messages, a word such as `moth` that its session gives it (people read
 it as `@moth`); every terminal takes one, even one created with its own title, and keeps
 it across renames. A session never gives a word twice, even once its terminal closes;
-once all are given, they come again numbered (`moth2`). Terminals list in the order they
+once all are given, they come again with a letter from the end of the alphabet (`mothz`). Terminals list in the order they
 were created. `command` is what it was opened to run, and
 `lastProgram` the program it last had in its foreground, which a fresh shell resumes
 where that is an agent. Windows doesn't tell a terminal's foreground program, so there it

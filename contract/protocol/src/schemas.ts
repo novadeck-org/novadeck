@@ -454,7 +454,7 @@ export const terminalTitle = z
 
 // A terminal's handle: a word its Novadeck session gives it as it is created, such as
 // `moth`, never twice; once a session has given every word, they come again with a
-// number, as `moth2`. It stays as the terminal is renamed, agents address each other by
+// letter, as `mothz` (an older session's with a number, as `moth2`). It stays as the terminal is renamed, agents address each other by
 // it, and people read it as `@moth`.
 export const handle = z.string().regex(/^[a-z]{2,12}(?:[2-9]|[1-9][0-9]{1,8})?$/)
 

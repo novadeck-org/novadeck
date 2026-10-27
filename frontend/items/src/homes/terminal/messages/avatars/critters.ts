@@ -9,12 +9,17 @@ export type Sprite = readonly string[]
 const drawn = new Map(drawnCritters.map(([word, rows]) => [word, rows.split("/")]))
 const ranks = new Map(drawnCritters.map(([word], rank) => [word, rank]))
 
-// A handle's word and the number a later round gives it: `moth2` is `moth`, 2.
+// A handle's word, and the number an older session's later round gave it: `mothz` and
+// `mothzy` are `moth`, and `moth2` is `moth`, 2. Today's rounds add letters, which carry no
+// badge, so a handle that isn't a word is the longest word it starts with.
 export const handleParts = (
   handle: string,
 ): { readonly word: string; readonly numeral: string } => {
-  const word = handle.replace(/\d+$/, "")
-  return { word, numeral: handle.slice(word.length) }
+  const unnumbered = handle.replace(/\d+$/, "")
+  const numeral = handle.slice(unnumbered.length)
+  for (let end = unnumbered.length; end >= unnumbered.length - 2 && end > 0; end--)
+    if (drawn.has(unnumbered.slice(0, end))) return { word: unnumbered.slice(0, end), numeral }
+  return { word: unnumbered, numeral }
 }
 
 // A word's seed: FNV-1a, so a word always draws the same.

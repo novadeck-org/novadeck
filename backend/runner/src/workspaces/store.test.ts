@@ -1950,11 +1950,11 @@ describe("saved terminals", () => {
     expect(workspace.giveHandle("s")).toBe(first)
   })
 
-  it("number the words again once a session has given them all", ({ kept }) => {
+  it("give the words again with a letter once a session has given them all", ({ kept }) => {
     const workspace = kept()
     const all = handleWords.map(() => workspace.giveHandle("s"))
     expect(new Set(all)).toEqual(new Set(handleWords))
-    expect(workspace.giveHandle("s")).toMatch(/^[a-z]+2$/)
+    expect(workspace.giveHandle("s")).toMatch(/^[a-z]+z$/)
   })
 
   it("refuse two terminals with one handle in a session", ({ kept }) => {

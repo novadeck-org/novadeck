@@ -56,13 +56,13 @@ export const messageGroups = (messages: Backend["messages"]): readonly DemoActio
             },
             {
               label: "News from a repeated handle",
-              hint: "A terminal whose word came round again (its handle ends in 2) writes to the selected one: its critter in Messages carries the 2",
+              hint: "A terminal whose word came round again (its handle ends in z) writes to the selected one: its critter in Messages is its word's",
               run: ({ selected, note }) => {
                 if (
                   !writeTo(
                     messages,
                     selected(),
-                    (handle) => `${handle === "moth" ? "fox" : "moth"}2`,
+                    (handle) => `${handle === "moth" ? "fox" : "moth"}z`,
                     "Picked up where the last round left off.",
                   )
                 )
