@@ -77,10 +77,11 @@ export type TerminalRecords = {
   /** Every terminal kept, of one session or all, in the order they were created, without transcripts. */
   terminals(sessionId?: string): readonly ListedTerminal[]
   /**
-   * Gives a session's next terminal its handle, never one the session gave before, even
-   * to a terminal since closed (see `nextHandle`), and records it as given.
+   * Gives a session's next terminal its handle, from the words in `order` (the session's
+   * own, see `handleOrder`, when omitted), never one the session gave before, even to a
+   * terminal since closed (see `nextHandle`), and records it as given.
    */
-  giveHandle(sessionId: string): string
+  giveHandle(sessionId: string, order?: readonly string[]): string
   /**
    * Gives a kept terminal the person's title, or with null takes theirs away, so its title
    * is automatic again; false when none is kept by that id.

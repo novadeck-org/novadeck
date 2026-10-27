@@ -1,5 +1,5 @@
 import { DomainError } from "../errors.js"
-import { nextHandle, wordOf } from "./handles.js"
+import { handleOrder, nextHandle } from "./handles.js"
 import { renamed as renamedTo, summaryTitle } from "./naming.js"
 import type { SavedRecord, Saves } from "./saving.js"
 import type { Streams } from "./streams.js"
@@ -19,6 +19,14 @@ export type NamesHost<R extends NamedRecord> = {
   readonly announce: (record: R) => void
 }
 
+/** How the runner names terminals. */
+export type NamesOptions = {
+  /** Where terminals are saved, which then give handles; counted in memory when omitted. */
+  readonly records?: unknown
+  /** The order each session gives handle words in: its own shuffle when omitted. */
+  readonly handleOrder?: (sessionId: string) => readonly string[]
+}
+
 /**
  * Names terminals: the handle each session gives its next terminal, and the title the
  * person gives one, running or saved (see `titleOf`).
@@ -27,13 +35,20 @@ export class Names<R extends NamedRecord> {
   /** The handles each session has given, without records to keep them. */
   private readonly handles = new Map<string, ReadonlySet<string>>()
 
+  /** Whether the runner keeps records, which then give handles. */
+  private readonly recorded: boolean
+  /** The order each session gives handle words in. */
+  private readonly wordOrder: (sessionId: string) => readonly string[]
+
   constructor(
-    /** Whether the runner keeps records, which then give handles. */
-    private readonly recorded: boolean,
+    options: NamesOptions,
     private readonly saves: Saves,
     private readonly streams: Streams<R>,
     readonly host: NamesHost<R>,
-  ) {}
+  ) {
+    this.recorded = Boolean(options.records)
+    this.wordOrder = options.handleOrder ?? handleOrder
+  }
 
   /**
    * The handle a session gives its next terminal, never one it gave before: from its
@@ -43,26 +58,17 @@ export class Names<R extends NamedRecord> {
   next(sessionId: string): string {
     if (!this.recorded) {
       const given = this.handles.get(sessionId) ?? new Set<string>()
-      const live = [...this.host.records()]
-        .filter((record) => !record.closed)
-        .map((record) => record.summary)
-      const handle = nextHandle(
-        {
-          given,
-          open: live
-            .filter((summary) => summary.sessionId === sessionId)
-            .map((summary) => summary.handle),
-        },
-        new Set(
-          live
-            .filter((summary) => summary.sessionId !== sessionId)
-            .map((summary) => wordOf(summary.handle)),
-        ),
-      )
+      const handle = nextHandle({
+        order: this.wordOrder(sessionId),
+        given,
+        open: [...this.host.records()]
+          .filter((record) => !record.closed && record.summary.sessionId === sessionId)
+          .map((record) => record.summary.handle),
+      })
       this.handles.set(sessionId, new Set(given).add(handle))
       return handle
     }
-    const handle = this.saves.giveHandle(sessionId)
+    const handle = this.saves.giveHandle(sessionId, this.wordOrder(sessionId))
     if (this.host.stopping()) throw new DomainError("CLOSING")
     if (handle === undefined)
       throw new Error(

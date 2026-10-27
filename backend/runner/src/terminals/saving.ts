@@ -507,11 +507,11 @@ export class Saves {
     return kept
   }
 
-  /** The handle the records give a session's next terminal; undefined when they can't. */
-  giveHandle(sessionId: string): string | undefined {
+  /** The handle the records give a session's next terminal, in its order; undefined when they can't. */
+  giveHandle(sessionId: string, order: readonly string[]): string | undefined {
     let handle: string | undefined
     this.persisting(() => {
-      handle = this.options.records?.giveHandle(sessionId)
+      handle = this.options.records?.giveHandle(sessionId, order)
     })
     return handle
   }
