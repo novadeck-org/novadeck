@@ -181,7 +181,11 @@ The rules that keep this safe:
   the shell's next prompt; when the agent exits before any session bound (a failed
   login, Ctrl-C at startup, a declined trust); when the terminal is restored or
   restarted as a shell that resumes nothing; and when typing cancels the startup
-  before the shell took it, as the person then took the terminal over. `ledBy` is
+  before the shell took it, as the person then took the terminal over. On Windows,
+  which ends every console program just before its shell as it shuts down, an agent
+  found gone ends its lead only once its shell has outlived it for a sample's time
+  (`processPollMs`, a second), unless the runner stops or the shell ends or restarts
+  meanwhile, so a worker ended by a reboot resumes still led. `ledBy` is
   cleared, saved and announced, messaging stops treating the former lead as one for
   later sends, and its messages still waiting for that terminal's first session, its
   brief among them, become gone, with the sender told, so they never reach an agent

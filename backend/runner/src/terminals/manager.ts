@@ -483,6 +483,7 @@ export class Terminals {
       rebound: (record) => this.reporting.rebound(record),
       turns: () => ({ asks: this.asks, redactor }),
       alive,
+      pollMs: this.options.processPollMs,
     })
     this.shown = new Shown({
       messaging: () => this.messaging,
@@ -1585,10 +1586,10 @@ export class Terminals {
     if (binding === null) {
       // Or the agent a Ctrl+Z left suspended, found gone with no session bound since.
       if (ran || (record.suspended !== null && !alive(record.suspended)))
-        this.bindings.endLead(record)
+        this.bindings.endLeadGone(record)
     } else if (binding.instance && alive(binding.instance)) {
       record.suspended = binding.instance
-    } else this.bindings.endLead(record)
+    } else this.bindings.endLeadGone(record)
     // Nothing came of the agent the shell was opened to run: it is a plain shell now.
     if (binding === null && ran) record.expecting = null
     // An agent whose prompt showed, with no session bound, left with it: first, so the

@@ -477,7 +477,9 @@ Once the runner starts shutting down it saves nothing more, so shells ending on 
 out cannot replace what it saved while they ran. On Windows, which doesn't tell which
 program a terminal runs, the agent whose session the terminal reported is the one to
 resume, until its shell has shown its prompt for a second: Windows ends the agents before
-their shells as it shuts down, and an agent ended that way still resumes.
+their shells as it shuts down, and an agent ended that way still resumes. The same second
+keeps a worker led there: its lead ends only once its shell has outlived its agent for
+that long, so a team comes back as a team after a reboot.
 
 ## Zen mode
 
