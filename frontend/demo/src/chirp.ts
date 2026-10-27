@@ -177,9 +177,16 @@ const agentTerminal = (
 
 const waiting: AgentStatus = { working: true, attention: { kind: "permission", count: 1 } }
 
-const sessionOf = (now: number, terminals: TerminalMetadata[], canvasLayout?: CanvasLayout) => ({
+// The open session was visited just now; the others a while before.
+const sessionOf = (
+  now: number,
+  terminals: TerminalMetadata[],
+  canvasLayout?: CanvasLayout,
+  visitedAt = now,
+) => ({
   id: session,
   name: sessionName(now),
+  visitedAt,
   terminals,
   items: [],
   windows: [],
@@ -241,7 +248,7 @@ export const chirpSeed = (now: number): WorkspaceSeed => ({
         ),
       ],
     },
-    ...Object.entries(elsewhere).map(([id, list]) => ({
+    ...Object.entries(elsewhere).map(([id, list], place) => ({
       ...project(id),
       sessions: [
         sessionOf(
@@ -249,6 +256,8 @@ export const chirpSeed = (now: number): WorkspaceSeed => ({
           list.map(([name, agent], index) =>
             agentTerminal(id, index + 1, name, agent, { working: true }),
           ),
+          undefined,
+          now - (place + 1) * 20 * 60_000,
         ),
       ],
     })),

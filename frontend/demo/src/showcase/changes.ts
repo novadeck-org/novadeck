@@ -41,7 +41,7 @@ const file = (
     0,
   ),
   binary: false,
-  held: false,
+  secret: false,
   listed: false,
   hunks,
   ...rest,
@@ -61,7 +61,7 @@ const sample = (
     path: `${repo}/${id}`,
     url: null,
     lines: null,
-    held: false,
+    secret: false,
   },
   content: ready({
     kind: "changes",
@@ -152,7 +152,7 @@ export const changesArtifacts: readonly SampleArtifact[] = [
     files: [styles, file("public/logo.png", "modified", [], { binary: true })],
   }),
   sample("change-held", "A file that may hold secrets", "Working tree against HEAD · 2 files", {
-    files: [styles, file(".env.local", "added", [], { held: true })],
+    files: [styles, file(".env.local", "added", [], { secret: true })],
   }),
   sample(
     "change-truncated",

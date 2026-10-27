@@ -8,7 +8,8 @@ import { sidebarCreateClasses } from "./SidebarPanel"
 export type WorkspaceSessionSummary = {
   id: string
   name: string
-  visitedAt: number
+  // Null until the person first opens it.
+  visitedAt: number | null
   terminalNames: string[]
   running: number
 }
@@ -27,7 +28,13 @@ const timestamp = new Intl.DateTimeFormat(undefined, {
   minute: "2-digit",
 })
 
-const formatVisited = (visitedAt: number): string => timestamp.format(new Date(visitedAt))
+// The open session is open now, whenever it was last visited.
+const formatVisited = (visitedAt: number | null, active: boolean): string =>
+  active
+    ? "Open now"
+    : visitedAt === null
+      ? "Not opened yet"
+      : `Last visited ${timestamp.format(new Date(visitedAt))}`
 
 export const SessionsPanel = ({
   items,
@@ -60,7 +67,7 @@ export const SessionsPanel = ({
           const active = item.id === activeId
           const terminalCount = item.terminalNames.length
           const preview = terminalCount ? item.terminalNames.join(", ") : "No terminals yet"
-          const visited = formatVisited(item.visitedAt)
+          const visited = formatVisited(item.visitedAt, active)
 
           return (
             <SidebarItem
@@ -72,8 +79,8 @@ export const SessionsPanel = ({
               icon={<Layers2 size={14} strokeWidth={1.5} />}
               selected={active}
               selectLabel={`Open ${item.name}`}
-              description={`Last visited ${visited}. ${preview}`}
-              tooltip={`${item.name}\nLast visited ${visited}\n${preview}`}
+              description={`${visited}. ${preview}`}
+              tooltip={`${item.name}\n${visited}\n${preview}`}
               onSelect={() => onSelect(item.id)}
               detail={
                 <>

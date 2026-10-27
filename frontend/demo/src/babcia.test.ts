@@ -790,7 +790,7 @@ describe("the Babcia demo", () => {
       {
         kind: "page",
         url: "http://localhost:4321/",
-        asked: true,
+        openAsked: true,
         holder: { terminalId: key(babcia.shows).terminalId },
       },
     ])

@@ -103,7 +103,7 @@ describe("a peek's miniature", () => {
         added: 3,
         removed: 1,
         binary: false,
-        held: false,
+        secret: false,
         listed: false,
         hunks: [],
       })
@@ -133,7 +133,7 @@ describe("a peek's miniature", () => {
       expect(missing.container.querySelector(".peek-held")?.textContent).toBe("Not there any more")
 
       const held = peek(
-        itemFixture("env", "01", { held: true }),
+        itemFixture("env", "01", { secret: true }),
         ready({
           kind: "page",
           url: "http://x/",

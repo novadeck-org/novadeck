@@ -301,8 +301,8 @@ port's optional `companions` capability (`frontend/core/src/items.ts`):
 | `save(target, itemId, text, basedOn)`    | The user's edit written to the plan file, unless it changed since stamp `basedOn`     |
 | `openInProject?(target, path, windowId)` | A file the person opened from Source, in the project window; absent where it can't be |
 
-A file that may hold secrets is `held` until the person asks to see it, and `reveal` is the path
-they asked for: the item re-pointed to another file reads `held` again.
+A file that may hold secrets is `secret` until the person asks to see it, and `reveal` is the path
+they asked for: the item re-pointed to another file reads `secret` again.
 
 A change (the `changes` item kind) shows in the diff viewer (`libraries/viewers/src/diff.ts`),
 read-only: a list of the changed files at the top, each scrolling to its section, then a
@@ -378,7 +378,7 @@ with every safety check again at that time:
   `url`, and optionally `scroll`, a CSS selector of the element to bring into view once it
   loads) or `changes` (`{}` or `{ path }`: the whole change in a repository, see below);
   beside it the options every source shares, a title and `open`, which the agent
-  sets for a deliverable it finished or one the user asked to see (`asked`). A new kind
+  sets for a deliverable it finished or one the user asked to see (`openAsked`). A new kind
   of artifact adds a source key of its own rather than more fields beside these. `close`
   takes the same `file` (its path alone), `page` (its url alone) or `changes` and removes what the
   agent showed under it from its own bar, as the person closing it would; what the person attached, moved away from it, or another
@@ -407,12 +407,12 @@ with every safety check again at that time:
   (`protocol/src/pages.ts`): its address without the fragment, or for a server on this
   machine (`localhost`, `127.0.0.1`, `[::1]`, `0.0.0.0` and `[::]` alike) its scheme and port
   alone, so a dev server stays one item whatever route the agent shows. A file that often holds secrets (`.env`,
-  keys, credentials, agents' and tools' logins, shell history) is held: it never opens
+  keys, credentials, agents' and tools' logins, shell history) is secret: it never opens
   by itself, even when the agent says the person asked (one the person attached themselves does
   open, onto the pane's gate: they picked it); the pane never falls back to
   it, its taskbar peek shows no preview, and it goes by its own name, not the agent's
   title. So none appears unasked while they share their screen. A file that resolves
-  to such a file only later is held when it loads. The server's `showing` tool lists
+  to such a file only later is secret when it loads. The server's `showing` tool lists
   what the agent's bar holds now, with where each item points and who put it there,
   then what it showed that the person moved elsewhere.
   The UI follows each item with `companions.content`, never by path.
@@ -463,7 +463,7 @@ with every safety check again at that time:
   character as U+FFFD.
 
   A binary file and a file that may hold secrets (the rule for files, applied to the new
-  name and the old one of a rename, tracked or not) carry no hunks: a held file's diff
+  name and the old one of a rename, tracked or not) carry no hunks: a secret file's diff
   text is skipped by the reader, and an untracked one is never opened. v1 has no way to
   reveal either.
 

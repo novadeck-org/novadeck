@@ -353,19 +353,29 @@ describe("runner client workspace", () => {
       projectId: project.id,
       name: "A",
     })
-    expect(created).toEqual({ id: ids.session, projectId: project.id, name: "A", state: null })
+    expect(created).toEqual({
+      id: ids.session,
+      projectId: project.id,
+      name: "A",
+      state: null,
+      visitedAt: null,
+    })
     await expect(
       runner.sessions.create({ id: ids.session, projectId: project.id, name: "B" }),
     ).rejects.toMatchObject({ code: "CONFLICT" })
 
     await expect(
-      runner.sessions.save({ sessionId: created.id, state: '{"layout":"split"}' }),
+      runner.sessions.save({
+        sessionId: created.id,
+        state: '{"layout":"split"}',
+        visitedAt: 5,
+      }),
     ).resolves.toBeUndefined()
     await expect(runner.sessions.list({ projectId: project.id })).resolves.toEqual([
-      { ...created, state: '{"layout":"split"}' },
+      { ...created, state: '{"layout":"split"}', visitedAt: 5 },
     ])
     await expect(
-      runner.sessions.save({ sessionId: crypto.randomUUID(), state: "{}" }),
+      runner.sessions.save({ sessionId: crypto.randomUUID(), state: "{}", visitedAt: null }),
     ).rejects.toMatchObject({ code: "NOT_FOUND" })
 
     const terminal = { id: crypto.randomUUID(), sessionId: created.id, cols: 80, rows: 24 }
@@ -509,7 +519,7 @@ describe("runner client project removal", () => {
       agents: {},
       promptedAt: null,
       handle: earlier.giveHandle(sessions.removed),
-      naming: { person: null, agent: null, murmur: null, summary: null },
+      naming: { person: null, opener: null, murmur: null, summary: null },
       openedBy: null,
       ledBy: null,
       command: null,
@@ -1277,9 +1287,13 @@ describe("runner client over MessagePort", () => {
     const { id: sessionId } = await session(client, app.directory)
     // A running shell keeps shutdown busy while it ends, as the desktop app's do.
     await client.terminals.create(shell(sessionId))
-    await expect(client.sessions.save({ sessionId, state: "before" })).resolves.toBeUndefined()
+    await expect(
+      client.sessions.save({ sessionId, state: "before", visitedAt: null }),
+    ).resolves.toBeUndefined()
     const closing = app.runner.close()
-    await expect(client.sessions.save({ sessionId, state: "after" })).rejects.toMatchObject({
+    await expect(
+      client.sessions.save({ sessionId, state: "after", visitedAt: null }),
+    ).rejects.toMatchObject({
       code: "CLOSING",
     })
     await closing

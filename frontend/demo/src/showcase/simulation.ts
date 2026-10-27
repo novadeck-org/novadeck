@@ -100,7 +100,7 @@ const titleOf = (path: string, text: string): string =>
 const itemOf = (
   { key, handle }: Holder,
   { item }: SampleArtifact,
-  shown: Pick<Item, "asked" | "shownAt">,
+  shown: Pick<Item, "openAsked" | "shownAt">,
 ): Item => ({
   id: itemIdOf(item.id),
   holder: { terminalId: key.terminalId },
@@ -110,7 +110,7 @@ const itemOf = (
   path: item.path,
   url: item.url,
   lines: item.lines,
-  held: item.held,
+  secret: item.secret,
   by: "agent",
   from: { terminalId: key.terminalId, handle },
   version: 1,
@@ -129,11 +129,11 @@ const planItemOf = (agent: Running, shownAt: number): Item => {
     path,
     url: null,
     lines: null,
-    held: false,
+    secret: false,
     by: "agent",
     from: { terminalId: agent.key.terminalId, handle: agent.handle },
     version: agent.version,
-    asked: false,
+    openAsked: false,
     shownAt,
     plan: { agent: name, role: "root", source: "file" },
   }
@@ -225,8 +225,8 @@ export const createShowcase = (
     const sample = samples.get(id)
     return !sample
       ? { state: "unavailable", reason: "gone", size: null }
-      : sample.item.held && (reveal === undefined || reveal !== sample.item.path)
-        ? { state: "unavailable", reason: "held", size: null }
+      : sample.item.secret && (reveal === undefined || reveal !== sample.item.path)
+        ? { state: "unavailable", reason: "secret", size: null }
         : sample.content
   }
 
@@ -294,8 +294,8 @@ export const createShowcase = (
   const show = (agent: Running, artifact: SampleArtifact, asked: boolean): void => {
     const own = shownItemWith(current(), agent.key.terminalId, artifact.item)
     const item: Item = own
-      ? { ...own, version: own.version + 1, asked, shownAt: now() }
-      : itemOf(agent, artifact, { asked, shownAt: now() })
+      ? { ...own, version: own.version + 1, openAsked: asked, shownAt: now() }
+      : itemOf(agent, artifact, { openAsked: asked, shownAt: now() })
     report?.([{ type: "item/upsert", target: agent.key, item }])
   }
 
@@ -303,12 +303,12 @@ export const createShowcase = (
     ...[...running.values()].flatMap((agent, index) => [
       planItemOf(agent, index),
       ...agent.sample.artifacts.shown.map((artifact, shownAt) =>
-        itemOf(agent, artifact, { asked: false, shownAt: index + shownAt + 1 }),
+        itemOf(agent, artifact, { openAsked: false, shownAt: index + shownAt + 1 }),
       ),
     ]),
     ...shown.flatMap((holder) =>
       holder.artifacts.map((artifact, shownAt) =>
-        itemOf(holder, artifact, { asked: false, shownAt }),
+        itemOf(holder, artifact, { openAsked: false, shownAt }),
       ),
     ),
   ]
@@ -361,7 +361,7 @@ export const createShowcase = (
       const window = own && known ? known.windowId : windowId
       projectWindows.set(sessionKey, { itemId: id, windowId: window })
       samples.set(id, { item: { ...made.item, id }, content: wholeFile(full, made) })
-      const { kind, name, detail, url, lines, held } = made.item
+      const { kind, name, detail, url, lines, secret } = made.item
       const item: Item = {
         id: itemIdOf(id),
         holder: { windowId: window },
@@ -371,11 +371,11 @@ export const createShowcase = (
         path: full,
         url,
         lines,
-        held,
+        secret,
         by: "person",
         from: null,
         version: own ? own.version + 1 : 1,
-        asked: true,
+        openAsked: true,
         shownAt: now(),
         plan: null,
       }

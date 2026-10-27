@@ -43,7 +43,7 @@ describe("companion items in the workspace", () => {
     })
 
     it("opens when the person asked for it, and isn't new", () => {
-      const state = stateOf(shown({ ...hero, asked: true }))
+      const state = stateOf(shown({ ...hero, openAsked: true }))
       expect(state.bars["01"]).toMatchObject({ stack: [hero.id], open: true })
       expect(state.fresh).toEqual({})
     })
@@ -55,7 +55,11 @@ describe("companion items in the workspace", () => {
         terminalId: "01",
         key: notes.id,
       })
-      const state = run(reading, { type: "item/upsert", target, item: { ...hero, asked: true } })
+      const state = run(reading, {
+        type: "item/upsert",
+        target,
+        item: { ...hero, openAsked: true },
+      })
       expect(state.bars["01"]).toMatchObject({ stack: [notes.id, hero.id], open: true })
     })
 
@@ -73,13 +77,13 @@ describe("companion items in the workspace", () => {
     })
 
     it("never opens something an agent showed that may hold secrets", () => {
-      const state = stateOf(shown({ ...notes, asked: true, held: true, by: "agent" }))
+      const state = stateOf(shown({ ...notes, openAsked: true, secret: true, by: "agent" }))
       expect(state.bars["01"]).toMatchObject({ stack: [], open: false })
       expect(state.fresh).toEqual({ [notes.id]: true })
     })
 
     it("opens something the person attached though it may hold secrets, for its pane to gate", () => {
-      const state = stateOf(shown({ ...notes, asked: true, held: true, by: "person" }))
+      const state = stateOf(shown({ ...notes, openAsked: true, secret: true, by: "person" }))
       expect(state.bars["01"]).toMatchObject({ stack: [notes.id], open: true })
       expect(state.fresh).toEqual({})
     })
@@ -307,7 +311,7 @@ describe("companion items in the workspace", () => {
         path: `/project/${name}`,
         by: "person",
         from: null,
-        asked: true,
+        openAsked: true,
         version,
         holder: { windowId: "pw" },
       })

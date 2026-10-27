@@ -145,12 +145,13 @@ const canvasLayout = (terminals: readonly Placed[]): CanvasLayout => ({
 
 // `reading` opens Claude Code a few seconds before its plan, which the story then asks for.
 export const visitorSeed = (now: number, reading = false): WorkspaceSeed => ({
-  projects: desks(reading).map(({ project, terminals }) => ({
+  projects: desks(reading).map(({ project, terminals }, place) => ({
     ...project,
     sessions: [
       {
         id: session,
         name: sessionName(now),
+        visitedAt: now - place * 20 * 60_000,
         terminals: terminals.map(({ x: _x, y: _y, height: _height, ...terminal }) => terminal),
         items: [],
         windows: [],

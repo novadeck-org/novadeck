@@ -96,7 +96,7 @@ describe("showcase agents", () => {
       {
         type: "item/upsert",
         target: studio,
-        item: expect.objectContaining({ id: "studio-projects", asked: true }),
+        item: expect.objectContaining({ id: "studio-projects", openAsked: true }),
       },
       {
         type: "item/upsert",
@@ -123,7 +123,7 @@ describe("showcase agents", () => {
       reason: "missing",
       size: null,
     })
-    expect(contentOf(itemIdOf("dev-env"))).toMatchObject({ state: "unavailable", reason: "held" })
+    expect(contentOf(itemIdOf("dev-env"))).toMatchObject({ state: "unavailable", reason: "secret" })
     expect(
       contentOf(
         itemIdOf("dev-env"),
@@ -153,9 +153,9 @@ describe("showcase agents", () => {
       const { showcase, reported } = running()
       for (const input of ["show", "open", "show", "show"]) showcase.told(studio, input)
       expect(reported).toMatchObject([
-        { item: { id: "studio-home", asked: false, holder: { terminalId: "01" } } },
-        { item: { id: "studio-preview", asked: true } },
-        { item: { id: "studio-mobile", asked: false } },
+        { item: { id: "studio-home", openAsked: false, holder: { terminalId: "01" } } },
+        { item: { id: "studio-preview", openAsked: true } },
+        { item: { id: "studio-mobile", openAsked: false } },
       ])
     })
 
@@ -345,7 +345,7 @@ describe("the project window", () => {
       path: `${folder}/src/app.ts`,
       by: "person",
       from: null,
-      asked: true,
+      openAsked: true,
       version: 1,
       holder: { windowId: "pw" },
     })
@@ -372,10 +372,10 @@ describe("the project window", () => {
     const env = await showcase.openInProject!(session, ".env.local", "pw")
     let content: ItemContent | undefined
     showcase.follow(session, env.item.id, { reveal: undefined }, (next) => (content = next))()
-    expect(env.item.held).toBe(true)
-    expect(content).toMatchObject({ state: "unavailable", reason: "held" })
+    expect(env.item.secret).toBe(true)
+    expect(content).toMatchObject({ state: "unavailable", reason: "secret" })
     const image = await showcase.openInProject!(session, "public/favicon.svg", "pw")
-    expect(image.item).toMatchObject({ kind: "image", held: false })
+    expect(image.item).toMatchObject({ kind: "image", secret: false })
   })
 
   it("shows a held file only to a reveal asked for that file", async () => {
@@ -389,8 +389,8 @@ describe("the project window", () => {
       return content
     }
     expect(reveal(path)).not.toMatchObject({ state: "unavailable" })
-    expect(reveal("README.md")).toMatchObject({ state: "unavailable", reason: "held" })
-    expect(reveal(undefined)).toMatchObject({ state: "unavailable", reason: "held" })
+    expect(reveal("README.md")).toMatchObject({ state: "unavailable", reason: "secret" })
+    expect(reveal(undefined)).toMatchObject({ state: "unavailable", reason: "secret" })
   })
 
   it("tells whoever follows it the new file's content", async () => {

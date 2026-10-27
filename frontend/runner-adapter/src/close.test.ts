@@ -91,7 +91,12 @@ describe("closing a terminal while its create is unanswered", () => {
     const listing: RunnerListing = [
       {
         project: { id: "p", name: "P", cwd: "/tmp" },
-        sessions: [{ session: { id: "s", projectId: "p", name: "S", state: null }, terminals: [] }],
+        sessions: [
+          {
+            session: { id: "s", projectId: "p", name: "S", visitedAt: null, state: null },
+            terminals: [],
+          },
+        ],
       },
     ]
     const { backend } = runnerBackend(runner.api, listing, { theme: noTheme, saveDelay: 10 })
@@ -216,7 +221,7 @@ const holdingRunner = (close: (id: string) => Promise<void>) => {
       project: { id: "p", name: "P", cwd: "/tmp" },
       sessions: [
         {
-          session: { id: "s", projectId: "p", name: "S", state: null },
+          session: { id: "s", projectId: "p", name: "S", visitedAt: null, state: null },
           terminals: [...held.values()],
         },
       ],

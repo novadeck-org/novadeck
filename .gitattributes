@@ -8,3 +8,5 @@ engines/whisper/patches/*.patch text eol=lf
 engines/murmur/patches/*.patch text eol=lf
 # The known-flake register's fixtures are CI logs its matcher reads line by line.
 scripts/flakes/fixtures/*.txt text eol=lf
+# Schema snapshots the store's tests rewrite line by line keep LF on every platform.
+backend/runner/src/workspaces/schemas/*.sql text eol=lf
