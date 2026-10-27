@@ -23,6 +23,10 @@ export type TurnEvent =
       readonly type: "begin"
       readonly key: TerminalKey
       readonly prompt?: string
+      // The prompt was a fixed line an Inbox button sent, not the person's words.
+      readonly automatic?: true
+      // When the person submitted the prompt, for one that waited behind a turn.
+      readonly submittedAt?: number
     }
   | { readonly type: "tool"; readonly key: TerminalKey }
   | {
@@ -95,7 +99,13 @@ export const demoTurns = (turnMs = demoTurnMs) => {
   // How many times each terminal's agent was taken some other way: a verb, a prompt, a Stop
   // or a release. What waits to act on it, an answer on its way, checks it hasn't moved.
   const epochs = new Map<string, number>()
-  const bump = (id: string): void => void epochs.set(id, (epochs.get(id) ?? 0) + 1)
+  // The terminals whose agent's `done` still stands: looking never ends it, only the agent
+  // being taken some other way, as the person's prompt does.
+  const reported = new Set<string>()
+  const bump = (id: string): void => {
+    epochs.set(id, (epochs.get(id) ?? 0) + 1)
+    reported.delete(id)
+  }
   const emit = (event: TurnEvent): void => watchers.forEach((watcher) => watcher(event))
   const cancel = (id: string): void => {
     active.get(id)?.forEach(clearTimeout)
@@ -121,7 +131,10 @@ export const demoTurns = (turnMs = demoTurnMs) => {
         type: "terminal/status",
         target,
         terminalId,
-        status: { state: "running", agent },
+        status: {
+          state: "running",
+          agent: reported.has(terminalKeyId(key)) ? { ...agent, reported: true } : agent,
+        },
       },
     ]
     sink?.dispatch(actions)
@@ -140,6 +153,7 @@ export const demoTurns = (turnMs = demoTurnMs) => {
       ...(tools ? [setTimeout(() => emit({ type: "tool", key }), turnMs / 2)] : []),
       setTimeout(() => {
         active.delete(id)
+        if (done) reported.add(id)
         status(key, {
           working: false,
           ...left(agent),
@@ -156,7 +170,12 @@ export const demoTurns = (turnMs = demoTurnMs) => {
   }
   // Starts the turn of an agent idle at its prompt; whether it started. Nothing for any
   // other terminal.
-  const prompt = (text: string, terminal: TerminalMetadata, key: TerminalKey): boolean => {
+  const prompt = (
+    text: string,
+    terminal: TerminalMetadata,
+    key: TerminalKey,
+    options: { readonly automatic?: boolean; readonly submittedAt?: number } = {},
+  ): boolean => {
     const id = terminalKeyId(key)
     const agent = terminal.state === "running" ? (terminal.agent ?? { working: false }) : undefined
     if (!chatAgent(terminal) || !agent || agent.working || agent.attention || active.has(id))
@@ -165,7 +184,13 @@ export const demoTurns = (turnMs = demoTurnMs) => {
     // An agent Novadeck hears nothing from reports no status, so a turn can't show: its
     // screen takes the person's line and the reply, which moves it past what it showed.
     if (terminal.state === "running" && !terminal.agent) {
-      emit({ type: "begin", key, prompt: text.trim() })
+      emit({
+        type: "begin",
+        key,
+        prompt: text.trim(),
+        ...(options.automatic && { automatic: true as const }),
+        ...(options.submittedAt !== undefined && { submittedAt: options.submittedAt }),
+      })
       emit({
         type: "end",
         key,
@@ -174,7 +199,13 @@ export const demoTurns = (turnMs = demoTurnMs) => {
       })
       return true
     }
-    emit({ type: "begin", key, prompt: text.trim() })
+    emit({
+      type: "begin",
+      key,
+      prompt: text.trim(),
+      ...(options.automatic && { automatic: true as const }),
+      ...(options.submittedAt !== undefined && { submittedAt: options.submittedAt }),
+    })
     const reply = `Done: ${text.trim()}. Nothing else changed.`
     // The demo's convention: a prompt ending in `?` is a question, answered in the reply with
     // no `done` call; any other prompt is a task, reported finished through `done`.
@@ -265,6 +296,7 @@ export const demoTurns = (turnMs = demoTurnMs) => {
             ...(limit ? { limit } : {}),
             at: Date.now(),
           }
+          if (done) reported.add(id)
           // Its subagents keep it working until they finish, as the runner reports it.
           const waiting = background !== undefined && background.agents > 0
           status(key, {

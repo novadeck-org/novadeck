@@ -1,4 +1,4 @@
-import type { InboxItem } from "@novadeck/core/inbox"
+import type { InboxRow } from "@novadeck/core/inbox"
 
 import { context, describe, expect, it } from "../test"
 import {
@@ -8,16 +8,19 @@ import {
   initialView,
   hasUpdates,
   needing,
+  needs,
   ringing,
   nextItem,
   openItem,
   release,
   settle,
+  settledStart,
   stepFrom,
+  updatesStart,
   visible,
 } from "./inbox-state"
 
-const source: InboxItem["source"] = {
+const source: InboxRow["source"] = {
   projectId: "p",
   workspaceSessionId: "s",
   terminalId: "t",
@@ -28,7 +31,7 @@ const source: InboxItem["source"] = {
 }
 
 // A permission that waited since `at`.
-const approve = (id: string, at: number, stopped = true): InboxItem => ({
+const approve = (id: string, at: number, stopped = true): InboxRow => ({
   id,
   source,
   at,
@@ -46,7 +49,7 @@ const approve = (id: string, at: number, stopped = true): InboxItem => ({
     answered: false,
   },
 })
-const update = (id: string, at: number): InboxItem => ({
+const update = (id: string, at: number): InboxRow => ({
   id,
   source,
   at,
@@ -56,7 +59,7 @@ const update = (id: string, at: number): InboxItem => ({
   update: { type: "told", subject: id, body: "" },
 })
 
-const draft = (id: string, at: number): InboxItem => ({
+const draft = (id: string, at: number): InboxRow => ({
   id,
   source,
   at,
@@ -66,7 +69,7 @@ const draft = (id: string, at: number): InboxItem => ({
   draft: { kind: "idea", text: id },
 })
 
-const ids = (items: readonly InboxItem[]): string[] => items.map(({ id }) => id)
+const ids = (items: readonly InboxRow[]): string[] => items.map(({ id }) => id)
 
 describe("What the Inbox starts with", () => {
   it("is on the list at once, and none of it counts as having just arrived", () => {
@@ -200,7 +203,7 @@ describe("What the rail counts", () => {
   })
 
   context("with failed turns among the items", () => {
-    const failed = (id: string, stopped: boolean): InboxItem => ({
+    const failed = (id: string, stopped: boolean): InboxRow => ({
       id,
       source,
       at: 1,
@@ -224,7 +227,7 @@ describe("What the rail counts", () => {
 
   context("when stepping to the next item", () => {
     it("skips a failed turn that only informs", () => {
-      const informs: InboxItem = {
+      const informs: InboxRow = {
         id: "old",
         source,
         at: 1,
@@ -252,5 +255,105 @@ describe("What the rail counts", () => {
         "u",
       ])
     })
+  })
+})
+
+describe("The line above the updates", () => {
+  it("goes on the row after the last that asks", () => {
+    expect(updatesStart([true, true, false, false])).toBe(2)
+  })
+
+  it("goes nowhere when nothing asks, or nothing follows what asks", () => {
+    expect(updatesStart([false, false])).toBe(-1)
+    expect(updatesStart([true, true])).toBe(-1)
+    expect(updatesStart([])).toBe(-1)
+  })
+
+  context("while a sheet holds the order and a row above has stopped asking", () => {
+    it("still sits under the last row that asks", () => {
+      expect(updatesStart([false, true, false])).toBe(2)
+      expect(updatesStart([true, false, true, false])).toBe(3)
+    })
+  })
+})
+
+// An ask the agent wrote, open or settled `how` at `at`.
+const ask = (
+  id: string,
+  at: number,
+  settled?: { how: "dismissed" | "withdrawn" | "replied"; at: number },
+): InboxRow => ({
+  id,
+  source,
+  at,
+  stopped: !settled,
+  seen: false,
+  kind: "ask",
+  ask: {
+    subject: id,
+    body: "",
+    details: null,
+    hardToUndo: null,
+    shape: { type: "text" },
+  },
+  ...(settled ? { settled } : {}),
+})
+
+describe("An ask that has settled", () => {
+  const items = [ask("a", 1), ask("b", 2, { how: "dismissed", at: 9 })]
+
+  it("is not held as news while a sheet is open", () => {
+    const open = openItem(settle(initialView, [items[0]!]), "a", [items[0]!])
+    expect(ids(held(open, items))).toEqual([])
+  })
+
+  it("asks nothing: the count, the bell and the rings leave it out", () => {
+    expect(needs(items[1]!)).toBe(false)
+    expect(ids(needing(items))).toEqual(["a"])
+    expect(ids(ringing(items))).toEqual(["a"])
+  })
+
+  it("is never what asks next", () => {
+    expect(nextItem(items, null, { answering: {} })?.id).toBe("a")
+    expect(nextItem([items[1]!], null, { answering: {} })).toBeUndefined()
+  })
+
+  it("lists below the rest, the latest settled first", () => {
+    const all = [ask("c", 3, { how: "withdrawn", at: 5 }), items[1]!, update("u", 4), items[0]!]
+
+    expect(ids(visible(settle(initialView, all), all))).toEqual(["a", "u", "b", "c"])
+  })
+
+  it("keeps its place while the panel is on screen, and drops below when it is shown again", () => {
+    const open = [ask("a", 1), ask("b", 2), update("u", 3)]
+    let view = settle(initialView, open, true)
+    const after = [open[0]!, ask("b", 2, { how: "dismissed", at: 9 }), open[2]!]
+    view = settle(view, after, true)
+
+    expect(ids(visible(view, after))).toEqual(["a", "b", "u"])
+    expect(ids(visible(settle(view, after, false), after))).toEqual(["a", "u", "b"])
+  })
+
+  it("does not move when a sheet closes with the panel still on screen", () => {
+    const open = [ask("a", 1), ask("b", 2), update("u", 3)]
+    let view = settle(initialView, open, true)
+    view = openItem(view, "a", open)
+    const after = [open[0]!, ask("b", 2, { how: "dismissed", at: 9 }), open[2]!]
+    view = settle(view, after, true)
+
+    expect(ids(visible(closeSheet(view, after), after))).toEqual(["a", "b", "u"])
+  })
+})
+
+describe("The line above the settled asks", () => {
+  it("goes on the first of the settled rows that end the list", () => {
+    expect(settledStart([false, false, true, true])).toBe(2)
+  })
+
+  it("goes nowhere without settled rows at the end, or with nothing above them", () => {
+    expect(settledStart([false, false])).toBe(-1)
+    expect(settledStart([true, true])).toBe(-1)
+    expect(settledStart([false, true, false])).toBe(-1)
+    expect(settledStart([])).toBe(-1)
   })
 })

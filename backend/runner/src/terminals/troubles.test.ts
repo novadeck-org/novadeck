@@ -1,7 +1,7 @@
 import { hasControlCharacters, type PageTrouble } from "@novadeck/protocol"
 
 import { harnesses } from "../harnesses/registry.js"
-import { byteLength } from "../messaging/mailbox.js"
+import { byteLength } from "../messaging/messages.js"
 import { describe, expect, it } from "../test.js"
 import {
   afterSummary,
@@ -230,6 +230,19 @@ describe("the size of page notices", () => {
     expect(first).toMatchObject({ nudge: true, artifacts: true, summarize: true, pages: [] })
     expect(due(first.nudges.troubles)).toBe(true)
     expect(take(first.nudges, true, alone).pages).toHaveLength(1)
+  })
+
+  it("keep a page waiting that only fails to fit beside a delivery's messages", () => {
+    // Beside the messages nothing fits; as the only thing an answer says, the page does.
+    const taken = take(
+      many(1),
+      true,
+      () => false,
+      () => true,
+    )
+    expect(taken.nudge).toBe(false)
+    expect(due(taken.nudges.troubles)).toBe(true)
+    expect(take(taken.nudges, true).pages).toHaveLength(1)
   })
 
   it("let a page go untold that could never fit", () => {

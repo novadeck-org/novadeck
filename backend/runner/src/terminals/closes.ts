@@ -20,6 +20,10 @@ export type CloseFailure = { readonly ok: false; readonly reason: string }
  * The MCP server's answer: the terminal that closed, by its handle, the agent it ran, if
  * any; the caller's own messages that won't arrive now, told once, as `send` tells them;
  * and how many other agents' messages to it won't either. Or why it didn't close.
+ *
+ * Two answers are not yet a close: `self`, the caller's own terminal, which closes a
+ * moment after the answer; and `asked`, a terminal running an agent the caller doesn't
+ * lead, which closes only if the person confirms, and the caller hears either way.
  */
 export type CloseAnswer =
   | {
@@ -29,6 +33,10 @@ export type CloseAnswer =
       readonly title: string
       /** The agent that ran there, as agents read its name, such as Codex. */
       readonly ran?: string
+      /** The caller's own terminal, which closes a moment after this answer. */
+      readonly self?: true
+      /** The person was asked to confirm; the terminal is still open. */
+      readonly asked?: true
       readonly gone?: readonly {
         readonly id: string
         readonly to: string
@@ -50,10 +58,44 @@ export const readCloseRequest = (
   return refused("A close needs `to`, the exact handle of a terminal, and nothing else.")
 }
 
-/** What a terminal's agent hears when it asks to close its own terminal. */
-export const selfRefusal = (handle: string): string =>
-  `${mention(handle)} is your own terminal, which close_terminal never closes; to end your own ` +
-  "session, use your harness's own way to exit."
+/**
+ * How long a terminal's own close waits after its answer, in milliseconds, so the
+ * harness has the tool's result, and usually records it, before its terminal ends: on
+ * Windows, Claude Code took longer than half a second to pass it on.
+ */
+export const selfCloseMs = 1_500
+
+/** What an agent hears when it asks to close a terminal already waiting for the person. */
+export const waitingRefusal = (handle: string): string =>
+  `${mention(handle)} is already waiting for the user's confirmation to close.`
+
+/** What an agent hears when no window of Novadeck is open to ask the person. */
+export const nobodyRefusal = "Novadeck isn't open to ask the user, so nothing closed."
+
+/** How the terminal reads in a notice: its handle, title and the agent that ran there. */
+const named = (handle: string, title: string, ran: string | undefined): string =>
+  `${mention(handle)} · ${title}` + (ran ? `, which ran ${ran}` : "")
+
+const notice = "Novadeck: automatic notice, not from the user: "
+
+/** What the asking agent is told once the person answered, or the ask ended without them. */
+export const closeNotice = {
+  confirmed: (handle: string, title: string, ran: string | undefined): string =>
+    notice +
+    `The user confirmed closing ${named(handle, title, ran)}, and it is closed. Messages ` +
+    "waiting for it never arrive.",
+  declined: (handle: string, title: string): string =>
+    notice + `The user kept ${mention(handle)} · ${title} open: it was not closed.`,
+  // Another close, or its own exit, ended it first.
+  vanished: (handle: string): string =>
+    notice +
+    `${mention(handle)} closed, or its shell ended, before the user answered, so there is ` +
+    "nothing left to confirm.",
+  gone: (handle: string): string =>
+    notice +
+    `Nothing closed: Novadeck's window went away before the user answered the ask to close ` +
+    `${mention(handle)}. Ask again if it still should.`,
+}
 
 /** What an agent hears once agents have closed as many terminals as they may for now. */
 export const spentRefusal =

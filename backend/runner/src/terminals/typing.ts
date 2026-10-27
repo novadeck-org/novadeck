@@ -113,8 +113,16 @@ export class Typing {
    * Gives the terminal's agent a prompt as the person would paste and submit it (see
    * `Prompts`), once those before it in the terminal's input queue are done.
    */
-  async prompt(terminalId: string, text: string): Promise<void> {
-    return await this.prompts.prompt(terminalId, text)
+  async prompt(terminalId: string, text: string, automatic?: true | undefined): Promise<void> {
+    // A fixed line from an Inbox button: the turn it starts withdraws no ask (see `automatic`).
+    if (automatic) this.host.messaging().automatic(terminalId, text)
+    try {
+      return await this.prompts.prompt(terminalId, text)
+    } catch (error) {
+      // Refused, failed or never given: no turn comes of it, so the mark would catch another.
+      if (automatic) this.host.messaging().automaticFailed(terminalId, text)
+      throw error
+    }
   }
 
   /** Answers a request waiting on the person through its dialog (see `Terminals.answer`). */

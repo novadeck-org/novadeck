@@ -1,3 +1,5 @@
+import type { NoticeSound } from "./sounds.js"
+
 /**
  * The contract between a desktop host's preload script and the page. The page calls
  * `window.novadeck.requestRunner(id)`; the preload answers with a window message
@@ -152,6 +154,23 @@ export type DesktopBridge = {
    */
   onPortableState?(listener: (state: PortableState) => void): () => void
   /**
+   * Opens the website's download page in the browser, on this system's portable copy, for
+   * a person who would rather fetch the newest portable than install. The host builds the
+   * address; the page never names one. From a copy that is not portable, or a sender that
+   * is not the app's own page, it does nothing.
+   */
+  openPortableDownload?(): void
+  /** Opens the folder that holds the person's workspace in the system's file manager. */
+  showDataFolder?(): void
+  /**
+   * What is new in the last `available` offer's version, for a copy that cannot install it
+   * itself: the highlights of the releases after this version up to it, newest first, as
+   * `whatsNew` gathers them, with `from` this version. Undefined before such an offer, when
+   * none of them names highlights, and when the notes can't be read. Absent from hosts that
+   * came before it.
+   */
+  updateNews?(): Promise<WhatsNew | undefined>
+  /**
    * What uninstalling this copy of the app would do, or why it can't be done from here.
    * Absent from hosts that came before it. See `UninstallPlan`.
    */
@@ -291,6 +310,10 @@ export type UninstallResult =
  * a page tells with it a window opened again within one run from a new launch, as on
  * macOS, where closing the window leaves the app running. `install` is how installing the
  * app from this copy stands in this run; the host owns it and pushes every change.
+ * `dataFolder` is where the workspace is kept, as the person would find it in their file
+ * manager (`~/.config/novadeck`, `C:\Users\…\AppData\Roaming\novadeck`); every copy of the
+ * app, portable or installed, old or new, uses that one folder. Absent when the host can't
+ * say.
  */
 export type PortableState =
   | { readonly portable: false }
@@ -299,6 +322,7 @@ export type PortableState =
       readonly version: string
       readonly run: string
       readonly install: PortableInstall
+      readonly dataFolder?: string
     }
 
 /**
@@ -318,6 +342,9 @@ export type PortableInstall =
   | { readonly phase: "installed" }
   | { readonly phase: "newer"; readonly version: string }
   | { readonly phase: "failed"; readonly reason: string }
+
+/** The longest data folder path the host shows; a longer one is no path. */
+export const portablePathLength = 1024
 
 /** What a run's name may be, as the host reports it: a UUID. */
 export const portableRunPattern = /^[0-9A-Fa-f-]{1,64}$/
@@ -425,18 +452,35 @@ export const parsePortableInstall = (value: unknown): PortableInstall | undefine
   return phase === "failed" ? { phase, reason: reasonLine(reason) } : undefined
 }
 
+// A path the host shows as one plain line, or undefined when it is none.
+const pathLine = (value: unknown): string | undefined =>
+  typeof value === "string" &&
+  value.trim() !== "" &&
+  value.length <= portablePathLength &&
+  !new RegExp(unwanted.source, "u").test(value)
+    ? value
+    : undefined
+
 /**
  * The portable state when it is one the contract allows, else undefined; each side picks
- * what a broken answer counts as.
+ * what a broken answer counts as. A `dataFolder` that is no plain path is left out.
  */
 export const parsePortableState = (value: unknown): PortableState | undefined => {
   if (!isRecord(value)) return undefined
-  const { portable, version, run, install } = value
+  const { portable, version, run, install, dataFolder } = value
   if (portable === false) return { portable: false }
   if (portable !== true || !isVersion(version)) return undefined
   if (typeof run !== "string" || !portableRunPattern.test(run)) return undefined
   const parsed = parsePortableInstall(install)
-  return parsed ? { portable: true, version, run, install: parsed } : undefined
+  if (!parsed) return undefined
+  const folder = pathLine(dataFolder)
+  return {
+    portable: true,
+    version,
+    run,
+    install: parsed,
+    ...(folder === undefined ? {} : { dataFolder: folder }),
+  }
 }
 
 /**
@@ -522,6 +566,12 @@ export type DesktopNotice = {
    * `DesktopBridge.notificationsSound`).
    */
   readonly silent?: boolean
+  /**
+   * The sound to play, the person's choice or else the theme's, where the host's
+   * notifications play one. The host drops an id outside `noticeSounds`, and absent plays
+   * `defaultNoticeSound`.
+   */
+  readonly sound?: NoticeSound
 }
 
 /** The longest notice title the host shows: a handle, a few words and a terminal's title. */

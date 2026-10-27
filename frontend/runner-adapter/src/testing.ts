@@ -150,6 +150,9 @@ export const recordingRunner = (runner: Runner, io: string[]): RunnerApi => {
       requests: () => runner.terminals.requests(),
       answerRequest: (answer) =>
         note(`answer ${answer.requestId}`, () => runner.terminals.answerRequest(answer)),
+      closeAsks: () => runner.terminals.closeAsks(),
+      answerCloseAsk: (answer) =>
+        note(`answer close ask ${answer.requestId}`, () => runner.terminals.answerCloseAsk(answer)),
       create: (input) => note(`create terminal ${input.id}`, () => runner.terminals.create(input)),
       close: (id) => note(`close ${id}`, () => runner.terminals.close(id)),
       rename: (id, title) => note(`rename ${id}`, () => runner.terminals.rename(id, title)),
@@ -163,8 +166,8 @@ export const recordingRunner = (runner: Runner, io: string[]): RunnerApi => {
       list: () => runner.agents.list(),
       detail: (terminalId) => runner.agents.detail(terminalId),
       transcript: (terminalId, actor) => runner.agents.transcript(terminalId, actor),
-      prompt: (terminalId, text) =>
-        note(`prompt ${terminalId}`, () => runner.agents.prompt(terminalId, text)),
+      prompt: (terminalId, text, automatic) =>
+        note(`prompt ${terminalId}`, () => runner.agents.prompt(terminalId, text, automatic)),
       interrupt: (terminalId) =>
         note(`interrupt ${terminalId}`, () => runner.agents.interrupt(terminalId)),
       answer: (terminalId, request, answer) =>
@@ -174,7 +177,7 @@ export const recordingRunner = (runner: Runner, io: string[]): RunnerApi => {
       set: (agent, connected) =>
         note(`agent ${agent} ${connected}`, () => runner.agents.set(agent, connected)),
     },
-    asks: runner.asks,
+    inbox: runner.inbox,
     messages: {
       list: (terminalId) => runner.messages.list(terminalId),
       watch: (terminalId) => runner.messages.watch(terminalId),

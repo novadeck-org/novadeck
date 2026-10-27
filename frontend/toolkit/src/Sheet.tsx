@@ -48,8 +48,9 @@ export const Sheet = ({
     () => ({
       placement: "right-start" as const,
       strategy: "fixed" as const,
-      gutter: 20,
-      offset: { mainAxis: 20, crossAxis: -12 },
+      // 8 px from the anchor, so a sheet beside a sidebar's row starts over its gutter.
+      gutter: 8,
+      offset: { mainAxis: 8, crossAxis: -12 },
       overflowPadding: 12,
       flip: false,
       fitViewport: true,

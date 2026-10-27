@@ -2,7 +2,7 @@ import {
   emptyInbox,
   type Inbox,
   type InboxAnswer,
-  type InboxItem,
+  type InboxRow,
   type InboxState,
 } from "@novadeck/core/inbox"
 import { createStore, createWorkspaceStore } from "@novadeck/core/store"
@@ -16,7 +16,7 @@ import { createUiStore, initialUi } from "./ui-store"
 
 const target = { projectId: "project", workspaceSessionId: "initial" }
 
-const source = (terminalId: string): InboxItem["source"] => ({
+const source = (terminalId: string): InboxRow["source"] => ({
   ...target,
   terminalId,
   handle: "moth",
@@ -25,7 +25,7 @@ const source = (terminalId: string): InboxItem["source"] => ({
   projectName: "Project",
 })
 
-const ask = (id: string, terminalId: string): InboxItem => ({
+const ask = (id: string, terminalId: string): InboxRow => ({
   id,
   source: source(terminalId),
   at: 1,
@@ -35,7 +35,7 @@ const ask = (id: string, terminalId: string): InboxItem => ({
   ask: { subject: "Which?", body: "", details: null, hardToUndo: null, shape: { type: "text" } },
 })
 
-const done = (id: string, terminalId: string): InboxItem => ({
+const done = (id: string, terminalId: string): InboxRow => ({
   id,
   source: source(terminalId),
   at: 1,
@@ -76,14 +76,17 @@ const setup = (initiallyWide = true) => {
         chatView: false,
         sound: true,
         soundVolume: 0.6,
+        soundChoice: "theme",
       },
     }),
   )
   ui.update((state) => ({ ...state, pageFocused: true }))
   const state = createStore<InboxState>(emptyInbox)
   const answers: [string, InboxAnswer][] = []
+  const cleared: string[][] = []
   const raw: Inbox = {
     state,
+    clear: (ids) => void cleared.push([...ids]),
     answer: (id, answer) => void answers.push([id, answer]),
     see: () => {},
     readAll: () => {},
@@ -102,7 +105,8 @@ const setup = (initiallyWide = true) => {
     restart: start,
     reveal,
     answers,
-    set: (items: InboxItem[]) => void state.update((current) => ({ ...current, items })),
+    cleared,
+    set: (items: InboxRow[]) => void state.update((current) => ({ ...current, items })),
     patch: (patch: Partial<InboxState>) =>
       void state.update((current) => ({ ...current, ...patch })),
     resize: (next: boolean) => {
@@ -169,6 +173,30 @@ describe("the landing rule", () => {
       set([])
       select("02")
       expect(ids()).toEqual([])
+      stop()
+    })
+
+    it("never lands once it settled unseen, is cleared once, and a landed one stays settled", () => {
+      const { set, select, ids, cleared, stop } = setup()
+      const settled = { how: "replied" as const, at: 2 }
+      set([ask("a", "01"), ask("b", "02")])
+      set([
+        { ...ask("a", "01"), settled },
+        { ...ask("b", "02"), settled },
+      ])
+      expect(ids()).toEqual(["b"])
+      expect(cleared).toEqual([["a"]])
+      select("02")
+      expect(ids()).toEqual(["b"])
+      expect(cleared).toEqual([["a"]])
+      stop()
+    })
+
+    it("shows a settled row at once, even where its terminal is viewed", () => {
+      const { set, ids, cleared, stop } = setup()
+      set([{ ...ask("a", "01"), settled: { how: "dismissed", at: 2 } }])
+      expect(ids()).toEqual(["a"])
+      expect(cleared).toEqual([])
       stop()
     })
 

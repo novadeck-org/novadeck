@@ -1,5 +1,6 @@
 import type { Bar } from "./companion-bar"
 import type { Item, ItemId } from "./items"
+import type { NoticeSound } from "./sounds"
 
 // What the person chose for the page: a scheme, or whatever the system uses.
 export type SchemePreference = "system" | "light" | "dark"
@@ -23,6 +24,9 @@ export type PreferencesValue = {
   // notification, and how loud, from 0 to 1.
   sound: boolean
   soundVolume: number
+  // Which sound it plays: "theme" for the current theme's own, the default, or the id of
+  // one of the app's sounds to ring with whatever the theme.
+  soundChoice: "theme" | NoticeSound
   // Whether monospace text joins pairs such as => and != into one glyph. Off by default:
   // a terminal shows what a program printed.
   ligatures: boolean
@@ -55,6 +59,9 @@ export type AgentStatus = {
   // How its latest turn ended, once none runs, with the start of its last reply where its
   // harness tells it (see `AgentTurnEnd`).
   readonly lastTurn?: AgentTurnEnd
+  // Its `done` report still stands: nothing the person prompted or a message delivered to it
+  // came after. Looking at the terminal does not end it, so its done mark stays until then.
+  readonly reported?: true
 }
 
 // What an idle agent waits on: jobs it left running and picks up once they finish, each in

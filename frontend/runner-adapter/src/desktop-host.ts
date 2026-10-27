@@ -1,5 +1,6 @@
 import type { Backend, Notice } from "@novadeck/core/port"
 import { maxFixLength, type SandboxState } from "@novadeck/core/sandbox"
+import { noticeSoundOf } from "@novadeck/core/sounds"
 import {
   maxUninstallPath,
   maxUninstallReason,
@@ -38,13 +39,15 @@ export const noticeText = (text: string, length: number): string => {
 }
 
 // A notice as the host takes it, or undefined for one it would drop: an id that is no
-// terminal's, or nothing to say.
-export const hostNotice = ({ id, title, body, silent }: Notice): Notice | undefined => {
+// terminal's, or nothing to say. A sound the app does not have is left off.
+export const hostNotice = ({ id, title, body, silent, sound }: Notice): Notice | undefined => {
+  const named = noticeSoundOf(sound)
   const notice = {
     id,
     title: noticeText(title, noticeTitleLength),
     body: noticeText(body, noticeBodyLength),
     ...(typeof silent === "boolean" ? { silent } : {}),
+    ...(named ? { sound: named } : {}),
   }
   return noticeIdPattern.test(id) && notice.title ? notice : undefined
 }
@@ -221,13 +224,18 @@ export const desktopSandbox = (host: DesktopHost | undefined): Backend["sandbox"
 }
 
 // The host's portable copy, where it has one: asked whether this is one, told how an
-// install stands, and asked to install the app from it. What crosses the bridge is checked;
-// a state that is none of the host's is not heard.
+// install stands, and asked to install the app from it or to open the newest portable's download page.
+// What crosses the bridge is checked; a state that is none of the host's is not heard.
 export const desktopPortable = (host: DesktopHost | undefined): Backend["portable"] => {
   const ask = host?.portable
   const install = host?.installApp
   const listen = host?.onPortableState
   if (!ask || !install || !listen) return undefined
+  // The newer calls come one by one: a host that came before them has none, and the card
+  // then offers nothing for it.
+  const openDownload = host?.openPortableDownload
+  const showDataFolder = host?.showDataFolder
+  const news = host?.updateNews
   return {
     state: async () => {
       const state = parsePortableState(await ask())
@@ -240,6 +248,9 @@ export const desktopPortable = (host: DesktopHost | undefined): Backend["portabl
         if (checked) listener(checked)
       }),
     install: () => install(),
+    ...(openDownload ? { openDownload: () => openDownload() } : {}),
+    ...(showDataFolder ? { showDataFolder: () => showDataFolder() } : {}),
+    ...(news ? { news: async () => parseWhatsNew(await news()) } : {}),
   }
 }
 

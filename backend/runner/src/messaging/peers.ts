@@ -2,13 +2,13 @@ import type { AgentActivity, AgentName, TitleSource } from "@novadeck/protocol"
 
 import { mention } from "../terminals/handles.js"
 import { busiestFolders, firstFrom, shorten, type Work } from "../terminals/work.js"
-import { agentLabel, clock, holdOf, type Message } from "./mailbox.js"
+import { agentLabel, clock, holdOf, isNotice, type Message } from "./messages.js"
 
 /**
  * What the terminal manager knows of a terminal beyond messaging: its title and who it
  * is from; the summary its own agent gave of its work; its folder, relative to
  * the project when inside it; its git branch; its current plan's title; what its root
- * session worked on; and how others read a folder it wrote in.
+ * session worked on; its agent's latest reports; and how others read a folder it wrote in.
  */
 export type Whereabouts = {
   readonly title: string | null
@@ -26,8 +26,16 @@ export type Whereabouts = {
   readonly waiting: Waiting | null
   /** What its idle agent waits on to wake it, if anything: see `Peer.waitsOn`. */
   readonly waitsOn: string | null
+  /** The latest reports its agent session gave the person. */
+  readonly reports: Reports
   readonly place: (path: string) => string
 }
+
+/** A report an agent gave the person through `tell` or `done`: its subject, and when. */
+export type Report = { readonly subject: string; readonly at: number }
+
+/** An agent session's latest `tell` and latest `done`, each null before one. */
+export type Reports = { readonly tell: Report | null; readonly done: Report | null }
 
 /**
  * A request waiting on the person, as listing it shows: its kind, the tool it is about, a
@@ -49,7 +57,8 @@ export type About = (terminalId: string) => Whereabouts | undefined
  * agent bound there; its title, and who it is from; the summary its own agent gave of its work;
  * its folder and git branch; the person's first and latest prompts there; its
  * plan's title; the folders it writes in most; the latest message between it and the
- * caller; whether its agent is busy or waits on the person, and when it was last active.
+ * caller; whether its agent is busy or waits on the person; whether it reported its task
+ * done and its latest report; and when it was last active.
  */
 export type Peer = {
   readonly terminalId: string
@@ -88,11 +97,49 @@ export type Peer = {
    * which may carry a secret), and how many more; or a wake-up it set.
    */
   readonly waitsOn: string | null
+  /**
+   * Its agent's report that its task is finished, made since the person's latest prompt
+   * and the latest message delivered to it; null otherwise.
+   */
+  readonly done: Report | null
+  /** Its agent's latest `tell` or `done`, when it isn't `done`; null without one. */
+  readonly update: Report | null
   readonly activeAt: number | null
 }
 
 /** How long a message's excerpt shows, in characters. */
 export const excerptChars = 80
+/** How long a report's subject shows, in characters. */
+export const reportChars = 120
+
+/**
+ * The `done` of an agent session that still stands: its latest, read or not, unless the
+ * person's prompt or a message delivered to the agent came after it and gave it more to do.
+ * The one rule behind a peer's `done` in the agents listing and the terminal summary's
+ * `reported`, so they never differ.
+ */
+export const standingDone = (
+  reports: Reports | undefined,
+  personAt: number | undefined,
+  deliveredAt: number | null,
+): Report | null => {
+  const since = Math.max(personAt ?? 0, deliveredAt ?? 0)
+  return reports?.done && reports.done.at > since ? reports.done : null
+}
+
+/**
+ * When the latest message delivered to a terminal was delivered, a peer's or the person's,
+ * never one of Novadeck's own notices, which give its agent nothing to do; null before one.
+ */
+export const deliveredTo = (messages: Iterable<Message>, terminalId: string): number | null => {
+  let last: number | null = null
+  for (const message of messages) {
+    const { to, deliveredAt } = message
+    if (to.terminalId !== terminalId || deliveredAt === null || isNotice(message)) continue
+    if (last === null || deliveredAt > last) last = deliveredAt
+  }
+  return last
+}
 
 /**
  * The latest message between the caller and a peer, either way, shortened: one the caller
@@ -119,6 +166,12 @@ export const lastBetween = (
   return { from, text: shorten(last.text, excerptChars), at: last.sentAt }
 }
 
+/** A report as a listing shows it, its subject cut short. */
+const cutShort = (report: Report): Report => ({
+  ...report,
+  subject: shorten(report.subject, reportChars),
+})
+
 /** A peer, from what messaging knows of it and the manager's whereabouts. */
 export const peerOf = (input: {
   readonly terminalId: string
@@ -131,11 +184,18 @@ export const peerOf = (input: {
   readonly withYou: Peer["withYou"]
   /** Its running lead's handle; null when it has none, or the terminal that leads it is gone. */
   readonly lead: string | null
+  /** When the latest message delivered to it was delivered: see `deliveredTo`. */
+  readonly deliveredAt: number | null
 }): Peer => {
   const { where, agent } = input
   const work = agent ? (where?.work ?? null) : null
   const openedBy = where?.openedBy ?? null
   const place = where?.place ?? ((path: string) => path)
+  const reports = agent ? where?.reports : undefined
+  const done = standingDone(reports, work?.personAt, input.deliveredAt)
+  const [latest] = [reports?.tell, reports?.done]
+    .filter((report): report is Report => Boolean(report))
+    .toSorted((a, b) => b.at - a.at)
   return {
     terminalId: input.terminalId,
     handle: input.handle,
@@ -164,6 +224,8 @@ export const peerOf = (input: {
     state: agent ? (input.busy ? "busy" : "idle") : null,
     waiting: agent ? (where?.waiting ?? null) : null,
     waitsOn: agent && !input.busy ? (where?.waitsOn ?? null) : null,
+    done: done && cutShort(done),
+    update: latest && latest !== done ? cutShort(latest) : null,
     activeAt: work?.activeAt ?? null,
   }
 }
@@ -245,6 +307,8 @@ export const renderPeer = (peer: Peer, now: number, viewer: Viewer): readonly st
     }`,
     peer.title && `  title: ${peer.title}${titleNote(peer)}`,
     peer.summary && `  described by its agent: ${peer.summary.split("\n").join(" / ")}`,
+    peer.done && `  reported done ${ago(peer.done.at, now)}: ${peer.done.subject}`,
+    peer.update && `  latest update ${ago(peer.update.at, now)}: ${peer.update.subject}`,
     peer.folder && `  folder: ${peer.folder}${peer.branch ? `, branch ${peer.branch}` : ""}`,
     relationLine(peer, viewer) && `  ${relationLine(peer, viewer)}`,
     peer.startedWith &&

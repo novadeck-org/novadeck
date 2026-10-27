@@ -3,7 +3,7 @@ import { wireContract, wireErrors } from "@novadeck/wire"
 import { eventIterator, oc, type ContractRouterClient } from "@orpc/contract"
 import { z } from "zod"
 
-import { askAnswer, inboxLetter } from "./inbox.js"
+import { askAnswer, inboxEntry } from "./inbox.js"
 import {
   agentDetail,
   agentIntegration,
@@ -36,6 +36,8 @@ import {
   terminalEvent,
   terminalRequest,
   terminalRequestAnswer,
+  closeAsk,
+  closeAskAnswer,
   terminalMessages,
   terminalSummary,
   terminalTitle,
@@ -165,6 +167,13 @@ export const contract = {
     // Answers a request with the terminal the client opened for it, or why it didn't.
     // One the runner no longer waits for, or sent to another client, is NOT_FOUND.
     answerRequest: procedure.input(terminalRequestAnswer).output(z.void()),
+    // Agents' asks to close a terminal that runs an agent they don't lead, for the client
+    // to confirm with the person: each goes to the client that subscribed last, and waits
+    // for its `answerCloseAsk`, with no time limit, until the runner withdraws it.
+    closeAsks: procedure.input(z.void()).output(eventIterator(closeAsk)),
+    // The person's answer to a close ask. One the runner no longer waits for, or sent to
+    // another client, is NOT_FOUND.
+    answerCloseAsk: procedure.input(closeAskAnswer).output(z.void()),
     // Every terminal across sessions, running or saved: `changed` for each, `synced`, then
     // later changes (creation, title, size, foreground process, exit, restart, and its
     // shell's record let go, when it is saved again) and `removed` once it is closed.
@@ -246,9 +255,17 @@ export const contract = {
     // showed, or showed other than exactly the text, is PROMPT_FAILED, and what landed of it
     // stays in the box as a draft; text a TUI would read as a command or a file pick (a
     // leading `/` or `!`, a trailing `@name` or `$name`, a control character), or that is
-    // nothing but white space, is PROMPT_REFUSED, writing nothing.
+    // nothing but white space, is PROMPT_REFUSED, writing nothing. `automatic` marks a fixed
+    // line an Inbox button sends ("continue"), not words the person wrote: the turn it
+    // starts is theirs to the doorbell and delivery, but takes no open ask out of the Inbox.
     prompt: procedure
-      .input(z.strictObject({ terminalId: id, text: z.string().min(1).max(16_384) }))
+      .input(
+        z.strictObject({
+          terminalId: id,
+          text: z.string().min(1).max(16_384),
+          automatic: z.literal(true).optional(),
+        }),
+      )
       .output(z.void()),
     // Answers a request waiting on the person through its dialog in the agent's TUI, as the
     // person would with its keys: the harness's adapter reads the dialog, checks it is the
@@ -368,14 +385,19 @@ export const contract = {
     // Gives a window its item's name again; errors as `renameWindow` does.
     resetWindowTitle: procedure.input(z.strictObject({ windowId: id })).output(z.void()),
   },
-  // Messages between agents in Novadeck's terminals (see docs/agent-messaging.md).
-  asks: {
-    list: procedure.input(z.void()).output(z.array(inboxLetter)),
-    watch: procedure.input(z.void()).output(eventIterator(z.array(inboxLetter))),
+  // The person's Inbox: what agents ask and tell them (see docs/agent-messaging.md).
+  inbox: {
+    list: procedure.input(z.void()).output(z.array(inboxEntry)),
+    watch: procedure.input(z.void()).output(eventIterator(z.array(inboxEntry))),
     answer: procedure.input(z.strictObject({ id, answer: askAnswer })).output(z.void()),
-    // Marks letters read: a tell stays as history, a finished turn is removed, an ask is
+    // Marks entries read: a tell stays as history, a finished turn is removed, an ask is
     // not touched. Unknown ids are skipped.
     read: procedure.input(z.strictObject({ ids: z.array(id).max(1000) })).output(z.void()),
+    // The person dismisses an open ask without answering it: it stays listed, settled, and its
+    // agent is told at its next hook. One that isn't an open ask is NOT_FOUND.
+    dismiss: procedure.input(z.strictObject({ id })).output(z.void()),
+    // Removes settled asks. Unknown ids, and any entry that isn't a settled ask, are skipped.
+    clear: procedure.input(z.strictObject({ ids: z.array(id).max(1000) })).output(z.void()),
   },
   messages: {
     // A terminal's threads and messages with their states. An unknown terminal is

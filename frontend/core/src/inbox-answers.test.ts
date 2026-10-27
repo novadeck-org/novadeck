@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, vi } from "vitest"
 
-import { emptyInbox, type InboxItem } from "./inbox"
+import { emptyInbox, type InboxRow } from "./inbox"
 import {
   answerFailure,
   answerItem,
@@ -22,7 +22,7 @@ const source = {
 } as const
 
 // Failed trouble derived from a limited end: no stored row stands behind it.
-const trouble: InboxItem = {
+const trouble: InboxRow = {
   id: "limit:01:1",
   source,
   at: 1,
@@ -32,7 +32,7 @@ const trouble: InboxItem = {
   trouble: { type: "failed", error: "boom" },
 }
 
-const request: InboxItem = {
+const request: InboxRow = {
   id: "request:r1",
   source,
   at: 1,
@@ -51,7 +51,7 @@ const request: InboxItem = {
   },
 }
 
-const held: InboxItem = {
+const held: InboxRow = {
   id: "held:th1",
   source,
   at: 1,
@@ -68,7 +68,7 @@ const held: InboxItem = {
   },
 }
 
-const reported: InboxItem = {
+const reported: InboxRow = {
   id: "update:01:100",
   source,
   at: 1,
@@ -361,7 +361,7 @@ describe("Answering an item", () => {
     it("is not the runner's to answer", () => {
       const { tracker } = setup()
       const done = actions()
-      const draft: InboxItem = {
+      const draft: InboxRow = {
         id: "fb",
         source,
         at: 1,
@@ -415,7 +415,7 @@ describe("Answering an item", () => {
       await flush()
       answerItem(tracker, trouble, { kind: "trouble", action: { type: "stop" } }, done)
 
-      expect(done.send).toHaveBeenCalledWith(key, "continue")
+      expect(done.send).toHaveBeenCalledWith(key, "continue", { automatic: true })
       expect(done.interrupt).toHaveBeenCalledWith(key)
     })
 
@@ -426,7 +426,7 @@ describe("Answering an item", () => {
       await flush()
 
       expect(done.interrupt).toHaveBeenCalledWith(key)
-      expect(done.send).toHaveBeenCalledWith(key, "go")
+      expect(done.send).toHaveBeenCalledWith(key, "go", { automatic: true })
       expect(done.interrupt.mock.invocationCallOrder[0]).toBeLessThan(
         done.send.mock.invocationCallOrder[0]!,
       )
@@ -439,11 +439,25 @@ describe("Answering an item", () => {
       await flush()
 
       expect(done.interrupt).not.toHaveBeenCalled()
-      expect(done.send).toHaveBeenCalledWith(key, "go")
+      expect(done.send).toHaveBeenCalledWith(key, "go", { automatic: true })
+    })
+
+    it("sends the person's own nudge as theirs, not automatic", async () => {
+      const { tracker } = setup()
+      const done = actions(agent(false))
+      answerItem(
+        tracker,
+        trouble,
+        { kind: "trouble", action: { type: "nudge", text: "try the cache", own: true } },
+        done,
+      )
+      await flush()
+
+      expect(done.send).toHaveBeenCalledWith(key, "try the cache", undefined)
     })
 
     describe("a stored failed turn", () => {
-      const row = (stopped: boolean): InboxItem => ({
+      const row = (stopped: boolean): InboxRow => ({
         ...trouble,
         id: "row-1",
         stopped,
@@ -457,7 +471,7 @@ describe("Answering an item", () => {
         answerItem(tracker, row(true), nudge, done)
         await flush()
 
-        expect(done.send).toHaveBeenCalledWith(key, "fix")
+        expect(done.send).toHaveBeenCalledWith(key, "fix", { automatic: true })
         expect(done.forget).toHaveBeenCalledWith(["row-1"])
         expect(done.read).not.toHaveBeenCalled()
       })

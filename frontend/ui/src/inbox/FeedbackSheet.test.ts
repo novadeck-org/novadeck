@@ -2,7 +2,7 @@ import {
   emptyInbox,
   type Inbox,
   type InboxAnswer,
-  type InboxItem,
+  type InboxRow,
   type InboxState,
 } from "@novadeck/core/inbox"
 import { createStore } from "@novadeck/core/store"
@@ -28,7 +28,7 @@ const draftText =
 let count = 0
 const mount = (text = draftText, failOnce = false) => {
   // A draft's edits are kept by its id, so each test has its own.
-  const item: InboxItem = {
+  const item: InboxRow = {
     id: `fb${count++}`,
     source: {
       projectId: "p",

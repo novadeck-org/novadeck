@@ -300,14 +300,14 @@ export const agentTranscripts = (now: number): Readonly<Record<string, DemoTrans
       ),
       use(
         "call_04n",
-        "mcp__novadeck__open_terminal",
+        "mcp__novadeck__open_agent",
         {
           agent: "claude",
           message: "Check that the export job still rounds cents the old way.",
         },
         {
           kind: "agent",
-          title: "Opened a terminal",
+          title: "Opened an agent",
           detail: "claude: Check that the export job still rounds cents the old way.",
         },
       ),
@@ -438,7 +438,7 @@ export const agentTranscripts = (now: number): Readonly<Record<string, DemoTrans
           toolSummary: JSON.stringify("Close the idle terminal"),
           toolAction: JSON.stringify("Calling close_terminal"),
         },
-        { kind: "agent", title: "Closed owl", detail: "" },
+        { kind: "agent", title: "Close owl", detail: "" },
       ),
       got("step:1c", "Closed owl."),
       use(

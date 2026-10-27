@@ -1,6 +1,6 @@
 import { describe, expect, it } from "../test.js"
 import {
-  atPrompt,
+  atTurnStart,
   backstopPrompts,
   afterSummary,
   drifted,
@@ -55,17 +55,31 @@ describe("nudges to describe a terminal", () => {
     expect(quietly(both.nudges).nudge).toBe(false)
   })
 
-  it("never ride along with messages: the trigger waits for an answer that has nothing else", () => {
+  it("wait for an answer that will reach the hook in time", () => {
     const pending = sessionBegan(noNudges, 0)
-    const busy = take(pending, false)
-    expect(busy).toEqual({
+    const late = take(pending, false)
+    expect(late).toEqual({
       nudge: false,
       artifacts: false,
       summarize: false,
       pages: [],
       nudges: pending,
     })
-    expect(quietly(busy.nudges).nudge).toBe(true)
+    expect(quietly(late.nudges).nudge).toBe(true)
+  })
+
+  it("share the answer with messages: the summary's request first, then the bar and Inbox, the rest later", () => {
+    const pending = sessionBegan(noNudges, 0)
+    // Beside a long delivery only the summary's request fits: the bar and Inbox wait.
+    const tight = take(pending, true, (took) => !took.artifacts)
+    expect(tight).toMatchObject({ nudge: true, summarize: true, artifacts: false })
+    expect(tight.nudges).toMatchObject({ pending: [], artifacts: true })
+    // The next turn, with room, tells of them.
+    expect(quietly(tight.nudges)).toMatchObject({ nudge: true, summarize: false, artifacts: true })
+    // With no room at all, everything waits.
+    const full = take(pending, true, () => false)
+    expect(full.nudge).toBe(false)
+    expect(full.nudges).toMatchObject({ pending: ["session"], artifacts: true })
   })
 
   it("are cleared by a describe, which drift is then measured from", () => {
@@ -146,13 +160,53 @@ describe("drift", () => {
 describe("a prompt's nudge", () => {
   it("counts the prompt, looks at drift, and nudges only an answer with nothing else", () => {
     const moved = { ...facts, branch: "main" }
-    const busy = atPrompt(afterSummary(noNudges, facts), { quiet: false, facts: moved })
+    const busy = atTurnStart(afterSummary(noNudges, facts), {
+      person: true,
+      inTime: false,
+      facts: moved,
+    })
     expect(busy.nudge).toBe(false)
     expect(busy.nudges).toMatchObject({ prompts: 1, pending: ["drift"] })
-    expect(atPrompt(busy.nudges, { quiet: true })).toMatchObject({
+    expect(atTurnStart(busy.nudges, { person: true, inTime: true })).toMatchObject({
       nudge: true,
       nudges: { prompts: 2, pending: [] },
     })
+  })
+
+  it("nudges at a turn the doorbell began, which counts nothing toward the backstop", () => {
+    // An agent its lead started: its first turn is the doorbell's, with the brief.
+    const rung = atTurnStart(sessionBegan(noNudges, 0), {
+      person: false,
+      inTime: true,
+      unsummarized: true,
+    })
+    expect(rung).toMatchObject({ nudge: true, summarize: true, artifacts: true })
+    expect(rung.nudges.prompts).toBe(0)
+  })
+
+  it("asks for a summary at every prompt while there is none, until the agent gives one", () => {
+    // The first prompt was only a question: the agent put the session's nudge off.
+    const first = atTurnStart(sessionBegan(noNudges, 0), {
+      person: true,
+      inTime: true,
+      unsummarized: true,
+    })
+    expect(first).toMatchObject({ nudge: true, summarize: true })
+    // The work comes in the next prompt, long before the backstop.
+    const second = atTurnStart(first.nudges, { person: true, inTime: true, unsummarized: true })
+    expect(second).toMatchObject({ nudge: true, summarize: true, artifacts: false })
+    // One that carries messages waits, and the next quiet one asks.
+    const busy = atTurnStart(second.nudges, { person: true, inTime: false, unsummarized: true })
+    expect(busy.nudge).toBe(false)
+    expect(
+      atTurnStart(busy.nudges, { person: true, inTime: true, unsummarized: true }).summarize,
+    ).toBe(true)
+    // A summary clears what waited, and from then on only the usual triggers ask.
+    expect(busy.nudges.pending).toEqual(["unsummarized"])
+    const summarized = afterSummary(busy.nudges, facts)
+    expect(atTurnStart(summarized, { person: true, inTime: true, unsummarized: false }).nudge).toBe(
+      false,
+    )
   })
 })
 
@@ -188,6 +242,8 @@ describe("a nudge", () => {
       "show tool",
       "deliverable",
       "not each file you touch",
+      "a page you serve or just deployed",
+      "a link to someone else's site",
       "diff",
       "open",
       "close",
@@ -197,19 +253,22 @@ describe("a nudge", () => {
     expect(inboxNotice).not.toContain("\n")
     for (const words of [
       "the user rarely watches this terminal",
-      "Always put every question you end your turn waiting on",
+      "When your harness has its own question tool and you'd stop to ask with it, do, as you normally would",
+      "Novadeck shows that question in their Inbox as it is, so it needs no ask",
+      "Always put every other question you end your turn waiting on",
       "in their Inbox with Novadeck's ask tool, unless it is already an open ask",
       "a closing offer such as 'anything else?' isn't one",
       "nor is an action your harness is already prompting them for",
-      "With a lead, send your report and your questions to it with send instead of done, tell or ask",
-      "approvals of actions, such as opening a pull request, are still the user's, asked with ask",
-      "you send your lead that you're waiting",
+      "With a lead, use ask, tell and done all the same, and send your lead your report and your questions too",
+      "approvals of actions are still only the user's",
       "put the full question in your reply too",
       "that is an ask with the action shape, not just words in your reply",
       "never ask for a secret value",
       "report it with Novadeck's done tool, your own short report",
       "not when you answer a question or finish a step",
-      "If they answer here instead, withdraw the ask",
+      "When they write to you here, Novadeck takes your open asks out of their Inbox and tells you",
+      "ask again only what their message leaves open",
+      "If they answer one here and no such notice came, withdraw it yourself",
     ])
       expect(inboxNotice).toContain(words)
     for (const native of ["AskUserQuestion", "request_user_input", "ask_question"])

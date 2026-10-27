@@ -5,7 +5,7 @@ import {
   type InboxAnswer,
   type InboxBinding,
   type InboxFinish,
-  type InboxItem,
+  type InboxRow,
   type InboxSource,
   type InboxState,
   type InboxTurn,
@@ -20,21 +20,21 @@ import {
 } from "@novadeck/core/inbox-answers"
 import {
   dialogMs,
-  inboxItems,
+  inboxRows,
   type Asked,
-  type InboxLetter as AskLetter,
-} from "@novadeck/core/inbox-items"
-import type { MailState } from "@novadeck/core/messages"
+  type InboxEntry as AskEntry,
+} from "@novadeck/core/inbox-rows"
+import type { MessagesState } from "@novadeck/core/messages"
 import { createStore, type Store } from "@novadeck/core/store"
 import type { TerminalMetadata, Workspace } from "@novadeck/core/types"
-import { longHoldMs, type AgentDetail, type AskAnswer, type InboxLetter } from "@novadeck/protocol"
+import { longHoldMs, type AgentDetail, type AskAnswer, type InboxEntry } from "@novadeck/protocol"
 
 import { requestOf } from "./conversations"
 
 // The runner's Inbox: what every agent terminal waits on the person for, one item per
 // terminal, built from what the UI already has: the terminals' statuses (a finished turn,
 // its error, a usage limit), the messages held for release, and the requests of the agents
-// that ask (read from `agents.detail`, opened only while one waits). Core's `inboxItems` is
+// that ask (read from `agents.detail`, opened only while one waits). Core's `inboxRows` is
 // the pure derivation; `createRunnerInbox` keeps it current and answers through the runner.
 
 // How long a terminal's detail stays open once nothing waits on it, so a request that
@@ -49,16 +49,22 @@ export const settleMs = 15_000
 
 // The streams and calls the Inbox needs of the runner.
 export type InboxStreams = {
-  readonly asks: {
-    readonly watch: () => AsyncIterableIterator<InboxLetter[], undefined>
+  readonly inbox: {
+    readonly watch: () => AsyncIterableIterator<InboxEntry[], undefined>
     readonly answer: (id: string, answer: AskAnswer) => Promise<void>
     readonly read: (ids: readonly string[]) => Promise<void>
+    readonly dismiss: (id: string) => Promise<void>
+    readonly clear: (ids: readonly string[]) => Promise<void>
   }
   readonly detail: (terminalId: string) => AsyncIterableIterator<AgentDetail, undefined>
   readonly answer: (key: ConversationKey, request: string, answer: ChatAnswer) => Promise<void>
-  readonly send: (key: ConversationKey, text: string) => Promise<void>
+  readonly send: (
+    key: ConversationKey,
+    text: string,
+    options?: { readonly automatic?: true },
+  ) => Promise<void>
   readonly interrupt: (key: ConversationKey) => Promise<string | null>
-  // The messages' own, which track their progress in the mail state.
+  // The messages' own, which track their progress in the messages state.
   readonly release: (thread: string) => void
   readonly stop: (thread: string) => void
 }
@@ -80,21 +86,21 @@ type Reading = {
   backoff: number
 }
 
-// The letters that are an ask, a tell or a done; a finished turn is `turnOf`.
-type NotATurn = InboxLetter & { readonly content: AskLetter["content"] }
-const notATurn = (letter: InboxLetter): letter is NotATurn => letter.content.kind !== "turn"
+// The entries that are an ask, a tell or a done; a finished turn is `turnOf`.
+type NotATurn = InboxEntry & { readonly content: AskEntry["content"] }
+const notATurn = (entry: InboxEntry): entry is NotATurn => entry.content.kind !== "turn"
 
-const turnOf = (letter: InboxLetter): InboxTurn | undefined => {
-  const { content } = letter
+const turnOf = (entry: InboxEntry): InboxTurn | undefined => {
+  const { content } = entry
   if (content.kind !== "turn") return undefined
   return {
-    id: letter.id,
-    projectId: letter.projectId,
-    workspaceSessionId: letter.workspaceSessionId,
-    terminalId: letter.terminalId,
-    handle: letter.handle,
-    agent: letter.agent,
-    at: letter.at,
+    id: entry.id,
+    projectId: entry.projectId,
+    workspaceSessionId: entry.workspaceSessionId,
+    terminalId: entry.terminalId,
+    handle: entry.handle,
+    agent: entry.agent,
+    at: entry.at,
     outcome: content.outcome,
     reply: content.reply,
     error: content.error,
@@ -117,7 +123,7 @@ const askedOf = (detail: AgentDetail): readonly Asked[] => {
 
 export const createRunnerInbox = (
   streams: InboxStreams,
-  mail: Store<MailState>,
+  messages: Store<MessagesState>,
   {
     now = Date.now,
     // Keeps a call the backend waits for before it stops, as its other calls are.
@@ -131,7 +137,7 @@ export const createRunnerInbox = (
   let binding: InboxBinding | null = null
   // Asks and tells, as the runner last listed them, and its finished turns (undefined until
   // the first listing, and after the listing ended for good).
-  let letters: readonly NotATurn[] = []
+  let entries: readonly NotATurn[] = []
   let listed: readonly InboxTurn[] | undefined
   const turns = createStore<readonly InboxTurn[] | undefined>(undefined)
   // The turn rows read on the person's looking: out of `turns` at once, until a listing no
@@ -142,11 +148,11 @@ export const createRunnerInbox = (
   let queued: string[] = []
   let readRetry: ReturnType<typeof setTimeout> | undefined
   let backoff = retryMs
-  let lettersStream: AsyncIterableIterator<InboxLetter[], undefined> | undefined
-  const stopLetters = (): void => {
-    const stream = lettersStream
-    lettersStream = undefined
-    letters = []
+  let entriesStream: AsyncIterableIterator<InboxEntry[], undefined> | undefined
+  const stopEntries = (): void => {
+    const stream = entriesStream
+    entriesStream = undefined
+    entries = []
     forgetTurns()
     void stream?.return?.()?.catch?.(() => {})
   }
@@ -260,7 +266,7 @@ export const createRunnerInbox = (
     for (let start = 0; start < fresh.length; start += 1000) {
       const batch = fresh.slice(start, start + 1000)
       for (const id of batch) inflight.add(id)
-      track(Promise.resolve().then(() => streams.asks.read(batch))).then(
+      track(Promise.resolve().then(() => streams.inbox.read(batch))).then(
         () => {
           if (binding !== next) return
           for (const id of batch) inflight.delete(id)
@@ -332,11 +338,11 @@ export const createRunnerInbox = (
       [...readings].map(([id, reading]) => [id, reading.requests] as const),
     )
     const at = now()
-    const found = inboxItems({
+    const found = inboxRows({
       workspace,
       turns: visible ?? [],
-      mail: mail.getSnapshot(),
-      letters,
+      messages: messages.getSnapshot(),
+      entries,
       requests,
       now: at,
       longHoldMs,
@@ -344,10 +350,10 @@ export const createRunnerInbox = (
     const { items, answering, failed: shown } = tracker.view(found)
 
     // A held thread's release or stop is tracked with the messages, so a pane's counts too.
-    const { releasing, failed: refused } = mail.getSnapshot()
+    const { releasing, failed: refused } = messages.getSnapshot()
     const rest: Record<string, string> = shown
     const threads = new Map(
-      Object.values(mail.getSnapshot().terminals).flatMap((listing) =>
+      Object.values(messages.getSnapshot().terminals).flatMap((listing) =>
         listing.threads.map((thread) => [thread.id, thread] as const),
       ),
     )
@@ -390,13 +396,13 @@ export const createRunnerInbox = (
         .flat()
         .filter(({ request }) => request.dialog === null)
         .map(({ askedAt }) => askedAt + dialogMs - at),
-      ...Object.values(mail.getSnapshot().terminals).map(({ waitsSince }) =>
+      ...Object.values(messages.getSnapshot().terminals).map(({ waitsSince }) =>
         waitsSince == null ? 0 : waitsSince + longHoldMs - at,
       ),
     ])
   }
 
-  const find = (id: string): InboxItem | undefined =>
+  const find = (id: string): InboxRow | undefined =>
     state.getSnapshot().items.find((item) => item.id === id)
 
   const terminalOf = (source: InboxSource): TerminalMetadata | undefined =>
@@ -408,7 +414,8 @@ export const createRunnerInbox = (
 
   const answer = (id: string, given: InboxAnswer): void => {
     const item = find(id)
-    if (!item || !binding || state.getSnapshot().answering[id]) return
+    // A settled ask is no longer the agent's to be answered.
+    if (!item || item.settled || !binding || state.getSnapshot().answering[id]) return
     const key = keyOf(item)
     if (item.kind === "ask" && given.kind === "ask") {
       replies.delete(id)
@@ -418,7 +425,7 @@ export const createRunnerInbox = (
         observed: false,
       })
       if (replies.size > replyTrackingLimit) replies.delete(replies.keys().next().value!)
-      return tracker.call(id, () => streams.asks.answer(id, given.answer), {
+      return tracker.call(id, () => streams.inbox.answer(id, given.answer), {
         onError: () => replies.delete(id),
       })
     }
@@ -427,16 +434,16 @@ export const createRunnerInbox = (
       given.kind === "update" &&
       (item.update.type === "told" || item.update.type === "done")
     )
-      return tracker.call(id, () => streams.asks.read([id]))
+      return tracker.call(id, () => streams.inbox.read([id]))
     answerItem(tracker, item, given, {
       request: (_, { request }, chat) => streams.answer(key, request.id, chat),
       release: (thread) => streams.release(thread),
       stop: (thread) => streams.stop(thread),
       read: (ids) => {
-        for (const each of ids) tracker.call(each, () => streams.asks.read([each]))
+        for (const each of ids) tracker.call(each, () => streams.inbox.read([each]))
       },
       forget: hide,
-      send: (at, text) => streams.send(at, text),
+      send: (at, text, options) => streams.send(at, text, options),
       interrupt: (at) => streams.interrupt(at),
       terminal: () => terminalOf(item.source),
     })
@@ -460,9 +467,39 @@ export const createRunnerInbox = (
           .map(({ id }) => id),
       )
     },
+    dismiss: (id) => {
+      const item = find(id)
+      // Only an open Novadeck ask: a harness's own question is answered in its dialog.
+      if (
+        !item ||
+        item.kind !== "ask" ||
+        item.settled ||
+        !binding ||
+        state.getSnapshot().answering[id]
+      )
+        return
+      tracker.call(id, () => streams.inbox.dismiss(id), { silent: true })
+    },
+    clear: (ids) => {
+      const settled = new Set(
+        state
+          .getSnapshot()
+          .items.filter((item) => item.kind === "ask" && item.settled)
+          .map((item) => item.id),
+      )
+      const wanted = ids.filter((id) => settled.has(id))
+      if (wanted.length === 0) return
+      const live = tracker.guard()
+      for (let start = 0; start < wanted.length; start += 1000) {
+        const batch = wanted.slice(start, start + 1000)
+        track(Promise.resolve().then(() => streams.inbox.clear(batch))).catch((error: unknown) => {
+          if (!live()) return
+          for (const id of batch) tracker.fail(id, answerFailure(error))
+        })
+      }
+    },
     readAll: () => {
-      // The updates and the failed rows that only inform, as shown: a done hidden under its
-      // running lead is the lead's, and stays.
+      // The updates and the failed rows that only inform, as shown.
       const ids = state
         .getSnapshot()
         .items.filter((item) => item.kind === "update" || (isTurnRow(item) && !item.stopped))
@@ -473,7 +510,7 @@ export const createRunnerInbox = (
       const live = tracker.guard()
       for (let start = 0; start < ids.length; start += 1000) {
         const batch = ids.slice(start, start + 1000)
-        track(Promise.resolve().then(() => streams.asks.read(batch))).catch((error: unknown) => {
+        track(Promise.resolve().then(() => streams.inbox.read(batch))).catch((error: unknown) => {
           if (!live()) return
           for (const id of batch) tracker.fail(id, answerFailure(error))
         })
@@ -481,34 +518,34 @@ export const createRunnerInbox = (
     },
     bind: (next) => {
       binding = next
-      unsubscribe = [next.workspace.subscribe(recompute), mail.subscribe(recompute)]
-      stopLetters()
-      const stream = streams.asks.watch()
-      lettersStream = stream
+      unsubscribe = [next.workspace.subscribe(recompute), messages.subscribe(recompute)]
+      stopEntries()
+      const stream = streams.inbox.watch()
+      entriesStream = stream
       void (async () => {
         try {
           for await (const snapshot of stream) {
-            if (lettersStream !== stream || binding !== next || ended) return
-            letters = snapshot.filter(notATurn)
-            listed = snapshot.flatMap((letter) => turnOf(letter) ?? [])
+            if (entriesStream !== stream || binding !== next || ended) return
+            entries = snapshot.filter(notATurn)
+            listed = snapshot.flatMap((entry) => turnOf(entry) ?? [])
             const held = new Set(listed.map(({ id }) => id))
             for (const id of hidden) if (!held.has(id)) hidden.delete(id)
             recompute()
             retryReads()
           }
         } catch {
-          // The client reconnects subscriptions; a permanently closed stream drops its letters.
+          // The client reconnects subscriptions; a permanently closed stream drops its entries.
         }
-        if (lettersStream !== stream) return
-        lettersStream = undefined
-        letters = []
+        if (entriesStream !== stream) return
+        entriesStream = undefined
+        entries = []
         forgetTurns()
         recompute()
       })()
       recompute()
       return () => {
         if (binding !== next) return
-        stopLetters()
+        stopEntries()
         binding = null
         for (const stop of unsubscribe) stop()
         unsubscribe = []
@@ -521,7 +558,7 @@ export const createRunnerInbox = (
     },
     end: () => {
       ended = true
-      stopLetters()
+      stopEntries()
       tracker.stop()
       for (const id of readings.keys()) close(id)
     },

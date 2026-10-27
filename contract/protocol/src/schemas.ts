@@ -68,7 +68,7 @@ export const agentSessionId = z.string().regex(/^[A-Za-z0-9][A-Za-z0-9._-]{0,127
 // for a notification's line, and never the whole reply.
 export const replyPreviewLength = 120
 
-// Fields of an agent's last turn, shared by its summary and by a stored turn letter.
+// Fields of an agent's last turn, shared by its summary and by a stored turn entry.
 export const turnReply = z.string().min(1).max(replyPreviewLength)
 export const turnError = z.string().min(1).max(2048)
 export const turnFiles = z.array(z.string().min(1).max(1024)).max(16)
@@ -521,6 +521,10 @@ export const terminalSummary = z.strictObject({
   activity: agentActivity.nullable(),
   // Its tokens and quotas, once its records named any; null otherwise.
   telemetry: agentTelemetry.nullable(),
+  // The agent's latest `done` that still stands, read or not: nothing the person prompted
+  // or a message delivered to it came after. The terminal's done mark follows it, not
+  // the person looking; null without one.
+  reported: z.strictObject({ subject: z.string().max(256), at: z.number() }).nullable(),
 })
 
 // What agents show and the person attaches beside a terminal: a pointer to a file, a
@@ -741,6 +745,25 @@ export const terminalRequestAnswer = z.union([
   z.strictObject({ requestId: id, terminalId: id }),
   z.strictObject({ requestId: id, reason: z.string().trim().min(1).max(512) }),
 ])
+
+// `terminals.closeAsks` items: an agent in terminal `from` asked, through Novadeck's MCP
+// server, to close `terminalId`, a terminal of its session that runs an agent it doesn't
+// lead, so the client asks the person first and answers with `answerCloseAsk`.
+// `withdrawn` takes back an ask the runner no longer waits for, as either terminal closed.
+export const closeAsk = z.discriminatedUnion("type", [
+  z.strictObject({
+    type: z.literal("ask"),
+    requestId: id,
+    from: id,
+    terminalId: id,
+    sessionId: id,
+  }),
+  z.strictObject({ type: z.literal("withdrawn"), requestId: id }),
+])
+
+// The person's answer to a close ask: `close` when they confirmed it, false when they kept
+// the terminal open.
+export const closeAskAnswer = z.strictObject({ requestId: id, close: z.boolean() })
 
 // `terminals.watch` events: every terminal's summary, then each later change.
 export const terminalChange = z.discriminatedUnion("type", [
@@ -1035,9 +1058,11 @@ export const agentMessage = z.strictObject({
   state: messageState,
   held: z.enum(["paused", "release"]).nullable(),
   deliveredAt: z.number().nullable(),
-  // Only the runner creates Inbox history and responses. Ordinary agent mail has none.
+  // Only the runner creates Inbox history and responses. Ordinary agent messages have none.
   inbox: z.enum(["ask", "tell", "done", "answer"]).optional(),
-  inboxState: z.enum(["open", "answered", "read", "withdrawn", "gone", "undelivered"]).optional(),
+  inboxState: z
+    .enum(["open", "answered", "read", "withdrawn", "dismissed", "gone", "undelivered"])
+    .optional(),
 })
 
 // A thread between a terminal and one other: the other's handle, how many messages it
@@ -1110,6 +1135,8 @@ export type ChangedFile = z.infer<typeof changedFile>
 export type PlanSaveResult = z.infer<typeof planSaveResult>
 export type TerminalRequest = z.infer<typeof terminalRequest>
 export type TerminalRequestAnswer = z.infer<typeof terminalRequestAnswer>
+export type CloseAsk = z.infer<typeof closeAsk>
+export type CloseAskAnswer = z.infer<typeof closeAskAnswer>
 export type TerminalEvent = z.infer<typeof terminalEvent>
 export type TerminalAttached = z.infer<typeof terminalAttached>
 export type AgentName = z.infer<typeof agentName>

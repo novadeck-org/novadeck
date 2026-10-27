@@ -29,7 +29,7 @@ export class Streams<R extends { readonly summary: { readonly id: string } }> {
   /** Each terminal's `agents.detail` readers. */
   private readonly details = new Map<string, Set<Latest<AgentDetail>>>()
   /** Each terminal's `messages.watch` readers. */
-  private readonly mail = new Map<string, Set<Latest<TerminalMessages>>>()
+  private readonly messages = new Map<string, Set<Latest<TerminalMessages>>>()
 
   constructor(readonly host: StreamsHost<R>) {}
 
@@ -81,7 +81,7 @@ export class Streams<R extends { readonly summary: { readonly id: string } }> {
     terminalId: string,
     signal: AbortSignal | undefined,
   ): AsyncGenerator<TerminalMessages> {
-    return this.snapshots(this.mail, terminalId, this.host.messages(terminalId), signal)
+    return this.snapshots(this.messages, terminalId, this.host.messages(terminalId), signal)
   }
 
   /** Tells the terminal's detail readers of a change; each drops one it already has. */
@@ -93,8 +93,8 @@ export class Streams<R extends { readonly summary: { readonly id: string } }> {
   }
 
   /** Tells the terminal's message watchers what its listing says now. */
-  mailChanged(terminalId: string): void {
-    const readers = this.mail.get(terminalId)
+  messagesChanged(terminalId: string): void {
+    const readers = this.messages.get(terminalId)
     if (!readers?.size || this.host.stopping() || !this.host.holds(terminalId)) return
     const listing = this.host.messages(terminalId)
     const key = JSON.stringify(listing)
@@ -102,13 +102,13 @@ export class Streams<R extends { readonly summary: { readonly id: string } }> {
   }
 
   /** The terminals whose messages someone watches. */
-  mailWatched(): IterableIterator<string> {
-    return this.mail.keys()
+  messagesWatched(): IterableIterator<string> {
+    return this.messages.keys()
   }
 
   /** Ends the terminal's detail and messages streams, as it is closed. */
   end(terminalId: string): void {
-    for (const streams of [this.details, this.mail]) {
+    for (const streams of [this.details, this.messages]) {
       for (const reader of streams.get(terminalId) ?? []) reader.finish()
       streams.delete(terminalId)
     }
@@ -126,7 +126,7 @@ export class Streams<R extends { readonly summary: { readonly id: string } }> {
 
   /** Ends every detail and messages stream, as the runner shuts down. */
   finishReaders(): void {
-    for (const streams of [this.details, this.mail])
+    for (const streams of [this.details, this.messages])
       for (const readers of streams.values()) for (const reader of readers) reader.finish()
   }
 

@@ -31,6 +31,49 @@ const keyed = (
   })
 }
 
+// The highlights as list items, each a title with its line under it, led by its icon on a
+// tile. The portable copy's card (PortableInstall.tsx) lists its release's the same way.
+export const Highlights = ({
+  highlights,
+}: {
+  readonly highlights: Notes["highlights"]
+}): React.JSX.Element => (
+  <>
+    {keyed(highlights).map(({ key, title, line, icon }) => {
+      const Icon = highlightIcon(icon)
+      return (
+        <li key={key}>
+          <span className="whats-new-icon">
+            <Icon size={15} strokeWidth={1.8} aria-hidden="true" />
+          </span>
+          <span className="whats-new-text">
+            <b className="whats-new-title">{title}</b>
+            <span>{line}</span>
+          </span>
+        </li>
+      )
+    })}
+  </>
+)
+
+// Whether the highlights' list overflows the card, in a short window: only then is it a Tab
+// stop, so the keyboard can scroll it. The setter goes on the list's `ref`.
+export const useOverflow = (): readonly [(list: HTMLUListElement | null) => void, boolean] => {
+  const [list, setList] = useState<HTMLUListElement | null>(null)
+  const [scrolls, setScrolls] = useState(false)
+  useLayoutEffect(() => {
+    const element = list
+    if (!element) return undefined
+    const measure = (): void => setScrolls(element.scrollHeight > element.clientHeight)
+    measure()
+    if (typeof ResizeObserver === "undefined") return undefined
+    const observer = new ResizeObserver(measure)
+    observer.observe(element)
+    return () => observer.disconnect()
+  }, [list])
+  return [setList, scrolls]
+}
+
 // What assistive technology hears when the card comes up, once: the version and the
 // highlights' titles, not their lines, which the card has for whoever goes to read it.
 export const announcement = ({ version, highlights }: Notes): string =>
@@ -93,20 +136,7 @@ export const WhatsNew = ({
     })
     return () => cancelAnimationFrame(frame)
   }, [shown])
-  // Whether the highlights overflow the card, in a short window: only then is the list a Tab
-  // stop, so the keyboard can scroll it.
-  const [list, setList] = useState<HTMLUListElement | null>(null)
-  const [scrolls, setScrolls] = useState(false)
-  useLayoutEffect(() => {
-    const element = list
-    if (!element) return undefined
-    const measure = (): void => setScrolls(element.scrollHeight > element.clientHeight)
-    measure()
-    if (typeof ResizeObserver === "undefined") return undefined
-    const observer = new ResizeObserver(measure)
-    observer.observe(element)
-    return () => observer.disconnect()
-  }, [list])
+  const [setList, scrolls] = useOverflow()
   const inside = (): boolean => panel.current?.contains(document.activeElement) === true
   return (
     <>
@@ -160,20 +190,7 @@ export const WhatsNew = ({
             tabIndex={scrolls ? 0 : undefined}
             aria-labelledby={scrolls ? titleId : undefined}
           >
-            {keyed(card.notes.highlights).map(({ key, title, line, icon }) => {
-              const Icon = highlightIcon(icon)
-              return (
-                <li key={key}>
-                  <span className="whats-new-icon">
-                    <Icon size={15} strokeWidth={1.8} aria-hidden="true" />
-                  </span>
-                  <span className="whats-new-text">
-                    <b className="whats-new-title">{title}</b>
-                    <span>{line}</span>
-                  </span>
-                </li>
-              )
-            })}
+            <Highlights highlights={card.notes.highlights} />
           </ul>
         </section>
       )}

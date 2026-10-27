@@ -5,6 +5,7 @@ import { createWorkspaceStore } from "@novadeck/core/store"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
 import { createDemoEngine } from "./engine"
+import { inboxTranscripts } from "./inbox-transcripts"
 import { demoBackend, withConversations } from "./index"
 import { demoSeed, demoTerminalId } from "./samples"
 import { agentTranscripts, showcaseTranscripts, type DemoTranscript } from "./transcripts"
@@ -212,19 +213,25 @@ const novadeckTool = (tool: string, fields: Fields | null): ToolSummary | undefi
       }
     case "agents":
       return { kind: "agent", title: "Listed agents", detail: "" }
-    case "open_terminal": {
+    case "open_terminal":
+      return {
+        kind: "agent",
+        title: "Opened a terminal",
+        detail: text("command", "title", "cwd"),
+      }
+    case "open_agent": {
       const agent = text("agent")
       const task = text("message")
       return {
         kind: "agent",
-        title: "Opened a terminal",
-        detail: agent ? (task ? `${agent}: ${task}` : agent) : text("command", "title", "cwd"),
+        title: "Opened an agent",
+        detail: agent ? (task ? `${agent}: ${task}` : agent) : task,
       }
     }
     case "close_terminal":
       return {
         kind: "agent",
-        title: `Closed${text("to") ? ` ${text("to")}` : " a terminal"}`,
+        title: `Close${text("to") ? ` ${text("to")}` : " a terminal"}`,
         detail: "",
       }
     case "show":
@@ -448,7 +455,11 @@ describe("the demo's scripted tool calls", () => {
   })
 
   it("leave no call without one, and no other item with one", () => {
-    for (const item of [...scripted(agentTranscripts(now)), ...scripted(showcaseTranscripts(now))])
+    for (const item of [
+      ...scripted(agentTranscripts(now)),
+      ...scripted(showcaseTranscripts(now)),
+      ...scripted(inboxTranscripts(now)),
+    ])
       expect(item.run !== null, `${item.id}`).toBe(item.kind === "tool-call")
   })
 })

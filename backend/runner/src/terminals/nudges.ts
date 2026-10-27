@@ -5,10 +5,12 @@ import { shorten } from "./work.js"
  * When Novadeck nudges a terminal's agent to summarize its work (see
  * docs/agent-messaging.md, "Naming"): a new root session; a compaction, where the harness
  * reports one; the work drifting from where it was at the last `summarize` (its plan's
- * title, the folder it writes in most, or its branch); and, as a backstop,
- * `backstopPrompts` of the person's prompts since the last `summarize`.
+ * title, the folder it writes in most, or its branch); as a backstop, `backstopPrompts` of
+ * the person's prompts since the last `summarize`; and every prompt while the terminal has
+ * no summary at all (`unsummarized`), since an agent whose first prompt gave it no work yet
+ * puts the first nudge off, and the terminal has no title until it summarizes.
  */
-export type Trigger = "session" | "compaction" | "drift" | "prompts"
+export type Trigger = "session" | "compaction" | "drift" | "prompts" | "unsummarized"
 
 /**
  * What drift is told by: the root's plan title, its main "works in" folder, its branch.
@@ -68,7 +70,7 @@ const raised = (nudges: Nudges, trigger: Trigger): Nudges => ({
 })
 
 /**
- * A trigger fired; it nudges once, at the next prompt that carries nothing else. A
+ * A trigger fired; it nudges once, at the next turn start with room for it. A
  * session that forgot also has the bar beside it to hear of. A new session is
  * `sessionBegan`.
  */
@@ -124,7 +126,7 @@ export const afterSummary = (nudges: Nudges, facts: Facts): Nudges => ({
   since: nudges.since,
 })
 
-/** What a prompt's answer says, if anything: of the bar and Inbox, of the description, of pages, or all. */
+/** What a turn's answer says, if anything: of the bar and Inbox, of the description, of pages, or all. */
 export type Taken = {
   readonly nudge: boolean
   readonly artifacts: boolean
@@ -134,26 +136,33 @@ export type Taken = {
   readonly nudges: Nudges
 }
 
+/** Whether an answer with the notices of a `Taken` stays within what a hook may print. */
+export type Fits = (took: Pick<Taken, "artifacts" | "summarize" | "pages">) => boolean
+
 /**
- * Whether a prompt's answer nudges, and with what, and the nudges after it: only when a
- * trigger fired, the bar is yet to be told of or a page has troubles to tell, and never in
- * an answer that carries anything else, as messages, when they wait. Pages go only as far
- * as `fits` accepts the answer.
+ * Whether a turn's answer nudges, and with what, and the nudges after it: only when a
+ * trigger fired, the bar is yet to be told of or a page has troubles to tell, and only in
+ * an answer that will reach the hook `inTime`. The notices share the answer with what it
+ * already says, as messages: each goes only as far as `fits` accepts the answer, in turn
+ * the summary's request (short, and it asks for something), the bar's and the Inbox's,
+ * then pages; what doesn't fit waits for the next turn. `fitsAlone` measures a notice as
+ * the only thing an answer says, so a page that could never fit is let go.
  */
 export const take = (
   nudges: Nudges,
-  quiet: boolean,
-  fits: (took: Pick<Taken, "artifacts" | "summarize" | "pages">) => boolean = () => true,
+  inTime: boolean,
+  fits: Fits = () => true,
+  fitsAlone: Fits = fits,
 ): Taken => {
-  const summarize = nudges.pending.length > 0
-  const { artifacts } = nudges
+  const owed = nudges.pending.length > 0
   const silent = { nudge: false, artifacts: false, summarize: false, pages: [], nudges }
-  if (!quiet || !(summarize || artifacts || due(nudges.troubles))) return silent
-  // Pages go only as far as the answer stays within what a hook may print.
+  if (!inTime || !(owed || nudges.artifacts || due(nudges.troubles))) return silent
+  const summarize = owed && fits({ artifacts: false, summarize: true, pages: [] })
+  const artifacts = nudges.artifacts && fits({ artifacts: true, summarize, pages: [] })
   const { pages, troubles } = spend(
     nudges.troubles,
     (each) => fits({ artifacts, summarize, pages: each }),
-    (page) => fits({ artifacts: false, summarize: false, pages: [page] }),
+    (page) => fitsAlone({ artifacts: false, summarize: false, pages: [page] }),
   )
   if (!summarize && !artifacts && pages.length === 0)
     return { ...silent, nudges: { ...nudges, troubles } }
@@ -162,26 +171,41 @@ export const take = (
     artifacts,
     summarize,
     pages,
-    nudges: { ...nudges, pending: [], artifacts: false, troubles },
+    nudges: {
+      ...nudges,
+      pending: summarize ? [] : nudges.pending,
+      artifacts: artifacts ? false : nudges.artifacts,
+      troubles,
+    },
   }
 }
 
 /**
- * The person prompted: one more toward the backstop, drift looked at where `facts` were
- * read, and whether the answer nudges, which it does only when it is `quiet`: it carries
- * nothing else and will reach the hook in time. A trigger that can't nudge now waits.
+ * A root turn began, by the person's prompt (`person`) or by the doorbell: a prompt of the
+ * person's counts toward the backstop, drift is looked at where `facts` were read, a
+ * summary is asked for again while there is none, and the answer nudges as `take` says.
+ * A trigger that can't nudge now waits.
  */
-export const atPrompt = (
+export const atTurnStart = (
   nudges: Nudges,
   input: {
-    readonly quiet: boolean
+    readonly person: boolean
+    readonly inTime: boolean
     readonly facts?: Facts | undefined
-    /** Whether an answer with the notices of a `Taken` stays within what a hook may print. */
-    readonly fits?: Parameters<typeof take>[2]
+    /** Whether the terminal has no summary on record. */
+    readonly unsummarized?: boolean
+    readonly fits?: Fits
+    readonly fitsAlone?: Fits
   },
 ): Taken => {
-  const counted = personPrompted(nudges)
-  return take(input.facts ? drifted(counted, input.facts) : counted, input.quiet, input.fits)
+  const counted = input.person ? personPrompted(nudges) : nudges
+  const looked = input.facts ? drifted(counted, input.facts) : counted
+  return take(
+    input.unsummarized ? fired(looked, "unsummarized") : looked,
+    input.inTime,
+    input.fits,
+    input.fitsAlone,
+  )
 }
 
 /**
@@ -218,7 +242,10 @@ export const artifactsNotice =
   "show the user what you make, with Novadeck's show tool. Show a deliverable when it is " +
   "done, not each file you touch: an image or screenshot, a rendered page or a dev " +
   "server's address, a report, mockup, diagram or generated document, the one file the " +
-  "user asked you for, or whatever they ask to see. A source file is one too while it is " +
+  "user asked you for, or whatever they ask to see. Show a page you serve or just " +
+  "deployed, such as a dev server or a preview; a link to someone else's site, which often " +
+  "wants a sign-in in the pane, goes in your reply unless they ask to see it there. A " +
+  "source file is one too while it is " +
   "the file you are working on together, so show it and keep it shown; the files a change " +
   "touches on the way aren't: once a piece of work is done, show the working tree's " +
   "changes with changes, as diffs. Show a deliverable " +
@@ -230,33 +257,39 @@ export const artifactsNotice =
 
 /**
  * What a session is told once of the Inbox, with the bar's notice: that the person
- * rarely watches the terminal, so a question the agent's turn ends waiting on goes there
- * with `ask` and in the reply in full; that something only they can do (a sign-in, access,
+ * rarely watches the terminal, so a question the agent's turn ends waiting on goes there:
+ * through its harness's own question tool where it would use one, which the Inbox shows
+ * as it is, else with `ask` and in the reply in full; that something only they can do (a sign-in, access,
  * a key) is an `ask` with the action shape; that a finished task is reported with `done`;
- * and that with a lead, reports and questions go to it with `send`, while approvals of
- * actions stay the user's. It says so in every harness at the prompt, Antigravity's
+ * and that with a lead, it uses `ask`, `tell` and `done` all the same and sends the lead its
+ * reports and questions too; and that the person writing in the terminal withdraws the
+ * agent's open asks. It says so in every harness at the prompt, Antigravity's
  * too, which reads no server instructions (there `ask`'s description is what lasts, as an
  * injection lasts one model call), and again after a compaction where the harness reports
  * one.
  */
 export const inboxNotice =
   "Novadeck: automatic notice, not from the user: the user rarely watches this terminal, " +
-  "so a question only in your reply goes unseen. Always put every question you end your " +
-  "turn waiting on, such as which option to take or whether to open a pull request, in " +
-  "their Inbox with Novadeck's ask tool, unless it is already an open ask, and put the " +
+  "so a question only in your reply goes unseen. When your harness has its own question " +
+  "tool and you'd stop to ask with it, do, as you normally would: Novadeck shows that " +
+  "question in their Inbox as it is, so it needs no ask. Always put every other question " +
+  "you end your turn waiting on, such as which option to take or whether to open a pull " +
+  "request, in their Inbox with Novadeck's ask tool, unless it is already an open ask, and put the " +
   "full question in your reply too; a closing offer such as 'anything else?' isn't one, " +
   "nor is an action your harness is already prompting them for. When you can't go on " +
   "without something only the user can do, such as a sign-in, access to a service or " +
   "repo, or a key put in place, that is an ask with the action shape, not just words in " +
   "your reply; never ask for a secret value. When the task you were given is finished, " +
   "report it with Novadeck's done tool, your own short report, not when you answer a " +
-  "question or finish a step. With a lead, send your report and your questions to it with " +
-  "send instead of done, tell or ask; approvals of actions, such as opening a pull " +
-  "request, are still the user's, asked with ask, and you send your lead that you're " +
-  "waiting. If they answer here instead, withdraw the ask. This notice needs no reply."
+  "question or finish a step. With a lead, use ask, tell and done all the same, and send " +
+  "your lead your report and your questions too; approvals of actions are still only the " +
+  "user's. " +
+  "When they write to you here, Novadeck takes your open asks out of their Inbox " +
+  "and tells you; ask again only what their message leaves open. If they answer one here " +
+  "and no such notice came, withdraw it yourself. This notice needs no reply."
 
 /**
- * What a quiet prompt's answer says for what it `took`: the bar beside the terminal and
+ * What a turn's notices say for what it `took`: the bar beside the terminal and
  * the Inbox, for a session that begins or forgot, the terminal's description, and each
  * page that had problems, each a paragraph of its own.
  */

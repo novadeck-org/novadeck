@@ -4,6 +4,7 @@ import {
   existsSync,
   mkdirSync,
   mkdtempSync,
+  readdirSync,
   readFileSync,
   realpathSync,
   renameSync,
@@ -20,7 +21,7 @@ import { vi } from "vitest"
 
 import type { ItemRecord } from "../companions/records.js"
 import { DomainError } from "../errors.js"
-import type { Message, Thread } from "../messaging/mailbox.js"
+import type { Message, Thread } from "../messaging/messages.js"
 import { handleWords } from "../terminals/handles.js"
 import { sealedShape } from "../terminals/sealing.js"
 import { describe, expect, it as base } from "../test.js"
@@ -132,10 +133,11 @@ const rowsOf = (database: DatabaseSync) =>
     ]),
   )
 
-// What `rowsOf` gave a database of version 3 or 2 as a version 5 holds it: its windows have
+// What `rowsOf` gave a database of version 3 or 2 as a version 6 holds it: its windows have
 // a home, 'undocked', its threads hold none, and the rest is as it was.
-const carried = (rows: ReturnType<typeof rowsOf>) => ({
+const carried = ({ asks, ...rows }: ReturnType<typeof rowsOf>) => ({
   ...rows,
+  inbox: asks!,
   message_threads: rows
     .message_threads!.map((row) => {
       const { id, project_id, first_terminal, second_terminal, hops, last_at, stopped_at } =
@@ -202,7 +204,7 @@ describe("workspace metadata", () => {
     expect(first.id).toMatch(/^[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12}$/)
     const database = new DatabaseSync(path)
     try {
-      expect(database.prepare("PRAGMA user_version").get()?.user_version).toBe(5)
+      expect(database.prepare("PRAGMA user_version").get()?.user_version).toBe(6)
       expect(database.prepare("PRAGMA foreign_key_check").all()).toEqual([])
       expect(() =>
         database
@@ -394,13 +396,13 @@ describe("workspace metadata", () => {
     const path = join(directory(), "workspace.sqlite")
     const future = new DatabaseSync(path)
     future.exec(
-      "CREATE TABLE future_data (value TEXT); INSERT INTO future_data VALUES ('saved'); PRAGMA user_version = 6",
+      "CREATE TABLE future_data (value TEXT); INSERT INTO future_data VALUES ('saved'); PRAGMA user_version = 7",
     )
     future.close()
     expect(() => new WorkspaceStore(path)).toThrow(/newer/)
     const database = new DatabaseSync(path)
     try {
-      expect(database.prepare("PRAGMA user_version").get()?.user_version).toBe(6)
+      expect(database.prepare("PRAGMA user_version").get()?.user_version).toBe(7)
       expect(database.prepare("SELECT value FROM future_data").get()?.value).toBe("saved")
     } finally {
       database.close()
@@ -467,7 +469,7 @@ describe("workspace metadata", () => {
     const database = new DatabaseSync(path)
     const reference = new DatabaseSync(fresh)
     try {
-      expect(database.prepare("PRAGMA user_version").get()?.user_version).toBe(5)
+      expect(database.prepare("PRAGMA user_version").get()?.user_version).toBe(6)
       expect(rowsOf(database)).toEqual(carried(before))
       // Its tables are now those a new database gets, constraints and indexes too.
       expect(schemaOf(database)).toEqual(schemaOf(reference))
@@ -513,7 +515,7 @@ describe("workspace metadata", () => {
     const database = new DatabaseSync(path)
     const reference = new DatabaseSync(fresh)
     try {
-      expect(database.prepare("PRAGMA user_version").get()?.user_version).toBe(5)
+      expect(database.prepare("PRAGMA user_version").get()?.user_version).toBe(6)
       expect(rowsOf(database)).toEqual(carried(before))
       expect(
         ["companion_windows", "companion_items"].map((table) =>
@@ -587,7 +589,7 @@ describe("workspace metadata", () => {
     const database = new DatabaseSync(path)
     const reference = new DatabaseSync(fresh)
     try {
-      expect(database.prepare("PRAGMA user_version").get()?.user_version).toBe(5)
+      expect(database.prepare("PRAGMA user_version").get()?.user_version).toBe(6)
       expect(
         database.prepare("SELECT id, held_from, held_for FROM message_threads ORDER BY id").all(),
       ).toEqual([
@@ -648,7 +650,7 @@ describe("workspace metadata", () => {
     workspace.close()
     const database = new DatabaseSync(path)
     try {
-      expect(database.prepare("PRAGMA user_version").get()?.user_version).toBe(5)
+      expect(database.prepare("PRAGMA user_version").get()?.user_version).toBe(6)
       expect(database.prepare("PRAGMA foreign_key_check").all()).toEqual([])
     } finally {
       database.close()
@@ -754,7 +756,7 @@ describe("workspace metadata", () => {
     expect(restoreSetAside(path)).toBeUndefined()
   })
 
-  it("brings one back where a start since carried the empty workspace to version 5", ({
+  it("brings one back where a start since carried the empty workspace to version 6", ({
     directory,
   }) => {
     const path = join(directory(), "workspace.sqlite")
@@ -798,12 +800,12 @@ describe("workspace metadata", () => {
     expect(existsSync(path)).toBe(false)
     // A newer build's empty one.
     const newer = new DatabaseSync(path)
-    newer.exec("CREATE TABLE projects (id TEXT); PRAGMA user_version = 5")
+    newer.exec("CREATE TABLE projects (id TEXT); PRAGMA user_version = 6")
     newer.close()
     expect(restoreSetAside(path)).toBeUndefined()
     const database = new DatabaseSync(path)
     try {
-      expect(database.prepare("PRAGMA user_version").get()?.user_version).toBe(5)
+      expect(database.prepare("PRAGMA user_version").get()?.user_version).toBe(6)
     } finally {
       database.close()
     }
@@ -867,8 +869,8 @@ describe("workspace metadata", () => {
       // in store.ts's migrations, from schemas/<version before>.sql, which is added for
       // it; a new table needs neither. Then record the new digest here.
       expect({ version, digest }).toEqual({
-        version: 5,
-        digest: "1dcbbd06a96c0534f522d5a1afb03273410ce60b85688ad80fa02c6e0f51b2fd",
+        version: 6,
+        digest: "ee9624dccc4b364c71ad51d5f5ca75cee4b602ca004d1f5c6ac0dce709be2811",
       })
     } finally {
       database.close()
@@ -1070,6 +1072,7 @@ describe("saved terminals", () => {
         latest: "Now add paging",
         folders: { "/work/src": 4 },
         activeAt: 2_000,
+        personAt: 1_500,
       },
     }
     first.saveTerminal({ ...terminal, transcript: "screen" })
@@ -1515,7 +1518,7 @@ const message = (id: string, state: Message["state"]): Message => ({
   toLead: false,
 })
 
-describe("the mailbox", () => {
+describe("the messages", () => {
   it("keeps messages, threads and the pause across reopen, until removed", ({
     directory,
     store,
@@ -1877,8 +1880,8 @@ describe("murmur's settings", () => {
   })
 })
 
-describe("the Inbox's letters", () => {
-  const letter = (at: number) => ({
+describe("the Inbox's entries", () => {
+  const entry = (at: number) => ({
     id: randomUUID(),
     terminalId: randomUUID(),
     projectId: randomUUID(),
@@ -1891,24 +1894,176 @@ describe("the Inbox's letters", () => {
     content: { kind: "tell" as const, subject: "Hi", body: "There" },
   })
 
-  it("saves several letters as one transaction, and a failure saves none", ({
+  it("saves several entries as one transaction, and a failure saves none", ({
     directory,
     store,
   }) => {
     const workspace = store(join(directory(), "workspace.sqlite"))
-    const [a, b] = [letter(1), letter(2)]
-    workspace.saveLetters([a!, b!])
-    expect(workspace.letters().map(({ id }) => id)).toEqual([a!.id, b!.id])
-    const broken = { ...letter(3), content: 1n } as never
-    expect(() => workspace.saveLetters([letter(3), broken])).toThrow()
-    expect(workspace.letters()).toHaveLength(2)
+    const [a, b] = [entry(1), entry(2)]
+    workspace.saveEntries([a!, b!])
+    expect(workspace.entries().map(({ id }) => id)).toEqual([a!.id, b!.id])
+    const broken = { ...entry(3), content: 1n } as never
+    expect(() => workspace.saveEntries([entry(3), broken])).toThrow()
+    expect(workspace.entries()).toHaveLength(2)
   })
 
-  it("removes several letters as one transaction", ({ directory, store }) => {
+  it("removes several entries as one transaction", ({ directory, store }) => {
     const workspace = store(join(directory(), "workspace.sqlite"))
-    const all = [letter(1), letter(2), letter(3)]
-    workspace.saveLetters(all)
-    workspace.removeLetters([all[0]!.id, all[2]!.id])
-    expect(workspace.letters().map(({ id }) => id)).toEqual([all[1]!.id])
+    const all = [entry(1), entry(2), entry(3)]
+    workspace.saveEntries(all)
+    workspace.removeEntries([all[0]!.id, all[2]!.id])
+    expect(workspace.entries().map(({ id }) => id)).toEqual([all[1]!.id])
+  })
+})
+
+describe("the Inbox table's rename", () => {
+  it("carries a version 5 database's asks table to inbox, its rows unchanged", ({ directory }) => {
+    const path = join(directory(), "workspace.sqlite")
+    const record = JSON.stringify({
+      id: "e",
+      terminalId: "t",
+      projectId: "p",
+      workspaceSessionId: "s",
+      agent: "claude",
+      sessionId: "cs",
+      handle: "moth",
+      at: 5,
+      state: "open",
+      content: { kind: "tell", subject: "Hi", body: "There" },
+    })
+    const old = new DatabaseSync(path)
+    old.exec(`${readFileSync(new URL("schemas/5.sql", import.meta.url), "utf8")}
+      PRAGMA user_version = 5;
+      INSERT INTO asks VALUES ('e', 'p', 't', 5, '${record}');`)
+    old.close()
+    const workspace = new WorkspaceStore(path)
+    try {
+      expect(workspace.entries().map(({ id }) => id)).toEqual(["e"])
+      expect(workspace.entries()[0]).toEqual(JSON.parse(record))
+    } finally {
+      workspace.close()
+    }
+    const database = new DatabaseSync(path)
+    try {
+      expect(database.prepare("PRAGMA user_version").get()?.user_version).toBe(6)
+      expect(
+        database
+          .prepare("SELECT * FROM inbox")
+          .all()
+          .map((row) => ({ ...row })),
+      ).toEqual([{ id: "e", project_id: "p", terminal_id: "t", at: 5, record }])
+      expect(
+        database.prepare("SELECT name FROM sqlite_schema WHERE name = 'asks'").get(),
+      ).toBeUndefined()
+    } finally {
+      database.close()
+    }
+  })
+
+  it.for([2, 5])(
+    "doesn't need a version %i database to have the asks table",
+    (version, { directory }) => {
+      const path = join(directory(), "workspace.sqlite")
+      const old = new DatabaseSync(path)
+      old.exec(`${readFileSync(new URL(`schemas/${version}.sql`, import.meta.url), "utf8")}
+        DROP TABLE asks;
+        PRAGMA user_version = ${version};
+        INSERT INTO projects (position, id, name, cwd) VALUES (1, 'p', 'Shop', '/shop');`)
+      old.close()
+      const workspace = new WorkspaceStore(path)
+      try {
+        expect(workspace.projects().map(({ id }) => id)).toEqual(["p"])
+        expect(workspace.entries()).toEqual([])
+      } finally {
+        workspace.close()
+      }
+      const database = new DatabaseSync(path)
+      try {
+        expect(database.prepare("PRAGMA user_version").get()?.user_version).toBe(6)
+        expect(
+          database.prepare("SELECT name FROM sqlite_schema WHERE name = 'asks'").get(),
+        ).toBeUndefined()
+      } finally {
+        database.close()
+      }
+    },
+  )
+})
+
+describe("the snapshot taken before a migration", () => {
+  const writeOld = (path: string, version = 5) => {
+    const old = new DatabaseSync(path)
+    old.exec(`${readFileSync(new URL(`schemas/${version}.sql`, import.meta.url), "utf8")}
+      DROP TABLE asks;
+      PRAGMA user_version = ${version};
+      INSERT INTO projects (position, id, name, cwd) VALUES (1, 'p', 'Shop', '/shop');`)
+    old.close()
+  }
+  const snapshots = (path: string) => {
+    try {
+      return readdirSync(join(path, "..", "snapshots")).toSorted()
+    } catch {
+      return []
+    }
+  }
+
+  it("holds the database as it was, at its old version", ({ directory }) => {
+    const path = join(directory(), "workspace.sqlite")
+    writeOld(path)
+    new WorkspaceStore(path).close()
+    const [name, ...rest] = snapshots(path)
+    expect(rest).toEqual([])
+    expect(name).toMatch(/^workspace-v5-[\dTZ-]+\.sqlite$/)
+    const copy = new DatabaseSync(join(path, "..", "snapshots", name ?? ""), {
+      readOnly: true,
+    })
+    try {
+      expect(copy.prepare("PRAGMA user_version").get()?.user_version).toBe(5)
+      expect(
+        copy
+          .prepare("SELECT id FROM projects")
+          .all()
+          .map((row) => row.id),
+      ).toEqual(["p"])
+    } finally {
+      copy.close()
+    }
+  })
+
+  it("is not taken for a current or a new database", ({ directory }) => {
+    const path = join(directory(), "workspace.sqlite")
+    new WorkspaceStore(path).close()
+    new WorkspaceStore(path).close()
+    expect(snapshots(path)).toEqual([])
+  })
+
+  it("keeps the newest three", ({ directory }) => {
+    const root = directory()
+    const path = join(root, "workspace.sqlite")
+    const folder = join(root, "snapshots")
+    mkdirSync(folder)
+    for (const day of ["01", "02", "03", "04"]) {
+      writeFileSync(join(folder, `workspace-v2-2026-10-${day}T00-00-00-000Z.sqlite`), "")
+    }
+    writeOld(path)
+    new WorkspaceStore(path).close()
+    const kept = readdirSync(folder).toSorted()
+    expect(kept).toHaveLength(3)
+    expect(kept.some((name) => name.includes("2026-10-01") || name.includes("2026-10-02"))).toBe(
+      false,
+    )
+    expect(kept.some((name) => name.startsWith("workspace-v5-"))).toBe(true)
+  })
+
+  it("never stops the migration when it fails", ({ directory }) => {
+    const path = join(directory(), "workspace.sqlite")
+    writeOld(path)
+    writeFileSync(join(path, "..", "snapshots"), "in the way")
+    const workspace = new WorkspaceStore(path)
+    try {
+      expect(workspace.projects().map(({ id }) => id)).toEqual(["p"])
+    } finally {
+      workspace.close()
+    }
   })
 })

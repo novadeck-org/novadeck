@@ -129,6 +129,18 @@ export const portableChannel = "novadeck:portable"
  */
 export const installAppChannel = "novadeck:install-app"
 
+/** Renderer-to-main request to open the website's download page for this system's portable copy; answers nothing. */
+export const openPortableDownloadChannel = "novadeck:open-portable-download"
+
+/** Renderer-to-main request to open the folder that holds the person's workspace. */
+export const showDataFolderChannel = "novadeck:show-data-folder"
+
+/**
+ * Renderer-to-main request for what is new in the version a portable copy is offered;
+ * answers a `WhatsNew` or undefined. See main/whats-new.ts.
+ */
+export const updateNewsChannel = "novadeck:update-news"
+
 /**
  * Main-to-renderer report of the portable state, a `PortableState`, whenever it changes,
  * which includes each step of an install; see main/portable.ts.
@@ -184,6 +196,11 @@ export type RunnerCommand =
   | { readonly type: "transcriptKey"; readonly key: string | null }
   | { readonly type: "persist" }
   | { readonly type: "close" }
+  // The host's main process is alive and answering; see ./runner/host-watch.ts.
+  | { readonly type: "beat" }
+
+/** How often the host's main process beats to the runner, in ms. */
+export const hostBeatMs = 1_000
 
 /** Messages from the runner's utility process to the main process: it is ready to serve. */
 export type RunnerReport = { readonly type: "ready" }

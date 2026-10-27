@@ -1,11 +1,12 @@
 import type { PortableInstall } from "@novadeck/core/portable"
-import type { UpdateOffer } from "@novadeck/core/update"
+import type { UpdateOffer, WhatsNew } from "@novadeck/core/update"
 import { render, type Rendered } from "@novadeck/test-kit/render"
 import { act, createElement } from "react"
 import { afterEach, vi } from "vitest"
 
 import { context, describe, expect, it } from "../test"
 import { fadeMs, finishedForMs } from "./linger"
+import type { FooterPortable } from "./PortableInstall"
 import { UpdateProgress } from "./UpdateProgress"
 import { recoveredForMs, WorkspaceFooter, type FooterStatus } from "./WorkspaceFooter"
 
@@ -13,6 +14,7 @@ const mounted: Rendered[] = []
 afterEach(() => {
   mounted.splice(0).forEach((page) => page.unmount())
   vi.useRealTimers()
+  localStorage.clear()
 })
 
 const portable = {
@@ -334,12 +336,42 @@ describe("workspace footer", () => {
       mounted.push(page)
       const pressed = button(page)!
       expect(pressed.getAttribute("aria-label")).toBe("Update available: Novadeck 0.0.81")
-      expect(pressed.textContent).toBe("Update availableUpdate")
+      expect(pressed.textContent).toBe("Update available")
+      expect(pressed.querySelector(".footer-chip-dot")).not.toBeNull()
       expect(pressed.classList.contains("footer-update")).toBe(true)
       expect(pressed.hasAttribute("aria-expanded")).toBe(false)
       act(() => pressed.click())
       expect(onOpenPage).toHaveBeenCalledOnce()
       expect(page.container.querySelector("section")).toBeNull()
+    })
+
+    it("folds to its icon once its page was opened, until another release", () => {
+      const onOpenPage = vi.fn<() => void>()
+      const page = render(withChip({ version: "0.0.81", onOpenPage }))
+      mounted.push(page)
+      const words = () => button(page)!.querySelector(".footer-chip-text")!
+      expect(words().classList.contains("hidden")).toBe(false)
+      act(() => button(page)!.click())
+      expect(onOpenPage).toHaveBeenCalledOnce()
+      expect(words().classList.contains("hidden")).toBe(true)
+      expect(button(page)!.getAttribute("aria-label")).toBe("Update available: Novadeck 0.0.81")
+      page.rerender(withChip({ version: "0.0.82", onOpenPage }))
+      expect(words().classList.contains("hidden")).toBe(false)
+    })
+
+    it("keeps the fold across a reload, and never folds Allow updates", () => {
+      const onOpenPage = vi.fn<() => void>()
+      const first = render(withChip({ version: "0.0.81", onOpenPage }))
+      act(() => button(first)!.click())
+      first.unmount()
+      const again = render(withChip({ version: "0.0.81", onOpenPage }))
+      mounted.push(again)
+      const words = () => button(again)!.querySelector(".footer-chip-text")!
+      expect(words().classList.contains("hidden")).toBe(true)
+      expect(button(again)!.title).toBe("Update available · Opens the release page")
+      again.rerender(withChip({ version: "0.0.82", onOpenPage, onAllow: () => {} }))
+      act(() => button(again)!.click())
+      expect(words().classList.contains("hidden")).toBe(false)
     })
 
     it("asks for an administrator, as Allow updates, when it can be let install itself", () => {
@@ -349,7 +381,7 @@ describe("workspace footer", () => {
       mounted.push(page)
       const pressed = button(page)!
       expect(pressed.getAttribute("aria-label")).toBe("Allow updates: Novadeck 0.0.81")
-      expect(pressed.textContent).toBe("Allow updatesAllow")
+      expect(pressed.textContent).toBe("Allow updates")
       expect(pressed.getAttribute("aria-description")).toContain("administrator's password")
       expect(pressed.title).toContain("administrator's password")
       expect(
@@ -403,18 +435,74 @@ describe("workspace footer", () => {
       expect(region.textContent).toBe("Update available")
     })
 
-    it("offers Install Novadeck alone while no release is known, narrowed to Install", () => {
+    it("offers Install Novadeck alone while no release is known, narrowed to its icon", () => {
       const page = withUpdate("ok")
       expect(chip(page).getAttribute("aria-label")).toBe("Install Novadeck")
-      expect(chip(page).textContent).toBe("Install NovadeckInstall")
-      expect(chip(page).querySelector(".hidden")!.textContent).toBe("Install")
+      expect(chip(page).textContent).toBe("Install Novadeck")
+      expect(chip(page).querySelector(".footer-chip-text")!.className).toContain(
+        "max-[701px]:hidden",
+      )
+      expect(chip(page).querySelector(".footer-chip-dot")).toBeNull()
     })
 
-    it("says Update available on the chip for a missing release, narrowed to Update", () => {
+    it("says Update available on the chip for a missing release, with a dot on its icon", () => {
       const page = withUpdate("ok", ready)
       expect(chip(page).getAttribute("aria-label")).toBe("Update available: Novadeck 0.0.80")
-      expect(chip(page).textContent).toBe("Update availableUpdate")
-      expect(chip(page).querySelector(".hidden")!.textContent).toBe("Update")
+      expect(chip(page).textContent).toBe("Update available")
+      expect(chip(page).querySelector(".footer-chip-dot")).not.toBeNull()
+    })
+
+    it("folds the chip to its icon once its card was closed, until another release", () => {
+      const open = (update: UpdateOffer) => {
+        const base = props("ok", update)
+        return createElement(WorkspaceFooter, {
+          ...base,
+          portable: { ...base.portable, open: true },
+        })
+      }
+      const page = render(open(ready))
+      mounted.push(page)
+      const words = () => chip(page).querySelector(".footer-chip-text")!
+      expect(words().classList.contains("hidden")).toBe(false)
+      act(() =>
+        [...page.container.querySelectorAll("button")]
+          .find((b) => b.getAttribute("aria-label") === "Dismiss")!
+          .click(),
+      )
+      expect(words().classList.contains("hidden")).toBe(true)
+      expect(chip(page).title).toBe("Update available")
+      expect(chip(page).querySelector(".footer-chip-dot")).not.toBeNull()
+      page.rerender(open({ ...ready, version: "0.0.81" }))
+      expect(words().classList.contains("hidden")).toBe(false)
+    })
+
+    it("keeps its words on a card closed with no release, and the fold across a reload", () => {
+      const open = (update?: UpdateOffer) => {
+        const base = props("ok", update)
+        return createElement(WorkspaceFooter, {
+          ...base,
+          portable: { ...base.portable, open: true },
+        })
+      }
+      const dismiss = (page: Rendered) =>
+        act(() =>
+          [...page.container.querySelectorAll("button")]
+            .find((b) => b.getAttribute("aria-label") === "Dismiss")!
+            .click(),
+        )
+      const first = render(open(ready))
+      dismiss(first)
+      first.unmount()
+      const again = render(open(ready))
+      mounted.push(again)
+      const words = () => chip(again).querySelector(".footer-chip-text")!
+      expect(words().classList.contains("hidden")).toBe(true)
+      again.rerender(open())
+      expect(words().classList.contains("hidden")).toBe(false)
+      dismiss(again)
+      expect(words().classList.contains("hidden")).toBe(false)
+      again.rerender(open(ready))
+      expect(words().classList.contains("hidden")).toBe(true)
     })
 
     it("leaves the bar's tone and the link's status to the connection", () => {
@@ -489,7 +577,7 @@ describe("workspace footer", () => {
         const buttons = [...region.querySelectorAll("button")].map(
           (b) => b.getAttribute("aria-label") ?? b.textContent,
         )
-        expect(buttons).toEqual(["Dismiss", "Install"])
+        expect(buttons).toEqual(["Dismiss", "Install Novadeck"])
         expect(region.textContent).not.toContain("Release notes")
       })
 
@@ -503,6 +591,172 @@ describe("workspace footer", () => {
             portable: { ...portable, install, onInstall },
           },
         })
+
+      // The card for the offered release, with the host's folder, notes and calls.
+      const withNotes = (
+        aside: Partial<FooterPortable> & {
+          news?: WhatsNew | undefined
+          newsSettled?: boolean
+          onShown?: () => void
+        } = {},
+      ) => {
+        const { news, newsSettled, onShown, ...more } = aside
+        return createElement(WorkspaceFooter, {
+          ...props("ok", ready),
+          portable: {
+            ...props("ok", ready).portable,
+            open: true,
+            news,
+            ...(newsSettled === undefined ? {} : { newsSettled }),
+            ...(onShown ? { onShown } : {}),
+            portable: { ...portable, ...more },
+          },
+        })
+      }
+      const buttonNames = (page: Rendered) =>
+        [...notice(page)!.querySelectorAll("button")].map(
+          (b) => b.getAttribute("aria-label") ?? b.textContent,
+        )
+      const notes: WhatsNew = {
+        version: "0.0.80",
+        from: "0.0.70",
+        highlights: ["a", "b", "c", "d", "e"].map((title) => ({ title, line: `${title} line` })),
+      }
+
+      it("lists the release's highlights, four at most, under its tape and the version it is new since", () => {
+        const page = render(withNotes({ news: notes }))
+        mounted.push(page)
+        const region = notice(page)!
+        expect(region.classList.contains("whats-new")).toBe(true)
+        expect(document.getElementById(region.getAttribute("aria-labelledby")!)?.textContent).toBe(
+          "New in Novadeck 0.0.80",
+        )
+        expect(region.querySelector(".whats-new-from")?.textContent).toBe("From 0.0.70")
+        expect([...region.querySelectorAll(".whats-new-title")].map((t) => t.textContent)).toEqual([
+          "a",
+          "b",
+          "c",
+          "d",
+        ])
+        expect(region.textContent).not.toContain("This copy can't update itself.")
+      })
+
+      it("falls back to the title and line without notes", () => {
+        const page = render(withNotes())
+        mounted.push(page)
+        expect(notice(page)!.classList.contains("whats-new")).toBe(false)
+        expect(notice(page)!.textContent).toContain("Novadeck 0.0.80 is out")
+        expect(notice(page)!.textContent).toContain("This copy can't update itself.")
+      })
+
+      it("says where the workspace stays, with a button to show it, and drops the vague line for it", () => {
+        const onShowFolder = vi.fn<() => void>()
+        const page = render(withNotes({ dataFolder: "/home/me/.config/novadeck", onShowFolder }))
+        mounted.push(page)
+        const region = notice(page)!
+        expect(region.querySelector(".portable-data")?.textContent).toContain(
+          "Your workspace stays in /home/me/.config/novadeck",
+        )
+        expect(region.querySelector(".portable-path")?.textContent).toBe(
+          "/home/me/.config/novadeck",
+        )
+        expect(region.textContent).not.toContain("Keeps your workspace")
+        act(() =>
+          [...region.querySelectorAll("button")]
+            .find((b) => b.getAttribute("aria-label") === "Show folder")!
+            .click(),
+        )
+        expect(onShowFolder).toHaveBeenCalledOnce()
+      })
+
+      it("has no data line, or button, where the host can't say the folder or show it", () => {
+        const page = render(withNotes({ dataFolder: "/home/me/x" }))
+        mounted.push(page)
+        expect(notice(page)!.querySelector(".portable-data")).not.toBeNull()
+        expect(buttonNames(page)).not.toContain("Show folder")
+        page.rerender(withNotes())
+        expect(notice(page)!.querySelector(".portable-data")).toBeNull()
+      })
+
+      it("offers Get new portable only with a release and a host that opens the download", () => {
+        const onDownload = vi.fn<() => void>()
+        const page = render(withNotes({ onDownload }))
+        mounted.push(page)
+        expect(buttonNames(page)).toEqual(["Dismiss", "Get new portable", "Install Novadeck"])
+        act(() =>
+          [...notice(page)!.querySelectorAll("button")]
+            .find((b) => b.textContent === "Get new portable")!
+            .click(),
+        )
+        expect(onDownload).toHaveBeenCalledOnce()
+        page.rerender(withNotes())
+        expect(buttonNames(page)).toEqual(["Dismiss", "Install Novadeck"])
+        page.rerender(
+          createElement(WorkspaceFooter, {
+            ...props("ok"),
+            portable: {
+              ...props("ok").portable,
+              offer: undefined,
+              open: true,
+              portable: { ...portable, onDownload },
+            },
+          }),
+        )
+        expect(buttonNames(page)).toEqual(["Dismiss", "Install Novadeck"])
+      })
+
+      it("drops notes of another release than the offer's", () => {
+        const page = render(withNotes({ news: { ...notes, version: "0.0.79" } }))
+        mounted.push(page)
+        expect(notice(page)!.classList.contains("whats-new")).toBe(false)
+        expect(notice(page)!.textContent).toContain("Novadeck 0.0.80 is out")
+      })
+
+      it("holds the automatic raise for the notes' first answer, and the chip opens it at once", () => {
+        const onShown = vi.fn<() => void>()
+        const page = render(withNotes({ newsSettled: false, onShown }))
+        mounted.push(page)
+        expect(notice(page)).toBeNull()
+        expect(onShown).not.toHaveBeenCalled()
+        page.rerender(withNotes({ newsSettled: true, news: notes, onShown }))
+        expect(notice(page)!.classList.contains("whats-new")).toBe(true)
+        expect(onShown).toHaveBeenCalledOnce()
+        page.rerender(withNotes({ newsSettled: false, onShown }))
+        act(() => chip(page).click())
+        expect(notice(page)).not.toBeNull()
+      })
+
+      it("keeps the card's look when the notes come while it shows", () => {
+        const page = render(withNotes({ newsSettled: true }))
+        mounted.push(page)
+        expect(notice(page)!.classList.contains("whats-new")).toBe(false)
+        page.rerender(withNotes({ newsSettled: true, news: notes }))
+        expect(notice(page)!.classList.contains("whats-new")).toBe(false)
+      })
+
+      it("offers Get new portable after a failed install too, saying it opens the browser", () => {
+        const onDownload = vi.fn<() => void>()
+        const card = (install: PortableInstall) =>
+          createElement(WorkspaceFooter, {
+            ...props("ok", ready),
+            portable: {
+              ...props("ok", ready).portable,
+              open: true,
+              portable: { ...portable, onDownload, install },
+            },
+          })
+        const page = render(card({ phase: "idle" }))
+        mounted.push(page)
+        // A failure seen as it happens, not one from before the page loaded.
+        page.rerender(card({ phase: "failed", reason: "No space." }))
+        expect(buttonNames(page)).toEqual(["Dismiss", "Get new portable", "Try again"])
+        const button = [...notice(page)!.querySelectorAll("button")].find(
+          (b) => b.textContent === "Get new portable",
+        )!
+        expect(document.getElementById(button.getAttribute("aria-describedby")!)?.textContent).toBe(
+          "Opens novadeck.dev in your browser",
+        )
+      })
 
       it("asks the host to install, and shows nothing of it until the host says", () => {
         const onInstall = vi.fn<() => void>()
@@ -641,7 +895,9 @@ describe("workspace footer", () => {
         act(() => chip(page).click())
         page.rerender(held(failed, true))
         expect(notice(page)!.textContent).toContain("Portable copy")
-        expect(notice(page)!.querySelector(".update-card-foot button")!.textContent).toBe("Install")
+        expect(notice(page)!.querySelector(".update-card-foot button")!.textContent).toBe(
+          "Install Novadeck",
+        )
         // Install again; the same failure comes back and shows.
         act(() =>
           notice(page)!.querySelector<HTMLButtonElement>(".update-card-foot button")!.click(),

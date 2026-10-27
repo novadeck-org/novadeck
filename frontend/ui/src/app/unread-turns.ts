@@ -1,6 +1,6 @@
 import { doneNotice, finishNotice } from "@novadeck/core/agent-finish"
-import { terminalDone, type Inbox, type InboxItem, type InboxTurn } from "@novadeck/core/inbox"
-import { leadHearsOf } from "@novadeck/core/inbox-items"
+import { terminalDone, type Inbox, type InboxRow, type InboxTurn } from "@novadeck/core/inbox"
+import { leadHearsOf } from "@novadeck/core/inbox-rows"
 import type { Store } from "@novadeck/core/store"
 import type { TerminalMetadata, Workspace } from "@novadeck/core/types"
 
@@ -37,14 +37,14 @@ const terminalOf = (terminals: Terminals, turn: InboxTurn): TerminalMetadata | u
   terminals.get(`${turnContext(turn)}/${turn.terminalId}`)
 
 // A terminal's unseen `done` report, as the Inbox lists it.
-type DoneLetter = Extract<InboxItem, { kind: "update" }>
-const doneLetters = (items: readonly InboxItem[]): DoneLetter[] =>
+type DoneEntry = Extract<InboxRow, { kind: "update" }>
+const doneEntries = (items: readonly InboxRow[]): DoneEntry[] =>
   items.filter(
-    (item): item is DoneLetter =>
+    (item): item is DoneEntry =>
       item.kind === "update" && item.update.type === "done" && !item.seen,
   )
 
-const letterContext = (item: InboxItem): string =>
+const entryContext = (item: InboxRow): string =>
   `${item.source.projectId}/${item.source.workspaceSessionId}`
 
 // Follows the stored finished turns of the Inbox (`inbox.turns`) and its done reports
@@ -59,10 +59,10 @@ const letterContext = (item: InboxItem): string =>
 // Looking reads: the rows of the terminal the person views (the selected one while the page
 // has their focus, but on a phone not while the Inbox list covers the screen), as they come in and, on a focused launch, as they were stored.
 //
-// What is new tells `notify`, where given, once, only while the page hasn't their focus and
-// not for a worker whose lead's agent runs, as that lead hears of it: a done report, where
-// the person wants to hear of finishes, and a failed row, where they don't already hear of
-// it as trouble. A bare completed turn tells nothing, as it isn't a finish. A terminal has
+// What is new tells `notify`, where given, once, only while the page hasn't their focus: a
+// done report, a worker's too, where the person wants to hear of finishes, and a failed row,
+// where they don't already hear of it as trouble, and not for a worker whose lead's agent
+// runs, as that lead hears of it. A bare completed turn tells nothing, as it isn't a finish. A terminal has
 // one notification, the newest replacing the last, and `clear` takes it back once the
 // terminal has no unseen done report nor failed row. A row or report is new if no listing
 // held it before and it did not end before this started; the first listing, and the first
@@ -116,10 +116,10 @@ export const watchUnreadTurns = (
     const fresh = before ? list.filter((turn) => !before.has(turn.id)) : []
     listed = new Set([...(before ?? []), ...list.map((turn) => turn.id)])
     const terminals = terminalsOf(snapshot)
-    const letters = doneLetters(items.getSnapshot().items)
+    const entries = doneEntries(items.getSnapshot().items)
     const beforeDone = listedDone
-    const freshDone = beforeDone ? letters.filter((letter) => !beforeDone.has(letter.id)) : []
-    listedDone = new Set([...(beforeDone ?? []), ...letters.map((letter) => letter.id)])
+    const freshDone = beforeDone ? entries.filter((entry) => !beforeDone.has(entry.id)) : []
+    listedDone = new Set([...(beforeDone ?? []), ...entries.map((entry) => entry.id)])
     // A completed row of a worker whose lead's agent runs is the lead's, as in the Inbox.
     const heard = (turn: InboxTurn): boolean =>
       turn.outcome === "completed" && leadHearsOf(snapshot, turnContext(turn), turn.terminalId)
@@ -132,18 +132,18 @@ export const watchUnreadTurns = (
     )
     announceDone(
       freshDone.filter(
-        (letter) =>
-          letter.at >= startedAt - launchSlackMs &&
-          !(looking?.context === letterContext(letter) && looking.id === letter.source.terminalId),
+        (entry) =>
+          entry.at >= startedAt - launchSlackMs &&
+          !(looking?.context === entryContext(entry) && looking.id === entry.source.terminalId),
       ),
       snapshot,
       terminals,
     )
     sweep(
       unviewed.filter((turn) => !heard(turn)),
-      letters.filter(
-        (letter) =>
-          !(looking?.context === letterContext(letter) && looking.id === letter.source.terminalId),
+      entries.filter(
+        (entry) =>
+          !(looking?.context === entryContext(entry) && looking.id === entry.source.terminalId),
       ),
     )
     asked = new Set([...asked].filter((id) => list.some((turn) => turn.id === id)))
@@ -194,30 +194,30 @@ export const watchUnreadTurns = (
 
   // A done report is the finish the person wants to hear of: its terminal's one notification.
   const announceDone = (
-    letters: readonly DoneLetter[],
+    entries: readonly DoneEntry[],
     snapshot: Workspace,
     terminals: Terminals,
   ): void => {
     const { pageFocused, preferences } = ui.getSnapshot()
     if (!notify || !preferences.notifyFinished || pageFocused) return
-    const newest = new Map<string, DoneLetter>()
-    for (const letter of letters) {
-      const key = `${letterContext(letter)}/${letter.source.terminalId}`
+    const newest = new Map<string, DoneEntry>()
+    for (const entry of entries) {
+      const key = `${entryContext(entry)}/${entry.source.terminalId}`
       const known = newest.get(key)
-      if (!known || letter.at >= known.at) newest.set(key, letter)
+      if (!known || entry.at >= known.at) newest.set(key, entry)
     }
-    for (const [key, letter] of newest) {
+    for (const [key, entry] of newest) {
       const terminal = terminals.get(key)
-      const context = letterContext(letter)
-      if (!terminal || leadHearsOf(snapshot, context, letter.source.terminalId)) continue
-      notify({ id: terminal.id, ...doneNotice(terminal, letter.update) }, letter.id)
+      const context = entryContext(entry)
+      if (!terminal) continue
+      notify({ id: terminal.id, ...doneNotice(terminal, entry.update) }, entry.id)
       notified.set(terminal.id, { context, kind: "done" })
     }
   }
 
   // Takes back the notification of each terminal with nothing left unseen: no failed row, or
   // no done report, as it was about.
-  const sweep = (rows: readonly InboxTurn[], letters: readonly DoneLetter[]): void => {
+  const sweep = (rows: readonly InboxTurn[], entries: readonly DoneEntry[]): void => {
     const unread = unreadOfTurns(rows)
     for (const [id, { context, kind }] of notified) {
       const [projectId, workspaceSessionId] = [
@@ -226,7 +226,7 @@ export const watchUnreadTurns = (
       ]
       const standing =
         kind === "done"
-          ? terminalDone(letters, { projectId, workspaceSessionId, terminalId: id })
+          ? terminalDone(entries, { projectId, workspaceSessionId, terminalId: id })
           : unreadEnd(unread, context, id) === "failed"
       if (!standing) {
         notified.delete(id)

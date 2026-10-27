@@ -1,0 +1,659 @@
+/* The messages recipe: a terminal's conversations with the other agents in its session and
+   the person's Inbox entries (`.message-view`), under the viewer's header (`.artifact-meta`, see
+   artifact.css) with the pause. A list of rows (`.message-rows`, each a `.message-row`) opens
+   one as a chat (`.message-chat-head` over `.message-chat`): bubbles without borders, tinted in
+   their sender's hue, the terminal's own agent (or the person, in their Inbox entries) on the
+   right. The bars that say messaging is paused (`.message-paused`), waiting on a screen the
+   doorbell cannot ring (`.message-waits`) or failed (`.message-error`) take their tone from
+   `data-tone`.
+
+   Avatars (`.message-av`) are each handle's critter on a small LED screen, dark in any theme:
+   lit cells in the word's hue, unlit ones faintly there. Only this pane draws them.
+
+   Hooks: data-hue="1"…"8" | "you" on an avatar and a bubble row; data-live="idle" |
+   "working" | "gone" on an avatar (it hops while working, still and dim once gone);
+   data-big on one of 28px or more; data-unread on a row; data-side="in" | "out",
+   data-grouped, data-open (a question still open) and data-state on a bubble row;
+   data-note="queued" | "leased" | "gone" | "delivered" on its note; data-tone="warning" |
+   "danger" on a row's chip; data-kind and data-open on an entry's label.
+
+   Tokens, each optional (its fallback in brackets):
+   --message-border-color (line): under the chat's head and the bars.
+   --message-fg (ink): names, the pause's label and a row's unread preview.
+   --message-meta-fg (muted): handles, times, previews and notes.
+   --avatar-hue-1-fg … --avatar-hue-8-fg (terminal-ansi magenta, red, yellow, blue,
+     magenta-bright, green, red-bright, cyan): the hues handles take by their word's rank,
+     on their critters and the bubbles they send.
+   --avatar-you-fg (strong mixed with muted): the person's, on their imp and bubbles.
+   --avatar-led-lift (0%): how far a lit cell goes toward --avatar-glint-fg, so dark hues
+     still glow on the screen.
+   --avatar-screen-bg, --avatar-screen-glow-bg (terminal-bg): the screen, deep at the
+     bottom, a little lighter at the top.
+   --avatar-frame-border-color (line): the screen's frame, tinted with its hue.
+   --avatar-eye-fg (terminal-ansi-black): dark eyes and the imp's silhouette.
+   --avatar-glint-fg (terminal-ansi-white-bright): bright cells and eyes. */
+.message-view {
+  --_fg: var(--message-fg, var(--color-ink));
+  --_meta-fg: var(--message-meta-fg, var(--color-muted));
+  --_border-color: var(--message-border-color, var(--color-line));
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-height: 0;
+}
+/* The switch centred on its label, the pair on the header's baseline by the label's: at
+   the end of the header's first line while there's room, else under what's before it. */
+.message-pause {
+  display: flex;
+  margin-left: auto;
+  align-items: center;
+  gap: 12px;
+}
+.message-pause-label {
+  color: var(--_fg);
+}
+/* The tone recipe paints the bars, their rule included. */
+.message-paused,
+.message-waits,
+.message-error {
+  margin: 0;
+  padding: 6px 14px;
+  border-bottom-width: var(--border-width);
+  border-bottom-style: solid;
+  font-size: var(--text-control);
+  line-height: var(--text-control--line-height);
+}
+.message-scroll {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  overscroll-behavior: contain;
+}
+.message-empty {
+  padding: 0 24px;
+  text-align: center;
+}
+.message-view code {
+  font-family: var(--font-mono);
+  font-size: var(--text-control);
+  font-weight: normal;
+  color: var(--_meta-fg);
+}
+/* The agent's text, as it wrote it: its line breaks kept, nothing rendered. */
+.message-text {
+  margin: 0;
+  font-size: var(--text-body);
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+  user-select: text;
+}
+
+/* ---------- The list ---------- */
+.message-rows {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin: 0;
+  padding: 8px;
+  list-style: none;
+}
+.message-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  width: 100%;
+  padding: 9px 8px 9px 10px;
+  border: 0;
+  border-radius: var(--radius-panel);
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.message-row:hover {
+  background: var(--color-soft);
+}
+.message-row:focus-visible {
+  outline: var(--focus-ring-width) solid var(--focus-ring-color, var(--color-strong));
+  outline-offset: -2px;
+}
+.message-row .message-av {
+  margin-top: 1px;
+}
+.message-row-main {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+.message-row-top {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+.message-row-name {
+  overflow: hidden;
+  font-size: var(--text-body);
+  line-height: var(--text-body--line-height);
+  font-weight: 500;
+  color: var(--_fg);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.message-row-handle {
+  flex-shrink: 0;
+}
+.message-preview {
+  overflow: hidden;
+  font-size: var(--text-control);
+  line-height: var(--text-control--line-height);
+  color: var(--_meta-fg);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.message-preview-who {
+  font-family: var(--font-mono);
+  font-size: var(--text-caption);
+}
+.message-row[data-unread] .message-row-name {
+  font-weight: 600;
+}
+.message-row[data-unread] .message-preview {
+  color: var(--_fg);
+}
+.message-row-end {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  align-self: center;
+}
+/* Unread says itself exactly as the time it stands in for. */
+.message-row-time {
+  font-size: var(--text-control);
+  line-height: var(--text-control--line-height);
+  color: var(--_meta-fg);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.message-chip {
+  display: inline-flex;
+  align-items: center;
+  height: 18px;
+  padding: 0 6px;
+  border-radius: var(--radius-control);
+  font-size: var(--text-caption);
+  line-height: 1;
+  font-weight: 500;
+  white-space: nowrap;
+}
+.message-chip[data-tone="warning"] {
+  background: var(--color-warning);
+  color: var(--color-warning-fg);
+}
+.message-chip[data-tone="danger"] {
+  background: var(--color-danger);
+  color: var(--color-danger-fg);
+}
+.message-row-go {
+  flex-shrink: 0;
+  align-self: center;
+  color: var(--_meta-fg);
+  opacity: 0.6;
+}
+
+/* ---------- An open conversation ---------- */
+.message-chat-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 10px;
+  min-height: 44px;
+  padding: 6px 14px;
+  border-bottom: var(--border-width) solid var(--_border-color);
+}
+.message-back {
+  margin-left: -6px;
+}
+.message-chat-name {
+  display: flex;
+  flex: 1;
+  align-items: baseline;
+  gap: 8px;
+  min-width: 0;
+  margin: 0;
+  font-size: var(--text-body);
+  line-height: var(--text-body--line-height);
+  font-weight: normal;
+}
+.message-chat-name strong {
+  overflow: hidden;
+  font-weight: 500;
+  color: var(--_fg);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.message-chat-side {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.message-asks {
+  font-size: var(--text-control);
+  color: var(--color-warning-fg);
+}
+.message-chat {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin: 0;
+  padding: 8px 14px 14px;
+  list-style: none;
+}
+.message-time {
+  margin: 12px 0 0;
+  font-size: var(--text-caption);
+  color: var(--_meta-fg);
+  font-variant-numeric: tabular-nums;
+  text-align: center;
+}
+.message-new {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 12px 0 0;
+  font-size: var(--text-caption);
+  font-weight: 600;
+  color: var(--color-strong);
+}
+.message-new::before,
+.message-new::after {
+  content: "";
+  flex: 1;
+  border-top: var(--border-width) solid color-mix(in srgb, var(--color-strong) 45%, transparent);
+}
+.message-new::before {
+  flex: 0 0 12px;
+}
+.message-fold {
+  margin: 10px 0 0;
+}
+.message-fold button {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  width: 100%;
+  padding: 7px 10px;
+  border: var(--border-width) dashed var(--color-line-strong);
+  border-radius: var(--radius-panel);
+  background: none;
+  color: var(--_meta-fg);
+  font: inherit;
+  font-size: var(--text-control);
+  text-align: left;
+  cursor: pointer;
+}
+.message-fold button:hover {
+  background: var(--color-soft);
+}
+.message-fold button:focus-visible {
+  outline: var(--focus-ring-width) solid var(--focus-ring-color, var(--color-strong));
+  outline-offset: 1px;
+}
+.message-fold-count {
+  flex-shrink: 0;
+  color: var(--_fg);
+}
+.message-fold-text {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.message-fold-show {
+  flex-shrink: 0;
+  color: var(--color-strong);
+}
+
+/* A bubble: its sender's face at the start of a run on the left, none on the right. */
+.message-bubble-row {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  max-width: min(78%, 560px);
+  margin-top: 8px;
+}
+.message-bubble-row[data-grouped] {
+  margin-top: 2px;
+}
+.message-bubble-row[data-side="in"] {
+  flex-direction: row;
+  gap: 8px;
+}
+.message-bubble-row[data-side="out"] {
+  align-self: flex-end;
+  align-items: flex-end;
+}
+.message-bubble-av {
+  display: flex;
+  flex-shrink: 0;
+  width: 22px;
+}
+/* On the right it's as wide as its bubble, which a quote's one unwrapped line would make the
+   whole question's width, so it's held to its row. */
+.message-bubble-col {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  max-width: 100%;
+}
+.message-bubble-row[data-side="out"] .message-bubble-col {
+  align-items: flex-end;
+}
+/* Its edge is drawn even where it shows none, so forced colours keep each message's shape. */
+.message-bubble {
+  min-width: 0;
+  max-width: 100%;
+  padding: 5px 9px 6px;
+  border: var(--border-width) solid transparent;
+  border-radius: var(--radius-popover);
+  background: color-mix(in srgb, var(--_h) 13%, var(--color-paper));
+  color: var(--_fg);
+}
+.message-bubble-row[data-side="out"] .message-bubble {
+  background: color-mix(in srgb, var(--_h) 20%, var(--color-paper));
+}
+/* Lost: an outline of its hue, no fill. */
+.message-bubble-row[data-state="gone"] .message-bubble {
+  border-color: color-mix(in srgb, var(--_h) 40%, transparent);
+  background: transparent;
+}
+.message-bubble-row[data-open] .message-bubble {
+  border-color: color-mix(in srgb, var(--color-warning-fg) 40%, transparent);
+}
+.message-entry {
+  display: block;
+  margin-bottom: 2px;
+  font-size: var(--text-caption);
+  font-weight: 600;
+  color: var(--_meta-fg);
+}
+.message-entry[data-open][data-kind="ask"] {
+  color: var(--color-warning-fg);
+}
+.message-entry[data-open][data-kind="tell"] {
+  color: var(--color-strong);
+}
+.message-quote {
+  display: block;
+  max-width: 100%;
+  margin: 2px 0 4px;
+  padding-left: 8px;
+  border-left: 2px solid color-mix(in srgb, var(--_h) 55%, transparent);
+  overflow: hidden;
+  font-size: var(--text-caption);
+  color: var(--_meta-fg);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.message-answer {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 6px;
+}
+.message-answer .button {
+  height: 26px;
+  padding: 0 10px;
+}
+.message-bubble-meta {
+  display: flex;
+  padding: 0 2px;
+}
+/* A note, only while it's worth a look: a dot of its colour and a word. */
+.message-note {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: var(--text-caption);
+  line-height: var(--text-control--line-height);
+  color: var(--_meta-fg);
+  white-space: nowrap;
+}
+.message-note:not([data-note="delivered"])::before {
+  content: "";
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: currentColor;
+}
+.message-note[data-note="leased"]::before {
+  animation: message-pulse 1.2s ease-in-out infinite;
+}
+.message-note[data-note="gone"] {
+  color: var(--color-danger-fg);
+}
+@keyframes message-pulse {
+  50% {
+    opacity: 0.25;
+  }
+}
+.message-footnote {
+  margin: 12px 14px 16px;
+  font-size: var(--text-control);
+  line-height: var(--text-control--line-height);
+  color: var(--_meta-fg);
+  text-align: center;
+}
+
+/* ---------- Hues ---------- */
+:is(.message-av, .message-bubble-row)[data-hue="1"] {
+  --_h: var(--avatar-hue-1-fg, var(--terminal-ansi-magenta));
+}
+:is(.message-av, .message-bubble-row)[data-hue="2"] {
+  --_h: var(--avatar-hue-2-fg, var(--terminal-ansi-red));
+}
+:is(.message-av, .message-bubble-row)[data-hue="3"] {
+  --_h: var(--avatar-hue-3-fg, var(--terminal-ansi-yellow));
+}
+:is(.message-av, .message-bubble-row)[data-hue="4"] {
+  --_h: var(--avatar-hue-4-fg, var(--terminal-ansi-blue));
+}
+:is(.message-av, .message-bubble-row)[data-hue="5"] {
+  --_h: var(--avatar-hue-5-fg, var(--terminal-ansi-magenta-bright));
+}
+:is(.message-av, .message-bubble-row)[data-hue="6"] {
+  --_h: var(--avatar-hue-6-fg, var(--terminal-ansi-green));
+}
+:is(.message-av, .message-bubble-row)[data-hue="7"] {
+  --_h: var(--avatar-hue-7-fg, var(--terminal-ansi-red-bright));
+}
+:is(.message-av, .message-bubble-row)[data-hue="8"] {
+  --_h: var(--avatar-hue-8-fg, var(--terminal-ansi-cyan));
+}
+:is(.message-av, .message-bubble-row)[data-hue="you"] {
+  --_h: var(--avatar-you-fg, color-mix(in oklab, var(--color-strong) 62%, var(--color-muted)));
+}
+
+/* ---------- Avatars ---------- */
+.message-av {
+  --_glint: var(--avatar-glint-fg, var(--terminal-ansi-white-bright));
+  --_led: color-mix(in oklab, var(--_h), var(--_glint) var(--avatar-led-lift, 0%));
+  --_eye: var(--avatar-eye-fg, var(--terminal-ansi-black));
+  --_frame: color-mix(
+    in srgb,
+    var(--_led) 18%,
+    var(--avatar-frame-border-color, var(--color-line))
+  );
+  position: relative;
+  display: inline-flex;
+  flex-shrink: 0;
+  width: var(--av);
+  height: var(--av);
+  border-radius: var(--radius-control);
+  background: radial-gradient(
+    120% 120% at 50% 0%,
+    var(--avatar-screen-glow-bg, var(--terminal-bg)),
+    var(--avatar-screen-bg, var(--terminal-bg))
+  );
+}
+.message-av::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  box-shadow: inset 0 0 0 var(--border-width) var(--_frame);
+  pointer-events: none;
+}
+.message-av-screen {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+.message-led-off {
+  fill: color-mix(in srgb, var(--_led) 14%, transparent);
+}
+.message-led-on {
+  fill: var(--_led);
+}
+.message-led-dim {
+  fill: color-mix(in srgb, var(--_led) 50%, transparent);
+}
+.message-led-hot {
+  fill: var(--_glint);
+}
+/* Dark eyes: darker than an unlit cell, so a one-cell eye still reads. */
+.message-led-eye {
+  fill: var(--_eye);
+}
+.message-led-bright {
+  fill: color-mix(in oklab, var(--_led) 25%, var(--_glint));
+}
+.message-av[data-big] .message-led-on {
+  filter: drop-shadow(0 0 1.2px color-mix(in srgb, var(--_led) 80%, transparent));
+}
+/* The person: the screen lit softly behind a dark imp, the frame lit, the eyes glowing. */
+.message-av[data-hue="you"] {
+  --_led: var(--_h);
+  --_frame: color-mix(in srgb, var(--_led) 40%, transparent);
+}
+.message-led-back {
+  fill: color-mix(in srgb, var(--_led) 42%, transparent);
+}
+.message-led-glow {
+  fill: color-mix(in oklab, var(--_led) 35%, var(--_glint));
+}
+/* A word given again: its number in the corner, in its hue; the lower left one, as the
+   program's mark takes the right. */
+.message-av-n {
+  position: absolute;
+  left: -3px;
+  bottom: -3px;
+  z-index: 1;
+  min-width: calc(var(--av) * 0.42);
+  padding: 0 2px;
+  border-radius: var(--radius-control);
+  background: var(--_led);
+  color: var(--_eye);
+  font-family: var(--font-mono);
+  font-size: max(8px, calc(var(--av) * 0.3));
+  font-weight: 700;
+  line-height: 1.25;
+  text-align: center;
+}
+/* The agent's program, small in the corner. */
+.message-av-program {
+  position: absolute;
+  right: -5px;
+  bottom: -5px;
+  z-index: 1;
+  display: flex;
+  padding: 1px;
+  border-radius: var(--radius-control);
+  background: var(--color-paper);
+  box-shadow: 0 0 0 var(--border-width) var(--color-line);
+  color: var(--color-muted);
+}
+
+/* At rest a critter only blinks, on a slow clock of its word's; it hops while its agent
+   works; once its agent has gone it is still and dim. */
+.message-av-hop {
+  opacity: 0;
+}
+.message-led-lid {
+  opacity: 0;
+  animation: message-lid var(--_blink) steps(1) var(--_blink-at) infinite;
+}
+.message-led-bright,
+.message-led-glow {
+  animation: message-blink var(--_blink) steps(1) var(--_blink-at) infinite;
+}
+@keyframes message-lid {
+  0% {
+    opacity: 0;
+  }
+  96% {
+    opacity: 1;
+  }
+  98.5% {
+    opacity: 0;
+  }
+}
+@keyframes message-blink {
+  0% {
+    opacity: 1;
+  }
+  96% {
+    opacity: 0;
+  }
+  98.5% {
+    opacity: 1;
+  }
+}
+.message-av[data-live="working"] .message-av-rest {
+  animation: message-hop-rest var(--_hop) steps(1) var(--_hop-at) infinite;
+}
+.message-av[data-live="working"] .message-av-hop {
+  animation: message-hop var(--_hop) steps(1) var(--_hop-at) infinite;
+}
+@keyframes message-hop-rest {
+  0% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0;
+  }
+}
+@keyframes message-hop {
+  0% {
+    opacity: 0;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+.message-av[data-live="gone"] :is(.message-led-lid, .message-led-bright) {
+  animation: none;
+}
+.message-av[data-live="gone"] .message-av-rest {
+  opacity: 0.45;
+}
+@media (prefers-reduced-motion: reduce) {
+  .message-note[data-note="leased"]::before,
+  .message-av
+    :is(
+      .message-av-rest,
+      .message-av-hop,
+      .message-led-lid,
+      .message-led-bright,
+      .message-led-glow
+    ) {
+    animation: none;
+  }
+}

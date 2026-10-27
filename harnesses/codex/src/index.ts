@@ -17,6 +17,7 @@ import { hookCommand, type Dialect } from "@novadeck/harness-core/hook-command"
 import { box } from "./box.js"
 import { decode } from "./decode.js"
 import { dialogs } from "./dialogs.js"
+import { readModels } from "./models.js"
 import { followRollout, followSubagent, rolloutPlans } from "./rollout.js"
 import { cmdShim, posixShim } from "./shim.js"
 import { startedSession, title, titleWorking } from "./title.js"
@@ -78,6 +79,13 @@ const messaging: MessagingProfile = {
   // It holds a command-line prompt behind its trust and startup screens.
   initialPrompt: (line) => Promise.resolve(["codex", line]),
   start: ["codex"],
+  // Its cache of the models it lists, in its home; the effort is a config override, left
+  // bare (codex reads a value that isn't TOML as a string), so it has no quotes of its own.
+  models: (install) => readModels(home(install)),
+  choose: ({ model, effort }) => [
+    ...(model !== undefined ? ["--model", model] : []),
+    ...(effort !== undefined ? ["-c", `model_reasoning_effort=${effort}`] : []),
+  ],
 }
 
 export const codex = {

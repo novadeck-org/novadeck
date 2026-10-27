@@ -1,7 +1,7 @@
 import { setTimeout as sleep } from "node:timers/promises"
 
 import type { ActivityEvent, HarnessEvent, SessionObserved } from "@novadeck/harness-core/events"
-import type { AgentName } from "@novadeck/protocol"
+import type { AgentName, TerminalSummary } from "@novadeck/protocol"
 
 import {
   apply,
@@ -14,6 +14,7 @@ import { harnesses } from "../../harnesses/registry.js"
 import { lastReply } from "../../harnesses/replies.js"
 import { limitOf, observeTelemetry, telemetrySummary } from "../../harnesses/telemetry.js"
 import type { Messaging } from "../../messaging/messaging.js"
+import { standingDone } from "../../messaging/peers.js"
 import type { Companion } from "../companion.js"
 import { failed } from "../failures.js"
 import { markTurn } from "../interrupted.js"
@@ -21,6 +22,7 @@ import type { Record } from "../record.js"
 import { hasRun } from "../records.js"
 import { TurnEnds, type TurnsHost } from "../turn-ends.js"
 import type { Typing } from "../typing.js"
+import { savedSession } from "./standing.js"
 
 /**
  * How long after the person's Enter at an agent's own prompt, before its first, a session
@@ -49,7 +51,7 @@ export type BindingsHost = {
   ) => boolean
   /** Follows the root after the terminal's binding changed outside its hooks' reports. */
   readonly rebound: (record: Record) => void
-  /** Where finished turns are stored: the Inbox's letters and the redactor that masks their text. */
+  /** Where finished turns are stored: the Inbox's entries and the redactor that masks their text. */
   readonly turns: () => TurnsHost
   /** Whether process `pid` still runs. */
   readonly alive: (pid: string) => boolean
@@ -128,6 +130,7 @@ export class Bindings {
    */
   private endSession(record: Record): void {
     record.bound = null
+    record.resumeEnded = true
     this.unwatch(record)
   }
 
@@ -448,6 +451,7 @@ export class Bindings {
       this.host.save(record)
     }
     const telemetry = bound?.telemetry ? telemetrySummary(bound.telemetry) : null
+    const reported = this.reportedOf(record)
     const agentRan = hasRun(record.agents)
     const { summary } = record
     if (
@@ -456,10 +460,39 @@ export class Bindings {
       summary.agent === agent &&
       summary.ready === ready &&
       JSON.stringify(summary.activity) === JSON.stringify(activity) &&
-      JSON.stringify(summary.telemetry) === JSON.stringify(telemetry)
+      JSON.stringify(summary.telemetry) === JSON.stringify(telemetry) &&
+      JSON.stringify(summary.reported) === JSON.stringify(reported)
     )
       return
-    record.summary = { ...summary, agentRan, agent, ready, activity, telemetry }
+    record.summary = { ...summary, agentRan, agent, ready, activity, telemetry, reported }
+    this.host.announce(record)
+  }
+
+  /**
+   * The agent's `done` that still stands (`standingDone`), as the summary shows it: what
+   * the person's prompt, a delivered message, another session or the agent's end can undo,
+   * and looking at the terminal cannot.
+   */
+  private reportedOf(record: Record): TerminalSummary["reported"] {
+    const id = record.summary.id
+    // Before its agent binds a session again, as after a runner restart, the one resumed.
+    const saved = savedSession(record)
+    const done = standingDone(
+      this.host.turns().inbox.reports(id, saved),
+      record.work?.personAt,
+      this.host.messaging().deliveredAt(id),
+    )
+    return done && { subject: done.subject, at: done.at }
+  }
+
+  /**
+   * Something the standing `done` depends on changed (an Inbox entry, a delivered message,
+   * the person's prompt): shows it in the summary, announced where it changed.
+   */
+  publishReported(record: Record): void {
+    const reported = this.reportedOf(record)
+    if (JSON.stringify(record.summary.reported) === JSON.stringify(reported)) return
+    record.summary = { ...record.summary, reported }
     this.host.announce(record)
   }
 

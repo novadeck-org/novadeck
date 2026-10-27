@@ -1,5 +1,5 @@
 import type { ChatDialogOption } from "@novadeck/core/conversation"
-import type { InboxItem } from "@novadeck/core/inbox"
+import type { InboxRow } from "@novadeck/core/inbox"
 
 import { context, describe, expect, it } from "../test"
 import {
@@ -13,13 +13,12 @@ import {
   refusedWords,
   recommended,
   resumesLabel,
-  standingOf,
   subjectOf,
   toneOf,
   waitLabel,
 } from "./inbox-text"
 
-const source: InboxItem["source"] = {
+const source: InboxRow["source"] = {
   projectId: "p",
   workspaceSessionId: "s",
   terminalId: "t",
@@ -30,7 +29,7 @@ const source: InboxItem["source"] = {
 }
 const base = { id: "i", source, at: 0, stopped: true, seen: false }
 
-const permission = (tool: string, subject: string | null): InboxItem => ({
+const permission = (tool: string, subject: string | null): InboxRow => ({
   ...base,
   kind: "request",
   request: {
@@ -45,7 +44,7 @@ const permission = (tool: string, subject: string | null): InboxItem => ({
   },
 })
 
-const asking = (subject: string | null, questions: number): InboxItem => ({
+const asking = (subject: string | null, questions: number): InboxRow => ({
   ...base,
   kind: "request",
   request: {
@@ -121,7 +120,7 @@ describe("A recommended option", () => {
   })
 })
 
-const draft = (text: string): InboxItem => ({
+const draft = (text: string): InboxRow => ({
   ...base,
   stopped: false,
   kind: "feedback",
@@ -154,7 +153,7 @@ describe("An item's subject", () => {
   })
 
   it("names where a held message goes", () => {
-    const item: InboxItem = {
+    const item: InboxRow = {
       ...base,
       kind: "held",
       held: {
@@ -170,7 +169,7 @@ describe("An item's subject", () => {
   })
 
   it("names a limit's window and whose it is", () => {
-    const item: InboxItem = {
+    const item: InboxRow = {
       ...base,
       kind: "trouble",
       trouble: { type: "limit", minutes: 300, resetsAt: 0, autoResume: true, evidence: [] },
@@ -179,7 +178,7 @@ describe("An item's subject", () => {
   })
 
   it("counts the messages a hold keeps from the agent, and says what holds them", () => {
-    const held = (count: number, waits: "draft" | "dialog"): InboxItem => ({
+    const held = (count: number, waits: "draft" | "dialog"): InboxRow => ({
       ...base,
       kind: "trouble",
       trouble: { type: "waits", waits, count },
@@ -208,7 +207,7 @@ describe("A sheet's label", () => {
 })
 
 describe("An item's reading time", () => {
-  const ask = (body: string): InboxItem => ({
+  const ask = (body: string): InboxRow => ({
     ...base,
     kind: "ask",
     ask: { subject: "s", body, details: null, hardToUndo: null, shape: { type: "text" } },
@@ -222,7 +221,7 @@ describe("An item's reading time", () => {
 })
 
 describe("A limit that resumes", () => {
-  const limit = (autoResume: boolean | null): InboxItem => ({
+  const limit = (autoResume: boolean | null): InboxRow => ({
     ...base,
     stopped: !autoResume,
     kind: "trouble",
@@ -239,50 +238,6 @@ describe("A limit that resumes", () => {
     expect(resumesLabel(limit(true))).toBe("Resumes at 15:40")
     expect(resumesLabel(limit(false))).toBeNull()
     expect(resumesLabel(limit(null))).toBeNull()
-  })
-})
-
-describe("How an item stands", () => {
-  it("says how long ago a feedback draft was written, calmly", () => {
-    expect(standingOf(draft("a"), 0, false)).toEqual({ status: "just now", tone: "calm" })
-    expect(standingOf(draft("a"), 6 * 60_000, false)).toEqual({ status: "6m ago", tone: "calm" })
-  })
-
-  it("says how long ago a failed turn that no longer stands as the current end happened", () => {
-    const old: InboxItem = {
-      ...base,
-      stopped: false,
-      kind: "trouble",
-      trouble: { type: "failed", error: "boom", stored: true },
-    }
-    expect(standingOf(old, 6 * 60_000, false)).toEqual({ status: "6m ago", tone: "calm" })
-    expect(standingOf({ ...old, stopped: true }, 6 * 60_000, false).status).toBe("waiting 6m")
-  })
-
-  it("is waiting for a stopped agent, and working for the rest", () => {
-    expect(standingOf(permission("Bash", "x"), 6 * 60_000, false)).toEqual({
-      status: "waiting 6m",
-      tone: "waiting",
-    })
-    expect(standingOf({ ...permission("Bash", "x"), stopped: false }, 0, false).status).toBe(
-      "still working",
-    )
-  })
-
-  it("says a limit whose reset has passed is resuming, not resuming in now", () => {
-    const limit: InboxItem = {
-      ...base,
-      stopped: false,
-      kind: "trouble",
-      trouble: { type: "limit", minutes: 300, resetsAt: 1000, autoResume: true, evidence: [] },
-    }
-
-    expect(standingOf(limit, 5000, false).status).toBe("resuming")
-    expect(standingOf(limit, 0, false).status).toMatch(/^resumes in/)
-  })
-
-  it("says answered once the person answered", () => {
-    expect(standingOf(permission("Bash", "x"), 0, true).status).toBe("answered")
   })
 })
 

@@ -1,12 +1,12 @@
 import type { Backend } from "@novadeck/core/port"
+import { defaultNoticeSound, type NoticeSound } from "@novadeck/core/sounds"
 
-// Always its own file, however small: the page's content policy refuses an inlined data: URL.
-import dingUrl from "./ding.wav?no-inline"
+import { soundInEffect, soundUrl } from "../sounds"
 import type { UiStore } from "./ui-store"
 
 // Novadeck's own sound for ringing the person, the same on every system: the host's
-// notifications stay silent and this plays instead. Swapping the sound is replacing
-// app/ding.wav.
+// notifications stay silent and this plays instead. The sound is the person's choice or,
+// by default, the shown theme's; the sounds themselves are the files in sounds/.
 
 // Bursts of rings sound once: a second ring within this of the last one is the same call.
 export const dingGapMs = 1500
@@ -23,6 +23,9 @@ export type DingAudio = { readonly play: () => Promise<void> | void }
 export type Ding = {
   // Whether the person wants the sound, as a notice tells the host.
   readonly on: () => boolean
+  // The sound in effect (the person's choice or the theme's), as a notice tells a host that
+  // plays it.
+  readonly sound: () => NoticeSound
   // Whether a ring for `key` (a terminal) may sound: the person wants the sound, nothing
   // rang just now and `key` didn't ring lately. Counts as a ring when it says yes, so a
   // host that plays the sound itself calls this alone and marks its notice by the answer.
@@ -32,12 +35,13 @@ export type Ding = {
   // `take`, then `play`: for a ring the page sounds itself.
   readonly ring: (key: string) => void
   // Sounds it at `volume` whatever the settings and the system say, for the person to hear
-  // what they are setting.
-  readonly preview: (volume: number) => void
+  // what they are setting: the sound in effect, or `sound`, one just picked that the
+  // settings may not hold yet.
+  readonly preview: (volume: number, sound?: NoticeSound) => void
 }
 
-const element = (volume: number): DingAudio => {
-  const audio = new Audio(dingUrl)
+const element = (volume: number, sound: NoticeSound): DingAudio => {
+  const audio = new Audio(soundUrl(sound))
   audio.volume = Math.min(1, Math.max(0, volume))
   return audio
 }
@@ -49,18 +53,19 @@ export const createDing = ({
   // A clock that never steps back, as the wall clock may when it is set.
   now = () => performance.now(),
 }: {
-  // The person's setting, read as the ding rings.
-  sound: () => { readonly on: boolean; readonly volume: number }
+  // The person's setting and the sound in effect, read as the ding rings, so a change of
+  // either, the theme included, holds at once.
+  sound: () => { readonly on: boolean; readonly volume: number; readonly name: NoticeSound }
   // The host's check for the system's Do Not Disturb or Focus; true holds the ding back.
   quiet?: (() => Promise<boolean>) | undefined
-  audio?: (volume: number) => DingAudio
+  audio?: (volume: number, sound: NoticeSound) => DingAudio
   now?: () => number
 }): Ding => {
   let last = -Infinity
   const lastOf = new Map<string, number>()
-  const playAt = (volume: number): void => {
+  const playAt = (volume: number, name: NoticeSound = sound().name): void => {
     try {
-      void Promise.resolve(audio(volume).play()).catch(() => {})
+      void Promise.resolve(audio(volume, name).play()).catch(() => {})
     } catch {
       // No audio, or the page may not play yet: the notification still shows.
     }
@@ -79,29 +84,31 @@ export const createDing = ({
     return true
   }
   const play = (): void => {
-    const { volume } = sound()
+    const { volume, name } = sound()
     void (async () => {
       try {
         if (await quiet?.()) return
       } catch {
         // A check that fails doesn't hold the sound back.
       }
-      playAt(volume)
+      playAt(volume, name)
     })()
   }
   return {
     on: () => sound().on,
+    sound: () => sound().name,
     take,
     play,
     ring: (key) => {
       if (take(key)) play()
     },
-    preview: playAt,
+    preview: (volume, name) => playAt(volume, name),
   }
 }
 
 const mute: Ding = {
   on: () => false,
+  sound: () => defaultNoticeSound,
   take: () => false,
   play: () => {},
   ring: () => {},
@@ -122,8 +129,12 @@ export const dingOf = (backend: Backend, ui: UiStore): Ding => {
   }
   const ding = createDing({
     sound: () => {
-      const { sound, soundVolume } = ui.getSnapshot().preferences
-      return { on: sound, volume: soundVolume }
+      const { preferences } = ui.getSnapshot()
+      return {
+        on: preferences.sound,
+        volume: preferences.soundVolume,
+        name: soundInEffect(preferences),
+      }
     },
     quiet: async () => (await backend.notices?.quiet?.()) ?? false,
   })

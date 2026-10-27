@@ -49,7 +49,7 @@ describe("Messages waiting for an agent", () => {
 })
 
 describe("A terminal's messages", () => {
-  it("list its conversations, the person's letters first while they wait, then latest first", async () => {
+  it("list its conversations, the person's entries first while they wait, then latest first", async () => {
     await openMessagesDemo()
     const pane = await openMessages("Checkout implementation")
     const rows = conversationRows(pane)
@@ -145,7 +145,7 @@ describe("A terminal's messages", () => {
     })
   })
 
-  context("with the person's letters", () => {
+  context("with the person's entries", () => {
     it("labels them in plain words, quotes the question a reply answers, and offers Answer", async () => {
       await openMessagesDemo()
       const pane = await openMessages("Checkout implementation")
@@ -164,7 +164,7 @@ describe("A terminal's messages", () => {
       // chat, so the answer is on screen.
       const reply = bubbles(chat)
         .find((each) => each.getAttribute("data-side") === "out")!
-        .querySelector(".mail-bubble")!
+        .querySelector(".message-bubble")!
       const bounds = chat.element().getBoundingClientRect()
       expect(reply.getBoundingClientRect().left).toBeGreaterThanOrEqual(bounds.left)
       expect(reply.getBoundingClientRect().right).toBeLessThanOrEqual(bounds.right)

@@ -35,7 +35,7 @@ afterAll(async () => {
 type Answer = {
   readonly id?: number
   readonly result?: {
-    readonly tools?: readonly { readonly name: string }[]
+    readonly tools?: readonly { readonly name: string; readonly inputSchema?: unknown }[]
     readonly [key: string]: unknown
   }
   readonly error?: { readonly code: number }
@@ -156,6 +156,7 @@ describe("Novadeck's MCP server", () => {
         "showing",
         "close",
         "open_terminal",
+        "open_agent",
         "close_terminal",
         "send",
         "agents",
@@ -246,7 +247,7 @@ describe("Novadeck's MCP server", () => {
         {
           id: 3,
           method: "tools/call",
-          params: { name: "open_terminal", arguments: { agent: "codex", message: "Review a.ts" } },
+          params: { name: "open_agent", arguments: { agent: "codex", message: "Review a.ts" } },
         },
       ])
       expect(calls).toMatchObject([
@@ -261,7 +262,7 @@ describe("Novadeck's MCP server", () => {
         {
           id: 4,
           method: "tools/call",
-          params: { name: "open_terminal", arguments: { agent: "codex", message: "Review a.ts" } },
+          params: { name: "open_agent", arguments: { agent: "codex", message: "Review a.ts" } },
         },
       ])
       expect((unsent!.result as { content: { text: string }[] }).content[0]?.text).toMatch(
@@ -273,11 +274,126 @@ describe("Novadeck's MCP server", () => {
         {
           id: 5,
           method: "tools/call",
-          params: { name: "open_terminal", arguments: { agent: "agy", message: "Review a.ts" } },
+          params: { name: "open_agent", arguments: { agent: "agy", message: "Review a.ts" } },
         },
       ])
       expect((waits!.result as { content: { text: string }[] }).content[0]?.text).toMatch(
         /doesn't trust this folder yet, so it started without its task: message m-1 reaches it once the user trusts the folder and its prompt shows\./,
+      )
+    })
+
+    it("splits a plain terminal from an agent, each sending only its own fields", async () => {
+      calls.length = 0
+      answer = { ok: true, terminalId: "t", cwd: "/work" }
+      await session(terminal(), [
+        initialize,
+        {
+          id: 3,
+          method: "tools/call",
+          params: {
+            name: "open_agent",
+            arguments: {
+              agent: "claude",
+              message: "Go",
+              model: "opus",
+              effort: "high",
+              extra: "x",
+            },
+          },
+        },
+        {
+          id: 4,
+          method: "tools/call",
+          params: {
+            name: "open_terminal",
+            arguments: { command: "ls", extra: "x" },
+          },
+        },
+      ])
+      expect(calls.map((each) => each.request)).toEqual([
+        { agent: "claude", message: "Go", model: "opus", effort: "high" },
+        { command: "ls" },
+      ])
+    })
+
+    it("refuses an agent's fields on open_terminal and a command on open_agent", async () => {
+      calls.length = 0
+      const [, plain, agent, briefless] = await session(terminal(), [
+        initialize,
+        {
+          id: 3,
+          method: "tools/call",
+          params: { name: "open_terminal", arguments: { effort: "high" } },
+        },
+        {
+          id: 4,
+          method: "tools/call",
+          params: {
+            name: "open_agent",
+            arguments: { agent: "claude", message: "Go", command: "ls" },
+          },
+        },
+        {
+          id: 5,
+          method: "tools/call",
+          params: { name: "open_agent", arguments: { agent: "claude", title: "x" } },
+        },
+      ])
+      expect(plain?.result).toMatchObject({
+        isError: true,
+        content: [{ text: expect.stringContaining("call open_agent with agent and message") }],
+      })
+      expect(agent?.result).toMatchObject({
+        isError: true,
+        content: [{ text: expect.stringContaining("open_agent takes no command") }],
+      })
+      expect(briefless?.result).toMatchObject({
+        isError: true,
+        content: [{ text: expect.stringContaining("open_agent needs agent and message") }],
+      })
+      expect(calls).toEqual([])
+    })
+
+    it("lists open_agent's models from the runner, and leaves them out when it has none", async () => {
+      calls.length = 0
+      answer = {
+        ok: true,
+        models: {
+          claude: [
+            { id: "opus", efforts: ["low", "high"] },
+            { id: "sonnet", efforts: [] },
+          ],
+          codex: [{ id: "gpt-5", efforts: ["medium"] }],
+          agy: [{ id: "opus", efforts: [] }],
+        },
+      }
+      const properties = async () => {
+        const [, tools] = await session(terminal(), [initialize, list])
+        const agent = tools?.result?.tools?.find((tool) => tool.name === "open_agent")
+        return agent?.inputSchema as { properties: Record<string, any>; required: string[] }
+      }
+      const listed = await properties()
+      expect(calls[0]).toMatchObject({ type: "models", request: {} })
+      expect(listed.required).toEqual(["agent", "message"])
+      expect(listed.properties.model.enum).toEqual(["opus", "sonnet", "gpt-5"])
+      expect(listed.properties.model.description).toContain(
+        "claude (Claude Code): opus (low, high), sonnet (no effort)",
+      )
+      expect(listed.properties.model.description).toContain("codex (Codex): gpt-5 (medium)")
+      expect(listed.properties.model.description).toContain("leave it out")
+      expect(listed.properties.model.description).not.toContain("can't take a model now")
+      expect(listed.properties.effort.enum).toEqual(["low", "medium", "high", "xhigh", "max"])
+      const withoutModels = async (empty: unknown) => {
+        answer = empty
+        const none = await properties()
+        expect(none.properties.model.enum).toBeUndefined()
+        expect(none.properties.model.description).toContain("leave it out")
+      }
+      await withoutModels({ ok: true, models: { claude: [], codex: [], agy: [] } })
+      await withoutModels({ ok: false })
+      answer = { ok: true, models: { claude: [{ id: "opus", efforts: [] }], codex: [], agy: [] } }
+      expect((await properties()).properties.model.description).toContain(
+        "An agent not named here can't take a model now: leave model out for it.",
       )
     })
 
@@ -338,6 +454,25 @@ describe("Novadeck's MCP server", () => {
       expect(one.content[0]?.text).toContain(
         "1 message another agent sent it won't arrive; Novadeck tells their senders.",
       )
+      const own = await said({ ok: true, self: true, handle: "moth", title: "api-server" })
+      expect(own.content[0]?.text).toBe(
+        "Closing @moth · api-server, your own terminal, in a moment, which ends your session. " +
+          "Nothing you send after this reaches anyone.",
+      )
+      expect(own.isError).toBe(false)
+      const asked = await said({
+        ok: true,
+        asked: true,
+        handle: "fox",
+        title: "api-server",
+        ran: "Codex",
+      })
+      expect(asked.content[0]?.text).toBe(
+        "Asked the user to confirm closing @fox · api-server, which runs Codex. It closes only " +
+          "if they confirm, and Novadeck tells you either way, as a message. End your turn " +
+          "rather than wait.",
+      )
+      expect(asked.isError).toBe(false)
       await expect(said({ ok: false, reason: "moth is your own terminal." })).resolves.toEqual({
         content: [{ type: "text", text: "moth is your own terminal." }],
         isError: true,
@@ -363,11 +498,24 @@ describe("Novadeck's MCP server", () => {
       const instructions = handshake?.result?.instructions as string
       expect(instructions).toContain("puts a question in the user's Inbox, where they see it")
       expect(instructions).toContain("so a question only in your reply goes unseen")
-      expect(instructions).toContain("Always ask there every question you end your turn waiting on")
+      expect(instructions).toContain(
+        "When your harness has its own question tool and you'd stop to ask with it, do, as you normally would",
+      )
+      expect(instructions).toContain(
+        "Novadeck shows that question in the Inbox as it is, so it needs no ask",
+      )
+      expect(instructions).toContain(
+        "Always ask there every other question you end your turn waiting on",
+      )
       expect(instructions).toContain("unless it is already an open ask")
       expect(instructions).toContain("a closing offer such as 'anything else?' isn't one")
       expect(instructions).toContain("nor is an action your harness is already prompting them")
-      expect(instructions).toContain("if they answer here instead, withdraw the ask")
+      expect(instructions).toContain(
+        "When they write to you here, Novadeck takes your open asks out of the Inbox and tells you",
+      )
+      expect(instructions).toContain(
+        "If they answer one here and no such notice came, withdraw it yourself",
+      )
       expect(instructions).toContain("Mid-work, ask without stopping your work")
       expect(instructions).toContain(
         "for a decision the user should make, ask there and keep going",
@@ -383,7 +531,7 @@ describe("Novadeck's MCP server", () => {
       )
       expect(instructions).toContain("not when you answer a question or finish a step")
       expect(instructions).toContain(
-        "With a lead, send your report and your questions to it with send instead of done, tell or ask; approvals of actions are still the user's, asked with ask",
+        "With a lead, use ask, tell and done all the same, and send your lead your report and your questions too; approvals of actions are still only the user's.",
       )
       for (const native of ["AskUserQuestion", "request_user_input", "ask_question"])
         expect(instructions).not.toContain(native)
@@ -397,25 +545,34 @@ describe("Novadeck's MCP server", () => {
         "Put a question in the user's Inbox without stopping your work.",
       )
       expect(ask.description).toContain(
-        "With a lead, send it your questions with send instead of ask",
+        "With a lead, ask all the same, and send it the question too",
+      )
+      expect(ask.description).toContain(
+        "if your lead answers it first, act on that as its instruction and withdraw the ask, unless the question asks approval of an action, such as opening a pull request: only the user gives that",
       )
       expect(ask.description).toContain("needs no approval of theirs")
       expect(ask.description).toContain("A pick that is hard to undo waits for their answer")
       expect(ask.description).toContain("once nothing else is left, end your")
-      expect(ask.description).toContain("always ask every question you end your turn waiting on")
+      expect(ask.description).toContain(
+        "When your harness has its own question tool and you'd stop to ask with it, do",
+      )
+      expect(ask.description).toContain(
+        "Always ask every other question you end your turn waiting on",
+      )
       expect(ask.description).toContain("unless it is already an open ask")
       expect(ask.description).toContain("isn't one, nor is an action your harness is already")
-      expect(ask.description).toContain("such as opening a pull request, go through ask")
       expect(ask.description).toContain("withdraw it too once the user answers it another way")
+      expect(ask.description).toContain("when the user writes to you in this terminal")
+      expect(ask.description).toContain("The user can also dismiss an ask in their Inbox")
       const tell = described.find((tool) => tool.name === "tell")!
       expect(tell.description).toContain("a pull request opened")
       expect(tell.description).toContain("not each step")
-      expect(tell.description).toContain("With a lead, send it that with send instead of tell")
+      expect(tell.description).toContain("With a lead, tell all the same, and send it that too")
       const done = described.find((tool) => tool.name === "done")!
       expect(done.description).toContain("the task you were given is finished")
       expect(done.description).toContain("not when you answer a question or finish a step")
       expect(done.description).toContain(
-        "With a lead, send it your report with send instead of done",
+        "With a lead, call done all the same, and send it your report too",
       )
       expect(ask.description).toContain(
         "unless it is already an open ask, and put the full question in your reply too",
@@ -458,6 +615,8 @@ describe("Novadeck's MCP server", () => {
         "Set open to true for a deliverable you finish or they asked to see",
       )
       expect(show.description).toContain("one item per deliverable")
+      expect(show.description).toContain("Show a page you serve or just deployed")
+      expect(show.description).toContain("a link to someone else's site")
       const showing = described.find((tool) => tool.name === "showing")!
       expect(showing.description).toContain("Check it before showing after a while")
     })
@@ -474,7 +633,13 @@ describe("Novadeck's MCP server", () => {
       expect(close.description).toContain("Closing ends whatever runs there")
       expect(close.description).toContain("only a terminal you are done with")
       expect(close.description).toContain("the user asked you to close")
-      expect(close.description).toContain("Never your own")
+      expect(close.description).toContain("Your own terminal closes a moment after this answers")
+      expect(close.description).toContain("A teammate you lead closes at once")
+      expect(close.description).toContain(
+        "Another agent's terminal closes only once the user confirms",
+      )
+      expect(close.description).toContain("you hear the outcome as a message from Novadeck")
+      expect(close.description).toContain("A terminal with no agent there")
       expect(close.inputSchema).toMatchObject({ required: ["to"], additionalProperties: false })
     })
 
@@ -917,7 +1082,10 @@ describe("Novadeck's MCP server", () => {
         )
         expect(description).toContain("always, even when you also ask in your reply")
         expect(description).toContain(
-          "Questions meant for the user, decisions and requirements too, go to your lead",
+          "Ask the user your questions for them with the ask tool, beside any in your reply, lead or not",
+        )
+        expect(description).toContain(
+          "withdraw an ask your lead answers first, unless that ask is for approval of an action",
         )
         expect(description).toContain("waiting on the user, as agents says")
         expect(description).toContain(
@@ -940,11 +1108,19 @@ describe("Novadeck's MCP server", () => {
       expect(send.description).toContain("exact handle")
       expect(send.description).not.toMatch(/agent's name/)
       const open = described.find((tool) => tool.name === "open_terminal")!
-      expect(open.description).toContain("You become the lead of an agent you open")
-      expect(open.description).toContain("to direct an agent, open it with agent and message")
-      expect(open.description).toContain("gives you none of the user's approvals")
-      expect(open.description).toContain("complete brief")
-      expect(open.description).toContain("tell the user to answer there")
+      expect(open.description).toContain("gets no lead")
+      expect(open.description).toContain("use open_agent")
+      expect(open.description).not.toContain("complete brief")
+      const agent = described.find((tool) => tool.name === "open_agent")!
+      expect(agent.description).toContain("You become the lead of an agent you open")
+      expect(agent.description).toContain("to direct an agent, open it here")
+      expect(agent.description).toContain("gives you none of the user's approvals")
+      expect(agent.description).toContain("complete brief")
+      expect(agent.description).toContain("tell the user to answer there")
+      expect(agent.description).toContain("so don't ask the user its questions again")
+      expect(agent.description).toContain(
+        "Answer one only where your brief or the user already decided it, and leave the rest, and every approval, to the user",
+      )
     })
 
     it("still answers a call under way when the agent closes its side", async () => {
@@ -1020,13 +1196,15 @@ describe("Novadeck's MCP server", () => {
           "showing",
           "close",
           "open_terminal",
+          "open_agent",
           "close_terminal",
           "send",
           "agents",
           "summarize",
         ])
         expect(shown?.result).toMatchObject({ isError: false })
-        expect(calls).toHaveLength(1)
+        // Listing the tools asks the runner for the models, then the show goes through.
+        expect(calls.map((each) => each.type)).toEqual(["models", "present"])
       }, 30_000)
 
       // On Windows, cmd starts the launcher; its content is checked below.

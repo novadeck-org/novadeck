@@ -1,12 +1,15 @@
+import { freshWork } from "../terminals/work.js"
 import { describe, expect, it } from "../test.js"
-import type { Message } from "./mailbox.js"
+import type { Message } from "./messages.js"
 import {
   ago,
+  deliveredTo,
   lastBetween,
   peerOf,
   type Peer,
   renderAgents,
   renderPeer,
+  standingDone,
   unknownHandle,
   type Waiting,
   waitsOnNote,
@@ -46,6 +49,7 @@ const whereabouts = (overrides: Partial<Whereabouts> = {}): Whereabouts => ({
   working: false,
   waiting: null,
   waitsOn: null,
+  reports: { tell: null, done: null },
   place: (path) => path,
   ...overrides,
 })
@@ -63,6 +67,7 @@ const listing = (overrides: Partial<PeerInput> = {}): Peer =>
     where: undefined,
     withYou: null,
     lead: null,
+    deliveredAt: null,
     ...overrides,
   })
 
@@ -272,6 +277,61 @@ describe("a peer as agents read it", () => {
       "  title: Users API",
       "  described by its agent: Fixes login.",
     ])
+  })
+
+  it("says its agent reported done until a prompt or a message gave it more, and its latest update", () => {
+    const report = (subject: string, minutes: number) => ({ subject, at: now - minutes * 60_000 })
+    const reported = (
+      reports: Whereabouts["reports"],
+      given: { personAt?: number; deliveredAt?: number } = {},
+    ): readonly string[] =>
+      read(
+        listing({
+          deliveredAt: given.deliveredAt ?? null,
+          where: whereabouts({
+            reports,
+            work: {
+              ...freshWork("claude:s1"),
+              ...(given.personAt !== undefined && { personAt: given.personAt }),
+            },
+          }),
+        }),
+      ).slice(1)
+    const done = report("Fixed the login bug", 4)
+    const tell = report("Opened PR #512", 20)
+    expect(reported({ tell: null, done: null })).toEqual([])
+    expect(reported({ tell, done })).toEqual(["  reported done 4 min ago: Fixed the login bug"])
+    // A tell after its done is news of its own.
+    expect(reported({ tell: report("Merged PR #512", 1), done })).toEqual([
+      "  reported done 4 min ago: Fixed the login bug",
+      "  latest update 1 min ago: Merged PR #512",
+    ])
+    // The person's prompt or a message delivered after the done gave it more to do.
+    const after = now - 2 * 60_000
+    for (const given of [{ personAt: after }, { deliveredAt: after }])
+      expect(reported({ tell, done }, given)).toEqual([
+        "  latest update 4 min ago: Fixed the login bug",
+      ])
+    // Nor did one before it.
+    expect(reported({ tell, done }, { personAt: now - 10 * 60_000 })).toEqual([
+      "  reported done 4 min ago: Fixed the login bug",
+    ])
+    expect(reported({ tell, done: null })).toEqual(["  latest update 20 min ago: Opened PR #512"])
+    expect(
+      reported({ tell: report(`Opened ${"a very long name ".repeat(20)}`, 1), done: null })[0],
+    ).toMatch(/^ {2}latest update 1 min ago: Opened a very long name .*…$/)
+    // A terminal with no agent bound says nothing of reports.
+    expect(read(listing({ agent: null, where: whereabouts({ reports: { tell, done } }) }))).toEqual(
+      ["- @fox: no agent Novadeck can deliver to"],
+    )
+  })
+
+  it("knows when a message was last delivered to a terminal, never counting Novadeck's own notices", () => {
+    const to = (terminalId: string, deliveredAt: number | null): Message =>
+      message({ to: { ...message().to, terminalId }, deliveredAt })
+    const notice = { ...to("B", 30), from: { ...message().from, terminalId: "novadeck" } }
+    expect(deliveredTo([to("B", 5), to("B", 9), to("B", null), to("C", 20), notice], "B")).toBe(9)
+    expect(deliveredTo([to("C", 20)], "B")).toBeNull()
   })
 
   it("tells the latest message between the caller and the peer, either way", () => {
@@ -486,5 +546,22 @@ describe("a peer whose agent waits to be woken", () => {
       waiting: { kind: "question", tool: "AskUserQuestion", subject: null, more: 0 },
     })
     expect(read(listing({ where: asking }))[0]).toContain("waiting on the user: a question")
+  })
+})
+
+describe("the done that stands", () => {
+  const done = { subject: "Fixed it", at: 100 }
+  const reports = { tell: null, done }
+
+  it("stands until the person's prompt or a delivered message comes after it", () => {
+    expect(standingDone(reports, undefined, null)).toBe(done)
+    expect(standingDone(reports, 99, 50)).toBe(done)
+    expect(standingDone(reports, 100, null)).toBeNull()
+    expect(standingDone(reports, 10, 150)).toBeNull()
+  })
+
+  it("is none without a done", () => {
+    expect(standingDone({ tell: null, done: null }, undefined, null)).toBeNull()
+    expect(standingDone(undefined, undefined, null)).toBeNull()
   })
 })

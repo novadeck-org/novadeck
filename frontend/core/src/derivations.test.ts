@@ -1,7 +1,7 @@
 import {
   allTeams,
   ledTerminals,
-  mailPeers,
+  messagePeers,
   runningLeads,
   sameTeam,
   sameTeams,
@@ -313,7 +313,7 @@ describe("the roster-wide values", () => {
   const values = (workspace: ReturnType<typeof led>) => [
     runningLeads(workspace),
     terminalOrigins(workspace),
-    mailPeers(workspace),
+    messagePeers(workspace),
   ]
 
   it("hand every reader the same value while the roster stays, whatever else changes", () => {
@@ -356,17 +356,17 @@ describe("the peers messages show", () => {
       terminalId: "01",
       process: "claude",
     })
-    expect(mailPeers(busy).moth).toEqual({
+    expect(messagePeers(busy).moth).toEqual({
       name: "Terminal",
       terminalId: "01",
       program: "claude",
       live: "working",
     })
-    expect(mailPeers(running(false)).moth?.live).toBe("idle")
+    expect(messagePeers(running(false)).moth?.live).toBe("idle")
   })
 
   it("say an agent is gone from a terminal that only runs its shell", () => {
-    expect(mailPeers(led()).fox?.live).toBe("gone")
+    expect(messagePeers(led()).fox?.live).toBe("gone")
   })
 
   it("say an agent program is there before its hooks have said anything", () => {
@@ -379,7 +379,7 @@ describe("the peers messages show", () => {
       }),
       { type: "terminal/process", target, terminalId: "02", process: "codex" },
     )
-    expect(mailPeers(started).fox?.live).toBe("idle")
+    expect(messagePeers(started).fox?.live).toBe("idle")
   })
 })
 

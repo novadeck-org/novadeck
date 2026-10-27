@@ -1,4 +1,4 @@
-import { inboxType, type InboxItem, type InboxType } from "@novadeck/core/inbox"
+import { inboxType, type InboxRow, type InboxType } from "@novadeck/core/inbox"
 
 import {
   actionOf,
@@ -28,7 +28,7 @@ export type ToastText = {
   readonly project: string
 }
 
-export const toastText = (item: InboxItem, now: number): ToastText => {
+export const toastText = (item: InboxRow, now: number): ToastText => {
   const novadeck = fromNovadeck(item)
   const label = labelOf(item)
   const command =

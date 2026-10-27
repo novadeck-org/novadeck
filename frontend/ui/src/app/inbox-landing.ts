@@ -1,4 +1,4 @@
-import { noInbox, type Inbox, type InboxItem, type InboxState } from "@novadeck/core/inbox"
+import { noInbox, type Inbox, type InboxRow, type InboxState } from "@novadeck/core/inbox"
 import { createStore, type Store } from "@novadeck/core/store"
 import type { Workspace } from "@novadeck/core/types"
 
@@ -28,9 +28,9 @@ import { viewing, type UiState, type UiStore } from "./ui-store"
 // so everything that consumes the landed Inbox, and whatever opens an item by its id, shares
 // the one object through the workspace services.
 
-const keyOf = (item: InboxItem): string => `${item.id}@${item.at}`
+const keyOf = (item: InboxRow): string => `${item.id}@${item.at}`
 
-const sameItems = (a: readonly InboxItem[], b: readonly InboxItem[]): boolean =>
+const sameItems = (a: readonly InboxRow[], b: readonly InboxRow[]): boolean =>
   a.length === b.length && a.every((item, index) => item === b[index])
 
 type WorkspaceSource = Pick<Store<Workspace>, "getSnapshot" | "subscribe">
@@ -44,14 +44,14 @@ export const readDwellMs = 1000
 // as the person looked away. They count on the bell, but the person has already seen them
 // where they happened, so no toast or OS ping rings for them.
 export type LandedInbox = Inbox & {
-  readonly landedQuietly: (item: InboxItem) => boolean
+  readonly landedQuietly: (item: InboxRow) => boolean
 }
 
 // What the landing rule decides of one raw item, from what is known of it: whether its
 // terminal is viewed (`here`), whether it has landed or been kept unread while viewed, whether
 // it already landed quietly, and whether it has waited out the dwell (`ripe`).
 export type ItemFacts = {
-  readonly kind: InboxItem["kind"]
+  readonly kind: InboxRow["kind"]
   readonly here: boolean
   readonly landed: boolean
   readonly kept: boolean
@@ -119,6 +119,9 @@ export const landInbox = (
   // key: the updates read by being seen, which never land, the held items viewed long enough
   // to land quietly, and the reads under way.
   const landed = new Set<string>()
+  // The open asks the rule held back, which then settled unseen: they never land.
+  const held = new Set<string>()
+  const clearing = new Set<string>()
   const kept = new Set<string>()
   const read = new Set<string>()
   const quiet = new Set<string>()
@@ -139,6 +142,8 @@ export const landInbox = (
     const standing = new Set(state.items.map(keyOf))
     const ids = new Set(state.items.map((item) => item.id))
     for (const id of landed) if (!ids.has(id)) landed.delete(id)
+    for (const id of held) if (!ids.has(id) || landed.has(id)) held.delete(id)
+    for (const id of clearing) if (!ids.has(id)) clearing.delete(id)
     for (const id of kept) if (!ids.has(id)) kept.delete(id)
     for (const set of [read, quiet, reading, ripe])
       for (const key of set) if (!standing.has(key)) set.delete(key)
@@ -147,8 +152,9 @@ export const landInbox = (
         clearTimeout(timer)
         dwelling.delete(key)
       }
-    const items: InboxItem[] = []
-    const toRead: InboxItem[] = []
+    const items: InboxRow[] = []
+    const toRead: InboxRow[] = []
+    const toClear: string[] = []
     const stillDwelling = new Set<string>()
     for (const item of state.items) {
       const key = keyOf(item)
@@ -173,6 +179,20 @@ export const landInbox = (
           if (state.answering[item.id]) reading.add(key)
           continue
         }
+      }
+      // A settled row only stays: one held back that settled unseen is dropped, not shown as
+      // news, and cleared so it doesn't come back. Any other settled row shows at once.
+      if (item.settled) {
+        if (held.has(item.id)) {
+          if (!clearing.has(item.id)) {
+            clearing.add(item.id)
+            toClear.push(item.id)
+          }
+          continue
+        }
+        landed.add(item.id)
+        items.push(item)
+        continue
       }
       const { act, hold } = decideItem({
         kind: item.kind,
@@ -203,7 +223,10 @@ export const landInbox = (
             }, readDwellMs),
           )
       }
-      if (hold) continue
+      if (hold) {
+        held.add(item.id)
+        continue
+      }
       landed.add(item.id)
       items.push(item)
     }
@@ -220,6 +243,7 @@ export const landInbox = (
         ? current
         : { ...state, items },
     )
+    if (running && toClear.length > 0) raw.clear?.(toClear)
     if (running) for (const item of toRead) raw.answer(item.id, { kind: "update", action: "read" })
   }
   const sync = (): void => {

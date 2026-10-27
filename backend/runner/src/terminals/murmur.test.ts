@@ -1281,6 +1281,52 @@ describe("when murmur becomes usable", () => {
     error.mockRestore()
   })
 
+  it("names an agent that binds after the catch-up from its summary on record, once", async () => {
+    // Resumed with the runner: its saved summary named nothing, and catch-up took it for a shell.
+    const resumed = (naming: Partial<MurmurSubject["naming"]>, describer?: FakeDescriber) => {
+      const made = create(
+        {
+          agent: null,
+          expecting: "claude",
+          naming: { ...unnamed, summary: "Website comparison pages", ...naming },
+        },
+        describer,
+      )
+      made.describer.setUsable(false)
+      made.describer.setUsable(true)
+      made.change({ agent: "claude", expecting: null, work: work(), activity: idle("ok") })
+      return made
+    }
+    const made = resumed({})
+    await settle(made.times.expectMs + 50)
+    expect(made.describer.jobs).toHaveLength(0)
+    made.murmur.reported("a")
+    await settle(made.times.settleMs / 2)
+    // Reports keep coming: they neither hold the title back nor ask for it again.
+    made.murmur.reported("a")
+    await settle(made.times.settleMs / 2 + 10)
+    expect(made.written).toEqual([{ title: "Title 1" }])
+    made.murmur.reported("a")
+    await settle(made.times.retryMs)
+    expect(made.describer.digests).toEqual([
+      { kind: "agent", project: "shop", summary: "Website comparison pages" },
+    ])
+
+    // A refused title is let go until the next summary, as ever.
+    const refused = resumed({}, new FakeDescriber({ reply: () => null }))
+    refused.murmur.reported("a")
+    await settle()
+    refused.murmur.reported("a")
+    await settle()
+    expect(refused.describer.jobs).toHaveLength(1)
+
+    // A titled terminal waits for its agent's next summary, as catch-up leaves it.
+    const titled = resumed({ murmur: { title: "Had one" } })
+    titled.murmur.reported("a")
+    await settle()
+    expect(titled.describer.jobs).toHaveLength(0)
+  })
+
   it("asks nothing while murmur is unusable, and nothing once stopped", async () => {
     const made = create({ work: work(), activity: idle("ok") })
     made.describer.setUsable(false)

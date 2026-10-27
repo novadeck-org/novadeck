@@ -84,8 +84,11 @@ type Chunk = {
 const parseChunk = (raw: string): Chunk => {
   try {
     return JSON.parse(raw) as Chunk
-  } catch (error) {
-    throw new Skip(`The answer was not JSON: ${textOf(error)}`)
+  } catch {
+    // Not the parser's message: it quotes a piece of the answer, and a run's log mustn't hold
+    // what the model wrote (the stats' digest writes about people's notes). The answer stays
+    // on the Skip, for a dry run to show.
+    throw new Skip("The answer was not JSON", raw)
   }
 }
 

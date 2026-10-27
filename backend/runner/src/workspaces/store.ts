@@ -31,9 +31,9 @@ import {
 import type { ItemRecord, ItemRecords, Placed, WindowRecord } from "../companions/records.js"
 import { DomainError } from "../errors.js"
 import { logs } from "../log.js"
-import type { AskRecords, Letter } from "../messaging/asks.js"
-import type { Message, Thread } from "../messaging/mailbox.js"
-import type { MailboxRecords } from "../messaging/records.js"
+import type { InboxRecords, StoredEntry } from "../messaging/inbox.js"
+import type { Message, Thread } from "../messaging/messages.js"
+import type { MessageRecords } from "../messaging/records.js"
 import { nextHandle, wordOf } from "../terminals/handles.js"
 import type { Naming } from "../terminals/naming.js"
 import type {
@@ -76,7 +76,8 @@ export type SettingsChange = {
 // 4: windows have a home (a session's project window is one), and an item may come from no
 // terminal.
 // 5: a thread stores the hold on it (held_from, held_for) in place of its allowance.
-const schemaVersion = 5
+// 6: the asks table is named inbox.
+const schemaVersion = 6
 const schema = `
   CREATE TABLE projects (
     position INTEGER PRIMARY KEY,
@@ -188,7 +189,7 @@ const extras = `
     to_lead INTEGER NOT NULL,
     response TEXT
   ) STRICT;
-  CREATE TABLE IF NOT EXISTS asks (
+  CREATE TABLE IF NOT EXISTS inbox (
     id TEXT PRIMARY KEY,
     project_id TEXT NOT NULL,
     terminal_id TEXT NOT NULL,
@@ -416,6 +417,27 @@ const migrations: Readonly<Record<number, string>> = {
       last_at, stopped_at
     FROM message_threads_4;
     DROP TABLE message_threads_4;
+  `,
+  // Made again under the new name, as a rename would quote the name in the table's schema.
+  // `asks` joined `extras` without a version of its own, so the step makes it where missing.
+  5: `
+    CREATE TABLE IF NOT EXISTS asks (
+      id TEXT PRIMARY KEY,
+      project_id TEXT NOT NULL,
+      terminal_id TEXT NOT NULL,
+      at REAL NOT NULL,
+      record TEXT NOT NULL
+    ) STRICT;
+    CREATE TABLE inbox (
+      id TEXT PRIMARY KEY,
+      project_id TEXT NOT NULL,
+      terminal_id TEXT NOT NULL,
+      at REAL NOT NULL,
+      record TEXT NOT NULL
+    ) STRICT;
+    INSERT INTO inbox (id, project_id, terminal_id, at, record)
+    SELECT id, project_id, terminal_id, at, record FROM asks;
+    DROP TABLE asks;
   `,
 }
 // SQLite's primary result codes that say a step doesn't fit the database it met, or that
@@ -661,6 +683,55 @@ export const restoreSetAside = (path: string, now = new Date()): string | undefi
   return earlier
 }
 
+/** How many snapshots of the database from before a migration are kept. */
+const snapshotsKept = 3
+
+const snapshotName = /^workspace-v\d+-([\dTZ-]+)\.sqlite$/
+
+/**
+ * Saves the database as it is, of `version`, before a migration changes it, so an upgrade
+ * can be undone by hand: one self-contained file (`VACUUM INTO` reads what the write-ahead
+ * log holds too) in `snapshots/` beside it, named for the version it came from and the
+ * time. The newest `snapshotsKept` stay. It can't run in a transaction, and a failure
+ * (a full disk, permissions) is logged, never thrown: a runner that can't keep a copy
+ * still starts and carries the workspace forward, as one without this did.
+ */
+const snapshotWorkspace = (
+  database: DatabaseSync,
+  path: string,
+  version: number,
+  now = new Date(),
+): void => {
+  try {
+    const directory = join(dirname(path), "snapshots")
+    mkdirSync(directory, { recursive: true, mode: 0o700 })
+    const snapshot = join(
+      directory,
+      `workspace-v${version}-${now.toISOString().replace(/[:.]/g, "-")}.sqlite`,
+    )
+    // Made first, so it is only ever the person's to read.
+    closeSync(openSync(snapshot, "wx", 0o600))
+    try {
+      database.exec(`VACUUM INTO '${snapshot.replaceAll("'", "''")}'`)
+    } catch (error) {
+      rmSync(snapshot, { force: true })
+      throw error
+    }
+    const old = readdirSync(directory)
+      .map((name) => ({ name, time: snapshotName.exec(name)?.[1] }))
+      .filter((entry) => entry.time !== undefined)
+      .toSorted((a, b) => String(b.time).localeCompare(String(a.time)))
+      .slice(snapshotsKept)
+    for (const { name } of old) rmSync(join(directory, name), { force: true })
+  } catch (error) {
+    log.error(
+      "workspace.snapshot-failed",
+      `Novadeck could not save a copy of its workspace database before carrying it from version ${version}`,
+      { err: error instanceof Error ? error.message : String(error) },
+    )
+  }
+}
+
 /**
  * Creates the schema in a new database, and carries one of a lower version forward
  * (`migrate`). Refuses one written by a newer runner, by its version or by columns this
@@ -668,6 +739,10 @@ export const restoreSetAside = (path: string, now = new Date()): string | undefi
  * changing neither.
  */
 const prepareSchema = (database: DatabaseSync, path: string): void => {
+  const before = database.prepare("PRAGMA user_version").get()?.user_version
+  if (typeof before === "number" && before !== 0 && before < schemaVersion && path !== ":memory:") {
+    snapshotWorkspace(database, path, before)
+  }
   database.exec("BEGIN IMMEDIATE")
   try {
     const version = database.prepare("PRAGMA user_version").get()?.user_version
@@ -934,7 +1009,7 @@ const column = (rows: unknown): string[] => (rows as { handle: string }[]).map((
 // How much of a sealed-looking transcript `forgetUnsealed` matches against base64's alphabet.
 const checkedChars = 1_024
 
-export class WorkspaceStore implements TerminalRecords, MailboxRecords, AskRecords, ItemRecords {
+export class WorkspaceStore implements TerminalRecords, MessageRecords, InboxRecords, ItemRecords {
   private readonly database: DatabaseSync
   private readonly queries: SQLTagStore
   private lastSave = 0
@@ -1014,7 +1089,7 @@ export class WorkspaceStore implements TerminalRecords, MailboxRecords, AskRecor
         for (const sql of [
           "DELETE FROM messages WHERE project_id = ?",
           "DELETE FROM message_threads WHERE project_id = ?",
-          "DELETE FROM asks WHERE project_id = ?",
+          "DELETE FROM inbox WHERE project_id = ?",
           `DELETE FROM terminals WHERE session_id IN (${sessions})`,
           `DELETE FROM session_handles WHERE session_id IN (${sessions})`,
           "DELETE FROM sessions WHERE project_id = ?",
@@ -1282,17 +1357,17 @@ export class WorkspaceStore implements TerminalRecords, MailboxRecords, AskRecor
     }
   }
 
-  letters(): Letter[] {
-    const rows = this.queries.all`SELECT id, record FROM asks ORDER BY at` as {
+  entries(): StoredEntry[] {
+    const rows = this.queries.all`SELECT id, record FROM inbox ORDER BY at` as {
       id: string
       record: string
     }[]
-    // One unreadable row is skipped, so it can't empty every ask.
+    // One unreadable row is skipped, so it can't empty every entry.
     return rows.flatMap(({ id, record }) => {
       try {
-        return [JSON.parse(record) as Letter]
+        return [JSON.parse(record) as StoredEntry]
       } catch (error) {
-        log.error("inbox.read-failed", `Novadeck could not read its Inbox item ${id}`, {
+        log.error("inbox.read-failed", `Novadeck could not read its Inbox entry ${id}`, {
           data: { id },
           err: error,
         })
@@ -1301,29 +1376,29 @@ export class WorkspaceStore implements TerminalRecords, MailboxRecords, AskRecor
     })
   }
 
-  saveLetter(letter: Letter): void {
-    void this.queries.run`INSERT INTO asks (id, project_id, terminal_id, at, record)
-      VALUES (${letter.id}, ${letter.projectId}, ${letter.terminalId}, ${letter.at}, ${JSON.stringify(letter)})
+  saveEntry(entry: StoredEntry): void {
+    void this.queries.run`INSERT INTO inbox (id, project_id, terminal_id, at, record)
+      VALUES (${entry.id}, ${entry.projectId}, ${entry.terminalId}, ${entry.at}, ${JSON.stringify(entry)})
       ON CONFLICT (id) DO UPDATE SET record = excluded.record`
   }
 
-  saveLetters(letters: readonly Letter[]): void {
+  saveEntries(entries: readonly StoredEntry[]): void {
     this.transaction(() => {
-      for (const letter of letters) this.saveLetter(letter)
+      for (const entry of entries) this.saveEntry(entry)
     })
   }
 
-  answerLetter(letter: Letter, message: Message): void {
+  answerEntry(entry: StoredEntry, message: Message): void {
     this.transaction(() => {
       this.saveMessage(message)
-      this.saveLetter(letter)
+      this.saveEntry(entry)
     })
   }
 
-  removeLetters(ids: readonly string[]): void {
+  removeEntries(ids: readonly string[]): void {
     this.forget(() =>
       this.transaction(() => {
-        for (const id of ids) void this.queries.run`DELETE FROM asks WHERE id = ${id}`
+        for (const id of ids) void this.queries.run`DELETE FROM inbox WHERE id = ${id}`
       }),
     )
   }

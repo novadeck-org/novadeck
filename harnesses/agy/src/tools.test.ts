@@ -56,14 +56,14 @@ suite("what an Antigravity tool call was", () => {
   it.each([
     ["agents", {}, "agent", "Listed agents", ""],
     [
-      "open_terminal",
-      { agent: "codex", message: "Fix the lint\nerrors" },
+      "open_agent",
+      { agent: "codex", message: "Fix the lint\nerrors", model: "gpt-5", effort: "high" },
       "agent",
-      "Opened a terminal",
+      "Opened an agent",
       "codex: Fix the lint",
     ],
     ["open_terminal", { command: "pnpm dev" }, "agent", "Opened a terminal", "pnpm dev"],
-    ["close_terminal", { to: "owl" }, "agent", "Closed owl", ""],
+    ["close_terminal", { to: "owl" }, "agent", "Close owl", ""],
     [
       "show",
       { page: { url: "http://localhost:5173/" } },

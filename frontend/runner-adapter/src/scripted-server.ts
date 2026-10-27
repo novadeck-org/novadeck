@@ -167,6 +167,8 @@ export const scriptedRunner = ({
       create: api.terminals.create.handler(unplayed("terminals.create")),
       requests: api.terminals.requests.handler(idle),
       answerRequest: api.terminals.answerRequest.handler(unplayed("terminals.answerRequest")),
+      closeAsks: api.terminals.closeAsks.handler(idle),
+      answerCloseAsk: api.terminals.answerCloseAsk.handler(unplayed("terminals.answerCloseAsk")),
       watch: api.terminals.watch.handler(async function* ({ signal }) {
         const changes = channel<TerminalChange>()
         watchers.add(changes)
@@ -273,11 +275,13 @@ export const scriptedRunner = ({
         unplayed("companions.resetWindowTitle"),
       ),
     },
-    asks: {
-      list: api.asks.list.handler(unplayed("asks.list")),
-      watch: api.asks.watch.handler(idle),
-      answer: api.asks.answer.handler(unplayed("asks.answer")),
-      read: api.asks.read.handler(unplayed("asks.read")),
+    inbox: {
+      list: api.inbox.list.handler(unplayed("inbox.list")),
+      watch: api.inbox.watch.handler(idle),
+      answer: api.inbox.answer.handler(unplayed("inbox.answer")),
+      read: api.inbox.read.handler(unplayed("inbox.read")),
+      dismiss: api.inbox.dismiss.handler(unplayed("inbox.dismiss")),
+      clear: api.inbox.clear.handler(unplayed("inbox.clear")),
     },
     messages: {
       list: api.messages.list.handler(unplayed("messages.list")),

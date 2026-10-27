@@ -8,6 +8,7 @@ import type { Murmur } from "./murmur"
 import type { PortableState } from "./portable"
 import type { SandboxState } from "./sandbox"
 import type { WorkspaceSeed } from "./seed"
+import type { NoticeSound } from "./sounds"
 import type { Source } from "./source"
 import type { WorkspaceAction } from "./state"
 import type { Store } from "./store"
@@ -150,6 +151,23 @@ export type TerminalRequest = {
   readonly answer: (result: { readonly terminalId: string } | { readonly reason: string }) => void
 }
 
+// An agent in terminal `from` asked to close `terminalId`, a terminal that runs an agent it
+// doesn't lead, so the app asks the person first. It waits, with no time limit, until the
+// person answers or the backend takes it back, as when either terminal closed meanwhile.
+export type CloseAsk = {
+  readonly requestId: string
+  readonly from: string
+  readonly terminalId: string
+}
+
+export type CloseAsks = {
+  // The asks waiting on the person, oldest first.
+  readonly pending: Store<readonly CloseAsk[]>
+  // Answers an ask: `close` when the person confirmed, false when they kept the terminal.
+  // The backend then closes it, or not; one it no longer waits for is ignored.
+  readonly answer: (requestId: string, close: boolean) => void
+}
+
 export type BackendSink = {
   // Commits the actions as one store transaction, like a UI command. Actions for a
   // project, session or terminal that no longer exists are no-ops, and calls after
@@ -259,8 +277,11 @@ export type BackendFields = {
   // Optional. The Inbox: what the agents in every project wait on the person for, one
   // item per agent terminal, answered in place, behind the bell. The runner's and the
   // demo's build it from the app's workspace (`bind`) and their own facts (see core's
-  // `inbox-items`). Absent where the backend has none: the Inbox then lists nothing.
+  // `inbox-rows`). Absent where the backend has none: the Inbox then lists nothing.
   readonly inbox?: Inbox
+  // Optional. Agents' asks to close a terminal that runs an agent they don't lead, for the
+  // app to confirm with the person. Absent where agents can't ask.
+  readonly closeAsks?: CloseAsks
   // Optional. Each project's files, folder by folder, and on a demo backend what its agents
   // change in them, for the sidebar's Source panel (see core's `source`). Absent where the
   // backend can't read the projects' folders: the panel isn't drawn.
@@ -362,6 +383,13 @@ export type BackendFields = {
     readonly state: () => Promise<PortableState>
     readonly onState: (listener: (state: PortableState) => void) => () => void
     readonly install: () => void
+    // Optional. Opens the page to download the newest portable copy in the browser;
+    // `showDataFolder` shows the folder that holds the workspace in the file manager. `news`
+    // is what is new in the offered version, for the card (absent or undefined: none to
+    // show). Each is absent in a host that came before it.
+    readonly openDownload?: () => void
+    readonly showDataFolder?: () => void
+    readonly news?: () => Promise<WhatsNew | undefined>
   }
   // Optional. Removing the desktop app from this computer. `plan` says what that would do
   // here, asked each time Preferences opens; `run` removes the app, after the page has
@@ -401,6 +429,9 @@ export type Notice = {
   // True when the notification should make no sound: the person turned Novadeck's sound off,
   // or it sounded just now for another. Only a host that plays the sound (`sounds`) heeds it.
   readonly silent?: boolean
+  // The sound the host's notification plays, the person's choice or else the theme's.
+  // Absent plays the default.
+  readonly sound?: NoticeSound
 }
 
 // An agent the backend can connect, as the Preferences switches show it.

@@ -1207,6 +1207,7 @@ describe("runner backend", () => {
                   ready: null,
                   activity: null,
                   telemetry: null,
+                  reported: null,
                 },
               ],
             },

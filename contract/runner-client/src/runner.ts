@@ -2,7 +2,7 @@ import {
   contract,
   type WireClient,
   type AskAnswer,
-  type InboxLetter,
+  type InboxEntry,
   maxUploadBytes,
   maxUploadPartLength,
   maxVoicePartLength,
@@ -26,6 +26,8 @@ import {
   type TerminalEvent,
   type TerminalMessages,
   type TerminalRequest,
+  type CloseAsk,
+  type CloseAskAnswer,
   type TerminalRequestAnswer,
   type TerminalSummary,
   type RequestAnswer,
@@ -191,6 +193,18 @@ export type Runner = {
      */
     answerRequest(answer: TerminalRequestAnswer): Promise<void>
     /**
+     * Follows agents' asks to close a terminal that runs an agent they don't lead, made
+     * through Novadeck's MCP server, across reconnections. The runner sends each to the
+     * client that subscribed last and waits, without a time limit, for `answerCloseAsk`
+     * or until it withdraws the ask; iteration ends when the runner closes or on `return()`.
+     */
+    closeAsks(): AsyncIterableIterator<CloseAsk, undefined>
+    /**
+     * Answers a close ask with the person's choice. Rejects with `NOT_FOUND` once the
+     * runner no longer waits for it.
+     */
+    answerCloseAsk(answer: CloseAskAnswer): Promise<void>
+    /**
      * Follows every terminal on the runner, across sessions. Each subscription, the
      * first and every one after a reconnection or a retried refusal, yields `reset`,
      * then `changed` for each terminal, then `synced`. On `reset`, clear the set of
@@ -274,7 +288,7 @@ export type Runner = {
      * ending in an `@` or `$` mention a picker would take the Enter for, holding a control
      * character, or nothing but white space; see `promptRefusal`.
      */
-    prompt(terminalId: string, text: string): Promise<void>
+    prompt(terminalId: string, text: string, automatic?: true): Promise<void>
     /**
      * Answers a request waiting on the person through its dialog in the agent's TUI, by the
      * ref `detail` names it by. Rejects with `NOT_FOUND` for a request it doesn't have,
@@ -391,11 +405,13 @@ export type Runner = {
       readonly troubles: PageTrouble[]
     }): Promise<void>
   }
-  readonly asks: {
-    list(): Promise<InboxLetter[]>
-    watch(): AsyncIterableIterator<InboxLetter[], undefined>
+  readonly inbox: {
+    list(): Promise<InboxEntry[]>
+    watch(): AsyncIterableIterator<InboxEntry[], undefined>
     answer(id: string, answer: AskAnswer): Promise<void>
     read(ids: readonly string[]): Promise<void>
+    dismiss(id: string): Promise<void>
+    clear(ids: readonly string[]): Promise<void>
   }
   readonly messages: {
     /** A terminal's threads and messages with their states; `TERMINAL_NOT_FOUND` when unknown. */
@@ -663,6 +679,9 @@ export const connectRunner = async (
       requests: () =>
         resubscribe(connection, (wire, signal) => wire.terminals.requests(undefined, { signal })),
       answerRequest: (answer) => call((wire) => wire.terminals.answerRequest(answer)),
+      closeAsks: () =>
+        resubscribe(connection, (wire, signal) => wire.terminals.closeAsks(undefined, { signal })),
+      answerCloseAsk: (answer) => call((wire) => wire.terminals.answerCloseAsk(answer)),
       watch: () => watch(connection, (wire, signal) => wire.terminals.watch(undefined, { signal })),
       close: (terminalId) => call((wire) => wire.terminals.close({ terminalId })),
       rename: (terminalId, title) => call((wire) => wire.terminals.rename({ terminalId, title })),
@@ -699,7 +718,8 @@ export const connectRunner = async (
           (wire, signal) => wire.agents.transcript({ terminalId, actor }, { signal }),
           { type: "reset" },
         ),
-      prompt: (terminalId, text) => call((wire) => wire.agents.prompt({ terminalId, text })),
+      prompt: (terminalId, text, automatic) =>
+        call((wire) => wire.agents.prompt({ terminalId, text, ...(automatic && { automatic }) })),
       answer: (terminalId, request, answer) =>
         call((wire) => wire.agents.answer({ terminalId, request, answer })),
       interrupt: (terminalId) => call((wire) => wire.agents.interrupt({ terminalId })),
@@ -725,12 +745,14 @@ export const connectRunner = async (
         call((wire) => wire.companions.resetWindowTitle({ windowId })),
       pageTrouble: (input) => call((wire) => wire.companions.pageTrouble(input)),
     },
-    asks: {
-      list: () => call((wire) => wire.asks.list()),
+    inbox: {
+      list: () => call((wire) => wire.inbox.list()),
       watch: () =>
-        resubscribe(connection, (wire, signal) => wire.asks.watch(undefined, { signal })),
-      answer: (id, answer) => call((wire) => wire.asks.answer({ id, answer })),
-      read: (ids) => call((wire) => wire.asks.read({ ids: [...ids] })),
+        resubscribe(connection, (wire, signal) => wire.inbox.watch(undefined, { signal })),
+      answer: (id, answer) => call((wire) => wire.inbox.answer({ id, answer })),
+      read: (ids) => call((wire) => wire.inbox.read({ ids: [...ids] })),
+      dismiss: (id) => call((wire) => wire.inbox.dismiss({ id })),
+      clear: (ids) => call((wire) => wire.inbox.clear({ ids: [...ids] })),
     },
     messages: {
       list: (terminalId) => call((wire) => wire.messages.list({ terminalId })),

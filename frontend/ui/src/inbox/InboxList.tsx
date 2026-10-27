@@ -1,54 +1,108 @@
-import { inboxType, type InboxItem } from "@novadeck/core/inbox"
+import { inboxType, type InboxRow, type InboxState } from "@novadeck/core/inbox"
 import { NovaMark } from "@novadeck/toolkit/NovaLogo"
 import { sidebarListClasses } from "@novadeck/toolkit/SidebarItem"
 import { Tooltip } from "@novadeck/toolkit/Tooltip"
-import { CheckCheck, CircleCheck, LoaderCircle } from "lucide-react"
+import { CheckCheck, CircleCheck, ListX, LoaderCircle, X } from "lucide-react"
 
-import { focusSheet, focusSheetSoon } from "./inbox-dom"
+import { focusSheet, focusSheetSoon, nextRowButton } from "./inbox-dom"
 import { icons, typeWords } from "./inbox-icons"
-import { hasUpdates, needing } from "./inbox-state"
+import { hasSettled, hasUpdates, needing, needs, settledStart, updatesStart } from "./inbox-state"
 import { readLabel, resumesLabel, subjectOf, toneOf, waitLabel } from "./inbox-text"
 import { started, useInboxContext } from "./InboxProvider"
 import { Text } from "./sheet-parts"
 
+// Whether the person answered the item, here, and it has since gone: it keeps its place in
+// the list, answered, until the sheet closes.
+const answeredIn = (
+  item: InboxRow,
+  state: Pick<InboxState, "answering" | "failed">,
+  ghosts: Readonly<Record<string, InboxRow>>,
+): boolean => item.id in ghosts && !state.answering[item.id] && !state.failed[item.id]
+
 // One row, for triage only: the type's icon tinted by how urgent it is, the subject, how
-// long the agent has waited if it stopped, and under it the project and what is extra.
-const Row = ({ item }: { readonly item: InboxItem }): React.JSX.Element => {
-  const { state, view, now, drafts, ghosts, open } = useInboxContext()
+// long the agent has waited if it stopped, and under it the project and what is extra. A row
+// that asks something stays bright until it is answered, opened or not. `first` marks the row
+// after the last that asks, where the updates' line goes; `settledFirst` the first of the settled
+// asks that end the list, where theirs goes. A settled ask (dismissed, withdrawn or answered in
+// its terminal) stays, struck through, and opens nothing; an open Novadeck ask can be dismissed.
+const Row = ({
+  item,
+  asks,
+  first,
+  settledFirst,
+}: {
+  readonly item: InboxRow
+  readonly asks: boolean
+  readonly first: boolean
+  readonly settledFirst: boolean
+}): React.JSX.Element => {
+  const { state, view, now, drafts, ghosts, open, close, dismiss } = useInboxContext()
+  const { settled } = item
   const type = inboxType(item)
   const pending = Boolean(state.answering[item.id])
-  const answered = item.id in ghosts && !pending && !state.failed[item.id]
+  const answered = answeredIn(item, state, ghosts)
   const answering = pending || answered
   const Icon = pending ? LoaderCircle : answered ? CircleCheck : icons[type]
   const current = view.open === item.id
-  const extras = [
-    item.kind !== "feedback" && started(drafts[item.id]) && !answering ? "Draft" : null,
-    answering ? null : resumesLabel(item),
-    readLabel(item),
-  ].filter((extra): extra is string => extra !== null)
+  const dismissable =
+    dismiss !== undefined && item.kind === "ask" && !settled && !pending && !answered
+  const subject = subjectOf(item).replaceAll("`", "")
+  const extras = settled
+    ? [settledWords[settled.how]]
+    : [
+        item.kind !== "feedback" && started(drafts[item.id]) && !answering ? "Draft" : null,
+        answering ? null : resumesLabel(item),
+        readLabel(item),
+      ].filter((extra): extra is string => extra !== null)
   return (
     <div
       role="listitem"
       className="item inbox-row"
-      data-inbox-item={item.id}
+      data-inbox-row={item.id}
       data-type={type}
-      data-urgency={answered ? "answered" : toneOf(item)}
+      data-urgency={settled ? "quiet" : answered ? "answered" : toneOf(item)}
       data-seen={item.seen}
+      data-needs={asks}
+      data-updates-start={first}
+      data-settled-start={settledFirst}
+      data-settled={settled?.how}
+      data-dismissable={dismissable}
       data-arrived={view.arrived.includes(item.id)}
       data-selected={current}
     >
       <button
         type="button"
         className="inbox-row-select"
-        aria-label={`${typeWords[type]}: ${subjectOf(item).replaceAll("`", "")}, ${item.source.projectName}`}
+        aria-label={`${typeWords[type]}: ${subject}, ${item.source.projectName}${
+          settled ? `, ${settledWords[settled.how].toLowerCase()}` : ""
+        }`}
         aria-current={current ? "true" : undefined}
+        aria-disabled={settled ? "true" : undefined}
         onClick={(event) => {
+          if (settled) return
+          // Pressed again, the open row closes its sheet.
+          if (current) return close()
           open(item.id)
           // From the keyboard, on to the sheet that opens.
           if (event.detail === 0) focusSheetSoon()
         }}
         // The sheet follows its row in the tab order: Tab or the right arrow goes into it.
         onKeyDown={(event) => {
+          // Delete dismisses an ask that can be, and the keyboard goes on to the next row.
+          if (
+            dismissable &&
+            (event.key === "Delete" || event.key === "Backspace") &&
+            !event.shiftKey &&
+            !event.ctrlKey &&
+            !event.metaKey &&
+            !event.altKey
+          ) {
+            event.preventDefault()
+            const next = nextRowButton(item.id)
+            dismiss(item.id)
+            next?.focus()
+            return
+          }
           if (!current || event.shiftKey || event.ctrlKey || event.metaKey || event.altKey) return
           if ((event.key === "Tab" || event.key === "ArrowRight") && focusSheet())
             event.preventDefault()
@@ -61,7 +115,11 @@ const Row = ({ item }: { readonly item: InboxItem }): React.JSX.Element => {
           <Text text={subjectOf(item)} />
         </span>
         <span className="inbox-row-wait text-caption">
-          {item.stopped && !answering ? waitLabel(item.at, now) : ""}
+          {settled
+            ? waitLabel(settled.at, now)
+            : item.stopped && !answering
+              ? waitLabel(item.at, now)
+              : ""}
         </span>
         <span className="inbox-row-meta text-caption">
           <span className="inbox-row-project" title={item.source.projectName}>
@@ -78,9 +136,33 @@ const Row = ({ item }: { readonly item: InboxItem }): React.JSX.Element => {
           ))}
         </span>
       </button>
+      {dismissable ? (
+        <Tooltip content="Dismiss · Delete">
+          <button
+            type="button"
+            className="inbox-row-dismiss icon-button dim size-7"
+            aria-label={`Dismiss: ${subject}`}
+            onClick={(event) => {
+              // The keyboard was on this button, which goes with the click: it stays on the row.
+              const keyboard = event.detail === 0
+              const select = event.currentTarget.previousElementSibling
+              dismiss(item.id)
+              if (keyboard && select instanceof HTMLElement) select.focus()
+            }}
+          >
+            <X size={14} strokeWidth={1.6} />
+          </button>
+        </Tooltip>
+      ) : null}
     </div>
   )
 }
+
+const settledWords = {
+  dismissed: "Dismissed",
+  withdrawn: "Withdrawn",
+  replied: "Replied in terminal",
+} as const
 
 // Beside the title: how many wait on the person, as the rail's bell says, while any do. It reads
 // the Inbox itself, so a change in what waits re-renders it and not the sidebar.
@@ -119,9 +201,41 @@ export const InboxMarkAll = (): React.JSX.Element | null => {
   )
 }
 
+// Beside Mark all read while any ask has settled: removes the settled asks from the list.
+export const InboxClear = (): React.JSX.Element | null => {
+  const { state, clear } = useInboxContext()
+  if (!clear || !hasSettled(state.items)) return null
+  return (
+    <Tooltip content="Clear settled">
+      <button
+        className="icon-button dim quiet size-7"
+        type="button"
+        aria-label="Clear settled"
+        onClick={clear}
+      >
+        <ListX size={14} strokeWidth={1.6} />
+      </button>
+    </Tooltip>
+  )
+}
+
 // Everything across the workspace that asks for the person, one row each.
+const needsBefore = (before: InboxRow | undefined): boolean => before !== undefined && needs(before)
+
 export const InboxList = (): React.JSX.Element => {
-  const { shown, view, working } = useInboxContext()
+  const { shown, view, working, state, ghosts } = useInboxContext()
+  const rows = shown.map((item) => ({
+    item,
+    asks: needs(item) && !answeredIn(item, state, ghosts),
+    // A row that settled in place among the asks keeps its place with them.
+    placed: item.settled !== undefined && needsBefore(view.base[item.id]),
+  }))
+  const settledAt = settledStart(shown.map((item) => item.settled !== undefined))
+  const updates = updatesStart(
+    rows
+      .slice(0, settledAt < 0 ? rows.length : settledAt)
+      .map(({ asks, placed }) => asks || placed),
+  )
   return (
     <div
       className="inbox-panel flex min-h-0 min-w-0 w-full flex-1 flex-col"
@@ -143,8 +257,14 @@ export const InboxList = (): React.JSX.Element => {
           role="list"
           aria-label="Messages from your agents"
         >
-          {shown.map((item) => (
-            <Row key={item.id} item={item} />
+          {rows.map(({ item, asks }, index) => (
+            <Row
+              key={item.id}
+              item={item}
+              asks={asks}
+              first={index === updates}
+              settledFirst={index === settledAt}
+            />
           ))}
         </div>
       )}

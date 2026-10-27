@@ -25,16 +25,17 @@ import { bareHandle } from "../terminals/handles.js"
 import { describe, expect, it } from "../test.js"
 import { running, submitWindowMs } from "./delivery.js"
 import type { Loops } from "./loops.js"
-import { clock, retentionMs, threadMs } from "./mailbox.js"
+import { clock, retentionMs, threadMs } from "./messages.js"
 import {
   holdNotice,
   Messaging,
   type MessagingChange,
   type MessagingOptions,
+  type Person,
   type SendAnswer,
 } from "./messaging.js"
 import type { Whereabouts } from "./peers.js"
-import { memoryMailbox, type MailboxRecords } from "./records.js"
+import { memoryMessages, type MessageRecords } from "./records.js"
 
 const binding = (agent: AgentName, sessionId: string, instance: string | null = "10"): Binding => ({
   agent,
@@ -123,7 +124,7 @@ const here = { projectId: "p", sessionId: "s" }
 const elsewhere = { projectId: "q", sessionId: "s2" }
 
 const create = (
-  records: MailboxRecords = memoryMailbox(),
+  records: MessageRecords = memoryMessages(),
   time: Clock = { now: 1_000_000 },
   options: MessagingOptions = {},
 ) => {
@@ -179,24 +180,36 @@ const create = (
   messaging.register("B", here, "fox", null)
   follow("A", claude)
   follow("B", codex)
-  // What a hook of the terminal's agent asks, with plenty of time left.
-  const ask = (
+  // What a hook of the terminal's agent asks, with plenty of time left: the whole answer.
+  const answer = (
     terminalId: string,
     bound: Binding,
     event: string,
     reported: HarnessEvent[],
     deadline = time.now + 3_000,
+    person?: Person,
   ) => {
     const events = timed(reported)
     follow(terminalId, bound, events)
-    return messaging.ask(terminalId, { agent: bound.agent, event, events, deadline })
+    return messaging.ask(terminalId, {
+      agent: bound.agent,
+      event,
+      events,
+      deadline,
+      ...(person && { person }),
+    })
+  }
+  // What the hook prints of it, without the notices `adding` takes, the terminals side's.
+  const ask = (...args: Parameters<typeof answer>) => {
+    const { leaseId, stdout } = answer(...args)
+    return { leaseId, stdout }
   }
   const prompt = (terminalId: string, bound: Binding, cause?: "prompt" | "harness" | "call") =>
     ask(terminalId, bound, bound.agent === "agy" ? "PreInvocation" : "UserPromptSubmit", [
       started(bound, cause),
     ])
-  const stop = (terminalId: string, bound: Binding, background = false) =>
-    ask(terminalId, bound, "Stop", [stopped(bound, background)])
+  const stop = (terminalId: string, bound: Binding, background = false, person?: Person) =>
+    ask(terminalId, bound, "Stop", [stopped(bound, background)], undefined, person)
   const send = (from: string, to: string, text: string) => messaging.send(from, { to, text })
   return {
     messaging,
@@ -207,6 +220,7 @@ const create = (
     codex,
     follow,
     observe,
+    answer,
     ask,
     prompt,
     stop,
@@ -450,6 +464,15 @@ describe("an addressee with no session yet", () => {
     vi.useRealTimers()
   })
 
+  it("names the agent its terminal expects as the one running there, before it binds", () => {
+    const { messaging } = create()
+    messaging.register("A", here, "moth", null)
+    messaging.register("N", here, "owl", null)
+    expect(messaging.peer("A", "owl")).toMatchObject({ ok: true, agent: null })
+    messaging.expect("N", "codex")
+    expect(messaging.peer("A", "owl")).toMatchObject({ ok: true, agent: "codex" })
+  })
+
   it("waits for the first session of the agent its terminal expects", () => {
     const { messaging, send, follow, prompt } = create()
     messaging.register("N", here, "owl", null)
@@ -576,7 +599,7 @@ describe("an addressee with no session yet", () => {
   })
 
   it("outlasts the restore, and is gone once another agent binds there or the terminal closes", () => {
-    const records = memoryMailbox()
+    const records = memoryMessages()
     const setup = create(records, { now: 1_000_000 }, { restoreMs: 60_000 })
     setup.messaging.register("N", here, "owl", null)
     setup.messaging.expect("N", "codex")
@@ -595,7 +618,7 @@ describe("an addressee with no session yet", () => {
 
 describe("guards", () => {
   it("hold every message while paused, across restarts, and deliver in order once resumed", () => {
-    const records = memoryMailbox()
+    const records = memoryMessages()
     const first = create(records)
     sent(first.send("A", "fox", "before"))
     first.messaging.pause(true)
@@ -644,6 +667,28 @@ describe("delivery through hooks", () => {
     })
     // Nothing more waits.
     expect(prompt("B", codex)).toEqual({ leaseId: null, stdout: "" })
+  })
+
+  it("says how to print a turn the person or the doorbell began with notices after its messages", () => {
+    const { send, answer, codex, clock: time } = create()
+    // The person's prompt with nothing waiting: silent, with the whole answer for notices.
+    const quiet = answer("B", codex, "UserPromptSubmit", [started(codex)])
+    expect(quiet.stdout).toBe("")
+    expect(context(quiet.adding!("Novadeck: a notice."))).toBe("Novadeck: a notice.")
+    // The doorbell's turn, with the lead's brief: the notices go after the messages.
+    sent(send("A", "fox", "Review a.ts"))
+    const rung = answer("B", codex, "UserPromptSubmit", [doorbellStarted(codex, "n-1")])
+    expect(rung.leaseId).toEqual(expect.any(String))
+    const both = context(rung.adding!("Novadeck: a notice."))
+    expect(both.indexOf("Review a.ts")).toBeGreaterThan(-1)
+    expect(both.indexOf("Review a.ts")).toBeLessThan(both.indexOf("Novadeck: a notice."))
+    // A hook's own continuation, or a turn with no time left to print: none.
+    expect(
+      answer("B", codex, "UserPromptSubmit", [started(codex, "harness")]).adding,
+    ).toBeUndefined()
+    expect(
+      answer("B", codex, "UserPromptSubmit", [started(codex)], time.now + 100).adding,
+    ).toBeUndefined()
   })
 
   it("continues a working agent's Stop with its messages, at most twice a turn", () => {
@@ -819,7 +864,7 @@ describe("delivery through hooks", () => {
   })
 
   it("puts every lease held when the runner stops back to queued", () => {
-    const records = memoryMailbox()
+    const records = memoryMessages()
     const first = create(records)
     sent(first.send("A", "fox", "hello"))
     expect(first.prompt("B", first.codex).leaseId).toEqual(expect.any(String))
@@ -831,7 +876,7 @@ describe("delivery through hooks", () => {
   })
 
   it("keeps a terminal's messages waiting through the runner's end, as its shells exit after it closed", () => {
-    const records = memoryMailbox()
+    const records = memoryMessages()
     const first = create(records)
     sent(first.send("A", "fox", "hello"))
     expect(first.prompt("B", first.codex).leaseId).toEqual(expect.any(String))
@@ -855,12 +900,12 @@ describe("delivery through hooks", () => {
   })
 
   it("leases nothing once the runner closed it, as no ack could then record a delivery", () => {
-    const records = memoryMailbox()
+    const records = memoryMessages()
     const { messaging, send, prompt, stop, codex } = create(records)
     sent(send("A", "fox", "hello"))
     messaging.close()
     // A hook of a turn as the shells end: its messages would be printed, then delivered
-    // again by the next runner, as the closed mailbox can't save the ack.
+    // again by the next runner, as the closed store can't save the ack.
     const answer = prompt("B", codex)
     expect(answer.leaseId).toBeNull()
     expect(answer.stdout ?? "").not.toContain("hello")
@@ -869,7 +914,7 @@ describe("delivery through hooks", () => {
   })
 
   it("refuses a message sent while the runner stops, which it could no longer keep", () => {
-    const records = memoryMailbox()
+    const records = memoryMessages()
     const first = create(records)
     first.messaging.close()
     const answer = first.send("A", "fox", "hello")
@@ -1071,7 +1116,7 @@ describe("delivery through hooks", () => {
   })
 
   it("makes messages gone once restoring is over for a terminal never restored, until it is", () => {
-    const records = memoryMailbox()
+    const records = memoryMessages()
     const first = create(records)
     sent(first.send("A", "fox", "hello"))
     first.messaging.close()
@@ -1254,7 +1299,7 @@ describe("a stopped thread", () => {
   })
 
   it("keeps a leased message gone across a restart of the runner", () => {
-    const records = memoryMailbox()
+    const records = memoryMessages()
     const first = create(records)
     sent(first.send("A", "fox", "first"))
     first.prompt("B", first.codex)
@@ -1368,7 +1413,7 @@ describe("Antigravity's root conversation", () => {
     vi.useRealTimers()
   })
 
-  const agyTerminal = (records?: MailboxRecords) => {
+  const agyTerminal = (records?: MessageRecords) => {
     const setup = create(records)
     const root = binding("agy", "c-root", "7")
     setup.messaging.register("G", here, "owl", null)
@@ -1424,7 +1469,7 @@ describe("Antigravity's root conversation", () => {
   })
 
   it("never makes the root's messages gone when Antigravity restarts during a subagent's work", () => {
-    const records = memoryMailbox()
+    const records = memoryMessages()
     const first = agyTerminal(records)
     first.observe("G", first.root, [observed(first.root, true)], true)
     sent(first.send("A", "owl", "hello"))
@@ -1909,6 +1954,7 @@ const whereabouts = (overrides: Partial<Whereabouts> = {}): Whereabouts => ({
   working: false,
   waiting: null,
   waitsOn: null,
+  reports: { tell: null, done: null },
   place: (path) => path,
   ...overrides,
 })
@@ -2051,7 +2097,7 @@ describe("listing", () => {
 describe("retention", () => {
   it("keeps messages while either terminal exists, and for a day after their latest activity", () => {
     const kept = new Set(["A", "B"])
-    const records = memoryMailbox()
+    const records = memoryMessages()
     const {
       messaging,
       send,
@@ -2272,7 +2318,7 @@ describe("the person's submissions", () => {
 
 describe("ringing", () => {
   // Codex settled after a turn, with a message waiting.
-  const settledWithMail = () => {
+  const settledWithMessages = () => {
     const setup = create()
     setup.prompt("B", setup.codex)
     setup.stop("B", setup.codex)
@@ -2302,7 +2348,7 @@ describe("ringing", () => {
   })
 
   it("is confirmed by its doorbell prompt, whose hook delivers", () => {
-    const { messaging, ask, codex } = settledWithMail()
+    const { messaging, ask, codex } = settledWithMessages()
     messaging.ring("B", "n1")
     const answer = ask("B", codex, "UserPromptSubmit", [doorbellStarted(codex, "n1")])
     expect(answer.leaseId).toEqual(expect.any(String))
@@ -2322,7 +2368,7 @@ describe("ringing", () => {
   })
 
   it("gives way to another prompt, the ring then over", () => {
-    const { messaging, prompt, codex } = settledWithMail()
+    const { messaging, prompt, codex } = settledWithMessages()
     messaging.ring("B", "n1")
     expect(messaging.delivery("B")?.state).toBe("ringing")
     expect(prompt("B", codex).leaseId).toEqual(expect.any(String))
@@ -2332,7 +2378,7 @@ describe("ringing", () => {
   })
 
   it("tells of each change, for the doorbell to look again", () => {
-    const { messaging, changed } = settledWithMail()
+    const { messaging, changed } = settledWithMessages()
     changed.length = 0
     messaging.ring("B", "n1")
     messaging.ringFailed("B", "n1")
@@ -2560,7 +2606,7 @@ describe("a new agent session at its own prompt", () => {
   })
 
   it("rings a Claude Code the runner restored, resumed at its prompt, and its doorbell prompt delivers", () => {
-    const records = memoryMailbox()
+    const records = memoryMessages()
     const first = create(records)
     sent(first.send("B", "moth", "hello"))
     first.messaging.close()
@@ -2868,7 +2914,7 @@ describe("an agent's prompt shown before any session binds", () => {
   it("keeps a restored Codex's messages for the session its title shows, and rings it", () => {
     vi.useFakeTimers()
     try {
-      const records = memoryMailbox()
+      const records = memoryMessages()
       const first = create(records)
       const resumed = binding("codex", "01a0f932-a824-7c30-b713-b59ed562f00b", "2")
       first.follow("B", resumed)
@@ -3193,8 +3239,651 @@ describe("Antigravity's prompts, told from its transcript", () => {
   })
 })
 
-// The latest message the mailbox keeps for a terminal, as the mailbox holds it.
-const latestFor = (records: MailboxRecords, terminalId: string) =>
+describe("the person's prompt, told to the asks", () => {
+  const notice = "Novadeck: automatic notice, not from the user: asks withdrawn."
+  const agy = binding("agy", "c-root", "7")
+  // Each harness's prompt hook and how its prompt text is told: Claude Code's and Codex's by
+  // the hook, Antigravity's from its transcript's typed entry.
+  const harnessesTold = [
+    { name: "Claude Code", event: "UserPromptSubmit", terminal: "A", agent: "claude" },
+    { name: "Codex", event: "UserPromptSubmit", terminal: "B", agent: "codex" },
+    { name: "Antigravity", event: "PreInvocation", terminal: "G", agent: "agy" },
+  ] as const
+  // A person whose prompts count, and the asks it withdraws, answering `note` when it does.
+  const who = (note: string | undefined = notice) => {
+    const counts = vi.fn<Person["counts"]>(() => true)
+    const withdraw = vi.fn<Person["withdraw"]>(() => note)
+    const prompted = vi.fn<Person["prompted"]>()
+    const dismissed = vi.fn<Person["dismissed"]>(() => undefined)
+    return {
+      counts,
+      withdraw,
+      prompted,
+      dismissed,
+      person: { counts, withdraw, prompted, dismissed } satisfies Person,
+    }
+  }
+  type Run = ReturnType<typeof create> & {
+    readonly bound: Binding
+    readonly terminal: string
+    readonly event: string
+  }
+  const setup = (agent: "claude" | "codex" | "agy"): Run => {
+    const run = create()
+    const found = harnessesTold.find((each) => each.agent === agent)!
+    if (agent === "agy") {
+      run.messaging.register("G", here, "owl", null)
+      run.follow("G", agy)
+    }
+    const bound = agent === "claude" ? run.claude : agent === "codex" ? run.codex : agy
+    return { ...run, bound, terminal: found.terminal, event: found.event }
+  }
+  // The turn's start as the hooks (or Antigravity's transcript) tell it, for a prompt `cause`.
+  const start = async (
+    run: Run,
+    cause: "prompt" | "harness" | "doorbell",
+    person: Person,
+    reported?: HarnessEvent[],
+    deadline?: number,
+    words = "let's talk it over",
+  ) => {
+    const { bound } = run
+    let events: HarnessEvent[]
+    if (reported) events = reported
+    else if (bound.agent === "agy") {
+      const harnessTurn = started(bound, "harness")
+      const told =
+        cause === "prompt"
+          ? await typedPromptStart(
+              [{ ...harnessTurn, startedAt: run.clock.now }],
+              {
+                root: { ...bound, source: "status-line" } as Root,
+                typedEntry: harnesses.agy.messaging.typedEntry!,
+                transcript: "/t.jsonl",
+                seen: 1,
+                enteredAt: run.clock.now - 500,
+                ringing: undefined,
+                startedWith: undefined,
+              },
+              () => Promise.resolve({ text: words, at: null, id: 2 }),
+              { waitMs: 2, gapMs: 1 },
+            )
+          : { events: [harnessTurn] }
+      events = [...told.events]
+    } else
+      events =
+        cause === "prompt"
+          ? [{ ...started(bound, "prompt"), prompt: words } as HarnessEvent]
+          : cause === "doorbell"
+            ? [doorbellStarted(bound, "n1")]
+            : [started(bound, "harness")]
+    return run.ask(run.terminal, bound, run.event, events, deadline, person)
+  }
+
+  it.each(harnessesTold)(
+    "withdraws the asks the person's prompt took, with $name's hook answer telling the agent",
+    async ({ agent }) => {
+      const run = setup(agent)
+      run.messaging.keys(run.terminal, ["enter"], false)
+      const told = who()
+      const answer = await start(run, "prompt", told.person)
+      expect(told.counts).toHaveBeenCalledWith({
+        submittedAt: run.clock.now,
+        prompt: "let's talk it over",
+      })
+      expect(told.withdraw).toHaveBeenCalledWith(run.clock.now)
+      expect(answer.stdout).toContain(notice)
+    },
+  )
+
+  it.each(harnessesTold)(
+    "notes $name's turn as the person's prompt only when their Enter started it",
+    async ({ agent }) => {
+      const run = setup(agent)
+      const told = who()
+      // The harness's own turn, as a self-wake, or a prompt with no Enter of theirs, isn't it.
+      run.messaging.keys(run.terminal, ["enter"], false)
+      await start(run, "harness", told.person)
+      run.stop(run.terminal, run.bound)
+      run.messaging.keys(run.terminal, ["enter"], false)
+      await start(run, "doorbell", told.person)
+      run.stop(run.terminal, run.bound)
+      run.clock.now += 60_000
+      await start(run, "prompt", told.person)
+      run.stop(run.terminal, run.bound)
+      expect(told.prompted).not.toHaveBeenCalled()
+      run.messaging.keys(run.terminal, ["enter"], false)
+      await start(run, "prompt", told.person)
+      expect(told.prompted).toHaveBeenCalledExactlyOnceWith(run.clock.now)
+    },
+  )
+
+  it.each(harnessesTold)(
+    "puts the notice beside the messages $name's prompt carries",
+    async ({ agent }) => {
+      const run = setup(agent)
+      run.messaging.register("Z", here, "owl2", null)
+      run.follow("Z", binding("claude", "s-z", "9"))
+      sent(run.send("Z", agent === "claude" ? "moth" : agent === "codex" ? "fox" : "owl", "hello"))
+      run.messaging.keys(run.terminal, ["enter"], false)
+      const answer = await start(run, "prompt", who().person)
+      expect(answer.leaseId).not.toBeNull()
+      expect(answer.stdout).toContain(">hello</message>")
+      expect(answer.stdout).toContain(notice)
+    },
+  )
+
+  it.each(harnessesTold)(
+    "never withdraws for $name's turn the doorbell or the harness started, or one with no Enter",
+    async ({ agent }) => {
+      const run = setup(agent)
+      const told = who()
+      run.messaging.keys(run.terminal, ["enter"], false)
+      expect((await start(run, "harness", told.person)).stdout).not.toContain(notice)
+      run.stop(run.terminal, run.bound)
+      run.messaging.keys(run.terminal, ["enter"], false)
+      await start(run, "doorbell", told.person)
+      run.stop(run.terminal, run.bound)
+      // No Enter of theirs before a prompt: not their submission.
+      run.clock.now += 60_000
+      expect((await start(run, "prompt", told.person)).stdout).not.toContain(notice)
+      expect(told.counts).not.toHaveBeenCalled()
+      expect(told.withdraw).not.toHaveBeenCalled()
+    },
+  )
+
+  it.each(harnessesTold)(
+    "withdraws nothing for $name's turn when the prompt doesn't count, as an opener's command line",
+    async ({ agent }) => {
+      const run = setup(agent)
+      const told = who()
+      told.counts.mockReturnValue(false)
+      run.messaging.keys(run.terminal, ["enter"], false)
+      expect((await start(run, "prompt", told.person)).stdout).not.toContain(notice)
+      expect(told.withdraw).not.toHaveBeenCalled()
+      // Nor later: the turn owes nothing.
+      run.stop(run.terminal, run.bound)
+      expect((await start(run, "harness", told.person)).stdout).not.toContain(notice)
+    },
+  )
+
+  it.each(harnessesTold)(
+    "counts $name's prompt queued during a turn from the person's Enter, not the turn's start",
+    async ({ agent }) => {
+      const run = setup(agent)
+      run.messaging.keys(run.terminal, ["enter"], false)
+      await start(run, "prompt", who().person)
+      // They queue the next prompt behind the running turn; the agent asks before the Stop.
+      run.clock.now += 1_000
+      run.messaging.keys(run.terminal, ["content", "enter"], false)
+      const queuedAt = run.clock.now
+      run.clock.now += 5_000
+      run.stop(run.terminal, run.bound)
+      run.clock.now += 300
+      const told = who()
+      await start(run, "prompt", told.person)
+      expect(told.counts).toHaveBeenCalledWith({
+        submittedAt: queuedAt,
+        prompt: "let's talk it over",
+      })
+      expect(told.withdraw).toHaveBeenCalledWith(queuedAt)
+    },
+  )
+
+  it.each(harnessesTold)(
+    "never withdraws for $name's turn on a fixed line an Inbox button sent, but for the next words",
+    async ({ agent }) => {
+      const run = setup(agent)
+      const told = who()
+      run.messaging.keys(run.terminal, ["enter"], false)
+      run.messaging.automatic(run.terminal, "let's talk it over")
+      expect((await start(run, "prompt", told.person)).stdout).not.toContain(notice)
+      expect(told.withdraw).not.toHaveBeenCalled()
+      run.stop(run.terminal, run.bound)
+      // The mark was spent by that turn: the same words, typed now, are the person's.
+      run.messaging.keys(run.terminal, ["enter"], false)
+      expect((await start(run, "prompt", told.person)).stdout).toContain(notice)
+      expect(told.withdraw).toHaveBeenCalledTimes(1)
+      run.stop(run.terminal, run.bound)
+      // A mark for another line leaves the person's own words theirs.
+      run.messaging.keys(run.terminal, ["enter"], false)
+      run.messaging.automatic(run.terminal, "continue")
+      await start(run, "prompt", told.person)
+      expect(told.withdraw).toHaveBeenCalledTimes(2)
+    },
+  )
+
+  it.each(harnessesTold)(
+    "keeps $name's fixed line exempt however long it waited behind a running turn",
+    async ({ agent }) => {
+      const run = setup(agent)
+      const told = who()
+      run.messaging.keys(run.terminal, ["enter"], false)
+      await start(run, "prompt", told.person)
+      told.withdraw.mockClear()
+      // Continue is sent while the turn works and goes in when it ends, minutes later.
+      run.messaging.automatic(run.terminal, "let's talk it over\r\n")
+      run.clock.now += 10 * 60_000
+      run.stop(run.terminal, run.bound)
+      run.messaging.keys(run.terminal, ["enter"], false)
+      expect((await start(run, "prompt", told.person)).stdout).not.toContain(notice)
+      expect(told.withdraw).not.toHaveBeenCalled()
+    },
+  )
+
+  // The turns of a run, each after the last one's Stop, the person's Enter before it. Whether the
+  // asks were withdrawn with the turn's answer.
+  const turn = async (run: Run, told: ReturnType<typeof who>, words: string) => {
+    run.stop(run.terminal, run.bound)
+    run.clock.now += 1_000
+    run.messaging.keys(run.terminal, ["enter"], false)
+    const answer = await start(run, "prompt", told.person, undefined, undefined, words)
+    return answer.stdout?.includes(notice) === true
+  }
+
+  it.each(harnessesTold)(
+    "exempts each of two fixed lines sent to $name, whichever turn comes first",
+    async ({ agent }) => {
+      const run = setup(agent)
+      const told = who()
+      run.messaging.keys(run.terminal, ["enter"], false)
+      await start(run, "prompt", told.person)
+      run.messaging.automatic(run.terminal, "continue")
+      run.messaging.automatic(run.terminal, "continue")
+      // Each line's own turn spends one mark; a third is the person's.
+      expect(await turn(run, told, "continue")).toBe(false)
+      expect(await turn(run, told, "continue")).toBe(false)
+      expect(await turn(run, told, "continue")).toBe(true)
+    },
+  )
+
+  it.each(harnessesTold)(
+    "keeps $name's marks for the lines still to come when the person's own turn comes first",
+    async ({ agent }) => {
+      const run = setup(agent)
+      const told = who()
+      run.messaging.keys(run.terminal, ["enter"], false)
+      await start(run, "prompt", told.person)
+      run.messaging.automatic(run.terminal, "continue")
+      run.messaging.automatic(run.terminal, "fix the build")
+      // Their words start first and spend no mark; a harness turn leaves them too.
+      expect(await turn(run, told, "blue, please")).toBe(true)
+      run.stop(run.terminal, run.bound)
+      await start(run, "harness", told.person)
+      expect(await turn(run, told, "fix the build")).toBe(false)
+      expect(await turn(run, told, "continue")).toBe(false)
+      expect(await turn(run, told, "continue")).toBe(true)
+    },
+  )
+
+  it.each(harnessesTold)(
+    "exempts a turn of $name's that folds fixed lines queued together, in the order they were marked",
+    async ({ agent }) => {
+      const run = setup(agent)
+      const told = who()
+      run.messaging.keys(run.terminal, ["enter"], false)
+      await start(run, "prompt", told.person)
+      run.messaging.automatic(run.terminal, "fix the build")
+      run.messaging.automatic(run.terminal, "continue")
+      // Folded with words of the person's, or out of order, it is not entirely theirs to exempt.
+      expect(await turn(run, told, "continue\nfix the build")).toBe(true)
+      expect(await turn(run, told, "fix the build\nblue, please")).toBe(true)
+      expect(await turn(run, told, "fix the build\r\ncontinue")).toBe(false)
+      // Both were spent by the fold.
+      expect(await turn(run, told, "continue")).toBe(true)
+    },
+  )
+
+  it.each(harnessesTold)(
+    "removes one of $name's marks when one send failed, and the others stay",
+    async ({ agent }) => {
+      const run = setup(agent)
+      const told = who()
+      run.messaging.keys(run.terminal, ["enter"], false)
+      await start(run, "prompt", told.person)
+      run.messaging.automatic(run.terminal, "continue")
+      run.messaging.automatic(run.terminal, "continue")
+      run.messaging.automaticFailed(run.terminal, "continue")
+      expect(await turn(run, told, "continue")).toBe(false)
+      expect(await turn(run, told, "continue")).toBe(true)
+    },
+  )
+
+  it.each(harnessesTold)(
+    "forgets $name's mark when its send failed, and when its session ended",
+    async ({ agent }) => {
+      const run = setup(agent)
+      const told = who()
+      run.messaging.keys(run.terminal, ["enter"], false)
+      run.messaging.automatic(run.terminal, "let's talk it over")
+      // Refused, PROMPT_FAILED, BOX_NOT_CLEARED or thrown: no turn comes of the line.
+      run.messaging.automaticFailed(run.terminal, " let's talk it over ")
+      expect((await start(run, "prompt", told.person)).stdout).toContain(notice)
+      run.stop(run.terminal, run.bound)
+      run.messaging.keys(run.terminal, ["enter"], false)
+      run.messaging.automatic(run.terminal, "let's talk it over")
+      run.messaging.rooted(run.terminal, [
+        { type: "ended", root: { ...run.bound, source: "binding" } } as never,
+      ])
+      run.messaging.rooted(run.terminal, [
+        {
+          type: "new",
+          root: { ...run.bound, source: "binding" },
+          guess: false,
+          ready: true,
+        } as never,
+      ])
+      run.messaging.keys(run.terminal, ["enter"], false)
+      told.withdraw.mockClear()
+      expect((await start(run, "prompt", told.person)).stdout).toContain(notice)
+    },
+  )
+
+  it.each(harnessesTold)(
+    "keeps the asks when $name's hook answer is too late, and pays within the turn only",
+    async ({ agent }) => {
+      const run = setup(agent)
+      run.messaging.keys(run.terminal, ["enter"], false)
+      const told = who()
+      // The hook's deadline is nearly spent when its report is applied.
+      const late = await start(run, "prompt", told.person, undefined, run.clock.now + 50)
+      expect(late.stdout).not.toContain(notice)
+      expect(told.counts).toHaveBeenCalledTimes(1)
+      expect(told.withdraw).not.toHaveBeenCalled()
+      // The turn ends unpaid: the debt is dropped, and the asks stay open for good.
+      run.clock.now += 4_000
+      run.stop(run.terminal, run.bound)
+      run.clock.now += 1_000
+      const next = await start(run, "harness", told.person)
+      expect(next.stdout).not.toContain(notice)
+      expect(told.withdraw).not.toHaveBeenCalled()
+      // Nor does a later turn of the person's own owe it: it owes its own.
+      run.stop(run.terminal, run.bound)
+      expect((await start(run, "harness", told.person)).stdout).not.toContain(notice)
+      expect(told.withdraw).not.toHaveBeenCalled()
+    },
+  )
+
+  it("pays at Antigravity's later model call of the turn, and keeps the notice for its remaining calls", async () => {
+    const run = setup("agy")
+    run.messaging.keys("G", ["enter"], false)
+    const told = who()
+    const late = await start(run, "prompt", told.person, undefined, run.clock.now + 50)
+    expect(late.stdout).not.toContain(notice)
+    const call = () =>
+      run.ask("G", agy, "PreInvocation", [started(agy, "call")], undefined, told.person)
+    const paid = call()
+    expect(paid.stdout).toContain(notice)
+    expect(told.withdraw).toHaveBeenCalledTimes(1)
+    expect(call().stdout).toContain(notice)
+    expect(call().stdout).toContain(notice)
+    expect(told.withdraw).toHaveBeenCalledTimes(1)
+    // Not in the next turn.
+    run.stop("G", agy)
+    run.messaging.keys("G", ["enter"], false)
+    run.clock.now += 1_000
+    await start(run, "prompt", { ...told.person, withdraw: () => undefined })
+    expect(call().stdout).not.toContain(notice)
+  })
+
+  it.each(harnessesTold)(
+    "keeps the asks when $name's turn start comes with no answer to print in, and pays at its next hook of the turn",
+    async ({ agent }) => {
+      const run = setup(agent)
+      run.messaging.keys(run.terminal, ["enter"], false)
+      const told = who()
+      const submitted = run.clock.now
+      // Heard as a report with no hook to answer (`observe`).
+      const events: HarnessEvent[] =
+        agent === "agy"
+          ? [
+              ...(
+                await typedPromptStart(
+                  [{ ...started(run.bound, "harness"), startedAt: run.clock.now }],
+                  {
+                    root: { ...run.bound, source: "status-line" } as Root,
+                    typedEntry: harnesses.agy.messaging.typedEntry!,
+                    transcript: "/t.jsonl",
+                    seen: 1,
+                    enteredAt: run.clock.now - 500,
+                    ringing: undefined,
+                    startedWith: undefined,
+                  },
+                  () => Promise.resolve({ text: "let's talk it over", at: null, id: 2 }),
+                  { waitMs: 2, gapMs: 1 },
+                )
+              ).events,
+            ]
+          : [{ ...started(run.bound, "prompt"), prompt: "let's talk it over" } as HarnessEvent]
+      const heard = events.map((event) =>
+        event.startedAt === asHeard ? { ...event, startedAt: run.clock.now } : event,
+      )
+      run.follow(run.terminal, run.bound, heard)
+      run.messaging.observe(run.terminal, heard, told.person)
+      expect(told.withdraw).not.toHaveBeenCalled()
+      run.clock.now += 1_000
+      const answer =
+        agent === "agy"
+          ? run.ask("G", agy, "PreInvocation", [started(agy, "call")], undefined, told.person)
+          : run.ask(
+              run.terminal,
+              run.bound,
+              "PostToolUse",
+              [toolCalled(run.bound)],
+              undefined,
+              told.person,
+            )
+      expect(answer.stdout).toContain(notice)
+      expect(told.withdraw).toHaveBeenCalledExactlyOnceWith(submitted)
+    },
+  )
+
+  it.each(["claude", "codex"] as const)(
+    "withdraws at %s's next tool call when the prompt's answer was too late",
+    async (agent) => {
+      const run = setup(agent)
+      run.messaging.keys(run.terminal, ["enter"], false)
+      const told = who()
+      await start(run, "prompt", told.person, undefined, run.clock.now + 50)
+      expect(told.withdraw).not.toHaveBeenCalled()
+      const answer = run.ask(
+        run.terminal,
+        run.bound,
+        "PostToolUse",
+        [toolCalled(run.bound)],
+        undefined,
+        told.person,
+      )
+      expect(answer.stdout).toContain(notice)
+      expect(told.withdraw).toHaveBeenCalledTimes(1)
+    },
+  )
+
+  describe("asks the person dismissed", () => {
+    const dismissal = "Novadeck: automatic notice, not from the user: dismissed."
+    // A person whose dismissals notice is due once, for the session `bound` only.
+    const dismissing = (run: Run) => {
+      let due: string | undefined = dismissal
+      const told = who(undefined)
+      told.dismissed.mockImplementation((agent, sessionId) => {
+        const taken = due
+        due = undefined
+        return agent === run.bound.agent && sessionId === run.bound.sessionId ? taken : undefined
+      })
+      return told
+    }
+
+    it.each(harnessesTold)(
+      "prints it on $name's prompt hook, asking for its session",
+      async ({ agent }) => {
+        const run = setup(agent)
+        const told = dismissing(run)
+        const answer = await start(run, "harness", told.person)
+        expect(told.dismissed).toHaveBeenCalledWith(run.bound.agent, run.bound.sessionId)
+        expect(answer.stdout).toContain(dismissal)
+        expect(answer.leaseId).toBeNull()
+      },
+    )
+
+    it.each(["claude", "codex"] as const)("prints it on %s's tool hook", async (agent) => {
+      const run = setup(agent)
+      const told = dismissing(run)
+      await start(run, "harness", who().person)
+      const answer = run.ask(
+        run.terminal,
+        run.bound,
+        "PostToolUse",
+        [toolCalled(run.bound)],
+        undefined,
+        told.person,
+      )
+      expect(answer.stdout).toContain(dismissal)
+      expect(answer.leaseId).toBeNull()
+      // Once.
+      const next = run.ask(
+        run.terminal,
+        run.bound,
+        "PostToolUse",
+        [toolCalled(run.bound)],
+        undefined,
+        told.person,
+      )
+      expect(next.stdout).not.toContain(dismissal)
+    })
+
+    it("prints it at Antigravity's next model call, and again on the turn's remaining calls", async () => {
+      const run = setup("agy")
+      const told = dismissing(run)
+      const call = () =>
+        run.ask("G", agy, "PreInvocation", [started(agy, "call")], undefined, told.person)
+      await start(run, "harness", who().person)
+      expect(call().stdout).toContain(dismissal)
+      expect(call().stdout).toContain(dismissal)
+      // Not in the next turn.
+      run.stop("G", agy)
+      await start(run, "harness", who().person)
+      expect(call().stdout).not.toContain(dismissal)
+    })
+
+    it.each(harnessesTold)(
+      "waits for $name's next hook after a turn ends, and wakes nothing",
+      async ({ agent }) => {
+        const run = setup(agent)
+        const told = dismissing(run)
+        await start(run, "harness", who().person)
+        run.stop(run.terminal, run.bound, false, told.person)
+        run.clock.now += 60_000
+        // Idle: nothing is queued for the doorbell, and nothing asked yet.
+        expect(told.dismissed).not.toHaveBeenCalled()
+        expect(run.messaging.delivery(run.terminal)?.state).toBe("settled")
+        const answer = await start(run, "harness", told.person)
+        expect(answer.stdout).toContain(dismissal)
+      },
+    )
+
+    it.each(harnessesTold)("tells $name's replaced session nothing", async ({ agent }) => {
+      const run = setup(agent)
+      const told = dismissing(run)
+      const other = binding(run.bound.agent, "s-new", "9")
+      run.follow(run.terminal, other)
+      run.messaging.rooted(run.terminal, [
+        { type: "ended", root: { ...run.bound, source: "binding" } } as never,
+      ])
+      run.messaging.rooted(run.terminal, [
+        { type: "new", root: { ...other, source: "binding" }, guess: false, ready: true } as never,
+      ])
+      const answer = run.ask(
+        run.terminal,
+        other,
+        run.event,
+        [started(other, "harness")],
+        undefined,
+        told.person,
+      )
+      expect(told.dismissed).toHaveBeenCalledWith(other.agent, other.sessionId)
+      expect(answer.stdout).not.toContain(dismissal)
+    })
+  })
+
+  it("drops the pending withdrawal when the session ends or another binds", async () => {
+    const run = setup("codex")
+    run.messaging.keys("B", ["enter"], false)
+    const told = who()
+    await start(run, "prompt", told.person, undefined, run.clock.now + 50)
+    run.messaging.rooted("B", [
+      { type: "ended", root: { ...run.codex, source: "binding" } } as never,
+    ])
+    run.follow("B", run.codex)
+    const answer = run.ask(
+      "B",
+      run.codex,
+      "UserPromptSubmit",
+      [started(run.codex, "harness")],
+      undefined,
+      told.person,
+    )
+    expect(answer.stdout).not.toContain(notice)
+    expect(told.withdraw).not.toHaveBeenCalled()
+  })
+
+  it("takes a prompt the person steers into Codex's running turn as theirs when delivery does", async () => {
+    const run = setup("codex")
+    run.messaging.keys("B", ["enter"], false)
+    await start(run, "prompt", who().person)
+    // Enter while it works steers: its hook fires for the new prompt, a new turn started by Enter.
+    run.clock.now += 5_000
+    run.messaging.keys("B", ["content", "enter"], false)
+    run.clock.now += 200
+    const told = who()
+    await start(run, "prompt", told.person)
+    expect(told.withdraw).toHaveBeenCalledTimes(1)
+  })
+
+  it("does not withdraw for a later model call of the person's turn", async () => {
+    const run = setup("agy")
+    run.messaging.keys("G", ["enter"], false)
+    const told = who()
+    await start(run, "prompt", told.person)
+    expect(told.counts).toHaveBeenCalledTimes(1)
+    run.ask("G", agy, "PreInvocation", [started(agy, "call")], undefined, told.person)
+    expect(told.counts).toHaveBeenCalledTimes(1)
+    expect(told.withdraw).toHaveBeenCalledTimes(1)
+  })
+
+  it("gives Antigravity's notice again on each later call of the turn, and not in the next turn", async () => {
+    const run = setup("agy")
+    run.messaging.keys("G", ["enter"], false)
+    const told = who()
+    const first = await start(run, "prompt", told.person)
+    expect(first.stdout).toContain(notice)
+    const call = () =>
+      run.ask("G", agy, "PreInvocation", [started(agy, "call")], undefined, told.person)
+    expect(call().stdout).toContain(notice)
+    expect(call().stdout).toContain(notice)
+    run.stop("G", agy)
+    run.messaging.keys("G", ["enter"], false)
+    run.clock.now += 1_000
+    await start(run, "prompt", { ...told.person, withdraw: () => undefined })
+    expect(call().stdout).not.toContain(notice)
+  })
+
+  it("keeps Antigravity's notice beside its messages on later calls of the turn", async () => {
+    const run = setup("agy")
+    run.messaging.register("Z", here, "owl2", null)
+    run.follow("Z", binding("claude", "s-z", "9"))
+    sent(run.send("Z", "owl", "hello"))
+    run.messaging.keys("G", ["enter"], false)
+    const first = await start(run, "prompt", who().person)
+    expect(first.leaseId).not.toBeNull()
+    run.messaging.acknowledge("G", first.leaseId!)
+    const later = run.ask("G", agy, "PreInvocation", [started(agy, "call")])
+    expect(later.stdout).toContain(">hello</message>")
+    expect(later.stdout).toContain(notice)
+  })
+})
+
+// The latest message the store keeps for a terminal, as the store holds it.
+const latestFor = (records: MessageRecords, terminalId: string) =>
   records.messages().findLast((message) => message.to.terminalId === terminalId)!
 
 // A third terminal, owl, opened by moth's agent: moth is its lead.
@@ -3530,6 +4219,22 @@ const joinedTurn = (first: string, lead: string) => {
 }
 
 describe("an Antigravity delivery joined mid-turn", () => {
+  it("takes notices after its brief at the doorbell's turn, never kept for its later calls", () => {
+    const { messaging, send, answer } = agyWorker()
+    const root = binding("agy", "c-root", "7")
+    sent(send("A", "owl", "First brief."))
+    const rung = answer("G", root, "PreInvocation", [observed(root), doorbellStarted(root, "n-1")])
+    expect(rung.adding).toBeDefined()
+    const printed = text(rung.adding!("Novadeck: a notice."))
+    expect(printed.indexOf("First brief.")).toBeLessThan(printed.indexOf("Novadeck: a notice."))
+    messaging.acknowledge("G", rung.leaseId!)
+    // Its next model call is given the brief again, without the notice, and takes none.
+    const later = answer("G", root, "PreInvocation", [started(root, "call")])
+    expect(later.stdout).toContain("First brief.")
+    expect(later.stdout).not.toContain("Novadeck: a notice.")
+    expect(later.adding).toBeUndefined()
+  })
+
   it("adds the lead's later message to what the turn was given, for every later call", () => {
     const { messaging, send, call, given } = joinedTurn("From a peer.", "Lead: change course.")
     // A peer's later message waits for the turn's end.
@@ -3747,7 +4452,7 @@ describe("a long hold of the doorbell", () => {
       // The person's Escape mid-turn only closed a popup: delivery takes the agent for
       // Unknown, but its activity says the turn runs on.
       const working = new Set<string>()
-      const made = create(memoryMailbox(), { now: 1_000_000 }, { busy: (id) => working.has(id) })
+      const made = create(memoryMessages(), { now: 1_000_000 }, { busy: (id) => working.has(id) })
       const { messaging, clock: time, send, prompt, observe, claude, codex } = made
       const bound = { A: claude, B: codex }
       prompt(to, bound[to])
@@ -4078,6 +4783,21 @@ describe("the loop hold", () => {
     expect(records.messages().map(({ state }) => state)).toContain("delivered")
   })
 
+  it("queues an outcome notice though a peer's message already waits, and delivers both", () => {
+    const { messaging, records, send, prompt, claude } = setup()
+    sent(send("B", "moth", "real"))
+    const outcome = "Novadeck: automatic notice, not from the user: the user kept @fox open"
+    // The wake-up kind is left out while a message waits; the outcome is not.
+    expect(messaging.notice("A", outcome)).toBe(false)
+    expect(messaging.notice("A", outcome, { always: true })).toBe(true)
+    expect(messaging.list("A", "moth").threads).toHaveLength(1)
+    const answer = prompt("A", claude)
+    expect(answer.stdout).toContain("real")
+    expect(answer.stdout).toContain("the user kept @fox open")
+    messaging.acknowledge("A", answer.leaseId!)
+    expect(records.messages().map(({ state }) => state)).toEqual(["delivered", "delivered"])
+  })
+
   it("counts no notice as a message a peer's close loses, nor as a wait", () => {
     const { messaging, send } = setup()
     expect(messaging.notice("A", "Novadeck: automatic notice, not from the user: go on")).toBe(true)
@@ -4097,7 +4817,7 @@ describe("the loop hold", () => {
   })
 
   it("addresses Novadeck's notice, where no session is bound yet, to the agent whose prompt shows", () => {
-    const records = memoryMailbox()
+    const records = memoryMessages()
     const messaging = new Messaging({ records, sweepMs: 0, exists: () => true })
     messaging.register("B", here, "fox", null)
     const notice = "Novadeck: automatic notice, not from the user: go on"
@@ -4378,7 +5098,7 @@ describe("the loop hold", () => {
 
 describe("a hold carried over from the twelve-message rule", () => {
   it("holds a message past it on load, answers a send with the thread waiting, and lists no reason", () => {
-    const records = memoryMailbox()
+    const records = memoryMessages()
     records.saveThread({
       id: "t-old",
       projectId: "p",

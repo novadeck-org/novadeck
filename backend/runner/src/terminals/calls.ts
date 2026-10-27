@@ -1,22 +1,32 @@
 import { resolve as resolvePath } from "node:path"
 
-import { doorbellLine, quotedLine, type Install } from "@novadeck/harness-core/harness"
+import {
+  doorbellLine,
+  quotedLine,
+  type Effort,
+  type Install,
+  type Model,
+} from "@novadeck/harness-core/harness"
 import type { AgentName } from "@novadeck/protocol"
 import { freshNonce } from "@novadeck/tui-input"
 
-import { harnesses } from "../harnesses/registry.js"
-import type { Asks } from "../messaging/asks.js"
-import { agentLabel } from "../messaging/mailbox.js"
+import { agents, harnesses } from "../harnesses/registry.js"
+import type { Inbox } from "../messaging/inbox.js"
+import { agentLabel } from "../messaging/messages.js"
 import type { AgentsAnswer, Messaging, SendAnswer } from "../messaging/messaging.js"
 import { unansweredCalls, type Call } from "../shell/reports.js"
 import { callerOf } from "./callers.js"
+import { closeWay, type CloseAsks, type CloseOutcome } from "./closeasks.js"
 import {
   allowClose,
   closeLimit,
   readCloseRequest,
+  closeNotice,
+  nobodyRefusal,
   runnerCloseLimit,
-  selfRefusal,
+  selfCloseMs,
   spentRefusal,
+  waitingRefusal,
   type CloseAnswer,
 } from "./closes.js"
 import type { Companion } from "./companion.js"
@@ -39,6 +49,12 @@ import { peerOf, type TerminalPeers } from "./peers.js"
 import type { Record } from "./record.js"
 import { readSummarizeRequest, type SummarizeAnswer } from "./summarize.js"
 
+// "a, b and c".
+const list = (items: readonly string[], conjunction = "and"): string =>
+  items.length < 2
+    ? items.join("")
+    : `${items.slice(0, -1).join(", ")} ${conjunction} ${items.at(-1)}`
+
 // Why a request for a new terminal went unanswered.
 const unopened = {
   nobody: "Novadeck isn't open to show a new terminal.",
@@ -53,14 +69,18 @@ export type CallsHost = {
   /** The runner is stopping: no call is answered any more. */
   readonly stopping: () => boolean
   readonly messaging: () => Messaging
-  readonly asks: () => Asks
+  readonly inbox: () => Inbox
   readonly peers: () => TerminalPeers
   /** Agents' requests for a new terminal, on their way to the client. */
   readonly opens: () => OpenRequests
+  /** Agents' asks to close a terminal, on their way to the client that asks the person. */
+  readonly closeAsks: () => CloseAsks
   readonly companion: () => Companion
   readonly launcher: () => Launcher
   /** Where a harness lives on this machine, which says how it may start with a task. */
   readonly install: (agent: AgentName) => Promise<Install | undefined>
+  /** The models a harness can start with here, none where that can't be told. */
+  readonly models: (agent: AgentName) => Promise<readonly Model[]>
   /** Whether the terminal host is closing the terminal, its shell not yet ended. */
   readonly closingNow: (terminalId: string) => boolean
   // A close, in the manager's steps: `closePeer` checks the runner's stop between them.
@@ -102,6 +122,8 @@ export class Calls {
   private readonly closed = new Map<string, readonly number[]>()
   // Every close's time, for the runner's own limit across all chains.
   private allClosed: readonly number[] = []
+  // The terminals closing themselves a moment after they said so.
+  private readonly selfClosing = new Set<string>()
 
   constructor(
     /** How long an agent's request for a new terminal waits for the client's answer. */
@@ -109,9 +131,13 @@ export class Calls {
     readonly host: CallsHost,
   ) {}
 
-  /** Which chain the terminal belongs to goes, as it closes or is let go; the chain's times stay. */
+  /**
+   * Which chain the terminal belongs to goes, as it closes or is let go; the chain's times
+   * stay. Asks to close it, or by it, are taken back: there is nothing left to confirm.
+   */
   forgetOpener(terminalId: string): void {
     this.openers.delete(terminalId)
+    this.host.closeAsks().withdraw(terminalId)
   }
 
   /** Whether the session's terminal with this handle is closing, its shell not yet ended. */
@@ -136,6 +162,14 @@ export class Calls {
     const read = readOpenRequest(call.request)
     if (!read.ok) return read
     const { request } = read
+    const choice = {
+      ...(request.model !== undefined && { model: request.model }),
+      ...(request.effort !== undefined && { effort: request.effort }),
+    }
+    if (request.agent !== undefined) {
+      const unfit = await this.unfitChoice(request.agent, choice)
+      if (unfit) return refused(unfit)
+    }
     const starts = request.command !== undefined || request.agent !== undefined
     // Every check `send` would refuse the task for, before anything starts.
     if (request.agent !== undefined && request.message !== undefined) {
@@ -161,7 +195,7 @@ export class Calls {
     const started: { command?: string | undefined; prompted: boolean; nonce?: string } =
       request.agent === undefined
         ? { command: request.command, prompted: true }
-        : await this.taskCommand(request.agent, cwd)
+        : await this.taskCommand(request.agent, cwd, choice)
     const { command } = started
     // Closed, or the runner stopped, while the folder was looked at.
     if (this.host.stopping() || this.host.records().get(call.terminalId) !== record)
@@ -218,6 +252,35 @@ export class Calls {
   }
 
   /**
+   * Why the model and effort asked for can't start `agent`, in a sentence the agent can
+   * act on; undefined when they can, or none was asked for. An effort needs a model, as
+   * which efforts a model takes depends on it.
+   */
+  private async unfitChoice(
+    agent: AgentName,
+    { model, effort }: { readonly model?: string; readonly effort?: Effort },
+  ): Promise<string | undefined> {
+    if (model === undefined && effort === undefined) return undefined
+    const label = agentLabel(agent)
+    if (model === undefined)
+      return `Give a model with effort: ${label}'s efforts depend on the model.`
+    const models = await this.host.models(agent).catch((): readonly Model[] => [])
+    if (models.length === 0)
+      return `${label}'s models can't be listed here, so leave the model out and it starts with its own.`
+    const found = models.find(({ id }) => id === model)
+    if (!found)
+      return `${label} has no model "${model}" here: give one of ${list(
+        models.map(({ id }) => id),
+        "or",
+      )}, or leave model out to start on its default.`
+    if (effort !== undefined && !found.efforts.includes(effort))
+      return found.efforts.length === 0
+        ? `${label}'s model "${model}" takes no effort; leave it out.`
+        : `${label}'s model "${model}" has no effort "${effort}"; its efforts are ${list(found.efforts)}.`
+    return undefined
+  }
+
+  /**
    * The command that starts `agent` with a task: the doorbell's line, with its `nonce`, as
    * its command-line prompt, which it submits once past its startup screens; plain where
    * it may not take one (Antigravity in a folder it doesn't trust), when the task arrives
@@ -226,6 +289,7 @@ export class Calls {
   private async taskCommand(
     agent: AgentName,
     cwd: string,
+    choice: { readonly model?: string; readonly effort?: Effort },
   ): Promise<{ readonly command: string; readonly prompted: boolean; readonly nonce: string }> {
     const { messaging } = harnesses[agent]
     const install = await this.host.install(agent).catch(() => undefined)
@@ -233,7 +297,9 @@ export class Calls {
     const prompted = await messaging
       .initialPrompt(doorbellLine(nonce), { install, cwd })
       .catch(() => undefined)
-    const argv = prompted ?? messaging.start
+    const [program = "", ...rest] = prompted ?? messaging.start
+    // Right after the program, so before a flag like Antigravity's `-i` that takes the line.
+    const argv = [program, ...messaging.choose(choice), ...rest]
     // Every word but the line is a plain word; the line holds nothing a shell expands.
     const command = argv
       .map((word) => (/^[\w./-]+$/.test(word) ? word : quotedLine(word)))
@@ -259,13 +325,15 @@ export class Calls {
   }
 
   /**
-   * Closes another terminal of the caller's project and session, as an agent asked
-   * through Novadeck's MCP server by the terminal's exact handle: as the person's close
-   * does, it ends the shell, then forgets the terminal, whatever window controls it, and
-   * messages still waiting for it are gone. Never the caller's own terminal; a handle
-   * not there is refused with every terminal there described. A chain of terminals'
-   * agents close a few at most each minute, and all agents a few more. A call without
-   * the shell's own token learns nothing more.
+   * Closes a terminal of the caller's project and session, as an agent asked through
+   * Novadeck's MCP server by the terminal's exact handle: as the person's close does, it
+   * ends the shell, then forgets the terminal, whatever window controls it, and messages
+   * still waiting for it are gone. The caller's own terminal closes a moment after the
+   * answer. A teammate the caller leads, and a terminal that runs no agent, close at
+   * once; any other terminal that runs an agent closes only if the person confirms (see
+   * `askToClose`). A handle not there is refused with every terminal there described. A
+   * chain of terminals' agents close a few at most each minute, and all agents a few
+   * more. A call without the shell's own token learns nothing more.
    */
   async closePeer(call: Call): Promise<CloseAnswer> {
     const record = callerOf(this.host.records(), call)
@@ -273,7 +341,7 @@ export class Calls {
     const read = readCloseRequest(call.request)
     if (!read.ok) return read
     const { to } = read.request
-    if (to === record.summary.handle) return refused(selfRefusal(to))
+    if (to === record.summary.handle) return this.closeSelf(record)
     // Already on its way out, and forgotten, as another close ended its shell.
     if (this.closingHere(record.summary.sessionId, to))
       return refused(`${mention(to)} is already closing.`)
@@ -286,6 +354,15 @@ export class Calls {
     // Already on its way out, as another close ended its shell: nothing more to charge.
     if (this.host.closingNow(closing.summary.id) || closing.closed)
       return refused(`${mention(target.handle)} is already closing.`)
+    const way = closeWay({
+      leads: this.host.messaging().leadOf(target.terminalId) === record.summary.handle,
+      agent: target.agent,
+    })
+    if (way === "ask") {
+      const waiting = this.host.closeAsks().refusal(target.terminalId)
+      if (waiting)
+        return refused(waiting === "nobody" ? nobodyRefusal : waitingRefusal(target.handle))
+    }
     const now = Date.now()
     const charged = this.openers.get(call.terminalId) ?? call.terminalId
     prune(this.closed, now, closeLimit.windowMs)
@@ -295,14 +372,11 @@ export class Calls {
     this.closed.set(charged, times)
     this.allClosed = all
     const { agent } = target
+    if (way === "ask") return this.askToClose(record, closing, agent)
     const others = this.host.messaging().waitingFor(target.terminalId, call.terminalId)
-    this.host.closeForGood(closing)
-    await this.host.terminate(closing)
     // The runner began to stop meanwhile: the terminal is closed all the same, but the
     // caller is going too.
-    if (this.host.stopping()) return unansweredCalls.close
-    this.host.remove(closing)
-    this.host.forget(target.terminalId)
+    if (!(await this.end(closing))) return unansweredCalls.close
     const gone = this.host.messaging().goneFrom(call.terminalId)
     return {
       ok: true,
@@ -312,6 +386,74 @@ export class Calls {
       ...(gone.length > 0 && { gone }),
       ...(others > 0 && { others }),
     }
+  }
+
+  /**
+   * The close steps the person's close takes: the shell ends, then the terminal is
+   * forgotten. False when the runner began to stop meanwhile, the terminal closed all the same.
+   */
+  private async end(record: Record): Promise<boolean> {
+    this.host.closeForGood(record)
+    await this.host.terminate(record)
+    if (this.host.stopping()) return false
+    this.host.remove(record)
+    this.host.forget(record.summary.id)
+    return true
+  }
+
+  /**
+   * An agent closing its own terminal: answered first, so its harness has the result, then
+   * closed a moment later, unless the runner is stopping or the terminal is already closed
+   * or replaced by then. A terminal closes itself once, so no budget is charged.
+   */
+  private closeSelf(record: Record): CloseAnswer {
+    const { id, handle, title } = record.summary
+    if (this.host.stopping()) return unansweredCalls.close
+    if (record.closed || this.host.closingNow(id) || this.selfClosing.has(id))
+      return refused(`${mention(handle)} is already closing.`)
+    this.selfClosing.add(id)
+    setTimeout(() => {
+      this.selfClosing.delete(id)
+      if (this.host.stopping() || this.host.records().get(id) !== record) return
+      if (record.closed || this.host.closingNow(id)) return
+      void this.end(record).catch(() => undefined)
+    }, selfCloseMs).unref()
+    return { ok: true, self: true, handle, title }
+  }
+
+  /**
+   * Asks the person, through the client that follows `closeAsks`, to confirm closing a
+   * terminal that runs an agent the caller doesn't lead. The call doesn't wait for them:
+   * it answers `asked` at once, and the caller hears the outcome as a notice.
+   */
+  private askToClose(caller: Record, closing: Record, agent: AgentName | null): CloseAnswer {
+    const { id, handle, title, sessionId } = closing.summary
+    const ran = agent === null ? undefined : agentLabel(agent)
+    this.host.closeAsks().ask({ from: caller.summary.id, terminalId: id, sessionId }, (outcome) => {
+      void this.closeAsked(caller.summary.id, closing, ran, outcome).catch(() => undefined)
+    })
+    return { ok: true, asked: true, handle, title, ...(ran !== undefined && { ran }) }
+  }
+
+  /** The caller hears how its ask to close a terminal went. */
+  private async closeAsked(
+    callerId: string,
+    closing: Record,
+    ran: string | undefined,
+    outcome: CloseOutcome,
+  ): Promise<void> {
+    if (this.host.stopping()) return
+    const { id, handle, title } = closing.summary
+    // An outcome is news the agent has no other way to learn: it is queued all the same.
+    const tell = (text: string) => this.host.messaging().notice(callerId, text, { always: true })
+    if (outcome === "declined") tell(closeNotice.declined(handle, title))
+    else if (outcome === "gone") tell(closeNotice.gone(handle))
+    else if (outcome === "withdrawn") tell(closeNotice.vanished(handle))
+    // Confirmed: closed as the person's close does, unless it closed meanwhile.
+    else if (this.host.records().get(id) !== closing || closing.closed || this.host.closingNow(id))
+      tell(closeNotice.vanished(handle))
+    else if (await this.end(closing))
+      tell(closeNotice.confirmed(handle, closing.summary.title, ran))
   }
 
   /** A tool call from Novadeck's MCP server, to the operation it names. */
@@ -331,7 +473,7 @@ export class Calls {
       case "tell":
       case "done": {
         if (!callerOf(this.host.records(), call)) return Promise.resolve(unansweredCalls[call.type])
-        return Promise.resolve(this.host.asks().call(call.terminalId, call.type, call.request))
+        return Promise.resolve(this.host.inbox().call(call.terminalId, call.type, call.request))
       }
       case "send":
         return this.host.send(call)
@@ -339,7 +481,21 @@ export class Calls {
         return this.host.agents(call)
       case "summarize":
         return this.summarize(call)
+      case "models":
+        return this.listModels(call)
     }
+  }
+
+  /**
+   * The models each harness can start with here, as the tools an agent sees list them.
+   * A call without the shell's own token learns nothing more.
+   */
+  private async listModels(call: Call) {
+    if (!callerOf(this.host.records(), call)) return unansweredCalls.models
+    const lists = await Promise.all(
+      agents.map((agent) => this.host.models(agent).catch((): readonly Model[] => [])),
+    )
+    return { ok: true, models: Object.fromEntries(agents.map((agent, i) => [agent, lists[i]])) }
   }
 
   /**

@@ -6,10 +6,17 @@
     "New behaviour goes in a sibling module under backend/runner/src/terminals/, as closes.ts, opens.ts and naming.ts do, with the class calling it. Work that can't is raised in the same pull request, written { \"budget\": n, \"reason\": \"why\", \"from\": \"#PR or commit\" }."
   ],
   "lines": {
-    "budget": 1669,
-    "reason": "Transcript redaction: three Terminals options (transcriptMs, transcriptShutdownMs, redactor) with their Omit entries, the redactor's construction, the restart's save once the earlier screen is shown, and the restore's once its replay ends; the rest is in saving.ts. Transcript sealing: two more options (sealer, transcriptKeyMs) with their Omit entries and construction, and the restore's open before the shell starts, less the re-save once restored, which sealing makes redundant. Inbox turn rows (+3): Bindings and murmur reach Asks and the redactor, so the redactor is a local shared with Saves, plus the Bindings host's turns entry. Interrupted-turn notice (+2): the restore reads the saved turn flag through restored(), its import and the call; the logic is in terminals/interrupted.ts. Windows resume (+1): the shell's prompt tells the sampler, which on Windows lets go of the agent a fresh shell resumes only a sample later; the logic is in terminals/sampling.ts. Windows lead (+1): the Bindings host's pollMs entry, so a lead ends on Windows only a sample after its agent, as its resume does; the logic is in terminals/binding/facts.ts.",
-    "from": "#507"
+    "budget": 1713,
+    "reason": "Transcript redaction: three Terminals options (transcriptMs, transcriptShutdownMs, redactor) with their Omit entries, the redactor's construction, the restart's save once the earlier screen is shown, and the restore's once its replay ends; the rest is in saving.ts. Transcript sealing: two more options (sealer, transcriptKeyMs) with their Omit entries and construction, and the restore's open before the shell starts, less the re-save once restored, which sealing makes redundant. Inbox turn rows (+3): Bindings and murmur reach Inbox and the redactor, so the redactor is a local shared with Saves, plus the Bindings host's turns entry. Interrupted-turn notice (+2): the restore reads the saved turn flag through restored(), its import and the call; the logic is in terminals/interrupted.ts. Windows resume (+1): the shell's prompt tells the sampler, which on Windows lets go of the agent a fresh shell resumes only a sample later; the logic is in terminals/sampling.ts. Peer reports (+1): TerminalPeers reads each terminal's latest tell and done from Inbox, as the agents listing shows them; the logic is in messaging/peers.ts. Standing done (+9): Inbox changes, delivered messages and the person's prompts republish the terminal's `reported` summary field through Bindings.publishReported; the rule is `standingDone` in messaging/peers.ts, the logic in terminals/binding/facts.ts. Inbox dismiss (+6, +2 methods): the router reaches Inbox only through Terminals, so dismissAsk and clearAsks forward to it; the logic is in messaging/inbox.ts. open_agent model and effort (+9): the models option (its doc, Omit entry, field, default and the Calls host's entry) carries each harness's model list to the open call, as install does; the checks are in terminals/calls.ts and the lookups in harnesses/service.ts. Close asks (+19): the router reaches the agents' asks to close a terminal through two Terminals methods (closeAsks, answerCloseAsk), as requests and answerRequest, with their field, host entry, imports, and release and shutdown calls; the logic is in terminals/closeasks.ts and calls.ts. Windows lead (+1): the Bindings host's pollMs entry, so a lead ends on Windows only a sample after its agent, as its resume does; the logic is in terminals/binding/facts.ts.",
+    "from": "#497, agent-close, #507"
   },
-  "methods": 67,
-  "slack": { "lines": 100, "methods": 5 }
+  "methods": {
+    "budget": 71,
+    "reason": "Inbox dismiss (+2): dismissAsk and clearAsks forward the router's calls to Inbox, which it reaches only through Terminals; the logic is in messaging/inbox.ts. Close asks (+2): closeAsks and answerCloseAsk, the router's two entries to agents' asks to close a terminal, as requests and answerRequest are; the logic is in terminals/closeasks.ts and calls.ts.",
+    "from": "#494, agent-close"
+  },
+  "slack": {
+    "lines": 100,
+    "methods": 5
+  }
 }

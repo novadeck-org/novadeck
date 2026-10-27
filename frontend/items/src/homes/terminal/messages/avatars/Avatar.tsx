@@ -66,12 +66,12 @@ const Frame = ({
   const tones = tonesOf(sprite)
   return (
     <g className={className}>
-      <Path grid={grid} cells={tones["#"]} className="mail-led-on" />
-      <Path grid={grid} cells={tones["+"]} className="mail-led-dim" />
-      <Path grid={grid} cells={tones.o} className="mail-led-hot" />
-      <Path grid={grid} cells={tones.x} className="mail-led-eye" />
-      <Path grid={grid} cells={tones.x} className="mail-led-on mail-led-lid" />
-      <Path grid={grid} cells={tones.e} className="mail-led-bright" />
+      <Path grid={grid} cells={tones["#"]} className="message-led-on" />
+      <Path grid={grid} cells={tones["+"]} className="message-led-dim" />
+      <Path grid={grid} cells={tones.o} className="message-led-hot" />
+      <Path grid={grid} cells={tones.x} className="message-led-eye" />
+      <Path grid={grid} cells={tones.x} className="message-led-on message-led-lid" />
+      <Path grid={grid} cells={tones.e} className="message-led-bright" />
     </g>
   )
 }
@@ -85,10 +85,10 @@ const Imp = ({ grid }: { grid: LedGrid }): React.JSX.Element => {
       <Path
         grid={grid}
         cells={allCells.filter(([x, y]) => !taken.has(`${x},${y}`))}
-        className="mail-led-back"
+        className="message-led-back"
       />
-      <Path grid={grid} cells={tones["#"]} className="mail-led-eye" />
-      <Path grid={grid} cells={tones.g} className="mail-led-glow" />
+      <Path grid={grid} cells={tones["#"]} className="message-led-eye" />
+      <Path grid={grid} cells={tones.g} className="message-led-glow" />
     </>
   )
 }
@@ -120,7 +120,7 @@ export const Avatar = ({
   return (
     <span
       ref={element}
-      className="mail-av"
+      className="message-av"
       data-hue={you ? "you" : hueOf(handle)}
       data-live={you ? "idle" : live}
       data-big={size >= 28 || undefined}
@@ -130,7 +130,7 @@ export const Avatar = ({
       aria-hidden="true"
     >
       <svg
-        className="mail-av-screen"
+        className="message-av-screen"
         viewBox={`0 0 ${grid.device} ${grid.device}`}
         preserveAspectRatio="none"
         shapeRendering="crispEdges"
@@ -139,15 +139,15 @@ export const Avatar = ({
           <Imp grid={grid} />
         ) : (
           <>
-            <Path grid={grid} cells={allCells} className="mail-led-off" />
-            <Frame grid={grid} sprite={sprite} className="mail-av-rest" />
-            <Frame grid={grid} sprite={hop} className="mail-av-hop" />
+            <Path grid={grid} cells={allCells} className="message-led-off" />
+            <Frame grid={grid} sprite={sprite} className="message-av-rest" />
+            <Frame grid={grid} sprite={hop} className="message-av-hop" />
           </>
         )}
       </svg>
-      {numeral && !you && <b className="mail-av-n">{numeral}</b>}
+      {numeral && !you && <b className="message-av-n">{numeral}</b>}
       {Program && size >= 24 && (
-        <span className="mail-av-program">
+        <span className="message-av-program">
           <Program size={10} strokeWidth={1.75} />
         </span>
       )}

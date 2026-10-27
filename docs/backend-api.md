@@ -236,7 +236,7 @@ program where `process` cannot; it is `null` otherwise. `cwd` is the directory t
 shell last reported at a prompt, or where it started. `title` is, in this order: the
 name the person gave the terminal with `create` or `terminals.rename({ terminalId,
 title })`; the latest title murmur, the opt-in local model, wrote for it; the one the
-agent that opened it gave through `open_terminal`'s `title`; or the runner's default:
+agent that opened it gave through `open_terminal`'s or `open_agent`'s `title`; or the runner's default:
 the program it was opened to run (`claude`), else "Terminal", never derived from its
 handle. `titleSource` says
 which: `{ kind: "person" }`, `{ kind: "murmur" }`, `{ kind: "agent", by: "fox" }` or
@@ -256,6 +256,14 @@ where that is an agent. Windows doesn't tell a terminal's foreground program, so
 is the agent whose session last bound the terminal, until the shell has shown its prompt
 for a second (`processPollMs`), as a sample would tell elsewhere.
 
+`reported` is the agent's `done` report that still stands, `{ subject, at }`, or null: the
+latest `done` of the session bound in the terminal, read or not, unless the person's
+prompt or a message delivered to the agent came after it. It follows the Inbox and those
+inputs as they change, so a client's done mark needs no Inbox row, and looking at the
+terminal never ends it. After a runner restart it is the resumed session's until a binding
+has ended; Codex and Antigravity bind only at their first prompt, so until then it comes
+from that saved session. The agents listing's "reported done" follows the same rule.
+
 `runner.terminals.upload(terminalId, { name, data })` saves a file pasted into a
 terminal on the runner's machine and resolves with its absolute path there, for the UI
 to paste into the terminal. The desktop app, whose runner is on its own machine, pastes
@@ -274,31 +282,32 @@ The MCP `ask`, `tell` and `done` tools add questions and updates to the Inbox. I
 terminal the server's `instructions` say when each serves: `ask` doesn't stop the work, as
 most decisions aren't blocking, and its question is also put in the reply; `tell` is for
 milestones; `done` is the agent's own short report when the task it was given is finished,
-not when it answers a question or finishes a step. With a lead, they go to it instead, which
-the instructions say and the runner doesn't enforce. Claude Code reads the instructions up
+not when it answers a question or finishes a step. With a lead, the agent uses them all the
+same and also sends its lead the same. Claude Code reads the instructions up
 front, before it loads a tool's description; the prompt-time notice every harness gets says the
 same for Antigravity, which reads none. A client follows
-all active letters across projects and sessions, answers an ask, or marks tells and done
+all active entries across projects and sessions, answers an ask, or marks tells and done
 reports read:
 
 ```ts
-for await (const letters of runner.asks.watch()) showInbox(letters)
-const letters = await runner.asks.list()
-await runner.asks.answer(askId, { type: "reply", option: null, text: "Use green" })
-await runner.asks.answer(actionAskId, { type: "done" })
-await runner.asks.read(updateIds)
+for await (const entries of runner.inbox.watch()) showInbox(entries)
+const entries = await runner.inbox.list()
+await runner.inbox.answer(askId, { type: "reply", option: null, text: "Use green" })
+await runner.inbox.answer(actionAskId, { type: "done" })
+await runner.inbox.read(updateIds)
 ```
 
-A letter includes its id, terminal, project and workspace session ids, exact agent
+An entry includes its id, terminal, project and workspace session ids, exact agent
 session, handle, creation time and `content`: `{ kind: "ask", ask }` or
 `{ kind: "tell", subject, body }` or `{ kind: "done", subject, body }` (a tell's fields, and
 the report an agent called `done` with). An ask's shape is text, up to three options, or an
 action for the person to run. Secret shapes are unavailable. `answer` rejects stale or
 already answered asks with `CONFLICT`, invalid answers with `ANSWER_FAILED`, and a
-full mailbox with `RESOURCE_LIMIT`. Resolving the ask and storing its answer are atomic;
-answers arrive later through ordinary mail delivery. `read` affects tells and done reports only and takes
+full message queue with `RESOURCE_LIMIT`. Resolving the ask and storing its answer are atomic;
+answers arrive later through ordinary message delivery. `read` affects tells and done reports only and takes
 at most 1,000 ids per call. A done report, like a tell, outlives its agent and turns into
-Messages history once read. `watch` resubscribes with a fresh listing on reconnect.
+Messages history once read; the latest done of each terminal that still exists is kept
+past the usual day, as the report that still stands (`TerminalSummary.reported`). `watch` resubscribes with a fresh listing on reconnect.
 
 Agents in a project's terminals message each other (see
 [Agent messaging](agent-messaging.md)); the runner API lets a client see and steer it:
@@ -324,7 +333,7 @@ adds optional `inbox: "ask" | "tell" | "done" | "answer"`; its person party is t
 Ask, tell and done traces also have `inboxState`: `open`, `answered`, `read`, `withdrawn`,
 `gone` (the asking session ended, or did not come back within two minutes of a runner restart), or `undelivered` (the person's reply went gone before
 reaching the agent). A reply already delivered stays delivered when the session ends.
-Trace outcomes are separate from delivery state, so a withdrawn question remains an
+Trace outcomes are separate from delivery state, so a withdrawn question (by its agent, or by Novadeck when the person wrote to that agent in its terminal) remains an
 already-received history entry.
 Ask and tell entries are delivered history; answers show their real delivery state.
 These person threads have no loop hold, release or stop control, and list `idle: 0`,
@@ -787,8 +796,8 @@ one from an earlier runner.
   client's `agents.transcript(terminalId, actor)` resubscribes across reconnections,
   yielding `reset` before the items follow again, and ends without one when the actor
   is gone.
-- `agents.prompt({ terminalId, text })` gives the terminal's agent a prompt as the person
-  would paste and submit it (`text` is 1 to 16,384 characters; its line breaks, CRLF and a lone CR included, are taken as one line break each and stay
+- `agents.prompt({ terminalId, text, automatic? })` gives the terminal's agent a prompt as the person
+  would paste and submit it (`automatic: true` marks a fixed line an Inbox button sends, such as "continue", not words the person wrote: the turn it starts withdraws no ask from the Inbox, see [Agent messaging](agent-messaging.md); a strict-schema field added with the protocol version unchanged, as the repo does while client and runner ship together; `text` is 1 to 16,384 characters; its line breaks, CRLF and a lone CR included, are taken as one line break each and stay
   line breaks in the box). It needs an agent bound, or one showing its own empty prompt
   before its first session binds (Codex before its first prompt), and no request waiting
   on the person, whose dialog would take the text: otherwise `CONFLICT`, as when the

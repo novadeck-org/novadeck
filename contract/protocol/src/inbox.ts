@@ -64,7 +64,15 @@ export const askAnswer = z.discriminatedUnion("type", [
   z.strictObject({ type: z.literal("done") }),
 ])
 
-export const inboxLetter = z.strictObject({
+// How an ask ended without an answer from the Inbox, and when: the person dismissed it there,
+// its agent withdrew it, or the person wrote to the agent in its terminal, which withdrew it.
+// The runner keeps listing such an ask, settled, until the person clears it or it expires.
+export const askSettled = z.strictObject({
+  how: z.enum(["dismissed", "withdrawn", "replied"]),
+  at: z.number(),
+})
+
+export const inboxEntry = z.strictObject({
   id,
   terminalId: id,
   projectId: id,
@@ -88,8 +96,11 @@ export const inboxLetter = z.strictObject({
       files: turnFiles,
     }),
   ]),
+  // Only on an ask that is no longer open (see `askSettled`).
+  settled: askSettled.optional(),
 })
 
 export type AgentAsk = z.infer<typeof agentAsk>
+export type AskSettled = z.infer<typeof askSettled>
 export type AskAnswer = z.infer<typeof askAnswer>
-export type InboxLetter = z.infer<typeof inboxLetter>
+export type InboxEntry = z.infer<typeof inboxEntry>

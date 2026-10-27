@@ -31,6 +31,8 @@ export type PortableHost = {
   readonly version: string
   /** Names this run of the app, which a page that opens again within it can tell. */
   readonly run: string
+  /** Where the workspace is kept, as the person finds it; undefined when it can't be said. */
+  readonly dataFolder?: string | undefined
   /** What to do about an installed copy that could not be checked, as a sentence. */
   readonly uncheckedAdvice: string
   /** The copies of the app already installed, with their versions. */
@@ -89,7 +91,13 @@ export const portableInstaller = (host: PortableHost): PortableInstaller => {
 
   const state = (): PortableState =>
     host.portable
-      ? { portable: true, version: host.version, run: host.run, install }
+      ? {
+          portable: true,
+          version: host.version,
+          run: host.run,
+          install,
+          ...(host.dataFolder === undefined ? {} : { dataFolder: host.dataFolder }),
+        }
       : { portable: false }
 
   const set = (next: PortableInstall): void => {

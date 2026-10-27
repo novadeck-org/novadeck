@@ -42,6 +42,9 @@ import {
   feedbackSendChannel,
   installAppChannel,
   portableStateChannel,
+  openPortableDownloadChannel,
+  showDataFolderChannel,
+  updateNewsChannel,
   noticeChannel,
   noticeClickChannel,
   noticeCloseChannel,
@@ -208,13 +211,14 @@ const bridge = {
       if (beforeQuit === save) beforeQuit = undefined
     }
   },
-  // Only the three fields cross; the main process checks them.
+  // Only the fields of a notice cross; the main process checks them.
   showNotice: (notice) => {
     ipcRenderer.send(noticeChannel, {
       id: notice?.id,
       title: notice?.title,
       body: notice?.body,
       silent: notice?.silent,
+      sound: notice?.sound,
     })
   },
   // Only a terminal id crosses; the main process checks it.
@@ -320,6 +324,15 @@ const bridge = {
       ipcRenderer.removeListener(portableStateChannel, relay)
     }
   },
+  // The host builds the address; the page names none.
+  openPortableDownload: () => {
+    ipcRenderer.send(openPortableDownloadChannel)
+  },
+  showDataFolder: () => {
+    ipcRenderer.send(showDataFolderChannel)
+  },
+  // Only an answer the contract allows reaches the page, as with `whatsNew`.
+  updateNews: async () => parseWhatsNew(await ipcRenderer.invoke(updateNewsChannel)),
   uninstallPlan: async () => uninstallPlanOf(await ipcRenderer.invoke(uninstallPlanChannel)),
   // Only a boolean crosses; the main process keeps data unless it is told exactly `false`.
   uninstallApp: async (options) =>

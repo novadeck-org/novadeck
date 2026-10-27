@@ -171,13 +171,14 @@ export const turn = async (
 
 /**
  * What the suite's nested runs of a harness are asked, which only their own conversations
- * hold as a user's words: one a command left running starts (controls.e2e.ts), and one
- * inside an agent's turn (nested.e2e.ts). A harness that allows a command only by its
- * whole text is allowed each.
+ * hold as a user's words: one a command left running starts (controls.e2e.ts), one
+ * inside an agent's turn (nested.e2e.ts), and one held while prompts queue behind it
+ * (chat.e2e.ts). A harness that allows a command only by its whole text is allowed each.
  */
 export const nestedRuns = {
   leftRunning: "novadeck-e2e-background command: say done",
   inTurn: "novadeck-e2e-nested run: say the nested word",
+  whileQueued: "novadeck-e2e-held run: say the held word",
 } as const
 
 /** A rule for the agent's own turns, never a call the harness makes for itself, as a title. */
@@ -203,12 +204,12 @@ export const sends = (text: string, to: string, message: string): Rule =>
 
 /**
  * Answers the agent's first look at a user turn holding `text` by opening a terminal that
- * starts `agent` with `message` as its task (`open_terminal`). The calls after the tool
+ * starts `agent` with `message` as its task (`open_agent`). The calls after the tool
  * answered go to the next rules.
  */
 export const opens = (text: string, agent: AgentName, message: string): Rule =>
   own((call) => {
-    const open = tool(call, "open_terminal")
+    const open = tool(call, "open_agent")
     if (!open || !asked(call, text)) return undefined
     return { calls: [{ name: open, input: { agent, message } }] }
   })
@@ -246,7 +247,7 @@ export const withoutSandbox = (text: string, root: string): string => {
   return text
 }
 
-/** Whether the call is the agent's next look after its `open_terminal` opened `handle`. */
+/** Whether the call is the agent's next look after its `open_agent` or `open_terminal` opened `handle`. */
 export const opened = (call: Call, handle: string): boolean => {
   const last = call.turns.at(-1)
   return last?.role === "tool" && lead("Opened a new terminal, ", handle).test(last.text)
@@ -256,6 +257,18 @@ export const opened = (call: Call, handle: string): boolean => {
 export const closed = (call: Call, handle: string): boolean => {
   const last = call.turns.at(-1)
   return last?.role === "tool" && lead("Closed ", handle).test(last.text)
+}
+
+/** Whether the call is the agent's next look after its `close_terminal` asked the user to confirm closing `handle`. */
+export const askedToClose = (call: Call, handle: string): boolean => {
+  const last = call.turns.at(-1)
+  return last?.role === "tool" && lead("Asked the user to confirm closing ", handle).test(last.text)
+}
+
+/** Whether the call is the agent's next look after its `close_terminal` closed its own terminal, `handle`. */
+export const closingSelf = (call: Call, handle: string): boolean => {
+  const last = call.turns.at(-1)
+  return last?.role === "tool" && lead("Closing ", handle).test(last.text)
 }
 
 /**

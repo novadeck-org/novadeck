@@ -12,16 +12,18 @@ const writeTo = (
   from: (handle: string, peers: readonly string[]) => string | undefined,
   text: string,
 ): boolean => {
-  const mail = key && messages.state.getSnapshot().terminals[companionKeyId(key)]
-  if (!key || !mail) return false
-  const peers = mail.threads.flatMap((thread) => (thread.peer === "you" ? [] : [thread.peer]))
-  const sender = from(mail.handle, peers)
+  const terminalMessages = key && messages.state.getSnapshot().terminals[companionKeyId(key)]
+  if (!key || !terminalMessages) return false
+  const peers = terminalMessages.threads.flatMap((thread) =>
+    thread.peer === "you" ? [] : [thread.peer],
+  )
+  const sender = from(terminalMessages.handle, peers)
   return Boolean(
     sender &&
     messages.send(
       { projectId: key.projectId, workspaceSessionId: key.workspaceSessionId },
       sender,
-      mail.handle,
+      terminalMessages.handle,
       text,
     ),
   )

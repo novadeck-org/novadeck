@@ -19,7 +19,7 @@ import { describe, expect, it } from "./test"
 // undocked window and the bar drag, which `layouts/` and `app/` reach as part of `terminals/`.
 // terminals/chat/ is the package `@novadeck/chat` (see `modules`): the chat view, its store and
 // its commands, which `app/` composes.
-const base = ["core/", "interaction/", "ui-toolkit/", "theme/"]
+const base = ["core/", "interaction/", "ui-toolkit/", "theme/", "sounds/"]
 // The features are the leaves that the shell and the app compose. A feature imports the base
 // and itself, never another feature: what two of them share belongs to the base. `terminals/`
 // and `layouts/` are the workspace's frame, not features. The chat and the items package
@@ -35,7 +35,9 @@ const features = [
   "voice/",
 ]
 const rules: Record<string, readonly string[]> = {
-  "theme/": ["theme/", "core/types.ts"],
+  "theme/": ["theme/", "core/types.ts", "core/sounds.ts"],
+  // The notification sounds: their files, and the registry that reads them and the theme.
+  "sounds/": ["sounds/", "core/", "theme/"],
   "interaction/": ["interaction/", "core/"],
   ...Object.fromEntries(features.map((layer) => [layer, [...base, layer]])),
   "terminals/": [...base, "terminals/"],

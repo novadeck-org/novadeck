@@ -47,4 +47,19 @@ describe("readPreferences", () => {
       expect(readPreferences()).toMatchObject({ sound: false, soundVolume: volume })
     }
   })
+
+  it("follows the theme's sound unless a sound the app has is saved", () => {
+    expect(readPreferences().soundChoice).toBe("theme")
+    for (const [saved, choice] of [
+      ["beam", "beam"],
+      ["theme", "theme"],
+      ["removed", "theme"],
+      [3, "theme"],
+      [null, "theme"],
+    ] as const) {
+      localStorage.setItem(preferencesStorageKey, JSON.stringify({ soundChoice: saved }))
+
+      expect(readPreferences().soundChoice).toBe(choice)
+    }
+  })
 })

@@ -1,10 +1,10 @@
-import { emptyInbox, type Inbox, type InboxItem, type InboxState } from "@novadeck/core/inbox"
+import { emptyInbox, type Inbox, type InboxRow, type InboxState } from "@novadeck/core/inbox"
 import { createStore } from "@novadeck/core/store"
 import { nextFrame, render } from "@novadeck/test-kit/render"
 import { act, createElement } from "react"
 
 import { context, describe, expect, it } from "../test"
-import { HeldPill, InboxList } from "./InboxList"
+import { HeldPill, InboxClear, InboxList } from "./InboxList"
 import { InboxProvider } from "./InboxProvider"
 import { InboxSheet } from "./InboxSheet"
 
@@ -17,7 +17,7 @@ Object.assign(globalThis, {
   },
 })
 
-const source: InboxItem["source"] = {
+const source: InboxRow["source"] = {
   projectId: "p",
   workspaceSessionId: "s",
   terminalId: "t",
@@ -27,7 +27,7 @@ const source: InboxItem["source"] = {
   projectName: "Project",
 }
 
-const permission = (id: string, at: number): InboxItem => ({
+const permission = (id: string, at: number): InboxRow => ({
   id,
   source,
   at,
@@ -55,25 +55,67 @@ const permission = (id: string, at: number): InboxItem => ({
   },
 })
 
+const told = (id: string, at: number): InboxRow => ({
+  id,
+  source,
+  at,
+  stopped: false,
+  seen: false,
+  kind: "update",
+  update: { type: "told", subject: id, body: "" },
+})
+
 // An Inbox whose items the test changes, with the list, the held pill and the sheets as the
 // sidebar and the workspace wire them.
-const mount = (items: readonly InboxItem[], working = false) => {
+const agentAsk = (id: string, at: number, settled?: InboxRow["settled"]): InboxRow => ({
+  id,
+  source,
+  at,
+  stopped: !settled,
+  seen: false,
+  kind: "ask",
+  ask: { subject: id, body: "", details: null, hardToUndo: null, shape: { type: "text" } },
+  ...(settled ? { settled } : {}),
+})
+
+const mount = (items: readonly InboxRow[], working = false, dismissing = false) => {
   const state = createStore<InboxState>({ ...emptyInbox, items })
   const answered: string[] = []
   const inbox: Inbox = {
     state,
     answer: (id) => answered.push(id),
-    see: () => {},
+    see: (id) =>
+      state.update((current) => ({
+        ...current,
+        items: current.items.map((item) => (item.id === id ? { ...item, seen: true } : item)),
+      })),
     readAll: () => {},
+    ...(dismissing
+      ? {
+          dismiss: (id: string) =>
+            state.update((current) => ({
+              ...current,
+              items: current.items.map((item) =>
+                item.id === id ? { ...item, settled: { how: "dismissed", at: 99 } } : item,
+              ),
+            })),
+          clear: (ids: readonly string[]) =>
+            state.update((current) => ({
+              ...current,
+              items: current.items.filter((item) => !ids.includes(item.id)),
+            })),
+        }
+      : {}),
   }
   const view = render(
     createElement(
       InboxProvider,
-      { inbox, reveal: () => {}, working },
+      { inbox, reveal: () => {}, working, active: true },
       createElement(
         "div",
         { id: "inbox-panel" },
         createElement(HeldPill),
+        createElement(InboxClear),
         createElement(InboxList),
       ),
       createElement(InboxSheet, { active: true }),
@@ -87,10 +129,10 @@ const mount = (items: readonly InboxItem[], working = false) => {
   const open = (id: string): void =>
     act(() =>
       view.container
-        .querySelector<HTMLElement>(`[data-inbox-item="${id}"] .inbox-row-select`)!
+        .querySelector<HTMLElement>(`[data-inbox-row="${id}"] .inbox-row-select`)!
         .click(),
     )
-  const arrive = (item: InboxItem): void =>
+  const arrive = (item: InboxRow): void =>
     act(() => {
       state.update((current) => ({ ...current, items: [...current.items, item] }))
     })
@@ -98,7 +140,9 @@ const mount = (items: readonly InboxItem[], working = false) => {
     act(() => {
       document.dispatchEvent(new KeyboardEvent("keydown", { key, bubbles: true }))
     })
-  return { view, subjects, pill, open, arrive, press, answered }
+  const row = (id: string): HTMLElement =>
+    view.container.querySelector<HTMLElement>(`[data-inbox-row="${id}"]`)!
+  return { view, subjects, pill, open, arrive, press, answered, row }
 }
 
 describe("The Inbox's list", () => {
@@ -171,7 +215,7 @@ describe("The Inbox's list", () => {
 
       expect(inbox.subjects()).toHaveLength(2)
       expect(
-        inbox.view.container.querySelector('[data-inbox-item="c"]')?.getAttribute("data-arrived"),
+        inbox.view.container.querySelector('[data-inbox-row="c"]')?.getAttribute("data-arrived"),
       ).toBe("true")
       await nextFrame()
       inbox.view.unmount()
@@ -186,8 +230,8 @@ describe("The Inbox's list", () => {
       const current = (): string | null =>
         inbox.view.container
           .querySelector('[aria-current="true"]')
-          ?.closest("[data-inbox-item]")
-          ?.getAttribute("data-inbox-item") ?? null
+          ?.closest("[data-inbox-row]")
+          ?.getAttribute("data-inbox-row") ?? null
 
       // A frame between keys, as a person's presses have: each sheet opened finds itself.
       const press = async (key: string) => {
@@ -202,6 +246,141 @@ describe("The Inbox's list", () => {
       expect(current()).toBe("c")
       await press("k")
       expect(current()).toBe("b")
+      await nextFrame()
+      inbox.view.unmount()
+    })
+  })
+
+  context("when a row that asks has been opened", () => {
+    it("keeps it asking, marked as opened", async () => {
+      const inbox = mount([permission("a", 1), permission("b", 2)])
+      expect(inbox.row("a").dataset).toMatchObject({ needs: "true", seen: "false" })
+
+      inbox.open("a")
+      await nextFrame()
+      inbox.press("Escape")
+      await nextFrame()
+
+      expect(inbox.row("a").dataset).toMatchObject({ needs: "true", seen: "true" })
+      inbox.view.unmount()
+    })
+  })
+
+  context("when updates follow what asks", () => {
+    it("marks the updates as asking nothing, with a line above the first", async () => {
+      const inbox = mount([told("u1", 1), permission("a", 2), told("u2", 3)])
+
+      expect(inbox.subjects()).toEqual(["Run a?", "u1", "u2"])
+      expect(inbox.row("a").dataset).toMatchObject({ needs: "true", updatesStart: "false" })
+      expect(inbox.row("u1").dataset).toMatchObject({ needs: "false", updatesStart: "true" })
+      expect(inbox.row("u2").dataset).toMatchObject({ needs: "false", updatesStart: "false" })
+      await nextFrame()
+      inbox.view.unmount()
+    })
+
+    it("draws no line when only updates wait", async () => {
+      const inbox = mount([told("u1", 1), told("u2", 2)])
+
+      expect(inbox.row("u1").dataset.updatesStart).toBe("false")
+      await nextFrame()
+      inbox.view.unmount()
+    })
+  })
+
+  context("when an ask can be dismissed", () => {
+    const dismissButton = (inbox: ReturnType<typeof mount>, id: string): HTMLElement | null =>
+      inbox.row(id).querySelector<HTMLElement>(".inbox-row-dismiss")
+
+    it("offers it on a Novadeck ask only, and only where the backend can", async () => {
+      const inbox = mount([agentAsk("a", 1), permission("p", 2), told("u", 3)], false, true)
+
+      expect(dismissButton(inbox, "a")?.getAttribute("aria-label")).toBe("Dismiss: a")
+      expect(dismissButton(inbox, "p")).toBeNull()
+      expect(dismissButton(inbox, "u")).toBeNull()
+      inbox.view.unmount()
+
+      const without = mount([agentAsk("a", 1)])
+      expect(without.row("a").querySelector(".inbox-row-dismiss")).toBeNull()
+      await nextFrame()
+      without.view.unmount()
+    })
+
+    it("settles the row in place on the button, and the count and Clear follow", async () => {
+      const inbox = mount([agentAsk("a", 1), agentAsk("b", 2), told("u", 3)], false, true)
+      expect(inbox.view.container.querySelector('[aria-label="Clear settled"]')).toBeNull()
+      act(() => dismissButton(inbox, "a")!.click())
+
+      expect(inbox.subjects()).toEqual(["a", "b", "u"])
+      expect(inbox.row("a").dataset).toMatchObject({ settled: "dismissed", needs: "false" })
+      expect(inbox.row("a").querySelector(".inbox-row-extra")?.textContent).toBe("· Dismissed")
+      expect(dismissButton(inbox, "a")).toBeNull()
+      expect(inbox.view.container.querySelector('[aria-label="Clear settled"]')).not.toBeNull()
+      await nextFrame()
+      inbox.view.unmount()
+    })
+
+    it("settles on Delete, and the keyboard goes on to the next row", async () => {
+      const inbox = mount([agentAsk("a", 1), agentAsk("b", 2)], false, true)
+      const select = (id: string): HTMLElement =>
+        inbox.row(id).querySelector<HTMLElement>(".inbox-row-select")!
+      select("a").focus()
+      act(() => {
+        select("a").dispatchEvent(
+          new KeyboardEvent("keydown", { key: "Delete", bubbles: true, cancelable: true }),
+        )
+      })
+
+      expect(inbox.row("a").dataset.settled).toBe("dismissed")
+      expect(document.activeElement).toBe(select("b"))
+      await nextFrame()
+      inbox.view.unmount()
+    })
+
+    it("opens no sheet once settled, and j and k skip it", async () => {
+      const inbox = mount(
+        [agentAsk("a", 1), agentAsk("b", 2, { how: "withdrawn", at: 5 }), agentAsk("c", 3)],
+        false,
+        true,
+      )
+      inbox.open("b")
+      expect(document.querySelector(".inbox-sheet")).toBeNull()
+      inbox.open("a")
+      inbox.press("j")
+
+      expect(inbox.row("c").dataset.selected).toBe("true")
+      await nextFrame()
+      inbox.view.unmount()
+    })
+
+    it("keeps the sheet of an ask that settles open, saying so in place of its answers", async () => {
+      const inbox = mount([agentAsk("a", 1), agentAsk("b", 2)], false, true)
+      inbox.open("a")
+      expect(document.querySelector(".inbox-sheet [role=menu]")).not.toBeNull()
+      act(() => dismissButton(inbox, "a")!.click())
+      await nextFrame()
+
+      expect(document.querySelector(".console-tag")?.textContent).toBe("Dismissed")
+      expect(document.querySelector(".console-settled")?.textContent).toBe(
+        "You dismissed this ask; @moth was told.",
+      )
+      expect(document.querySelector(".inbox-sheet [role=menu]")).toBeNull()
+      inbox.press("j")
+      expect(inbox.row("b").dataset.selected).toBe("true")
+      inbox.view.unmount()
+    })
+
+    it("clears every settled ask", async () => {
+      const inbox = mount(
+        [agentAsk("a", 1), agentAsk("b", 2, { how: "replied", at: 5 })],
+        false,
+        true,
+      )
+      expect(inbox.row("b").dataset.settledStart).toBe("true")
+      act(() =>
+        inbox.view.container.querySelector<HTMLElement>('[aria-label="Clear settled"]')!.click(),
+      )
+
+      expect(inbox.subjects()).toEqual(["a"])
       await nextFrame()
       inbox.view.unmount()
     })

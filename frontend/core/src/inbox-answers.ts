@@ -1,7 +1,7 @@
 import { agentWorking } from "./agent-finish"
 import type { ChatAnswer, ConversationKey } from "./conversation"
-import type { InboxAnswer, InboxItem, InboxState } from "./inbox"
-import { reuse } from "./inbox-items"
+import type { InboxAnswer, InboxRow, InboxState } from "./inbox"
+import { reuse } from "./inbox-rows"
 import type { TerminalMetadata } from "./types"
 
 // What a backend that builds its Inbox from the app's state does with the person's answers,
@@ -14,7 +14,7 @@ export const answerFailure = (error: unknown): string =>
   error instanceof Error && error.message ? error.message : "That didn't take. Try again."
 
 // The terminal an item is about, by its full address.
-export const keyOf = ({ source }: InboxItem): ConversationKey => ({
+export const keyOf = ({ source }: InboxRow): ConversationKey => ({
   projectId: source.projectId,
   workspaceSessionId: source.workspaceSessionId,
   terminalId: source.terminalId,
@@ -22,7 +22,7 @@ export const keyOf = ({ source }: InboxItem): ConversationKey => ({
 
 // Whether an item is a stored turn row (read by id), as its `stored` mark says, not the failed
 // row derived from a limited end, which no read touches.
-export const isTurnRow = (item: InboxItem): boolean =>
+export const isTurnRow = (item: InboxRow): boolean =>
   item.kind === "trouble" && item.trouble.type === "failed" && item.trouble.stored === true
 
 // The state as it was when nothing changed in it, so what subscribes to it stays quiet.
@@ -38,7 +38,7 @@ export const keepInbox = (current: InboxState, next: InboxState): InboxState => 
 // What the tracker shows of the items a backend found: the `seen` ones marked, and which
 // are answering or have failed. A backend adds what it tracks itself before it publishes.
 export type InboxView = {
-  readonly items: readonly InboxItem[]
+  readonly items: readonly InboxRow[]
   readonly answering: Record<string, true>
   readonly failed: Record<string, string>
 }
@@ -54,15 +54,20 @@ export type InboxTrackerOptions = {
 }
 
 export type InboxTracker = {
-  readonly view: (found: readonly InboxItem[]) => InboxView
+  readonly view: (found: readonly InboxRow[]) => InboxView
   readonly see: (id: string) => void
   // Runs an answer: its item shows answering until the backend drops it or the answer fails.
   // With `settles`, an answer that took but left its item standing (a prompt that started no
-  // turn) gives the buttons back after `settleMs`. `onError` runs when the answer fails.
+  // turn) gives the buttons back after `settleMs`. `onError` runs when the answer fails;
+  // with `silent`, a failure leaves no error behind: the item just stands as it was.
   readonly call: (
     id: string,
     work: () => Promise<unknown>,
-    options?: { readonly settles?: boolean; readonly onError?: () => void },
+    options?: {
+      readonly settles?: boolean
+      readonly silent?: boolean
+      readonly onError?: () => void
+    },
   ) => void
   // Marks answers as sent, for the ones the backend sends itself.
   readonly submit: (ids: readonly string[]) => void
@@ -116,6 +121,9 @@ export const createInboxTracker = ({
       const ids = new Set(found.map((item) => item.id))
       for (const id of seen) if (!ids.has(id)) seen.delete(id)
       for (const id of submitted) if (!ids.has(id) && !inFlight.has(id)) submitted.delete(id)
+      // A dismissed ask that the backend now lists settled has taken: it no longer answers.
+      for (const item of found)
+        if (item.settled && !inFlight.has(item.id)) submitted.delete(item.id)
       const items = found.map((item) => (seen.has(item.id) ? { ...item, seen: true } : item))
       const answering: Record<string, true> = Object.fromEntries(
         [...inFlight].map((id) => [id, true]),
@@ -130,7 +138,7 @@ export const createInboxTracker = ({
       seen.add(id)
       changed()
     },
-    call: (id, work, { settles = false, onError } = {}) => {
+    call: (id, work, { settles = false, silent = false, onError } = {}) => {
       clearTimeout(settling.get(id))
       settling.delete(id)
       failed.delete(id)
@@ -156,7 +164,10 @@ export const createInboxTracker = ({
           if (binds !== round) return
           inFlight.delete(id)
           onError?.()
-          fail(id, answerFailure(error))
+          if (silent) {
+            submitted.delete(id)
+            changed()
+          } else fail(id, answerFailure(error))
         },
       )
     },
@@ -192,7 +203,7 @@ export const createInboxTracker = ({
   }
 }
 
-type RequestItem = Extract<InboxItem, { kind: "request" }>
+type RequestItem = Extract<InboxRow, { kind: "request" }>
 
 // What answering an item asks of the backend; each is its own way to reach the agent.
 export type InboxActions = {
@@ -207,7 +218,13 @@ export type InboxActions = {
   readonly read: (ids: readonly string[]) => void
   // Reads stored rows by id and says nothing of it: for a nudge that already took.
   readonly forget: (ids: readonly string[]) => void
-  readonly send: (key: ConversationKey, text: string) => Promise<unknown>
+  // `automatic` for the trouble row's fixed lines, not words the person wrote: the agent's
+  // turn on one takes no open ask out of the Inbox.
+  readonly send: (
+    key: ConversationKey,
+    text: string,
+    options?: { readonly automatic?: true },
+  ) => Promise<unknown>
   readonly interrupt: (key: ConversationKey) => Promise<unknown>
   // The item's terminal now, to see whether its agent works.
   readonly terminal: (key: ConversationKey) => TerminalMetadata | undefined
@@ -221,7 +238,7 @@ export type InboxActions = {
 // kinds a backend answers itself (an ask, a told or done update) it handles before this.
 export const answerItem = (
   tracker: InboxTracker,
-  item: InboxItem,
+  item: InboxRow,
   given: InboxAnswer,
   actions: InboxActions,
 ): void => {
@@ -253,17 +270,18 @@ export const answerItem = (
       return actions.read([id])
     }
     if (action.type === "continue")
-      return tracker.call(id, () => actions.send(key, "continue"), settles)
+      return tracker.call(id, () => actions.send(key, "continue", { automatic: true }), settles)
     if (action.type === "stop") return tracker.call(id, () => actions.interrupt(key), settles)
     if (action.type === "nudge") {
       const terminal = actions.terminal(key)
+      const sent = action.own ? undefined : { automatic: true as const }
       if (isTurnRow(item)) {
         if (!item.stopped || !terminal || agentWorking(terminal))
           return tracker.fail(id, "That agent has moved on. Mark it read.")
         return tracker.call(
           id,
           async () => {
-            await actions.send(key, action.text)
+            await actions.send(key, action.text, sent)
             actions.forget([id])
           },
           settles,
@@ -273,7 +291,7 @@ export const answerItem = (
         id,
         async () => {
           if (terminal && agentWorking(terminal)) await actions.interrupt(key)
-          await actions.send(key, action.text)
+          await actions.send(key, action.text, sent)
         },
         settles,
       )

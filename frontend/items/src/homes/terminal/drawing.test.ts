@@ -18,7 +18,7 @@ import type { ItemStore } from "../../state"
 import { lookOf, type SlotActions } from "../../TaskbarSlot"
 import { context, describe, expect, it } from "../../test"
 import { slotIcon, terminalDrawing } from "./drawing"
-import { noLinks, type MailHandle } from "./messages/mail"
+import { noLinks, type MessagesHandle } from "./messages/messages"
 
 // What the icons, names and labels were before the registry, as the switches wrote them. A
 // terminal's drawing of its bar, from the registry and its own messages, must give the same
@@ -156,7 +156,7 @@ describe("a terminal's drawing of its bar", () => {
             plans: held as Parameters<typeof terminalDrawing>[0]["plans"],
             itemStore: {} as ItemStore,
             target: { projectId: "project", workspaceSessionId: "initial" },
-            mail: {} as MailHandle,
+            messagesHandle: {} as MessagesHandle,
             links: noLinks,
           }),
           originOf: () => origin,

@@ -8,6 +8,7 @@ const run = (tool: string, input: unknown) =>
 suite("what a Claude Code tool call was", () => {
   it.each([
     ["Bash", { command: "pnpm test\nmore" }, "run", "Ran", "pnpm test"],
+    ["PowerShell", { command: "dotnet test\nmore" }, "run", "Ran", "dotnet test"],
     ["Read", { file_path: "/a/b/c/d/e.ts" }, "read", "Read", "…/c/d/e.ts"],
     ["Write", { file_path: "/a/b.ts" }, "write", "Wrote", "/a/b.ts"],
     ["Edit", { file_path: "src/x.ts" }, "write", "Edited", "src/x.ts"],
@@ -34,14 +35,14 @@ suite("what a Claude Code tool call was", () => {
   it.each([
     ["agents", {}, "agent", "Listed agents", ""],
     [
-      "open_terminal",
-      { agent: "codex", message: "Fix the lint\nerrors" },
+      "open_agent",
+      { agent: "codex", message: "Fix the lint\nerrors", model: "gpt-5", effort: "high" },
       "agent",
-      "Opened a terminal",
+      "Opened an agent",
       "codex: Fix the lint",
     ],
     ["open_terminal", { command: "pnpm dev" }, "agent", "Opened a terminal", "pnpm dev"],
-    ["close_terminal", { to: "owl" }, "agent", "Closed owl", ""],
+    ["close_terminal", { to: "owl" }, "agent", "Close owl", ""],
     [
       "show",
       { page: { url: "http://localhost:5173/" } },

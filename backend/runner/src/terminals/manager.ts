@@ -1,10 +1,12 @@
 import { transcript as transcriptOf } from "@novadeck/emulator/headless"
-import { hookShellSlackMs, type Install } from "@novadeck/harness-core/harness"
-import type { AskAnswer, InboxLetter } from "@novadeck/protocol"
+import { hookShellSlackMs, type Install, type Model } from "@novadeck/harness-core/harness"
+import type { AskAnswer, InboxEntry } from "@novadeck/protocol"
 import type {
   AgentDetail,
   AgentName,
   InterruptResult,
+  CloseAsk,
+  CloseAskAnswer,
   TerminalAttached,
   TerminalChange,
   TerminalEvent,
@@ -29,10 +31,10 @@ import type { ItemRecord } from "../companions/records.js"
 import { DomainError } from "../errors.js"
 import { actorOf, agentDetail } from "../harnesses/detail.js"
 import { harnesses } from "../harnesses/registry.js"
-import { Asks, type AskRecords } from "../messaging/asks.js"
 import { type DoorbellOptions } from "../messaging/doorbell.js"
+import { Inbox, type InboxRecords } from "../messaging/inbox.js"
 import { Messaging, type AgentsAnswer, type SendAnswer } from "../messaging/messaging.js"
-import type { MailboxRecords } from "../messaging/records.js"
+import type { MessageRecords } from "../messaging/records.js"
 import type { Describer } from "../murmur/describer.js"
 import { inherited } from "../shell/inherited.js"
 import type { InstalledShell } from "../shell/install.js"
@@ -42,8 +44,10 @@ import { type AnswerOptions } from "./answers.js"
 import { Bindings } from "./binding/facts.js"
 import { Reports } from "./binding/reports.js"
 import { Shown } from "./binding/shown.js"
+import { savedSession } from "./binding/standing.js"
 import { sameToken } from "./callers.js"
 import { Calls } from "./calls.js"
+import { CloseAsks } from "./closeasks.js"
 import { type CloseAnswer } from "./closes.js"
 import { coalesced } from "./coalesce.js"
 import { expectedAgent } from "./commands.js"
@@ -135,8 +139,8 @@ export type TerminalOptions = {
   /** How long an agent's request for a new terminal waits for the client's answer, in milliseconds. */
   openMs?: number
   /** Where agents' messages, their threads and the messaging pause are kept; in memory when omitted. */
-  mailbox?: MailboxRecords
-  asks?: AskRecords
+  messages?: MessageRecords
+  inbox?: InboxRecords
   /**
    * The project a session belongs to, whose terminals' agents message each other; each
    * session counts as its own when omitted, or when that cannot be told.
@@ -161,6 +165,11 @@ export type TerminalOptions = {
    * harness counts as having none when omitted.
    */
   install?: (agent: AgentName) => Promise<Install | undefined>
+  /**
+   * The models a harness can start with on this machine, which an agent's request for a
+   * model is checked against; none when omitted.
+   */
+  models?: (agent: AgentName) => Promise<readonly Model[]>
   /**
    * Whether Novadeck's hooks run for the harness in a folder, where it runs them only
    * once the person trusts them (`Harness.hooksTrusted`); asked of the harness itself when
@@ -245,6 +254,8 @@ export class Terminals {
   private readonly pendingOwners = new Map<string, Set<{ released: boolean }>>()
   /** Agents' requests for a new terminal, on their way to the client. */
   private readonly opens = new OpenRequests()
+  /** Agents' asks to close a terminal, on their way to the client that asks the person. */
+  private readonly confirms = new CloseAsks()
   /** Samples running terminals' foreground processes. */
   private readonly sampler: Sampler<Record>
   /** Who reads the terminals: their watchers, and each one's detail and messages readers. */
@@ -287,14 +298,15 @@ export class Terminals {
       | "sealer"
       | "transcriptKeyMs"
       | "projectFolder"
-      | "mailbox"
-      | "asks"
+      | "messages"
+      | "inbox"
       | "projectOf"
       | "doorbell"
       | "prompts"
       | "interrupts"
       | "answers"
       | "install"
+      | "models"
       | "hooksTrusted"
       | "items"
       | "describer"
@@ -310,6 +322,7 @@ export class Terminals {
     shims: () => Promise<readonly AgentName[]>
     connected: (agent: AgentName) => Promise<boolean>
     install: (agent: AgentName) => Promise<Install | undefined>
+    models: (agent: AgentName) => Promise<readonly Model[]>
     hooksTrusted: ((agent: AgentName, cwd: string) => Promise<boolean | undefined>) | undefined
     items: CompanionItems | undefined
   }
@@ -323,7 +336,7 @@ export class Terminals {
   private readonly saves: Saves
   /** Agents' messages to each other, and how each terminal's agent takes them. */
   private readonly messaging: Messaging
-  private readonly asks: Asks
+  private readonly inbox: Inbox
   /** What agents messaging each other, and the runner API about their messages, are answered. */
   private readonly peers: TerminalPeers
   /** Describes terminals with murmur; undefined without a describer. */
@@ -370,6 +383,7 @@ export class Terminals {
       projectOf: options.projectOf,
       openMs: positive(options.openMs, 6_000),
       install: options.install ?? (() => Promise.resolve(undefined)),
+      models: options.models ?? (() => Promise.resolve([])),
       hooksTrusted: options.hooksTrusted,
       items: options.items,
       platform: options.platform ?? process.platform,
@@ -481,7 +495,7 @@ export class Terminals {
       trackRoot: (record, events, statusLine) =>
         this.reporting.trackRoot(record, events, statusLine),
       rebound: (record) => this.reporting.rebound(record),
-      turns: () => ({ asks: this.asks, redactor }),
+      turns: () => ({ inbox: this.inbox, redactor }),
       alive,
       pollMs: this.options.processPollMs,
     })
@@ -499,7 +513,7 @@ export class Terminals {
     this.reporting = new Reports({
       records: () => this.records,
       messaging: () => this.messaging,
-      asks: () => this.asks,
+      inbox: () => this.inbox,
       peers: () => this.peers,
       murmur: () => this.murmur,
       bindings: () => this.bindings,
@@ -519,25 +533,29 @@ export class Terminals {
       stopping: () => this.stopping,
     })
     this.messaging = new Messaging({
-      ...(options.mailbox && { records: options.mailbox }),
+      ...(options.messages && { records: options.messages }),
       platform: this.options.platform,
       // A message is kept while either of its terminals is, running or saved.
       exists: (id) => this.records.has(id) || this.saves.identity(id) !== undefined,
       busy: (id) => agentWorking(this.messaging, id, this.live(id)?.bound),
     })
-    this.asks = new Asks(
+    this.inbox = new Inbox(
       {
         owner: (id) => this.messaging.inboxOwner(id),
         reply: (id, ask, subject, text, commit, choice) =>
           this.messaging.personReply(id, ask, subject, text, commit, choice),
         replyState: (id) => this.messaging.inboxReply(id),
         forgetReplies: (ids) => this.messaging.forgetResponses(ids),
-        changed: (id) => this.streams.mailChanged(id),
+        changed: (id) => {
+          this.streams.messagesChanged(id)
+          const record = this.records.get(id)
+          if (record) this.bindings.publishReported(record)
+        },
         exists: (id) =>
           !this.closedIds.has(id) &&
           (this.records.has(id) || this.saves.identity(id) !== undefined),
       },
-      options.asks,
+      options.inbox,
     )
     // A lapsed continuation ends its turn; a late prompt may leave only box doubt to settle.
     // Subscribed before typing's doorbell, which subscribes as it is made.
@@ -547,6 +565,7 @@ export class Terminals {
       if (record) {
         this.reporting.lapsed(record)
         this.typing.settleBox(record)
+        this.bindings.publishReported(record)
       }
     })
     this.typing = new Typing(
@@ -580,14 +599,14 @@ export class Terminals {
     )
     // The pause shows in every terminal's listing; anything else only in the terminal's.
     // A burst of changes makes one listing, once this tick.
-    const mailChanged = coalesced(
-      (terminalId) => this.streams.mailChanged(terminalId),
+    const messagesChanged = coalesced(
+      (terminalId) => this.streams.messagesChanged(terminalId),
       "Novadeck could not tell its message watches:",
       "messaging.watch-failed",
     )
     this.messaging.subscribe((change) => {
-      if (change.kind === "terminal") mailChanged(change.terminalId)
-      else for (const terminalId of this.streams.mailWatched()) mailChanged(terminalId)
+      if (change.kind === "terminal") messagesChanged(change.terminalId)
+      else for (const terminalId of this.streams.messagesWatched()) messagesChanged(terminalId)
     })
     this.peers = new TerminalPeers({
       messaging: this.messaging,
@@ -603,6 +622,7 @@ export class Terminals {
           (record) => record.summary.sessionId === sessionId && record.terminal.exit === null,
         ),
       projectFolder: (sessionId) => this.projectFolder(sessionId),
+      reports: (id) => this.inbox.reports(id, savedSession(this.records.get(id))),
       stopping: () => this.stopping,
     })
     this.murmur = options.describer
@@ -624,12 +644,14 @@ export class Terminals {
       records: () => this.records,
       stopping: () => this.stopping,
       messaging: () => this.messaging,
-      asks: () => this.asks,
+      inbox: () => this.inbox,
       peers: () => this.peers,
       opens: () => this.opens,
+      closeAsks: () => this.confirms,
       companion: () => this.companion,
       launcher: () => this.launcher,
       install: (agent) => this.options.install(agent),
+      models: (agent) => this.options.models(agent),
       closingNow: (terminalId) => this.host.closing(terminalId),
       closeForGood: (record) => this.closeForGood(record),
       terminate: (record) => this.terminate(record),
@@ -751,6 +773,7 @@ export class Terminals {
           ready: null,
           activity: null,
           telemetry: null,
+          reported: null,
         },
         ...started,
         terminal,
@@ -891,8 +914,8 @@ export class Terminals {
    * Gives the terminal's agent a prompt as the person would paste and submit it (see
    * `Prompts`), once those before it in the terminal's input queue are done.
    */
-  prompt(input: { terminalId: string; text: string }): Promise<void> {
-    return this.typing.prompt(input.terminalId, input.text)
+  prompt(input: { terminalId: string; text: string; automatic?: true | undefined }): Promise<void> {
+    return this.typing.prompt(input.terminalId, input.text, input.automatic)
   }
 
   /**
@@ -1052,6 +1075,7 @@ export class Terminals {
                     ready: null,
                     activity: null,
                     telemetry: null,
+                    reported: null,
                   } satisfies AgentSummary,
                   foreground: undefined,
                   ...this.bindings.restarted(),
@@ -1148,7 +1172,7 @@ export class Terminals {
     // Shutting down meanwhile: the project, and what of its terminals was only saved, stay
     // for the next runner to remove.
     if (this.stopping) throw new DomainError("CLOSING")
-    this.asks.forgetProject(projectId)
+    this.inbox.forgetProject(projectId)
     this.messaging.forgetProject(projectId)
   }
 
@@ -1185,7 +1209,7 @@ export class Terminals {
     // Its items go first, so watchers hear of each before its record cascades them away.
     this.companion.closed(terminalId)
     this.messaging.unregister(terminalId)
-    this.asks.reconcile(terminalId)
+    this.inbox.reconcile(terminalId)
     this.typing.forget(terminalId)
     this.murmur?.gone(terminalId)
     if (claims) this.claims.release(terminalId)
@@ -1325,22 +1349,28 @@ export class Terminals {
     this.peers.acknowledge(ack)
   }
 
-  inboxLetters(): InboxLetter[] {
-    return this.asks.list()
+  inboxEntries(): InboxEntry[] {
+    return this.inbox.list()
   }
-  watchAsks(signal?: AbortSignal): AsyncGenerator<InboxLetter[]> {
-    return this.asks.watch(signal)
+  watchInbox(signal?: AbortSignal): AsyncGenerator<InboxEntry[]> {
+    return this.inbox.watch(signal)
   }
   answerAsk(id: string, answer: AskAnswer): void {
-    this.asks.answer(id, answer)
+    this.inbox.answer(id, answer)
   }
   readTells(ids: readonly string[]): void {
-    this.asks.read(ids)
+    this.inbox.read(ids)
+  }
+  dismissAsk(id: string): void {
+    this.inbox.dismiss(id)
+  }
+  clearAsks(ids: readonly string[]): void {
+    this.inbox.clear(ids)
   }
 
   /** A terminal's threads and messages with their states. */
   messages(terminalId: string): TerminalMessages {
-    return this.asks.history(terminalId, this.peers.messages(terminalId))
+    return this.inbox.history(terminalId, this.peers.messages(terminalId))
   }
 
   /**
@@ -1392,6 +1422,17 @@ export class Terminals {
   /** The client's answer to a request; NOT_FOUND once nothing waits for it. */
   answerRequest(answer: TerminalRequestAnswer, ownerId: string): void {
     this.opens.answer(answer, ownerId)
+  }
+
+  /** Agents' asks to close a terminal, for the client to confirm with the person. */
+  closeAsks(ownerId: string, signal?: AbortSignal): AsyncGenerator<CloseAsk> {
+    if (this.stopping) throw new DomainError("CLOSING")
+    return this.confirms.follow(ownerId, signal)
+  }
+
+  /** The person's answer to a close ask; NOT_FOUND once nothing waits for it. */
+  answerCloseAsk(answer: CloseAskAnswer, ownerId: string): void {
+    this.confirms.answer(answer, ownerId)
   }
 
   /** The folder of the session's project; undefined when that cannot be told. */
@@ -1449,6 +1490,7 @@ export class Terminals {
     this.host.release(ownerId)
     this.streams.release(ownerId)
     this.opens.release(ownerId)
+    this.confirms.release(ownerId)
     this.companion.release(ownerId)
   }
 
@@ -1462,11 +1504,12 @@ export class Terminals {
     this.saves.stop()
     this.streams.finishWatchers()
     this.opens.finish()
+    this.confirms.finish()
     this.companion.shutdown()
     this.streams.finishReaders()
     for (const record of this.records.values()) this.bindings.unwatch(record)
     this.typing.close()
-    this.asks.close()
+    this.inbox.close()
     this.messaging.close()
     this.shutdownPromise = Promise.all([last, this.stop()]).then(() => undefined)
     return this.shutdownPromise
@@ -1618,7 +1661,7 @@ export class Terminals {
     forgetPrompts(record)
     // An exited terminal takes no messages; its agent's are gone until it runs again.
     this.messaging.unregister(record.summary.id)
-    this.asks.reconcile(record.summary.id)
+    this.inbox.reconcile(record.summary.id)
     this.typing.forget(record.summary.id)
     record.summary = {
       ...record.summary,
@@ -1627,6 +1670,7 @@ export class Terminals {
       ready: null,
       activity: null,
       telemetry: null,
+      reported: null,
     }
     cancelResume(record)
     this.saves.save(record, true)
@@ -1644,7 +1688,7 @@ export class Terminals {
     if (record?.terminal !== terminal) return
     this.records.delete(id)
     this.messaging.unregister(id)
-    this.asks.reconcile(id)
+    this.inbox.reconcile(id)
     this.typing.forget(id)
     // Its record is let go, but the terminal is kept, saved, until it is closed.
     const saved = this.saves.saved(id)

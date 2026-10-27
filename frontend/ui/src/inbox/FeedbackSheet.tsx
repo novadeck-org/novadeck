@@ -8,7 +8,7 @@ import { Fragment, useEffect, useId, useMemo, useState } from "react"
 import { waitLabel } from "./inbox-text"
 import { useInboxContext } from "./InboxProvider"
 import { Page, type SheetContentProps } from "./Page"
-import { Failure, Sent } from "./sheet-parts"
+import { Failure } from "./sheet-parts"
 
 // Feedback: a draft an agent wrote for the people building Novadeck, from what it just did
 // in its terminal. The person edits it, sees what in it could identify them struck through,
@@ -99,7 +99,7 @@ const Editor = ({
 )
 
 export const FeedbackSheet = (props: SheetContentProps): React.JSX.Element | null => {
-  const { item, sent, answering, failed, onNext, submit } = props
+  const { item, sent, answering, failed, submit } = props
   const { now, feedbackAbout, feedbackEdits, setFeedbackEdit } = useInboxContext()
   const id = item.id
   const original = item.kind === "feedback" ? item.draft.text : ""
@@ -130,10 +130,16 @@ export const FeedbackSheet = (props: SheetContentProps): React.JSX.Element | nul
   const canSend = outgoing !== "" && over <= 0 && !answering
   const send = (): void => {
     if (!canSend) return
-    submit({ kind: "feedback", answer: { type: "send", text: outgoing } }, "Sent. Thanks.")
+    submit(
+      { kind: "feedback", answer: { type: "send", text: outgoing } },
+      `Sent @${item.source.handle}'s feedback. Thanks.`,
+    )
   }
   const discard = (): void => {
-    submit({ kind: "feedback", answer: { type: "discard" } }, "Discarded.")
+    submit(
+      { kind: "feedback", answer: { type: "discard" } },
+      `Discarded @${item.source.handle}'s feedback draft.`,
+    )
   }
   return (
     <Page
@@ -205,7 +211,6 @@ export const FeedbackSheet = (props: SheetContentProps): React.JSX.Element | nul
       )}
       <Privacy about={about} />
       <Failure message={failed} />
-      {sent && <Sent note={sent.note} onNext={onNext} />}
     </Page>
   )
 }

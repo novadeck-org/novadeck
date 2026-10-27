@@ -1,11 +1,11 @@
-import type { Message, Thread } from "./mailbox.js"
+import type { Message, Thread } from "./messages.js"
 
 /**
- * Where the mailbox is kept: the workspace's store, so messages, threads and the pause
+ * Where the messages are kept: the workspace's store, so messages, threads and the pause
  * outlive the runner. Each write is the whole record. Handles are terminals' own, kept
  * in their records.
  */
-export type MailboxRecords = {
+export type MessageRecords = {
   messages(): readonly Message[]
   saveMessage(message: Message): void
   removeMessages(ids: readonly string[]): void
@@ -16,8 +16,8 @@ export type MailboxRecords = {
   pauseMessaging(paused: boolean): void
 }
 
-/** A mailbox kept in memory only, for a runner without a store. */
-export const memoryMailbox = (): MailboxRecords => {
+/** Messages kept in memory only, for a runner without a store. */
+export const memoryMessages = (): MessageRecords => {
   const messages = new Map<string, Message>()
   const threads = new Map<string, Thread>()
   let paused = false

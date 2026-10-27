@@ -1,6 +1,6 @@
 import { Dialog } from "@novadeck/toolkit/Dialog"
 import { Allotment, LayoutPriority, type AllotmentHandle } from "allotment"
-import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from "react"
+import { useRef, useState, type ReactNode } from "react"
 
 import { useDesktop } from "./desktop"
 
@@ -45,24 +45,8 @@ export const WorkspacePanels = ({
   const desktop = useDesktop()
   const [preferred, setPreferred] = useState(readWidth)
   const [width, setWidth] = useState(preferred)
-  const [motion, setMotion] = useState({ collapsed, active: false })
-  if (motion.collapsed !== collapsed) setMotion({ collapsed, active: true })
   const container = useRef<HTMLDivElement>(null)
   const panels = useRef<AllotmentHandle>(null)
-  useEffect(() => {
-    if (!motion.active) return
-    const duration =
-      Number.parseFloat(
-        getComputedStyle(container.current ?? document.documentElement).getPropertyValue(
-          "--motion-state",
-        ),
-      ) || 180
-    const timeout = window.setTimeout(
-      () => setMotion((previous) => ({ ...previous, active: false })),
-      duration + 50,
-    )
-    return () => window.clearTimeout(timeout)
-  }, [motion])
   const remember = (value: number): void => {
     const next = Math.max(minWidth, Math.min(maxWidth, value))
     setPreferred(next)
@@ -73,7 +57,6 @@ export const WorkspacePanels = ({
     }
   }
   const resize = (value: number): void => {
-    setMotion((previous) => ({ ...previous, active: false }))
     const available = container.current?.clientWidth ?? 0
     const next = Math.max(minWidth, Math.min(maxWidth, available - 320, value))
     panels.current?.resize([next, available - next])
@@ -108,15 +91,10 @@ export const WorkspacePanels = ({
   }
 
   return (
-    <div
-      className={`workspace-panels relative min-h-0 min-w-0 flex-1${motion.active ? " sidebar-transition" : ""}`}
-      ref={container}
-      style={{ "--_sidebar-expanded-width": `${preferred}px` } as CSSProperties}
-    >
+    <div className="workspace-panels relative min-h-0 min-w-0 flex-1" ref={container}>
       <Allotment
         ref={panels}
         proportionalLayout={false}
-        onDragStart={() => setMotion((previous) => ({ ...previous, active: false }))}
         onChange={(sizes) => setWidth(sizes[0] ?? preferred)}
         onDragEnd={(sizes) => remember(sizes[0] ?? preferred)}
         onReset={() => resize(defaultWidth)}
@@ -131,7 +109,7 @@ export const WorkspacePanels = ({
         >
           <div
             className="sidebar-content h-full"
-            hidden={collapsed && !motion.active}
+            hidden={collapsed}
             aria-hidden={collapsed}
             inert={collapsed}
           >

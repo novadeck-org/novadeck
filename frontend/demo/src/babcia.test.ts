@@ -1,14 +1,15 @@
-import type { InboxItem } from "@novadeck/core/inbox"
+import type { InboxRow } from "@novadeck/core/inbox"
+import { orderedTiles } from "@novadeck/core/roster"
 import { workspaceFromSeed } from "@novadeck/core/seed"
 import { activeSession } from "@novadeck/core/state"
 import { createWorkspaceStore } from "@novadeck/core/store"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
-import { babcia, babciaCuesOf, babciaIntroOf } from "./babcia"
+import { babcia, babciaCuesOf, babciaIntroOf, politeAfterMs } from "./babcia"
 import { answerMs, answeredMs } from "./chat"
 import { demoHandle } from "./handles"
-import { isDemoInbox } from "./inbox"
-import { isDemoMessages, rungMs } from "./messages"
+import { answerMs as inboxAnswerMs, isDemoInbox } from "./inbox"
+import { deliveryMs, isDemoMessages, rungMs } from "./messages"
 import { demoTerminalId } from "./samples"
 import { demoTurns } from "./turns"
 import { createDemo } from "./variants"
@@ -37,7 +38,7 @@ const open = () => {
     const found = terminal(number)
     return found?.state === "running" ? found.agent : undefined
   }
-  const items = (): readonly InboxItem[] => inbox.state.getSnapshot().items
+  const items = (): readonly InboxRow[] => inbox.state.getSnapshot().items
   return { backend, store, inbox, cues, terminals, terminal, agent, items }
 }
 
@@ -91,15 +92,15 @@ describe("the Babcia demo", () => {
     const { cues, inbox, items, agent } = open()
     cues.asks()
     const answers = {
-      "Order form": (item: InboxItem) =>
+      "Order form": (item: InboxRow) =>
         item.kind === "request" && item.request.dialog?.type === "choices"
           ? { type: "choice" as const, dialog: item.request.dialog.id, option: "1" }
           : undefined,
-      Accessibility: (item: InboxItem) =>
+      Accessibility: (item: InboxRow) =>
         item.kind === "request" && item.request.dialog?.type === "choices"
           ? { type: "choice" as const, dialog: item.request.dialog.id, option: "2" }
           : undefined,
-      "Menu page": (item: InboxItem) =>
+      "Menu page": (item: InboxRow) =>
         item.kind === "request" && item.request.dialog?.type === "questions"
           ? {
               type: "questions" as const,
@@ -155,21 +156,27 @@ describe("the Babcia demo", () => {
   })
 
   it("has the lead open three helpers its team wire draws to, and rest", () => {
-    const { cues, terminals, agent } = open()
+    const { cues, terminals, agent, store } = open()
     cues.helpers()
     expect(terminals()).toHaveLength(15)
     const lead = terminals().find((each) => each.id === key(babcia.lead).terminalId)!
     const helpers = terminals().slice(12)
     expect(helpers.map((each) => each.ledBy)).toEqual([lead.handle, lead.handle, lead.handle])
     expect(helpers.map((each) => each.process)).toEqual(["codex", "agy", "claude"])
+    // Listed under their lead, in the order it opened them.
+    const listed = orderedTiles(activeSession(store.getSnapshot())!.state.roster).map(
+      (each) => each.id,
+    )
+    const below = listed.indexOf(lead.id) + 1
+    expect(listed.slice(below, below + 3)).toEqual(helpers.map((each) => each.id))
     expect(agent(babcia.lead)).toMatchObject({ working: false })
     // Opening them twice opens no more.
     cues.helpers()
     expect(terminals()).toHaveLength(15)
   })
 
-  // What of the mail the helper and its lead wrote, in order, as (from, to, state, text).
-  const mail = (backend: ReturnType<typeof open>["backend"]) => {
+  // The messages the helper and its lead wrote, in order, as (from, to, state, text).
+  const terminalMessages = (backend: ReturnType<typeof open>["backend"]) => {
     const { messages } = backend
     if (!isDemoMessages(messages)) throw new Error("the Babcia demo has the demo's messages")
     const seen = new Map<string, { from: string; to: string; state: string; text: string }>()
@@ -206,11 +213,11 @@ describe("the Babcia demo", () => {
     })
     // The answer is on its way and not yet delivered: the helper has said nothing.
     await vi.advanceTimersByTimeAsync(800)
-    expect(mail(backend)).toEqual([])
+    expect(terminalMessages(backend)).toEqual([])
     expect(agent(babcia.lead)).toMatchObject({ working: false })
     // Delivered, the helper writes to its lead, which the doorbell then rings awake.
     await vi.advanceTimersByTimeAsync(2400)
-    expect(mail(backend)[0]).toMatchObject({
+    expect(terminalMessages(backend)[0]).toMatchObject({
       from: asking,
       to: lead,
       text: expect.stringContaining(typed),
@@ -219,7 +226,7 @@ describe("the Babcia demo", () => {
     expect(agent(babcia.lead)).toMatchObject({ working: true })
     await vi.advanceTimersByTimeAsync(5000)
     expect(items()).toEqual([])
-    expect(mail(backend).map(({ from, to, state }) => ({ from, to, state }))).toEqual([
+    expect(terminalMessages(backend).map(({ from, to, state }) => ({ from, to, state }))).toEqual([
       { from: asking, to: lead, state: "delivered" },
       { from: lead, to: asking, state: "delivered" },
     ])
@@ -236,10 +243,10 @@ describe("the Babcia demo", () => {
       answer: { type: "reply", option: null, text: typed },
     })
     await vi.advanceTimersByTimeAsync(10_000)
-    expect(mail(backend)).toEqual([])
+    expect(terminalMessages(backend)).toEqual([])
   })
 
-  it("relays the helper's answer once, however often its mail changes after it", async () => {
+  it("relays the helper's answer once, however often its messages change after it", async () => {
     const { backend, cues, inbox, items } = open()
     cues.helpers()
     cues.helperAsks()
@@ -250,13 +257,13 @@ describe("the Babcia demo", () => {
     await vi.advanceTimersByTimeAsync(10_000)
     const { messages } = backend
     if (!isDemoMessages(messages)) throw new Error("the demo's messages")
-    // The mail changes again, as a pause or a release changes it: the delivered answer is still
+    // The messages change again, as a pause or a release changes them: the delivered answer is still
     // there to be found, and must not be relayed again.
     messages.pause(true)
     await vi.advanceTimersByTimeAsync(300)
     messages.pause(false)
     await vi.advanceTimersByTimeAsync(10_000)
-    expect(mail(backend).filter((each) => each.from === asking)).toHaveLength(1)
+    expect(terminalMessages(backend).filter((each) => each.from === asking)).toHaveLength(1)
   })
 
   it("words the helper's message to its lead for an empty or unpunctuated reply", async () => {
@@ -271,7 +278,7 @@ describe("the Babcia demo", () => {
       })
       // eslint-disable-next-line no-await-in-loop -- Each demo runs on its own.
       await vi.advanceTimersByTimeAsync(5000)
-      texts.push(mail(backend).find((each) => each.from === asking)!.text)
+      texts.push(terminalMessages(backend).find((each) => each.from === asking)!.text)
     }
     expect(texts).toEqual([
       "Nyx had nothing to add. Do you know which API the site calls? I need it for the orders route.",
@@ -303,7 +310,7 @@ describe("the Babcia demo", () => {
       .flatMap((each) => each.messages)
       .filter((one) => one.id.startsWith("t-") && (one.from === "you" || one.to === "you"))
     expect(sent).toEqual([])
-    expect(mail(backend).map(({ from, state }) => ({ from, state }))).toEqual([
+    expect(terminalMessages(backend).map(({ from, state }) => ({ from, state }))).toEqual([
       { from: asking, state: "gone" },
     ])
     expect(agent(babcia.lead)).toMatchObject({ working: false })
@@ -337,7 +344,7 @@ describe("the Babcia demo", () => {
     expect(agent(babcia.lead)).toMatchObject({ working: true })
     await backend.conversations!.interrupt(key(babcia.lead))
     await vi.advanceTimersByTimeAsync(10_000)
-    expect(mail(backend).filter((each) => each.from === lead)).toEqual([])
+    expect(terminalMessages(backend).filter((each) => each.from === lead)).toEqual([])
     // Nothing holds the pair after it: cue 6 ends the helper's turn too.
     cues.finishAll()
     await vi.advanceTimersByTimeAsync(5000)
@@ -355,7 +362,7 @@ describe("the Babcia demo", () => {
           kind: "ask",
           answer: { type: "reply", option: null, text: typed },
         })
-      } else inbox.clear()
+      } else inbox.empty()
       // eslint-disable-next-line no-await-in-loop -- Each demo runs on its own.
       await vi.advanceTimersByTimeAsync(10_000)
       // It waits at its prompt, as an agent told no does, and cue 6 leaves it; its lead ends.
@@ -697,7 +704,7 @@ describe("the Babcia demo", () => {
     // Twenty messages that aren't idle: a lead is no exception, but nothing here loops.
     for (let index = 0; index < 20; index += 1) messages.send(target, asking, lead, `Hi ${index}`)
     await vi.advanceTimersByTimeAsync(rungMs + 50)
-    expect(mail(backend).every((each) => each.state === "delivered")).toBe(true)
+    expect(terminalMessages(backend).every((each) => each.state === "delivered")).toBe(true)
     // Idle messages between two terminals are held at the sixth, a lead's pair no different.
     for (let index = 0; index < 8; index += 1)
       messages.send(
@@ -711,7 +718,9 @@ describe("the Babcia demo", () => {
       )
     await vi.advanceTimersByTimeAsync(rungMs + 50)
     expect(
-      mail(backend).filter((each) => each.from === demoHandle(1) && each.state === "held"),
+      terminalMessages(backend).filter(
+        (each) => each.from === demoHandle(1) && each.state === "held",
+      ),
     ).toHaveLength(3)
   })
 
@@ -756,13 +765,13 @@ describe("the Babcia demo", () => {
     const delivered = vi.fn<() => void>()
     expect(messages.send(target, asking, lead, "Hi", delivered, stopped)).toBe(true)
     close(babcia.lead)
-    expect(mail(backend).map((each) => each.state)).toEqual(["gone"])
+    expect(terminalMessages(backend).map((each) => each.state)).toEqual(["gone"])
     expect(stopped).toHaveBeenCalledOnce()
     await vi.advanceTimersByTimeAsync(rungMs + 50)
     expect(delivered).not.toHaveBeenCalled()
     // A send to it now is refused, and leaves nothing in the thread.
     expect(messages.send(target, asking, lead, "Hello?")).toBe(false)
-    expect(mail(backend)).toHaveLength(1)
+    expect(terminalMessages(backend)).toHaveLength(1)
     // What a closed sender wrote still reaches its recipient.
     const arrived = vi.fn<() => void>()
     expect(
@@ -813,5 +822,108 @@ describe("the Babcia demo", () => {
         babciaIntroOf(mine!.sessions[0]!.terminals[number - 1]!, at(mine, number)),
       ).toBeDefined()
     expect(babciaIntroOf(other!.sessions[0]!.terminals[0]!, at(other, 1))).toBeUndefined()
+  })
+
+  describe("the agent with manners", () => {
+    const pick = (label: "Yes" | "No") => ({
+      kind: "ask" as const,
+      answer: { type: "reply" as const, option: label === "Yes" ? 0 : 1, text: "" },
+    })
+    // The open ask's subject, as the person reads it.
+    const subjects = (items: readonly InboxRow[]) =>
+      items.flatMap((item) => (item.kind === "ask" ? [item.ask.subject] : []))
+
+    it("asks to force-push to main, as an Ask row with Yes and No, and the badge reads one", () => {
+      const { cues, items, agent } = open()
+      cues.manners()
+      cues.manners()
+      expect(items()).toHaveLength(1)
+      expect(items()[0]).toMatchObject({
+        kind: "ask",
+        source: { title: "Deploy preview", agent: "agy" },
+        ask: {
+          subject: "Can I force-push to main?",
+          shape: { type: "options", options: [{ label: "Yes" }, { label: "No" }] },
+        },
+      })
+      // Its turn goes on while the ask is open.
+      expect(agent(babcia.manners)).toMatchObject({ working: true })
+      expect(agent(babcia.manners)?.attention).toBeUndefined()
+    })
+
+    it("asks politely a moment after No, while its turn carries on, and works on after Yes", async () => {
+      const { cues, inbox, items, agent } = open()
+      cues.manners()
+      inbox.answer(items()[0]!.id, pick("No"))
+      // Answered, then delivered; the polite ask waits for the delivery and its delay.
+      await vi.advanceTimersByTimeAsync(inboxAnswerMs + deliveryMs + politeAfterMs - 100)
+      expect(items()).toEqual([])
+      await vi.advanceTimersByTimeAsync(200)
+      expect(subjects(items())).toEqual(["Could I open a pull request instead, please?"])
+      expect(items()[0]).toMatchObject({
+        source: { title: "Deploy preview" },
+        ask: { shape: { type: "options", options: [{ label: "Yes" }, { label: "No" }] } },
+      })
+      expect(agent(babcia.manners)).toMatchObject({ working: true })
+      inbox.answer(items()[0]!.id, pick("Yes"))
+      await vi.advanceTimersByTimeAsync(10_000)
+      expect(items()).toEqual([])
+      expect(agent(babcia.manners)).toMatchObject({ working: true })
+      expect(agent(babcia.manners)?.attention).toBeUndefined()
+    })
+
+    it("asks once more only after a No to the first, and waits for words after a No to the second", async () => {
+      const first = open()
+      first.cues.manners()
+      first.inbox.answer(first.items()[0]!.id, pick("Yes"))
+      await vi.advanceTimersByTimeAsync(10_000)
+      expect(first.items()).toEqual([])
+      expect(first.agent(babcia.manners)).toMatchObject({ working: true })
+      const second = open()
+      second.cues.manners()
+      second.inbox.answer(second.items()[0]!.id, pick("No"))
+      await vi.advanceTimersByTimeAsync(inboxAnswerMs + deliveryMs + politeAfterMs + 100)
+      second.inbox.answer(second.items()[0]!.id, pick("No"))
+      await vi.advanceTimersByTimeAsync(10_000)
+      expect(second.items()).toEqual([])
+      second.cues.finishAll()
+      await vi.advanceTimersByTimeAsync(5000)
+      expect(second.agent(babcia.manners)?.lastTurn).toBeUndefined()
+    })
+
+    it("holds the agent through cue 6 while either ask is unanswered, or between them", async () => {
+      const { cues, inbox, items, agent } = open()
+      cues.manners()
+      cues.finishAll()
+      await vi.advanceTimersByTimeAsync(5000)
+      expect(agent(babcia.manners)?.lastTurn).toBeUndefined()
+      inbox.answer(items()[0]!.id, pick("No"))
+      await vi.advanceTimersByTimeAsync(inboxAnswerMs + deliveryMs + 100)
+      cues.finishAll()
+      await vi.advanceTimersByTimeAsync(500)
+      expect(agent(babcia.manners)?.lastTurn).toBeUndefined()
+      // Cue 6 also has the other agents report done; only the asks matter here.
+      expect(subjects(items())).toEqual([])
+      await vi.advanceTimersByTimeAsync(politeAfterMs)
+      expect(subjects(items())).toEqual(["Could I open a pull request instead, please?"])
+      cues.finishAll()
+      await vi.advanceTimersByTimeAsync(5000)
+      expect(agent(babcia.manners)?.lastTurn).toBeUndefined()
+      inbox.answer(items().find((item) => item.kind === "ask")!.id, pick("Yes"))
+      await vi.advanceTimersByTimeAsync(5000)
+      cues.finishAll()
+      await vi.advanceTimersByTimeAsync(5000)
+      expect(agent(babcia.manners)).toMatchObject({ lastTurn: { outcome: "completed" } })
+    })
+
+    it("does not ask again if the person took the agent some other way meanwhile", async () => {
+      const { cues, inbox, items, backend } = open()
+      cues.manners()
+      inbox.answer(items()[0]!.id, pick("No"))
+      await vi.advanceTimersByTimeAsync(inboxAnswerMs + deliveryMs + 100)
+      await backend.conversations!.interrupt(key(babcia.manners))
+      await vi.advanceTimersByTimeAsync(10_000)
+      expect(items()).toEqual([])
+    })
   })
 })

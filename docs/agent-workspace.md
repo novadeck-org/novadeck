@@ -262,16 +262,20 @@ What belongs there is a deliverable: something made to be looked at (an image or
 screenshot, a rendered page or dev server, a report, mockup, diagram or generated
 document, the one file the user asked for, or whatever they ask to see), shown once it
 is done, with `open` so it opens at once; without `open` for anything supporting, which
-waits marked new. A source file counts while it is the one
+waits marked new. A page is one the agent serves or just deployed, such as a dev server
+or a preview: a link to someone else's site often wants a sign-in in the pane and helps
+little there, so it goes in the agent's reply unless the user asks to see it in the pane. A source file counts while it is the one
 the user and the agent work on together; the files a change touches on the way do not,
 and the user reads those in the diff. Every harness hears this two ways, as no plugin ships a skill: the `show` tool's
 own description carries the rule, which every harness reads alike from `tools/list`,
 and the runner's prompt-time hook adds Novadeck's artifacts notice, one paragraph, at
-the person's first quiet prompt of each root session and after a compaction
+the first turn the person's prompt or the doorbell begins in each root session, and after a compaction
 (`artifactsNotice` in `terminals/nudges.ts`; it rides with the summary nudge but a
 `summarize` never clears it; see [Agent messaging](agent-messaging.md), "Nudges"), with
 the Inbox notice beside it (`inboxNotice`): the person rarely watches the terminal, so
-a question the agent's turn ends waiting on goes to the Inbox with `ask`. A
+a question the agent's turn ends waiting on goes to the Inbox: through the harness's own
+question tool where the agent would use one, which the Inbox shows as it is, else with
+`ask`. A
 worker another agent runs by briefs alone hears them at the person's first prompt there,
 so until then its tool descriptions are what tell it. In Antigravity an injected message
 lasts one model call, so there the notices are read once at the prompt and the tool
@@ -486,12 +490,14 @@ with every safety check again at that time:
   Command Line Tools, `/usr/bin/git` is Apple's installer stub, so each attempt to show
   can fail with its message, and may bring up the installer dialog.
 
-- **New terminals** come from the same server's second tool, `open_terminal`, listed
-  only inside Novadeck's terminals like `show`. It opens a terminal beside the agent's,
+- **New terminals** come from the same server's `open_terminal` and `open_agent`, listed
+  only inside Novadeck's terminals like `show`. `open_terminal` opens a terminal beside the agent's,
   in `cwd` (absolute, or from the terminal's directory, which is the default), named
   `title`, and can start `command` at the new shell's first prompt, one line as the
-  person would type it, such as `claude` or `npm run dev`; `focus` brings it into view
-  only when the person asked to see it. The runner checks the token, reads the request
+  person would type it, such as `npm run dev`; `focus` brings it into view
+  only when the person asked to see it. `open_terminal` takes no agent: to start one with
+  a task (and optionally a `model` and `effort`), an agent calls `open_agent`, which makes
+  it the new agent's lead. The runner checks the token, reads the request
   strictly, checks the folder, and lets a terminal's agents open five a minute, a
   terminal opened on request sharing the budget of the one that began the chain, and
   all agents twenty a minute across the runner, so terminals opening terminals can't
@@ -510,8 +516,16 @@ with every safety check again at that time:
   inside Novadeck's terminals like the others. An agent closes another terminal of its
   project and session, an agent's or a plain shell, by its exact handle, as `send`
   names its recipient; any other `to` is refused with the terminals there described, as
-  `send` refuses one, and so is its own terminal, with a pointer to its harness's own
-  exit. Its description tells agents to close only a terminal they are done with or
+  `send` refuses one. Its own terminal closes a half second after the answer, which ends
+  its session; a teammate it leads, and a terminal that runs no agent, close at once;
+  any other terminal that runs an agent closes only once the person confirms. That ask
+  goes to the client that subscribed last to `terminals.closeAsks` (refused with none),
+  one at a time for each terminal, and the call answers at once, as Codex's tool call
+  would time out waiting; the person's `terminals.answerCloseAsk` closes it or keeps it,
+  and Novadeck tells the asking agent either way with a notice. The ask is withdrawn
+  when either terminal closes, and settled with a notice that nothing closed when the
+  client goes away; a client that resubscribes is not sent the asks of its earlier
+  stream. Its description tells agents to close only a terminal they are done with or
   the person asked about, as closing ends whatever runs there. The runner checks the
   token, reads the request strictly, and closes it as the person's close does: it ends
   the shell, removes the terminal and forgets it, even while a window controls it, so
@@ -528,9 +542,9 @@ with every safety check again at that time:
   shutdown keeps every terminal.
 - **Messages** between agents come from the same server's `send` and `agents` tools,
   listed only inside Novadeck's terminals like the others: an agent messages another
-  terminal of its project and session by its handle, such as `@moth`, which `open_terminal` also
-  answers with, and the message reaches that agent through its own hooks. The runner
-  keeps the mailbox with the workspace and lists, pauses and releases it through
+  terminal of its project and session by its handle, such as `@moth`, which `open_terminal` and `open_agent`
+  also answer with, and the message reaches that agent through its own hooks. The runner
+  keeps the messages with the workspace and lists, pauses and releases them through
   `messages.list`, `messages.pause` and `messages.release`. Its `agents` listing carries
   the summaries the terminals' agents gave through `summarize`. See
   [Agent messaging](agent-messaging.md).

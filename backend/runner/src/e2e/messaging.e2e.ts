@@ -110,7 +110,7 @@ for (const setup of setups) {
     })
 
     // Linux and macOS only: on Windows an agent starts the relay of the build that connected
-    // it, as the README says, so a later connect by another build is that build's server.
+    // it, as docs/development.md says, so a later connect by another build is that build's server.
     const unlessWindows = process.platform === "win32" ? it.skip : it
     unlessWindows(
       "reaches its own Novadeck's MCP server when another build connected it last",
@@ -125,6 +125,12 @@ for (const setup of setups) {
         // The copy the harness installed, not only Novadeck's own source of it.
         const rewritten = renamePlugins(run.sandbox.root, run.deck.shell.mcp, decoy)
         expect(rewritten.some((path) => path.startsWith(run.sandbox.home))).toBe(true)
+        // The person answers what a harness asks once a plugin changed, as at setup: Codex from
+        // 0.164.0 hashes a plugin's whole folder into each hook's hash, so another build's
+        // launcher in `.mcp.json` leaves them "modified" and shows "Hooks need review", which
+        // the person answers by trusting them again (probed 2026-10-27, 0.164.0; 0.163.0 hashes
+        // the hook's definition alone and keeps its trust). The decoy isn't run by that.
+        await setup.connected?.(run.sandbox, run.model)
         run.model.use(replies("Say the word", "Pelican-7 says hello."))
         const t1 = await start(run, setup)
 

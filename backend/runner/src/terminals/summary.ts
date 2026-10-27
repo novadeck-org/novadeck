@@ -40,4 +40,5 @@ export const savedSummaryOf = (terminal: ListedTerminal): TerminalSummary => ({
   ready: null,
   activity: null,
   telemetry: null,
+  reported: null,
 })

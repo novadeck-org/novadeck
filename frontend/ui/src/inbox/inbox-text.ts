@@ -1,10 +1,8 @@
 import type { ChatDialog, ChatDialogOption, ChatRequest } from "@novadeck/core/conversation"
 import { scrub, textToSend } from "@novadeck/core/feedback-scrub"
 import { harnesses, type AgentName } from "@novadeck/core/harnesses"
-import { inboxType, type InboxItem, type InboxSource, type Trouble } from "@novadeck/core/inbox"
+import { inboxType, type InboxRow, type InboxSource, type Trouble } from "@novadeck/core/inbox"
 import { unsaidWaits, waitsBehind } from "@novadeck/core/messages"
-
-import { informing } from "./inbox-state"
 
 // What the Inbox says about an item, in words: pure, so the rows and the sheet read the
 // same sentences, and so their rules read apart from the markup.
@@ -111,7 +109,7 @@ const feedbackSubject = (text: string, source: InboxSource): string => {
 }
 
 // The row's subject, as the person reads it first: what is asked, or what happened.
-export const subjectOf = (item: InboxItem): string => {
+export const subjectOf = (item: InboxRow): string => {
   switch (item.kind) {
     case "request":
       return requestSubject(item.request)
@@ -131,7 +129,7 @@ export const subjectOf = (item: InboxItem): string => {
 const words = (text: string): number => text.split(/\s+/).filter(Boolean).length
 
 // What the person has to read, in words, for the "N min read" a long item carries.
-const readWords = (item: InboxItem): number => {
+const readWords = (item: InboxRow): number => {
   if (item.kind === "ask") {
     const { shape } = item.ask
     const options =
@@ -145,19 +143,19 @@ const readWords = (item: InboxItem): number => {
 }
 
 // "N min read" only where an item runs past about 120 words.
-export const readLabel = (item: InboxItem): string | null => {
+export const readLabel = (item: InboxRow): string | null => {
   const count = readWords(item)
   return count > 120 ? `${Math.max(1, Math.round(count / 120))} min read` : null
 }
 
 // Where an agent that Novadeck resumes picks up again.
-export const resumesLabel = (item: InboxItem): string | null =>
+export const resumesLabel = (item: InboxRow): string | null =>
   item.kind === "trouble" && item.trouble.type === "limit" && item.trouble.autoResume
     ? `Resumes at ${clock(item.trouble.resetsAt)}`
     : null
 
 // The small line over a sheet's title: who wants what, in words a person would use.
-export const labelOf = (item: InboxItem): string => {
+export const labelOf = (item: InboxRow): string => {
   switch (item.kind) {
     case "request": {
       if (item.request.kind === "question") return "Asks you"
@@ -181,13 +179,13 @@ export const labelOf = (item: InboxItem): string => {
 }
 
 // Whether Novadeck itself speaks, which its sheets mark with its own glyph.
-export const fromNovadeck = (item: InboxItem): boolean =>
+export const fromNovadeck = (item: InboxRow): boolean =>
   item.kind === "trouble" || item.kind === "held"
 
 // The tone of an item's mark, by how it asks for the person: trouble that stopped the
 // agent (urgent), anything that stopped it (waiting), anything else (quiet).
 export type Tone = "urgent" | "waiting" | "quiet"
-export const toneOf = (item: InboxItem): Tone => {
+export const toneOf = (item: InboxRow): Tone => {
   if (!item.stopped) return "quiet"
   // A limit that waits for the person waits, as do messages held for an idle agent: neither
   // has failed.
@@ -285,32 +283,4 @@ export const limitWindow = (minutes: number): string => {
   if (minutes === 10_080) return "weekly"
   if (minutes === 1440) return "daily"
   return minutes % 60 === 0 ? `${minutes / 60}-hour` : `${minutes}-minute`
-}
-
-// How an item stands, for the line over its sheet's title.
-export type Standing = {
-  readonly status: string
-  readonly tone: "urgent" | "waiting" | "calm" | "done"
-}
-export const standingOf = (item: InboxItem, now: number, answered: boolean): Standing => {
-  if (answered) return { status: "answered", tone: "done" }
-  // Neither stops the agent: they say how long they have waited, calmly.
-  if (inboxType(item) === "update" || inboxType(item) === "feedback" || informing(item)) {
-    const ago = waitLabel(item.at, now)
-    return { status: ago === "now" ? "just now" : `${ago} ago`, tone: "calm" }
-  }
-  if (item.kind === "trouble" && item.trouble.type === "limit" && item.trouble.autoResume)
-    return {
-      status:
-        item.trouble.resetsAt <= now
-          ? "resuming"
-          : `resumes in ${waitLabel(now, item.trouble.resetsAt)}`,
-      tone: "calm",
-    }
-  if (item.stopped)
-    return {
-      status: `waiting ${waitLabel(item.at, now)}`,
-      tone: toneOf(item) === "urgent" ? "urgent" : "waiting",
-    }
-  return { status: "still working", tone: "done" }
 }

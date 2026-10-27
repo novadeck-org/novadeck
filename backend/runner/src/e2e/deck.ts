@@ -9,6 +9,7 @@ import type {
   InterruptResult,
   RequestAnswer,
   TerminalMessages,
+  CloseAsk,
   TerminalRequest,
   TerminalSummary,
   TranscriptChange,
@@ -150,6 +151,8 @@ export type Deck = {
   readonly terminals: Terminals
   /** The store of the runner wired now: a restart opens it again. */
   readonly store: WorkspaceStore
+  /** What agents show beside the terminals, as the runner wired now keeps them. */
+  readonly items: ReturnType<typeof wire>["items"]
   readonly sessionId: string
   /** Novadeck's shell files, as its shells read them: the same across restarts. */
   readonly shell: ShellPaths
@@ -169,13 +172,20 @@ export type Deck = {
     options?: { readonly resume?: AgentName },
   ) => Promise<DeckTerminal>
   /**
-   * Answers agents' requests for a new terminal (`open_terminal`) as the app does: opens
+   * Answers agents' requests for a new terminal (`open_terminal`, `open_agent`) as the app does: opens
    * one in the request's folder, starting its command, created for the request, and
    * answers with it once its shell has started. It answers every request from the call
    * on, across restarts, until the deck closes, and gives the terminals it opened in the
    * order they opened.
    */
   readonly answerRequests: () => Requests
+  /**
+   * Answers agents' asks to close a terminal (`close_terminal` on one that runs an agent
+   * its caller doesn't lead) as the person would: confirming each, or keeping the terminal
+   * open when `close` is false. It answers every ask from the call on, across restarts,
+   * until the deck closes, and gives the asks in the order they came.
+   */
+  readonly answerCloseAsks: (close: boolean) => CloseAsks
   /**
    * Closes the runner as Novadeck does when it quits, saving every terminal and ending
    * its shells, then wires another, as Novadeck starts again, on the same database, shell
@@ -190,6 +200,12 @@ export type Deck = {
    */
   readonly report: () => Promise<string>
   readonly close: () => Promise<void>
+}
+
+/** The asks to close a terminal the deck answered. */
+export type CloseAsks = {
+  /** The next ask no earlier call took, once it comes; fails after the timeout (a minute unless given). */
+  readonly next: (timeoutMs?: number) => Promise<Extract<CloseAsk, { type: "ask" }>>
 }
 
 /** The terminals the deck opened for agents' requests. */
@@ -521,6 +537,7 @@ type Runner = {
   readonly store: WorkspaceStore
   readonly agents: ReturnType<typeof wire>["agents"]
   readonly terminals: Terminals
+  readonly items: ReturnType<typeof wire>["items"]
   /** Aborts as the runner closes, ending every watch of it. */
   readonly closing: AbortController
 }
@@ -589,7 +606,7 @@ const now = async <T>(stream: (signal: AbortSignal) => AsyncGenerator<T>): Promi
 export const createDeck = async (options: DeckOptions): Promise<Deck> => {
   const shellFolder = join(options.data, "shell")
   const start = async (): Promise<Runner> => {
-    const { store, shellFiles, agents, terminals } = wire({
+    const { store, shellFiles, agents, terminals, items } = wire({
       database: join(options.data, "workspace.sqlite"),
       shell: shellFolder,
       // Plugin commands run with the sandbox's environment as it is: a login shell's
@@ -609,7 +626,7 @@ export const createDeck = async (options: DeckOptions): Promise<Deck> => {
       store.close()
       throw new Error("Novadeck's shell files could not be written")
     }
-    return { store, agents, terminals, closing: new AbortController() }
+    return { store, agents, terminals, items, closing: new AbortController() }
   }
 
   let runner = await start()
@@ -829,12 +846,35 @@ export const createDeck = async (options: DeckOptions): Promise<Deck> => {
     })()
   }
 
+  // The asks to close a terminal, once the test asks the deck to answer them, and how.
+  let closeAsks: ReturnType<typeof arrivals<Extract<CloseAsk, { type: "ask" }>>> | undefined
+  let confirming = true
+  // Follows the runner's close asks until it closes, answering each as the person would.
+  const confirm = (on: Runner) => {
+    const asks = closeAsks
+    if (!asks) return
+    void (async () => {
+      try {
+        for await (const ask of on.terminals.closeAsks(owner, on.closing.signal)) {
+          if (ask.type !== "ask") continue
+          on.terminals.answerCloseAsk({ requestId: ask.requestId, close: confirming }, owner)
+          asks.push(ask)
+        }
+      } catch (error) {
+        if (!on.closing.signal.aborted) asks.fail(error as Error)
+      }
+    })()
+  }
+
   return {
     get terminals() {
       return runner.terminals
     },
     get store() {
       return runner.store
+    },
+    get items() {
+      return runner.items
     },
     sessionId: session.id,
     shell: shellPaths(shellFolder),
@@ -871,6 +911,14 @@ export const createDeck = async (options: DeckOptions): Promise<Deck> => {
       }
       return { next: requests.next }
     },
+    answerCloseAsks: (close) => {
+      confirming = close
+      if (!closeAsks) {
+        closeAsks = arrivals("an ask to close a terminal")
+        confirm(runner)
+      }
+      return { next: closeAsks.next }
+    },
     restart: async () => {
       await stop(runner, options.model)
       const left = (await options.leftovers?.()) ?? []
@@ -880,6 +928,7 @@ export const createDeck = async (options: DeckOptions): Promise<Deck> => {
         )
       runner = await start()
       answer(runner)
+      confirm(runner)
     },
     report: async () => {
       const open = watched.filter((one) => one.on === runner)

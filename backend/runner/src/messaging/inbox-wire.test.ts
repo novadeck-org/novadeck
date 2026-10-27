@@ -1,4 +1,4 @@
-import { agentActivity, inboxLetter } from "@novadeck/protocol"
+import { agentActivity, inboxEntry } from "@novadeck/protocol"
 import { describe, expect, it } from "vitest"
 
 const base = {
@@ -19,11 +19,11 @@ const turn = {
   files: [],
 }
 
-describe("the turn letter on the wire", () => {
+describe("the turn entry on the wire", () => {
   it("accepts a completed and a failed turn", () => {
-    expect(inboxLetter.safeParse({ ...base, content: turn }).success).toBe(true)
+    expect(inboxEntry.safeParse({ ...base, content: turn }).success).toBe(true)
     expect(
-      inboxLetter.safeParse({
+      inboxEntry.safeParse({
         ...base,
         content: { ...turn, outcome: "failed", reply: null, error: "boom" },
       }).success,
@@ -37,8 +37,27 @@ describe("the turn letter on the wire", () => {
       { ...turn, files: Array.from({ length: 17 }, (_, i) => `/f${i}`) },
       { ...turn, reply: "" },
     ]) {
-      expect(inboxLetter.safeParse({ ...base, content }).success).toBe(false)
+      expect(inboxEntry.safeParse({ ...base, content }).success).toBe(false)
     }
+  })
+})
+
+describe("a settled ask on the wire", () => {
+  const ask = {
+    kind: "ask" as const,
+    ask: { subject: "S", body: "B", details: null, hardToUndo: null, shape: { type: "text" } },
+  }
+  it("takes how and when it ended, and refuses other causes and keys", () => {
+    for (const how of ["dismissed", "withdrawn", "replied"])
+      expect(inboxEntry.safeParse({ ...base, content: ask, settled: { how, at: 2 } }).success).toBe(
+        true,
+      )
+    for (const settled of [
+      { how: "answered", at: 2 },
+      { how: "dismissed" },
+      { how: "dismissed", at: 2, extra: 1 },
+    ])
+      expect(inboxEntry.safeParse({ ...base, content: ask, settled }).success).toBe(false)
   })
 })
 

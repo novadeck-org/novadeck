@@ -2,8 +2,10 @@ import { setups } from "./agents/index.js"
 import { describe, e2e, expect, supported } from "./fixture.js"
 import { latest } from "./model/script.js"
 import {
+  askedToClose,
   closed,
   closes,
+  closingSelf,
   deliveries,
   delivered,
   holds,
@@ -55,16 +57,24 @@ for (const setup of setups) {
       await t1.reached("settled", { after: mark })
     })
 
-    it("closes another terminal it was asked to, ending the agent there and its shell", async ({
-      e2e: run,
-    }) => {
+    it("closes a terminal of an agent it leads at once", async ({ e2e: run }) => {
+      const requests = run.deck.answerRequests()
       run.model.use(
+        opens("Start a helper", setup.agent, "Count the files in src."),
+        own((call) => (opened(call, "fox") ? { text: "Started fox." } : undefined)),
+        own((call) => (delivered(call, "moth") ? { text: "Counting now." } : undefined)),
         closes("Close fox", "fox"),
         own((call) => (closed(call, "fox") ? { text: "Closed it." } : undefined)),
       )
       const t1 = await start(run, setup)
-      const t2 = await start(run, setup)
-      expect(t2.handle).toBe("fox")
+      await t1.submit("Start a helper")
+      const t2 = await requests.next()
+      await t1.until("Started fox.")
+      await t1.reached("settled")
+      // Its helper finishes its brief first: Claude Code on macOS keeps the Mac awake with
+      // caffeinate while a turn runs, which a close mid-turn leaves behind.
+      await t2.until("Counting now.")
+      await t2.reached("settled")
       const calls = run.model.mark()
       const mark = t1.mark()
 
@@ -74,11 +84,105 @@ for (const setup of setups) {
       expect(result(after)).toMatch(/Closed @fox(?: · [^,]+)?, which ran \S/)
       await t1.until("Closed it.")
       await t1.reached("settled", { after: mark })
-      // Gone from the runner, as the person's close leaves it: its shell ended and forgotten.
+      expect(() => run.deck.terminals.get(t2.id)).toThrow(
+        expect.objectContaining({ code: "TERMINAL_NOT_FOUND" }),
+      )
+    })
+
+    it("closes another agent's terminal once the user confirms, and tells the agent that asked", async ({
+      e2e: run,
+    }) => {
+      const asks = run.deck.answerCloseAsks(true)
+      run.model.use(
+        closes("Close fox", "fox"),
+        own((call) => (askedToClose(call, "fox") ? { text: "Asked." } : undefined)),
+        own((call) => (delivered(call, "novadeck") ? { text: "Closed it." } : undefined)),
+      )
+      const t1 = await start(run, setup)
+      const t2 = await start(run, setup)
+      expect(t2.handle).toBe("fox")
+      const calls = run.model.mark()
+      const mark = t1.mark()
+
+      await t1.submit("Close fox")
+
+      const after = await run.model.waitFor((call) => askedToClose(call, "fox"), { after: calls })
+      expect(result(after)).toMatch(/Asked the user to confirm closing @fox/)
+      await t1.until("Asked.")
+      const ask = await asks.next()
+      expect(ask).toMatchObject({ from: t1.id, terminalId: t2.id })
+      // The person's yes comes back to the agent as a message from Novadeck.
+      const told = await run.model.waitFor((call) => delivered(call, "novadeck"), { after: calls })
+      // The one notice, which Claude Code's continuation quotes twice when the notice comes
+      // while the turn runs: as the Stop hook's feedback and again as its blocking error.
+      expect([...new Set(deliveries(told).map((one) => one.text))]).toEqual([
+        expect.stringContaining("The user confirmed closing @fox"),
+      ])
+      await t1.until("Closed it.")
+      await t1.reached("settled", { after: mark })
       expect(() => run.deck.terminals.get(t2.id)).toThrow(
         expect.objectContaining({ code: "TERMINAL_NOT_FOUND" }),
       )
       expect(run.deck.store.terminal(t2.id)).toBeUndefined()
+    })
+
+    it("keeps another agent's terminal open when the user declines, and tells the agent", async ({
+      e2e: run,
+    }) => {
+      const asks = run.deck.answerCloseAsks(false)
+      run.model.use(
+        closes("Close fox", "fox"),
+        own((call) => (askedToClose(call, "fox") ? { text: "Asked." } : undefined)),
+        own((call) => (delivered(call, "novadeck") ? { text: "Left it." } : undefined)),
+      )
+      const t1 = await start(run, setup)
+      const t2 = await start(run, setup)
+      const calls = run.model.mark()
+
+      await t1.submit("Close fox")
+
+      await asks.next()
+      const told = await run.model.waitFor((call) => delivered(call, "novadeck"), { after: calls })
+      // The one notice, which Claude Code's continuation quotes twice: as the Stop hook's
+      // feedback and again as its blocking error (2.1.287). The deck answers at once, so it
+      // comes while the turn still runs, to be carried by its Stop.
+      expect([...new Set(deliveries(told).map((one) => one.text))]).toEqual([
+        expect.stringContaining("The user kept @fox"),
+      ])
+      await t1.until("Left it.")
+      expect(run.deck.terminals.get(t2.id).exit).toBeNull()
+    })
+
+    it("closes its own terminal when the agent asks, a moment after answering", async ({
+      e2e: run,
+    }) => {
+      run.model.use(
+        closes("Close yourself", "moth"),
+        own((call) => (closingSelf(call, "moth") ? { text: "Bye." } : undefined)),
+      )
+      const t1 = await start(run, setup)
+      expect(t1.handle).toBe("moth")
+
+      await t1.submit("Close yourself")
+
+      // Only its own close_terminal closes it. Its shell ends a moment after the answer,
+      // which on Windows takes the agent's whole process tree a few seconds: as long as the
+      // deck's other waits allow. Whether the agent passed the answer on to its model before
+      // then is the harness's timing, so the answer's text is the integration tests' to check.
+      await expect
+        .poll(
+          () => {
+            try {
+              run.deck.terminals.get(t1.id)
+              return false
+            } catch {
+              return true
+            }
+          },
+          { timeout: 30_000 },
+        )
+        .toBe(true)
+      expect(run.deck.store.terminal(t1.id)).toBeUndefined()
     })
   })
 }

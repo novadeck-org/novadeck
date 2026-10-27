@@ -108,6 +108,17 @@ describe("desktop notices", () => {
       ])
     })
 
+    it("passes the theme's sound, and drops a name the host does not have", () => {
+      const { bridge, shown } = host()
+      const notices = desktopNotices({ ...bridge, notificationsSound: true } as DesktopHost)!
+      notices.show({ id: "01", title: "@moth is done", body: "", sound: "afterglow" })
+      notices.show({ id: "02", title: "@moth is done", body: "", sound: "../x" as never })
+      expect(shown).toEqual([
+        { id: "01", title: "@moth is done", body: "", sound: "afterglow" },
+        { id: "02", title: "@moth is done", body: "" },
+      ])
+    })
+
     it("claims no sound in a host that lacks it", () => {
       expect(desktopNotices(host().bridge)!.sounds).toBeUndefined()
     })
@@ -503,6 +514,13 @@ const portableHost = (first: unknown) => {
   return { bridge, push: (state: unknown) => push?.(state), installs: () => installs }
 }
 
+const idleState = () => ({
+  portable: true,
+  version: "0.0.70",
+  run: "0a1b-2c3d",
+  install: { phase: "idle" },
+})
+
 describe("a host's portable copy", () => {
   it("fits the protocol's, which the page's own copy must keep to", () => {
     const states: PortableState[] = [
@@ -522,6 +540,13 @@ describe("a host's portable copy", () => {
         run: "0a1b-2c3d",
         install,
       })),
+      {
+        portable: true as const,
+        version: "0.0.70",
+        run: "0a1b-2c3d",
+        install: { phase: "idle" as const },
+        dataFolder: "/home/me/.config/novadeck",
+      },
     ]
     const theirs: BridgePortable[] = states
     const back: PortableState[] = theirs
@@ -535,11 +560,50 @@ describe("a host's portable copy", () => {
   })
 
   it("is portable with its version and install, or not", async () => {
-    const idle = { portable: true, version: "0.0.70", run: "0a1b-2c3d", install: { phase: "idle" } }
+    const idle = idleState()
     expect(await desktopPortable(portableHost({ portable: false }).bridge)!.state()).toEqual({
       portable: false,
     })
     expect(await desktopPortable(portableHost(idle).bridge)!.state()).toEqual(idle)
+  })
+
+  it("keeps a plain data folder, and leaves out one that is no path", async () => {
+    const folder = { ...idleState(), dataFolder: "/home/me/.config/novadeck" }
+    expect(await desktopPortable(portableHost(folder).bridge)!.state()).toEqual(folder)
+    const odd = { ...idleState(), dataFolder: "/home/me/\nx" }
+    expect(await desktopPortable(portableHost(odd).bridge)!.state()).toEqual(idleState())
+  })
+
+  it("carries the calls the host has, and reads the news as the contract allows", async () => {
+    const calls: string[] = []
+    const bridge = {
+      portable: () => Promise.resolve({ portable: false }),
+      installApp: () => {},
+      onPortableState: () => () => {},
+      openPortableDownload: () => void calls.push("download"),
+      showDataFolder: () => void calls.push("folder"),
+      updateNews: () =>
+        Promise.resolve({
+          version: "0.0.80",
+          from: "0.0.70",
+          highlights: [{ title: "A", line: "B" }, { nope: 1 }],
+        }),
+    } as unknown as DesktopHost
+    const portable = desktopPortable(bridge)!
+    portable.openDownload?.()
+    portable.showDataFolder?.()
+    expect(calls).toEqual(["download", "folder"])
+    expect(await portable.news?.()).toEqual({
+      version: "0.0.80",
+      from: "0.0.70",
+      highlights: [{ title: "A", line: "B" }],
+    })
+    const bare = desktopPortable(portableHost({ portable: false }).bridge)!
+    expect([bare.openDownload, bare.showDataFolder, bare.news]).toEqual([
+      undefined,
+      undefined,
+      undefined,
+    ])
   })
 
   it("is not taken from an answer that is none of the contract's", async () => {

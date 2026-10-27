@@ -195,7 +195,13 @@ export type Conversations = {
   readonly conversation: (key: ConversationKey) => Store<Conversation>
   // Gives the terminal's agent a prompt as the person would type it into its box, then
   // Enter. Rejects with an Error whose message tells the person why it didn't go.
-  readonly send: (key: ConversationKey, text: string) => Promise<void>
+  // `automatic` marks a fixed line an Inbox button sends, not words the person wrote: the
+  // agent's turn on it takes no open ask out of the Inbox.
+  readonly send: (
+    key: ConversationKey,
+    text: string,
+    options?: { readonly automatic?: true },
+  ) => Promise<void>
   // Stops the agent's turn, as Escape in its TUI does. Resolves with the words the person
   // had queued behind the turn, which the agent gave back and the chat's box takes again,
   // or null. Rejects as `send` does.

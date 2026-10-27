@@ -3,7 +3,7 @@ import { join } from "node:path"
 import { setups } from "./agents/index.js"
 import { describe, e2e, expect, supported } from "./fixture.js"
 import { asked, tool, type Call } from "./model/script.js"
-import { delivered, own, result, start, through, turn } from "./scenarios.js"
+import { delivered, own, replies, result, start, through, turn } from "./scenarios.js"
 
 const record = (value: unknown): Readonly<Record<string, unknown>> =>
   typeof value === "object" && value !== null && !Array.isArray(value)
@@ -18,6 +18,8 @@ const parameters = (call: Call, name: string, reading: boolean): unknown => {
       result(call)
         ?.split("\n")
         .filter((line) => /^\d+: /.test(line)) ?? []
+    // A failed read has no numbered lines, and parsing nothing would only fail as a bad body.
+    if (lines.length === 0) throw new Error("read_file gave no schema: " + result(call))
     return record(JSON.parse(lines.map((line) => line.replace(/^\d+: /, "")).join("\n"))).parameters
   }
   const offered = (call.rawTools ?? [])
@@ -88,11 +90,11 @@ const usable = (schema: unknown) => {
   })
 }
 
-// The same MCP tools and mail path for every supported harness.
+// The same MCP tools and message path for every supported harness.
 for (const setup of setups) {
   describe.skipIf(!supported)(setup.name, () => {
     const it = e2e(setup)
-    it("asks and tells through Inbox immediately, then receives the person's answer as mail", async ({
+    it("asks and tells through Inbox immediately, then receives the person's answer as a message", async ({
       e2e: run,
     }) => {
       run.model.use(
@@ -107,8 +109,15 @@ for (const setup of setups) {
                   entry.name === "read_file" && /[/\\]ask\.json$/.test(String(entry.input.Path)),
               ) === true
           if (asked(call, "Ask through Inbox") && call.tools.includes("call_mcp_tool")) {
-            const folder = /directory `([^`]+)[/\\]<serverName>`/.exec(call.system)?.[1]
-            if (!folder) throw new Error("Antigravity named no MCP schema folder")
+            const named = /directory `([^`]+)[/\\]<serverName>`/.exec(call.system)?.[1]
+            if (!named) throw new Error("Antigravity named no MCP schema folder")
+            // 1.4.3 names the folder in full. 1.4.7 names it under a literal `<appDataDir>`
+            // that read_file refuses as "not an absolute path", and gives that folder on its
+            // own line of the system prompt, for the model to put in (probed 2026-10-27).
+            const home = /^App Data Directory: (.+)$/m.exec(call.system)?.[1]?.trim()
+            if (named.includes("<appDataDir>") && !home)
+              throw new Error("Antigravity named no app data directory")
+            const folder = home ? named.replace("<appDataDir>", () => home) : named
             return {
               calls: [
                 {
@@ -153,7 +162,9 @@ for (const setup of setups) {
             }
           }
           if (
-            result(call)?.includes(" is in the user's Inbox. Their answer arrives later as mail")
+            result(call)?.includes(
+              " is in the user's Inbox. Their answer arrives later as a message",
+            )
           ) {
             const name = tool(call, "tell")
             if (!name)
@@ -181,9 +192,9 @@ for (const setup of setups) {
       const terminal = await start(run, setup)
       // Reaching a final reply before answering proves ask did not wait synchronously.
       await turn(terminal, "Ask through Inbox", "I continued without waiting for the answer.")
-      const letters = run.deck.terminals.inboxLetters()
-      const ask = letters.find((each) => each.content.kind === "ask")!
-      const told = letters.find((each) => each.content.kind === "tell")!
+      const entries = run.deck.terminals.inboxEntries()
+      const ask = entries.find((each) => each.content.kind === "ask")!
+      const told = entries.find((each) => each.content.kind === "tell")!
       expect(ask.terminalId).toBe(terminal.id)
       expect(ask.content).toMatchObject({
         kind: "ask",
@@ -204,12 +215,12 @@ for (const setup of setups) {
           .every((message) => message.state === "delivered"),
       ).toBe(true)
       run.deck.terminals.readTells([told.id])
-      // The agent's finished turn is a letter too, stored once it rests: not what is asked here.
+      // The agent's finished turn is an entry too, stored once it rests: not what is asked here.
       const waiting = () =>
-        run.deck.terminals.inboxLetters().filter((each) => each.content.kind !== "turn")
+        run.deck.terminals.inboxEntries().filter((each) => each.content.kind !== "turn")
       expect(waiting().map((each) => each.id)).toEqual([ask.id])
       const mark = terminal.mark()
-      // This is the same runner operation that the authenticated UI's asks.answer calls.
+      // This is the same runner operation that the authenticated UI's inbox.answer calls.
       run.deck.terminals.answerAsk(ask.id, { type: "reply", option: 1, text: "Use green, please." })
       expect(() =>
         run.deck.terminals.answerAsk(ask.id, { type: "reply", option: null, text: "Again" }),
@@ -237,7 +248,57 @@ for (const setup of setups) {
       expect(history.some((message) => message.inbox === "tell")).toBe(true)
     })
 
-    it("shows an action ask and receives its confirmation as mail", async ({ e2e: run }) => {
+    it("lists a peer's done to other agents until its next prompt, then as its latest update", async ({
+      e2e: run,
+    }) => {
+      // A tool is named as any terminal's request offers it: one may go out before its
+      // MCP tools load.
+      const named = (call: Call, name: string): string => {
+        const found = [call, ...run.model.calls].map((one) => tool(one, name)).find(Boolean)
+        if (!found) throw new Error(`Novadeck's ${name} tool is missing`)
+        return found
+      }
+      const listings: string[] = []
+      run.model.use(
+        own((call) => {
+          if (asked(call, "Finish up"))
+            return {
+              calls: [
+                {
+                  name: named(call, "done"),
+                  input: { subject: "Fixed the login bug", body: "All green." },
+                },
+              ],
+            }
+          if (/Report [a-f0-9-]+ is in the user's Inbox/.test(result(call) ?? ""))
+            return { text: "Reported it done." }
+          if (asked(call, "Look around") || asked(call, "Look again"))
+            return { calls: [{ name: named(call, "agents"), input: {} }] }
+          const listing = result(call)
+          if (listing?.includes("Other terminals in this project and session")) {
+            listings.push(listing)
+            return { text: `Looked ${listings.length}.` }
+          }
+          return undefined
+        }),
+        replies("Next task", "On the next task."),
+      )
+      const t1 = await start(run, setup)
+      const t2 = await start(run, setup)
+
+      await turn(t2, "Finish up", "Reported it done.")
+      await turn(t1, "Look around", "Looked 1.")
+      expect(listings[0]).toMatch(/\n {2}reported done [^:\n]+: Fixed the login bug\n?/)
+      expect(listings[0]).not.toContain("latest update")
+
+      // The person's next prompt gave it more to do: the done is only its latest update now.
+      await turn(t2, "Next task", "On the next task.")
+      await turn(t1, "Look again", "Looked 2.")
+      expect(listings[1]).toMatch(/\n {2}latest update [^:\n]+: Fixed the login bug\n?/)
+      expect(listings[1]).not.toContain("reported done")
+    })
+
+    it("shows an action ask and receives its confirmation as a message", async ({ e2e: run }) => {
       run.model.use(
         own((call) => {
           if (delivered(call, "you")) return { text: "I received your action confirmation." }
@@ -269,7 +330,7 @@ for (const setup of setups) {
       )
       const terminal = await start(run, setup)
       await turn(terminal, "Ask for an action", "I continued while you sign in.")
-      const action = run.deck.terminals.inboxLetters().find((each) => each.content.kind === "ask")!
+      const action = run.deck.terminals.inboxEntries().find((each) => each.content.kind === "ask")!
       expect(action.content).toMatchObject({
         kind: "ask",
         ask: {
