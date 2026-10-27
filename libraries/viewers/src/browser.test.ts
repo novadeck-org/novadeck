@@ -102,19 +102,23 @@ describe("the browser viewer", () => {
       expect(loads.at(-1)).toBe("failed")
     })
 
-    it("keeps its ground under the page only while it loads", () => {
+    it("keeps its ground under the page only until it paints, not through later loads", () => {
       const host = hostIn()
       host.style.setProperty("--browser-page-bg", "rgb(255, 255, 255)")
       live(host)
       const page = pageOf(host)
       attach(page, { url: "http://localhost:5173/", back: false, forward: false })
       const ground = (): string => getComputedStyle(page).backgroundColor
-      expect(ground()).toBe("rgb(255, 255, 255)")
-      // Loaded, nothing is under it: a page drawn a device pixel short shows no line.
-      page.dispatchEvent(event("did-stop-loading"))
-      expect(ground()).toBe("rgba(0, 0, 0, 0)")
       page.dispatchEvent(event("did-start-loading"))
       expect(ground()).toBe("rgb(255, 255, 255)")
+      // Painting its own, nothing is under it: a page drawn a device pixel short shows no
+      // line, though what it waits on hasn't loaded.
+      page.dispatchEvent(event("dom-ready"))
+      expect(ground()).toBe("rgba(0, 0, 0, 0)")
+      page.dispatchEvent(event("did-stop-loading"))
+      // A later load keeps the last frame over it.
+      page.dispatchEvent(event("did-start-loading"))
+      expect(ground()).toBe("rgba(0, 0, 0, 0)")
     })
 
     it("goes back, forward and reloads when asked, and stays quiet when told", () => {
