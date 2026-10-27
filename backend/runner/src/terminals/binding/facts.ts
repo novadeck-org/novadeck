@@ -55,6 +55,8 @@ export type BindingsHost = {
   readonly turns: () => TurnsHost
   /** Whether process `pid` still runs. */
   readonly alive: (pid: string) => boolean
+  /** How often foreground processes are sampled: how long a shell outlives its agent to count. */
+  readonly pollMs: number
 }
 
 /**
@@ -81,20 +83,42 @@ export class Bindings {
     if (!binding?.instance || this.host.alive(binding.instance)) return false
     record.left = binding
     // The agent's process is gone: the lead it had ends with it.
-    this.endLead(record)
+    this.endLeadGone(record)
     return this.endBinding(record)
   }
 
   /**
-   * Ends the terminal's lead, as the agent it led exited: kept, shown to watchers, and
-   * told to messaging, so what the former lead sends reads as a peer's from then on.
+   * Ends the terminal's lead as the agent it led is found gone, its process or the shell's
+   * prompt telling. Windows ends every console program just before its shell as it shuts
+   * down, and the runner stops only after: there the lead ends once the shell has outlived
+   * its agent for a sample's time, so an agent ended that way resumes still led, as its
+   * session resumes (`Sampler.prompted`). The runner stopping, or the shell ending or
+   * replaced meanwhile, keeps it. It is kept with the terminal's next save, as the
+   * session the sampler let go of at the same moment is, so no saved terminal resumes its
+   * agent unled.
    */
-  endLead(record: Record): void {
+  endLeadGone(record: Record): void {
+    if (process.platform !== "win32") return this.endLead(record)
+    const shell = record.terminal.pty
+    setTimeout(() => {
+      if (this.host.stopping() || record.closed || record.terminal.pty !== shell) return
+      if (record.terminal.exit !== null || record.terminal.exiting) return
+      this.endLead(record, false)
+    }, this.host.pollMs).unref()
+  }
+
+  /**
+   * Ends the terminal's lead, as the agent it led exited: kept (at once, or with the
+   * terminal's next save), shown to watchers, and told to messaging, so what the former
+   * lead sends reads as a peer's from then on.
+   */
+  endLead(record: Record, now = true): void {
     if (record.summary.ledBy === null) return
     record.summary = { ...record.summary, ledBy: null }
     record.suspended = null
     this.host.messaging().endLead(record.summary.id)
-    this.host.save(record)
+    if (now) this.host.save(record)
+    else record.changed = true
     this.host.announce(record)
   }
 
