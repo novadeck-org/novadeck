@@ -207,9 +207,10 @@ while the helper's answer is on its way); a second press ends whoever works by t
 told, an agent works until cue 6; `frontend/demo/src/babcia.ts`). Every variant's Inbox
 lists what its agents wait on, built as the runner's is. In it each
 agent carries a transcript, and api-service's worker a brief from its lead, so an item's
-sheet shows the context block the runner gives it: the last words the agent was given (the person's, or a
-lead's handoff, by its handle), and under them up to three steps since that edited, ran or
-failed, each with what came of it (`+4 −2`, a command's last line, the error). The switcher in the panel's header,
+sheet shows the context block built from its transcript: the person's last words to the agent
+(never another agent's, so the worker its lead briefed shows none), and under them up to three
+steps since that edited, ran or failed, each with what came of it (`+4 −2`, a command's last
+line, the error). The switcher in the panel's header,
 which leaves out `welcome`, `chirp` and `babcia`, changes between them without reloading
 (pressing the current one boots it again), and the browser tab remembers the last one chosen.
 `&turnMs=` sets how long a demo agent's turn works (1500 ms unless given), as a spec does
