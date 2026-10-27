@@ -755,9 +755,14 @@ describe("a lead that lasts only for its brief, over the real messaging", () => 
     expect(later.ok && messaging.isFromLead(later.id)).toBe(false)
   })
 
-  it("keeps waiting on the brief while the terminal is only between records, and lets go when it closes", () => {
-    const { messaging, brief } = world()
+  it("keeps the brief while the terminal is only between records, and lets go when it closes", async () => {
+    const { messaging, records, brief } = world()
+    // Its record is let go before the shell exits, as when an exited terminal is evicted.
+    records.delete("id-fox")
     messaging.unregister("id-fox")
+    await settle()
+    // The release found no record to end the lead of, and ended nothing: the entry survives.
+    expect(messaging.stateOf(brief.id)).toBe("gone")
     expect(messaging.briefOf("id-fox")).toBe(brief.id)
     messaging.unregister("id-fox", true)
     expect(messaging.briefOf("id-fox")).toBeUndefined()
