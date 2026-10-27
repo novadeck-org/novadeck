@@ -71,6 +71,10 @@ for (const setup of setups) {
       const t2 = await requests.next()
       await t1.until("Started fox.")
       await t1.reached("settled")
+      // Its helper finishes its brief first: Claude Code on macOS keeps the Mac awake with
+      // caffeinate while a turn runs, which a close mid-turn leaves behind.
+      await t2.until("Counting now.")
+      await t2.reached("settled")
       const calls = run.model.mark()
       const mark = t1.mark()
 
