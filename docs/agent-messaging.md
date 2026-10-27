@@ -1642,7 +1642,7 @@ output, not that the model acted on it.
 
 - **Stop.** The person can stop a thread (`messages.stop`). Its messages still queued or
   held are `gone`, each marked stopped so its sender's next answer says "won't arrive: the
-  user stopped that thread in Novadeck."; a message a lease holds finishes, and if its
+  user stopped it in Novadeck."; a message a lease holds finishes, and if its
   lease lapses or the runner restarts first it is `gone` too, never queued again. The
   recipient is told nothing. The thread keeps a `stoppedAt`, stored, and a `send` between
   the pair is refused, whichever end sends, until 10 minutes (a thread's length) after the
