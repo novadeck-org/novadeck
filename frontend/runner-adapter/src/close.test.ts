@@ -67,7 +67,7 @@ const droppingRunner = () => {
       list: async () => [],
       watch: nothing,
       requests: nothing,
-      closeAsks: nothing,
+      approvals: nothing,
       create: async (input: { readonly id: string }) => {
         if (shells.has(input.id)) throw new WireError("CONFLICT", "taken")
         shells.add(input.id)
@@ -173,7 +173,7 @@ const holdingRunner = (close: (id: string) => Promise<void>) => {
         return changes.iterator
       },
       requests: () => channel<never>().iterator,
-      closeAsks: () => channel<never>().iterator,
+      approvals: () => channel<never>().iterator,
       close: async (terminalId: string) => {
         if (status.state !== "connected") throw new WireError("DISCONNECTED", "lost")
         calls.push(terminalId)

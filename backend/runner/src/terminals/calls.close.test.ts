@@ -3,8 +3,8 @@ import { afterEach, beforeEach, vi } from "vitest"
 
 import type { Messaging, PeerAnswer } from "../messaging/messaging.js"
 import { describe, expect, it } from "../test.js"
+import { Approvals } from "./approvals.js"
 import { Calls, type CallsHost } from "./calls.js"
-import { CloseAsks } from "./closeasks.js"
 import { closeNotice, selfCloseMs } from "./closes.js"
 import type { Record } from "./record.js"
 
@@ -27,7 +27,7 @@ const setup = (
 ) => {
   const ids = Object.keys(runs)
   const records = new Map(ids.map((handle) => [`id-${handle}`, terminal(`id-${handle}`, handle)]))
-  const asks = new CloseAsks()
+  const asks = new Approvals()
   const steps: string[] = []
   const notices: { to: string; text: string; always?: true }[] = []
   let stopping = false
@@ -53,7 +53,7 @@ const setup = (
           : { ok: false, reason: `"${to}" is no terminal's handle here.` }
       },
     }),
-    closeAsks: () => asks,
+    approvals: () => asks,
     closingNow: () => false,
     closeForGood: (record: Record) => {
       record.closed = true
@@ -86,7 +86,7 @@ const setup = (
 }
 
 // The client following the asks, collecting what it is sent.
-const person = (asks: CloseAsks) => {
+const person = (asks: Approvals) => {
   const items: { type: string; requestId: string }[] = []
   void (async () => {
     for await (const item of asks.follow("person")) items.push(item)
@@ -204,6 +204,7 @@ describe("an agent closing another agent's terminal", () => {
         from: "id-moth",
         terminalId: "id-fox",
         sessionId: "session",
+        action: { type: "close" },
       },
     ])
     expect(run.steps).toEqual([])
@@ -214,7 +215,7 @@ describe("an agent closing another agent's terminal", () => {
     const asked = person(run.asks)
     await run.close("moth", "fox")
     await settle()
-    run.asks.answer({ requestId: asked[0]!.requestId, close: true }, "person")
+    run.asks.answer({ requestId: asked[0]!.requestId, approved: true }, "person")
     await settle()
     expect(run.steps).toEqual(["closing fox", "ended fox", "removed fox", "forgot id-fox"])
     expect(run.notices).toEqual([
@@ -227,7 +228,7 @@ describe("an agent closing another agent's terminal", () => {
     const asked = person(run.asks)
     await run.close("moth", "fox")
     await settle()
-    run.asks.answer({ requestId: asked[0]!.requestId, close: false }, "person")
+    run.asks.answer({ requestId: asked[0]!.requestId, approved: false }, "person")
     await settle()
     expect(run.steps).toEqual([])
     expect(run.notices).toEqual([
@@ -248,7 +249,7 @@ describe("an agent closing another agent's terminal", () => {
     ])
     // A late yes closes nothing.
     expect(() =>
-      run.asks.answer({ requestId: asked[0]!.requestId, close: true }, "person"),
+      run.asks.answer({ requestId: asked[0]!.requestId, approved: true }, "person"),
     ).toThrow(expect.objectContaining({ code: "NOT_FOUND" }))
     expect(run.steps).toEqual([])
   })
@@ -260,7 +261,7 @@ describe("an agent closing another agent's terminal", () => {
     await settle()
     // Its record went without the ask hearing of it.
     run.records.get("id-fox")!.closed = true
-    run.asks.answer({ requestId: asked[0]!.requestId, close: true }, "person")
+    run.asks.answer({ requestId: asked[0]!.requestId, approved: true }, "person")
     await settle()
     expect(run.steps).toEqual([])
     expect(run.notices).toEqual([

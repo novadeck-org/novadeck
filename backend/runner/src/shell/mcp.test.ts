@@ -158,6 +158,8 @@ describe("Novadeck's MCP server", () => {
         "open_terminal",
         "open_agent",
         "close_terminal",
+        "lead",
+        "release",
         "send",
         "agents",
         "summarize",
@@ -643,6 +645,33 @@ describe("Novadeck's MCP server", () => {
       expect(close.inputSchema).toMatchObject({ required: ["to"], additionalProperties: false })
     })
 
+    it("asks to lead and releases through the runner, and tells what follows", async () => {
+      calls.length = 0
+      answer = { ok: true, asked: true, handle: "fox", title: "Build", ran: "Codex" }
+      const replies = await session(terminal(), [
+        initialize,
+        {
+          id: 3,
+          method: "tools/call",
+          params: { name: "lead", arguments: { to: "fox", message: "Fix lint.", extra: 1 } },
+        },
+        { id: 4, method: "tools/call", params: { name: "lead", arguments: { to: "fox" } } },
+        { id: 5, method: "tools/call", params: { name: "release", arguments: { to: "fox" } } },
+      ])
+      // The refusal comes before the runner's answers, so each is found by its id.
+      const [led, none, released] = [3, 4, 5].map((id) => replies.find((reply) => reply?.id === id))
+      expect(calls.map(({ type, request }) => ({ type, request }))).toEqual([
+        { type: "lead", request: { to: "fox", message: "Fix lint." } },
+        { type: "release", request: { to: "fox" } },
+      ])
+      const text = (reply: typeof led) =>
+        (reply as { result: { content: { text: string }[] } }).result.content[0]!.text
+      expect(text(led)).toMatch(/^Asked the user to let you lead @fox · Build, which runs Codex\./)
+      expect(text(led)).toContain("End your turn rather than wait")
+      expect(none?.result).toMatchObject({ isError: true })
+      expect(text(released)).toMatch(/^Released @fox/)
+    })
+
     it("summarizes only its own terminal, naming nothing, and says it did", async () => {
       calls.length = 0
       answer = { ok: true }
@@ -991,7 +1020,7 @@ describe("Novadeck's MCP server", () => {
       expect(held.content[0]?.text).toContain("waits for the user to release it")
       expect(held.content[0]?.text).toContain("m-0 to @owl won't arrive")
       expect(held.content[0]?.text).toContain(
-        "Your earlier message m-3 to @fox won't arrive: the user stopped that thread in Novadeck.",
+        "Your earlier message m-3 to @fox won't arrive: the user stopped it in Novadeck.",
       )
       expect(held.content[0]?.text).toContain("/hooks")
       // The runner's words on a long hold go on as they come.
@@ -1198,6 +1227,8 @@ describe("Novadeck's MCP server", () => {
           "open_terminal",
           "open_agent",
           "close_terminal",
+          "lead",
+          "release",
           "send",
           "agents",
           "summarize",

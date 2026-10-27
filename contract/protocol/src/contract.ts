@@ -36,8 +36,8 @@ import {
   terminalEvent,
   terminalRequest,
   terminalRequestAnswer,
-  closeAsk,
-  closeAskAnswer,
+  approval,
+  approvalAnswer,
   terminalMessages,
   terminalSummary,
   terminalTitle,
@@ -167,13 +167,18 @@ export const contract = {
     // Answers a request with the terminal the client opened for it, or why it didn't.
     // One the runner no longer waits for, or sent to another client, is NOT_FOUND.
     answerRequest: procedure.input(terminalRequestAnswer).output(z.void()),
-    // Agents' asks to close a terminal that runs an agent they don't lead, for the client
-    // to confirm with the person: each goes to the client that subscribed last, and waits
-    // for its `answerCloseAsk`, with no time limit, until the runner withdraws it.
-    closeAsks: procedure.input(z.void()).output(eventIterator(closeAsk)),
-    // The person's answer to a close ask. One the runner no longer waits for, or sent to
+    // Agents' asks to close a terminal that runs an agent they don't lead, or to lead one,
+    // for the client to approve with the person: each goes to the client that subscribed
+    // last, and waits for its `answerApproval`, with no time limit, until the runner
+    // withdraws it.
+    approvals: procedure.input(z.void()).output(eventIterator(approval)),
+    // The person's answer to an approval. One the runner no longer waits for, or sent to
     // another client, is NOT_FOUND.
-    answerCloseAsk: procedure.input(closeAskAnswer).output(z.void()),
+    answerApproval: procedure.input(approvalAnswer).output(z.void()),
+    // The person ends a terminal's lead: its agent's messages are a peer's from then on,
+    // and the teammate and the former lead are told. A terminal with no lead is a no-op;
+    // one not there is TERMINAL_NOT_FOUND.
+    release: procedure.input(z.strictObject({ terminalId: id })).output(z.void()),
     // Every terminal across sessions, running or saved: `changed` for each, `synced`, then
     // later changes (creation, title, size, foreground process, exit, restart, and its
     // shell's record let go, when it is saved again) and `removed` once it is closed.

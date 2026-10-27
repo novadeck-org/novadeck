@@ -512,6 +512,28 @@ with every safety check again at that time:
   through the same file the shell integration resumes agents from, so it leaves no
   history entry; a shell without the integration, or with configured arguments, can't
   run one, and the terminal does not open rather than start a plain shell.
+- **Leading an existing agent** comes from `lead` and `release`, listed beside the
+  others. `lead` (`to`, a handle, and `message`, a brief up to 4 KB) asks the person to
+  let the caller lead the agent already running in another terminal of its project and
+  session, as `open_agent` makes the caller lead a terminal it opens. It is refused at
+  once, with a sentence to act on, for the caller itself, a handle not there, a terminal
+  that runs no agent (use `open_agent`), one the caller already leads, one with another
+  running lead, one that leads the caller directly or up the chain, one an approval
+  already waits for, and when no client follows approvals. Otherwise the ask goes to the
+  client that subscribed last to `terminals.approvals`, with the action
+  `{ type: "lead", brief }`, and the call answers `asked` at once; the person's
+  `terminals.answerApproval` settles it. On a yes the runner checks everything again,
+  then sets the terminal's `ledBy` to the caller's handle (kept, announced, told to
+  messaging), notices the terminal that the person let the caller lead it, sends the
+  brief from the caller, marked as from its lead, and notices the caller. A no, a gone
+  client or a closed terminal is a notice to the caller. The link is the spawned
+  teammate's: it ends when the agent exits and the lead may close it at once. `release`
+  (`to`) ends it from the lead's side and notices the terminal; anyone else is refused.
+  The person ends it with `terminals.release` (a no-op for a terminal with no lead),
+  which notices the terminal and its former lead, and drops the lead's messages to it that
+  were not delivered yet (their sender is told the user released it). The brief is cleaned as
+  any message is before the person is asked, so they approve exactly what is delivered, and
+  the approval holds only while both terminals run the same agent sessions they did when asked.
 - **Closing terminals** comes from the same server's `close_terminal`, listed only
   inside Novadeck's terminals like the others. An agent closes another terminal of its
   project and session, an agent's or a plain shell, by its exact handle, as `send`
@@ -519,9 +541,9 @@ with every safety check again at that time:
   `send` refuses one. Its own terminal closes a half second after the answer, which ends
   its session; a teammate it leads, and a terminal that runs no agent, close at once;
   any other terminal that runs an agent closes only once the person confirms. That ask
-  goes to the client that subscribed last to `terminals.closeAsks` (refused with none),
+  goes to the client that subscribed last to `terminals.approvals` (refused with none),
   one at a time for each terminal, and the call answers at once, as Codex's tool call
-  would time out waiting; the person's `terminals.answerCloseAsk` closes it or keeps it,
+  would time out waiting; the person's `terminals.answerApproval` closes it or keeps it,
   and Novadeck tells the asking agent either way with a notice. The ask is withdrawn
   when either terminal closes, and settled with a notice that nothing closed when the
   client goes away; a client that resubscribes is not sent the asks of its earlier

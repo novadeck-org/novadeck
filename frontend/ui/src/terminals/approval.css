@@ -1,0 +1,14 @@
+/* The brief an agent sends when it asks to lead a terminal (ApprovalDialog.tsx): plain text in a
+   quiet box under the question, scrolled when long.
+
+   Tokens, each optional (its fallback in brackets):
+   --approval-brief-bg (shell), --approval-brief-fg (ink): its fill and text.
+   --approval-brief-border-color (line): its outline. --approval-brief-radius (radius-panel). */
+.approval-brief {
+  padding: 10px;
+  border: var(--border-width) solid var(--approval-brief-border-color, var(--color-line));
+  border-radius: var(--approval-brief-radius, var(--radius-panel));
+  background-color: var(--approval-brief-bg, var(--color-shell));
+  color: var(--approval-brief-fg, var(--color-ink));
+  font-family: var(--font-mono);
+}

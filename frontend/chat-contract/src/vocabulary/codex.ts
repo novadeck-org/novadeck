@@ -121,6 +121,8 @@ export const codex: readonly { name: string; records: readonly object[] }[] = [
         ["open_terminal", { command: "npm run dev" }, "Opened", "mcp__novadeck"],
         ["close_terminal", { to: "builder" }, "Closed", "mcp__novadeck"],
         ["close_terminal", {}, "Closed", "mcp__novadeck"],
+        ["lead", { to: "builder", message: "Fix the tests" }, "Asked", "mcp__novadeck"],
+        ["release", { to: "builder" }, "Released", "mcp__novadeck"],
         ["show", { page: { url: "http://localhost:5173" } }, "Showing", "mcp__novadeck"],
         ["show", { file: { path: "/home/user/project/plan.md" } }, "Showing", "mcp__novadeck"],
         ["close", { file: { path: "/home/user/project/plan.md" } }, "Closed", "mcp__novadeck"],

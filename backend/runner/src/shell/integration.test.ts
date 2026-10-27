@@ -21,7 +21,7 @@ import { codex as codexHarness } from "@novadeck/harness-codex/index"
 import type {
   AgentDetail,
   AgentName,
-  CloseAsk,
+  Approval,
   TerminalChange,
   TerminalRequest,
   TerminalSummary,
@@ -3723,9 +3723,9 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))(
       })
       expect(manager.get(codex.id).exit).toBeNull()
       const asking = new AbortController()
-      const asked: CloseAsk[] = []
+      const asked: Approval[] = []
       const person = (async () => {
-        for await (const item of manager.closeAsks("person", asking.signal)) asked.push(item)
+        for await (const item of manager.approvals("person", asking.signal)) asked.push(item)
       })()
       // The answer comes at once; the user's yes closes it: its shell ended, the terminal
       // gone and forgotten, and what waited for it gone.
@@ -3736,14 +3736,19 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))(
         ),
       })
       await expect.poll(() => asked).toHaveLength(1)
-      expect(asked[0]).toMatchObject({ type: "ask", from: claude.id, terminalId: codex.id })
+      expect(asked[0]).toMatchObject({
+        type: "ask",
+        from: claude.id,
+        terminalId: codex.id,
+        action: { type: "close" },
+      })
       expect(manager.get(codex.id).exit).toBeNull()
       const request = (asked[0] as { requestId: string }).requestId
       // Not another client's to answer.
-      expect(() => manager.answerCloseAsk({ requestId: request, close: true }, "other")).toThrow(
+      expect(() => manager.answerApproval({ requestId: request, approved: true }, "other")).toThrow(
         expect.objectContaining({ code: "NOT_FOUND" }),
       )
-      manager.answerCloseAsk({ requestId: request, close: true }, "person")
+      manager.answerApproval({ requestId: request, approved: true }, "person")
       await viewing
       expect(events).toContain("exited")
       expect(() => process.kill(shellPid, 0)).toThrow(expect.objectContaining({ code: "ESRCH" }))
@@ -3835,10 +3840,10 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))(
       const call = async (type: string, request: object) =>
         JSON.parse(await step(claude.id, { call: type, request })) as Told
       const prompt = () => step(claude.id, { hook: "UserPromptSubmit", payload: { prompt: "ok" } })
-      const asked: CloseAsk[] = []
+      const asked: Approval[] = []
       const follow = (signal: AbortSignal) =>
         (async () => {
-          for await (const item of manager.closeAsks("person", signal)) asked.push(item)
+          for await (const item of manager.approvals("person", signal)) asked.push(item)
         })()
 
       // The user keeps it open.
@@ -3846,8 +3851,8 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))(
       const one = follow(first.signal)
       await call("close", { to: "fox" })
       await expect.poll(() => asked).toHaveLength(1)
-      manager.answerCloseAsk(
-        { requestId: (asked[0] as { requestId: string }).requestId, close: false },
+      manager.answerApproval(
+        { requestId: (asked[0] as { requestId: string }).requestId, approved: false },
         "person",
       )
       expect(await prompt()).toContain("The user kept @fox")
@@ -3860,6 +3865,54 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))(
       await one
       expect(await prompt()).toContain("Nothing closed: Novadeck's window went away")
       expect(manager.get(codex.id).exit).toBeNull()
+    })
+
+    it("lets an agent lead another's agent once the user approves, and ends it when the user releases", async ({
+      shell,
+    }) => {
+      const bin = standIn(shell.home)
+      const manager = shell.manager({
+        env: { HOME: shell.home, PS1: "$ ", PATH: `${bin}:${process.env.PATH}` },
+      })
+      const claude = await create(manager, shell)
+      const codex = await create(manager, shell)
+      const { start, step } = driver(shell, manager)
+      await start(claude.id, "claude", "s-claude")
+      await start(codex.id, "codex", "s-codex")
+      const call = async (type: string, request: object) =>
+        JSON.parse(await step(claude.id, { call: type, request })) as Told
+      const prompt = () => step(claude.id, { hook: "UserPromptSubmit", payload: { prompt: "ok" } })
+      const asked: Approval[] = []
+      const asking = new AbortController()
+      const person = (async () => {
+        for await (const item of manager.approvals("person", asking.signal)) asked.push(item)
+      })()
+
+      await expect(call("lead", { to: "fox", message: "Fix the lint." })).resolves.toMatchObject({
+        ok: true,
+        text: expect.stringMatching(/^Asked the user to let you lead @fox/),
+      })
+      await expect.poll(() => asked).toHaveLength(1)
+      expect(asked[0]).toMatchObject({
+        type: "ask",
+        from: claude.id,
+        terminalId: codex.id,
+        action: { type: "lead", brief: "Fix the lint." },
+      })
+      expect(manager.get(codex.id).ledBy).toBeNull()
+      manager.answerApproval(
+        { requestId: (asked[0] as { requestId: string }).requestId, approved: true },
+        "person",
+      )
+      expect(manager.get(codex.id).ledBy).toBe(claude.handle)
+      expect(await prompt()).toContain("you now lead @fox")
+
+      // Only the lead releases; the user may too.
+      manager.releaseLead(codex.id)
+      expect(manager.get(codex.id).ledBy).toBeNull()
+      expect(await prompt()).toContain("The user released @fox")
+      asking.abort()
+      await person
     })
 
     it("refuses a terminal already closing, and still closes one as the runner stops", async ({
