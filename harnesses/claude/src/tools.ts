@@ -21,6 +21,7 @@ const known = (name: string, fields: Fields | null): ToolRun | undefined => {
   const path = (...keys: string[]): string => shortPath(textField(fields, ...keys))
   switch (name) {
     case "bash":
+    case "powershell":
       return {
         kind: "run",
         title: "Ran",

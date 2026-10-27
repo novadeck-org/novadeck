@@ -352,14 +352,20 @@ describe("The Inbox's list", () => {
       inbox.view.unmount()
     })
 
-    it("closes a sheet whose ask settles", async () => {
+    it("keeps the sheet of an ask that settles open, saying so in place of its answers", async () => {
       const inbox = mount([agentAsk("a", 1), agentAsk("b", 2)], false, true)
       inbox.open("a")
-      expect(document.querySelector(".inbox-sheet")).not.toBeNull()
+      expect(document.querySelector(".inbox-sheet [role=menu]")).not.toBeNull()
       act(() => dismissButton(inbox, "a")!.click())
       await nextFrame()
 
-      expect(document.querySelector(".inbox-sheet")).toBeNull()
+      expect(document.querySelector(".console-tag")?.textContent).toBe("Dismissed")
+      expect(document.querySelector(".console-settled")?.textContent).toBe(
+        "You dismissed this ask; @moth was told.",
+      )
+      expect(document.querySelector(".inbox-sheet [role=menu]")).toBeNull()
+      inbox.press("j")
+      expect(inbox.row("b").dataset.selected).toBe("true")
       inbox.view.unmount()
     })
 

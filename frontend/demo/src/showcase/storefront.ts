@@ -1,4 +1,5 @@
 import { fileLines, ready, svg, type SampleArtifact } from "./artifacts"
+import checkoutPlanText from "./plans/checkout.md?raw"
 
 // What the agents demo's storefront terminals hold on their bars: a draft of the order
 // summary and the code behind it beside the implementation, the spec and the empty cart
@@ -172,6 +173,29 @@ const resultLines = [
   "   Duration  842ms",
 ]
 
+// The plan Claude Code wrote for the checkout, which the Inbox's plan approval on terminal 06
+// asks the person to approve: long enough for the sheet's plan box to scroll.
+export const checkoutPlan: SampleArtifact = {
+  item: {
+    id: "storefront-plan",
+    kind: "plan",
+    name: "Checkout flow",
+    detail: "~/.claude/plans/checkout-flow.md",
+    path: "~/.claude/plans/checkout-flow.md",
+    url: null,
+    lines: null,
+    held: false,
+    plan: { agent: "Claude Code", role: "root", source: "file" },
+  },
+  content: ready({
+    kind: "plan",
+    text: checkoutPlanText,
+    truncated: false,
+    writable: false,
+    skill: true,
+  }),
+}
+
 // What each storefront terminal holds, by its id in the agents demo.
 export const storefrontArtifacts: Readonly<Record<string, readonly SampleArtifact[]>> = {
   // Checkout implementation
@@ -188,4 +212,6 @@ export const storefrontArtifacts: Readonly<Record<string, readonly SampleArtifac
     file("storefront-review", "review-notes.md", reviewLines),
     emptyCart,
   ],
+  // The Inbox's plan approval (see inbox-fixtures.ts)
+  "06": [checkoutPlan],
 }

@@ -1,10 +1,14 @@
+import { sessionItems } from "@novadeck/core/inbox-plan"
 import type { BackendAction } from "@novadeck/core/port"
 import { workspaceFromSeed } from "@novadeck/core/seed"
 import { activeProject, activeSession, workspaceReducer } from "@novadeck/core/state"
+import { createWorkspaceStore } from "@novadeck/core/store"
 import { itemFixture } from "@novadeck/core/testing"
 
 import { createDemoEngine } from "./engine"
 import { demoHandle } from "./handles"
+import { isDemoInbox } from "./inbox"
+import { demoInboxIds, demoInboxRowsAll, demoPlanStates } from "./inbox-fixtures"
 import { demoBackend, withMessages } from "./index"
 import { createMockTerminal, defaultName } from "./samples"
 import { context, describe, expect, it } from "./test"
@@ -182,6 +186,112 @@ describe("demo backend", () => {
       const action = { type: "project/remove" as const, projectId: "storefront", now: 2 }
       backend.commit(workspaceReducer(workspace, action), [action])
       expect(Object.keys(backend.telemetry.getSnapshot())).toEqual(["api-service/initial"])
+    })
+  })
+
+  context("when a plan approval reaches the Inbox", () => {
+    it("shows the plan on its terminal's bar again, at the approval's time, with its Markdown", () => {
+      const backend = createDemo("inbox", undefined, demoTurns())
+      const reported: BackendAction[] = []
+      const stop = backend.start!({
+        dispatch: (actions) => reported.push(...actions),
+        open: () => {},
+      })
+      const { inbox } = backend
+      if (!isDemoInbox(inbox)) throw new Error("The Inbox demo has the demo's Inbox")
+      const row = demoInboxRowsAll(1_000).find(({ id }) => id === demoInboxIds.plan)!
+      inbox.add(row)
+      stop()
+      const shown = reported.filter((action) => action.type === "item/upsert")
+      expect(shown).toMatchObject([
+        {
+          target: { projectId: "storefront", workspaceSessionId: "initial" },
+          item: {
+            kind: "plan",
+            from: { terminalId: row.source.terminalId },
+            plan: { role: "root" },
+            version: 2,
+            shownAt: row.at,
+          },
+        },
+      ])
+    })
+  })
+
+  context("when a plan approval is made to load forever, or to have no plan", () => {
+    const arrive = (id: string) => {
+      const backend = createDemo("inbox", undefined, demoTurns())
+      const reported: BackendAction[] = []
+      const stop = backend.start!({
+        dispatch: (actions) => reported.push(...actions),
+        open: () => {},
+      })
+      const { inbox } = backend
+      if (!isDemoInbox(inbox)) throw new Error("The Inbox demo has the demo's Inbox")
+      const row = demoInboxRowsAll(1_000).find(({ id: each }) => each === demoInboxIds.plan)!
+      inbox.add({ ...row, id })
+      stop()
+      return {
+        backend,
+        shown: reported.flatMap((action) => (action.type === "item/upsert" ? [action] : [])),
+      }
+    }
+
+    it("shows a plan whose content never comes", () => {
+      const { backend, shown } = arrive(demoPlanStates.loading)
+      const item = shown.at(-1)!
+      const contents: unknown[] = []
+      backend.companions!.follow(item.target, item.item.id, { reveal: undefined }, (content) =>
+        contents.push(content),
+      )
+      expect(item.item.kind).toBe("plan")
+      expect(contents).toEqual([])
+    })
+
+    it("shows no plan at all", () => {
+      expect(arrive(demoPlanStates.missing).shown).toEqual([])
+    })
+  })
+
+  context("when an agent's own plan approval reaches the Inbox", () => {
+    it("shows the checkout plan on a terminal that had none, and serves its Markdown", () => {
+      const backend = createDemo("inbox", undefined, demoTurns())
+      const store = createWorkspaceStore(
+        workspaceFromSeed(backend.seed, { view: "grid", windowedView: "grid", now: 0 }),
+        backend.commit,
+      )
+      backend.commit(store.getSnapshot(), [])
+      const stop = backend.start!({
+        dispatch: (actions) => store.transact(actions as never),
+        open: () => {},
+      })
+      const unbind = backend.inbox!.bind!({ workspace: store })
+      const row = backend
+        .inbox!.state.getSnapshot()
+        .items.find(
+          (each) =>
+            each.source.projectId === "api-service" &&
+            each.kind === "request" &&
+            each.request.kind === "plan",
+        )!
+      const target = { projectId: "api-service", workspaceSessionId: row.source.workspaceSessionId }
+      const plan = sessionItems(store.getSnapshot(), target).find(
+        (item) => item.kind === "plan" && item.from?.terminalId === row.source.terminalId,
+      )
+      expect(plan).toMatchObject({
+        holder: { terminalId: row.source.terminalId },
+        plan: { role: "root" },
+        version: 1,
+        shownAt: row.at,
+      })
+      const texts: string[] = []
+      backend.companions!.follow(target, plan!.id, { reveal: undefined }, (content) => {
+        if (content.state === "ready" && content.content.kind === "plan")
+          texts.push(content.content.text)
+      })
+      expect(texts[0]).toMatch(/^# Checkout flow/)
+      unbind()
+      stop()
     })
   })
 
