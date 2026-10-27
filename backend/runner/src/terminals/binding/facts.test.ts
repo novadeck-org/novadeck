@@ -225,6 +225,7 @@ describe("the lead of an agent found gone", () => {
   /** Bindings whose host counts the leads it tells messaging ended, and a led terminal. */
   const led = (stopping = () => false) => {
     const ended = vi.fn<(terminalId: string) => void>()
+    const save = vi.fn<(record: Record) => void>()
     const host = {
       messaging: () => ({
         endLead: ended,
@@ -236,7 +237,7 @@ describe("the lead of an agent found gone", () => {
       murmurChanged: () => {},
       rebound: () => {},
       detailed: () => {},
-      save: () => {},
+      save,
       announce: () => {},
       // Its agent's process is gone.
       alive: () => false,
@@ -248,26 +249,30 @@ describe("the lead of an agent found gone", () => {
       closed: false,
       terminal: { pty: { pid: 1 }, exit: null, exiting: false },
     })
-    return { ends: new Bindings(host), worker, ended }
+    return { ends: new Bindings(host), worker, ended, save }
   }
 
   it("ends at once where the platform shuts its shells down with their agents", () => {
     on("linux")
-    const { ends, worker, ended } = led()
+    const { ends, worker, ended, save } = led()
     ends.endLeadGone(worker)
     expect(worker.summary.ledBy).toBeNull()
     expect(ended).toHaveBeenCalledWith("t1")
+    expect(save).toHaveBeenCalledWith(worker)
   })
 
   it("ends once the shell has outlived its agent for a sample's time, on Windows", () => {
     on("win32")
-    const { ends, worker, ended } = led()
+    const { ends, worker, ended, save } = led()
     ends.endLeadGone(worker)
     vi.advanceTimersByTime(pollMs - 1)
     expect(worker.summary.ledBy).toBe("moth")
     vi.advanceTimersByTime(1)
     expect(worker.summary.ledBy).toBeNull()
     expect(ended).toHaveBeenCalledWith("t1")
+    // Kept with the terminal's next save, as the session the sampler lets go of then is.
+    expect(save).not.toHaveBeenCalled()
+    expect(worker.changed).toBe(true)
   })
 
   it("ends so too when the agent's process is found gone, on Windows", () => {

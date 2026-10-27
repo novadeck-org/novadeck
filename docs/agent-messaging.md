@@ -185,7 +185,8 @@ The rules that keep this safe:
   which ends every console program just before its shell as it shuts down, an agent
   found gone ends its lead only once its shell has outlived it for a sample's time
   (`processPollMs`, a second), unless the runner stops or the shell ends or restarts
-  meanwhile, so a worker ended by a reboot resumes still led. `ledBy` is
+  meanwhile, so a worker ended by a reboot resumes still led; that end is saved with the
+  terminal's next save, with the session to resume it lets go of then. `ledBy` is
   cleared, saved and announced, messaging stops treating the former lead as one for
   later sends, and its messages still waiting for that terminal's first session, its
   brief among them, become gone, with the sender told, so they never reach an agent
