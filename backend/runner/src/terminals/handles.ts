@@ -92,6 +92,20 @@ export const handleWords: readonly string[] = [
   "twilight",
   "vinyl",
   "glimmer",
+  "murk",
+  "smog",
+  "sleet",
+  "dregs",
+  "mech",
+  "vole",
+  "shrew",
+  "wick",
+  "husk",
+  "fizz",
+  "rook",
+  "hex",
+  "ronin",
+  "egret",
 ]
 
 /** The best words, one per first letter, that every session gives before the rest. */
