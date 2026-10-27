@@ -80,7 +80,7 @@ const messaging: MessagingProfile = {
   initialPrompt: (line) => Promise.resolve(["codex", line]),
   start: ["codex"],
   // Its cache of the models it lists, in its home; the effort is a config override, left
-  // bare (codex reads a value that isn't TOML as a string) so the shell needs no quotes in it.
+  // bare (codex reads a value that isn't TOML as a string), so it has no quotes of its own.
   models: (install) => readModels(home(install)),
   choose: ({ model, effort }) => [
     ...(model !== undefined ? ["--model", model] : []),

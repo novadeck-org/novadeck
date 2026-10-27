@@ -63,7 +63,8 @@ describe("a model and effort in a request", () => {
     const task = { agent: "claude", message: "Hi." }
     expect(readOpenRequest({ ...task, effort: "ultra" })).toEqual({
       ok: false,
-      reason: 'The request\'s "effort" is not valid.',
+      reason:
+        "effort is one of low, medium, high, xhigh or max; leave it out for the agent's default.",
     })
     expect(readOpenRequest({ ...task, model: "" })).toMatchObject({ ok: false })
     expect(readOpenRequest({ ...task, model: "m".repeat(129) })).toMatchObject({ ok: false })

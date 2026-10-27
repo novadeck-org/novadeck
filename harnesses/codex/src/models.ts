@@ -22,7 +22,7 @@ export const parseModels = (text: string): readonly Model[] => {
   for (const entry of cache.models as unknown[]) {
     if (!object(entry) || entry.visibility !== "list") continue
     const { slug, supported_reasoning_levels: levels } = entry
-    if (typeof slug !== "string" || slug === "") continue
+    if (typeof slug !== "string" || !/^[\w.:-]+$/.test(slug)) continue
     const supported = new Set(
       (Array.isArray(levels) ? (levels as unknown[]) : []).map((level) =>
         object(level) ? level.effort : undefined,

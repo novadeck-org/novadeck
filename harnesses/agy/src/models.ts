@@ -16,5 +16,5 @@ export const parseModels = (output: string): readonly Model[] =>
     .split(/\r?\n/)
     .filter((line) => line.includes("\t"))
     .map((line) => line.slice(0, line.indexOf("\t")).trim())
-    .filter((id) => id !== "" && !/\s/.test(id))
+    .filter((id) => /^[\w.:-]+$/.test(id))
     .map((id) => ({ id, efforts: effortOf(id) }))

@@ -253,13 +253,13 @@ changes, not when the terminal is renamed, and is never given again in that sess
 closed terminal's handle stays unanswered rather than reaching another terminal. Once a
 session has given every word, they come again numbered (`moth2`, then `moth3`). Agents
 tell the person about a terminal as `@fox · api-server`: its handle and its title. Handles exist because a title is text a person, or an agent through
-`open_terminal`'s `title`, can set, and must never reach a prompt.
+`open_terminal`'s or `open_agent`'s `title`, can set, and must never reach a prompt.
 
 The terminal's **title** is the runner's too: it keeps what names the terminal in its
 record, every client shows the title from there, and `agents()` reads it from the same
 record. The record says who the title is from: the person (renaming, or creating it), murmur (the
 local model that describes terminals, see [Naming](#naming)), an agent by its terminal's
-handle (through `open_terminal`'s `title`), or the default, which is the program the
+handle (through `open_terminal`'s or `open_agent`'s `title`), or the default, which is the program the
 terminal was opened to run (`claude`), else "Terminal" and never comes from its handle;
 `agents()` shows an agent's title as that agent's ("set by @fox, not the user"), never as
 the person's. Terminals are kept until closed, with no
@@ -273,7 +273,7 @@ others are never listed or reached.
   the agent picks by title, folder and work, or asks the person.
 - `from` in a delivered message is exactly the sender's handle, so replying is
   `send(from, …)`.
-- `open_terminal` answers with the new terminal's handle and title, as `@fox · api-server`.
+- `open_terminal` and `open_agent` answer with the new terminal's handle and title, as `@fox · api-server`.
 
 ### Messages
 
@@ -449,9 +449,10 @@ a command, never a lead, and its description sends an agent with a task to `open
 Both make the runner's `open` call with one request shape. `model` and `effort` are only
 set when the person asked or the brief needs one; `effort` is one of `low`, `medium`,
 `high`, `xhigh` or `max`, and `model` one id the runner lists for the harness (the
-runner refuses others). The ids differ by harness, so `tools/list` asks the runner for
+runner refuses others). An effort goes with a model, one that model takes; the runner
+refuses an effort without a model or one its model doesn't take. The ids differ by harness, so `tools/list` asks the runner for
 them (`models` call) and builds `open_agent`'s `model` enum from the union, naming which
-ids go with which agent; with none listed, `model` has no enum and says to leave it out.
+ids go with which agent (and that an agent with none can't take one); with none listed, `model` has no enum and says to leave it out.
 
 ## Inbox asks and updates
 
@@ -1687,14 +1688,15 @@ its agent is Ready. So that a task arrives at once, before any ring, in every ha
    exactly the line, a doorbell prompt; Antigravity's transcript records it as its first
    typed entry, which makes its first turn a doorbell prompt too. So a start whose task
    can't be delivered then (messaging paused) is told its messages still wait, in every
-   harness. `agent` and `message` can't be combined with `command`.
+   harness. The MCP server refuses `open_terminal` with `agent`, `message`, `model` or `effort`, and
+   `open_agent` with `command`, saying which tool to call.
 2. Antigravity submits `-i`'s prompt about 0.9 s after it starts, even while its "Do
    you trust this folder?" dialog is up. So it gets `-i` only in a folder it already
    trusts (its adapter reads Antigravity's trusted-workspaces setting, matching the
    folder's exact path once normalized, links unresolved, so another way to a trusted
    folder starts it plain); elsewhere it starts plain, and the task arrives with the
    person's first prompt there, or with the ring once its prompt shows, as for any
-   message. `open_terminal`'s answer tells the opener so.
+   message. `open_agent`'s answer tells the opener so.
 3. Checks `message` first with every check `send` makes but the recipient's own (its
    size once delivered, the rates, the undelivered cap), and refuses before anything
    starts. Then it addresses `message` to the first session of that agent to bind in the new terminal,

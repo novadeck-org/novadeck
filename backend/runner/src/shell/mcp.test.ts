@@ -297,7 +297,7 @@ describe("Novadeck's MCP server", () => {
               message: "Go",
               model: "opus",
               effort: "high",
-              command: "x",
+              extra: "x",
             },
           },
         },
@@ -306,7 +306,7 @@ describe("Novadeck's MCP server", () => {
           method: "tools/call",
           params: {
             name: "open_terminal",
-            arguments: { command: "ls", agent: "claude", model: "m" },
+            arguments: { command: "ls", extra: "x" },
           },
         },
       ])
@@ -314,6 +314,35 @@ describe("Novadeck's MCP server", () => {
         { agent: "claude", message: "Go", model: "opus", effort: "high" },
         { command: "ls" },
       ])
+    })
+
+    it("refuses an agent's fields on open_terminal and a command on open_agent", async () => {
+      calls.length = 0
+      const [, plain, agent] = await session(terminal(), [
+        initialize,
+        {
+          id: 3,
+          method: "tools/call",
+          params: { name: "open_terminal", arguments: { effort: "high" } },
+        },
+        {
+          id: 4,
+          method: "tools/call",
+          params: {
+            name: "open_agent",
+            arguments: { agent: "claude", message: "Go", command: "ls" },
+          },
+        },
+      ])
+      expect(plain?.result).toMatchObject({
+        isError: true,
+        content: [{ text: expect.stringContaining("call open_agent with agent and message") }],
+      })
+      expect(agent?.result).toMatchObject({
+        isError: true,
+        content: [{ text: expect.stringContaining("open_agent takes no command") }],
+      })
+      expect(calls).toEqual([])
     })
 
     it("lists open_agent's models from the runner, and leaves them out when it has none", async () => {
@@ -341,6 +370,7 @@ describe("Novadeck's MCP server", () => {
       expect(listed.properties.model.description).toContain("claude (Claude Code): opus, sonnet")
       expect(listed.properties.model.description).toContain("codex (Codex): gpt-5")
       expect(listed.properties.model.description).toContain("leave it out")
+      expect(listed.properties.model.description).not.toContain("can't take a model now")
       expect(listed.properties.effort.enum).toEqual(["low", "medium", "high", "xhigh", "max"])
       const withoutModels = async (empty: unknown) => {
         answer = empty
@@ -350,6 +380,10 @@ describe("Novadeck's MCP server", () => {
       }
       await withoutModels({ ok: true, models: { claude: [], codex: [], agy: [] } })
       await withoutModels({ ok: false })
+      answer = { ok: true, models: { claude: [{ id: "opus", efforts: [] }], codex: [], agy: [] } }
+      expect((await properties()).properties.model.description).toContain(
+        "An agent not named here can't take a model now: leave model out for it.",
+      )
     })
 
     it("closes another terminal by its handle, and says what that ended", async () => {

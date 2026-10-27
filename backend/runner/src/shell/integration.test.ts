@@ -3155,10 +3155,9 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))(
           openAgent({ agent: "codex", model: "gpt-a", effort: "high", ...task }),
           openAgent({ agent: "agy", cwd: "trusted", model: "flash-high", effort: "high", ...task }),
           openAgent({ agent: "agy", model: "sonnet", ...task }),
-          // An effort alone is the agent's own model's.
-          openAgent({ agent: "claude", effort: "low", ...task }),
           openAgent({ agent: "codex", model: "nope", ...task }),
           openAgent({ agent: "codex", model: "gpt-a", effort: "max", ...task }),
+          openAgent({ agent: "claude", effort: "low", ...task }),
           openAgent({ agent: "agy", model: "sonnet", effort: "low", ...task }),
         ])) as { ok: boolean; reason?: string }[]
         const line = '"\\[Novadeck: automatic notice, agent messages waiting, [A-Za-z0-9]{6}\\]"'
@@ -3169,17 +3168,21 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))(
           ),
           expect.stringMatching(new RegExp(`^agy --model flash-high --effort high -i ${line}$`)),
           "agy --model sonnet",
-          expect.stringMatching(new RegExp(`^claude --effort low ${line}$`)),
         ])
-        expect(answers.slice(0, 5).map(({ ok }) => ok)).toEqual([true, true, true, true, true])
-        expect(answers.slice(5)).toEqual([
+        expect(answers.slice(0, 4).map(({ ok }) => ok)).toEqual([true, true, true, true])
+        expect(answers.slice(4)).toEqual([
           {
             ok: false,
-            reason: 'Codex has no model "nope" here; its models are gpt-a, gpt-b and gpt-c.',
+            reason:
+              'Codex has no model "nope" here: give one of gpt-a, gpt-b or gpt-c, or leave model out to start on its default.',
           },
           {
             ok: false,
             reason: 'Codex\'s model "gpt-a" has no effort "max"; its efforts are low and high.',
+          },
+          {
+            ok: false,
+            reason: "Give a model with effort: Claude Code's efforts depend on the model.",
           },
           { ok: false, reason: 'Antigravity\'s model "sonnet" takes no effort; leave it out.' },
         ])

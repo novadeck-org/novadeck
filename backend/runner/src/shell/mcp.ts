@@ -360,6 +360,11 @@ const openTerminal: Tool<Opened> = {
     },
     additionalProperties: false,
   },
+  refuse: (args) =>
+    ["agent", "message", "model", "effort"].some((key) => key in args)
+      ? "open_terminal starts no agent with a task: call open_agent with agent and message " +
+        "(and model or effort if the user asked for them)."
+      : undefined,
   call: "open",
   request: (args) => picked(args, ["command", "cwd", "title", "focus"]),
   said: (answer) => openedText(answer),
@@ -370,9 +375,10 @@ const effortProperty = {
   type: "string",
   enum: [...efforts],
   description:
-    "How hard the agent thinks, where its harness and model support the level. Set it " +
-    "only when the user asked for an effort or the brief needs one; otherwise leave it " +
-    "out and the agent keeps the user's own default.",
+    "How hard the agent thinks. It goes with a model: give model too, and an effort that " +
+    "model takes (the model description lists the agent's models; the runner refuses an " +
+    "effort its model doesn't take). Set it only when the user asked for an effort or the " +
+    "brief needs one; otherwise leave it out and the agent keeps the user's own default.",
 }
 
 // The model property when the runner offers no model.
@@ -396,10 +402,13 @@ const modelProperty = (models: Models): object => {
     .filter(({ id }) => (models[id] ?? []).length > 0)
     .map(({ id, name }) => `${id} (${name}): ${models[id]!.join(", ")}`)
     .join("; ")
+  const missing = harnesses.some(({ id }) => (models[id] ?? []).length === 0)
+    ? " An agent not named here can't take a model now: leave model out for it."
+    : ""
   return {
     type: "string",
     enum: ids,
-    description: `The model to start the agent on; the ids differ by agent, so give one of its own: ${per}. ${guidance}`,
+    description: `The model to start the agent on; the ids differ by agent, so give one of its own: ${per}. ${guidance}${missing}`,
   }
 }
 
@@ -437,9 +446,9 @@ const openAgent: Tool<Opened> = {
     "user to approve, they give in its own terminal or answer through ask in the Inbox, so " +
     "tell the user to answer there. Its questions for the user come to you: ask the user " +
     "for it with ask, and relay their decisions as requirements. Use it when the user asks " +
-    "for another agent to take on work. To open a plain terminal or run a command, even one " +
-    "that starts an agent, use open_terminal: that gets no lead, so to direct an agent, " +
-    "open it here. Give model and effort only when the user asked for them or the brief " +
+    "for another agent to take on work. To open a plain terminal or run a command, use " +
+    "open_terminal; an agent started by a command there gets no lead and no task, so to " +
+    "direct an agent, open it here. Give model and effort only when the user asked for them or the brief " +
     "needs them. Set focus to true only when they asked to see it or go to it; otherwise " +
     "it opens without taking their attention.",
   inputSchema: {
@@ -470,6 +479,10 @@ const openAgent: Tool<Opened> = {
     required: ["agent", "message"],
     additionalProperties: false,
   },
+  refuse: (args) =>
+    "command" in args
+      ? "open_agent takes no command: leave it out, or use open_terminal to run a command."
+      : undefined,
   schema: async (call) => withModel(openAgent.inputSchema, await listModels(call)),
   call: "open",
   request: (args) => picked(args, ["agent", "message", "model", "effort", "cwd", "title", "focus"]),

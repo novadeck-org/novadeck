@@ -37,9 +37,9 @@ describe("Antigravity's models", () => {
   it("start with the model and the effort as flags", () => {
     const { choose } = agy.messaging
     expect(choose({})).toEqual([])
-    expect(choose({ model: "gemini-3-pro", effort: "low" })).toEqual([
+    expect(choose({ model: "gemini-3.8-flash-low", effort: "low" })).toEqual([
       "--model",
-      "gemini-3-pro",
+      "gemini-3.8-flash-low",
       "--effort",
       "low",
     ])

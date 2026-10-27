@@ -46,8 +46,10 @@ import type { Record } from "./record.js"
 import { readSummarizeRequest, type SummarizeAnswer } from "./summarize.js"
 
 // "a, b and c".
-const list = (items: readonly string[]): string =>
-  items.length < 2 ? items.join("") : `${items.slice(0, -1).join(", ")} and ${items.at(-1)}`
+const list = (items: readonly string[], conjunction = "and"): string =>
+  items.length < 2
+    ? items.join("")
+    : `${items.slice(0, -1).join(", ")} ${conjunction} ${items.at(-1)}`
 
 // Why a request for a new terminal went unanswered.
 const unopened = {
@@ -239,22 +241,26 @@ export class Calls {
 
   /**
    * Why the model and effort asked for can't start `agent`, in a sentence the agent can
-   * act on; undefined when they can, or none was asked for. An effort alone is left to the
-   * agent's own default model.
+   * act on; undefined when they can, or none was asked for. An effort needs a model, as
+   * which efforts a model takes depends on it.
    */
   private async unfitChoice(
     agent: AgentName,
     { model, effort }: { readonly model?: string; readonly effort?: Effort },
   ): Promise<string | undefined> {
     if (model === undefined && effort === undefined) return undefined
-    const models = await this.host.models(agent).catch((): readonly Model[] => [])
     const label = agentLabel(agent)
-    if (model === undefined) return undefined
+    if (model === undefined)
+      return `Give a model with effort: ${label}'s efforts depend on the model.`
+    const models = await this.host.models(agent).catch((): readonly Model[] => [])
     if (models.length === 0)
       return `${label}'s models can't be listed here, so leave the model out and it starts with its own.`
     const found = models.find(({ id }) => id === model)
     if (!found)
-      return `${label} has no model "${model}" here; its models are ${list(models.map(({ id }) => id))}.`
+      return `${label} has no model "${model}" here: give one of ${list(
+        models.map(({ id }) => id),
+        "or",
+      )}, or leave model out to start on its default.`
     if (effort !== undefined && !found.efforts.includes(effort))
       return found.efforts.length === 0
         ? `${label}'s model "${model}" takes no effort; leave it out.`

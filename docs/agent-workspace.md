@@ -489,7 +489,7 @@ with every safety check again at that time:
   can fail with its message, and may bring up the installer dialog.
 
 - **New terminals** come from the same server's `open_terminal` and `open_agent`, listed
-  only inside Novadeck's terminals like `show`. It opens a terminal beside the agent's,
+  only inside Novadeck's terminals like `show`. `open_terminal` opens a terminal beside the agent's,
   in `cwd` (absolute, or from the terminal's directory, which is the default), named
   `title`, and can start `command` at the new shell's first prompt, one line as the
   person would type it, such as `claude` or `npm run dev`; `focus` brings it into view
@@ -532,8 +532,8 @@ with every safety check again at that time:
   shutdown keeps every terminal.
 - **Messages** between agents come from the same server's `send` and `agents` tools,
   listed only inside Novadeck's terminals like the others: an agent messages another
-  terminal of its project and session by its handle, such as `@moth`, which `open_terminal` also
-  answers with, and the message reaches that agent through its own hooks. The runner
+  terminal of its project and session by its handle, such as `@moth`, which `open_terminal` and `open_agent`
+  also answer with, and the message reaches that agent through its own hooks. The runner
   keeps the messages with the workspace and lists, pauses and releases them through
   `messages.list`, `messages.pause` and `messages.release`. Its `agents` listing carries
   the summaries the terminals' agents gave through `summarize`. See

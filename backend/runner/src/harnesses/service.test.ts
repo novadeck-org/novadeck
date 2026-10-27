@@ -141,6 +141,10 @@ const installed = (home: string, ...agents: string[]) => {
     mkdirSync(join(home, ...homes[agent as keyof typeof homes]), { recursive: true })
 }
 
+// Antigravity is installed here: models are only asked of an installed agent.
+const withAntigravity = ({ home }: { home: string }) =>
+  mkdirSync(join(home, ".gemini", "antigravity-cli"), { recursive: true })
+
 describe("agents Novadeck can connect", () => {
   it("are available only where their own home exists", async ({ fixture }) => {
     installed(fixture.home, "codex")
@@ -450,17 +454,22 @@ describe.skipIf(windows)("resuming an agent's saved session", () => {
   it("lists the models an agent starts with, from its own command, once for callers together", async ({
     fixture,
   }) => {
+    withAntigravity(fixture)
     const agents = fixture.agents()
     const [first, second] = await Promise.all([agents.models("agy"), agents.models("agy")])
     expect(first).toEqual(second)
     expect(first.map(({ id }) => id)).toEqual(["fake-pro", "fake-lite"])
     await agents.models("agy")
     expect(fixture.calls().filter((call) => call[1] === "models")).toHaveLength(1)
-    // Claude Code's are its aliases, and need no command.
+    // Claude Code's are its aliases, and need no command, only to be installed.
+    mkdirSync(join(fixture.home, ".claude"), { recursive: true })
     expect((await agents.models("claude")).map(({ id }) => id)).toContain("opus")
   })
 
-  it("keeps a lookup for the time it is given, and an empty one for less", async ({ fixture }) => {
+  it("answers a list older than its time at once, and refreshes it in the background", async ({
+    fixture,
+  }) => {
+    withAntigravity(fixture)
     const list = () => fixture.calls().filter((call) => call[1] === "models").length
     const kept = createHarnesses(() => Promise.resolve(fixture.paths), {
       home: fixture.home,
@@ -471,9 +480,24 @@ describe.skipIf(windows)("resuming an agent's saved session", () => {
     await kept.models("agy")
     expect(list()).toBe(1)
     await new Promise((done) => setTimeout(done, 200))
-    await kept.models("agy")
-    expect(list()).toBe(2)
+    // The old list at once, one refresh behind it however many ask.
+    const old = await Promise.all([kept.models("agy"), kept.models("agy")])
+    expect(old[0]?.map(({ id }) => id)).toEqual(["fake-pro", "fake-lite"])
+    await expect.poll(list).toBe(2)
+  })
 
+  it("keeps the last good list when a refresh finds none, and asks a minute later", async ({
+    fixture,
+  }) => {
+    withAntigravity(fixture)
+    const list = () => fixture.calls().filter((call) => call[1] === "models").length
+    const good = createHarnesses(() => Promise.resolve(fixture.paths), {
+      home: fixture.home,
+      env: fixture.environment(),
+      models: { keepMs: 50, emptyMs: 150 },
+    })
+    expect(await good.models("agy")).toHaveLength(2)
+    // The same agent, now offline: a second harnesses object has no list to keep.
     const failing = createHarnesses(() => Promise.resolve(fixture.paths), {
       home: fixture.home,
       env: fixture.environment({ FAKE_MODELS_FAIL: "1" }),
@@ -481,18 +505,31 @@ describe.skipIf(windows)("resuming an agent's saved session", () => {
     })
     expect(await failing.models("agy")).toEqual([])
     expect(await failing.models("agy")).toEqual([])
-    expect(list()).toBe(3)
+    expect(list()).toBe(2)
     await new Promise((done) => setTimeout(done, 200))
     await failing.models("agy")
-    expect(list()).toBe(4)
+    expect(list()).toBe(3)
   })
 
-  it("gives up on a command that takes too long", async ({ fixture }) => {
+  it("gives up on a lookup that never settles, and on an agent that isn't installed", async ({
+    fixture,
+  }) => {
+    withAntigravity(fixture)
     const slow = createHarnesses(() => Promise.resolve(fixture.paths), {
       home: fixture.home,
       env: fixture.environment({ FAKE_MODELS_SLOW: "1" }),
-      models: { commandMs: 200 },
+      models: { commandMs: 60_000, lookupMs: 200 },
     })
+    const started = Date.now()
     expect(await slow.models("agy")).toEqual([])
+    expect(Date.now() - started).toBeLessThan(5_000)
+
+    const bare = createHarnesses(() => Promise.resolve(fixture.paths), {
+      home: fixture.home,
+      env: fixture.environment({ CODEX_HOME: join(fixture.root, "nothing") }),
+    })
+    const before = fixture.calls().length
+    expect(await bare.models("codex")).toEqual([])
+    expect(fixture.calls()).toHaveLength(before)
   })
 })

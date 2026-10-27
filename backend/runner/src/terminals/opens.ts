@@ -88,6 +88,10 @@ export const readOpenRequest = (
   if (issue?.path[0] === "command" && issue.code === "invalid_format")
     return refused("The command must be one line, without control characters.")
   if (issue?.code === "custom") return refused(issue.message)
+  if (issue?.path[0] === "effort")
+    return refused(
+      `effort is one of ${efforts.slice(0, -1).join(", ")} or ${efforts.at(-1)}; leave it out for the agent's default.`,
+    )
   const field = issue?.path.join(".")
   return refused(field ? `The request's "${field}" is not valid.` : "The request is not valid.")
 }

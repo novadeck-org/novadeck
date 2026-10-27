@@ -34,14 +34,16 @@ export type HarnessesOptions = {
    */
   readonly relay?: string
   /**
-   * How long a lookup of an agent's models is kept, in milliseconds (10 minutes), or, when
-   * it found none or failed, `empty` (a minute); and how long its command may take
-   * (5 seconds).
+   * How long an agent's list of models is fresh, in milliseconds (10 minutes), after which
+   * it is refreshed in the background; how long to wait before asking again after none
+   * was found (a minute); how long its command may take (5 seconds); and how long a caller
+   * waits for a lookup (4 seconds).
    */
   readonly models?: {
     readonly keepMs?: number
     readonly emptyMs?: number
     readonly commandMs?: number
+    readonly lookupMs?: number
   }
 }
 
@@ -268,48 +270,72 @@ export const createHarnesses = (
     if (connected) await settle("apply")
     return after
   }
-  // What each agent can start with, kept a while; a lookup under way is shared.
-  const known = new Map<AgentName, { at: number; ms: number; models: readonly Model[] }>()
+  // The last list found for each agent, kept for good: older than `keepMs`, it is still
+  // answered at once while a refresh runs. A lookup under way is shared.
+  const known = new Map<AgentName, { at: number; models: readonly Model[] }>()
+  // When a lookup last found none, so a harness that can't tell isn't asked again at once.
+  const lastEmpty = new Map<AgentName, number>()
   const looking = new Map<AgentName, Promise<readonly Model[]>>()
   const keepMs = options.models?.keepMs ?? 10 * 60_000
   const emptyMs = options.models?.emptyMs ?? 60_000
   const commandMs = options.models?.commandMs ?? 5_000
+  const lookupMs = options.models?.lookupMs ?? 4_000
   const lookUpModels = async (agent: AgentName): Promise<readonly Model[]> => {
     const where = (await installs())?.(agent)
-    if (!where) return []
     const harness = harnesses[agent]
+    if (!where || !(await exists(harness.home(where)))) return []
     return harness.messaging.models(where, async (argv) => {
       const [program = "", ...args] = argv
       const located = platform === "win32" ? program : await locate(program, harness, where)
       return run([located, ...args], { env: where.env, platform, timeoutMs: commandMs })
     })
   }
+  // One lookup, bound by its own timer: a command whose pipes a grandchild holds open never
+  // settles, and no caller waits on it past `lookupMs`.
+  const refresh = (agent: AgentName): Promise<readonly Model[]> => {
+    let timer: NodeJS.Timeout | undefined
+    const gaveUp = new Promise<readonly Model[]>((resolve) => {
+      timer = setTimeout(() => resolve([]), lookupMs)
+    })
+    const lookup = Promise.race([lookUpModels(agent), gaveUp])
+      .catch((error: unknown) => {
+        log.warn("harnesses.models-failed", `Novadeck could not list ${agent}'s models`, {
+          data: { agent },
+          err: error,
+        })
+        return [] as readonly Model[]
+      })
+      .then((models) => {
+        clearTimeout(timer)
+        if (models.length > 0) {
+          known.set(agent, { at: Date.now(), models })
+          lastEmpty.delete(agent)
+          return models
+        }
+        lastEmpty.set(agent, Date.now())
+        return known.get(agent)?.models ?? models
+      })
+      .finally(() => looking.delete(agent))
+    looking.set(agent, lookup)
+    return lookup
+  }
   const api = {
     /**
      * The models the agent can start with on this machine, each with its efforts; none
-     * where that can't be told. Kept for ten minutes, a minute when none, and shared by
-     * callers who ask meanwhile.
+     * where that can't be told. The last list found is answered at once, and looked up
+     * anew in the background once ten minutes old; only the first lookup is waited for,
+     * for four seconds at most. A harness that found none is not asked again for a minute.
      */
     models: (agent: AgentName): Promise<readonly Model[]> => {
       const held = known.get(agent)
-      if (held && Date.now() - held.at < held.ms) return Promise.resolve(held.models)
       const running = looking.get(agent)
+      const resting = Date.now() - (lastEmpty.get(agent) ?? -Infinity) < emptyMs
+      if (held) {
+        if (Date.now() - held.at >= keepMs && !running && !resting) void refresh(agent)
+        return Promise.resolve(held.models)
+      }
       if (running) return running
-      const lookup = lookUpModels(agent)
-        .catch((error: unknown) => {
-          log.warn("harnesses.models-failed", `Novadeck could not list ${agent}'s models`, {
-            data: { agent },
-            err: error,
-          })
-          return [] as readonly Model[]
-        })
-        .then((models) => {
-          known.set(agent, { at: Date.now(), ms: models.length > 0 ? keepMs : emptyMs, models })
-          return models
-        })
-        .finally(() => looking.delete(agent))
-      looking.set(agent, lookup)
-      return lookup
+      return resting ? Promise.resolve([]) : refresh(agent)
     },
     /** Where the agent lives on this machine, once the shell files say where its plugin is. */
     install: async (agent: AgentName): Promise<Install | undefined> => (await installs())?.(agent),
