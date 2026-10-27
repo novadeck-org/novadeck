@@ -1,5 +1,8 @@
+import { leadOf } from "@novadeck/core/agent-steps"
+import type { InboxSource } from "@novadeck/core/inbox"
 import { useCallback, useEffect, useMemo, type ReactNode } from "react"
 
+import { AgentContextProvider } from "../inbox/agent-context"
 import { InboxProvider, useInboxOpener } from "../inbox/InboxProvider"
 import { InboxSheet } from "../inbox/InboxSheet"
 import { InboxToasts, type ToastBoard } from "../inbox/InboxToasts"
@@ -42,8 +45,9 @@ const NoticeClicks = (): null => {
 }
 
 // Gives the app below it the backend's Inbox: its list, and the sheets that open beside
-// it. The list is a sidebar panel (`shell/WorkspaceSidebar.tsx`); on a phone it and a
-// sheet take the screen in turn, so the sidebar's drawer is shut while a sheet is open.
+// it, which read the context of an item's agent from the backend's conversations and
+// messages. The list is a sidebar panel (`shell/WorkspaceSidebar.tsx`); on a phone it and
+// a sheet take the screen in turn, so the sidebar's drawer is shut while a sheet is open.
 export const InboxHost = ({
   active,
   children,
@@ -69,21 +73,32 @@ export const InboxHost = ({
       watchInboxToasts(inbox, ui, board, { pings, ding: dingOf(backend, ui).ring }),
     [inbox, ui, pings, backend],
   )
+  // Read as a sheet asks, as a terminal's lead seldom changes while one shows.
+  const lead = useCallback(
+    (source: InboxSource) => leadOf(workspace.getSnapshot(), source),
+    [workspace],
+  )
   return (
-    <InboxProvider
-      inbox={inbox}
-      reveal={reveal}
-      phone={phone}
-      working={working}
-      active={active}
-      feedbackAbout={backend.feedback?.about}
+    <AgentContextProvider
+      conversations={backend.conversations}
+      messages={backend.messages}
+      leadOf={lead}
     >
-      {children}
-      <NoticeClicks />
-      <PlanTextProvider workspace={workspace} companions={backend.companions}>
-        <InboxSheet active={active} />
-      </PlanTextProvider>
-      <InboxToasts follow={follow} showInbox={showInbox} />
-    </InboxProvider>
+      <InboxProvider
+        inbox={inbox}
+        reveal={reveal}
+        phone={phone}
+        working={working}
+        active={active}
+        feedbackAbout={backend.feedback?.about}
+      >
+        {children}
+        <NoticeClicks />
+        <PlanTextProvider workspace={workspace} companions={backend.companions}>
+          <InboxSheet active={active} />
+        </PlanTextProvider>
+        <InboxToasts follow={follow} showInbox={showInbox} />
+      </InboxProvider>
+    </AgentContextProvider>
   )
 }
