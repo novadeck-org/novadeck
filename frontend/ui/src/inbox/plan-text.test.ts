@@ -161,6 +161,21 @@ describe("the plan text a plan approval's sheet shows", () => {
     sheet.unmount()
   })
 
+  it("takes a plan that comes after the wait is over", () => {
+    const workspace = createWorkspaceStore(workspaceFixture())
+    const { companions, report } = following()
+    const sheet = show(workspace, companions, approval())
+    act(() => vi.advanceTimersByTime(5000))
+    expect(sheet.text()).toBeNull()
+
+    act(() => vi.advanceTimersByTime(2000))
+    upsert(workspace, planItem(1, asked + 7000))
+    expect(sheet.text()).toBeUndefined()
+    report(ready("# Late, but its own"))
+    expect(sheet.text()).toBe("# Late, but its own")
+    sheet.unmount()
+  })
+
   it("is null where the plan can't be read, or the backend has no plans", () => {
     const workspace = createWorkspaceStore(workspaceFixture())
     upsert(workspace, planItem(1, asked))
