@@ -16,10 +16,7 @@
 
 <p align="center">
   <a href="https://try.novadeck.dev">
-    <picture>
-      <source media="(prefers-color-scheme: dark)" srcset="https://try.novadeck.dev/poster-dark-2560.webp" />
-      <img src="https://try.novadeck.dev/poster-light-2560.webp" alt="Novadeck with four terminals in a project, Claude Code running in the main pane." width="100%" />
-    </picture>
+    <img src="https://try.novadeck.dev/poster-dark-2560.webp" alt="Novadeck with four terminals in a project, Claude Code running in the main pane." width="100%" />
   </a>
 </p>
 
