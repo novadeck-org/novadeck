@@ -1504,10 +1504,10 @@ describe("checking through novadeck.dev", () => {
     const { updater, offered, setChannel } = checking({ mode: "tell", channel: "stable" })
     updater.checkForUpdates = () => {
       updater.checks += 1
-      const early = updater.allowPrerelease
+      const experimental = updater.allowPrerelease
       return new Promise((resolve) =>
         setTimeout(() => {
-          updater.emit("update-available", { version: early ? "1.6.0" : "1.5.0" })
+          updater.emit("update-available", { version: experimental ? "1.6.0" : "1.5.0" })
           resolve(undefined)
         }, 3000),
       )
@@ -1627,10 +1627,10 @@ describe("checking through novadeck.dev", () => {
       const { updater, offered, setChannel } = checking({ mode: "tell", channel: "experimental" })
       updater.checkForUpdates = () => {
         updater.checks += 1
-        const early = updater.allowPrerelease
+        const experimental = updater.allowPrerelease
         return new Promise((resolve) =>
           setTimeout(() => {
-            updater.emit("update-available", { version: early ? "1.6.0" : "1.5.0" })
+            updater.emit("update-available", { version: experimental ? "1.6.0" : "1.5.0" })
             resolve(undefined)
           }, 1000),
         )
