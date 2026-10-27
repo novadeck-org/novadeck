@@ -114,11 +114,17 @@ describe("the update progress bar", () => {
       await expect.element(allow).not.toBeInTheDocument()
     })
 
-    it("shortens to Update on a narrow bar", async () => {
+    it("shortens to its icon on a narrow bar", async () => {
       await page.viewport(600, 800)
       try {
         await openWorkspace("/?update=available")
-        await expect.element(availableChip().getByText("Update", { exact: true })).toBeVisible()
+        await expect.element(availableChip()).toBeVisible()
+        expect(
+          availableChip().element().querySelector("svg")!.getBoundingClientRect().width,
+        ).toBeGreaterThan(0)
+        await expect
+          .element(availableChip().getByText("Update available", { exact: true }))
+          .not.toBeVisible()
       } finally {
         await page.viewport(1440, 900)
       }
