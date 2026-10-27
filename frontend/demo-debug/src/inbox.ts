@@ -6,6 +6,7 @@ import {
   demoInboxIds,
   demoInboxRowsAll,
   demoLongCommand,
+  demoPlanStates,
 } from "@novadeck/demo/inbox-fixtures"
 
 import type { DemoActionGroup } from "./types"
@@ -241,6 +242,17 @@ export const inboxGroups = (
             })
           },
         },
+        ...(["loading", "missing"] as const).map((state) => ({
+          label: state === "loading" ? "Plan still loading" : "Plan not found",
+          hint:
+            state === "loading"
+              ? "Unblock row with Claude's plan whose box stays on Loading: the plan's content never comes"
+              : "Unblock row with Claude's plan that was never shown: its box loads for five seconds, then the dialog's own words stand in",
+          run: () => {
+            const item = fresh(demoInboxIds.plan)
+            if (item) inbox.add({ ...item, id: demoPlanStates[state] })
+          },
+        })),
         {
           label: "Usage limit, reset passed",
           hint: "Trouble row for a 5-hour limit that has reset and Novadeck can't resume, offering Continue now",

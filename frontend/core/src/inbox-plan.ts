@@ -10,12 +10,13 @@ import type { Workspace, WorkspaceTarget } from "./types"
 // records; Antigravity's the Markdown artifact it wrote for review.
 
 // How long before its dialog each harness shows the plan the dialog asks about: Claude Code
-// in the dialog's own hook, so not before it; Codex as its turn's last item, just before the
+// in the dialog's own hook, so not before it, though a dialog detected again (a slow hook,
+// a runner restart) may carry a fresh time; Codex as its turn's last item, just before the
 // dialog takes the screen; Antigravity as it writes the artifact, which its turn may go on
 // past before the review shows. A plan item shown longer before is an earlier round's, as
 // one the person sent back, whose plan the agent is still rewriting.
 export const planLeadMs: Readonly<Record<AgentName, number>> = {
-  claude: 1000,
+  claude: 30_000,
   codex: 60_000,
   agy: 15 * 60_000,
 }

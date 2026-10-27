@@ -205,7 +205,11 @@ and the doorbell, 5 a page shown in the pane, 6 every agent finishes but those w
 person (an open ask, one told No, a failed turn until prompted again, and the helper and its lead
 while the helper's answer is on its way); a second press ends whoever works by then. Answered or
 told, an agent works until cue 6; `frontend/demo/src/babcia.ts`). Every variant's Inbox
-lists what its agents wait on, built as the runner's is. The switcher in the panel's header,
+lists what its agents wait on, built as the runner's is. In it each
+agent carries a transcript, and api-service's worker a brief from its lead, so an item's
+sheet shows the context block the runner gives it: the last words the agent was given (the person's, or a
+lead's handoff, by its handle), and under them up to three steps since that edited, ran or
+failed, each with what came of it (`+4 −2`, a command's last line, the error). The switcher in the panel's header,
 which leaves out `welcome`, `chirp` and `babcia`, changes between them without reloading
 (pressing the current one boots it again), and the browser tab remembers the last one chosen.
 `&turnMs=` sets how long a demo agent's turn works (1500 ms unless given), as a spec does
@@ -348,7 +352,8 @@ App:
   failed turn with no error, a held message whose sender is gone, a plan approval
   (its bypass-permissions yes a quiet link; in the agents and Inbox demos it brings its long
   checkout plan, shown again on storefront's terminal 6 as a harness shows the plan it asks
-  about), a failed turn, a free-text ask, a permission
+  about; "Plan still loading" keeps that plan's box on Loading, and "Plan not found" shows no
+  plan, so the box waits five seconds and the dialog's own words stand in), a failed turn, a free-text ask, a permission
   whose Deny is a plain no, messages held long behind what keeps the doorbell from an idle
   agent, a feedback draft (an agent's bug report with a path in it, to Send or Discard), a
   heads-up and an agent's done report. "Several asks at once" adds four asks from four

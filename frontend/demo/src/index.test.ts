@@ -8,7 +8,7 @@ import { itemFixture } from "@novadeck/core/testing"
 import { createDemoEngine } from "./engine"
 import { demoHandle } from "./handles"
 import { isDemoInbox } from "./inbox"
-import { demoInboxIds, demoInboxRowsAll } from "./inbox-fixtures"
+import { demoInboxIds, demoInboxRowsAll, demoPlanStates } from "./inbox-fixtures"
 import { demoBackend, withMessages } from "./index"
 import { createMockTerminal, defaultName } from "./samples"
 import { context, describe, expect, it } from "./test"
@@ -215,6 +215,41 @@ describe("demo backend", () => {
           },
         },
       ])
+    })
+  })
+
+  context("when a plan approval is made to load forever, or to have no plan", () => {
+    const arrive = (id: string) => {
+      const backend = createDemo("inbox", undefined, demoTurns())
+      const reported: BackendAction[] = []
+      const stop = backend.start!({
+        dispatch: (actions) => reported.push(...actions),
+        open: () => {},
+      })
+      const { inbox } = backend
+      if (!isDemoInbox(inbox)) throw new Error("The Inbox demo has the demo's Inbox")
+      const row = demoInboxRowsAll(1_000).find(({ id: each }) => each === demoInboxIds.plan)!
+      inbox.add({ ...row, id })
+      stop()
+      return {
+        backend,
+        shown: reported.flatMap((action) => (action.type === "item/upsert" ? [action] : [])),
+      }
+    }
+
+    it("shows a plan whose content never comes", () => {
+      const { backend, shown } = arrive(demoPlanStates.loading)
+      const item = shown.at(-1)!
+      const contents: unknown[] = []
+      backend.companions!.follow(item.target, item.item.id, { reveal: undefined }, (content) =>
+        contents.push(content),
+      )
+      expect(item.item.kind).toBe("plan")
+      expect(contents).toEqual([])
+    })
+
+    it("shows no plan at all", () => {
+      expect(arrive(demoPlanStates.missing).shown).toEqual([])
     })
   })
 

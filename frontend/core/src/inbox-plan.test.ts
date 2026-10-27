@@ -162,7 +162,7 @@ describe("the plan a plan approval asks about", () => {
 
     it("waits for the new round's plan rather than show the round the person sent back", () => {
       // The second ExitPlanMode's dialog reached the UI before the plan its hook showed.
-      const earlier = plan("claude", asked - 30_000, { version: 1 })
+      const earlier = plan("claude", asked - 5 * 60_000, { version: 1 })
       expect(planItemOf([earlier], approval("claude"), asked + 10)).toEqual({
         state: "waiting",
         until: asked + planWaitMs,
@@ -171,6 +171,15 @@ describe("the plan a plan approval asks about", () => {
       expect(planItemOf([rewritten], approval("claude"), asked + 30)).toEqual({
         state: "found",
         item: rewritten,
+      })
+    })
+
+    it("takes Claude Code's plan from a dialog seen again with a fresh time", () => {
+      // A slow hook or a runner restart: the dialog's time is later than its plan's.
+      const shown = plan("claude", asked - 20_000)
+      expect(planItemOf([shown], approval("claude"), asked)).toEqual({
+        state: "found",
+        item: shown,
       })
     })
 
