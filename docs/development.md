@@ -34,9 +34,9 @@ messages stay. The oldest it carries is schema version 6: one from before that (
 from 2 to 6 went with schema 7, before release), or whose step doesn't fit it or finds it
 damaged, or whose tables differ from its version's, is set aside as
 `workspace.sqlite.earlier-<time>` (with its `-wal` and `-shm`) for a new one to start; that
-file stays for you to delete, and may hold saved terminal output that was never masked. So
-does a `workspace.sqlite.restoring` that an earlier build's restore left half done. A
-runner keeps a copy from before each step in `snapshots/` beside it (the newest three). A standalone runner keeps it at `~/.local/share/novadeck/workspace.sqlite` unless
+file stays for you to delete, and may hold saved terminal output that was never masked. A
+`workspace.sqlite.restoring` an earlier build's restore left half done also stays for you
+to delete. A runner keeps a copy from before each step in `snapshots/` beside it (the newest three). A standalone runner keeps it at `~/.local/share/novadeck/workspace.sqlite` unless
 `NOVADECK_DATABASE` is set; the desktop app keeps it in its data folder, `novadeck` on every
 platform: `~/.config/novadeck/workspace.sqlite` on Linux, `~/Library/Application
 Support/novadeck/workspace.sqlite` on macOS and `%APPDATA%\novadeck\workspace.sqlite` on

@@ -28,13 +28,13 @@ const timestamp = new Intl.DateTimeFormat(undefined, {
   minute: "2-digit",
 })
 
-// A session never visited is the one open now, before the person moves, or one not opened yet.
+// The open session is open now, whenever it was last visited.
 const formatVisited = (visitedAt: number | null, active: boolean): string =>
-  visitedAt !== null
-    ? `Last visited ${timestamp.format(new Date(visitedAt))}`
-    : active
-      ? "Open now"
-      : "Not opened yet"
+  active
+    ? "Open now"
+    : visitedAt === null
+      ? "Not opened yet"
+      : `Last visited ${timestamp.format(new Date(visitedAt))}`
 
 export const SessionsPanel = ({
   items,

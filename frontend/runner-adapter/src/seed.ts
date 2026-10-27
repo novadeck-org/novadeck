@@ -86,7 +86,7 @@ export const runnerTerminal = (
 }
 
 // A session's seed and when it was last visited; null if never.
-type Ranked = { readonly seed: SessionSeed; readonly visitedAt: number | null }
+type Visited = { readonly seed: SessionSeed; readonly visitedAt: number | null }
 
 // The session's terminals, windows and items are the runner's, terminals in the order
 // they were created; how the UI showed them, as it saved that, lays them out again. A
@@ -96,7 +96,7 @@ const sessionSeed = (
   summaries: readonly TerminalSummary[],
   quickExitMs: number,
   companions: ListedCompanions = { items: [], windows: [] },
-): Ranked => {
+): Visited => {
   const saved = decodeSession(session.state)
   const terminals = summaries.flatMap((summary) => {
     const terminal = runnerTerminal(summary, quickExitMs)
@@ -120,7 +120,7 @@ const sessionSeed = (
 }
 
 // Visit times are epoch milliseconds, so -1 sorts a session never visited last.
-const later = (a: Ranked | undefined, b: Ranked | undefined): number =>
+const later = (a: Visited | undefined, b: Visited | undefined): number =>
   (a?.visitedAt ?? -1) - (b?.visitedAt ?? -1)
 
 // The workspace as the runner left it: sessions most recently visited first, and the

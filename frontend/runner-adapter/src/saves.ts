@@ -87,11 +87,11 @@ export const createSessionSaves = ({
       if (!found || !exists) continue
       const state = encodeSession(found)
       const { visitedAt } = found
-      const held = saved.get(id)
+      const last = saved.get(id)
       // More than the runner accepts, a state it would reject is dropped; a visit still goes,
       // with the state the runner last kept.
-      const next = fitsRunner(state) ? state : held?.state
-      if (next === undefined || (held?.state === next && held.visitedAt === visitedAt)) continue
+      const next = fitsRunner(state) ? state : last?.state
+      if (next === undefined || (last?.state === next && last.visitedAt === visitedAt)) continue
       const sent = track(
         exists.then(async (ok) => {
           if (!ok) return

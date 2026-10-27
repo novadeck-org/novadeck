@@ -1276,7 +1276,7 @@ describe("workspace metadata", () => {
     `)
     old.close()
     expect(() => new WorkspaceStore(path)).toThrow(
-      /earlier build: its schema is version 1, from before Novadeck carried workspaces forward\./,
+      /earlier build: its schema is version 1, older than the oldest this build carries \(6\)\./,
     )
     const database = new DatabaseSync(path)
     try {

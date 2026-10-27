@@ -16,6 +16,14 @@ export type Sender = {
   readonly sessionId: string | null
 }
 
+/** The person as a sender, of their Inbox answers and feedback requests to an agent. */
+export const personSender: Sender = {
+  terminalId: "you",
+  handle: "you",
+  agent: null,
+  sessionId: null,
+}
+
 /** Novadeck itself as a sender, of its automatic notices to an agent (see `Messaging.notice`). */
 export const novadeckSender: Sender = {
   terminalId: "novadeck",

@@ -105,10 +105,10 @@ export type Runner = {
 }
 
 /**
- * The workspace store at `database`, carried forward from an earlier build's in place. One it can't carry (from
- * before the first migration, whose step doesn't fit it, or whose tables differ from its
- * version's) is set aside and a new one started, so an update never leaves the runner
- * unable to start; the old file stays beside it.
+ * The workspace store at `database`, carried forward from an earlier build's in place. One
+ * it can't carry (older than the first migration, whose step doesn't fit it, or whose
+ * tables differ from its version's) is set aside and a new one started, so an update never
+ * leaves the runner unable to start; the old file stays beside it.
  */
 const openStore = (database: string | undefined): WorkspaceStore => {
   try {

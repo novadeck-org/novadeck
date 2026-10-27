@@ -32,7 +32,7 @@ import type { ItemRecord, ItemRecords, Placed, WindowRecord } from "../companion
 import { DomainError } from "../errors.js"
 import { logs } from "../log.js"
 import type { InboxRecords, StoredEntry } from "../messaging/inbox.js"
-import { novadeckSender, type Message, type Thread } from "../messaging/messages.js"
+import { novadeckSender, personSender, type Message, type Thread } from "../messaging/messages.js"
 import type { MessageRecords } from "../messaging/records.js"
 import { handleOrder, nextHandle } from "../terminals/handles.js"
 import type { Naming } from "../terminals/naming.js"
@@ -278,10 +278,10 @@ type Step = string | ((database: DatabaseSync, path: string) => void)
  * The steps that carry a database forward, by the version each starts from, each to the
  * next. A step is the SQL that version's tables needed, written out as it was then, never
  * taken from `schema`, which later versions change again; `schemas/` keeps each version's
- * tables, for its step's test. A database older than the first step is from before
- * Novadeck migrated, and is set aside. A step that renames a table others reference must
- * not drop it after: renaming points their references at the old one, and the drop then
- * deletes their rows through ON DELETE CASCADE.
+ * tables, for its step's test. A database older than the first step is older than this
+ * build carries, and is set aside. A step that renames a table others reference drops it
+ * only once those others are gone: renaming points their references at the old one, and
+ * dropping it first deletes their rows through ON DELETE CASCADE.
  */
 const migrations: Readonly<Record<number, Step>> = {
   // Every table but the settings is made again, with foreign keys and the new names. The old
@@ -634,7 +634,7 @@ const migrate = (database: DatabaseSync, path: string, version: number): void =>
     if (step === undefined) {
       throw new EarlierWorkspaceError(
         path,
-        `its schema is version ${from}, from before Novadeck carried workspaces forward`,
+        `its schema is version ${from}, older than the oldest this build carries (6)`,
       )
     }
     try {
@@ -966,13 +966,6 @@ type ThreadRow = {
 
 // The person's and Novadeck's messages carry no sender terminal or thread in the store; the
 // message has them as it always did: the person's under the id of the entry it answers.
-const personSender: Message["from"] = {
-  terminalId: "you",
-  handle: "you",
-  agent: null,
-  sessionId: null,
-}
-
 const senderOf = (row: MessageRow): Message["from"] => {
   if (row.from_kind === "person") return personSender
   if (row.from_kind === "novadeck") return novadeckSender

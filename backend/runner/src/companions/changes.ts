@@ -690,7 +690,7 @@ export const readChange = async (
   if (!others.ok) return failure("failed", reasonOf(others, "read the changes"))
 
   const entries = parseListing(listing.out)
-  const heldAt = (path: string, oldPath: string | null) =>
+  const secretAt = (path: string, oldPath: string | null) =>
     secret(join(root, path)) || (oldPath !== null && secret(join(root, oldPath)))
   // Only files that can fit are diffed, so one that can't (a regenerated lockfile) takes
   // none of the patch's room from those after it: each changed line costs at least
@@ -699,7 +699,7 @@ export const readChange = async (
   let planned = 0
   for (const entry of entries.slice(0, maxChangedFiles)) {
     const least = (entry.added + entry.removed) * minLineCost
-    if (heldAt(entry.path, entry.oldPath) || entry.binary || least === 0) continue
+    if (secretAt(entry.path, entry.oldPath) || entry.binary || least === 0) continue
     if (planned + least > maxChangesBytes) continue
     planned += least
     wanted.push(entry)
@@ -710,7 +710,7 @@ export const readChange = async (
   const parsed = new Map<string, ChangedFile>()
   // A file that may hold secrets is not even looked at in the diff: neither its new name
   // nor the one a rename took it from.
-  const skip = (file: ChangedFile) => heldAt(file.path, file.oldPath)
+  const skip = (file: ChangedFile) => secretAt(file.path, file.oldPath)
   // A patch that was cut ends in a file too big to read (one very long line, say): that
   // file is listed, and the files after it are asked for again, so it takes none of their
   // room. The retries are few; what is still unread then is listed too.
@@ -748,11 +748,11 @@ export const readChange = async (
   let truncated = entries.length > maxChangedFiles
   const files: ChangedFile[] = []
   for (const entry of entries.slice(0, maxChangedFiles)) {
-    const held = heldAt(entry.path, entry.oldPath)
+    const isSecret = secretAt(entry.path, entry.oldPath)
     const lines = entry.added + entry.removed > 0
     const own = parsed.get(entry.path)
-    const hunks = !held && !entry.binary && lines && own && !own.listed ? own.hunks : undefined
-    const listed = !held && !entry.binary && lines && hunks === undefined
+    const hunks = !isSecret && !entry.binary && lines && own && !own.listed ? own.hunks : undefined
+    const listed = !isSecret && !entry.binary && lines && hunks === undefined
     if (listed) truncated = true
     files.push({
       ...emptyFile(entry.path),
@@ -761,7 +761,7 @@ export const readChange = async (
       added: entry.added,
       removed: entry.removed,
       binary: entry.binary,
-      secret: held,
+      secret: isSecret,
       listed,
       hunks: hunks ?? [],
     })
