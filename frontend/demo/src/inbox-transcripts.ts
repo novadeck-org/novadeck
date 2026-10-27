@@ -5,6 +5,10 @@ import type { DemoSessionMessages } from "./messages"
 import { demoTerminalId } from "./samples"
 import { got, say, use, user, written, type DemoDraft, type DemoTranscript } from "./transcripts"
 
+// A line of the demo agent's own code. Put together here, so the repository's import scanner
+// (scripts/packages) doesn't read the sample as this file's imports.
+const sampleImport = (names: string, from: string): string => `import ${names} from "${from}"`
+
 // What the Inbox demo's agents outside the storefront did before their item came, by
 // `projectId/slot`, so each item's sheet has the person's words and the steps since, as
 // each harness records them: Claude Code's Edit, Write and Bash with its `Exit code` on a
@@ -140,8 +144,12 @@ const drafts: Readonly<Record<string, readonly DemoDraft[]>> = {
     edit(
       "toolu_a12",
       `${root}/api-service/src/server.ts`,
-      'import { pdf } from "./pdf"\nimport { mailer } from "./mailer"\nimport { search } from "./search"',
-      'const pdf = () => import("./pdf")',
+      [
+        sampleImport("{ pdf }", "./pdf"),
+        sampleImport("{ mailer }", "./mailer"),
+        sampleImport("{ search }", "./search"),
+      ].join("\n"),
+      `const pdf = () => ${"import"}("./pdf")`,
     ),
     got("toolu_a12", `The file ${root}/api-service/src/server.ts has been updated.`),
   ],
