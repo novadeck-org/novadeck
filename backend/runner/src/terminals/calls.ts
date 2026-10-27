@@ -290,10 +290,12 @@ export class Calls {
           opened.startedWith = started.nonce
         if (request.message !== undefined) {
           this.host.save(opened)
-          task = this.host.messaging().sendBrief(call.terminalId, {
-            to: opened.summary.handle,
-            text: request.message,
-          })
+          // Only a brief-only lead's brief is held as its one marked message: an ordinary
+          // lead's later messages carry the mark too.
+          const brief = { to: opened.summary.handle, text: request.message }
+          task = briefOnly
+            ? this.host.messaging().sendBrief(call.terminalId, brief)
+            : this.host.messaging().send(call.terminalId, brief)
         } else if (leads)
           // With no task to say so, the agent is told who leads it.
           this.host

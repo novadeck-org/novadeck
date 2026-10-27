@@ -3511,6 +3511,31 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))(
         )
       })
 
+      it(`keeps leading ${agent} opened with a brief by default: its later messages are marked`, async ({
+        shell,
+      }) => {
+        await opened(
+          shell,
+          agent,
+          { message: "Review a.ts, please." },
+          async ({ manager, worker, prompt, sends }) => {
+            // The brief and what follows are the lead's: Antigravity's start took the brief,
+            // the others take it with their first prompt.
+            if (agent !== "agy") await prompt("go")
+            await expect
+              .poll(() => manager.messages(worker).threads[0]?.messages[0]?.state)
+              .toBe("delivered")
+            expect(await sends("Next, the tests.")).toEqual([
+              { ok: true, text: expect.stringContaining("Message m-") },
+            ])
+            expect(await prompt("more")).toMatch(
+              /<message [^>]*from="moth"[^>]*lead="[^"]+"[^>]*>Next, the tests.<\/message>/,
+            )
+            expect(manager.get(worker).ledBy).toBe("moth")
+          },
+        )
+      })
+
       it(`tells ${agent} opened without a brief that its opener leads it, and keeps the lead`, async ({
         shell,
       }) => {

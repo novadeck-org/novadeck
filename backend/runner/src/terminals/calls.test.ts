@@ -58,6 +58,7 @@ describe("the open call", () => {
     let listener: ((change: { kind: "terminal"; terminalId: string }) => void) | undefined
     let state = "queued"
     let briefed = false
+    let plain = 0
     const opened = {
       summary: { id: "t2", handle: "fox", title: "claude", ledBy: "moth" },
       terminal: { exiting: false },
@@ -84,6 +85,11 @@ describe("the open call", () => {
       }),
       messaging: () => ({
         refusal: () => undefined,
+        send: (_from: string, request: { to: string; text: string }) => {
+          sent.push(request)
+          plain += 1
+          return { ok: true, id: "m1", to: request.to, state: "queued" }
+        },
         sendBrief: (_from: string, request: { to: string; text: string }) => {
           sent.push(request)
           briefed = true
@@ -120,6 +126,9 @@ describe("the open call", () => {
       opened,
       open: (request: object) =>
         run.open({ type: "open", terminalId: "t1", token, request: request as never }),
+      // Whether the brief went as an ordinary message, or as a lead-for-the-brief-only one.
+      plainSends: () => plain,
+      briefed: () => briefed,
       deliver: () => {
         state = "delivered"
         listener?.({ kind: "terminal", terminalId: "t2" })
@@ -164,6 +173,8 @@ describe("the open call", () => {
     expect(run.asked[0]!.command).toMatch(line)
     expect(run.asked[0]!.opener).toMatchObject({ leads: true })
     expect(run.sent).toEqual([{ to: "fox", text: "Review a.ts." }])
+    // An ordinary lead's brief is an ordinary message: its later ones are the lead's too.
+    expect([run.plainSends(), run.briefed()]).toEqual([1, false])
     expect(answer).toMatchObject({ ok: true, led: true, task: { ok: true, id: "m1" } })
     expect(run.opened.startedWith).toMatch(/^[A-Za-z0-9]{6}$/)
     // The brief tells it who leads it: no notice beside it.
@@ -180,6 +191,7 @@ describe("the open call", () => {
     expect(run.asked[0]!.opener).toMatchObject({ leads: true })
     expect(run.asked[0]!.command).toMatch(line)
     expect(run.sent).toEqual([{ to: "fox", text: "Review a.ts." }])
+    expect([run.plainSends(), run.briefed()]).toEqual([0, true])
     expect(answer).toMatchObject({ ok: true, led: false, task: { ok: true } })
     expect(run.opened.summary.ledBy).toBe("moth")
     expect(run.notices).toEqual([])

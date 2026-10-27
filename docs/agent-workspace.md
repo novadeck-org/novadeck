@@ -497,8 +497,8 @@ with every safety check again at that time:
   person would type it, such as `npm run dev`; `focus` brings it into view
   only when the person asked to see it. `open_terminal` starts no agent: every agent, with or without a
   task (and optionally a `model`, `effort` or a session to `resume`), is started by
-  `open_agent`, which makes the caller its lead when it opens with a task, or when
-  `lead` says so. The runner checks the token, reads the request
+  `open_agent`, which makes the caller its lead as `lead` says (by default, when it opens
+  with a task). The runner checks the token, reads the request
   strictly, checks the folder, and lets a terminal's agents open five a minute, a
   terminal opened on request sharing the budget of the one that began the chain, and
   all agents twenty a minute across the runner, so terminals opening terminals can't
