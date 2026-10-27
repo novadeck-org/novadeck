@@ -283,7 +283,10 @@ export const Menu = ({
       })}
       {/* The cursor's row's details, under the rows, so that no row moves as the cursor does. */}
       {items[at]?.more && (
-        <div className="console-more" aria-label={`About ${at + 1}`}>
+        <div className="console-more" role="note" aria-label={`More about ${at + 1}`}>
+          <span className="console-more-of" aria-hidden="true">
+            More about {at + 1}
+          </span>
           {items[at]?.more}
         </div>
       )}

@@ -493,6 +493,14 @@
 .console-you {
   color: var(--color-ink);
 }
+/* Long words to the agent are clamped to two lines; the full text is its title. */
+.console-you .console-line {
+  display: -webkit-box;
+  overflow: hidden;
+  white-space: normal;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
 .console-you q {
   quotes: "“" "”";
 }
@@ -762,6 +770,13 @@ pre.console-box {
   color: var(--color-muted);
   font-family: var(--font-sans);
   font-size: var(--text-control);
+}
+.console-more-of {
+  display: block;
+  margin-bottom: 2px;
+  color: var(--color-muted);
+  font-family: var(--font-mono);
+  font-size: var(--text-caption);
 }
 /* The person's own words, in a box where the row was. */
 .console-own {

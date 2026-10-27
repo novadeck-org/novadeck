@@ -41,7 +41,7 @@ const Context = ({ item }: { readonly item: InboxRow }): React.JSX.Element | nul
           <span className="console-gut" aria-hidden="true">
             ›
           </span>
-          <span className="console-line">
+          <span className="console-line" title={said.text}>
             {said.by && (
               <>
                 <HandleChip handle={said.by} /> said{" "}
