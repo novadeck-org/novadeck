@@ -309,6 +309,19 @@ at most 1,000 ids per call. A done report, like a tell, outlives its agent and t
 Messages history once read; the latest done of each terminal that still exists is kept
 past the usual day, as the report that still stands (`TerminalSummary.reported`). `watch` resubscribes with a fresh listing on reconnect.
 
+The MCP `feedback` tool drafts feedback about Novadeck for the app's feedback card. Drafts
+are no Inbox entries: the runner holds them in memory only, one per terminal (a new call
+replaces it), past the agent session and the terminal, until the project is removed or the
+runner restarts. `feedback.watch()` follows the waiting drafts, oldest first (id, terminal,
+project, session, agent, handle, time, kind, text, `asked`). The client calls
+`feedback.settle({ id, outcome })` (`"sent"` or `"discarded"`) once it sent one or the person
+discarded it; the runner sends nothing and the agent isn't told; an id it doesn't hold is
+`NOT_FOUND`. `feedback.ask({ terminalId, hint })` relays the person's request for a draft to
+the agent in a terminal as a message from them; the draft that follows, once it reached the
+agent, has `asked: true`. An unknown terminal is `TERMINAL_NOT_FOUND`, one with no agent
+session bound `NOT_FOUND`, one whose earlier request still waits `CONFLICT`. See
+[Agent messaging](agent-messaging.md), "Feedback drafts".
+
 Agents in a project's terminals message each other (see
 [Agent messaging](agent-messaging.md)); the runner API lets a client see and steer it:
 

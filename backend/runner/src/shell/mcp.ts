@@ -15,8 +15,9 @@
  * closes one of the project's terminals by its handle, or the agent's own; `lead`, which
  * asks the user to let it lead an agent already running in another terminal, and `release`,
  * which ends such a lead; `send` and
- * `agents`, which message the agents in the project's other terminals and list them; and `summarize`,
- * which says what the agent's own terminal works on (see docs/agent-messaging.md). Each call goes to the terminal's runner with the terminal's
+ * `agents`, which message the agents in the project's other terminals and list them; `summarize`,
+ * which says what the agent's own terminal works on; and `feedback`, which drafts feedback
+ * about Novadeck for the user's feedback card (see docs/agent-messaging.md). Each call goes to the terminal's runner with the terminal's
  * own token, as the relay named them, and the runner's answer is told back as text.
  * Only Claude Code reads a server's own instructions, so each tool's description carries
  * its rules.
@@ -1037,6 +1038,42 @@ const done: Tool<{ readonly id: string }> = {
   failed: "Novadeck couldn't save the report.",
 }
 
+const feedback: Tool<unknown> = {
+  name: "feedback",
+  description:
+    "Draft feedback for the people who build Novadeck. Use it when the user asks you for " +
+    "feedback, or on your own when you hit a bug in Novadeck itself: its tools, its messages, " +
+    "its Inbox, its windows. Not for a bug in the project you work on or in your harness. " +
+    "At most once per problem. Write what you did, what happened, and what you expected, " +
+    "as the kind of note you'd want to receive. Leave out code or content from the user's " +
+    "project, secrets, names, and paths under their home folder. Nothing is sent: the draft " +
+    "waits in the user's feedback card in Novadeck until they read it, edit it and send it, or discard it. " +
+    "A new call replaces your open draft in this terminal. Returns at once.",
+  inputSchema: {
+    type: "object",
+    properties: {
+      kind: {
+        type: "string",
+        enum: ["bug", "idea", "other"],
+        description: "A bug in Novadeck, an idea for it, or anything else.",
+      },
+      text: {
+        type: "string",
+        description: "The feedback, up to 2,000 characters.",
+        maxLength: 2000,
+      },
+    },
+    required: ["kind", "text"],
+    additionalProperties: false,
+  },
+  call: "feedback",
+  request: (args) => picked(args, ["kind", "text"]),
+  said: () =>
+    "Your feedback draft is in the user's feedback card. Nothing is sent until they read, edit and send it; " +
+    "Novadeck won't tell you what they do with it. Carry on with your work.",
+  failed: "Novadeck couldn't save the feedback draft.",
+}
+
 const tools: readonly Tool<unknown>[] = [
   ask,
   tell,
@@ -1052,6 +1089,7 @@ const tools: readonly Tool<unknown>[] = [
   send,
   agents,
   summarize,
+  feedback,
 ]
 
 /** A JSON-RPC message the server sends, without its `jsonrpc`. */
@@ -1104,7 +1142,8 @@ const instructions =
   "your own short report when the task you were given is finished, not when you answer a " +
   "question or finish a step. With a lead, use ask, tell and done all the same, and send " +
   "your lead your report and your questions too; approvals of actions are still only the " +
-  "user's."
+  "user's. Its feedback drafts a note about Novadeck for the user to read and send, when " +
+  "they ask for one or you hit a bug in Novadeck itself."
 
 const respond = async (line: string, call?: McpCall): Promise<Reply | undefined> => {
   if (line.trim() === "") return undefined
@@ -1179,11 +1218,21 @@ const said = (tool: Tool<unknown>, answer: unknown): string => {
   }
 }
 
+// Offered after a failure that is Novadeck's own and unexplained: the call failed or timed
+// out (the runner marks it `unexplained`), or came back with no reason. A refusal with a
+// reason of its own (a limit, a field the agent got wrong), the runner's generic words for
+// a stop or a race (it is stopping, the terminal closed meanwhile), and `feedback`'s own
+// failures get none.
+const nudge = "If this looks like a bug in Novadeck, you can draft feedback with the feedback tool."
+
 // Refused, a terminal whose own session never bound still learns replies can't reach it.
 const failure = (tool: Tool<unknown>, answer: unknown): string => {
-  const { reason, unbound } = object(answer) ? answer : {}
+  const { reason, unbound, unexplained } = object(answer) ? answer : {}
+  const text = typeof reason === "string" && reason !== "" ? reason : tool.failed
+  const ours = unexplained === true || !object(answer) || reason === undefined || reason === ""
   return (
-    (typeof reason === "string" && reason !== "" ? reason : tool.failed) +
-    (unbound === true ? `\n${unboundNote}` : "")
+    text +
+    (unbound === true ? `\n${unboundNote}` : "") +
+    (ours && tool.name !== "feedback" ? `\n${nudge}` : "")
   )
 }

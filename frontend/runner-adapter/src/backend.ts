@@ -49,6 +49,7 @@ import {
 import { createBootProgress } from "./boot-progress"
 import { createRunnerCompanions } from "./companions"
 import { createRunnerConversations } from "./conversations"
+import { runnerFeedback } from "./feedback"
 import { createRunnerInbox } from "./inbox"
 import { createRunnerItems } from "./items"
 import { createRunnerMessages } from "./messages"
@@ -79,6 +80,7 @@ export type RunnerApi = Pick<
   | "agents"
   | "messages"
   | "inbox"
+  | "feedback"
   | "voice"
   | "murmur"
   | "settings"
@@ -1582,7 +1584,11 @@ export const runnerBackend = (
     ...(options.updates ? { updates: options.updates } : {}),
     ...(options.version ? { version: options.version } : {}),
     ...(options.openLogs ? { openLogs: options.openLogs } : {}),
-    ...(options.feedback ? { feedback: options.feedback } : {}),
+    // The host's sender with the runner's routes: asking and the drafts exist only where a
+    // draft could then be sent.
+    ...(options.feedback
+      ? { feedback: runnerFeedback(options.feedback, runner.feedback, track) }
+      : {}),
     ...(options.sandbox ? { sandbox: options.sandbox } : {}),
     ...(options.whatsNew ? { whatsNew: options.whatsNew } : {}),
     ...(options.portable ? { portable: options.portable } : {}),

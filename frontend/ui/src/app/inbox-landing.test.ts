@@ -508,9 +508,8 @@ describe("deciding one item", () => {
     expect(decideItem({ ...facts, here: false })).toEqual({ act: "none", hold: false })
   })
 
-  it("does not hold a landed item or a feedback draft, nor one kept by the person's asking", () => {
+  it("does not hold a landed item, nor one kept by the person's asking", () => {
     expect(decideItem({ ...facts, landed: true }).hold).toBe(false)
-    expect(decideItem({ ...facts, kind: "feedback" })).toEqual({ act: "none", hold: false })
     expect(decideItem({ ...facts, kept: true, landed: true }).act).toBe("none")
   })
 

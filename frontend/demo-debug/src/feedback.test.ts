@@ -1,5 +1,4 @@
 import { createDemoFeedback } from "@novadeck/demo/feedback"
-import { createDemoInbox } from "@novadeck/demo/inbox"
 import { demoTerminalId } from "@novadeck/demo/samples"
 import { demoTurns } from "@novadeck/demo/turns"
 import { vi } from "vitest"
@@ -29,7 +28,7 @@ const context = (over: Partial<DemoActionContext> = {}): DemoActionContext => ({
   ...over,
 })
 
-const feedback = () => createDemoFeedback(demoTurns(), createDemoInbox(1, []), () => undefined)
+const feedback = () => createDemoFeedback(demoTurns(), () => undefined)
 
 describe("the debug panel's Feedback group", () => {
   it("is absent where the backend has no feedback", () => {
@@ -44,6 +43,7 @@ describe("the debug panel's Feedback group", () => {
       "Next ask fails",
       "Show the button's word again",
       "A feedback draft from the selected agent",
+      "An unasked feedback draft from the selected agent",
     ])
     expect(group?.actions.every((action) => action.hint.length > 0)).toBe(true)
   })

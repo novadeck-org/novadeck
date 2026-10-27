@@ -1,6 +1,7 @@
 /* The footer's feedback button and its card (FeedbackButton.tsx). The button is a footer chip
    (`.footer-update`), pressed while the card is open (aria-expanded); the card is an anchored
-   `.floating` popover. Hooks: data-send on the button ("sent", "failed"). */
+   `.floating` popover. Hooks: data-send on the button ("sent", "failed", "draft": an agent's
+   draft waits, which keeps the neutral colour). */
 @layer components {
   .feedback-button[data-send="failed"] {
     color: var(--color-danger-fg);
@@ -36,6 +37,18 @@
   }
   .feedback-title {
     font-weight: 600;
+  }
+  /* An agent's draft: its mark before the title, which gives way as one line. */
+  .feedback-title-agent {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    min-width: 0;
+  }
+  .feedback-scrubbed {
+    margin-block-start: -6px;
+    color: var(--color-muted);
+    font-size: var(--text-caption);
   }
   .feedback-kinds {
     display: grid;

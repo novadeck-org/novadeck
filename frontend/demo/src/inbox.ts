@@ -141,12 +141,11 @@ const terminalAt = (workspace: Workspace, key: TerminalKey): TerminalMetadata | 
 // Every item is its own row, as in core's `inboxRows`, but for one: the demo's own items
 // that wait on the person for their agent (a request, an ask, trouble) stand in for what
 // their terminal's agent waits on, so they take the place of a dialog that agent's own
-// story shows there, which no real agent shows beside another. A feedback draft waits on
-// the person alone, so it is a row beside whatever the agent waits on.
+// story shows there, which no real agent shows beside another.
 const merged = (own: readonly InboxRow[], derived: readonly InboxRow[]): InboxRow[] => {
   const taken = new Set(
     own
-      .filter((each) => each.kind !== "held" && each.kind !== "update" && each.kind !== "feedback")
+      .filter((each) => each.kind !== "held" && each.kind !== "update")
       .map((each) => each.source.terminalId),
   )
   return ordered([

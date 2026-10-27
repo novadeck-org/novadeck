@@ -284,6 +284,11 @@ export const scriptedRunner = ({
       dismiss: api.inbox.dismiss.handler(unplayed("inbox.dismiss")),
       clear: api.inbox.clear.handler(unplayed("inbox.clear")),
     },
+    feedback: {
+      watch: api.feedback.watch.handler(idle),
+      settle: api.feedback.settle.handler(unplayed("feedback.settle")),
+      ask: api.feedback.ask.handler(unplayed("feedback.ask")),
+    },
     messages: {
       list: api.messages.list.handler(unplayed("messages.list")),
       watch: api.messages.watch.handler(idle),
