@@ -22,9 +22,12 @@ import {
 type PlanSource = {
   readonly workspace: WorkspaceStore
   readonly companions: Companions
-  // Which plan approval showed each plan version (`planKey` to the Inbox item's id), so one
-  // version is never shown for a second approval.
-  readonly shown: Map<string, string>
+  // The plan version each approval's sheet shows (Inbox item id to `planKey`).
+  readonly showing: Map<string, string>
+  // The versions an approval was answered with (`planKey` to the Inbox item's id): one the
+  // person approved or sent back is never a later approval's. A version only shown counts for
+  // nothing, as a dialog read again (a redraw) comes back as a new item asking the same.
+  readonly answered: Map<string, string>
 }
 
 const PlanContext = createContext<PlanSource | undefined>(undefined)
@@ -41,7 +44,15 @@ export const PlanTextProvider = ({
   readonly children?: ReactNode
 }): React.JSX.Element => {
   const value = useMemo(
-    () => (companions ? { workspace, companions, shown: new Map<string, string>() } : undefined),
+    () =>
+      companions
+        ? {
+            workspace,
+            companions,
+            showing: new Map<string, string>(),
+            answered: new Map<string, string>(),
+          }
+        : undefined,
     [workspace, companions],
   )
   return createElement(PlanContext.Provider, { value }, children)
@@ -67,9 +78,9 @@ export const usePlanText = (item: InboxRow): string | null | undefined => {
   // Whether a plan may still come is a matter of time: looked at again once the wait is over.
   const [now, setNow] = useState(Date.now)
   const pick = useMemo(() => {
-    const shown = source?.shown
+    const answered = source?.answered
     const used = new Set(
-      shown ? [...shown].filter(([, by]) => by !== item.id).map(([key]) => key) : [],
+      answered ? [...answered].filter(([, by]) => by !== item.id).map(([key]) => key) : [],
     )
     return planItemOf(items, item, now, used)
   }, [source, items, item, now])
@@ -83,9 +94,9 @@ export const usePlanText = (item: InboxRow): string | null | undefined => {
   // Followed anew for each version of the plan, so its text is never an earlier round's.
   const found = pick.state === "found" ? pick.item : undefined
   const key = found && planKey(found)
-  // This approval shows that version now: no later approval may.
+  // Which version this approval's sheet shows, for `usePlanAnswered` to record.
   useEffect(() => {
-    if (key && source && !source.shown.has(key)) source.shown.set(key, item.id)
+    if (key && source) source.showing.set(item.id, key)
   }, [key, source, item.id])
   const [loaded, setLoaded] = useState<{ key: string; content: ItemContent }>()
   const companions = source?.companions
@@ -103,4 +114,18 @@ export const usePlanText = (item: InboxRow): string | null | undefined => {
   if (pick.state === "none" || !source) return null
   if (pick.state === "waiting") return undefined
   return planTextOf(loaded && loaded.key === key ? loaded.content : undefined)
+}
+
+// Records that a plan approval was answered with the plan its sheet shows, so that version
+// is never a later approval's plan (a round the person sent back, still on the bar while the
+// agent rewrites it). The sheet calls it as it sends the answer.
+export const usePlanAnswered = (): ((item: InboxRow) => void) => {
+  const source = useContext(PlanContext)
+  return useCallback(
+    (item: InboxRow) => {
+      const key = source?.showing.get(item.id)
+      if (key && source && !source.answered.has(key)) source.answered.set(key, item.id)
+    },
+    [source],
+  )
 }

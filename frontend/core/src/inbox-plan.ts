@@ -16,9 +16,7 @@ import type { Workspace, WorkspaceTarget } from "./types"
 // one the person sent back, whose plan the agent is still rewriting.
 export const planLeadMs: Readonly<Record<AgentName, number>> = {
   claude: 1000,
-  // Measured after the dialog (+303 ms), so the wait covers it; kept short so a sent-back
-  // round's plan, still on the bar when the next dialog comes, isn't taken for the new one.
-  codex: 10_000,
+  codex: 60_000,
   agy: 15 * 60_000,
 }
 
@@ -52,7 +50,7 @@ export const planItemOf = (
   items: readonly Item[],
   row: InboxRow,
   now: number,
-  // Plan versions (`planKey`) another plan approval already showed: one is never a later
+  // Plan versions (`planKey`) another plan approval was answered with: one is never a later
   // round's plan, so a sent-back round's text isn't shown for the next while the new version
   // is on its way.
   used: ReadonlySet<string> = new Set(),

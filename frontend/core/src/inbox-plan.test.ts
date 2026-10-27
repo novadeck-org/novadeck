@@ -121,7 +121,7 @@ describe("the plan a plan approval asks about", () => {
     expect(planItemOf([docked], approval("claude"), asked + planWaitMs)).toEqual({ state: "none" })
   })
 
-  it("is never a plan version an earlier approval showed: a sent-back round's waits for its new one", () => {
+  it("is never a plan version an earlier approval was answered with: a sent-back round's waits for its new one", () => {
     const sentBack = plan("agy", asked - 60_000)
     const used = new Set([planKey(sentBack)])
     expect(planItemOf([sentBack], approval("agy"), asked, used)).toEqual({
@@ -135,8 +135,8 @@ describe("the plan a plan approval asks about", () => {
     })
   })
 
-  it("is not Codex's plan from a round more than 10 s before its dialog", () => {
-    const earlier = plan("codex", asked - 30_000)
+  it("is not Codex's plan from a round more than a minute before its dialog", () => {
+    const earlier = plan("codex", asked - 90_000)
     expect(planItemOf([earlier], approval("codex"), asked + planWaitMs)).toEqual({ state: "none" })
   })
 
