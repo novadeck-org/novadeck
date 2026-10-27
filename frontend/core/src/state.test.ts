@@ -562,9 +562,35 @@ describe("terminals agents open", () => {
     expect(order(state)).toEqual(["01", "03", "05", "04", "06", "02"])
   })
 
+  it("keeps teammates in the order they came when only their lead is known", () => {
+    // As the demo adds a lead's helpers at once: led by it, before anything says who opened them.
+    const helper = (number: number): WorkspaceAction => ({
+      type: "terminal/add",
+      target,
+      terminal: { ...terminalFixture(number, "~/project"), ledBy: "moth" },
+      anchor: "01",
+      select: false,
+    })
+    const state = run(handled, helper(3), named("03"), helper(4), named("04"), helper(5))
+    expect(order(state)).toEqual(["01", "03", "04", "05", "02"])
+  })
+
   it("follows the order the person dragged the list into", () => {
     const dragged = apply(handled, { type: "terminal/reorder", target, tabOrder: ["02", "01"] })
     expect(order(run(dragged, ...opened(3, "01")))).toEqual(["02", "01", "03"])
+    expect(order(run(dragged, ...opened(3, "02")))).toEqual(["02", "03", "01"])
+  })
+
+  it("leaves windows after the terminals the person opens later", () => {
+    const undocked = apply(
+      shown(hero),
+      { type: "item/undock", target, itemId: hero.id, window: windowFor(hero) },
+      named("01"),
+      named("02"),
+    )
+    const own = terminalFixture(4, "~/project")
+    const after = run(undocked, ...opened(3, "01"), { type: "terminal/add", target, terminal: own })
+    expect(order(after)).toEqual(["01", "03", "02", "04", "w1"])
   })
 
   it("goes last when its opener isn't in the session, as the person's own do", () => {
