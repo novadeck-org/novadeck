@@ -757,6 +757,37 @@ export class Messaging {
   }
 
   /**
+   * Queues the person's request that the terminal's agent draft feedback about Novadeck,
+   * with their hint (empty for none), as an Inbox answer is: relayed under the person's
+   * mark, waking an idle agent and waiting behind a turn in progress. `requestId` names it.
+   * NOT_FOUND where no agent session is bound.
+   */
+  personFeedbackRequest(terminalId: string, requestId: string, hint: string): void {
+    const owner = this.inboxOwner(terminalId)
+    if (!owner) throw new DomainError("NOT_FOUND", "No agent session is bound in that terminal.")
+    const message: Message = {
+      id: this.freshMessageId(),
+      projectId: owner.projectId,
+      thread: `t-${requestId.replaceAll("-", "")}`,
+      hop: 2,
+      from: { terminalId: "you", handle: "you", agent: null, sessionId: null },
+      to: { terminalId, handle: owner.handle, agent: owner.agent, sessionId: owner.sessionId },
+      text: cleanText(hint),
+      sentAt: this.now(),
+      state: "queued",
+      deliveredAt: null,
+      notified: true,
+      stopped: false,
+      fromLead: false,
+      toLead: false,
+      response: { askId: requestId, subject: "", feedback: true },
+    }
+    if (message.text.length > 4096 || deliveredBytes(message) > maxDeliveryBytes)
+      throw new DomainError("ANSWER_FAILED", "That hint is too long. Shorten it and try again.")
+    this.put(message)
+  }
+
+  /**
    * Queues an automatic notice from Novadeck itself for the terminal's root session, which
    * its agent gets as any message, waking it when idle (the doorbell). It belongs to no
    * thread, so no loop or hold guards it, and no sender is told of its fate. Where no
@@ -2085,16 +2116,18 @@ export class Messaging {
           fromAgent: message.from.agent,
           to: message.to.handle,
           toAgent: message.to.agent,
-          text: message.response
-            ? [message.response.option ?? message.response.action, message.text]
-                .filter(Boolean)
-                .join("\n\n")
-            : message.text,
+          text: message.response?.feedback
+            ? ["Asked to write feedback about Novadeck.", message.text].filter(Boolean).join("\n\n")
+            : message.response
+              ? [message.response.option ?? message.response.action, message.text]
+                  .filter(Boolean)
+                  .join("\n\n")
+              : message.text,
           sentAt: message.sentAt,
           state: message.state,
           held: message.state === "held" ? this.holdOf(message) : null,
           deliveredAt: message.deliveredAt,
-          ...(message.response && { inbox: "answer" as const }),
+          ...(message.response && !message.response.feedback && { inbox: "answer" as const }),
         })),
       }
     })

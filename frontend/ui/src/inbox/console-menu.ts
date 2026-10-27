@@ -413,8 +413,6 @@ export const menuOf = (item: InboxRow, now: number): Menu => {
         ],
         hard: false,
       }
-    case "feedback":
-      return none
   }
 }
 

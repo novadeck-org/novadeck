@@ -116,11 +116,6 @@ const kinds: readonly { readonly label: string; readonly name: Named; readonly h
     hint: "Trouble row saying two messages for the agent have waited long behind a dialog open in its idle terminal",
   },
   {
-    label: "Feedback draft",
-    name: "feedback",
-    hint: "Feedback row with an agent's drafted bug report, a path in it struck out, to Send or Discard",
-  },
-  {
     label: "Done report",
     name: "done",
     hint: "Update row with an agent's done report: its subject and a Markdown body",

@@ -2,7 +2,6 @@ import type { InboxType } from "@novadeck/core/inbox"
 import {
   Info,
   MessageCircleQuestionMark,
-  MessageSquareText,
   ShieldCheck,
   TriangleAlert,
   type LucideIcon,
@@ -14,7 +13,6 @@ export const icons: Readonly<Record<InboxType, LucideIcon>> = {
   unblock: ShieldCheck,
   ask: MessageCircleQuestionMark,
   update: Info,
-  feedback: MessageSquareText,
 }
 
 // What each type is called, for a screen reader.
@@ -23,5 +21,4 @@ export const typeWords: Readonly<Record<InboxType, string>> = {
   unblock: "Unblock",
   ask: "Ask",
   update: "Update",
-  feedback: "Feedback",
 }

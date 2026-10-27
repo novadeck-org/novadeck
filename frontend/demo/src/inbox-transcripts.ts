@@ -53,7 +53,7 @@ const agyRun = (call: string, command: string): DemoDraft =>
 
 // The api-service agent that hit its usage limit got its task from its lead, the
 // project's first terminal: Novadeck's doorbell line is its prompt, the brief a message.
-export const inboxLead = {
+const inboxLead = {
   projectId: "api-service",
   lead: 1,
   worker: 6,

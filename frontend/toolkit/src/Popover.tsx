@@ -20,8 +20,9 @@ export type PopoverProps = {
   tooltip?: string
   // Where it opens from its trigger: below by default, or above for one at the bottom.
   placement?: "bottom-start" | "bottom-end" | "top-end"
-  // Where focus lands when it opens, where the first control is not the one to press by reflex.
-  initialFocus?: () => HTMLElement | null
+  // Where focus lands when it opens, where the first control is not the one to press by reflex;
+  // false leaves focus where it is, for one that opens by itself.
+  initialFocus?: () => HTMLElement | null | false
   // False leaves where focus goes once it closes to its owner, instead of back to the trigger.
   restoreFocus?: boolean
   // A click or focus outside, which closes it: its owner may tell it from Esc.

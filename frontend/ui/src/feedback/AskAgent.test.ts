@@ -60,10 +60,18 @@ describe("The card that asks an agent for feedback", () => {
     expect(card()?.textContent).toContain(
       "It writes it up from what it just did here and decides whether it's a bug, an idea or something else.",
     )
-    expect(card()?.textContent).toContain("The draft comes to your Inbox.")
+    expect(card()?.textContent).toContain("The draft opens in the feedback card.")
     expect(card()?.querySelector("textarea")?.placeholder).toBe(
       "Anything it should cover? (optional)",
     )
+    view.unmount()
+  })
+
+  it("caps the hint at the note's limit, as the contract does", async () => {
+    const { view } = mount()
+    act(() => openAskAgent({ key, handle: "moth" }))
+    await nextFrame()
+    expect(card()?.querySelector("textarea")?.maxLength).toBe(2000)
     view.unmount()
   })
 

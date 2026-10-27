@@ -32,6 +32,7 @@ import { DomainError } from "../errors.js"
 import { actorOf, agentDetail } from "../harnesses/detail.js"
 import { harnesses } from "../harnesses/registry.js"
 import { type DoorbellOptions } from "../messaging/doorbell.js"
+import { Feedback } from "../messaging/feedback.js"
 import { Inbox, type InboxRecords } from "../messaging/inbox.js"
 import { Messaging, type AgentsAnswer, type SendAnswer } from "../messaging/messaging.js"
 import type { MessageRecords } from "../messaging/records.js"
@@ -337,6 +338,8 @@ export class Terminals {
   /** Agents' messages to each other, and how each terminal's agent takes them. */
   private readonly messaging: Messaging
   private readonly inbox: Inbox
+  /** Agents' feedback drafts, held in memory for the app's feedback card. */
+  readonly feedback: Feedback
   /** What agents messaging each other, and the runner API about their messages, are answered. */
   private readonly peers: TerminalPeers
   /** Describes terminals with murmur; undefined without a describer. */
@@ -557,6 +560,12 @@ export class Terminals {
       },
       options.inbox,
     )
+    this.feedback = new Feedback({
+      owner: (id) => this.messaging.inboxOwner(id),
+      exists: (id) => !this.closedIds.has(id) && this.records.has(id),
+      replyState: (id) => this.messaging.inboxReply(id),
+      request: (id, request, hint) => this.messaging.personFeedbackRequest(id, request, hint),
+    })
     // A lapsed continuation ends its turn; a late prompt may leave only box doubt to settle.
     // Subscribed before typing's doorbell, which subscribes as it is made.
     this.messaging.subscribe((change) => {
@@ -645,6 +654,7 @@ export class Terminals {
       stopping: () => this.stopping,
       messaging: () => this.messaging,
       inbox: () => this.inbox,
+      feedback: () => this.feedback,
       peers: () => this.peers,
       opens: () => this.opens,
       approvals: () => this.confirms,
@@ -1177,6 +1187,7 @@ export class Terminals {
     // for the next runner to remove.
     if (this.stopping) throw new DomainError("CLOSING")
     this.inbox.forgetProject(projectId)
+    this.feedback.forgetProject(projectId)
     this.messaging.forgetProject(projectId)
   }
 
@@ -1519,6 +1530,7 @@ export class Terminals {
     for (const record of this.records.values()) this.bindings.unwatch(record)
     this.typing.close()
     this.inbox.close()
+    this.feedback.close()
     this.messaging.close()
     this.shutdownPromise = Promise.all([last, this.stop()]).then(() => undefined)
     return this.shutdownPromise
