@@ -1,4 +1,11 @@
-import type { ChatDialogOption, ChatQuestion } from "@novadeck/core/conversation"
+import {
+  noConversation,
+  type ChatDialogOption,
+  type ChatItem,
+  type ChatQuestion,
+  type Conversation,
+  type Conversations,
+} from "@novadeck/core/conversation"
 import {
   emptyInbox,
   type AskShape,
@@ -13,6 +20,8 @@ import { act, createElement } from "react"
 import { afterEach, vi } from "vitest"
 
 import { context, describe, expect, it } from "../test"
+import { AgentContextProvider } from "./agent-context"
+import { contextWaitMs } from "./ConsoleSheet"
 import { InboxList } from "./InboxList"
 import { InboxProvider } from "./InboxProvider"
 import { InboxSheet } from "./InboxSheet"
@@ -134,7 +143,14 @@ afterEach(() => {
 })
 
 // The Inbox over these items with the first one's sheet open, and the answers it gives.
-const mount = (items: readonly InboxRow[], { failing = false, open = 0 } = {}) => {
+const mount = (
+  items: readonly InboxRow[],
+  {
+    failing = false,
+    open = 0,
+    conversations,
+  }: { failing?: boolean; open?: number; conversations?: Conversations } = {},
+) => {
   const revealed: string[] = []
   const state = createStore<InboxState>({ ...emptyInbox, items })
   const sent: InboxAnswer[] = []
@@ -152,13 +168,14 @@ const mount = (items: readonly InboxRow[], { failing = false, open = 0 } = {}) =
     see: () => {},
     readAll: () => {},
   }
+  const page = createElement(
+    InboxProvider,
+    { inbox, reveal: (terminal: string) => revealed.push(terminal) },
+    createElement("div", { id: "inbox-panel" }, createElement(InboxList)),
+    createElement(InboxSheet, { active: true }),
+  )
   const view = render(
-    createElement(
-      InboxProvider,
-      { inbox, reveal: (terminal: string) => revealed.push(terminal) },
-      createElement("div", { id: "inbox-panel" }, createElement(InboxList)),
-      createElement(InboxSheet, { active: true }),
-    ),
+    conversations ? createElement(AgentContextProvider, { conversations }, page) : page,
   )
   mounted = view
   act(() => view.container.querySelectorAll<HTMLElement>(".inbox-row-select")[open]!.click())
@@ -206,6 +223,13 @@ const mount = (items: readonly InboxRow[], { failing = false, open = 0 } = {}) =
 }
 
 const sheet = () => document.querySelector<HTMLElement>(".inbox-sheet")
+const menus = () => Array.from(document.querySelectorAll<HTMLElement>(".console-menu"))
+// A row of the nth question's menu.
+const optionIn = (menu: number, label: string) =>
+  Array.from(menus()[menu]!.querySelectorAll<HTMLElement>(".console-option")).find((each) =>
+    each.textContent?.includes(label),
+  )!
+const status = () => text(".console-page > .console-note")
 const text = (selector: string) => document.querySelector(selector)?.textContent ?? null
 
 describe("The Console sheet", () => {
@@ -304,6 +328,28 @@ describe("The Console sheet", () => {
   })
 
   context("for a plan", () => {
+    it("arms a standing yes on the first press and sends it on the second", async () => {
+      const inbox = mount([
+        permission(
+          [
+            { id: "bypass", label: "Yes, and bypass permissions", text: null },
+            { id: "manual", label: "Yes, and manually approve edits", text: null },
+            { id: "change", label: "Tell Claude what to change", text: "field" },
+          ],
+          { kind: "plan", agent: "claude" },
+        ),
+      ])
+      inbox.key("2", document.querySelector(".inbox-row-select")!)
+      expect(inbox.sent).toEqual([])
+      expect(inbox.row("bypass").dataset.armed).toBe("true")
+      inbox.key("2")
+
+      expect(inbox.sent).toEqual([
+        { kind: "request", answer: { type: "choice", dialog: "d", option: "bypass" } },
+      ])
+      await inbox.done()
+    })
+
     it("needs words where its only way back is them, and says why Antigravity refuses some", async () => {
       const review: readonly ChatDialogOption[] = [
         { id: "approve", label: "Approve", text: null },
@@ -547,7 +593,9 @@ describe("The Console sheet", () => {
       expect(text(".console-page > .console-note")).toBe("0 of 2 answered")
       inbox.key("2", document.querySelector(".inbox-row-select")!)
       expect(inbox.sent).toEqual([])
-      expect(text(".console-page > .console-note")).toBe("1 of 2 answered")
+      expect(text(".console-page > .console-note")).toBe(
+        "1 of 2 answered · still to answer: Which zone?",
+      )
       expect(document.activeElement).toBe(inbox.row("UTC"))
       inbox.key("2")
 
@@ -562,6 +610,285 @@ describe("The Console sheet", () => {
           },
         },
       ])
+      await inbox.done()
+    })
+  })
+
+  context("for an agent's several questions", () => {
+    const two = () =>
+      questions(question("q1", ["A1", "B1", "C1"]), question("q2", ["A2", "B2", "C2"]))
+
+    it("sends the moment every question is answered, in whatever order, and never an unpicked row", async () => {
+      const inbox = mount([two()])
+      act(() => optionIn(1, "C2").click())
+
+      expect(inbox.sent).toEqual([])
+      // Focus goes to the first question with no answer, not on from the one answered.
+      expect(document.activeElement).toBe(optionIn(0, "A1"))
+      act(() => optionIn(0, "B1").click())
+      inbox.key("Enter", document.body)
+
+      expect(inbox.sent).toMatchObject([
+        {
+          kind: "request",
+          answer: {
+            answers: [
+              { question: "q1", options: ["B1"] },
+              { question: "q2", options: ["C2"] },
+            ],
+          },
+        },
+      ])
+      await inbox.done()
+    })
+
+    it("shows the picked row of a question of one pick, and says which questions are left", async () => {
+      const inbox = mount([two()])
+      act(() => optionIn(0, "B1").click())
+
+      const rows = Array.from(menus()[0]!.querySelectorAll(".console-option"))
+      expect(rows.map((row) => row.getAttribute("role"))).toEqual(Array(3).fill("menuitemradio"))
+      expect(rows.map((row) => row.getAttribute("aria-checked"))).toEqual([
+        "false",
+        "true",
+        "false",
+      ])
+      expect(optionIn(0, "B1").querySelector(".console-chosen")?.textContent).toContain("your pick")
+      expect(optionIn(0, "A1").querySelector(".console-chosen")).toBeNull()
+      expect(status()).toBe("1 of 2 answered · still to answer: Which q2?")
+      await inbox.done()
+    })
+
+    it("says what is left on Enter in a box of words while others are open, and goes there", async () => {
+      const inbox = mount([
+        questions(question("q1", ["A1", "B1"]), question("q2", ["A2", "B2"], { text: true })),
+      ])
+      act(() => optionIn(1, "Reply in your own words").click())
+      inbox.type("none of these; use C")
+      expect(text(".console-own-hint")).toBe("↵ next question · Esc back to the options")
+      inbox.key("Enter", inbox.field())
+
+      expect(inbox.sent).toEqual([])
+      expect(status()).toBe("1 of 2 answered · still to answer: Which q1?")
+      expect(document.activeElement).toBe(optionIn(0, "A1"))
+      act(() => optionIn(0, "B1").click())
+
+      expect(inbox.sent).toMatchObject([
+        {
+          answer: {
+            answers: [
+              { question: "q1", options: ["B1"] },
+              { question: "q2", options: [], text: "none of these; use C" },
+            ],
+          },
+        },
+      ])
+      await inbox.done()
+    })
+
+    context("with several picks and words of their own", () => {
+      const suites = () =>
+        mount([questions(question("q1", ["A", "B"], { multiSelect: true, text: true }))])
+
+      it("keeps the words when their row is unticked, leaves them out of the answer, and brings them back on ticking", async () => {
+        const inbox = suites()
+        act(() => inbox.row("A").click())
+        act(() => inbox.row("Reply in your own words").click())
+        inbox.type("my careful words")
+        inbox.key("Escape", inbox.field())
+        expect(inbox.row("my careful words").getAttribute("aria-checked")).toBe("true")
+
+        act(() => inbox.row("my careful words").click())
+        expect(inbox.row("my careful words").getAttribute("aria-checked")).toBe("false")
+        expect(document.querySelector(".inbox-sheet textarea")).toBeNull()
+        act(() => inbox.row("my careful words").click())
+        expect(inbox.field().value).toBe("my careful words")
+        inbox.key("Escape", inbox.field())
+        expect(inbox.row("my careful words").getAttribute("aria-checked")).toBe("true")
+        act(() => inbox.row("my careful words").click())
+        inbox.key("Enter", inbox.row("A"))
+        expect(inbox.sent).toEqual([
+          {
+            kind: "request",
+            answer: {
+              type: "questions",
+              dialog: "d",
+              answers: [{ question: "q1", options: ["A"] }],
+            },
+          },
+        ])
+        await inbox.done()
+      })
+
+      it("won't send words over the limit from a row, however it is asked to", async () => {
+        const inbox = suites()
+        act(() => inbox.row("A").click())
+        act(() => inbox.row("Reply in your own words").click())
+        inbox.type("x".repeat(5000))
+        inbox.key("Enter", inbox.field())
+        inbox.key("Escape", inbox.field())
+        inbox.key("Enter", inbox.row("A"))
+
+        expect(inbox.sent).toEqual([])
+        await inbox.done()
+      })
+    })
+  })
+
+  context("for the length of a reply", () => {
+    it("keeps the draft when the delivery size turns an otherwise valid reply down", async () => {
+      const inbox = mount([asked({ type: "text" })])
+      const words = "🦋".repeat(2048)
+      inbox.type(words)
+      inbox.key("Enter", inbox.field())
+      expect(inbox.sent).toHaveLength(1)
+      inbox.fail("a", "This reply exceeds the delivery size limit. Shorten it to send.")
+
+      expect(inbox.field().value).toBe(words)
+      expect(text(".inbox-failure")).toContain("delivery size limit")
+      expect(text(".console-settled")).toBeNull()
+      await inbox.done()
+    })
+
+    it("leaves the words to select and copy while the reply is on its way", async () => {
+      const inbox = mount([asked({ type: "text" })])
+      inbox.type("Use samples.")
+      inbox.key("Enter", inbox.field())
+
+      expect(inbox.field().readOnly).toBe(true)
+      expect(inbox.field().disabled).toBe(false)
+      expect(inbox.field().value).toBe("Use samples.")
+      await inbox.done()
+    })
+
+    it("ties the box to its limit text", async () => {
+      const inbox = mount([asked({ type: "text" })])
+      inbox.type("x".repeat(4100))
+
+      const hint = document.getElementById(inbox.field().getAttribute("aria-describedby")!)
+      expect(hint?.textContent).toBe("4 over the 4,096 character limit. Shorten it to send.")
+      await inbox.done()
+    })
+  })
+
+  context("for an item that takes the place of one answered", () => {
+    it("shows as waiting, not as the old answer", async () => {
+      const inbox = mount([
+        permission(codex, { id: "a", handle: "crow", at: 0 }),
+        permission(codex, { id: "b", handle: "fox", at: 1 }),
+      ])
+      inbox.press("Allow")
+      inbox.confirm("a")
+      await nextFrame()
+      expect(document.querySelector(".inbox-sheet")?.getAttribute("data-state")).toBe("asking")
+      act(() =>
+        inbox.state.update((current) => ({
+          ...current,
+          items: [...current.items, permission(codex, { id: "a", handle: "crow", at: 50 })],
+        })),
+      )
+      act(() =>
+        document.querySelector<HTMLElement>("[data-inbox-row='a'] .inbox-row-select")!.click(),
+      )
+
+      expect(text(".console-settled")).toBeNull()
+      expect(sheet()?.getAttribute("data-state")).toBe("asking")
+      expect(inbox.rows().map((row) => row.querySelector(".console-t")?.textContent)).toContain(
+        "Allow",
+      )
+      await inbox.done()
+    })
+  })
+
+  context("for the room of an agent's context", () => {
+    const limited = (minutes: number): InboxRow => ({
+      id: "l",
+      source: source("moth"),
+      at: 0,
+      stopped: true,
+      seen: false,
+      kind: "trouble",
+      trouble: {
+        type: "limit",
+        minutes,
+        resetsAt: Date.now() + 3_600_000,
+        autoResume: null,
+        evidence: [],
+      },
+    })
+
+    it("names a window of unknown length plainly", async () => {
+      const inbox = mount([limited(0)])
+
+      expect(text(".console-body")).toContain("used up its usage window")
+      expect(text(".console-body")).not.toContain("0-hour")
+      await inbox.done()
+    })
+
+    const turn = (fields: Partial<ChatItem>): ChatItem => ({
+      id: String(Math.random()),
+      at: 1,
+      role: "user",
+      kind: "text",
+      text: "",
+      truncated: false,
+      tool: null,
+      call: null,
+      author: null,
+      run: null,
+      interrupted: false,
+      ...fields,
+    })
+
+    it("is kept from the start and as the context fills in, so the menu never moves", async () => {
+      const transcript = createStore<Conversation>(noConversation)
+      const conversations = { conversation: () => transcript } as unknown as Conversations
+      const inbox = mount([permission(codex)], { conversations })
+      const kept = () => document.querySelector(".console-tail[data-reserved]") !== null
+      expect(kept()).toBe(true)
+
+      act(() =>
+        transcript.update(() => ({
+          agent: "codex",
+          session: "x",
+          loaded: true,
+          items: [turn({ text: "run the suite and report back please", at: 10 })],
+          requests: [],
+        })),
+      )
+      expect(text(".console-you")).toContain("run the suite")
+      expect(kept()).toBe(true)
+      act(() =>
+        transcript.update((current) => ({
+          ...current,
+          items: [
+            ...current.items,
+            turn({
+              role: "assistant",
+              kind: "tool-call",
+              tool: "Bash",
+              call: "c",
+              at: 11,
+              text: JSON.stringify({ command: "pnpm test" }),
+              run: { kind: "run", title: "Ran", detail: "pnpm test" },
+            }),
+            turn({ role: "tool", kind: "tool-result", call: "c", at: 12, text: "passed" }),
+          ],
+        })),
+      )
+      expect(document.querySelectorAll(".console-step")).toHaveLength(1)
+      expect(kept()).toBe(true)
+      await inbox.done()
+    })
+
+    it("is given back where the agent has no transcript", async () => {
+      vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] })
+      const inbox = mount([permission(codex)])
+      expect(document.querySelector(".console-tail[data-reserved]")).not.toBeNull()
+      act(() => vi.advanceTimersByTime(contextWaitMs))
+
+      expect(document.querySelector(".console-tail")).toBeNull()
+      vi.useRealTimers()
       await inbox.done()
     })
   })

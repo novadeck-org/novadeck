@@ -484,6 +484,12 @@
   border-bottom: var(--border-width) dashed var(--color-line);
   color: var(--color-muted);
 }
+/* Until its steps have come, the tail holds the room of its longest self (the words, clamped
+   to two lines, and three steps), so the menu under it never moves as it fills in. */
+.console-tail[data-reserved] {
+  box-sizing: content-box;
+  min-height: calc(5 * 19px + 4px);
+}
 .console-you,
 .console-step,
 .console-ask {
@@ -750,6 +756,15 @@ pre.console-box {
   color: var(--color-success-fg);
   font-size: var(--text-caption);
   font-weight: 400;
+}
+.console-chosen {
+  margin-left: 6px;
+  color: var(--color-success-fg);
+  font-size: var(--text-caption);
+  font-weight: 400;
+}
+.console-option[data-chosen] {
+  background-color: color-mix(in srgb, var(--color-success-fg) 8%, transparent);
 }
 .console-confirm {
   margin-left: 6px;

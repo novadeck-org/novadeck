@@ -430,7 +430,8 @@ describe("An item's sheet", () => {
       await row("Which date library").click()
       const open = sheet("Tests")
 
-      await expect.element(answer(open, /^date-fns/)).toBeVisible()
+      // A question of one pick is a menu of radios, the picked one marked.
+      await expect.element(open.getByRole("menuitemradio", { name: /^date-fns/ })).toBeVisible()
       await expect.element(open.getByText("(Recommended)")).not.toBeInTheDocument()
       await expect.element(open.getByText("its pick")).toBeVisible()
     })

@@ -39,13 +39,15 @@ export type Sent = { readonly item: InboxRow; readonly note: string }
 export type Receipt = { readonly from: string; readonly note: string }
 
 // What the person has started to answer with and not sent: their words, the option they
-// picked on an agent's own ask, and the picks on a dialog's questions.
+// picked on an agent's own ask, and the picks on a dialog's questions, with the questions
+// (of several picks) whose written words are unticked: kept, but left out of the answer.
 export type Draft = {
   readonly text: string
   readonly option: number | null
   readonly picks: Picks | null
+  readonly leftOut: readonly string[]
 }
-export const noDraft: Draft = { text: "", option: null, picks: null }
+export const noDraft: Draft = { text: "", option: null, picks: null, leftOut: [] }
 
 // Whether there is anything in a draft worth a "Draft" on the row.
 export const started = (draft: Draft | undefined): boolean =>
