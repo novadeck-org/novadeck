@@ -1,6 +1,8 @@
+import { sessionItems } from "@novadeck/core/inbox-plan"
 import type { BackendAction } from "@novadeck/core/port"
 import { workspaceFromSeed } from "@novadeck/core/seed"
 import { activeProject, activeSession, workspaceReducer } from "@novadeck/core/state"
+import { createWorkspaceStore } from "@novadeck/core/store"
 import { itemFixture } from "@novadeck/core/testing"
 
 import { createDemoEngine } from "./engine"
@@ -213,6 +215,48 @@ describe("demo backend", () => {
           },
         },
       ])
+    })
+  })
+
+  context("when an agent's own plan approval reaches the Inbox", () => {
+    it("shows the checkout plan on a terminal that had none, and serves its Markdown", () => {
+      const backend = createDemo("inbox", undefined, demoTurns())
+      const store = createWorkspaceStore(
+        workspaceFromSeed(backend.seed, { view: "grid", windowedView: "grid", now: 0 }),
+        backend.commit,
+      )
+      backend.commit(store.getSnapshot(), [])
+      const stop = backend.start!({
+        dispatch: (actions) => store.transact(actions as never),
+        open: () => {},
+      })
+      const unbind = backend.inbox!.bind!({ workspace: store })
+      const row = backend
+        .inbox!.state.getSnapshot()
+        .items.find(
+          (each) =>
+            each.source.projectId === "api-service" &&
+            each.kind === "request" &&
+            each.request.kind === "plan",
+        )!
+      const target = { projectId: "api-service", workspaceSessionId: row.source.workspaceSessionId }
+      const plan = sessionItems(store.getSnapshot(), target).find(
+        (item) => item.kind === "plan" && item.from?.terminalId === row.source.terminalId,
+      )
+      expect(plan).toMatchObject({
+        holder: { terminalId: row.source.terminalId },
+        plan: { role: "root" },
+        version: 1,
+        shownAt: row.at,
+      })
+      const texts: string[] = []
+      backend.companions!.follow(target, plan!.id, { reveal: undefined }, (content) => {
+        if (content.state === "ready" && content.content.kind === "plan")
+          texts.push(content.content.text)
+      })
+      expect(texts[0]).toMatch(/^# Checkout flow/)
+      unbind()
+      stop()
     })
   })
 
