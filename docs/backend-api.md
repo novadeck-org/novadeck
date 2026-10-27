@@ -186,7 +186,8 @@ removal is done rejects it with `CLOSING` and keeps the project, for a client to
 remove again from the next runner.
 `projects.list` gives the projects in the order the person arranged them, each with
 `pinned`; `projects.arrange({ order, pinned })` keeps that arrangement: `order` is project
-ids, first to last, and `pinned` the ones pinned, at most nine, the first in `order`.
+ids, first to last, and `pinned` the ones pinned, at most nine, the first in `order` (one
+`order` doesn't name isn't pinned).
 Unknown ids are ignored, projects `order` leaves out follow in the order they were added
 (with no pin), and a project being removed is left out. Other clients see the change when
 they next list the projects.

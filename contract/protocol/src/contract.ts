@@ -105,7 +105,8 @@ export const contract = {
       .output(project),
     rename: procedure.input(z.strictObject({ projectId: id, name })).output(project),
     // Keeps how the person arranged the switcher: `order` by id, first to last, and the
-    // ones pinned, at most nine, the first in `order`. Ids it doesn't have are ignored;
+    // ones pinned, at most nine, the first in `order` (one `order` doesn't name isn't
+    // pinned). Ids it doesn't have are ignored;
     // projects `order` leaves out follow, in the order they were added.
     arrange: procedure
       .input(

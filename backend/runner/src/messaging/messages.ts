@@ -38,7 +38,10 @@ export const novadeckSender: Sender = { kind: "novadeck" }
 export const senderTerminal = (from: Sender): string | undefined =>
   from.kind === "agent" ? from.terminalId : undefined
 
-/** A message's sender as the wire names it; the person's for any but a terminal's (notices never reach it). */
+/**
+ * A message's sender as the wire names it: a terminal's agent, or the person. Novadeck's
+ * notices never reach the wire (the listing leaves them out), so none comes here.
+ */
 export const senderParty = (from: Sender): MessageParty =>
   from.kind === "agent"
     ? { kind: "agent", handle: from.handle, agent: from.agent }

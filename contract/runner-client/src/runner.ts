@@ -123,7 +123,8 @@ export type Runner = {
     remove(input: { readonly projectId: string }): Promise<void>
     /**
      * Keeps the person's arrangement of the projects: `order` by id, first to last, and the
-     * ones `pinned`, at most nine, the first in `order`. Unknown ids are ignored, and
+     * ones `pinned`, at most nine, the first in `order` (one `order` doesn't name isn't
+     * pinned). Unknown ids are ignored, and
      * projects `order` leaves out follow, in the order they were added.
      */
     arrange(input: {

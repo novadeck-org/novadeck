@@ -593,4 +593,18 @@ describe("keeping the project arrangement", () => {
     expect(arrange).toHaveBeenCalledOnce()
     expect(localStorage.getItem(projectArrangementStorageKey)).not.toBeNull()
   })
+
+  it("forgets it once a later arrangement is kept, though its own send failed", async () => {
+    localStorage.setItem(projectArrangementStorageKey, JSON.stringify(stored))
+    const ui = createUiStore(initial())
+    const arrange = vi.fn<(arrangement: ProjectArrangement) => Promise<void>>(async (next) => {
+      if (next === stored || next.order.join() === stored.order.join()) throw new Error("refused")
+    })
+    keepProjectArrangement(ui, arrange)
+    await Promise.resolve()
+    await Promise.resolve()
+    expect(localStorage.getItem(projectArrangementStorageKey)).not.toBeNull()
+    ui.update((state) => ({ ...state, projectArrangement: { order: ["a", "b"], pinned: [] } }))
+    await vi.waitFor(() => expect(localStorage.getItem(projectArrangementStorageKey)).toBeNull())
+  })
 })

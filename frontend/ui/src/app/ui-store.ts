@@ -216,7 +216,8 @@ const importing = new WeakSet<UiStore>()
 // Has the backend keep the arrangement as the person changes it. A change made before the
 // backend answers is sent as it is, in order; opening a client sends nothing. An arrangement
 // an earlier client left in storage is sent once first (the store was seeded from it) and
-// forgotten when the backend has it; a failed send leaves it for the next load.
+// forgotten once the backend has it or any arrangement since; a failed send leaves it for
+// the next load.
 export const keepProjectArrangement = (
   ui: UiStore,
   arrange: NonNullable<Backend["arrange"]>,
@@ -231,7 +232,7 @@ export const keepProjectArrangement = (
     const next = ui.getSnapshot().projectArrangement
     if (next === sent) return
     sent = next
-    arrange(next).catch(() => {})
+    arrange(next).then(forgetStoredProjectArrangement, () => {})
   })
 }
 
