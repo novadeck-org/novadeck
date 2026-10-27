@@ -1695,7 +1695,7 @@ its agent is Ready. So that a task arrives at once, before any ring, in every ha
    typed entry, which makes its first turn a doorbell prompt too. So a start whose task
    can't be delivered then (messaging paused) is told its messages still wait, in every
    harness. The MCP server refuses `open_terminal` with `agent`, `message`, `model` or `effort`, and
-   `open_agent` with `command`, saying which tool to call.
+   `open_agent` with `command` or without `agent` and `message`, saying which tool to call.
 2. Antigravity submits `-i`'s prompt about 0.9 s after it starts, even while its "Do
    you trust this folder?" dialog is up. So it gets `-i` only in a folder it already
    trusts (its adapter reads Antigravity's trusted-workspaces setting, matching the
