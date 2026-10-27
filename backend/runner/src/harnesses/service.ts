@@ -3,7 +3,7 @@ import { access, readFile, rm, writeFile } from "node:fs/promises"
 import { homedir } from "node:os"
 import { delimiter, join } from "node:path"
 
-import type { Harness, Install } from "@novadeck/harness-core/harness"
+import type { Harness, Install, Model } from "@novadeck/harness-core/harness"
 import type { AgentIntegration, AgentName } from "@novadeck/protocol"
 import { relayPath } from "@novadeck/relay"
 import { refreshPath } from "@novadeck/terminal/shell"
@@ -33,6 +33,16 @@ export type HarnessesOptions = {
    * be another build's.
    */
   readonly relay?: string
+  /**
+   * How long a lookup of an agent's models is kept, in milliseconds (10 minutes), or, when
+   * it found none or failed, `empty` (a minute); and how long its command may take
+   * (5 seconds).
+   */
+  readonly models?: {
+    readonly keepMs?: number
+    readonly emptyMs?: number
+    readonly commandMs?: number
+  }
 }
 
 const exists = (path: string): Promise<boolean> =>
@@ -117,19 +127,24 @@ const run = (
     platform,
     timeoutMs,
   }: { env: NodeJS.ProcessEnv; platform: NodeJS.Platform; timeoutMs: number },
-): Promise<void> =>
+): Promise<string> =>
   new Promise((resolve, reject) => {
     const [program = "", ...args] = argv
     const child =
       platform === "win32"
         ? spawn(env.COMSPEC || "cmd.exe", ["/d", "/s", "/c", `"${cmdLine(argv)}"`], {
             env,
-            stdio: ["ignore", "ignore", "pipe"],
+            stdio: ["ignore", "pipe", "pipe"],
             windowsVerbatimArguments: true,
             windowsHide: true,
           })
-        : spawn(program, args, { env, stdio: ["ignore", "ignore", "pipe"] })
+        : spawn(program, args, { env, stdio: ["ignore", "pipe", "pipe"] })
     let errors = ""
+    let output = ""
+    child.stdout.setEncoding("utf8")
+    child.stdout.on("data", (chunk: string) => {
+      output = (output + chunk).slice(-1_000_000)
+    })
     child.stderr.setEncoding("utf8")
     child.stderr.on("data", (chunk: string) => {
       errors = (errors + chunk).slice(-2000)
@@ -141,7 +156,7 @@ const run = (
     })
     child.on("close", (code) => {
       clearTimeout(timer)
-      if (code === 0) resolve()
+      if (code === 0) resolve(output)
       else
         reject(
           new Error(
@@ -253,7 +268,49 @@ export const createHarnesses = (
     if (connected) await settle("apply")
     return after
   }
+  // What each agent can start with, kept a while; a lookup under way is shared.
+  const known = new Map<AgentName, { at: number; ms: number; models: readonly Model[] }>()
+  const looking = new Map<AgentName, Promise<readonly Model[]>>()
+  const keepMs = options.models?.keepMs ?? 10 * 60_000
+  const emptyMs = options.models?.emptyMs ?? 60_000
+  const commandMs = options.models?.commandMs ?? 5_000
+  const lookUpModels = async (agent: AgentName): Promise<readonly Model[]> => {
+    const where = (await installs())?.(agent)
+    if (!where) return []
+    const harness = harnesses[agent]
+    return harness.messaging.models(where, async (argv) => {
+      const [program = "", ...args] = argv
+      const located = platform === "win32" ? program : await locate(program, harness, where)
+      return run([located, ...args], { env: where.env, platform, timeoutMs: commandMs })
+    })
+  }
   const api = {
+    /**
+     * The models the agent can start with on this machine, each with its efforts; none
+     * where that can't be told. Kept for ten minutes, a minute when none, and shared by
+     * callers who ask meanwhile.
+     */
+    models: (agent: AgentName): Promise<readonly Model[]> => {
+      const held = known.get(agent)
+      if (held && Date.now() - held.at < held.ms) return Promise.resolve(held.models)
+      const running = looking.get(agent)
+      if (running) return running
+      const lookup = lookUpModels(agent)
+        .catch((error: unknown) => {
+          log.warn("harnesses.models-failed", `Novadeck could not list ${agent}'s models`, {
+            data: { agent },
+            err: error,
+          })
+          return [] as readonly Model[]
+        })
+        .then((models) => {
+          known.set(agent, { at: Date.now(), ms: models.length > 0 ? keepMs : emptyMs, models })
+          return models
+        })
+        .finally(() => looking.delete(agent))
+      looking.set(agent, lookup)
+      return lookup
+    },
     /** Where the agent lives on this machine, once the shell files say where its plugin is. */
     install: async (agent: AgentName): Promise<Install | undefined> => (await installs())?.(agent),
     /** Whether Novadeck's plugin is installed into the agent. */

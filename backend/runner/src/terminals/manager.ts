@@ -1,5 +1,5 @@
 import { transcript as transcriptOf } from "@novadeck/emulator/headless"
-import { hookShellSlackMs, type Install } from "@novadeck/harness-core/harness"
+import { hookShellSlackMs, type Install, type Model } from "@novadeck/harness-core/harness"
 import type { AskAnswer, InboxEntry } from "@novadeck/protocol"
 import type {
   AgentDetail,
@@ -162,6 +162,11 @@ export type TerminalOptions = {
    */
   install?: (agent: AgentName) => Promise<Install | undefined>
   /**
+   * The models a harness can start with on this machine, which an agent's request for a
+   * model is checked against; none when omitted.
+   */
+  models?: (agent: AgentName) => Promise<readonly Model[]>
+  /**
    * Whether Novadeck's hooks run for the harness in a folder, where it runs them only
    * once the person trusts them (`Harness.hooksTrusted`); asked of the harness itself when
    * omitted. Undefined, or a failure, is unknown.
@@ -295,6 +300,7 @@ export class Terminals {
       | "interrupts"
       | "answers"
       | "install"
+      | "models"
       | "hooksTrusted"
       | "items"
       | "describer"
@@ -310,6 +316,7 @@ export class Terminals {
     shims: () => Promise<readonly AgentName[]>
     connected: (agent: AgentName) => Promise<boolean>
     install: (agent: AgentName) => Promise<Install | undefined>
+    models: (agent: AgentName) => Promise<readonly Model[]>
     hooksTrusted: ((agent: AgentName, cwd: string) => Promise<boolean | undefined>) | undefined
     items: CompanionItems | undefined
   }
@@ -370,6 +377,7 @@ export class Terminals {
       projectOf: options.projectOf,
       openMs: positive(options.openMs, 6_000),
       install: options.install ?? (() => Promise.resolve(undefined)),
+      models: options.models ?? (() => Promise.resolve([])),
       hooksTrusted: options.hooksTrusted,
       items: options.items,
       platform: options.platform ?? process.platform,
@@ -630,6 +638,7 @@ export class Terminals {
       companion: () => this.companion,
       launcher: () => this.launcher,
       install: (agent) => this.options.install(agent),
+      models: (agent) => this.options.models(agent),
       closingNow: (terminalId) => this.host.closing(terminalId),
       closeForGood: (record) => this.closeForGood(record),
       terminate: (record) => this.terminate(record),

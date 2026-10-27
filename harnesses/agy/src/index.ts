@@ -15,6 +15,7 @@ import { hookCommand, type Dialect } from "@novadeck/harness-core/hook-command"
 import { box } from "./box.js"
 import { decode, shown } from "./decode.js"
 import { dialogs } from "./dialogs.js"
+import { parseModels } from "./models.js"
 import { statusLineLimit, statusLineSettings, trustsFolder } from "./settings.js"
 import { transcripts, typedEntry } from "./transcripts.js"
 
@@ -72,6 +73,11 @@ const messaging: MessagingProfile = {
   initialPrompt: async (line, { install, cwd }) =>
     install && (await trustsFolder(cli(install), cwd)) ? ["agy", "-i", line] : undefined,
   start: ["agy"],
+  models: (_install, run) => run(["agy", "models"]).then(parseModels, () => []),
+  choose: ({ model, effort }) => [
+    ...(model !== undefined ? ["--model", model] : []),
+    ...(effort !== undefined ? ["--effort", effort] : []),
+  ],
   // Its hooks name no prompt, but its transcript tells what was typed (a USER_EXPLICIT
   // USER_INPUT step) from what woke it: a subagent's message, a Stop hook's continuation
   // or a notice are SYSTEM_MESSAGE steps, and injected messages EPHEMERAL_MESSAGE ones.

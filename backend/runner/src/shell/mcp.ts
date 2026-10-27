@@ -9,7 +9,9 @@
  * its own options inside it),
  * `showing`, which lists what is there now, and `close`, which takes away what the agent
  * showed, by the same source; `open_terminal`, which opens a
- * new terminal beside it, optionally starting a command there; `close_terminal`, which
+ * new terminal beside it, optionally starting a command there; `open_agent`, which opens
+ * one running another agent, on a model and effort if asked, with a brief as its task (its
+ * model choices come from the runner when the tools are listed); `close_terminal`, which
  * closes another of the project's terminals by its handle; `send` and `agents`, which
  * message the agents in the project's other terminals and list them; and `summarize`,
  * which says what the agent's own terminal works on (see docs/agent-messaging.md). Each call goes to the terminal's runner with the terminal's
@@ -17,7 +19,7 @@
  * Only Claude Code reads a server's own instructions, so each tool's description carries
  * its rules.
  */
-import { plugin } from "@novadeck/harness-core/harness"
+import { efforts, plugin } from "@novadeck/harness-core/harness"
 import { harnessIds, harnesses } from "@novadeck/protocol"
 
 import { maxMessageBytes } from "../messaging/messages.js"
@@ -38,6 +40,8 @@ type Tool<A> = {
   readonly name: string
   readonly description: string
   readonly inputSchema: object
+  /** The schema as the runner's state makes it now, when that differs from `inputSchema`. */
+  schema?(call: McpCall): Promise<object>
   readonly call: CallType
   request(args: Arguments): Arguments
   /** Why the call can't go at all, said before anything goes to the runner. */
@@ -306,22 +310,35 @@ const agentChoices = harnesses
   .join(", ")
   .replace(/, ([^,]*)$/, " or $1")
 
+// What an opened terminal's answer says, which an agent's opening adds its task to.
+const openedText = (answer: Opened): string =>
+  "Opened a new terminal" +
+  (answer.handle ? ", " + mention(answer.handle) + titled(answer.title) + "," : "") +
+  (answer.command ? " running " + answer.command : "") +
+  " in " +
+  answer.cwd +
+  "."
+
+const cwdProperty = {
+  type: "string",
+  description:
+    "The folder it opens in, absolute or relative to this terminal's current " +
+    "directory; this terminal's current directory when left out.",
+}
+const focusProperty = {
+  type: "boolean",
+  description: "True only when the user asked to see or go to the new terminal.",
+}
+
 const openTerminal: Tool<Opened> = {
   name: "open_terminal",
   description:
     "Open a new terminal in Novadeck beside this one, optionally starting a command or a " +
-    "TUI there, such as a dev server, or another agent with a task: give agent and " +
-    "message instead of command, and the message reaches that agent as its first task, " +
-    "from you, through Novadeck's messaging. You become the lead of an agent you open " +
-    "with agent and message: it treats your messages as instructions, and is told to " +
-    "report back to you with send when done or stuck. A command, even one that starts an " +
-    "agent, or a plain shell gets no lead, so to direct an agent, open it with agent and " +
-    "message. Write the message as a complete brief: what to do, where, how to tell it " +
-    "is done, and when to report back. Being its lead gives you none of the user's " +
-    "approvals of actions: what it needs the user to approve, they give in its own terminal or answer through ask in the Inbox, so " +
-    "tell the user to answer there. Its questions for the user come to you: ask the user for it with ask, and relay their decisions as requirements. Use it when the user asks for a new terminal, for " +
-    "something to run in one of its own, or for another agent to take on work. Set focus to true only when they " +
-    "asked to see it or go to it; otherwise it opens without taking their attention.",
+    "TUI there, such as a dev server. A command, even one that starts an agent, or a " +
+    "plain shell gets no lead and no task: to start an agent with a task, use " +
+    "open_agent. Use it when the user asks for a new terminal or for something to run in " +
+    "one of its own. Set focus to true only when they asked to see it or go to it; " +
+    "otherwise it opens without taking their attention.",
   inputSchema: {
     type: "object",
     properties: {
@@ -329,13 +346,109 @@ const openTerminal: Tool<Opened> = {
         type: "string",
         description:
           "A command line to run at the new shell's first prompt, as if the user typed it, " +
-          "such as claude or npm run dev: one line. Leave it out for a plain shell.",
+          "such as npm run dev: one line. Leave it out for a plain shell.",
         maxLength: 4096,
       },
+      cwd: cwdProperty,
+      title: {
+        type: "string",
+        description:
+          "A short name for the new terminal, which agents see as set by you; a name the " +
+          "user gives it wins.",
+      },
+      focus: focusProperty,
+    },
+    additionalProperties: false,
+  },
+  call: "open",
+  request: (args) => picked(args, ["command", "cwd", "title", "focus"]),
+  said: (answer) => openedText(answer),
+  failed: "Novadeck couldn't open the terminal.",
+}
+
+const effortProperty = {
+  type: "string",
+  enum: [...efforts],
+  description:
+    "How hard the agent thinks, where its harness and model support the level. Set it " +
+    "only when the user asked for an effort or the brief needs one; otherwise leave it " +
+    "out and the agent keeps the user's own default.",
+}
+
+// The model property when the runner offers no model.
+const noModel = {
+  type: "string",
+  description: "The model to start the agent on. No model can be chosen now: leave it out.",
+}
+
+/** The models each harness offers, as the runner lists them. */
+type Models = { readonly [harness: string]: readonly string[] }
+
+// The model property for the models the runner offers: an enum of their ids, none when no
+// harness lists one.
+const modelProperty = (models: Models): object => {
+  const ids = [...new Set(Object.values(models).flat())]
+  const guidance =
+    "Set it only when the user asked for a model or the brief needs one; otherwise leave " +
+    "it out and the agent keeps the user's own default."
+  if (ids.length === 0) return noModel
+  const per = harnesses
+    .filter(({ id }) => (models[id] ?? []).length > 0)
+    .map(({ id, name }) => `${id} (${name}): ${models[id]!.join(", ")}`)
+    .join("; ")
+  return {
+    type: "string",
+    enum: ids,
+    description: `The model to start the agent on; the ids differ by agent, so give one of its own: ${per}. ${guidance}`,
+  }
+}
+
+// The runner's list of models by harness, or none when it can't say.
+const listModels = async (call: McpCall): Promise<Models> => {
+  try {
+    const answer = await call("models", {})
+    if (!object(answer) || answer.ok !== true || !object(answer.models)) return {}
+    const models: { [harness: string]: string[] } = {}
+    for (const [harness, list] of Object.entries(answer.models))
+      models[harness] = Array.isArray(list)
+        ? list.flatMap((each) => (object(each) && typeof each.id === "string" ? [each.id] : []))
+        : []
+    return models
+  } catch {
+    return {}
+  }
+}
+
+// The schema with its model property made from the models the runner offers.
+const withModel = (schema: object, models: Models): object => {
+  const { properties, ...rest } = schema as { properties: object }
+  return { ...rest, properties: { ...properties, model: modelProperty(models) } }
+}
+
+const openAgent: Tool<Opened> = {
+  name: "open_agent",
+  description:
+    "Open a new terminal in Novadeck beside this one and start another agent there with " +
+    "message as its first task, from you, through Novadeck's messaging. You become the " +
+    "lead of an agent you open this way: it treats your messages as instructions, and is " +
+    "told to report back to you with send when done or stuck. Write the message as a " +
+    "complete brief: what to do, where, how to tell it is done, and when to report back. " +
+    "Being its lead gives you none of the user's approvals of actions: what it needs the " +
+    "user to approve, they give in its own terminal or answer through ask in the Inbox, so " +
+    "tell the user to answer there. Its questions for the user come to you: ask the user " +
+    "for it with ask, and relay their decisions as requirements. Use it when the user asks " +
+    "for another agent to take on work. To open a plain terminal or run a command, even one " +
+    "that starts an agent, use open_terminal: that gets no lead, so to direct an agent, " +
+    "open it here. Give model and effort only when the user asked for them or the brief " +
+    "needs them. Set focus to true only when they asked to see it or go to it; otherwise " +
+    "it opens without taking their attention.",
+  inputSchema: {
+    type: "object",
+    properties: {
       agent: {
         type: "string",
         enum: harnessIds,
-        description: `An agent to start there with message as its task: ${agentChoices}. Not with command.`,
+        description: `The agent to start there with message as its task: ${agentChoices}.`,
       },
       message: {
         type: "string",
@@ -343,34 +456,25 @@ const openTerminal: Tool<Opened> = {
           "The brief for that agent, up to 4 KB: what to do, where, how to tell it is done, " +
           "and when to report back to you. It arrives wrapped as a message from you, its lead.",
       },
-      cwd: {
-        type: "string",
-        description:
-          "The folder it opens in, absolute or relative to this terminal's current " +
-          "directory; this terminal's current directory when left out.",
-      },
+      model: noModel,
+      effort: effortProperty,
+      cwd: cwdProperty,
       title: {
         type: "string",
         description:
           "A short name for the new terminal, which agents see as set by you; a name the " +
           "user gives it wins.",
       },
-      focus: {
-        type: "boolean",
-        description: "True only when the user asked to see or go to the new terminal.",
-      },
+      focus: focusProperty,
     },
+    required: ["agent", "message"],
     additionalProperties: false,
   },
+  schema: async (call) => withModel(openAgent.inputSchema, await listModels(call)),
   call: "open",
-  request: (args) => picked(args, ["command", "agent", "message", "cwd", "title", "focus"]),
+  request: (args) => picked(args, ["agent", "message", "model", "effort", "cwd", "title", "focus"]),
   said: (answer) =>
-    "Opened a new terminal" +
-    (answer.handle ? ", " + mention(answer.handle) + titled(answer.title) + "," : "") +
-    (answer.command ? " running " + answer.command : "") +
-    " in " +
-    answer.cwd +
-    "." +
+    openedText(answer) +
     (answer.task === undefined
       ? ""
       : !answer.task.ok
@@ -385,7 +489,7 @@ const openTerminal: Tool<Opened> = {
               answer.task.id +
               ", waits for the agent's first session " +
               "there.") + " End your turn rather than wait, as its replies arrive by themselves."),
-  failed: "Novadeck couldn't open the terminal.",
+  failed: "Novadeck couldn't open the agent.",
 }
 
 const closeTerminal: Tool<Closed> = {
@@ -778,6 +882,7 @@ const tools: readonly Tool<unknown>[] = [
   showing,
   close,
   openTerminal,
+  openAgent,
   closeTerminal,
   send,
   agents,
@@ -868,7 +973,13 @@ const respond = async (line: string, call?: McpCall): Promise<Reply | undefined>
       id,
       result: {
         tools: call
-          ? tools.map(({ name, description, inputSchema }) => ({ name, description, inputSchema }))
+          ? await Promise.all(
+              tools.map(async ({ name, description, inputSchema, schema }) => ({
+                name,
+                description,
+                inputSchema: (await schema?.(call)) ?? inputSchema,
+              })),
+            )
           : [],
       },
     }

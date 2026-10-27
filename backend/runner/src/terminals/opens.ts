@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto"
 
+import { efforts } from "@novadeck/harness-core/harness"
 import {
   agentName,
   startupCommand,
@@ -15,8 +16,8 @@ import type { SendAnswer } from "../messaging/messaging.js"
 /**
  * What an agent asks to open, through Novadeck's MCP server: a new terminal beside its
  * own, in a folder, absolute or from the terminal's directory, starting a command at its
- * first prompt, or an `agent` with a `message` as its task, with a name; and `focus` when
- * the person asked to see it.
+ * first prompt, or an `agent` with a `message` as its task, and optionally the `model` and
+ * reasoning `effort` it starts with, with a name; and `focus` when the person asked to see it.
  */
 export const openRequest = z
   .strictObject({
@@ -26,6 +27,8 @@ export const openRequest = z
       .string()
       .max(64 * 1024)
       .optional(),
+    model: z.string().min(1).max(128).optional(),
+    effort: z.enum(efforts).optional(),
     cwd: z.string().min(1).max(4096).optional(),
     title: terminalTitle.optional(),
     focus: z.boolean().optional(),
@@ -34,6 +37,11 @@ export const openRequest = z
     message: "An agent and its message come together.",
     path: ["agent"],
   })
+  .refine(
+    (request) =>
+      request.agent !== undefined || (request.model === undefined && request.effort === undefined),
+    { message: "A model or effort goes with an agent.", path: ["model"] },
+  )
   .refine((request) => request.agent === undefined || request.command === undefined, {
     message: "A command can't be combined with an agent and its message.",
     path: ["command"],

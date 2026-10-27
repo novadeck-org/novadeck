@@ -236,7 +236,7 @@ program where `process` cannot; it is `null` otherwise. `cwd` is the directory t
 shell last reported at a prompt, or where it started. `title` is, in this order: the
 name the person gave the terminal with `create` or `terminals.rename({ terminalId,
 title })`; the latest title murmur, the opt-in local model, wrote for it; the one the
-agent that opened it gave through `open_terminal`'s `title`; or the runner's default:
+agent that opened it gave through `open_terminal`'s or `open_agent`'s `title`; or the runner's default:
 the program it was opened to run (`claude`), else "Terminal", never derived from its
 handle. `titleSource` says
 which: `{ kind: "person" }`, `{ kind: "murmur" }`, `{ kind: "agent", by: "fox" }` or

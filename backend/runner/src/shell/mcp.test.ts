@@ -35,7 +35,7 @@ afterAll(async () => {
 type Answer = {
   readonly id?: number
   readonly result?: {
-    readonly tools?: readonly { readonly name: string }[]
+    readonly tools?: readonly { readonly name: string; readonly inputSchema?: unknown }[]
     readonly [key: string]: unknown
   }
   readonly error?: { readonly code: number }
@@ -156,6 +156,7 @@ describe("Novadeck's MCP server", () => {
         "showing",
         "close",
         "open_terminal",
+        "open_agent",
         "close_terminal",
         "send",
         "agents",
@@ -246,7 +247,7 @@ describe("Novadeck's MCP server", () => {
         {
           id: 3,
           method: "tools/call",
-          params: { name: "open_terminal", arguments: { agent: "codex", message: "Review a.ts" } },
+          params: { name: "open_agent", arguments: { agent: "codex", message: "Review a.ts" } },
         },
       ])
       expect(calls).toMatchObject([
@@ -261,7 +262,7 @@ describe("Novadeck's MCP server", () => {
         {
           id: 4,
           method: "tools/call",
-          params: { name: "open_terminal", arguments: { agent: "codex", message: "Review a.ts" } },
+          params: { name: "open_agent", arguments: { agent: "codex", message: "Review a.ts" } },
         },
       ])
       expect((unsent!.result as { content: { text: string }[] }).content[0]?.text).toMatch(
@@ -273,12 +274,82 @@ describe("Novadeck's MCP server", () => {
         {
           id: 5,
           method: "tools/call",
-          params: { name: "open_terminal", arguments: { agent: "agy", message: "Review a.ts" } },
+          params: { name: "open_agent", arguments: { agent: "agy", message: "Review a.ts" } },
         },
       ])
       expect((waits!.result as { content: { text: string }[] }).content[0]?.text).toMatch(
         /doesn't trust this folder yet, so it started without its task: message m-1 reaches it once the user trusts the folder and its prompt shows\./,
       )
+    })
+
+    it("splits a plain terminal from an agent, each sending only its own fields", async () => {
+      calls.length = 0
+      answer = { ok: true, terminalId: "t", cwd: "/work" }
+      await session(terminal(), [
+        initialize,
+        {
+          id: 3,
+          method: "tools/call",
+          params: {
+            name: "open_agent",
+            arguments: {
+              agent: "claude",
+              message: "Go",
+              model: "opus",
+              effort: "high",
+              command: "x",
+            },
+          },
+        },
+        {
+          id: 4,
+          method: "tools/call",
+          params: {
+            name: "open_terminal",
+            arguments: { command: "ls", agent: "claude", model: "m" },
+          },
+        },
+      ])
+      expect(calls.map((each) => each.request)).toEqual([
+        { agent: "claude", message: "Go", model: "opus", effort: "high" },
+        { command: "ls" },
+      ])
+    })
+
+    it("lists open_agent's models from the runner, and leaves them out when it has none", async () => {
+      calls.length = 0
+      answer = {
+        ok: true,
+        models: {
+          claude: [
+            { id: "opus", efforts: ["low", "high"] },
+            { id: "sonnet", efforts: [] },
+          ],
+          codex: [{ id: "gpt-5", efforts: ["medium"] }],
+          agy: [{ id: "opus", efforts: [] }],
+        },
+      }
+      const properties = async () => {
+        const [, tools] = await session(terminal(), [initialize, list])
+        const agent = tools?.result?.tools?.find((tool) => tool.name === "open_agent")
+        return agent?.inputSchema as { properties: Record<string, any>; required: string[] }
+      }
+      const listed = await properties()
+      expect(calls[0]).toMatchObject({ type: "models", request: {} })
+      expect(listed.required).toEqual(["agent", "message"])
+      expect(listed.properties.model.enum).toEqual(["opus", "sonnet", "gpt-5"])
+      expect(listed.properties.model.description).toContain("claude (Claude Code): opus, sonnet")
+      expect(listed.properties.model.description).toContain("codex (Codex): gpt-5")
+      expect(listed.properties.model.description).toContain("leave it out")
+      expect(listed.properties.effort.enum).toEqual(["low", "medium", "high", "xhigh", "max"])
+      const withoutModels = async (empty: unknown) => {
+        answer = empty
+        const none = await properties()
+        expect(none.properties.model.enum).toBeUndefined()
+        expect(none.properties.model.description).toContain("leave it out")
+      }
+      await withoutModels({ ok: true, models: { claude: [], codex: [], agy: [] } })
+      await withoutModels({ ok: false })
     })
 
     it("closes another terminal by its handle, and says what that ended", async () => {
@@ -959,11 +1030,15 @@ describe("Novadeck's MCP server", () => {
       expect(send.description).toContain("exact handle")
       expect(send.description).not.toMatch(/agent's name/)
       const open = described.find((tool) => tool.name === "open_terminal")!
-      expect(open.description).toContain("You become the lead of an agent you open")
-      expect(open.description).toContain("to direct an agent, open it with agent and message")
-      expect(open.description).toContain("gives you none of the user's approvals")
-      expect(open.description).toContain("complete brief")
-      expect(open.description).toContain("tell the user to answer there")
+      expect(open.description).toContain("gets no lead")
+      expect(open.description).toContain("use open_agent")
+      expect(open.description).not.toContain("complete brief")
+      const agent = described.find((tool) => tool.name === "open_agent")!
+      expect(agent.description).toContain("You become the lead of an agent you open")
+      expect(agent.description).toContain("to direct an agent, open it here")
+      expect(agent.description).toContain("gives you none of the user's approvals")
+      expect(agent.description).toContain("complete brief")
+      expect(agent.description).toContain("tell the user to answer there")
     })
 
     it("still answers a call under way when the agent closes its side", async () => {
@@ -1039,13 +1114,15 @@ describe("Novadeck's MCP server", () => {
           "showing",
           "close",
           "open_terminal",
+          "open_agent",
           "close_terminal",
           "send",
           "agents",
           "summarize",
         ])
         expect(shown?.result).toMatchObject({ isError: false })
-        expect(calls).toHaveLength(1)
+        // Listing the tools asks the runner for the models, then the show goes through.
+        expect(calls.map((each) => each.type)).toEqual(["models", "present"])
       }, 30_000)
 
       // On Windows, cmd starts the launcher; its content is checked below.

@@ -150,8 +150,8 @@ export const claude: readonly { name: string; records: readonly object[] }[] = [
         [`${novadeck}send`, { text: "Anyone there?" }, "Sent"],
         [`${novadeck}agents`, {}, "reviewer, builder"],
         [
-          `${novadeck}open_terminal`,
-          { agent: "claude", message: "Review the PR" },
+          `${novadeck}open_agent`,
+          { agent: "claude", message: "Review the PR", model: "opus", effort: "high" },
           "Opened terminal 02",
         ],
         [`${novadeck}open_terminal`, { command: "npm run dev", title: "dev" }, "Opened 03"],

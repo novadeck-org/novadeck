@@ -132,7 +132,8 @@ describe("relay sessions", () => {
     expect(answers).toContainEqual(
       expect.objectContaining({ id: 2, result: expect.objectContaining({ isError: false }) }),
     )
-    expect(calls).toEqual([call])
+    // Listing the tools asks for the models open_agent offers.
+    expect(calls).toEqual([expect.objectContaining({ type: "models" }), call])
   })
 
   // Windows' named pipes close whole once the caller ends its side.

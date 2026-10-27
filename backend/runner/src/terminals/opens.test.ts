@@ -45,6 +45,32 @@ describe("reading a request for a new terminal", () => {
   })
 })
 
+describe("a model and effort in a request", () => {
+  it("go with an agent and its message", () => {
+    const task = { agent: "codex", message: "Review a.ts." }
+    expect(readOpenRequest({ ...task, model: "gpt-5.5", effort: "high" })).toEqual({
+      ok: true,
+      request: { ...task, model: "gpt-5.5", effort: "high" },
+    })
+    for (const lone of [{ model: "opus" }, { effort: "low" }])
+      expect(readOpenRequest({ command: "ls", ...lone })).toEqual({
+        ok: false,
+        reason: "A model or effort goes with an agent.",
+      })
+  })
+
+  it("must be a model of up to 128 characters, and one of the efforts", () => {
+    const task = { agent: "claude", message: "Hi." }
+    expect(readOpenRequest({ ...task, effort: "ultra" })).toEqual({
+      ok: false,
+      reason: 'The request\'s "effort" is not valid.',
+    })
+    expect(readOpenRequest({ ...task, model: "" })).toMatchObject({ ok: false })
+    expect(readOpenRequest({ ...task, model: "m".repeat(129) })).toMatchObject({ ok: false })
+    expect(readOpenRequest({ ...task, model: "m".repeat(128) })).toMatchObject({ ok: true })
+  })
+})
+
 describe("how many terminals a terminal's agents may open", () => {
   it("allows five a minute, then one more as each falls out of the minute", () => {
     expect(openLimit).toEqual({ count: 5, windowMs: 60_000 })

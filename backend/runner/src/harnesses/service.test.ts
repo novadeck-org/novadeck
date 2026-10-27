@@ -43,7 +43,11 @@ if (agent === "codex") {
   if (command === "add novadeck@novadeck") write(file, '[plugins."novadeck@novadeck"]\\nenabled = true\\n')
   if (command === "remove novadeck@novadeck") write(file, "")
 }
-if (agent === "agy") {
+if (agent === "agy" && args[0] === "models") {
+  if (process.env.FAKE_MODELS_FAIL) { console.error("offline"); process.exit(1) }
+  if (process.env.FAKE_MODELS_SLOW) setTimeout(() => {}, 60000)
+  else process.stdout.write("Fetching available models...\\nfake-pro\\tFake Pro\\nfake-lite\\tFake Lite\\n")
+} else if (agent === "agy") {
   // It copies the plugin folder it installs, as the real one does.
   const folder = path.join(home, ".gemini", "config", "plugins", "novadeck")
   if (command === "install") {
@@ -441,5 +445,54 @@ describe.skipIf(windows)("resuming an agent's saved session", () => {
     expect(resumed("before-connecting")).toBe(false)
     await client.agents.set("claude", false)
     expect(saved.terminal(after)?.agents).toEqual({})
+  })
+
+  it("lists the models an agent starts with, from its own command, once for callers together", async ({
+    fixture,
+  }) => {
+    const agents = fixture.agents()
+    const [first, second] = await Promise.all([agents.models("agy"), agents.models("agy")])
+    expect(first).toEqual(second)
+    expect(first.map(({ id }) => id)).toEqual(["fake-pro", "fake-lite"])
+    await agents.models("agy")
+    expect(fixture.calls().filter((call) => call[1] === "models")).toHaveLength(1)
+    // Claude Code's are its aliases, and need no command.
+    expect((await agents.models("claude")).map(({ id }) => id)).toContain("opus")
+  })
+
+  it("keeps a lookup for the time it is given, and an empty one for less", async ({ fixture }) => {
+    const list = () => fixture.calls().filter((call) => call[1] === "models").length
+    const kept = createHarnesses(() => Promise.resolve(fixture.paths), {
+      home: fixture.home,
+      env: fixture.environment(),
+      models: { keepMs: 150, emptyMs: 20 },
+    })
+    await kept.models("agy")
+    await kept.models("agy")
+    expect(list()).toBe(1)
+    await new Promise((done) => setTimeout(done, 200))
+    await kept.models("agy")
+    expect(list()).toBe(2)
+
+    const failing = createHarnesses(() => Promise.resolve(fixture.paths), {
+      home: fixture.home,
+      env: fixture.environment({ FAKE_MODELS_FAIL: "1" }),
+      models: { keepMs: 60_000, emptyMs: 150 },
+    })
+    expect(await failing.models("agy")).toEqual([])
+    expect(await failing.models("agy")).toEqual([])
+    expect(list()).toBe(3)
+    await new Promise((done) => setTimeout(done, 200))
+    await failing.models("agy")
+    expect(list()).toBe(4)
+  })
+
+  it("gives up on a command that takes too long", async ({ fixture }) => {
+    const slow = createHarnesses(() => Promise.resolve(fixture.paths), {
+      home: fixture.home,
+      env: fixture.environment({ FAKE_MODELS_SLOW: "1" }),
+      models: { commandMs: 200 },
+    })
+    expect(await slow.models("agy")).toEqual([])
   })
 })
