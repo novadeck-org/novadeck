@@ -3,6 +3,7 @@ import { wireContract, wireErrors } from "@novadeck/wire"
 import { eventIterator, oc, type ContractRouterClient } from "@orpc/contract"
 import { z } from "zod"
 
+import { feedbackDraft, maxFeedbackText } from "./feedback.js"
 import { askAnswer, inboxEntry } from "./inbox.js"
 import {
   agentDetail,
@@ -403,6 +404,25 @@ export const contract = {
     dismiss: procedure.input(z.strictObject({ id })).output(z.void()),
     // Removes settled asks. Unknown ids, and any entry that isn't a settled ask, are skipped.
     clear: procedure.input(z.strictObject({ ids: z.array(id).max(1000) })).output(z.void()),
+  },
+  // Agents' feedback drafts for the people building Novadeck (see `feedbackDraft`): the app
+  // shows each in its feedback card for the person to send or discard.
+  feedback: {
+    // The drafts waiting, oldest first, then again on each change.
+    watch: procedure.input(z.void()).output(eventIterator(z.array(feedbackDraft))),
+    // Drops a draft once the app sent it or the person discarded it; its agent isn't told.
+    // One the runner doesn't hold is NOT_FOUND.
+    settle: procedure
+      .input(z.strictObject({ id, outcome: z.enum(["sent", "discarded"]) }))
+      .output(z.void()),
+    // Asks the agent in a terminal to write feedback about Novadeck from its session, with the
+    // person's hint (empty for none): a message relayed from the person, delivered as their
+    // Inbox answers are, waking an idle agent and waiting behind a turn in progress. The draft
+    // arrives later with `asked`. An unknown terminal is TERMINAL_NOT_FOUND; one with no agent
+    // session bound is NOT_FOUND; one whose earlier request is still waiting is CONFLICT.
+    ask: procedure
+      .input(z.strictObject({ terminalId: id, hint: z.string().max(maxFeedbackText) }))
+      .output(z.void()),
   },
   messages: {
     // A terminal's threads and messages with their states. An unknown terminal is

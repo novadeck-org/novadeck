@@ -84,14 +84,7 @@ export const InboxHost = ({
       messages={backend.messages}
       leadOf={lead}
     >
-      <InboxProvider
-        inbox={inbox}
-        reveal={reveal}
-        phone={phone}
-        working={working}
-        active={active}
-        feedbackAbout={backend.feedback?.about}
-      >
+      <InboxProvider inbox={inbox} reveal={reveal} phone={phone} working={working} active={active}>
         {children}
         <NoticeClicks />
         <PlanTextProvider workspace={workspace} companions={backend.companions}>

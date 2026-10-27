@@ -49,14 +49,6 @@ describe("inboxBadge", () => {
     })
   })
 
-  it("counts a feedback draft", () => {
-    const draft: InboxContent = { kind: "feedback", draft: { kind: "bug", text: "It broke." } }
-    expect(inboxBadge([entry(draft, 0, false)])).toEqual({
-      count: 1,
-      label: "Inbox, 1 waiting",
-    })
-  })
-
   it("counts past nine", () => {
     const list = Array.from({ length: 12 }, (_, index) => entry(held, index))
     expect(inboxBadge(list)).toMatchObject({ count: 12, label: "Inbox, 12 waiting" })

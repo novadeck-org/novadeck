@@ -1,5 +1,4 @@
 import type { InboxAnswer, InboxRow } from "@novadeck/core/inbox"
-import type { ReactNode } from "react"
 
 import type { Sent as SentAnswer } from "./InboxProvider"
 
@@ -18,19 +17,3 @@ export type SheetContentProps = {
   // Shows the item's terminal.
   readonly reveal: () => void
 }
-
-// A sheet's page: what it says, scrolling, and over it, fixed, the box its reply goes in.
-export const Page = ({
-  footer,
-  children,
-}: {
-  readonly footer?: ReactNode
-  readonly children: ReactNode
-}): React.JSX.Element => (
-  <>
-    <div className="inbox-sheet-scroll">
-      <div className="inbox-sheet-page">{children}</div>
-    </div>
-    {footer && <div className="inbox-sheet-footer">{footer}</div>}
-  </>
-)

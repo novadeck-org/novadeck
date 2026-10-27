@@ -59,6 +59,7 @@ const callTypes = [
   "ask",
   "tell",
   "done",
+  "feedback",
 ] as const
 export type CallType = (typeof callTypes)[number]
 
@@ -79,6 +80,7 @@ export const unansweredCalls = {
   ask: { ok: false, reason: "Novadeck couldn't save the ask." },
   tell: { ok: false, reason: "Novadeck couldn't save the update." },
   done: { ok: false, reason: "Novadeck couldn't save the report." },
+  feedback: { ok: false, reason: "Novadeck couldn't save the feedback draft." },
   summarize: { ok: false, reason: "Novadeck couldn't summarize the terminal." },
   models: { ok: false, reason: "Novadeck couldn't list the models." },
 } as const satisfies { readonly [type in CallType]: { ok: false; reason: string } }
@@ -308,7 +310,10 @@ export const listenForReports = async (
   const relayCall =
     (from: { terminalId: string; token: string }): McpCall =>
     (type, request) =>
-      within(handlers.call({ type, ...from, request }), answerMs, unansweredCalls[type])
+      within(handlers.call({ type, ...from, request }), answerMs, {
+        ...unansweredCalls[type],
+        unexplained: true,
+      })
   /**
    * Answers a relay's hook with one line, a `HookAnswer`: a report at once, an ask by
    * its deadline or as `unheard`. The relay then prints what it delivers and, holding a
