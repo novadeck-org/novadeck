@@ -200,7 +200,7 @@ const suffixLetters = "zyxwvutsrqponmlkjihgfedcba"
 /**
  * The endings a round's letter skips besides its own, which read badly before it: `nimbusz`,
  * `foxz`, `koiy`. A round skips a word that ends in its letter too, as `fizz` in the `z` round.
- * Only z, y and x have any, a session reaching the `w` round after some 280 terminals; they
+ * Only z, y and x have any, a session reaching the `w` round after some 350 terminals; they
  * hold for the later rounds a suffix starts with them too, as `zy`.
  */
 const clashes: Readonly<Record<string, string>> = { z: "sx", y: "i", x: "sz" }
