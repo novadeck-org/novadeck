@@ -5,6 +5,8 @@ import { itemFixture } from "@novadeck/core/testing"
 
 import { createDemoEngine } from "./engine"
 import { demoHandle } from "./handles"
+import { isDemoInbox } from "./inbox"
+import { demoInboxIds, demoInboxRowsAll } from "./inbox-fixtures"
 import { demoBackend, withMessages } from "./index"
 import { createMockTerminal, defaultName } from "./samples"
 import { context, describe, expect, it } from "./test"
@@ -182,6 +184,35 @@ describe("demo backend", () => {
       const action = { type: "project/remove" as const, projectId: "storefront", now: 2 }
       backend.commit(workspaceReducer(workspace, action), [action])
       expect(Object.keys(backend.telemetry.getSnapshot())).toEqual(["api-service/initial"])
+    })
+  })
+
+  context("when a plan approval reaches the Inbox", () => {
+    it("shows the plan on its terminal's bar again, at the approval's time, with its Markdown", () => {
+      const backend = createDemo("inbox", undefined, demoTurns())
+      const reported: BackendAction[] = []
+      const stop = backend.start!({
+        dispatch: (actions) => reported.push(...actions),
+        open: () => {},
+      })
+      const { inbox } = backend
+      if (!isDemoInbox(inbox)) throw new Error("The Inbox demo has the demo's Inbox")
+      const row = demoInboxRowsAll(1_000).find(({ id }) => id === demoInboxIds.plan)!
+      inbox.add(row)
+      stop()
+      const shown = reported.filter((action) => action.type === "item/upsert")
+      expect(shown).toMatchObject([
+        {
+          target: { projectId: "storefront", workspaceSessionId: "initial" },
+          item: {
+            kind: "plan",
+            from: { terminalId: row.source.terminalId },
+            plan: { role: "root" },
+            version: 2,
+            shownAt: row.at,
+          },
+        },
+      ])
     })
   })
 

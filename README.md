@@ -953,7 +953,9 @@ App:
   command permission, an unreadable dialog, a held message, a decision with options, a
   detected question, an ask while its agent keeps working, a login request, the 5-hour limit, a usage limit Novadeck can't resume (no switch), a request whose dialog never read, a
   failed turn with no error, a held message whose sender is gone, a plan approval
-  (its bypass-permissions yes a quiet link), a failed turn, a free-text ask, a permission
+  (its bypass-permissions yes a quiet link; in the agents and Inbox demos it brings its long
+  checkout plan, shown again on storefront's terminal 6 as a harness shows the plan it asks
+  about), a failed turn, a free-text ask, a permission
   whose Deny is a plain no, messages held long behind what keeps the doorbell from an idle
   agent, a feedback draft (an agent's bug report with a path in it, to Send or Discard), a
   heads-up and an agent's done report. "Several asks at once" adds four asks from four
