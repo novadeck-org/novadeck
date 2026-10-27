@@ -1,4 +1,9 @@
-import type { DeliveryState, MessageState, TerminalMessages } from "@novadeck/protocol"
+import type {
+  DeliveryState,
+  MessageParty,
+  MessageState,
+  TerminalMessages,
+} from "@novadeck/protocol"
 
 /**
  * A terminal's messages as a client saw them at one moment: its delivery state and each
@@ -70,13 +75,22 @@ export type History = {
   readonly reached: (what: Reach, options?: ReachOptions) => Promise<Snapshot>
 }
 
+/** A party as the tests name it: an agent by its handle, the person as `you`. */
+export const nameOf = (party: MessageParty): string =>
+  party.kind === "agent" ? party.handle : "you"
+
 const snapshotOf = (listing: TerminalMessages, index: number): Snapshot => ({
   index,
   at: Date.now(),
   delivery: listing.delivery,
   paused: listing.paused,
   messages: listing.threads.flatMap((thread) =>
-    thread.messages.map(({ id, from, to, state }) => ({ id, from, to, state })),
+    thread.messages.map(({ id, from, to, state }) => ({
+      id,
+      from: nameOf(from),
+      to: nameOf(to),
+      state,
+    })),
   ),
 })
 

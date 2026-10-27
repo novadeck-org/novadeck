@@ -1,6 +1,6 @@
 import { messagesKey } from "@novadeck/core/companion-bar"
 import { companionKeyId } from "@novadeck/core/items"
-import { noMessages, type MessagesState } from "@novadeck/core/messages"
+import { noMessages, type MessageParty, type MessagesState } from "@novadeck/core/messages"
 import { activeSession } from "@novadeck/core/state"
 import { createStore, createWorkspaceStore } from "@novadeck/core/store"
 import { workspaceFixture } from "@novadeck/core/testing"
@@ -8,6 +8,8 @@ import { afterEach } from "vitest"
 
 import { describe, expect, it } from "../../../test"
 import { followMessages } from "./messages"
+
+const agent = (handle: string): MessageParty => ({ kind: "agent", handle, agent: null })
 
 const target = { projectId: "project", workspaceSessionId: "initial" }
 
@@ -24,7 +26,7 @@ describe("a terminal's messages on its taskbar", () => {
         threads: [
           {
             id: "th",
-            peer: "fox",
+            peer: agent("fox"),
             hops: count,
             idle: 0,
             held: false,
@@ -32,8 +34,8 @@ describe("a terminal's messages on its taskbar", () => {
             messages: Array.from({ length: count }, (_, index) => ({
               id: `m${index}`,
               hop: index + 1,
-              from: "fox",
-              to: "moth",
+              from: agent("fox"),
+              to: agent("moth"),
               text: "Ready",
               sentAt: 0,
               state: "delivered" as const,

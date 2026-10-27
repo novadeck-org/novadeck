@@ -894,10 +894,8 @@ export class Inbox {
         id: `m-${entry.id.replaceAll("-", "")}`,
         thread,
         hop: 1,
-        from: entry.handle,
-        fromAgent: entry.agent,
-        to: "you",
-        toAgent: entry.agent,
+        from: { kind: "agent" as const, handle: entry.handle, agent: entry.agent },
+        to: { kind: "person" as const },
         text,
         sentAt: entry.at,
         state: "delivered" as const,
@@ -909,7 +907,7 @@ export class Inbox {
       const messages = [trace, ...(known?.messages ?? [])]
       const listed = {
         id: thread,
-        peer: "you",
+        peer: { kind: "person" as const },
         hops: messages.length,
         idle: 0,
         held: false,

@@ -15,7 +15,7 @@ const writeTo = (
   const terminalMessages = key && messages.state.getSnapshot().terminals[companionKeyId(key)]
   if (!key || !terminalMessages) return false
   const peers = terminalMessages.threads.flatMap((thread) =>
-    thread.peer === "you" ? [] : [thread.peer],
+    thread.peer.kind === "person" ? [] : [thread.peer.handle],
   )
   const sender = from(terminalMessages.handle, peers)
   return Boolean(

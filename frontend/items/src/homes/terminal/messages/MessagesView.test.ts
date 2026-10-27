@@ -1,4 +1,9 @@
-import type { AgentMessage, MessagePeer, MessageThread } from "@novadeck/core/messages"
+import type {
+  AgentMessage,
+  MessageParty,
+  MessagePeer,
+  MessageThread,
+} from "@novadeck/core/messages"
 import { render } from "@novadeck/test-kit/render"
 import { Shown } from "@novadeck/toolkit/shown"
 import { act, createElement } from "react"
@@ -7,6 +12,10 @@ import { afterEach } from "vitest"
 import { context, describe, expect, it } from "../../../test"
 import type { MessagesHandle, MessageLinks } from "./messages"
 import { MessagesView } from "./MessagesView"
+
+// A handle as the tests write it, or `you` for the person.
+const party = (handle: string): MessageParty =>
+  handle === "you" ? { kind: "person" } : { kind: "agent", handle, agent: null }
 
 let sequence = 0
 const message = (
@@ -18,8 +27,8 @@ const message = (
 ): AgentMessage => ({
   id: `m${(sequence += 1)}`,
   hop: 1,
-  from,
-  to,
+  from: party(from),
+  to: party(to),
   text,
   sentAt,
   state: "delivered",
@@ -30,7 +39,7 @@ const message = (
 
 const thread = (id: string, peer: string, messages: readonly AgentMessage[]): MessageThread => ({
   id,
-  peer,
+  peer: party(peer),
   hops: messages.length,
   idle: 0,
   held: false,

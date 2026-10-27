@@ -1,40 +1,53 @@
 import { randomBytes, randomInt } from "node:crypto"
 import { stripVTControlCharacters } from "node:util"
 
-import { harnesses, type AgentName, type MessageState } from "@novadeck/protocol"
+import { harnesses, type AgentName, type MessageParty, type MessageState } from "@novadeck/protocol"
 
 /**
  * The message rules, as pure functions over its records (see docs/agent-messaging.md,
  * "Message store" and "Guards"). `Messaging` keeps the records and applies these.
  */
 
-/** A terminal that sent a message: its handle, and its agent session when one was bound. */
-export type Sender = {
-  readonly terminalId: string
-  readonly handle: string
-  readonly agent: AgentName | null
-  readonly sessionId: string | null
-}
+/**
+ * Who sent a message: a terminal, by its handle and its agent session when one was bound;
+ * the person, of their Inbox answers and feedback requests to an agent; or Novadeck itself,
+ * of its automatic notices to an agent (see `Messaging.notice`).
+ */
+export type Sender =
+  | {
+      readonly kind: "agent"
+      readonly terminalId: string
+      readonly handle: string
+      readonly agent: AgentName | null
+      readonly sessionId: string | null
+    }
+  | { readonly kind: "person" }
+  | { readonly kind: "novadeck" }
 
-/** The person as a sender, of their Inbox answers and feedback requests to an agent. */
-export const personSender: Sender = {
-  terminalId: "you",
-  handle: "you",
-  agent: null,
-  sessionId: null,
-}
+export const personSender: Sender = { kind: "person" }
 
-/** Novadeck itself as a sender, of its automatic notices to an agent (see `Messaging.notice`). */
-export const novadeckSender: Sender = {
-  terminalId: "novadeck",
-  handle: "novadeck",
-  agent: null,
-  sessionId: null,
-}
+export const novadeckSender: Sender = { kind: "novadeck" }
+
+/** The terminal a message came from; undefined for the person's and Novadeck's, from none. */
+export const senderTerminal = (from: Sender): string | undefined =>
+  from.kind === "agent" ? from.terminalId : undefined
+
+/** A message's sender as the wire names it; the person's for any but a terminal's (notices never reach it). */
+export const senderParty = (from: Sender): MessageParty =>
+  from.kind === "agent"
+    ? { kind: "agent", handle: from.handle, agent: from.agent }
+    : { kind: "person" }
+
+/** A message's recipient as the wire names it. */
+export const addresseeParty = (to: Addressee): MessageParty => ({
+  kind: "agent",
+  handle: to.handle,
+  agent: to.agent,
+})
 
 /** Whether a message is one of Novadeck's own automatic notices (`Messaging.notice`), no peer's. */
 export const isNotice = (message: Pick<Message, "from">): boolean =>
-  message.from.terminalId === novadeckSender.terminalId
+  message.from.kind === "novadeck"
 
 /**
  * A terminal a message is for, and the agent session bound there when it was sent; or,
@@ -239,6 +252,7 @@ export const duplicateOf = (
 ): Message | undefined => {
   for (const message of messages)
     if (
+      message.from.kind === "agent" &&
       message.from.terminalId === from &&
       message.to.terminalId === to &&
       message.text === text &&
@@ -411,9 +425,11 @@ export const wrap = (
           .join("\n")
         return `<message id="${id}" from="you" person="${personMark}" ask="${response.askId}" thread="${thread}" sent="${clock(sentAt)}">${context}</message>`
       }
-      const agent = from.agent ? ` agent="${agentLabel(from.agent)}"` : ""
+      const agent = from.kind === "agent" && from.agent ? ` agent="${agentLabel(from.agent)}"` : ""
       const attribute = leads[index] ? ` lead="${mark}"` : ""
-      return `<message id="${id}" from="${from.handle}"${agent}${attribute} thread="${thread}" sent="${clock(sentAt)}">${escapeText(text)}</message>`
+      // The person and Novadeck are named as agents see them.
+      const name = from.kind === "agent" ? from.handle : from.kind === "person" ? "you" : "novadeck"
+      return `<message id="${id}" from="${name}"${agent}${attribute} thread="${thread}" sent="${clock(sentAt)}">${escapeText(text)}</message>`
     }),
     "</novadeck-messages>",
   ].join("\n")
