@@ -95,7 +95,6 @@ export const handleWords: readonly string[] = [
   "smog",
   "sleet",
   "dregs",
-  "shiv",
   "mech",
   "vole",
   "shrew",

@@ -171,8 +171,6 @@ export const drawnCritters: readonly (readonly [word: string, rows: string])[] =
   ["sleet", ".######./########/#x####x#/.######./..o..o../o...o.../...o...o/.o...o.."],
   // Cup with eyes in the dregs.
   ["dregs", "......../#......#/#......#/#......#/#+x++x+#/#++++++#/.######./..####.."],
-  // Makeshift blade, eyes on its taped grip.
-  ["shiv", ".......#/......##/.....##./....##../..+##.../.x+x..../+o+...../++......"],
   // Boxy mech: antennae, visor eyes, legs.
   ["mech", ".#....#./.######./##e##e##/########/.#++++#./.######./.##..##./##....##"],
   // Round little vole, tail behind.
