@@ -77,6 +77,31 @@ export const addTerminal = (
   terminals: [...roster.terminals, terminal],
 })
 
+// Lists a terminal under the terminal `openerId` in the sidebar, after the terminals that
+// one opened before and theirs, so a lead's teammates follow it rather than trailing the
+// list. Without such a terminal, it keeps its place at the end.
+export const listUnderOpener = (
+  roster: TerminalRoster,
+  terminalId: string,
+  openerId: string,
+): TerminalRoster => {
+  const opener = roster.terminals.find((each) => each.id === openerId)
+  if (!opener || openerId === terminalId || !hasTerminal(roster, terminalId)) return roster
+  const ids = orderedTiles(roster)
+    .map((tile) => tile.id)
+    .filter((id) => id !== terminalId)
+  const byId = new Map(roster.terminals.map((each) => [each.id, each]))
+  // The opener's own, and theirs in turn, as they follow it.
+  const family = new Set(opener.handle === undefined ? [] : [opener.handle])
+  let at = ids.indexOf(opener.id) + 1
+  for (; at < ids.length; at += 1) {
+    const next = byId.get(ids[at]!)
+    if (!next?.openedBy || !family.has(next.openedBy)) break
+    if (next.handle) family.add(next.handle)
+  }
+  return { ...roster, order: [...ids.slice(0, at), terminalId, ...ids.slice(at)] }
+}
+
 type TerminalFacts = Pick<
   TerminalMetadata,
   "name" | "directory" | "handle" | "titleSource" | "ledBy" | "openedBy" | "agentRan"

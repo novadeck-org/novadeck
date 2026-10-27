@@ -1,4 +1,5 @@
 import type { TerminalRequest } from "@novadeck/core/port"
+import { orderedTiles } from "@novadeck/core/roster"
 import { createStore } from "@novadeck/core/store"
 import { appearance, terminalFixture, workspaceFixture } from "@novadeck/core/testing"
 import { afterEach, vi } from "vitest"
@@ -452,6 +453,23 @@ describe("workspace commands", () => {
       })
       app.commands.openRequested(asking({ from: "02" }).asked)
       expect(app.state().layout.canvas.geometry["new-3"]?.position.y).toBe(2000)
+    })
+
+    it("lists it under the asking terminal, after the ones it opened before", () => {
+      const workspace = workspaceFixture()
+      const [first] = workspace.projects[0]!.history[0]!.state.roster.terminals
+      first!.handle = "moth"
+      const app = openCommands({ workspace })
+      // Both before the backend says who opened either.
+      app.commands.openRequested(asking({ from: "01" }).asked)
+      app.commands.openRequested(asking({ from: "01" }).asked)
+      expect(orderedTiles(app.state().roster).map((tile) => tile.id)).toEqual([
+        "01",
+        "new-3",
+        "new-4",
+        "02",
+      ])
+      expect(terminal(app, "new-3").openedBy).toBe("moth")
     })
 
     it("starts a plain shell when the agent gave no command", () => {

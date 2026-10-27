@@ -31,6 +31,7 @@ import {
   hasTerminal,
   hasTile,
   hasWindow,
+  listUnderOpener,
   orderedTiles,
   removeTerminal,
   removeWindow,
@@ -688,9 +689,14 @@ export const workspaceReducer = (workspace: Workspace, action: WorkspaceAction):
         const beside = action.anchor ?? state.selected
         const tiles = tilesOf(roster)
         const anchor = tiles.find((tile) => tile.id === beside) ?? tiles.at(-1)
+        const added = addTerminal(roster, action.terminal)
         return {
           ...state,
-          roster: addTerminal(roster, action.terminal),
+          // Beside its anchor in the sidebar too; the person's own go last.
+          roster:
+            action.anchor === undefined
+              ? added
+              : listUnderOpener(added, action.terminal.id, action.anchor),
           layout: placeTerminal(state.layout, {
             terminal: action.terminal,
             terminals: tiles,
