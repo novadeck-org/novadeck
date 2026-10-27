@@ -1,4 +1,4 @@
-import type { FeedbackAbout, FeedbackKind } from "@novadeck/core/feedback"
+import type { AgentFeedbackDraft, FeedbackAbout, FeedbackKind } from "@novadeck/core/feedback"
 
 // What the feedback card holds and says, apart from how it looks: the kinds and their
 // prompts, the text's limit, the send's states and which keys send.
@@ -65,10 +65,29 @@ export const nextSend = (state: Send, event: SendEvent): Send => {
 
 // The footer button's words: the word until the card was first opened, then the icon alone;
 // a send's outcome says itself in either case.
-export const buttonText = (send: Send, opened: boolean): string | null => {
+// A draft waiting from an agent (its handle) says so in the word, until a send's outcome
+// does.
+export const buttonText = (send: Send, opened: boolean, draftFrom?: string): string | null => {
   if (send === "sent") return "Sent · thanks"
   if (send === "failed") return "Not sent · Retry"
+  if (draftFrom !== undefined) return `Draft from @${draftFrom}`
   return opened ? null : "Feedback"
+}
+
+// What the card says under its head about an agent's draft: that the person asked for it, or
+// what the agent wrote on its own and from which window (none once the terminal is gone).
+export const draftCaption = (
+  draft: Pick<AgentFeedbackDraft, "asked" | "kind">,
+  title: string | undefined,
+): string => {
+  if (draft.asked) return "The feedback you asked for."
+  const what =
+    draft.kind === "bug"
+      ? "A possible Novadeck bug"
+      : draft.kind === "idea"
+        ? "An idea for Novadeck"
+        : "A note about Novadeck"
+  return title === undefined ? `${what}.` : `${what}, from \u201c${title}\u201d.`
 }
 
 // The line under the box, in words; its parts are set apart in the component.

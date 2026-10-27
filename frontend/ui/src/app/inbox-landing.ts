@@ -17,9 +17,9 @@ import { viewing, type UiState, type UiStore } from "./ui-store"
 // (`readDwellMs`), whether it landed or not: seeing the terminal is seeing it. A read that
 // fails lands the update instead. On a phone, while the Inbox list covers the screen, no
 // terminal is looked at. Anything else that landed
-// stays: selecting a terminal doesn't take back a row the person must still answer. A
-// feedback draft the person asked for always lands, and so does an item the person asks to
-// open by its id (`reveal`), as Answer in a terminal's Messages does.
+// stays: selecting a terminal doesn't take back a row the person must still answer. An item
+// the person asks to open by its id (`reveal`) always lands too, as Answer in a terminal's
+// Messages does.
 //
 // The marks on a tab and window, and `watchUnreadTurns`, read the raw backend Inbox, never
 // this one.
@@ -69,8 +69,7 @@ export type ItemDecision = {
 }
 
 export const decideItem = ({ kind, here, landed, kept, quiet, ripe }: ItemFacts): ItemDecision => {
-  // A feedback draft the person asked for always lands.
-  const held = !landed && kind !== "feedback"
+  const held = !landed
   const dwellable = here && !kept && (kind === "update" || (held && !quiet))
   const act = !dwellable ? "none" : !ripe ? "dwell" : kind === "update" ? "read" : "quiet"
   return { act, hold: held && here }

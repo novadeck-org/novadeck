@@ -357,26 +357,6 @@ describe("Answering an item", () => {
     })
   })
 
-  context("a feedback draft", () => {
-    it("is not the runner's to answer", () => {
-      const { tracker } = setup()
-      const done = actions()
-      const draft: InboxRow = {
-        id: "fb",
-        source,
-        at: 1,
-        stopped: false,
-        seen: false,
-        kind: "feedback",
-        draft: { kind: "idea", text: "More." },
-      }
-      answerItem(tracker, draft, { kind: "feedback", answer: { type: "discard" } }, done)
-
-      expect(tracker.view([draft]).failed).toEqual({ fb: "A feedback draft isn't answered here." })
-      expect(done.request).not.toHaveBeenCalled()
-    })
-  })
-
   context("a held message", () => {
     it("is released or stopped by its thread", () => {
       const { tracker } = setup()

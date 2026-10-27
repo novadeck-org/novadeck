@@ -404,6 +404,36 @@ describe("what agents and a refused send say", () => {
     expect(text).toContain("replies can't reach you")
   })
 
+  it("name the caller's team: its lead and the others it leads, and those the caller leads", () => {
+    const peers = [
+      led("fox", "fox", null),
+      led("owl", "fox", "fox"),
+      led("haze", "fox", "fox"),
+      led("dusk", null, "moth"),
+      led("wren", null, "owl"),
+    ]
+    const team = (handle: string, lead: string | null, among = peers) =>
+      renderAgents({ handle, lead, peers: among, messages: [], unbound: false, now })
+        .split("\n")
+        .slice(1)
+        .filter((line) => !line.startsWith(" ") && !line.startsWith("- "))
+    expect(team("moth", "fox")).toEqual([
+      "Your team: led by @fox, with @owl, @haze.",
+      "You also lead @dusk.",
+      "Other terminals in this project and session:",
+    ])
+    expect(team("fox", null)).toEqual([
+      "Your team: you lead @owl, @haze.",
+      "Other terminals in this project and session:",
+    ])
+    expect(team("dusk", "moth", [led("moth", null, null)])).toEqual([
+      "Your team: led by @moth, no other teammates.",
+      "Other terminals in this project and session:",
+    ])
+    // In no team: nothing said of one.
+    expect(team("kit", null)).toEqual(["Other terminals in this project and session:"])
+  })
+
   it("say why a message is held for release, as send did", () => {
     const text = renderAgents({
       handle: "moth",
@@ -448,6 +478,10 @@ describe("what agents and a refused send say", () => {
     expect(unknownHandle("moth", "moth", [], now, null)).toBe(
       "@moth is this terminal.\nThere are no other terminals in this project and session.",
     )
+    // Its team first, as agents names it.
+    expect(
+      unknownHandle("codex", "moth", [led("fox", null, null)], now, "fox").split("\n")[1],
+    ).toBe("Your team: led by @fox, no other teammates.")
   })
 
   it("describe every other terminal there in full for a name that is no handle", () => {

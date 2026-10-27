@@ -2274,6 +2274,48 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))("bash shell i
     expect(shell.store.terminalIdentity(lead)?.ledBy).toBeNull()
   })
 
+  it("starts a worker lost before its agent's first session again with its task, still led", async ({
+    shell,
+  }) => {
+    fakeAgent(shell.home, "codex")
+    writeFileSync(join(shell.home, ".bashrc"), 'export PATH="$HOME/bin:$PATH"\n')
+    const task = 'codex "[Novadeck: automatic notice, agent messages waiting, k3f9q2]"'
+    const [lead, worker, ran] = [randomUUID(), randomUUID(), randomUUID()]
+    const keep = (id: string, handle: string, ledBy: string | null, agents = {}) =>
+      shell.store.saveTerminal({
+        id,
+        sessionId: shell.sessionId,
+        cwd: shell.home,
+        handle,
+        naming: { person: null, agent: null, murmur: null, summary: null },
+        openedBy: ledBy,
+        ledBy,
+        command: ledBy ? task : null,
+        lastProgram: null,
+        work: null,
+        agents,
+        promptedAt: null,
+      })
+    keep(lead, "moth", null)
+    keep(worker, "fox", "moth")
+    keep(ran, "owl", "moth", { codex: { sessionId: "t-1", seq: 1 } })
+    const manager = shell.manager()
+    await create(manager, shell, { id: lead, restore: true })
+    await create(manager, shell, { id: worker, restore: true })
+    await create(manager, shell, { id: ran, restore: true })
+    // Lost behind its trust screen, as a reboot leaves it: its task's line starts it again.
+    await shell.until(
+      manager,
+      worker,
+      "codex args: [Novadeck: automatic notice, agent messages waiting, k3f9q2]",
+    )
+    expect(manager.get(worker).ledBy).toBe("moth")
+    expect(shell.store.terminalIdentity(worker)?.ledBy).toBe("moth")
+    // One whose agent ran resumes that session or comes back a shell, no longer led.
+    expect(manager.get(ran).ledBy).toBeNull()
+    expect(shell.store.terminalIdentity(ran)?.ledBy).toBeNull()
+  })
+
   it("keeps a worker's lead while its agent is only suspended, as Ctrl+Z leaves it", async ({
     shell,
   }) => {

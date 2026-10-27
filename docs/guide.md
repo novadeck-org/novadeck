@@ -313,12 +313,12 @@ switcher's dot covers them again. The order and the pins are kept in this browse
 runner.
 
 The Inbox (the bell on the sidebar rail) lists everything
-across every project and session that waits on you, each item its own row, of one of five
+across every project and session that waits on you, each item its own row, of one of four
 kinds: an Unblock ("!"), where the agent can't go on without you (a permission or plan
 dialog, a message held for you to release, or an `ask` whose answer is an action only you
 can do, such as a sign-in, access or a key); an Ask ("?"), a question from the harness or
 sent through the agent's `ask` tool; Trouble, a failed turn, a usage limit or messages held
-long; an Update, an agent's `done` report or a `tell`; and Feedback you asked for. Click a
+long; and an Update, an agent's `done` report or a `tell`. Click a
 row to read it and answer in place, or reveal its terminal. An `ask` returns immediately so
 the agent can keep working; your answer reaches that exact agent session later as a message. Its
 ask clears when answered, withdrawn by the agent, or its session ends; an update clears when
@@ -484,7 +484,9 @@ program a terminal runs, the agent whose session the terminal reported is the on
 resume, until its shell has shown its prompt for a second: Windows ends the agents before
 their shells as it shuts down, and an agent ended that way still resumes. The same second
 keeps a worker led there: its lead ends only once its shell has outlived its agent for
-that long, so a team comes back as a team after a reboot.
+that long, so a team comes back as a team after a reboot. A worker whose agent hadn't
+started its first session yet, as one still at its trust screen, starts that agent again
+with its task, still led.
 
 ## Zen mode
 

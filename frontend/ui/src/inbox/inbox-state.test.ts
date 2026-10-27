@@ -9,7 +9,6 @@ import {
   hasUpdates,
   needing,
   needs,
-  ringing,
   nextItem,
   openItem,
   release,
@@ -57,16 +56,6 @@ const update = (id: string, at: number): InboxRow => ({
   seen: false,
   kind: "update",
   update: { type: "told", subject: id, body: "" },
-})
-
-const draft = (id: string, at: number): InboxRow => ({
-  id,
-  source,
-  at,
-  stopped: false,
-  seen: false,
-  kind: "feedback",
-  draft: { kind: "idea", text: id },
 })
 
 const ids = (items: readonly InboxRow[]): string[] => items.map(({ id }) => id)
@@ -173,11 +162,6 @@ describe("What asks next", () => {
     expect(nextItem(items, "a", { answering: { b: true } })?.id).toBe("c")
     expect(nextItem([update("u", 0)], null, { answering: {} })).toBeUndefined()
   })
-
-  it("is never a feedback draft, which asks nothing of the person now", () => {
-    expect(nextItem([draft("f", 0), approve("a", 1)], null, { answering: {} })?.id).toBe("a")
-    expect(nextItem([draft("f", 0)], null, { answering: {} })).toBeUndefined()
-  })
 })
 
 describe("Stepping down and up the list", () => {
@@ -216,7 +200,6 @@ describe("What the rail counts", () => {
     it("counts the agent's current one, and leaves an older one out, as it only informs", () => {
       const items = [failed("now", true), failed("old", false)]
       expect(ids(needing(items))).toEqual(["now"])
-      expect(ids(ringing(items))).toEqual(["now"])
     })
 
     it("has Mark all read something to read for an older one only", () => {
@@ -238,22 +221,6 @@ describe("What the rail counts", () => {
       }
       expect(nextItem([informs, approve("a", 2)], null, { answering: {} })?.id).toBe("a")
       expect(nextItem([informs], null, { answering: {} })).toBeUndefined()
-    })
-  })
-
-  context("with a feedback draft among the items", () => {
-    it("counts it, though it never rings", () => {
-      const items = [approve("a", 1), draft("f", 2)]
-      expect(ids(needing(items))).toEqual(["a", "f"])
-      expect(ids(ringing(items))).toEqual(["a"])
-    })
-
-    it("lists it after what asks and before updates", () => {
-      expect(ids(visible(initialView, [update("u", 1), draft("f", 2), approve("a", 3)]))).toEqual([
-        "a",
-        "f",
-        "u",
-      ])
     })
   })
 })
@@ -310,7 +277,6 @@ describe("An ask that has settled", () => {
   it("asks nothing: the count, the bell and the rings leave it out", () => {
     expect(needs(items[1]!)).toBe(false)
     expect(ids(needing(items))).toEqual(["a"])
-    expect(ids(ringing(items))).toEqual(["a"])
   })
 
   it("is never what asks next", () => {

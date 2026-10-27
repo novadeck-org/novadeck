@@ -324,6 +324,7 @@ const startRunner = (options: RunnerOptions): Runner => {
       router: createRouter({
         store,
         terminals,
+        feedback: terminals.feedback,
         projects,
         items,
         agents,

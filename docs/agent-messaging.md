@@ -123,7 +123,7 @@ flowchart LR
 
 | Part         | Where                                                                                                                   | Owns                                                                                |
 | ------------ | ----------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------- |
-| MCP tools    | `shell/mcp.ts`, beside `show`, `showing`, `close`, `open_terminal`, `open_agent`, `close_terminal`                      | `send`, `agents` and `summarize`; the terminal's token on every call                |
+| MCP tools    | `shell/mcp.ts`, beside `show`, `showing`, `close`, `open_terminal`, `open_agent`, `close_terminal`                      | `send`, `agents`, `summarize` and `feedback`; the terminal's token on every call    |
 | Messages     | Runner, stored with the workspace (`WorkspaceStore`)                                                                    | Messages, threads, guards, pause, retention                                         |
 | Delivery     | Runner, one state machine per recipient terminal                                                                        | When and how a recipient notices: leases to hooks and the doorbell                  |
 | Hook answers | `shell/hook.ts` asks the runner; the runner returns stdout                                                              | Each harness's output encoding, in its adapter beside its decoder                   |
@@ -183,7 +183,10 @@ The rules that keep this safe:
   the shell's next prompt; when the agent exits before any session bound (a failed
   login, Ctrl-C at startup, a declined trust); when the terminal is restored or
   restarted as a shell that resumes nothing; and when typing cancels the startup
-  before the shell took it, as the person then took the terminal over. On Windows,
+  before the shell took it, as the person then took the terminal over. A worker
+  restored while still led, before any agent session reported there, as a reboot can
+  leave one behind its agent's trust screen, starts its agent again with the command
+  it was opened with, so it stays led and its brief still waits. On Windows,
   which ends every console program just before its shell as it shuts down, an agent
   found gone ends its lead only once its shell has outlived it for a sample's time
   (`processPollMs`, a second), unless the runner stops or the shell ends or restarts
@@ -366,7 +369,12 @@ like them, only inside Novadeck's terminals.
 - **`agents()`** lists the other terminals in the project and session, each as one
   short block of what Novadeck infers itself; the only thing an agent claims there, its
   own summary, is marked as its agent's. The runner renders it, as it renders a refused
-  `send`'s listing, and the MCP server prints the text as it is:
+  `send`'s listing, and the MCP server prints the text as it is. Under the caller's own
+  handle it first names the caller's team, when it is in one, from the running leads
+  only: "Your team: led by @fox, with @owl, @haze." for its lead and the others that lead
+  leads ("no other teammates" when there are none), and "Your team: you lead @owl." or,
+  with a lead of its own, "You also lead @owl." for the terminals it leads. Then each
+  other terminal:
   1. its handle;
   2. its title, from the runner's terminal record, with "(set by @fox, not the user)" when
      an agent gave it (an agent that opened the terminal), and "(written by Novadeck's local model, not the user)" for murmur's; then
@@ -621,6 +629,45 @@ before the character limit; a refusal asks the person to shorten their reply and
 the draft available to edit. Agent `send` keeps its existing 4096-byte UTF-8 limit.
 Subjects, option labels, summaries, code paths and action commands/directories lose
 terminal escapes, controls, invisible separators and bidi marks before being shown or copied.
+
+### Feedback drafts
+
+The `feedback` tool (`shell/mcp.ts`; held by `Feedback` in `messaging/feedback.ts`) is how
+an agent drafts feedback for the people who build Novadeck, with a `kind` (`bug`, `idea` or
+`other`) and `text` of up to 2,000 characters, the limits of the website's feedback note. An
+agent calls it when the person asks, or on its own when it hits a bug in Novadeck itself
+(its tools, messages, Inbox, windows), once per problem; never for the project it works on
+or its harness. Its description says what to write (what it did, what happened, what it
+expected) and what to leave out (the project's code or content, secrets, names, paths under
+the home folder). It returns at once, and it is the same server in every harness, so Claude
+Code, Codex and Antigravity get it as they get `ask`: nothing names the tools per harness
+but the label a run shows (`novadeckTool` in the harness core).
+
+- **The draft** is no Inbox entry and is never stored. `Feedback` holds it in memory, one per
+  terminal (a new call replaces it, even one of an earlier session), and the app lists them
+  with `feedback.watch` (oldest first) and shows each in its feedback card. A draft outlives
+  the agent session and the terminal; only `feedback.settle` (the app sent it, or the person
+  discarded it), the project's removal or a runner restart ends it. The runner never sends
+  one, and the agent isn't told what became of it. It is no message, so Messages history has
+  no row for it. An agent may draft ten pieces of
+  feedback a minute per terminal, a limit of its own (`Feedback`'s, not the Inbox's); its record
+  of recent drafts is pruned by age, and goes with a closed terminal or a removed project.
+- **The person's request**, `feedback.ask(terminalId, hint)`, is queued as a message
+  relayed from the person, delivered as their Inbox answers are (hooks, the doorbell waking
+  an idle agent, waiting behind a turn, never typed over a draft; no loop hold or guard). The
+  text, under the person's mark, asks the agent to write feedback about Novadeck from what it
+  did in this session and to draft it with the feedback tool, and carries the hint inside
+  `<hint>` when one was given. A draft is `asked` only when the request has been delivered to
+  that agent session (`replyState`): a draft the agent writes while the request still waits
+  is its own. The draft consumes the request; one that went gone, or was for another session,
+  is dropped. An unknown terminal is `TERMINAL_NOT_FOUND`, one with no agent session bound
+  `NOT_FOUND`, one whose earlier request still waits `CONFLICT`. Messages lists the request
+  as a message from `you` without an `inbox` kind.
+- **The nudge.** A failed Novadeck tool call that is unexplained (it failed or timed out, the
+  runner marking the answer `unexplained`, or came back with no reason) ends with "If this
+  looks like a bug in Novadeck, you can draft feedback with the feedback tool." A refusal
+  with a reason of its own (validation, a limit), the runner's generic words for its own
+  shutdown or a race, and the feedback tool's own failures get none.
 
 ## Delivery
 

@@ -98,13 +98,26 @@ const backend = () => {
               {
                 id: "m",
                 hop: 1,
-                from: "crow",
+                from: "you",
                 to: "owl",
                 text: "run the suite and report",
                 sentAt: 8,
                 state: "delivered",
                 held: null,
                 deliveredAt: 9,
+                inbox: "answer",
+              },
+              // Its lead's, later: an agent's words, never quoted as the person's.
+              {
+                id: "n",
+                hop: 1,
+                from: "crow",
+                to: "owl",
+                text: "and plot the timings",
+                sentAt: 10,
+                state: "delivered",
+                held: null,
+                deliveredAt: 11,
               },
             ],
           },
@@ -141,13 +154,9 @@ describe("an Inbox item's agent context", () => {
     unmount()
   })
 
-  it("waits for the transcript, then gives the lead's words and the steps since", () => {
+  it("waits for the transcript, then gives the person's Inbox answer and the steps since", () => {
     const { conversation, conversations, messages } = backend()
-    const { seen, unmount } = mount({
-      conversations,
-      messages,
-      leadOf: () => "crow",
-    })
+    const { seen, unmount } = mount({ conversations, messages })
     expect(seen.at(-1)).toBeUndefined()
     act(() => {
       conversation.update(() => ({
@@ -159,7 +168,7 @@ describe("an Inbox item's agent context", () => {
       }))
     })
     expect(seen.at(-1)).toEqual({
-      said: { text: "run the suite and report", by: "crow", at: 9 },
+      said: { text: "run the suite and report", at: 9 },
       steps: [{ kind: "run", tool: "Bash", arg: "pnpm test", result: "Tests  48 passed (48)" }],
     })
     unmount()

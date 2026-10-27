@@ -179,6 +179,7 @@ export const recordingRunner = (runner: Runner, io: string[]): RunnerApi => {
         note(`agent ${agent} ${connected}`, () => runner.agents.set(agent, connected)),
     },
     inbox: runner.inbox,
+    feedback: runner.feedback,
     messages: {
       list: (terminalId) => runner.messages.list(terminalId),
       watch: (terminalId) => runner.messages.watch(terminalId),

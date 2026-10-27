@@ -6,7 +6,6 @@ import { ArrowLeft, Check, Terminal, X } from "lucide-react"
 import { useEffect, useRef, useState } from "react"
 
 import { ConsoleSheet } from "./ConsoleSheet"
-import { FeedbackSheet } from "./FeedbackSheet"
 import { nextRowButton, rowOf, sheetControls } from "./inbox-dom"
 import { icons } from "./inbox-icons"
 import { tagOf } from "./inbox-tag"
@@ -148,7 +147,7 @@ const SheetBody = ({ item }: { readonly item: InboxRow }): React.JSX.Element => 
         </Tooltip>
       </header>
       {receipt && receipt.from !== item.id && <ReceiptLine receipt={receipt} />}
-      {item.kind === "feedback" ? <FeedbackSheet {...content} /> : <ConsoleSheet {...content} />}
+      <ConsoleSheet {...content} />
     </div>
   )
 }

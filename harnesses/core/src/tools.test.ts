@@ -80,6 +80,14 @@ describe("Novadeck's own tools", () => {
     })
   })
 
+  it("labels a feedback call as a draft, with its kind", () => {
+    expect(novadeckTool("feedback", { kind: "bug", text: "tell failed." })).toEqual({
+      kind: "agent",
+      title: "Drafted feedback",
+      detail: "bug",
+    })
+  })
+
   it("keeps the first line of a done report's subject", () => {
     expect(novadeckTool("done", { subject: "Shipped\nand tested", body: "" })?.detail).toBe(
       "Shipped",

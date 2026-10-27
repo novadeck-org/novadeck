@@ -32,6 +32,7 @@ import { DomainError } from "../errors.js"
 import { actorOf, agentDetail } from "../harnesses/detail.js"
 import { harnesses } from "../harnesses/registry.js"
 import { type DoorbellOptions } from "../messaging/doorbell.js"
+import { Feedback } from "../messaging/feedback.js"
 import { Inbox, type InboxRecords } from "../messaging/inbox.js"
 import { Messaging, type AgentsAnswer, type SendAnswer } from "../messaging/messaging.js"
 import type { MessageRecords } from "../messaging/records.js"
@@ -66,7 +67,7 @@ import type { Record } from "./record.js"
 import { hasRun, type TerminalRecords } from "./records.js"
 import { createTranscriptRedactor, type TranscriptRedactor } from "./redaction.js"
 import { restoredSeparator } from "./restored.js"
-import { cancelResume, Claims } from "./resumes.js"
+import { cancelResume, Claims, restartedTask } from "./resumes.js"
 import { agentWorking } from "./ringing.js"
 import { Sampler, shellProcess } from "./sampling.js"
 import { Saves } from "./saving.js"
@@ -340,6 +341,8 @@ export class Terminals {
   /** Agents' messages to each other, and how each terminal's agent takes them. */
   private readonly messaging: Messaging
   private readonly inbox: Inbox
+  /** Agents' feedback drafts, held in memory for the app's feedback card. */
+  readonly feedback: Feedback
   /** What agents messaging each other, and the runner API about their messages, are answered. */
   private readonly peers: TerminalPeers
   /** Describes terminals with murmur; undefined without a describer. */
@@ -560,6 +563,12 @@ export class Terminals {
       },
       options.inbox,
     )
+    this.feedback = new Feedback({
+      owner: (id) => this.messaging.inboxOwner(id),
+      exists: (id) => !this.closedIds.has(id) && this.records.has(id),
+      replyState: (id) => this.messaging.inboxReply(id),
+      request: (id, request, hint) => this.messaging.personFeedbackRequest(id, request, hint),
+    })
     // A lapsed continuation ends its turn; a late prompt may leave only box doubt to settle.
     // Subscribed before typing's doorbell, which subscribes as it is made.
     this.messaging.subscribe((change) => {
@@ -648,6 +657,7 @@ export class Terminals {
       stopping: () => this.stopping,
       messaging: () => this.messaging,
       inbox: () => this.inbox,
+      feedback: () => this.feedback,
       peers: () => this.peers,
       opens: () => this.opens,
       approvals: () => this.confirms,
@@ -738,10 +748,12 @@ export class Terminals {
           saved?.agents[input.resume]?.sessionId,
           connected,
         )
+      // A worker lost before its agent's first session starts that agent again, still led.
+      const task = resume ? undefined : restartedTask(saved, kept?.ledBy)
       const startup =
         input.command !== undefined
           ? { command: input.command, required: true }
-          : resume && { command: resume.argv.join(" ") }
+          : (resume && { command: resume.argv.join(" ") }) || task
       const { spec, started } = this.launcher.launch(
         shell,
         cwd,
@@ -806,6 +818,7 @@ export class Terminals {
         work,
         openedBy,
         openerCommand: opener?.command ?? null,
+        ...(task?.nonce && { startedWith: task.nonce }),
         // Only a session the opener's command started, running an agent, is the opener's.
         awaitsOpened:
           opener !== undefined && !kept && expectedAgent(opener.command, undefined) !== null,
@@ -818,7 +831,7 @@ export class Terminals {
       // Restored as a shell that resumes nothing, there is no agent left to lead.
       const unled = record.summary.ledBy !== null && !started.resumes
       if (unled) record.summary = { ...record.summary, ledBy: null }
-      this.register(record, expectedAgent(input.command, input.resume))
+      this.register(record, expectedAgent(input.command ?? task?.command, input.resume))
       if (unled) this.messaging.endLead(record.summary.id)
       // The resumed agent shows its own history; a shell that resumes none, the transcript.
       if (opened && !started.resumes) void this.show(record, opened.text, new Date(opened.at))
@@ -1177,6 +1190,7 @@ export class Terminals {
     // for the next runner to remove.
     if (this.stopping) throw new DomainError("CLOSING")
     this.inbox.forgetProject(projectId)
+    this.feedback.forgetProject(projectId)
     this.messaging.forgetProject(projectId)
   }
 
@@ -1519,6 +1533,7 @@ export class Terminals {
     for (const record of this.records.values()) this.bindings.unwatch(record)
     this.typing.close()
     this.inbox.close()
+    this.feedback.close()
     this.messaging.close()
     this.shutdownPromise = Promise.all([last, this.stop()]).then(() => undefined)
     return this.shutdownPromise

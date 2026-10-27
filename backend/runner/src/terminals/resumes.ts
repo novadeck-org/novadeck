@@ -1,10 +1,32 @@
 import { rmSync } from "node:fs"
 
+import { doorbell } from "@novadeck/harness-core/harness"
 import type { AgentName } from "@novadeck/protocol"
 
 import { resumeAvailability } from "../harnesses/eligibility.js"
 import { harnesses } from "../harnesses/registry.js"
+import { expectedAgent } from "./commands.js"
 import type { Record } from "./record.js"
+import { hasRun, type SavedTerminal } from "./records.js"
+
+/**
+ * The task a worker lost before its agent's first session starts with again: the command
+ * it was opened with, which starts that agent (with the task's doorbell line, as
+ * `open_agent` opens it), while it is still led and no session of any agent ever reported
+ * there, as one a reboot ended behind its trust screen. An agent that exited first, or a
+ * startup the person's typing cancelled, ended the lead already. The line's nonce comes
+ * with it, as the agent's first typed entry. Undefined otherwise: a terminal whose agent
+ * ran resumes it or comes back a shell.
+ */
+export const restartedTask = (
+  saved: Pick<SavedTerminal, "agents" | "command"> | undefined,
+  ledBy: string | null | undefined,
+): { readonly command: string; readonly nonce: string | undefined } | undefined => {
+  const command = saved?.command
+  if (!command || !ledBy || hasRun(saved.agents)) return undefined
+  if (expectedAgent(command, undefined) === null) return undefined
+  return { command, nonce: new RegExp(doorbell.source).exec(command)?.[1] }
+}
 
 /**
  * Removes a resume command the shell has not taken yet, so it never runs; true when
