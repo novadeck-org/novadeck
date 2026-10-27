@@ -404,11 +404,12 @@
 /* A portable copy's card (PortableInstall.tsx) is as wide as the changelog it can carry,
    which it shows in the what's-new look below. The workspace's folder reads as a path, in
    mono, with a small button to show it beside the words, set apart from the highlights
-   above it by more than they are from each other. */
+   above it and the buttons below by more than the highlights are from each other. */
 .update-card.portable-card {
   width: 20.5rem;
 }
-.whats-new-list + .portable-data {
+.whats-new-list + .portable-data,
+.portable-data + .update-card-foot {
   margin-block-start: 8px;
 }
 .portable-data {
