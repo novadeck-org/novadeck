@@ -59,6 +59,9 @@ export const attachPage = (
   preferences.webSecurity = true
   preferences.allowRunningInsecureContent = false
   preferences.webviewTag = false
+  // A page with no background of its own gets the ground a browser gives it, white or its
+  // scheme's dark, not whatever the viewer draws behind it.
+  preferences.transparent = false
   // A session that isn't the pages' own refuses the view, never throws past the host's
   // handler, which would let the view attach as it asked.
   if (!kept(partition)) return false

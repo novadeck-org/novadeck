@@ -26,8 +26,8 @@ import {
   type TerminalEvent,
   type TerminalMessages,
   type TerminalRequest,
-  type CloseAsk,
-  type CloseAskAnswer,
+  type Approval,
+  type ApprovalAnswer,
   type TerminalRequestAnswer,
   type TerminalSummary,
   type RequestAnswer,
@@ -193,17 +193,24 @@ export type Runner = {
      */
     answerRequest(answer: TerminalRequestAnswer): Promise<void>
     /**
-     * Follows agents' asks to close a terminal that runs an agent they don't lead, made
-     * through Novadeck's MCP server, across reconnections. The runner sends each to the
-     * client that subscribed last and waits, without a time limit, for `answerCloseAsk`
-     * or until it withdraws the ask; iteration ends when the runner closes or on `return()`.
+     * Follows agents' asks, made through Novadeck's MCP server, to close a terminal that
+     * runs an agent they don't lead, or to lead one, across reconnections. The runner
+     * sends each to the client that subscribed last and waits, without a time limit, for
+     * `answerApproval` or until it withdraws the ask; iteration ends when the runner
+     * closes or on `return()`.
      */
-    closeAsks(): AsyncIterableIterator<CloseAsk, undefined>
+    approvals(): AsyncIterableIterator<Approval, undefined>
     /**
-     * Answers a close ask with the person's choice. Rejects with `NOT_FOUND` once the
+     * Answers an approval with the person's choice. Rejects with `NOT_FOUND` once the
      * runner no longer waits for it.
      */
-    answerCloseAsk(answer: CloseAskAnswer): Promise<void>
+    answerApproval(answer: ApprovalAnswer): Promise<void>
+    /**
+     * Ends a terminal's lead, as the person: the agent's messages are a peer's from then
+     * on. Does nothing for a terminal with no lead; rejects with `TERMINAL_NOT_FOUND` for
+     * one the runner doesn't hold.
+     */
+    release(terminalId: string): Promise<void>
     /**
      * Follows every terminal on the runner, across sessions. Each subscription, the
      * first and every one after a reconnection or a retried refusal, yields `reset`,
@@ -679,9 +686,10 @@ export const connectRunner = async (
       requests: () =>
         resubscribe(connection, (wire, signal) => wire.terminals.requests(undefined, { signal })),
       answerRequest: (answer) => call((wire) => wire.terminals.answerRequest(answer)),
-      closeAsks: () =>
-        resubscribe(connection, (wire, signal) => wire.terminals.closeAsks(undefined, { signal })),
-      answerCloseAsk: (answer) => call((wire) => wire.terminals.answerCloseAsk(answer)),
+      approvals: () =>
+        resubscribe(connection, (wire, signal) => wire.terminals.approvals(undefined, { signal })),
+      answerApproval: (answer) => call((wire) => wire.terminals.answerApproval(answer)),
+      release: (terminalId) => call((wire) => wire.terminals.release({ terminalId })),
       watch: () => watch(connection, (wire, signal) => wire.terminals.watch(undefined, { signal })),
       close: (terminalId) => call((wire) => wire.terminals.close({ terminalId })),
       rename: (terminalId, title) => call((wire) => wire.terminals.rename({ terminalId, title })),

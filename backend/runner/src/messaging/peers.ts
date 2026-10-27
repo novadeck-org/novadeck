@@ -254,7 +254,7 @@ export type Viewer = { readonly handle: string; readonly lead: string | null }
  * another. A lead whose terminal closed leads no one, so nothing is said of it.
  */
 const relationLine = (peer: Peer, viewer: Viewer): string | null => {
-  if (peer.handle === viewer.lead) return "your lead: it opened this terminal and directs your work"
+  if (peer.handle === viewer.lead) return "your lead: it directs your work"
   if (!peer.lead) return null
   if (peer.lead === viewer.handle) return "led by you"
   return `led by ${mention(peer.lead)}`
@@ -344,7 +344,7 @@ const standing = (
       : "held while the user has messaging paused"
   if (message.state === "gone")
     return message.stopped
-      ? "won't arrive: the user stopped that thread in Novadeck"
+      ? "won't arrive: the user stopped it in Novadeck"
       : "won't arrive: the agent session it was for ended"
   return message.state
 }

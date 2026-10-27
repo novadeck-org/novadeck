@@ -233,6 +233,18 @@ const novadeckTool = (tool: string, fields: Fields | null): ToolSummary | undefi
         title: `Close${text("to") ? ` ${text("to")}` : " a terminal"}`,
         detail: "",
       }
+    case "lead":
+      return {
+        kind: "agent",
+        title: `Asked to lead${text("to") ? ` ${text("to")}` : " an agent"}`,
+        detail: text("message"),
+      }
+    case "release":
+      return {
+        kind: "agent",
+        title: `Released${text("to") ? ` ${text("to")}` : " an agent"}`,
+        detail: "",
+      }
     case "show":
     case "close": {
       // A page by its address under page, since show and close took pages so.
@@ -687,6 +699,8 @@ const novadeck = [
   "open_terminal",
   "open_agent",
   "close_terminal",
+  "lead",
+  "release",
   "show",
   "close",
   "showing",

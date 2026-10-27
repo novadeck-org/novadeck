@@ -5,8 +5,8 @@ import type {
   AgentDetail,
   AgentName,
   InterruptResult,
-  CloseAsk,
-  CloseAskAnswer,
+  Approval,
+  ApprovalAnswer,
   TerminalAttached,
   TerminalChange,
   TerminalEvent,
@@ -41,13 +41,13 @@ import type { InstalledShell } from "../shell/install.js"
 import { type Ack, type Call } from "../shell/reports.js"
 import type { HintFacts } from "../voice/hint.js"
 import { type AnswerOptions } from "./answers.js"
+import { Approvals } from "./approvals.js"
 import { Bindings } from "./binding/facts.js"
 import { Reports } from "./binding/reports.js"
 import { Shown } from "./binding/shown.js"
 import { savedSession } from "./binding/standing.js"
 import { sameToken } from "./callers.js"
 import { Calls } from "./calls.js"
-import { CloseAsks } from "./closeasks.js"
 import { type CloseAnswer } from "./closes.js"
 import { coalesced } from "./coalesce.js"
 import { expectedAgent } from "./commands.js"
@@ -257,7 +257,7 @@ export class Terminals {
   /** Agents' requests for a new terminal, on their way to the client. */
   private readonly opens = new OpenRequests()
   /** Agents' asks to close a terminal, on their way to the client that asks the person. */
-  private readonly confirms = new CloseAsks()
+  private readonly confirms = new Approvals()
   /** Samples running terminals' foreground processes. */
   private readonly sampler: Sampler<Record>
   /** Who reads the terminals: their watchers, and each one's detail and messages readers. */
@@ -500,6 +500,7 @@ export class Terminals {
       rebound: (record) => this.reporting.rebound(record),
       turns: () => ({ inbox: this.inbox, redactor }),
       alive,
+      pollMs: this.options.processPollMs,
     })
     this.shown = new Shown({
       messaging: () => this.messaging,
@@ -649,7 +650,8 @@ export class Terminals {
       inbox: () => this.inbox,
       peers: () => this.peers,
       opens: () => this.opens,
-      closeAsks: () => this.confirms,
+      approvals: () => this.confirms,
+      bindings: () => this.bindings,
       companion: () => this.companion,
       launcher: () => this.launcher,
       install: (agent) => this.options.install(agent),
@@ -1426,15 +1428,20 @@ export class Terminals {
     this.opens.answer(answer, ownerId)
   }
 
-  /** Agents' asks to close a terminal, for the client to confirm with the person. */
-  closeAsks(ownerId: string, signal?: AbortSignal): AsyncGenerator<CloseAsk> {
+  /** Agents' asks to close a terminal or lead one, for the client to approve with the person. */
+  approvals(ownerId: string, signal?: AbortSignal): AsyncGenerator<Approval> {
     if (this.stopping) throw new DomainError("CLOSING")
     return this.confirms.follow(ownerId, signal)
   }
 
-  /** The person's answer to a close ask; NOT_FOUND once nothing waits for it. */
-  answerCloseAsk(answer: CloseAskAnswer, ownerId: string): void {
+  /** The person's answer to an approval; NOT_FOUND once nothing waits for it. */
+  answerApproval(answer: ApprovalAnswer, ownerId: string): void {
     this.confirms.answer(answer, ownerId)
+  }
+
+  /** The person ends a terminal's lead (see `Leads.releaseByPerson`). */
+  releaseLead(terminalId: string): void {
+    this.calls.leads.releaseByPerson(terminalId)
   }
 
   /** The folder of the session's project; undefined when that cannot be told. */
@@ -1631,10 +1638,10 @@ export class Terminals {
     if (binding === null) {
       // Or the agent a Ctrl+Z left suspended, found gone with no session bound since.
       if (ran || (record.suspended !== null && !alive(record.suspended)))
-        this.bindings.endLead(record)
+        this.bindings.endLeadGone(record)
     } else if (binding.instance && alive(binding.instance)) {
       record.suspended = binding.instance
-    } else this.bindings.endLead(record)
+    } else this.bindings.endLeadGone(record)
     // Nothing came of the agent the shell was opened to run: it is a plain shell now.
     if (binding === null && ran) record.expecting = null
     // An agent whose prompt showed, with no session bound, left with it: first, so the

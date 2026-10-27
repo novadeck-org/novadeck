@@ -227,6 +227,41 @@ export const closes = (text: string, to: string): Rule =>
   })
 
 /**
+ * Answers the agent's first look at a user turn holding `text` by asking to lead the
+ * terminal whose handle is `to` with `message` as its brief (`lead`). The calls after the
+ * tool answered go to the next rules.
+ */
+export const leads = (text: string, to: string, message: string): Rule =>
+  own((call) => {
+    const lead = tool(call, "lead")
+    if (!lead || !asked(call, text)) return undefined
+    return { calls: [{ name: lead, input: { to, message } }] }
+  })
+
+/**
+ * Answers the agent's first look at a user turn holding `text` by ending its lead of the
+ * terminal whose handle is `to` (`release`).
+ */
+export const releases = (text: string, to: string): Rule =>
+  own((call) => {
+    const release = tool(call, "release")
+    if (!release || !asked(call, text)) return undefined
+    return { calls: [{ name: release, input: { to } }] }
+  })
+
+/** Whether the call is the agent's next look after its `lead` asked the user about `handle`. */
+export const askedToLead = (call: Call, handle: string): boolean => {
+  const last = call.turns.at(-1)
+  return last?.role === "tool" && lead("Asked the user to let you lead ", handle).test(last.text)
+}
+
+/** Whether the call is the agent's next look after its `release` ended its lead of `handle`. */
+export const released = (call: Call, handle: string): boolean => {
+  const last = call.turns.at(-1)
+  return last?.role === "tool" && lead("Released ", handle).test(last.text)
+}
+
+/**
  * Answers the agent's first look at a user turn holding `text` with `reply`, a reply that
  * depends on the call, such as an `approval`'s request or a `background`'s start.
  */

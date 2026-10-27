@@ -185,6 +185,12 @@ const attached = <T>(call: () => T): T | undefined => {
 // The load errors that aren't failures: a navigation that replaced the one loading.
 const aborted = -3
 
+// Its first document ready, a view paints its own ground, and keeps its last frame
+// through later loads: the viewer's goes (see browser.css).
+const painting = (event: Event): void => {
+  ;(event.currentTarget as HTMLElement).dataset.painting = ""
+}
+
 /** How long a show's scroll waits for its element to appear once the page has loaded. */
 export const scrollWaitMs = 5_000
 
@@ -666,6 +672,7 @@ export const mountBrowser: Mount<BrowserContent, BrowserOptions, BrowserViewer> 
   }
   const listeners: readonly (readonly [string, (event: Event) => void])[] = [
     ["dom-ready", moved],
+    ["dom-ready", painting],
     ["did-navigate", moved],
     ["did-navigate-in-page", movedInPage],
     ["did-start-loading", started],

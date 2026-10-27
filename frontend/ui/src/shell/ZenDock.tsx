@@ -79,7 +79,6 @@ export const ZenDock = ({
           <button
             className="icon-button zen-inbox relative"
             aria-label={badge.label}
-            data-project-status={badge.status}
             onClick={onInbox}
           >
             <Bell size={16} />

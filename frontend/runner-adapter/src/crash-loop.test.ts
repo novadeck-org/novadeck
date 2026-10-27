@@ -72,7 +72,7 @@ const crashingRunner = () => {
       list: unused,
       watch: nothing,
       requests: nothing,
-      closeAsks: nothing,
+      approvals: nothing,
       create: crash,
       restart: crash,
       close: async () => {},

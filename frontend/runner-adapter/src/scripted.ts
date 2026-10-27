@@ -192,7 +192,7 @@ export const scripted = ({
       watch: () => changes.iterator,
       // No agent asks for a terminal here.
       requests: () => channel<never>().iterator,
-      closeAsks: () => channel<never>().iterator,
+      approvals: () => channel<never>().iterator,
       // Never answers: a fresh shell stays starting.
       create: note("create", () => new Promise(() => {})),
       close: async () => {},

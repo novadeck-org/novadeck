@@ -1,5 +1,5 @@
 import type { AgentName } from "@novadeck/protocol"
-import { vi } from "vitest"
+import { afterEach, beforeEach, vi } from "vitest"
 
 import { apply, started } from "../../harnesses/activity.js"
 import { Inbox, memoryInbox, type TurnOwner } from "../../messaging/inbox.js"
@@ -225,6 +225,118 @@ describe("a turn that ends within its grace as its session does", () => {
     const run = finished("interrupted")
     run.ends.endBinding(run.bound)
     expect(run.turns()).toEqual([])
+  })
+})
+
+describe("the lead of an agent found gone", () => {
+  const pollMs = 1_000
+  const platform = Object.getOwnPropertyDescriptor(process, "platform")!
+  const on = (name: NodeJS.Platform): void => {
+    Object.defineProperty(process, "platform", { value: name })
+  }
+  beforeEach(() => vi.useFakeTimers())
+  afterEach(() => {
+    vi.useRealTimers()
+    Object.defineProperty(process, "platform", platform)
+  })
+
+  /** Bindings whose host counts the leads it tells messaging ended, and a led terminal. */
+  const led = (stopping = () => false) => {
+    const ended = vi.fn<(terminalId: string) => void>()
+    const save = vi.fn<(record: Record) => void>()
+    const host = {
+      messaging: () => ({
+        endLead: ended,
+        shownAgent: () => undefined,
+        inboxOwner: () => undefined,
+        deliveredAt: () => null,
+      }),
+      turns: () => ({ inbox: noReports, redactor: undefined }),
+      typing: () => ({ dialogsChanged: () => {} }),
+      murmurChanged: () => {},
+      rebound: () => {},
+      detailed: () => {},
+      save,
+      announce: () => {},
+      // Its agent's process is gone.
+      alive: () => false,
+      stopping,
+      pollMs,
+    } as unknown as BindingsHost
+    const worker = record({ ledBy: "moth" })
+    Object.assign(worker, {
+      closed: false,
+      terminal: { pty: { pid: 1 }, exit: null, exiting: false },
+    })
+    return { ends: new Bindings(host), worker, ended, save }
+  }
+
+  it("ends at once where the platform shuts its shells down with their agents", () => {
+    on("linux")
+    const { ends, worker, ended, save } = led()
+    ends.endLeadGone(worker)
+    expect(worker.summary.ledBy).toBeNull()
+    expect(ended).toHaveBeenCalledWith("t1")
+    expect(save).toHaveBeenCalledWith(worker)
+  })
+
+  it("ends once the shell has outlived its agent for a sample's time, on Windows", () => {
+    on("win32")
+    const { ends, worker, ended, save } = led()
+    ends.endLeadGone(worker)
+    vi.advanceTimersByTime(pollMs - 1)
+    expect(worker.summary.ledBy).toBe("moth")
+    vi.advanceTimersByTime(1)
+    expect(worker.summary.ledBy).toBeNull()
+    expect(ended).toHaveBeenCalledWith("t1")
+    // Kept with the terminal's next save, as the session the sampler lets go of then is.
+    expect(save).not.toHaveBeenCalled()
+    expect(worker.changed).toBe(true)
+  })
+
+  it("ends so too when the agent's process is found gone, on Windows", () => {
+    on("win32")
+    const { ends, worker } = led()
+    ends.endExited(worker)
+    expect(worker.summary.ledBy).toBe("moth")
+    vi.advanceTimersByTime(pollMs)
+    expect(worker.summary.ledBy).toBeNull()
+  })
+
+  it("stays when the runner stops right after its agent, as Windows shuts down", () => {
+    on("win32")
+    let stopping = false
+    const { ends, worker, ended } = led(() => stopping)
+    ends.endLeadGone(worker)
+    stopping = true
+    vi.advanceTimersByTime(pollMs)
+    expect(worker.summary.ledBy).toBe("moth")
+    expect(ended).not.toHaveBeenCalled()
+  })
+
+  it("stays when the shell ends, is replaced or is closed meanwhile, on Windows", () => {
+    on("win32")
+    const runs = [led(), led(), led()]
+    for (const { ends, worker } of runs) ends.endLeadGone(worker)
+    const [ending, replaced, closed] = runs.map(({ worker }) => worker)
+    ending!.terminal = { ...ending!.terminal, exiting: true } as Record["terminal"]
+    replaced!.terminal = { ...replaced!.terminal, pty: { pid: 2 } } as Record["terminal"]
+    closed!.closed = true
+    vi.advanceTimersByTime(pollMs)
+    for (const { worker, ended } of runs) {
+      expect(worker.summary.ledBy).toBe("moth")
+      expect(ended).not.toHaveBeenCalled()
+    }
+  })
+
+  it("keeps a lead the person approved meanwhile, on Windows", () => {
+    on("win32")
+    const { ends, worker, ended } = led()
+    ends.endLeadGone(worker)
+    worker.summary = { ...worker.summary, ledBy: "owl" }
+    vi.advanceTimersByTime(pollMs)
+    expect(worker.summary.ledBy).toBe("owl")
+    expect(ended).not.toHaveBeenCalled()
   })
 })
 

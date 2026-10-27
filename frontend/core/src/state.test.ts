@@ -581,6 +581,61 @@ describe("terminals agents open", () => {
     expect(order(run(dragged, ...opened(3, "02")))).toEqual(["02", "03", "01"])
   })
 
+  context("when an agent leads a terminal that already exists", () => {
+    const lead = (id: string, ledBy: string | null): WorkspaceAction => ({
+      type: "terminal/update",
+      target,
+      terminalId: id,
+      ledBy,
+    })
+    const three = apply(
+      handled,
+      { type: "terminal/add", target, terminal: terminalFixture(3, "~/project"), select: false },
+      named("03"),
+    )
+
+    it("lists it under its lead, as one opened with a brief", () => {
+      expect(order(run(three, lead("03", "moth")))).toEqual(["01", "03", "02"])
+    })
+
+    it("goes after the lead wherever the person dragged it", () => {
+      const dragged = apply(three, {
+        type: "terminal/reorder",
+        target,
+        tabOrder: ["02", "03", "01"],
+      })
+      expect(order(run(dragged, lead("03", "moth")))).toEqual(["02", "01", "03"])
+    })
+
+    it("moves nothing on a restore, which seeds the lead, nor on the same lead announced again", () => {
+      // As the runner adapter's seed builds it: led from the start, in the saved order.
+      const restored = apply(
+        handled,
+        {
+          type: "terminal/add",
+          target,
+          terminal: { ...terminalFixture(3, "~/project"), ledBy: "moth" },
+          select: false,
+        },
+        named("03"),
+        { type: "terminal/reorder", target, tabOrder: ["02", "01", "03"] },
+      )
+      expect(order(run(restored))).toEqual(["02", "01", "03"])
+      expect(order(run(restored, lead("03", "moth")))).toEqual(["02", "01", "03"])
+    })
+
+    it("moves nothing on a change of lead or a release", () => {
+      const led = apply(three, lead("03", "moth"))
+      const dragged = apply(led, { type: "terminal/reorder", target, tabOrder: ["02", "01", "03"] })
+      expect(order(run(dragged, lead("03", "wren")))).toEqual(["02", "01", "03"])
+      expect(order(run(dragged, lead("03", null)))).toEqual(["02", "01", "03"])
+    })
+
+    it("stays put when no terminal in the session has that handle", () => {
+      expect(order(run(three, lead("03", "nobody")))).toEqual(order(run(three)))
+    })
+  })
+
   it("leaves windows after the terminals the person opens later", () => {
     const undocked = apply(
       shown(hero),

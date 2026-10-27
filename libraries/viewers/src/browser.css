@@ -3,11 +3,12 @@
    whatever the host draws above it.
 
    Hooks: data-load="loading" | "ready" | "failed" on the viewer: how the page's latest
-   load went.
+   load went. data-painting on the <webview>: its first document is ready, so it paints
+   its own ground, and keeps its last frame through later loads.
 
    Tokens, each optional (its fallback in brackets):
-   --browser-page-bg (white): behind a live page while it loads; pages assume a white
-   ground. */
+   --browser-page-bg (white): behind a live page until it paints, and behind its resting
+   picture; pages assume a white ground. */
 .browser-viewer {
   display: flex;
   position: relative;
@@ -20,6 +21,12 @@
   flex: 1;
   min-height: 0;
   border: 0;
+}
+/* Only until it paints: where the viewer's edges fall between device pixels, Electron
+   draws the page a device pixel short of the <webview>'s box, and a ground kept under a
+   page shows there as a line down its edge. The same goes for a picture fading off a
+   page that has drawn. */
+.browser-viewer > webview:not([data-painting]) {
   background-color: var(--browser-page-bg, white);
 }
 .browser-snapshot {
@@ -37,6 +44,8 @@
    page's width, it keeps to it. */
 .browser-viewer:has(> .browser-picture) {
   overflow: hidden;
+}
+.browser-viewer:has(> .browser-picture:not([data-fading])) {
   background-color: var(--browser-page-bg, white);
 }
 .browser-picture {

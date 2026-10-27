@@ -209,7 +209,6 @@ const RailToggle = ({
         ...(index > 0 ? ["Alt+ArrowUp"] : []),
         ...(index < count - 1 ? ["Alt+ArrowDown"] : []),
       ].join(" ")}
-      data-project-status={badge?.status}
       data-dragging={isDragSource ? "true" : undefined}
       // Before the group's own keys, which would move the focus along the rail instead.
       onKeyDownCapture={(event) => {

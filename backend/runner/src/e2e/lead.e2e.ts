@@ -19,7 +19,7 @@ import {
 // while the agent's turn runs they reach it at its next tool call ("The lead's messages
 // mid-turn"), where a peer's wait for the Stop. The same for every harness (see messaging.e2e.ts for the rule on parity).
 
-const leadNote = "are from your lead, the agent that opened this terminal"
+const leadNote = "are from your lead, the agent that directs your work"
 
 // The brief the lead opens its worker with, the lead's message when it sends one midway,
 // and a peer's message to the worker.

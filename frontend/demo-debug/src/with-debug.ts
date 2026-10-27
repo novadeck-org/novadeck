@@ -19,9 +19,9 @@ import { demoTurns } from "@novadeck/demo/turns"
 import { createDemo, type DemoVariant } from "@novadeck/demo/variants"
 import { isDemoVoice } from "@novadeck/demo/voice"
 
+import { approvalGroups, createDemoApprovals } from "./approvals"
 import { babciaGroups } from "./babcia"
 import type { BootRehearsals } from "./boot-rehearsal"
-import { closeAskGroups, createDemoCloseAsks } from "./close-asks"
 import { createDebugPanel, type DebugPanel } from "./DebugPanel"
 import { doorbellGroups } from "./doorbell"
 import { feedbackGroups } from "./feedback"
@@ -126,7 +126,10 @@ export const createDebugDemo = (launch: DemoLaunch): Backend => {
     },
     turns,
   )
-  const asks = createDemoCloseAsks(() => sink?.dispatch)
+  const asks = createDemoApprovals(
+    () => sink?.dispatch,
+    () => latest,
+  )
   const demoTerminals = demoTerminalsLife(inner)
   const total = Math.max(
     1,
@@ -209,7 +212,8 @@ export const createDebugDemo = (launch: DemoLaunch): Backend => {
     },
     connection,
     crashLoop: { crashes, retry },
-    closeAsks: asks.closeAsks,
+    approvals: asks.approvals,
+    releaseLead: asks.release,
     ...(launch.slowAttach ? { boot } : {}),
     agents: states.agents,
     notices: states.notices,
@@ -231,7 +235,7 @@ export const createDebugDemo = (launch: DemoLaunch): Backend => {
         groups: [
           ...states.groups,
           updatesGroup(launch, states.updateControls),
-          ...closeAskGroups(asks, () => latest),
+          ...approvalGroups(asks, () => latest),
           ...inboxGroups(isDemoInbox(inner.inbox) ? inner.inbox : undefined, inner.seed),
           ...feedbackGroups(launch, isDemoFeedback(inner.feedback) ? inner.feedback : undefined),
           ...planGroups(inner.companions),
