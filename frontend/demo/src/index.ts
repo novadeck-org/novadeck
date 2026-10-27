@@ -1,6 +1,6 @@
 import type { Conversations } from "@novadeck/core/conversation"
 import type { InboxRow } from "@novadeck/core/inbox"
-import type { Item } from "@novadeck/core/items"
+import { emptyCompanions, itemIdOf, type Item } from "@novadeck/core/items"
 import type {
   AgentConnection,
   Backend,
@@ -41,7 +41,7 @@ import {
   terminalSlot,
 } from "./samples"
 import { createShowcase } from "./showcase/simulation"
-import { storefrontArtifacts } from "./showcase/storefront"
+import { checkoutPlan, storefrontArtifacts } from "./showcase/storefront"
 import { directoryOf, itemsOf } from "./showcase/workspace"
 import { withSource } from "./source"
 import { terminalOf } from "./terminals"
@@ -420,13 +420,25 @@ export const withStorefrontArtifacts = (backend: Backend): Backend => {
 
 // A plan approval comes with its plan, as each harness shows the plan it asks about as it
 // asks: when one reaches the Inbox, the plan on its terminal's bar is shown again, at the
-// approval's time, for the sheet to find it the runner's way.
+// approval's time, for the sheet to find it the runner's way. A terminal with none yet, as
+// the agents' own Claude Code planning in each showcased project's first terminal, is shown
+// the checkout plan, whose content this backend serves itself.
 export const withPlanShows = (backend: Backend): Backend => {
   const { inbox } = backend
   if (!inbox) return backend
+  const companions = backend.companions ?? emptyCompanions()
   let latest: Workspace | undefined
   return {
     ...backend,
+    companions: {
+      ...companions,
+      follow: (target, itemId, options, on) => {
+        if (!itemId.startsWith(demoPlanPrefix))
+          return companions.follow(target, itemId, options, on)
+        on(checkoutPlan.content)
+        return () => {}
+      },
+    },
     commit: (workspace, actions) => {
       latest = workspace
       backend.commit(workspace, actions)
@@ -438,22 +450,23 @@ export const withPlanShows = (backend: Backend): Backend => {
         for (const row of inbox.state.getSnapshot().items) {
           if (row.kind !== "request" || row.request.kind !== "plan" || shown.has(row.id)) continue
           shown.add(row.id)
-          const { projectId, workspaceSessionId, terminalId } = row.source
-          const target = { projectId, workspaceSessionId }
+          const { projectId, workspaceSessionId, terminalId, handle } = row.source
+          const role = row.request.subagent ? "subagent" : "root"
           const plan = (latest ? itemsOf(latest) : seedItems(backend.seed)).find(
             (item) =>
               item.kind === "plan" &&
               item.from?.terminalId === terminalId &&
-              item.plan?.role === (row.request.subagent ? "subagent" : "root"),
+              item.plan?.role === role,
           )
-          if (plan)
-            sink.dispatch([
-              {
-                type: "item/upsert",
-                target,
-                item: { ...plan, version: plan.version + 1, shownAt: row.at },
-              },
-            ])
+          sink.dispatch([
+            {
+              type: "item/upsert",
+              target: { projectId, workspaceSessionId },
+              item: plan
+                ? { ...plan, version: plan.version + 1, shownAt: row.at }
+                : demoPlanItem(terminalId, handle, role, row.at),
+            },
+          ])
         }
       }
       look()
@@ -465,6 +478,26 @@ export const withPlanShows = (backend: Backend): Backend => {
     },
   }
 }
+
+const demoPlanPrefix = "demo-plan-"
+
+// The checkout plan, shown on terminal `terminalId`'s bar at `at`.
+const demoPlanItem = (
+  terminalId: string,
+  handle: string,
+  role: "root" | "subagent",
+  at: number,
+): Item => ({
+  ...checkoutPlan.item,
+  id: itemIdOf(`${demoPlanPrefix}${terminalId}${role === "subagent" ? "-subagent" : ""}`),
+  holder: { terminalId },
+  by: "agent",
+  from: { terminalId, handle },
+  version: 1,
+  asked: false,
+  shownAt: at,
+  plan: { agent: "Claude Code", role, source: "file" },
+})
 
 const seedItems = (seed: WorkspaceSeed): readonly Item[] =>
   seed.projects.flatMap((project) => project.sessions.flatMap((each) => each.items))
