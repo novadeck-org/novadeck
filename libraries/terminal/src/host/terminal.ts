@@ -178,7 +178,10 @@ export type Terminal = {
   /** The screen's text, or what `read` takes of the screen, once the draws queued before it are on it. */
   readScreen(): Promise<ScreenText>
   readScreen<T>(read: (screen: Screen) => T): Promise<T>
-  /** Draws `text` on the screen behind the draws queued before it, as a transcript restored. */
+  /**
+   * Draws `text` on the screen behind the draws queued before it, as a transcript restored;
+   * on Windows, up into the scrollback, leaving the screen to its program.
+   */
   replay(text: string, separator?: string): Promise<void>
   /**
    * Resizes the pty now, and the screen once the draws queued before are on it. While a
@@ -337,6 +340,7 @@ export const createTerminal = (options: TerminalOptions): HostedTerminal => {
   }
 
   let run = spawn(options.spec)
+  const conpty = (options.pty?.platform ?? process.platform) === "win32"
 
   /**
    * Draws output on the screen in order, after what was queued before it: what arrives
@@ -688,7 +692,9 @@ export const createTerminal = (options: TerminalOptions): HostedTerminal => {
       enqueue(() => (read ? read(run.screen) : readScreen(run.screen)))) as Terminal["readScreen"],
     replay: (text, separator) => {
       const { screen } = run
-      return enqueue(() => replayOn(screen, text, separator))
+      // A Windows pseudoconsole places its cursor at rows of a screen it takes as its own
+      // from the top, so the transcript leaves the screen for the scrollback.
+      return enqueue(() => replayOn(screen, text, separator, conpty))
     },
     gone: () => {
       gone = true
