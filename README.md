@@ -30,7 +30,7 @@ to work as a team. Free, open source, no account.
 curl -fsSL https://novadeck.dev/install.sh | sh
 ```
 
-On macOS and Linux. For Windows and portable builds, see
+On macOS and x86_64 Linux. For Windows and portable builds, see
 [novadeck.dev/download](https://novadeck.dev/download).
 
 ## Docs
@@ -41,4 +41,5 @@ On macOS and Linux. For Windows and portable builds, see
 
 ## License
 
-[GPL-3.0-or-later](LICENSE). Contributions come in under the [CLA](CLA.md).
+[GPL-3.0-or-later](LICENSE). Copyright © 2026 Mateusz Pietrzak and contributors.
+Contributions come in under the [CLA](CLA.md).
