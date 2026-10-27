@@ -18,12 +18,15 @@ const installedChip = (): Locator => page.getByRole("button", { name: /^Installe
 const installingChip = (): Locator => page.getByRole("button", { name: "Installing…", exact: true })
 const sandbox = (): Locator => page.getByRole("button", { name: /^No sandbox:/ })
 const quiet = (): Locator => page.getByRole("region", { name: "Portable copy" })
-const offered = (): Locator => page.getByRole("region", { name: "Novadeck 0.0.80 is out" })
+// With the release's notes the card is a changelog under the tape; without them it is the
+// title and a line.
+const offered = (): Locator => page.getByRole("region", { name: "New in Novadeck 0.0.80" })
+const offeredPlain = (): Locator => page.getByRole("region", { name: "Novadeck 0.0.80 is out" })
 const installing = (): Locator => page.getByRole("region", { name: "Installing Novadeck" })
 const done = (): Locator => page.getByRole("region", { name: "Novadeck installed" })
 const dismiss = (card: Locator): Locator => card.getByRole("button", { name: "Dismiss" })
 const primary = (card: Locator): Locator =>
-  card.getByRole("button", { name: "Install", exact: true })
+  card.getByRole("button", { name: "Install Novadeck", exact: true })
 
 describe("a portable copy's install card", () => {
   afterEach(() => page.viewport(1440, 900))
@@ -40,7 +43,11 @@ describe("a portable copy's install card", () => {
       await openWorkspace("/?portable=no-release")
       await expect.element(quiet()).toBeVisible()
       await expect.element(quiet().getByText("Updates need an installed Novadeck.")).toBeVisible()
-      await expect.element(quiet().getByText("Keeps your workspace")).toBeVisible()
+      // Text matches whole (not by part) by default: the line is one sentence around the path.
+      await expect
+        .element(quiet().getByText("Your workspace stays in /home/you/.config/novadeck."))
+        .toBeVisible()
+      await expect.element(quiet().getByRole("button", { name: "Show folder" })).toBeVisible()
       await expect.element(quiet()).not.toHaveFocus()
       await expect.element(install()).toBeVisible()
       await expect
@@ -228,15 +235,50 @@ describe("a portable copy's install card", () => {
 })
 
 describe("a portable copy with a release waiting", () => {
-  it("turns the chip to Update available and raises the card with Install", async () => {
+  it("turns the chip to Update available and raises the changelog card with Install", async () => {
     await openWorkspace("/?portable=update")
     await expect.element(offered()).toBeVisible()
-    await expect.element(offered().getByText("This copy can't update itself.")).toBeVisible()
+    await expect.element(offered().getByText("Word handles for terminals")).toBeVisible()
+    await expect.element(offered().getByText("From 0.0.70")).toBeVisible()
     await expect.element(primary(offered())).toBeVisible()
+    await expect.element(offered().getByRole("button", { name: "Get new portable" })).toBeVisible()
     await expect
       .element(offered().getByRole("button", { name: "Release notes" }))
       .not.toBeInTheDocument()
     await expect.element(update()).toBeVisible()
+  })
+
+  it("keeps the card open when Get new portable opens the download page", async () => {
+    await openWorkspace("/?portable=update")
+    await offered().getByRole("button", { name: "Get new portable" }).click()
+    await expect.element(offered()).toBeVisible()
+  })
+
+  it("keeps Show folder inside the card at a long Windows data folder", async () => {
+    await openWorkspace("/?portable=update-long-path")
+    await expect.element(offered()).toBeVisible()
+    const folder = offered().getByRole("button", { name: "Show folder" })
+    await expect.element(folder).toBeVisible()
+    const card = offered().element().getBoundingClientRect()
+    const button = folder.element().getBoundingClientRect()
+    expect(button.right).toBeLessThanOrEqual(card.right)
+    expect(button.left).toBeGreaterThanOrEqual(card.left)
+    const words = offered().element().querySelector(".portable-data span")!.getBoundingClientRect()
+    expect(words.right).toBeLessThanOrEqual(button.left)
+  })
+
+  it("offers Get new portable on an offer from the host's updates alone", async () => {
+    await openWorkspace("/?portable=never&update=available")
+    await expect
+      .element(offeredPlain().getByRole("button", { name: "Get new portable" }))
+      .toBeVisible()
+  })
+
+  it("falls back to the title and line when the host has no notes", async () => {
+    await openWorkspace("/?portable=update-no-news")
+    await expect.element(offeredPlain()).toBeVisible()
+    await expect.element(offeredPlain().getByText("This copy can't update itself.")).toBeVisible()
+    await expect.element(primary(offeredPlain())).toBeVisible()
   })
 
   it("raises the card once per launch, then only from the chip", async () => {
@@ -253,7 +295,7 @@ describe("a portable copy with a release waiting", () => {
 
   it("installs from the card", async () => {
     await openWorkspace("/?portable=never&update=available")
-    await primary(offered()).click()
+    await primary(offeredPlain()).click()
     await expect.element(installing()).toBeVisible()
     await expect.element(installingChip()).toBeVisible()
   })

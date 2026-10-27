@@ -331,6 +331,17 @@ posix("installing an AppImage", () => {
     expect(await readdir(join(image, ".."))).toEqual(["novadeck.AppImage"])
   })
 
+  it("reads the icon from the installed copy, not from where the source is", async () => {
+    await write()
+    const asked: string[] = []
+    const extract: Extract = (image, pattern, into) => {
+      asked.push(image)
+      return extractFrom(appImage("1.0.0"))(image, pattern, into)
+    }
+    await installAppImage(source(), layout(), extract)
+    expect(asked).toEqual([layout().image])
+  })
+
   it("writes only the file when replacing a copy elsewhere, such as Homebrew's", async () => {
     await write()
     const target = join(root, "Applications", "novadeck.AppImage")

@@ -2,7 +2,7 @@ import { movedOrder, nextAccountReset, runningSeats, sameSeats } from "@novadeck
 import { nextWaitingChange } from "@novadeck/core/agent-waiting"
 import type { Backend, BackendConnectionState } from "@novadeck/core/port"
 import { waitingAgents } from "@novadeck/core/terminal-ending"
-import { memo, useEffect, useState, useSyncExternalStore } from "react"
+import { memo, useCallback, useEffect, useState, useSyncExternalStore } from "react"
 
 import { FeedbackButton } from "../feedback/FeedbackButton"
 import { readSubscriptionOrder, writeSubscriptionOrder } from "../shell/shell-storage"
@@ -13,6 +13,7 @@ import { useUiState, useWorkspaceServices, useWorkspaceState } from "./controlle
 import { useAccounts } from "./controller/footer-accounts"
 import { crashLoopQuestion, currentState, shallowEqual } from "./selectors"
 import { dismissWhatsNew } from "./ui-store"
+import { useOfferNews } from "./use-offer-news"
 
 const always = (): (() => void) => () => {}
 // The link's state, connected where the backend reports none.
@@ -39,6 +40,16 @@ export const WorkspaceFooter = memo((): React.JSX.Element => {
   // A host that can say it is portable has not yet: the sandbox chip waits, so it does not
   // flash on a copy whose install entry replaces it.
   const portablePending = useUiState((state) => state.portable === null) && !!portableHost
+  const {
+    news,
+    settled: newsSettled,
+    askAgain,
+  } = useOfferNews(portable ? portableHost?.news : undefined, offer)
+  // The card coming up asks again for notes a failure that may pass left out.
+  const portableShown = useCallback(() => {
+    commands.portableCardShown()
+    askAgain()
+  }, [commands, askAgain])
   // A dialog, the switcher or a question holds the notice back until it is answered.
   const asking = useUiState(
     (state) =>
@@ -148,17 +159,22 @@ export const WorkspaceFooter = memo((): React.JSX.Element => {
         portable && portableHost
           ? {
               offer: updates ? (offer ?? undefined) : undefined,
+              news,
+              newsSettled,
               portable: {
                 // The install entry covers the sandbox notice a portable copy would show.
                 unsandboxed: sandbox !== null && !sandbox.sandboxed,
                 onInstall: portableHost.install,
                 install:
                   portableState?.portable === true ? portableState.install : { phase: "idle" },
+                dataFolder: portableState?.portable === true ? portableState.dataFolder : undefined,
+                onDownload: portableHost.openDownload,
+                onShowFolder: portableHost.showDataFolder,
               },
               open: portableCardOpen,
               blocked: asking || welcome || sandboxOpen,
               onOpenChange: commands.setPortableCardOpen,
-              onShown: commands.portableCardShown,
+              onShown: portableShown,
               returnFocus: () => {
                 const { selected, view } = currentState(store.getSnapshot())
                 if (!selected) return false

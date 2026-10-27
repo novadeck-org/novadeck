@@ -338,7 +338,9 @@ export const installAppImage = async (
     await chmod(staged, 0o755)
     await rename(staged, image)
     if (!integrate) return { kind: "installed", image: target }
-    const icon = await copyIcon(source, layout.icon, extract)
+    // Read from the copy now installed, which sits where the person keeps programs, not from
+    // `source`, which may be in a temporary folder that cannot run programs.
+    const icon = await copyIcon(image, layout.icon, extract)
     await mkdir(dirname(link), { recursive: true })
     await rm(link, { force: true })
     await symlink(target, link)
