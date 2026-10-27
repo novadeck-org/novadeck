@@ -1,6 +1,6 @@
 import { execFile, spawn } from "node:child_process"
 import { readdir, stat } from "node:fs/promises"
-import { join } from "node:path"
+import { join, relative } from "node:path"
 
 import type { Install } from "@novadeck/harness-core/harness"
 
@@ -120,28 +120,32 @@ const listHooks = (where: Asking, cwd: string, timeoutMs: number): Promise<unkno
       child.stdin.write(`${JSON.stringify(message)}\n`)
   })
 
-// When a file last changed; 0 when it isn't there.
-const changed = (path: string): Promise<number> =>
+// When a file last changed and its size, as a timestamp alone may stay put on a coarse
+// clock; 0 when it isn't there.
+const changed = (path: string): Promise<string> =>
   stat(path).then(
-    (file) => file.mtimeMs,
-    () => 0,
+    (file) => `${file.mtimeMs}/${file.size}`,
+    () => "0",
   )
 
 /**
- * What trust depends on, as it changes: Codex's `config.toml`, which records it, and the
- * hook definitions of Novadeck's plugin, as Codex keeps them in its plugin cache, which a
- * plugin's reinstall rewrites (and which then reads "modified").
+ * What trust depends on, as it changes: Codex's `config.toml`, which records it, and every
+ * file of Novadeck's plugin, as Codex keeps it in its plugin cache, which a plugin's
+ * reinstall rewrites (and which then reads "modified"). From 0.164.0 Codex hashes the
+ * plugin's whole folder into each hook's hash, so another build's launcher in `.mcp.json`
+ * alone changes it (probed 2026-10-27; 0.163.0 hashed the hook definitions alone).
  */
 const stateOf = async (home: string): Promise<string> => {
   const cache = join(home, "plugins", "cache", "novadeck", "novadeck")
-  const versions = await readdir(cache).catch(() => [] as string[])
-  const hooks = await Promise.all(
-    versions.toSorted().map(async (version) => {
-      const path = join(cache, version, "hooks", "hooks.json")
-      return `${version}:${await changed(path)}`
-    }),
+  const files = await readdir(cache, { recursive: true, withFileTypes: true }).catch(() => [])
+  const plugin = await Promise.all(
+    files
+      .filter((entry) => entry.isFile())
+      .map((entry) => join(entry.parentPath, entry.name))
+      .toSorted()
+      .map(async (path) => `${relative(cache, path)}:${await changed(path)}`),
   )
-  return [await changed(join(home, "config.toml")), ...hooks].join("|")
+  return [await changed(join(home, "config.toml")), ...plugin].join("|")
 }
 
 type Known = {
@@ -154,7 +158,7 @@ const asking = new Map<string, Promise<boolean | undefined>>()
 /**
  * Whether Novadeck's Codex hooks run in `cwd`: Codex runs a plugin's hooks only once the
  * person trusts them, and no hook says when it doesn't, so its app-server is asked. The
- * answer is kept until Codex's configuration or Novadeck's hook definitions change.
+ * answer is kept until Codex's configuration or Novadeck's plugin changes.
  * Undefined when Codex couldn't answer (it couldn't start, or didn't answer within 10 s):
  * unknown, never taken for untrusted or cached, so a later check can recover. Asks under
  * way are shared.

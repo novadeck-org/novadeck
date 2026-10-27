@@ -147,7 +147,7 @@ In the probe, a background subagent's result began a second turn with its own `U
 - Hooks run as direct children of the `codex` process (probed), so the hook's parent process identifies the Codex instance.
 - The hook's environment carries no thread id (probed).
 - A spawned subagent's `SubagentStart` and tool events carry its `agent_id` and its own `turn_id`, under the root's `session_id` (probed). Spawning shows as the tool `collaborationspawn_agent`. Its hooks give the root's rollout as `transcript_path`; only its `SubagentStop`'s `agent_transcript_path` names its own, `rollout-<time>-<agent_id>.jsonl` beside the root's (probed 2026-10-03, 0.159.3).
-- A plugin's hooks stay inert until the person reviews and trusts them in `/hooks`. Trust is kept against the hook definition's hash, and no hook announces the missing trust. The app-server's `hooks/list` reports it.
+- A plugin's hooks stay inert until the person reviews and trusts them in `/hooks`. Trust is kept against the hook definition's hash; from 0.164.0 that hash also covers the plugin's whole folder, so a change to any of its files (another build's launcher in `.mcp.json`) leaves its hooks `modified` (probed 2026-10-27). No hook announces the missing trust. The app-server's `hooks/list` reports it.
 
 **Sessions.**
 
