@@ -432,8 +432,8 @@ agent.
   `exec tmux`, resumes nothing. Terminals with an agent to resume start at once, in every session and
   hidden or not; the others start when their session is shown.
 - **Transcripts.** Each terminal's recent output is kept, and a restored terminal shows
-  it read-only above a separator and its fresh prompt; a resumed agent shows its own
-  history instead. Transcripts are on by default and can be turned off in Preferences,
+  it read-only above a separator and its fresh prompt (on Windows, scrolled up just above
+  a fresh screen); a resumed agent shows its own history instead. Transcripts are on by default and can be turned off in Preferences,
   which also forgets the saved ones. A changed terminal's transcript is saved about every
   30 seconds, and when its shell exits or restarts. What looks like a secret (a known
   token prefix, a value named like a secret, a key, a long key-like run) is masked before

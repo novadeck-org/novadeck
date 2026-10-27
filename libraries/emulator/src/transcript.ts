@@ -24,14 +24,28 @@ const written = (screen: Screen, data: string): Promise<void> =>
 /**
  * Draws a transcript on a fresh screen before anything else, followed by the separator,
  * if given, on the line below the last one it drew, wherever its cursor was left. The
- * separator is written as it is, styling included.
+ * separator is written as it is, styling included. With `scrolled`, both then go up into
+ * the scrollback, leaving the screen blank with the cursor at its top: a program that
+ * places its cursor at rows counted from the top of a screen it takes as its own, as a
+ * Windows pseudoconsole does, would otherwise draw over them.
  */
-export const replay = async (screen: Screen, text: string, separator?: string): Promise<void> => {
+export const replay = async (
+  screen: Screen,
+  text: string,
+  separator?: string,
+  scrolled = false,
+): Promise<void> => {
   await written(screen, text)
-  if (separator === undefined) return
+  if (separator === undefined && !scrolled) return
   const buffer = screen.buffer.active
   let last = buffer.length - 1
   while (last > 0 && !buffer.getLine(last)?.translateToString(true).trim()) last -= 1
   const row = Math.max(0, last - buffer.baseY)
-  await written(screen, `\x1b[0m\x1b[${row + 1};1H\r\n${separator}\r\n`)
+  // On the line below the last one drawn, within margins reset to the whole screen.
+  let after = `\x1b[0m\x1b[r\x1b[${row + 1};1H\r\n`
+  if (separator !== undefined) after += `${separator}\r\n`
+  // From any row, a screen's height less one line feeds scroll exactly the lines above the
+  // cursor away, and no blank one below it.
+  if (scrolled) after += `${"\n".repeat(screen.rows - 1)}\x1b[H`
+  await written(screen, after)
 }
