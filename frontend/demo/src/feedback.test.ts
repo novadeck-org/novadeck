@@ -303,6 +303,7 @@ describe("the demos with feedback", () => {
       "welcome",
       "chirp",
       "babcia",
+      "launch",
     ] as const)
       expect(isDemoFeedback(plainDemo(variant).feedback)).toBe(true)
   })

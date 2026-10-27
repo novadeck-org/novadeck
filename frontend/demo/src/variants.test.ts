@@ -16,6 +16,13 @@ describe("demo variants", () => {
     })
   })
 
+  context("when the address asks for the launch walkthrough's", () => {
+    it("boots it", () => {
+      window.history.replaceState(null, "", "#/?demo=launch")
+      expect(requestedVariant()).toBe("launch")
+    })
+  })
+
   context("when the debug panel chose one", () => {
     it("boots it again after the router rewrote the address", () => {
       rememberVariant("messages")
