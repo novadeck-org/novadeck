@@ -1,12 +1,19 @@
 name: Release
 
-run-name: Release latest main
+run-name: Release latest main${{ inputs.version && format(' as {0}', inputs.version) || '' }}
 
 on:
   push:
     branches: [main]
   repository_dispatch:
     types: [release]
+  # By hand, to release main as a version its commits don't call for, as the jump to 1.0.0.
+  workflow_dispatch:
+    inputs:
+      version:
+        description: Release main as this version, such as 1.0.0, newer than every release. Empty plans it from the commits.
+        required: false
+        type: string
 
 permissions:
   actions: read
@@ -19,7 +26,10 @@ concurrency:
 jobs:
   prepare:
     name: Prepare
-    if: github.event_name != 'pull_request'
+    # A run by hand releases only from main's own workflow, which is what holds the secrets.
+    if: >-
+      github.event_name != 'pull_request' &&
+      (github.event_name != 'workflow_dispatch' || github.ref == 'refs/heads/main')
     runs-on: ubuntu-latest
     timeout-minutes: 10
     outputs:
@@ -86,17 +96,23 @@ jobs:
             exit 1
           fi
 
+      # Versions count from the latest stable release (scripts/release-version): its commits
+      # since decide the cycle's major, minor or patch step, and each later prerelease takes the
+      # next patch.
       - name: Plan Release
         id: plan
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          REQUESTED_VERSION: ${{ inputs.version }}
         run: |
-          recommended_version="$(pnpm exec release-it --release-version --no-github.release)"
-          if [[ -z "$recommended_version" ]]; then
+          set -euo pipefail
+          version="$(node scripts/release-version/main.ts "$REQUESTED_VERSION")"
+          if [[ -z "$version" ]]; then
             echo "package=false" >> "$GITHUB_OUTPUT"
             exit 0
           fi
 
-          # TODO: Replace this command with version="$recommended_version" once Novadeck has an early working product.
-          version="$(pnpm exec release-it patch --release-version --no-github.release)"
           {
             echo "package=true"
             echo "version=$version"

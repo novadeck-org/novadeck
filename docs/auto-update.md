@@ -46,6 +46,13 @@ optional version) runs `gh release edit --prerelease=false --latest`, which is w
 `stable` builds then see. Before the first promotion a `stable` check finds no release,
 which is logged as a failed check; nothing is offered and nothing crashes.
 
+Promoting rebuilds nothing, so a release's version is set when it is built, and
+`scripts/release-version` counts it from the latest stable release: the first prerelease
+after it takes the major, minor or patch step its commits call for, and later ones the
+next patch, so a promoted release carries the step since the last stable one (1.0.0, then
+1.1.2). Before the first stable release every prerelease takes the next patch; running
+the Release workflow by hand with a version releases `main` as that version.
+
 Switching applies to the next check, and one runs about two seconds later. Switching
 back to `stable` never downgrades: an `early` build newer than stable waits until stable
 passes it. A downloaded update that waits is replaced by the release the new channel offers

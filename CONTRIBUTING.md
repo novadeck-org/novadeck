@@ -52,6 +52,12 @@ Squash commits on `main` drive automated versioning. Use `fix`, `perf`, or
 `BREAKING CHANGE` footer for a major release. Other allowed types do not publish
 a release unless they declare a breaking change.
 
+Every release from `main` is a prerelease, and the level counts from the latest
+stable release: the first prerelease after it takes the step its commits call
+for (after 1.0.0, a `feat` makes 1.1.0), and later ones take the next patch
+(1.1.1, 1.1.2) until a commit calls for a bigger step. Running the Release
+workflow by hand with a version, such as 1.0.0, releases `main` as that version.
+
 The `PR / Verify` job checks workflow syntax, title format, and required headings.
 It checks heading presence, so the author must still write useful content. On
 failure, read the job summary or step log for diagnostics and fixes. `FAIL` means
