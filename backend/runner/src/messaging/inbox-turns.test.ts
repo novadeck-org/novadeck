@@ -257,7 +257,10 @@ describe("finished turns across a restart", () => {
   }) => {
     const folder = mkdtempSync(join(tmpdir(), "novadeck-turns-"))
     resources.defer(() => rmSync(folder, { recursive: true, force: true }))
-    const store = storeWith(join(folder, "workspace.sqlite"), owner)
+    const store = storeWith(join(folder, "workspace.sqlite"), {
+      projectId: owner.projectId,
+      sessionId: owner.workspaceSessionId,
+    })
     resources.defer(() => store.close())
     const first = setup(store)
     first.inbox.recordTurn(owner, 5, fields("Before the restart."))

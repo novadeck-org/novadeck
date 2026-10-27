@@ -243,10 +243,10 @@ export class CompanionItems {
     const pointed = await this.pointer(place, request)
     if (!pointed.ok) return pointed
     const { pointer, tooLarge } = pointed
-    const asked = request.open === true && !pointer.secret
+    const openAsked = request.open === true && !pointer.secret
     let kept: ReturnType<CompanionItems["keep"]>
     try {
-      kept = this.keep(place, pointer, { by: "agent", asked })
+      kept = this.keep(place, pointer, { by: "agent", openAsked })
     } catch (error) {
       // Its terminal went while the file was looked at; anything else is worth a word.
       if (!(error instanceof DomainError && error.code === "TERMINAL_NOT_FOUND"))
@@ -266,7 +266,7 @@ export class CompanionItems {
       kind: kept.item.kind,
       name: kept.item.name,
       // A window isn't brought forward; another bar opens it there.
-      opened: asked && kept.item.windowId === null,
+      opened: openAsked && kept.item.windowId === null,
       again: kept.again,
       ...(moved && { moved: this.whereMoved(kept.item) }),
       ...(pointer.secret && { secret: true }),
@@ -334,7 +334,7 @@ export class CompanionItems {
     if (!pointed.ok) throw new DomainError("INVALID_FILE", pointed.reason)
     const kept = this.keep(this.place(input.terminalId), pointed.pointer, {
       by: "person",
-      asked: true,
+      openAsked: true,
     })
     if (!kept) throw new DomainError("TERMINAL_NOT_FOUND")
     return wireItem(kept.item)
@@ -952,7 +952,7 @@ export class CompanionItems {
   private keep(
     place: TerminalPlace,
     pointer: Pointer,
-    origin: { readonly by: ItemRecord["by"]; readonly asked: boolean },
+    origin: { readonly by: ItemRecord["by"]; readonly openAsked: boolean },
   ): { item: ItemRecord; again: boolean } | undefined {
     if (this.stopping || !this.options.terminal(place.terminalId)) return undefined
     const own =
@@ -969,7 +969,7 @@ export class CompanionItems {
           // an agent showing what the person picked leaves it theirs, so it can't close it.
           by: origin.by === "person" ? "person" : own.by,
           version: own.version + 1,
-          openAsked: origin.asked,
+          openAsked: origin.openAsked,
           shownAt: Date.now(),
         }
       : {
@@ -981,7 +981,7 @@ export class CompanionItems {
           by: origin.by,
           from: { terminalId: place.terminalId, handle: place.handle },
           version: 1,
-          openAsked: origin.asked,
+          openAsked: origin.openAsked,
           shownAt: Date.now(),
           observedAt: null,
         }

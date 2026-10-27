@@ -32,6 +32,8 @@ const identity = {
   agent: "claude" as const,
   sessionId: "first",
 }
+// The project and workspace session a store's rows are written under.
+const parents = { projectId: identity.projectId, sessionId: identity.workspaceSessionId }
 const entry = {
   subject: "Pick a colour",
   body: "For the heading.",
@@ -275,7 +277,7 @@ describe("Inbox asks and updates", () => {
     const folder = mkdtempSync(join(tmpdir(), "novadeck-inbox-"))
     resources.defer(() => rmSync(folder, { recursive: true, force: true }))
     const path = join(folder, "workspace.sqlite")
-    const store = storeWith(path, identity)
+    const store = storeWith(path, parents)
     const first = setup(store, store)
     const id = first.create()
     const save = vi.spyOn(store, "saveEntry").mockImplementationOnce(() => {
@@ -292,7 +294,7 @@ describe("Inbox asks and updates", () => {
     first.messaging.close()
     first.inbox.close()
     store.close()
-    const reopened = storeWith(path, identity)
+    const reopened = storeWith(path, parents)
     resources.defer(() => reopened.close())
     const next = setup(reopened, reopened)
     resources.defer(() => next.messaging.close())
@@ -329,7 +331,7 @@ describe("Inbox persistence and identity", () => {
     const folder = mkdtempSync(join(tmpdir(), "novadeck-open-ask-"))
     resources.defer(() => rmSync(folder, { recursive: true, force: true }))
     const path = join(folder, "workspace.sqlite")
-    const store = storeWith(path, identity)
+    const store = storeWith(path, parents)
     const first = setup(store, store)
     const id = first.create()
     first.inbox.close()
@@ -338,7 +340,7 @@ describe("Inbox persistence and identity", () => {
     first.inbox.reconcile(identity.terminalId)
     expect(store.entries()[0]?.state).toBe("open")
     store.close()
-    const reopened = storeWith(path, identity)
+    const reopened = storeWith(path, parents)
     resources.defer(() => reopened.close())
     const next = setup(reopened, reopened)
     resources.defer(() => next.messaging.close())
@@ -472,7 +474,7 @@ describe("done entries", () => {
     const folder = mkdtempSync(join(tmpdir(), "novadeck-done-"))
     resources.defer(() => rmSync(folder, { recursive: true, force: true }))
     const path = join(folder, "workspace.sqlite")
-    const store = storeWith(path, identity)
+    const store = storeWith(path, parents)
     const first = setup(store, store)
     const sent = first.inbox.call(identity.terminalId, "done", {
       subject: "Fixed it",
@@ -486,7 +488,7 @@ describe("done entries", () => {
     first.messaging.close()
     store.close()
 
-    const reopened = storeWith(path, identity)
+    const reopened = storeWith(path, parents)
     resources.defer(() => reopened.close())
     const next = setup(reopened, reopened)
     resources.defer(() => next.messaging.close())
@@ -1397,7 +1399,7 @@ describe("the person's messages and the agent pause", () => {
     const folder = mkdtempSync(join(tmpdir(), "novadeck-paused-person-"))
     resources.defer(() => rmSync(folder, { recursive: true, force: true }))
     const path = join(folder, "workspace.sqlite")
-    const original = storeWith(path, identity)
+    const original = storeWith(path, parents)
     const first = setup(original, original, clock)
     first.messaging.pause(true)
     const id = first.create()
@@ -1408,7 +1410,7 @@ describe("the person's messages and the agent pause", () => {
     })
     first.stop()
     original.close()
-    const store = storeWith(path, identity)
+    const store = storeWith(path, parents)
     resources.defer(() => store.close())
     const run = setup(store, store, clock)
     resources.defer(run.stop)
@@ -1486,7 +1488,7 @@ describe("retaining final reply outcomes", () => {
     const folder = mkdtempSync(join(tmpdir(), "novadeck-gone-time-"))
     resources.defer(() => rmSync(folder, { recursive: true, force: true }))
     const path = join(folder, "workspace.sqlite")
-    const store = storeWith(path, identity)
+    const store = storeWith(path, parents)
     const first = setup(store, store, clock)
     const id = first.create()
     first.inbox.answer(id, { type: "reply", option: null, text: "My answer" })
@@ -1496,7 +1498,7 @@ describe("retaining final reply outcomes", () => {
     expect(store.messages()[0]?.response?.goneAt).toBe(clock.now())
     first.stop()
     store.close()
-    const reopened = storeWith(path, identity)
+    const reopened = storeWith(path, parents)
     resources.defer(() => reopened.close())
     // Read the persisted state before restoring an agent, as startup pruning does.
     expect(reopened.messages()[0]?.state).toBe("gone")
@@ -1610,7 +1612,7 @@ describe("Inbox asks over a record failure", () => {
     const folder = mkdtempSync(join(tmpdir(), "novadeck-bad-row-"))
     resources.defer(() => rmSync(folder, { recursive: true, force: true }))
     const path = join(folder, "workspace.sqlite")
-    const store = storeWith(path, identity)
+    const store = storeWith(path, parents)
     const first = setup(store, store)
     const id = first.create()
     first.stop()
@@ -1624,7 +1626,7 @@ describe("Inbox asks over a record failure", () => {
     raw.close()
     const logged = vi.spyOn(console, "error").mockImplementation(() => {})
     resources.defer(() => logged.mockRestore())
-    const reopened = storeWith(path, identity)
+    const reopened = storeWith(path, parents)
     resources.defer(() => reopened.close())
     expect(reopened.entries().map((each) => each.id)).toEqual([id])
     expect(logged).toHaveBeenCalledWith(expect.stringContaining("bad"), expect.any(Error))
