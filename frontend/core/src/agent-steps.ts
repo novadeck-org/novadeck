@@ -1,13 +1,11 @@
 import type { ChatItem } from "./conversation"
 import { groupItems, type ToolEntry } from "./conversation-turns"
-import type { CompanionKey } from "./items"
 import type { TerminalThreads } from "./messages"
-import type { Workspace } from "./types"
 
-// What gets the person back into an agent's task at a glance: the last words it was given,
-// by the person or by its lead, and the few steps it took since that edited, ran or failed,
-// each with what came of it. Read from its transcript as its harness's decoder gave it, the
-// same for Claude Code, Codex and Antigravity. Pure: the Inbox's sheet shows what this returns.
+// What gets the person back into an agent's task at a glance: the last words they gave it,
+// and the few steps it took since that edited, ran or failed, each with what came of it.
+// Read from its transcript as its harness's decoder gave it, the same for Claude Code, Codex
+// and Antigravity. Pure: the Inbox's sheet shows what this returns.
 
 // One step: a tool call that edited, ran or failed, in the harness's own words. `tool` is
 // the tool's name as the harness gave it ("Edit", "exec_command", "edit_file"); `arg` what
@@ -20,8 +18,8 @@ export type AgentStep = {
   readonly result: string | null
 }
 
-// Words the agent was given: `by` null for the person, a lead's bare handle for a handoff.
-export type Said = { readonly text: string; readonly by: string | null; readonly at: number }
+// The person's words the agent was given, and when.
+export type Said = { readonly text: string; readonly at: number }
 
 export type AgentContext = {
   readonly said: Said | null
@@ -99,15 +97,15 @@ const startOf = (chosen: Spoken | undefined, times: readonly number[]): number =
 
 /**
  * An agent's context from its transcript's items, by its harness's name for it (`claude`,
- * `codex`, `agy`, as `Conversation.agent` gives it), and the messages delivered to it that
- * count as its words (`handoffs`: its lead's, and the person's replies from the Inbox): the
- * latest words, skipping filler for the words before it, and the last `maxSteps` steps after
- * them that edited, ran or failed and have a result. With no words, the last steps at all.
+ * `codex`, `agy`, as `Conversation.agent` gives it), and the person's replies from the Inbox
+ * delivered to it as messages (`answers`): the person's latest words, skipping filler for the
+ * words before it, and the last `maxSteps` steps after them that edited, ran or failed and
+ * have a result. With no words, the last steps at all.
  */
 export const agentContext = (
   agent: string | null,
   items: readonly ChatItem[],
-  handoffs: readonly Said[] = [],
+  answers: readonly Said[] = [],
   // Lines Novadeck sent the agent for itself, which come back as user items but aren't the
   // person's words: the stuck nudge a Nudge sends (`trouble.nudge`, which comes from data).
   notices: readonly string[] = [],
@@ -116,9 +114,9 @@ export const agentContext = (
   const skipped = [askToFixNudge, ...notices]
   const turns = items.flatMap((item, index): Spoken[] => {
     const text = personWords(item, skipped)
-    return text === null ? [] : [{ text, by: null, at: times[index]!, index }]
+    return text === null ? [] : [{ text, at: times[index]!, index }]
   })
-  const chosen = latest([...turns, ...handoffs.map((each) => ({ ...each, index: null }))])
+  const chosen = latest([...turns, ...answers.map((each) => ({ ...each, index: null }))])
   const entries = groupItems(items.slice(startOf(chosen, times))).flatMap((block) =>
     block.kind === "tools" ? block.entries : [],
   )
@@ -130,41 +128,25 @@ export const agentContext = (
     if (step) steps.unshift(step)
   }
   return {
-    said: chosen ? { text: chosen.text, by: chosen.by, at: chosen.at } : null,
+    said: chosen ? { text: chosen.text, at: chosen.at } : null,
     steps,
   }
 }
 
-// The messages delivered to a terminal's agent that count as words it was given, when it
-// got them: its lead's (`lead`, the handle of the terminal that opened it with a brief), and
-// the person's replies from the Inbox, which Novadeck delivers as messages too. Its harness's
-// transcript doesn't hold them as the person's: Claude Code and Antigravity get them as a
-// hook's context, Codex as a developer message, its prompt only Novadeck's doorbell line.
-export const handoffsOf = (
-  threads: TerminalThreads | undefined,
-  lead: string | null,
-): readonly Said[] =>
+// The person's replies from the Inbox delivered to a terminal's agent, when it got them:
+// Novadeck delivers them as messages, so its harness's transcript doesn't hold them as the
+// person's (Claude Code and Antigravity get them as a hook's context, Codex as a developer
+// message, its prompt only Novadeck's doorbell line). Agents' messages, its lead's too,
+// aren't the person's words, so the sheet never quotes them.
+export const answersOf = (threads: TerminalThreads | undefined): readonly Said[] =>
   (threads?.threads ?? []).flatMap((thread) =>
     thread.messages.flatMap((message): Said[] => {
       if (message.to !== threads!.handle || message.deliveredAt === null) return []
+      if (message.inbox !== "answer") return []
       const text = message.text.trim()
-      if (!text) return []
-      if (message.inbox === "answer") return [{ text, by: null, at: message.deliveredAt }]
-      if (message.inbox || lead === null || message.from !== lead) return []
-      return [{ text, by: lead, at: message.deliveredAt }]
+      return text ? [{ text, at: message.deliveredAt }] : []
     }),
   )
-
-// The lead of the terminal at `key`, whose messages count as words its agent was given:
-// the terminal that opened it with a brief, as its backend last said, or, once that ended,
-// the one that opened it; null where the person opened it or it's gone.
-export const leadOf = (workspace: Workspace, key: CompanionKey): string | null => {
-  const terminal = workspace.projects
-    .find((project) => project.id === key.projectId)
-    ?.history.find((session) => session.id === key.workspaceSessionId)
-    ?.state.roster.terminals.find((each) => each.id === key.terminalId)
-  return terminal?.ledBy || terminal?.openedBy || null
-}
 
 // ---- Steps ----
 
