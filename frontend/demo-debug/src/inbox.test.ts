@@ -1,5 +1,10 @@
 import { createDemoInbox } from "@novadeck/demo/inbox"
-import { demoHiddenCommand, demoInboxIds } from "@novadeck/demo/inbox-fixtures"
+import {
+  demoHiddenCommand,
+  demoLongCommand,
+  demoInboxIds,
+  demoPlanStates,
+} from "@novadeck/demo/inbox-fixtures"
 import { demoSeed } from "@novadeck/demo/samples"
 import { vi } from "vitest"
 
@@ -78,7 +83,7 @@ describe("the debug panel's Inbox group", () => {
     const inbox = createDemoInbox(1, [])
     const notes: string[] = []
     // Lifecycle controls and variants change or add items rather than adding a kind.
-    const kinds = inboxGroups(inbox, seed)[0]!.actions.length - 12
+    const kinds = inboxGroups(inbox, seed)[0]!.actions.length - 16
     for (let each = 0; each < kinds; each += 1) run(inbox, "A new item arrives", notes)
     expect(inbox.state.getSnapshot().items).toHaveLength(kinds)
     run(inbox, "A new item arrives", notes)
@@ -92,6 +97,36 @@ describe("the debug panel's Inbox group", () => {
     expect(item?.kind === "request" && item.request.dialog?.type === "choices").toBe(true)
     if (item?.kind !== "request" || item.request.dialog?.type !== "choices") return
     expect(item.request.dialog.detail).toBe(demoHiddenCommand)
+  })
+
+  it("adds a permission for a script of twelve lines, for the sheet to scroll in its box", () => {
+    const inbox = createDemoInbox(1, [])
+    run(inbox, "Long command")
+    const [item] = inbox.state.getSnapshot().items
+    if (item?.kind !== "request" || item.request.dialog?.type !== "choices")
+      throw new Error("not a permission")
+    expect(item.request.dialog.detail).toBe(demoLongCommand)
+    expect(demoLongCommand.split("\n")).toHaveLength(12)
+  })
+
+  it("adds one of Claude's questions that takes several picks and the person's words", () => {
+    const inbox = createDemoInbox(1, [])
+    run(inbox, "Pick several, with your own words")
+    const [item] = inbox.state.getSnapshot().items
+    if (item?.kind !== "request" || item.request.dialog?.type !== "questions")
+      throw new Error("not a question")
+    expect(item.request.dialog.questions).toMatchObject([{ multiSelect: true, text: true }])
+  })
+
+  it.each([
+    ["Plan still loading", demoPlanStates.loading],
+    ["Plan not found", demoPlanStates.missing],
+  ])("adds a plan approval for the box's %s state", (label, id) => {
+    const inbox = createDemoInbox(1, [])
+    run(inbox, label)
+    const [item] = inbox.state.getSnapshot().items
+    expect(item?.id).toBe(id)
+    expect(item?.kind === "request" && item.request.kind).toBe("plan")
   })
 
   it("adds Claude Code's plan whose way back is the field that says what to change", () => {

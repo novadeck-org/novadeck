@@ -151,6 +151,8 @@ export type Deck = {
   readonly terminals: Terminals
   /** The store of the runner wired now: a restart opens it again. */
   readonly store: WorkspaceStore
+  /** What agents show beside the terminals, as the runner wired now keeps them. */
+  readonly items: ReturnType<typeof wire>["items"]
   readonly sessionId: string
   /** Novadeck's shell files, as its shells read them: the same across restarts. */
   readonly shell: ShellPaths
@@ -535,6 +537,7 @@ type Runner = {
   readonly store: WorkspaceStore
   readonly agents: ReturnType<typeof wire>["agents"]
   readonly terminals: Terminals
+  readonly items: ReturnType<typeof wire>["items"]
   /** Aborts as the runner closes, ending every watch of it. */
   readonly closing: AbortController
 }
@@ -603,7 +606,7 @@ const now = async <T>(stream: (signal: AbortSignal) => AsyncGenerator<T>): Promi
 export const createDeck = async (options: DeckOptions): Promise<Deck> => {
   const shellFolder = join(options.data, "shell")
   const start = async (): Promise<Runner> => {
-    const { store, shellFiles, agents, terminals } = wire({
+    const { store, shellFiles, agents, terminals, items } = wire({
       database: join(options.data, "workspace.sqlite"),
       shell: shellFolder,
       // Plugin commands run with the sandbox's environment as it is: a login shell's
@@ -623,7 +626,7 @@ export const createDeck = async (options: DeckOptions): Promise<Deck> => {
       store.close()
       throw new Error("Novadeck's shell files could not be written")
     }
-    return { store, agents, terminals, closing: new AbortController() }
+    return { store, agents, terminals, items, closing: new AbortController() }
   }
 
   let runner = await start()
@@ -869,6 +872,9 @@ export const createDeck = async (options: DeckOptions): Promise<Deck> => {
     },
     get store() {
       return runner.store
+    },
+    get items() {
+      return runner.items
     },
     sessionId: session.id,
     shell: shellPaths(shellFolder),

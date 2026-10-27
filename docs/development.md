@@ -205,7 +205,11 @@ and the doorbell, 5 a page shown in the pane, 6 every agent finishes but those w
 person (an open ask, one told No, a failed turn until prompted again, and the helper and its lead
 while the helper's answer is on its way); a second press ends whoever works by then. Answered or
 told, an agent works until cue 6; `frontend/demo/src/babcia.ts`). Every variant's Inbox
-lists what its agents wait on, built as the runner's is. The switcher in the panel's header,
+lists what its agents wait on, built as the runner's is. In it each
+agent carries a transcript, and api-service's worker a brief from its lead, so an item's
+sheet shows the context block the runner gives it: the last words the agent was given (the person's, or a
+lead's handoff, by its handle), and under them up to three steps since that edited, ran or
+failed, each with what came of it (`+4 −2`, a command's last line, the error). The switcher in the panel's header,
 which leaves out `welcome`, `chirp` and `babcia`, changes between them without reloading
 (pressing the current one boots it again), and the browser tab remembers the last one chosen.
 `&turnMs=` sets how long a demo agent's turn works (1500 ms unless given), as a spec does
@@ -346,7 +350,10 @@ App:
   command permission, an unreadable dialog, a held message, a decision with options, a
   detected question, an ask while its agent keeps working, a login request, the 5-hour limit, a usage limit Novadeck can't resume (no switch), a request whose dialog never read, a
   failed turn with no error, a held message whose sender is gone, a plan approval
-  (its bypass-permissions yes a quiet link), a failed turn, a free-text ask, a permission
+  (its bypass-permissions yes a quiet link; in the agents and Inbox demos it brings its long
+  checkout plan, shown again on storefront's terminal 6 as a harness shows the plan it asks
+  about; "Plan still loading" keeps that plan's box on Loading, and "Plan not found" shows no
+  plan, so the box waits five seconds and the dialog's own words stand in), a failed turn, a free-text ask, a permission
   whose Deny is a plain no, messages held long behind what keeps the doorbell from an idle
   agent, a feedback draft (an agent's bug report with a path in it, to Send or Discard), a
   heads-up and an agent's done report. "Several asks at once" adds four asks from four
@@ -357,14 +364,22 @@ App:
   also appear in the terminal's Messages pane, in the conversation You; replies show queued and delivered states.
   "Stale next answer" makes the next answer report that the ask is no longer available,
   keeping the draft. "Ask withdrawn" and "Ask session ended" remove the sample preview ask
-  and keep its outcome in Messages. "Next reply not delivered" queues the next reply, then
-  shows the delivery failure in its Inbox confirmation and Messages history. Reply boxes
-  hint at about 4,000 characters, fewer with emoji or some languages, and stop at 4,096. Pausing messages between agents leaves
+  and keep its outcome in Messages; with the preview ask's sheet open, "Ask withdrawn" leaves
+  the sheet open, tagged Withdrawn, saying so in place of its answers. "Next reply not delivered" queues the next reply, then
+  shows the delivery failure in its Inbox receipt (on the sheet the Inbox moved on to, with
+  Back to it) and Messages history. A box for your own words says when it is over 4,096
+  characters, and won't send until it isn't. Pausing messages between agents leaves
   your replies going through. "Usage limit, reset passed" adds the limit Novadeck can't resume, with its
   window reset, offering Continue now. "Command hiding lines" adds a permission whose command
-  buries a line under blank lines and spaces; its card counts the lines and marks what draws
-  as nothing. "Plan with a change field" adds Claude Code 2.1.287's plan, whose only way
-  back is "Tell Claude what to change": Deny opens a note that must say what. "A new item
+  buries a line under blank lines and spaces; its box counts the lines and marks what draws
+  as nothing. "Long command" adds a permission for a 12-line script, every line in a box that
+  scrolls. "Pick several, with your own words" adds Claude's question that takes several picks
+  and words: numbers and Space tick, the last row opens a box, and Enter sends the picks with
+  the words. "Plan with a change field" adds Claude Code 2.1.287's plan, whose only way
+  back is "Tell Claude what to change": that row opens a box that must say what. Answering any
+  item moves the sheet on to the next that needs you (updates skipped) with a one-line receipt,
+  and closes it once nothing is left; "Decision with options" is hard to undo, so its first
+  press only arms the answer. "A new item
   arrives" adds the next kind not there yet, and "Clear the added items" takes away the
   hardcoded items and those added here, leaving what the agents wait on. An added item
   is its own row; one that waits on the person for its agent (a request, an ask, trouble) takes the place of a dialog its agent's
