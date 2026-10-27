@@ -17,6 +17,15 @@ import { InboxList } from "./InboxList"
 import { InboxProvider } from "./InboxProvider"
 import { InboxSheet } from "./InboxSheet"
 
+// What the sheet records of the plan approvals it answered.
+const { planAnswered } = vi.hoisted(() => ({
+  planAnswered: vi.fn<(item: InboxRow) => void>(),
+}))
+vi.mock("./plan-text", async (original) => ({
+  ...(await original<typeof import("./plan-text")>()),
+  usePlanAnswered: () => planAnswered,
+}))
+
 // jsdom has no ResizeObserver, which the sheet's placement watches its anchor with.
 Object.assign(globalThis, {
   ResizeObserver: class {
@@ -119,6 +128,7 @@ const codex: readonly ChatDialogOption[] = [
 let mounted: { readonly unmount: () => void } | null = null
 afterEach(() => {
   vi.restoreAllMocks()
+  planAnswered.mockClear()
   mounted?.unmount()
   mounted = null
 })
@@ -312,7 +322,10 @@ describe("The Console sheet", () => {
       inbox.key("Enter", inbox.field())
       expect(inbox.sent).toEqual([])
       inbox.type("Split the second step")
+      expect(planAnswered).not.toHaveBeenCalled()
       inbox.key("Enter", inbox.field())
+      // The plan it showed is spent: a round sent back is never the next approval's plan.
+      expect(planAnswered).toHaveBeenCalledWith(expect.objectContaining({ id: "i" }))
 
       expect(inbox.sent).toEqual([
         {
@@ -756,6 +769,70 @@ describe("The Console sheet", () => {
       expect(text(".console-own-hint")).toBe("type your answer · Esc back to the options")
       inbox.type("Samples.")
       expect(text(".console-own-hint")).toBe("↵ send · Esc back to the options")
+      await inbox.done()
+    })
+  })
+
+  context("as answered rows pile up", () => {
+    const listed = () =>
+      Array.from(document.querySelectorAll("[data-inbox-row]")).map((row) =>
+        row.getAttribute("data-inbox-row"),
+      )
+
+    it("keeps each in its place, answered, until the sheet closes, however it is left", async () => {
+      const inbox = mount([
+        permission(codex, { id: "x", handle: "xx", at: 0 }),
+        permission(codex, { id: "y", handle: "yy", at: 1 }),
+        permission(codex, { id: "z", handle: "zz", at: 2 }),
+        permission(codex, { id: "w", handle: "ww", at: 3 }),
+      ])
+      const allow = async (id: string): Promise<void> => {
+        inbox.press("Allow")
+        inbox.confirm(id)
+        await nextFrame()
+      }
+      await allow("x")
+      await allow("y")
+      await allow("z")
+      expect(text(".inbox-sheet-head .handle-chip")).toBe("@ww")
+      const step = async (key: "j" | "k", handle: string): Promise<void> => {
+        inbox.key(key, document.body)
+        await nextFrame()
+        expect(text(".inbox-sheet-head .handle-chip")).toBe(handle)
+        expect(listed()).toEqual(["x", "y", "z", "w"])
+      }
+      await step("k", "@zz")
+      await step("k", "@yy")
+      await step("j", "@zz")
+      expect(text(".console-settled")).toBe("Allowed @zz's command.")
+      await inbox.done()
+    })
+
+    it("moves on from a newer item that took an answered one's id", async () => {
+      const inbox = mount([
+        permission(codex, { id: "a", handle: "crow", at: 0 }),
+        permission(codex, { id: "b", handle: "fox", at: 1 }),
+      ])
+      inbox.press("Allow")
+      inbox.confirm("a")
+      await nextFrame()
+      expect(text(".inbox-sheet-head .handle-chip")).toBe("@fox")
+      act(() =>
+        inbox.state.update((current) => ({
+          ...current,
+          items: [...current.items, permission(codex, { id: "a", handle: "crow", at: 50 })],
+        })),
+      )
+      act(() =>
+        document.querySelector<HTMLElement>("[data-inbox-row='a'] .inbox-row-select")!.click(),
+      )
+      expect(document.querySelector(".inbox-sheet [role=menu]")).not.toBeNull()
+      inbox.press("Allow")
+      inbox.confirm("a")
+      await nextFrame()
+
+      expect(text(".inbox-sheet-head .handle-chip")).toBe("@fox")
+      expect(text(".console-receipt")).toBe("Allowed @crow's command.")
       await inbox.done()
     })
   })
