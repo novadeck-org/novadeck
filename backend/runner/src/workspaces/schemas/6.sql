@@ -1,4 +1,4 @@
--- The workspace schema at version 3, as that version's runner created it (sqlite3 .schema),
+-- The workspace schema at version 6, as that version's runner created it (sqlite3 .schema),
 -- for store.test.ts to carry forward. Never edit it: a later version gets a file of its own.
 CREATE TABLE projects (
     position INTEGER PRIMARY KEY,
@@ -67,8 +67,10 @@ CREATE TABLE message_threads (
     first_terminal TEXT NOT NULL,
     second_terminal TEXT NOT NULL,
     hops INTEGER NOT NULL,
-    -- How many it may deliver before the person releases it again.
-    allowed INTEGER NOT NULL,
+    -- The hop from which its messages are held for the person, null when none is; held_for
+    -- says why ('loop').
+    held_from INTEGER,
+    held_for TEXT CHECK (held_for IN ('loop')),
     last_at REAL NOT NULL,
     -- When the person stopped it; null if they have not, or released it since.
     stopped_at REAL
@@ -101,7 +103,7 @@ CREATE TABLE messages (
     to_lead INTEGER NOT NULL,
     response TEXT
   ) STRICT;
-CREATE TABLE asks (
+CREATE TABLE inbox (
     id TEXT PRIMARY KEY,
     project_id TEXT NOT NULL,
     terminal_id TEXT NOT NULL,
@@ -111,6 +113,8 @@ CREATE TABLE asks (
 CREATE TABLE companion_windows (
     id TEXT PRIMARY KEY,
     session_id TEXT NOT NULL REFERENCES sessions(id) ON DELETE CASCADE,
+    -- Undocked from a bar, or the session's project window, the one the person opens files in.
+    home TEXT NOT NULL CHECK (home IN ('undocked', 'project')),
     -- The title the person gave it; null when it is named by its item.
     person_title TEXT,
     created_at REAL NOT NULL
@@ -137,14 +141,19 @@ CREATE TABLE companion_items (
     detail TEXT NOT NULL,
     held INTEGER NOT NULL,
     shown_by TEXT NOT NULL CHECK (shown_by IN ('agent', 'person')),
-    from_terminal TEXT NOT NULL,
-    from_handle TEXT NOT NULL,
+    -- The terminal it was shown or attached in, and its handle; both null for a file the
+    -- person opened in their project window.
+    from_terminal TEXT,
+    from_handle TEXT,
     version INTEGER NOT NULL,
     asked INTEGER NOT NULL,
     shown_at REAL NOT NULL,
     observed_at REAL,
-    CHECK ((terminal_id IS NULL) <> (window_id IS NULL))
+    CHECK ((terminal_id IS NULL) <> (window_id IS NULL)),
+    CHECK ((from_terminal IS NULL) = (from_handle IS NULL))
   ) STRICT;
 CREATE UNIQUE INDEX companion_items_bar ON companion_items(terminal_id, pointer_key)
     WHERE terminal_id IS NOT NULL;
 CREATE INDEX companion_items_session ON companion_items(session_id);
+CREATE UNIQUE INDEX companion_windows_project ON companion_windows(session_id)
+    WHERE home = 'project';

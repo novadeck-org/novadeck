@@ -10,19 +10,19 @@ export type { TitleSource }
  * What names a terminal (see docs/agent-messaging.md, "Naming"), each layer kept on its
  * own so the title follows their precedence: the person's title; murmur's latest title,
  * written by a local model; and the title the agent that opened the terminal gave through
- * `open_terminal` or `open_agent`, with its terminal's handle. The default comes from the program the
+ * `open_terminal` or `open_agent`, which shows as that terminal's (its `openedBy`). The default comes from the program the
  * terminal was opened to run, never from its handle. The summary is the terminal's own
  * agent's, through `summarize`, which `agents()` lists; it is no part of the title.
  */
 export type Naming = {
   readonly person: string | null
-  readonly agent: { readonly title: string; readonly by: string } | null
+  readonly opener: { readonly title: string } | null
   readonly murmur: { readonly title: string } | null
   readonly summary: string | null
 }
 
 /** A terminal nothing named yet. */
-export const unnamed: Naming = { person: null, agent: null, murmur: null, summary: null }
+export const unnamed: Naming = { person: null, opener: null, murmur: null, summary: null }
 
 /** The most a summary holds, in characters (code points), over at most `summaryLines` lines. */
 export const summaryChars = 200
@@ -76,14 +76,15 @@ const control = /[\x00-\x1f\x7f-\x9f]/g
  */
 export const titleOf = (
   naming: Naming,
-  terminal: { readonly command: string | null },
+  terminal: { readonly command: string | null; readonly openedBy: string | null },
 ): { readonly title: string; readonly source: TitleSource } => {
   if (naming.person !== null) return { title: naming.person, source: { kind: "person" } }
   if (naming.murmur) return { title: naming.murmur.title, source: { kind: "murmur" } }
-  if (naming.agent)
+  // An opener's title needs the terminal that opened it to say who it is from.
+  if (naming.opener && terminal.openedBy !== null)
     return {
-      title: naming.agent.title,
-      source: { kind: "agent", by: naming.agent.by },
+      title: naming.opener.title,
+      source: { kind: "agent", by: terminal.openedBy },
     }
   return { title: defaultTitle(terminal.command), source: { kind: "default" } }
 }
@@ -91,7 +92,7 @@ export const titleOf = (
 /** A terminal's title, and who it is from, as its summary shows them (see `titleOf`). */
 export const summaryTitle = (
   naming: Naming,
-  terminal: { readonly command: string | null },
+  terminal: { readonly command: string | null; readonly openedBy: string | null },
 ): Pick<TerminalSummary, "title" | "titleSource"> => {
   const { title, source } = titleOf(naming, terminal)
   return { title, titleSource: source }
@@ -104,9 +105,9 @@ export const renamed = (naming: Naming, title: string | null): Naming => ({
 })
 
 /** The title an agent asked for as it opened the terminal: the opener's, never the person's. */
-export const openedWith = (naming: Naming, title: string, by: string): Naming => ({
+export const openedWith = (naming: Naming, title: string): Naming => ({
   ...naming,
-  agent: { title, by },
+  opener: { title },
 })
 
 /** Murmur's latest title for the terminal. */

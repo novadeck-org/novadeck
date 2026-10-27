@@ -10,7 +10,7 @@ import {
   statSync,
 } from "node:fs"
 import { realpath, stat } from "node:fs/promises"
-import { basename, dirname, isAbsolute, join } from "node:path"
+import { dirname, isAbsolute, join } from "node:path"
 import { DatabaseSync, type SQLTagStore } from "node:sqlite"
 
 import {
@@ -32,7 +32,7 @@ import type { ItemRecord, ItemRecords, Placed, WindowRecord } from "../companion
 import { DomainError } from "../errors.js"
 import { logs } from "../log.js"
 import type { InboxRecords, StoredEntry } from "../messaging/inbox.js"
-import type { Message, Thread } from "../messaging/messages.js"
+import { novadeckSender, type Message, type Thread } from "../messaging/messages.js"
 import type { MessageRecords } from "../messaging/records.js"
 import { nextHandle, wordOf } from "../terminals/handles.js"
 import type { Naming } from "../terminals/naming.js"
@@ -67,17 +67,13 @@ export type SettingsChange = {
   readonly [K in keyof RunnerSettings]?: RunnerSettings[K] | undefined
 }
 
-// Raise it for any change to a table's columns or constraints, with a step in `migrations`
-// that carries a database of the version before to it: a person's workspace is carried
-// forward, never set aside. A new table, with its indexes, is created where missing
-// (`extras`) and needs neither.
-// 2: word handles, given once per session (session_handles), each unique in its session.
-// 3: changes items, a kind the kind CHECK must allow.
-// 4: windows have a home (a session's project window is one), and an item may come from no
-// terminal.
-// 5: a thread stores the hold on it (held_from, held_for) in place of its allowance.
-// 6: the asks table is named inbox.
-const schemaVersion = 6
+// Raise it for any change to a table's columns or constraints, and for a new table, with a
+// step in `migrations` that carries a database of the version before to it: a person's
+// workspace is carried forward, never set aside.
+// 7: the tables say what they hold: a row belongs to its parent by a foreign key, the
+// person's and Novadeck's messages say so in `from_kind`, and a session's visit is its own
+// column; see the step from 6.
+const schemaVersion = 7
 const schema = `
   CREATE TABLE projects (
     position INTEGER PRIMARY KEY,
@@ -88,36 +84,34 @@ const schema = `
   CREATE TABLE sessions (
     position INTEGER PRIMARY KEY,
     id TEXT NOT NULL UNIQUE,
-    project_id TEXT NOT NULL REFERENCES projects(id),
+    project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
     name TEXT NOT NULL CHECK(length(name) BETWEEN 1 AND 200),
     -- Opaque client state, such as a UI layout; null until the first save.
-    state TEXT
+    client_state TEXT,
+    -- When the person last visited it, in epoch milliseconds; null until they first do.
+    visited_at REAL
   ) STRICT;
-  CREATE INDEX sessions_project ON sessions(project_id, position);
-`
-// Tables created where missing, so a database that lacks one gains it with no step.
-const extras = `
+  CREATE INDEX sessions_project ON sessions(project_id);
   -- Every terminal, until it is closed, and what restores it after its shell is gone:
   -- kept as it changes, so a runner that is killed still leaves it behind.
-  CREATE TABLE IF NOT EXISTS terminals (
+  CREATE TABLE terminals (
     id TEXT PRIMARY KEY,
-    session_id TEXT NOT NULL,
+    session_id TEXT NOT NULL REFERENCES sessions(id) ON DELETE CASCADE,
     -- Its handle in its session, a word such as moth, given once (see session_handles).
     handle TEXT NOT NULL,
     -- The shell's last reported directory.
     cwd TEXT NOT NULL,
     -- The latest session each agent reported, as JSON: { "claude": { sessionId, seq } }.
-    agents TEXT NOT NULL,
+    agent_reports TEXT NOT NULL,
     -- When the shell last showed its prompt, in epoch milliseconds.
     prompted_at REAL,
     -- The screen and scrollback, serialized; null when not kept.
     transcript TEXT,
-    updated_at REAL NOT NULL,
+    saved_at REAL NOT NULL,
     -- The title the person gave it; null when its title is automatic.
     person_title TEXT,
-    -- The latest title an agent gave it, and that agent's terminal's handle.
-    agent_title TEXT,
-    agent_titled_by TEXT,
+    -- The title the agent that opened it asked for; its handle is opened_by.
+    opener_title TEXT,
     -- The title murmur last wrote for it.
     murmur_title TEXT,
     -- What its own agent said it works on, through summarize.
@@ -133,22 +127,25 @@ const extras = `
     last_program TEXT,
     -- What its root agent session worked on, for agents messaging each other, as JSON.
     work TEXT,
-    UNIQUE (session_id, handle)
+    UNIQUE (session_id, handle),
+    -- What an item's foreign key names; a save may move a terminal to another session, and
+    -- its items go with it.
+    UNIQUE (id, session_id)
   ) STRICT;
   -- Every handle a session ever gave its terminals, closed ones' too, so none is given twice.
-  CREATE TABLE IF NOT EXISTS session_handles (
-    session_id TEXT NOT NULL,
+  CREATE TABLE session_handles (
+    session_id TEXT NOT NULL REFERENCES sessions(id) ON DELETE CASCADE,
     handle TEXT NOT NULL,
     PRIMARY KEY (session_id, handle)
   ) STRICT;
-  CREATE TABLE IF NOT EXISTS settings (
+  CREATE TABLE settings (
     key TEXT PRIMARY KEY,
     value TEXT NOT NULL
   ) STRICT;
   -- Agent messaging (docs/agent-messaging.md).
-  CREATE TABLE IF NOT EXISTS message_threads (
+  CREATE TABLE message_threads (
     id TEXT PRIMARY KEY,
-    project_id TEXT NOT NULL,
+    project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
     -- Its two terminals, in the order its first message went.
     first_terminal TEXT NOT NULL,
     second_terminal TEXT NOT NULL,
@@ -159,22 +156,28 @@ const extras = `
     held_for TEXT CHECK (held_for IN ('loop')),
     last_at REAL NOT NULL,
     -- When the person stopped it; null if they have not, or released it since.
-    stopped_at REAL
+    stopped_at REAL,
+    UNIQUE (id, project_id)
   ) STRICT;
-  CREATE TABLE IF NOT EXISTS messages (
+  CREATE INDEX message_threads_project ON message_threads(project_id);
+  CREATE TABLE messages (
     id TEXT PRIMARY KEY,
-    project_id TEXT NOT NULL,
-    thread_id TEXT NOT NULL,
+    project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+    -- The thread between two agents it belongs to; null for the person's and Novadeck's.
+    thread_id TEXT,
     hop INTEGER NOT NULL,
-    from_terminal TEXT NOT NULL,
-    from_handle TEXT NOT NULL,
+    -- Who sent it. Only an agent's has a terminal, handle and thread: the person's carries
+    -- the id of the Inbox entry it answers in its response, Novadeck's has nothing else.
+    from_kind TEXT NOT NULL CHECK (from_kind IN ('agent', 'person', 'novadeck')),
+    from_terminal TEXT,
+    from_handle TEXT,
     from_agent TEXT,
-    from_session TEXT,
+    from_agent_session TEXT,
     to_terminal TEXT NOT NULL,
     to_handle TEXT NOT NULL,
     to_agent TEXT NOT NULL,
     -- Null while it waits for the first session of its agent to bind there.
-    to_session TEXT,
+    to_agent_session TEXT,
     text TEXT NOT NULL,
     sent_at REAL NOT NULL,
     state TEXT NOT NULL,
@@ -187,31 +190,43 @@ const extras = `
     from_lead INTEGER NOT NULL,
     -- Whether its recipient was its sender's lead when it was sent.
     to_lead INTEGER NOT NULL,
-    response TEXT
+    response TEXT,
+    FOREIGN KEY (thread_id, project_id) REFERENCES message_threads(id, project_id)
+      ON DELETE CASCADE,
+    CHECK (from_kind <> 'person' OR json_extract(response, '$.askId') IS NOT NULL),
+    CHECK ((from_kind = 'agent') = (from_terminal IS NOT NULL)),
+    CHECK ((from_kind = 'agent') = (from_handle IS NOT NULL)),
+    CHECK ((from_kind = 'agent') = (thread_id IS NOT NULL))
   ) STRICT;
-  CREATE TABLE IF NOT EXISTS inbox (
+  CREATE INDEX messages_thread ON messages(thread_id);
+  CREATE INDEX messages_project ON messages(project_id);
+  -- What agents put in the person's Inbox. An entry outlives its terminal, so that has no
+  -- foreign key.
+  CREATE TABLE inbox_entries (
     id TEXT PRIMARY KEY,
-    project_id TEXT NOT NULL,
+    project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
     terminal_id TEXT NOT NULL,
     at REAL NOT NULL,
     record TEXT NOT NULL
   ) STRICT;
+  CREATE INDEX inbox_entries_project ON inbox_entries(project_id);
   -- What agents show and the person attaches beside a terminal: pointers, never copies.
   -- Each item is held by one terminal's bar or one window, and goes with it.
-  CREATE TABLE IF NOT EXISTS companion_windows (
+  CREATE TABLE companion_windows (
     id TEXT PRIMARY KEY,
     session_id TEXT NOT NULL REFERENCES sessions(id) ON DELETE CASCADE,
     -- Undocked from a bar, or the session's project window, the one the person opens files in.
     home TEXT NOT NULL CHECK (home IN ('undocked', 'project')),
     -- The title the person gave it; null when it is named by its item.
     person_title TEXT,
-    created_at REAL NOT NULL
+    created_at REAL NOT NULL,
+    UNIQUE (id, session_id)
   ) STRICT;
-  CREATE TABLE IF NOT EXISTS companion_items (
+  CREATE TABLE companion_items (
     id TEXT PRIMARY KEY,
     session_id TEXT NOT NULL REFERENCES sessions(id) ON DELETE CASCADE,
-    terminal_id TEXT REFERENCES terminals(id) ON DELETE CASCADE,
-    window_id TEXT UNIQUE REFERENCES companion_windows(id) ON DELETE CASCADE,
+    terminal_id TEXT,
+    window_id TEXT UNIQUE,
     -- A file's resolved path, a page's pageKey, or a plan's slot, unique on one bar.
     pointer_key TEXT NOT NULL,
     kind TEXT NOT NULL CHECK (kind IN ('image', 'file', 'page', 'plan', 'changes')),
@@ -222,223 +237,384 @@ const extras = `
     -- A plan's agent, session and actor (empty for the root), and whether it is a file
     -- or text in the transcript or rollout at path.
     plan_agent TEXT,
-    plan_session TEXT,
+    plan_agent_session TEXT,
     plan_actor TEXT,
     plan_format TEXT CHECK (plan_format IN ('file', 'text')),
     name TEXT NOT NULL,
     detail TEXT NOT NULL,
-    held INTEGER NOT NULL,
+    -- Whether it is a file that may hold secrets, which opens only when the person picks it.
+    secret INTEGER NOT NULL,
     shown_by TEXT NOT NULL CHECK (shown_by IN ('agent', 'person')),
     -- The terminal it was shown or attached in, and its handle; both null for a file the
     -- person opened in their project window.
     from_terminal TEXT,
     from_handle TEXT,
     version INTEGER NOT NULL,
-    asked INTEGER NOT NULL,
+    -- Whether its latest show asked to open it.
+    open_asked INTEGER NOT NULL,
     shown_at REAL NOT NULL,
     observed_at REAL,
+    FOREIGN KEY (terminal_id, session_id) REFERENCES terminals(id, session_id)
+      ON DELETE CASCADE ON UPDATE CASCADE,
+    FOREIGN KEY (window_id, session_id) REFERENCES companion_windows(id, session_id)
+      ON DELETE CASCADE,
     CHECK ((terminal_id IS NULL) <> (window_id IS NULL)),
     CHECK ((from_terminal IS NULL) = (from_handle IS NULL))
   ) STRICT;
-  CREATE UNIQUE INDEX IF NOT EXISTS companion_items_bar ON companion_items(terminal_id, pointer_key)
+  CREATE UNIQUE INDEX companion_items_bar ON companion_items(terminal_id, pointer_key)
     WHERE terminal_id IS NOT NULL;
-  CREATE INDEX IF NOT EXISTS companion_items_session ON companion_items(session_id);
-  CREATE UNIQUE INDEX IF NOT EXISTS companion_windows_project ON companion_windows(session_id)
+  CREATE INDEX companion_items_session ON companion_items(session_id);
+  CREATE UNIQUE INDEX companion_windows_project ON companion_windows(session_id)
     WHERE home = 'project';
 `
 /**
+ * A step that carries a database forward: the SQL that version's tables needed, or, where
+ * the SQL alone can't see that it worked, a function of the database in its transaction
+ * (it throws `EarlierWorkspaceError` for a database it can't carry).
+ */
+type Step = string | ((database: DatabaseSync, path: string) => void)
+
+/**
  * The steps that carry a database forward, by the version each starts from, each to the
  * next. A step is the SQL that version's tables needed, written out as it was then, never
- * taken from `schema` or `extras`, which later versions change again; `schemas/` keeps
- * each version's tables, for its step's test. A database older than the first step is
- * from before Novadeck migrated, and is set aside. A step that renames a table others
- * reference must not drop it after: renaming points their references at the old one, and
- * the drop then deletes their rows through ON DELETE CASCADE.
+ * taken from `schema`, which later versions change again; `schemas/` keeps each version's
+ * tables, for its step's test. A database older than the first step is from before
+ * Novadeck migrated, and is set aside. A step that renames a table others reference must
+ * not drop it after: renaming points their references at the old one, and the drop then
+ * deletes their rows through ON DELETE CASCADE.
  */
-const migrations: Readonly<Record<number, string>> = {
-  // SQLite can't change a CHECK, so the table is made again with its new one, under its
-  // own name (renaming the new table would quote the name in its schema), and its rows
-  // and indexes go across.
-  2: `
-    ALTER TABLE companion_items RENAME TO companion_items_2;
-    CREATE TABLE companion_items (
-      id TEXT PRIMARY KEY,
-      session_id TEXT NOT NULL REFERENCES sessions(id) ON DELETE CASCADE,
-      terminal_id TEXT REFERENCES terminals(id) ON DELETE CASCADE,
-      window_id TEXT UNIQUE REFERENCES companion_windows(id) ON DELETE CASCADE,
-      -- A file's resolved path, a page's pageKey, or a plan's slot, unique on one bar.
-      pointer_key TEXT NOT NULL,
-      kind TEXT NOT NULL CHECK (kind IN ('image', 'file', 'page', 'plan', 'changes')),
-      path TEXT,
-      url TEXT,
-      lines_from INTEGER,
-      lines_to INTEGER,
-      -- A plan's agent, session and actor (empty for the root), and whether it is a file
-      -- or text in the transcript or rollout at path.
-      plan_agent TEXT,
-      plan_session TEXT,
-      plan_actor TEXT,
-      plan_format TEXT CHECK (plan_format IN ('file', 'text')),
-      name TEXT NOT NULL,
-      detail TEXT NOT NULL,
-      held INTEGER NOT NULL,
-      shown_by TEXT NOT NULL CHECK (shown_by IN ('agent', 'person')),
-      from_terminal TEXT NOT NULL,
-      from_handle TEXT NOT NULL,
-      version INTEGER NOT NULL,
-      asked INTEGER NOT NULL,
-      shown_at REAL NOT NULL,
-      observed_at REAL,
-      CHECK ((terminal_id IS NULL) <> (window_id IS NULL))
-    ) STRICT;
-    INSERT INTO companion_items (id, session_id, terminal_id, window_id, pointer_key, kind,
-      path, url, lines_from, lines_to, plan_agent, plan_session, plan_actor, plan_format,
-      name, detail, held, shown_by, from_terminal, from_handle, version, asked, shown_at,
-      observed_at)
-    SELECT id, session_id, terminal_id, window_id, pointer_key, kind, path, url, lines_from,
-      lines_to, plan_agent, plan_session, plan_actor, plan_format, name, detail, held,
-      shown_by, from_terminal, from_handle, version, asked, shown_at, observed_at
-    FROM companion_items_2;
-    DROP TABLE companion_items_2;
-    CREATE UNIQUE INDEX companion_items_bar ON companion_items(terminal_id, pointer_key)
-      WHERE terminal_id IS NOT NULL;
-    CREATE INDEX companion_items_session ON companion_items(session_id);
-  `,
-  // Both tables are made again: windows gain `home`, items may come from no terminal. Items
-  // are renamed first and windows after, which points the old items at the old windows;
-  // the old items then go before the old windows, so no ON DELETE CASCADE has a row to
-  // delete. Rows keep their rowid, which orders them. A row whose session, terminal or
-  // window is gone, which only a database written with foreign keys off could hold, is left
-  // behind: the runner could never show it, and copying it would set the workspace aside. A
-  // window whose only item was left behind is copied, then deleted: a version 3 runner never
-  // leaves a window without its item, so only a row the runner could never show goes.
-  3: `
-    ALTER TABLE companion_items RENAME TO companion_items_3;
-    ALTER TABLE companion_windows RENAME TO companion_windows_3;
-    CREATE TABLE companion_windows (
-      id TEXT PRIMARY KEY,
-      session_id TEXT NOT NULL REFERENCES sessions(id) ON DELETE CASCADE,
-      -- Undocked from a bar, or the session's project window, the one the person opens files in.
-      home TEXT NOT NULL CHECK (home IN ('undocked', 'project')),
-      -- The title the person gave it; null when it is named by its item.
-      person_title TEXT,
-      created_at REAL NOT NULL
-    ) STRICT;
-    CREATE TABLE companion_items (
-      id TEXT PRIMARY KEY,
-      session_id TEXT NOT NULL REFERENCES sessions(id) ON DELETE CASCADE,
-      terminal_id TEXT REFERENCES terminals(id) ON DELETE CASCADE,
-      window_id TEXT UNIQUE REFERENCES companion_windows(id) ON DELETE CASCADE,
-      -- A file's resolved path, a page's pageKey, or a plan's slot, unique on one bar.
-      pointer_key TEXT NOT NULL,
-      kind TEXT NOT NULL CHECK (kind IN ('image', 'file', 'page', 'plan', 'changes')),
-      path TEXT,
-      url TEXT,
-      lines_from INTEGER,
-      lines_to INTEGER,
-      -- A plan's agent, session and actor (empty for the root), and whether it is a file
-      -- or text in the transcript or rollout at path.
-      plan_agent TEXT,
-      plan_session TEXT,
-      plan_actor TEXT,
-      plan_format TEXT CHECK (plan_format IN ('file', 'text')),
-      name TEXT NOT NULL,
-      detail TEXT NOT NULL,
-      held INTEGER NOT NULL,
-      shown_by TEXT NOT NULL CHECK (shown_by IN ('agent', 'person')),
-      -- The terminal it was shown or attached in, and its handle; both null for a file the
-      -- person opened in their project window.
-      from_terminal TEXT,
-      from_handle TEXT,
-      version INTEGER NOT NULL,
-      asked INTEGER NOT NULL,
-      shown_at REAL NOT NULL,
-      observed_at REAL,
-      CHECK ((terminal_id IS NULL) <> (window_id IS NULL)),
-      CHECK ((from_terminal IS NULL) = (from_handle IS NULL))
-    ) STRICT;
-    INSERT INTO companion_windows (rowid, id, session_id, home, person_title, created_at)
-    SELECT rowid, id, session_id, 'undocked', person_title, created_at
-    FROM companion_windows_3
-    WHERE session_id IN (SELECT id FROM sessions);
-    INSERT INTO companion_items (rowid, id, session_id, terminal_id, window_id, pointer_key,
-      kind, path, url, lines_from, lines_to, plan_agent, plan_session, plan_actor, plan_format,
-      name, detail, held, shown_by, from_terminal, from_handle, version, asked, shown_at,
-      observed_at)
-    SELECT rowid, id, session_id, terminal_id, window_id, pointer_key, kind, path, url,
-      lines_from, lines_to, plan_agent, plan_session, plan_actor, plan_format, name, detail,
-      held, shown_by, from_terminal, from_handle, version, asked, shown_at, observed_at
-    FROM companion_items_3
-    WHERE session_id IN (SELECT id FROM sessions)
-      AND (terminal_id IS NULL OR terminal_id IN (SELECT id FROM terminals))
-      AND (window_id IS NULL OR window_id IN (SELECT id FROM companion_windows));
-    DELETE FROM companion_windows
-    WHERE id NOT IN (SELECT window_id FROM companion_items WHERE window_id IS NOT NULL);
-    DROP TABLE companion_items_3;
-    DROP TABLE companion_windows_3;
-    CREATE UNIQUE INDEX companion_items_bar ON companion_items(terminal_id, pointer_key)
-      WHERE terminal_id IS NOT NULL;
-    CREATE INDEX companion_items_session ON companion_items(session_id);
-    CREATE UNIQUE INDEX companion_windows_project ON companion_windows(session_id)
-      WHERE home = 'project';
-  `,
-  // A thread's allowance becomes the hold on it. One holds from the hop after its allowance
-  // if a message past it between two peers waits held, or was gone before the person
-  // stopped the thread (a stopped one is released again by the person, not held); a lead's
-  // messages never were held, so a thread of only those is not. Message rows stay as they
-  // are: the runner works out what waits from the hold on load.
-  4: `
-    ALTER TABLE message_threads RENAME TO message_threads_4;
-    CREATE TABLE message_threads (
-      id TEXT PRIMARY KEY,
-      project_id TEXT NOT NULL,
-      -- Its two terminals, in the order its first message went.
-      first_terminal TEXT NOT NULL,
-      second_terminal TEXT NOT NULL,
-      hops INTEGER NOT NULL,
-      -- The hop from which its messages are held for the person, null when none is; held_for
-      -- says why ('loop').
-      held_from INTEGER,
-      held_for TEXT CHECK (held_for IN ('loop')),
-      last_at REAL NOT NULL,
-      -- When the person stopped it; null if they have not, or released it since.
-      stopped_at REAL
-    ) STRICT;
-    INSERT INTO message_threads (rowid, id, project_id, first_terminal, second_terminal, hops,
-      held_from, last_at, stopped_at)
-    SELECT rowid, id, project_id, first_terminal, second_terminal, hops,
-      CASE WHEN EXISTS (
-        SELECT 1 FROM messages
-        WHERE messages.thread_id = message_threads_4.id
-          AND messages.from_lead = 0 AND messages.to_lead = 0
-          AND messages.hop > message_threads_4.allowed
-          AND (messages.state = 'held' OR (messages.state = 'gone' AND messages.stopped = 0))
-      ) THEN allowed + 1 END,
-      last_at, stopped_at
-    FROM message_threads_4;
-    DROP TABLE message_threads_4;
-  `,
-  // Made again under the new name, as a rename would quote the name in the table's schema.
-  // `asks` joined `extras` without a version of its own, so the step makes it where missing.
-  5: `
-    CREATE TABLE IF NOT EXISTS asks (
-      id TEXT PRIMARY KEY,
-      project_id TEXT NOT NULL,
-      terminal_id TEXT NOT NULL,
-      at REAL NOT NULL,
-      record TEXT NOT NULL
-    ) STRICT;
-    CREATE TABLE inbox (
-      id TEXT PRIMARY KEY,
-      project_id TEXT NOT NULL,
-      terminal_id TEXT NOT NULL,
-      at REAL NOT NULL,
-      record TEXT NOT NULL
-    ) STRICT;
-    INSERT INTO inbox (id, project_id, terminal_id, at, record)
-    SELECT id, project_id, terminal_id, at, record FROM asks;
-    DROP TABLE asks;
-  `,
+const migrations: Readonly<Record<number, Step>> = {
+  // Every table but the settings is made again, with foreign keys and the new names. The old
+  // ones are renamed, with their indexes dropped (an index keeps its name through a rename),
+  // and their rows copied by column name, parents before children, rowids kept, as they
+  // order the rows. Foreign keys stay enforced throughout (a pragma can't change in a
+  // transaction), so a row whose parent is gone, which version 6, with no foreign keys but
+  // the items', may hold, is left behind: the runner could never show it, and copying it
+  // would set the workspace aside. A window whose only item was left behind goes too, or it
+  // would hold the session's one project window for good. The old tables are dropped
+  // children first, so no ON DELETE CASCADE has a row to delete.
+  //
+  // The person's and Novadeck's messages were rows from the terminals "you" and "novadeck"
+  // in threads with no row; they say who sent them instead. A person's keeps only where its
+  // response names the Inbox entry it answers. Of a session's saved state, the visit and
+  // rank the UI kept in it become `visited_at` (a time and its tie-break as a fraction of a
+  // millisecond) where its state is a version 1 as the UI wrote it, and the state is
+  // rewritten as a version 2 without them; any other state stays as it is, and the session
+  // is not visited. In a SELECT list SQLite doesn't stop at a false term of an AND, and
+  // json_extract throws on text that isn't JSON, so each test nests under json_valid. An
+  // opener's title stays where the terminal that gave it is the one that opened this.
+  6: (database, path) => {
+    database.exec(`
+      ALTER TABLE companion_items RENAME TO companion_items_6;
+      ALTER TABLE companion_windows RENAME TO companion_windows_6;
+      ALTER TABLE inbox RENAME TO inbox_6;
+      ALTER TABLE messages RENAME TO messages_6;
+      ALTER TABLE message_threads RENAME TO message_threads_6;
+      ALTER TABLE session_handles RENAME TO session_handles_6;
+      ALTER TABLE terminals RENAME TO terminals_6;
+      ALTER TABLE sessions RENAME TO sessions_6;
+      ALTER TABLE projects RENAME TO projects_6;
+      DROP INDEX sessions_project;
+      DROP INDEX companion_items_bar;
+      DROP INDEX companion_items_session;
+      DROP INDEX companion_windows_project;
+      CREATE TABLE projects (
+        position INTEGER PRIMARY KEY,
+        id TEXT NOT NULL UNIQUE,
+        name TEXT NOT NULL CHECK(length(name) BETWEEN 1 AND 200),
+        cwd TEXT NOT NULL CHECK(length(cwd) > 0)
+      ) STRICT;
+      CREATE TABLE sessions (
+        position INTEGER PRIMARY KEY,
+        id TEXT NOT NULL UNIQUE,
+        project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+        name TEXT NOT NULL CHECK(length(name) BETWEEN 1 AND 200),
+        -- Opaque client state, such as a UI layout; null until the first save.
+        client_state TEXT,
+        -- When the person last visited it, in epoch milliseconds; null until they first do.
+        visited_at REAL
+      ) STRICT;
+      CREATE INDEX sessions_project ON sessions(project_id);
+      -- Every terminal, until it is closed, and what restores it after its shell is gone:
+      -- kept as it changes, so a runner that is killed still leaves it behind.
+      CREATE TABLE terminals (
+        id TEXT PRIMARY KEY,
+        session_id TEXT NOT NULL REFERENCES sessions(id) ON DELETE CASCADE,
+        -- Its handle in its session, a word such as moth, given once (see session_handles).
+        handle TEXT NOT NULL,
+        -- The shell's last reported directory.
+        cwd TEXT NOT NULL,
+        -- The latest session each agent reported, as JSON: { "claude": { sessionId, seq } }.
+        agent_reports TEXT NOT NULL,
+        -- When the shell last showed its prompt, in epoch milliseconds.
+        prompted_at REAL,
+        -- The screen and scrollback, serialized; null when not kept.
+        transcript TEXT,
+        saved_at REAL NOT NULL,
+        -- The title the person gave it; null when its title is automatic.
+        person_title TEXT,
+        -- The title the agent that opened it asked for; its handle is opened_by.
+        opener_title TEXT,
+        -- The title murmur last wrote for it.
+        murmur_title TEXT,
+        -- What its own agent said it works on, through summarize.
+        summary TEXT,
+        -- The handle of the terminal whose agent opened it; null otherwise.
+        opened_by TEXT,
+        -- The handle of its lead: the terminal whose agent opened it with a brief for the agent
+        -- there, until that agent exits; null otherwise.
+        led_by TEXT,
+        -- The command it was opened to run at its first prompt.
+        command TEXT,
+        -- The program in its foreground when its shell was last seen.
+        last_program TEXT,
+        -- What its root agent session worked on, for agents messaging each other, as JSON.
+        work TEXT,
+        UNIQUE (session_id, handle),
+        -- What an item's foreign key names; a save may move a terminal to another session, and
+        -- its items go with it.
+        UNIQUE (id, session_id)
+      ) STRICT;
+      -- Every handle a session ever gave its terminals, closed ones' too, so none is given twice.
+      CREATE TABLE session_handles (
+        session_id TEXT NOT NULL REFERENCES sessions(id) ON DELETE CASCADE,
+        handle TEXT NOT NULL,
+        PRIMARY KEY (session_id, handle)
+      ) STRICT;
+      -- Agent messaging (docs/agent-messaging.md).
+      CREATE TABLE message_threads (
+        id TEXT PRIMARY KEY,
+        project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+        -- Its two terminals, in the order its first message went.
+        first_terminal TEXT NOT NULL,
+        second_terminal TEXT NOT NULL,
+        hops INTEGER NOT NULL,
+        -- The hop from which its messages are held for the person, null when none is; held_for
+        -- says why ('loop').
+        held_from INTEGER,
+        held_for TEXT CHECK (held_for IN ('loop')),
+        last_at REAL NOT NULL,
+        -- When the person stopped it; null if they have not, or released it since.
+        stopped_at REAL,
+        UNIQUE (id, project_id)
+      ) STRICT;
+      CREATE INDEX message_threads_project ON message_threads(project_id);
+      CREATE TABLE messages (
+        id TEXT PRIMARY KEY,
+        project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+        -- The thread between two agents it belongs to; null for the person's and Novadeck's.
+        thread_id TEXT,
+        hop INTEGER NOT NULL,
+        -- Who sent it. Only an agent's has a terminal, handle and thread: the person's carries
+        -- the id of the Inbox entry it answers in its response, Novadeck's has nothing else.
+        from_kind TEXT NOT NULL CHECK (from_kind IN ('agent', 'person', 'novadeck')),
+        from_terminal TEXT,
+        from_handle TEXT,
+        from_agent TEXT,
+        from_agent_session TEXT,
+        to_terminal TEXT NOT NULL,
+        to_handle TEXT NOT NULL,
+        to_agent TEXT NOT NULL,
+        -- Null while it waits for the first session of its agent to bind there.
+        to_agent_session TEXT,
+        text TEXT NOT NULL,
+        sent_at REAL NOT NULL,
+        state TEXT NOT NULL,
+        delivered_at REAL,
+        -- Whether its sender was told it is gone.
+        notified INTEGER NOT NULL,
+        -- Whether the person stopped its thread before it was delivered.
+        stopped INTEGER NOT NULL,
+        -- Whether its sender was its recipient's lead when it was sent.
+        from_lead INTEGER NOT NULL,
+        -- Whether its recipient was its sender's lead when it was sent.
+        to_lead INTEGER NOT NULL,
+        response TEXT,
+        FOREIGN KEY (thread_id, project_id) REFERENCES message_threads(id, project_id)
+          ON DELETE CASCADE,
+        CHECK (from_kind <> 'person' OR json_extract(response, '$.askId') IS NOT NULL),
+        CHECK ((from_kind = 'agent') = (from_terminal IS NOT NULL)),
+        CHECK ((from_kind = 'agent') = (from_handle IS NOT NULL)),
+        CHECK ((from_kind = 'agent') = (thread_id IS NOT NULL))
+      ) STRICT;
+      CREATE INDEX messages_thread ON messages(thread_id);
+      CREATE INDEX messages_project ON messages(project_id);
+      -- What agents put in the person's Inbox. An entry outlives its terminal, so that has no
+      -- foreign key.
+      CREATE TABLE inbox_entries (
+        id TEXT PRIMARY KEY,
+        project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+        terminal_id TEXT NOT NULL,
+        at REAL NOT NULL,
+        record TEXT NOT NULL
+      ) STRICT;
+      CREATE INDEX inbox_entries_project ON inbox_entries(project_id);
+      -- What agents show and the person attaches beside a terminal: pointers, never copies.
+      -- Each item is held by one terminal's bar or one window, and goes with it.
+      CREATE TABLE companion_windows (
+        id TEXT PRIMARY KEY,
+        session_id TEXT NOT NULL REFERENCES sessions(id) ON DELETE CASCADE,
+        -- Undocked from a bar, or the session's project window, the one the person opens files in.
+        home TEXT NOT NULL CHECK (home IN ('undocked', 'project')),
+        -- The title the person gave it; null when it is named by its item.
+        person_title TEXT,
+        created_at REAL NOT NULL,
+        UNIQUE (id, session_id)
+      ) STRICT;
+      CREATE TABLE companion_items (
+        id TEXT PRIMARY KEY,
+        session_id TEXT NOT NULL REFERENCES sessions(id) ON DELETE CASCADE,
+        terminal_id TEXT,
+        window_id TEXT UNIQUE,
+        -- A file's resolved path, a page's pageKey, or a plan's slot, unique on one bar.
+        pointer_key TEXT NOT NULL,
+        kind TEXT NOT NULL CHECK (kind IN ('image', 'file', 'page', 'plan', 'changes')),
+        path TEXT,
+        url TEXT,
+        lines_from INTEGER,
+        lines_to INTEGER,
+        -- A plan's agent, session and actor (empty for the root), and whether it is a file
+        -- or text in the transcript or rollout at path.
+        plan_agent TEXT,
+        plan_agent_session TEXT,
+        plan_actor TEXT,
+        plan_format TEXT CHECK (plan_format IN ('file', 'text')),
+        name TEXT NOT NULL,
+        detail TEXT NOT NULL,
+        -- Whether it is a file that may hold secrets, which opens only when the person picks it.
+        secret INTEGER NOT NULL,
+        shown_by TEXT NOT NULL CHECK (shown_by IN ('agent', 'person')),
+        -- The terminal it was shown or attached in, and its handle; both null for a file the
+        -- person opened in their project window.
+        from_terminal TEXT,
+        from_handle TEXT,
+        version INTEGER NOT NULL,
+        -- Whether its latest show asked to open it.
+        open_asked INTEGER NOT NULL,
+        shown_at REAL NOT NULL,
+        observed_at REAL,
+        FOREIGN KEY (terminal_id, session_id) REFERENCES terminals(id, session_id)
+          ON DELETE CASCADE ON UPDATE CASCADE,
+        FOREIGN KEY (window_id, session_id) REFERENCES companion_windows(id, session_id)
+          ON DELETE CASCADE,
+        CHECK ((terminal_id IS NULL) <> (window_id IS NULL)),
+        CHECK ((from_terminal IS NULL) = (from_handle IS NULL))
+      ) STRICT;
+      CREATE UNIQUE INDEX companion_items_bar ON companion_items(terminal_id, pointer_key)
+        WHERE terminal_id IS NOT NULL;
+      CREATE INDEX companion_items_session ON companion_items(session_id);
+      CREATE UNIQUE INDEX companion_windows_project ON companion_windows(session_id)
+        WHERE home = 'project';
+      INSERT INTO projects (position, id, name, cwd)
+      SELECT position, id, name, cwd FROM projects_6;
+      INSERT INTO sessions (position, id, project_id, name, client_state, visited_at)
+      SELECT position, id, project_id, name,
+        CASE WHEN json_valid(state) THEN
+          CASE WHEN json_extract(state, '$.version') = 1
+            AND json_type(state, '$.visitedAt') IN ('integer', 'real')
+            AND json_type(state, '$.rank') = 'integer'
+          THEN json_set(json_remove(state, '$.visitedAt', '$.rank'), '$.version', 2)
+          ELSE state END
+        ELSE state END,
+        CASE WHEN json_valid(state) THEN
+          CASE WHEN json_extract(state, '$.version') = 1
+            AND json_type(state, '$.visitedAt') IN ('integer', 'real')
+            AND json_type(state, '$.rank') = 'integer'
+          THEN json_extract(state, '$.visitedAt') + json_extract(state, '$.rank') / 1000.0
+          END
+        END
+      FROM sessions_6
+      WHERE project_id IN (SELECT id FROM projects);
+      INSERT INTO terminals (rowid, id, session_id, handle, cwd, agent_reports, prompted_at,
+        transcript, saved_at, person_title, opener_title, murmur_title, summary, opened_by,
+        led_by, command, last_program, work)
+      SELECT rowid, id, session_id, handle, cwd, agents, prompted_at, transcript, updated_at,
+        person_title,
+        CASE WHEN opened_by IS NOT NULL AND agent_titled_by IS opened_by THEN agent_title END,
+        murmur_title, summary, opened_by, led_by, command, last_program, work
+      FROM terminals_6
+      WHERE session_id IN (SELECT id FROM sessions);
+      INSERT INTO session_handles (rowid, session_id, handle)
+      SELECT rowid, session_id, handle FROM session_handles_6
+      WHERE session_id IN (SELECT id FROM sessions);
+      INSERT INTO message_threads (rowid, id, project_id, first_terminal, second_terminal, hops,
+        held_from, held_for, last_at, stopped_at)
+      SELECT rowid, id, project_id, first_terminal, second_terminal, hops, held_from, held_for,
+        last_at, stopped_at
+      FROM message_threads_6
+      WHERE project_id IN (SELECT id FROM projects);
+      INSERT INTO messages (rowid, id, project_id, thread_id, hop, from_kind, from_terminal,
+        from_handle, from_agent, from_agent_session, to_terminal, to_handle, to_agent,
+        to_agent_session, text, sent_at, state, delivered_at, notified, stopped, from_lead,
+        to_lead, response)
+      SELECT rowid, id, project_id,
+        CASE WHEN from_terminal IN ('you', 'novadeck') THEN NULL ELSE thread_id END,
+        hop,
+        CASE from_terminal WHEN 'you' THEN 'person' WHEN 'novadeck' THEN 'novadeck'
+          ELSE 'agent' END,
+        CASE WHEN from_terminal IN ('you', 'novadeck') THEN NULL ELSE from_terminal END,
+        CASE WHEN from_terminal IN ('you', 'novadeck') THEN NULL ELSE from_handle END,
+        CASE WHEN from_terminal IN ('you', 'novadeck') THEN NULL ELSE from_agent END,
+        CASE WHEN from_terminal IN ('you', 'novadeck') THEN NULL ELSE from_session END,
+        to_terminal, to_handle, to_agent, to_session, text, sent_at, state, delivered_at,
+        notified, stopped, from_lead, to_lead, response
+      FROM messages_6 m
+      WHERE project_id IN (SELECT id FROM projects)
+        AND CASE
+          WHEN from_terminal = 'novadeck' THEN 1
+          WHEN from_terminal = 'you' THEN
+            CASE WHEN json_valid(response) THEN json_type(response, '$.askId') = 'text' END
+          ELSE EXISTS (
+            SELECT 1 FROM message_threads t WHERE t.id = m.thread_id AND t.project_id = m.project_id
+          )
+        END;
+      INSERT INTO inbox_entries (rowid, id, project_id, terminal_id, at, record)
+      SELECT rowid, id, project_id, terminal_id, at, record FROM inbox_6
+      WHERE project_id IN (SELECT id FROM projects);
+      INSERT INTO companion_windows (rowid, id, session_id, home, person_title, created_at)
+      SELECT rowid, id, session_id, home, person_title, created_at FROM companion_windows_6
+      WHERE session_id IN (SELECT id FROM sessions);
+      INSERT INTO companion_items (rowid, id, session_id, terminal_id, window_id, pointer_key,
+        kind, path, url, lines_from, lines_to, plan_agent, plan_agent_session, plan_actor,
+        plan_format, name, detail, secret, shown_by, from_terminal, from_handle, version,
+        open_asked, shown_at, observed_at)
+      SELECT rowid, id, session_id, terminal_id, window_id, pointer_key, kind, path, url,
+        lines_from, lines_to, plan_agent, plan_session, plan_actor, plan_format, name, detail,
+        held, shown_by, from_terminal, from_handle, version, asked, shown_at, observed_at
+      FROM companion_items_6 i
+      WHERE session_id IN (SELECT id FROM sessions)
+        AND (terminal_id IS NULL OR EXISTS (
+          SELECT 1 FROM terminals t WHERE t.id = i.terminal_id AND t.session_id = i.session_id
+        ))
+        AND (window_id IS NULL OR EXISTS (
+          SELECT 1 FROM companion_windows w WHERE w.id = i.window_id AND w.session_id = i.session_id
+        ));
+      DELETE FROM companion_windows
+      WHERE id NOT IN (SELECT window_id FROM companion_items WHERE window_id IS NOT NULL);
+      DROP TABLE companion_items_6;
+      DROP TABLE companion_windows_6;
+      DROP TABLE inbox_6;
+      DROP TABLE messages_6;
+      DROP TABLE message_threads_6;
+      DROP TABLE session_handles_6;
+      DROP TABLE terminals_6;
+      DROP TABLE sessions_6;
+      DROP TABLE projects_6;
+    `)
+    // An `exec`'d pragma discards its rows, so it is asked for; any row left that
+    // references what isn't there fails the step as one the workspace can't be carried by.
+    const broken = database.prepare("PRAGMA foreign_key_check").all() as {
+      table: string
+      parent: string
+    }[]
+    if (broken.length > 0) {
+      const [first] = broken
+      throw new EarlierWorkspaceError(
+        path,
+        `${broken.length} rows reference a row that is gone, such as one in ${first!.table} of ${first!.parent}`,
+      )
+    }
+  },
 }
 // SQLite's primary result codes that say a step doesn't fit the database it met, or that
 // it is damaged, as against a full disk, an I/O error or a lock, after which a later start
@@ -462,7 +638,9 @@ const migrate = (database: DatabaseSync, path: string, version: number): void =>
       )
     }
     try {
-      database.exec(`${step} PRAGMA user_version = ${from + 1};`)
+      if (typeof step === "string") database.exec(step)
+      else step(database, path)
+      database.exec(`PRAGMA user_version = ${from + 1};`)
     } catch (error) {
       const code = error instanceof Error && "errcode" in error ? Number(error.errcode) : NaN
       if (!unfitCodes.has(code & 0xff)) throw error
@@ -513,7 +691,7 @@ const expectedColumns = (() => {
     if (expected) return expected
     const reference = new DatabaseSync(":memory:")
     try {
-      reference.exec(`${schema}${extras}`)
+      reference.exec(schema)
       expected = columnsOf(reference)
     } finally {
       reference.close()
@@ -594,95 +772,6 @@ const moveDatabase = (from: string, to: string): void => {
     if (existsSync(`${from}${suffix}`)) renameSync(`${from}${suffix}`, `${to}${suffix}`)
 }
 
-/** A database's value for `query`, read without changing it; undefined if it can't be read. */
-const readOnly = (path: string, query: string): unknown => {
-  try {
-    const database = new DatabaseSync(path, { readOnly: true })
-    try {
-      return Object.values(database.prepare(query).get() ?? {})[0]
-    } finally {
-      database.close()
-    }
-  } catch {
-    return undefined
-  }
-}
-
-/**
- * Brings back the workspace v0.0.188 set aside. That build raised the schema to version 3
- * with no step from 2, so it set every version 2 workspace aside and started an empty one.
- * Where `path` is still as it left it, version 3 (or later, once a later start carried it
- * forward) with no projects, the newest database set
- * aside beside it, if it is version 2 and a copy of it carries forward, comes back as that
- * copy, with the empty one's settings, the person's later choices; the empty one is set
- * aside in turn, and the one set aside before stays as it was. A version 2 database any
- * other build set aside it couldn't carry, so it doesn't carry here either, and once one
- * is back the newest set aside is the empty one, so none comes back twice. A swap a crash
- * cut short is finished at the next start. Returns where the one brought back was.
- */
-export const restoreSetAside = (path: string, now = new Date()): string | undefined => {
-  const copy = `${path}.restoring`
-  const remove = () => {
-    for (const suffix of ["", "-wal", "-shm"]) rmSync(`${copy}${suffix}`, { force: true })
-  }
-  // The copy is whole by the time the empty one goes aside, so one left where `path` is
-  // missing is a swap cut short.
-  if (
-    !existsSync(path) &&
-    Number(readOnly(copy, "PRAGMA user_version")) >= 3 &&
-    readOnly(copy, "PRAGMA quick_check") === "ok"
-  ) {
-    moveDatabase(copy, path)
-    return copy
-  }
-  // A later version is the empty one after a start since, which carried it forward: a restore that
-  // failed once, for a passing reason, is tried again.
-  const version = readOnly(path, "PRAGMA user_version")
-  if (typeof version !== "number" || version < 3 || version > schemaVersion) return undefined
-  if (readOnly(path, "SELECT count(*) FROM projects") !== 0) return undefined
-  const prefix = `${basename(path)}.earlier-`
-  const newest = readdirSync(dirname(path))
-    .filter((name) => name.startsWith(prefix) && /^[\dTZ-]+$/.test(name.slice(prefix.length)))
-    .toSorted()
-    .at(-1)
-  if (newest === undefined) return undefined
-  const earlier = join(dirname(path), newest)
-  if (readOnly(earlier, "PRAGMA user_version") !== 2) return undefined
-  remove()
-  try {
-    // Made first, so it is only ever the person's to read.
-    closeSync(openSync(copy, "wx", 0o600))
-    // One file with what its write-ahead log held, so the one set aside is never written.
-    const source = new DatabaseSync(earlier, { readOnly: true })
-    try {
-      source.exec(`VACUUM INTO '${copy.replaceAll("'", "''")}'`)
-    } finally {
-      source.close()
-    }
-    new WorkspaceStore(copy).close()
-    const restored = new DatabaseSync(copy)
-    try {
-      restored.exec(`ATTACH DATABASE '${path.replaceAll("'", "''")}' AS empty`)
-      restored.exec("INSERT OR REPLACE INTO main.settings SELECT key, value FROM empty.settings")
-      restored.exec("DETACH DATABASE empty")
-    } finally {
-      restored.close()
-    }
-  } catch {
-    remove()
-    return undefined
-  }
-  const aside = setAsideWorkspace(path, now)
-  try {
-    moveDatabase(copy, path)
-  } catch (error) {
-    // The empty one goes back, rather than leave no workspace; the copy is tried again.
-    if (!existsSync(path)) moveDatabase(aside, path)
-    throw error
-  }
-  return earlier
-}
-
 /** How many snapshots of the database from before a migration are kept. */
 const snapshotsKept = 3
 
@@ -750,9 +839,12 @@ const prepareSchema = (database: DatabaseSync, path: string): void => {
       throw new WorkspaceTooNewError()
     }
     const carried = version !== 0 && version < schemaVersion
-    if (version === 0) database.exec(`${schema} PRAGMA user_version = ${schemaVersion};`)
-    else if (carried) migrate(database, path, version)
-    database.exec(extras)
+    if (version === 0) {
+      // Tables with no version are from before Novadeck kept one: no step knows them.
+      if (database.prepare("SELECT 1 FROM sqlite_schema WHERE type = 'table'").get())
+        throw new EarlierWorkspaceError(path, "it has tables but no schema version")
+      database.exec(`${schema} PRAGMA user_version = ${schemaVersion};`)
+    } else if (carried) migrate(database, path, version)
     const difference = schemaDifference(database)
     // Only a database of this version can be a newer build's by its columns; one carried
     // forward from a lower version is an earlier build's whatever it holds.
@@ -776,14 +868,13 @@ type TerminalRow = {
   id: string
   session_id: string
   cwd: string
-  agents: string
+  agent_reports: string
   prompted_at: number | null
   transcript: string | null
-  updated_at: number
+  saved_at: number
   handle: string
   person_title: string | null
-  agent_title: string | null
-  agent_titled_by: string | null
+  opener_title: string | null
   murmur_title: string | null
   summary: string | null
   opened_by: string | null
@@ -802,17 +893,11 @@ const workOf = (text: string | null): Work | null => {
   }
 }
 
-type NamingRow = Pick<
-  TerminalRow,
-  "person_title" | "agent_title" | "agent_titled_by" | "murmur_title" | "summary"
->
+type NamingRow = Pick<TerminalRow, "person_title" | "opener_title" | "murmur_title" | "summary">
 
 const namingOf = (row: NamingRow): Naming => ({
   person: row.person_title,
-  agent:
-    row.agent_title !== null && row.agent_titled_by !== null
-      ? { title: row.agent_title, by: row.agent_titled_by }
-      : null,
+  opener: row.opener_title !== null ? { title: row.opener_title } : null,
   murmur: row.murmur_title !== null ? { title: row.murmur_title } : null,
   summary: row.summary,
 })
@@ -828,9 +913,9 @@ const listed = (row: Omit<TerminalRow, "transcript">): ListedTerminal => ({
   command: row.command,
   lastProgram: row.last_program,
   cwd: row.cwd,
-  agents: agentsOf(row.agents),
+  agents: agentsOf(row.agent_reports),
   promptedAt: row.prompted_at,
-  savedAt: row.updated_at,
+  savedAt: row.saved_at,
 })
 
 const agentsOf = (text: string): SavedTerminal["agents"] => {
@@ -845,16 +930,17 @@ const agentsOf = (text: string): SavedTerminal["agents"] => {
 type MessageRow = {
   id: string
   project_id: string
-  thread_id: string
+  thread_id: string | null
   hop: number
-  from_terminal: string
-  from_handle: string
+  from_kind: "agent" | "person" | "novadeck"
+  from_terminal: string | null
+  from_handle: string | null
   from_agent: string | null
-  from_session: string | null
+  from_agent_session: string | null
   to_terminal: string
   to_handle: string
   to_agent: string
-  to_session: string | null
+  to_agent_session: string | null
   text: string
   sent_at: number
   state: string
@@ -878,22 +964,51 @@ type ThreadRow = {
   stopped_at: number | null
 }
 
+// The person's and Novadeck's messages carry no sender terminal or thread in the store; the
+// message has them as it always did: the person's under the id of the entry it answers.
+const personSender: Message["from"] = {
+  terminalId: "you",
+  handle: "you",
+  agent: null,
+  sessionId: null,
+}
+
+const senderOf = (row: MessageRow): Message["from"] => {
+  if (row.from_kind === "person") return personSender
+  if (row.from_kind === "novadeck") return novadeckSender
+  return {
+    terminalId: row.from_terminal!,
+    handle: row.from_handle!,
+    agent: row.from_agent as Message["from"]["agent"],
+    sessionId: row.from_agent_session,
+  }
+}
+
+const threadOf = (row: MessageRow): string => {
+  if (row.from_kind === "agent") return row.thread_id!
+  if (row.from_kind === "novadeck") return `t-notice-${row.id}`
+  const { askId } = JSON.parse(row.response!) as { askId: string }
+  return `t-${askId.replaceAll("-", "")}`
+}
+
+const kindOf = (from: Message["from"]): MessageRow["from_kind"] =>
+  from.terminalId === personSender.terminalId
+    ? "person"
+    : from.terminalId === novadeckSender.terminalId
+      ? "novadeck"
+      : "agent"
+
 const messageOf = (row: MessageRow): Message => ({
   id: row.id,
   projectId: row.project_id,
-  thread: row.thread_id,
+  thread: threadOf(row),
   hop: row.hop,
-  from: {
-    terminalId: row.from_terminal,
-    handle: row.from_handle,
-    agent: row.from_agent as Message["from"]["agent"],
-    sessionId: row.from_session,
-  },
+  from: senderOf(row),
   to: {
     terminalId: row.to_terminal,
     handle: row.to_handle,
     agent: row.to_agent as Message["to"]["agent"],
-    sessionId: row.to_session,
+    sessionId: row.to_agent_session,
   },
   text: row.text,
   sentAt: row.sent_at,
@@ -934,17 +1049,17 @@ type ItemRow = {
   lines_from: number | null
   lines_to: number | null
   plan_agent: string | null
-  plan_session: string | null
+  plan_agent_session: string | null
   plan_actor: string | null
   plan_format: string | null
   name: string
   detail: string
-  held: number
+  secret: number
   shown_by: ItemRecord["by"]
   from_terminal: string | null
   from_handle: string | null
   version: number
-  asked: number
+  open_asked: number
   shown_at: number
   observed_at: number | null
 }
@@ -963,24 +1078,24 @@ const itemOf = (row: ItemRow): ItemRecord => ({
       ? { from: row.lines_from, to: row.lines_to }
       : null,
   plan:
-    row.plan_agent !== null && row.plan_session !== null
+    row.plan_agent !== null && row.plan_agent_session !== null
       ? {
           agent: row.plan_agent as AgentName,
-          session: row.plan_session,
+          session: row.plan_agent_session,
           actor: row.plan_actor || null,
           format: row.plan_format === "text" ? "text" : "file",
         }
       : null,
   name: row.name,
   detail: row.detail,
-  held: row.held === 1,
+  secret: row.secret === 1,
   by: row.shown_by,
   from:
     row.from_terminal !== null && row.from_handle !== null
       ? { terminalId: row.from_terminal, handle: row.from_handle }
       : null,
   version: row.version,
-  asked: row.asked === 1,
+  openAsked: row.open_asked === 1,
   shownAt: row.shown_at,
   observedAt: row.observed_at,
 })
@@ -1077,27 +1192,13 @@ export class WorkspaceStore implements TerminalRecords, MessageRecords, InboxRec
 
   /**
    * Deletes the project, its sessions, what they kept of their terminals and their
-   * handles, and its agents' messages and threads, all at once; an unknown project is
-   * `NOT_FOUND`. Its terminals' shells are the caller's to end first.
+   * handles, its items and windows, and its agents' messages, threads and Inbox entries, all
+   * at once, by their foreign keys; an unknown project is `NOT_FOUND`. Its terminals' shells
+   * are the caller's to end first.
    */
   removeProject(projectId: string): void {
     this.project(projectId)
-    this.forget(() =>
-      this.transaction(() => {
-        const sessions = "SELECT id FROM sessions WHERE project_id = ?"
-        // Its sessions' companion items and windows go with them, by their foreign keys.
-        for (const sql of [
-          "DELETE FROM messages WHERE project_id = ?",
-          "DELETE FROM message_threads WHERE project_id = ?",
-          "DELETE FROM inbox WHERE project_id = ?",
-          `DELETE FROM terminals WHERE session_id IN (${sessions})`,
-          `DELETE FROM session_handles WHERE session_id IN (${sessions})`,
-          "DELETE FROM sessions WHERE project_id = ?",
-          "DELETE FROM projects WHERE id = ?",
-        ])
-          this.database.prepare(sql).run(projectId)
-      }),
-    )
+    this.forget(() => this.queries.run`DELETE FROM projects WHERE id = ${projectId}`)
   }
 
   project(projectId: string): Project {
@@ -1111,15 +1212,15 @@ export class WorkspaceStore implements TerminalRecords, MessageRecords, InboxRec
   sessions(projectId: string): WorkspaceSession[] {
     this.project(projectId)
     return this.queries.all`
-      SELECT id, project_id AS projectId, name, state FROM sessions
-      WHERE project_id = ${projectId} ORDER BY position
+      SELECT id, project_id AS projectId, name, client_state AS state, visited_at AS visitedAt
+      FROM sessions WHERE project_id = ${projectId} ORDER BY position
     ` as WorkspaceSession[]
   }
 
   /** Creates a session in an existing project; a taken `id` is a `CONFLICT`. */
   createSession(input: { id: string; projectId: string; name: string }): WorkspaceSession {
     this.project(input.projectId)
-    const session = { ...input, state: null }
+    const session = { ...input, state: null, visitedAt: null }
     if (this.queries.get`SELECT 1 FROM sessions WHERE id = ${session.id}`) {
       throw new DomainError("CONFLICT", "Session id is already taken")
     }
@@ -1134,15 +1235,18 @@ export class WorkspaceStore implements TerminalRecords, MessageRecords, InboxRec
     return this.session(input.sessionId)
   }
 
-  /** Replaces the session's client state without interpreting it. */
-  saveSession(input: { sessionId: string; state: string }): void {
+  /** Replaces the session's client state, without interpreting it, and when it was visited. */
+  saveSession(input: { sessionId: string; state: string; visitedAt: number | null }): void {
     this.session(input.sessionId)
-    void this.queries.run`UPDATE sessions SET state = ${input.state} WHERE id = ${input.sessionId}`
+    void this.queries.run`
+      UPDATE sessions SET client_state = ${input.state}, visited_at = ${input.visitedAt}
+      WHERE id = ${input.sessionId}`
   }
 
   session(sessionId: string): WorkspaceSession {
     const session = this.queries.get`
-      SELECT id, project_id AS projectId, name, state FROM sessions WHERE id = ${sessionId}
+      SELECT id, project_id AS projectId, name, client_state AS state, visited_at AS visitedAt
+      FROM sessions WHERE id = ${sessionId}
     ` as WorkspaceSession | undefined
     if (!session) throw new DomainError("NOT_FOUND", "Session not found")
     return session
@@ -1150,8 +1254,8 @@ export class WorkspaceStore implements TerminalRecords, MessageRecords, InboxRec
 
   terminal(terminalId: string): SavedTerminal | undefined {
     const row = this.queries.get`
-      SELECT id, session_id, cwd, agents, prompted_at, transcript, updated_at, handle,
-        person_title, agent_title, agent_titled_by, murmur_title, summary, opened_by,
+      SELECT id, session_id, cwd, agent_reports, prompted_at, transcript, saved_at, handle,
+        person_title, opener_title, murmur_title, summary, opened_by,
         led_by, command, last_program, work
       FROM terminals WHERE id = ${terminalId}
     ` as TerminalRow | undefined
@@ -1164,14 +1268,14 @@ export class WorkspaceStore implements TerminalRecords, MessageRecords, InboxRec
     const rows = (
       sessionId === undefined
         ? this.queries.all`
-          SELECT t.id, t.session_id, t.cwd, t.agents, t.prompted_at, t.updated_at, t.handle,
-            t.person_title, t.agent_title, t.agent_titled_by, t.murmur_title, t.summary,
+          SELECT t.id, t.session_id, t.cwd, t.agent_reports, t.prompted_at, t.saved_at, t.handle,
+            t.person_title, t.opener_title, t.murmur_title, t.summary,
             t.opened_by, t.led_by, t.command, t.last_program, t.work
           FROM terminals t LEFT JOIN session_handles h USING (session_id, handle)
           ORDER BY h.rowid IS NULL, h.rowid, t.rowid`
         : this.queries.all`
-          SELECT t.id, t.session_id, t.cwd, t.agents, t.prompted_at, t.updated_at, t.handle,
-            t.person_title, t.agent_title, t.agent_titled_by, t.murmur_title, t.summary,
+          SELECT t.id, t.session_id, t.cwd, t.agent_reports, t.prompted_at, t.saved_at, t.handle,
+            t.person_title, t.opener_title, t.murmur_title, t.summary,
             t.opened_by, t.led_by, t.command, t.last_program, t.work
           FROM terminals t LEFT JOIN session_handles h USING (session_id, handle)
           WHERE t.session_id = ${sessionId}
@@ -1209,7 +1313,7 @@ export class WorkspaceStore implements TerminalRecords, MessageRecords, InboxRec
 
   terminalIdentity(terminalId: string): TerminalIdentity | undefined {
     const row = this.queries.get`
-      SELECT handle, person_title, agent_title, agent_titled_by, murmur_title, summary, opened_by, led_by
+      SELECT handle, person_title, opener_title, murmur_title, summary, opened_by, led_by
       FROM terminals WHERE id = ${terminalId}
     ` as (NamingRow & Pick<TerminalRow, "handle" | "opened_by" | "led_by">) | undefined
     return (
@@ -1232,41 +1336,40 @@ export class WorkspaceStore implements TerminalRecords, MessageRecords, InboxRec
     const { person } = naming
     const murmurTitle = naming.murmur?.title ?? null
     const { summary } = naming
-    const agentTitle = naming.agent?.title ?? null
-    const agentBy = naming.agent?.by ?? null
+    const openerTitle = naming.opener?.title ?? null
     const work = terminal.work === null ? null : JSON.stringify(terminal.work)
     if (terminal.transcript === undefined)
       void this.queries.run`
-        INSERT INTO terminals (id, session_id, cwd, agents, prompted_at, updated_at, handle,
-          person_title, agent_title, agent_titled_by, murmur_title, summary, opened_by,
+        INSERT INTO terminals (id, session_id, cwd, agent_reports, prompted_at, saved_at, handle,
+          person_title, opener_title, murmur_title, summary, opened_by,
           led_by, command, last_program, work)
         VALUES (${terminal.id}, ${terminal.sessionId}, ${terminal.cwd}, ${agents},
-          ${terminal.promptedAt}, ${now}, ${handle}, ${person}, ${agentTitle}, ${agentBy},
+          ${terminal.promptedAt}, ${now}, ${handle}, ${person}, ${openerTitle},
           ${murmurTitle}, ${summary}, ${openedBy}, ${ledBy}, ${command}, ${lastProgram},
           ${work})
         ON CONFLICT (id) DO UPDATE SET session_id = excluded.session_id, cwd = excluded.cwd,
-          agents = excluded.agents, prompted_at = excluded.prompted_at,
-          updated_at = excluded.updated_at, handle = excluded.handle,
-          person_title = excluded.person_title, agent_title = excluded.agent_title,
-          agent_titled_by = excluded.agent_titled_by, murmur_title = excluded.murmur_title,
+          agent_reports = excluded.agent_reports, prompted_at = excluded.prompted_at,
+          saved_at = excluded.saved_at, handle = excluded.handle,
+          person_title = excluded.person_title, opener_title = excluded.opener_title,
+          murmur_title = excluded.murmur_title,
           summary = excluded.summary, opened_by = excluded.opened_by,
           led_by = excluded.led_by, command = excluded.command,
           last_program = excluded.last_program, work = excluded.work
       `
     else
       void this.queries.run`
-        INSERT INTO terminals (id, session_id, cwd, agents, prompted_at, transcript, updated_at,
-          handle, person_title, agent_title, agent_titled_by, murmur_title, summary,
+        INSERT INTO terminals (id, session_id, cwd, agent_reports, prompted_at, transcript, saved_at,
+          handle, person_title, opener_title, murmur_title, summary,
           opened_by, led_by, command, last_program, work)
         VALUES (${terminal.id}, ${terminal.sessionId}, ${terminal.cwd}, ${agents},
           ${terminal.promptedAt}, ${terminal.transcript}, ${now}, ${handle}, ${person},
-          ${agentTitle}, ${agentBy}, ${murmurTitle}, ${summary}, ${openedBy}, ${ledBy},
+          ${openerTitle}, ${murmurTitle}, ${summary}, ${openedBy}, ${ledBy},
           ${command}, ${lastProgram}, ${work})
         ON CONFLICT (id) DO UPDATE SET session_id = excluded.session_id, cwd = excluded.cwd,
-          agents = excluded.agents, prompted_at = excluded.prompted_at,
-          transcript = excluded.transcript, updated_at = excluded.updated_at,
+          agent_reports = excluded.agent_reports, prompted_at = excluded.prompted_at,
+          transcript = excluded.transcript, saved_at = excluded.saved_at,
           handle = excluded.handle, person_title = excluded.person_title,
-          agent_title = excluded.agent_title, agent_titled_by = excluded.agent_titled_by,
+          opener_title = excluded.opener_title,
           murmur_title = excluded.murmur_title, summary = excluded.summary,
           opened_by = excluded.opened_by, led_by = excluded.led_by, command = excluded.command,
           last_program = excluded.last_program, work = excluded.work
@@ -1279,15 +1382,15 @@ export class WorkspaceStore implements TerminalRecords, MessageRecords, InboxRec
 
   forgetAgent(agent: AgentName): void {
     this.forget(() => {
-      const rows = this.queries.all`SELECT id, agents FROM terminals` as Pick<
+      const rows = this.queries.all`SELECT id, agent_reports FROM terminals` as Pick<
         TerminalRow,
-        "id" | "agents"
+        "id" | "agent_reports"
       >[]
       for (const row of rows) {
-        const { [agent]: forgotten, ...rest } = agentsOf(row.agents)
+        const { [agent]: forgotten, ...rest } = agentsOf(row.agent_reports)
         if (forgotten)
           void this.queries
-            .run`UPDATE terminals SET agents = ${JSON.stringify(rest)} WHERE id = ${row.id}`
+            .run`UPDATE terminals SET agent_reports = ${JSON.stringify(rest)} WHERE id = ${row.id}`
       }
     })
   }
@@ -1358,7 +1461,7 @@ export class WorkspaceStore implements TerminalRecords, MessageRecords, InboxRec
   }
 
   entries(): StoredEntry[] {
-    const rows = this.queries.all`SELECT id, record FROM inbox ORDER BY at` as {
+    const rows = this.queries.all`SELECT id, record FROM inbox_entries ORDER BY at` as {
       id: string
       record: string
     }[]
@@ -1377,7 +1480,7 @@ export class WorkspaceStore implements TerminalRecords, MessageRecords, InboxRec
   }
 
   saveEntry(entry: StoredEntry): void {
-    void this.queries.run`INSERT INTO inbox (id, project_id, terminal_id, at, record)
+    void this.queries.run`INSERT INTO inbox_entries (id, project_id, terminal_id, at, record)
       VALUES (${entry.id}, ${entry.projectId}, ${entry.terminalId}, ${entry.at}, ${JSON.stringify(entry)})
       ON CONFLICT (id) DO UPDATE SET record = excluded.record`
   }
@@ -1398,7 +1501,7 @@ export class WorkspaceStore implements TerminalRecords, MessageRecords, InboxRec
   removeEntries(ids: readonly string[]): void {
     this.forget(() =>
       this.transaction(() => {
-        for (const id of ids) void this.queries.run`DELETE FROM inbox WHERE id = ${id}`
+        for (const id of ids) void this.queries.run`DELETE FROM inbox_entries WHERE id = ${id}`
       }),
     )
   }
@@ -1411,17 +1514,21 @@ export class WorkspaceStore implements TerminalRecords, MessageRecords, InboxRec
 
   saveMessage(message: Message): void {
     const { from, to } = message
+    const kind = kindOf(from)
+    // Only an agent's has a thread and a sender of its own (see `messageOf`).
+    const agent = kind === "agent"
     void this.queries.run`
-      INSERT INTO messages (id, project_id, thread_id, hop, from_terminal, from_handle, from_agent,
-        from_session, to_terminal, to_handle, to_agent, to_session, text, sent_at, state,
-        delivered_at, notified, stopped, from_lead, to_lead, response)
-      VALUES (${message.id}, ${message.projectId}, ${message.thread}, ${message.hop},
-        ${from.terminalId}, ${from.handle}, ${from.agent}, ${from.sessionId}, ${to.terminalId},
+      INSERT INTO messages (id, project_id, thread_id, hop, from_kind, from_terminal, from_handle,
+        from_agent, from_agent_session, to_terminal, to_handle, to_agent, to_agent_session, text,
+        sent_at, state, delivered_at, notified, stopped, from_lead, to_lead, response)
+      VALUES (${message.id}, ${message.projectId}, ${agent ? message.thread : null}, ${message.hop},
+        ${kind}, ${agent ? from.terminalId : null}, ${agent ? from.handle : null},
+        ${agent ? from.agent : null}, ${agent ? from.sessionId : null}, ${to.terminalId},
         ${to.handle}, ${to.agent}, ${to.sessionId}, ${message.text}, ${message.sentAt},
         ${message.state}, ${message.deliveredAt}, ${message.notified ? 1 : 0},
         ${message.stopped ? 1 : 0}, ${message.fromLead ? 1 : 0}, ${message.toLead ? 1 : 0},
         ${message.response ? JSON.stringify(message.response) : null})
-      ON CONFLICT (id) DO UPDATE SET to_session = excluded.to_session, state = excluded.state,
+      ON CONFLICT (id) DO UPDATE SET to_agent_session = excluded.to_agent_session, state = excluded.state,
         delivered_at = excluded.delivered_at, notified = excluded.notified,
         stopped = excluded.stopped, response = excluded.response
     `
@@ -1735,24 +1842,24 @@ export class WorkspaceStore implements TerminalRecords, MessageRecords, InboxRec
       "TERMINAL_NOT_FOUND",
       () => this.queries.run`
       INSERT INTO companion_items (id, session_id, terminal_id, window_id, pointer_key, kind, path,
-        url, lines_from, lines_to, plan_agent, plan_session, plan_actor, plan_format, name,
-        detail, held, shown_by, from_terminal, from_handle, version, asked, shown_at,
+        url, lines_from, lines_to, plan_agent, plan_agent_session, plan_actor, plan_format, name,
+        detail, secret, shown_by, from_terminal, from_handle, version, open_asked, shown_at,
         observed_at)
       VALUES (${item.id}, ${item.sessionId}, ${item.terminalId}, ${item.windowId},
         ${item.pointerKey}, ${item.kind}, ${item.path}, ${item.url}, ${lines?.from ?? null},
         ${lines?.to ?? null}, ${plan?.agent ?? null}, ${plan?.session ?? null},
         ${plan ? (plan.actor ?? "") : null}, ${plan?.format ?? null}, ${item.name},
-        ${item.detail}, ${item.held ? 1 : 0}, ${item.by}, ${from?.terminalId ?? null}, ${from?.handle ?? null},
-        ${item.version}, ${item.asked ? 1 : 0}, ${item.shownAt}, ${item.observedAt})
+        ${item.detail}, ${item.secret ? 1 : 0}, ${item.by}, ${from?.terminalId ?? null}, ${from?.handle ?? null},
+        ${item.version}, ${item.openAsked ? 1 : 0}, ${item.shownAt}, ${item.observedAt})
       ON CONFLICT (id) DO UPDATE SET terminal_id = excluded.terminal_id,
         window_id = excluded.window_id, pointer_key = excluded.pointer_key, kind = excluded.kind,
         path = excluded.path, url = excluded.url, lines_from = excluded.lines_from,
         lines_to = excluded.lines_to, plan_agent = excluded.plan_agent,
-        plan_session = excluded.plan_session, plan_actor = excluded.plan_actor,
+        plan_agent_session = excluded.plan_agent_session, plan_actor = excluded.plan_actor,
         plan_format = excluded.plan_format, name = excluded.name, detail = excluded.detail,
-        held = excluded.held, shown_by = excluded.shown_by,
+        secret = excluded.secret, shown_by = excluded.shown_by,
         from_terminal = excluded.from_terminal, from_handle = excluded.from_handle,
-        version = excluded.version, asked = excluded.asked, shown_at = excluded.shown_at,
+        version = excluded.version, open_asked = excluded.open_asked, shown_at = excluded.shown_at,
         observed_at = excluded.observed_at
     `,
     )

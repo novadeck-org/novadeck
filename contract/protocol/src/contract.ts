@@ -125,7 +125,9 @@ export const contract = {
     // Replaces the session's client state, which the runner stores without reading it, and
     // when the person last visited the session (null: never).
     save: procedure
-      .input(z.strictObject({ sessionId: id, state: clientState, visitedAt: z.number().nullable() }))
+      .input(
+        z.strictObject({ sessionId: id, state: clientState, visitedAt: z.number().nullable() }),
+      )
       .output(z.void()),
   },
   terminals: {

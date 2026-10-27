@@ -529,7 +529,7 @@ describe("when an agent's terminal is named", () => {
       {
         work: work(),
         activity: idle("ok"),
-        naming: { ...unnamed, agent: { title: "Addons", by: "lead" } },
+        naming: { ...unnamed, opener: { title: "Addons" } },
       },
       new FakeDescriber({ reply: () => ({ title: "Addons switch" }) }),
     )
@@ -556,7 +556,7 @@ describe("when an agent's terminal is named", () => {
       {
         agent: null,
         program: { name: "bash", argv: null },
-        naming: { ...unnamed, agent: { title: "Login fix", by: "lead" } },
+        naming: { ...unnamed, opener: { title: "Login fix" } },
       },
       new FakeDescriber({
         reply: (digest) => ({ title: digest.kind === "shell" ? "Git history" : "Login redirect" }),
@@ -1239,7 +1239,7 @@ describe("when murmur becomes usable", () => {
     agent("c", unnamed)
     // Titled: it waits for its agent's next summary.
     agent("d", { ...unnamed, murmur: { title: "Had one" }, summary: "Fixes the login." })
-    agent("e", { ...unnamed, agent: { title: "Opened", by: "lead" }, summary: "Fixes the logout." })
+    agent("e", { ...unnamed, opener: { title: "Opened" }, summary: "Fixes the logout." })
     change({ program: { name: "bash", argv: null } })
     describer.setUsable(false)
     describer.setUsable(true)

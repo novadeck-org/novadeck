@@ -724,7 +724,15 @@ export const itemContent = z.discriminatedUnion("state", [
   }),
   z.strictObject({
     state: z.literal("unavailable"),
-    reason: z.enum(["missing", "unreadable", "not-a-file", "too-large", "binary", "secret", "gone"]),
+    reason: z.enum([
+      "missing",
+      "unreadable",
+      "not-a-file",
+      "too-large",
+      "binary",
+      "secret",
+      "gone",
+    ]),
     size: z.number().nullable(),
   }),
 ])

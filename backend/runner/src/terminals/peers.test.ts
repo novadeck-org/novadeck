@@ -50,7 +50,7 @@ describe("what peers learn of a request waiting on the person", () => {
   })
 })
 
-const file = (path: string, held = false) => ({ kind: "file" as const, path, held })
+const file = (path: string, secret = false) => ({ kind: "file" as const, path, secret })
 
 describe("what a terminal's dictation hint is made of", () => {
   const summary = { cwd: "/w/repo/application/runner", sessionId: "s" } as TerminalSummary
@@ -65,7 +65,7 @@ describe("what a terminal's dictation hint is made of", () => {
   })
   const terminal = (fields: Partial<PeerTerminal>): PeerTerminal => ({
     summary,
-    naming: { person: null, agent: null, murmur: null, summary: null },
+    naming: { person: null, opener: null, murmur: null, summary: null },
     work: null,
     activity: null,
     openedBy: null,
@@ -97,8 +97,8 @@ describe("what a terminal's dictation hint is made of", () => {
     const shown = [
       file("/w/repo/held.ts", true),
       file("/w/repo/id_rsa"),
-      { kind: "image" as const, path: "/w/repo/shot.png", held: false },
-      { kind: "page" as const, path: null, held: false },
+      { kind: "image" as const, path: "/w/repo/shot.png", secret: false },
+      { kind: "page" as const, path: null, secret: false },
     ]
     expect(await peers.hint(terminal({ work }), shown)).toMatchObject({
       folders: ["api"],

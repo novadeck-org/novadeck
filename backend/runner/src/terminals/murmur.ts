@@ -416,7 +416,7 @@ const words = (text: string | null): string =>
 
 // Whether the terminal has no automatic title: neither murmur's nor its opening agent's.
 const untitled = ({ naming }: MurmurSubject): boolean =>
-  naming.murmur === null && naming.agent === null
+  naming.murmur === null && naming.opener === null
 
 const programKey = (program: ForegroundProcess | null): string | null =>
   program === null ? null : JSON.stringify([program.name, program.argv])
@@ -534,9 +534,9 @@ export class Murmur {
   // shell's title, which shows over the opener's, names what the shell did, not the agent's
   // work: then there is none to weigh, and the summary's title replaces it.
   private previousOf(subject: MurmurSubject, watch: Watch): string | undefined {
-    const { murmur, agent } = subject.naming
+    const { murmur, opener } = subject.naming
     if (murmur !== null) return watch.shellTitled ? undefined : murmur.title
-    return agent?.title
+    return opener?.title
   }
 
   /**
