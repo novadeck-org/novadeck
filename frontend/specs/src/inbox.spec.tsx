@@ -149,6 +149,46 @@ describe("An item's sheet", () => {
       await expect.element(sheet("Checkout review")).not.toBeInTheDocument()
     })
 
+    it("closes when its row is pressed again", async () => {
+      await openInbox()
+      await row("Run pnpm add").click()
+      await expect.element(sheet("Checkout review")).toBeVisible()
+      await row("Run pnpm add").click()
+
+      await expect.element(sheet("Checkout review")).not.toBeInTheDocument()
+      await expect.element(row("Run pnpm add")).not.toHaveAttribute("aria-current")
+    })
+
+    it("closes on a click in the sidebar off the list's buttons", async () => {
+      await openInbox()
+      await row("Run pnpm add").click()
+      await expect.element(sheet("Checkout review")).toBeVisible()
+      await page
+        .getByRole("region", { name: /^Inbox/ })
+        .getByRole("heading", { name: /^Inbox/ })
+        .click()
+
+      await expect.element(sheet("Checkout review")).not.toBeInTheDocument()
+    })
+
+    it("stays open on a press on the list's scrollbar", async () => {
+      await openInbox()
+      await row("Run pnpm add").click()
+      await expect.element(sheet("Checkout review")).toBeVisible()
+      const list = page.getByRole("list", { name: "Messages from your agents" }).element()
+      // A list too short to scroll has no scrollbar to press.
+      expect(list.scrollHeight).toBeGreaterThan(list.clientHeight)
+      // The test browser draws no scrollbar, so the press is sent as one lands on it: on the
+      // list itself, not on a row.
+      for (const type of ["pointerdown", "pointerup", "click"])
+        list.dispatchEvent(new PointerEvent(type, { bubbles: true, composed: true, button: 0 }))
+
+      await expectStaysAbsent({
+        shown: () => sheet("Checkout review").query() === null,
+        name: "the sheet closing",
+      })
+    })
+
     it("moves to another item when another row is pressed, and with j and k", async () => {
       await openInbox()
       await row("Run pnpm add").click()
