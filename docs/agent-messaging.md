@@ -364,7 +364,12 @@ like them, only inside Novadeck's terminals.
 - **`agents()`** lists the other terminals in the project and session, each as one
   short block of what Novadeck infers itself; the only thing an agent claims there, its
   own summary, is marked as its agent's. The runner renders it, as it renders a refused
-  `send`'s listing, and the MCP server prints the text as it is:
+  `send`'s listing, and the MCP server prints the text as it is. Under the caller's own
+  handle it first names the caller's team, when it is in one, from the running leads
+  only: "Your team: led by @fox, with @owl, @haze." for its lead and the others that lead
+  leads ("no other teammates" when there are none), and "Your team: you lead @owl." or,
+  with a lead of its own, "You also lead @owl." for the terminals it leads. Then each
+  other terminal:
   1. its handle;
   2. its title, from the runner's terminal record, with "(set by @fox, not the user)" when
      an agent gave it (an agent that opened the terminal), and "(written by Novadeck's local model, not the user)" for murmur's; then
