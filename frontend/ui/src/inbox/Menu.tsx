@@ -1,5 +1,6 @@
 import {
   useEffect,
+  useId,
   useImperativeHandle,
   useLayoutEffect,
   useRef,
@@ -38,6 +39,10 @@ export type MenuItem = {
   readonly pick?: boolean
   // Ticked or not, in a menu of several picks or for a switch.
   readonly check?: boolean
+  // Picked or not, in a menu of one pick: the row the person chose shows it.
+  readonly chosen?: boolean
+  // Whether pressing the row must be armed first, as `hard` says for all of them.
+  readonly arms?: boolean
   // More about the row, shown under the menu while the cursor is on it.
   readonly more?: ReactNode
   readonly words?: Words
@@ -102,8 +107,9 @@ export const Menu = ({
   const shape = {
     count: items.length,
     multi,
-    arms: (index: number) => hard && !items[index]?.words,
+    arms: (index: number) => (hard && !items[index]?.words) || Boolean(items[index]?.arms),
   }
+  const hints = useId()
 
   // Until when keys don't answer: set as it arrives.
   const guard = useRef(0)
@@ -186,7 +192,12 @@ export const Menu = ({
       {items.map((item, index) => {
         const on = index === at
         const armed = cursor.armed === index
-        const role = multi || item.check !== undefined ? "menuitemcheckbox" : "menuitem"
+        const role =
+          multi || item.check !== undefined
+            ? "menuitemcheckbox"
+            : item.chosen !== undefined
+              ? "menuitemradio"
+              : "menuitem"
         const number = item.check === undefined ? String(index + 1) : item.check ? "[x]" : "[ ]"
         const words = item.words
         const open = words && typing === index
@@ -221,7 +232,10 @@ export const Menu = ({
                 aria-label={words.field}
                 aria-required={words.required || undefined}
                 aria-invalid={words.value.length > wordsLimit || undefined}
-                disabled={busy}
+                aria-describedby={`${hints}-${index}`}
+                // Read-only, not disabled, while a reply is on its way or has not been
+                // delivered: the words stay there to select and copy.
+                readOnly={busy}
                 data-cancels=""
                 onFocus={() => {
                   setTyping(index)
@@ -252,7 +266,11 @@ export const Menu = ({
                   sendWords(index, words)
                 }}
               />
-              <span className="console-own-hint" role={words.refused ? "alert" : undefined}>
+              <span
+                id={`${hints}-${index}`}
+                className="console-own-hint"
+                role={words.refused ? "alert" : undefined}
+              >
                 {words.refused ??
                   (words.value.length > wordsLimit
                     ? `${(words.value.length - wordsLimit).toLocaleString("en-US")} over the 4,096 character limit. Shorten it to send.`
@@ -273,7 +291,14 @@ export const Menu = ({
             type="button"
             className="console-option"
             role={role}
-            aria-checked={role === "menuitemcheckbox" ? Boolean(item.check) : undefined}
+            aria-checked={
+              role === "menuitemcheckbox"
+                ? Boolean(item.check)
+                : role === "menuitemradio"
+                  ? item.chosen
+                  : undefined
+            }
+            data-chosen={item.chosen || undefined}
             aria-disabled={busy || undefined}
             tabIndex={on ? 0 : -1}
             onFocus={() => {
@@ -300,6 +325,11 @@ export const Menu = ({
                 <Text text={item.label} />
               )}
               {item.pick && <span className="console-pick"> its pick</span>}
+              {item.chosen && (
+                <span className="console-chosen" aria-hidden="true">
+                  ✓ your pick
+                </span>
+              )}
               {armed && <span className="console-confirm">↵ again to send it</span>}
             </span>
             {item.effect && (

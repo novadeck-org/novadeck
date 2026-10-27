@@ -121,7 +121,12 @@ describe("A sheet's menu", () => {
         answer: { kind: "request", answer: { option: "manual" } },
         receipt: "Approved @crow's plan.",
       })
-      expect(rows[1]).toMatchObject({ effect: "It edits and runs commands without asking." })
+      expect(rows[1]).toMatchObject({
+        effect: "It edits and runs commands without asking.",
+        hard: true,
+      })
+      // The plain yes is not a standing one.
+      expect(rows[0]).not.toHaveProperty("hard")
       // An empty box keeps planning, by the no that takes words.
       expect(words(rows[2]).answer("")).toEqual({
         kind: "request",

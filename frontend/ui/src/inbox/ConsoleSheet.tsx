@@ -1,12 +1,5 @@
 /* oxlint-disable react/no-array-index-key -- Lines are read from text and transcripts that have no ids; they never reorder. */
-import {
-  answered,
-  choose,
-  complete,
-  questionsAnswer,
-  write,
-  type Picks,
-} from "@novadeck/core/answers"
+import { answered, choose, questionsAnswer, write, type Picks } from "@novadeck/core/answers"
 import type { ChatQuestion } from "@novadeck/core/conversation"
 import type { HeldMessage, InboxRow, Trouble } from "@novadeck/core/inbox"
 import { unsaidWaits, waitsText } from "@novadeck/core/messages"
@@ -19,7 +12,7 @@ import { answerable, menuOf, resetLabel, type Menu as MenuModel, type Row } from
 import { rowOf } from "./inbox-dom"
 import { actionOf, agentName, limitWindow, recommended, subjectOf } from "./inbox-text"
 import { noDraft, useInboxContext } from "./InboxProvider"
-import { Menu, type MenuHandle, type MenuItem } from "./Menu"
+import { Menu, wordsLimit, type MenuHandle, type MenuItem } from "./Menu"
 import type { SheetContentProps } from "./Page"
 import { usePlanAnswered, usePlanText } from "./plan-text"
 import { CommandBox, Disclosure, Failure, Text } from "./sheet-parts"
@@ -28,14 +21,25 @@ import { CommandBox, Disclosure, Failure, Text } from "./sheet-parts"
 // few steps it took since; the thing it asks about, word for word; and a numbered menu that
 // answers it. Nothing here says what the head or the row says already.
 
-// Your last words, or a lead's, and up to three steps that edited, ran or failed. Nothing
-// while it loads, or where there is no transcript.
+// How long the room for the context stays kept while the agent's transcript is read. An agent
+// with none (a plain shell) gives the room back then.
+export const contextWaitMs = 2000
+
+// Your last words, or a lead's, and up to three steps that edited, ran or failed. It fills in
+// late and in batches, so the block holds the room of its longest self from the start: the menu
+// under it must not move as the person aims at it. Nothing where there is no transcript.
 const Context = ({ item }: { readonly item: InboxRow }): React.JSX.Element | null => {
   const context = useAgentContext(item)
-  if (!context || (!context.said && context.steps.length === 0)) return null
+  const [waiting, setWaiting] = useState(true)
+  useEffect(() => {
+    const timer = setTimeout(() => setWaiting(false), contextWaitMs)
+    return () => clearTimeout(timer)
+  }, [])
+  if (!context || (!context.said && context.steps.length === 0))
+    return waiting ? <div className="console-tail" data-reserved="" aria-hidden="true" /> : null
   const { said, steps } = context
   return (
-    <div className="console-tail">
+    <div className="console-tail" data-reserved="">
       {said && (
         <div className="console-you">
           <span className="console-gut" aria-hidden="true">
@@ -349,6 +353,7 @@ const RowsMenu = ({
           label: row.label,
           effect: row.effect,
           pick: row.pick,
+          ...(row.hard && { arms: true }),
           more: detailsOf(row.details),
         }
       case "words": {
@@ -386,6 +391,7 @@ const RowsMenu = ({
       return
     }
     const text = wordsOf(at)
+    if (text.length > wordsLimit) return
     submit(row.answer(text), row.receipt(text))
   }
   return (
@@ -403,9 +409,17 @@ const RowsMenu = ({
   )
 }
 
+// What is answered: the words of a question whose words are unticked stay out.
+const counted = (all: Picks, left: readonly string[]): Picks =>
+  Object.fromEntries(
+    Object.entries(all).map(([id, pick]) => [id, left.includes(id) ? { ...pick, text: "" } : pick]),
+  )
+
+const nameOf = (question: ChatQuestion): string => question.header ?? question.question
+
 // An agent's own dialog of questions: a menu for each, one pick or several, and the
-// person's own words where it takes them. One question of one pick sends at once; with
-// several, Enter on the last sends them all.
+// person's own words where it takes them. The answer goes the moment every question has one;
+// until then focus goes to the first that has none, and the page says which are left.
 const QuestionsMenu = ({
   props,
   dialog,
@@ -422,21 +436,32 @@ const QuestionsMenu = ({
   const { item, answering, submit } = props
   const { drafts, setDraft } = useInboxContext()
   const picks: Picks = drafts[item.id]?.picks ?? {}
-  const setPicks = (next: Picks): void => setDraft(item.id, { picks: next })
+  const leftOut = drafts[item.id]?.leftOut ?? []
+  const setPicks = (next: Picks, left: readonly string[] = leftOut): void =>
+    setDraft(item.id, { picks: next, leftOut: left })
   const [pressed, setPressed] = useState<{ question: number; at: number } | null>(null)
   const receipt = `Answered @${item.source.handle}'s ${questions.length > 1 ? "questions" : "question"}.`
-  const send = (next: Picks): void => {
-    if (!complete(next, questions)) return
-    submit({ kind: "request", answer: questionsAnswer(dialog, next, questions) }, receipt)
+  const now = counted(picks, leftOut)
+  const unanswered = questions.filter((question) => !answered(now, question))
+  const over = questions.filter((question) => (now[question.id]?.text.length ?? 0) > wordsLimit)
+  // Sends where every question has an answer within the limit; else takes the person to the
+  // first that has none, or to the words that are too long.
+  const finish = (next: Picks, left: readonly string[]): void => {
+    const ready = counted(next, left)
+    const open = questions.findIndex((question) => !answered(ready, question))
+    if (open >= 0) return void handles.current[open]?.key("Home")
+    const long = questions.findIndex(
+      (question) => (ready[question.id]?.text.length ?? 0) > wordsLimit,
+    )
+    if (long >= 0) return void handles.current[long]?.key("End")
+    submit({ kind: "request", answer: questionsAnswer(dialog, ready, questions) }, receipt)
   }
-  const ticked = (next: Picks): number =>
-    questions.reduce((count, question) => count + (next[question.id]?.options.length ?? 0), 0)
   return (
     <>
       {questions.map((question, index) => {
         const pick = picks[question.id]
-        const last = index === questions.length - 1
         const words = pick?.text ?? ""
+        const single = !question.multiSelect
         const items: MenuItem[] = question.options.map((option) => {
           const { label, pick: its } = recommended(option.label)
           return {
@@ -445,35 +470,39 @@ const QuestionsMenu = ({
             effect: option.description,
             pick: its,
             ...(question.multiSelect && { check: pick?.options.includes(option.id) ?? false }),
+            ...(single && { chosen: pick?.options.includes(option.id) ?? false }),
           }
         })
         if (question.text) {
-          const count = ticked({ [question.id]: pick ?? { options: [], text: "" } })
+          const count = pick?.options.length ?? 0
+          const others = questions.every((each, at) => at === index || answered(now, each))
           items.push({
             key: "own",
             label: "Reply in your own words",
             effect: null,
-            ...(question.multiSelect && { check: words !== "" }),
+            ...(question.multiSelect && { check: words !== "" && !leftOut.includes(question.id) }),
+            ...(single && { chosen: words.trim() !== "" }),
             words: {
               value: words,
-              onChange: (text) => setPicks(write(picks, question, text)),
+              // Writing ticks the words again if they were left out.
+              onChange: (text) =>
+                setPicks(
+                  write(picks, question, text),
+                  leftOut.filter((id) => id !== question.id),
+                ),
               placeholder: `Reply to ${agentName(item.source.agent)}`,
               field: `Your answer to ${question.question}`,
               required: !question.multiSelect || count === 0,
               refused: null,
-              hint: question.multiSelect
-                ? count > 0
-                  ? `send ${count} picked + your words`
-                  : "send your words"
-                : questions.length > 1 && !last
-                  ? "next question"
+              hint: !others
+                ? "next question"
+                : question.multiSelect
+                  ? count > 0
+                    ? `send ${count} picked + your words`
+                    : "send your words"
                   : "send your words instead",
             },
           })
-        }
-        const next = (after: Picks): void => {
-          if (!last) handles.current[index + 1]?.key("Home")
-          else send(after)
         }
         return (
           <div className="console-question" key={question.id}>
@@ -494,34 +523,40 @@ const QuestionsMenu = ({
               onPress={(at) => {
                 const option = question.options[at]
                 if (!option) {
-                  // The words row, ticked or unticked in a menu of several picks: unticking
-                  // leaves the words out.
-                  if (question.multiSelect && words !== "") setPicks(write(picks, question, ""))
+                  // The words row, in a menu of several picks: ticking brings the words
+                  // back, unticking leaves them out of the answer and keeps them.
+                  if (!question.multiSelect) return
+                  if (words !== "" && !leftOut.includes(question.id))
+                    setPicks(picks, [...leftOut, question.id])
+                  else if (leftOut.includes(question.id))
+                    setPicks(
+                      picks,
+                      leftOut.filter((id) => id !== question.id),
+                    )
                   return
                 }
                 const after = choose(picks, question, option.id)
                 setPicks(after)
                 if (question.multiSelect) return
                 setPressed({ question: index, at })
-                next(after)
+                finish(after, leftOut)
               }}
               onWords={() => {
-                if (!answered(picks, question)) return
                 setPressed({ question: index, at: items.length - 1 })
-                next(picks)
+                finish(picks, leftOut)
               }}
-              onSend={() => {
-                if (!last) return handles.current[index + 1]?.key("Home")
-                send(picks)
-              }}
+              onSend={() => finish(picks, leftOut)}
             />
           </div>
         )
       })}
       {questions.length > 1 && (
         <p className="console-note" role="status">
-          {questions.filter((question) => answered(picks, question)).length} of {questions.length}{" "}
-          answered
+          {questions.length - unanswered.length} of {questions.length} answered
+          {unanswered.length > 0 && unanswered.length < questions.length && (
+            <> · still to answer: {unanswered.map(nameOf).join("; ")}</>
+          )}
+          {over.length > 0 && <> · over the 4,096 character limit: {over.map(nameOf).join("; ")}</>}
         </p>
       )}
     </>

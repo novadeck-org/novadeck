@@ -30,6 +30,8 @@ export type Row =
       readonly details: Pick<AskOption, "details" | "code"> | null
       readonly answer: InboxAnswer
       readonly receipt: string
+      // Hard to take back: the first press arms the row, the second sends.
+      readonly hard?: true
       // Shows the agent's terminal once it has answered, as a follow-up does.
       readonly reveal?: true
     }
@@ -156,6 +158,8 @@ const permissionMenu = (item: InboxRow, request: ChatRequest): Menu => {
       pick: false,
       details: null,
       answer: answer(option),
+      // A plan's standing yes lets the agent act without asking from then on.
+      ...(plan && planEffect(option.label) !== null && { hard: true as const }),
       receipt: setsStanding(option)
         ? `${plan ? "Approved" : "Allowed"} ${who}; it won't ask again.`
         : `Answered ${who}.`,
