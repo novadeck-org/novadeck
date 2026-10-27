@@ -36,7 +36,7 @@ const Row = ({
   readonly first: boolean
   readonly settledFirst: boolean
 }): React.JSX.Element => {
-  const { state, view, now, drafts, ghosts, open, dismiss } = useInboxContext()
+  const { state, view, now, drafts, ghosts, open, close, dismiss } = useInboxContext()
   const { settled } = item
   const type = inboxType(item)
   const pending = Boolean(state.answering[item.id])
@@ -80,6 +80,8 @@ const Row = ({
         aria-disabled={settled ? "true" : undefined}
         onClick={(event) => {
           if (settled) return
+          // Pressed again, the open row closes its sheet.
+          if (current) return close()
           open(item.id)
           // From the keyboard, on to the sheet that opens.
           if (event.detail === 0) focusSheetSoon()
