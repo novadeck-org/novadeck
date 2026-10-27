@@ -1,7 +1,13 @@
 import { randomBytes, randomInt } from "node:crypto"
 import { stripVTControlCharacters } from "node:util"
 
-import { harnesses, type AgentName, type MessageParty, type MessageState } from "@novadeck/protocol"
+import {
+  harnesses,
+  type AgentName,
+  type MessageParty,
+  type MessageRecipient,
+  type MessageState,
+} from "@novadeck/protocol"
 
 /**
  * The message rules, as pure functions over its records (see docs/agent-messaging.md,
@@ -39,7 +45,7 @@ export const senderParty = (from: Sender): MessageParty =>
     : { kind: "person" }
 
 /** A message's recipient as the wire names it. */
-export const addresseeParty = (to: Addressee): MessageParty => ({
+export const addresseeParty = (to: Addressee): MessageRecipient => ({
   kind: "agent",
   handle: to.handle,
   agent: to.agent,

@@ -160,6 +160,7 @@ const Row = ({
       >
         <Avatar
           handle={conversation.peer}
+          person={you}
           size={30}
           live={you ? "idle" : liveOf(peer)}
           program={you ? undefined : peer?.program}
@@ -219,6 +220,7 @@ const Bubble = ({
           {!grouped && (
             <Avatar
               handle={handleOf(message.from)}
+              person={message.from.kind === "person"}
               size={22}
               live={message.from.kind === "person" ? "idle" : liveOf(peers[message.from.handle])}
             />
@@ -364,6 +366,7 @@ const Chat = ({
         </button>
         <Avatar
           handle={conversation.peer}
+          person={you}
           size={26}
           live={you ? "idle" : liveOf(peer)}
           program={you ? undefined : peer?.program}

@@ -661,7 +661,7 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))("bash shell i
     const told = () => shell.store.messages().filter(({ to }) => to.terminalId === id)
     await expect.poll(told).toMatchObject([
       {
-        from: { handle: "novadeck" },
+        from: { kind: "novadeck" },
         text: expect.stringContaining("while your turn was running"),
       },
     ])

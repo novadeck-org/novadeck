@@ -1063,12 +1063,18 @@ export const deliveryState = z.enum([
   "unknown",
 ])
 
-// Who a message is from or for: a terminal's agent, by the terminal's handle (`agent` null
-// while none had bound there), or the person, whose Inbox answers reach agents as messages
-// and whose Inbox history shows the agents' asks to them.
+// Who a message is from or for: a terminal's agent, by the terminal's handle, or the
+// person, whose Inbox answers reach agents as messages and whose Inbox history shows the
+// agents' asks to them. A sender's `agent` is null where none had bound there; a
+// recipient's is always the agent it was for.
+const personParty = z.strictObject({ kind: z.literal("person") })
 export const messageParty = z.discriminatedUnion("kind", [
   z.strictObject({ kind: z.literal("agent"), handle, agent: agentName.nullable() }),
-  z.strictObject({ kind: z.literal("person") }),
+  personParty,
+])
+export const messageRecipient = z.discriminatedUnion("kind", [
+  z.strictObject({ kind: z.literal("agent"), handle, agent: agentName }),
+  personParty,
 ])
 
 // One message between two terminals' agents, as sent: its text up to 4 KB, its place in
@@ -1079,7 +1085,7 @@ export const agentMessage = z.strictObject({
   thread: threadId,
   hop: z.number().int().positive(),
   from: messageParty,
-  to: messageParty,
+  to: messageRecipient,
   text: z.string().max(65_536),
   sentAt: z.number(),
   state: messageState,
@@ -1197,6 +1203,7 @@ export type MessageState = z.infer<typeof messageState>
 export type DeliveryState = z.infer<typeof deliveryState>
 export type DeliveryWaits = z.infer<typeof deliveryWaits>
 export type MessageParty = z.infer<typeof messageParty>
+export type MessageRecipient = z.infer<typeof messageRecipient>
 export type AgentMessage = z.infer<typeof agentMessage>
 export type MessageThread = z.infer<typeof messageThread>
 export type TerminalMessages = z.infer<typeof terminalMessages>
