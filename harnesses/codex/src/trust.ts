@@ -120,11 +120,12 @@ const listHooks = (where: Asking, cwd: string, timeoutMs: number): Promise<unkno
       child.stdin.write(`${JSON.stringify(message)}\n`)
   })
 
-// When a file last changed; 0 when it isn't there.
-const changed = (path: string): Promise<number> =>
+// When a file last changed and its size, as a timestamp alone may stay put on a coarse
+// clock; 0 when it isn't there.
+const changed = (path: string): Promise<string> =>
   stat(path).then(
-    (file) => file.mtimeMs,
-    () => 0,
+    (file) => `${file.mtimeMs}/${file.size}`,
+    () => "0",
   )
 
 /**
