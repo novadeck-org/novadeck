@@ -359,6 +359,28 @@ export const unboundNote =
   "Novadeck hasn't seen this terminal's own agent session, so replies can't reach you " +
   "until Novadeck's hooks run here (in Codex, trust them with /hooks)."
 
+/** Handles as a listing names them, in order: `@fox, @owl`. */
+const mentions = (peers: readonly Peer[]): string =>
+  peers.map(({ handle }) => mention(handle)).join(", ")
+
+/**
+ * The caller's team, from who leads whom now: its lead and the others that lead leads, and
+ * the terminals the caller leads; nothing when it is in no team.
+ */
+export const teamLines = (
+  handle: string,
+  lead: string | null,
+  peers: readonly Peer[],
+): readonly string[] => {
+  const mates = lead ? peers.filter((peer) => peer.lead === lead) : []
+  const led = peers.filter((peer) => peer.lead === handle)
+  return [
+    lead &&
+      `Your team: led by ${mention(lead)}${mates.length > 0 ? `, with ${mentions(mates)}` : ", no other teammates"}.`,
+    led.length > 0 && `${lead ? "You also lead" : "Your team: you lead"} ${mentions(led)}.`,
+  ].filter((line): line is string => Boolean(line))
+}
+
 /** What `agents` answers, as agents read it. */
 export const renderAgents = (input: {
   readonly handle: string
@@ -376,6 +398,7 @@ export const renderAgents = (input: {
 }): string =>
   [
     `You are ${mention(input.handle)} in Novadeck.`,
+    ...teamLines(input.handle, input.lead, input.peers),
     renderPeers(input.peers, input.now, {
       handle: input.handle,
       lead: input.lead,
