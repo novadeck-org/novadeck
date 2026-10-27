@@ -17,7 +17,7 @@ import { afterEach, beforeEach, vi } from "vitest"
 import { createRunnerInbox, detailGraceMs, retryMs, settleMs, type InboxStreams } from "./inbox"
 import { describe, expect, it } from "./test"
 
-const agent = (handle: string): MessageParty => ({ kind: "agent", handle, agent: null })
+const agentParty = (handle: string): MessageParty => ({ kind: "agent", handle, agent: null })
 
 const choices: ChatDialog = {
   type: "choices",
@@ -85,8 +85,8 @@ const asked = (id: string, askedAt: number, dialog: ChatDialog | null = choices)
 const message = (change: Partial<AgentMessage> = {}): AgentMessage => ({
   id: "m1",
   hop: 3,
-  from: agent("moth"),
-  to: agent("fox"),
+  from: agentParty("moth"),
+  to: agentParty("fox"),
   text: "Is the schema ready?",
   sentAt: 50,
   state: "held",
@@ -97,7 +97,7 @@ const message = (change: Partial<AgentMessage> = {}): AgentMessage => ({
 
 const thread = (change: Partial<MessageThread> = {}): MessageThread => ({
   id: "th1",
-  peer: agent("fox"),
+  peer: agentParty("fox"),
   hops: 3,
   idle: 0,
   held: true,
@@ -381,7 +381,7 @@ describe("The runner's Inbox", () => {
             waitsSince: 10_000,
             threads: [
               thread({
-                peer: agent("moth"),
+                peer: agentParty("moth"),
                 held: false,
                 messages: [message({ state: "queued", held: null })],
               }),
@@ -1032,7 +1032,7 @@ describe("Inbox entries", () => {
           messages: [
             message({
               from: { kind: "person" },
-              to: agent("moth"),
+              to: agentParty("moth"),
               inbox: "answer",
               state: "gone",
               held: null,
@@ -1088,7 +1088,7 @@ describe("Inbox entries", () => {
     await settle()
     const delivered = message({
       from: { kind: "person" },
-      to: agent("moth"),
+      to: agentParty("moth"),
       inbox: "answer",
       state: "delivered",
       held: null,
@@ -1140,7 +1140,7 @@ describe("Inbox entries", () => {
     await settle()
     const response = message({
       from: { kind: "person" },
-      to: agent("moth"),
+      to: agentParty("moth"),
       inbox: "answer",
       state: "queued",
       held: null,
@@ -1179,7 +1179,7 @@ describe("Inbox entries", () => {
     await settle()
     const lost = message({
       from: { kind: "person" },
-      to: agent("moth"),
+      to: agentParty("moth"),
       inbox: "answer",
       state: "gone",
       held: null,

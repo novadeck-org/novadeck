@@ -12,7 +12,7 @@ import type { ChatItem } from "./conversation"
 import type { AgentMessage, MessageParty, TerminalThreads } from "./messages"
 import { context, describe, expect, it } from "./test"
 
-const agent = (handle: string): MessageParty => ({ kind: "agent", handle, agent: null })
+const agentParty = (handle: string): MessageParty => ({ kind: "agent", handle, agent: null })
 
 let count = 0
 const item = (fields: Partial<ChatItem>): ChatItem => ({
@@ -537,8 +537,8 @@ describe("the person's Inbox answers an agent was given", () => {
   const message = (fields: Partial<AgentMessage>): AgentMessage => ({
     id: `m${++count}`,
     hop: 1,
-    from: agent("crow"),
-    to: agent("owl"),
+    from: agentParty("crow"),
+    to: agentParty("owl"),
     text: "build the context lane",
     sentAt: 1,
     state: "delivered",
@@ -550,7 +550,7 @@ describe("the person's Inbox answers an agent was given", () => {
     handle: "owl",
     agent: true,
     threads: [
-      { id: "t", peer: agent("crow"), hops: 1, idle: 0, held: false, heldFor: null, messages },
+      { id: "t", peer: agentParty("crow"), hops: 1, idle: 0, held: false, heldFor: null, messages },
     ],
   })
 
@@ -560,12 +560,12 @@ describe("the person's Inbox answers an agent was given", () => {
         threads([
           message({}),
           message({ text: "still on its way", state: "queued", deliveredAt: null }),
-          message({ from: agent("rook"), text: "a peer's note" }),
-          message({ from: agent("owl"), to: agent("crow"), text: "my report" }),
+          message({ from: agentParty("rook"), text: "a peer's note" }),
+          message({ from: agentParty("owl"), to: agentParty("crow"), text: "my report" }),
           message({ from: { kind: "person" }, inbox: "answer", text: "use UTC", deliveredAt: 3 }),
           message({ from: { kind: "person" }, inbox: "answer", text: "  ", deliveredAt: 4 }),
           message({
-            from: agent("owl"),
+            from: agentParty("owl"),
             to: { kind: "person" },
             inbox: "ask",
             text: "which zone?",

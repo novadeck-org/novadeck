@@ -1076,6 +1076,7 @@ describe("workspace metadata", () => {
     const path = join(cwd, "workspace.sqlite")
     const workspace = store(path)
     for (const id of ["a", "b", "c", "d"]) {
+      // eslint-disable-next-line no-await-in-loop -- Made one after another, so they list in that order.
       expect((await workspace.createProject({ id, name: id, cwd })).pinned).toBe(false)
     }
     expect(workspace.projects().map(({ id, pinned }) => [id, pinned])).toEqual([
@@ -1108,6 +1109,7 @@ describe("workspace metadata", () => {
     const cwd = directory()
     const workspace = store(join(cwd, "workspace.sqlite"))
     const ids = Array.from({ length: 11 }, (_, index) => `p${index}`)
+    // eslint-disable-next-line no-await-in-loop -- Made one after another, so they list in that order.
     for (const id of ids) await workspace.createProject({ id, name: id, cwd })
     const order = ids.toReversed()
     workspace.arrangeProjects(order, ids)

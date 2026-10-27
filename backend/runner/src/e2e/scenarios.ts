@@ -377,4 +377,4 @@ export const messages = (terminal: DeckTerminal) =>
   terminal
     .messages()
     .threads.flatMap((thread) => thread.messages)
-    .map((message) => ({ ...message, from: nameOf(message.from), to: nameOf(message.to) }))
+    .map((each) => ({ ...each, from: nameOf(each.from), to: nameOf(each.to) }))

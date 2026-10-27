@@ -118,11 +118,11 @@ describe("runner seed", () => {
     ]
 
     it("seeds the projects in the runner's order, each with its pin, and none in the workspace", () => {
-      const listing: RunnerListing = [2, 1].map((n) => ({
+      const arranged: RunnerListing = [2, 1].map((n) => ({
         project: { ...project(n), pinned: n === 1 },
         sessions: [{ session: fresh(10 * n), terminals: [] }],
       }))
-      const seed = runnerSeed(listing)
+      const seed = runnerSeed(arranged)
       expect(seed.projects.map(({ id, pinned }) => [id, pinned])).toEqual([
         [uuid(2), false],
         [uuid(1), true],
