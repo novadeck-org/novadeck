@@ -84,7 +84,7 @@ const wontArrive = (gone: Gone): string =>
   gone.released
     ? " won't arrive: the user released that terminal from your lead in Novadeck."
     : gone.stopped
-      ? " won't arrive: the user stopped that thread in Novadeck."
+      ? " won't arrive: the user stopped it in Novadeck."
       : " won't arrive: the agent session it was for ended there."
 type Closed = {
   readonly handle: string

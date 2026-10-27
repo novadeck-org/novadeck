@@ -436,7 +436,7 @@ describe("what agents and a refused send say", () => {
       })
     expect(told({})).toMatch(/won't arrive: the agent session it was for ended$/m)
     expect(told({ stopped: true })).toMatch(
-      /won't arrive: the user stopped that thread in Novadeck$/m,
+      /won't arrive: the user stopped it in Novadeck$/m,
     )
   })
 
