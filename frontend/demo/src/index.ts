@@ -27,7 +27,7 @@ import { createDemoEngine, type DemoEngine } from "./engine"
 import { withFeedback } from "./feedback"
 import { demoHandle } from "./handles"
 import { createDemoInbox, isDemoInbox } from "./inbox"
-import { demoInboxRows, demoEntries } from "./inbox-fixtures"
+import { demoInboxRows, demoEntries, demoPlanStates } from "./inbox-fixtures"
 import { inboxLeadMessages, inboxTranscripts, withInboxLead } from "./inbox-transcripts"
 import { checkoutMessages, createDemoMessages, isDemoMessages } from "./messages"
 import { createDemoMurmur, heldMurmurTiming, requestedMurmur } from "./murmur"
@@ -435,7 +435,8 @@ export const withPlanShows = (backend: Backend): Backend => {
       follow: (target, itemId, options, on) => {
         if (!itemId.startsWith(demoPlanPrefix))
           return companions.follow(target, itemId, options, on)
-        on(checkoutPlan.content)
+        // A plan shown for the loading state never has its content.
+        if (!itemId.endsWith(loadingSuffix)) on(checkoutPlan.content)
         return () => {}
       },
     },
@@ -450,10 +451,14 @@ export const withPlanShows = (backend: Backend): Backend => {
         for (const row of inbox.state.getSnapshot().items) {
           if (row.kind !== "request" || row.request.kind !== "plan" || shown.has(row.id)) continue
           shown.add(row.id)
+          // Its plan is never shown: the box waits, then the dialog's words stand in.
+          if (row.id === demoPlanStates.missing) continue
           const { projectId, workspaceSessionId, terminalId, handle } = row.source
           const role = row.request.subagent ? "subagent" : "root"
+          const loading = row.id === demoPlanStates.loading
           const plan = (latest ? itemsOf(latest) : seedItems(backend.seed)).find(
             (item) =>
+              !loading &&
               item.kind === "plan" &&
               item.from?.terminalId === terminalId &&
               item.plan?.role === role,
@@ -464,7 +469,7 @@ export const withPlanShows = (backend: Backend): Backend => {
               target: { projectId, workspaceSessionId },
               item: plan
                 ? { ...plan, version: plan.version + 1, shownAt: row.at }
-                : demoPlanItem(terminalId, handle, role, row.at),
+                : demoPlanItem(terminalId, handle, role, row.at, loading ? loadingSuffix : ""),
             },
           ])
         }
@@ -481,15 +486,19 @@ export const withPlanShows = (backend: Backend): Backend => {
 
 const demoPlanPrefix = "demo-plan-"
 
+// The id ending of a plan whose content never comes.
+const loadingSuffix = "-loading"
+
 // The checkout plan, shown on terminal `terminalId`'s bar at `at`.
 const demoPlanItem = (
   terminalId: string,
   handle: string,
   role: "root" | "subagent",
   at: number,
+  suffix: string,
 ): Item => ({
   ...checkoutPlan.item,
-  id: itemIdOf(`${demoPlanPrefix}${terminalId}${role === "subagent" ? "-subagent" : ""}`),
+  id: itemIdOf(`${demoPlanPrefix}${terminalId}${role === "subagent" ? "-subagent" : ""}${suffix}`),
   holder: { terminalId },
   by: "agent",
   from: { terminalId, handle },

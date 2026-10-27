@@ -332,6 +332,14 @@ export const demoLongCommand = [
   'echo "failed:${failed:- none}"',
 ].join("\n")
 
+// The plan approval's ids for the states of its plan box that the demo's plans never reach:
+// the plan still loading (its content never comes), and no plan found (none shown, so the
+// dialog's own words stand in once the wait is over). See `withPlanShows`.
+export const demoPlanStates = {
+  loading: "demo-plan-loading",
+  missing: "demo-plan-missing",
+} as const
+
 // The states the list does not start with, which the debug panel adds: a plan, a failed
 // turn, a free-text ask, a permission with a plain Deny, a limit Novadeck can't resume, a request with no
 // dialog, a failure with no error, a held message whose sender has gone, and messages held
