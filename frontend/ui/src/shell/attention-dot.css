@@ -31,11 +31,11 @@
     --_dot-ground: var(--segmented-hover-bg, var(--color-soft));
   }
 }
-.segment[data-dragging="true"] > .bell-dot {
-  --_dot-ground: var(--color-soft);
-}
 .segment:is([data-state="on"], [aria-checked="true"], [aria-pressed="true"]) > .bell-dot {
   --_dot-ground: var(--segmented-active-bg, var(--color-paper));
+}
+.segment[data-dragging="true"] > .bell-dot {
+  --_dot-ground: var(--color-soft);
 }
 .zen-inbox > .bell-dot {
   --_dot-ground: var(--zen-dock-bg, color-mix(in srgb, var(--color-paper) 95%, transparent));

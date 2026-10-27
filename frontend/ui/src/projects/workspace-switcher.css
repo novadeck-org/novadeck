@@ -18,16 +18,17 @@
 
    Hooks: on a row, data-pinned="true" for a pinned project and data-dragging="true" while
    it is dragged. On the trigger, aria-expanded="true" while the popover is open; on a row,
-   aria-current="true" and data-selected="true" for the current project. On the trigger
-   and on a row, data-project-status="ask" | "unblock" | "failed" | "done" |
-   "running" (never "running" on the trigger), which the status mark inside reads.
+   aria-current="true" and data-selected="true" for the current project. On a row,
+   data-project-status="ask" | "unblock" | "failed" | "done" | "running", which the
+   status mark inside reads; on the trigger, the same but never "running", for its dot.
 
    Tokens, each optional (its fallback in brackets):
    --workspace-switcher-icon-fg (muted): the trigger's folder and chevron.
    --workspace-switcher-pin-fg (muted): the mark by a pinned project's name.
    --workspace-switcher-drag-shadow (shadow-control): the row being dragged.
    --workspace-switcher-dot-ring (the header's --region-header-bg, then paper): the ring
-   that sets the dot off the folder.
+   that sets the dot off the folder at rest; under the pointer or open, the ghost
+   button's hover ground.
    The trigger takes the ghost button's tokens; rows are `.item.standalone`, taking the
    item's highlighted tokens under the pointer or the keyboard; the rule above the
    open-folder button takes --separator-bg. */
@@ -94,6 +95,14 @@
    ground. */
 .workspace-switcher-dot {
   --_dot-ground: var(--workspace-switcher-dot-ring, var(--region-header-bg, var(--color-paper)));
-  top: 9px;
+  top: 8px;
   left: 19px;
+}
+.workspace-switcher-trigger[aria-expanded="true"] > .workspace-switcher-dot {
+  --_dot-ground: var(--button-ghost-hover-bg, var(--color-soft));
+}
+@media (hover: hover) {
+  .workspace-switcher-trigger:hover > .workspace-switcher-dot {
+    --_dot-ground: var(--button-ghost-hover-bg, var(--color-soft));
+  }
 }

@@ -273,10 +273,10 @@
   --segmented-active-border-color: var(--color-strong);
   --segmented-active-shadow: 0 0 10px color-mix(in srgb, var(--color-strong) 45%, transparent);
 }
-/* A tone would vanish on the lit toggle, so the open Inbox's dot takes the toggle's ink; the
-   Inbox beside it shows the tone. */
+/* The accent would vanish on the lit toggle, so the open Inbox's dot takes the toggle's ink;
+   not under the pointer or while dragged, when the toggle is no longer lit. */
 :root:is([data-theme="phosphor-green"], [data-theme="phosphor-amber"])
-  .segment[aria-checked="true"]
+  .segment[aria-checked="true"]:not(:hover, [data-dragging="true"])
   > .bell-dot {
   color: var(--segmented-active-fg);
 }
