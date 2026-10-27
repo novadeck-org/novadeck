@@ -252,6 +252,7 @@ const pollStep = (
     .findLast(
       (each) =>
         each.tool !== "write_stdin" &&
+        each.run &&
         each.result &&
         runningSession(clean(each.result.text)) === session,
     )

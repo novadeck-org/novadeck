@@ -105,6 +105,7 @@ export const standingParts = (
 const planEffect = (label: string): string | null => {
   if (/bypass permissions/i.test(label)) return "It edits and runs commands without asking."
   if (/auto-accept/i.test(label)) return "It edits without asking."
+  if (/auto mode/i.test(label)) return "It acts without asking."
   return null
 }
 

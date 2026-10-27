@@ -631,6 +631,9 @@ pre.console-box {
 }
 .console-code:focus-visible,
 .console-box:focus-visible,
+.console-planbox[data-loading] .console-planscroll {
+  color: var(--color-muted);
+}
 .console-planscroll:focus-visible {
   outline: var(--focus-ring-width) solid var(--color-strong);
   outline-offset: -2px;

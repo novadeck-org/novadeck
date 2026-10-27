@@ -121,10 +121,22 @@ const Prose = ({ text }: { readonly text: string }): React.JSX.Element | null =>
     </div>
   )
 
-// The plan in a box of its own, as the chat draws Markdown: only the box scrolls. Until its
-// text has come, or where there is none, the dialog's own words stand in.
+// The plan in a box of its own, as the chat draws Markdown: only the box scrolls. While its
+// text is on its way the box says so; where there is none, the dialog's own words stand in.
 const PlanBox = ({ item, fallback }: { readonly item: InboxRow; readonly fallback: string }) => {
   const plan = usePlanText(item)
+  if (plan === undefined)
+    return (
+      <div className="console-planbox" data-loading="true">
+        <div className="console-planbar">
+          <span>plan</span>
+          <span>loading</span>
+        </div>
+        <div className="console-planscroll" aria-busy="true">
+          Loading the plan…
+        </div>
+      </div>
+    )
   const text = plan ?? fallback
   const lines = text.split("\n").length
   return (
@@ -590,7 +602,7 @@ export const ConsoleSheet = (shown: SheetContentProps): React.JSX.Element => {
   const picks = useRef<Picks>({})
   const drafted = drafts[item.id]?.picks
   useLayoutEffect(() => {
-    picks.current = drafted ?? {}
+    picks.current = counted(drafted ?? {}, drafts[item.id]?.leftOut ?? [])
   })
 
   // A number or an arrow pressed on the item's row or the sheet's title goes to the menu: the

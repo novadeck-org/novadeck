@@ -104,6 +104,23 @@ describe("A sheet's menu", () => {
   })
 
   context("for a plan", () => {
+    it("says and arms auto mode as it does bypass and auto-accept", () => {
+      const { rows } = menuOf(
+        permission(
+          [
+            { id: "auto", label: "Yes, and use auto mode", text: null },
+            { id: "manual", label: "Yes, and manually approve edits", text: null },
+          ],
+          "plan",
+        ),
+        0,
+      )
+      expect(rows.find((row) => row.label === "Yes, and use auto mode")).toMatchObject({
+        effect: "It acts without asking.",
+        hard: true,
+      })
+    })
+
     it("approves with the plain yes, and says what a standing yes lets it do", () => {
       const { rows } = menuOf(
         permission(

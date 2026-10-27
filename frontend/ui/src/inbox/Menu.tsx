@@ -305,6 +305,8 @@ export const Menu = ({
               if (!on) setCursor({ at: index, armed: null })
             }}
             onClick={() => {
+              // A double-click's second click, landing as the sheet moves on, isn't for this item.
+              if (Date.now() < guard.current) return
               const result = menuKey(shape, { ...cursor, at: index }, String(index + 1))
               if (!result) return press(index)
               setCursor(result.cursor)

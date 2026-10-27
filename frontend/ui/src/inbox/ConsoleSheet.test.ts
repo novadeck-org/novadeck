@@ -962,6 +962,26 @@ describe("The Console sheet", () => {
       await inbox.done()
     })
 
+    it("takes no click as it arrives either: a double-click's second lands on nothing", async () => {
+      const inbox = mount([
+        permission(codex, { id: "first", handle: "crow" }),
+        permission(codex, { id: "second", handle: "fox", at: 5 }),
+      ])
+      act(() => inbox.row("Allow").click())
+      inbox.confirm("first")
+      await nextFrame()
+
+      expect(text(".inbox-sheet-head .handle-chip")).toBe("@fox")
+      // The double-click's second click, on @fox's sheet, answers nothing.
+      act(() => inbox.row("Allow").click())
+      expect(inbox.sent).toHaveLength(1)
+      const later = Date.now() + 1000
+      vi.spyOn(Date, "now").mockReturnValue(later)
+      act(() => inbox.row("Allow").click())
+      expect(inbox.sent).toHaveLength(2)
+      await inbox.done()
+    })
+
     it("routes no key pressed with focus nowhere to the menu", async () => {
       const inbox = mount([permission(codex)])
       inbox.key("1", document.body)
@@ -1113,7 +1133,11 @@ describe("The Console sheet", () => {
         permission(codex, { id: "z", handle: "zz", at: 2 }),
         permission(codex, { id: "w", handle: "ww", at: 3 }),
       ])
+      // Each press a second after the last, past the guard a sheet keeps as it arrives.
+      let clock = Date.now()
       const allow = async (id: string): Promise<void> => {
+        clock += 1000
+        vi.spyOn(Date, "now").mockReturnValue(clock)
         inbox.press("Allow")
         inbox.confirm(id)
         await nextFrame()
