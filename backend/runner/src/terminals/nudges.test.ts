@@ -242,6 +242,8 @@ describe("a nudge", () => {
       "show tool",
       "deliverable",
       "not each file you touch",
+      "a page you serve or just deployed",
+      "a link to someone else's site",
       "diff",
       "open",
       "close",
