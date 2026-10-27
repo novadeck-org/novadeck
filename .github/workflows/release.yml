@@ -8,6 +8,7 @@ on:
   repository_dispatch:
     types: [release]
   # By hand, to release main as a version its commits don't call for, as the jump to 1.0.0.
+  # Start it while no Release runs: a merge queued behind it in the group below cancels it.
   workflow_dispatch:
     inputs:
       version:

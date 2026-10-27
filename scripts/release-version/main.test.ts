@@ -151,7 +151,8 @@ describe("planVersion", () => {
       await planVersion(
         undefined,
         sources({
-          tags: ["v1.0.0", "v9.0.0-beta.1", "nightly"],
+          // The fake raises the last tag; a 9.0.0 taken for the newest would plan 9.0.1.
+          tags: ["v9.0.0-beta.1", "nightly", "v1.0.0"],
           stable: "v1.0.0",
           sinceNewest: "patch",
           sinceStable: "patch",
