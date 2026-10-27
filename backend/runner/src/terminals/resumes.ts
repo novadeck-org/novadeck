@@ -13,10 +13,10 @@ import { hasRun, type SavedTerminal } from "./records.js"
  * The task a worker lost before its agent's first session starts with again: the command
  * it was opened with, which starts that agent (with the task's doorbell line, as
  * `open_agent` opens it), while it is still led and no session of any agent ever reported
- * there, as one a reboot ended behind its trust screen. An agent that exited first, or a startup the person's typing
- * cancelled, ended the lead already. The line's nonce comes with it, as the agent's first
- * typed entry. Undefined otherwise: a terminal whose agent ran resumes it or comes back a
- * shell.
+ * there, as one a reboot ended behind its trust screen. An agent that exited first, or a
+ * startup the person's typing cancelled, ended the lead already. The line's nonce comes
+ * with it, as the agent's first typed entry. Undefined otherwise: a terminal whose agent
+ * ran resumes it or comes back a shell.
  */
 export const restartedTask = (
   saved: Pick<SavedTerminal, "agents" | "command"> | undefined,
