@@ -164,15 +164,20 @@ for (const setup of setups) {
 
       const after = await run.model.waitFor((call) => closingSelf(call, "moth"), { after: calls })
       expect(result(after)).toMatch(/Closing @moth/)
+      // Its shell ends a moment after the answer, which on Windows takes the agent's whole
+      // process tree a few seconds: as long as the deck's other waits allow.
       await expect
-        .poll(() => {
-          try {
-            run.deck.terminals.get(t1.id)
-            return false
-          } catch {
-            return true
-          }
-        })
+        .poll(
+          () => {
+            try {
+              run.deck.terminals.get(t1.id)
+              return false
+            } catch {
+              return true
+            }
+          },
+          { timeout: 30_000 },
+        )
         .toBe(true)
       expect(run.deck.store.terminal(t1.id)).toBeUndefined()
     })
