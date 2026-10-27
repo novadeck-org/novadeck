@@ -148,6 +148,9 @@ describe("the next handle", () => {
     const given = new Set(["koi", "koiz", "pike", "pikez"])
     expect(nextHandle({ order: ["koi"], given, open: [] })).toBe("koix")
     expect(nextHandle({ order: ["pike"], given, open: [] })).toBe("pikex")
+    expect(nextHandle({ order: ["dusk"], given: new Set(["dusk", "duskz"]), open: [] })).toBe(
+      "duskx",
+    )
   })
 })
 

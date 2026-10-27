@@ -200,12 +200,13 @@ const suffixLetters = "zyxwvutsrqponmlkjihgfedcba"
 /**
  * The endings a round's letter skips besides its own, which read badly before it: `nimbusz`,
  * `foxz`, `koiy`. A round skips a word that ends in its letter too, as `fizz` in the `z` round.
- * Only the first three rounds have any: a session reaches the fourth after some 280 terminals.
+ * Only z, y and x have any, a session reaching the `w` round after some 280 terminals; they
+ * hold for the later rounds a suffix starts with them too, as `zy`.
  */
 const clashes: Readonly<Record<string, string>> = { z: "sx", y: "i", x: "sz" }
 
-/** Handles a round never gives, a word plus its letters making one no terminal should carry. */
-const refused: ReadonlySet<string> = new Set(["pikey"])
+/** Handles a round never gives: a word plus its letters making a slur, or a word for skin colour. */
+const refused: ReadonlySet<string> = new Set(["pikey", "dusky", "sooty"])
 
 /** Whether a round's suffix reads well after the word: the first round's empty one always does. */
 const follows = (word: string, suffix: string): boolean => {
