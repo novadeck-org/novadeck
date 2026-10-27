@@ -721,14 +721,17 @@ export class Messaging {
    * sent while a message that will be delivered to that agent soon already waits, queued
    * or leased and addressed to it (`soon`), whose delivery wakes it as well and stands in
    * for it, which also keeps at most one notice waiting. A message held for the person's
-   * release, or for another session, does not.
+   * release, or for another session, does not. With `always`, for a notice that carries
+   * news the agent has no other way to learn (an outcome), it is queued all the same,
+   * and wakes the agent as the waiting message does.
    */
-  notice(terminalId: string, text: string): boolean {
+  notice(terminalId: string, text: string, { always = false } = {}): boolean {
     const live = this.live.get(terminalId)
     if (!live || this.closed) return false
     const agent = live.root?.agent ?? live.shown?.agent ?? live.expecting
     if (!agent) return false
-    for (const message of this.messages.values()) if (this.soon(live, message)) return false
+    if (!always)
+      for (const message of this.messages.values()) if (this.soon(live, message)) return false
     const id = this.freshMessageId()
     this.put({
       id,
@@ -1549,7 +1552,8 @@ export class Messaging {
   /**
    * The other running terminal in the caller's project and session whose exact handle
    * `to` is, as `send` finds its recipient, with the agent running there as `agents`
-   * names it; or why there is none, describing every terminal there as `send` does.
+   * names it, or the one it is opened to run and expects to bind; or why there is none,
+   * describing every terminal there as `send` does.
    */
   peer(terminalId: string, to: string, about: About = () => undefined): PeerAnswer {
     const live = this.live.get(terminalId)
@@ -1560,7 +1564,7 @@ export class Messaging {
         ok: true,
         terminalId: found.terminalId,
         handle: found.handle,
-        agent: found.root?.agent ?? found.shown?.agent ?? null,
+        agent: found.root?.agent ?? found.shown?.agent ?? found.expecting,
       }
     return refused(
       unknownHandle(

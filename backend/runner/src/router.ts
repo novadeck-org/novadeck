@@ -119,6 +119,12 @@ export const createRouter = (options: {
       answerRequest: api.terminals.answerRequest.handler(({ input, context }) =>
         terminals.answerRequest(input, context.session.id),
       ),
+      closeAsks: api.terminals.closeAsks.handler(({ context, signal }) =>
+        terminals.closeAsks(context.session.id, signal),
+      ),
+      answerCloseAsk: api.terminals.answerCloseAsk.handler(({ input, context }) =>
+        terminals.answerCloseAsk(input, context.session.id),
+      ),
       watch: api.terminals.watch.handler(({ context, signal }) =>
         terminals.watch(context.session.id, signal),
       ),

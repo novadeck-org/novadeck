@@ -12,6 +12,7 @@ import { z } from "zod"
 
 import { DomainError } from "../errors.js"
 import type { SendAnswer } from "../messaging/messaging.js"
+import { Followers } from "./followers.js"
 
 /**
  * What an agent asks to open, through Novadeck's MCP server: a new terminal beside its
@@ -147,44 +148,6 @@ export type Asked =
   | { readonly type: "answered"; readonly answer: TerminalRequestAnswer }
   | { readonly type: "nobody" | "gone" | "late" }
 
-/** One `terminals.requests` stream: the requests sent to its client, in order. */
-class Follower {
-  private readonly queue: TerminalRequest[] = []
-  private finished = false
-  private wake: (() => void) | undefined
-
-  constructor(readonly owner: string) {}
-
-  get open(): boolean {
-    return !this.finished
-  }
-
-  push(request: TerminalRequest): void {
-    if (this.finished) return
-    this.queue.push(request)
-    this.notify()
-  }
-
-  finish(): void {
-    this.finished = true
-    this.queue.length = 0
-    this.notify()
-  }
-
-  async next(): Promise<TerminalRequest | undefined> {
-    while (!this.finished && this.queue.length === 0)
-      // eslint-disable-next-line no-await-in-loop -- Waits for the next request.
-      await new Promise<void>((resolve) => (this.wake = resolve))
-    return this.queue.shift()
-  }
-
-  private notify(): void {
-    const wake = this.wake
-    this.wake = undefined
-    wake?.()
-  }
-}
-
 /**
  * Agents' requests for a new terminal, on their way to the client that lays terminals
  * out. Each goes to the client that subscribed last, which answers it once it has
@@ -192,7 +155,7 @@ class Follower {
  */
 export class OpenRequests {
   /** Each client's stream, oldest first. */
-  private readonly followers: Follower[] = []
+  private readonly followers = new Followers<TerminalRequest>()
   /** Requests waiting for their answer, by id, with the client each went to and who asked. */
   private readonly pending = new Map<
     string,
@@ -204,32 +167,13 @@ export class OpenRequests {
       readonly settle: (asked: Asked) => void
     }
   >()
-  private finished = false
 
   /**
    * The requests sent to `owner`'s client, until `signal` aborts, the owner is released,
    * or the runner shuts down. Those still waiting once it ends go without an answer.
    */
-  async *follow(owner: string, signal?: AbortSignal): AsyncGenerator<TerminalRequest> {
-    if (this.finished) throw new DomainError("CLOSING")
-    const follower = new Follower(owner)
-    this.followers.push(follower)
-    const abort = () => follower.finish()
-    signal?.addEventListener("abort", abort, { once: true })
-    if (signal?.aborted) follower.finish()
-    try {
-      while (true) {
-        // eslint-disable-next-line no-await-in-loop -- Requests are delivered in order.
-        const request = await follower.next()
-        if (request === undefined) return
-        yield request
-      }
-    } finally {
-      signal?.removeEventListener("abort", abort)
-      follower.finish()
-      this.followers.splice(this.followers.indexOf(follower), 1)
-      this.abandon(owner)
-    }
+  follow(owner: string, signal?: AbortSignal): AsyncGenerator<TerminalRequest> {
+    return this.followers.follow(owner, (each) => this.abandon(each), signal)
   }
 
   /**
@@ -237,7 +181,7 @@ export class OpenRequests {
    * `opener`, with the title it asked for, waits for the terminal the client creates for it.
    */
   ask(request: Omit<TerminalRequest, "requestId">, ms: number, opener: Opener): Promise<Asked> {
-    const follower = this.followers.findLast((each) => each.open)
+    const follower = this.followers.newest()
     if (!follower) return Promise.resolve({ type: "nobody" })
     const requestId = randomUUID()
     return new Promise<Asked>((resolve) => {
@@ -279,20 +223,19 @@ export class OpenRequests {
 
   /** Ends the owner's streams; what they still wait for goes without an answer. */
   release(owner: string): void {
-    for (const follower of this.followers) if (follower.owner === owner) follower.finish()
+    this.followers.release(owner)
     this.abandon(owner)
   }
 
   /** Ends every stream, as the runner shuts down. */
   finish(): void {
-    this.finished = true
-    for (const follower of this.followers) follower.finish()
+    this.followers.finish()
     for (const { settle } of this.pending.values()) settle({ type: "gone" })
   }
 
   /** Requests sent to `owner`, unless it still follows on another stream. */
   private abandon(owner: string): void {
-    if (this.followers.some((follower) => follower.owner === owner && follower.open)) return
+    if (this.followers.follows(owner)) return
     for (const waiting of this.pending.values())
       if (waiting.owner === owner) waiting.settle({ type: "gone" })
   }

@@ -85,6 +85,7 @@ const scripted = (reported: TerminalSummary, lastProgram = "") => {
       list: unused,
       watch: () => changes.iterator,
       requests: () => channel<never>().iterator,
+      closeAsks: () => channel<never>().iterator,
       // Never answers: a fresh shell stays starting.
       create: () => new Promise(() => {}),
       close: async () => {},

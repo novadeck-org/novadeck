@@ -5,6 +5,7 @@ import type {
   BackendAction,
   BackendConnectionState,
   BackendSink,
+  CloseAsk,
   TerminalKey,
   ThemeSource,
 } from "@novadeck/core/port"
@@ -21,6 +22,7 @@ import type {
 } from "@novadeck/core/types"
 import type {
   AgentIntegration,
+  CloseAsk as RunnerCloseAsk,
   TerminalExit,
   TerminalRequest,
   TerminalRequestAnswer,
@@ -508,6 +510,7 @@ export const runnerBackend = (
   // The crashes behind the guard, for the footer and the crash-loop dialog: counted
   // while the guard holds, 0 once the restarts that tripped it fall out of the window.
   const crashLooping = createStore(0)
+  const closeAsks = createStore<readonly CloseAsk[]>([])
   let crashLoopTimer: ReturnType<typeof setTimeout> | undefined
   const noteCrashLoop = (): void => {
     clearTimeout(crashLoopTimer)
@@ -1378,6 +1381,10 @@ export const runnerBackend = (
     const onStatus = (status: WireStatus): void => {
       if (!live) return
       lastStatus = status
+      // The runner settles a client's asks once its link drops and sends none again, so
+      // none of them can still be answered.
+      if (status.state !== "connected")
+        closeAsks.update((waiting) => (waiting.length ? [] : waiting))
       showConnection()
       noteRunner(status)
       if (status.state === "connected") saves.schedule()
@@ -1385,6 +1392,7 @@ export const runnerBackend = (
     const changes = runner.terminals.watch()
     const statuses = runner.watch()
     const requests = runner.terminals.requests()
+    const asked = runner.terminals.closeAsks()
     // Each request goes to the app, which adds the terminal and answers once.
     const onRequest = (request: TerminalRequest): void => {
       if (!live) return
@@ -1407,6 +1415,22 @@ export const runnerBackend = (
         opening = undefined
       }
     }
+    // An ask waits on the person until they answer or the runner takes it back.
+    const onCloseAsk = (ask: RunnerCloseAsk): void => {
+      if (!live) return
+      // One still on its way as the link dropped was settled with the rest: never show it.
+      if (ask.type === "ask" && lastStatus && lastStatus.state !== "connected") return
+      closeAsks.update((waiting) =>
+        ask.type === "withdrawn"
+          ? waiting.filter((each) => each.requestId !== ask.requestId)
+          : waiting.some((each) => each.requestId === ask.requestId)
+            ? waiting
+            : [
+                ...waiting,
+                { requestId: ask.requestId, from: ask.from, terminalId: ask.terminalId },
+              ],
+      )
+    }
     reviveOnScreen()
     boot.begin([...entries.values()].filter(onScreen).map((entry) => entry.key.terminalId))
     // What the runner keeps of shells that exited cleanly while the app was away.
@@ -1420,6 +1444,7 @@ export const runnerBackend = (
     const stopItems = items.watch()
     void consume(statuses, onStatus)
     void consume(requests, onRequest)
+    void consume(asked, onCloseAsk)
     following = true
     for (const entry of entries.values()) if (!entry.closed) followWhenReady(entry)
     voice.follow()
@@ -1434,6 +1459,8 @@ export const runnerBackend = (
       void changes.return?.()
       void statuses.return?.()
       void requests.return?.()
+      void asked.return?.()
+      closeAsks.update(() => [])
       window.removeEventListener("pagehide", flush)
       stopQuit?.()
       following = false
@@ -1479,6 +1506,14 @@ export const runnerBackend = (
     messages,
     conversations,
     inbox,
+    closeAsks: {
+      pending: closeAsks,
+      answer: (requestId, close) => {
+        closeAsks.update((waiting) => waiting.filter((each) => each.requestId !== requestId))
+        // A runner that no longer waits for the answer needs none.
+        runner.terminals.answerCloseAsk({ requestId, close }).catch(() => {})
+      },
+    },
     source: createRunnerSource(runner.projects),
     resetTitle: (key) => {
       const { terminalId } = key

@@ -464,6 +464,15 @@ describe("an addressee with no session yet", () => {
     vi.useRealTimers()
   })
 
+  it("names the agent its terminal expects as the one running there, before it binds", () => {
+    const { messaging } = create()
+    messaging.register("A", here, "moth", null)
+    messaging.register("N", here, "owl", null)
+    expect(messaging.peer("A", "owl")).toMatchObject({ ok: true, agent: null })
+    messaging.expect("N", "codex")
+    expect(messaging.peer("A", "owl")).toMatchObject({ ok: true, agent: "codex" })
+  })
+
   it("waits for the first session of the agent its terminal expects", () => {
     const { messaging, send, follow, prompt } = create()
     messaging.register("N", here, "owl", null)
@@ -4772,6 +4781,21 @@ describe("the loop hold", () => {
     expect(answer.stdout).not.toContain("Reply with the send tool")
     messaging.acknowledge("A", answer.leaseId!)
     expect(records.messages().map(({ state }) => state)).toContain("delivered")
+  })
+
+  it("queues an outcome notice though a peer's message already waits, and delivers both", () => {
+    const { messaging, records, send, prompt, claude } = setup()
+    sent(send("B", "moth", "real"))
+    const outcome = "Novadeck: automatic notice, not from the user: the user kept @fox open"
+    // The wake-up kind is left out while a message waits; the outcome is not.
+    expect(messaging.notice("A", outcome)).toBe(false)
+    expect(messaging.notice("A", outcome, { always: true })).toBe(true)
+    expect(messaging.list("A", "moth").threads).toHaveLength(1)
+    const answer = prompt("A", claude)
+    expect(answer.stdout).toContain("real")
+    expect(answer.stdout).toContain("the user kept @fox open")
+    messaging.acknowledge("A", answer.leaseId!)
+    expect(records.messages().map(({ state }) => state)).toEqual(["delivered", "delivered"])
   })
 
   it("counts no notice as a message a peer's close loses, nor as a wait", () => {

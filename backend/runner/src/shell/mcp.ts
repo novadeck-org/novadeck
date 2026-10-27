@@ -12,8 +12,8 @@
  * new terminal beside it, optionally starting a command there; `open_agent`, which opens
  * one running another agent, on a model and effort if asked, with a brief as its task (its
  * model choices come from the runner when the tools are listed); `close_terminal`, which
- * closes another of the project's terminals by its handle; `send` and `agents`, which
- * message the agents in the project's other terminals and list them; and `summarize`,
+ * closes one of the project's terminals by its handle, or the agent's own; `send` and
+ * `agents`, which message the agents in the project's other terminals and list them; and `summarize`,
  * which says what the agent's own terminal works on (see docs/agent-messaging.md). Each call goes to the terminal's runner with the terminal's
  * own token, as the relay named them, and the runner's answer is told back as text.
  * Only Claude Code reads a server's own instructions, so each tool's description carries
@@ -81,6 +81,10 @@ type Closed = {
   readonly handle: string
   readonly title: string
   readonly ran?: string
+  /** The caller's own terminal, closing a moment after the answer. */
+  readonly self?: true
+  /** The user was asked to confirm; the terminal is still open. */
+  readonly asked?: true
   readonly gone?: readonly Gone[]
   readonly others?: number
 }
@@ -532,13 +536,17 @@ const openAgent: Tool<Opened> = {
 const closeTerminal: Tool<Closed> = {
   name: "close_terminal",
   description:
-    "Close another Novadeck terminal of this project and session, by the terminal's exact " +
-    "handle as agents lists it (such as @fox); anything else is refused, with the terminals " +
+    "Close a Novadeck terminal of this project and session, by the terminal's exact handle " +
+    "as agents lists it (such as @fox); anything else is refused, with the terminals " +
     "described. Closing ends whatever runs there, an agent or a command such as a dev " +
     "server, as the user closing it would, and messages waiting for it never arrive. Close " +
     "only a terminal you are done with, such as one you opened for work now finished, or " +
-    "one the user asked you to close. Never your own: to end your own session, use your " +
-    "harness's own way to exit. Whenever you are unsure which terminal is meant, call " +
+    "one the user asked you to close. Your own terminal closes a moment after this answers, " +
+    "which ends your session, so say what you owe the user before you call it. A teammate " +
+    "you lead closes at once. Another agent's terminal closes only once the user confirms: " +
+    "Novadeck asks them and this answers at once, so end your turn rather than wait, and " +
+    "you hear the outcome as a message from Novadeck. A terminal with no agent there, such " +
+    "as a dev server, closes at once. Whenever you are unsure which terminal is meant, call " +
     "agents again and pick by title, folder, branch and work; if more than one could " +
     "match, ask the user rather than guess.",
   inputSchema: {
@@ -555,6 +563,23 @@ const closeTerminal: Tool<Closed> = {
   call: "close",
   request: (args) => picked(args, ["to"]),
   said: (answer) => {
+    if (answer.self)
+      return (
+        "Closing " +
+        mention(answer.handle) +
+        titled(answer.title) +
+        ", your own terminal, in a moment, which ends your session. Nothing you send after " +
+        "this reaches anyone."
+      )
+    if (answer.asked)
+      return (
+        "Asked the user to confirm closing " +
+        mention(answer.handle) +
+        titled(answer.title) +
+        (answer.ran ? ", which runs " + answer.ran : "") +
+        ". It closes only if they confirm, and Novadeck tells you either way, as a message. " +
+        "End your turn rather than wait."
+      )
     const lines = [
       "Closed " +
         mention(answer.handle) +
