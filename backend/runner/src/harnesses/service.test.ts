@@ -46,6 +46,8 @@ if (agent === "codex") {
 if (agent === "agy" && args[0] === "models") {
   if (process.env.FAKE_MODELS_FAIL || (process.env.FAKE_FAIL_FILE && fs.existsSync(process.env.FAKE_FAIL_FILE))) { console.error("offline"); process.exit(1) }
   // FAKE_MODELS_SLOW: milliseconds it takes to answer.
+  // FAKE_MODELS_HANG: milliseconds it prints nothing, then ends.
+  if (process.env.FAKE_MODELS_HANG) return setTimeout(() => process.exit(0), Number(process.env.FAKE_MODELS_HANG))
   setTimeout(() => process.stdout.write("Fetching available models...\\nfake-pro\\tFake Pro\\nfake-lite\\tFake Lite\\n"), Number(process.env.FAKE_MODELS_SLOW ?? 0))
 } else if (agent === "agy") {
   // It copies the plugin folder it installs, as the real one does.
@@ -498,7 +500,7 @@ describe.skipIf(windows)("resuming an agent's saved session", () => {
     const agents = createHarnesses(() => Promise.resolve(fixture.paths), {
       home: fixture.home,
       env,
-      models: { keepMs: 50, emptyMs: 5_000 },
+      models: { keepMs: 50, emptyMs: 200 },
     })
     expect(await agents.models("agy")).toHaveLength(2)
     writeFileSync(join(fixture.root, "offline"), "")
@@ -509,9 +511,33 @@ describe.skipIf(windows)("resuming an agent's saved session", () => {
     await new Promise((done) => setTimeout(done, 50))
     // Still the good list, and the failed agent is left alone for a while.
     expect(await agents.models("agy")).toHaveLength(2)
-    await new Promise((done) => setTimeout(done, 100))
-    await agents.models("agy")
+    await new Promise((done) => setTimeout(done, 50))
     expect(list()).toBe(2)
+    // Then asked again, the good list standing.
+    await new Promise((done) => setTimeout(done, 250))
+    expect(await agents.models("agy")).toHaveLength(2)
+    await expect.poll(list).toBe(3)
+  })
+
+  it("lets go of a lookup that never settles, and asks again after the rest", async ({
+    fixture,
+  }) => {
+    withAntigravity(fixture)
+    const list = () => fixture.calls().filter((call) => call[1] === "models").length
+    const hung = createHarnesses(() => Promise.resolve(fixture.paths), {
+      home: fixture.home,
+      env: fixture.environment({ FAKE_MODELS_HANG: "1500" }),
+      models: { commandMs: 10_000, lookupMs: 100, capMs: 300, emptyMs: 400 },
+    })
+    expect(await hung.models("agy")).toEqual([])
+    await expect.poll(list).toBe(1)
+    // Let go of at the cap; answered none at once while it rests.
+    await new Promise((done) => setTimeout(done, 250))
+    expect(await hung.models("agy")).toEqual([])
+    expect(list()).toBe(1)
+    await new Promise((done) => setTimeout(done, 450))
+    await hung.models("agy")
+    await expect.poll(list).toBe(2)
   })
 
   it("answers none for a lookup that outlasts the wait, which still fills the list", async ({

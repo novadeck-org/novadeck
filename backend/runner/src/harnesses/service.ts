@@ -1,4 +1,4 @@
-import { spawn, type ChildProcess } from "node:child_process"
+import { spawn } from "node:child_process"
 import { access, readFile, rm, writeFile } from "node:fs/promises"
 import { homedir } from "node:os"
 import { delimiter, join } from "node:path"
@@ -37,13 +37,14 @@ export type HarnessesOptions = {
    * How long an agent's list of models is fresh, in milliseconds (10 minutes), after which
    * it is refreshed in the background; how long to wait before asking again after none
    * was found (a minute); how long its command may take (5 seconds); and how long a caller
-   * waits for a lookup (4 seconds).
+   * waits for a lookup (4 seconds); and when a lookup is let go of unsettled (the command's time and two seconds).
    */
   readonly models?: {
     readonly keepMs?: number
     readonly emptyMs?: number
     readonly commandMs?: number
     readonly lookupMs?: number
+    readonly capMs?: number
   }
 }
 
@@ -122,24 +123,6 @@ const locate = async (program: string, harness: Harness, install: Install): Prom
  * Runs one of an agent's commands the way the person would in a terminal: with their
  * login environment, and through cmd on Windows, where agents install as .cmd files.
  */
-// Ends the command and what it started: cmd.exe's children outlive it on Windows, and a
-// command's own children hold its pipes open on POSIX.
-const endTree = (child: ChildProcess, platform: NodeJS.Platform) => {
-  const { pid } = child
-  if (pid === undefined) return void child.kill()
-  if (platform === "win32") {
-    spawn("taskkill", ["/pid", String(pid), "/T", "/F"], { stdio: "ignore", windowsHide: true })
-      .on("error", () => child.kill())
-      .unref()
-    return
-  }
-  try {
-    process.kill(-pid, "SIGKILL")
-  } catch {
-    child.kill()
-  }
-}
-
 const run = (
   argv: readonly string[],
   {
@@ -158,8 +141,7 @@ const run = (
             windowsVerbatimArguments: true,
             windowsHide: true,
           })
-        : // Its own process group, so a timeout ends what it started too.
-          spawn(program, args, { env, stdio: ["ignore", "pipe", "pipe"], detached: true })
+        : spawn(program, args, { env, stdio: ["ignore", "pipe", "pipe"] })
     let errors = ""
     let output = ""
     child.stdout.setEncoding("utf8")
@@ -170,7 +152,7 @@ const run = (
     child.stderr.on("data", (chunk: string) => {
       errors = (errors + chunk).slice(-2000)
     })
-    const timer = setTimeout(() => endTree(child, platform), timeoutMs)
+    const timer = setTimeout(() => child.kill(), timeoutMs)
     child.on("error", (error) => {
       clearTimeout(timer)
       reject(error)
@@ -299,6 +281,7 @@ export const createHarnesses = (
   const emptyMs = options.models?.emptyMs ?? 60_000
   const commandMs = options.models?.commandMs ?? 5_000
   const lookupMs = options.models?.lookupMs ?? 4_000
+  const capMs = options.models?.capMs ?? commandMs + 2_000
   const lookUpModels = async (agent: AgentName): Promise<readonly Model[]> => {
     const where = (await installs())?.(agent)
     const harness = harnesses[agent]
@@ -311,25 +294,39 @@ export const createHarnesses = (
   }
   // One lookup, which runs on until it settles, then fills the list and lets go of
   // `looking`: so none starts beside it, and one that outlasts a caller's wait still counts.
+  // One that hasn't settled by `capMs` (a command whose pipes a grandchild holds open never
+  // does) is let go of too, so the next ask after `emptyMs` starts anew; should it succeed
+  // later, its list still fills `known`, but its failure changes nothing.
   const refresh = (agent: AgentName): Promise<readonly Model[]> => {
-    const lookup = lookUpModels(agent)
-      .catch((error: unknown) => {
-        log.warn("harnesses.models-failed", `Novadeck could not list ${agent}'s models`, {
-          data: { agent },
-          err: error,
-        })
-        return [] as readonly Model[]
-      })
-      .then((models) => {
-        if (models.length > 0) {
-          known.set(agent, { at: Date.now(), models })
-          lastEmpty.delete(agent)
-          return models
-        }
+    let abandoned = false
+    const lookup: Promise<readonly Model[]> = new Promise((resolve) => {
+      const cap = setTimeout(() => {
+        abandoned = true
         lastEmpty.set(agent, Date.now())
-        return known.get(agent)?.models ?? models
-      })
-      .finally(() => looking.delete(agent))
+        if (looking.get(agent) === lookup) looking.delete(agent)
+        resolve(known.get(agent)?.models ?? [])
+      }, capMs)
+      cap.unref()
+      lookUpModels(agent)
+        .catch((error: unknown) => {
+          log.warn("harnesses.models-failed", `Novadeck could not list ${agent}'s models`, {
+            data: { agent },
+            err: error,
+          })
+          return [] as readonly Model[]
+        })
+        .then((models) => {
+          clearTimeout(cap)
+          if (models.length > 0) {
+            known.set(agent, { at: Date.now(), models })
+            lastEmpty.delete(agent)
+          } else if (!abandoned) lastEmpty.set(agent, Date.now())
+          resolve(known.get(agent)?.models ?? models)
+        })
+        .finally(() => {
+          if (!abandoned && looking.get(agent) === lookup) looking.delete(agent)
+        })
+    })
     looking.set(agent, lookup)
     return lookup
   }
