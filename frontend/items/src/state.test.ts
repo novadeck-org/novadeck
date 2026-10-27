@@ -65,7 +65,7 @@ const backend = () => {
       on(
         id === planItem.id
           ? contentOf(snapshot(first, "1"))
-          : { state: "unavailable", reason: "held", size: null },
+          : { state: "unavailable", reason: "secret", size: null },
       )
       return () => {
         stopped.push(id)
@@ -539,7 +539,7 @@ describe("following items", () => {
     const release = itemStore.watch(target, hero.id)
     const again = itemStore.watch(target, hero.id)
     expect(follows.map((each) => each.id)).toEqual([planItem.id, hero.id])
-    expect(itemStore.store.getSnapshot().content[hero.id]).toMatchObject({ reason: "held" })
+    expect(itemStore.store.getSnapshot().content[hero.id]).toMatchObject({ reason: "secret" })
     release()
     again()
     expect(stopped).toEqual([])
@@ -558,7 +558,7 @@ describe("following items", () => {
     vi.advanceTimersByTime(30_000)
     expect(follows.filter((each) => each.id === hero.id)).toHaveLength(1)
     expect(stopped).toEqual([])
-    expect(itemStore.store.getSnapshot().content[hero.id]).toMatchObject({ reason: "held" })
+    expect(itemStore.store.getSnapshot().content[hero.id]).toMatchObject({ reason: "secret" })
     release()
     vi.advanceTimersByTime(30_000)
     expect(stopped).toEqual([hero.id])
@@ -583,7 +583,7 @@ describe("following items", () => {
     const unrevealed = listeners.get(hero.id)!
     itemStore.reveal(hero.id, "/p/hero.png")
     listeners.get(hero.id)!({ state: "unavailable", reason: "missing", size: null })
-    unrevealed({ state: "unavailable", reason: "held", size: null })
+    unrevealed({ state: "unavailable", reason: "secret", size: null })
     expect(itemStore.store.getSnapshot().content[hero.id]).toMatchObject({ reason: "missing" })
   })
 
@@ -633,7 +633,7 @@ describe("following items", () => {
       repoint(workspace, ".env.local")
       expect(follows.at(-1)).toEqual({ id: hero.id, reveal: undefined })
       expect(itemStore.store.getSnapshot().revealed).toEqual({})
-      expect(itemStore.store.getSnapshot().content[hero.id]).toMatchObject({ reason: "held" })
+      expect(itemStore.store.getSnapshot().content[hero.id]).toMatchObject({ reason: "secret" })
     })
 
     it("does not carry a reveal to another file once nothing showed the item meanwhile", () => {
@@ -672,7 +672,7 @@ describe("following items", () => {
         on(
           reveal === runner.at
             ? { state: "unavailable", reason: "missing", size: null }
-            : { state: "unavailable", reason: "held", size: null },
+            : { state: "unavailable", reason: "secret", size: null },
         )
         return () => {}
       }
@@ -688,7 +688,7 @@ describe("following items", () => {
       runner.at = "/p/secrets.json"
       itemStore.reveal(hero.id, "/p/.env")
       expect(asked.at(-1)).toBe("/p/.env")
-      expect(itemStore.store.getSnapshot().content[hero.id]).toMatchObject({ reason: "held" })
+      expect(itemStore.store.getSnapshot().content[hero.id]).toMatchObject({ reason: "secret" })
     })
 
     it("ignores a reveal of the file the window showed before it was re-pointed", () => {

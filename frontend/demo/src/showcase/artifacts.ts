@@ -3,7 +3,7 @@ import type { Item, FileContent, ItemContent, UnavailableReason } from "@novadec
 // Something a sample agent shows: the item it points at, by an id that stays the same, and
 // what it holds there, or why it can't show.
 export type SampleArtifact = {
-  readonly item: Pick<Item, "kind" | "name" | "detail" | "path" | "url" | "lines" | "held"> & {
+  readonly item: Pick<Item, "kind" | "name" | "detail" | "path" | "url" | "lines" | "secret"> & {
     readonly id: string
     readonly plan?: Item["plan"]
   }
@@ -70,7 +70,7 @@ const image = (id: string, name: string, detail: string, body: string): SampleAr
     path: `${studio}/drafts/${name}`,
     url: null,
     lines: null,
-    held: false,
+    secret: false,
   },
   content: ready({ kind: "image", src: svg(1600, 900, body) }),
 })
@@ -126,7 +126,7 @@ const home: SampleArtifact = {
     path: `${studio}/src/pages/Home.tsx`,
     url: null,
     lines: { from: 12, to: 24 },
-    held: false,
+    secret: false,
   },
   content: ready({
     kind: "file",
@@ -205,7 +205,7 @@ const voice: SampleArtifact = {
     path: `${studio}/docs/brand-voice.md`,
     url: null,
     lines: null,
-    held: false,
+    secret: false,
   },
   content: ready(fileLines("docs/brand-voice.md", voiceLines, { from: 1, to: voiceLines.length })),
 }
@@ -250,7 +250,7 @@ const projects: SampleArtifact = {
     path: `${studio}/src/content/projects.json`,
     url: null,
     lines: { from: 2, to: 10 },
-    held: false,
+    secret: false,
   },
   content: ready(fileLines("src/content/projects.json", projectLines, { from: 2, to: 10 })),
 }
@@ -264,7 +264,7 @@ const preview: SampleArtifact = {
     path: null,
     url: "http://localhost:5173/",
     lines: null,
-    held: false,
+    secret: false,
   },
   content: ready({
     kind: "page",
@@ -309,7 +309,7 @@ const unavailable = (
     path: `${studio}/${item.name}`,
     url: null,
     lines: null,
-    held: false,
+    secret: false,
     ...item,
   },
   content,
@@ -370,7 +370,7 @@ export const devServerArtifacts: readonly SampleArtifact[] = [
   unavailable("dev-archive", { name: "studio.zip" }, cannot("binary", 2_310_144)),
   unavailable(
     "dev-env",
-    { name: ".env.local", held: true },
+    { name: ".env.local", secret: true },
     ready(fileLines(".env.local", envLines, { from: 1, to: envLines.length })),
   ),
   unavailable(

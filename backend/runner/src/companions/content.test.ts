@@ -53,8 +53,8 @@ const png = Buffer.from(
 
 const file = (
   path: string,
-  fields: { lines?: { from: number; to: number }; held?: boolean } = {},
-) => ({ kind: "file", path, lines: fields.lines ?? null, held: fields.held ?? false }) as const
+  fields: { lines?: { from: number; to: number }; secret?: boolean } = {},
+) => ({ kind: "file", path, lines: fields.lines ?? null, secret: fields.secret ?? false }) as const
 
 describe("what a show points at", () => {
   it("is any file, by a path from the terminal's directory, symlinks resolved", async ({
@@ -66,7 +66,7 @@ describe("what a show points at", () => {
     writeFileSync(join(directory, "a.bin"), Buffer.from([0x41, 0x00, 0x42]))
     writeFileSync(join(directory, "dot.PNG"), png)
     writeFileSync(join(directory, ".env"), "TOKEN=x\n")
-    const pointed = { ok: true, path: join(directory, "src", "a.ts"), kind: "file", held: false }
+    const pointed = { ok: true, path: join(directory, "src", "a.ts"), kind: "file", secret: false }
     await expect(pointAt("a.ts", join(directory, "src"))).resolves.toMatchObject(pointed)
     await expect(pointAt("link.ts", directory)).resolves.toMatchObject(pointed)
     // A binary file too: it says so as it loads.
@@ -75,7 +75,7 @@ describe("what a show points at", () => {
       kind: "image",
       size: png.length,
     })
-    await expect(pointAt(".env", directory)).resolves.toMatchObject({ ok: true, held: true })
+    await expect(pointAt(".env", directory)).resolves.toMatchObject({ ok: true, secret: true })
   })
 
   it("is never a missing path, a folder, or a pipe", async ({ directory }) => {
@@ -227,7 +227,9 @@ describe("a text file as it loads", () => {
     expect(lines?.lines.some((line) => line.startsWith("Name:"))).toBe(true)
   })
 
-  it("says why it can't be shown: missing, binary, held unless revealed", async ({ directory }) => {
+  it("says why it can't be shown: missing, binary, secret unless revealed", async ({
+    directory,
+  }) => {
     const path = join(directory, "a.txt")
     writeFileSync(path, "a\n")
     const before = await loadFile(file(path), false)
@@ -255,12 +257,12 @@ describe("a text file as it loads", () => {
     })
     const secret = join(directory, ".env")
     writeFileSync(secret, "TOKEN=x\n")
-    await expect(loadFile(file(secret, { held: true }), false)).resolves.toEqual({
+    await expect(loadFile(file(secret, { secret: true }), false)).resolves.toEqual({
       state: "unavailable",
-      reason: "held",
+      reason: "secret",
       size: 8,
     })
-    await expect(loadFile(file(secret, { held: true }), true)).resolves.toMatchObject({
+    await expect(loadFile(file(secret, { secret: true }), true)).resolves.toMatchObject({
       content: { lines: ["TOKEN=x"] },
     })
     // Held by where it is now, even if it wasn't when shown.
@@ -269,7 +271,7 @@ describe("a text file as it loads", () => {
     writeFileSync(join(directory, ".ssh", "notes.txt"), "KEY\n")
     await expect(
       loadFile(file(join(directory, "keys", "notes.txt")), false),
-    ).resolves.toMatchObject({ reason: "held" })
+    ).resolves.toMatchObject({ reason: "secret" })
   })
 })
 

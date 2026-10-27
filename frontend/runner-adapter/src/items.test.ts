@@ -24,11 +24,11 @@ const runnerItem = (itemId: string, change: Partial<CompanionItem> = {}): Compan
   path: `/p/${itemId}.ts`,
   url: null,
   lines: null,
-  held: false,
+  secret: false,
   by: "agent",
   from: { terminalId: first, handle: "moth" },
   version: 1,
-  asked: false,
+  openAsked: false,
   shownAt: 1,
   plan: null,
   ...change,
@@ -336,7 +336,7 @@ describe("the runner's items and windows", () => {
       holder: { windowId: "00000000-0000-4000-8000-0000000000b9" },
       by: "person",
       from: null,
-      asked: true,
+      openAsked: true,
     })
     const projectWindow = {
       ...runnerWindow("00000000-0000-4000-8000-0000000000b9", file.id),

@@ -301,8 +301,8 @@ port's optional `companions` capability (`frontend/core/src/items.ts`):
 | `save(target, itemId, text, basedOn)`    | The user's edit written to the plan file, unless it changed since stamp `basedOn`     |
 | `openInProject?(target, path, windowId)` | A file the person opened from Source, in the project window; absent where it can't be |
 
-A file that may hold secrets is `held` until the person asks to see it, and `reveal` is the path
-they asked for: the item re-pointed to another file reads `held` again.
+A file that may hold secrets is `secret` until the person asks to see it, and `reveal` is the path
+they asked for: the item re-pointed to another file reads `secret` again.
 
 A change (the `changes` item kind) shows in the diff viewer (`libraries/viewers/src/diff.ts`),
 read-only: a list of the changed files at the top, each scrolling to its section, then a
@@ -378,7 +378,7 @@ with every safety check again at that time:
   `url`, and optionally `scroll`, a CSS selector of the element to bring into view once it
   loads) or `changes` (`{}` or `{ path }`: the whole change in a repository, see below);
   beside it the options every source shares, a title and `open`, which the agent
-  sets for a deliverable it finished or one the user asked to see (`asked`). A new kind
+  sets for a deliverable it finished or one the user asked to see (`openAsked`). A new kind
   of artifact adds a source key of its own rather than more fields beside these. `close`
   takes the same `file` (its path alone), `page` (its url alone) or `changes` and removes what the
   agent showed under it from its own bar, as the person closing it would; what the person attached, moved away from it, or another

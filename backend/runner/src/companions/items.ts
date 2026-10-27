@@ -99,7 +99,7 @@ export type TroubleSink = {
 /** What an item points at, and what it says of it, before it is kept. */
 type Pointer = Pick<
   ItemRecord,
-  "pointerKey" | "kind" | "path" | "url" | "lines" | "plan" | "name" | "detail" | "held"
+  "pointerKey" | "kind" | "path" | "url" | "lines" | "plan" | "name" | "detail" | "secret"
 >
 
 const clip = (text: string, max: number): string =>
@@ -158,11 +158,11 @@ export const wireItem = (item: ItemRecord): CompanionItem => ({
   path: item.path,
   url: item.url,
   lines: item.lines && { ...item.lines },
-  held: item.held,
+  secret: item.secret,
   by: item.by,
   from: item.from && { ...item.from },
   version: item.version,
-  asked: item.asked,
+  openAsked: item.openAsked,
   shownAt: item.shownAt,
   plan: item.plan && {
     agent: item.plan.agent,
@@ -243,7 +243,7 @@ export class CompanionItems {
     const pointed = await this.pointer(place, request)
     if (!pointed.ok) return pointed
     const { pointer, tooLarge } = pointed
-    const asked = request.open === true && !pointer.held
+    const asked = request.open === true && !pointer.secret
     let kept: ReturnType<CompanionItems["keep"]>
     try {
       kept = this.keep(place, pointer, { by: "agent", asked })
@@ -269,7 +269,7 @@ export class CompanionItems {
       opened: asked && kept.item.windowId === null,
       again: kept.again,
       ...(moved && { moved: this.whereMoved(kept.item) }),
-      ...(pointer.held && { held: true }),
+      ...(pointer.secret && { secret: true }),
       ...(tooLarge && { tooLarge: true }),
     }
   }
@@ -380,7 +380,7 @@ export class CompanionItems {
               : "shown by its agent"
             : "attached by the user"
       const notes = [placed, whose].filter(Boolean).join(", ")
-      const secrets = item.held ? "; may hold secrets" : ""
+      const secrets = item.secret ? "; may hold secrets" : ""
       const title = item.kind === "changes" ? displayed(item.name) : item.name
       const name = `${item.kind} ${JSON.stringify(title)}${range}`
       // A plan it presents as text is in its own conversation.
@@ -436,7 +436,7 @@ export class CompanionItems {
         ...pointer,
         by: "person",
         version: before.version + 1,
-        asked: true,
+        openAsked: true,
         shownAt: Date.now(),
         observedAt: null,
       })
@@ -456,7 +456,7 @@ export class CompanionItems {
       by: "person",
       from: null,
       version: 1,
-      asked: true,
+      openAsked: true,
       shownAt: Date.now(),
       observedAt: null,
     }
@@ -588,7 +588,7 @@ export class CompanionItems {
 
   /**
    * What an item points at, read now, then again each time it changes, until it is
-   * deleted or `signal` aborts. A file that may hold secrets is `held` unless `reveal` is
+   * deleted or `signal` aborts. A file that may hold secrets is `secret` unless `reveal` is
    * the path the item points at: a reveal is for the file the person chose, so an item
    * pointed at another since (a project window re-pointed) shows its gate again, and the
    * file revealed again if pointed back.
@@ -756,7 +756,7 @@ export class CompanionItems {
         format === "file" ? plan.path : `In ${agentLabel(slot.agent)}'s conversation`,
         512,
       ),
-      held: false,
+      secret: false,
     }
     // Only a root agent's plan first seen just now, and not closed by the person before,
     // opens on its own (a rewrite only refreshes it); one read back from an older record
@@ -773,7 +773,7 @@ export class CompanionItems {
         ...own,
         ...pointer,
         version: own.version + 1,
-        asked: false,
+        openAsked: false,
         shownAt: Date.now(),
         observedAt: at,
       })
@@ -792,7 +792,7 @@ export class CompanionItems {
       by: "agent",
       from: { terminalId: place.terminalId, handle: place.handle },
       version: 1,
-      asked: live && !this.dismissed.has(`${place.sessionId}\0${key}`),
+      openAsked: live && !this.dismissed.has(`${place.sessionId}\0${key}`),
       shownAt: Date.now(),
       observedAt: at,
     })
@@ -822,7 +822,7 @@ export class CompanionItems {
           plan: null,
           name: clip(request.title ?? host, 256),
           detail: clip(href, 512),
-          held: false,
+          secret: false,
         },
       }
     }
@@ -844,7 +844,7 @@ export class CompanionItems {
           plan: null,
           name: clip(request.title ?? name, 256),
           detail: clip(detail, 512),
-          held: false,
+          secret: false,
         },
       }
     }
@@ -873,7 +873,7 @@ export class CompanionItems {
     } = {},
   ): Pointer {
     // A held file goes by its own name, so the person sees what they would open.
-    const name = pointed.held
+    const name = pointed.secret
       ? basename(pointed.path)
       : (shown.title ?? basename(resolve(cwd, given)))
     return {
@@ -885,7 +885,7 @@ export class CompanionItems {
       plan: null,
       name: clip(name, 256),
       detail: this.detail(pointed, project, given, shown.lines),
-      held: pointed.held,
+      secret: pointed.secret,
     }
   }
 
@@ -969,7 +969,7 @@ export class CompanionItems {
           // an agent showing what the person picked leaves it theirs, so it can't close it.
           by: origin.by === "person" ? "person" : own.by,
           version: own.version + 1,
-          asked: origin.asked,
+          openAsked: origin.asked,
           shownAt: Date.now(),
         }
       : {
@@ -981,7 +981,7 @@ export class CompanionItems {
           by: origin.by,
           from: { terminalId: place.terminalId, handle: place.handle },
           version: 1,
-          asked: origin.asked,
+          openAsked: origin.asked,
           shownAt: Date.now(),
           observedAt: null,
         }

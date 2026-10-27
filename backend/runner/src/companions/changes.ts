@@ -277,7 +277,7 @@ const emptyFile = (path: string): ChangedFile => ({
   added: 0,
   removed: 0,
   binary: false,
-  held: false,
+  secret: false,
   listed: false,
   hunks: [],
 })
@@ -483,7 +483,7 @@ const addedFile = (path: string, text: string, budget: Budget): ChangedFile => {
   }
 }
 
-// An untracked file as git would show it new: held when it may hold secrets, never read
+// An untracked file as git would show it new: secret when it may hold secrets, never read
 // then; a symlink by its target; a binary file, or one too large to read, by name.
 const untracked = async (
   root: string,
@@ -493,7 +493,7 @@ const untracked = async (
 ): Promise<ChangedFile | undefined> => {
   const full = join(root, path)
   const base = { ...emptyFile(path), status: "added" as const }
-  if (secret(full)) return { ...base, held: true }
+  if (secret(full)) return { ...base, secret: true }
   // Once the diff text or the reading is spent, the rest are listed without a look.
   if (budget.left <= 0 || reading.left <= 0) return { ...base, listed: true }
   const stats = await lstat(full).catch(() => undefined)
@@ -761,7 +761,7 @@ export const readChange = async (
       added: entry.added,
       removed: entry.removed,
       binary: entry.binary,
-      held,
+      secret: held,
       listed,
       hunks: hunks ?? [],
     })

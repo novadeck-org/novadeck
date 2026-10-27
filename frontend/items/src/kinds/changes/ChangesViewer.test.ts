@@ -29,7 +29,7 @@ const change = (rest: Partial<ChangesContent> = {}): ChangesContent => ({
       added: 2,
       removed: 1,
       binary: false,
-      held: false,
+      secret: false,
       listed: false,
       hunks: [
         {
@@ -53,7 +53,7 @@ const change = (rest: Partial<ChangesContent> = {}): ChangesContent => ({
       added: 0,
       removed: 0,
       binary: true,
-      held: false,
+      secret: false,
       listed: false,
       hunks: [],
     },

@@ -57,7 +57,7 @@ export const attachedArtifact = (path: string, directory?: string): AttachedArti
   const held = looksSecret(path)
   if (imageTypes.test(name))
     return {
-      item: { kind: "image", name, detail: relative, path, url: null, lines: null, held },
+      item: { kind: "image", name, detail: relative, path, url: null, lines: null, secret: held },
       content: ready({
         kind: "image",
         src: svg(
@@ -70,7 +70,7 @@ export const attachedArtifact = (path: string, directory?: string): AttachedArti
     }
   const lines = stand(relative)
   return {
-    item: { kind: "file", name, detail: relative, path, url: null, lines: null, held },
+    item: { kind: "file", name, detail: relative, path, url: null, lines: null, secret: held },
     content: ready(fileLines(relative, lines, { from: 1, to: lines.length })),
   }
 }

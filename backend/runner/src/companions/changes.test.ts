@@ -342,7 +342,7 @@ describe.skipIf(!hasGit)("a change read from a git repository", () => {
     const read = await readChange(repo.root)
     if (!read.ok) throw new Error(read.reason)
     expect(JSON.stringify(read.change)).not.toContain("SECRET")
-    expect(read.change.files.map(({ path, held }) => [path, held]).toSorted()).toEqual([
+    expect(read.change.files.map(({ path, secret }) => [path, secret]).toSorted()).toEqual([
       [".env", true],
       ["id_rsa", true],
     ])
@@ -386,7 +386,7 @@ describe.skipIf(!hasGit)("a change read from a git repository", () => {
       const read = await readChange(repo.root)
       if (!read.ok) throw new Error(read.reason)
       expect(JSON.stringify(read.change)).not.toContain("SECRET")
-      expect(read.change.files.map(({ path, held }) => [path, held])).toEqual([
+      expect(read.change.files.map(({ path, secret }) => [path, secret])).toEqual([
         [".env", true],
         ["src/a.ts", false],
       ])
@@ -406,7 +406,7 @@ describe.skipIf(!hasGit)("a change read from a git repository", () => {
     if (!read.ok) throw new Error(read.reason)
     expect(JSON.stringify(read.change)).not.toContain("SECRET")
     expect(read.change.files).toMatchObject([
-      { path: "notes.txt", oldPath: ".env", status: "renamed", held: true, hunks: [] },
+      { path: "notes.txt", oldPath: ".env", status: "renamed", secret: true, hunks: [] },
     ])
   })
 

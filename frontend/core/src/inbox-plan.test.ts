@@ -75,11 +75,11 @@ const plan = (
   path: sources[agent].path,
   url: null,
   lines: null,
-  held: false,
+  secret: false,
   by: "agent",
   from: { terminalId, handle: "moth" },
   version,
-  asked: false,
+  openAsked: false,
   shownAt,
   plan: { agent: sources[agent].agent, role, source: sources[agent].source },
 })

@@ -68,8 +68,12 @@ describe("the project window", () => {
 
   context("a file that may hold secrets", () => {
     it("offers to show it and to copy its path", async () => {
-      const item = itemFixture("env", "01", { kind: "file", name: ".env", held: true })
-      const { container } = await opened(item, { state: "unavailable", reason: "held", size: null })
+      const item = itemFixture("env", "01", { kind: "file", name: ".env", secret: true })
+      const { container } = await opened(item, {
+        state: "unavailable",
+        reason: "secret",
+        size: null,
+      })
       expect(
         [...container.querySelectorAll("div.artifact-window button")].map(
           (each) => each.textContent,

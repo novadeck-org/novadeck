@@ -41,11 +41,11 @@ const following = ({ livePages = false } = {}) => {
       path: "/p/src/a.ts",
       url: null,
       lines: null,
-      held: false,
+      secret: false,
       by: "person" as const,
       from: null,
       version: 2,
-      asked: true,
+      openAsked: true,
       shownAt: 3,
       plan: null,
     },
@@ -165,7 +165,7 @@ describe("the runner's companion content", () => {
           added: 1,
           removed: 1,
           binary: false,
-          held: false,
+          secret: false,
           listed: false,
           hunks: [
             {
@@ -307,7 +307,7 @@ describe("the runner's companion content", () => {
       "not-a-file",
       "too-large",
       "binary",
-      "held",
+      "secret",
       "gone",
     ] as const
     for (const reason of reasons) app.push({ state: "unavailable", reason, size: 12 })
@@ -409,11 +409,11 @@ describe("the runner's items and windows", () => {
       path: "/p/plan.md",
       url: null,
       lines: null,
-      held: false,
+      secret: false,
       by: "agent",
       from: { terminalId: "t", handle: "moth" },
       version: 2,
-      asked: false,
+      openAsked: false,
       shownAt: 1,
       plan: { agent: "codex", role: "root", source: "text" },
     })

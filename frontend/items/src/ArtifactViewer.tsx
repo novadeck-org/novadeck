@@ -51,7 +51,7 @@ const shortReasons: Record<UnavailableReason, string> = {
   "not-a-file": "Not a file",
   "too-large": "Too large to preview",
   binary: "Not text",
-  held: "May hold secrets. Click to open.",
+  secret: "May hold secrets. Click to open.",
   gone: "Gone",
 }
 
@@ -68,7 +68,7 @@ const reasonText = (reason: UnavailableReason, name: string, size: number | null
       return `${name} is too large to preview${size === null ? "" : ` (${sizeText(size)})`}.`
     case "binary":
       return `${name} isn't text, so it can't be previewed.`
-    case "held":
+    case "secret":
       return `${name} may hold secrets, so it shows only when you ask.`
     case "gone":
       return `${name} is gone.`
@@ -140,7 +140,7 @@ export const Unavailable = ({
   <div className="artifact-unavailable" data-reason={reason}>
     <p>{reasonText(reason, item.name, size)}</p>
     <div className="artifact-unavailable-actions">
-      {reason === "held" && onReveal && (
+      {reason === "secret" && onReveal && (
         <button type="button" className="artifact-open" onClick={onReveal}>
           Show it
         </button>
@@ -222,7 +222,7 @@ const ArtifactThumb = <K extends ArtifactKind>(
   props: ItemProps & { kind: K; Body: ThumbBody<K> },
 ): React.JSX.Element | null =>
   // A held one is never loaded for a peek, which a passing pointer opens.
-  props.item.held ? (
+  props.item.secret ? (
     <span className="peek-held">May hold secrets. Click to open.</span>
   ) : (
     <LoadedThumb {...props} />

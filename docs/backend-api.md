@@ -1061,9 +1061,9 @@ one from an earlier runner.
   with the terminal whose bar holds it, or with its session, and a window goes with its
   item. Nothing caps how many there are. An item has a runner-issued id, its `kind`
   (`image`, `file`, `page`, `changes`, `plan`), a name and a one-line `detail`, its `path`
-  or `url`, the `lines` it points at, `held` for a file that may hold secrets, `by`
+  or `url`, the `lines` it points at, `secret` for a file that may hold secrets, `by`
   (`agent` or `person`), `from` (the terminal and handle it was shown in; null in a
-  project window), `version` (counts its shows), `asked` (the latest show asked to open
+  project window), `version` (counts its shows), `openAsked` (the latest show asked to open
   it), `shownAt`, and for a plan its agent, its actor's role and whether it is a file or
   text.
   - `companions.list({ sessionId })` answers a session's `items` and `windows`; an unknown
@@ -1082,9 +1082,9 @@ one from an earlier runner.
     disk now and again each time it changes, until the item is deleted; an unknown item
     is `NOT_FOUND`. It is `ready`, with a `stamp` that changes with it, or `unavailable`
     with a reason and the file's size where known: `missing`, `unreadable`, `not-a-file`,
-    `too-large` (an image over 8 MiB), `binary` (a NUL byte in its first 8 KiB), `held`
+    `too-large` (an image over 8 MiB), `binary` (a NUL byte in its first 8 KiB), `secret`
     (a file that may hold secrets, unless `reveal` is the path the item points at: the
-    person's yes is to a file, so an item re-pointed to another reads `held` again and, pointed
+    person's yes is to a file, so an item re-pointed to another reads `secret` again and, pointed
     back, revealed again), or `gone` (a plan no longer there).
     An image is a data URL; a page its address, which the desktop app loads live, with
     `shown`, its item's version, which each show raises and which loads it afresh, and the
@@ -1100,7 +1100,7 @@ one from an earlier runner.
     `hunks` of context, add and remove lines; at most 300 files and 4 MiB of diff text,
     past the diff text budget files are `listed` by name and counts without hunks, and
     `truncated` is set (it is also set where files past 300 are left out, which are not
-    listed). A binary file or one that may hold secrets (`held`, judged by the new and the
+    listed). A binary file or one that may hold secrets (`secret`, judged by the new and the
     old name) has no hunks; names show invisible characters as U+FFFD. It is read with git about
     every 2 seconds while followed (less often after slow reads, keeping the last good
     content through a failed read or two), and `reveal` has no effect on it; a repository that is

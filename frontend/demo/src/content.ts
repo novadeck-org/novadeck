@@ -214,6 +214,7 @@ export const contentDemo = (
             {
               id: "initial",
               name: "Content previews",
+              visitedAt: Date.now(),
               terminals,
               items: showcase.items,
               windows: [],
@@ -235,6 +236,7 @@ export const contentDemo = (
             {
               id: "website-initial",
               name: "Main",
+              visitedAt: Date.now() - 20 * 60_000,
               terminals: [website],
               items: [],
               windows: [],

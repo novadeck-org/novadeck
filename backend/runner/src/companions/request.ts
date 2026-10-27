@@ -82,7 +82,7 @@ export type PresentFailure = { readonly ok: false; readonly reason: string }
 /**
  * The MCP server's answer: what the person now sees beside the terminal, or why not.
  * `opened` when it opened at once; `again` when it updated what was already there;
- * `held` when it may hold secrets, so it waits for the person to open it; `tooLarge`
+ * `secret` when it may hold secrets, so it waits for the person to open it; `tooLarge`
  * for an image too large to preview.
  */
 export type PresentAnswer =
@@ -95,7 +95,7 @@ export type PresentAnswer =
       readonly again: boolean
       /** Where the person had moved what it updated, away from the agent's bar. */
       readonly moved?: string
-      readonly held?: true
+      readonly secret?: true
       readonly tooLarge?: true
     }
   | PresentFailure

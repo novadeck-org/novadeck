@@ -81,7 +81,7 @@ const it = base.extend<{ fixture: Fixture }>({
         agents: {},
         promptedAt: null,
         handle,
-        naming: { person: null, agent: null, murmur: null, summary: null },
+        naming: { person: null, opener: null, murmur: null, summary: null },
         openedBy: null,
         ledBy: null,
         command: null,
@@ -384,11 +384,11 @@ describe("what an agent shows", () => {
         path: join(fixture.directory, "a.ts"),
         url: null,
         lines: null,
-        held: false,
+        secret: false,
         by: "agent",
         from: { terminalId: moth.terminalId, handle: "moth" },
         version: 2,
-        asked: true,
+        openAsked: true,
         shownAt: expect.any(Number),
         plan: null,
       },
@@ -416,7 +416,7 @@ describe("what an agent shows", () => {
     ).resolves.toMatchObject({
       ok: true,
       opened: false,
-      held: true,
+      secret: true,
     })
     await expect(fixture.items.show(moth, { file: { path: "big.png" } })).resolves.toMatchObject({
       ok: true,
@@ -481,14 +481,14 @@ describe("what the person attaches", () => {
     const moth = fixture.terminal("moth")
     writeFileSync(join(fixture.directory, ".env"), "TOKEN=x\n")
     await fixture.items.show(moth, { file: { path: ".env" } })
-    expect(fixture.items.bar(moth.terminalId)).toMatchObject([{ by: "agent", held: true }])
+    expect(fixture.items.bar(moth.terminalId)).toMatchObject([{ by: "agent", secret: true }])
     await fixture.items.attach({ terminalId: moth.terminalId, path: ".env" })
     expect(fixture.items.bar(moth.terminalId)).toMatchObject([
-      { by: "person", asked: true, held: true, version: 2 },
+      { by: "person", openAsked: true, secret: true, version: 2 },
     ])
     await fixture.items.show(moth, { file: { path: ".env" } })
     expect(fixture.items.bar(moth.terminalId)).toMatchObject([
-      { by: "person", asked: false, version: 3 },
+      { by: "person", openAsked: false, version: 3 },
     ])
     await expect(fixture.items.dismiss(moth, { file: { path: ".env" } })).resolves.toMatchObject({
       ok: false,
@@ -503,7 +503,7 @@ describe("what the person attaches", () => {
     writeFileSync(join(fixture.directory, "notes.md"), "# Notes\n")
     await expect(
       fixture.items.attach({ terminalId: moth.terminalId, path: "notes.md", title: "Notes" }),
-    ).resolves.toMatchObject({ name: "Notes", by: "person", asked: true, version: 1 })
+    ).resolves.toMatchObject({ name: "Notes", by: "person", openAsked: true, version: 1 })
     await expect(
       fixture.items.attach({ terminalId: moth.terminalId, path: "." }),
     ).rejects.toMatchObject({
@@ -537,11 +537,11 @@ describe("the project window", () => {
       name: "a.ts",
       detail: join("src", "a.ts"),
       path: join(fixture.directory, "src", "a.ts"),
-      held: false,
+      secret: false,
       by: "person",
       from: null,
       version: 1,
-      asked: true,
+      openAsked: true,
     })
     expect(opened.window).toEqual({
       id: windowId,
@@ -613,7 +613,7 @@ describe("the project window", () => {
       by: "person",
       from: null,
       version: 2,
-      asked: true,
+      openAsked: true,
     })
     expect(second.window).toMatchObject({
       id: windowId,
@@ -653,12 +653,12 @@ describe("the project window", () => {
       path: ".env.local",
       windowId: randomUUID(),
     })
-    expect(other.item).toMatchObject({ held: true, name: ".env.local" })
-    await expect(next(stream)).resolves.toMatchObject({ state: "unavailable", reason: "held" })
+    expect(other.item).toMatchObject({ secret: true, name: ".env.local" })
+    await expect(next(stream)).resolves.toMatchObject({ state: "unavailable", reason: "secret" })
     // A stream asked for .env while the window shows .env.local starts held too: the
     // person's click may have raced the re-point.
     const late = fixture.items.content(first.item.id, asked, controller.signal)
-    await expect(next(late)).resolves.toMatchObject({ state: "unavailable", reason: "held" })
+    await expect(next(late)).resolves.toMatchObject({ state: "unavailable", reason: "secret" })
     // A reveal asked for .env.local reveals it.
     const there = join(fixture.directory, ".env.local")
     const revealing = fixture.items.content(first.item.id, there, controller.signal)
@@ -1003,7 +1003,7 @@ describe("an item's content", () => {
     const itemId = shown.ok ? shown.id : ""
     await expect(fixture.items.load(itemId, false)).resolves.toEqual({
       state: "unavailable",
-      reason: "held",
+      reason: "secret",
       size: 8,
     })
     await expect(fixture.items.load(itemId, true)).resolves.toMatchObject({ state: "ready" })
@@ -1069,13 +1069,13 @@ describe("plans beside their terminal", () => {
     const now = Date.now()
     // Read back long after it was written, as on a restart: kept, not asked.
     await fixture.items.planObserved(moth, slot, plan, now - 3_600_000)
-    expect(fixture.items.bar(moth.terminalId)).toMatchObject([{ version: 1, asked: false }])
+    expect(fixture.items.bar(moth.terminalId)).toMatchObject([{ version: 1, openAsked: false }])
     // Rewritten live: a new version, but a rewrite never asks to open again.
     await fixture.items.planObserved(moth, slot, plan, now)
-    expect(fixture.items.bar(moth.terminalId)).toMatchObject([{ version: 2, asked: false }])
+    expect(fixture.items.bar(moth.terminalId)).toMatchObject([{ version: 2, openAsked: false }])
     // A replay of that same observation changes nothing.
     await fixture.items.planObserved(moth, slot, plan, now)
-    expect(fixture.items.bar(moth.terminalId)).toMatchObject([{ version: 2, asked: false }])
+    expect(fixture.items.bar(moth.terminalId)).toMatchObject([{ version: 2, openAsked: false }])
     // A first-seen live plan asks to open as well.
     const other = join(fixture.directory, "other.md")
     writeFileSync(other, "# Other\n")
@@ -1086,7 +1086,7 @@ describe("plans beside their terminal", () => {
       { source: { kind: "file", path: other }, path: other },
       Date.now(),
     )
-    expect(fixture.items.bar(fox.terminalId)).toMatchObject([{ version: 1, asked: true }])
+    expect(fixture.items.bar(fox.terminalId)).toMatchObject([{ version: 1, openAsked: true }])
     // Its live rewrites clear the ask rather than re-opening the pane.
     await fixture.items.planObserved(
       fox,
@@ -1094,7 +1094,7 @@ describe("plans beside their terminal", () => {
       { source: { kind: "file", path: other }, path: other },
       Date.now() + 1,
     )
-    expect(fixture.items.bar(fox.terminalId)).toMatchObject([{ version: 2, asked: false }])
+    expect(fixture.items.bar(fox.terminalId)).toMatchObject([{ version: 2, openAsked: false }])
   })
 
   it("do not reopen a closed plan, nor open a subagent's", async ({ fixture }) => {
@@ -1104,15 +1104,18 @@ describe("plans beside their terminal", () => {
     const plan = { source: { kind: "file", path } as const, path }
     const sub = { ...slot, actor: "sub" } as const
     await fixture.items.planObserved(moth, sub, plan, Date.now())
-    expect(fixture.items.bar(moth.terminalId)).toMatchObject([{ asked: false }])
+    expect(fixture.items.bar(moth.terminalId)).toMatchObject([{ openAsked: false }])
     await fixture.items.planObserved(moth, slot, plan, Date.now())
-    expect(fixture.items.bar(moth.terminalId)).toMatchObject([{ asked: false }, { asked: true }])
+    expect(fixture.items.bar(moth.terminalId)).toMatchObject([
+      { openAsked: false },
+      { openAsked: true },
+    ])
     const [, root] = fixture.items.bar(moth.terminalId)
     fixture.items.close(root!.id)
     await fixture.items.planObserved(moth, slot, plan, Date.now() + 1)
     expect(fixture.items.bar(moth.terminalId).at(-1)).toMatchObject({
       version: 1,
-      asked: false,
+      openAsked: false,
     })
   })
 

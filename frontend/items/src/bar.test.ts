@@ -138,7 +138,7 @@ describe("a terminal's taskbar", () => {
 
   context("when its pane opens", () => {
     it("shows its tab while that's on the bar, else its first plan, else the first that may show unpicked", () => {
-      const held = image("secret", { held: true })
+      const held = image("secret", { secret: true })
       expect(shownTab(open(home.id), membersOf([root, home]))).toBe(home.id)
       expect(shownTab(open("gone" as ItemId), membersOf([home, root]))).toBe(root.id)
       expect(shownTab(open(null), membersOf([held, home]))).toBe(home.id)
@@ -181,7 +181,7 @@ describe("a terminal's taskbar", () => {
     })
 
     it("opens something that may hold secrets only when the stack holds nothing else", () => {
-      const secret = image("secret", { held: true })
+      const secret = image("secret", { secret: true })
       expect(pick(stack(membersOf([image("hero"), secret], { fresh: [secret.id] })), []).key).toBe(
         "hero",
       )

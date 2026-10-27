@@ -40,7 +40,7 @@ const stackOf = (member: BarMember): StackKind | null =>
 export const isNew = (member: BarMember): boolean => member.kind === "item" && member.fresh
 
 // Something that may hold secrets, which opens only when picked.
-export const isHeld = (member: BarMember): boolean => member.kind === "item" && member.item.held
+export const isHeld = (member: BarMember): boolean => member.kind === "item" && member.item.secret
 
 // What terminal `terminalId`'s bar holds: the items on it but those the person hid, and
 // its messages while it has them.
