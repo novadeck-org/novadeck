@@ -8,6 +8,7 @@ import { useEffect, useId, useRef, useState } from "react"
 import { currentPlatform, type Platform } from "../interaction/shortcuts"
 import { useLinger } from "./linger"
 import { KeepFocus, useOverlayOpen, useRecoverFocus } from "./notice-focus"
+import { readFoldedChip, writeFoldedChip } from "./shell-storage"
 import { Highlights, useOverflow } from "./WhatsNew"
 
 // A portable copy, which never updates itself and is the way to install the app that does.
@@ -105,7 +106,9 @@ const cardWords = (
 // takes focus by itself. The chip opens it as the person's own request, with focus moving
 // to the card, so Escape there folds it back into the chip and returns to it.
 // A finished install says so for a few seconds, as the update bar does, then fades and
-// leaves "Installed" on the chip. Novadeck never restarts itself.
+// leaves "Installed" on the chip. Novadeck never restarts itself. Once the person closes the
+// card, the chip folds to its icon (and dot) for that release; a newer one brings the word
+// back.
 export const PortableInstall = ({
   portable: card,
   hidden,
@@ -162,8 +165,13 @@ export const PortableInstall = ({
     return () => cancelAnimationFrame(frame)
   }, [visible])
   const lost = useRecoverFocus(blocked || hidden, chip)
+  // The release the chip speaks for, and the one the person last folded it on.
+  const subject = offer ? offer.version : "install"
+  const [folded, setFolded] = useState(readFoldedChip)
   const finish = (): void => {
     if (!card) return
+    setFolded(subject)
+    writeFoldedChip(subject)
     const inside = panel.current?.contains(document.activeElement) === true
     const back = opener.current === "chip"
     requested.current = false
@@ -243,6 +251,7 @@ export const PortableInstall = ({
       ? { ...heard, highlights: heard.highlights.slice(0, 4) }
       : undefined
   const chipText = running ? "Installing…" : done ? "Installed" : word
+  const iconOnly = folded === subject && !running && !done
   // Where the workspace is, said in the phases where the person weighs installing or
   // installing; the others have their own words about it.
   const dataLine =
@@ -279,6 +288,7 @@ export const PortableInstall = ({
                     ? `${word}: Novadeck ${offer.version}`
                     : word
             }
+            title={iconOnly ? word : undefined}
             aria-expanded={visible}
             aria-controls={visible ? panelId : undefined}
             onClick={() => {
@@ -303,7 +313,9 @@ export const PortableInstall = ({
             {running || done ? (
               <span className="footer-chip-text">{chipText}</span>
             ) : (
-              <span className="footer-chip-text max-[701px]:hidden">{word}</span>
+              <span className={`footer-chip-text ${iconOnly ? "hidden" : "max-[701px]:hidden"}`}>
+                {word}
+              </span>
             )}
           </button>
           {visible && (

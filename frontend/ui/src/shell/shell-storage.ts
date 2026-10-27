@@ -41,6 +41,18 @@ export const readSidebarOrder = (): readonly SidebarPanel[] => {
   }
 }
 
+// The release whose footer update chip the person folded to its icon, by closing its card
+// or opening its page; "install" for a portable copy's chip with no release. A newer release
+// brings the word back.
+export const foldedChipStorageKey = "novadeck.update-chip-folded"
+export const readFoldedChip = (): string | null => {
+  try {
+    return localStorage.getItem(foldedChipStorageKey)
+  } catch {
+    return null
+  }
+}
+
 export const writeSidebarCollapsed = (collapsed: boolean): void => {
   try {
     localStorage.setItem(collapsedStorageKey, String(collapsed))
@@ -70,5 +82,13 @@ export const writeSidebarOrder = (order: readonly SidebarPanel[]): void => {
     localStorage.setItem(sidebarOrderStorageKey, JSON.stringify(order))
   } catch {
     /* The order holds for this session when storage is unavailable. */
+  }
+}
+
+export const writeFoldedChip = (subject: string): void => {
+  try {
+    localStorage.setItem(foldedChipStorageKey, subject)
+  } catch {
+    /* The chip folds for this session when storage is unavailable. */
   }
 }

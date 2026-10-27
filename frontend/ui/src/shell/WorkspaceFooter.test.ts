@@ -14,6 +14,7 @@ const mounted: Rendered[] = []
 afterEach(() => {
   mounted.splice(0).forEach((page) => page.unmount())
   vi.useRealTimers()
+  localStorage.clear()
 })
 
 const portable = {
@@ -344,6 +345,20 @@ describe("workspace footer", () => {
       expect(page.container.querySelector("section")).toBeNull()
     })
 
+    it("folds to its icon once its page was opened, until a newer release", () => {
+      const onOpenPage = vi.fn<() => void>()
+      const page = render(withChip({ version: "0.0.81", onOpenPage }))
+      mounted.push(page)
+      const words = () => button(page)!.querySelector(".footer-chip-text")!
+      expect(words().classList.contains("hidden")).toBe(false)
+      act(() => button(page)!.click())
+      expect(onOpenPage).toHaveBeenCalledOnce()
+      expect(words().classList.contains("hidden")).toBe(true)
+      expect(button(page)!.getAttribute("aria-label")).toBe("Update available: Novadeck 0.0.81")
+      page.rerender(withChip({ version: "0.0.82", onOpenPage }))
+      expect(words().classList.contains("hidden")).toBe(false)
+    })
+
     it("asks for an administrator, as Allow updates, when it can be let install itself", () => {
       const onAllow = vi.fn<() => void>()
       const onOpenPage = vi.fn<() => void>()
@@ -420,6 +435,30 @@ describe("workspace footer", () => {
       expect(chip(page).getAttribute("aria-label")).toBe("Update available: Novadeck 0.0.80")
       expect(chip(page).textContent).toBe("Update available")
       expect(chip(page).querySelector(".footer-chip-dot")).not.toBeNull()
+    })
+
+    it("folds the chip to its icon once its card was closed, until a newer release", () => {
+      const open = (update: UpdateOffer) => {
+        const base = props("ok", update)
+        return createElement(WorkspaceFooter, {
+          ...base,
+          portable: { ...base.portable, open: true },
+        })
+      }
+      const page = render(open(ready))
+      mounted.push(page)
+      const words = () => chip(page).querySelector(".footer-chip-text")!
+      expect(words().classList.contains("hidden")).toBe(false)
+      act(() =>
+        [...page.container.querySelectorAll("button")]
+          .find((b) => b.getAttribute("aria-label") === "Dismiss")!
+          .click(),
+      )
+      expect(words().classList.contains("hidden")).toBe(true)
+      expect(chip(page).title).toBe("Update available")
+      expect(chip(page).querySelector(".footer-chip-dot")).not.toBeNull()
+      page.rerender(open({ ...ready, version: "0.0.81" }))
+      expect(words().classList.contains("hidden")).toBe(false)
     })
 
     it("leaves the bar's tone and the link's status to the connection", () => {
