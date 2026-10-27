@@ -165,8 +165,7 @@ export const inboxType = (item: InboxContent): InboxType => {
 // The person's answer to an item, by its source: a dialog's answer as the chat sends it;
 // a held thread released or stopped; an ask's option and/or words, or its
 // action done; a stuck agent nudged with these words or stopped, auto-resume at a limit
-// turned on or off, or the agent continued once the limit has reset; an update read; a
-// feedback draft sent, with the text as the person left it, or discarded.
+// turned on or off, or the agent continued once the limit has reset; an update read.
 export type InboxAnswer =
   | { readonly kind: "request"; readonly answer: ChatAnswer }
   | { readonly kind: "held"; readonly action: "release" | "stop" }

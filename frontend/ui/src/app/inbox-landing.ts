@@ -18,7 +18,8 @@ import { viewing, type UiState, type UiStore } from "./ui-store"
 // fails lands the update instead. On a phone, while the Inbox list covers the screen, no
 // terminal is looked at. Anything else that landed
 // stays: selecting a terminal doesn't take back a row the person must still answer. An item
-// the person asks to open by its id (`reveal`), as Answer in a terminal's Messages does.
+// the person asks to open by its id (`reveal`) always lands too, as Answer in a terminal's
+// Messages does.
 //
 // The marks on a tab and window, and `watchUnreadTurns`, read the raw backend Inbox, never
 // this one.

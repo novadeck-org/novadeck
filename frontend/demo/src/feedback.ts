@@ -181,7 +181,7 @@ export const createDemoFeedback = (
     if (!terminal) return
     turns.finish(key, terminal, "completed", {
       after: turns.turnMs * writingTurns,
-      reply: "Drafted the feedback. It's in your Inbox to read, edit and send.",
+      reply: "Drafted the feedback. It's in the feedback card to read, edit and send.",
     })
     writing.set(terminalKeyId(key), { hint, epoch: turns.epoch(key) })
   }

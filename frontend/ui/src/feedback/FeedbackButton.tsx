@@ -185,6 +185,8 @@ export const FeedbackButton = ({
     if (text === loaded.original && kind === loaded.draft.kind) {
       setKind(null)
       setText("")
+      // What failed to send was the draft that is gone: nothing is left to retry.
+      setSend("idle")
       if (waiting.length === 0) setOpen(false)
     }
   } else if (loaded === null && text.trim() === "" && send !== "sending" && upNext) {
@@ -197,6 +199,8 @@ export const FeedbackButton = ({
       replaced: strikeSummary(scrub(upNext.text).counts),
     })
     setLostFrom(null)
+    // A new draft starts clean: a failed send of an earlier note is not its to retry.
+    setSend("idle")
     setKind(upNext.kind)
     setText(original)
     setByDraft(true)

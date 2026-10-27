@@ -173,7 +173,10 @@ describe("feedback drafts", () => {
     expect(draft(feedback, "x", "praise")).toMatchObject({ ok: false })
     expect(feedback.list()).toEqual([])
     for (let index = 0; index < 10; index++) draft(feedback, `Draft ${index}`)
-    expect(draft(feedback, "One too many")).toMatchObject({ ok: false, reason: /a minute/ })
+    expect(draft(feedback, "One too many")).toMatchObject({
+      ok: false,
+      reason: /pieces of feedback a minute/,
+    })
     stop()
   })
 
@@ -191,6 +194,32 @@ describe("feedback drafts", () => {
     expect(() => run.feedback.settle(id)).toThrow(expect.objectContaining({ code: "NOT_FOUND" }))
     await watch.return(undefined)
     run.stop()
+  })
+
+  it("forgets a removed project's pending requests and rate records, and prunes by age", () => {
+    const time = { now: 1_000 }
+    const { feedback, stop } = setup({ now: () => time.now })
+    const records = feedback as unknown as {
+      asks: Map<string, unknown>
+      sent: Map<string, unknown>
+    }
+    draft(feedback)
+    feedback.ask(identity.terminalId, "pending")
+    expect(records.asks.size).toBe(1)
+    expect(records.sent.size).toBe(1)
+    feedback.settle(feedback.list()[0]!.id)
+    // No draft is left, yet the project's request and rate record go with it.
+    feedback.forgetProject(identity.projectId)
+    expect(records.asks.size).toBe(0)
+    expect(records.sent.size).toBe(0)
+    // An old rate record goes at the next draft, past the window.
+    draft(feedback)
+    expect(records.sent.size).toBe(1)
+    time.now += 61_000
+    draft(feedback, "Later.")
+    expect(records.sent.size).toBe(1)
+    expect((records.sent.get(identity.terminalId) as { times: number[] }).times).toHaveLength(1)
+    stop()
   })
 
   it("forgets a removed project's drafts", () => {

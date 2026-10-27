@@ -639,7 +639,9 @@ but the label a run shows (`novadeckTool` in the harness core).
   the agent session and the terminal; only `feedback.settle` (the app sent it, or the person
   discarded it), the project's removal or a runner restart ends it. The runner never sends
   one, and the agent isn't told what became of it. It is no message, so Messages history has
-  no row for it. Its calls share the per-minute limit of asks and updates.
+  no row for it. An agent may draft ten pieces of
+  feedback a minute per terminal, a limit of its own (`Feedback`'s, not the Inbox's); its record
+  of recent drafts is pruned by age, and goes with a closed terminal or a removed project.
 - **The person's request**, `feedback.ask(terminalId, hint)`, is queued as a message
   relayed from the person, delivered as their Inbox answers are (hooks, the doorbell waking
   an idle agent, waiting behind a turn, never typed over a draft; no loop hold or guard). The

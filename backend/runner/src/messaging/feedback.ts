@@ -45,9 +45,18 @@ export class Feedback {
   /** The person's request for a draft, per terminal, with the agent session it is for. */
   private readonly asks = new Map<
     string,
-    { readonly agent: string; readonly sessionId: string; readonly requestId: string }
+    {
+      readonly projectId: string
+      readonly agent: string
+      readonly sessionId: string
+      readonly requestId: string
+    }
   >()
-  private readonly sent = new Map<string, readonly number[]>()
+  /** When each terminal's recent drafts were made, for the draft rate limit, with its project. */
+  private readonly sent = new Map<
+    string,
+    { readonly projectId: string; readonly times: readonly number[] }
+  >()
   private readonly readers = new Set<Latest<FeedbackDraftEntry[]>>()
   private closed = false
   constructor(
@@ -72,13 +81,14 @@ export class Feedback {
     if (!parsed.success)
       return { ok: false, reason: parsed.error.issues[0]?.message ?? "That draft doesn't fit." }
     const at = this.now()
-    const times = allowSend(this.sent.get(terminalId) ?? [], at, rates.sender)
+    this.prune(at)
+    const times = allowSend(this.sent.get(terminalId)?.times ?? [], at, rates.sender)
     if (!times)
       return {
         ok: false,
-        reason: `An agent may create ${rates.sender} Inbox asks, updates or drafts a minute. Try again shortly.`,
+        reason: `An agent may draft ${rates.sender} pieces of feedback a minute. Try again shortly.`,
       }
-    this.sent.set(terminalId, times)
+    this.sent.set(terminalId, { projectId: owner.projectId, times })
     const asked = this.requested(terminalId, owner) === "delivered"
     if (asked) this.asks.delete(terminalId)
     const draft: FeedbackDraftEntry = {
@@ -115,7 +125,12 @@ export class Feedback {
       )
     const requestId = randomUUID()
     this.host.request(terminalId, requestId, cleanInboxText(hint).trim())
-    this.asks.set(terminalId, { agent: owner.agent, sessionId: owner.sessionId, requestId })
+    this.asks.set(terminalId, {
+      projectId: owner.projectId,
+      agent: owner.agent,
+      sessionId: owner.sessionId,
+      requestId,
+    })
   }
 
   /** Drops a draft the app sent or the person discarded; its agent isn't told. Else NOT_FOUND. */
@@ -156,10 +171,11 @@ export class Feedback {
   /** A removed project's drafts go with it. */
   forgetProject(projectId: string): void {
     for (const [terminalId, draft] of this.drafts)
-      if (draft.projectId === projectId) {
-        this.drafts.delete(terminalId)
-        this.asks.delete(terminalId)
-      }
+      if (draft.projectId === projectId) this.drafts.delete(terminalId)
+    for (const [terminalId, ask] of this.asks)
+      if (ask.projectId === projectId) this.asks.delete(terminalId)
+    for (const [terminalId, each] of this.sent)
+      if (each.projectId === projectId) this.sent.delete(terminalId)
     this.publish()
   }
 
@@ -187,6 +203,18 @@ export class Feedback {
       return undefined
     }
     return undelivered(reply) ? "waiting" : "delivered"
+  }
+
+  /** Forgets the rate record of drafts older than the window, and what a closed terminal left. */
+  private prune(at: number): void {
+    for (const [terminalId, each] of this.sent) {
+      const recent = each.times.filter((time) => at - time < rates.windowMs)
+      if (recent.length > 0 && this.host.exists(terminalId))
+        this.sent.set(terminalId, { ...each, times: recent })
+      else this.sent.delete(terminalId)
+    }
+    for (const terminalId of this.asks.keys())
+      if (!this.host.exists(terminalId)) this.asks.delete(terminalId)
   }
 
   private publish(): void {

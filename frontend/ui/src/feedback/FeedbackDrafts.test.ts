@@ -268,6 +268,45 @@ describe("an agent's draft in the feedback card", () => {
       expect(view.feedback.settled).toHaveLength(1)
     })
 
+    it("sends nothing on the network's return after a failed send whose draft was replaced", async () => {
+      const view = show()
+      const first = draftOf({ text: "First" })
+      view.feedback.push([first])
+      await view.settle()
+      const send = vi.spyOn(view.feedback, "send").mockRejectedValueOnce(new Error("offline"))
+      act(() => view.sendButton().click())
+      await view.settle()
+      expect(view.button().textContent).toContain("Not sent")
+      // A newer draft from the same terminal replaces it.
+      const second = draftOf({ terminal: first.terminal, text: "Second" })
+      view.feedback.push([second])
+      await view.settle()
+      expect(view.field().value).toBe("Second")
+      expect(view.button().textContent).not.toContain("Not sent")
+      expect(view.button().textContent).toContain("Draft from @owl")
+      expect(view.card()!.querySelector(".feedback-failed")).toBeNull()
+      act(() => void window.dispatchEvent(new Event("online")))
+      await view.settle()
+      expect(send).toHaveBeenCalledTimes(1)
+      expect(view.feedback.sent).toEqual([])
+    })
+
+    it("sends nothing on the network's return after a failed send whose draft left", async () => {
+      const view = show()
+      view.feedback.push([draftOf()])
+      await view.settle()
+      const send = vi.spyOn(view.feedback, "send").mockRejectedValueOnce(new Error("offline"))
+      act(() => view.sendButton().click())
+      await view.settle()
+      view.feedback.push([])
+      await view.settle()
+      expect(view.button().textContent).not.toContain("Not sent")
+      act(() => void window.dispatchEvent(new Event("online")))
+      await view.settle()
+      expect(send).toHaveBeenCalledTimes(1)
+      expect(view.feedback.sent).toEqual([])
+    })
+
     it("sends the note once when Send is pressed again while it is on its way", async () => {
       const view = show()
       view.feedback.hold = true

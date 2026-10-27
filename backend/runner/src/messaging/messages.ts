@@ -381,7 +381,7 @@ export const wrap = (
           "Novadeck relayed the user's request: write feedback about Novadeck, from what you did in " +
             "this session, and draft it with Novadeck's feedback tool. Say what you did, what happened " +
             "and what you expected; leave out code or content from their project, secrets, names " +
-            "and paths under their home folder. Nothing is sent: the draft waits in their Inbox for " +
+            "and paths under their home folder. Nothing is sent: the draft waits in their feedback card for " +
             "them to read, edit and send.",
           text !== "" && `The user's hint: <hint>${escapeText(text)}</hint>`,
         ]
