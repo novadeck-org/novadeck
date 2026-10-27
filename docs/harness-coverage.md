@@ -380,7 +380,7 @@ Code's record says nothing of the background, so its running subagents count.
 
 ## A finished turn and its last reply
 
-The done signal (see the README) needs to tell how a turn ended and what the agent said
+The done signal (see [the guide](guide.md)) needs to tell how a turn ended and what the agent said
 last. `TerminalSummary.activity.lastTurn` carries both once no turn runs: the outcome, the
 start of the reply as one line of plain text, 120 characters at most (`replyPreview`),
 never the whole reply, and `at`, which tells one end from another.

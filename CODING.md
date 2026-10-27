@@ -15,8 +15,8 @@ In the UI, state lives in the workspace and UI stores. Put the pure transition
 beside the type it changes, as `shell/shell-state.ts` and
 `terminals/rename-state.ts` do, and let commands in `app/commands/` read the
 latest stores and reach the page only through the effects they are given.
-Components subscribe to the narrowest selection they render; see the README's
-"Working on the UI" for the layers.
+Components subscribe to the narrowest selection they render; see
+"Working on the UI" in docs/development.md for the layers.
 
 Prefer `const` and treat values as immutable. Derive a new value instead of
 changing one that other code may hold. Use short, single-word names such as
