@@ -1,6 +1,6 @@
 import { movedOrder, nextAccountReset, runningSeats, sameSeats } from "@novadeck/core/account-usage"
 import { nextWaitingChange } from "@novadeck/core/agent-waiting"
-import type { Backend, BackendConnectionState } from "@novadeck/core/port"
+import type { Backend, BackendConnectionState, TerminalKey } from "@novadeck/core/port"
 import { waitingAgents } from "@novadeck/core/terminal-ending"
 import { memo, useCallback, useEffect, useState, useSyncExternalStore } from "react"
 
@@ -8,6 +8,7 @@ import { FeedbackButton } from "../feedback/FeedbackButton"
 import { readSubscriptionOrder, writeSubscriptionOrder } from "../shell/shell-storage"
 import { SubscriptionUsage } from "../shell/SubscriptionUsage"
 import { WorkspaceFooter as Footer, type FooterStatus } from "../shell/WorkspaceFooter"
+import { programIcon } from "../terminals/processes/profiles"
 import { useRenderAt } from "../terminals/use-render-at"
 import { useUiState, useWorkspaceServices, useWorkspaceState } from "./controller/context"
 import { useAccounts } from "./controller/footer-accounts"
@@ -29,6 +30,16 @@ export const WorkspaceFooter = memo((): React.JSX.Element => {
   const { backend, commands, navigation, ui, workspace: store } = useWorkspaceServices()
   const { updates, portable: portableHost } = backend
   const connection = useConnection(backend.connection)
+  // The title of a terminal's window as it is now; none once it has closed.
+  const titleOf = useCallback(
+    (key: TerminalKey): string | undefined =>
+      store
+        .getSnapshot()
+        .projects.find((project) => project.id === key.projectId)
+        ?.history.find((session) => session.id === key.workspaceSessionId)
+        ?.state.roster.terminals.find((terminal) => terminal.id === key.terminalId)?.name,
+    [store],
+  )
   const crashes = useUiState((state) => state.crashLoop)
   const offer = useUiState((state) => state.update)
   const portableCardOpen = useUiState((state) => state.portableCardOpen)
@@ -209,7 +220,11 @@ export const WorkspaceFooter = memo((): React.JSX.Element => {
           : undefined
       }
       usage={<SubscriptionUsage accounts={accounts} onMove={move} />}
-      feedback={backend.feedback && <FeedbackButton feedback={backend.feedback} />}
+      feedback={
+        backend.feedback && (
+          <FeedbackButton feedback={backend.feedback} titleOf={titleOf} iconOf={programIcon} />
+        )
+      }
     />
   )
 })

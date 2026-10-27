@@ -216,17 +216,18 @@ export const textToSend = (scrubbed: Scrubbed): string =>
     .join("")
 
 const nouns: readonly (readonly [StrikeKind, string, string])[] = [
-  ["path", "path", "paths"],
+  ["path", "home path", "home paths"],
   ["user", "user name", "user names"],
   ["host", "host name", "host names"],
   ["email", "email address", "email addresses"],
 ]
 
-// The counts as a line says them, "1 path" or "2 paths, 1 email address"; null where nothing
-// is struck.
+// The counts as a line says them, "1 home path" or "2 home paths and 1 email address"; null
+// where nothing is struck.
 export const strikeSummary = (counts: StrikeCounts): string | null => {
   const parts = nouns.flatMap(([kind, one, many]) =>
     counts[kind] === 0 ? [] : [`${counts[kind]} ${counts[kind] === 1 ? one : many}`],
   )
-  return parts.length === 0 ? null : parts.join(", ")
+  if (parts.length < 2) return parts[0] ?? null
+  return `${parts.slice(0, -1).join(", ")} and ${parts.at(-1)}`
 }

@@ -1,16 +1,20 @@
-import type { Feedback, FeedbackAbout, FeedbackKind } from "@novadeck/core/feedback"
+import type {
+  AgentFeedbackDraft,
+  Feedback,
+  FeedbackAbout,
+  FeedbackKind,
+} from "@novadeck/core/feedback"
 import type { Backend, TerminalKey } from "@novadeck/core/port"
 import { terminalKeyId } from "@novadeck/core/registry"
 import type { Workspace } from "@novadeck/core/types"
 
 import { demoHandle } from "./handles"
-import { isDemoInbox, type DemoInbox } from "./inbox"
 import { chatAgent, terminalSlot } from "./samples"
 import { terminalOf } from "./terminals"
 import type { DemoTurns } from "./turns"
 
 // The demo's feedback: what the footer's card and an agent window's "Ask @handle to write
-// feedback…" use where the backend has one. It sends nothing anywhere.
+// feedback…" and its drafts use where the backend has one. It sends nothing anywhere.
 
 // The app version the demo's card says goes with a note, in the form of the real versions
 // (`0.0.219`). A fixture, not `backend.version`, which the demo makes older than every update.
@@ -113,6 +117,9 @@ export type DemoFeedback = Required<Feedback> & {
   readonly failNext: () => void
   // The next `ask` rejects as if no agent ran there, so the agent card shows why.
   readonly failNextAsk: () => void
+  // A draft the agent in a terminal wrote on its own, as after it hit a Novadeck bug: not
+  // asked for. Rejects when no agent runs there.
+  readonly draftUnasked: (terminal: TerminalKey) => Promise<void>
 }
 
 // Whether a backend's feedback is the demo's, which the debug panel can make fail.
@@ -122,11 +129,10 @@ export const isDemoFeedback = (feedback: Feedback | undefined): feedback is Demo
 // How many drafts were made, for each one's own id.
 let drafted = 0
 
-// The demo's feedback over `turns`, whose agents write the drafts, and `inbox`, where a
-// draft arrives. `workspace` is the workspace as last committed.
+// The demo's feedback over `turns`, whose agents write the drafts. `workspace` is the
+// workspace as last committed.
 export const createDemoFeedback = (
   turns: DemoTurns,
-  inbox: DemoInbox,
   workspace: () => Workspace | undefined,
 ): DemoFeedback => {
   let failing = false
@@ -137,32 +143,36 @@ export const createDemoFeedback = (
   // The writing turns in flight, by terminal, with the agent's state when each began: one
   // another verb or the person's Stop cut short writes nothing.
   const writing = new Map<string, { hint: string; epoch: number }>()
+  // The drafts waiting for the person, oldest first: one per terminal, a newer one taking the
+  // place of an older one, as the runner holds them.
+  let held: readonly AgentFeedbackDraft[] = []
+  const listeners = new Set<(drafts: readonly AgentFeedbackDraft[]) => void>()
+  const publish = (next: readonly AgentFeedbackDraft[]): void => {
+    held = next
+    for (const listener of listeners) listener(held)
+  }
 
-  const draft = (key: TerminalKey, hint: string): void => {
+  const draft = (key: TerminalKey, hint: string, asked: boolean): void => {
     const current = workspace()
     const terminal = terminalOf(current, key)
     const agent = terminal && chatAgent(terminal)
     if (!terminal || !agent) return
-    const project = current?.projects.find((each) => each.id === key.projectId)
     const kind = draftKindOf(hint)
     drafted += 1
-    inbox.add({
-      kind: "feedback",
-      draft: { kind, text: draftTextOf(kind, terminal.name, key.projectId, hint) },
-      id: `demo-feedback-draft-${drafted}`,
-      source: {
-        projectId: key.projectId,
-        workspaceSessionId: key.workspaceSessionId,
-        terminalId: key.terminalId,
+    const id = terminalKeyId(key)
+    publish([
+      ...held.filter((each) => terminalKeyId(each.terminal) !== id),
+      {
+        id: `demo-feedback-draft-${drafted}`,
+        terminal: key,
         handle: terminal.handle ?? demoHandle(Number(terminalSlot(terminal.id))),
         agent,
-        title: terminal.name,
-        projectName: project?.name ?? key.projectId,
+        kind,
+        text: draftTextOf(kind, terminal.name, key.projectId, hint),
+        asked,
+        at: Date.now(),
       },
-      at: Date.now(),
-      stopped: false,
-      seen: false,
-    })
+    ])
   }
 
   // The agent takes a turn to write it up, as when prompted; its draft comes when the turn ends.
@@ -190,7 +200,7 @@ export const createDemoFeedback = (
         event.outcome === "completed" &&
         turns.epoch(event.key) === mine.epoch
       )
-        draft(event.key, mine.hint)
+        draft(event.key, mine.hint, true)
     }
     startNext(id)
   })
@@ -253,13 +263,30 @@ export const createDemoFeedback = (
     failNextAsk: () => {
       failingAsk = true
     },
+    draftUnasked: (key) => {
+      const terminal = terminalOf(workspace(), key)
+      if (!terminal || terminal.state !== "running" || !chatAgent(terminal))
+        return Promise.reject(new Error("No agent runs in that window."))
+      draft(key, "", false)
+      return Promise.resolve()
+    },
+    drafts: {
+      watch: (listener) => {
+        listeners.add(listener)
+        listener(held)
+        return () => void listeners.delete(listener)
+      },
+      settle: (id) => {
+        if (held.some((each) => each.id === id)) publish(held.filter((each) => each.id !== id))
+        return Promise.resolve()
+      },
+    },
   }
 }
 
-// A backend with feedback: its agents write drafts for the demo's Inbox, which `backend`
-// must have (`withInbox`). Not the visitor's: that build lists its fields.
+// A backend with feedback: its agents write drafts for the person to send or discard. Not
+// the visitor's: that build lists its fields.
 export const withFeedback = (backend: Backend, turns: DemoTurns): Backend => {
-  if (!isDemoInbox(backend.inbox)) throw new Error("withFeedback wraps a backend withInbox made")
   let latest: Workspace | undefined
   return {
     ...backend,
@@ -267,6 +294,6 @@ export const withFeedback = (backend: Backend, turns: DemoTurns): Backend => {
       latest = workspace
       backend.commit(workspace, actions)
     },
-    feedback: createDemoFeedback(turns, backend.inbox, () => latest),
+    feedback: createDemoFeedback(turns, () => latest),
   }
 }

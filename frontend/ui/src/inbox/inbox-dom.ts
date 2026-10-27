@@ -13,9 +13,7 @@ const controls =
 // The controls of the sheet's page in tab order, not the buttons of its title bar, which
 // come before them. The first is where Tab from its row lands.
 export const sheetControls = (sheet: ParentNode = document): HTMLElement[] => {
-  const page = sheet.querySelectorAll<HTMLElement>(
-    `.inbox-sheet-scroll :is(${controls}), .inbox-sheet-footer :is(${controls})`,
-  )
+  const page = sheet.querySelectorAll<HTMLElement>(`.inbox-sheet-scroll :is(${controls})`)
   return Array.from(page)
 }
 

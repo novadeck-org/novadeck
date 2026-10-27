@@ -300,8 +300,8 @@ export type BackendFields = {
   readonly source?: Source
   // Optional. Feedback for the people building Novadeck (see core's `feedback`): the
   // footer's card, and an agent window's "Ask @handle to write feedback…". Absent where
-  // the backend can't send it: neither is drawn. Today only the demo backend has it, and
-  // it sends nothing anywhere.
+  // the backend can't send it: neither is drawn. The desktop app has it where its host sends
+  // notes, and the demo has one that sends nothing anywhere.
   readonly feedback?: Feedback
   // Optional. Types text into a terminal as a paste, bracketed where its program asks,
   // without pressing Enter, as dictation does. Says whether it typed: false when the

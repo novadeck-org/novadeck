@@ -1,5 +1,4 @@
 import type { ChatAnswer, ChatRequest } from "./conversation"
-import type { FeedbackDraft } from "./feedback"
 import type { AgentName } from "./harnesses"
 import type { MessageWaits } from "./messages"
 import { createStore, type Store } from "./store"
@@ -19,8 +18,6 @@ import type { Workspace } from "./types"
 // - `trouble`: what Novadeck noticed about the agent: stuck, at a usage limit, failed, or
 //   its messages held long behind what keeps the doorbell from waking it.
 // - `update`: what the agent reported through the MCP `done` tool, or told through `tell`.
-// - `feedback`: feedback the person asked the agent to write (see `feedback`), waiting for
-//   the person to send or discard it (a Feedback).
 // Agents write subjects, bodies and options; Novadeck shows them as they are.
 
 // Where an item comes from: the terminal, its project and session, the agent running in
@@ -133,7 +130,6 @@ export type InboxContent =
   | { readonly kind: "ask"; readonly ask: AgentAsk }
   | { readonly kind: "trouble"; readonly trouble: Trouble }
   | { readonly kind: "update"; readonly update: Update }
-  | { readonly kind: "feedback"; readonly draft: FeedbackDraft }
 
 // How an agent's ask ended without an answer from the Inbox, and when: the person dismissed
 // it, its agent withdrew it, or the person wrote to the agent in its terminal.
@@ -155,9 +151,9 @@ export type InboxRow = InboxContent & {
   readonly settled?: AskSettled
 }
 
-// The five ways the Inbox presents an item: Unblock (the agent can't go on without the
-// person's yes or action), Ask (a question), Trouble, Update and Feedback.
-export type InboxType = "unblock" | "ask" | "trouble" | "update" | "feedback"
+// The four ways the Inbox presents an item: Unblock (the agent can't go on without the
+// person's yes or action), Ask (a question), Trouble and Update.
+export type InboxType = "unblock" | "ask" | "trouble" | "update"
 
 export const inboxType = (item: InboxContent): InboxType => {
   if (item.kind === "request") return item.request.kind === "question" ? "ask" : "unblock"
@@ -193,12 +189,6 @@ export type InboxAnswer =
         | { readonly type: "read" }
     }
   | { readonly kind: "update"; readonly action: "read" }
-  | {
-      readonly kind: "feedback"
-      readonly answer:
-        | { readonly type: "send"; readonly text: string }
-        | { readonly type: "discard" }
-    }
 
 // Every item, waiting ones first by how long they waited. `answering` the items whose
 // answer is on its way, until the backend drops them; `failed` why an answer didn't take.
@@ -266,14 +256,13 @@ export type Inbox = {
 // How urgent an item is, most urgent first: trouble that stopped the agent, then
 // anything else that stopped it (a limit that waits for the person among them), then what
 // asks while the agent works on, then trouble that handles itself (a limit Novadeck
-// resumes from) or that only holds its messages (whose own question, if any, comes first)
-// or a feedback draft, which waits on the person but not the agent, then updates, and with
+// resumes from) or that only holds its messages (whose own question, if any, comes first),
+// then updates, and with
 // them a failed turn that is no longer the agent's current end (not `stopped`), which only
 // informs.
 export const urgency = (item: InboxRow): number => {
   const type = inboxType(item)
   if (type === "update") return 4
-  if (type === "feedback") return 3
   if (item.kind === "trouble" && item.trouble.type === "waits") return 3
   if (type === "trouble") {
     if (!item.stopped) return item.kind === "trouble" && item.trouble.type === "failed" ? 4 : 3
