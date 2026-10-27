@@ -1,7 +1,8 @@
 /* The region recipe: the app's chrome. The header (`.app-header`, with the `.brand`
    link home), the footer (`.app-footer`, its `.footer-running` count, the
    `.footer-navigate` note while the person navigates the workspace, `.footer-status`
-   and `.footer-action`, a portable copy's install chip `.footer-update` with its `.update-card`,
+   and `.footer-action`, the update chips `.footer-update` in the `.footer-chip` look, a portable
+   copy's with its `.update-card`,
    the floating `.update-progress` bar of an update downloading, the `.whats-new` card of one just
    installed, and
    the account's subscriptions, `.footer-usage`, a pill each with its `.usage-popover`), the rail of sidebar toggles (`.sidebar-tools`) and the sidebar
@@ -402,28 +403,39 @@
   margin-inline-start: auto;
 }
 /* A portable copy's card (PortableInstall.tsx) is as wide as the changelog it can carry,
-   which it shows in the what's-new look below. The workspace's folder reads as a path, in
-   mono, with a small button to show it beside the words. */
+   which it shows in the what's-new look below. The workspace's folder sits in a soft well of
+   its own, apart from the highlights above it and the buttons below: the words, an icon
+   button in the well's corner to show the folder, and the path under both, in mono, on a line
+   of its own so it breaks only when it must. */
 .update-card.portable-card {
   width: 20.5rem;
 }
+.whats-new-list + .portable-data,
+.portable-data + .update-card-foot {
+  margin-block-start: 8px;
+}
 .portable-data {
-  display: flex;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
   align-items: baseline;
-  justify-content: space-between;
-  gap: 8px;
+  gap: 2px 8px;
+  padding: 8px 10px;
+  border-radius: 4px;
+  background-color: var(--color-soft);
 }
-/* The words give way to the button, however long the path: the item may shrink below its
-   longest chunk (`min-width`), and the chunk breaks only when it must, so a short path keeps
-   its full stop beside it. */
-.portable-data > span,
+.portable-data-words {
+  display: contents;
+}
+/* Pulled into the well's corner, as the card's × is into the card's. */
+.portable-data-show {
+  align-self: start;
+  margin-block: -4px;
+  margin-inline: 0 -6px;
+}
 .portable-path {
+  grid-row: 2;
+  grid-column: 1 / -1;
   overflow-wrap: break-word;
-}
-.portable-data > span {
-  min-width: 0;
-}
-.portable-path {
   color: var(--color-ink);
   font-family: var(--font-mono);
   font-size: 0.92em;
@@ -531,12 +543,42 @@
     transform: translateY(-8px) rotate(-5deg) scale(1.08);
   }
 }
-.footer-update-dot {
+/* An update chip (PortableInstall.tsx, UpdateAvailable.tsx), in the feedback button's quiet
+   look: an icon and the word, the icon alone on a narrow screen, lit under the pointer. An
+   update waiting puts a dot on the icon's corner, cut out of the icon by a ring of the
+   chip's own ground; a toned footer has no ring, as its ground is the tone's. */
+.footer-chip {
+  color: inherit;
+}
+.app-footer:not([data-tone]) .footer-chip {
+  --_chip-ground: var(--region-footer-bg, var(--color-paper));
+}
+.app-footer:not([data-tone]) .footer-chip[aria-expanded="true"] {
+  --_chip-ground: var(--color-soft);
+}
+.footer-chip-icon {
+  position: relative;
+  display: inline-flex;
+}
+.footer-chip-dot {
+  position: absolute;
+  top: -2px;
+  right: -2px;
   width: 6px;
   height: 6px;
-  margin-inline-end: 6px;
   border-radius: 50%;
   background-color: var(--color-strong);
+  box-shadow: 0 0 0 1.5px var(--_chip-ground, transparent);
+}
+.footer-chip-text {
+  margin-inline-start: 6px;
+}
+@media (hover: hover) {
+  .app-footer:not([data-tone]) .footer-chip:hover {
+    --_chip-ground: var(--color-soft);
+    background-color: var(--color-soft);
+    color: var(--color-ink);
+  }
 }
 .update-progress-note {
   margin: 0;

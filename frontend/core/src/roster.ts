@@ -77,6 +77,36 @@ export const addTerminal = (
   terminals: [...roster.terminals, terminal],
 })
 
+// Lists a terminal under the terminal `openerId` in the sidebar, after the terminals that
+// one opened before and theirs, so a lead's teammates follow it rather than trailing the
+// list. Without such a terminal, it keeps its place at the end. Only as much of the order
+// as it needs is saved, so the rest still follows creation order, windows last.
+export const listUnderOpener = (
+  roster: TerminalRoster,
+  terminalId: string,
+  openerId: string,
+): TerminalRoster => {
+  const opener = roster.terminals.find((each) => each.id === openerId)
+  if (!opener || openerId === terminalId || !hasTerminal(roster, terminalId)) return roster
+  const ids = orderedTiles(roster)
+    .map((tile) => tile.id)
+    .filter((id) => id !== terminalId)
+  const byId = new Map(roster.terminals.map((each) => [each.id, each]))
+  // The ones it opened or leads, and theirs in turn, as they follow it.
+  const family = new Set(opener.handle === undefined ? [] : [opener.handle])
+  const inFamily = (each: TerminalMetadata | undefined) =>
+    (!!each?.openedBy && family.has(each.openedBy)) || (!!each?.ledBy && family.has(each.ledBy))
+  let at = ids.indexOf(opener.id) + 1
+  for (; at < ids.length; at += 1) {
+    const next = byId.get(ids[at]!)
+    if (!inFamily(next)) break
+    if (next!.handle) family.add(next!.handle)
+  }
+  const saved = new Set(roster.order.filter((id) => id !== terminalId && hasTile(roster, id)))
+  const end = Math.max(at, saved.size)
+  return { ...roster, order: [...ids.slice(0, at), terminalId, ...ids.slice(at, end)] }
+}
+
 type TerminalFacts = Pick<
   TerminalMetadata,
   "name" | "directory" | "handle" | "titleSource" | "ledBy" | "openedBy" | "agentRan"

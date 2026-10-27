@@ -45,7 +45,7 @@ describe("a portable copy's install card", () => {
       await expect.element(quiet().getByText("Updates need an installed Novadeck.")).toBeVisible()
       // Text matches whole (not by part) by default: the line is one sentence around the path.
       await expect
-        .element(quiet().getByText("Your workspace stays in /home/you/.config/novadeck."))
+        .element(quiet().getByText("Your workspace stays in /home/you/.config/novadeck"))
         .toBeVisible()
       await expect.element(quiet().getByRole("button", { name: "Show folder" })).toBeVisible()
       await expect.element(quiet()).not.toHaveFocus()
@@ -84,10 +84,13 @@ describe("a portable copy's install card", () => {
       await expectStaysAbsent(quiet())
     })
 
-    it("shortens the chip to Install on a narrow bar", async () => {
+    it("shortens the chip to its icon on a narrow bar", async () => {
       await page.viewport(600, 800)
       await openWorkspace("/?portable=no-release")
-      await expect.element(install().getByText("Install", { exact: true })).toBeVisible()
+      await expect.element(install()).toBeVisible()
+      expect(
+        install().element().querySelector("svg")!.getBoundingClientRect().width,
+      ).toBeGreaterThan(0)
       await expect
         .element(install().getByText("Install Novadeck", { exact: true }))
         .not.toBeVisible()

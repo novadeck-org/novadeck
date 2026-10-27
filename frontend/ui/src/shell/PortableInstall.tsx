@@ -1,12 +1,14 @@
 import type { PortableInstall as InstallState } from "@novadeck/core/portable"
 import type { UpdateOffer, WhatsNew as Notes } from "@novadeck/core/update"
 import { Progress } from "@novadeck/toolkit/Progress"
-import { ExternalLink, X } from "lucide-react"
+import { Tooltip } from "@novadeck/toolkit/Tooltip"
+import { CircleArrowUp, Download, ExternalLink, FolderOpen, X } from "lucide-react"
 import { useEffect, useId, useRef, useState } from "react"
 
 import { currentPlatform, type Platform } from "../interaction/shortcuts"
 import { useLinger } from "./linger"
 import { KeepFocus, useOverlayOpen, useRecoverFocus } from "./notice-focus"
+import { readFoldedChip, writeFoldedChip } from "./shell-storage"
 import { Highlights, useOverflow } from "./WhatsNew"
 
 // A portable copy, which never updates itself and is the way to install the app that does.
@@ -104,7 +106,9 @@ const cardWords = (
 // takes focus by itself. The chip opens it as the person's own request, with focus moving
 // to the card, so Escape there folds it back into the chip and returns to it.
 // A finished install says so for a few seconds, as the update bar does, then fades and
-// leaves "Installed" on the chip. Novadeck never restarts itself.
+// leaves "Installed" on the chip. Novadeck never restarts itself. Once the person closes the
+// card on a release, the chip folds to its icon (and dot) for it; any other release brings the
+// word back, and with none the chip keeps its words.
 export const PortableInstall = ({
   portable: card,
   hidden,
@@ -161,8 +165,15 @@ export const PortableInstall = ({
     return () => cancelAnimationFrame(frame)
   }, [visible])
   const lost = useRecoverFocus(blocked || hidden, chip)
+  // The release the person last folded the chip on. Only a release folds it: with none, the
+  // chip keeps "Install Novadeck", and a run that hears of none forgets no fold.
+  const [folded, setFolded] = useState(readFoldedChip)
   const finish = (): void => {
     if (!card) return
+    if (offer) {
+      setFolded(offer.version)
+      writeFoldedChip(offer.version)
+    }
     const inside = panel.current?.contains(document.activeElement) === true
     const back = opener.current === "chip"
     requested.current = false
@@ -176,7 +187,6 @@ export const PortableInstall = ({
   }
   useLinger(lingering, visible, (to) => (to === "fading" ? setLingering("fading") : finish()))
   const word = offer ? "Update available" : "Install Novadeck"
-  const narrow = offer ? "Update" : "Install"
   const installed = install.phase === "installed"
   // Nothing is left to install: the chip says so, for a newer copy found as for ours.
   const done = installed || install.phase === "newer"
@@ -243,6 +253,7 @@ export const PortableInstall = ({
       ? { ...heard, highlights: heard.highlights.slice(0, 4) }
       : undefined
   const chipText = running ? "Installing…" : done ? "Installed" : word
+  const iconOnly = offer !== undefined && folded === offer.version && !running && !done
   // Where the workspace is, said in the phases where the person weighs installing or
   // installing; the others have their own words about it.
   const dataLine =
@@ -269,7 +280,7 @@ export const PortableInstall = ({
           <button
             ref={chip}
             type="button"
-            className="footer-action footer-update font-bold cursor-pointer"
+            className="footer-update footer-chip cursor-pointer"
             aria-label={
               running
                 ? "Installing…"
@@ -279,6 +290,7 @@ export const PortableInstall = ({
                     ? `${word}: Novadeck ${offer.version}`
                     : word
             }
+            title={iconOnly ? word : undefined}
             aria-expanded={visible}
             aria-controls={visible ? panelId : undefined}
             onClick={() => {
@@ -292,16 +304,20 @@ export const PortableInstall = ({
               card.onOpenChange(true)
             }}
           >
-            {offer && install.phase === "idle" && (
-              <span className="footer-update-dot" aria-hidden="true" />
-            )}
+            <span className="footer-chip-icon" aria-hidden="true">
+              {offer ? (
+                <CircleArrowUp size={12} strokeWidth={1.75} />
+              ) : (
+                <Download size={12} strokeWidth={1.75} />
+              )}
+              {offer && install.phase === "idle" && <span className="footer-chip-dot" />}
+            </span>
             {running || done ? (
-              chipText
+              <span className="footer-chip-text">{chipText}</span>
             ) : (
-              <>
-                <span className="max-[701px]:hidden">{word}</span>
-                <span className="hidden max-[701px]:inline">{narrow}</span>
-              </>
+              <span className={`footer-chip-text ${iconOnly ? "hidden" : "max-[701px]:hidden"}`}>
+                {word}
+              </span>
             )}
           </button>
           {visible && (
@@ -388,17 +404,21 @@ export const PortableInstall = ({
               )}
               {dataLine !== undefined && (
                 <p className="update-progress-note portable-data">
-                  <span>
-                    Your workspace stays in <code className="portable-path">{dataLine}</code>.
+                  <span className="portable-data-words">
+                    <span>Your workspace stays in</span>{" "}
+                    <code className="portable-path">{dataLine}</code>
                   </span>
                   {portable.onShowFolder && (
-                    <button
-                      type="button"
-                      className="button link shrink-0 text-control"
-                      onClick={portable.onShowFolder}
-                    >
-                      Show folder
-                    </button>
+                    <Tooltip content="Show folder">
+                      <button
+                        type="button"
+                        className="icon-button small portable-data-show"
+                        aria-label="Show folder"
+                        onClick={portable.onShowFolder}
+                      >
+                        <FolderOpen size={14} />
+                      </button>
+                    </Tooltip>
                   )}
                 </p>
               )}

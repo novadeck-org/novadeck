@@ -615,6 +615,8 @@ describe("Novadeck's MCP server", () => {
         "Set open to true for a deliverable you finish or they asked to see",
       )
       expect(show.description).toContain("one item per deliverable")
+      expect(show.description).toContain("Show a page you serve or just deployed")
+      expect(show.description).toContain("a link to someone else's site")
       const showing = described.find((tool) => tool.name === "showing")!
       expect(showing.description).toContain("Check it before showing after a while")
     })
