@@ -163,4 +163,34 @@ export const drawnCritters: readonly (readonly [word: string, rows: string])[] =
   ["vinyl", "..####../.#++++#./#+x##x+#/#+#..#+#/#+#..#+#/#+####+#/.#++++#./..####.."],
   // Small blob among sparkles.
   ["glimmer", "o....o../......../..####../.#x##x#o/.######./.######./o.####../..#..#.."],
+  // Eyes peering out of murky water.
+  ["murk", "......../...##.../..####../.#e##e#./.######./++++++++/.+.++.+./+.+..+.+"],
+  // Heavy smog cloud, dripping.
+  ["smog", "......../..##.##./.#######/########/#x##x###/+######+/.++++++./..+..+.."],
+  // Small cloud dropping ice pellets.
+  ["sleet", ".######./########/#x####x#/.######./..o..o../o...o.../...o...o/.o...o.."],
+  // Cup with eyes in the dregs.
+  ["dregs", "......../#......#/#......#/#......#/#+x++x+#/#++++++#/.######./..####.."],
+  // Makeshift blade, eyes on its taped grip.
+  ["shiv", ".......#/......##/.....##./....##../..+##.../.x+x..../+o+...../++......"],
+  // Boxy mech: antennae, visor eyes, legs.
+  ["mech", ".#....#./.######./##e##e##/########/.#++++#./.######./.##..##./##....##"],
+  // Round little vole, tail behind.
+  ["vole", "......../......../.##...../#x####../#######./.#######/..######/.+..+.++"],
+  // Long-snouted shrew, bright nose.
+  ["shrew", "......../......../....###./...#####/o#x#####/.#######/..######/..+..+.+"],
+  // Candle whose wick is lit.
+  ["wick", "...o..../..ooo.../...o..../...+..../.######./.#x##x#./.######./.######."],
+  // Corn cob peeking out of its husk.
+  ["husk", "+..##..+/+.####.+/.+#x#x+./.+####+./.+####+./..+##+../..+##+../...++..."],
+  // Fizzy drop sending up bubbles.
+  ["fizz", ".o...o../...o...o/o.o..o../.######./#x####x#/########/#++++++#/.######."],
+  // Front-on rook, one bright lens eye, pale beak.
+  ["rook", "..#..#../.######./#oeo##x#/##o#####/.##++##./.######./#.####.#/..#..#.."],
+  // Hexagon with a glyph between its eyes.
+  ["hex", "..####../.#....#./#.x..x.#/#......#/#.+##+.#/#......#/.#....#./..####.."],
+  // Straw hat, sword at its side.
+  ["ronin", "...##.../.######./########/..#x#x#./..####../.######o/.#.##.o./...##o.."],
+  // Pale egret, plumes and a dark bill.
+  ["egret", ".+....../..+ooo../...oxoo#/...oo.../..ooo.../.ooooo../..oooo../...o.o.."],
 ]

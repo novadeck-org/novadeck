@@ -91,6 +91,21 @@ export const handleWords: readonly string[] = [
   "twilight",
   "vinyl",
   "glimmer",
+  "murk",
+  "smog",
+  "sleet",
+  "dregs",
+  "shiv",
+  "mech",
+  "vole",
+  "shrew",
+  "wick",
+  "husk",
+  "fizz",
+  "rook",
+  "hex",
+  "ronin",
+  "egret",
 ]
 
 /** The handles a session has given, and those of its terminals open now. */
