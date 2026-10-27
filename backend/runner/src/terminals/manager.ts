@@ -664,6 +664,7 @@ export class Terminals {
       bindings: () => this.bindings,
       companion: () => this.companion,
       launcher: () => this.launcher,
+      claims: () => this.claims,
       install: (agent) => this.options.install(agent),
       models: (agent) => this.options.models(agent),
       closingNow: (terminalId) => this.host.closing(terminalId),
@@ -735,7 +736,7 @@ export class Terminals {
       if (input.title !== undefined) naming = renamedTo(naming, input.title)
       if (opener?.title !== undefined) naming = openedWith(naming, opener.title)
       const openedBy = kept?.openedBy ?? opener?.by ?? null
-      const ledBy = kept ? kept.ledBy : opener?.withBrief ? opener.by : null
+      const ledBy = kept ? kept.ledBy : opener?.leads ? opener.by : null
       const work = saved?.work ?? null
       const command = input.command ?? saved?.command ?? null
       const titled = summaryTitle(naming, { command, openedBy })
@@ -748,6 +749,8 @@ export class Terminals {
           saved?.agents[input.resume]?.sessionId,
           connected,
         )
+      // The session an agent asked to resume, judged again: another terminal may have taken it.
+      const asked = this.claims.recheck(input.id, opener?.resume)
       // A worker lost before its agent's first session starts that agent again, still led.
       const task = resume ? undefined : restartedTask(saved, kept?.ledBy)
       const startup =
@@ -766,9 +769,10 @@ export class Terminals {
         place.open(spec, pending.released ? undefined : ownerId),
       )
       // Claimed once its shell runs, so a shell that didn't start holds no session.
-      if (resume && started.resumes) {
-        this.claims.claim(resume.key, input.id)
-        started.resumeClaim = resume.key
+      const claim = resume ? resume.key : asked
+      if (claim && started.resumes) {
+        this.claims.claim(claim, input.id)
+        started.resumeClaim = claim
       }
       const agents = restored(saved?.agents, resume && started.resumes && input.resume, started)
       const record: Record = {
@@ -883,8 +887,8 @@ export class Terminals {
    */
   private register(record: Record, agent: AgentName | null): void {
     const { id, sessionId, handle } = record.summary
-    // Its lead is the agent in the terminal that opened it with a brief, until the agent
-    // it leads exits.
+    // Its lead is the agent in the terminal that opened it to lead it, until the agent it
+    // leads exits.
     this.messaging.register(
       id,
       { projectId: this.projectOf(sessionId), sessionId },
@@ -1226,7 +1230,7 @@ export class Terminals {
   private forget(terminalId: string, { claims = true } = {}): void {
     // Its items go first, so watchers hear of each before its record cascades them away.
     this.companion.closed(terminalId)
-    this.messaging.unregister(terminalId)
+    this.messaging.unregister(terminalId, true)
     this.inbox.reconcile(terminalId)
     this.typing.forget(terminalId)
     this.murmur?.gone(terminalId)

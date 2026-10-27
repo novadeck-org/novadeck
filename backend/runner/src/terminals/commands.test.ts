@@ -1,5 +1,5 @@
 import { describe, expect, it } from "../test.js"
-import { commandWords, expectedAgent, promptIn } from "./commands.js"
+import { commandWords, expectedAgent, promptIn, sessionLaunch } from "./commands.js"
 
 describe("the agent a new terminal expects", () => {
   it("is the one it resumes, or whose program its command runs", () => {
@@ -8,6 +8,7 @@ describe("the agent a new terminal expects", () => {
     expect(expectedAgent("  /usr/local/bin/agy", undefined)).toBe("agy")
     expect(expectedAgent("C:\\Tools\\codex.exe --full-auto", undefined, "win32")).toBe("codex")
     expect(expectedAgent("C:\\Tools\\codex.exe --full-auto", undefined, "linux")).toBeNull()
+    expect(expectedAgent("C:\\Tools\\Codex.EXE", undefined, "win32")).toBe("codex")
     expect(expectedAgent("npm run dev", undefined)).toBeNull()
     expect(expectedAgent(undefined, undefined)).toBeNull()
   })
@@ -47,5 +48,126 @@ describe("a command's words", () => {
       "C:\\Tools\\codex.exe",
       "fix it",
     ])
+  })
+})
+
+describe("the agent whose session a command would start", () => {
+  it("is the agent for a bare launch, options only, a prompt or a session to continue", () => {
+    for (const command of [
+      "claude",
+      "codex",
+      "agy",
+      "claude --model opus --effort high",
+      `claude "fix the api"`,
+      "claude --resume abc-123",
+      "claude --continue",
+      "claude --resume abc --fork-session",
+      "codex resume abc-123",
+      "codex resume --last",
+      "codex fork --last",
+      `codex -c model_reasoning_effort=high "do x"`,
+      "codex --model gpt-5 --full-auto",
+      "agy --conversation abc-123",
+      "agy --continue",
+      "agy -c",
+      `agy -i "do x"`,
+      `agy --prompt-interactive "do x"`,
+      "agy --model m --effort low",
+      `agy "do x"`,
+      "claude -p 'hi'",
+      "claude --print hi",
+      "claude attach abc",
+      "claude --bg 'do x'",
+      "codex exec 'fix it'",
+      "codex e 'fix it'",
+      "codex review",
+      "codex queue --thread abc --message hi",
+      "codex cloud exec do-x",
+      "claude ultrareview 12",
+      "agy -model m mcp list",
+      "codex exec resume --last",
+      "codex write a test",
+      "codex fix the update",
+      "codex -a never --model gpt-5 resume x",
+      "agy -p 'hi'",
+      "agy --print 'hi'",
+      "agy --prompt 'hi'",
+      "agy -v mcp",
+      "agy -p mcp",
+      "agy --prompt mcp list",
+      "claude -p mcp",
+      "claude --print update",
+    ]) {
+      const agent = command.split(" ")[0]
+      expect([command, sessionLaunch(command, "linux")]).toEqual([command, agent])
+    }
+  })
+
+  it("is null for the other uses of an agent's program", () => {
+    for (const command of [
+      "claude --version",
+      "claude -v",
+      "claude --help",
+      "claude -h",
+      "claude mcp list",
+      "claude --debug plugin install x",
+      "claude auth login",
+      "claude update",
+      "claude doctor",
+      "claude purge",
+      "claude --model opus mcp list",
+      "claude --settings x.json plugin list",
+      'claude "do x" --help',
+      "codex login",
+      "codex mcp add x",
+      "codex -c key=value mcp list",
+      "codex -p prof mcp list",
+      "agy -p --help",
+      "codex --config k=v -m gpt-5 login",
+      "codex --enable fast apply",
+      "agy --model m mcp list",
+      "codex apply",
+      "codex a",
+      "codex sandbox linux ls",
+      "codex features list",
+      "codex help resume",
+      "codex --help",
+      "codex -V",
+      "codex --version",
+      "agy models",
+      "agy mcp list",
+      "agy plugins list",
+      "agy update",
+      "agy changelog",
+      "agy --help",
+      "agy --version",
+    ]) {
+      expect([command, sessionLaunch(command, "linux")]).toEqual([command, null])
+    }
+  })
+
+  it("reads the program as a new terminal does, by path, quote and extension", () => {
+    expect(sessionLaunch("/usr/local/bin/claude --resume x", "linux")).toBe("claude")
+    expect(sessionLaunch(`'codex' resume x`, "linux")).toBe("codex")
+    expect(sessionLaunch("C:\\Tools\\codex.exe resume x", "win32")).toBe("codex")
+    expect(sessionLaunch("C:\\Tools\\claude.cmd", "win32")).toBe("claude")
+    expect(sessionLaunch("C:\\Tools\\agy.exe mcp list", "win32")).toBeNull()
+    expect(sessionLaunch("C:\\Tools\\codex.exe resume x", "linux")).toBeNull()
+    expect(sessionLaunch("C:\\Tools\\CODEX.EXE resume x", "win32")).toBe("codex")
+    expect(sessionLaunch("Claude --resume x", "win32")).toBe("claude")
+    expect(sessionLaunch("Claude mcp list", "win32")).toBeNull()
+    expect(sessionLaunch("Claude", "linux")).toBeNull()
+  })
+
+  it("refuses a command after an option it does not know takes a value", () => {
+    expect(sessionLaunch("claude --unknown x mcp list", "linux")).toBe("claude")
+  })
+
+  it("is null for another program and for no command", () => {
+    expect(sessionLaunch("npm run dev", "linux")).toBeNull()
+    expect(sessionLaunch("echo claude", "linux")).toBeNull()
+    expect(sessionLaunch("claudex --resume x", "linux")).toBeNull()
+    expect(sessionLaunch("", "linux")).toBeNull()
+    expect(sessionLaunch("   ", "linux")).toBeNull()
   })
 })

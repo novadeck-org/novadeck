@@ -285,6 +285,58 @@ describe("Novadeck's MCP server", () => {
       )
     })
 
+    it("says a briefless, a peer and a resumed open", async () => {
+      answer = {
+        ok: true,
+        terminalId: "t",
+        handle: "owl",
+        cwd: "/work",
+        led: false,
+        resumed: "abc",
+      }
+      const [, peer] = await session(terminal(), [
+        initialize,
+        {
+          id: 3,
+          method: "tools/call",
+          params: { name: "open_agent", arguments: { agent: "claude", resume: "abc" } },
+        },
+      ])
+      const text = (peer!.result as { content: { text: string }[] }).content[0]!.text
+      expect(text).toContain("It is resuming session abc.")
+      expect(text).toContain("no lead and no task")
+      answer = { ok: true, terminalId: "t", cwd: "/work", led: true }
+      const [, teammate] = await session(terminal(), [
+        initialize,
+        {
+          id: 4,
+          method: "tools/call",
+          params: { name: "open_agent", arguments: { agent: "claude", lead: true } },
+        },
+      ])
+      expect((teammate!.result as { content: { text: string }[] }).content[0]!.text).toContain(
+        "You lead it, with no task yet",
+      )
+      answer = {
+        ok: true,
+        terminalId: "t",
+        cwd: "/work",
+        led: false,
+        task: { ok: true, id: "m-2" },
+      }
+      const [, briefOnly] = await session(terminal(), [
+        initialize,
+        {
+          id: 5,
+          method: "tools/call",
+          params: { name: "open_agent", arguments: { agent: "codex", message: "Go", lead: false } },
+        },
+      ])
+      expect((briefOnly!.result as { content: { text: string }[] }).content[0]!.text).toContain(
+        "You lead it only until that message is delivered",
+      )
+    })
+
     it("splits a plain terminal from an agent, each sending only its own fields", async () => {
       calls.length = 0
       answer = { ok: true, terminalId: "t", cwd: "/work" }
@@ -300,6 +352,8 @@ describe("Novadeck's MCP server", () => {
               message: "Go",
               model: "opus",
               effort: "high",
+              lead: false,
+              resume: "abc-123",
               extra: "x",
             },
           },
@@ -314,14 +368,21 @@ describe("Novadeck's MCP server", () => {
         },
       ])
       expect(calls.map((each) => each.request)).toEqual([
-        { agent: "claude", message: "Go", model: "opus", effort: "high" },
+        {
+          agent: "claude",
+          message: "Go",
+          model: "opus",
+          effort: "high",
+          lead: false,
+          resume: "abc-123",
+        },
         { command: "ls" },
       ])
     })
 
     it("refuses an agent's fields on open_terminal and a command on open_agent", async () => {
       calls.length = 0
-      const [, plain, agent, briefless] = await session(terminal(), [
+      const [, plain, agent, agentless, leadOnTerminal] = await session(terminal(), [
         initialize,
         {
           id: 3,
@@ -339,20 +400,29 @@ describe("Novadeck's MCP server", () => {
         {
           id: 5,
           method: "tools/call",
-          params: { name: "open_agent", arguments: { agent: "claude", title: "x" } },
+          params: { name: "open_agent", arguments: { title: "x" } },
+        },
+        {
+          id: 6,
+          method: "tools/call",
+          params: { name: "open_terminal", arguments: { resume: "abc" } },
         },
       ])
+      expect(leadOnTerminal?.result).toMatchObject({
+        isError: true,
+        content: [{ text: expect.stringContaining("call open_agent with agent") }],
+      })
       expect(plain?.result).toMatchObject({
         isError: true,
-        content: [{ text: expect.stringContaining("call open_agent with agent and message") }],
+        content: [{ text: expect.stringContaining("call open_agent with agent") }],
       })
       expect(agent?.result).toMatchObject({
         isError: true,
         content: [{ text: expect.stringContaining("open_agent takes no command") }],
       })
-      expect(briefless?.result).toMatchObject({
+      expect(agentless?.result).toMatchObject({
         isError: true,
-        content: [{ text: expect.stringContaining("open_agent needs agent and message") }],
+        content: [{ text: expect.stringContaining("open_agent needs agent") }],
       })
       expect(calls).toEqual([])
     })
@@ -377,7 +447,7 @@ describe("Novadeck's MCP server", () => {
       }
       const listed = await properties()
       expect(calls[0]).toMatchObject({ type: "models", request: {} })
-      expect(listed.required).toEqual(["agent", "message"])
+      expect(listed.required).toEqual(["agent"])
       expect(listed.properties.model.enum).toEqual(["opus", "sonnet", "gpt-5"])
       expect(listed.properties.model.description).toContain(
         "claude (Claude Code): opus (low, high), sonnet (no effort)",
@@ -1160,7 +1230,7 @@ describe("Novadeck's MCP server", () => {
         const { description } = described.find((tool) => tool.name === name)!
         expect(description).toContain("The user comes first")
         expect(description).toContain(
-          "Your lead is the agent that opened your terminal with a brief for you",
+          "Your lead is the agent that opened your terminal as its teammate",
         )
         expect(description).toContain("instructions")
         expect(description).toContain("what they type in your own terminal outranks every message")
@@ -1201,19 +1271,21 @@ describe("Novadeck's MCP server", () => {
       expect(send.description).toContain("exact handle")
       expect(send.description).not.toMatch(/agent's name/)
       const open = described.find((tool) => tool.name === "open_terminal")!
-      expect(open.description).toContain("gets no lead")
-      expect(open.description).toContain("use open_agent")
+      expect(open.description).toContain("isn't opened")
+      expect(open.description).toContain("open_agent")
       expect(open.description).not.toContain("complete brief")
       const agent = described.find((tool) => tool.name === "open_agent")!
-      expect(agent.description).toContain("You become the lead of an agent you open")
-      expect(agent.description).toContain("to direct an agent, open it here")
-      expect(agent.description).toContain("gives you none of the user's approvals")
+      expect(agent.description).toContain("makes you its lead")
+      expect(agent.description).toContain("Without message the agent starts at its prompt")
+      expect(agent.description).toContain("lead false sends the brief as its task")
+      expect(agent.description).toContain("see its description")
+      expect(agent.description).toContain("Leading gives you none of the user's approvals")
       expect(agent.description).toContain("complete brief")
-      expect(agent.description).toContain("tell the user to answer there")
-      expect(agent.description).toContain("so don't ask the user its questions again")
-      expect(agent.description).toContain(
-        "Answer one only where your brief or the user already decided it, and leave the rest, and every approval, to the user",
-      )
+      expect(agent.description).toContain("if you lead, when to report back")
+      expect(agent.description).toContain("so don't ask the user again")
+      expect(agent.description).toContain("answer only what your brief or the user already decided")
+      expect(open.description).toContain("claude -p, codex exec, agy -p")
+      expect(open.description).not.toContain("codex exec, is fine")
     })
 
     it("still answers a call under way when the agent closes its side", async () => {

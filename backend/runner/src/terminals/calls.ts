@@ -30,10 +30,11 @@ import {
   waitingRefusal,
   type CloseAnswer,
 } from "./closes.js"
+import { sessionLaunch } from "./commands.js"
 import type { Companion } from "./companion.js"
 import { mention } from "./handles.js"
 import type { Launcher } from "./launching.js"
-import { Leads, type LeadsHost } from "./leads.js"
+import { Leads, leadNotice, type LeadsHost } from "./leads.js"
 import { cleanSummary, summarized, summaryRefusal } from "./naming.js"
 import { afterSummary } from "./nudges.js"
 import {
@@ -43,12 +44,14 @@ import {
   runnerOpenLimit,
   readOpenRequest,
   refused,
+  sessionCommandRefusal,
   type Asked,
   type OpenAnswer,
   type OpenRequests,
 } from "./opens.js"
 import { peerOf } from "./peers.js"
 import type { Record } from "./record.js"
+import { resumeRefusal, type Claims } from "./resumes.js"
 import { readSummarizeRequest, type SummarizeAnswer } from "./summarize.js"
 
 // "a, b and c".
@@ -56,6 +59,28 @@ const list = (items: readonly string[], conjunction = "and"): string =>
   items.length < 2
     ? items.join("")
     : `${items.slice(0, -1).join(", ")} ${conjunction} ${items.at(-1)}`
+
+// A command line for the words: every word but a quoted line is a plain word, and a line
+// holds nothing a shell expands.
+const commandLine = (argv: readonly string[]): string =>
+  argv.map((word) => (/^[\w./-]+$/.test(word) ? word : quotedLine(word))).join(" ")
+
+/**
+ * Who leads the agent an `open_agent` starts: its opener, with a brief by default and
+ * without one otherwise, as `lead` says either way (`leads`); or, with a brief and `lead`
+ * false, only until that brief is delivered (`briefOnly`): the brief goes with the lead
+ * mark, as the person's decision that it is the agent's task and no peer's request.
+ */
+const openedLead = (request: {
+  readonly agent?: AgentName | undefined
+  readonly message?: string | undefined
+  readonly lead?: boolean | undefined
+}): { readonly leads: boolean; readonly briefOnly: boolean } => {
+  const leads = request.agent !== undefined && (request.lead ?? request.message !== undefined)
+  const briefOnly =
+    request.agent !== undefined && request.message !== undefined && request.lead === false
+  return { leads, briefOnly }
+}
 
 // Why a request for a new terminal went unanswered.
 const unopened = {
@@ -74,6 +99,8 @@ export type CallsHost = LeadsHost & {
   readonly opens: () => OpenRequests
   readonly companion: () => Companion
   readonly launcher: () => Launcher
+  /** The sessions given out to resume, one to a terminal. */
+  readonly claims: () => Claims
   /** Where a harness lives on this machine, which says how it may start with a task. */
   readonly install: (agent: AgentName) => Promise<Install | undefined>
   /** The models a harness can start with here, none where that can't be told. */
@@ -151,8 +178,11 @@ export class Calls {
   /**
    * Opens a new terminal beside the caller's, as an agent asked through Novadeck's MCP
    * server in one of the terminal's shells: in a folder, from the terminal's directory,
-   * optionally starting a command at its first prompt. The client that lays terminals
-   * out opens it (see `requests`), so without one nothing opens. A terminal's agents
+   * optionally starting a command at its first prompt, or an agent: at its prompt or with
+   * a task, a model and effort, a past session to resume, and led by the caller or not
+   * (see `openedLead`). A command that would start an agent session is refused, as
+   * `open_agent` starts those. The client that lays terminals out opens it (see
+   * `requests`), so without one nothing opens. A terminal's agents
    * open a few at most each minute. A call without the shell's own token learns nothing
    * more.
    */
@@ -170,6 +200,9 @@ export class Calls {
       const unfit = await this.unfitChoice(request.agent, choice)
       if (unfit) return refused(unfit)
     }
+    // Starting an agent is open_agent's: it alone says who leads the agent, and with what task.
+    const session = request.command === undefined ? null : sessionLaunch(request.command)
+    if (session !== null) return refused(sessionCommandRefusal(session))
     const starts = request.command !== undefined || request.agent !== undefined
     // Every check `send` would refuse the task for, before anything starts.
     if (request.agent !== undefined && request.message !== undefined) {
@@ -178,9 +211,18 @@ export class Calls {
     }
     if (request.agent !== undefined && !(await this.host.launcher().connected(request.agent)))
       return refused(
-        `Novadeck isn't connected to ${agentLabel(request.agent)}, so its hooks couldn't take ` +
-          "the task; the user can connect it in Novadeck's preferences.",
+        `Novadeck isn't connected to ${agentLabel(request.agent)}, so its hooks couldn't ` +
+          `${request.message === undefined ? "report its sessions" : "take the task"}; the user ` +
+          "can connect it in Novadeck's preferences.",
       )
+    // The session a terminal that doesn't exist yet would resume, judged as it would be then.
+    const resuming =
+      request.agent !== undefined && request.resume !== undefined
+        ? this.host.claims().check("", request.agent, request.resume, true, choice)
+        : undefined
+    if (request.agent !== undefined && resuming && !resuming.ok)
+      return refused(resumeRefusal(request.agent, resuming.reason))
+    const { briefOnly, leads } = openedLead(request)
     if (starts && !(await this.host.launcher().startsCommands()))
       return refused(
         "Novadeck's shells can't start a command as they open here, as its shell integration " +
@@ -195,7 +237,9 @@ export class Calls {
     const started: { command?: string | undefined; prompted: boolean; nonce?: string } =
       request.agent === undefined
         ? { command: request.command, prompted: true }
-        : await this.taskCommand(request.agent, cwd, choice)
+        : resuming?.ok
+          ? { command: commandLine(resuming.argv), prompted: true }
+          : await this.taskCommand(request.agent, cwd, choice, request.message !== undefined)
     const { command } = started
     // Closed, or the runner stopped, while the folder was looked at.
     if (this.host.stopping() || this.host.records().get(call.terminalId) !== record)
@@ -226,29 +270,63 @@ export class Calls {
         by: record.summary.handle,
         ...(request.title !== undefined && { title: request.title }),
         ...(command !== undefined && { command }),
-        // Only an agent opened with a brief is led by the one that opened it.
-        withBrief: request.agent !== undefined,
+        // Led from the start, so a brief carries the lead mark, until it lands if the lead
+        // ends with it.
+        leads: leads || briefOnly,
+        ...(request.agent !== undefined &&
+          request.resume !== undefined &&
+          resuming?.ok && { resume: { agent: request.agent, session: request.resume } }),
       },
     )
     let task: SendAnswer | undefined
     if (asked.type === "answered" && "terminalId" in asked.answer) {
       this.openers.set(asked.answer.terminalId, charged)
       const opened = this.host.records().get(asked.answer.terminalId)
-      // The task goes to the first session of the agent it starts there, from the opener,
-      // which leads that terminal: it is the lead's first message.
-      if (opened && request.message !== undefined) {
-        // Its first typed entry is this line, where a transcript tells its prompts.
-        if (started.prompted && started.nonce) opened.startedWith = started.nonce
-        this.host.save(opened)
-        task = this.host.messaging().send(call.terminalId, {
-          to: opened.summary.handle,
-          text: request.message,
-        })
-      }
+      if (opened) {
+        // The task goes to the first session of the agent it starts there, from the opener,
+        // which leads that terminal: it is the lead's first message. Its first typed entry
+        // is the launch line, where a transcript tells its prompts.
+        if (request.message !== undefined && started.prompted && started.nonce)
+          opened.startedWith = started.nonce
+        if (request.message !== undefined) {
+          this.host.save(opened)
+          // Only a brief-only lead's brief is held as its one marked message: an ordinary
+          // lead's later messages carry the mark too.
+          const brief = { to: opened.summary.handle, text: request.message }
+          task = briefOnly
+            ? this.host.messaging().sendBrief(call.terminalId, brief)
+            : this.host.messaging().send(call.terminalId, brief)
+        } else if (leads)
+          // With no task to say so, the agent is told who leads it.
+          this.host
+            .messaging()
+            .notice(opened.summary.id, leadNotice.openedLed(record.summary.handle), {
+              always: true,
+            })
+        if (briefOnly) this.endLeadAfter(record, opened, task)
+      } else if (request.message !== undefined)
+        task = { ok: false, reason: "the new terminal closed before the task could be sent." }
     }
     const answer = this.opening(asked, cwd, command)
-    if (!answer.ok || !task) return answer
-    return { ...answer, task, ...(!started.prompted && { taskWaits: true as const }) }
+    if (!answer.ok) return answer
+    return {
+      ...answer,
+      ...(request.agent !== undefined && { led: leads }),
+      ...(resuming?.ok && request.resume !== undefined && { resumed: request.resume }),
+      ...(task && { task, ...(!started.prompted && { taskWaits: true as const }) }),
+    }
+  }
+
+  /**
+   * A lead that lasts only for its brief: the brief, once sent, ends the lead when it is
+   * delivered. One that wasn't sent as the lead's has no delivery to wait for, so the lead
+   * ends now.
+   */
+  private endLeadAfter(lead: Record, led: Record, task: SendAnswer | undefined): void {
+    const { id } = led.summary
+    if (task?.ok && this.host.messaging().briefOf(id) === task.id)
+      this.leads.releaseAfterBrief(id, lead.summary.handle, task.id)
+    else this.host.bindings().endLead(led)
   }
 
   /**
@@ -281,30 +359,28 @@ export class Calls {
   }
 
   /**
-   * The command that starts `agent` with a task: the doorbell's line, with its `nonce`, as
+   * The command that starts `agent`: with a task, the doorbell's line, with its `nonce`, as
    * its command-line prompt, which it submits once past its startup screens; plain where
    * it may not take one (Antigravity in a folder it doesn't trust), when the task arrives
-   * once the person trusts the folder and its prompt shows, rung as any message is.
+   * once the person trusts the folder and its prompt shows, rung as any message is. Without
+   * a task, it just starts at its prompt, with the model and effort chosen.
    */
   private async taskCommand(
     agent: AgentName,
     cwd: string,
     choice: { readonly model?: string; readonly effort?: Effort },
-  ): Promise<{ readonly command: string; readonly prompted: boolean; readonly nonce: string }> {
+    withTask: boolean,
+  ): Promise<{ readonly command: string; readonly prompted: boolean; readonly nonce?: string }> {
     const { messaging } = harnesses[agent]
-    const install = await this.host.install(agent).catch(() => undefined)
+    const install = withTask ? await this.host.install(agent).catch(() => undefined) : undefined
     const nonce = freshNonce()
-    const prompted = await messaging
-      .initialPrompt(doorbellLine(nonce), { install, cwd })
-      .catch(() => undefined)
+    const prompted = withTask
+      ? await messaging.initialPrompt(doorbellLine(nonce), { install, cwd }).catch(() => undefined)
+      : undefined
     const [program = "", ...rest] = prompted ?? messaging.start
     // Right after the program, so before a flag like Antigravity's `-i` that takes the line.
-    const argv = [program, ...messaging.choose(choice), ...rest]
-    // Every word but the line is a plain word; the line holds nothing a shell expands.
-    const command = argv
-      .map((word) => (/^[\w./-]+$/.test(word) ? word : quotedLine(word)))
-      .join(" ")
-    return { command, prompted: prompted !== undefined, nonce }
+    const command = commandLine([program, ...messaging.choose(choice), ...rest])
+    return { command, prompted: prompted !== undefined, ...(withTask && { nonce }) }
   }
 
   /** What the agent learns of the client's answer. */

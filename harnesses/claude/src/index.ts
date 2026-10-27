@@ -18,7 +18,7 @@ import { hookCommand, type Dialect } from "@novadeck/harness-core/hook-command"
 import { box } from "./box.js"
 import { decode, transcriptPlans } from "./decode.js"
 import { dialogs } from "./dialogs.js"
-import { cmdShim, posixShim } from "./shim.js"
+import { cmdShim, commands, posixShim } from "./shim.js"
 import { transcriptEvents, type Calls } from "./transcript.js"
 import { transcripts } from "./transcripts.js"
 
@@ -90,6 +90,9 @@ const messaging: MessagingProfile = {
     ...(effort !== undefined ? ["--effort", effort] : []),
   ],
 }
+
+// Its commands that start work for an agent though they open no session here.
+const sessionCommands = new Set(["attach", "ultrareview"])
 
 export const claude = {
   id: "claude",
@@ -166,7 +169,50 @@ export const claude = {
     platform === "win32"
       ? [{ path: "claude.cmd", content: cmdShim }]
       : [{ path: "claude", content: posixShim, mode: 0o700 }],
-  resume: (session) => ["claude", "--resume", session],
+  // Its commands other than a session, but `attach`, which opens a background session in
+  // the terminal, and `ultrareview`, which submits a cloud review; its print mode runs it
+  // on the caller's text, so it is none. Its options
+  // that take a value, which the words after them are not commands for.
+  nonSession: {
+    commands: commands.filter((command) => !sessionCommands.has(command)),
+    flags: ["-h", "--help", "-v", "--version"],
+    print: ["-p", "--print"],
+    takesValue: [
+      "--add-dir",
+      "--agent",
+      "--agents",
+      "--allowedTools",
+      "--allowed-tools",
+      "--append-system-prompt",
+      "--autocompact",
+      "--betas",
+      "--debug-file",
+      "--disallowedTools",
+      "--disallowed-tools",
+      "--effort",
+      "--environment",
+      "--fallback-model",
+      "--file",
+      "--input-format",
+      "--json-schema",
+      "--max-budget-usd",
+      "--mcp-config",
+      "--model",
+      "-n",
+      "--name",
+      "--output-format",
+      "--permission-mode",
+      "--permission-prompts",
+      "--plugin-dir",
+      "--plugin-url",
+      "--session-id",
+      "--setting-sources",
+      "--settings",
+      "--system-prompt",
+      "--tools",
+    ],
+  },
+  resume: (session, choice = {}) => ["claude", ...messaging.choose(choice), "--resume", session],
   transcripts,
   plans: transcriptPlans,
   // Its hooks, transcript and status line; see docs/harness-coverage.md.

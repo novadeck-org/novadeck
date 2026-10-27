@@ -141,11 +141,17 @@ An agent weighs what reaches it at three levels:
    `ask` in the Inbox, which Novadeck explicitly marks as relayed from them. They come
    first; newer instructions take precedence.
 2. **The lead**: the agent in the terminal that opened this one with
-   `open_agent(agent, message)`, starting an agent there with a brief, or an agent
+   `open_agent(agent, ...)` as its teammate (with a brief, or with `lead: true` and none,
+   a teammate with no task yet), or an agent
    the person let lead this one's running agent: `lead(to, message)` asks, the person
    approves, and the brief is sent then. Only these two explicit paths make a lead; a
-   terminal opened with a `command`, even one that starts an agent, or a plain shell
-   has none, so an agent the person runs there later is theirs alone. The terminal's record keeps the opener's handle (or, after the person approved an agent's `lead`, that agent's) as `ledBy` (column
+   terminal opened with a `command`, or a plain shell, has none, and neither has an agent
+   opened with `lead: false` and no brief, so an agent the person runs there later is theirs
+   alone.
+   An agent opened with a brief and `lead: false` (the person's decision to start it on a
+   task but not run it through the opener) gets the brief marked as the lead's, so it is
+   its task, and the opener's lead is released once the brief is delivered: after that the
+   two are peers. The terminal's record keeps the opener's handle (or, after the person approved an agent's `lead`, that agent's) as `ledBy` (column
    `led_by`), beside `openedBy`, which every opened terminal keeps. It is kept through a
    restore within the same Novadeck session only; a terminal restored under another
    session takes nothing from a record saved in a different one. `ledBy` on a summary is
@@ -450,22 +456,41 @@ the person rather than telling it to proceed or waiting on it; whenever unsure w
 terminal is meant, especially after a long conversation, call `agents()` again and pick
 by title, folder, branch, work and files, and if more than one could match, ask the
 person rather than guess; after sending, end your turn rather than wait or poll, since
-replies arrive by themselves. `open_agent`'s description adds that only it makes the caller a lead (a `command`, even one that starts an agent, or a
-plain shell gets none), and that being a lead gives none of the person's approvals: what
+replies arrive by themselves. `open_agent`'s description adds that it is the only way to start an agent, with a brief or without, and the one that
+can make the caller a lead (a `command` or a plain shell gets none), and that being a lead gives none of the person's approvals: what
 the worker needs the person to approve, they give in its own terminal or through an Inbox ask, so tell them to
 answer there. A text longer than 4 KB is refused by the MCP server itself, before it
 reaches the runner.
 
-`open_agent({ agent, message, model?, effort?, cwd?, title?, focus? })` opens a terminal
-running that agent with `message` as its first task (see [Starting a task](#starting-a-task)). The caller becomes
-that agent's lead, so its description asks for a complete brief (what, where, how to
+`open_agent({ agent, message?, model?, effort?, lead?, resume?, cwd?, title?, focus? })`
+opens a terminal running that agent. Without `message` the agent just starts at its prompt;
+with it, `message` is its first task (see [Starting a task](#starting-a-task)). The caller
+sets `lead` from what the person asked: true, the default with a message, makes the caller
+the agent's lead, so its description asks for a complete brief (what, where, how to
 tell it is done, when to report back) and reminds the caller that bringing decisions
 that need the person's approval to the person, to answer in the worker's own terminal or
-through `ask` in the Inbox, is its job. Its `title` is
-the opener's (see [Naming](#naming)).
+through `ask` in the Inbox, is its job; false, the default without a message, starts an
+agent the caller doesn't lead, as when the person only asked for "another codex". True
+without a message is a teammate with no task yet, to be sent work later; false with a
+message is the brief-only lead: the brief arrives marked as the lead's, and the lead is
+released once it is delivered, so the agent then reports to the person, not the caller.
+With `lead` false the brief asks for no report back. A brief-only lead's release waits in
+memory: a runner restart before the brief is delivered leaves an ordinary lead.
+
+`resume` is the id of a past session of that harness, continued in the new terminal, and
+combines with `model`, `effort`, `message` and `lead`. The caller gets the id from the
+person or from what it knows of the work, never a guess, and must know the agent it
+belongs to too, so a caller unsure of either asks the person. It is refused for an id that
+isn't a session id's shape, one open in another terminal, and a harness that can't resume;
+the runner keeps no list of past sessions, so an id the harness doesn't know fails in the
+new terminal, not at the call. The answer says whether the caller leads the agent. Its
+`title` is the opener's (see [Naming](#naming)).
 
 `open_terminal({ command?, cwd?, title?, focus? })` is the generic form: a plain shell or
-a command, never a lead, and its description sends an agent with a task to `open_agent`.
+a command, never a lead. It runs no agent: a `command` that does (a bare `claude`, `codex`
+or `agy`, with flags, on a prompt such as `claude -p`, `codex exec` or `agy -p`, or
+resuming, continuing or forking a session) is refused, naming `open_agent`; a command that
+runs no agent, such as `claude mcp list`, `codex login`, `agy update` or `--help`, runs.
 Both make the runner's `open` call with one request shape. `model` and `effort` are only
 set when the person asked or the brief needs one; `effort` is one of `low`, `medium`,
 `high`, `xhigh` or `max`, and `model` one id the runner lists for the harness (the
@@ -1740,9 +1765,8 @@ output, not that the model acted on it.
 
 An agent is rung before its first turn only once Ready, as each harness tells (see
 [States](#states)); before that its screen may still be a trust, update or login prompt
-that Enter would answer. A terminal opened with a plain command
-(`open_terminal(command: "claude")`, `codex` or `agy`) gets its messages so: rung once
-its agent is Ready. So that a task arrives at once, before any ring, in every harness,
+that Enter would answer. A terminal where the person starts an agent by hand, or an
+agent opened without a brief, gets its messages so: rung once its agent is Ready. So that a task arrives at once, before any ring, in every harness,
 `open_agent(agent, message)`:
 
 1. Opens the terminal with the agent started through its adapter's
@@ -1752,8 +1776,9 @@ its agent is Ready. So that a task arrives at once, before any ring, in every ha
    exactly the line, a doorbell prompt; Antigravity's transcript records it as its first
    typed entry, which makes its first turn a doorbell prompt too. So a start whose task
    can't be delivered then (messaging paused) is told its messages still wait, in every
-   harness. The MCP server refuses `open_terminal` with `agent`, `message`, `model` or `effort`, and
-   `open_agent` with `command` or without `agent` and `message`, saying which tool to call.
+   harness. The MCP server refuses `open_terminal` with `agent`, `message`, `model`, `effort`,
+   `lead` or `resume`, and `open_agent` with `command` or without `agent`, saying which tool
+   to call.
 2. Antigravity submits `-i`'s prompt about 0.9 s after it starts, even while its "Do
    you trust this folder?" dialog is up. So it gets `-i` only in a folder it already
    trusts (its adapter reads Antigravity's trusted-workspaces setting, matching the

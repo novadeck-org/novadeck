@@ -3,6 +3,7 @@ import { hookShellSlackMs, silentFor, type MessagingProfile } from "@novadeck/ha
 import {
   longHoldMs,
   type AgentName,
+  type MessageState,
   type MessageThread,
   type TerminalMessages,
 } from "@novadeck/protocol"
@@ -449,6 +450,14 @@ export class Messaging {
   /** The terminals an answer is pressing its own keys in now (see `pressing`). */
   private readonly pressed = new Set<string>()
   private readonly responses = new Map<string, string>()
+  /**
+   * The brief of each terminal whose lead lasts only until it is delivered, by terminal:
+   * the message that is the one lead-marked message there. In memory only, and gone when
+   * the lead ends or is set again.
+   */
+  private readonly briefs = new Map<string, string>()
+  /** Whether the message being sent is such a brief (see `sendBrief`). */
+  private briefing = false
   private readonly threads = new Map<string, Thread>()
   /** The tracker of what each terminal's agent did, for the loop hold. */
   private readonly loops: Loops
@@ -600,6 +609,7 @@ export class Messaging {
    * belongs to a session stays, with the authority it had when sent.
    */
   endLead(terminalId: string): void {
+    this.briefs.delete(terminalId)
     const live = this.live.get(terminalId)
     if (!live) return
     live.ledBy = null
@@ -621,6 +631,34 @@ export class Messaging {
   setLead(terminalId: string, handle: string): void {
     const live = this.live.get(terminalId)
     if (live) live.ledBy = handle
+    this.briefs.delete(terminalId)
+  }
+
+  /**
+   * Sends the brief of a lead that lasts only until it is delivered, the one message of that
+   * lead marked so: the lead's other messages to the terminal while it waits go as a peer's.
+   * Answered as `send` is.
+   */
+  sendBrief(terminalId: string, request: unknown): SendAnswer {
+    this.briefing = true
+    try {
+      const answer = this.send(terminalId, request)
+      const message = answer.ok ? this.messages.get(answer.id) : undefined
+      if (message?.fromLead) this.briefs.set(message.to.terminalId, message.id)
+      return answer
+    } finally {
+      this.briefing = false
+    }
+  }
+
+  /** The brief whose delivery ends the terminal's lead, if it waits for one. */
+  briefOf(terminalId: string): string | undefined {
+    return this.briefs.get(terminalId)
+  }
+
+  /** Where the message is now; undefined once it is forgotten. */
+  stateOf(messageId: string): MessageState | undefined {
+    return this.messages.get(messageId)?.state
   }
 
   /** Whether the message was sent by its recipient's running lead, so it is marked so. */
@@ -674,9 +712,13 @@ export class Messaging {
 
   /**
    * A terminal stops running, as it exits or closes: every message for it is gone, those
-   * waiting for its first session too, until its session runs there again.
+   * waiting for its first session too, until its session runs there again. With `forGood`,
+   * as it closes, the brief its lead waits on is let go too; otherwise it is kept, as the
+   * terminal may be restored with its lead.
    */
-  unregister(terminalId: string): void {
+  unregister(terminalId: string, forGood = false): void {
+    // Told to those waiting on it, which stop.
+    if (forGood && this.briefs.delete(terminalId)) this.changed(terminalId)
     const live = this.live.get(terminalId)
     if (!live) return
     this.applyRoot(live, [{ type: "ended" }])
@@ -1813,7 +1855,8 @@ export class Messaging {
         }
     // Its authority is fixed now: from the recipient's running lead, it is marked so when
     // delivered, and never awaits release, whatever happens to the lead after.
-    const fromLead = this.leads(recipient, live)
+    const fromLead =
+      this.leads(recipient, live) && (this.briefing || !this.briefs.has(recipient.terminalId))
     const toLead = this.leads(live, recipient)
     const message: Message = {
       ...this.draft(live, text, {
