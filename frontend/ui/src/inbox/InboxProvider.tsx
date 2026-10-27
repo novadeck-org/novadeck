@@ -154,6 +154,8 @@ export const InboxProvider = ({
   const [view, setView] = useState<InboxView>(initialView)
   const [answered, setAnswered] = useState<Readonly<Record<string, Sent>>>({})
   const [receipt, setReceipt] = useState<Receipt | null>(null)
+  // The answers the sheet has moved on from: opened again, their sheet stays, answered.
+  const movedOn = useRef(new Set<string>())
   const [drafts, setDrafts] = useState<Readonly<Record<string, Draft>>>({})
   const [feedbackEdits, setFeedbackEdits] = useState<Readonly<Record<string, string>>>({})
   const [now, setNow] = useState(() => Date.now())
@@ -258,6 +260,7 @@ export const InboxProvider = ({
     if (before.open === null) return
     setAnswered({})
     setReceipt(null)
+    movedOn.current.clear()
     setView(closeSheet(before, snapshot.items))
     screen?.showList()
   }, [])
@@ -272,7 +275,8 @@ export const InboxProvider = ({
   const moveOn = useCallback(
     (from: string, note: string): void => {
       const { state: snapshot, view: before } = latest.current
-      if (before.open !== from) return
+      if (before.open !== from || movedOn.current.has(from)) return
+      movedOn.current.add(from)
       const target = nextItem(snapshot.items, from, snapshot)
       if (!target) return close()
       setReceipt({ from, note })

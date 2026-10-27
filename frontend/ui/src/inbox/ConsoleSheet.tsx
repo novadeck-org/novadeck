@@ -15,7 +15,7 @@ import { Markdown } from "@novadeck/toolkit/Markdown"
 import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react"
 
 import { useAgentContext, type AgentStep } from "./agent-context"
-import { menuOf, resetLabel, type Menu as MenuModel, type Row } from "./console-menu"
+import { answerable, menuOf, resetLabel, type Menu as MenuModel, type Row } from "./console-menu"
 import { rowOf } from "./inbox-dom"
 import { actionOf, agentName, limitWindow, recommended, subjectOf } from "./inbox-text"
 import { noDraft, useInboxContext } from "./InboxProvider"
@@ -222,7 +222,7 @@ const Thing = ({ item, now }: { readonly item: InboxRow; readonly now: number })
     case "request": {
       const { request } = item
       const { dialog } = request
-      if (dialog?.type === "choices") {
+      if (dialog?.type === "choices" && answerable(item)) {
         const detail = dialog.detail ?? request.subject ?? ""
         if (request.kind === "plan") return <PlanBox item={item} fallback={detail} />
         return (
@@ -244,6 +244,7 @@ const Thing = ({ item, now }: { readonly item: InboxRow; readonly now: number })
           <Heading>
             <Text text={subjectOf(item)} />
           </Heading>
+          {dialog?.type === "choices" && dialog.detail && <CommandBox command={dialog.detail} />}
           {dialog?.type === "raw" && (
             <pre
               className="console-box"
@@ -322,10 +323,12 @@ const RowsMenu = ({
   props,
   model,
   handle,
+  arrived,
 }: {
   readonly props: SheetContentProps
   readonly model: MenuModel
   readonly handle: React.Ref<MenuHandle>
+  readonly arrived: boolean
 }): React.JSX.Element => {
   const { item, answering, submit, change, reveal } = props
   const { drafts, setDraft } = useInboxContext()
@@ -377,7 +380,11 @@ const RowsMenu = ({
     if (row.type === "reveal") return reveal()
     if (row.type === "toggle") return change(row.change)
     setPressed(at)
-    if (row.type === "answer") return submit(row.answer, row.receipt)
+    if (row.type === "answer") {
+      submit(row.answer, row.receipt)
+      if (row.reveal) reveal()
+      return
+    }
     const text = wordsOf(at)
     submit(row.answer(text), row.receipt(text))
   }
@@ -391,6 +398,7 @@ const RowsMenu = ({
       onPress={run}
       onWords={run}
       handle={handle}
+      arrived={arrived}
     />
   )
 }
@@ -403,11 +411,13 @@ const QuestionsMenu = ({
   dialog,
   questions,
   handles,
+  arrived,
 }: {
   readonly props: SheetContentProps
   readonly dialog: string
   readonly questions: readonly ChatQuestion[]
   readonly handles: React.RefObject<(MenuHandle | null)[]>
+  readonly arrived: boolean
 }): React.JSX.Element => {
   const { item, answering, submit } = props
   const { drafts, setDraft } = useInboxContext()
@@ -476,6 +486,7 @@ const QuestionsMenu = ({
               items={items}
               multi={question.multiSelect}
               busy={answering}
+              arrived={arrived && index === 0}
               pressed={answering && pressed?.question === index ? pressed.at : null}
               handle={(handle) => {
                 handles.current[index] = handle
@@ -519,9 +530,12 @@ const QuestionsMenu = ({
 
 // One item's page under the head: its context, the thing, and the menu that answers it.
 export const ConsoleSheet = (props: SheetContentProps): React.JSX.Element => {
-  const { item, failed } = props
-  const { now, drafts } = useInboxContext()
-  const settled = settledLine(item)
+  const { item, failed, sent } = props
+  const { now, drafts, receipt } = useInboxContext()
+  // An answered item opened again says what its answer did, in place of its menu.
+  const settled = settledLine(item) ?? sent?.note ?? null
+  // Whether the Inbox moved on to it from another's answer.
+  const arrived = receipt !== null && receipt.from !== item.id
   const dialog = item.kind === "request" ? item.request.dialog : null
   const questions = dialog?.type === "questions" ? dialog : null
   const model = questions ? null : menuOf(item, now)
@@ -534,22 +548,21 @@ export const ConsoleSheet = (props: SheetContentProps): React.JSX.Element => {
     picks.current = drafted ?? {}
   })
 
-  // A number or an arrow pressed on the item's row, the sheet's title or the page itself goes
-  // to the menu: the menu of the first question still unanswered, where there are several.
-  // Enter and Space there stay the row's and the title's own, so a key pressed twice to open
-  // the sheet answers nothing.
+  // A number or an arrow pressed on the item's row or the sheet's title goes to the menu: the
+  // menu of the first question still unanswered, where there are several. Enter and Space
+  // there stay the row's and the title's own, so a key pressed twice to open the sheet answers
+  // nothing; nor does a key held, nor one pressed with focus nowhere, on a sheet not yet seen.
   useEffect(() => {
     if (settled) return
     const onKey = (event: KeyboardEvent): void => {
       if (event.defaultPrevented || event.isComposing) return
       if (event.ctrlKey || event.metaKey || event.altKey || event.shiftKey) return
       if (!/^([1-9]|ArrowUp|ArrowDown)$/.test(event.key)) return
+      if (event.repeat && /^[1-9]$/.test(event.key)) return
       const target = event.target
       const outside =
-        target === document.body ||
-        target === document.documentElement ||
-        (target instanceof Element &&
-          (rowOf(item.id)?.contains(target) || target.matches(".inbox-sheet-title")))
+        target instanceof Element &&
+        (rowOf(item.id)?.contains(target) || target.matches(".inbox-sheet-title"))
       if (!outside) return
       const open = questions
         ? questions.questions.findIndex((question) => !answered(picks.current, question))
@@ -575,9 +588,13 @@ export const ConsoleSheet = (props: SheetContentProps): React.JSX.Element => {
           dialog={questions.id}
           questions={questions.questions}
           handles={several}
+          arrived={arrived}
         />
       ) : (
-        model && model.rows.length > 0 && <RowsMenu props={props} model={model} handle={one} />
+        model &&
+        model.rows.length > 0 && (
+          <RowsMenu props={props} model={model} handle={one} arrived={arrived} />
+        )
       )}
       <Failure message={failed} />
     </div>

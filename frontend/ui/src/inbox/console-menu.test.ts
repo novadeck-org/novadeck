@@ -2,7 +2,7 @@ import type { ChatDialogOption } from "@novadeck/core/conversation"
 import type { InboxRow, Trouble } from "@novadeck/core/inbox"
 
 import { context, describe, expect, it } from "../test"
-import { menuOf, standingParts, type Row } from "./console-menu"
+import { answerable, menuOf, standingParts, type Row } from "./console-menu"
 
 const source: InboxRow["source"] = {
   projectId: "p",
@@ -84,6 +84,18 @@ describe("A sheet's menu", () => {
       expect(labels(menuOf(permission([{ id: "a", label: "Yes", text: null }]), 0).rows)).toEqual([
         "Allow",
       ])
+    })
+
+    it("offers only the way to the terminal where no option is a yes it can tell", () => {
+      const odd = permission([
+        { id: "run", label: "Run it", text: null },
+        { id: "c", label: "Cancel", text: null },
+      ])
+      expect(menuOf(odd, 0).rows).toEqual([
+        { type: "reveal", label: "Go to terminal", effect: null },
+      ])
+      expect(answerable(odd)).toBe(false)
+      expect(answerable(permission(codex))).toBe(true)
     })
 
     it("is never hard to undo: a permission carries no such flag", () => {

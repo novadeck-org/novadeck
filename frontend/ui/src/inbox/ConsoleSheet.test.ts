@@ -10,7 +10,7 @@ import {
 import { createStore } from "@novadeck/core/store"
 import { nextFrame, render } from "@novadeck/test-kit/render"
 import { act, createElement } from "react"
-import { afterEach } from "vitest"
+import { afterEach, vi } from "vitest"
 
 import { context, describe, expect, it } from "../test"
 import { InboxList } from "./InboxList"
@@ -118,12 +118,14 @@ const codex: readonly ChatDialogOption[] = [
 // What a test mounted, unmounted after it however it ended.
 let mounted: { readonly unmount: () => void } | null = null
 afterEach(() => {
+  vi.restoreAllMocks()
   mounted?.unmount()
   mounted = null
 })
 
 // The Inbox over these items with the first one's sheet open, and the answers it gives.
-const mount = (items: readonly InboxRow[], { failing = false } = {}) => {
+const mount = (items: readonly InboxRow[], { failing = false, open = 0 } = {}) => {
+  const revealed: string[] = []
   const state = createStore<InboxState>({ ...emptyInbox, items })
   const sent: InboxAnswer[] = []
   const inbox: Inbox = {
@@ -143,20 +145,24 @@ const mount = (items: readonly InboxRow[], { failing = false } = {}) => {
   const view = render(
     createElement(
       InboxProvider,
-      { inbox, reveal: () => {} },
+      { inbox, reveal: (terminal: string) => revealed.push(terminal) },
       createElement("div", { id: "inbox-panel" }, createElement(InboxList)),
       createElement(InboxSheet, { active: true }),
     ),
   )
   mounted = view
-  act(() => view.container.querySelector<HTMLElement>(".inbox-row-select")!.click())
+  act(() => view.container.querySelectorAll<HTMLElement>(".inbox-row-select")[open]!.click())
   const rows = () => Array.from(document.querySelectorAll<HTMLElement>(".console-option"))
   const row = (text: string) => rows().find((each) => each.textContent?.includes(text))!
   const press = (text: string): void => act(() => row(text).click())
-  const key = (name: string, target: Element = document.activeElement ?? document.body): void =>
+  const key = (
+    name: string,
+    target: Element = document.activeElement ?? document.body,
+    { repeat = false } = {},
+  ): void =>
     act(() => {
       target.dispatchEvent(
-        new KeyboardEvent("keydown", { key: name, bubbles: true, cancelable: true }),
+        new KeyboardEvent("keydown", { key: name, repeat, bubbles: true, cancelable: true }),
       )
     })
   const field = () => document.querySelector<HTMLTextAreaElement>(".inbox-sheet textarea")!
@@ -186,7 +192,7 @@ const mount = (items: readonly InboxRow[], { failing = false } = {}) => {
     view.unmount()
     mounted = null
   }
-  return { view, state, sent, rows, row, press, key, field, type, confirm, fail, done }
+  return { view, state, sent, revealed, rows, row, press, key, field, type, confirm, fail, done }
 }
 
 const sheet = () => document.querySelector<HTMLElement>(".inbox-sheet")
@@ -589,6 +595,168 @@ describe("The Console sheet", () => {
       after.press("Continue now")
       expect(after.sent).toEqual([{ kind: "trouble", action: { type: "continue" } }])
       await after.done()
+    })
+  })
+
+  context("as keys come", () => {
+    it("puts focus on the next sheet's first row, and takes no answer as it arrives", async () => {
+      const inbox = mount([
+        permission(codex, { id: "first", handle: "crow" }),
+        permission(codex, { id: "second", handle: "fox", at: 5 }),
+      ])
+      // Opened from the keyboard, its title takes focus a frame later.
+      await nextFrame()
+      inbox.key("1", document.querySelector(".inbox-row-select")!)
+      inbox.confirm("first")
+      await nextFrame()
+
+      expect(text(".inbox-sheet-head .handle-chip")).toBe("@fox")
+      expect(document.activeElement).toBe(inbox.row("Allow"))
+      // The same key again, meant for @crow's, answers nothing on @fox's.
+      inbox.key("1")
+      expect(inbox.sent).toHaveLength(1)
+      const later = Date.now() + 1000
+      vi.spyOn(Date, "now").mockReturnValue(later)
+      inbox.key("1")
+      expect(inbox.sent).toHaveLength(2)
+      await inbox.done()
+    })
+
+    it("routes no key pressed with focus nowhere to the menu", async () => {
+      const inbox = mount([permission(codex)])
+      inbox.key("1", document.body)
+
+      expect(inbox.sent).toEqual([])
+      await inbox.done()
+    })
+
+    it("never answers on a held key, nor sends what its first press armed", async () => {
+      const inbox = mount([
+        asked(
+          {
+            type: "options",
+            recommend: null,
+            options: [
+              { label: "Drop it", summary: null, details: null, code: null },
+              { label: "Keep", summary: null, details: null, code: null },
+            ],
+          },
+          { hard: "It drops data." },
+        ),
+      ])
+      inbox.key("1", document.querySelector(".inbox-row-select")!)
+      inbox.key("1", document.activeElement!, { repeat: true })
+      inbox.key("Enter", document.activeElement!, { repeat: true })
+      expect(inbox.sent).toEqual([])
+      inbox.key("1")
+      expect(inbox.sent).toHaveLength(1)
+      await inbox.done()
+    })
+
+    it("answers nothing from inside an option's details", async () => {
+      const inbox = mount([
+        asked({
+          type: "options",
+          recommend: null,
+          options: [
+            {
+              label: "One",
+              summary: null,
+              details: "See it.",
+              code: { path: "a.ts", text: "const a = 1" },
+            },
+            { label: "Two", summary: null, details: null, code: null },
+          ],
+        }),
+      ])
+      const code = document.querySelector<HTMLElement>(".console-more pre")!
+      act(() => code.focus())
+      inbox.key(" ", code)
+      inbox.key("Enter", code)
+      inbox.key("2", code)
+
+      expect(inbox.sent).toEqual([])
+      await inbox.done()
+    })
+  })
+
+  context("for an answered item opened again", () => {
+    it("says what its answer did, stays on it, and lets j go past it", async () => {
+      const inbox = mount(
+        [
+          permission(codex, { id: "x", handle: "xx", at: 0 }),
+          permission(codex, { id: "y", handle: "yy", at: 1 }),
+          permission(codex, { id: "z", handle: "zz", at: 2 }),
+        ],
+        { open: 1 },
+      )
+      inbox.press("Allow")
+      inbox.confirm("y")
+      await nextFrame()
+      expect(text(".inbox-sheet-head .handle-chip")).toBe("@xx")
+      inbox.key("j", document.body)
+      await nextFrame()
+
+      expect(text(".inbox-sheet-head .handle-chip")).toBe("@yy")
+      expect(text(".console-settled")).toBe("Allowed @yy's command.")
+      expect(document.querySelector(".inbox-sheet [role=menu]")).toBeNull()
+      inbox.key("j", document.body)
+      await nextFrame()
+      expect(text(".inbox-sheet-head .handle-chip")).toBe("@zz")
+      await inbox.done()
+    })
+  })
+
+  context("for a dialog whose options it can't tell apart", () => {
+    it("says to answer it in the terminal, and offers only the way there", async () => {
+      const inbox = mount([
+        permission([
+          { id: "run", label: "Run it", text: null },
+          { id: "c", label: "Cancel", text: null },
+        ]),
+      ])
+
+      expect(text(".console-note")).toBe(
+        "Novadeck can't answer this prompt from here. Answer it in the terminal.",
+      )
+      expect(inbox.rows().map((row) => row.textContent)).toEqual(["❯1Go to terminal"])
+      inbox.press("Go to terminal")
+      expect(inbox.revealed).toEqual(["t-crow"])
+      expect(inbox.sent).toEqual([])
+      await inbox.done()
+    })
+  })
+
+  context("for an update", () => {
+    it("marks it read, or reads it and shows the terminal for a follow-up", async () => {
+      const inbox = mount([
+        {
+          id: "u",
+          source: source("wren"),
+          at: 0,
+          stopped: false,
+          seen: false,
+          kind: "update",
+          update: { type: "done", subject: "Done", body: "All of it." },
+        },
+      ])
+      expect(text(".console-tag")).toBe("Update")
+      inbox.press("Give @wren a follow-up")
+
+      expect(inbox.sent).toEqual([{ kind: "update", action: "read" }])
+      expect(inbox.revealed).toEqual(["t-wren"])
+      await inbox.done()
+    })
+  })
+
+  context("with an empty box for words", () => {
+    it("asks for an answer rather than offering to send nothing", async () => {
+      const inbox = mount([asked({ type: "text" })])
+
+      expect(text(".console-own-hint")).toBe("type your answer · Esc back to the options")
+      inbox.type("Samples.")
+      expect(text(".console-own-hint")).toBe("↵ send · Esc back to the options")
+      await inbox.done()
     })
   })
 })

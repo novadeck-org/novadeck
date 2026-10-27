@@ -1,5 +1,5 @@
 import { context, describe, expect, it } from "../test"
-import { menuKey, startCursor, type MenuShape } from "./menu-keys"
+import { answering, menuKey, startCursor, type MenuShape } from "./menu-keys"
 
 const one: MenuShape = { count: 3, multi: false, arms: () => false }
 const several: MenuShape = { count: 3, multi: true, arms: () => false }
@@ -51,5 +51,12 @@ describe("A sheet's menu keys", () => {
         press: null,
       })
     })
+  })
+})
+
+describe("A key that answers", () => {
+  it("is a number, Enter or Space, never an arrow", () => {
+    expect(["1", "9", "Enter", " "].every(answering)).toBe(true)
+    expect(["ArrowDown", "Home", "0", "a"].some(answering)).toBe(false)
   })
 })
