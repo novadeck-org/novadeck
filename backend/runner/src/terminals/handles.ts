@@ -126,41 +126,49 @@ const shuffled = <T>(items: readonly T[], random: () => number): T[] => {
 const hues = 8
 
 /**
- * The words shuffled, dealt round the hues: a word of each hue in turn, the turn and each
- * hue's words shuffled, so eight in a row look different, as in the list's own order.
+ * The words dealt round the hues in one turn for the whole order, so eight in a row look
+ * different, as in the list's own order. Each group of words is dealt in full rounds, a
+ * word of each hue, each hue's words shuffled; what a group can't fill a round with leads
+ * the next group's words of its hue (as the best words' fourth of one hue does), and the
+ * last group deals all it has. The turn of hues is shuffled too.
  */
-const dealt = (words: readonly string[], random: () => number): string[] => {
-  const byHue = Array.from({ length: hues }, (_, hue) =>
-    shuffled(
-      words.filter((word) => handleWords.indexOf(word) % hues === hue),
-      random,
-    ),
-  )
+const dealt = (groups: readonly (readonly string[])[], random: () => number): string[] => {
   const turn = shuffled(
-    byHue.map((_, hue) => hue),
+    Array.from({ length: hues }, (_, hue) => hue),
     random,
   )
   const order: string[] = []
-  for (let round = 0; order.length < words.length; round++)
-    for (const hue of turn) {
-      const word = byHue[hue]![round]
-      if (word !== undefined) order.push(word)
-    }
+  let left: readonly string[][] = turn.map(() => [])
+  groups.forEach((words, index) => {
+    const byHue = left.map((carried, hue) => [
+      ...carried,
+      ...shuffled(
+        words.filter((word) => handleWords.indexOf(word) % hues === hue),
+        random,
+      ),
+    ])
+    const counts = byHue.map((each) => each.length)
+    const rounds = index === groups.length - 1 ? Math.max(...counts) : Math.min(...counts)
+    for (let round = 0; round < rounds; round++)
+      for (const hue of turn) {
+        const word = byHue[hue]!.shift()
+        if (word !== undefined) order.push(word)
+      }
+    left = byHue
+  })
   return order
 }
 
 /**
- * The order a session gives the words in: the best words, then the rest, each dealt in
- * its own shuffle (see `dealt`), so sessions don't all start with the same handles. The
- * session's id seeds it, so a session keeps its order across restarts.
+ * The order a session gives the words in: the best words, then the rest, dealt round the
+ * hues (see `dealt`), so sessions don't all start with the same handles. The session's id
+ * seeds it, so a session keeps its order across restarts.
  */
-export const handleOrder = (sessionId: string): readonly string[] => {
-  const random = randomFrom(seedOf(sessionId))
-  return [
-    ...dealt(handleWords.slice(0, bestWords), random),
-    ...dealt(handleWords.slice(bestWords), random),
-  ]
-}
+export const handleOrder = (sessionId: string): readonly string[] =>
+  dealt(
+    [handleWords.slice(0, bestWords), handleWords.slice(bestWords)],
+    randomFrom(seedOf(sessionId)),
+  )
 
 /** The handles a session has given, and those of its terminals open now. */
 export type HandleSession = {
@@ -179,6 +187,7 @@ export type HandleSession = {
  * number: `moth2`, then `moth3`.
  */
 export const nextHandle = (session: HandleSession): string => {
+  if (session.order.length === 0) throw new Error("A session's order has no words to give.")
   const letters = new Set(session.open.map((handle) => handle[0]))
   for (let round = 1; ; round++) {
     const fresh = session.order

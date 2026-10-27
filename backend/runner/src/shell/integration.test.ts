@@ -2575,7 +2575,12 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))("bash shell i
 
   it("gives a session's words in its own shuffled order", async ({ shell }) => {
     const manager = shell.manager({ handleOrder })
-    expect((await create(manager, shell)).handle).toBe(handleOrder(shell.sessionId)[0])
+    const given = [
+      await create(manager, shell),
+      await create(manager, shell),
+      await create(manager, shell),
+    ]
+    expect(given.map(({ handle }) => handle)).toEqual(handleOrder(shell.sessionId).slice(0, 3))
   })
 
   it("names terminals by session, renames them, and tells watchers", async ({ shell }) => {

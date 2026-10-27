@@ -253,10 +253,11 @@ Agents and people write it as `@moth`; tools that take a handle accept it with o
 without the `@`, and a delivered message's `from` is the bare word. The session draws it
 from a list of short words (`terminals/handles.ts`), and every terminal draws one, even
 one created with its own title. Each session draws the words in its own order, seeded by
-its id so a restart keeps it: the best words shuffled, one per first letter, then the
-rest shuffled. Each pick prefers a word whose first letter no open terminal of the
-session starts with, so a jump by letter lands in one key. The session records every handle it gives (`session_handles`),
-because terminal rows are deleted on close, and `(session_id, handle)` is unique on
+its id so a restart keeps it: the best words, one per first letter, then the rest, each
+shuffled and dealt a word of each critter hue in turn, so eight handles in a row get
+eight colours, as in the list's own order. Each pick prefers a word whose first letter
+no open terminal of the session starts with, so a jump by letter lands in one key. The
+session records every handle it gives (`session_handles`), because terminal rows are deleted on close, and `(session_id, handle)` is unique on
 terminals. Terminals sort by creation order, never by their handle. A handle never
 changes, not when the terminal is renamed, and is never given again in that session: a
 closed terminal's handle stays unanswered rather than reaching another terminal. Once a

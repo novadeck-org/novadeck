@@ -52,18 +52,24 @@ describe("handle words", () => {
 describe("a session's order", () => {
   const sorted = (words: readonly string[]) => words.toSorted()
 
-  it("gives the best words first, then the rest, each in its own shuffle", () => {
+  it("gives the best words first, then the rest, in its own shuffle", () => {
     const order = handleOrder("session-1")
-    expect(sorted(order.slice(0, 25))).toEqual(sorted(handleWords.slice(0, 25)))
-    expect(sorted(order.slice(25))).toEqual(sorted(handleWords.slice(25)))
+    const best = handleWords.slice(0, 25)
+    // A full round of hues at a time: three of each, the best words' fourth of one hue
+    // leading the rest's first round.
+    expect(order.slice(0, 24).every((word) => best.includes(word))).toBe(true)
+    expect(order.slice(0, 32)).toEqual(expect.arrayContaining(best))
+    expect(sorted(order)).toEqual(sorted(handleWords))
   })
 
   it("deals the words round the UI's eight hues, so a session's first eight look different", () => {
     const hue = (word: string) => handleWords.indexOf(word) % 8
     for (let index = 0; index < 50; index++) {
       const order = handleOrder(`s${index}`)
-      expect(new Set(order.slice(0, 8).map(hue)).size).toBe(8)
-      expect(new Set(order.slice(8, 16).map(hue)).size).toBe(8)
+      // Every eight in a row, across the best words and into the rest, as far as the list
+      // has words of every hue left.
+      for (let start = 0; start + 8 <= 80; start++)
+        expect(new Set(order.slice(start, start + 8).map(hue)).size, `from ${start}`).toBe(8)
     }
   })
 
@@ -95,6 +101,10 @@ describe("the next handle", () => {
   it("prefers a first letter no open terminal starts with", () => {
     // mink is open, so moth, the first word left, gives way to owl; fox, closed, never returns.
     expect(nextHandle({ order, given: new Set(["fox", "mink"]), open: ["mink"] })).toBe("owl")
+  })
+
+  it("refuses an order with no words, rather than looking forever", () => {
+    expect(() => nextHandle({ order: [], given: none, open: [] })).toThrow(/no words/)
   })
 
   it("still gives a word when every letter is taken", () => {
