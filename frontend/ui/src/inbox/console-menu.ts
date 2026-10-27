@@ -1,3 +1,4 @@
+import { askToFixNudge } from "@novadeck/core/agent-steps"
 import type { ChatAnswer, ChatDialogOption, ChatRequest } from "@novadeck/core/conversation"
 import type { AskOption, InboxAnswer, InboxRow, Trouble } from "@novadeck/core/inbox"
 
@@ -252,7 +253,9 @@ const askMenu = (item: Extract<InboxRow, { kind: "ask" }>): Menu => {
   }
 }
 
-const fix = "Your last turn ended in an error. Look at what went wrong and fix it."
+// What "Ask it to fix" sends, as core knows it, so the agent's context never quotes it as the
+// person's words.
+const fix = askToFixNudge
 
 // A trouble's answer row.
 const troubleRow = (
