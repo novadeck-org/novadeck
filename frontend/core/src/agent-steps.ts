@@ -260,8 +260,6 @@ export const failureOf = (agent: string | null, tool: string, text: string): str
     const scriptError = /\nScript error:\n([\s\S]*)$/.exec(output)?.[1]
     if (/^Script failed\b/.test(output))
       return said(scriptError ? lines(scriptError)[0] : undefined) ?? exited("1")
-    const patch = /^apply_patch verification failed:?.*$/m.exec(output)?.[0]
-    if (patch) return said(patch)
     const header = head(output)
     const code =
       /^Process exited with code (-?\d+)$/m.exec(header)?.[1] ??
@@ -269,14 +267,20 @@ export const failureOf = (agent: string | null, tool: string, text: string): str
       /^Exit code: (-?\d+)\nWall time:/m.exec(output)?.[1] ??
       /\[exit code (-?\d+)\]$/.exec(output)?.[1] ??
       (tool === "exec" ? /"exit_code":\s*(-?[1-9]\d*)/.exec(output)?.[1] : undefined)
-    if (code && code !== "0") return exited(code)
+    // A run that exited 0 succeeded, whatever it printed: a log it cat'ed may hold the words.
+    if (code === "0") return undefined
+    const patch = /^apply_patch verification failed:?.*$/m.exec(output)?.[0]
+    if (patch) return said(patch)
+    if (code) return exited(code)
     return undefined
   }
   if (agent === "agy") {
+    const code = /^(?:The )?[Cc]ommand exited with code (-?\d+)\.?$/m.exec(head(output))?.[1]
+    // As with Codex: exited 0 is a success, even if the output prints the error's words.
+    if (code === "0") return undefined
     const error = /^Encountered error in step execution: (.*)$/m.exec(output)?.[1]
     if (error !== undefined) return said(error) ?? "failed"
-    const code = /^(?:The )?[Cc]ommand exited with code (-?\d+)\.?$/m.exec(head(output))?.[1]
-    if (code && code !== "0") return exited(code)
+    if (code) return exited(code)
     return undefined
   }
   return undefined

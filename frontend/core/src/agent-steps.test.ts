@@ -295,6 +295,23 @@ describe("a failure, in each harness's words", () => {
     ).toBeUndefined()
   })
 
+  it("is not a failure's words a run that exited 0 printed, as from a log it read", () => {
+    expect(
+      failureOf(
+        "codex",
+        "exec_command",
+        "Chunk ID: a1\nProcess exited with code 0\nOutput:\napply_patch verification failed: old log line\n",
+      ),
+    ).toBeUndefined()
+    expect(
+      failureOf(
+        "agy",
+        "run_command",
+        "Created At: x\nCommand exited with code 0.\nStdout:\nEncountered error in step execution: old log line\n",
+      ),
+    ).toBeUndefined()
+  })
+
   it("is Antigravity's errored step, or a command's exit code", () => {
     expect(
       failureOf(
