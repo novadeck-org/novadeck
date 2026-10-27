@@ -281,7 +281,7 @@ export const InboxProvider = ({
       setView(openItem(kept, target.id, snapshot.items))
       if (!target.seen) inbox.see(target.id)
       // Its row comes into view, for the sheet to sit beside.
-      requestAnimationFrame(() => rowOf(target.id)?.scrollIntoView({ block: "nearest" }))
+      requestAnimationFrame(() => rowOf(target.id)?.scrollIntoView?.({ block: "nearest" }))
     },
     [inbox, close],
   )
