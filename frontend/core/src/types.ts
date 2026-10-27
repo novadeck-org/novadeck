@@ -255,7 +255,8 @@ export type WorkspaceState = {
 export type WorkspaceSession = {
   id: string
   name: string
-  visitedAt: number
+  // When the person last had it open; null until they first do.
+  visitedAt: number | null
   state: WorkspaceState
 }
 export type WorkspaceProject = Project & { activeSessionId: string; history: WorkspaceSession[] }

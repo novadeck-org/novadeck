@@ -8,7 +8,8 @@ import { sidebarCreateClasses } from "./SidebarPanel"
 export type WorkspaceSessionSummary = {
   id: string
   name: string
-  visitedAt: number
+  // Null until the person first opens it.
+  visitedAt: number | null
   terminalNames: string[]
   running: number
 }
@@ -27,7 +28,8 @@ const timestamp = new Intl.DateTimeFormat(undefined, {
   minute: "2-digit",
 })
 
-const formatVisited = (visitedAt: number): string => timestamp.format(new Date(visitedAt))
+const formatVisited = (visitedAt: number | null): string =>
+  visitedAt === null ? "Not opened yet" : `Last visited ${timestamp.format(new Date(visitedAt))}`
 
 export const SessionsPanel = ({
   items,
@@ -72,8 +74,8 @@ export const SessionsPanel = ({
               icon={<Layers2 size={14} strokeWidth={1.5} />}
               selected={active}
               selectLabel={`Open ${item.name}`}
-              description={`Last visited ${visited}. ${preview}`}
-              tooltip={`${item.name}\nLast visited ${visited}\n${preview}`}
+              description={`${visited}. ${preview}`}
+              tooltip={`${item.name}\n${visited}\n${preview}`}
               onSelect={() => onSelect(item.id)}
               detail={
                 <>

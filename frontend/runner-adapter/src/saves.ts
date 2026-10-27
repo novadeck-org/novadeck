@@ -4,9 +4,12 @@ import { hasCode } from "@novadeck/runner-client"
 
 import { encodeSession } from "./session-state"
 
+// What a save holds: the state and the visit are sent together, and a visit alone is a change.
+export type SavedState = { readonly state: string; readonly visitedAt: number | null }
+
 export type SessionSavesOptions = {
-  // Sends one session's state to the runner.
-  readonly save: (sessionId: string, state: string) => Promise<void>
+  // Sends one session's state and last visit to the runner.
+  readonly save: (sessionId: string, state: string, visitedAt: number | null) => Promise<void>
   // Resolves whether the session exists on the runner; undefined for one it never heard of.
   readonly ready: (sessionId: string) => Promise<boolean> | undefined
   // The workspace as last committed.
@@ -17,8 +20,9 @@ export type SessionSavesOptions = {
   readonly halted: () => boolean
   // How long saving waits for more changes, in milliseconds.
   readonly delay: number
-  // What the runner already holds for each session, so an unchanged state is not sent.
-  readonly saved: Iterable<readonly [string, string]>
+  // What the runner already holds for each session, so an unchanged state and visit are
+  // not sent.
+  readonly saved: Iterable<readonly [string, SavedState]>
 }
 
 export type SessionSaves = {
@@ -46,17 +50,13 @@ const fitsRunner = (state: string): boolean =>
   state.length <= maxClientStateLength &&
   new TextEncoder().encode(JSON.stringify(state)).length <= maxWebSocketMessageBytes - envelopeBytes
 
-// Where the session stands in the workspace, so a reload can tell apart sessions
-// visited at the same moment: 2 for the open one, 1 for its project's last one.
 const findSession = (
   workspace: Workspace | undefined,
   id: string,
-): { readonly session: WorkspaceSession; readonly rank: number } | undefined => {
+): WorkspaceSession | undefined => {
   for (const project of workspace?.projects ?? []) {
     const session = project.history.find((item) => item.id === id)
-    if (!session) continue
-    const current = project.activeSessionId === id
-    return { session, rank: current ? (workspace!.activeProjectId === project.id ? 2 : 1) : 0 }
+    if (session) return session
   }
   return undefined
 }
@@ -85,15 +85,17 @@ export const createSessionSaves = ({
       const found = findSession(latest(), id)
       const exists = ready(id)
       if (!found || !exists) continue
-      const state = encodeSession(found.session, found.rank)
+      const state = encodeSession(found)
+      const { visitedAt } = found
+      const held = saved.get(id)
       // Unchanged, or more than the runner accepts: a state it would reject is dropped.
-      if (saved.get(id) === state || !fitsRunner(state)) continue
+      if ((held?.state === state && held.visitedAt === visitedAt) || !fitsRunner(state)) continue
       const sent = track(
         exists.then(async (ok) => {
           if (!ok) return
           try {
-            await save(id, state)
-            saved.set(id, state)
+            await save(id, state, visitedAt)
+            saved.set(id, { state, visitedAt })
           } catch (error) {
             if (halted()) return
             // Unreachable: try again after the next change or reconnection.

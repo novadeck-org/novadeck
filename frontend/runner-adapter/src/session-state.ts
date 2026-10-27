@@ -14,14 +14,9 @@ import { maxClientStateLength } from "@novadeck/protocol"
 // UI shows the session's terminals and windows, and how the person arranged each
 // terminal's bar, by id; the terminals, windows and items themselves are the runner's
 // own records.
-const version = 1
+const version = 2
 
 export type SavedSession = {
-  readonly visitedAt: number
-  // Breaks ties between sessions visited at the same moment, as switching gives both
-  // the old and the new one the same time: 2 for the session open in the workspace,
-  // 1 for the one its project opens, 0 otherwise.
-  readonly rank: number
   readonly state: RestoredView
 }
 
@@ -64,15 +59,12 @@ const keptBars = ({ roster, items, bars }: WorkspaceState): Record<string, Bar> 
 // runner refuses that save; the session keeps its last saved state.
 export const encodeSession = (
   session: WorkspaceSession,
-  rank: number,
   cap: number = maxClientStateLength,
 ): string => {
   const { roster, layout, view, windowedView, selected } = session.state
   const bars = keptBars(session.state)
   const encode = (): string => {
     const saved: SavedSession = {
-      visitedAt: session.visitedAt,
-      rank,
       state: { order: roster.order, layout: settled(layout), view, windowedView, selected, bars },
     }
     return JSON.stringify({ version, ...saved })
@@ -154,9 +146,7 @@ export const decodeSession = (text: string | null): SavedSession | undefined => 
   } catch {
     return undefined
   }
-  if (!isObject(value) || value.version !== version || typeof value.visitedAt !== "number")
-    return undefined
-  if (value.rank !== 0 && value.rank !== 1 && value.rank !== 2) return undefined
+  if (!isObject(value) || value.version !== version) return undefined
   const state = value.state
   if (!isObject(state)) return undefined
   const order = state.order
@@ -167,8 +157,6 @@ export const decodeSession = (text: string | null): SavedSession | undefined => 
     return undefined
   if (!isString(state.selected)) return undefined
   return {
-    visitedAt: value.visitedAt,
-    rank: value.rank,
     state: {
       order,
       layout: restored,

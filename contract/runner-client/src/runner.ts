@@ -139,8 +139,15 @@ export type Runner = {
       readonly name: string
     }): Promise<WorkspaceSession>
     rename(input: { readonly sessionId: string; readonly name: string }): Promise<WorkspaceSession>
-    /** Replaces the session's `state`, which the runner stores without reading. */
-    save(input: { readonly sessionId: string; readonly state: string }): Promise<void>
+    /**
+     * Replaces the session's `state`, which the runner stores without reading, and its
+     * `visitedAt`: null while the person has never had it open.
+     */
+    save(input: {
+      readonly sessionId: string
+      readonly state: string
+      readonly visitedAt: number | null
+    }): Promise<void>
   }
   readonly terminals: {
     list(input: { readonly sessionId: string }): Promise<TerminalSummary[]>

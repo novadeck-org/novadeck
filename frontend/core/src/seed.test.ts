@@ -44,7 +44,8 @@ describe("workspace from a backend seed", () => {
 
     it("starts sessions in the default views with saved and derived layouts", () => {
       const session = workspaceFromSeed(seed, defaults).projects[0]!.history[0]!
-      expect(session).toMatchObject({ id: "initial", name: "Session", visitedAt: 1_000 })
+      // Nothing says it was visited, and the seed doesn't stamp it.
+      expect(session).toMatchObject({ id: "initial", name: "Session", visitedAt: null })
       expect(session.state).toMatchObject({
         view: "focus",
         windowedView: "canvas",
