@@ -32,7 +32,7 @@ const setup = (terminals: { [handle: string]: { agent: AgentName | null; ledBy?:
   const approvals = new Approvals()
   // The agent messages reach in each terminal, by handle, with its root session: what the
   // tests change to end or swap an agent while its shell stays open.
-  const agents = new Map<string, { agent: AgentName; sessionId: string } | undefined>(
+  const agents = new Map<string, { agent: AgentName; sessionId: string | null } | undefined>(
     Object.entries(terminals).map(([handle, { agent }]) => [
       handle,
       agent === null ? undefined : { agent, sessionId: `s-${handle}` },
@@ -63,11 +63,13 @@ const setup = (terminals: { [handle: string]: { agent: AgentName | null; ledBy?:
             ? { ok: true, ...found }
             : {
                 ok: false,
+                code: "none",
                 reason: `@${records.get(id)?.summary.handle} has no agent running there that Novadeck can deliver to.`,
               }
         },
         dropLeadMessages: (id: string) => {
           dropped.push(id)
+          saved.push(`dropped for ${id}`)
         },
         notice: (to: string, text: string, options?: { always?: boolean }) => {
           notices.push({ to, text, ...(options?.always && { always: true }) })
@@ -279,6 +281,25 @@ describe("an agent asking to lead another terminal's agent", () => {
     await expect(run.lead("moth", "fox", "\u200b \u202e")).resolves.toMatchObject({
       ok: false,
       reason: "The brief is empty.",
+    })
+    await settle()
+    expect(asked).toEqual([])
+  })
+
+  it("refuses before asking when the caller's own agent session is not bound", async () => {
+    const run = setup({ moth: { agent: "claude" }, fox: { agent: "codex" } })
+    const asked = person(run.approvals)
+    // Only expected or shown, no root session yet.
+    run.agents.set("moth", { agent: "claude", sessionId: null })
+    await expect(run.lead("moth", "fox")).resolves.toMatchObject({
+      ok: false,
+      reason: expect.stringContaining("hasn't seen this terminal's own agent session"),
+    })
+    // Nothing at all, as with Codex hooks not trusted.
+    run.agents.set("moth", undefined)
+    await expect(run.lead("moth", "fox")).resolves.toMatchObject({
+      ok: false,
+      reason: expect.stringContaining("hooks run here"),
     })
     await settle()
     expect(asked).toEqual([])
@@ -501,6 +522,8 @@ describe("the user releasing a terminal", () => {
     run.leads.releaseByPerson("id-fox")
     expect(run.records.get("id-fox")!.summary.ledBy).toBeNull()
     expect(run.dropped).toEqual(["id-fox"])
+    // Before the lead ends, so its messages are dropped as released, not as ended.
+    expect(run.saved).toEqual(["dropped for id-fox", "fox unled"])
     expect(run.notices).toEqual([
       { to: "id-fox", always: true, text: leadNotice.userReleased("moth") },
       { to: "id-moth", always: true, text: leadNotice.userReleasedFrom("fox", "Terminal") },

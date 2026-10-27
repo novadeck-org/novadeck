@@ -43,6 +43,10 @@ describe("releasing a terminal from its lead", () => {
     })
   })
 
+  it("isn't offered while the shell starts", () => {
+    expect(offered({ ...led, state: "starting" })).toBeUndefined()
+  })
+
   it("isn't offered once the shell ended", () => {
     const exited = { ...led, state: "exited", exitCode: 0, signal: null }
     expect(offered(exited)).toBeUndefined()

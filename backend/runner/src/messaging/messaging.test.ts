@@ -4009,6 +4009,52 @@ describe("a lead", () => {
     })
   })
 
+  describe("a lead's leased message whose lease lapses", () => {
+    const lapsing = () => {
+      vi.useFakeTimers()
+      const run = withWorker()
+      const message = sent(run.send("A", "owl", "Keep going."))
+      expect(run.prompt("W", run.worker).leaseId).not.toBeNull()
+      expect(run.records.messages().find(({ id }) => id === message.id)?.state).toBe("leased")
+      const lapse = () => {
+        run.clock.now += 10_000
+        vi.advanceTimersByTime(10_000)
+      }
+      return { ...run, message, lapse }
+    }
+
+    it("waits again while its sender still leads the recipient", () => {
+      const { records, message, lapse } = lapsing()
+      lapse()
+      expect(records.messages().find(({ id }) => id === message.id)?.state).toBe("queued")
+      vi.useRealTimers()
+    })
+
+    it("is gone, as the user released the recipient, when the person released it meanwhile", () => {
+      const { messaging, records, message, lapse, send } = lapsing()
+      messaging.dropLeadMessages("W")
+      messaging.endLead("W")
+      lapse()
+      expect(records.messages().find(({ id }) => id === message.id)?.state).toBe("gone")
+      expect(send("A", "owl", "Anyone?")).toMatchObject({
+        ok: true,
+        gone: [{ id: message.id, to: "owl", released: true }],
+      })
+      vi.useRealTimers()
+    })
+
+    it("is gone, as its lead ended, when the agent exited meanwhile", () => {
+      const { messaging, records, message, lapse, send } = lapsing()
+      messaging.endLead("W")
+      lapse()
+      expect(records.messages().find(({ id }) => id === message.id)?.state).toBe("gone")
+      const answer = send("A", "owl", "Anyone?")
+      expect(answer).toMatchObject({ ok: true, gone: [{ id: message.id, to: "owl" }] })
+      expect(JSON.stringify(answer)).not.toContain("released")
+      vi.useRealTimers()
+    })
+  })
+
   it("is no lead once the terminal's agent exits, for what is sent after", () => {
     const { messaging, records, send, worker, prompt } = withWorker()
     sent(send("A", "owl", "Before."))

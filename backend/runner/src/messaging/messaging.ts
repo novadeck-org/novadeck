@@ -459,6 +459,7 @@ export class Messaging {
   /** The messages judged idle when sent, for the reason their sender is told; in memory only. */
   private readonly idled = new Set<string>()
   // Messages gone because the person released their recipient from the lead that sent them.
+  // (Dropped with the message when it is pruned, or once its sender is told.)
   private readonly releasedMessages = new Set<string>()
   private readonly leases: Leases
   private paused: boolean
@@ -624,17 +625,20 @@ export class Messaging {
   /**
    * The person releases the terminal from its lead: the lead's messages to it that were not
    * delivered yet, queued or held, whatever session they wait for, are gone, and their
-   * sender is told they went because the user released it.
+   * sender is told they went because the user released it. One a lease holds is marked, so
+   * that it is dropped the same way should its lease lapse.
    */
   dropLeadMessages(terminalId: string): void {
     for (const message of this.messages.values())
       if (
         message.to.terminalId === terminalId &&
         message.fromLead &&
-        (message.state === "queued" || message.state === "held")
+        (message.state === "queued" || message.state === "held" || message.state === "leased")
       ) {
         this.releasedMessages.add(message.id)
-        this.gone(message, "lead-released")
+        // A leased one may still be acknowledged; if its lease lapses it is dropped then
+        // (`lapse`), as its sender's no longer the lead.
+        if (message.state !== "leased") this.gone(message, "lead-released")
       }
   }
 
@@ -820,6 +824,7 @@ export class Messaging {
     this.records.removeMessages(messages.map((message) => message.id))
     for (const message of messages) {
       this.messages.delete(message.id)
+      this.releasedMessages.delete(message.id)
       this.holdsTold.delete(message.id)
       this.queuedSince.delete(message.id)
       this.responses.delete(message.response!.askId)
@@ -1634,12 +1639,15 @@ export class Messaging {
         message.from.terminalId === terminalId && message.state === "gone" && !message.notified,
     )
     for (const message of gone) this.put({ ...message, notified: true })
-    return gone.map((message) => ({
+    const told = gone.map((message) => ({
       id: message.id,
       to: message.to.handle,
       ...(message.stopped && { stopped: true as const }),
       ...(this.releasedMessages.has(message.id) && { released: true as const }),
     }))
+    // Told: the flag has done its work.
+    for (const message of gone) this.releasedMessages.delete(message.id)
+    return told
   }
 
   /**
@@ -1664,11 +1672,12 @@ export class Messaging {
     recipient: Live,
   ):
     | { readonly ok: true; readonly agent: AgentName; readonly sessionId: string | null }
-    | { readonly ok: false; readonly reason: string } {
+    | { readonly ok: false; readonly reason: string; readonly code: "untrusted" | "none" } {
     const { root } = recipient
     if (!root && !recipient.shown && recipient.untrusted)
       return {
         ok: false,
+        code: "untrusted",
         reason:
           `${mention(recipient.handle)} has no agent Novadeck can deliver to: ` +
           `${untrustedNote(recipient.untrusted)}.`,
@@ -1677,6 +1686,7 @@ export class Messaging {
     if (!agent)
       return {
         ok: false,
+        code: "none",
         reason: `${mention(recipient.handle)} has no agent running there that Novadeck can deliver to.`,
       }
     return { ok: true, agent, sessionId: root?.sessionId ?? null }
@@ -1690,7 +1700,7 @@ export class Messaging {
     terminalId: string,
   ):
     | { readonly ok: true; readonly agent: AgentName; readonly sessionId: string | null }
-    | { readonly ok: false; readonly reason: string }
+    | { readonly ok: false; readonly reason: string; readonly code: "untrusted" | "none" }
     | undefined {
     const live = this.live.get(terminalId)
     return live && this.deliverableAgent(live)
@@ -2193,6 +2203,7 @@ export class Messaging {
     for (const [id, message] of this.messages)
       if (message.projectId === projectId) {
         this.messages.delete(id)
+        this.releasedMessages.delete(id)
         this.holdsTold.delete(id)
         this.queuedSince.delete(id)
         this.idled.delete(id)
@@ -2220,6 +2231,7 @@ export class Messaging {
     )
     for (const { id, response } of old) {
       this.messages.delete(id)
+      this.releasedMessages.delete(id)
       this.holdsTold.delete(id)
       this.queuedSince.delete(id)
       this.idled.delete(id)
@@ -2431,7 +2443,12 @@ export class Messaging {
   private lapse(lease: Lease): void {
     for (const id of lease.messages) {
       const message = this.messages.get(id)
-      if (message?.state === "leased") this.wait(message)
+      if (message?.state !== "leased") continue
+      // The lead that sent it is no longer the recipient's, as the person released it or its
+      // agent exited meanwhile: it waits for no one.
+      if (message.fromLead && this.leadOf(message.to.terminalId) !== message.from.handle)
+        this.gone(message, this.releasedMessages.has(id) ? "lead-released" : "lead-ended")
+      else this.wait(message)
     }
     const live = this.live.get(lease.terminalId)
     if (!live || lease.kind !== "stop") return
@@ -2672,6 +2689,7 @@ export class Messaging {
   private discard(message: Message): void {
     if (this.closed) return
     this.messages.delete(message.id)
+    this.releasedMessages.delete(message.id)
     this.holdsTold.delete(message.id)
     this.queuedSince.delete(message.id)
     this.write(() => this.records.removeMessages([message.id]))

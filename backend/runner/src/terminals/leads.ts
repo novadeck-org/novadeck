@@ -4,6 +4,7 @@ import { z } from "zod"
 import { DomainError } from "../errors.js"
 import { agentLabel, cleanInboxText } from "../messaging/messages.js"
 import { refusalOfText, type Messaging } from "../messaging/messaging.js"
+import { unboundNote } from "../messaging/peers.js"
 import { unansweredCalls } from "../shell/reports.js"
 import type { Call } from "../shell/reports.js"
 import type { Approvals, ApprovalOutcome } from "./approvals.js"
@@ -196,9 +197,7 @@ export class Leads {
     if (!deliverable?.ok)
       return deliverable
         ? deliverable.reason +
-            (deliverable.reason.includes("running there")
-              ? " To start an agent with a task, use open_agent."
-              : "")
+            (deliverable.code === "none" ? " To start an agent with a task, use open_agent." : "")
         : `${mention(handle)} runs no agent to lead. To start an agent with a task, use open_agent.`
     const lead = this.host.messaging().leadOf(target.summary.id)
     if (lead === caller.summary.handle) return `You already lead ${mention(handle)}.`
@@ -230,6 +229,9 @@ export class Leads {
           "agent, and nothing else.",
       )
     const { to } = parsed.data
+    // Its own agent session must be bound: the ask is re-checked against it on approval.
+    const own = this.identity(caller)
+    if (!own || own.sessionId === null) return refused(`Nothing asked: ${unboundNote}`)
     // The person approves exactly the text that is delivered: cleaned of controls, invisible
     // characters and direction changes (delivery's own cleaning leaves it as it is).
     const message = cleanInboxText(parsed.data.message)
@@ -245,10 +247,9 @@ export class Leads {
       return unansweredCalls.lead
     const unfit = this.unfit(caller, led)
     if (unfit) return refused(unfit)
-    const callerAgent = this.identity(caller)
     const targetAgent = this.identity(led)
-    if (!callerAgent || !targetAgent) return unansweredCalls.lead
-    const seen: Seen = { caller: callerAgent, target: targetAgent }
+    if (!targetAgent) return unansweredCalls.lead
+    const seen: Seen = { caller: own, target: targetAgent }
     const waiting = host.approvals().refusal(led.summary.id)
     if (waiting === "waiting")
       return refused(`${mention(target.handle)} is already waiting for the user's approval.`)
@@ -347,8 +348,9 @@ export class Leads {
     const handle = led.summary.ledBy
     if (handle === null) return
     const lead = this.byHandle(led.summary.sessionId, handle)
-    host.bindings().endLead(led)
+    // First, so the lead hears the user released it, not that a session ended.
     host.messaging().dropLeadMessages(terminalId)
+    host.bindings().endLead(led)
     host.messaging().notice(terminalId, leadNotice.userReleased(handle), { always: true })
     if (lead)
       host
