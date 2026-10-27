@@ -1,3 +1,5 @@
+import { CircleArrowUp } from "lucide-react"
+
 // An installed copy that can't install an update itself, as with an unsigned macOS app or
 // an AppImage in a folder it can't write to: a quiet chip beside the footer's status that
 // opens the release page, where the person gets it. No panel, notes or Later; it stays
@@ -26,7 +28,7 @@ export const UpdateAvailable = ({
     {available && (
       <button
         type="button"
-        className="footer-action footer-update cursor-pointer font-bold"
+        className="footer-update footer-chip cursor-pointer"
         aria-label={
           available.onAllow
             ? `Allow updates: Novadeck ${available.version}`
@@ -36,10 +38,13 @@ export const UpdateAvailable = ({
         title={available.onAllow ? allowNote : "Opens the release page"}
         onClick={available.onAllow ?? available.onOpenPage}
       >
-        <span className="max-[701px]:hidden">
+        <span className="footer-chip-icon" aria-hidden="true">
+          <CircleArrowUp size={12} strokeWidth={1.75} />
+          <span className="footer-chip-dot" />
+        </span>
+        <span className="footer-chip-text max-[701px]:hidden">
           {available.onAllow ? "Allow updates" : "Update available"}
         </span>
-        <span className="hidden max-[701px]:inline">{available.onAllow ? "Allow" : "Update"}</span>
       </button>
     )}
   </>

@@ -84,10 +84,14 @@ describe("a portable copy's install card", () => {
       await expectStaysAbsent(quiet())
     })
 
-    it("shortens the chip to Install on a narrow bar", async () => {
+    it("shortens the chip to its icon on a narrow bar", async () => {
       await page.viewport(600, 800)
       await openWorkspace("/?portable=no-release")
-      await expect.element(install().getByText("Install", { exact: true })).toBeVisible()
+      await expect.element(install()).toBeVisible()
+      await expect.element(install()).toBeVisible()
+      expect(
+        install().element().querySelector("svg")!.getBoundingClientRect().width,
+      ).toBeGreaterThan(0)
       await expect
         .element(install().getByText("Install Novadeck", { exact: true }))
         .not.toBeVisible()

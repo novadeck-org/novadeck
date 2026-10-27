@@ -335,7 +335,8 @@ describe("workspace footer", () => {
       mounted.push(page)
       const pressed = button(page)!
       expect(pressed.getAttribute("aria-label")).toBe("Update available: Novadeck 0.0.81")
-      expect(pressed.textContent).toBe("Update availableUpdate")
+      expect(pressed.textContent).toBe("Update available")
+      expect(pressed.querySelector(".footer-chip-dot")).not.toBeNull()
       expect(pressed.classList.contains("footer-update")).toBe(true)
       expect(pressed.hasAttribute("aria-expanded")).toBe(false)
       act(() => pressed.click())
@@ -350,7 +351,7 @@ describe("workspace footer", () => {
       mounted.push(page)
       const pressed = button(page)!
       expect(pressed.getAttribute("aria-label")).toBe("Allow updates: Novadeck 0.0.81")
-      expect(pressed.textContent).toBe("Allow updatesAllow")
+      expect(pressed.textContent).toBe("Allow updates")
       expect(pressed.getAttribute("aria-description")).toContain("administrator's password")
       expect(pressed.title).toContain("administrator's password")
       expect(
@@ -404,18 +405,21 @@ describe("workspace footer", () => {
       expect(region.textContent).toBe("Update available")
     })
 
-    it("offers Install Novadeck alone while no release is known, narrowed to Install", () => {
+    it("offers Install Novadeck alone while no release is known, narrowed to its icon", () => {
       const page = withUpdate("ok")
       expect(chip(page).getAttribute("aria-label")).toBe("Install Novadeck")
-      expect(chip(page).textContent).toBe("Install NovadeckInstall")
-      expect(chip(page).querySelector(".hidden")!.textContent).toBe("Install")
+      expect(chip(page).textContent).toBe("Install Novadeck")
+      expect(chip(page).querySelector(".footer-chip-text")!.className).toContain(
+        "max-[701px]:hidden",
+      )
+      expect(chip(page).querySelector(".footer-chip-dot")).toBeNull()
     })
 
-    it("says Update available on the chip for a missing release, narrowed to Update", () => {
+    it("says Update available on the chip for a missing release, with a dot on its icon", () => {
       const page = withUpdate("ok", ready)
       expect(chip(page).getAttribute("aria-label")).toBe("Update available: Novadeck 0.0.80")
-      expect(chip(page).textContent).toBe("Update availableUpdate")
-      expect(chip(page).querySelector(".hidden")!.textContent).toBe("Update")
+      expect(chip(page).textContent).toBe("Update available")
+      expect(chip(page).querySelector(".footer-chip-dot")).not.toBeNull()
     })
 
     it("leaves the bar's tone and the link's status to the connection", () => {

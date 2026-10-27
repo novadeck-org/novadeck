@@ -2,7 +2,7 @@ import type { PortableInstall as InstallState } from "@novadeck/core/portable"
 import type { UpdateOffer, WhatsNew as Notes } from "@novadeck/core/update"
 import { Progress } from "@novadeck/toolkit/Progress"
 import { Tooltip } from "@novadeck/toolkit/Tooltip"
-import { ExternalLink, FolderOpen, X } from "lucide-react"
+import { CircleArrowUp, Download, ExternalLink, FolderOpen, X } from "lucide-react"
 import { useEffect, useId, useRef, useState } from "react"
 
 import { currentPlatform, type Platform } from "../interaction/shortcuts"
@@ -177,7 +177,6 @@ export const PortableInstall = ({
   }
   useLinger(lingering, visible, (to) => (to === "fading" ? setLingering("fading") : finish()))
   const word = offer ? "Update available" : "Install Novadeck"
-  const narrow = offer ? "Update" : "Install"
   const installed = install.phase === "installed"
   // Nothing is left to install: the chip says so, for a newer copy found as for ours.
   const done = installed || install.phase === "newer"
@@ -270,7 +269,7 @@ export const PortableInstall = ({
           <button
             ref={chip}
             type="button"
-            className="footer-action footer-update font-bold cursor-pointer"
+            className="footer-update footer-chip cursor-pointer"
             aria-label={
               running
                 ? "Installing…"
@@ -293,16 +292,18 @@ export const PortableInstall = ({
               card.onOpenChange(true)
             }}
           >
-            {offer && install.phase === "idle" && (
-              <span className="footer-update-dot" aria-hidden="true" />
-            )}
+            <span className="footer-chip-icon" aria-hidden="true">
+              {offer ? (
+                <CircleArrowUp size={12} strokeWidth={1.75} />
+              ) : (
+                <Download size={12} strokeWidth={1.75} />
+              )}
+              {offer && install.phase === "idle" && <span className="footer-chip-dot" />}
+            </span>
             {running || done ? (
-              chipText
+              <span className="footer-chip-text">{chipText}</span>
             ) : (
-              <>
-                <span className="max-[701px]:hidden">{word}</span>
-                <span className="hidden max-[701px]:inline">{narrow}</span>
-              </>
+              <span className="footer-chip-text max-[701px]:hidden">{word}</span>
             )}
           </button>
           {visible && (
