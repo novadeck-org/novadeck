@@ -746,6 +746,25 @@ export const terminalRequestAnswer = z.union([
   z.strictObject({ requestId: id, reason: z.string().trim().min(1).max(512) }),
 ])
 
+// `terminals.closeAsks` items: an agent in terminal `from` asked, through Novadeck's MCP
+// server, to close `terminalId`, a terminal of its session that runs an agent it doesn't
+// lead, so the client asks the person first and answers with `answerCloseAsk`.
+// `withdrawn` takes back an ask the runner no longer waits for, as either terminal closed.
+export const closeAsk = z.discriminatedUnion("type", [
+  z.strictObject({
+    type: z.literal("ask"),
+    requestId: id,
+    from: id,
+    terminalId: id,
+    sessionId: id,
+  }),
+  z.strictObject({ type: z.literal("withdrawn"), requestId: id }),
+])
+
+// The person's answer to a close ask: `close` when they confirmed it, false when they kept
+// the terminal open.
+export const closeAskAnswer = z.strictObject({ requestId: id, close: z.boolean() })
+
 // `terminals.watch` events: every terminal's summary, then each later change.
 export const terminalChange = z.discriminatedUnion("type", [
   z.strictObject({ type: z.literal("changed"), terminal: terminalSummary }),
@@ -1116,6 +1135,8 @@ export type ChangedFile = z.infer<typeof changedFile>
 export type PlanSaveResult = z.infer<typeof planSaveResult>
 export type TerminalRequest = z.infer<typeof terminalRequest>
 export type TerminalRequestAnswer = z.infer<typeof terminalRequestAnswer>
+export type CloseAsk = z.infer<typeof closeAsk>
+export type CloseAskAnswer = z.infer<typeof closeAskAnswer>
 export type TerminalEvent = z.infer<typeof terminalEvent>
 export type TerminalAttached = z.infer<typeof terminalAttached>
 export type AgentName = z.infer<typeof agentName>

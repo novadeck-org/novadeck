@@ -26,6 +26,8 @@ import {
   type TerminalEvent,
   type TerminalMessages,
   type TerminalRequest,
+  type CloseAsk,
+  type CloseAskAnswer,
   type TerminalRequestAnswer,
   type TerminalSummary,
   type RequestAnswer,
@@ -190,6 +192,18 @@ export type Runner = {
      * Rejects with `NOT_FOUND` once the runner no longer waits for it.
      */
     answerRequest(answer: TerminalRequestAnswer): Promise<void>
+    /**
+     * Follows agents' asks to close a terminal that runs an agent they don't lead, made
+     * through Novadeck's MCP server, across reconnections. The runner sends each to the
+     * client that subscribed last and waits, without a time limit, for `answerCloseAsk`
+     * or until it withdraws the ask; iteration ends when the runner closes or on `return()`.
+     */
+    closeAsks(): AsyncIterableIterator<CloseAsk, undefined>
+    /**
+     * Answers a close ask with the person's choice. Rejects with `NOT_FOUND` once the
+     * runner no longer waits for it.
+     */
+    answerCloseAsk(answer: CloseAskAnswer): Promise<void>
     /**
      * Follows every terminal on the runner, across sessions. Each subscription, the
      * first and every one after a reconnection or a retried refusal, yields `reset`,
@@ -665,6 +679,9 @@ export const connectRunner = async (
       requests: () =>
         resubscribe(connection, (wire, signal) => wire.terminals.requests(undefined, { signal })),
       answerRequest: (answer) => call((wire) => wire.terminals.answerRequest(answer)),
+      closeAsks: () =>
+        resubscribe(connection, (wire, signal) => wire.terminals.closeAsks(undefined, { signal })),
+      answerCloseAsk: (answer) => call((wire) => wire.terminals.answerCloseAsk(answer)),
       watch: () => watch(connection, (wire, signal) => wire.terminals.watch(undefined, { signal })),
       close: (terminalId) => call((wire) => wire.terminals.close({ terminalId })),
       rename: (terminalId, title) => call((wire) => wire.terminals.rename({ terminalId, title })),

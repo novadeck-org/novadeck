@@ -21,6 +21,7 @@ import { codex as codexHarness } from "@novadeck/harness-codex/index"
 import type {
   AgentDetail,
   AgentName,
+  CloseAsk,
   TerminalChange,
   TerminalRequest,
   TerminalSummary,
@@ -3696,13 +3697,7 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))(
         for await (const change of manager.watch("watcher", watching.signal)) changes.push(change)
       })()
 
-      // Never its own terminal, nor a handle not there.
-      await expect(call(claude.id, "close", { to: "moth" })).resolves.toEqual({
-        ok: false,
-        reason:
-          "@moth is your own terminal, which close_terminal never closes; to end your own " +
-          "session, use your harness's own way to exit.",
-      })
+      // A handle not there.
       const unknown = await call(claude.id, "close", { to: "codex" })
       expect(unknown.ok).toBe(false)
       expect(unknown.reason).toMatch(/^"codex" is no terminal's handle here\./)
@@ -3720,15 +3715,35 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))(
       ).resolves.toMatchObject({ ok: false })
       expect(manager.get(codex.id).exit).toBeNull()
 
-      // Closed: its shell ended, the terminal gone and forgotten, and what waited for it gone.
+      // Codex runs an agent claude doesn't lead, so the user is asked first, and no window
+      // follows the asks yet.
+      await expect(call(claude.id, "close", { to: "fox" })).resolves.toEqual({
+        ok: false,
+        reason: "Novadeck isn't open to ask the user, so nothing closed.",
+      })
+      expect(manager.get(codex.id).exit).toBeNull()
+      const asking = new AbortController()
+      const asked: CloseAsk[] = []
+      const person = (async () => {
+        for await (const item of manager.closeAsks("person", asking.signal)) asked.push(item)
+      })()
+      // The answer comes at once; the user's yes closes it: its shell ended, the terminal
+      // gone and forgotten, and what waited for it gone.
       await expect(call(claude.id, "close", { to: "fox" })).resolves.toEqual({
         ok: true,
-        text: [
-          "Closed @fox · Terminal, which ran Codex.",
-          `Your message ${messageId(mine)} to @fox won't arrive, as that terminal is closed.`,
-          "1 message another agent sent it won't arrive; Novadeck tells their senders.",
-        ].join("\n"),
+        text: expect.stringMatching(
+          /^Asked the user to confirm closing @fox · Terminal, which runs Codex\. It closes only if/,
+        ),
       })
+      await expect.poll(() => asked).toHaveLength(1)
+      expect(asked[0]).toMatchObject({ type: "ask", from: claude.id, terminalId: codex.id })
+      expect(manager.get(codex.id).exit).toBeNull()
+      const request = (asked[0] as { requestId: string }).requestId
+      // Not another client's to answer.
+      expect(() => manager.answerCloseAsk({ requestId: request, close: true }, "other")).toThrow(
+        expect.objectContaining({ code: "NOT_FOUND" }),
+      )
+      manager.answerCloseAsk({ requestId: request, close: true }, "person")
       await viewing
       expect(events).toContain("exited")
       expect(() => process.kill(shellPid, 0)).toThrow(expect.objectContaining({ code: "ESRCH" }))
@@ -3736,6 +3751,9 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))(
         expect.objectContaining({ code: "TERMINAL_NOT_FOUND" }),
       )
       expect(shell.store.terminal(codex.id)).toBeUndefined()
+      // Claude hears the user confirmed it, with its next prompt.
+      const next = await step(claude.id, { hook: "UserPromptSubmit", payload: { prompt: "ok" } })
+      expect(next).toContain("The user confirmed closing @fox")
       // What its bar held went with it.
       expect(items.bar(codex.id)).toEqual([])
       expect(shell.store.items().filter((item) => item.name === "plan.txt")).toEqual([])
@@ -3767,8 +3785,81 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))(
         }),
       ).resolves.toEqual(unansweredCalls.close)
       expect(manager.get(third.id).exit).toBeNull()
+      asking.abort()
+      await person
       watching.abort()
       await watched
+    })
+
+    it("lets an agent close its own terminal, a moment after the answer", async ({ shell }) => {
+      const bin = standIn(shell.home)
+      const manager = shell.manager({
+        env: { HOME: shell.home, PS1: "$ ", PATH: `${bin}:${process.env.PATH}` },
+      })
+      const claude = await create(manager, shell)
+      const other = await create(manager, shell)
+      const { start, step } = driver(shell, manager)
+      await start(claude.id, "claude", "s-claude")
+      const told = JSON.parse(await step(claude.id, { call: "close", request: { to: "moth" } }))
+      expect(told).toEqual({
+        ok: true,
+        text: expect.stringMatching(/^Closing @moth · Terminal, your own terminal, in a moment/),
+      })
+      // The shell ends after the answer, and the terminal is forgotten like any closed: the
+      // store lets it go a step before the manager does, so wait for both.
+      const held = () => {
+        try {
+          manager.get(claude.id)
+          return true
+        } catch {
+          return false
+        }
+      }
+      await expect.poll(held, { timeout: 10_000 }).toBe(false)
+      expect(shell.store.terminal(claude.id)).toBeUndefined()
+      expect(manager.get(other.id).exit).toBeNull()
+    })
+
+    it("tells the agent the user kept a terminal open, or that nothing closed as their window went away", async ({
+      shell,
+    }) => {
+      const bin = standIn(shell.home)
+      const manager = shell.manager({
+        env: { HOME: shell.home, PS1: "$ ", PATH: `${bin}:${process.env.PATH}` },
+      })
+      const claude = await create(manager, shell)
+      const codex = await create(manager, shell)
+      const { start, step } = driver(shell, manager)
+      await start(claude.id, "claude", "s-claude")
+      await start(codex.id, "codex", "s-codex")
+      const call = async (type: string, request: object) =>
+        JSON.parse(await step(claude.id, { call: type, request })) as Told
+      const prompt = () => step(claude.id, { hook: "UserPromptSubmit", payload: { prompt: "ok" } })
+      const asked: CloseAsk[] = []
+      const follow = (signal: AbortSignal) =>
+        (async () => {
+          for await (const item of manager.closeAsks("person", signal)) asked.push(item)
+        })()
+
+      // The user keeps it open.
+      const first = new AbortController()
+      const one = follow(first.signal)
+      await call("close", { to: "fox" })
+      await expect.poll(() => asked).toHaveLength(1)
+      manager.answerCloseAsk(
+        { requestId: (asked[0] as { requestId: string }).requestId, close: false },
+        "person",
+      )
+      expect(await prompt()).toContain("The user kept @fox")
+      expect(manager.get(codex.id).exit).toBeNull()
+
+      // Their window goes away before they answer.
+      await call("close", { to: "fox" })
+      await expect.poll(() => asked).toHaveLength(2)
+      first.abort()
+      await one
+      expect(await prompt()).toContain("Nothing closed: Novadeck's window went away")
+      expect(manager.get(codex.id).exit).toBeNull()
     })
 
     it("refuses a terminal already closing, and still closes one as the runner stops", async ({
@@ -3893,8 +3984,8 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))(
         await client
       }
       expect(manager.get(terminals[5]!.id).exit).toBeNull()
-      // Refusals cost nothing: a handle not there, or its own.
-      await expect(closes(7, [99, 7])).resolves.toMatchObject([{ ok: false }, { ok: false }])
+      // Refusals cost nothing: a handle not there.
+      await expect(closes(7, [99])).resolves.toMatchObject([{ ok: false }])
       // Others' budgets are their own, until all agents closed twenty this minute.
       await expect(closes(7, [10, 11, 12, 13, 14])).resolves.toEqual(
         [10, 11, 12, 13, 14].map(closed),

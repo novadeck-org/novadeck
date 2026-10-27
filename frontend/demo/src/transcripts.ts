@@ -438,7 +438,7 @@ export const agentTranscripts = (now: number): Readonly<Record<string, DemoTrans
           toolSummary: JSON.stringify("Close the idle terminal"),
           toolAction: JSON.stringify("Calling close_terminal"),
         },
-        { kind: "agent", title: "Closed owl", detail: "" },
+        { kind: "agent", title: "Close owl", detail: "" },
       ),
       got("step:1c", "Closed owl."),
       use(

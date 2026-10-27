@@ -230,7 +230,7 @@ const novadeckTool = (tool: string, fields: Fields | null): ToolSummary | undefi
     case "close_terminal":
       return {
         kind: "agent",
-        title: `Closed${text("to") ? ` ${text("to")}` : " a terminal"}`,
+        title: `Close${text("to") ? ` ${text("to")}` : " a terminal"}`,
         detail: "",
       }
     case "show":

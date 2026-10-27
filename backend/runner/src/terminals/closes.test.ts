@@ -4,7 +4,9 @@ import {
   closeLimit,
   readCloseRequest,
   runnerCloseLimit,
-  selfRefusal,
+  closeNotice,
+  nobodyRefusal,
+  waitingRefusal,
 } from "./closes.js"
 import { openLimit, runnerOpenLimit } from "./opens.js"
 
@@ -14,7 +16,10 @@ describe("reading a request to close a terminal", () => {
       ok: true,
       request: { to: "fox" },
     })
-    expect(readCloseRequest({ to: "@fox" })).toEqual({ ok: true, request: { to: "fox" } })
+    expect(readCloseRequest({ to: "@fox" })).toEqual({
+      ok: true,
+      request: { to: "fox" },
+    })
   })
 
   it("refuses a request without a handle, or with anything more", () => {
@@ -28,12 +33,29 @@ describe("reading a request to close a terminal", () => {
     expect(readCloseRequest({ to: "t".repeat(66) })).toEqual(refused)
     expect(readCloseRequest({ to: "fox", force: true })).toEqual(refused)
   })
+})
 
-  it("tells an agent asking to close its own terminal how to end its session instead", () => {
-    expect(selfRefusal("moth")).toBe(
-      "@moth is your own terminal, which close_terminal never closes; to end your own session, " +
-        "use your harness's own way to exit.",
+describe("what an agent is told about a close that waits for the user", () => {
+  it("refuses an ask while none is open to ask, or one already waits", () => {
+    expect(nobodyRefusal).toBe("Novadeck isn't open to ask the user, so nothing closed.")
+    expect(waitingRefusal("fox")).toBe(
+      "@fox is already waiting for the user's confirmation to close.",
     )
+  })
+
+  it("tells the outcome of the user's answer, or of an ask that ended without it", () => {
+    expect(closeNotice.confirmed("fox", "api", "Codex")).toBe(
+      "Novadeck: automatic notice, not from the user: The user confirmed closing @fox · api, which ran Codex, and it is closed. Messages " +
+        "waiting for it never arrive.",
+    )
+    expect(closeNotice.confirmed("fox", "api", undefined)).toContain("closing @fox · api, and")
+    expect(closeNotice.declined("fox", "api")).toBe(
+      "Novadeck: automatic notice, not from the user: The user kept @fox · api open: it was not closed.",
+    )
+    expect(closeNotice.vanished("fox")).toBe(
+      "Novadeck: automatic notice, not from the user: @fox closed, or its shell ended, before the user answered, so there is nothing left to confirm.",
+    )
+    expect(closeNotice.gone("fox")).toContain("Nothing closed: Novadeck's window went away")
   })
 })
 

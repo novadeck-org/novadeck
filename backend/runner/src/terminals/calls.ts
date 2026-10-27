@@ -16,13 +16,17 @@ import { agentLabel } from "../messaging/messages.js"
 import type { AgentsAnswer, Messaging, SendAnswer } from "../messaging/messaging.js"
 import { unansweredCalls, type Call } from "../shell/reports.js"
 import { callerOf } from "./callers.js"
+import { closeWay, type CloseAsks, type CloseOutcome } from "./closeasks.js"
 import {
   allowClose,
   closeLimit,
   readCloseRequest,
+  closeNotice,
+  nobodyRefusal,
   runnerCloseLimit,
-  selfRefusal,
+  selfCloseMs,
   spentRefusal,
+  waitingRefusal,
   type CloseAnswer,
 } from "./closes.js"
 import type { Companion } from "./companion.js"
@@ -69,6 +73,8 @@ export type CallsHost = {
   readonly peers: () => TerminalPeers
   /** Agents' requests for a new terminal, on their way to the client. */
   readonly opens: () => OpenRequests
+  /** Agents' asks to close a terminal, on their way to the client that asks the person. */
+  readonly closeAsks: () => CloseAsks
   readonly companion: () => Companion
   readonly launcher: () => Launcher
   /** Where a harness lives on this machine, which says how it may start with a task. */
@@ -116,6 +122,8 @@ export class Calls {
   private readonly closed = new Map<string, readonly number[]>()
   // Every close's time, for the runner's own limit across all chains.
   private allClosed: readonly number[] = []
+  // The terminals closing themselves a moment after they said so.
+  private readonly selfClosing = new Set<string>()
 
   constructor(
     /** How long an agent's request for a new terminal waits for the client's answer. */
@@ -123,9 +131,13 @@ export class Calls {
     readonly host: CallsHost,
   ) {}
 
-  /** Which chain the terminal belongs to goes, as it closes or is let go; the chain's times stay. */
+  /**
+   * Which chain the terminal belongs to goes, as it closes or is let go; the chain's times
+   * stay. Asks to close it, or by it, are taken back: there is nothing left to confirm.
+   */
   forgetOpener(terminalId: string): void {
     this.openers.delete(terminalId)
+    this.host.closeAsks().withdraw(terminalId)
   }
 
   /** Whether the session's terminal with this handle is closing, its shell not yet ended. */
@@ -313,13 +325,15 @@ export class Calls {
   }
 
   /**
-   * Closes another terminal of the caller's project and session, as an agent asked
-   * through Novadeck's MCP server by the terminal's exact handle: as the person's close
-   * does, it ends the shell, then forgets the terminal, whatever window controls it, and
-   * messages still waiting for it are gone. Never the caller's own terminal; a handle
-   * not there is refused with every terminal there described. A chain of terminals'
-   * agents close a few at most each minute, and all agents a few more. A call without
-   * the shell's own token learns nothing more.
+   * Closes a terminal of the caller's project and session, as an agent asked through
+   * Novadeck's MCP server by the terminal's exact handle: as the person's close does, it
+   * ends the shell, then forgets the terminal, whatever window controls it, and messages
+   * still waiting for it are gone. The caller's own terminal closes a moment after the
+   * answer. A teammate the caller leads, and a terminal that runs no agent, close at
+   * once; any other terminal that runs an agent closes only if the person confirms (see
+   * `askToClose`). A handle not there is refused with every terminal there described. A
+   * chain of terminals' agents close a few at most each minute, and all agents a few
+   * more. A call without the shell's own token learns nothing more.
    */
   async closePeer(call: Call): Promise<CloseAnswer> {
     const record = callerOf(this.host.records(), call)
@@ -327,7 +341,7 @@ export class Calls {
     const read = readCloseRequest(call.request)
     if (!read.ok) return read
     const { to } = read.request
-    if (to === record.summary.handle) return refused(selfRefusal(to))
+    if (to === record.summary.handle) return this.closeSelf(record)
     // Already on its way out, and forgotten, as another close ended its shell.
     if (this.closingHere(record.summary.sessionId, to))
       return refused(`${mention(to)} is already closing.`)
@@ -340,6 +354,15 @@ export class Calls {
     // Already on its way out, as another close ended its shell: nothing more to charge.
     if (this.host.closingNow(closing.summary.id) || closing.closed)
       return refused(`${mention(target.handle)} is already closing.`)
+    const way = closeWay({
+      leads: this.host.messaging().leadOf(target.terminalId) === record.summary.handle,
+      agent: target.agent,
+    })
+    if (way === "ask") {
+      const waiting = this.host.closeAsks().refusal(target.terminalId)
+      if (waiting)
+        return refused(waiting === "nobody" ? nobodyRefusal : waitingRefusal(target.handle))
+    }
     const now = Date.now()
     const charged = this.openers.get(call.terminalId) ?? call.terminalId
     prune(this.closed, now, closeLimit.windowMs)
@@ -349,14 +372,11 @@ export class Calls {
     this.closed.set(charged, times)
     this.allClosed = all
     const { agent } = target
+    if (way === "ask") return this.askToClose(record, closing, agent)
     const others = this.host.messaging().waitingFor(target.terminalId, call.terminalId)
-    this.host.closeForGood(closing)
-    await this.host.terminate(closing)
     // The runner began to stop meanwhile: the terminal is closed all the same, but the
     // caller is going too.
-    if (this.host.stopping()) return unansweredCalls.close
-    this.host.remove(closing)
-    this.host.forget(target.terminalId)
+    if (!(await this.end(closing))) return unansweredCalls.close
     const gone = this.host.messaging().goneFrom(call.terminalId)
     return {
       ok: true,
@@ -366,6 +386,74 @@ export class Calls {
       ...(gone.length > 0 && { gone }),
       ...(others > 0 && { others }),
     }
+  }
+
+  /**
+   * The close steps the person's close takes: the shell ends, then the terminal is
+   * forgotten. False when the runner began to stop meanwhile, the terminal closed all the same.
+   */
+  private async end(record: Record): Promise<boolean> {
+    this.host.closeForGood(record)
+    await this.host.terminate(record)
+    if (this.host.stopping()) return false
+    this.host.remove(record)
+    this.host.forget(record.summary.id)
+    return true
+  }
+
+  /**
+   * An agent closing its own terminal: answered first, so its harness has the result, then
+   * closed a moment later, unless the runner is stopping or the terminal is already closed
+   * or replaced by then. A terminal closes itself once, so no budget is charged.
+   */
+  private closeSelf(record: Record): CloseAnswer {
+    const { id, handle, title } = record.summary
+    if (this.host.stopping()) return unansweredCalls.close
+    if (record.closed || this.host.closingNow(id) || this.selfClosing.has(id))
+      return refused(`${mention(handle)} is already closing.`)
+    this.selfClosing.add(id)
+    setTimeout(() => {
+      this.selfClosing.delete(id)
+      if (this.host.stopping() || this.host.records().get(id) !== record) return
+      if (record.closed || this.host.closingNow(id)) return
+      void this.end(record).catch(() => undefined)
+    }, selfCloseMs).unref()
+    return { ok: true, self: true, handle, title }
+  }
+
+  /**
+   * Asks the person, through the client that follows `closeAsks`, to confirm closing a
+   * terminal that runs an agent the caller doesn't lead. The call doesn't wait for them:
+   * it answers `asked` at once, and the caller hears the outcome as a notice.
+   */
+  private askToClose(caller: Record, closing: Record, agent: AgentName | null): CloseAnswer {
+    const { id, handle, title, sessionId } = closing.summary
+    const ran = agent === null ? undefined : agentLabel(agent)
+    this.host.closeAsks().ask({ from: caller.summary.id, terminalId: id, sessionId }, (outcome) => {
+      void this.closeAsked(caller.summary.id, closing, ran, outcome).catch(() => undefined)
+    })
+    return { ok: true, asked: true, handle, title, ...(ran !== undefined && { ran }) }
+  }
+
+  /** The caller hears how its ask to close a terminal went. */
+  private async closeAsked(
+    callerId: string,
+    closing: Record,
+    ran: string | undefined,
+    outcome: CloseOutcome,
+  ): Promise<void> {
+    if (this.host.stopping()) return
+    const { id, handle, title } = closing.summary
+    // An outcome is news the agent has no other way to learn: it is queued all the same.
+    const tell = (text: string) => this.host.messaging().notice(callerId, text, { always: true })
+    if (outcome === "declined") tell(closeNotice.declined(handle, title))
+    else if (outcome === "gone") tell(closeNotice.gone(handle))
+    else if (outcome === "withdrawn") tell(closeNotice.vanished(handle))
+    // Confirmed: closed as the person's close does, unless it closed meanwhile.
+    else if (this.host.records().get(id) !== closing || closing.closed || this.host.closingNow(id))
+      tell(closeNotice.vanished(handle))
+    else if (await this.end(closing))
+      tell(closeNotice.confirmed(handle, closing.summary.title, ran))
   }
 
   /** A tool call from Novadeck's MCP server, to the operation it names. */
