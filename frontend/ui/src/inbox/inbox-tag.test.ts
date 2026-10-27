@@ -81,12 +81,12 @@ describe("A sheet's kind tag", () => {
     expect(tagOf(request("permission", "Bash")).tone).toBe("waiting")
   })
 
-  it("is Withdrawn and quiet for a settled ask, however it settled", () => {
-    for (const how of ["withdrawn", "dismissed", "replied"] as const)
-      expect(tagOf({ ...ask({ type: "text" }), settled: { how, at: 1 } })).toMatchObject({
-        word: "Withdrawn",
-        tone: "quiet",
-      })
+  it("says how a settled ask settled, quietly", () => {
+    const settled = (how: "withdrawn" | "dismissed" | "replied") =>
+      tagOf({ ...ask({ type: "text" }), settled: { how, at: 1 } })
+    expect(settled("withdrawn")).toMatchObject({ word: "Withdrawn", tone: "quiet" })
+    expect(settled("dismissed")).toMatchObject({ word: "Dismissed", tone: "quiet" })
+    expect(settled("replied")).toMatchObject({ word: "Replied", tone: "quiet" })
   })
 
   it("is quiet for an update", () => {

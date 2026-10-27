@@ -20,8 +20,16 @@ export type TagWord =
   | "Update"
   | "Feedback"
   | "Withdrawn"
+  | "Dismissed"
+  | "Replied"
 
 export type Tag = { readonly word: TagWord; readonly type: InboxType; readonly tone: Tone }
+
+const settledWords = {
+  withdrawn: "Withdrawn",
+  dismissed: "Dismissed",
+  replied: "Replied",
+} as const satisfies Record<NonNullable<InboxRow["settled"]>["how"], TagWord>
 
 const wordOf = (item: InboxRow): TagWord => {
   switch (item.kind) {
@@ -49,12 +57,13 @@ const wordOf = (item: InboxRow): TagWord => {
   }
 }
 
-// A settled ask is withdrawn, whoever settled it, and asks nothing. An agent's ask whose
+// A settled ask asks nothing, and says how it settled: its agent withdrew it, the person
+// dismissed it, or wrote to its agent in the terminal. An agent's ask whose
 // answer it says is hard to take back is red; a permission carries no such flag, so none is
 // guessed at.
 export const tagOf = (item: InboxRow): Tag => {
   const type = inboxType(item)
-  if (item.settled) return { word: "Withdrawn", type, tone: "quiet" }
+  if (item.settled) return { word: settledWords[item.settled.how], type, tone: "quiet" }
   const hard = item.kind === "ask" && item.ask.hardToUndo !== null
   return { word: wordOf(item), type, tone: hard ? "urgent" : toneOf(item) }
 }

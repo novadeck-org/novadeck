@@ -359,7 +359,7 @@ describe("The Inbox's list", () => {
       act(() => dismissButton(inbox, "a")!.click())
       await nextFrame()
 
-      expect(document.querySelector(".console-tag")?.textContent).toBe("Withdrawn")
+      expect(document.querySelector(".console-tag")?.textContent).toBe("Dismissed")
       expect(document.querySelector(".console-settled")?.textContent).toBe(
         "You dismissed this ask; @moth was told.",
       )
