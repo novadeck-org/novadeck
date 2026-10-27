@@ -22,7 +22,7 @@ import { vi } from "vitest"
 import type { ItemRecord } from "../companions/records.js"
 import { DomainError } from "../errors.js"
 import type { Message, Thread } from "../messaging/messages.js"
-import { handleWords } from "../terminals/handles.js"
+import { handleOrder, handleWords } from "../terminals/handles.js"
 import { sealedShape } from "../terminals/sealing.js"
 import { describe, expect, it as base } from "../test.js"
 import { sealed as sealedText } from "../testing/sealing.js"
@@ -306,7 +306,7 @@ describe("workspace metadata", () => {
     workspace.saveTerminal(numbered("a", "moth"))
     workspace.saveTerminal({ ...numbered("b", "moth"), sessionId: other.id })
     const given = workspace.giveHandle("s")
-    workspace.giveHandle(other.id)
+    const otherGiven = workspace.giveHandle(other.id)
     workspace.saveMessage(message("m-1", "queued"))
     workspace.saveMessage({ ...message("m-2", "queued"), projectId: kept.id, thread: "t-2" })
     const thread: Thread = {
@@ -330,7 +330,7 @@ describe("workspace metadata", () => {
     expect(workspace.threads().map(({ id }) => id)).toEqual(["t-2"])
     // A session of the same id gives its words afresh; the other goes on.
     expect(workspace.giveHandle("s")).toBe(given)
-    expect(workspace.giveHandle(other.id)).not.toBe(handleWords[0])
+    expect(workspace.giveHandle(other.id)).not.toBe(otherGiven)
     expect(() => workspace.removeProject(removed.id)).toThrow(
       expect.objectContaining({ code: "NOT_FOUND" }),
     )
@@ -1405,16 +1405,17 @@ describe("saved terminals", () => {
     store,
   }) => {
     const path = join(directory(), "workspace.sqlite")
+    const order = handleOrder("s")
     const first = store(path)
-    expect(first.giveHandle("s")).toBe(handleWords[0])
-    expect(first.giveHandle("s")).toBe(handleWords[1])
+    expect(first.giveHandle("s")).toBe(order[0])
+    expect(first.giveHandle("s")).toBe(order[1])
     first.saveTerminal({
       id: "a",
       sessionId: "s",
       cwd: "/",
       agents: {},
       promptedAt: null,
-      handle: "moth",
+      handle: order[0]!,
       naming: { person: null, agent: null, murmur: null, summary: null },
       openedBy: null,
       ledBy: null,
@@ -1432,7 +1433,7 @@ describe("saved terminals", () => {
       murmur: null,
       summary: null,
     })
-    expect(reopened.giveHandle("s")).toBe(handleWords[2])
+    expect(reopened.giveHandle("s")).toBe(order[2])
     // Taking the person's title away leaves it automatic.
     expect(reopened.renameTerminal("a", null)).toBe(true)
     expect(reopened.terminalIdentity("a")?.naming.person).toBeNull()
@@ -1452,29 +1453,26 @@ describe("saved terminals", () => {
     first.close()
     const reopened = store(path)
     const next = reopened.giveHandle("s")
-    expect([moth, fox]).toEqual(handleWords.slice(0, 2))
-    expect(next).toBe(handleWords[2])
-    expect([moth, fox, next]).not.toContain(handleWords[3])
+    const order = handleOrder("s")
+    expect([moth, fox]).toEqual(order.slice(0, 2))
+    expect(next).toBe(order[2])
+    expect([moth, fox, next]).not.toContain(order[3])
   })
 
-  it("prefer a word whose letter no open terminal of the session starts with, then one open nowhere else", ({
+  it("prefer a word whose letter no open terminal of the session starts with, whatever other sessions have open", ({
     store,
   }) => {
     const workspace = store()
-    // "fox" and "mink" are open in another session.
-    workspace.saveTerminal({ ...numbered("b", "fox"), sessionId: "elsewhere" })
-    workspace.saveTerminal({
-      ...numbered("c", "mink"),
-      sessionId: "elsewhere",
-    })
-    expect(workspace.giveHandle("s")).toBe("moth")
-    workspace.saveTerminal(numbered("a", "moth"))
-    // "fox" is open elsewhere, so "owl" comes first; "mink" would share "moth"'s letter.
-    expect(workspace.giveHandle("s")).toBe("owl")
-    workspace.saveTerminal(numbered("d", "owl"))
-    // Closing "moth" frees its letter, but the word is never given again.
+    const [first, second] = handleOrder("s") as [string, string]
+    // Another session having the first word open changes nothing.
+    workspace.saveTerminal({ ...numbered("b", first), sessionId: "elsewhere" })
+    // A terminal open here shares the first word's letter, so the second comes first.
+    workspace.saveTerminal(numbered("a", `${first[0]}zz`))
+    expect(workspace.giveHandle("s")).toBe(second)
+    workspace.saveTerminal(numbered("c", second))
+    // Closing it frees the letter.
     workspace.removeTerminal("a")
-    expect(workspace.giveHandle("s")).toBe("crow")
+    expect(workspace.giveHandle("s")).toBe(first)
   })
 
   it("number the words again once a session has given them all", ({ store }) => {

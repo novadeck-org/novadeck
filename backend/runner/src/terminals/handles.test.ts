@@ -1,7 +1,7 @@
 import { handle } from "@novadeck/protocol"
 
 import { describe, expect, it } from "../test.js"
-import { bareHandle, handleWords, mention, nextHandle, wordOf } from "./handles.js"
+import { bareHandle, handleOrder, handleWords, mention, nextHandle } from "./handles.js"
 
 // Words no handle may be: agents and harnesses (`@goose` would read as the Goose agent),
 // Novadeck's own names, shell and code vocabulary, Tailwind colours, and the words the
@@ -49,36 +49,73 @@ describe("handle words", () => {
   })
 })
 
+describe("a session's order", () => {
+  const sorted = (words: readonly string[]) => words.toSorted()
+
+  it("gives the best words first, then the rest, in its own shuffle", () => {
+    const order = handleOrder("session-1")
+    const best = handleWords.slice(0, 25)
+    // A full round of hues at a time: three of each, the best words' fourth of one hue
+    // leading the rest's first round.
+    expect(order.slice(0, 24).every((word) => best.includes(word))).toBe(true)
+    expect(order.slice(0, 32)).toEqual(expect.arrayContaining(best))
+    expect(sorted(order)).toEqual(sorted(handleWords))
+  })
+
+  it("deals the words round the UI's eight hues, so a session's first eight look different", () => {
+    const hue = (word: string) => handleWords.indexOf(word) % 8
+    for (let index = 0; index < 50; index++) {
+      const order = handleOrder(`s${index}`)
+      // Every eight in a row, across the best words and into the rest, as far as the list
+      // has words of every hue left.
+      for (let start = 0; start + 8 <= 80; start++)
+        expect(new Set(order.slice(start, start + 8).map(hue)).size, `from ${start}`).toBe(8)
+    }
+  })
+
+  it("stays the same for a session, so a restart keeps it", () => {
+    expect(handleOrder("session-1")).toEqual(handleOrder("session-1"))
+  })
+
+  it("differs from one session to the next", () => {
+    const firsts = new Set(Array.from({ length: 20 }, (_, index) => handleOrder(`s${index}`)[0]))
+    expect(firsts.size).toBeGreaterThan(5)
+    expect(handleOrder("session-1")).not.toEqual(handleOrder("session-2"))
+  })
+})
+
 describe("the next handle", () => {
   const none = new Set<string>()
+  const order = handleWords
 
-  it("is the best word a session has never given", () => {
-    expect(nextHandle({ given: none, open: [] }, none)).toBe("moth")
-    expect(nextHandle({ given: new Set(["moth"]), open: [] }, none)).toBe("fox")
+  it("is the first word in the session's order it has never given", () => {
+    expect(nextHandle({ order, given: none, open: [] })).toBe("moth")
+    expect(nextHandle({ order, given: new Set(["moth"]), open: [] })).toBe("fox")
+    expect(nextHandle({ order: ["owl", "moth"], given: none, open: [] })).toBe("owl")
   })
 
   it("never gives a closed terminal's word again", () => {
-    expect(nextHandle({ given: new Set(["moth", "fox"]), open: [] }, none)).toBe("owl")
+    expect(nextHandle({ order, given: new Set(["moth", "fox"]), open: [] })).toBe("owl")
   })
 
   it("prefers a first letter no open terminal starts with", () => {
-    // mink is open, so moth, the best word left, gives way to owl; fox, closed, never returns.
-    expect(nextHandle({ given: new Set(["fox", "mink"]), open: ["mink"] }, none)).toBe("owl")
+    // mink is open, so moth, the first word left, gives way to owl; fox, closed, never returns.
+    expect(nextHandle({ order, given: new Set(["fox", "mink"]), open: ["mink"] })).toBe("owl")
   })
 
-  it("prefers a word no other session has open", () => {
-    expect(nextHandle({ given: none, open: [] }, new Set(["moth"]))).toBe("fox")
+  it("refuses an order with no words, rather than looking forever", () => {
+    expect(() => nextHandle({ order: [], given: none, open: [] })).toThrow(/no words/)
   })
 
   it("still gives a word when every letter is taken", () => {
     const open = [..."abcdefghijklmnopqrstuvwxyz"].map((letter) => `${letter}zz`)
-    expect(nextHandle({ given: none, open }, none)).toBe("moth")
+    expect(nextHandle({ order, given: none, open })).toBe("moth")
   })
 
   it("comes round again with a number once every word is given", () => {
     const given = new Set(handleWords)
-    expect(nextHandle({ given, open: [] }, none)).toBe("moth2")
-    expect(nextHandle({ given: new Set([...given, "moth2"]), open: [] }, none)).toBe("fox2")
+    expect(nextHandle({ order, given, open: [] })).toBe("moth2")
+    expect(nextHandle({ order, given: new Set([...given, "moth2"]), open: [] })).toBe("fox2")
   })
 })
 
@@ -91,10 +128,5 @@ describe("a handle as written", () => {
     expect(bareHandle("@moth · api-server")).toBe("moth · api-server")
     expect(bareHandle("moth2")).toBe("moth2")
     expect(mention("moth")).toBe("@moth")
-  })
-
-  it("keeps its word apart from the round's number", () => {
-    expect(wordOf("moth2")).toBe("moth")
-    expect(wordOf("moth")).toBe("moth")
   })
 })

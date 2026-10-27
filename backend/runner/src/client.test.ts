@@ -19,6 +19,7 @@ import { servePort } from "@novadeck/wire/server"
 
 import { createRunner } from "./index.js"
 import { startServer, type ServerOptions } from "./server.js"
+import { handleWords } from "./terminals/handles.js"
 import { describe, expect, it } from "./test.js"
 import { ptyOptions } from "./testing/pty.js"
 import type { Resources } from "./testing/resources.js"
@@ -40,7 +41,8 @@ const deployed = async (resources: Resources, options: ServerOptions = {}) => {
     token,
     database: join(directory, "workspace.sqlite"),
     ...options,
-    terminals: { ...ptyOptions, ...options.terminals },
+    // The list's order, not each session's shuffle, so tests know the handles given.
+    terminals: { ...ptyOptions, handleOrder: () => handleWords, ...options.terminals },
   })
   resources.defer(() => server.close())
   const url = `${server.origin.replace(/^http/, "ws")}/api/rpc`
@@ -55,7 +57,7 @@ const deployed = async (resources: Resources, options: ServerOptions = {}) => {
 const bundled = async (resources: Resources) => {
   // Created first so it is removed last, after the runner ends shells running inside it.
   const directory = await temporary(resources)
-  const runner = createRunner({ terminals: ptyOptions })
+  const runner = createRunner({ terminals: { ...ptyOptions, handleOrder: () => handleWords } })
   resources.defer(() => runner.close())
   const connect = async () => {
     const { port1, port2 } = new MessageChannel()
