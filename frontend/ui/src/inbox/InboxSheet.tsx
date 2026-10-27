@@ -178,13 +178,15 @@ export const InboxSheet = ({ active }: { readonly active: boolean }): React.JSX.
       anchorKey={item.id}
       onDismiss={close}
       // A press on one of the list's buttons is the list's own: a row opens its item, or closes
-      // the sheet when it is the open one. Anywhere else in the sidebar closes it, as outside
-      // does. The demo's debug drawer is where items arrive from, and is not the workspace.
+      // the sheet when it is the open one. So is one on a list that scrolls, which is its
+      // scrollbar being dragged. Anywhere else in the sidebar closes it, as outside does. The
+      // demo's debug drawer is where items arrive from, and is not the workspace.
       onInteractOutside={(event) => {
-        if (
-          event.target instanceof Element &&
-          event.target.closest("#inbox-panel button, .debug-drawer")
-        )
+        const { target } = event
+        if (!(target instanceof Element)) return
+        const scrolling =
+          target.matches("#inbox-panel .inbox-list") && target.scrollHeight > target.clientHeight
+        if (scrolling || target.closest("#inbox-panel button, .debug-drawer"))
           event.preventDefault()
       }}
     >
