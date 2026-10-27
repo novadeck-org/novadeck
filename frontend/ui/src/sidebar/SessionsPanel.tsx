@@ -28,8 +28,13 @@ const timestamp = new Intl.DateTimeFormat(undefined, {
   minute: "2-digit",
 })
 
-const formatVisited = (visitedAt: number | null): string =>
-  visitedAt === null ? "Not opened yet" : `Last visited ${timestamp.format(new Date(visitedAt))}`
+// A session never visited is the one open now, before the person moves, or one not opened yet.
+const formatVisited = (visitedAt: number | null, active: boolean): string =>
+  visitedAt !== null
+    ? `Last visited ${timestamp.format(new Date(visitedAt))}`
+    : active
+      ? "Open now"
+      : "Not opened yet"
 
 export const SessionsPanel = ({
   items,
@@ -62,7 +67,7 @@ export const SessionsPanel = ({
           const active = item.id === activeId
           const terminalCount = item.terminalNames.length
           const preview = terminalCount ? item.terminalNames.join(", ") : "No terminals yet"
-          const visited = formatVisited(item.visitedAt)
+          const visited = formatVisited(item.visitedAt, active)
 
           return (
             <SidebarItem

@@ -612,13 +612,13 @@ export const workspaceReducer = (workspace: Workspace, action: WorkspaceAction):
         action.activate && initial
           ? workspace.projects.map((project) =>
               project.id === workspace.activeProjectId
-                ? leaveSession(project, project.activeSessionId, initial.visitedAt ?? 0)
+                ? leaveSession(project, project.activeSessionId, initial.visitedAt ?? Date.now())
                 : project,
             )
           : workspace.projects
       const arrived = initial && {
         ...initial,
-        visitedAt: action.activate ? arrival(left, initial.visitedAt ?? 0) : null,
+        visitedAt: action.activate ? arrival(left, initial.visitedAt ?? Date.now()) : null,
       }
       return {
         ...workspace,
@@ -695,7 +695,7 @@ export const workspaceReducer = (workspace: Workspace, action: WorkspaceAction):
             ...project,
             history: [{ ...action.session, visitedAt: null }, ...project.history],
           }
-        const now = action.session.visitedAt ?? 0
+        const now = action.session.visitedAt ?? Date.now()
         const previous = leaveSession(project, project.activeSessionId, now)
         const others = workspace.projects.filter((item) => item.id !== project.id)
         const at = arrival([...others, previous], now)

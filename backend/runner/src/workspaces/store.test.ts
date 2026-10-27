@@ -1131,6 +1131,7 @@ describe("workspace metadata", () => {
       // A person's message answers an entry, which its response names.
       expect(run(message({ ...person }))).toThrow(/CHECK/)
       expect(run(message({ ...person, response: "'{}'" }))).toThrow(/CHECK/)
+      expect(run(message({ ...person, response: `'{"askId":5}'` }))).toThrow(/CHECK/)
       // The thread and project are known, and the same.
       expect(run(message({ thread_id: "'nope'" }))).toThrow(/FOREIGN KEY/)
       expect(run(message({ project_id: "'nope'" }))).toThrow(/FOREIGN KEY/)
@@ -1254,7 +1255,7 @@ describe("workspace metadata", () => {
       // is added for it. Then record the new digest here.
       expect({ version, digest }).toEqual({
         version: 7,
-        digest: "7e8d25d0349a86faf35973baad726f17f8c1dcdd29489ffb813bff12526a49a5",
+        digest: "b2dcd7a505a936f2ec95bd0ded71b7bfffc5882e3934c4238316406237573970",
       })
     } finally {
       database.close()

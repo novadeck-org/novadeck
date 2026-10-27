@@ -191,8 +191,10 @@ root). Entries come sorted, folders first, then by name ignoring case and a lead
 (nothing is ignored outside a repository). At most 2000 are listed, the first in that
 order, and `truncated` says there were more. A missing project is `NOT_FOUND`; a folder that is
 missing, not a folder, or outside the project's directory is `INVALID_DIRECTORY`.
-`sessions.save({ sessionId, state })` replaces a session's `state`, a string the
-runner stores with the session without reading it, such as a UI layout. It holds only
+`sessions.save({ sessionId, state, visitedAt })` replaces a session's `state`, a string the
+runner stores with the session without reading it, such as a UI layout, and `visitedAt`,
+when the person last visited it (null: never). Sessions list both; the latest visit picks a
+project's current session, and the latest of all the project that opens. It holds only
 how a client shows the session's terminals, by id: the terminals themselves, their
 titles, directories and what they ran, are the runner's own records. Sessions
 report `null` until the first save. A state holds at most `maxClientStateLength`

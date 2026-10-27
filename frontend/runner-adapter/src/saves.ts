@@ -88,14 +88,16 @@ export const createSessionSaves = ({
       const state = encodeSession(found)
       const { visitedAt } = found
       const held = saved.get(id)
-      // Unchanged, or more than the runner accepts: a state it would reject is dropped.
-      if ((held?.state === state && held.visitedAt === visitedAt) || !fitsRunner(state)) continue
+      // More than the runner accepts, a state it would reject is dropped; a visit still goes,
+      // with the state the runner last kept.
+      const next = fitsRunner(state) ? state : held?.state
+      if (next === undefined || (held?.state === next && held.visitedAt === visitedAt)) continue
       const sent = track(
         exists.then(async (ok) => {
           if (!ok) return
           try {
-            await save(id, state, visitedAt)
-            saved.set(id, { state, visitedAt })
+            await save(id, next, visitedAt)
+            saved.set(id, { state: next, visitedAt })
           } catch (error) {
             if (halted()) return
             // Unreachable: try again after the next change or reconnection.

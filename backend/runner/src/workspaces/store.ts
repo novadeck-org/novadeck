@@ -193,7 +193,7 @@ const schema = `
     response TEXT,
     FOREIGN KEY (thread_id, project_id) REFERENCES message_threads(id, project_id)
       ON DELETE CASCADE,
-    CHECK (from_kind <> 'person' OR json_extract(response, '$.askId') IS NOT NULL),
+    CHECK (from_kind <> 'person' OR json_type(response, '$.askId') IS 'text'),
     CHECK ((from_kind = 'agent') = (from_terminal IS NOT NULL)),
     CHECK ((from_kind = 'agent') = (from_handle IS NOT NULL)),
     CHECK ((from_kind = 'agent') = (thread_id IS NOT NULL))
@@ -314,10 +314,10 @@ const migrations: Readonly<Record<number, Step>> = {
       ALTER TABLE terminals RENAME TO terminals_6;
       ALTER TABLE sessions RENAME TO sessions_6;
       ALTER TABLE projects RENAME TO projects_6;
-      DROP INDEX sessions_project;
-      DROP INDEX companion_items_bar;
-      DROP INDEX companion_items_session;
-      DROP INDEX companion_windows_project;
+      DROP INDEX IF EXISTS sessions_project;
+      DROP INDEX IF EXISTS companion_items_bar;
+      DROP INDEX IF EXISTS companion_items_session;
+      DROP INDEX IF EXISTS companion_windows_project;
       CREATE TABLE projects (
         position INTEGER PRIMARY KEY,
         id TEXT NOT NULL UNIQUE,
@@ -432,7 +432,7 @@ const migrations: Readonly<Record<number, Step>> = {
         response TEXT,
         FOREIGN KEY (thread_id, project_id) REFERENCES message_threads(id, project_id)
           ON DELETE CASCADE,
-        CHECK (from_kind <> 'person' OR json_extract(response, '$.askId') IS NOT NULL),
+        CHECK (from_kind <> 'person' OR json_type(response, '$.askId') IS 'text'),
         CHECK ((from_kind = 'agent') = (from_terminal IS NOT NULL)),
         CHECK ((from_kind = 'agent') = (from_handle IS NOT NULL)),
         CHECK ((from_kind = 'agent') = (thread_id IS NOT NULL))

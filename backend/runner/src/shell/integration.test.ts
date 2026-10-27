@@ -2740,7 +2740,7 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))(
           name: "a.ts",
           detail: "a.ts",
           version: 1,
-          asked: false,
+          openAsked: false,
         },
         {
           id: expect.any(String),
@@ -2749,7 +2749,7 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))(
           name: "w.txt",
           detail: "w.txt",
           version: 1,
-          asked: true,
+          openAsked: true,
         },
         {
           id: expect.any(String),
@@ -2758,7 +2758,7 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))(
           name: "The plan",
           detail: join(plans, "p.md"),
           version: 1,
-          asked: false,
+          openAsked: false,
         },
         {
           id: expect.any(String),
@@ -2767,7 +2767,7 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))(
           name: "elsewhere.txt",
           detail: join(shell.home, "elsewhere.txt"),
           version: 1,
-          asked: false,
+          openAsked: false,
         },
         {
           id: expect.any(String),
@@ -2814,7 +2814,7 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))(
         content: { lines: ["const a = 2"] },
       })
       // Held, it opens only as the person picks it.
-      await expect(items.load(env!.id, false)).resolves.toMatchObject({ reason: "held" })
+      await expect(items.load(env!.id, false)).resolves.toMatchObject({ reason: "secret" })
       await expect(items.load(env!.id, true)).resolves.toMatchObject({
         content: { lines: ["TOKEN=x"] },
       })
@@ -4177,7 +4177,7 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))(
       )
       expect(shell.store.terminalIdentity(codex.id)?.naming).toEqual({
         person: null,
-        agent: null,
+        opener: null,
         murmur: { title: "Login fix" },
         summary: "Fixes the login bug.\nThen its tests.",
       })
