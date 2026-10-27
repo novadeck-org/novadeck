@@ -77,7 +77,7 @@
 @import "./layouts/workspace.css" layer(components);
 @import "./layouts/transition.css" layer(components);
 @import "./app/boot-splash.css" layer(components);
-@import "./shell/bell-dot.css" layer(components);
+@import "./shell/attention-dot.css" layer(components);
 @import "./shell/zen-dock.css" layer(components);
 @import "@novadeck/viewers/code.css" layer(components);
 @import "@novadeck/viewers/diff.css" layer(components);

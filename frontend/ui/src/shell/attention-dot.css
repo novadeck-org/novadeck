@@ -1,0 +1,69 @@
+/* The dot that says something waits on the person, one look wherever it shows: on the
+   Inbox's bell (in the rail and in the Zen dock), on the project switcher's folder, and on
+   a footer update chip's icon. It sits on the icon's top-right corner, cut out of it by a
+   ring of the ground behind, which its parent sets as --_dot-ground (none, a dot off any
+   icon). How many wait, or what, is in the button's name and tooltip, never the dot's.
+   Forced colours: see accessibility.css.
+
+   The bell's `.bell-dot-ring`, which BellDot mounts afresh for each new item the bell rings
+   for, rings out twice and is dropped once played; not at all with reduced motion. */
+.attention-dot {
+  position: absolute;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  box-shadow: 0 0 0 1.5px var(--_dot-ground, transparent);
+  background-color: currentColor;
+  color: var(--color-strong);
+  pointer-events: none;
+}
+
+/* On the bell, over the corner of its 16px icon, centred in the button; the ring is the
+   ground the button shows: the rail's, or the toggle's under the pointer or while the Inbox
+   is open, or the Zen dock's. */
+.bell-dot {
+  --_dot-ground: var(--region-rail-bg, var(--color-shell));
+  top: calc(50% - 10px);
+  right: calc(50% - 10px);
+}
+@media (hover: hover) {
+  .segment:hover:not([data-disabled]) > .bell-dot {
+    --_dot-ground: var(--segmented-hover-bg, var(--color-soft));
+  }
+}
+.segment:is([data-state="on"], [aria-checked="true"], [aria-pressed="true"]) > .bell-dot {
+  --_dot-ground: var(--segmented-active-bg, var(--color-paper));
+}
+.segment[data-dragging="true"] > .bell-dot {
+  --_dot-ground: var(--color-soft);
+}
+.zen-inbox > .bell-dot {
+  --_dot-ground: var(--zen-dock-bg, color-mix(in srgb, var(--color-paper) 95%, transparent));
+}
+@media (hover: hover) {
+  .zen-inbox:hover > .bell-dot {
+    --_dot-ground: var(--icon-button-hover-bg, var(--color-soft));
+  }
+}
+.bell-dot-ring {
+  position: absolute;
+  inset: -3px;
+  border: 1.5px solid currentColor;
+  border-radius: 50%;
+  opacity: 0;
+}
+@media (prefers-reduced-motion: no-preference) {
+  .bell-dot-ring {
+    animation: bell-dot-ring 1.6s var(--ease-interface) 2;
+  }
+}
+@keyframes bell-dot-ring {
+  from {
+    opacity: 0.9;
+    transform: scale(0.6);
+  }
+  to {
+    opacity: 0;
+    transform: scale(1.8);
+  }
+}

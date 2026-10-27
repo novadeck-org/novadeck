@@ -24,11 +24,6 @@ const done: InboxContent = {
   kind: "update",
   update: { type: "done", subject: "Done", body: "Done" },
 }
-const failed: InboxContent = { kind: "trouble", trouble: { type: "failed", error: null } }
-const asked: InboxContent = {
-  kind: "ask",
-  ask: { subject: "Which?", body: "", details: null, hardToUndo: null, shape: { type: "text" } },
-}
 const held: InboxContent = {
   kind: "held",
   held: {
@@ -51,21 +46,14 @@ describe("inboxBadge", () => {
     expect(inboxBadge([entry(done), entry(held, 1), entry(held, 2)])).toEqual({
       count: 2,
       label: "Inbox, 2 waiting",
-      status: "unblock",
     })
   })
 
-  it("takes the tone of the most pressing item", () => {
-    expect(inboxBadge([entry(held), entry(failed, 1)])?.status).toBe("failed")
-    expect(inboxBadge([entry(asked), entry(held, 1, false)])?.status).toBe("ask")
-  })
-
-  it("counts a feedback draft, as needing attention", () => {
+  it("counts a feedback draft", () => {
     const draft: InboxContent = { kind: "feedback", draft: { kind: "bug", text: "It broke." } }
     expect(inboxBadge([entry(draft, 0, false)])).toEqual({
       count: 1,
       label: "Inbox, 1 waiting",
-      status: "unblock",
     })
   })
 
