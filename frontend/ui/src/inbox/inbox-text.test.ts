@@ -13,7 +13,6 @@ import {
   refusedWords,
   recommended,
   resumesLabel,
-  standingOf,
   subjectOf,
   toneOf,
   waitLabel,
@@ -239,50 +238,6 @@ describe("A limit that resumes", () => {
     expect(resumesLabel(limit(true))).toBe("Resumes at 15:40")
     expect(resumesLabel(limit(false))).toBeNull()
     expect(resumesLabel(limit(null))).toBeNull()
-  })
-})
-
-describe("How an item stands", () => {
-  it("says how long ago a feedback draft was written, calmly", () => {
-    expect(standingOf(draft("a"), 0, false)).toEqual({ status: "just now", tone: "calm" })
-    expect(standingOf(draft("a"), 6 * 60_000, false)).toEqual({ status: "6m ago", tone: "calm" })
-  })
-
-  it("says how long ago a failed turn that no longer stands as the current end happened", () => {
-    const old: InboxRow = {
-      ...base,
-      stopped: false,
-      kind: "trouble",
-      trouble: { type: "failed", error: "boom", stored: true },
-    }
-    expect(standingOf(old, 6 * 60_000, false)).toEqual({ status: "6m ago", tone: "calm" })
-    expect(standingOf({ ...old, stopped: true }, 6 * 60_000, false).status).toBe("waiting 6m")
-  })
-
-  it("is waiting for a stopped agent, and working for the rest", () => {
-    expect(standingOf(permission("Bash", "x"), 6 * 60_000, false)).toEqual({
-      status: "waiting 6m",
-      tone: "waiting",
-    })
-    expect(standingOf({ ...permission("Bash", "x"), stopped: false }, 0, false).status).toBe(
-      "still working",
-    )
-  })
-
-  it("says a limit whose reset has passed is resuming, not resuming in now", () => {
-    const limit: InboxRow = {
-      ...base,
-      stopped: false,
-      kind: "trouble",
-      trouble: { type: "limit", minutes: 300, resetsAt: 1000, autoResume: true, evidence: [] },
-    }
-
-    expect(standingOf(limit, 5000, false).status).toBe("resuming")
-    expect(standingOf(limit, 0, false).status).toMatch(/^resumes in/)
-  })
-
-  it("says answered once the person answered", () => {
-    expect(standingOf(permission("Bash", "x"), 0, true).status).toBe("answered")
   })
 })
 

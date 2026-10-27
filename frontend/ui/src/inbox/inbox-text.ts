@@ -4,8 +4,6 @@ import { harnesses, type AgentName } from "@novadeck/core/harnesses"
 import { inboxType, type InboxRow, type InboxSource, type Trouble } from "@novadeck/core/inbox"
 import { unsaidWaits, waitsBehind } from "@novadeck/core/messages"
 
-import { informing } from "./inbox-state"
-
 // What the Inbox says about an item, in words: pure, so the rows and the sheet read the
 // same sentences, and so their rules read apart from the markup.
 
@@ -285,32 +283,4 @@ export const limitWindow = (minutes: number): string => {
   if (minutes === 10_080) return "weekly"
   if (minutes === 1440) return "daily"
   return minutes % 60 === 0 ? `${minutes / 60}-hour` : `${minutes}-minute`
-}
-
-// How an item stands, for the line over its sheet's title.
-export type Standing = {
-  readonly status: string
-  readonly tone: "urgent" | "waiting" | "calm" | "done"
-}
-export const standingOf = (item: InboxRow, now: number, answered: boolean): Standing => {
-  if (answered) return { status: "answered", tone: "done" }
-  // Neither stops the agent: they say how long they have waited, calmly.
-  if (inboxType(item) === "update" || inboxType(item) === "feedback" || informing(item)) {
-    const ago = waitLabel(item.at, now)
-    return { status: ago === "now" ? "just now" : `${ago} ago`, tone: "calm" }
-  }
-  if (item.kind === "trouble" && item.trouble.type === "limit" && item.trouble.autoResume)
-    return {
-      status:
-        item.trouble.resetsAt <= now
-          ? "resuming"
-          : `resumes in ${waitLabel(now, item.trouble.resetsAt)}`,
-      tone: "calm",
-    }
-  if (item.stopped)
-    return {
-      status: `waiting ${waitLabel(item.at, now)}`,
-      tone: toneOf(item) === "urgent" ? "urgent" : "waiting",
-    }
-  return { status: "still working", tone: "done" }
 }

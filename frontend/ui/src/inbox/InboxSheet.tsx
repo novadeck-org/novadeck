@@ -2,28 +2,66 @@ import { inboxType, type InboxRow } from "@novadeck/core/inbox"
 import { HandleChip } from "@novadeck/toolkit/HandleChip"
 import { Sheet } from "@novadeck/toolkit/Sheet"
 import { Tooltip } from "@novadeck/toolkit/Tooltip"
-import { ArrowLeft, CircleCheck, Terminal, X } from "lucide-react"
+import { ArrowLeft, Check, Terminal, X } from "lucide-react"
 import { useEffect, useRef, useState } from "react"
 
-import { ApproveSheet } from "./ApproveSheet"
-import { AskSheet } from "./AskSheet"
+import { ConsoleSheet } from "./ConsoleSheet"
 import { FeedbackSheet } from "./FeedbackSheet"
 import { nextRowButton, rowOf, sheetControls } from "./inbox-dom"
 import { icons } from "./inbox-icons"
-import { nextItem } from "./inbox-state"
-import { standingOf, toneOf } from "./inbox-text"
-import { useInboxContext } from "./InboxProvider"
+import { tagOf } from "./inbox-tag"
+import { useInboxContext, type Receipt } from "./InboxProvider"
 import type { SheetContentProps } from "./Page"
-import { TroubleSheet } from "./TroubleSheet"
-import { UpdateSheet } from "./UpdateSheet"
+import { Text } from "./sheet-parts"
 
-// What the sheet sits within: the workspace beside the sidebar.
-const workspace = (): HTMLElement | null =>
-  document.querySelector<HTMLElement>(".workspace-main-pane")
+// What the sheet sits within: the whole workspace, the sidebar with it, so the sheet starts
+// over the sidebar's gutter, clear of a window's border beside it.
+const workspace = (): HTMLElement | null => document.querySelector<HTMLElement>(".workspace-panels")
 
-// One item's sheet: its title bar, then the page of its type.
+// What the workspace behind the sheet is, which steps back while it is read.
+const behind = (): HTMLElement | null => document.querySelector<HTMLElement>(".workspace-main-pane")
+
+// The kind of message, before any of it is read: the row's icon and tone, and one word.
+const KindTag = ({ item }: { readonly item: InboxRow }): React.JSX.Element => {
+  const tag = tagOf(item)
+  const Icon = icons[tag.type]
+  return (
+    <span className="console-tag" data-tone={tag.tone}>
+      <Icon size={12} strokeWidth={2} aria-hidden />
+      {tag.word}
+    </span>
+  )
+}
+
+// What the last answer did, on the sheet it moved on to: fading back after a moment. Where
+// that answer turns out not to have arrived, it says so, and the way back to it.
+const ReceiptLine = ({ receipt }: { readonly receipt: Receipt }): React.JSX.Element => {
+  const { state, open } = useInboxContext()
+  const failed = state.failed[receipt.from]
+  if (failed)
+    return (
+      <div className="console-receipt" data-failed="true" role="alert">
+        <span>{failed}</span>
+        <button
+          type="button"
+          className="button link inbox-link text-control"
+          onClick={() => open(receipt.from)}
+        >
+          Back to it
+        </button>
+      </div>
+    )
+  return (
+    <div className="console-receipt" role="status">
+      <Check size={12} aria-hidden />
+      <Text text={receipt.note} />
+    </div>
+  )
+}
+
+// One item's sheet: its head, then its page.
 const SheetBody = ({ item }: { readonly item: InboxRow }): React.JSX.Element => {
-  const { state, sent, now, phone, next, close, submit, change, reveal } = useInboxContext()
+  const { state, sent, phone, receipt, close, submit, change, reveal } = useInboxContext()
   const answered = sent[item.id]
   const failed = state.failed[item.id]
   const present = state.items.some((each) => each.id === item.id)
@@ -31,17 +69,11 @@ const SheetBody = ({ item }: { readonly item: InboxRow }): React.JSX.Element => 
   // An answer that didn't take is no answer.
   const confirmed =
     failed === undefined && !state.answering[item.id] && !present ? answered : undefined
-  const type = inboxType(item)
-  const Icon = confirmed ? CircleCheck : icons[type]
   const content: SheetContentProps = {
     item,
-    standing: unavailable
-      ? { status: "reply not delivered", tone: "urgent" }
-      : standingOf(item, now, confirmed !== undefined),
     sent: confirmed,
     answering: Boolean(state.answering[item.id]) || unavailable,
     failed,
-    onNext: nextItem(state.items, item.id, state) ? next : undefined,
     submit: (answer, note) => submit(item, answer, note),
     change: (answer) => change(item, answer),
     reveal: () => reveal(item),
@@ -50,10 +82,10 @@ const SheetBody = ({ item }: { readonly item: InboxRow }): React.JSX.Element => 
   const leave = phone ? "Back to the Inbox" : "Close"
   return (
     <div
-      className="inbox-sheet"
-      data-type={type}
-      data-state={confirmed ? "answered" : item.stopped ? "waiting" : "asking"}
-      data-urgency={toneOf(item)}
+      className="inbox-sheet console"
+      data-type={inboxType(item)}
+      data-tone={tagOf(item).tone}
+      data-state={item.settled ? "settled" : confirmed ? "answered" : "asking"}
       // Tab leaves the sheet the way it came: back to its row from the first control, and on
       // to the row after it from the last, so keyboard focus never falls out to the workspace.
       onKeyDown={(event) => {
@@ -62,7 +94,7 @@ const SheetBody = ({ item }: { readonly item: InboxRow }): React.JSX.Element => 
         const head = Array.from(
           event.currentTarget.querySelectorAll<HTMLElement>(".inbox-sheet-head button"),
         )
-        // Tab order inside the sheet is the title bar, then its page.
+        // Tab order inside the sheet is the head, then its page.
         const order = [...head, ...page]
         const active = document.activeElement
         if (
@@ -81,16 +113,19 @@ const SheetBody = ({ item }: { readonly item: InboxRow }): React.JSX.Element => 
         }
       }}
     >
-      <header className="inbox-sheet-head">
-        <span className="inbox-sheet-icon" aria-hidden="true">
-          <Icon size={14} />
+      <header className="inbox-sheet-head console-head">
+        <KindTag item={item} />
+        <span className="console-crumb">
+          <span className="console-project">{source.projectName}</span>
+          <span className="console-sep" aria-hidden="true">
+            /
+          </span>
+          <h2 className="inbox-sheet-title" tabIndex={-1}>
+            {source.title}
+          </h2>
         </span>
-        <h2 className="inbox-sheet-title text-body" tabIndex={-1}>
-          {source.title}
-        </h2>
-        <span className="inbox-sheet-meta text-caption">
-          {source.projectName} · {source.agent} · <HandleChip handle={source.handle} />
-        </span>
+        <HandleChip handle={source.handle} />
+        <span className="console-grow" />
         <Tooltip content="Show terminal">
           <button
             type="button"
@@ -112,13 +147,8 @@ const SheetBody = ({ item }: { readonly item: InboxRow }): React.JSX.Element => 
           </button>
         </Tooltip>
       </header>
-      {/* By what the item is, not its type alone: an ask that wants an action (a sign-in) is an
-          Unblock but still takes the ask page, with its Do dialog. */}
-      {(type === "ask" || item.kind === "ask") && <AskSheet {...content} />}
-      {type === "unblock" && item.kind !== "ask" && <ApproveSheet {...content} />}
-      {type === "trouble" && <TroubleSheet {...content} />}
-      {type === "update" && <UpdateSheet {...content} />}
-      {type === "feedback" && <FeedbackSheet {...content} />}
+      {receipt && receipt.from !== item.id && <ReceiptLine receipt={receipt} />}
+      {item.kind === "feedback" ? <FeedbackSheet {...content} /> : <ConsoleSheet {...content} />}
     </div>
   )
 }
@@ -139,9 +169,9 @@ export const InboxSheet = ({ active }: { readonly active: boolean }): React.JSX.
   // The workspace steps back while a sheet is read over it, and is still live: a click in
   // it closes the sheet.
   useEffect(() => {
-    workspace()?.setAttribute("data-inbox-reading", String(open && !phone))
+    behind()?.setAttribute("data-inbox-reading", String(open && !phone))
   }, [open, phone])
-  useEffect(() => () => workspace()?.removeAttribute("data-inbox-reading"), [])
+  useEffect(() => () => behind()?.removeAttribute("data-inbox-reading"), [])
   // On a screen of its own, focus goes into it as it opens.
   const screen = useRef<HTMLDivElement>(null)
   const opened = phone && open
