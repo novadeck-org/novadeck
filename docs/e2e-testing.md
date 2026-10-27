@@ -525,7 +525,7 @@ for (const setup of setups) {
   with text or with a `send`; `own` keeps a rule off side calls; `deliveries(call)`
   parses the `<novadeck-messages>` a hook added, plain or HTML-escaped, into
   `{ from, text }`; `ring` matches the doorbell's line; `opens` is a rule that answers a
-  prompt by starting an agent with a task (`open_terminal`), and `opened(call, handle)`
+  prompt by starting an agent with a task (`open_agent`), and `opened(call, handle)`
   tells the agent's next look once it did; `closes` and `closed(call, handle)` do the
   same for closing a terminal (`close_terminal`); `answers(text, reply)` answers a
   prompt with a reply built from the call, such as a trait's, and `result(call)` is the text of the
@@ -608,7 +608,7 @@ for (const setup of setups) {
   (`deck.shell.resume` empty once the shell has taken the command starting the agent),
   never to drive or assert Novadeck's state.
 - **Agents' requests for a terminal.** Without a client answering them, an agent's
-  `open_terminal` opens nothing. `deck.answerRequests()` answers them as the app does,
+  `open_terminal` or `open_agent` opens nothing. `deck.answerRequests()` answers them as the app does,
   from the call on and across restarts: it opens a terminal in the request's folder,
   starting its command, created for the request (`requestId`), and answers with it once
   its shell has started. `next()` on what it returns waits for the next terminal it

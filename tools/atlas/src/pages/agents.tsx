@@ -1,4 +1,15 @@
-import { Eye, FileText, Monitor, Send, SquarePlus, SquareX, Users, Wrench, X } from "lucide-react"
+import {
+  Bot,
+  Eye,
+  FileText,
+  Monitor,
+  Send,
+  SquarePlus,
+  SquareX,
+  Users,
+  Wrench,
+  X,
+} from "lucide-react"
 import type { LucideIcon } from "lucide-react"
 import { useEffect, useState } from "react"
 
@@ -19,6 +30,7 @@ const icons: Record<string, LucideIcon> = {
   showing: Eye,
   close: X,
   open_terminal: SquarePlus,
+  open_agent: Bot,
   close_terminal: SquareX,
   send: Send,
   agents: Users,

@@ -2983,6 +2983,7 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))(
             plugin: join(shell.plugins, agent),
           }),
       })
+      const openAgent = (request: object) => ({ ...open(request), type: "open_agent" as "open" })
       const terminal = await create(manager, shell)
       const controller = new AbortController()
       const requests: TerminalRequest[] = []
@@ -3012,14 +3013,12 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))(
       try {
         const task = { message: "Review a.ts, please." }
         const answers = (await present(shell, manager, terminal.id, [
-          open({ agent: "claude", ...task }),
-          open({ agent: "codex", ...task }),
-          open({ agent: "agy", cwd: "trusted", ...task }),
-          open({ agent: "agy", ...task }),
-          open({ agent: "codex" }),
-          open({ agent: "codex", command: "codex", ...task }),
+          openAgent({ agent: "claude", ...task }),
+          openAgent({ agent: "codex", ...task }),
+          openAgent({ agent: "agy", cwd: "trusted", ...task }),
+          openAgent({ agent: "agy", ...task }),
           // Too large once escaped where delivered: refused before anything starts.
-          open({ agent: "codex", message: "&".repeat(4_000) }),
+          openAgent({ agent: "codex", message: "&".repeat(4_000) }),
         ])) as { ok: boolean; text?: string }[]
         const line = /^\[Novadeck: automatic notice, agent messages waiting, [A-Za-z0-9]{6}\]$/
         expect(requests.map(({ command }) => command)).toEqual([
@@ -3045,8 +3044,6 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))(
           true,
         ])
         expect(answers.slice(4)).toEqual([
-          { ok: false, reason: "An agent and its message come together." },
-          { ok: false, reason: "A command can't be combined with an agent and its message." },
           {
             ok: false,
             reason: expect.stringMatching(/^Delivered, this message would take \d+ bytes/),
@@ -3077,6 +3074,119 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))(
           text: "Review a.ts, please.",
           state: "queued",
         })
+      } finally {
+        controller.abort()
+        await client
+      }
+    })
+  },
+)
+
+describe.skipIf(process.platform === "win32" || !existsSync(bash))(
+  "agents opening an agent with a model and effort from a bash terminal",
+  () => {
+    it("starts each harness with them right after its program, and refuses what it doesn't list", async ({
+      shell,
+    }) => {
+      const bin = presenter(shell.home)
+      for (const agent of ["claude", "codex", "agy"] as const) fakeAgent(shell.home, agent)
+      const trusted = join(shell.home, "trusted")
+      mkdirSync(trusted)
+      mkdirSync(join(shell.home, ".gemini", "antigravity-cli"), { recursive: true })
+      writeFileSync(
+        join(shell.home, ".gemini", "antigravity-cli", "settings.json"),
+        JSON.stringify({ trustedWorkspaces: [trusted] }),
+      )
+      const all = ["low", "medium", "high", "xhigh", "max"] as const
+      const lists = {
+        claude: [{ id: "opus", efforts: all }],
+        codex: [
+          { id: "gpt-a", efforts: ["low", "high"] },
+          { id: "gpt-b", efforts: ["low"] },
+          { id: "gpt-c", efforts: ["low"] },
+        ],
+        agy: [
+          { id: "flash-high", efforts: ["high"] },
+          { id: "sonnet", efforts: [] },
+        ],
+      } as const
+      const manager = shell.manager({
+        env: {
+          HOME: shell.home,
+          PS1: "$ ",
+          PATH: `${bin}:${join(shell.home, "bin")}:${process.env.PATH}`,
+        },
+        install: (agent) =>
+          Promise.resolve({
+            env: {},
+            home: shell.home,
+            platform: process.platform,
+            plugin: join(shell.plugins, agent),
+          }),
+        models: (agent) => Promise.resolve(lists[agent]),
+      })
+      const openAgent = (request: object) => ({ ...open(request), type: "open_agent" as "open" })
+      const terminal = await create(manager, shell)
+      const controller = new AbortController()
+      const requests: TerminalRequest[] = []
+      const client = (async () => {
+        for await (const request of manager.requests("client", controller.signal)) {
+          requests.push(request)
+          const id = randomUUID()
+          // eslint-disable-next-line no-await-in-loop -- Requests are opened in turn.
+          await manager.create(
+            {
+              id,
+              sessionId: request.sessionId,
+              cwd: request.cwd,
+              cols: 100,
+              rows: 20,
+              ...(request.command && { command: request.command }),
+              requestId: request.requestId,
+            },
+            "client",
+          )
+          manager.answerRequest({ requestId: request.requestId, terminalId: id }, "client")
+        }
+      })()
+      try {
+        const task = { message: "Review a.ts, please." }
+        const answers = (await present(shell, manager, terminal.id, [
+          openAgent({ agent: "claude", model: "opus", effort: "max", ...task }),
+          openAgent({ agent: "codex", model: "gpt-a", effort: "high", ...task }),
+          openAgent({ agent: "agy", cwd: "trusted", model: "flash-high", effort: "high", ...task }),
+          openAgent({ agent: "agy", model: "sonnet", ...task }),
+          openAgent({ agent: "codex", model: "nope", ...task }),
+          openAgent({ agent: "codex", model: "gpt-a", effort: "max", ...task }),
+          openAgent({ agent: "claude", effort: "low", ...task }),
+          openAgent({ agent: "agy", model: "sonnet", effort: "low", ...task }),
+        ])) as { ok: boolean; reason?: string }[]
+        const line = '"\\[Novadeck: automatic notice, agent messages waiting, [A-Za-z0-9]{6}\\]"'
+        expect(requests.map(({ command }) => command)).toEqual([
+          expect.stringMatching(new RegExp(`^claude --model opus --effort max ${line}$`)),
+          expect.stringMatching(
+            new RegExp(`^codex --model gpt-a -c "model_reasoning_effort=high" ${line}$`),
+          ),
+          expect.stringMatching(new RegExp(`^agy --model flash-high --effort high -i ${line}$`)),
+          "agy --model sonnet",
+        ])
+        expect(answers.slice(0, 4).map(({ ok }) => ok)).toEqual([true, true, true, true])
+        expect(answers.slice(4)).toEqual([
+          {
+            ok: false,
+            reason:
+              'Codex has no model "nope" here: give one of gpt-a, gpt-b or gpt-c, or leave model out to start on its default.',
+          },
+          {
+            ok: false,
+            reason: 'Codex\'s model "gpt-a" has no effort "max"; its efforts are low and high.',
+          },
+          {
+            ok: false,
+            reason: "Give a model with effort: Claude Code's efforts depend on the model.",
+          },
+          { ok: false, reason: 'Antigravity\'s model "sonnet" takes no effort; leave it out.' },
+        ])
       } finally {
         controller.abort()
         await client

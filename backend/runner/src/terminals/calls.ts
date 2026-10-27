@@ -1,10 +1,16 @@
 import { resolve as resolvePath } from "node:path"
 
-import { doorbellLine, quotedLine, type Install } from "@novadeck/harness-core/harness"
+import {
+  doorbellLine,
+  quotedLine,
+  type Effort,
+  type Install,
+  type Model,
+} from "@novadeck/harness-core/harness"
 import type { AgentName } from "@novadeck/protocol"
 import { freshNonce } from "@novadeck/tui-input"
 
-import { harnesses } from "../harnesses/registry.js"
+import { agents, harnesses } from "../harnesses/registry.js"
 import type { Inbox } from "../messaging/inbox.js"
 import { agentLabel } from "../messaging/messages.js"
 import type { AgentsAnswer, Messaging, SendAnswer } from "../messaging/messaging.js"
@@ -43,6 +49,12 @@ import { peerOf, type TerminalPeers } from "./peers.js"
 import type { Record } from "./record.js"
 import { readSummarizeRequest, type SummarizeAnswer } from "./summarize.js"
 
+// "a, b and c".
+const list = (items: readonly string[], conjunction = "and"): string =>
+  items.length < 2
+    ? items.join("")
+    : `${items.slice(0, -1).join(", ")} ${conjunction} ${items.at(-1)}`
+
 // Why a request for a new terminal went unanswered.
 const unopened = {
   nobody: "Novadeck isn't open to show a new terminal.",
@@ -67,6 +79,8 @@ export type CallsHost = {
   readonly launcher: () => Launcher
   /** Where a harness lives on this machine, which says how it may start with a task. */
   readonly install: (agent: AgentName) => Promise<Install | undefined>
+  /** The models a harness can start with here, none where that can't be told. */
+  readonly models: (agent: AgentName) => Promise<readonly Model[]>
   /** Whether the terminal host is closing the terminal, its shell not yet ended. */
   readonly closingNow: (terminalId: string) => boolean
   // A close, in the manager's steps: `closePeer` checks the runner's stop between them.
@@ -148,6 +162,14 @@ export class Calls {
     const read = readOpenRequest(call.request)
     if (!read.ok) return read
     const { request } = read
+    const choice = {
+      ...(request.model !== undefined && { model: request.model }),
+      ...(request.effort !== undefined && { effort: request.effort }),
+    }
+    if (request.agent !== undefined) {
+      const unfit = await this.unfitChoice(request.agent, choice)
+      if (unfit) return refused(unfit)
+    }
     const starts = request.command !== undefined || request.agent !== undefined
     // Every check `send` would refuse the task for, before anything starts.
     if (request.agent !== undefined && request.message !== undefined) {
@@ -173,7 +195,7 @@ export class Calls {
     const started: { command?: string | undefined; prompted: boolean; nonce?: string } =
       request.agent === undefined
         ? { command: request.command, prompted: true }
-        : await this.taskCommand(request.agent, cwd)
+        : await this.taskCommand(request.agent, cwd, choice)
     const { command } = started
     // Closed, or the runner stopped, while the folder was looked at.
     if (this.host.stopping() || this.host.records().get(call.terminalId) !== record)
@@ -230,6 +252,35 @@ export class Calls {
   }
 
   /**
+   * Why the model and effort asked for can't start `agent`, in a sentence the agent can
+   * act on; undefined when they can, or none was asked for. An effort needs a model, as
+   * which efforts a model takes depends on it.
+   */
+  private async unfitChoice(
+    agent: AgentName,
+    { model, effort }: { readonly model?: string; readonly effort?: Effort },
+  ): Promise<string | undefined> {
+    if (model === undefined && effort === undefined) return undefined
+    const label = agentLabel(agent)
+    if (model === undefined)
+      return `Give a model with effort: ${label}'s efforts depend on the model.`
+    const models = await this.host.models(agent).catch((): readonly Model[] => [])
+    if (models.length === 0)
+      return `${label}'s models can't be listed here, so leave the model out and it starts with its own.`
+    const found = models.find(({ id }) => id === model)
+    if (!found)
+      return `${label} has no model "${model}" here: give one of ${list(
+        models.map(({ id }) => id),
+        "or",
+      )}, or leave model out to start on its default.`
+    if (effort !== undefined && !found.efforts.includes(effort))
+      return found.efforts.length === 0
+        ? `${label}'s model "${model}" takes no effort; leave it out.`
+        : `${label}'s model "${model}" has no effort "${effort}"; its efforts are ${list(found.efforts)}.`
+    return undefined
+  }
+
+  /**
    * The command that starts `agent` with a task: the doorbell's line, with its `nonce`, as
    * its command-line prompt, which it submits once past its startup screens; plain where
    * it may not take one (Antigravity in a folder it doesn't trust), when the task arrives
@@ -238,6 +289,7 @@ export class Calls {
   private async taskCommand(
     agent: AgentName,
     cwd: string,
+    choice: { readonly model?: string; readonly effort?: Effort },
   ): Promise<{ readonly command: string; readonly prompted: boolean; readonly nonce: string }> {
     const { messaging } = harnesses[agent]
     const install = await this.host.install(agent).catch(() => undefined)
@@ -245,7 +297,9 @@ export class Calls {
     const prompted = await messaging
       .initialPrompt(doorbellLine(nonce), { install, cwd })
       .catch(() => undefined)
-    const argv = prompted ?? messaging.start
+    const [program = "", ...rest] = prompted ?? messaging.start
+    // Right after the program, so before a flag like Antigravity's `-i` that takes the line.
+    const argv = [program, ...messaging.choose(choice), ...rest]
     // Every word but the line is a plain word; the line holds nothing a shell expands.
     const command = argv
       .map((word) => (/^[\w./-]+$/.test(word) ? word : quotedLine(word)))
@@ -427,7 +481,21 @@ export class Calls {
         return this.host.agents(call)
       case "summarize":
         return this.summarize(call)
+      case "models":
+        return this.listModels(call)
     }
+  }
+
+  /**
+   * The models each harness can start with here, as the tools an agent sees list them.
+   * A call without the shell's own token learns nothing more.
+   */
+  private async listModels(call: Call) {
+    if (!callerOf(this.host.records(), call)) return unansweredCalls.models
+    const lists = await Promise.all(
+      agents.map((agent) => this.host.models(agent).catch((): readonly Model[] => [])),
+    )
+    return { ok: true, models: Object.fromEntries(agents.map((agent, i) => [agent, lists[i]])) }
   }
 
   /**

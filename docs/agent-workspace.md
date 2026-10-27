@@ -488,12 +488,14 @@ with every safety check again at that time:
   Command Line Tools, `/usr/bin/git` is Apple's installer stub, so each attempt to show
   can fail with its message, and may bring up the installer dialog.
 
-- **New terminals** come from the same server's second tool, `open_terminal`, listed
-  only inside Novadeck's terminals like `show`. It opens a terminal beside the agent's,
+- **New terminals** come from the same server's `open_terminal` and `open_agent`, listed
+  only inside Novadeck's terminals like `show`. `open_terminal` opens a terminal beside the agent's,
   in `cwd` (absolute, or from the terminal's directory, which is the default), named
   `title`, and can start `command` at the new shell's first prompt, one line as the
-  person would type it, such as `claude` or `npm run dev`; `focus` brings it into view
-  only when the person asked to see it. The runner checks the token, reads the request
+  person would type it, such as `npm run dev`; `focus` brings it into view
+  only when the person asked to see it. `open_terminal` takes no agent: to start one with
+  a task (and optionally a `model` and `effort`), an agent calls `open_agent`, which makes
+  it the new agent's lead. The runner checks the token, reads the request
   strictly, checks the folder, and lets a terminal's agents open five a minute, a
   terminal opened on request sharing the budget of the one that began the chain, and
   all agents twenty a minute across the runner, so terminals opening terminals can't
@@ -538,8 +540,8 @@ with every safety check again at that time:
   shutdown keeps every terminal.
 - **Messages** between agents come from the same server's `send` and `agents` tools,
   listed only inside Novadeck's terminals like the others: an agent messages another
-  terminal of its project and session by its handle, such as `@moth`, which `open_terminal` also
-  answers with, and the message reaches that agent through its own hooks. The runner
+  terminal of its project and session by its handle, such as `@moth`, which `open_terminal` and `open_agent`
+  also answer with, and the message reaches that agent through its own hooks. The runner
   keeps the messages with the workspace and lists, pauses and releases them through
   `messages.list`, `messages.pause` and `messages.release`. Its `agents` listing carries
   the summaries the terminals' agents gave through `summarize`. See
