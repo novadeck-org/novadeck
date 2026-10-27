@@ -478,6 +478,10 @@ describe("what agents and a refused send say", () => {
     expect(unknownHandle("moth", "moth", [], now, null)).toBe(
       "@moth is this terminal.\nThere are no other terminals in this project and session.",
     )
+    // Its team first, as agents names it.
+    expect(
+      unknownHandle("codex", "moth", [led("fox", null, null)], now, "fox").split("\n")[1],
+    ).toBe("Your team: led by @fox, no other teammates.")
   })
 
   it("describe every other terminal there in full for a name that is no handle", () => {
