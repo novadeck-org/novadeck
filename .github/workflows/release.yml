@@ -117,15 +117,15 @@ jobs:
     secrets: inherit
 
   release:
-    name: Publish Dev Release
+    name: Publish Experimental Release
     # By the results it needs, not by skips inside Package (its Scope is skipped for main).
-    # The repository variable PAUSE_DEV_RELEASES=true holds publishing, and with it the
+    # The repository variable PAUSE_EXPERIMENTAL_RELEASES=true holds publishing, and with it the
     # update feed installs follow, while builds are still packaged and signed. Unset it and
     # rerun the latest Release to publish the newest build; installs then catch up to it.
     if: >-
       !cancelled() && needs.prepare.outputs.package == 'true' &&
       needs.prepare.result == 'success' && needs.package.result == 'success' &&
-      vars.PAUSE_DEV_RELEASES != 'true'
+      vars.PAUSE_EXPERIMENTAL_RELEASES != 'true'
     needs: [prepare, package]
     runs-on: ubuntu-latest
     timeout-minutes: 18
@@ -249,7 +249,7 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
 
-      - name: Publish Dev Release
+      - name: Publish Experimental Release
         env:
           GITHUB_TOKEN: ${{ github.token }}
         run: pnpm exec release-it "${{ needs.prepare.outputs.version }}" --ci
