@@ -3379,6 +3379,14 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))(
             platform: process.platform,
             plugin: join(shell.plugins, name),
           }),
+        models: (name) =>
+          Promise.resolve(
+            {
+              claude: [{ id: "opus", efforts: [] }],
+              codex: [{ id: "gpt-a", efforts: [] }],
+              agy: [],
+            }[name],
+          ),
       })
       const terminal = await create(manager, shell)
       const controller = new AbortController()
@@ -3531,6 +3539,42 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))(
             expect(await prompt("more")).toMatch(
               /<message [^>]*from="moth"[^>]*lead="[^"]+"[^>]*>Next, the tests.<\/message>/,
             )
+            expect(manager.get(worker).ledBy).toBe("moth")
+          },
+        )
+      })
+
+      it(`resumes a past ${agent} session with a brief, which reaches the resumed session`, async ({
+        shell,
+      }) => {
+        const form = {
+          claude: "claude --model opus --resume sess-r",
+          codex: "codex resume --model gpt-a sess-r",
+          agy: "agy --conversation sess-r",
+        }
+        await opened(
+          shell,
+          agent,
+          {
+            resume: "sess-r",
+            message: "Carry on with a.ts.",
+            lead: true,
+            ...(agent !== "agy" && { model: agent === "claude" ? "opus" : "gpt-a" }),
+          },
+          async ({ manager, worker, said, command, prompt, started }) => {
+            expect(command).toBe(form[agent])
+            expect(said).toContain("resuming session sess-r")
+            // The resumed session takes the brief as any message, marked as its lead's.
+            const marked = /lead="[^"]+"[^>]*>Carry on with a.ts.<\/message>/
+            if (agent === "agy") {
+              const printed = JSON.parse(started()) as {
+                injectSteps: { ephemeralMessage: string }[]
+              }
+              expect(printed.injectSteps[0]!.ephemeralMessage).toMatch(marked)
+            } else expect(await prompt("go")).toMatch(marked)
+            await expect
+              .poll(() => manager.messages(worker).threads[0]?.messages[0]?.state)
+              .toBe("delivered")
             expect(manager.get(worker).ledBy).toBe("moth")
           },
         )

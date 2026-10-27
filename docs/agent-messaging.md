@@ -146,7 +146,8 @@ An agent weighs what reaches it at three levels:
    the person let lead this one's running agent: `lead(to, message)` asks, the person
    approves, and the brief is sent then. Only these two explicit paths make a lead; a
    terminal opened with a `command`, or a plain shell, has none, and neither has an agent
-   opened with `lead: false`, so an agent the person runs there later is theirs alone.
+   opened with `lead: false` and no brief, so an agent the person runs there later is theirs
+   alone.
    An agent opened with a brief and `lead: false` (the person's decision to start it on a
    task but not run it through the opener) gets the brief marked as the lead's, so it is
    its task, and the opener's lead is released once the brief is delivered: after that the

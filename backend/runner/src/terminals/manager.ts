@@ -887,8 +887,8 @@ export class Terminals {
    */
   private register(record: Record, agent: AgentName | null): void {
     const { id, sessionId, handle } = record.summary
-    // Its lead is the agent in the terminal that opened it with a brief, until the agent
-    // it leads exits.
+    // Its lead is the agent in the terminal that opened it to lead it, until the agent it
+    // leads exits.
     this.messaging.register(
       id,
       { projectId: this.projectOf(sessionId), sessionId },
