@@ -512,8 +512,16 @@ with every safety check again at that time:
   inside Novadeck's terminals like the others. An agent closes another terminal of its
   project and session, an agent's or a plain shell, by its exact handle, as `send`
   names its recipient; any other `to` is refused with the terminals there described, as
-  `send` refuses one, and so is its own terminal, with a pointer to its harness's own
-  exit. Its description tells agents to close only a terminal they are done with or
+  `send` refuses one. Its own terminal closes a half second after the answer, which ends
+  its session; a teammate it leads, and a terminal that runs no agent, close at once;
+  any other terminal that runs an agent closes only once the person confirms. That ask
+  goes to the client that subscribed last to `terminals.closeAsks` (refused with none),
+  one at a time for each terminal, and the call answers at once, as Codex's tool call
+  would time out waiting; the person's `terminals.answerCloseAsk` closes it or keeps it,
+  and Novadeck tells the asking agent either way with a notice. The ask is withdrawn
+  when either terminal closes, and settled with a notice that nothing closed when the
+  client goes away; a client that resubscribes is not sent the asks of its earlier
+  stream. Its description tells agents to close only a terminal they are done with or
   the person asked about, as closing ends whatever runs there. The runner checks the
   token, reads the request strictly, and closes it as the person's close does: it ends
   the shell, removes the terminal and forgets it, even while a window controls it, so

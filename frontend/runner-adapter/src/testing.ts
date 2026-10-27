@@ -150,6 +150,9 @@ export const recordingRunner = (runner: Runner, io: string[]): RunnerApi => {
       requests: () => runner.terminals.requests(),
       answerRequest: (answer) =>
         note(`answer ${answer.requestId}`, () => runner.terminals.answerRequest(answer)),
+      closeAsks: () => runner.terminals.closeAsks(),
+      answerCloseAsk: (answer) =>
+        note(`answer close ask ${answer.requestId}`, () => runner.terminals.answerCloseAsk(answer)),
       create: (input) => note(`create terminal ${input.id}`, () => runner.terminals.create(input)),
       close: (id) => note(`close ${id}`, () => runner.terminals.close(id)),
       rename: (id, title) => note(`rename ${id}`, () => runner.terminals.rename(id, title)),

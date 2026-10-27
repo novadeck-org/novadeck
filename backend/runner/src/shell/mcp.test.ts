@@ -338,6 +338,25 @@ describe("Novadeck's MCP server", () => {
       expect(one.content[0]?.text).toContain(
         "1 message another agent sent it won't arrive; Novadeck tells their senders.",
       )
+      const own = await said({ ok: true, self: true, handle: "moth", title: "api-server" })
+      expect(own.content[0]?.text).toBe(
+        "Closing @moth · api-server, your own terminal, in a moment, which ends your session. " +
+          "Nothing you send after this reaches anyone.",
+      )
+      expect(own.isError).toBe(false)
+      const asked = await said({
+        ok: true,
+        asked: true,
+        handle: "fox",
+        title: "api-server",
+        ran: "Codex",
+      })
+      expect(asked.content[0]?.text).toBe(
+        "Asked the user to confirm closing @fox · api-server, which runs Codex. It closes only " +
+          "if they confirm, and Novadeck tells you either way, as a message. End your turn " +
+          "rather than wait.",
+      )
+      expect(asked.isError).toBe(false)
       await expect(said({ ok: false, reason: "moth is your own terminal." })).resolves.toEqual({
         content: [{ type: "text", text: "moth is your own terminal." }],
         isError: true,
@@ -496,7 +515,13 @@ describe("Novadeck's MCP server", () => {
       expect(close.description).toContain("Closing ends whatever runs there")
       expect(close.description).toContain("only a terminal you are done with")
       expect(close.description).toContain("the user asked you to close")
-      expect(close.description).toContain("Never your own")
+      expect(close.description).toContain("Your own terminal closes a moment after this answers")
+      expect(close.description).toContain("A teammate you lead closes at once")
+      expect(close.description).toContain(
+        "Another agent's terminal closes only once the user confirms",
+      )
+      expect(close.description).toContain("you hear the outcome as a message from Novadeck")
+      expect(close.description).toContain("A terminal with no agent there")
       expect(close.inputSchema).toMatchObject({ required: ["to"], additionalProperties: false })
     })
 

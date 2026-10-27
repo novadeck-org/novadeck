@@ -151,6 +151,23 @@ export type TerminalRequest = {
   readonly answer: (result: { readonly terminalId: string } | { readonly reason: string }) => void
 }
 
+// An agent in terminal `from` asked to close `terminalId`, a terminal that runs an agent it
+// doesn't lead, so the app asks the person first. It waits, with no time limit, until the
+// person answers or the backend takes it back, as when either terminal closed meanwhile.
+export type CloseAsk = {
+  readonly requestId: string
+  readonly from: string
+  readonly terminalId: string
+}
+
+export type CloseAsks = {
+  // The asks waiting on the person, oldest first.
+  readonly pending: Store<readonly CloseAsk[]>
+  // Answers an ask: `close` when the person confirmed, false when they kept the terminal.
+  // The backend then closes it, or not; one it no longer waits for is ignored.
+  readonly answer: (requestId: string, close: boolean) => void
+}
+
 export type BackendSink = {
   // Commits the actions as one store transaction, like a UI command. Actions for a
   // project, session or terminal that no longer exists are no-ops, and calls after
@@ -262,6 +279,9 @@ export type BackendFields = {
   // demo's build it from the app's workspace (`bind`) and their own facts (see core's
   // `inbox-rows`). Absent where the backend has none: the Inbox then lists nothing.
   readonly inbox?: Inbox
+  // Optional. Agents' asks to close a terminal that runs an agent they don't lead, for the
+  // app to confirm with the person. Absent where agents can't ask.
+  readonly closeAsks?: CloseAsks
   // Optional. Each project's files, folder by folder, and on a demo backend what its agents
   // change in them, for the sidebar's Source panel (see core's `source`). Absent where the
   // backend can't read the projects' folders: the panel isn't drawn.

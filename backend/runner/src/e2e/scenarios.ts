@@ -259,6 +259,18 @@ export const closed = (call: Call, handle: string): boolean => {
   return last?.role === "tool" && lead("Closed ", handle).test(last.text)
 }
 
+/** Whether the call is the agent's next look after its `close_terminal` asked the user to confirm closing `handle`. */
+export const askedToClose = (call: Call, handle: string): boolean => {
+  const last = call.turns.at(-1)
+  return last?.role === "tool" && lead("Asked the user to confirm closing ", handle).test(last.text)
+}
+
+/** Whether the call is the agent's next look after its `close_terminal` closed its own terminal, `handle`. */
+export const closingSelf = (call: Call, handle: string): boolean => {
+  const last = call.turns.at(-1)
+  return last?.role === "tool" && lead("Closing ", handle).test(last.text)
+}
+
 /**
  * `before` and then `@handle`, ending where the handle does: "Closed @fox." and
  * "Closed @fox · Build, which ran…" name fox, never another handle that begins the same, as @fox2.

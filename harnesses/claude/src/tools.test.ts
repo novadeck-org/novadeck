@@ -41,7 +41,7 @@ suite("what a Claude Code tool call was", () => {
       "codex: Fix the lint",
     ],
     ["open_terminal", { command: "pnpm dev" }, "agent", "Opened a terminal", "pnpm dev"],
-    ["close_terminal", { to: "owl" }, "agent", "Closed owl", ""],
+    ["close_terminal", { to: "owl" }, "agent", "Close owl", ""],
     [
       "show",
       { page: { url: "http://localhost:5173/" } },

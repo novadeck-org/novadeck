@@ -864,6 +864,9 @@ Agents:
 - **Agent fixtures:** what no turn produces: an unheard agent (Claude Code whose hooks say
   nothing), and context and limits or tokens alone, in the tooltip and status; those two set
   only the usage of the selected terminal's agent, so a turn, request or queued prompt stays.
+- **Close asks:** "Ask to close selected" has another terminal of the session ask to close the
+  selected one, which raises the confirmation modal (two presses queue two; confirming closes the
+  terminal); "Withdraw asks" takes them back.
 - **Doorbell** and **Messages:** only in the `messages` variant, on the selected terminal.
   Doorbell puts its idle agent where the doorbell can't ring it (working, a prompt queued,
   shell mode, text in its box, a dialog, asking you, failed, away), which its Messages pane

@@ -9,6 +9,7 @@ import type {
   InterruptResult,
   RequestAnswer,
   TerminalMessages,
+  CloseAsk,
   TerminalRequest,
   TerminalSummary,
   TranscriptChange,
@@ -177,6 +178,13 @@ export type Deck = {
    */
   readonly answerRequests: () => Requests
   /**
+   * Answers agents' asks to close a terminal (`close_terminal` on one that runs an agent
+   * its caller doesn't lead) as the person would: confirming each, or keeping the terminal
+   * open when `close` is false. It answers every ask from the call on, across restarts,
+   * until the deck closes, and gives the asks in the order they came.
+   */
+  readonly answerCloseAsks: (close: boolean) => CloseAsks
+  /**
    * Closes the runner as Novadeck does when it quits, saving every terminal and ending
    * its shells, then wires another, as Novadeck starts again, on the same database, shell
    * folder and environment. Between the two it looks for processes the first left behind
@@ -190,6 +198,12 @@ export type Deck = {
    */
   readonly report: () => Promise<string>
   readonly close: () => Promise<void>
+}
+
+/** The asks to close a terminal the deck answered. */
+export type CloseAsks = {
+  /** The next ask no earlier call took, once it comes; fails after the timeout (a minute unless given). */
+  readonly next: (timeoutMs?: number) => Promise<Extract<CloseAsk, { type: "ask" }>>
 }
 
 /** The terminals the deck opened for agents' requests. */
@@ -829,6 +843,26 @@ export const createDeck = async (options: DeckOptions): Promise<Deck> => {
     })()
   }
 
+  // The asks to close a terminal, once the test asks the deck to answer them, and how.
+  let closeAsks: ReturnType<typeof arrivals<Extract<CloseAsk, { type: "ask" }>>> | undefined
+  let confirming = true
+  // Follows the runner's close asks until it closes, answering each as the person would.
+  const confirm = (on: Runner) => {
+    const asks = closeAsks
+    if (!asks) return
+    void (async () => {
+      try {
+        for await (const ask of on.terminals.closeAsks(owner, on.closing.signal)) {
+          if (ask.type !== "ask") continue
+          on.terminals.answerCloseAsk({ requestId: ask.requestId, close: confirming }, owner)
+          asks.push(ask)
+        }
+      } catch (error) {
+        if (!on.closing.signal.aborted) asks.fail(error as Error)
+      }
+    })()
+  }
+
   return {
     get terminals() {
       return runner.terminals
@@ -871,6 +905,14 @@ export const createDeck = async (options: DeckOptions): Promise<Deck> => {
       }
       return { next: requests.next }
     },
+    answerCloseAsks: (close) => {
+      confirming = close
+      if (!closeAsks) {
+        closeAsks = arrivals("an ask to close a terminal")
+        confirm(runner)
+      }
+      return { next: closeAsks.next }
+    },
     restart: async () => {
       await stop(runner, options.model)
       const left = (await options.leftovers?.()) ?? []
@@ -880,6 +922,7 @@ export const createDeck = async (options: DeckOptions): Promise<Deck> => {
         )
       runner = await start()
       answer(runner)
+      confirm(runner)
     },
     report: async () => {
       const open = watched.filter((one) => one.on === runner)

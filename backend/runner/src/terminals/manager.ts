@@ -5,6 +5,8 @@ import type {
   AgentDetail,
   AgentName,
   InterruptResult,
+  CloseAsk,
+  CloseAskAnswer,
   TerminalAttached,
   TerminalChange,
   TerminalEvent,
@@ -45,6 +47,7 @@ import { Shown } from "./binding/shown.js"
 import { savedSession } from "./binding/standing.js"
 import { sameToken } from "./callers.js"
 import { Calls } from "./calls.js"
+import { CloseAsks } from "./closeasks.js"
 import { type CloseAnswer } from "./closes.js"
 import { coalesced } from "./coalesce.js"
 import { expectedAgent } from "./commands.js"
@@ -246,6 +249,8 @@ export class Terminals {
   private readonly pendingOwners = new Map<string, Set<{ released: boolean }>>()
   /** Agents' requests for a new terminal, on their way to the client. */
   private readonly opens = new OpenRequests()
+  /** Agents' asks to close a terminal, on their way to the client that asks the person. */
+  private readonly confirms = new CloseAsks()
   /** Samples running terminals' foreground processes. */
   private readonly sampler: Sampler<Record>
   /** Who reads the terminals: their watchers, and each one's detail and messages readers. */
@@ -633,6 +638,7 @@ export class Terminals {
       inbox: () => this.inbox,
       peers: () => this.peers,
       opens: () => this.opens,
+      closeAsks: () => this.confirms,
       companion: () => this.companion,
       launcher: () => this.launcher,
       install: (agent) => this.options.install(agent),
@@ -1408,6 +1414,17 @@ export class Terminals {
     this.opens.answer(answer, ownerId)
   }
 
+  /** Agents' asks to close a terminal, for the client to confirm with the person. */
+  closeAsks(ownerId: string, signal?: AbortSignal): AsyncGenerator<CloseAsk> {
+    if (this.stopping) throw new DomainError("CLOSING")
+    return this.confirms.follow(ownerId, signal)
+  }
+
+  /** The person's answer to a close ask; NOT_FOUND once nothing waits for it. */
+  answerCloseAsk(answer: CloseAskAnswer, ownerId: string): void {
+    this.confirms.answer(answer, ownerId)
+  }
+
   /** The folder of the session's project; undefined when that cannot be told. */
   private projectFolder(sessionId: string): string | undefined {
     try {
@@ -1463,6 +1480,7 @@ export class Terminals {
     this.host.release(ownerId)
     this.streams.release(ownerId)
     this.opens.release(ownerId)
+    this.confirms.release(ownerId)
     this.companion.release(ownerId)
   }
 
@@ -1476,6 +1494,7 @@ export class Terminals {
     this.saves.stop()
     this.streams.finishWatchers()
     this.opens.finish()
+    this.confirms.finish()
     this.companion.shutdown()
     this.streams.finishReaders()
     for (const record of this.records.values()) this.bindings.unwatch(record)
