@@ -1,8 +1,8 @@
 // The demo's debug panel: puts the demo in the states the real backend can be in, for
 // manual checks. It is a drawer kept below the page's bottom edge, a small handle at the
 // bottom middle peeking out; the handle slides it up and back down. Its groups sit under
-// their sections, folded until opened; a search finds an action by its words. See README
-// "Debug panel".
+// their sections, folded until opened; a search finds an action by its words. See
+// docs/development.md, "Debug panel".
 import "./debug-panel.css"
 import type { BackendConnectionState, BackendSink, TerminalKey } from "@novadeck/core/port"
 import type { Workspace } from "@novadeck/core/types"

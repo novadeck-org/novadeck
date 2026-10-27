@@ -20,7 +20,7 @@ const commandShift = (key: string): Chord => {
   }
 }
 
-/** Modifier shortcuts from the README table, for the platform the browser reports. */
+/** Modifier shortcuts from the guide's table (docs/guide.md), for the platform the browser reports. */
 export const shortcut = {
   find: (): Chord => command(isMac() ? "k" : "K", "K"),
   focus: (): Chord => command("{Enter}", "Enter"),
