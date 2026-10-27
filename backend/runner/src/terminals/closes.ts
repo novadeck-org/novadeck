@@ -60,9 +60,10 @@ export const readCloseRequest = (
 
 /**
  * How long a terminal's own close waits after its answer, in milliseconds, so the
- * harness has the tool's result before its terminal ends.
+ * harness has the tool's result, and usually records it, before its terminal ends: on
+ * Windows, Claude Code took longer than half a second to pass it on.
  */
-export const selfCloseMs = 500
+export const selfCloseMs = 1_500
 
 /** What an agent hears when it asks to close a terminal already waiting for the person. */
 export const waitingRefusal = (handle: string): string =>
