@@ -260,6 +260,17 @@ describe("the words an agent was given", () => {
     expect(agentContext("codex", items).said?.text).toBe("draft the 0.9 release notes")
   })
 
+  it("leave out agents' messages a hook delivered, a lead's brief among them", () => {
+    const items = [
+      user("draft the 0.9 release notes", 1),
+      user(
+        'Stop hook feedback:\n<novadeck-messages note="from your lead"><message from="crow">build the context lane, then report</message></novadeck-messages>',
+        2,
+      ),
+    ]
+    expect(agentContext("claude", items).said?.text).toBe("draft the 0.9 release notes")
+  })
+
   it("are the person's Inbox answer when it came later, and the steps are those after it", () => {
     const items = [
       user("set up the inbox sheet task", 1),

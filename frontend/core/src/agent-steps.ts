@@ -98,8 +98,9 @@ const startOf = (chosen: Spoken | undefined, times: readonly number[]): number =
 /**
  * An agent's context from its transcript's items, by its harness's name for it (`claude`,
  * `codex`, `agy`, as `Conversation.agent` gives it), and the person's replies from the Inbox
- * delivered to it as messages (`answers`): the person's latest words, skipping filler for the words before it, and the last `maxSteps` steps after
- * them that edited, ran or failed and have a result. With no words, the last steps at all.
+ * delivered to it as messages (`answers`): the person's latest words, skipping filler for the
+ * words before it, and the last `maxSteps` steps after them that edited, ran or failed and
+ * have a result. With no words, the last steps at all.
  */
 export const agentContext = (
   agent: string | null,
