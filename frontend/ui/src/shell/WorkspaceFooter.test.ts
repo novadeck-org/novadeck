@@ -568,7 +568,7 @@ describe("workspace footer", () => {
         mounted.push(page)
         const region = notice(page)!
         expect(region.querySelector(".portable-data")?.textContent).toContain(
-          "Your workspace stays in /home/me/.config/novadeck.",
+          "Your workspace stays in /home/me/.config/novadeck",
         )
         expect(region.querySelector(".portable-path")?.textContent).toBe(
           "/home/me/.config/novadeck",

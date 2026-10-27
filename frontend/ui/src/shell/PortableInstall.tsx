@@ -389,7 +389,7 @@ export const PortableInstall = ({
               {dataLine !== undefined && (
                 <p className="update-progress-note portable-data">
                   <span>
-                    Your workspace stays in <code className="portable-path">{dataLine}</code>.
+                    Your workspace stays in <code className="portable-path">{dataLine}</code>
                   </span>
                   {portable.onShowFolder && (
                     <button

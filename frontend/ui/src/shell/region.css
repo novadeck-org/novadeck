@@ -403,9 +403,13 @@
 }
 /* A portable copy's card (PortableInstall.tsx) is as wide as the changelog it can carry,
    which it shows in the what's-new look below. The workspace's folder reads as a path, in
-   mono, with a small button to show it beside the words. */
+   mono, with a small button to show it beside the words, set apart from the highlights
+   above it by more than they are from each other. */
 .update-card.portable-card {
   width: 20.5rem;
+}
+.whats-new-list + .portable-data {
+  margin-block-start: 8px;
 }
 .portable-data {
   display: flex;
@@ -414,8 +418,8 @@
   gap: 8px;
 }
 /* The words give way to the button, however long the path: the item may shrink below its
-   longest chunk (`min-width`), and the chunk breaks only when it must, so a short path keeps
-   its full stop beside it. */
+   longest chunk (`min-width`), and the chunk breaks only when it must. The path ends the line
+   with no full stop, which would wrap alone when the path just fills it. */
 .portable-data > span,
 .portable-path {
   overflow-wrap: break-word;
