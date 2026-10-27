@@ -43,7 +43,20 @@ const setup = (terminals: { [handle: string]: { agent: AgentName | null; ledBy?:
   const saved: string[] = []
   const dropped: string[] = []
   let stopping = false
-  let sending: { ok: true; id: string } | { ok: false; reason: string } = { ok: true, id: "m1" }
+  type Sending =
+    | {
+        ok: true
+        id: string
+        to?: string
+        state?: string
+        held?: string
+        why?: string
+        gone?: object[]
+        holds?: string[]
+      }
+    | { ok: false; reason: string }
+  let sending: Sending = { ok: true, id: "m1" }
+  let marked = true
   // The running lead is the one `ledBy` names, in the same session.
   const leadOf = (id: string) => {
     const by = records.get(id)?.summary.ledBy
@@ -57,6 +70,7 @@ const setup = (terminals: { [handle: string]: { agent: AgentName | null; ledBy?:
     messaging: () =>
       ({
         leadOf,
+        isFromLead: () => marked,
         agentIn: (id: string) => {
           const found = agents.get(records.get(id)?.summary.handle ?? "")
           return found
@@ -124,7 +138,8 @@ const setup = (terminals: { [handle: string]: { agent: AgentName | null; ledBy?:
     lead: (from: string, to: string, message = "Review the diff.") =>
       leads.lead(call("lead", from, { to, message })),
     release: (from: string, to: string) => leads.release(call("release", from, { to })),
-    sending: (next: typeof sending) => (sending = next),
+    sending: (next: Sending) => (sending = next),
+    marking: (next: boolean) => (marked = next),
     stop: () => (stopping = true),
   }
 }
@@ -342,9 +357,37 @@ describe("the user answering an ask to lead", () => {
       {
         to: "id-moth",
         always: true,
-        text: leadNotice.led("fox", "Terminal", { ok: true, id: "m1" }),
+        text: leadNotice.led("fox", "Terminal", {
+          ok: true,
+          text: "Your brief, message m1, is sent; its replies arrive by themselves.",
+        }),
       },
     ])
+  })
+
+  it("tells what the brief's send answered: held, gone messages, and holds", async () => {
+    const { run, answer } = await asking()
+    run.sending({
+      ok: true,
+      id: "m2",
+      state: "held",
+      held: "paused",
+      gone: [{ id: "m0", to: "fox", released: true }],
+      holds: ["Your messages to @fox are held."],
+    })
+    await answer(true)
+    const text = run.notices.at(-1)!.text
+    expect(text).toContain("Your brief, message m2, is held: the user paused messaging")
+    expect(text).toContain("Your earlier message m0 to @fox won't arrive: the user released")
+    expect(text).toContain("Your messages to @fox are held.")
+    expect(text).not.toContain("is sent")
+  })
+
+  it("does not claim a lead-marked brief went when an identical earlier message stood in", async () => {
+    const { run, answer } = await asking()
+    run.marking(false)
+    await answer(true)
+    expect(run.notices.at(-1)!.text).toContain("no lead-marked brief went out")
   })
 
   it("still links when the brief can't be sent, and says so", async () => {

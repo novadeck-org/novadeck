@@ -682,9 +682,10 @@ const release: Tool<{ readonly handle: string; readonly title: string }> = {
   description:
     "End your lead of a Novadeck terminal's agent, by the terminal's exact handle as agents " +
     "lists it (such as @fox). Only its running lead may; anything else is refused. The " +
-    "agent is told, and its messages and yours are a peer's from then on. Use it when the " +
-    "work you directed it on is finished and you want no more reports from it, as the user " +
-    "asked, or because you no longer direct it. To end its terminal too, use close_terminal.",
+    "agent is told, and its messages and yours are a peer's from then on (it may still send " +
+    "you messages, as a peer; they are no longer reports to its lead). Use it when you no " +
+    "longer direct that agent, such as when the work you directed it on is finished, or the " +
+    "user asked. To end its terminal too, use close_terminal.",
   inputSchema: {
     type: "object",
     properties: {

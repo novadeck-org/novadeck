@@ -3,7 +3,7 @@ import { z } from "zod"
 
 import { DomainError } from "../errors.js"
 import { agentLabel, cleanInboxText } from "../messaging/messages.js"
-import { refusalOfText, type Messaging } from "../messaging/messaging.js"
+import { refusalOfText, type Messaging, type SendAnswer } from "../messaging/messaging.js"
 import { unboundNote } from "../messaging/peers.js"
 import { unansweredCalls } from "../shell/reports.js"
 import type { Call } from "../shell/reports.js"
@@ -64,9 +64,7 @@ export const leadNotice = {
   led: (handle: string, title: string, brief: SentBrief): string =>
     notice +
     `The user approved: you now lead ${mention(handle)} · ${title}. ` +
-    (brief.ok
-      ? `Your brief, message ${brief.id}, is sent; its replies arrive by themselves.`
-      : `Your brief wasn't sent: ${brief.reason} Send it again with send.`),
+    (brief.ok ? brief.text : `Your brief wasn't sent: ${brief.reason} Send it again with send.`),
   // To the led terminal, once the person approved.
   nowLed: (lead: string): string =>
     notice +
@@ -108,9 +106,45 @@ type Identity = { readonly agent: AgentName; readonly sessionId: string | null }
 /** The agents in both terminals when the person was asked. */
 type Seen = { readonly caller: Identity; readonly target: Identity }
 
+/** What became of the brief: the text the lead is told, or why it wasn't sent. */
 type SentBrief =
-  | { readonly ok: true; readonly id: string }
+  | { readonly ok: true; readonly text: string }
   | { readonly ok: false; readonly reason: string }
+
+// Why an earlier message of the lead's won't arrive, as the send tool tells it.
+const wontArrive = (gone: { readonly stopped?: true; readonly released?: true }): string =>
+  gone.released
+    ? " won't arrive: the user released that terminal from your lead in Novadeck."
+    : gone.stopped
+      ? " won't arrive: the user stopped that thread in Novadeck."
+      : " won't arrive: the agent session it was for ended there."
+
+/**
+ * What the lead is told of its brief once `send` answered: where it is, in the send tool's
+ * words, with the news the answer carries (earlier messages gone, holds), or, when an
+ * identical message sent moments before the link stood in for it, that it isn't marked.
+ */
+const briefText = (
+  sent: Extract<SendAnswer, { ok: true }>,
+  handle: string,
+  marked: boolean,
+): string => {
+  const lines = [
+    !marked
+      ? `Your brief matched message ${sent.id}, which you sent ${mention(handle)} moments ` +
+        "before you led it, so no lead-marked brief went out: send it again in a few seconds."
+      : sent.state === "held"
+        ? `Your brief, message ${sent.id}, is held: ` +
+          (sent.held === "release"
+            ? (sent.why ?? "it waits for the user to release its thread in Novadeck.")
+            : "the user paused messaging in Novadeck, and it goes once they resume it.")
+        : `Your brief, message ${sent.id}, is sent; its replies arrive by themselves.`,
+  ]
+  for (const gone of sent.gone ?? [])
+    lines.push(`Your earlier message ${gone.id} to ${mention(gone.to)}${wontArrive(gone)}`)
+  lines.push(...(sent.holds ?? []))
+  return lines.join(" ")
+}
 
 export type LeadsHost = {
   /** Every terminal the runner holds, by id. */
@@ -236,7 +270,15 @@ export class Leads {
     // characters and direction changes (delivery's own cleaning leaves it as it is).
     const message = cleanInboxText(parsed.data.message)
     const textRefusal = refusalOfText(message)
-    if (textRefusal) return refused(textRefusal.replace("The message", "The brief"))
+    if (textRefusal)
+      return refused(
+        textRefusal
+          .replace("The message", "The brief")
+          .replace(
+            "put longer content in a file the recipient can open, and send its path.",
+            "put longer content in a file the agent can open, and give its path in the brief.",
+          ),
+      )
     if (to === caller.summary.handle)
       return refused("You can't lead yourself: give the handle of another terminal.")
     const target = await host.peers().target(peerOf(caller), to)
@@ -297,7 +339,15 @@ export class Leads {
       always: true,
     })
     const sent = host.messaging().send(caller.summary.id, { to: handle, text: brief })
-    tell(leadNotice.led(handle, title, sent.ok ? { ok: true, id: sent.id } : sent))
+    tell(
+      leadNotice.led(
+        handle,
+        title,
+        sent.ok
+          ? { ok: true, text: briefText(sent, handle, host.messaging().isFromLead(sent.id)) }
+          : sent,
+      ),
+    )
   }
 
   /**

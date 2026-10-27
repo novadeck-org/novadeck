@@ -4043,14 +4043,25 @@ describe("a lead", () => {
       vi.useRealTimers()
     })
 
-    it("is gone, as its lead ended, when the agent exited meanwhile", () => {
-      const { messaging, records, message, lapse, send } = lapsing()
+    it("waits again, keeping its authority, when its lead ended meanwhile (release or exit)", () => {
+      const { messaging, records, message, lapse } = lapsing()
       messaging.endLead("W")
       lapse()
-      expect(records.messages().find(({ id }) => id === message.id)?.state).toBe("gone")
-      const answer = send("A", "owl", "Anyone?")
-      expect(answer).toMatchObject({ ok: true, gone: [{ id: message.id, to: "owl" }] })
-      expect(JSON.stringify(answer)).not.toContain("released")
+      expect(records.messages().find(({ id }) => id === message.id)).toMatchObject({
+        state: "queued",
+        fromLead: true,
+      })
+      vi.useRealTimers()
+    })
+
+    it("waits again, keeping its authority, when the lead's own terminal closed meanwhile", () => {
+      const { messaging, records, message, lapse } = lapsing()
+      messaging.unregister("A")
+      lapse()
+      expect(records.messages().find(({ id }) => id === message.id)).toMatchObject({
+        state: "queued",
+        fromLead: true,
+      })
       vi.useRealTimers()
     })
   })

@@ -622,6 +622,11 @@ export class Messaging {
     if (live) live.ledBy = handle
   }
 
+  /** Whether the message was sent by its recipient's running lead, so it is marked so. */
+  isFromLead(messageId: string): boolean {
+    return this.messages.get(messageId)?.fromLead === true
+  }
+
   /**
    * The person releases the terminal from its lead: the lead's messages to it that were not
    * delivered yet, queued or held, whatever session they wait for, are gone, and their
@@ -2444,10 +2449,9 @@ export class Messaging {
     for (const id of lease.messages) {
       const message = this.messages.get(id)
       if (message?.state !== "leased") continue
-      // The lead that sent it is no longer the recipient's, as the person released it or its
-      // agent exited meanwhile: it waits for no one.
-      if (message.fromLead && this.leadOf(message.to.terminalId) !== message.from.handle)
-        this.gone(message, this.releasedMessages.has(id) ? "lead-released" : "lead-ended")
+      // The person released the recipient from the lead meanwhile: it waits for no one. Any
+      // other end of the lead leaves it its authority, as it had when sent.
+      if (message.fromLead && this.releasedMessages.has(id)) this.gone(message, "lead-released")
       else this.wait(message)
     }
     const live = this.live.get(lease.terminalId)

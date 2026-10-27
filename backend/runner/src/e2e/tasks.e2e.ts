@@ -1,6 +1,6 @@
 import { setups } from "./agents/index.js"
 import { describe, e2e, expect, supported } from "./fixture.js"
-import { latest } from "./model/script.js"
+import { latest, type Call } from "./model/script.js"
 import {
   askedToClose,
   askedToLead,
@@ -25,6 +25,10 @@ import {
 // An agent starting another with a task (docs/agent-messaging.md, "Starting a task"), or
 // closing another's terminal (docs/agent-workspace.md), the same for every harness (see
 // messaging.e2e.ts for the rule on parity).
+// Whether the call's latest user turn delivered a Novadeck notice holding `part`.
+const notified = (call: Call, part: string): boolean =>
+  deliveries(call).some((one) => one.from === "novadeck" && one.text.includes(part))
+
 for (const setup of setups) {
   describe.skipIf(!supported)(setup.name, () => {
     const it = e2e(setup)
@@ -164,10 +168,13 @@ for (const setup of setups) {
       run.model.use(
         leads("Lead fox", "fox", "Count the files in src."),
         own((call) => (askedToLead(call, "fox") ? { text: "Asked." } : undefined)),
-        own((call) => (delivered(call, "novadeck") ? { text: "Leading fox." } : undefined)),
+        // Fox's first delivery carries the brief, and the notice that moth leads it with it.
+        own((call) => (delivered(call, "moth") ? { text: "Counting now." } : undefined)),
+        // Moth is told its lead formed; fox may also get the notice on its own.
+        own((call) => (notified(call, "you now lead @fox") ? { text: "Leading fox." } : undefined)),
+        own((call) => (notified(call, "lead you from now on") ? { text: "Noted." } : undefined)),
         releases("Release fox", "fox"),
         own((call) => (released(call, "fox") ? { text: "Released." } : undefined)),
-        own((call) => (delivered(call, "moth") ? { text: "Counting now." } : undefined)),
       )
       const t1 = await start(run, setup)
       const t2 = await start(run, setup)
@@ -185,6 +192,16 @@ for (const setup of setups) {
       // The brief reaches fox from moth, as from its lead.
       const brief = await run.model.waitFor((call) => delivered(call, "moth"), { after: calls })
       expect(deliveries(brief).map((one) => one.text)).toContain("Count the files in src.")
+      // Marked as its lead's, in this delivery's own mark.
+      const wrapped = latest(brief)
+        .replaceAll("&lt;", "<")
+        .replaceAll("&gt;", ">")
+        .replaceAll("&quot;", '"')
+      expect(wrapped).toMatch(/<message\b[^>]*from="moth"[^>]* lead="[0-9A-Za-z]{8}"/)
+      // And fox was told the user let moth lead it, in this delivery or the one before.
+      await run.model.waitFor((call) => !call.side && notified(call, "lead you from now on"), {
+        after: calls,
+      })
       await t1.until("Leading fox.")
       expect(run.deck.store.terminal(t2.id)?.ledBy).toBe("moth")
 

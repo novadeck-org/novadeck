@@ -52,6 +52,7 @@ import type {
   Project,
   TerminalLayout,
   TerminalMetadata,
+  TerminalRoster,
   TerminalStatus,
   TitleSource,
   ViewMode,
@@ -62,6 +63,21 @@ import type {
   WorkspaceState,
   WorkspaceTarget,
 } from "./types"
+
+// A terminal that has just come under a lead (its `ledBy` was empty) in the same session
+// is listed under that lead, as one spawned with a brief is, so the team's wire spans no
+// stranger. Anything else, as a restore or a release, leaves the order alone.
+const underNewLead = (
+  before: TerminalRoster,
+  after: TerminalRoster,
+  terminalId: string,
+): TerminalRoster => {
+  const was = before.terminals.find((each) => each.id === terminalId)
+  const now = after.terminals.find((each) => each.id === terminalId)
+  if (!was || !now?.ledBy || was.ledBy) return after
+  const lead = after.terminals.find((each) => each.handle === now.ledBy && each.id !== terminalId)
+  return lead ? listUnderOpener(after, terminalId, lead.id) : after
+}
 
 export type ValueUpdate<Value> = Value | ((previous: Value) => Value)
 
@@ -724,7 +740,9 @@ export const workspaceReducer = (workspace: Workspace, action: WorkspaceAction):
           ...(action.agentRan !== undefined && { agentRan: action.agentRan }),
           ...(action.titleSource !== undefined && { titleSource: action.titleSource }),
         })
-        return roster === state.roster ? state : { ...state, roster }
+        return roster === state.roster
+          ? state
+          : { ...state, roster: underNewLead(state.roster, roster, action.terminalId) }
       })
     case "terminal/close":
       return updateTarget(workspace, action.target, (state) =>
