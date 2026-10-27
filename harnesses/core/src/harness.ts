@@ -286,13 +286,9 @@ export type MessagingProfile = {
   readonly start: readonly string[]
   /**
    * The models it can start with on this machine, each with the reasoning efforts it takes;
-   * none where that can't be told. `run` runs one of its commands (as the runner resolves
-   * the harness's others) and resolves what it printed.
+   * none where that can't be told. It runs no command.
    */
-  readonly models: (
-    install: Install,
-    run: (argv: readonly string[]) => Promise<string>,
-  ) => Promise<readonly Model[]>
+  readonly models: (install: Install) => Promise<readonly Model[]>
   /** The words that go right after its program to start it with this model and effort. */
   readonly choose: (choice: {
     readonly model?: string

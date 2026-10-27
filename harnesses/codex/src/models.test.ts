@@ -49,9 +49,7 @@ describe("Codex's models", () => {
       expect(await readModels(home)).toHaveLength(2)
       const env = { CODEX_HOME: home }
       expect(
-        await codex.messaging.models({ env, home: "/nowhere", platform: "linux", plugin: "" }, () =>
-          Promise.reject(new Error("no command")),
-        ),
+        await codex.messaging.models({ env, home: "/nowhere", platform: "linux", plugin: "" }),
       ).toHaveLength(2)
     } finally {
       rmSync(home, { recursive: true, force: true })

@@ -7,14 +7,16 @@ const effortOf = (id: string): readonly Effort[] => {
   return efforts.filter((effort) => effort === suffix)
 }
 
-/**
- * The models `agy models` prints: a banner line, then one `<id>\t<display name>` per model.
- * A model takes only the effort its id ends with, and none where it ends in no effort.
- */
-export const parseModels = (output: string): readonly Model[] =>
-  output
-    .split(/\r?\n/)
-    .filter((line) => line.includes("\t"))
-    .map((line) => line.slice(0, line.indexOf("\t")).trim())
-    .filter((id) => /^[\w.:-]+$/.test(id))
-    .map((id) => ({ id, efforts: effortOf(id) }))
+// The ids `agy models` lists (1.4.7, 2026-10-27). Novadeck doesn't run it to ask: it starts
+// Antigravity's language server, which, signed in, starts every plugin's MCP server.
+const ids = [
+  "gemini-3.8-flash-high",
+  "gemini-3.8-flash-medium",
+  "gemini-3.8-flash-low",
+  "claude-sonnet-4-6",
+  "claude-opus-4-6-thinking",
+  "gpt-oss-120b-medium",
+]
+
+/** The models Antigravity starts with, each taking only the effort its id ends with. */
+export const models: readonly Model[] = ids.map((id) => ({ id, efforts: effortOf(id) }))

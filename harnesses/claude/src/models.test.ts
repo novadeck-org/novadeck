@@ -6,7 +6,7 @@ const install = { env: {}, home: "/home/user", platform: "linux", plugin: "" } a
 
 describe("Claude Code's models", () => {
   it("are its aliases, each with every effort", async () => {
-    const models = await claude.messaging.models(install, () => Promise.reject(new Error("unused")))
+    const models = await claude.messaging.models(install)
     expect(models.map(({ id }) => id)).toEqual(["opus", "sonnet", "haiku", "fable"])
     for (const model of models)
       expect(model.efforts).toEqual(["low", "medium", "high", "xhigh", "max"])

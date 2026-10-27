@@ -453,7 +453,9 @@ Both make the runner's `open` call with one request shape. `model` and `effort` 
 set when the person asked or the brief needs one; `effort` is one of `low`, `medium`,
 `high`, `xhigh` or `max`, and `model` one id the runner lists for the harness (the
 runner refuses others). An effort goes with a model, one that model takes; the runner
-refuses an effort without a model or one its model doesn't take. The ids differ by harness, so `tools/list` asks the runner for
+refuses an effort without a model or one its model doesn't take. The ids differ by harness, and the runner reads them without running a command: Claude
+Code's aliases and Antigravity's ids are fixed in their adapters, and Codex's are the
+listed ones in its `models_cache.json`. So `tools/list` asks the runner for
 them (`models` call) and builds `open_agent`'s `model` enum from the union, naming which
 ids go with which agent and the efforts each takes (and that an agent with none can't take one); with none listed, `model` has no enum and says to leave it out. The choice
 holds for the agent's first session only: a resume after Novadeck restarts starts it
