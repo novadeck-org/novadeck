@@ -73,17 +73,17 @@ export const shellGroups = ({
       actions: [
         {
           label: "Reconnect (5 s)",
-          hint: "Terminals locked, then Reconnected",
+          hint: "Terminals read Reconnecting…, then go on",
           run: () => shell.reconnect(5_000),
         },
         {
           label: "Toggle offline",
-          hint: "Footer reads Unavailable until toggled back",
+          hint: "Terminals read Runner offline until toggled back",
           run: shell.toggleOffline,
         },
         {
           label: "Crash loop",
-          hint: "4 crashes: footer and dialog; Retry restarts",
+          hint: "4 crashes: the dialog, then Restart terminals in the footer",
           run: shell.tripCrashLoop,
         },
       ],

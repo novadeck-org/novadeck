@@ -442,9 +442,10 @@ App:
   a newer Novadeck has used, only for Quit). Each hint carries the error code, so the search
   finds it; `WORKSPACE_TOO_NEW` is what an older Novadeck shows once a newer one has used
   the workspace.
-- **Runner:** show Reconnecting for 5 s, then Reconnected; go offline until you toggle it
-  back; or count four crashes, which shows the footer and the dialog and fails the selected
-  terminal's session's terminals (Try again clears the count and restarts them).
+- **Runner:** lock the terminals with Reconnecting for 5 s; show them Runner offline until
+  you toggle it back; or count four crashes, which opens the dialog, puts Restart terminals
+  in the footer and fails the selected terminal's session's terminals (Try again or Restart
+  terminals clears the count and restarts them).
 - **Sandbox:** boot as a host running without Electron's sandbox, for the footer's No
   sandbox chip and its fix command; "No sandbox, no fix" as one with no command to offer;
   and "Sandboxed" back to normal.

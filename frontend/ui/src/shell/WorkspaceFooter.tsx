@@ -1,5 +1,6 @@
 import type { UpdateOffer } from "@novadeck/core/update"
-import { useEffect, useState, type ReactNode } from "react"
+import { RotateCcw } from "lucide-react"
+import { useState, type ReactNode } from "react"
 
 import { FooterMurmur, type FooterMurmurProps } from "./FooterMurmur"
 import { FooterSandbox, type FooterSandboxProps } from "./FooterSandbox"
@@ -9,23 +10,9 @@ import { UpdateAvailable, type FooterAvailable } from "./UpdateAvailable"
 import { UpdateProgress } from "./UpdateProgress"
 import { WhatsNew, type WhatsNewProps } from "./WhatsNew"
 
-// How the backend link is doing, most severe first: "ok" shows nothing.
-export type FooterStatus = "restarting" | "unavailable" | "reconnecting" | "ok"
-
-// Recovery is announced this long, then the footer returns to its normal colours.
-export const recoveredForMs = 3_000
-
-type Tone = "danger" | "warning" | "success"
-const shown: Record<Exclude<FooterStatus, "ok">, { readonly tone: Tone; readonly text: string }> = {
-  restarting: { tone: "danger", text: "Crash loop" },
-  unavailable: { tone: "danger", text: "Offline" },
-  reconnecting: { tone: "warning", text: "Reconnecting" },
-}
-// The terminal counts under the workspace. While the backend link is in trouble the
-// whole bar takes the status tone, and says so on the right; after it recovers it
-// turns green with "Reconnected" for a moment. The status is short, bold and set in
-// capitals by CSS, so assistive technology still reads ordinary words. An update
-// downloading floats a bar above its right end (UpdateProgress.tsx); one it can't install
+// The terminal counts under the workspace. The runner's link isn't reported here: each
+// terminal says so over its screen, and a crash loop asks in a dialog; dismissed, it
+// leaves a chip at the end, "Restart terminals", to try again. An update downloading floats a bar above its right end (UpdateProgress.tsx); one it can't install
 // itself is a chip, "Update available", that opens the release page (UpdateAvailable.tsx).
 // A portable copy has a chip there instead, "Install Novadeck" or "Update available", in
 // the bar's own colours, which opens its notice (PortableInstall.tsx). Without the security
@@ -37,7 +24,6 @@ export const WorkspaceFooter = ({
   count,
   running,
   waiting = 0,
-  status,
   navigate = false,
   onRetry,
   portable,
@@ -57,7 +43,6 @@ export const WorkspaceFooter = ({
   readonly running: number
   // Agents that ended their turn to wait on something, counted apart from those at work.
   readonly waiting?: number
-  readonly status: FooterStatus
   // Offered while the runner keeps crashing: starts the terminals over.
   readonly onRetry?: (() => void) | undefined
   // A portable copy's install entry, with the release it is missing. Quiet: it never tones
@@ -93,27 +78,9 @@ export const WorkspaceFooter = ({
     ...whatsNew,
     blocked: whatsNew.blocked || murmurSheet || overlay || barActive,
   }
-  const [previous, setPrevious] = useState(status)
-  const [recovered, setRecovered] = useState(false)
-  if (status !== previous) {
-    setPrevious(status)
-    setRecovered(status === "ok")
-  }
-  useEffect(() => {
-    if (!recovered) return
-    const timer = setTimeout(() => setRecovered(false), recoveredForMs)
-    return () => clearTimeout(timer)
-  }, [recovered])
-  const current =
-    status !== "ok"
-      ? shown[status]
-      : recovered
-        ? { tone: "success" as const, text: "Reconnected" }
-        : undefined
   return (
     <footer
       hidden={hidden}
-      data-tone={current?.tone}
       className="app-footer max-[701px]:px-3 max-[701px]:text-[8px] max-[701px]:leading-3 h-7 shrink-0 items-center justify-between px-4 text-caption"
     >
       <span className="flex items-center gap-2">
@@ -145,23 +112,18 @@ export const WorkspaceFooter = ({
           hidden={hidden || noticeOpen || murmurSheet}
           onActive={setBarActive}
         />
-        <span className="footer-status flex items-center gap-1.5 font-bold">
-          <span role="status" aria-live={current?.tone === "danger" ? "assertive" : "polite"}>
-            {current?.text}
-          </span>
-          {status === "restarting" && onRetry && (
-            <>
-              <span aria-hidden="true">·</span>
-              <button
-                type="button"
-                className="footer-action cursor-pointer font-bold"
-                onClick={onRetry}
-              >
-                Try again
-              </button>
-            </>
-          )}
-        </span>
+        {onRetry && (
+          <button
+            type="button"
+            className="footer-update footer-chip cursor-pointer"
+            aria-label="Restart terminals"
+            title="Restart terminals"
+            onClick={onRetry}
+          >
+            <RotateCcw size={12} strokeWidth={1.75} aria-hidden="true" />
+            <span className="footer-chip-text max-[701px]:hidden">Restart terminals</span>
+          </button>
+        )}
       </span>
     </footer>
   )
