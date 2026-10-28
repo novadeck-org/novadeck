@@ -2,7 +2,7 @@
 
 Novadeck's look is a theme. Components give the interface its shape; a theme decides
 how that shape is drawn: colours, borders, depth, corners, type, and the texture of the
-workspace. The app ships three themes: Graphite, the default, with a light and a dark
+workspace. The app ships three themes: Coolant, the default, with a light and a dark
 scheme, and Phosphor Green and Phosphor Amber, a monochrome CRT in two tubes, in dark
 only. The person picks a theme, and a mode where the theme offers more than one. The
 token tiers and the component hooks below are general, so a theme can change them
@@ -23,7 +23,7 @@ This guide is the contract between the two sides. Change it when the contract ch
 | `theme`         | Tailwind's layout scale: spacing, breakpoints, type sizes. No colours, radii or shadows (see below).                                               | `theme/contract.css`                                |
 | `base`          | Defaults for optional tokens, element defaults (body, focus ring, scrollbars, selection, font features, ligatures), the bundled fonts, vendor CSS. | `theme/base.css`, `theme/fonts.css`, vendor imports |
 | `components`    | Recipes: one per component, shape only, every visual value a token.                                                                                | beside each component                               |
-| `themes`        | Each theme's file: token values, and the rules tokens can't express.                                                                               | `theme/graphite.css`, `theme/phosphor.css`          |
+| `themes`        | Each theme's file: token values, and the rules tokens can't express.                                                                               | `theme/coolant.css`, `theme/phosphor.css`           |
 | `accessibility` | Reduced motion and forced colours, so no theme can defeat them.                                                                                    | `theme/accessibility.css`                           |
 | `utilities`     | Tailwind layout utilities from the TSX.                                                                                                            | Tailwind                                            |
 
@@ -369,17 +369,17 @@ fails too, and fails when one is no longer needed.
 A theme is one file in `theme/`, imported into `layer(themes)`, whose selectors all
 start with its own scope. A theme sets its first scheme on that scope and each other
 one on the scope plus `[data-scheme]`, with `color-scheme` and every required token in
-each. Graphite is the default, so its scope also matches when no theme is set (the
+each. Coolant is the default, so its scope also matches when no theme is set (the
 `:where()` adds no specificity); every other theme matches only its own `data-theme`:
 
 ```css
-:root:where(:not([data-theme]), [data-theme="graphite"]) {
+:root:where(:not([data-theme]), [data-theme="coolant"]) {
   color-scheme: light;
   --color-paper: #f5f3ee;
   /* every required token */
 }
 
-:root:where(:not([data-theme]), [data-theme="graphite"])[data-scheme="dark"] {
+:root:where(:not([data-theme]), [data-theme="coolant"])[data-scheme="dark"] {
   color-scheme: dark;
   --color-paper: #1d1f23;
   /* every required token again */
@@ -440,7 +440,7 @@ recipe instead, and every theme gains it.
 defines, the notification sound it goes with, and its file, `theme/<id>.css` unless it names a shared one. The first is the
 default, and the fallback for an unknown id. To add a theme:
 
-1. Copy `theme/graphite.css` to `theme/<id>.css`, rename the scope and change the
+1. Copy `theme/coolant.css` to `theme/<id>.css`, rename the scope and change the
    values; or, for another palette of an existing theme, add a block to its file and
    its id to the shared scope.
 2. Import a new file in `styles.css` into `layer(themes)`, add `{ id, name, schemes, sound }`
@@ -450,10 +450,16 @@ default, and the fallback for an unknown id. To add a theme:
    manifest entry.
 3. Run `pnpm --filter @novadeck/ui exec vitest run --project unit src/theme/`.
 
+To rename a theme, change its `id` and list the old one in the entry's `formerIds`, as
+Coolant lists `graphite`: a saved preference or boot record that names the old id then
+reads as the theme's current one, so the person keeps the theme they picked. The boot
+script, which holds no manifest, keeps its own map of renames (`renamed`); add the old id
+there too.
+
 ## Notification sounds
 
 Novadeck rings with a sound that follows the theme: each theme names its default in
-`sound` (Graphite goes with Felt, both Phosphor tubes with Afterglow), and Preferences'
+`sound` (Coolant goes with Felt, both Phosphor tubes with Afterglow), and Preferences'
 Appearance tab can override it with any sound the app has (`soundChoice`, `"theme"` by
 default, so a theme change takes effect at once). The sounds are the files in
 `frontend/ui/src/sounds/<id>.wav`, listed with their names in `noticeSounds` in
@@ -464,18 +470,18 @@ same folder, and the desktop's packaging test holds the folder and the list to e
 ## Choosing a theme
 
 Preferences holds `appearance: { theme, scheme }`, where `scheme` is `system`, `light`
-or `dark`; it starts as Graphite following the system. The theme is a plain id
+or `dark`; it starts as Coolant following the system. The theme is a plain id
 (lowercase letters, digits and hyphens), and reading a preference never swaps it for the
 default: an id the app doesn't know right now, such as an imported theme whose registry
 loads later, a theme from a newer version in another window, or a retired one, stays in
-storage, and only drawing resolves it, to Graphite, in the page and in the picker. A
+storage, and only drawing resolves it, to Coolant, in the page and in the picker. A
 missing or malformed id is read as the default. Preferences shows a Theme list
 from `theme/themes.ts` and a Mode choice (System, Light, Dark), disabled with a note
 for a theme with one scheme. `theme/apply.ts` resolves the preference against the
 system's scheme and the schemes the theme offers: a theme with one scheme always uses
 it, whatever was chosen, while the chosen mode stays saved for the theme that has it.
 An unknown theme, and a saved preference or boot record with no theme (older versions
-saved only `{ scheme }`, or a theme since retired such as Sandstone), is Graphite, with
+saved only `{ scheme }`, or a theme since retired such as Sandstone), is Coolant, with
 its mode kept. It then sets `data-theme` and `data-scheme` on `<html>` and dispatches
 `novadeck:themechange`. `app/appearance.ts` is the one place that does this while the
 app runs: whenever the preference changes, and whenever the system's scheme does.
@@ -500,14 +506,14 @@ app runs: whenever the preference changes, and whenever the system's scheme does
   optional, so it needs no new version: bump `v` only when an existing field's meaning
   changes, and, while a record without a ground can name a theme since retired, when a
   theme is retired.
-  The script holds no list of themes. It checks the record's shape (`v` 2, `theme` a
+  The script holds no list of themes, only the renames. It checks the record's shape (`v` 2, `theme` a
   lowercase id of letters, digits and hyphens, `scheme` a mode, `schemes` a non-empty
   list of `light` and `dark`), resolves `system` against `matchMedia`, and takes the
   theme's first scheme when the wanted one isn't in `schemes`. A record that is
-  missing, corrupt or of another shape shows Graphite in the saved mode; that includes
+  missing, corrupt or of another shape shows Coolant in the saved mode; that includes
   records older versions saved with the same fields for themes since retired, such as
   Sandstone, which is why the record carries its version. A well-formed id the app no
-  longer has is painted as it is until the app starts and applies Graphite. Since the
+  longer has is painted as it is until the app starts and applies Coolant. Since the
   script needs only the record, a theme the manifest gains while the app runs, such as
   an imported one, boots like a built-in one: its attributes do, while its stylesheet
   loads with the app. The script also sets the scheme as `<html>`'s inline

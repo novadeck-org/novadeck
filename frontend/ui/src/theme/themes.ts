@@ -14,6 +14,9 @@ export type ThemeEntry<Id extends string = string> = {
   // one of `noticeSounds` (see `sounds/`).
   readonly sound: NoticeSound
   readonly file?: string
+  // The ids the theme went by before a rename: a preference or boot record saved under one
+  // reads as this theme.
+  readonly formerIds?: readonly string[]
 }
 
 export type ThemeManifest<Id extends string = string> = readonly [
@@ -22,7 +25,13 @@ export type ThemeManifest<Id extends string = string> = readonly [
 ]
 
 export const themes = [
-  { id: "graphite", name: "Graphite", schemes: ["light", "dark"], sound: "felt" },
+  {
+    id: "coolant",
+    name: "Coolant",
+    schemes: ["light", "dark"],
+    sound: "felt",
+    formerIds: ["graphite"],
+  },
   {
     id: "phosphor-green",
     name: "Phosphor Green",

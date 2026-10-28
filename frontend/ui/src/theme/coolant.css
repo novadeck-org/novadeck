@@ -1,4 +1,4 @@
-/* Graphite, Novadeck's look: warm paper and a deep teal in light, slate and an electric
+/* Coolant, Novadeck's look: warm paper and a deep teal in light, slate and an electric
    cyan in dark. The strong colour marks primary actions, on states, what is selected and
    focus; everything else stays grey.
 
@@ -23,12 +23,12 @@
    values; a literal colour is restated in dark unless it truly holds in both (the
    contract test checks this). Dark restates every foundation token (the contract
    requires it) and only the component tokens whose value differs. Change a step in both.
-   Every rule is scoped to Graphite, which applies when no theme is set or `data-theme` is
-   `graphite`, so another theme starts from the recipes' fallbacks instead of inheriting
+   Every rule is scoped to Coolant, which applies when no theme is set or `data-theme` is
+   `coolant`, so another theme starts from the recipes' fallbacks instead of inheriting
    these tokens. The `:where()` adds no specificity.
    Imported into `layer(themes)`; see docs/theming.md. */
 
-:root:where(:not([data-theme]), [data-theme="graphite"]) {
+:root:where(:not([data-theme]), [data-theme="coolant"]) {
   color-scheme: light;
 
   /* Grounds */
@@ -242,7 +242,7 @@
 }
 
 /* Dark: slate grounds, greys with a trace of blue, and the cyan as the strong colour. */
-:root:where(:not([data-theme]), [data-theme="graphite"])[data-scheme="dark"] {
+:root:where(:not([data-theme]), [data-theme="coolant"])[data-scheme="dark"] {
   color-scheme: dark;
 
   /* Grounds */
@@ -412,11 +412,11 @@
 
 /* The welcome's start button is the dialog's one primary action, so it takes the accent
    as its fill, where the choice-card tiles carry it only in their glyph. */
-:root:where(:not([data-theme]), [data-theme="graphite"]) .welcome-start {
+:root:where(:not([data-theme]), [data-theme="coolant"]) .welcome-start {
   --brand-tile-bg: linear-gradient(180deg, #00877e, var(--color-strong));
   --brand-tile-fg: var(--color-on-strong);
   --brand-tile-border-color: transparent;
 }
-:root:where(:not([data-theme]), [data-theme="graphite"])[data-scheme="dark"] .welcome-start {
+:root:where(:not([data-theme]), [data-theme="coolant"])[data-scheme="dark"] .welcome-start {
   --brand-tile-bg: linear-gradient(180deg, #2ef0e2, #00d6c8);
 }

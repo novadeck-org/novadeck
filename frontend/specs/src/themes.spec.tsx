@@ -12,26 +12,26 @@ const tokenIn = (theme: string | null, scheme: "light" | "dark", token: string):
 }
 
 afterEach(() => {
-  root.dataset.theme = "graphite"
+  root.dataset.theme = "coolant"
   root.dataset.scheme = "light"
 })
 
 describe("theme scoping", () => {
-  it("draws Graphite when no theme is set and when it is named", () => {
+  it("draws Coolant when no theme is set and when it is named", () => {
     for (const scheme of ["light", "dark"] as const)
       for (const token of ["--color-paper", "--color-strong", "--sidebar-create-border-color"]) {
-        const named = tokenIn("graphite", scheme, token)
+        const named = tokenIn("coolant", scheme, token)
         expect(named, `${token} in ${scheme}`).not.toBe("")
         expect(tokenIn(null, scheme, token)).toBe(named)
       }
-    expect(tokenIn("graphite", "light", "--color-paper")).not.toBe(
-      tokenIn("graphite", "dark", "--color-paper"),
+    expect(tokenIn("coolant", "light", "--color-paper")).not.toBe(
+      tokenIn("coolant", "dark", "--color-paper"),
     )
   })
 
-  it("keeps Graphite's component tokens out of another theme", () => {
+  it("keeps Coolant's component tokens out of another theme", () => {
     expect(tokenIn("phosphor-green", "dark", "--color-paper")).not.toBe(
-      tokenIn("graphite", "dark", "--color-paper"),
+      tokenIn("coolant", "dark", "--color-paper"),
     )
     expect(tokenIn("phosphor-green", "dark", "--sidebar-create-border-color")).toBe("")
   })

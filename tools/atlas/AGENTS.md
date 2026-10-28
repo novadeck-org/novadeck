@@ -68,7 +68,7 @@ extract`, for `jq`; it is large, so prefer briefs.
 - Sources are read with LF endings and paths are posix, so Windows checkouts trace the same.
 - Where a trace is unsure, show it as unsure: a hollow or dashed mark on the page, a plain
   sentence in a brief. Never let an untraced path look complete.
-- The look replicates Novadeck's Graphite theme and chrome (`src/index.css`,
+- The look replicates Novadeck's Coolant theme and chrome (`src/index.css`,
   `src/chrome.css`) rather than importing `@novadeck/ui`; copy again when those change.
 - Atlas has no build script and never ships. Checks: `pnpm --filter @novadeck/atlas check`,
   `typecheck` (it runs `extract` first, because `src/generated/atlas.json` is gitignored) and

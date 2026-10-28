@@ -92,7 +92,7 @@
 @import "./preferences/welcome-preview.css" layer(components);
 @import "./search/search.css" layer(components);
 
-@import "./theme/graphite.css" layer(themes);
+@import "./theme/coolant.css" layer(themes);
 @import "./theme/phosphor.css" layer(themes);
 @import "./theme/accessibility.css" layer(accessibility);
 
