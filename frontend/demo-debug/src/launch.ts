@@ -59,7 +59,7 @@ export const launchGroups = (cues: LaunchCues | undefined): readonly DemoActionG
             },
             {
               label: "5b · Teammate asks, and its lead answers",
-              hint: "Cart endpoint asks which API version the storefront calls (an Ask row) and messages Orders API the same question at once. Run 5a first. The rung lead works and answers (sent about 5 s on); when it lands (about 0.8 s later), Cart endpoint acts on it and withdraws its ask: the row stays, struck, Withdrawn. The person types nothing",
+              hint: "Cart endpoint asks which API version the storefront calls (an Ask row) and messages Orders API the same question at once. Run 5a first. The rung lead works and answers (sent about 7 s on); when it lands (about 0.8 s later), Cart endpoint acts on it and withdraws its ask: the row stays, struck, Withdrawn. The person types nothing",
               run: () => cues.teammateAsks(),
             },
             {
