@@ -244,18 +244,56 @@ describe("the launch demo", () => {
     expect(agent(launch.asking)).toMatchObject({ working: true })
   })
 
-  it("holds the teammate and its lead through finishAll until the exchange is out", async () => {
-    const { cues, agent } = open()
+  it("holds the teammate and its lead through finishAll, and ends both once the exchange settles", async () => {
+    const { backend, cues, agent, items } = open()
     cues.teammates()
     cues.teammateAsks()
     cues.finishAll()
     await vi.advanceTimersByTimeAsync(3000)
     expect(agent(launch.asking)).not.toHaveProperty("lastTurn")
     expect(agent(launch.lead)).not.toHaveProperty("lastTurn")
+    // The others ended, the other teammates reporting to their lead.
+    expect(agent(1)).toMatchObject({ lastTurn: { outcome: "completed" } })
+    // The lead answers, the ask is withdrawn, and both end.
+    await vi.advanceTimersByTimeAsync(8000)
+    expect(items().find((item) => item.kind === "ask")).toMatchObject({
+      settled: { how: "withdrawn" },
+    })
+    for (const number of [launch.asking, launch.lead])
+      expect(agent(number)).toMatchObject({ working: false, lastTurn: { outcome: "completed" } })
+    // The cart endpoint reported to its lead as it finished.
+    expect(
+      exchange(backend).filter(
+        (each) => each.from === asking && each.to === lead && each.text.startsWith("Done."),
+      ),
+    ).toHaveLength(1)
   })
 
-  it("has a teammate report done to its lead as a message, which rings the lead", async () => {
+  it("ends the lead only after its teammates' reports reached it", async () => {
     const { backend, cues, agent } = open()
+    cues.teammates()
+    await vi.advanceTimersByTimeAsync(4000)
+    cues.finishAll()
+    const ended = (number: number) => agent(number)?.lastTurn !== undefined
+    let steps = 0
+    // What the teammates had done when the lead ended: all three, ahead of it.
+    let before: boolean[] = []
+    while (!ended(launch.lead) && steps++ < 100) {
+      // eslint-disable-next-line no-await-in-loop -- Time moves on a little at a time.
+      await vi.advanceTimersByTimeAsync(50)
+      before = [11, 12, 13].map(ended)
+    }
+    expect(before).toEqual([true, true, true])
+    expect(agent(launch.lead)).toMatchObject({ lastTurn: { outcome: "completed" } })
+    const reports = exchange(backend).filter(
+      (each) => each.to === lead && each.text.startsWith("Done."),
+    )
+    expect(reports).toHaveLength(3)
+    expect(reports.every((each) => each.state === "delivered")).toBe(true)
+  })
+
+  it("has a teammate report done to the person and to its lead as a message, which rings the lead", async () => {
+    const { backend, cues, agent, items } = open()
     cues.teammateDone()
     expect(agent(launch.reports)).toBeUndefined()
     cues.teammates()
@@ -275,6 +313,9 @@ describe("the launch demo", () => {
       text: expect.stringContaining("pricing endpoint answers"),
     })
     expect(agent(launch.lead)).toMatchObject({ working: true })
+    // And the report is its `done` too: a done mark and an Update row.
+    expect(agent(launch.reports)).toMatchObject({ reported: true })
+    expect(items()).toMatchObject([{ kind: "update", source: { title: "Pricing endpoint" } }])
   })
 
   it("does nothing twice, nor before it can, nor after everyone finished", async () => {
@@ -354,5 +395,23 @@ describe("the launch demo", () => {
     cues.finishAll()
     await vi.advanceTimersByTimeAsync(3000)
     expect(items().every((item) => item.kind === "update")).toBe(true)
+  })
+})
+
+describe("the launch demo's teammates cue", () => {
+  beforeEach(() => {
+    vi.useFakeTimers()
+  })
+  afterEach(() => {
+    vi.useRealTimers()
+  })
+
+  it("opens nobody once the lead has ended its turn", async () => {
+    const { cues, terminals, agent } = open()
+    cues.finishAll()
+    await vi.advanceTimersByTimeAsync(3000)
+    cues.teammates()
+    expect(terminals()).toHaveLength(10)
+    expect(agent(launch.lead)).toMatchObject({ working: false })
   })
 })

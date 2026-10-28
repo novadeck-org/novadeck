@@ -561,10 +561,11 @@ export type LaunchCues = {
   readonly teammates: () => void
   // A teammate asks the person what only its lead knows, and messages the lead the same
   // question at once. The ask shows as an Inbox row; the idle lead, rung awake, works and
-  // answers (its message lands about 5 s after the cue); when that lands (about 6 s), the teammate acts on it and
+  // answers: the answer is sent about 5 s after the cue and lands about 0.8 s later, which is when the teammate acts on it and
   // withdraws its ask: the row stays, settled, "Withdrawn". The person types nothing.
   readonly teammateAsks: () => void
-  // A teammate ends its turn and reports done to its lead, as a message: the lead is rung.
+  // A teammate ends its turn with its done report (a done mark and an Update row) and sends the
+  // same report to its lead, as a message: the lead is rung.
   readonly teammateDone: () => void
   // The order-status agent shows its page in the pane beside its window, and then its
   // changes, as diffs.
@@ -572,7 +573,8 @@ export type LaunchCues = {
   readonly showChanges: () => void
   // Every agent of both projects ends its turn, one after another, but the ones still waiting
   // on the person: an unanswered request, or a teammate and its lead while their exchange is
-  // on its way.
+  // on its way (they finish when it settles). Each teammate messages its lead its report as it
+  // finishes, and the lead finishes after those reach it (about 1 s on).
   readonly finishAll: () => void
 }
 
@@ -651,6 +653,11 @@ export const createLaunch = (turns: DemoTurns, now: number) => {
   // Whether the teammate and its lead have had their exchange out: the lead's answer landed, or
   // a stop ended it.
   let exchanged = false
+  // The exchange is out: if everyone finished meanwhile, those it held finish now.
+  const settle = (): void => {
+    exchanged = true
+    if (ended) ripple()
+  }
 
   const cues: LaunchCues = {
     permission: () => !ended && ask(launch.permission, "permission"),
@@ -689,7 +696,8 @@ export const createLaunch = (turns: DemoTurns, now: number) => {
       cues.finishOne()
     },
     teammates: () => {
-      if (opened || ended || !sink) return
+      // Its lead has to be there, and at work, to open them.
+      if (opened || ended || !sink || !busy(terminal(launch.lead))) return
       opened = true
       sink.dispatch(
         teammates.map((job, index) => ({
@@ -737,7 +745,7 @@ export const createLaunch = (turns: DemoTurns, now: number) => {
           const epoch = turns.epoch(keyOf(launch.lead))
           setTimeout(() => {
             if (turns.epoch(keyOf(launch.lead)) !== epoch) {
-              exchanged = true
+              settle()
               return
             }
             const replied = messages.send(
@@ -747,32 +755,39 @@ export const createLaunch = (turns: DemoTurns, now: number) => {
               leadsAnswer,
               // Its lead answered first: the teammate acts on that, and withdraws its ask.
               () => {
-                exchanged = true
                 backendInbox()?.resolve(teammateAskId, "withdrawn")
                 work(keyOf(launch.asking))
+                settle()
               },
               () => {
-                exchanged = true
+                settle()
               },
             )
-            if (!replied) exchanged = true
+            if (!replied) settle()
           }, answersMs)
         },
         () => {
-          exchanged = true
+          settle()
         },
       )
       // Refused, as the lead closed: nothing is on its way to wait for.
-      if (!sent) exchanged = true
+      if (!sent) settle()
     },
     teammateDone: () => {
       if (reported || ended || !opened) return
       const job = allJobs[launch.reports - 1]!
       reported = on(launch.reports, (key, found) => {
         resting.add(found.id)
-        turns.finish(key, found, "completed", { after: finishesAfterMs, reply: job.done })
-        // To its lead, as a message: the lead is rung, if it rests.
-        messages.send(target, reporting, lead, `Done. ${job.done}`, () => wake(keyOf(launch.lead)))
+        // With a lead, `done` is called all the same, and the report goes to the lead too, as a
+        // message: the lead is rung, if it rests.
+        turns.finish(key, found, "completed", {
+          after: finishesAfterMs,
+          reply: job.done,
+          done: { subject: `${job.name} is done`, body: job.done },
+        })
+        messages.send(target, reporting, lead, `Done. ${job.done}`, () => {
+          if (!ended) wake(keyOf(launch.lead))
+        })
       })
     },
     show: () => upsert(preview),
@@ -780,28 +795,7 @@ export const createLaunch = (turns: DemoTurns, now: number) => {
     finishAll: () => {
       if (!latest) return
       ended = true
-      let count = 0
-      for (const each of latest.projects)
-        for (const history of each.history)
-          for (const found of history.state.roster.terminals) {
-            if (found.state !== "running") continue
-            const key = {
-              projectId: each.id,
-              workspaceSessionId: history.id,
-              terminalId: found.id,
-            }
-            if (waitsOnPerson(found)) continue
-            const job = each.id === shop ? allJobs[Number(terminalSlot(found.id)) - 1] : undefined
-            turns.finish(key, found, "completed", {
-              after: finishesAfterMs + count * rippleMs,
-              reply: job?.done ?? "Done. Everything is in, and the checks pass.",
-              done: {
-                subject: `${job?.name ?? found.name} is done`,
-                body: job?.done ?? "Done. Everything is in, and the checks pass.",
-              },
-            })
-            count += 1
-          }
+      ripple()
     },
   }
 
@@ -854,6 +848,66 @@ export const createLaunch = (turns: DemoTurns, now: number) => {
     )
   }
 
+  // The lead's own turn ends once its teammates' reports have reached it, or were dropped.
+  const reports = new Set<string>()
+  const leadKey = keyOf(launch.lead)
+  const finishLead = (): void => {
+    if (!ended || reports.size > 0) return
+    const found = terminalOf(latest, leadKey)
+    if (!found || waitsOnPerson(found)) return
+    const job = jobs[launch.lead - 1]!
+    turns.finish(leadKey, found, "completed", {
+      after: finishesAfterMs,
+      reply: job.done,
+      done: { subject: `${job.name} is done`, body: job.done },
+    })
+  }
+
+  // Ends the turn of every agent of both projects that waits on nothing, one after another, so
+  // the Canvas turns green in a ripple. A teammate reports to its lead as it finishes, with a
+  // message, and the lead finishes after those reach it.
+  const ripple = (): void => {
+    if (!latest) return
+    let count = 0
+    for (const each of latest.projects)
+      for (const history of each.history)
+        for (const found of history.state.roster.terminals) {
+          if (found.state !== "running") continue
+          const key = {
+            projectId: each.id,
+            workspaceSessionId: history.id,
+            terminalId: found.id,
+          }
+          if (waitsOnPerson(found)) continue
+          if (opened && found.id === leadKey.terminalId) continue
+          const number = each.id === shop ? Number(terminalSlot(found.id)) : 0
+          const job = number ? allJobs[number - 1] : undefined
+          const text = job?.done ?? "Done. Everything is in, and the checks pass."
+          turns.finish(key, found, "completed", {
+            after: finishesAfterMs + count * rippleMs,
+            reply: text,
+            done: { subject: `${job?.name ?? found.name} is done`, body: text },
+          })
+          count += 1
+          if (number <= jobs.length) continue
+          reports.add(found.id)
+          const release = (): void => {
+            reports.delete(found.id)
+            finishLead()
+          }
+          const sent = messages.send(
+            target,
+            demoHandle(number),
+            lead,
+            `Done. ${text}`,
+            release,
+            release,
+          )
+          if (!sent) release()
+        }
+    finishLead()
+  }
+
   // The person answers the teammate's ask from the Inbox before its lead does: the answer
   // reaches the teammate, which goes on with it, and the lead's later answer withdraws nothing.
   const answerEntry = `answer:${teammateAskId}`
@@ -864,8 +918,8 @@ export const createLaunch = (turns: DemoTurns, now: number) => {
       .flatMap((thread) => thread.messages)
       .find((each) => each.id === answerEntry && each.state === "delivered")
     if (!entry) return
-    exchanged = true
     work(keyOf(launch.asking))
+    settle()
   })
 
   return {

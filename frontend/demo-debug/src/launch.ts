@@ -59,12 +59,12 @@ export const launchGroups = (cues: LaunchCues | undefined): readonly DemoActionG
             },
             {
               label: "5b · Teammate asks, and its lead answers",
-              hint: "Cart endpoint asks which API version the storefront calls (an Ask row) and messages Orders API the same question at once. Run 5a first. The rung lead works and answers (its message lands about 5 s on); when that lands (about 6 s), Cart endpoint acts on it and withdraws its ask: the row stays, struck, Withdrawn. The person types nothing",
+              hint: "Cart endpoint asks which API version the storefront calls (an Ask row) and messages Orders API the same question at once. Run 5a first. The rung lead works and answers (sent about 5 s on); when it lands (about 0.8 s later), Cart endpoint acts on it and withdraws its ask: the row stays, struck, Withdrawn. The person types nothing",
               run: () => cues.teammateAsks(),
             },
             {
               label: "5c · Teammate reports done to its lead",
-              hint: "Pricing endpoint ends its turn and messages Orders API that it is done: the lead is rung, and the message reads in either Messages pane. Run 5a first",
+              hint: "Pricing endpoint ends its turn with a done report (a done mark and an Update row) and messages the same to Orders API: the lead is rung, and the message reads in either Messages pane. Run 5a first",
               run: () => cues.teammateDone(),
             },
             {
@@ -79,7 +79,7 @@ export const launchGroups = (cues: LaunchCues | undefined): readonly DemoActionG
             },
             {
               label: "7 · Everyone finishes",
-              hint: "Every agent of both projects ends its turn in a ripple: lines go green, done marks. Agents still waiting on the person stay as they are: an unanswered ask, a failed turn (until it is prompted again), and the teammate and its lead while the teammate's answer is on its way. Press again to end whoever is working by then",
+              hint: "Every agent of both projects ends its turn in a ripple: lines go green, done marks. Agents still waiting on the person stay as they are: an unanswered ask, a failed turn (until it is prompted again), and the teammate and its lead while their exchange is on its way (they finish when it settles). Each teammate messages its lead its report as it finishes, and the lead finishes about 1 s after the ripple starts. Press again to end whoever is working by then",
               run: () => cues.finishAll(),
             },
           ],

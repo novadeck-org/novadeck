@@ -211,8 +211,9 @@ Canvas, all working, beside a second project, northwind-docs; its beats are the 
 done), 4 three asks at once (or each alone: a permission, a plan, a question with its own pick), 5
 the lead Orders API opens three teammates, each briefed by its lead as a message; one asks the
 person a question and messages its lead the same one, the lead answers first and the teammate
-withdraws its ask; another reports done to its lead as a message, 6 the page and then the changes
-(`show { changes }`) shown in the pane, 7 every agent finishes; `frontend/demo/src/launch.ts`,
+withdraws its ask; another reports done (a done mark and an Update row, and the same to its lead as
+a message), 6 the page and then the changes (`show { changes }`) shown in the pane, 7 every agent
+finishes (each teammate reporting to its lead, which finishes after); `frontend/demo/src/launch.ts`,
 sharing the desk's builders with Babcia in `desk.ts`). Every variant's Inbox
 lists what its agents wait on, built as the runner's is. In it each
 agent carries a transcript, and api-service's worker a brief from its lead, so an item's
