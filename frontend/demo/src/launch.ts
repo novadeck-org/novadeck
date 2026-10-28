@@ -377,7 +377,7 @@ const line = (name: string, quantity: string, price: string, y: number): string 
   `<text x="360" y="${y}" ${sans} font-size="14" fill="${muted}" text-anchor="end">${quantity}</text>` +
   `<text x="440" y="${y}" ${sans} font-size="14" font-weight="700" fill="${ink}" text-anchor="end">${price}</text>` +
   `<line x1="56" y1="${y + 14}" x2="440" y2="${y + 14}" stroke="${rule}"/>`
-const preview: SampleArtifact = {
+const previewArtifact = (): SampleArtifact => ({
   item: {
     id: "northwind-order-preview",
     kind: "page",
@@ -426,12 +426,12 @@ const preview: SampleArtifact = {
         `<text x="617" y="419" ${mono} font-size="11" fill="${muted}" text-anchor="middle">tracking-map.tsx</text>`,
     ),
   }),
-}
+})
 
 // What the same agent has changed in the project to get there, shown as the pane shows an
 // agent's whole change: the working tree against HEAD, file by file.
 const changesRoot = home
-const changes: SampleArtifact = {
+const changesArtifact = (): SampleArtifact => ({
   item: {
     id: "northwind-order-changes",
     kind: "changes",
@@ -493,11 +493,7 @@ const changes: SampleArtifact = {
       ]),
     ],
   }),
-}
-
-const asking = demoHandle(launch.asking)
-const reporting = demoHandle(launch.reports)
-const lead = demoHandle(launch.lead)
+})
 
 // The question the asking teammate puts to the person, and to its lead too, as the `ask` tool
 // has it do: the lead knows the answer.
@@ -592,6 +588,12 @@ const busy = (found: TerminalMetadata | undefined): found is TerminalMetadata =>
 // `wrap` round them (an agent that is answered or told goes back to work, and works until it
 // finishes), and `over` the whole (the cues).
 export const createLaunch = (turns: DemoTurns, now: number) => {
+  // Built here, not at the top of the module: the try demo bundles this module without running it.
+  const asking = demoHandle(launch.asking)
+  const reporting = demoHandle(launch.reports)
+  const lead = demoHandle(launch.lead)
+  const preview = previewArtifact()
+  const changes = changesArtifact()
   const messages = createDemoMessages([deskMessages(shop, allJobs.length)], false, (target, id) =>
     latest === undefined ? true : terminalOf(latest, { ...target, terminalId: id }) !== undefined,
   )
