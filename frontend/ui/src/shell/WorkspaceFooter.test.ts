@@ -8,7 +8,7 @@ import { context, describe, expect, it } from "../test"
 import { fadeMs, finishedForMs } from "./linger"
 import type { FooterPortable } from "./PortableInstall"
 import { UpdateProgress } from "./UpdateProgress"
-import { recoveredForMs, WorkspaceFooter, type FooterStatus } from "./WorkspaceFooter"
+import { WorkspaceFooter } from "./WorkspaceFooter"
 
 const mounted: Rendered[] = []
 afterEach(() => {
@@ -24,11 +24,10 @@ const portable = {
 }
 
 // A portable copy's install entry; a copy that updates itself has none.
-const props = (status: FooterStatus, update?: UpdateOffer) => ({
+const props = (update?: UpdateOffer) => ({
   hidden: false,
   count: 2,
   running: 1,
-  status,
   portable: {
     offer: update,
     portable,
@@ -46,18 +45,10 @@ const downloading: UpdateOffer = { ...ready, kind: "downloading", percent: 42 }
 const announcer = (page: Rendered) =>
   page.container.querySelector<HTMLElement>(".sr-only[role=status]")!
 
-const footer = (status: FooterStatus) =>
-  createElement(WorkspaceFooter, { hidden: false, count: 2, running: 1, status })
-
-const show = (status: FooterStatus) => {
-  const page = render(footer(status))
+const show = () => {
+  const page = render(createElement(WorkspaceFooter, { hidden: false, count: 2, running: 1 }))
   mounted.push(page)
-  const bar = () => page.container.querySelector("footer")!
-  return {
-    bar,
-    said: () => page.container.querySelector(".footer-status [role=status]")?.textContent ?? "",
-    change: (next: FooterStatus) => page.rerender(footer(next)),
-  }
+  return { bar: () => page.container.querySelector("footer")! }
 }
 
 const added = (html: string): Element => {
@@ -72,13 +63,11 @@ const notice = (page: Rendered) => page.container.querySelector("section.portabl
 const chip = (page: Rendered) => page.container.querySelector<HTMLButtonElement>(".footer-update")!
 
 describe("workspace footer", () => {
-  context("while the runner link is healthy", () => {
-    it("shows the counts untoned and no status", () => {
-      const { bar, said } = show("ok")
-      expect(bar().textContent).toContain("2 terminals")
-      expect(bar().hasAttribute("data-tone")).toBe(false)
-      expect(said()).toBe("")
-    })
+  it("shows the counts, and says nothing of the runner's link", () => {
+    const { bar } = show()
+    expect(bar().textContent).toContain("2 terminals")
+    expect(bar().hasAttribute("data-tone")).toBe(false)
+    expect(bar().querySelector("[role=status]:not(.sr-only)")).toBeNull()
   })
 
   context("with agents that wait on something they started", () => {
@@ -89,90 +78,39 @@ describe("workspace footer", () => {
           count: 3,
           running: 3,
           waiting: 2,
-          status: "ok",
         }),
       )
       mounted.push(page)
       const text = page.container.querySelector("footer")!.textContent
       expect(text).toContain("3 running")
       expect(text).toContain("2 waiting")
-      expect(show("ok").bar().textContent).not.toContain("waiting")
-    })
-  })
-
-  context("while the runner reconnects", () => {
-    it("tones the whole bar as a warning and says so", () => {
-      const { bar, said } = show("reconnecting")
-      expect(bar().dataset["tone"]).toBe("warning")
-      expect(bar().textContent).toContain("1 running")
-      expect(said()).toBe("Reconnecting")
-    })
-  })
-
-  context("when the runner is unavailable", () => {
-    it("tones the bar as danger and says so assertively", () => {
-      const { bar, said } = show("unavailable")
-      expect(bar().dataset["tone"]).toBe("danger")
-      expect(said()).toBe("Offline")
-      expect(bar().querySelector(".footer-status [role=status]")?.getAttribute("aria-live")).toBe(
-        "assertive",
-      )
-    })
-  })
-
-  context("when the runner keeps restarting", () => {
-    it("tones the bar as danger and says so", () => {
-      const { bar, said } = show("restarting")
-      expect(bar().dataset["tone"]).toBe("danger")
-      expect(said()).toBe("Crash loop")
+      expect(show().bar().textContent).not.toContain("waiting")
     })
   })
 
   context("while a crash loop offers to try again", () => {
-    it("carries a Try again action that starts over", () => {
+    it("carries a Restart terminals chip that starts over", () => {
       const onRetry = vi.fn<() => void>()
       const page = render(
         createElement(WorkspaceFooter, {
           hidden: false,
           count: 2,
           running: 0,
-          status: "restarting",
           onRetry,
         }),
       )
       mounted.push(page)
       const action = [...page.container.querySelectorAll("button")].find(
-        (button) => button.textContent === "Try again",
+        (button) => button.textContent === "Restart terminals",
       )!
       act(() => action.click())
       expect(onRetry).toHaveBeenCalledOnce()
     })
 
-    it("offers nothing while the runner only reconnects", () => {
-      const page = render(
-        createElement(WorkspaceFooter, {
-          hidden: false,
-          count: 2,
-          running: 0,
-          status: "reconnecting",
-          onRetry: () => {},
-        }),
-      )
+    it("offers nothing without one", () => {
+      const page = render(createElement(WorkspaceFooter, { hidden: false, count: 2, running: 0 }))
       mounted.push(page)
       expect(page.container.querySelector("button")).toBeNull()
-    })
-  })
-
-  context("once the runner is back", () => {
-    it("tones the bar as success with Reconnected for a moment, then rests untoned", () => {
-      vi.useFakeTimers()
-      const { bar, said, change } = show("reconnecting")
-      change("ok")
-      expect(bar().dataset["tone"]).toBe("success")
-      expect(said()).toBe("Reconnected")
-      act(() => vi.advanceTimersByTime(recoveredForMs))
-      expect(bar().hasAttribute("data-tone")).toBe(false)
-      expect(said()).toBe("")
     })
   })
 
@@ -182,7 +120,6 @@ describe("workspace footer", () => {
         hidden,
         count: 2,
         running: 1,
-        status: "ok",
         progress: offer,
         noticeOpen,
       })
@@ -290,22 +227,6 @@ describe("workspace footer", () => {
       act(() => vi.advanceTimersByTime(fadeMs))
       expect(bar(page)).toBeNull()
     })
-
-    it("leaves the bar's tone and the link's status to the connection", () => {
-      const page = render(
-        createElement(WorkspaceFooter, {
-          hidden: false,
-          count: 2,
-          running: 1,
-          status: "unavailable",
-          progress: downloading,
-        }),
-      )
-      mounted.push(page)
-      const frame = page.container.querySelector("footer")!
-      expect(frame.dataset["tone"]).toBe("danger")
-      expect(frame.querySelector(".footer-status [role=status]")?.textContent).toBe("Offline")
-    })
   })
 
   context("for a release an installed copy can't install itself", () => {
@@ -318,7 +239,6 @@ describe("workspace footer", () => {
         hidden: false,
         count: 2,
         running: 1,
-        status: "ok",
         available,
       })
     const button = (page: Rendered) =>
@@ -410,7 +330,6 @@ describe("workspace footer", () => {
           hidden: true,
           count: 2,
           running: 1,
-          status: "ok",
           available: { version: "0.0.81", onOpenPage: () => {} },
         }),
       )
@@ -420,23 +339,23 @@ describe("workspace footer", () => {
   })
 
   context("on a portable copy", () => {
-    const withUpdate = (status: FooterStatus, update?: UpdateOffer) => {
-      const page = render(createElement(WorkspaceFooter, props(status, update)))
+    const withUpdate = (update?: UpdateOffer) => {
+      const page = render(createElement(WorkspaceFooter, props(update)))
       mounted.push(page)
       return page
     }
     it("keeps a polite live region mounted, empty until a release is missing, then fills it", () => {
-      const page = withUpdate("ok")
+      const page = withUpdate()
       const region = announcer(page)
       expect(region.getAttribute("aria-live")).toBe("polite")
       expect(region.textContent).toBe("")
-      page.rerender(createElement(WorkspaceFooter, props("ok", ready)))
+      page.rerender(createElement(WorkspaceFooter, props(ready)))
       expect(announcer(page)).toBe(region)
       expect(region.textContent).toBe("Update available")
     })
 
     it("offers Install Novadeck alone while no release is known, narrowed to its icon", () => {
-      const page = withUpdate("ok")
+      const page = withUpdate()
       expect(chip(page).getAttribute("aria-label")).toBe("Install Novadeck")
       expect(chip(page).textContent).toBe("Install Novadeck")
       expect(chip(page).querySelector(".footer-chip-text")!.className).toContain(
@@ -446,7 +365,7 @@ describe("workspace footer", () => {
     })
 
     it("says Update available on the chip for a missing release, with a dot on its icon", () => {
-      const page = withUpdate("ok", ready)
+      const page = withUpdate(ready)
       expect(chip(page).getAttribute("aria-label")).toBe("Update available: Novadeck 0.0.80")
       expect(chip(page).textContent).toBe("Update available")
       expect(chip(page).querySelector(".footer-chip-dot")).not.toBeNull()
@@ -454,7 +373,7 @@ describe("workspace footer", () => {
 
     it("folds the chip to its icon once its card was closed, until another release", () => {
       const open = (update: UpdateOffer) => {
-        const base = props("ok", update)
+        const base = props(update)
         return createElement(WorkspaceFooter, {
           ...base,
           portable: { ...base.portable, open: true },
@@ -478,7 +397,7 @@ describe("workspace footer", () => {
 
     it("keeps its words on a card closed with no release, and the fold across a reload", () => {
       const open = (update?: UpdateOffer) => {
-        const base = props("ok", update)
+        const base = props(update)
         return createElement(WorkspaceFooter, {
           ...base,
           portable: { ...base.portable, open: true },
@@ -505,15 +424,6 @@ describe("workspace footer", () => {
       expect(words().classList.contains("hidden")).toBe(true)
     })
 
-    it("leaves the bar's tone and the link's status to the connection", () => {
-      const page = withUpdate("unavailable", ready)
-      const bar = page.container.querySelector("footer")!
-      expect(bar.dataset["tone"]).toBe("danger")
-      expect(bar.textContent).toContain("Offline")
-      expect(bar.textContent).toContain("Update available")
-      expect(bar.querySelector(".footer-status [role=status]")?.textContent).toBe("Offline")
-    })
-
     context("whose notice is raised", () => {
       const raised = (
         { hidden = false, blocked = false } = {},
@@ -521,7 +431,7 @@ describe("workspace footer", () => {
         offer: UpdateOffer | null = ready,
       ) =>
         createElement(WorkspaceFooter, {
-          ...props("ok"),
+          ...props(),
           hidden,
           portable: {
             offer: offer ?? undefined,
@@ -584,9 +494,9 @@ describe("workspace footer", () => {
       // The card open with the host's account of the install, which is all it shows.
       const installing = (install: PortableInstall, onInstall = () => {}) =>
         createElement(WorkspaceFooter, {
-          ...props("ok"),
+          ...props(),
           portable: {
-            ...props("ok").portable,
+            ...props().portable,
             open: true,
             portable: { ...portable, install, onInstall },
           },
@@ -602,9 +512,9 @@ describe("workspace footer", () => {
       ) => {
         const { news, newsSettled, onShown, ...more } = aside
         return createElement(WorkspaceFooter, {
-          ...props("ok", ready),
+          ...props(ready),
           portable: {
-            ...props("ok", ready).portable,
+            ...props(ready).portable,
             open: true,
             news,
             ...(newsSettled === undefined ? {} : { newsSettled }),
@@ -693,9 +603,9 @@ describe("workspace footer", () => {
         expect(buttonNames(page)).toEqual(["Dismiss", "Install Novadeck"])
         page.rerender(
           createElement(WorkspaceFooter, {
-            ...props("ok"),
+            ...props(),
             portable: {
-              ...props("ok").portable,
+              ...props().portable,
               offer: undefined,
               open: true,
               portable: { ...portable, onDownload },
@@ -738,9 +648,9 @@ describe("workspace footer", () => {
         const onDownload = vi.fn<() => void>()
         const card = (install: PortableInstall) =>
           createElement(WorkspaceFooter, {
-            ...props("ok", ready),
+            ...props(ready),
             portable: {
-              ...props("ok", ready).portable,
+              ...props(ready).portable,
               open: true,
               portable: { ...portable, onDownload, install },
             },
@@ -784,9 +694,9 @@ describe("workspace footer", () => {
       it("finds the install done in a window opened again after it", () => {
         const page = render(
           createElement(WorkspaceFooter, {
-            ...props("ok"),
+            ...props(),
             portable: {
-              ...props("ok").portable,
+              ...props().portable,
               portable: { ...portable, install: { phase: "installed" } },
             },
           }),
@@ -809,9 +719,9 @@ describe("workspace footer", () => {
       it("adds a line about the sandbox for a copy running without it", () => {
         const page = render(
           createElement(WorkspaceFooter, {
-            ...props("ok"),
+            ...props(),
             portable: {
-              ...props("ok").portable,
+              ...props().portable,
               open: true,
               portable: { ...portable, unsandboxed: true },
             },
@@ -837,9 +747,9 @@ describe("workspace footer", () => {
       it("says on macOS to quit and reopen, where closing the window doesn't quit", () => {
         const page = render(
           createElement(WorkspaceFooter, {
-            ...props("ok"),
+            ...props(),
             portable: {
-              ...props("ok").portable,
+              ...props().portable,
               open: true,
               platform: "mac",
               portable: { ...portable, install: { phase: "installed" } },
@@ -870,10 +780,10 @@ describe("workspace footer", () => {
       // The card as its parent holds it: open or not, with the install the host reports.
       const held = (install: PortableInstall, open: boolean, aside = {}) =>
         createElement(WorkspaceFooter, {
-          ...props("ok"),
+          ...props(),
           ...("hidden" in aside ? { hidden: aside.hidden as boolean } : {}),
           portable: {
-            ...props("ok").portable,
+            ...props().portable,
             open,
             ...("blocked" in aside ? { blocked: aside.blocked as boolean } : {}),
             portable: { ...portable, install },
@@ -956,9 +866,9 @@ describe("workspace footer", () => {
         const onOpenChange = vi.fn<(open: boolean) => void>()
         const other = (install: PortableInstall, open = false) =>
           createElement(WorkspaceFooter, {
-            ...props("ok"),
+            ...props(),
             portable: {
-              ...props("ok").portable,
+              ...props().portable,
               open,
               onOpenChange,
               portable: { ...portable, install },
@@ -985,9 +895,9 @@ describe("workspace footer", () => {
         const onOpenChange = vi.fn<(open: boolean) => void>()
         const card = (install: PortableInstall, open: boolean) =>
           createElement(WorkspaceFooter, {
-            ...props("ok"),
+            ...props(),
             portable: {
-              ...props("ok").portable,
+              ...props().portable,
               open,
               onOpenChange,
               portable: { ...portable, install },
@@ -1017,9 +927,9 @@ describe("workspace footer", () => {
         const onOpenChange = vi.fn<(open: boolean) => void>()
         const other = (install: PortableInstall, open: boolean) =>
           createElement(WorkspaceFooter, {
-            ...props("ok"),
+            ...props(),
             portable: {
-              ...props("ok").portable,
+              ...props().portable,
               open,
               onOpenChange,
               portable: { ...portable, install },
@@ -1083,9 +993,7 @@ describe("workspace footer", () => {
     })
 
     it("shows nothing without an update", () => {
-      const page = render(
-        createElement(WorkspaceFooter, { hidden: false, count: 2, running: 1, status: "ok" }),
-      )
+      const page = render(createElement(WorkspaceFooter, { hidden: false, count: 2, running: 1 }))
       mounted.push(page)
       expect(page.container.querySelector("button")).toBeNull()
       expect(page.container.textContent).not.toContain("Update")
@@ -1109,7 +1017,7 @@ describe("the footer without the security sandbox", () => {
     onOpenChange = (_open: boolean) => {},
   } = {}) =>
     createElement(WorkspaceFooter, {
-      ...props("ok"),
+      ...props(),
       hidden,
       sandbox: { fix, open, blocked, onOpenChange },
     })
@@ -1120,7 +1028,7 @@ describe("the footer without the security sandbox", () => {
   }
 
   it("shows nothing where the app is sandboxed or the host does not say", () => {
-    const page = render(createElement(WorkspaceFooter, props("ok")))
+    const page = render(createElement(WorkspaceFooter, props()))
     mounted.push(page)
     expect(sandboxChip(page)).toBeUndefined()
     expect(panel(page)).toBeNull()
@@ -1214,7 +1122,6 @@ describe("the footer's feedback slot", () => {
         hidden: false,
         count: 1,
         running: 0,
-        status: "ok",
         usage: createElement("span", { id: "usage" }),
         feedback: createElement("button", { id: "feedback" }),
       }),
@@ -1222,6 +1129,6 @@ describe("the footer's feedback slot", () => {
     mounted.push(page)
     const usage = page.container.querySelector("#usage")!
     expect(usage.nextElementSibling?.id).toBe("feedback")
-    expect(show("ok").bar().querySelector("#feedback")).toBeNull()
+    expect(show().bar().querySelector("#feedback")).toBeNull()
   })
 })
