@@ -11,7 +11,7 @@ const refused = new Set(
     ["claude", "codex", "gemini", "grok", "cursor", "copilot", "goose", "crush", "amp"],
     ["kilo", "roo", "droid", "pi", "orca", "warp", "zed", "aider", "cline", "opencode"],
     ["nova", "deck", "runner", "focus", "grid", "canvas", "inbox", "lead", "plan"],
-    ["murmur", "phosphor", "graphite", "amber"],
+    ["murmur", "phosphor", "coolant", "graphite", "amber"],
     ["run", "log", "bug", "cat", "echo", "root", "node", "pipe", "gem", "rust"],
     ["dart", "elm", "pip", "smoke", "pixel", "shell", "static", "ghost", "drift", "daemon"],
     ["proxy", "socket", "kernel", "chrome", "ash", "bat", "main", "test", "dev", "key"],

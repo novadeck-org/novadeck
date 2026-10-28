@@ -34,12 +34,12 @@ describe("the sounds", () => {
   })
 
   it("rings with the person's choice, else the sound of the theme in effect", () => {
-    expect(soundInEffect({ soundChoice: "theme", appearance: appearance("graphite") })).toBe("felt")
+    expect(soundInEffect({ soundChoice: "theme", appearance: appearance("coolant") })).toBe("felt")
     expect(soundInEffect({ soundChoice: "theme", appearance: appearance("phosphor-amber") })).toBe(
       "afterglow",
     )
     expect(soundInEffect({ soundChoice: "theme", appearance: appearance("gone") })).toBe("felt")
-    expect(soundInEffect({ soundChoice: "settle", appearance: appearance("graphite") })).toBe(
+    expect(soundInEffect({ soundChoice: "settle", appearance: appearance("coolant") })).toBe(
       "settle",
     )
   })

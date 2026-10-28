@@ -1411,7 +1411,7 @@ describe("The Source panel", () => {
 
         family = "Narrow Mono"
         await act(async () => {
-          document.documentElement.dataset["theme"] = "graphite"
+          document.documentElement.dataset["theme"] = "coolant"
           await nextFrame()
         })
         expect(shown(panel, "short.ts")).toHaveLength(2)

@@ -2,7 +2,7 @@
    rule that stills transitions while the scheme changes. Imported into `layer(base)`;
    see docs/theming.md. */
 
-/* Optional foundation tokens: a theme may set any of these, and these are Graphite's. */
+/* Optional foundation tokens: a theme may set any of these, and these are Coolant's. */
 :root {
   /* Shape */
   --radius-control: 2px;

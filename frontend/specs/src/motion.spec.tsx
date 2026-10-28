@@ -156,7 +156,7 @@ describe("theme motion", () => {
       const saved = JSON.parse(localStorage.getItem("novadeck.preferences") ?? "{}")
       saveFromAnotherWindow("novadeck.preferences", {
         ...saved,
-        appearance: { theme: "graphite", scheme: "dark" },
+        appearance: { theme: "coolant", scheme: "dark" },
       })
       await frames(3)
 

@@ -1,5 +1,5 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024">
-  <!-- The Nova mark on a Graphite tile, as the website draws it (NovaMark.astro in novadeck-website).
+  <!-- The Nova mark on a Coolant tile, as the website draws it (NovaMark.astro in novadeck-website).
        Large sizes follow the macOS icon grid: an 824 px body inset 100 px, corner radius 185 px.
        16, 24 and 32 px swap to hand-placed pixel versions (the .sNN groups, at the size's own
        tile inset), so their strokes land on whole pixels. The media queries read the viewport,

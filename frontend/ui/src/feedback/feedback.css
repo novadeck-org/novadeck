@@ -141,7 +141,7 @@
   /* Lit under the pointer as the usage pills are; the word, while it shows, never changes
      with hover. */
   @media (hover: hover) {
-    .app-footer:not([data-tone]) .feedback-button:hover {
+    .app-footer .feedback-button:hover {
       background-color: var(--color-soft);
       color: var(--color-ink);
     }

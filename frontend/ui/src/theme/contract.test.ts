@@ -4,7 +4,7 @@
 //
 // Themes: every theme in `themes.ts` has a file in `theme/`, imported into
 // `layer(themes)`, whose selectors all start with its own scope: `:root[data-theme="<id>"]`,
-// or for Graphite, the default, `:root:where(:not([data-theme]), [data-theme="graphite"])`.
+// or for Coolant, the default, `:root:where(:not([data-theme]), [data-theme="coolant"])`.
 // Themes that share a file may also start one with their shared scope,
 // `:root:is([data-theme="<id>"], …)`. The file defines every required foundation token
 // (`tokens.ts`, which the doc's table matches) for each scheme the manifest lists, on the
@@ -91,7 +91,7 @@ const sharing = (theme: ThemeEntry): ThemeEntry[] =>
 // so its scope also matches that; the others match their own `data-theme` only.
 const scopeOf = (id: string): string =>
   id === themes[0].id
-    ? ':root:where(:not([data-theme]), [data-theme="graphite"])'
+    ? ':root:where(:not([data-theme]), [data-theme="coolant"])'
     : `:root[data-theme="${id}"]`
 // What rules for every theme in a shared file start with; none for a file of one theme.
 const sharedScopeOf = (theme: ThemeEntry): string | undefined => {

@@ -1,13 +1,13 @@
 import { movedOrder, nextAccountReset, runningSeats, sameSeats } from "@novadeck/core/account-usage"
 import { nextWaitingChange } from "@novadeck/core/agent-waiting"
-import type { Backend, BackendConnectionState, TerminalKey } from "@novadeck/core/port"
+import type { TerminalKey } from "@novadeck/core/port"
 import { waitingAgents } from "@novadeck/core/terminal-ending"
 import { memo, useCallback, useEffect, useState, useSyncExternalStore } from "react"
 
 import { FeedbackButton } from "../feedback/FeedbackButton"
 import { readSubscriptionOrder, writeSubscriptionOrder } from "../shell/shell-storage"
 import { SubscriptionUsage } from "../shell/SubscriptionUsage"
-import { WorkspaceFooter as Footer, type FooterStatus } from "../shell/WorkspaceFooter"
+import { WorkspaceFooter as Footer } from "../shell/WorkspaceFooter"
 import { programIcon } from "../terminals/processes/profiles"
 import { useRenderAt } from "../terminals/use-render-at"
 import { useUiState, useWorkspaceServices, useWorkspaceState } from "./controller/context"
@@ -17,19 +17,11 @@ import { dismissWhatsNew } from "./ui-store"
 import { useOfferNews } from "./use-offer-news"
 
 const always = (): (() => void) => () => {}
-// The link's state, connected where the backend reports none.
-const useConnection = (connection: Backend["connection"]): BackendConnectionState =>
-  useSyncExternalStore(
-    connection?.subscribe ?? always,
-    () => connection?.getSnapshot() ?? "connected",
-  )
 
-// The footer wired to the workspace's counts, the account's subscriptions and the
-// backend's link.
+// The footer wired to the workspace's counts and the account's subscriptions.
 export const WorkspaceFooter = memo((): React.JSX.Element => {
   const { backend, commands, navigation, ui, workspace: store } = useWorkspaceServices()
   const { updates, portable: portableHost } = backend
-  const connection = useConnection(backend.connection)
   // The title of a terminal's window as it is now; none once it has closed.
   const titleOf = useCallback(
     (key: TerminalKey): string | undefined =>
@@ -122,20 +114,14 @@ export const WorkspaceFooter = memo((): React.JSX.Element => {
     setOrder(next)
     writeSubscriptionOrder(next)
   }
-  const status: FooterStatus = crashes
-    ? "restarting"
-    : connection === "connected"
-      ? "ok"
-      : connection
   return (
     <Footer
       hidden={zen}
       count={count}
       running={running}
       waiting={waiting}
-      status={status}
       navigate={navigate}
-      onRetry={backend.crashLoop ? commands.retryAfterCrashLoop : undefined}
+      onRetry={crashes > 0 && backend.crashLoop ? commands.retryAfterCrashLoop : undefined}
       // A copy that updates itself shows only its downloads; a portable one, which can't,
       // has its install entry, with the release it is missing.
       progress={updates && !portable ? offer : null}

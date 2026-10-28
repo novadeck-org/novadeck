@@ -1,7 +1,7 @@
 /* The region recipe: the app's chrome. The header (`.app-header`, with the `.brand`
    link home), the footer (`.app-footer`, its `.footer-running` count, the
-   `.footer-navigate` note while the person navigates the workspace, `.footer-status`
-   and `.footer-action`, the update chips `.footer-update` in the `.footer-chip` look, a portable
+   `.footer-navigate` note while the person navigates the workspace, `.footer-action`,
+   the update chips `.footer-update` in the `.footer-chip` look, a portable
    copy's with its `.update-card`,
    the floating `.update-progress` bar of an update downloading, the `.whats-new` card of one just
    installed, and
@@ -9,10 +9,7 @@
    (`.sidebar`), which on narrow screens opens as a `.sidebar-drawer`. Each region is a
    ground with an edge toward the workspace.
 
-   The rail's toggles are segments (the segmented recipe). Hooks: on the footer,
-   data-tone="success" | "warning" | "danger" while the backend link is in trouble or
-   has just recovered: the tone recipe then paints the whole bar, and its edges, in that
-   tone. On a rail's toggle, data-dragging="true" while it's carried along the rail to a new
+   The rail's toggles are segments (the segmented recipe). Hooks: on a rail's toggle, data-dragging="true" while it's carried along the rail to a new
    place (SidebarRail.tsx).
 
    Tokens, each optional (its fallback in brackets):
@@ -27,7 +24,7 @@
    --region-sidebar-border-color (line): the sidebar.
    --region-sidebar-shadow (shadow-panel): the sidebar as a drawer.
    --region-{header,footer,rail,sidebar}-image (none): a texture over each ground, such as
-   a grain; the footer drops its own while toned. */
+   a grain. */
 .app-header {
   --_bg: var(--region-header-bg, var(--color-paper));
   --_fg: var(--region-header-fg, var(--color-ink));
@@ -53,40 +50,25 @@
   /* As much below as the edge above, so the bar's even height leaves an even box and
      what it centres lands on whole pixels, not half a pixel low. */
   padding-bottom: var(--border-width);
-  transition:
-    background-color var(--motion-state) var(--ease-interface),
-    border-color var(--motion-state) var(--ease-interface),
-    color var(--motion-state) var(--ease-interface);
-}
-/* Toned, the tone recipe paints the bar. */
-.app-footer:not([data-tone]) {
   border-color: var(--region-footer-border-color, var(--color-line));
   background-color: var(--region-footer-bg, var(--color-paper));
   background-image: var(--region-footer-image, none);
   color: var(--region-footer-fg, var(--color-muted));
 }
-/* The count's divider: the bar's edge at rest, and toned a faint line of the tone's
-   text colour, as the tone recipe draws the bar's edge. */
+/* The count's divider, in the bar's edge. */
 .footer-running {
-  border-inline-start: var(--border-width) solid color-mix(in srgb, currentColor 20%, transparent);
-}
-.app-footer:not([data-tone]) .footer-running {
-  border-inline-start-color: var(--region-footer-border-color, var(--color-line));
+  border-inline-start: var(--border-width) solid
+    var(--region-footer-border-color, var(--color-line));
 }
 /* Like the count's divider, and in the bar's strongest text, as a mode line. */
 .footer-navigate {
-  border-inline-start: var(--border-width) solid color-mix(in srgb, currentColor 20%, transparent);
-}
-.app-footer:not([data-tone]) .footer-navigate {
-  border-inline-start-color: var(--region-footer-border-color, var(--color-line));
+  border-inline-start: var(--border-width) solid
+    var(--region-footer-border-color, var(--color-line));
   color: var(--region-footer-navigate-fg, var(--color-ink));
 }
-.footer-status,
 .footer-action {
   letter-spacing: 0.05em;
   text-transform: uppercase;
-}
-.footer-action {
   color: inherit;
   text-underline-offset: 2px;
 }
@@ -101,7 +83,7 @@
   border-radius: var(--radius-control);
 }
 /* Specificity kept to a class and one more, so a chip's own tone (Murmur's) may follow it. */
-.app-footer:where(:not([data-tone])) .footer-update:where([aria-expanded="true"]) {
+.app-footer .footer-update:where([aria-expanded="true"]) {
   background-color: var(--color-soft);
   color: var(--color-ink);
 }
@@ -128,11 +110,15 @@
   display: flex;
   align-items: center;
   gap: 4px;
+  /* Twice the footer's gap before the buttons after it, setting the subscriptions apart. */
+  margin-inline-end: 16px;
 }
 .footer-usage-pill {
   display: inline-flex;
   align-items: center;
   gap: 6px;
+  /* The update chip's height, so the footer's buttons line up. */
+  min-height: 24px;
   margin-block: -3px;
   padding: 3px 6px;
   border-radius: var(--radius-control);
@@ -146,12 +132,12 @@
   outline: var(--focus-ring-width) solid var(--focus-ring-color, var(--color-strong));
 }
 @media (hover: hover) {
-  .app-footer:not([data-tone]) .footer-usage-pill:hover {
+  .app-footer .footer-usage-pill:hover {
     background-color: var(--color-soft);
     color: var(--color-ink);
   }
 }
-.app-footer:not([data-tone]) .footer-usage-pill[aria-expanded="true"] {
+.app-footer .footer-usage-pill[aria-expanded="true"] {
   background-color: var(--color-soft);
   color: var(--color-ink);
 }
@@ -160,6 +146,10 @@
 }
 /* A pill being dragged rises over the footer, as the taskbar's icons do. */
 .footer-usage-sortable {
+  display: inline-flex;
+}
+/* Flex too, so no line box rounds the pill's slot up a pixel and sets it off centre. */
+.footer-usage-slot {
   display: inline-flex;
 }
 .footer-usage-sortable[data-dragging] {
@@ -543,18 +533,16 @@
     transform: translateY(-8px) rotate(-5deg) scale(1.08);
   }
 }
-/* An update chip (PortableInstall.tsx, UpdateAvailable.tsx), in the feedback button's quiet
+/* An update chip (PortableInstall.tsx, UpdateAvailable.tsx) or the crash loop's restart
+   (WorkspaceFooter.tsx), in the feedback button's quiet
    look: an icon and the word, the icon alone on a narrow screen, lit under the pointer. An
    update waiting puts the attention dot (attention-dot.css) on the icon's corner, cut out
-   of the icon by a ring of the chip's own ground; a toned footer has no ring, as its
-   ground is the tone's. */
+   of the icon by a ring of the chip's own ground. */
 .footer-chip {
   color: inherit;
-}
-.app-footer:not([data-tone]) .footer-chip {
   --_chip-ground: var(--region-footer-bg, var(--color-paper));
 }
-.app-footer:not([data-tone]) .footer-chip[aria-expanded="true"] {
+.app-footer .footer-chip[aria-expanded="true"] {
   --_chip-ground: var(--color-soft);
 }
 .footer-chip-icon {
@@ -570,7 +558,7 @@
   margin-inline-start: 6px;
 }
 @media (hover: hover) {
-  .app-footer:not([data-tone]) .footer-chip:hover {
+  .app-footer .footer-chip:hover {
     --_chip-ground: var(--color-soft);
     background-color: var(--color-soft);
     color: var(--color-ink);

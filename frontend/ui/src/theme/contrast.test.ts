@@ -13,7 +13,7 @@
 //
 // A token is read from the theme's own block, then its shared block, then (for a scheme
 // other than the first) laid over the first scheme's, as the cascade does. A `var()` alias
-// resolves in that same set, and Graphite's grounds, `oklch(from var(--color-paper)
+// resolves in that same set, and Coolant's grounds, `oklch(from var(--color-paper)
 // calc(l - n) c h)`, are computed. A failure names the theme, scheme, pair and ratio.
 // `exceptions` lists the pairs a theme misses on purpose, each with its measured ratio and
 // reason. A pair under one may pass on its own, so a token can improve ground by ground;
@@ -67,7 +67,7 @@ const rulesOf = (file: string): Map<string, Declarations> => {
 const fileOf = (theme: ThemeEntry): string => `theme/${theme.file ?? theme.id}.css`
 const scopeOf = (theme: ThemeEntry): string =>
   theme.id === themes[0].id
-    ? ':root:where(:not([data-theme]), [data-theme="graphite"])'
+    ? ':root:where(:not([data-theme]), [data-theme="coolant"])'
     : `:root[data-theme="${theme.id}"]`
 const sharedScopeOf = (theme: ThemeEntry): string | undefined => {
   const together = themes.filter((other) => fileOf(other) === fileOf(theme))

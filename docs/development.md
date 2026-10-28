@@ -453,9 +453,10 @@ App:
   a newer Novadeck has used, only for Quit). Each hint carries the error code, so the search
   finds it; `WORKSPACE_TOO_NEW` is what an older Novadeck shows once a newer one has used
   the workspace.
-- **Runner:** show Reconnecting for 5 s, then Reconnected; go offline until you toggle it
-  back; or count four crashes, which shows the footer and the dialog and fails the selected
-  terminal's session's terminals (Try again clears the count and restarts them).
+- **Runner:** lock the terminals with Reconnecting for 5 s; show them Runner offline until
+  you toggle it back; or count four crashes, which opens the dialog, puts Restart terminals
+  in the footer and fails the selected terminal's session's terminals (Try again or Restart
+  terminals clears the count and restarts them).
 - **Sandbox:** boot as a host running without Electron's sandbox, for the footer's No
   sandbox chip and its fix command; "No sandbox, no fix" as one with no command to offer;
   and "Sandboxed" back to normal.
@@ -524,9 +525,8 @@ paths and a hash router, so any static host serves them from any path, and
 `pnpm preview:try` serves them on http://127.0.0.1:5191. The [Try
 workflow](../.github/workflows/try.yml) deploys a release's build to Cloudflare Pages at
 https://try.novadeck.dev, beside the website, so the demo always shows a published
-version. Until launch, Release runs it for each version it publishes, prereleases
-included; at launch it moves to Promote to Stable, so the demo shows what Download gives
-people. Run workflow deploys a tag by hand. Quality builds it on every pull request. The
+version. Promote to Stable runs it for the release it promotes, so the demo shows what
+Download gives people and prereleases never reach it. Run workflow deploys a tag by hand. Quality builds it on every pull request. The
 build carries a `_headers` file (`apps/try/src/deploy.ts`, written by `tools/build-kit`):
 only novadeck.dev may frame it, nothing of it is indexed, hashed assets are kept for good,
 and the posters for five minutes.
@@ -723,7 +723,7 @@ folder of `frontend/ui/src/`:
 | `test/`                                                         | The command harness: the real stores, navigator and commands, for tests.                                                       |
 | `frontend/test-kit/src/`                                        | A jsdom render helper, the port contract suite, and test phase timing.                                                         |
 | `assets/`                                                       | Static files referenced from CSS.                                                                                              |
-| `theme/`                                                        | Tailwind's layout-only theme, token defaults, Graphite and Phosphor, `apply.ts`.                                               |
+| `theme/`                                                        | Tailwind's layout-only theme, token defaults, Coolant and Phosphor, `apply.ts`.                                                |
 | `styles.css`                                                    | The cascade order, every recipe, theme and vendor sheet in its layer, Tailwind sources.                                        |
 | `frontend/specs/src/`                                           | Behaviour specs for the whole UI, and the spec backend over the demo.                                                          |
 | `entries/start.tsx`                                             | How every app starts: applies the theme, renders the app it is given.                                                          |
