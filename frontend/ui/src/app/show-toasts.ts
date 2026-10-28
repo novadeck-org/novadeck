@@ -24,6 +24,7 @@ const waitingIn = (workspace: Workspace): ShowWaiting[] =>
               terminalName: terminal.name,
               handle: terminal.handle || undefined,
               projectName: project.name,
+              at: item.shownAt,
             },
           ]
         : []
