@@ -191,6 +191,22 @@ describe("the boot script", () => {
     }
   })
 
+  it("holds every rename the manifest lists, so a renamed theme never paints unstyled", () => {
+    for (const theme of themes)
+      for (const former of "formerIds" in theme ? theme.formerIds : [])
+        expect(
+          boot(
+            JSON.stringify({
+              v: bootRecordVersion,
+              theme: former,
+              scheme: theme.schemes[0],
+              schemes: theme.schemes,
+            }),
+            false,
+          ).theme,
+        ).toBe(theme.id)
+  })
+
   it("shows the app's default where the app has none of the theme", () => {
     const root = document.documentElement
     boot(
