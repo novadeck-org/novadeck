@@ -13,6 +13,7 @@
     "./feedback": "./src/feedback.ts",
     "./inbox": "./src/inbox.ts",
     "./inbox-fixtures": "./src/inbox-fixtures.ts",
+    "./launch": "./src/launch.ts",
     "./messages": "./src/messages.ts",
     "./murmur": "./src/murmur.ts",
     "./runtime": "./src/runtime.ts",

@@ -1,28 +1,32 @@
-import type { ChatAnswer, Conversations } from "@novadeck/core/conversation"
+import type { Conversations } from "@novadeck/core/conversation"
 import type { InboxRow } from "@novadeck/core/inbox"
 import { itemIdOf, type Item } from "@novadeck/core/items"
 import type { Backend, BackendSink, TerminalKey } from "@novadeck/core/port"
 import type { WorkspaceSeed } from "@novadeck/core/seed"
 import { sessionName } from "@novadeck/core/session-name"
-import type {
-  AgentStatus,
-  CanvasLayout,
-  Project,
-  TerminalMetadata,
-  Workspace,
-} from "@novadeck/core/types"
+import type { CanvasLayout, TerminalMetadata, Workspace } from "@novadeck/core/types"
 
+import {
+  agentTerminal,
+  declined,
+  deskIntroOf,
+  deskKey,
+  deskTranscripts,
+  deskMessages,
+  project,
+  session,
+  slot,
+  working,
+  type Job,
+} from "./desk"
 import { demoHandle } from "./handles"
 import { isDemoInbox } from "./inbox"
-import { createDemoMessages, type DemoSessionMessages } from "./messages"
+import { createDemoMessages } from "./messages"
 import { demoTerminalId, terminalSlot, type ChatAgent } from "./samples"
-import { callBlock, requestBlock, resultBlock } from "./screen/agent"
-import { banner } from "./screen/openings"
-import { fixedIntro, type DemoIntro } from "./screen/terminal"
 import { ready, svg, type SampleArtifact } from "./showcase/artifacts"
 import { createShowcase } from "./showcase/simulation"
 import { terminalOf } from "./terminals"
-import { got, say, use, user, written, type DemoTranscript } from "./transcripts"
+import type { DemoTranscript } from "./transcripts"
 import type { DemoTurns } from "./turns"
 
 // The Babcia demo: a one-off for the runner-skits video "Babcia", where a grandmother who ran a
@@ -34,22 +38,9 @@ import type { DemoTurns } from "./turns"
 // question to the person and the message it then sends its lead, a page shown in the pane, and
 // every agent finishing. It shows nothing the app doesn't do.
 
-const session = "initial"
 const bar = "bar-mleczny"
 const gig = "setlist"
-const directory = (project: string): string => `~/projects/${project}`
-
-// One of the agents: its terminal's name, the agent, what Nyx asked it, what it said it'd do,
-// the command it's on, what that has printed so far, and what it says when it's done.
-type Job = {
-  readonly name: string
-  readonly agent: ChatAgent
-  readonly ask: string
-  readonly plan: string
-  readonly command: string
-  readonly progress: string
-  readonly done: string
-}
+const home = `/home/nyx/projects/${bar}`
 
 // The agents of bar-mleczny, by terminal number. The ones the cues act on:
 export const babcia = {
@@ -225,34 +216,7 @@ const elsewhere: readonly (readonly [string, ChatAgent])[] = [
 
 const allJobs: readonly Job[] = [...jobs, ...helpers]
 
-const project = (id: string): Project => ({ id, name: id, directory: directory(id) })
-
-const agentTerminal = (
-  projectId: string,
-  number: number,
-  name: string,
-  agent: ChatAgent,
-  status: AgentStatus,
-  ledBy?: string,
-): TerminalMetadata => ({
-  id: demoTerminalId({ projectId, workspaceSessionId: session }, number),
-  name,
-  directory: directory(projectId),
-  command: agent,
-  process: agent,
-  state: "running",
-  handle: demoHandle(number),
-  agent: status,
-  ...(ledBy ? { ledBy } : {}),
-})
-
-const working: AgentStatus = { working: true }
-
-const keyOf = (number: number, projectId = bar): TerminalKey => ({
-  projectId,
-  workspaceSessionId: session,
-  terminalId: demoTerminalId({ projectId, workspaceSessionId: session }, number),
-})
+const keyOf = (number: number, projectId = bar): TerminalKey => deskKey(projectId, number)
 
 // The Canvas: windows on a grid four across and four down, each a little off the line as windows
 // end up when moved by hand. The twelve fill the first three rows but two places of the third,
@@ -358,271 +322,44 @@ export const babciaSeed = (now: number): WorkspaceSeed => ({
   ],
 })
 
-const slot = (number: number): string => String(number).padStart(2, "0")
-
-// The call an agent's harness names its command run with.
-const runCall = (job: Job, call: string) =>
-  job.agent === "claude"
-    ? use(
-        call,
-        "Bash",
-        { command: job.command, description: job.plan },
-        { kind: "run", title: "Ran", detail: job.command },
-      )
-    : job.agent === "codex"
-      ? use(
-          call,
-          "exec_command",
-          { cmd: job.command, workdir: `/home/nyx/projects/${bar}` },
-          { kind: "run", title: "Ran", detail: job.command },
-        )
-      : use(
-          call,
-          "run_command",
-          {
-            CommandLine: JSON.stringify(job.command),
-            Cwd: JSON.stringify(`/home/nyx/projects/${bar}`),
-            toolAction: JSON.stringify(job.plan),
-          },
-          { kind: "run", title: "Ran", detail: job.command },
-        )
-
-// What answering a request that is declined (No) leaves: the agent waits for what Nyx says
-// next. So does a chat about a question with no words.
-const declined = (answer: ChatAnswer): boolean =>
-  (answer.type === "choice" && answer.option === "3" && !answer.text) ||
-  (answer.type === "chat" && !answer.text)
-
-// Claude Code's dialog for a command, as harnesses/claude's probes (2.1.287) show it.
-const permission = (id: string, job: Job): DemoTranscript["requests"][number] => ({
-  id: `${id}:permission`,
-  kind: "permission",
-  tool: "Bash",
-  subject: job.command,
-  choices: [],
-  subagent: false,
-  answered: false,
-  dialog: {
-    type: "choices",
-    id: `${id}:d`,
-    detail: job.command,
-    title: "Do you want to proceed?",
-    options: [
-      { id: "1", label: "Yes", text: null },
-      {
-        id: "2",
-        label: `Yes, and always allow access to /home/nyx/projects/${bar} from this project`,
-        text: null,
-      },
-      { id: "3", label: "No", text: null },
-    ],
-  },
-})
-
 // What each conversation holds so far: Nyx's ask, the agent's plan, and the command it's on.
 // Three agents also hold what they'll ask when the cues come: the order form a permission, the
 // accessibility one a plan, the menu page a question with its own pick.
 export const babciaTranscripts = (now: number): Readonly<Record<string, DemoTranscript>> =>
-  Object.fromEntries(
-    allJobs.map((job, index) => {
-      const number = index + 1
-      const id = slot(number)
-      const call = `${job.agent === "claude" ? "toolu" : "call"}_${id}a`
-      const items = written(id, now, [user(job.ask), say(job.plan), runCall(job, call)])
-      const plain: DemoTranscript = { items, requests: [] }
-      if (number === babcia.permission) {
-        const request = permission(id, job)
-        return [
-          id,
-          {
-            items,
-            requests: [request],
-            outcomes: {
-              [request.id]: (answer) =>
-                declined(answer)
-                  ? {
-                      items: [
-                        got(
-                          call,
-                          "The user doesn't want to proceed with this tool use. The tool use was rejected (eg. if it was a file edit, the new_string was NOT written to the file). STOP what you are doing and wait for the user to tell you how to proceed.",
-                        ),
-                      ],
-                      waits: true,
-                    }
-                  : {
-                      items: [
-                        got(
-                          call,
-                          " Test Files  6 passed (6)\n      Tests  41 passed (41)\n   Duration  2.94s",
-                        ),
-                      ],
-                      reply: job.done,
-                    },
-            },
-          },
-        ]
-      }
-      if (number === babcia.plan) {
-        const request = {
-          id: `${id}:plan`,
-          kind: "plan" as const,
-          tool: "ExitPlanMode",
-          subject: "Accessibility plan",
-          choices: [],
-          subagent: false,
-          answered: false,
-          // Claude Code's plan dialog, as harnesses/claude's probes (2.1.287) show it: its third
-          // option is a field for what to change.
-          dialog: {
-            type: "choices" as const,
-            id: `${id}:d`,
-            title: "Ready to code?",
-            detail:
-              "1. Lift the contrast on the menu headings\n2. Add skip links and focus rings\n3. Label every field of the order form",
-            options: [
-              { id: "1", label: "Yes, auto-accept edits", text: null },
-              { id: "2", label: "Yes, manually approve edits", text: null },
-              { id: "3", label: "Tell Claude what to change", text: "field" as const },
-            ],
-          },
-        }
-        return [
-          id,
-          {
-            items,
-            requests: [request],
-            outcomes: {
-              [request.id]: (answer) =>
-                answer.type === "choice" && answer.option === "3"
-                  ? answer.text
-                    ? { items: [], prompt: answer.text }
-                    : { items: [], waits: true }
-                  : { items: [], reply: job.done },
-            },
-          },
-        ]
-      }
-      if (number === babcia.question) {
-        const request = {
-          id: `${id}:question`,
-          kind: "question" as const,
-          tool: "AskUserQuestion",
-          subject: "How should the menu list the daily soups?",
-          choices: [],
-          subagent: false,
-          answered: false,
-          // Claude marks the option it would pick with "(Recommended)" in its label.
-          dialog: {
-            type: "questions" as const,
-            id: `${id}:d`,
-            chat: "prompt" as const,
-            questions: [
-              {
-                id: "soups",
-                header: "Soups",
-                question: "How should the menu list the daily soups?",
-                multiSelect: false,
-                text: true,
-                options: [
-                  {
-                    id: "line",
-                    label: "One line per soup (Recommended)",
-                    description: "Reads fast, and matches the rest of the menu.",
-                  },
-                  {
-                    id: "card",
-                    label: "A card per soup",
-                    description: "Room for a photo, but the page gets long.",
-                  },
-                  {
-                    id: "day",
-                    label: "Grouped by weekday",
-                    description: "Follows the chalkboard, but needs the days kept up to date.",
-                  },
-                ],
-              },
-            ],
-          },
-        }
-        return [
-          id,
-          {
-            items,
-            requests: [request],
-            outcomes: {
-              [request.id]: (answer, dialog) => {
-                // Chatting about the question instead picks nothing: the agent takes the
-                // person's words as its next prompt, or waits for them.
-                if (answer.type === "chat")
-                  return answer.text
-                    ? { items: [], prompt: answer.text }
-                    : { items: [], waits: true }
-                const labels = new Map(
-                  dialog.type === "questions"
-                    ? dialog.questions.flatMap((each) =>
-                        each.options.map((option) => [option.id, option.label] as const),
-                      )
-                    : [],
-                )
-                const said =
-                  answer.type === "questions"
-                    ? answer.answers
-                        .flatMap((each) => [
-                          ...each.options.map((option) => labels.get(option) ?? option),
-                          ...(each.text ? [each.text] : []),
-                        ])
-                        .join(", ")
-                        .replace(/ \(Recommended\)/g, "")
-                        .toLowerCase()
-                    : ""
-                return { items: [], reply: `Going with: ${said}. ${job.done}` }
-              },
-            },
-          },
-        ]
-      }
-      return [id, plain]
-    }),
-  )
+  deskTranscripts(now, allJobs, home, {
+    permission: babcia.permission,
+    plan: {
+      number: babcia.plan,
+      subject: "Accessibility plan",
+      steps:
+        "1. Lift the contrast on the menu headings\n2. Add skip links and focus rings\n3. Label every field of the order form",
+    },
+    question: {
+      number: babcia.question,
+      id: "soups",
+      header: "Soups",
+      question: "How should the menu list the daily soups?",
+      options: [
+        {
+          id: "line",
+          label: "One line per soup (Recommended)",
+          description: "Reads fast, and matches the rest of the menu.",
+        },
+        {
+          id: "card",
+          label: "A card per soup",
+          description: "Room for a photo, but the page gets long.",
+        },
+        {
+          id: "day",
+          label: "Grouped by weekday",
+          description: "Follows the chalkboard, but needs the days kept up to date.",
+        },
+      ],
+    },
+  })
 
-// What each of the milk bar's agents shows on its screen as the demo opens: its banner, Nyx's
-// ask, and the command it's running with what it has printed so far: no plan between, so the
-// banner naming the agent stays on screen in a small window.
-export const babciaIntroOf = (
-  terminal: TerminalMetadata,
-  key: TerminalKey,
-): DemoIntro | undefined => {
-  if (key.projectId !== bar) return undefined
-  const job = allJobs[Number(terminalSlot(terminal.id)) - 1]
-  if (!job) return undefined
-  const tool = job.agent === "codex" ? "Ran" : "Bash"
-  return fixedIntro([
-    banner(job.agent, terminal.directory),
-    requestBlock(job.agent, job.ask),
-    // Antigravity's banner is five rows tall, so what it ran stays off its small window: its
-    // name and model, which the banner is for, would scroll out of sight under it.
-    ...(job.agent === "agy"
-      ? []
-      : [
-          callBlock(job.agent, tool, job.command),
-          ...(job.progress ? [resultBlock([job.progress], job.agent)] : []),
-        ]),
-  ])
-}
-
-// The messages between the milk bar's terminals: every one takes part, and none has yet written.
-const sessionMessages = (): DemoSessionMessages => {
-  const target = { projectId: bar, workspaceSessionId: session }
-  return {
-    target,
-    terminals: allJobs.map((_, index) => ({
-      terminalId: demoTerminalId(target, index + 1),
-      handle: demoHandle(index + 1),
-      agent: true,
-    })),
-    threads: [],
-  }
-}
+export const babciaIntroOf = deskIntroOf(bar, allJobs)
 
 // The page the seasonal-specials agent shows in the pane: its dev server's, as a snapshot. A
 // proper site half built: the layout and type are in, the dish photo is still a placeholder.
@@ -840,8 +577,11 @@ export const babciaCuesOf = (backend: Backend): BabciaCues | undefined => cuesOf
 // and `over` the whole (the cues). The helper's ask, once the person's answer reaches it, goes
 // on to its lead.
 export const createBabcia = (turns: DemoTurns, now: number) => {
-  const messages = createDemoMessages([sessionMessages()], false, (target, terminalId) =>
-    latest === undefined ? true : terminalOf(latest, { ...target, terminalId }) !== undefined,
+  const messages = createDemoMessages(
+    [deskMessages(bar, allJobs.length)],
+    false,
+    (target, terminalId) =>
+      latest === undefined ? true : terminalOf(latest, { ...target, terminalId }) !== undefined,
   )
   const showcase = createShowcase({
     agents: [],

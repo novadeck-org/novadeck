@@ -13,6 +13,7 @@ import { demoTerminalsLife } from "@novadeck/demo"
 import { babciaCuesOf } from "@novadeck/demo/babcia"
 import { isDemoFeedback } from "@novadeck/demo/feedback"
 import { isDemoInbox } from "@novadeck/demo/inbox"
+import { launchCuesOf } from "@novadeck/demo/launch"
 import { isDemoMurmur } from "@novadeck/demo/murmur"
 import { isDemoSource } from "@novadeck/demo/source"
 import { demoTurns } from "@novadeck/demo/turns"
@@ -26,6 +27,7 @@ import { createDebugPanel, type DebugPanel } from "./DebugPanel"
 import { doorbellGroups } from "./doorbell"
 import { feedbackGroups } from "./feedback"
 import { inboxGroups } from "./inbox"
+import { launchGroups } from "./launch"
 import { messageGroups } from "./messages"
 import { murmurGroups } from "./murmur"
 import { planGroups } from "./plans"
@@ -240,6 +242,7 @@ export const createDebugDemo = (launch: DemoLaunch): Backend => {
           ...feedbackGroups(launch, isDemoFeedback(inner.feedback) ? inner.feedback : undefined),
           ...planGroups(inner.companions),
           ...babciaGroups(babciaCuesOf(inner)),
+          ...launchGroups(launchCuesOf(inner)),
           ...doorbellGroups(inner.messages),
           ...messageGroups(inner.messages),
           ...murmurGroups(isDemoMurmur(inner.murmur) ? inner.murmur : undefined),
