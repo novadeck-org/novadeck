@@ -29,6 +29,7 @@ import { demoHandle } from "./handles"
 import { createDemoInbox, isDemoInbox } from "./inbox"
 import { demoInboxRows, demoEntries, demoPlanStates } from "./inbox-fixtures"
 import { inboxLeadMessages, inboxTranscripts, withInboxLead } from "./inbox-transcripts"
+import { launchIntroOf, createLaunch } from "./launch"
 import { checkoutMessages, createDemoMessages, isDemoMessages } from "./messages"
 import { createDemoMurmur, heldMurmurTiming, requestedMurmur } from "./murmur"
 import {
@@ -543,8 +544,8 @@ const withFinishes = (backend: Backend, turns: DemoTurns): Backend => ({
 
 // The demos with no content showcase: the plain one, the agents', the agents' with
 // messages between them, the agents' with every kind of Inbox item, the plain one with its
-// first-run welcome dialog open, and Chirp's and Babcia's, one-offs for videos (see `chirp.ts`
-// and `babcia.ts`). Each has
+// first-run welcome dialog open, and Chirp's, Babcia's and Launch's, one-offs for videos (see
+// `chirp.ts`, `babcia.ts` and `launch.ts`). Each has
 // the Inbox its agents make; the Inbox demo shows the hardcoded items of every kind over theirs.
 // The agents', messages' and Inbox demos have the Source of the storefront project (see
 // `source.ts`), as the try demo does: the others have no agents there to change files.
@@ -556,6 +557,7 @@ export type PlainVariant =
   | "welcome"
   | "chirp"
   | "babcia"
+  | "launch"
 
 export const plainDemo = (
   variant: PlainVariant,
@@ -564,8 +566,9 @@ export const plainDemo = (
   turns: DemoTurns = demoTurns(turnMs),
 ): Backend => {
   const backend = plainBackend(variant, terminals, turns)
-  // Babcia's cues are kept by the backend its own wrapper returns: its feedback joins inside.
-  return variant === "babcia" ? backend : withFeedback(backend, turns)
+  // The cues of Babcia and Launch are kept by the backend their own wrapper returns: their
+  // feedback joins inside.
+  return variant === "babcia" || variant === "launch" ? backend : withFeedback(backend, turns)
 }
 
 const plainBackend = (
@@ -579,16 +582,23 @@ const plainBackend = (
     welcome:
       variant === "welcome" ||
       (import.meta.env.DEV && import.meta.env.VITE_WELCOME_PREVIEW === "true"),
-    // Chirp's and Babcia's agents open on their own work (see `chirp.ts` and `babcia.ts`).
+    // Chirp's, Babcia's and Launch's agents open on their own work (see `chirp.ts`, `babcia.ts`
+    // and `launch.ts`).
     ...(variant === "chirp"
       ? { terminals: { ...terminals, introOf: chirpIntroOf } }
       : variant === "babcia"
         ? { terminals: { ...terminals, introOf: babciaIntroOf } }
-        : terminals && { terminals }),
+        : variant === "launch"
+          ? { terminals: { ...terminals, introOf: launchIntroOf } }
+          : terminals && { terminals }),
   })
   const now = Date.now()
   turns.telemetry.update(() =>
-    variant === "plain" || variant === "welcome" || variant === "chirp" || variant === "babcia"
+    variant === "plain" ||
+    variant === "welcome" ||
+    variant === "chirp" ||
+    variant === "babcia" ||
+    variant === "launch"
       ? noTelemetry
       : demoTelemetry(now),
   )
@@ -603,6 +613,18 @@ const plainBackend = (
       withFeedback(
         withInbox(
           withConversations(babcia.under(backend), babcia.transcripts, turns, babcia.wrap),
+          turns,
+        ),
+        turns,
+      ),
+    )
+  }
+  if (variant === "launch") {
+    const launch = createLaunch(turns, now)
+    return launch.over(
+      withFeedback(
+        withInbox(
+          withConversations(launch.under(backend), launch.transcripts, turns, launch.wrap),
           turns,
         ),
         turns,

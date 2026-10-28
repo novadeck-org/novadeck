@@ -204,14 +204,25 @@ three helpers, 4 a helper's free-text question, whose answer reaches its lead th
 and the doorbell, 5 a page shown in the pane, 6 every agent finishes but those waiting on the
 person (an open ask, one told No, a failed turn until prompted again, and the helper and its lead
 while the helper's answer is on its way); a second press ends whoever works by then. Answered or
-told, an agent works until cue 6; `frontend/demo/src/babcia.ts`). Every variant's Inbox
+told, an agent works until cue 6; `frontend/demo/src/babcia.ts`) or `launch` (a one-off for the
+launch walkthrough video: project northwind's ten Claude Code, Codex and Antigravity agents on the
+Canvas, all working, beside a second project, northwind-docs; its beats are the debug panel's
+"Launch" group, numbered by the video's beat: 3 a spread of states (an agent asking, one failed, one
+done; or each alone), 4 three asks at once (or each alone: a permission, a plan, a question with its own pick), 5
+the lead Orders API opens three teammates, each briefed by its lead as a message; one asks the
+person a question and messages its lead the same one, the lead answers first and the teammate
+withdraws its ask; another reports done (a done mark and an Update row, and the same to its lead as
+a message), 6 the page and then the changes (`show { changes }`) shown in the pane, 7 every agent
+finishes (each teammate reporting to its lead, which finishes after; whoever waits on the person
+stays waiting, and a second press ends whoever is still working); `frontend/demo/src/launch.ts`,
+sharing the desk's builders with Babcia in `desk.ts`). Every variant's Inbox
 lists what its agents wait on, built as the runner's is. In it each
 agent carries a transcript, and api-service's worker a brief from its lead, so an item's
 sheet shows the context block built from its transcript: the person's last words to the agent
 (never another agent's, so the worker its lead briefed shows none), and under them up to three
 steps since that edited, ran or failed, each with what came of it (`+4 −2`, a command's last
 line, the error). The switcher in the panel's header,
-which leaves out `welcome`, `chirp` and `babcia`, changes between them without reloading
+which leaves out `welcome`, `chirp`, `babcia` and `launch`, changes between them without reloading
 (pressing the current one boots it again), and the browser tab remembers the last one chosen.
 `&turnMs=` sets how long a demo agent's turn works (1500 ms unless given), as a spec does
 that must act on the screen before the turn ends.

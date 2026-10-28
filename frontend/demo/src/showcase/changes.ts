@@ -9,12 +9,12 @@ import { ready, type SampleArtifact } from "./artifacts"
 const repo = "~/projects/studio"
 
 type Line = ChangedFile["hunks"][number]["lines"][number]
-const context = (text: string): Line => ({ kind: "context", text })
-const add = (text: string): Line => ({ kind: "add", text })
-const remove = (text: string): Line => ({ kind: "remove", text })
+export const context = (text: string): Line => ({ kind: "context", text })
+export const add = (text: string): Line => ({ kind: "add", text })
+export const remove = (text: string): Line => ({ kind: "remove", text })
 
 // A hunk from the line it starts at on each side, its counts those of its lines.
-const hunk = (
+export const hunk = (
   oldStart: number,
   newStart: number,
   lines: readonly Line[],
@@ -26,7 +26,7 @@ const hunk = (
   lines,
 })
 
-const file = (
+export const file = (
   path: string,
   status: ChangedFile["status"],
   hunks: ChangedFile["hunks"],
