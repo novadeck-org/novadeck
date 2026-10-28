@@ -280,6 +280,58 @@ describe("the markdown viewer", () => {
     expect(item).toBe(intro)
   })
 
+  it("draws a code block in a list at the item's hang, its rows and wrapped rows inside it", () => {
+    const long = "words that run on ".repeat(8)
+    const { host } = mount({
+      text: [
+        "- [ ] A task, its prompt:",
+        "",
+        "  ```",
+        `  ${long}`,
+        `    ${long}`,
+        "  ```",
+        "",
+        "- An item:",
+        "",
+        "  ```",
+        `  ${long}`,
+        "  ```",
+        "",
+        "```",
+        `${long}`,
+        "```",
+        "",
+      ].join("\n"),
+    })
+    const lines = [...host.querySelectorAll<HTMLElement>(".cm-md-codeblock:not(.cm-md-fence)")]
+    expect(lines).toHaveLength(4)
+    const rowsOf = (line: HTMLElement): DOMRect[] => {
+      const text = document.createRange()
+      text.selectNodeContents(line)
+      return [...text.getClientRects()].filter((row) => row.width > 0)
+    }
+    // Where the box is drawn: past the hang in a list, the whole line elsewhere.
+    const boxStart = (line: HTMLElement): number =>
+      line.getBoundingClientRect().left +
+      (line.classList.contains("cm-md-codeblock-listed")
+        ? parseFloat(getComputedStyle(line).getPropertyValue("--_hang"))
+        : 0)
+    const [task, indented, item, top] = lines.map((line) => ({
+      box: boxStart(line),
+      rows: rowsOf(line).map((row) => row.left),
+    }))
+    for (const { box, rows } of [task!, indented!, item!, top!]) {
+      // Each one wraps, every row inside the box and under the first.
+      expect(rows.length).toBeGreaterThan(1)
+      for (const row of rows) expect(row).toBeGreaterThanOrEqual(box + 8)
+      expect(new Set(rows.map(Math.round)).size).toBe(1)
+    }
+    // The nesting indent is hidden; the code's own indent stays.
+    expect(item!.rows[0]).toBe(top!.rows[0]! + 22)
+    expect(task!.rows[0]).toBe(top!.rows[0]! + 44)
+    expect(lines.map((line) => /^ */.exec(line.textContent!)![0].length)).toEqual([0, 2, 0, 0])
+  })
+
   it("takes everything it added out of its element", () => {
     const { viewer, host } = mount({ text: "one\n" })
     viewer.destroy()
