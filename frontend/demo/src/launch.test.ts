@@ -196,6 +196,19 @@ describe("the launch demo", () => {
   const lead = demoHandle(launch.lead)
   const asking = demoHandle(launch.asking)
 
+  it("has one agent ask another for a review, and the reviewer answer, by message", async () => {
+    const { backend, cues } = open()
+    cues.askReview()
+    cues.askReview()
+    await vi.advanceTimersByTimeAsync(10_000)
+    const asks = demoHandle(launch.reviews)
+    const reviews = demoHandle(launch.reviewer)
+    expect(exchange(backend).map(({ from, to, state }) => ({ from, to, state }))).toEqual([
+      { from: asks, to: reviews, state: "delivered" },
+      { from: reviews, to: asks, state: "delivered" },
+    ])
+  })
+
   it("opens teammates its lead opened and briefed, on the doorbell's notice, not the person's words", async () => {
     const { backend, cues, terminals } = open()
     cues.teammates()
@@ -394,6 +407,21 @@ describe("the launch demo", () => {
         { kind: "run", tool: "Bash", arg: "pnpm typecheck", result: "Done in 3.2s" },
       ],
     })
+  })
+
+  it("shows the plan's agent's plan, rendered, beside its window", () => {
+    const { cues, store } = open()
+    cues.showPlan()
+    cues.showPlan()
+    const { items } = activeSession(store.getSnapshot())!.state
+    expect(items).toMatchObject([
+      {
+        kind: "plan",
+        name: "Order emails",
+        holder: { terminalId: key(launch.plan).terminalId },
+        plan: { agent: "Claude Code", role: "root", source: "file" },
+      },
+    ])
   })
 
   it("shows the page, then its button's variants, as a screenshot beside the order-status window", () => {
