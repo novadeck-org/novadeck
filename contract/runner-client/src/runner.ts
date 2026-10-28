@@ -122,6 +122,16 @@ export type Runner = {
      */
     remove(input: { readonly projectId: string }): Promise<void>
     /**
+     * Keeps the person's arrangement of the projects: `order` by id, first to last, and the
+     * ones `pinned`, at most nine, the first in `order` (one `order` doesn't name isn't
+     * pinned). Unknown ids are ignored, and
+     * projects `order` leaves out follow, in the order they were added.
+     */
+    arrange(input: {
+      readonly order: readonly string[]
+      readonly pinned: readonly string[]
+    }): Promise<void>
+    /**
      * One folder of the project's directory as it is now, by its path from the project's
      * root with `/` between names ("" for the root); the entries come sorted, folders
      * first, and never include `.git`. Rejects with `NOT_FOUND` for a project the runner
@@ -688,6 +698,10 @@ export const connectRunner = async (
       create: (input) => call((wire) => wire.projects.create(input)),
       rename: (input) => call((wire) => wire.projects.rename(input)),
       remove: (input) => call((wire) => wire.projects.remove(input)),
+      arrange: (input) =>
+        call((wire) =>
+          wire.projects.arrange({ order: [...input.order], pinned: [...input.pinned] }),
+        ),
       folder: (input) => call((wire) => wire.projects.folder(input)),
     },
     sessions: {

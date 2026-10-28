@@ -308,9 +308,11 @@ send `Esc`, `Ctrl+\`, `Ctrl+^` and other control codes; `Ctrl+Shift+2`, a termin
 Without a pin of that number the key reaches the terminal as usual, and it's left alone
 while you rename a tab or type in another field. The bar slides in with the first pin and
 out with the last, and Zen hides it. Pins that don't fit drop off its end, and the
-switcher's dot covers them again. The order and the pins are kept in this browser or app
-(`novadeck.project-arrangement` in local storage), not shared with other clients of the
-runner.
+switcher's dot covers them again. The order and the pins are kept by the runner, so they
+survive clearing the browser's data; another client of the runner sees a change at its next
+load, not as it happens. An arrangement an older version kept in this browser
+(`novadeck.project-arrangement` in local storage) is sent to the runner at the next load
+and then removed from storage.
 
 The Inbox (the bell on the sidebar rail) lists everything
 across every project and session that waits on you, each item its own row, of one of four

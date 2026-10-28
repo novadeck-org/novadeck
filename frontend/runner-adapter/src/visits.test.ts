@@ -16,7 +16,7 @@ import { context, describe, expect, it } from "./test"
 
 const defaults = { view: "grid", windowedView: "grid", now: 1 } as const
 const state = () => createTerminalState([], "grid", "grid")
-const project = (id: string): Project => ({ id, name: id, cwd: `/work/${id}` })
+const project = (id: string): Project => ({ id, name: id, cwd: `/work/${id}`, pinned: false })
 
 // Two projects with two sessions each, last visited as the numbers say; null for never.
 const listing = (visits: Record<string, number | null>): RunnerListing =>

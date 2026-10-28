@@ -61,7 +61,11 @@ export type SessionSeed = {
 }
 // Every project needs at least one session, and a seed needs at least one project:
 // the workspace always has an active project and session to show.
-export type ProjectSeed = Project & { readonly sessions: readonly SessionSeed[] }
+// `pinned` when the person pinned it in the switcher; the seed lists projects in their order.
+export type ProjectSeed = Project & {
+  readonly sessions: readonly SessionSeed[]
+  readonly pinned?: boolean
+}
 export type WorkspaceSeed = {
   readonly projects: readonly ProjectSeed[]
   // The project to open; the first one when omitted or unknown.
@@ -173,7 +177,9 @@ export type SeedDefaults = {
 // Throws WorkspaceSeedError for a seed without projects or a project without sessions.
 export const workspaceFromSeed = (seed: WorkspaceSeed, defaults: SeedDefaults): Workspace => {
   validate(seed)
-  const projects = seed.projects.map(({ sessions: _sessions, ...project }) => project)
+  const projects = seed.projects.map(
+    ({ sessions: _sessions, pinned: _pinned, ...project }) => project,
+  )
   const active = projects.find((project) => project.id === seed.activeProjectId) ?? projects[0]!
   const seeded = seed.projects.reduce(
     (workspace, project) =>

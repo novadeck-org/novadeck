@@ -1,6 +1,6 @@
 import { freshWork } from "../terminals/work.js"
 import { describe, expect, it } from "../test.js"
-import type { Message } from "./messages.js"
+import { novadeckSender, type Message } from "./messages.js"
 import {
   ago,
   deliveredTo,
@@ -23,7 +23,7 @@ const message = (fields: Partial<Message> = {}): Message => ({
   projectId: "p",
   thread: "t-1",
   hop: 1,
-  from: { terminalId: "A", handle: "moth", agent: "claude", sessionId: "s1" },
+  from: { kind: "agent", terminalId: "A", handle: "moth", agent: "claude", sessionId: "s1" },
   to: { terminalId: "B", handle: "fox", agent: "codex", sessionId: "s2" },
   text: "hello",
   sentAt: now - 5 * 60_000,
@@ -329,15 +329,15 @@ describe("a peer as agents read it", () => {
   it("knows when a message was last delivered to a terminal, never counting Novadeck's own notices", () => {
     const to = (terminalId: string, deliveredAt: number | null): Message =>
       message({ to: { ...message().to, terminalId }, deliveredAt })
-    const notice = { ...to("B", 30), from: { ...message().from, terminalId: "novadeck" } }
+    const notice = { ...to("B", 30), from: novadeckSender }
     expect(deliveredTo([to("B", 5), to("B", 9), to("B", null), to("C", 20), notice], "B")).toBe(9)
     expect(deliveredTo([to("C", 20)], "B")).toBeNull()
   })
 
   it("tells the latest message between the caller and the peer, either way", () => {
     const reply = message({
-      from: message().to,
-      to: { ...message().from, agent: "claude" },
+      from: { kind: "agent" as const, ...message().to },
+      to: { terminalId: "A", handle: "moth", agent: "claude" as const, sessionId: "s1" },
       sentAt: now,
       text: "Done",
       state: "delivered",
@@ -353,8 +353,8 @@ describe("a peer as agents read it", () => {
   it("never shows the caller a message still on its way to it, as held while paused", () => {
     const pending = (state: Message["state"]) =>
       message({
-        from: message().to,
-        to: { ...message().from, agent: "claude" },
+        from: { kind: "agent" as const, ...message().to },
+        to: { terminalId: "A", handle: "moth", agent: "claude" as const, sessionId: "s1" },
         sentAt: now,
         text: "Rename yourself.",
         state,

@@ -9,8 +9,10 @@ import {
 } from "./agent-steps"
 import { recorded } from "./agent-steps-recorded"
 import type { ChatItem } from "./conversation"
-import type { AgentMessage, TerminalThreads } from "./messages"
+import type { AgentMessage, MessageParty, TerminalThreads } from "./messages"
 import { context, describe, expect, it } from "./test"
+
+const agentParty = (handle: string): MessageParty => ({ kind: "agent", handle, agent: null })
 
 let count = 0
 const item = (fields: Partial<ChatItem>): ChatItem => ({
@@ -535,8 +537,8 @@ describe("the person's Inbox answers an agent was given", () => {
   const message = (fields: Partial<AgentMessage>): AgentMessage => ({
     id: `m${++count}`,
     hop: 1,
-    from: "crow",
-    to: "owl",
+    from: agentParty("crow"),
+    to: agentParty("owl"),
     text: "build the context lane",
     sentAt: 1,
     state: "delivered",
@@ -547,7 +549,9 @@ describe("the person's Inbox answers an agent was given", () => {
   const threads = (messages: readonly AgentMessage[]): TerminalThreads => ({
     handle: "owl",
     agent: true,
-    threads: [{ id: "t", peer: "crow", hops: 1, idle: 0, held: false, heldFor: null, messages }],
+    threads: [
+      { id: "t", peer: agentParty("crow"), hops: 1, idle: 0, held: false, heldFor: null, messages },
+    ],
   })
 
   it("are the person's replies from the Inbox once delivered, never an agent's messages", () => {
@@ -556,11 +560,16 @@ describe("the person's Inbox answers an agent was given", () => {
         threads([
           message({}),
           message({ text: "still on its way", state: "queued", deliveredAt: null }),
-          message({ from: "rook", text: "a peer's note" }),
-          message({ from: "owl", to: "crow", text: "my report" }),
-          message({ from: "you", inbox: "answer", text: "use UTC", deliveredAt: 3 }),
-          message({ from: "you", inbox: "answer", text: "  ", deliveredAt: 4 }),
-          message({ from: "owl", to: "you", inbox: "ask", text: "which zone?" }),
+          message({ from: agentParty("rook"), text: "a peer's note" }),
+          message({ from: agentParty("owl"), to: agentParty("crow"), text: "my report" }),
+          message({ from: { kind: "person" }, inbox: "answer", text: "use UTC", deliveredAt: 3 }),
+          message({ from: { kind: "person" }, inbox: "answer", text: "  ", deliveredAt: 4 }),
+          message({
+            from: agentParty("owl"),
+            to: { kind: "person" },
+            inbox: "ask",
+            text: "which zone?",
+          }),
         ]),
       ),
     ).toEqual([{ text: "use UTC", at: 3 }])

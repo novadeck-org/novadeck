@@ -1,12 +1,13 @@
 import { companionKeyId, type CompanionKey } from "@novadeck/core/items"
 import {
   noMessages,
+  type MessageParty as CoreParty,
   type MessagesState,
   type Messages,
   type TerminalThreads,
 } from "@novadeck/core/messages"
 import { createStore } from "@novadeck/core/store"
-import type { TerminalMessages } from "@novadeck/protocol"
+import type { MessageParty, TerminalMessages } from "@novadeck/protocol"
 
 // The runner's messages between agents: each terminal's threads as `messages.watch`
 // streams them, and the one pause switch, which every listing reports. A pause the runner
@@ -30,6 +31,11 @@ export type RunnerMessages = Messages & {
   readonly end: () => void
 }
 
+const partyOf = (party: MessageParty): CoreParty =>
+  party.kind === "person"
+    ? { kind: "person" }
+    : { kind: "agent", handle: party.handle, agent: party.agent }
+
 export const messagesOf = (listing: TerminalMessages): TerminalThreads => ({
   handle: listing.handle,
   agent: listing.delivery !== "unbound",
@@ -37,7 +43,7 @@ export const messagesOf = (listing: TerminalMessages): TerminalThreads => ({
   waitsSince: listing.waitsSince,
   threads: listing.threads.map((thread) => ({
     id: thread.id,
-    peer: thread.peer,
+    peer: partyOf(thread.peer),
     hops: thread.hops,
     idle: thread.idle,
     held: thread.held,
@@ -47,8 +53,8 @@ export const messagesOf = (listing: TerminalMessages): TerminalThreads => ({
       ...(message.inbox ? { inbox: message.inbox } : {}),
       ...(message.inboxState ? { inboxState: message.inboxState } : {}),
       hop: message.hop,
-      from: message.from,
-      to: message.to,
+      from: partyOf(message.from),
+      to: partyOf(message.to),
       text: message.text,
       sentAt: message.sentAt,
       state: message.state,

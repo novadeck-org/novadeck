@@ -178,6 +178,7 @@ describe("runner backend", () => {
         id: project.id,
         name: "tmp",
         cwd: process.cwd(),
+        pinned: false,
       })
       const [listed] = await runner.client.terminals.list({ sessionId: session.id })
       expect(listed).toMatchObject({ id: terminal.id, exit: null })
@@ -769,6 +770,24 @@ describe("runner backend", () => {
       const { id, remove } = openProject(app)
       await app.idle()
       await runner.drop()
+      remove()
+      await app.idle()
+      app.stop()
+      expect(await listedProjects()).not.toContain(id)
+    })
+
+    it("keeps the arrangement on the runner once a project just added exists there", async () => {
+      const io: string[] = []
+      const app = open(runner.listing, {}, recordingRunner(runner.client, io))
+      const { id, remove } = openProject(app)
+      const arranging = app.backend.arrange!({ order: [id], pinned: [id] })
+      await arranging
+      expect(io.findIndex((call) => call.startsWith("arrange "))).toBeGreaterThan(
+        io.indexOf(`create project ${id}`),
+      )
+      expect(io).toContain(`create project ${id}`)
+      const listed = await runner.client.projects.list()
+      expect(listed[0]).toMatchObject({ id, pinned: true })
       remove()
       await app.idle()
       app.stop()

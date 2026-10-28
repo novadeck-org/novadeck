@@ -104,6 +104,18 @@ export const contract = {
       .input(z.strictObject({ id, name, cwd: directory.optional() }))
       .output(project),
     rename: procedure.input(z.strictObject({ projectId: id, name })).output(project),
+    // Keeps how the person arranged the switcher: `order` by id, first to last, and the
+    // ones pinned, at most nine, the first in `order` (one `order` doesn't name isn't
+    // pinned). Ids it doesn't have are ignored;
+    // projects `order` leaves out follow, in the order they were added.
+    arrange: procedure
+      .input(
+        z.strictObject({
+          order: z.array(id).max(1000),
+          pinned: z.array(id).max(1000),
+        }),
+      )
+      .output(z.void()),
     // Closes every terminal of the project's sessions, as `terminals.close` does but
     // whichever connection controls them, then forgets the project, its sessions and its
     // agents' messages; its folder stays. A project the runner doesn't have, as one

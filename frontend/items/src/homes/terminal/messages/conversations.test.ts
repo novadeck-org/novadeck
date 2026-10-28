@@ -1,4 +1,9 @@
-import type { AgentMessage, MessageThread, TerminalThreads } from "@novadeck/core/messages"
+import type {
+  AgentMessage,
+  MessageParty,
+  MessageThread,
+  TerminalThreads,
+} from "@novadeck/core/messages"
 
 import { context, describe, expect, it } from "../../../test"
 import {
@@ -13,6 +18,10 @@ import {
   type ChatLine,
 } from "./conversations"
 
+// A handle as the tests write it, or `you` for the person.
+const party = (handle: string): MessageParty =>
+  handle === "you" ? { kind: "person" } : { kind: "agent", handle, agent: null }
+
 let sequence = 0
 const message = (
   from: string,
@@ -23,8 +32,8 @@ const message = (
 ): AgentMessage => ({
   id: `m${(sequence += 1)}`,
   hop: 1,
-  from,
-  to,
+  from: party(from),
+  to: party(to),
   text,
   sentAt,
   state: "delivered",
@@ -35,7 +44,7 @@ const message = (
 
 const thread = (id: string, peer: string, messages: readonly AgentMessage[]): MessageThread => ({
   id,
-  peer,
+  peer: party(peer),
   hops: messages.length,
   idle: 0,
   held: false,

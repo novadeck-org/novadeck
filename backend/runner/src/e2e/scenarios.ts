@@ -5,7 +5,7 @@ import { expectedAgent } from "../terminals/commands.js"
 import type { AgentSetup, Trait } from "./agents/agent.js"
 import { poll, withScreen, type DeckTerminal } from "./deck.js"
 import type { E2E } from "./fixture.js"
-import { named, wanted, type Reach, type ReachOptions, type Snapshot } from "./history.js"
+import { named, nameOf, wanted, type Reach, type ReachOptions, type Snapshot } from "./history.js"
 import { asked, latest, tool, type Call, type Reply, type Rule } from "./model/script.js"
 
 /**
@@ -369,6 +369,12 @@ export const deliveries = (call: Call): Delivery[] => {
 export const delivered = (call: Call, from: string): boolean =>
   !call.side && deliveries(call).some((one) => one.from === from)
 
-/** Every message a terminal sent or received, oldest first within each thread. */
+/**
+ * Every message a terminal sent or received, oldest first within each thread, its sender
+ * and recipient named as `nameOf` does.
+ */
 export const messages = (terminal: DeckTerminal) =>
-  terminal.messages().threads.flatMap((thread) => thread.messages)
+  terminal
+    .messages()
+    .threads.flatMap((thread) => thread.messages)
+    .map((each) => ({ ...each, from: nameOf(each.from), to: nameOf(each.to) }))

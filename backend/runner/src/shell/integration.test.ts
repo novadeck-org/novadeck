@@ -661,7 +661,7 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))("bash shell i
     const told = () => shell.store.messages().filter(({ to }) => to.terminalId === id)
     await expect.poll(told).toMatchObject([
       {
-        from: { handle: "novadeck" },
+        from: { kind: "novadeck" },
         text: expect.stringContaining("while your turn was running"),
       },
     ])
@@ -3127,9 +3127,8 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))(
         })
         // The task waits for the first session of that agent there.
         expect(manager.messages(created[0]!).threads[0]?.messages[0]).toMatchObject({
-          from: "moth",
-          to: "fox",
-          toAgent: "claude",
+          from: { kind: "agent", handle: "moth" },
+          to: { kind: "agent", handle: "fox", agent: "claude" },
           text: "Review a.ts, please.",
           state: "queued",
         })
@@ -3930,8 +3929,10 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))(
         value: {
           threads: [
             {
-              peer: "moth",
-              messages: [{ from: "moth", text: "Review a.ts.", state: "queued" }],
+              peer: { kind: "agent", handle: "moth" },
+              messages: [
+                { from: { kind: "agent", handle: "moth" }, text: "Review a.ts.", state: "queued" },
+              ],
             },
           ],
         },

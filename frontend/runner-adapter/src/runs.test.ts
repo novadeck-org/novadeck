@@ -102,7 +102,7 @@ const scripted = (reported: TerminalSummary, lastProgram = "") => {
   }
   const listing: RunnerListing = [
     {
-      project: { id: "p", name: "P", cwd: "/tmp" },
+      project: { id: "p", name: "P", cwd: "/tmp", pinned: false },
       sessions: [
         {
           session: {
