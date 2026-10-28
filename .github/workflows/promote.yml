@@ -199,3 +199,19 @@ jobs:
           set -euo pipefail
           gh release edit "$TAG" --prerelease=false --latest
           echo "Release $TAG is now the stable release." | tee -a "$GITHUB_STEP_SUMMARY"
+
+  # The visitor demo shows the stable release, so it deploys once the promotion has gone
+  # through, from the promoted tag's source. Without Cloudflare set up it deploys nothing
+  # (try.yml). A failed deploy leaves the release stable; run Try by hand to retry it.
+  try:
+    name: Visitor Demo
+    # By the promotion's own result: notes failing doesn't hold the promotion, so nor this.
+    if: ${{ !cancelled() && needs.promote.result == 'success' }}
+    needs: [verify, promote]
+    permissions:
+      contents: read
+    uses: ./.github/workflows/try.yml
+    with:
+      tag: ${{ needs.verify.outputs.tag }}
+    secrets:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
