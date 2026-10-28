@@ -204,8 +204,9 @@ const keyOf = (number: number, projectId = shop): TerminalKey => deskKey(project
 
 // The Canvas: windows on a grid four across, each a little off the line as windows end up when
 // moved by hand. The ten fill the first two rows and two places of the third, the lead (the
-// tenth) the second of those, with the places right of it and under it empty for its three
-// teammates. Each window's column and row, by its place in the list.
+// tenth) the third column of it, with a free place to its left, one to its right and one under
+// that: the Canvas puts its three teammates in those itself, the free places nearest the middle
+// of the deck it shows. Each window's column and row, by its place in the list.
 const cells = [
   [0, 0],
   [1, 0],
@@ -216,11 +217,7 @@ const cells = [
   [2, 1],
   [3, 1],
   [0, 2],
-  [1, 2],
-  // The teammates: beside the lead, and under it.
   [2, 2],
-  [1, 3],
-  [2, 3],
 ] as const
 const nudges = [
   [0, 10],
@@ -232,18 +229,19 @@ const nudges = [
   [0, -10],
   [-15, 15],
   [20, -5],
-  [-5, 20],
-  [5, 5],
-  [-5, 10],
-  [10, -5],
+  [0, 0],
 ] as const
+const windowSize = { width: 550, height: 380 }
+// The space between windows' corners, wide enough that the Canvas finds free places in the
+// middle of the deck (it keeps 60 clear of a window and snaps to 24).
+const columnPitch = 648
+const rowPitch = 504
 const place = (index: number) => {
   const [dx, dy] = nudges[index]!
   const [column, row] = cells[index]!
   return {
-    position: { x: column * 610 + dx, y: row * 440 + dy },
-    width: 550,
-    height: 380,
+    position: { x: column * columnPitch + dx, y: row * rowPitch + dy },
+    ...windowSize,
   }
 }
 const deskLayout = (): CanvasLayout => ({
@@ -719,9 +717,10 @@ export const createLaunch = (turns: DemoTurns, now: number) => {
             lead,
             true,
           ),
-          // At the desk's window size, in the places beside and under the lead, wherever the
-          // person's selection is.
-          canvasGeometry: place(jobs.length + index),
+          // Placed by the Canvas itself, beside the lead it is anchored to, wherever the
+          // person's selection is, at the size the deck's windows have (the app is told the
+          // stage's measure the same way).
+          canvasSize: windowSize,
           anchor: keyOf(launch.lead).terminalId,
           select: false,
         })),
