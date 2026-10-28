@@ -42,7 +42,7 @@ const what = "the AppImage"
  * the same release, all while the app runs normally, so a failure changes nothing. Which
  * release: the version the last update offer named, since that is what the card advertised;
  * else the latest stable one, as the Windows install does. A latest release older than this
- * copy is not installed (an `early` copy can be newer than the latest stable release), and
+ * copy is not installed (an `experimental` copy can be newer than the latest stable release), and
  * with no stable release at all (`latest` answers 404) this copy's own release is used
  * instead, which is by definition not older. A copy that fails to download is not made up
  * for with a copy of this older file: the person asked for the release, and an install of

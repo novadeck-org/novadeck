@@ -147,7 +147,7 @@ export const Preferences = ({
   voice?: VoiceAddon
   // Murmur, as the backend has it; absent where it has none.
   murmur?: MurmurAddonValue
-  // Whether the desktop app follows early builds, which also shows the Experimental tab;
+  // Whether the desktop app follows experimental builds, which also shows the Experimental tab;
   // absent where it doesn't offer the choice. `on` is undefined until the app has said.
   experimental?: {
     readonly on: boolean | undefined

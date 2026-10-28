@@ -114,8 +114,8 @@ describe("demo updates", () => {
   it("starts on the stable channel and keeps the one it is switched to", async () => {
     const { updates } = createDemoUpdates()
     expect(await updates.channel?.get()).toBe("stable")
-    updates.channel?.set("early")
-    expect(await updates.channel?.get()).toBe("early")
+    updates.channel?.set("experimental")
+    expect(await updates.channel?.get()).toBe("experimental")
   })
 
   it("answers what's new only once shown, until it is dismissed, and counts what was asked", async () => {
