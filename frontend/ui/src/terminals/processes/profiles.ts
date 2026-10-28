@@ -1,6 +1,7 @@
 import type { Item } from "@novadeck/core/items"
 import type { TerminalMetadata } from "@novadeck/core/types"
 import { iconOf } from "@novadeck/items/registry"
+import { AntigravityIcon } from "@novadeck/toolkit/icons/AntigravityIcon"
 import { ClaudeIcon } from "@novadeck/toolkit/icons/ClaudeIcon"
 import { CodexIcon } from "@novadeck/toolkit/icons/CodexIcon"
 import { FileText, Terminal, type LucideIcon } from "lucide-react"
@@ -25,6 +26,7 @@ const fallback: ProcessProfile = { icon: Terminal }
 const profiles: ReadonlyMap<string, ProcessProfile> = new Map([
   ["claude", { icon: ClaudeIcon, Body: ClaudeBody }],
   ["codex", { icon: CodexIcon, Body: CodexBody }],
+  ["agy", { icon: AntigravityIcon }],
 ])
 
 // The program a terminal presents as, which names its window: one with a profile, only

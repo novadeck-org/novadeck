@@ -1,10 +1,11 @@
 import { harnesses } from "@novadeck/core/harnesses"
 import { Checkbox } from "@novadeck/toolkit/Checkbox"
 import { Dialog, DialogDescription, DialogTitle } from "@novadeck/toolkit/Dialog"
+import { AntigravityIcon } from "@novadeck/toolkit/icons/AntigravityIcon"
 import { ClaudeIcon } from "@novadeck/toolkit/icons/ClaudeIcon"
 import { CodexIcon } from "@novadeck/toolkit/icons/CodexIcon"
 import { brandName, NovaMark, NovaPattern, Wordmark } from "@novadeck/toolkit/NovaLogo"
-import { ArrowRight, ScrollText, Sparkles, type LucideIcon } from "lucide-react"
+import { ArrowRight, ScrollText, type LucideIcon } from "lucide-react"
 import { useRef, useState, type ComponentType, type CSSProperties, type RefObject } from "react"
 
 import { agentLabels, agentNote, type AgentSwitch } from "./AgentSwitches"
@@ -25,7 +26,7 @@ export type TranscriptsSetting = {
   readonly onChange: (enabled: boolean) => void
 }
 
-const icons = { claude: ClaudeIcon, codex: CodexIcon, agy: Sparkles }
+const icons = { claude: ClaudeIcon, codex: CodexIcon, agy: AntigravityIcon }
 
 // Staggers an entrance: `at` ms after the dialog opens.
 const at = (ms: number): CSSProperties => ({ "--_at": `${ms}ms` }) as CSSProperties

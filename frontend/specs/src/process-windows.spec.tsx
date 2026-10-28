@@ -14,6 +14,7 @@ import {
 const agents = [
   { name: "Checkout implementation", program: "claude" },
   { name: "Checkout review", program: "codex" },
+  { name: "Runtime", program: "agy" },
 ] as const
 
 describe("process windows", () => {
