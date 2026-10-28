@@ -209,6 +209,18 @@ describe("the launch demo", () => {
     ])
   })
 
+  it("wakes no one with the review once everyone finished, and sends no answer then", async () => {
+    const { backend, cues, agent } = open()
+    cues.askReview()
+    // The ask has landed; the ripple runs before the reviewer answers.
+    await vi.advanceTimersByTimeAsync(1000)
+    cues.finishAll()
+    await vi.advanceTimersByTimeAsync(10_000)
+    expect(exchange(backend)).toHaveLength(1)
+    expect(agent(launch.reviews)).toMatchObject({ working: false })
+    expect(agent(launch.reviewer)).toMatchObject({ working: false })
+  })
+
   it("opens teammates its lead opened and briefed, on the doorbell's notice, not the person's words", async () => {
     const { backend, cues, terminals } = open()
     cues.teammates()
@@ -422,6 +434,13 @@ describe("the launch demo", () => {
         plan: { agent: "Claude Code", role: "root", source: "file" },
       },
     ])
+  })
+
+  it("shows no plan once its agent asks for the plan's approval instead", () => {
+    const { cues, store } = open()
+    cues.plan()
+    cues.showPlan()
+    expect(activeSession(store.getSnapshot())!.state.items).toEqual([])
   })
 
   it("shows the page, then its button's variants, as a screenshot beside the order-status window", () => {

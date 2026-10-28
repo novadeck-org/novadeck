@@ -89,7 +89,7 @@ export const launchGroups = (cues: LaunchCues | undefined): readonly DemoActionG
             },
             {
               label: "8a · Agent asks another for a review",
-              hint: "Cart drawer messages Search index to review its change; Search index, rung awake, answers about 4 s later. The exchange reads in either one's Messages pane",
+              hint: "Cart drawer messages Search index to review its change; Search index answers about 4 s after it lands. The exchange reads in either one's Messages pane",
               run: () => cues.askReview(),
             },
             {

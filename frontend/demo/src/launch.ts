@@ -652,7 +652,8 @@ const planArtifact = (): SampleArtifact => ({
       "- Send it from the store's address, or a no-reply one?",
     ].join("\n"),
     truncated: false,
-    writable: true,
+    // Shown, not watched: there's no file to save an edit to, as storefront's shown plan.
+    writable: false,
     skill: false,
   }),
 })
@@ -702,8 +703,9 @@ export type LaunchCues = {
   readonly showChanges: () => void
   readonly showVariants: () => void
   // An agent asks another to review its change, by message (Cart drawer asks Search index), and
-  // the reviewer, rung awake, answers about 4 s later. The exchange reads in either one's
-  // Messages pane.
+  // the reviewer answers about 4 s after it lands, as long as it's still at that turn. The
+  // exchange reads in either one's Messages pane. Neither is woken once the ripple ran, nor one
+  // that waits on the person.
   readonly askReview: () => void
   // The plan's agent shows its plan, the file it writes it in, in the pane beside its window.
   readonly showPlan: () => void
@@ -953,11 +955,18 @@ export const createLaunch = (turns: DemoTurns, now: number) => {
         return
       const from = demoHandle(launch.reviews)
       const to = demoHandle(launch.reviewer)
+      // Rings an agent awake for a message, unless the ripple ran or it waits on the person.
+      const ring = (number: number): void => {
+        if (!ended && !resting.has(keyOf(number).terminalId)) wake(keyOf(number))
+      }
       reviewAsked = messages.send(target, from, to, reviewAsk, () => {
-        wake(keyOf(launch.reviewer))
+        ring(launch.reviewer)
+        // The reviewer answers unless the person stopped it or closed it meanwhile.
+        const epoch = turns.epoch(keyOf(launch.reviewer))
         setTimeout(() => {
-          if (!sink || ended) return
-          messages.send(target, to, from, reviewAnswer, () => wake(keyOf(launch.reviews)))
+          if (!sink || ended || !busy(terminal(launch.reviewer))) return
+          if (turns.epoch(keyOf(launch.reviewer)) !== epoch) return
+          messages.send(target, to, from, reviewAnswer, () => ring(launch.reviews))
         }, answersMs)
       })
     },
@@ -969,8 +978,9 @@ export const createLaunch = (turns: DemoTurns, now: number) => {
     },
   }
 
-  // An agent shows something in the pane, as the show tool does: the order-status agent its page,
-  // then its changes, the plan's agent its plan, each on its own bar. Each is shown once.
+  // An agent shows something in the pane: the order-status agent its page, then its changes, as
+  // the show tool does, and the plan's agent its plan, as the runner shows a plan file it watches,
+  // each on its own bar. Each is shown once.
   const upsert = (artifact: SampleArtifact, number: number = launch.shows): void => {
     if (!sink || shown.has(artifact.item.id) || !busy(terminal(number))) return
     shown.add(artifact.item.id)
