@@ -20,7 +20,8 @@ const key = (number: number) => ({ ...shop, terminalId: demoTerminalId(shop, num
 // The launch demo, opened on the Canvas as its video shows it, its Inbox bound to the
 // workspace, as the app binds it.
 const open = () => {
-  const backend = createDemo("launch", undefined, demoTurns())
+  const turns = demoTurns()
+  const backend = createDemo("launch", undefined, turns)
   const store = createWorkspaceStore(
     workspaceFromSeed(backend.seed, { view: "canvas", windowedView: "canvas", now: 0 }),
     backend.commit,
@@ -37,7 +38,7 @@ const open = () => {
     return found?.state === "running" ? found.agent : undefined
   }
   const items = (): readonly InboxRow[] => inbox.state.getSnapshot().items
-  return { backend, store, inbox, cues, terminals, agent, items }
+  return { backend, store, inbox, cues, terminals, agent, items, turns }
 }
 
 describe("the launch demo", () => {
@@ -406,12 +407,87 @@ describe("the launch demo's teammates cue", () => {
     vi.useRealTimers()
   })
 
-  it("opens nobody once the lead has ended its turn", async () => {
-    const { cues, terminals, agent } = open()
-    cues.finishAll()
-    await vi.advanceTimersByTimeAsync(3000)
+  it("opens nobody once the lead has ended its turn some other way", () => {
+    const { cues, terminals, agent, turns } = open()
+    turns.interrupt(key(launch.lead), agent(launch.lead)!)
+    expect(agent(launch.lead)).toMatchObject({ working: false })
     cues.teammates()
     expect(terminals()).toHaveLength(10)
-    expect(agent(launch.lead)).toMatchObject({ working: false })
+  })
+})
+
+describe("the launch demo's finishing", () => {
+  beforeEach(() => {
+    vi.useFakeTimers()
+  })
+  afterEach(() => {
+    vi.useRealTimers()
+  })
+
+  const reportsOf = (backend: ReturnType<typeof open>["backend"]) => {
+    const { messages } = backend
+    if (!isDemoMessages(messages)) throw new Error("the demo's messages")
+    const seen = new Map<string, { from: string; to: string }>()
+    for (const each of Object.values(messages.state.getSnapshot().terminals))
+      for (const thread of each.threads)
+        for (const message of thread.messages)
+          if (message.to === demoHandle(launch.lead) && message.text.startsWith("Done."))
+            seen.set(message.id, message)
+    const count: Record<string, number> = {}
+    for (const each of seen.values()) count[each.from] = (count[each.from] ?? 0) + 1
+    return count
+  }
+  const once = Object.fromEntries([11, 12, 13].map((number) => [demoHandle(number), 1]))
+
+  it("ends the lead in its own place in the ripple when it has no teammates", async () => {
+    const { cues, agent } = open()
+    cues.finishAll()
+    await vi.advanceTimersByTimeAsync(300)
+    expect(agent(1)).toMatchObject({ lastTurn: { outcome: "completed" } })
+    // The tenth of ten, after nine others: not at the first one's moment.
+    expect(agent(launch.lead)).not.toHaveProperty("lastTurn")
+    await vi.advanceTimersByTimeAsync(700)
+    expect(agent(launch.lead)).toMatchObject({ lastTurn: { outcome: "completed" } })
+  })
+
+  it("reports once for each teammate however often 7 is pressed", async () => {
+    const { backend, cues } = open()
+    cues.teammates()
+    await vi.advanceTimersByTimeAsync(4000)
+    cues.finishAll()
+    await vi.advanceTimersByTimeAsync(400)
+    cues.finishAll()
+    await vi.advanceTimersByTimeAsync(10_000)
+    expect(reportsOf(backend)).toEqual(once)
+  })
+
+  it("reports once for each teammate when 7 comes just before the exchange settles", async () => {
+    const { backend, cues, agent } = open()
+    cues.teammates()
+    await vi.advanceTimersByTimeAsync(4000)
+    cues.teammateAsks()
+    await vi.advanceTimersByTimeAsync(5500)
+    cues.finishAll()
+    await vi.advanceTimersByTimeAsync(10_000)
+    expect(reportsOf(backend)).toEqual(once)
+    for (const number of [launch.asking, launch.lead])
+      expect(agent(number)).toMatchObject({ working: false, lastTurn: { outcome: "completed" } })
+  })
+
+  it("does not take a finished teammate back to work with the lead's late answer", async () => {
+    const { backend, cues, inbox, items, agent } = open()
+    cues.teammates()
+    await vi.advanceTimersByTimeAsync(4000)
+    cues.teammateAsks()
+    inbox.answer(items()[0]!.id, {
+      kind: "ask",
+      answer: { type: "reply", option: null, text: "v2" },
+    })
+    await vi.advanceTimersByTimeAsync(3500)
+    cues.finishAll()
+    await vi.advanceTimersByTimeAsync(15_000)
+    expect(reportsOf(backend)).toEqual(once)
+    for (const number of [launch.asking, launch.lead])
+      expect(agent(number)).toMatchObject({ working: false, lastTurn: { outcome: "completed" } })
   })
 })

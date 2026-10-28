@@ -561,8 +561,8 @@ export type LaunchCues = {
   readonly teammates: () => void
   // A teammate asks the person what only its lead knows, and messages the lead the same
   // question at once. The ask shows as an Inbox row; the idle lead, rung awake, works and
-  // answers: the answer is sent about 5 s after the cue and lands about 0.8 s later, which is when the teammate acts on it and
-  // withdraws its ask: the row stays, settled, "Withdrawn". The person types nothing.
+  // answers: the answer is sent about 5 s after the cue and lands about 0.8 s later, which is
+  // when the teammate acts on it and withdraws its ask: the row stays, settled, "Withdrawn". The person types nothing.
   readonly teammateAsks: () => void
   // A teammate ends its turn with its done report (a done mark and an Update row) and sends the
   // same report to its lead, as a message: the lead is rung.
@@ -617,6 +617,8 @@ export const createLaunch = (turns: DemoTurns, now: number) => {
   }
   // Rings an agent awake if it rests: one already at work is left to it.
   const wake = (key: TerminalKey): void => {
+    // Not once the demo stopped, nor for an agent `finishAll` ended.
+    if (!sink || rippled.has(key.terminalId)) return
     const found = terminalOf(latest, key)
     if (found?.state === "running" && found.agent && !found.agent.working) work(key)
   }
@@ -642,6 +644,8 @@ export const createLaunch = (turns: DemoTurns, now: number) => {
   // The agents the person told no, or whose words they took without going on, or that ended
   // a turn a cue of its own chose: they wait at their prompt, and no cue ends a turn for them.
   const resting = new Set<string>()
+  // The agents `finishAll`'s ripple has ended (or has begun to), which it never ends twice.
+  const rippled = new Set<string>()
   const shown = new Set<string>()
   let opened = false
   let teammateAsked = false
@@ -655,6 +659,7 @@ export const createLaunch = (turns: DemoTurns, now: number) => {
   let exchanged = false
   // The exchange is out: if everyone finished meanwhile, those it held finish now.
   const settle = (): void => {
+    if (exchanged) return
     exchanged = true
     if (ended) ripple()
   }
@@ -744,6 +749,7 @@ export const createLaunch = (turns: DemoTurns, now: number) => {
           // The lead answers unless the person took it some other way meanwhile, as Escape does.
           const epoch = turns.epoch(keyOf(launch.lead))
           setTimeout(() => {
+            if (!sink) return
             if (turns.epoch(keyOf(launch.lead)) !== epoch) {
               settle()
               return
@@ -756,7 +762,8 @@ export const createLaunch = (turns: DemoTurns, now: number) => {
               // Its lead answered first: the teammate acts on that, and withdraws its ask.
               () => {
                 backendInbox()?.resolve(teammateAskId, "withdrawn")
-                work(keyOf(launch.asking))
+                // An agent the ripple ended is not taken back to work by a late answer.
+                if (!rippled.has(keyOf(launch.asking).terminalId)) work(keyOf(launch.asking))
                 settle()
               },
               () => {
@@ -852,9 +859,10 @@ export const createLaunch = (turns: DemoTurns, now: number) => {
   const reports = new Set<string>()
   const leadKey = keyOf(launch.lead)
   const finishLead = (): void => {
-    if (!ended || reports.size > 0) return
+    if (!sink || !ended || reports.size > 0 || rippled.has(leadKey.terminalId)) return
     const found = terminalOf(latest, leadKey)
     if (!found || waitsOnPerson(found)) return
+    rippled.add(leadKey.terminalId)
     const job = jobs[launch.lead - 1]!
     turns.finish(leadKey, found, "completed", {
       after: finishesAfterMs,
@@ -867,7 +875,7 @@ export const createLaunch = (turns: DemoTurns, now: number) => {
   // the Canvas turns green in a ripple. A teammate reports to its lead as it finishes, with a
   // message, and the lead finishes after those reach it.
   const ripple = (): void => {
-    if (!latest) return
+    if (!latest || !sink) return
     let count = 0
     for (const each of latest.projects)
       for (const history of each.history)
@@ -878,8 +886,9 @@ export const createLaunch = (turns: DemoTurns, now: number) => {
             workspaceSessionId: history.id,
             terminalId: found.id,
           }
-          if (waitsOnPerson(found)) continue
+          if (rippled.has(found.id) || waitsOnPerson(found)) continue
           if (opened && found.id === leadKey.terminalId) continue
+          rippled.add(found.id)
           const number = each.id === shop ? Number(terminalSlot(found.id)) : 0
           const job = number ? allJobs[number - 1] : undefined
           const text = job?.done ?? "Done. Everything is in, and the checks pass."
@@ -892,6 +901,7 @@ export const createLaunch = (turns: DemoTurns, now: number) => {
           if (number <= jobs.length) continue
           reports.add(found.id)
           const release = (): void => {
+            if (!sink) return
             reports.delete(found.id)
             finishLead()
           }
@@ -905,7 +915,8 @@ export const createLaunch = (turns: DemoTurns, now: number) => {
           )
           if (!sent) release()
         }
-    finishLead()
+    // With teammates, the lead ends after their reports reach it; alone, it ended in its place.
+    if (opened) finishLead()
   }
 
   // The person answers the teammate's ask from the Inbox before its lead does: the answer
