@@ -2,13 +2,14 @@ import type { InboxRow } from "@novadeck/core/inbox"
 import { HandleChip } from "@novadeck/toolkit/HandleChip"
 import { NovaMark } from "@novadeck/toolkit/NovaLogo"
 import { createToasts, shownToasts, ToastRegion } from "@novadeck/toolkit/Toast"
-import { Eye, Folder, Terminal } from "lucide-react"
+import { Eye, Folder, Terminal, type LucideIcon } from "lucide-react"
 import { useEffect, useMemo } from "react"
 
 import { focusSheetSoon } from "./inbox-dom"
 import { icons } from "./inbox-icons"
+import { waitLabel } from "./inbox-text"
 import { useInboxContext } from "./InboxProvider"
-import { toastText } from "./toast-text"
+import { toastText, type ToastText } from "./toast-text"
 
 // What shows the Inbox's toasts: one per terminal.
 export type ToastBoard = {
@@ -28,6 +29,8 @@ export type ShowWaiting = {
   readonly terminalName: string
   readonly handle: string | undefined
   readonly projectName: string
+  // When the agent showed it, for the toast's age.
+  readonly at: number
 }
 
 // What shows the toasts of what waits to open.
@@ -54,6 +57,37 @@ const showKey = (itemId: string): string => `show:${itemId}`
 // One toast: the type's icon in its tone; who wants what, and how long ago; the ask, a
 // command in mono; and where it comes from, the terminal at the left and the project at the
 // right edge, which is never cut.
+const ToastCard = ({
+  text,
+  Icon,
+}: {
+  readonly text: ToastText
+  readonly Icon: LucideIcon
+}): React.JSX.Element => (
+  <div className="inbox-toast" data-type={text.type} data-tone={text.tone}>
+    <span className="inbox-toast-icon" aria-hidden="true">
+      <Icon size={15} strokeWidth={1.6} />
+    </span>
+    <span className="inbox-toast-head">
+      {text.novadeck ? <NovaMark size={12} /> : <HandleChip handle={text.handle} />}
+      <span className="inbox-toast-said">{text.said}</span>
+    </span>
+    <span className="inbox-toast-age">{text.age}</span>
+    <span className="inbox-toast-subject" data-command={text.command !== null}>
+      {text.command ?? text.subject}
+    </span>
+    <span className="inbox-toast-foot">
+      <Terminal size={11} strokeWidth={1.8} aria-hidden="true" />
+      <span className="inbox-toast-title">{text.title}</span>
+      <span className="inbox-toast-project">
+        <Folder size={11} strokeWidth={1.8} aria-hidden="true" />
+        {text.project}
+      </span>
+    </span>
+  </div>
+)
+
+// An Inbox item's toast, in the Inbox's own words.
 const InboxToast = ({
   item,
   now,
@@ -62,61 +96,23 @@ const InboxToast = ({
   readonly now: number
 }): React.JSX.Element => {
   const text = toastText(item, now)
-  const Icon = icons[text.type]
-  return (
-    <div className="inbox-toast" data-type={text.type} data-tone={text.tone}>
-      <span className="inbox-toast-icon" aria-hidden="true">
-        <Icon size={15} strokeWidth={1.6} />
-      </span>
-      <span className="inbox-toast-head">
-        {text.novadeck ? <NovaMark size={12} /> : <HandleChip handle={text.handle} />}
-        <span className="inbox-toast-said">{text.said}</span>
-      </span>
-      <span className="inbox-toast-age">{text.age}</span>
-      <span className="inbox-toast-subject" data-command={text.command !== null}>
-        {text.command ?? text.subject}
-      </span>
-      <span className="inbox-toast-foot">
-        <Terminal size={11} strokeWidth={1.8} aria-hidden="true" />
-        <span className="inbox-toast-title">{text.title}</span>
-        <span className="inbox-toast-project">
-          <Folder size={11} strokeWidth={1.8} aria-hidden="true" />
-          {text.project}
-        </span>
-      </span>
-    </div>
-  )
+  return <ToastCard text={text} Icon={icons[text.type]} />
 }
 
-// What an agent asked to show on a terminal the person isn't on: who wants to show what, and
-// the button that brings the terminal into view, whose pane then opens it. Quiet, like the
-// Inbox's lines it sits among: no tone.
-const ShowToast = ({
-  waiting,
-  open,
-}: {
-  readonly waiting: ShowWaiting
-  readonly open: () => void
-}): React.JSX.Element => (
-  <div className="inbox-toast" data-type="update" data-tone="quiet">
-    <span className="inbox-toast-icon" aria-hidden="true">
-      <Eye size={15} strokeWidth={1.6} />
-    </span>
-    <span className="inbox-toast-head">
-      <HandleChip handle={waiting.handle} />
-      <span className="inbox-toast-name">{waiting.terminalName}</span>
-      <span className="inbox-toast-said">wants to show you</span>
-    </span>
-    <span className="inbox-toast-subject">{waiting.itemName}</span>
-    <span className="inbox-toast-foot">
-      <Folder size={11} strokeWidth={1.8} aria-hidden="true" />
-      <span className="inbox-toast-title">{waiting.projectName}</span>
-      <button type="button" className="inbox-toast-open" onClick={open}>
-        Open
-      </button>
-    </span>
-  </div>
-)
+// What a toast says of what an agent wants to show on a terminal the person isn't on, in
+// the Inbox toasts' words: quiet, like the updates it sits among.
+const showText = (waiting: ShowWaiting, now: number): ToastText => ({
+  type: "update",
+  tone: "quiet",
+  handle: waiting.handle,
+  novadeck: false,
+  said: "wants to show you",
+  command: null,
+  subject: waiting.itemName,
+  age: waitLabel(waiting.at, now),
+  title: waiting.terminalName,
+  project: waiting.projectName,
+})
 
 // The toasts of the Inbox's items that need the person while the app has their focus: it
 // follows the Inbox by `follow` (the app's `watchInboxToasts`), which decides what rings and
@@ -188,13 +184,7 @@ export const InboxToasts = ({
     >
       {(toast) =>
         toast.kind === "show" ? (
-          <ShowToast
-            waiting={toast.waiting}
-            open={() => {
-              showTerminal(toast.waiting.terminalId)
-              toasts.close(showKey(toast.waiting.itemId))
-            }}
-          />
+          <ToastCard text={showText(toast.waiting, now)} Icon={Eye} />
         ) : (
           <InboxToast item={toast.item} now={now} />
         )

@@ -92,6 +92,12 @@ describe("companion items in the workspace", () => {
   context("when an agent asks to open something on a terminal that isn't selected", () => {
     const asked = { ...hero, holder: { terminalId: "02" }, openAsked: true } satisfies Item
     const askedAlso = itemFixture("other", "02", { openAsked: true })
+    // In Focus, as on the Canvas: what waits stays shut.
+    const shownOff = (...items: Item[]): Workspace =>
+      items.reduce(
+        (next, item) => workspaceReducer(next, { type: "item/upsert", target, item }),
+        workspaceFixture({ view: "focus" }),
+      )
     const select = (id: string): WorkspaceAction => ({
       type: "terminal/select",
       target,
@@ -99,14 +105,14 @@ describe("companion items in the workspace", () => {
     })
 
     it("leaves it new and waiting, the pane shut", () => {
-      const state = stateOf(shown(asked))
+      const state = stateOf(shownOff(asked))
       expect(state.bars["02"]).toMatchObject({ order: [hero.id], stack: [], open: false })
       expect(state.fresh).toEqual({ [hero.id]: true })
       expect(state.waiting).toEqual([hero.id])
     })
 
     it("opens it when its terminal is selected, and stops waiting", () => {
-      const state = run(shown(asked), select("02"))
+      const state = run(shownOff(asked), select("02"))
       expect(state.bars["02"]).toMatchObject({ stack: [hero.id], open: true })
       expect(state.fresh).toEqual({})
       expect(state.waiting).toEqual([])
@@ -114,7 +120,7 @@ describe("companion items in the workspace", () => {
 
     it("opens the last to come on top when it is selected another way", () => {
       const other = askedAlso
-      const waiting = shown(asked, other)
+      const waiting = shownOff(asked, other)
       expect(stateOf(waiting).waiting).toEqual([hero.id, other.id])
       const state = run(waiting, { type: "terminal/close", target, terminalId: "01" })
       expect(state.selected).toBe("02")
@@ -123,13 +129,13 @@ describe("companion items in the workspace", () => {
     })
 
     it("opens nothing when another terminal is selected", () => {
-      const state = run(shown(asked), select("01"))
+      const state = run(shownOff(asked), select("01"))
       expect(state.bars["02"]).toMatchObject({ stack: [], open: false })
       expect(state.waiting).toEqual([hero.id])
     })
 
     it("stops waiting once the person opens, hides or closes it first", () => {
-      const waiting = shown(asked)
+      const waiting = shownOff(asked)
       const opened = run(waiting, { type: "bar/open", target, terminalId: "02", key: hero.id })
       expect(opened.waiting).toEqual([])
       const hidden = run(waiting, { type: "bar/hide", target, terminalId: "02", key: hero.id })
@@ -147,7 +153,7 @@ describe("companion items in the workspace", () => {
 
     it("waits in its new place when shown again, or no longer when the ask is dropped", () => {
       const other = askedAlso
-      const waiting = shown(asked, other)
+      const waiting = shownOff(asked, other)
       const again = run(waiting, {
         type: "item/upsert",
         target,
@@ -163,9 +169,51 @@ describe("companion items in the workspace", () => {
       expect(quiet.fresh).toHaveProperty(hero.id)
     })
 
+    context("in Grid, where nothing moves as a pane opens", () => {
+      const inGrid = (...items: Item[]): Workspace =>
+        items.reduce(
+          (next, item) => workspaceReducer(next, { type: "item/upsert", target, item }),
+          workspaceFixture({ view: "grid" }),
+        )
+
+      it("opens it in its window as it waits, still to be told of", () => {
+        const state = stateOf(inGrid(asked))
+        expect(state.selected).toBe("01")
+        expect(state.bars["02"]).toMatchObject({ stack: [hero.id], open: true })
+        expect(state.fresh).toEqual({})
+        expect(state.waiting).toEqual([hero.id])
+      })
+
+      it("stops waiting once its terminal is selected, or the person puts it away", () => {
+        expect(run(inGrid(asked), select("02")).waiting).toEqual([])
+        const minimized = run(inGrid(asked), {
+          type: "bar/minimize",
+          target,
+          terminalId: "02",
+          key: hero.id,
+        })
+        expect(minimized.waiting).toEqual([])
+        const closed = run(inGrid(asked), { type: "bar/close", target, terminalId: "02" })
+        expect(closed.waiting).toEqual([])
+      })
+
+      it("counts what putting one away uncovers as seen too", () => {
+        const both = inGrid(asked, askedAlso)
+        expect(stateOf(both).waiting).toEqual([hero.id, askedAlso.id])
+        const state = run(both, {
+          type: "bar/minimize",
+          target,
+          terminalId: "02",
+          key: askedAlso.id,
+        })
+        expect(state.bars["02"]).toMatchObject({ stack: [hero.id], open: true })
+        expect(state.waiting).toEqual([])
+      })
+    })
+
     it("still never opens what may hold secrets", () => {
       const secret = { ...asked, secret: true, by: "agent" } satisfies Item
-      const state = run(shown(secret), select("02"))
+      const state = run(shownOff(secret), select("02"))
       expect(state.waiting).toEqual([])
       expect(state.bars["02"]).toMatchObject({ stack: [], open: false })
       expect(state.fresh).toEqual({ [hero.id]: true })
