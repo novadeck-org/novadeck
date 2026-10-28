@@ -116,6 +116,7 @@ export const WorkspaceFooter = ({
           <button
             type="button"
             className="footer-update footer-chip cursor-pointer"
+            aria-label="Restart terminals"
             title="Restart terminals"
             onClick={onRetry}
           >
