@@ -282,8 +282,8 @@ const runCall = (job: Job, call: string) =>
         { kind: "run", title: "Ran", detail: job.command },
       )
 
-// What the waiting agent did before it asked, as Claude Code records it, so its Inbox sheet shows
-// its steps between her ask and the command.
+// What the waiting agent did before it asked, as Claude Code records it (its paths shortened as the
+// harness's decoder does), so its Inbox sheet shows its steps between her ask and the command.
 const warmerSteps = (id: string): DemoDraft[] => {
   const home = `/home/nyx/projects/${desk}`
   const steps = [
@@ -293,7 +293,7 @@ const warmerSteps = (id: string): DemoDraft[] => {
         file_path: `${home}/src/cache/warmer.ts`,
         content: `export const warm = async (keys: string[]) => {\n  await Promise.all(keys.map((key) => cache.fill(key)))\n}`,
       },
-      run: { kind: "write", title: "Wrote", detail: "src/cache/warmer.ts" },
+      run: { kind: "write", title: "Wrote", detail: "…/src/cache/warmer.ts" },
       result: `File created successfully at: ${home}/src/cache/warmer.ts`,
     },
     {
@@ -303,7 +303,7 @@ const warmerSteps = (id: string): DemoDraft[] => {
         old_string: `nightly(backup)`,
         new_string: `nightly(backup)\nat("05:30", () => warm(hotKeys))`,
       },
-      run: { kind: "write", title: "Edited", detail: "src/jobs/schedule.ts" },
+      run: { kind: "write", title: "Edited", detail: "…/src/jobs/schedule.ts" },
       result: `The file ${home}/src/jobs/schedule.ts has been updated successfully.`,
     },
     {
