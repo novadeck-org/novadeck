@@ -17,7 +17,7 @@ directories:
   output: release
   # The app icon's sources; `build/` is ignored by git, so they live here.
   buildResources: resources
-# The Nova mark on a Graphite tile, rendered from resources/icon.svg by
+# The Nova mark on a Coolant tile, rendered from resources/icon.svg by
 # scripts/render-icons.mjs. macOS and Windows have their own icon.icns and icon.ico, which
 # keep the hand-placed small sizes; this 1024 px PNG covers anything that names no icon.
 icon: resources/icon.png

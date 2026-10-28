@@ -10,7 +10,7 @@ export const refusing =
     texts.includes(text)
 
 // The appearance a fresh install starts with.
-export const appearance: PreferencesValue["appearance"] = { theme: "graphite", scheme: "system" }
+export const appearance: PreferencesValue["appearance"] = { theme: "coolant", scheme: "system" }
 
 // The words a fresh session gives its terminals, in order.
 const handles = ["moth", "fox", "owl", "crow", "kite", "raven"]

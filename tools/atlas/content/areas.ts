@@ -316,7 +316,7 @@ export const notes: Record<string, Note> = {
     entries: [{ file: `${ui}/voice/dictation.ts` }],
   },
   "frontend/ui/theme": {
-    purpose: "Themes (Graphite, Phosphor), their tokens and contract.",
+    purpose: "Themes (Coolant, Phosphor), their tokens and contract.",
     entries: [{ file: `${ui}/theme/apply.ts` }],
     docs: ["docs/theming.md"],
   },

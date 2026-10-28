@@ -199,11 +199,11 @@ describe("the ding on a backend", () => {
         } as never,
       ).sound()
 
-    expect(sounds("graphite")).toBe("felt")
+    expect(sounds("coolant")).toBe("felt")
     expect(sounds("phosphor-green")).toBe("afterglow")
     expect(sounds("phosphor-amber")).toBe("afterglow")
     expect(sounds("retired-theme")).toBe("felt")
-    expect(sounds("graphite", "beam")).toBe("beam")
+    expect(sounds("coolant", "beam")).toBe("beam")
     expect(sounds("phosphor-green", "settle")).toBe("settle")
     expect(sounds("phosphor-green", "removed-sound")).toBe("afterglow")
   })

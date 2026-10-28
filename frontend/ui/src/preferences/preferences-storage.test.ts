@@ -26,7 +26,7 @@ describe("readPreferences", () => {
     for (const theme of ["Ember", "ember!", "", 3, null]) {
       save(theme)
 
-      expect(readPreferences().appearance).toEqual({ theme: "graphite", scheme: "dark" })
+      expect(readPreferences().appearance).toEqual({ theme: "coolant", scheme: "dark" })
     }
   })
 

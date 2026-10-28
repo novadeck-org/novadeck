@@ -40,10 +40,16 @@ export const defaultPreference = <Id extends string>(
 // A theme id is lowercase words joined by dashes; the boot script holds the same rule.
 const wellFormedId = /^[a-z0-9-]+$/
 
-// A saved preference made safe: a missing or malformed theme becomes the default, and a
-// scheme that is not `system`, `light` or `dark` becomes `system`. A well-formed id stays
-// even when the app does not know it now, such as an imported theme whose registry loads
-// later or one a newer version saved; `resolveAppearance` shows the default for it.
+// A saved id under the name its theme has now: an id a theme went by before a rename
+// reads as that theme's. The boot script holds the same renames.
+const currentId = <Id extends string>(manifest: ThemeManifest<Id>, id: string): string =>
+  manifest.find((entry) => entry.formerIds?.includes(id))?.id ?? id
+
+// A saved preference made safe: a missing or malformed theme becomes the default, a
+// renamed one its current id, and a scheme that is not `system`, `light` or `dark` becomes
+// `system`. A well-formed id stays even when the app does not know it now, such as an
+// imported theme whose registry loads later or one a newer version saved;
+// `resolveAppearance` shows the default for it.
 export const appearancePreferenceOf = <Id extends string>(
   value: unknown,
   manifest: ThemeManifest<Id>,
@@ -51,7 +57,9 @@ export const appearancePreferenceOf = <Id extends string>(
   const saved =
     typeof value === "object" && value !== null ? (value as Record<string, unknown>) : {}
   const theme =
-    typeof saved.theme === "string" && wellFormedId.test(saved.theme) ? saved.theme : manifest[0].id
+    typeof saved.theme === "string" && wellFormedId.test(saved.theme)
+      ? currentId(manifest, saved.theme)
+      : manifest[0].id
   return { theme, scheme: isSchemePreference(saved.scheme) ? saved.scheme : "system" }
 }
 
@@ -101,7 +109,7 @@ export const parseBootRecord = <Id extends string>(
     Array.isArray(schemes) &&
     schemes.length > 0 &&
     schemes.every((entry) => entry === "light" || entry === "dark")
-  return { theme: usable ? theme : manifest[0].id, scheme }
+  return { theme: usable ? currentId(manifest, theme) : manifest[0].id, scheme }
 }
 
 // Shows an appearance on the page: `data-theme` and `data-scheme` on the root element.
