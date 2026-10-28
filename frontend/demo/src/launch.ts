@@ -36,8 +36,8 @@ import type { DemoTranscript } from "./transcripts"
 import type { DemoTurns } from "./turns"
 
 // The launch demo: the launch walkthrough video's tour of the app, captured from
-// `?demo=launch`. A small software team's deck: project northwind, a web storefront, has seven
-// agents on the Canvas (ten once its lead's team lands), mixing Claude Code, Codex and
+// `?demo=launch`. A small software team's deck: project northwind, a web storefront, has eight
+// agents on the Canvas (eleven once its lead's team lands), mixing Claude Code, Codex and
 // Antigravity, all at work, a few with a line of output that moves; a second
 // project, northwind-docs, works beside it. The video's beats are cues the debug panel's
 // "Launch" group fires (see `LaunchCues`), so a capture plan can time each to a frame: a
@@ -245,32 +245,36 @@ const allJobs: readonly Job[] = [...jobs, ...teammates]
 
 const keyOf = (number: number, projectId = shop): TerminalKey => deskKey(projectId, number)
 
-// Three of northwind's agents, which no cue acts on, sit this video out: the deck shows the seven
-// that do, and the numbers stay, so the teammates keep theirs (11 to 13) and every cue its agent.
-// (Two of the three were Antigravity's, so Inventory sync, which finishes alone, took its place.)
-const benched: ReadonlySet<number> = new Set([2, 3, 6])
+// Two of northwind's agents, which no cue acts on, sit this video out (Product pages and Image
+// pipeline, both Antigravity's): the deck shows the other eight, and the numbers stay, so the
+// teammates keep theirs (11 to 13) and every cue its agent. Search index stays, as the review cue's
+// reviewer (the website's /vs pages ask it for one); Inventory sync, which finishes alone, took an
+// Antigravity place, so the deck still shows all three harnesses.
+const benched: ReadonlySet<number> = new Set([3, 6])
 const onDeck = (number: number): boolean => !benched.has(number)
 
 // The Canvas: windows on a grid three across, each a little off the line as windows end up when
-// moved by hand, and big, so the deck fills the frame with seven. They fill the first two rows
-// and the lead (the tenth) the middle of the third, with a free place to its left, one to its
-// right and one above right of it (the cell under it is out of the viewport it opens on): the Canvas puts its three teammates in those itself, the free places
-// nearest the middle of the deck it shows. Each window's column, row and little offset, by its
-// terminal's number.
+// moved by hand, and big, so the deck fills the frame. Six fill the first two rows; the lead (the
+// tenth) and the reviewer take the fourth, and the third row is left empty. The Canvas puts a new
+// window in the free place showing most, nearest the middle of the deck it fits (the app fits it
+// on open, so only rows with a window show), so the lead's three teammates land in that empty row,
+// in a line just above the lead, and the deck keeps its size when they do. Each window's column,
+// row and little offset, by its terminal's number.
 const cells: Readonly<Record<number, readonly [number, number, number, number]>> = {
   1: [0, 0, 0, 10],
-  4: [1, 0, 25, -15],
-  5: [2, 0, -10, 20],
-  7: [0, 1, -20, 5],
-  8: [1, 1, 10, 25],
-  9: [2, 1, 0, -10],
-  10: [1, 2, 0, 0],
+  4: [1, 0, 20, -12],
+  5: [2, 0, -10, 16],
+  7: [0, 1, -16, 4],
+  8: [1, 1, 8, 16],
+  9: [2, 1, 0, -8],
+  2: [0, 3, -10, -6],
+  10: [1, 3, 0, 0],
 }
-const windowSize = { width: 680, height: 320 }
+const windowSize = { width: 660, height: 280 }
 // The space between windows' corners, wide enough that the Canvas finds free places in the
 // middle of the deck (it keeps 60 clear of a window and snaps to 24).
-const columnPitch = 764
-const rowPitch = 404
+const columnPitch = 730
+const rowPitch = 380
 const place = (number: number) => {
   const [column, row, dx, dy] = cells[number]!
   return {
