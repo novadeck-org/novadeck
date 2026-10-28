@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest"
-import { userEvent } from "vitest/browser"
+import { page, userEvent } from "vitest/browser"
 
 import { agentShowsPage } from "./support/backend"
 import { boxOf, canvasView, scrollCanvas, settled } from "./support/canvas"
@@ -13,6 +13,7 @@ import {
 } from "./support/sessions"
 import {
   chooseView,
+  expectStaysAbsent,
   layoutSettled,
   openWorkspace,
   sidebarPanel,
@@ -95,44 +96,52 @@ describe("Canvas returned to with its camera as it was left", () => {
 })
 
 describe("Canvas with a sheet an agent opens beside a window that is not on top", () => {
-  it("raises the window above every other, without selecting it", async () => {
+  const node = (name: string): HTMLElement =>
+    terminal(name).element().closest<HTMLElement>(".react-flow__node")!
+  const layer = (name: string): number => Number(getComputedStyle(node(name)).zIndex)
+  const selected = (name: string): boolean => node(name).classList.contains("selected")
+  const others = ["Menu page", "Opening hours", "Photo gallery", "Order form"]
+  const camera = (): string =>
+    document.querySelector<HTMLElement>(".react-flow__viewport")?.style.transform ?? ""
+
+  it("waits behind a toast, the camera still; its Open selects the window, above every other", async () => {
     await openWorkspace("/projects/bar-mleczny/sessions/initial/canvas?demo=babcia")
     await expect.element(terminal("Seasonal specials")).toBeVisible()
     await terminalTab("Menu page").click()
     await layoutSettled()
-
-    const node = (name: string): HTMLElement =>
-      terminal(name).element().closest<HTMLElement>(".react-flow__node")!
-    const layer = (name: string): number => Number(getComputedStyle(node(name)).zIndex)
-    const selected = (name: string): boolean => node(name).classList.contains("selected")
     expect(selected("Menu page")).toBe(true)
-    expect(layer("Menu page")).toBeGreaterThan(layer("Seasonal specials"))
+    const before = camera()
 
     agentShowsPage()
-    await expect.element(companionPane("Seasonal specials")).toBeVisible()
+    const toast = page.getByRole("button", { name: "Open", exact: true })
+    await expect.element(toast).toBeVisible()
+    await expect.element(page.getByText("wants to show you")).toBeVisible()
+    expect(document.querySelector(".toast")?.textContent).toMatch(/^Seasonal specials/)
+    await expectStaysAbsent(companionPane("Seasonal specials"), { ms: 500 })
+    expect(camera()).toBe(before)
+    expect(selected("Menu page")).toBe(true)
 
-    const others = ["Menu page", "Opening hours", "Photo gallery", "Order form"]
+    await toast.click()
+    await expect.element(companionPane("Seasonal specials")).toBeVisible()
+    await expect.poll(() => selected("Seasonal specials")).toBe(true)
     await expect
       .poll(() => others.every((name) => layer("Seasonal specials") > layer(name)))
       .toBe(true)
-    expect(selected("Seasonal specials")).toBe(false)
-    expect(selected("Menu page")).toBe(true)
   })
 
   it("raises the window of a sheet already open when Canvas mounts", async () => {
     await openWorkspace("/projects/bar-mleczny/sessions/initial/grid?demo=babcia")
     await expect.element(terminal("Seasonal specials")).toBeVisible()
-    await terminalTab("Menu page").click()
+    // Opened where the person is, then left open as they move to another window.
+    await terminalTab("Seasonal specials").click()
     agentShowsPage()
     await expect.element(companionPane("Seasonal specials")).toBeVisible()
+    await terminalTab("Menu page").click()
 
     await chooseView("Canvas")
     await layoutSettled()
 
-    const node = (name: string): HTMLElement =>
-      terminal(name).element().closest<HTMLElement>(".react-flow__node")!
-    const layer = (name: string): number => Number(getComputedStyle(node(name)).zIndex)
-    const others = ["Menu page", "Opening hours", "Photo gallery", "Order form"]
+    expect(selected("Seasonal specials")).toBe(false)
     await expect
       .poll(() => others.every((name) => layer("Seasonal specials") > layer(name)))
       .toBe(true)
