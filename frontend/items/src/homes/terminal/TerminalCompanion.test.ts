@@ -201,13 +201,22 @@ describe("a pane covering its terminal", () => {
 
   it("holds back an Escape held down, once the pane is gone", async () => {
     const { container, input } = covered()
-    const keys = heard(input)
+    // The pane's leaving remounts this stand-in for the terminal, where the app moves its
+    // one terminal element across: what's heard is the input there now.
+    const keys = heard(container)
+    const terminalInput = (): HTMLTextAreaElement => container.querySelector("textarea")!
     await press(input, "Escape")
-    await press(input, "Escape", { repeat: true })
+    await vi.waitFor(() => expect(container.querySelector(".plan-reader")).toBeNull())
+    await press(terminalInput(), "Escape", { repeat: true })
     expect(open(container)).toBe(false)
     expect(keys).toEqual([])
-    await act(async () => void input.dispatchEvent(new KeyboardEvent("keyup", { key: "Escape" })))
-    await press(input, "Escape")
+    await act(
+      async () =>
+        void terminalInput().dispatchEvent(
+          new KeyboardEvent("keyup", { key: "Escape", bubbles: true }),
+        ),
+    )
+    await press(terminalInput(), "Escape")
     expect(keys).toEqual(["Escape"])
   })
 
