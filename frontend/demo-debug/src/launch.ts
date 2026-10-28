@@ -54,7 +54,7 @@ export const launchGroups = (cues: LaunchCues | undefined): readonly DemoActionG
             },
             {
               label: "5a · Lead opens teammates",
-              hint: "Orders API opens three teammate windows to its right and under it, in the same frame, and rests: the team wire draws to them",
+              hint: "Orders API opens three teammate windows left, right and above right of it, in the same frame, and rests: the team wire draws to them",
               run: () => cues.teammates(),
             },
             {
