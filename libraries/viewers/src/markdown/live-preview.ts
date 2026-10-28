@@ -89,6 +89,10 @@ const decorate = (view: EditorView): Rendered => {
       to,
       enter: (node) => {
         const { name } = node
+        const nested = (kind: string): boolean => {
+          for (let up = node.node.parent; up; up = up.parent) if (up.name === kind) return true
+          return false
+        }
         const heading = /^ATXHeading(\d)$/.exec(name)
         if (heading) ranges.push(line(`cm-md-h${heading[1]}`).range(doc.lineAt(node.from).from))
         else if (name === "HeaderMark") {
@@ -103,10 +107,6 @@ const decorate = (view: EditorView): Rendered => {
             atomic.push(hide.range(node.from, end))
           }
         } else if (name === "Blockquote") {
-          const nested = (kind: string): boolean => {
-            for (let up = node.node.parent; up; up = up.parent) if (up.name === kind) return true
-            return false
-          }
           // In a list, the quote's rows start after its bar, so the indent that nests it
           // is hidden, except on the line being edited.
           const listed = nested("ListItem")
@@ -123,7 +123,23 @@ const decorate = (view: EditorView): Rendered => {
               if (at.to >= node.to || at.number === doc.lines) break
             }
         } else if (name === "FencedCode") {
-          eachLine(node.from, node.to, line("cm-md-codeblock"))
+          // In a list, the block starts at the item's hang, so the indent that nests it is
+          // hidden, except on the line being edited; the code's own indent stays.
+          const listed = nested("ListItem") && !nested("Blockquote")
+          eachLine(
+            node.from,
+            node.to,
+            line(listed ? "cm-md-codeblock cm-md-codeblock-listed" : "cm-md-codeblock"),
+          )
+          if (listed) {
+            const nesting = node.from - doc.lineAt(node.from).from
+            for (let at = doc.lineAt(node.from); ; at = doc.line(at.number + 1)) {
+              const indent = Math.min(/^\s*/.exec(at.text)![0].length, nesting)
+              if (indent > 0 && !editing(at.from))
+                ranges.push(hide.range(at.from, at.from + indent))
+              if (at.to >= node.to || at.number === doc.lines) break
+            }
+          }
           if (!editing(node.from))
             ranges.push(line("cm-md-fence").range(doc.lineAt(node.from).from))
           if (!editing(node.to)) ranges.push(line("cm-md-fence").range(doc.lineAt(node.to).from))

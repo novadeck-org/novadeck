@@ -179,6 +179,22 @@
   width: 2px;
   background-color: var(--md-quote-border-color, color-mix(in srgb, currentColor 30%, transparent));
 }
+/* A code block's rows don't hang, and in a list its box starts at the item's hang. Its
+   indent is hidden (see live-preview.ts), as the box is drawn on the whole line. */
+.md-viewer .cm-md-codeblock {
+  text-indent: 0;
+}
+.md-viewer .cm-md-codeblock-listed {
+  --_hang: 22px;
+  background: linear-gradient(
+    to right,
+    transparent var(--_hang),
+    var(--md-codeblock-bg, var(--_shell)) var(--_hang)
+  );
+}
+.md-viewer .cm-md-item-task.cm-md-codeblock-listed {
+  --_hang: 44px;
+}
 
 /* Formatting marks, shown on the line being edited. */
 .cm-md-syntax {
