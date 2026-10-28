@@ -37,7 +37,8 @@ import type { DemoTurns } from "./turns"
 // "Launch" group fires (see `LaunchCues`), so a capture plan can time each to a frame: a
 // spread of states, three asks that fill the Inbox, a lead that opens three teammates, a
 // teammate's question to the person and the message it then sends its lead, a teammate's
-// done, a page and then the changes shown in the pane, and every agent finishing. It shows
+// done, a page and then the changes (or a screenshot of three takes on a button) shown in the
+// pane, and every agent finishing. It shows
 // nothing the app doesn't do: no cue draws over the app, it only has the agents act.
 
 const shop = "northwind"
@@ -56,7 +57,7 @@ export const launch = {
   finishes: 8,
   // Asks a question and marks its own pick.
   question: 1,
-  // Shows a page, then its changes, in the pane.
+  // Shows a page, then its changes or a screenshot of three takes on a button, in the pane.
   shows: 9,
   // Opens the teammates, numbered after it.
   lead: 10,
@@ -102,6 +103,37 @@ const jobs: readonly Job[] = [
     command: "pnpm test:e2e --filter checkout",
     progress: "",
     done: "The checkout has end-to-end tests, and they pass.",
+    // What it did first, so its Inbox sheet shows its steps above the ask.
+    before: [
+      {
+        tool: "Write",
+        input: {
+          file_path: `${home}/e2e/checkout.spec.ts`,
+          content: `test("pays for a cart", async ({ page }) => {\n  await page.goto("/cart")\n  await page.getByRole("button", { name: "Checkout" }).click()\n  await expect(page).toHaveURL(/orders/)\n})`,
+        },
+        arg: "e2e/checkout.spec.ts",
+        title: "Wrote",
+        result: `File created successfully at: ${home}/e2e/checkout.spec.ts`,
+      },
+      {
+        tool: "Edit",
+        input: {
+          file_path: `${home}/playwright.config.ts`,
+          old_string: `testDir: "tests"`,
+          new_string: `testDir: "e2e"`,
+        },
+        arg: "playwright.config.ts",
+        title: "Edited",
+        result: `The file ${home}/playwright.config.ts has been updated successfully.`,
+      },
+      {
+        tool: "Bash",
+        input: { command: "pnpm typecheck" },
+        arg: "pnpm typecheck",
+        title: "Ran",
+        result: "Done in 3.2s",
+      },
+    ],
   },
   {
     name: "Stripe webhooks",
@@ -428,6 +460,62 @@ const previewArtifact = (): SampleArtifact => ({
   }),
 })
 
+// Then the agent's three takes on the page's Track package button, which the page still lacks,
+// as a screenshot of them side by side for the person to pick from.
+const button = (x: number, label: string, take: string, note: string, face: string): string =>
+  `<rect x="${x}" y="112" width="232" height="262" rx="12" fill="#ffffff" stroke="${rule}"/>` +
+  `<text x="${x + 22}" y="146" ${sans} font-size="11" font-weight="700" letter-spacing="2" fill="${accent}">${label}</text>` +
+  `<text x="${x + 22}" y="170" ${sans} font-size="15" font-weight="700" fill="${ink}">${take}</text>` +
+  face +
+  `<text x="${x + 116}" y="340" ${sans} font-size="12" fill="${muted}" text-anchor="middle">${note}</text>`
+const variantsArtifact = (): SampleArtifact => ({
+  item: {
+    id: "northwind-track-button",
+    kind: "image",
+    name: "track-button.png",
+    detail: "1600 × 900 PNG",
+    path: `${home}/screenshots/track-button.png`,
+    url: null,
+    lines: null,
+    secret: false,
+  },
+  content: ready({
+    kind: "image",
+    src: svg(
+      1600,
+      900,
+      `<rect width="800" height="450" fill="${paper}"/>` +
+        `<text x="40" y="58" ${sans} font-size="11" font-weight="700" letter-spacing="2" fill="${accent}">ORDER 1042 · TRACK PACKAGE</text>` +
+        `<text x="40" y="88" ${sans} font-size="22" font-weight="700" fill="${ink}">Three takes on the button</text>` +
+        button(
+          40,
+          "A",
+          "Solid",
+          "The page's one strong action",
+          `<rect x="66" y="222" width="180" height="46" rx="8" fill="${accent}"/>` +
+            `<text x="156" y="251" ${sans} font-size="15" font-weight="700" fill="#ffffff" text-anchor="middle">Track package</text>`,
+        ) +
+        button(
+          284,
+          "B",
+          "Outline",
+          "Quieter beside the timeline",
+          `<rect x="310" y="222" width="180" height="46" rx="8" fill="#ffffff" stroke="${accent}" stroke-width="2"/>` +
+            `<text x="400" y="251" ${sans} font-size="15" font-weight="700" fill="${accent}" text-anchor="middle">Track package</text>`,
+        ) +
+        button(
+          528,
+          "C",
+          "With the carrier",
+          "Says who has it and when",
+          `<rect x="554" y="214" width="180" height="62" rx="8" fill="${accent}"/>` +
+            `<text x="644" y="240" ${sans} font-size="15" font-weight="700" fill="#ffffff" text-anchor="middle">Track package</text>` +
+            `<text x="644" y="260" ${sans} font-size="11" fill="#dbeafe" text-anchor="middle">UPS · arrives Monday</text>`,
+        ),
+    ),
+  }),
+})
+
 // What the same agent has changed in the project to get there, shown as the pane shows an
 // agent's whole change: the working tree against HEAD, file by file.
 const changesRoot = home
@@ -563,10 +651,11 @@ export type LaunchCues = {
   // A teammate ends its turn with its done report (a done mark and an Update row) and sends the
   // same report to its lead, as a message: the lead is rung.
   readonly teammateDone: () => void
-  // The order-status agent shows its page in the pane beside its window, and then its
-  // changes, as diffs.
+  // The order-status agent shows its page in the pane beside its window, then its changes, as
+  // diffs, or its three takes on the page's Track package button, as a screenshot.
   readonly show: () => void
   readonly showChanges: () => void
+  readonly showVariants: () => void
   // Every agent of both projects ends its turn, one after another, but the ones still waiting
   // on the person: an unanswered request, or a teammate and its lead while their exchange is
   // on its way (they finish when it settles). Each teammate messages its lead its report as it
@@ -594,6 +683,7 @@ export const createLaunch = (turns: DemoTurns, now: number) => {
   const lead = demoHandle(launch.lead)
   const preview = previewArtifact()
   const changes = changesArtifact()
+  const variants = variantsArtifact()
   const messages = createDemoMessages([deskMessages(shop, allJobs.length)], false, (target, id) =>
     latest === undefined ? true : terminalOf(latest, { ...target, terminalId: id }) !== undefined,
   )
@@ -603,7 +693,7 @@ export const createLaunch = (turns: DemoTurns, now: number) => {
       {
         key: keyOf(launch.shows),
         handle: demoHandle(launch.shows),
-        artifacts: [preview, changes],
+        artifacts: [preview, changes, variants],
       },
     ],
   })
@@ -801,6 +891,7 @@ export const createLaunch = (turns: DemoTurns, now: number) => {
     },
     show: () => upsert(preview),
     showChanges: () => upsert(changes),
+    showVariants: () => upsert(variants),
     finishAll: () => {
       if (!latest) return
       ended = true

@@ -20,6 +20,7 @@ const cues = (): { [Name in keyof LaunchCues]: ReturnType<typeof fire> } => ({
   teammateDone: fire(),
   show: fire(),
   showChanges: fire(),
+  showVariants: fire(),
   finishAll: fire(),
 })
 
@@ -46,6 +47,7 @@ describe("the debug panel's Launch group", () => {
       ["5c ·", "teammateDone"],
       ["6a ·", "show"],
       ["6b ·", "showChanges"],
+      ["6c ·", "showVariants"],
       ["7 ·", "finishAll"],
     ] as const
     expect(group!.actions).toHaveLength(order.length)
