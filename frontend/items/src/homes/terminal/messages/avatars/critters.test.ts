@@ -41,17 +41,22 @@ describe("the handles' critters", () => {
     expect(spriteOf("zephyr")).toEqual(sprite)
   })
 
-  it("go round eight hues in rank order, a later round's number aside", () => {
-    expect(["moth", "fox", "volt", "haze", "moth2"].map(hueOf)).toEqual([1, 2, 8, 1, 1])
+  it("go round eight hues in rank order, a later round's letters or number aside", () => {
+    expect(["moth", "fox", "volt", "haze", "mothz", "moth2"].map(hueOf)).toEqual([1, 2, 8, 1, 1, 1])
+    expect(handleParts("mothz")).toEqual({ word: "moth", numeral: "" })
+    expect(handleParts("foxy")).toEqual({ word: "fox", numeral: "" })
+    expect(handleParts("mothzy")).toEqual({ word: "moth", numeral: "" })
     expect(handleParts("moth2")).toEqual({ word: "moth", numeral: "2" })
     expect(handleParts("owl")).toEqual({ word: "owl", numeral: "" })
+    expect(handleParts("zephyr")).toEqual({ word: "zephyr", numeral: "" })
+    expect(spriteOf("foxy")).toEqual(spriteOf("fox"))
   })
 
   it("blink every 6 to 11 seconds on a clock of their word's", () => {
     const clocks = clocksOf("moth")
     expect(clocks.blink).toBeGreaterThanOrEqual(6)
     expect(clocks.blink).toBeLessThanOrEqual(11)
-    expect(clocksOf("moth2")).toEqual(clocks)
+    expect(clocksOf("mothz")).toEqual(clocks)
     expect(clocksOf("fox")).not.toEqual(clocks)
   })
 

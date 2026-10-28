@@ -381,7 +381,7 @@ describe("sending", () => {
       ],
     ])
     expect(threads[1]).toMatchObject({
-      peer: "fox",
+      peer: { kind: "agent", handle: "fox" },
       hops: 2,
       idle: 0,
       held: false,
@@ -482,7 +482,10 @@ describe("an addressee with no session yet", () => {
       route:
         "when its agent starts: rung once Novadeck sees it at its prompt, else at its first turn",
     })
-    expect(messages(messaging, "N")[0]).toMatchObject({ toAgent: "codex", state: "queued" })
+    expect(messages(messaging, "N")[0]).toMatchObject({
+      to: { kind: "agent", handle: "owl", agent: "codex" },
+      state: "queued",
+    })
     const first = binding("codex", "s-first", "3")
     follow("N", first)
     expect(prompt("N", first).stdout).toContain("hello")
@@ -2059,7 +2062,7 @@ describe("listing", () => {
       threads: [
         {
           id: expect.stringMatching(/^t-/),
-          peer: "moth",
+          peer: { kind: "agent", handle: "moth", agent: "claude" },
           hops: 1,
           idle: 0,
           held: false,
@@ -2070,10 +2073,8 @@ describe("listing", () => {
               id: expect.stringMatching(/^m-/),
               thread: expect.stringMatching(/^t-/),
               hop: 1,
-              from: "moth",
-              fromAgent: "claude",
-              to: "fox",
-              toAgent: "codex",
+              from: { kind: "agent", handle: "moth", agent: "claude" },
+              to: { kind: "agent", handle: "fox", agent: "codex" },
               text: "hello",
               sentAt: 1_000_000,
               state: "queued",
@@ -4909,7 +4910,7 @@ describe("the loop hold", () => {
     ).toBe(false)
     messaging.pause(true)
     expect(messaging.notice("A", "Novadeck: automatic notice, not from the user: go on")).toBe(true)
-    expect(records.messages()).toMatchObject([{ from: { handle: "novadeck" }, state: "held" }])
+    expect(records.messages()).toMatchObject([{ from: { kind: "novadeck" }, state: "held" }])
     // At most one waits, and none while any message does.
     expect(messaging.notice("A", "Novadeck: automatic notice, not from the user: again")).toBe(
       false,
@@ -4969,7 +4970,7 @@ describe("the loop hold", () => {
     messaging.shown("B", "codex", "01a0f932")
     expect(messaging.notice("B", notice)).toBe(true)
     expect(records.messages()).toMatchObject([
-      { from: { handle: "novadeck" }, to: { agent: "codex", sessionId: null }, state: "queued" },
+      { from: { kind: "novadeck" }, to: { agent: "codex", sessionId: null }, state: "queued" },
     ])
     expect(messaging.ringable("B")).toBe(true)
     messaging.close()
@@ -5089,15 +5090,22 @@ describe("the loop hold", () => {
       sent(index % 2 === 0 ? send("A", "owl", `c${index}`) : send("C", "moth", `c${index}`))
     }
     const heldThreads = messaging.list("A", "moth").threads.filter((each) => each.held)
-    expect(heldThreads.map(({ peer }) => peer).toSorted()).toEqual(["fox", "fox", "owl"])
-    const old = heldThreads.find((each) => each.peer === "fox" && each.hops === 8)!
+    expect(
+      heldThreads.map(({ peer }) => (peer.kind === "agent" ? peer.handle : "you")).toSorted(),
+    ).toEqual(["fox", "fox", "owl"])
+    const old = heldThreads.find(
+      (each) => each.peer.kind === "agent" && each.peer.handle === "fox" && each.hops === 8,
+    )!
     messaging.release(old.id)
     const after = messaging.list("A", "moth").threads
-    expect(after.filter((each) => each.peer === "fox").map(({ held }) => held)).toEqual([
-      false,
-      false,
-    ])
-    expect(after.find((each) => each.peer === "owl")).toMatchObject({ held: true })
+    expect(
+      after
+        .filter((each) => each.peer.kind === "agent" && each.peer.handle === "fox")
+        .map(({ held }) => held),
+    ).toEqual([false, false])
+    expect(
+      after.find((each) => each.peer.kind === "agent" && each.peer.handle === "owl"),
+    ).toMatchObject({ held: true })
     expect(messages(messaging, "B").every(({ state }) => state === "queued")).toBe(true)
   })
 
@@ -5257,7 +5265,13 @@ describe("a hold carried over from the twelve-message rule", () => {
       projectId: "p",
       thread: "t-old",
       hop: 3,
-      from: { terminalId: "A", handle: "moth", agent: "claude", sessionId: "s-claude" },
+      from: {
+        kind: "agent",
+        terminalId: "A",
+        handle: "moth",
+        agent: "claude",
+        sessionId: "s-claude",
+      },
       to: { terminalId: "B", handle: "fox", agent: "codex", sessionId: "s-codex" },
       text: "from the lead",
       sentAt: 1_000_000 - 1_000,

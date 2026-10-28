@@ -344,7 +344,12 @@ describe("runner client workspace", () => {
     const runner = await app.connect()
     const ids = { project: crypto.randomUUID(), session: crypto.randomUUID() }
     const project = await runner.projects.create({ id: ids.project, name: "Home" })
-    expect(project).toEqual({ id: ids.project, name: "Home", cwd: await realpath(homedir()) })
+    expect(project).toEqual({
+      id: ids.project,
+      name: "Home",
+      cwd: await realpath(homedir()),
+      pinned: false,
+    })
     await expect(
       runner.projects.create({ id: ids.project, name: "Again", cwd: app.directory }),
     ).rejects.toMatchObject({ code: "CONFLICT" })
@@ -499,7 +504,7 @@ describe("runner client project removal", () => {
         projectId: ids[project],
         thread: `t-${project}`,
         hop: 1,
-        from: { terminalId: "a", handle: "moth", agent: null, sessionId: null },
+        from: { kind: "agent", terminalId: "a", handle: "moth", agent: null, sessionId: null },
         to: { terminalId: "b", handle: "fox", agent: "codex", sessionId: null },
         text: "Hello",
         sentAt: Date.now(),
@@ -546,7 +551,7 @@ describe("runner client project removal", () => {
     expect(removed).toEqual(new Set([running.id, saved]))
 
     await expect(client.projects.list()).resolves.toEqual([
-      { id: ids.kept, name: "kept", cwd: await realpath(directory) },
+      { id: ids.kept, name: "kept", cwd: await realpath(directory), pinned: false },
     ])
     for (const call of [
       () => client.projects.remove({ projectId: ids.removed }),

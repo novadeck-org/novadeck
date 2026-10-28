@@ -22,7 +22,7 @@ const message = (fields: Partial<Message> = {}): Message => ({
   projectId: "p",
   thread: "t-1",
   hop: 1,
-  from: { terminalId: "a", handle: "moth", agent: "claude", sessionId: "s1" },
+  from: { kind: "agent", terminalId: "a", handle: "moth", agent: "claude", sessionId: "s1" },
   to: { terminalId: "b", handle: "fox", agent: "codex", sessionId: "s2" },
   text: "What is your colour?",
   sentAt: 0,
@@ -64,7 +64,7 @@ const two = [
   message(),
   message({
     id: "m-2",
-    from: { terminalId: "c", handle: "owl", agent: null, sessionId: null },
+    from: { kind: "agent", terminalId: "c", handle: "owl", agent: null, sessionId: null },
     text: "a < b && c > d",
   }),
 ]
@@ -162,7 +162,7 @@ const listing = (delivery: DeliveryState, state: MessageState): TerminalMessages
   threads: [
     {
       id: "thread-1",
-      peer: "moth",
+      peer: { kind: "agent", handle: "moth", agent: "claude" },
       hops: 1,
       idle: 0,
       held: false,
@@ -173,10 +173,8 @@ const listing = (delivery: DeliveryState, state: MessageState): TerminalMessages
           id: "m-1",
           thread: "thread-1",
           hop: 1,
-          from: "moth",
-          fromAgent: "claude",
-          to: "fox",
-          toAgent: "codex",
+          from: { kind: "agent", handle: "moth", agent: "claude" },
+          to: { kind: "agent", handle: "fox", agent: "codex" },
           text: "What is your colour?",
           sentAt: 0,
           state,

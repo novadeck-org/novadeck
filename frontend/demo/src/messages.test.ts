@@ -1,10 +1,10 @@
 import { companionKeyId } from "@novadeck/core/items"
-import { messageBadge } from "@novadeck/core/messages"
+import { messageBadge, type MessageParty } from "@novadeck/core/messages"
 import { afterEach, vi } from "vitest"
 
 import { createDemoInbox } from "./inbox"
 import { demoInboxIds, demoInboxRows } from "./inbox-fixtures"
-import { checkoutMessages, createDemoMessages, rungMs } from "./messages"
+import { checkoutMessages, createDemoMessages, partyOf, rungMs } from "./messages"
 import { demoTerminalId } from "./samples"
 import { describe, expect, it } from "./test"
 
@@ -15,6 +15,10 @@ const at = (slot: string, target = storefront) =>
   companionKeyId({ ...target, terminalId: demoTerminalId(target, Number(slot)) })
 
 const demo = () => createDemoMessages(checkoutMessages(1_000_000, [storefront, elsewhere]))
+
+// Whether a message party is the agent at a handle.
+const partyIs = (party: MessageParty, handle: string): boolean =>
+  party.kind === "agent" && party.handle === handle
 
 describe("the demo's messages", () => {
   // Six idle messages in a row between moth and crow of the second session: a loop, held.
@@ -36,7 +40,7 @@ describe("the demo's messages", () => {
     )
     expect([...states].toSorted()).toEqual(["delivered", "gone", "held", "leased", "queued"])
     expect(
-      terminals[at("01", elsewhere)]?.threads.find((thread) => thread.peer === "crow")?.held,
+      terminals[at("01", elsewhere)]?.threads.find((thread) => partyIs(thread.peer, "crow"))?.held,
     ).toBe(true)
     expect(demo().state.getSnapshot().terminals[at("01", elsewhere)]).toEqual({
       handle: "moth",
@@ -103,7 +107,7 @@ it("records asks, tells and accepted person replies in the demo's You threads", 
     })
     vi.advanceTimersByTime(600)
     expect(history().find((message) => message.inbox === "answer")).toMatchObject({
-      from: "you",
+      from: { kind: "person" },
       text: "Samples",
       state: "queued",
     })
@@ -225,7 +229,7 @@ describe("the demo's sent messages", () => {
     Object.values(messages.state.getSnapshot().terminals)
       .flatMap((terminalMessages) => terminalMessages.threads)
       .flatMap((thread) => thread.messages)
-      .filter((message) => message.from === from && message.to === to)
+      .filter((message) => partyIs(message.from, from) && partyIs(message.to, to))
       .map((message) => message.state)
 
   // Sends moth's message to crow, two agents of the first session.
@@ -386,7 +390,7 @@ describe("the demo's sent messages", () => {
         .flatMap((thread) => thread.messages)
     // The runner adds nothing to the thread: the message is gone, and none is the person's.
     expect(all().map((message) => message.state)).toEqual(["gone", "gone"])
-    expect(all().some((message) => message.from === "you")).toBe(false)
+    expect(all().some((message) => message.from.kind === "person")).toBe(false)
     // Either end's later send on the stopped thread is refused, and queues nothing.
     expect(messages.send(elsewhere, "crow", "moth", "Hello again")).toBe(false)
     expect(all()).toHaveLength(2)
@@ -399,8 +403,8 @@ describe("the demo's loop hold, as the runner keeps it", () => {
     id,
     hop,
     idle: true as const,
-    from: "moth",
-    to: "crow",
+    from: partyOf("moth"),
+    to: partyOf("crow"),
     text: "Noted",
     sentAt: 1000 + hop,
     state,

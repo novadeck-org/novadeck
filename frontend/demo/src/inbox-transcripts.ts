@@ -1,7 +1,7 @@
 import type { WorkspaceSeed } from "@novadeck/core/seed"
 
 import { demoHandle } from "./handles"
-import type { DemoSessionMessages } from "./messages"
+import { partyOf, type DemoSessionMessages } from "./messages"
 import { demoTerminalId } from "./samples"
 import { got, say, use, user, written, type DemoDraft, type DemoTranscript } from "./transcripts"
 
@@ -233,8 +233,8 @@ export const inboxLeadMessages = (now: number): DemoSessionMessages => {
           {
             id: "demo-inbox-brief",
             hop: 1,
-            from: lead,
-            to: worker,
+            from: partyOf(lead),
+            to: partyOf(worker),
             text: inboxLead.brief,
             sentAt: at - 2_000,
             state: "delivered",

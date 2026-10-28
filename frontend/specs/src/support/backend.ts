@@ -46,23 +46,23 @@ const requestedUpdate = (): UpdateScenario | undefined => {
     : undefined
 }
 
-// Specs open the demo on a host that follows early builds, which turns IS_EXPERIMENTAL on
-// (the chat view still needs its own switch), with `?channel=early`, beside any other variant.
-const earlyRequested = (): boolean =>
-  new URLSearchParams(window.location.hash.split("?")[1] ?? "").get("channel") === "early"
+// Specs open the demo on a host that follows experimental builds, which turns IS_EXPERIMENTAL on
+// (the chat view still needs its own switch), with `?channel=experimental`, beside any other variant.
+const experimentalRequested = (): boolean =>
+  new URLSearchParams(window.location.hash.split("?")[1] ?? "").get("channel") === "experimental"
 
 // The updates a spec asks for: an explicit `?update=` wins, else the release a portable
-// scenario has waiting (as the debug panel offers it); `?channel=early` alone has a host
+// scenario has waiting (as the debug panel offers it); `?channel=experimental` alone has a host
 // with no update waiting.
 const demoWithUpdate = (
   scenario: UpdateScenario | undefined,
   portable: DemoPortable | undefined,
   demo: ReturnType<typeof createDemoBackend>,
 ): ReturnType<typeof createDemoBackend> => {
-  const early = earlyRequested()
-  if (!scenario && !portable?.offer && !early) return demo
+  const experimental = experimentalRequested()
+  if (!scenario && !portable?.offer && !experimental) return demo
   const controls = createDemoUpdates()
-  if (early) controls.updates?.channel?.set("early")
+  if (experimental) controls.updates?.channel?.set("experimental")
   if (scenario) scenario.play(controls, "0.0.80")
   else if (portable?.offer) controls.offer(portable.offer)
   made.push(controls)
@@ -293,7 +293,9 @@ export const hostWindow = {
 // The demo a spec opens, as its address's hash asks.
 export const createSpecBackend = (): ReturnType<typeof createDemoBackend> => {
   const demo = plainSpecBackend()
-  return hostRequested() ? withHost(demo) : demo
+  // Keeps no arrangement, as a demo doesn't, but takes the one a spec leaves in storage
+  // (`novadeck.project-arrangement`) as an earlier client's, which the app imports.
+  return { ...(hostRequested() ? withHost(demo) : demo), arrange: async () => {} }
 }
 
 const plainSpecBackend = (): ReturnType<typeof createDemoBackend> => {

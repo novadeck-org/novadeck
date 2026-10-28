@@ -6,13 +6,20 @@ import {
 } from "@novadeck/core/conversation"
 import type { InboxRow } from "@novadeck/core/inbox"
 import { companionKeyId } from "@novadeck/core/items"
-import { noMessages, type Messages, type MessagesState } from "@novadeck/core/messages"
+import {
+  noMessages,
+  type MessageParty,
+  type Messages,
+  type MessagesState,
+} from "@novadeck/core/messages"
 import { createStore, type MutableStore } from "@novadeck/core/store"
 import { render } from "@novadeck/test-kit/render"
 import { act, createElement } from "react"
 
 import { describe, expect, it } from "../test"
 import { AgentContextProvider, useAgentContext, type AgentContext } from "./agent-context"
+
+const agent = (handle: string): MessageParty => ({ kind: "agent", handle, agent: null })
 
 const source = {
   projectId: "p",
@@ -89,7 +96,7 @@ const backend = () => {
         threads: [
           {
             id: "th",
-            peer: "crow",
+            peer: agent("crow"),
             hops: 1,
             idle: 0,
             held: false,
@@ -98,8 +105,8 @@ const backend = () => {
               {
                 id: "m",
                 hop: 1,
-                from: "you",
-                to: "owl",
+                from: { kind: "person" },
+                to: agent("owl"),
                 text: "run the suite and report",
                 sentAt: 8,
                 state: "delivered",
@@ -111,8 +118,8 @@ const backend = () => {
               {
                 id: "n",
                 hop: 1,
-                from: "crow",
-                to: "owl",
+                from: agent("crow"),
+                to: agent("owl"),
                 text: "and plot the timings",
                 sentAt: 10,
                 state: "delivered",

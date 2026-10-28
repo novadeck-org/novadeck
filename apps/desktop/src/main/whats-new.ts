@@ -309,7 +309,7 @@ export const keepWhatsNew = ({
       const shown = gather(version, start, [own, ...skipped], newer)
       if (shown) return shown
       // A prerelease with no highlights may get some yet: promoting it writes them onto
-      // this same tag before it turns stable, so an early user who installed it is shown
+      // this same tag before it turns stable, so an experimental user who installed it is shown
       // them then.
       if (own.prerelease) recordCheck(now())
       else forget()

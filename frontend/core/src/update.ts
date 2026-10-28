@@ -14,7 +14,7 @@ export type UpdateOffer =
   | { readonly kind: "available"; readonly version: string; readonly allow?: true }
 
 // Which releases the desktop app follows: stable ones, or every release as it is published.
-export type UpdateChannel = "stable" | "early"
+export type UpdateChannel = "stable" | "experimental"
 
 // What is new in the version the app updated to: the highlights of its release notes, each
 // a short title and one plain line. Text only: the page shows it as text, never as markup.

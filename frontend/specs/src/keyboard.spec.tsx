@@ -1277,7 +1277,7 @@ describe("dictation", () => {
     it("fits in a short chat window, so nothing of it overflows, in each state of the setup", async () => {
       await page.viewport(900, 800)
       localStorage.setItem("novadeck.preferences", JSON.stringify({ chatView: true }))
-      await openWithoutVoice("/?demo=agents&voice=failing&channel=early")
+      await openWithoutVoice("/?demo=agents&voice=failing&channel=experimental")
       await terminalTab("Checkout implementation").click()
       // Its own window, measured while it shows: a hidden one would measure 0 whatever happens.
       const win = (): HTMLElement =>
@@ -1466,7 +1466,7 @@ describe("dictation", () => {
 
     it("shows its strip over a terminal's chat, not under it", async () => {
       localStorage.setItem("novadeck.preferences", JSON.stringify({ chatView: true }))
-      await openWorkspace("/?demo=agents&channel=early")
+      await openWorkspace("/?demo=agents&channel=experimental")
       const skip = page.getByRole("button", { name: "Skip for now" })
       if (await skip.query()) await skip.click()
       await terminalTab("Checkout implementation").click()

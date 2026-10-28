@@ -21,7 +21,7 @@ export const maxHighlightLine = 90
 // The most the notes' schema holds (contract/protocol/src/release-notes.ts): an answer past
 // these would pass here and throw when the block is written.
 export const maxHighlights = 4
-// A prerelease's card leads with fewer, early builds coming several a day. A release's
+// A prerelease's card leads with fewer, experimental builds coming several a day. A release's
 // highlights repeat lines of its changes, so past these they are dropped, not the answer,
 // and the changes still tell them.
 export const releaseHighlights = 2
@@ -56,12 +56,12 @@ const markup = /[*~\\`[<>]/
 const autolinked = /\S+@\S+\.\w+|#\d+/
 const structural = /^\s*(?:#|\d+\. )/
 
-// What is not for the notes: the chat view ships behind a flag, early builds and the
+// What is not for the notes: the chat view ships behind a flag, experimental builds and the
 // Experimental switch that turns them on, with its tab, are for contributors and never
 // offered to people, and the demo, the website and the pipeline are not the app. A line that mentions one is dropped, the rest stands.
 const excluded: readonly RegExp[] = [
   chat,
-  /\b(?:early|beta|nightly|canary)\s+(?:access\s+)?(?:builds?|channels?|releases?|updates?|versions?)\b/i,
+  /\b(?:early|experimental|beta|nightly|canary)\s+(?:access\s+)?(?:builds?|channels?|releases?|updates?|versions?)\b/i,
   /\bupdate channels?\b/i,
   /\bprereleases?\b/i,
   /\bexperimental\b/i,

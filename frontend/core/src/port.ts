@@ -287,6 +287,15 @@ export type BackendFields = {
   // demo's build it from the app's workspace (`bind`) and their own facts (see core's
   // `inbox-rows`). Absent where the backend has none: the Inbox then lists nothing.
   readonly inbox?: Inbox
+  // Optional. Keeps how the person arranged the switcher: the projects' ids in their order,
+  // and the pinned ones. The seed carries it back at the next load (`ProjectSeed.pinned`,
+  // and the seed's order); no other client hears of it meanwhile. Resolves once kept, and
+  // rejects if it couldn't be. Absent where the backend keeps none: the arrangement then
+  // lasts the session.
+  readonly arrange?: (arrangement: {
+    readonly order: readonly string[]
+    readonly pinned: readonly string[]
+  }) => Promise<void>
   // Optional. What agents ask the person to allow (closing a terminal they don't lead,
   // leading a terminal), for the app to confirm. Absent where agents can't ask.
   readonly approvals?: Approvals

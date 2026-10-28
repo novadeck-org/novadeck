@@ -47,6 +47,16 @@ import type { Work } from "../terminals/work.js"
 
 const log = logs.for("store")
 
+/** How many projects the person can pin; the switcher's pins bar holds as many. */
+const pinLimit = 9
+
+type ProjectRow = Omit<Project, "pinned"> & { readonly pinned: number }
+
+const projectOf = ({ pinned, ...project }: ProjectRow): Project => ({
+  ...project,
+  pinned: pinned === 1,
+})
+
 /** Settings to change; those left out, or undefined, stay as they are. */
 export type VoiceSettingsChange = {
   readonly [K in Exclude<keyof VoiceSettings, "enabled">]?: VoiceSettings[K] | undefined
@@ -73,13 +83,18 @@ export type SettingsChange = {
 // 7: the tables say what they hold: a row belongs to its parent by a foreign key, the
 // person's and Novadeck's messages say so in `from_kind`, and a session's visit is its own
 // column; see the step from 6.
-const schemaVersion = 7
+// 8: a project keeps where the person put it in the switcher (`rank`) and whether they
+// pinned it; `position` stays the order it was added in.
+const schemaVersion = 8
 const schema = `
   CREATE TABLE projects (
     position INTEGER PRIMARY KEY,
     id TEXT NOT NULL UNIQUE,
     name TEXT NOT NULL CHECK(length(name) BETWEEN 1 AND 200),
-    cwd TEXT NOT NULL CHECK(length(cwd) > 0)
+    cwd TEXT NOT NULL CHECK(length(cwd) > 0),
+    -- Its place in the person's order; null until they first arrange the projects.
+    rank INTEGER,
+    pinned INTEGER NOT NULL DEFAULT 0 CHECK (pinned IN (0, 1))
   ) STRICT;
   CREATE TABLE sessions (
     position INTEGER PRIMARY KEY,
@@ -284,6 +299,11 @@ type Step = string | ((database: DatabaseSync, path: string) => void)
  * dropping it first deletes their rows through ON DELETE CASCADE.
  */
 const migrations: Readonly<Record<number, Step>> = {
+  // The switcher's arrangement, which the person's browser kept until now: nobody has one.
+  7: `
+    ALTER TABLE projects ADD COLUMN rank INTEGER;
+    ALTER TABLE projects ADD COLUMN pinned INTEGER NOT NULL DEFAULT 0 CHECK (pinned IN (0, 1));
+  `,
   // Every table but the settings is made again, with foreign keys and the new names. The old
   // ones are renamed, with their indexes dropped (an index keeps its name through a rename),
   // and their rows copied by column name, parents before children, rowids kept, as they
@@ -970,9 +990,10 @@ const senderOf = (row: MessageRow): Message["from"] => {
   if (row.from_kind === "person") return personSender
   if (row.from_kind === "novadeck") return novadeckSender
   return {
+    kind: "agent",
     terminalId: row.from_terminal!,
     handle: row.from_handle!,
-    agent: row.from_agent as Message["from"]["agent"],
+    agent: row.from_agent as AgentName | null,
     sessionId: row.from_agent_session,
   }
 }
@@ -984,12 +1005,7 @@ const threadOf = (row: MessageRow): string => {
   return `t-${askId.replaceAll("-", "")}`
 }
 
-const kindOf = (from: Message["from"]): MessageRow["from_kind"] =>
-  from.terminalId === personSender.terminalId
-    ? "person"
-    : from.terminalId === novadeckSender.terminalId
-      ? "novadeck"
-      : "agent"
+const kindOf = (from: Message["from"]): MessageRow["from_kind"] => from.kind
 
 const messageOf = (row: MessageRow): Message => ({
   id: row.id,
@@ -1153,11 +1169,35 @@ export class WorkspaceStore implements TerminalRecords, MessageRecords, InboxRec
   }
 
   projects(): Project[] {
-    return this.queries.all`SELECT id, name, cwd FROM projects ORDER BY position` as Project[]
+    return this.queries.all`
+      SELECT id, name, cwd, pinned FROM projects ORDER BY rank IS NULL, rank, position
+    `.map((row) => projectOf(row as ProjectRow))
+  }
+
+  /**
+   * Keeps the person's arrangement: each project's rank is its place in `order` (ids the
+   * store doesn't have are ignored; projects it leaves out lose theirs and follow, in the
+   * order they were added), and those in both `order` and `pinned` are pinned, at most
+   * `pinLimit`, the first in `order`.
+   */
+  arrangeProjects(order: readonly string[], pinned: readonly string[]): void {
+    const known = new Set(
+      (this.queries.all`SELECT id FROM projects` as { id: string }[]).map(({ id }) => id),
+    )
+    const ranked = [...new Set(order)].filter((id) => known.has(id))
+    const pins = new Set(pinned)
+    const pinnedIds = new Set(ranked.filter((id) => pins.has(id)).slice(0, pinLimit))
+    this.transaction(() => {
+      void this.queries.run`UPDATE projects SET rank = NULL, pinned = 0`
+      ranked.forEach((id, rank) => {
+        const pin = pinnedIds.has(id) ? 1 : 0
+        void this.queries.run`UPDATE projects SET rank = ${rank}, pinned = ${pin} WHERE id = ${id}`
+      })
+    })
   }
 
   /** Creates a project in an existing directory; a taken `id` is a `CONFLICT`. */
-  async createProject(input: Project): Promise<Project> {
+  async createProject(input: Omit<Project, "pinned">): Promise<Project> {
     if (!isAbsolute(input.cwd)) {
       throw new DomainError("INVALID_DIRECTORY", "Project directories must be absolute")
     }
@@ -1174,7 +1214,7 @@ export class WorkspaceStore implements TerminalRecords, MessageRecords, InboxRec
     }
     void this.queries
       .run`INSERT INTO projects (id, name, cwd) VALUES (${project.id}, ${project.name}, ${project.cwd})`
-    return project
+    return { ...project, pinned: false }
   }
 
   renameProject(input: { projectId: string; name: string }): Project {
@@ -1195,11 +1235,11 @@ export class WorkspaceStore implements TerminalRecords, MessageRecords, InboxRec
   }
 
   project(projectId: string): Project {
-    const project = this.queries.get`SELECT id, name, cwd FROM projects WHERE id = ${projectId}` as
-      | Project
-      | undefined
-    if (!project) throw new DomainError("NOT_FOUND", "Project not found")
-    return project
+    const row = this.queries.get`
+      SELECT id, name, cwd, pinned FROM projects WHERE id = ${projectId}
+    ` as ProjectRow | undefined
+    if (!row) throw new DomainError("NOT_FOUND", "Project not found")
+    return projectOf(row)
   }
 
   sessions(projectId: string): WorkspaceSession[] {
@@ -1507,14 +1547,14 @@ export class WorkspaceStore implements TerminalRecords, MessageRecords, InboxRec
     const { from, to } = message
     const kind = kindOf(from)
     // Only an agent's has a thread and a sender of its own (see `messageOf`).
-    const agent = kind === "agent"
+    const agent = from.kind === "agent" ? from : null
     void this.queries.run`
       INSERT INTO messages (id, project_id, thread_id, hop, from_kind, from_terminal, from_handle,
         from_agent, from_agent_session, to_terminal, to_handle, to_agent, to_agent_session, text,
         sent_at, state, delivered_at, notified, stopped, from_lead, to_lead, response)
       VALUES (${message.id}, ${message.projectId}, ${agent ? message.thread : null}, ${message.hop},
-        ${kind}, ${agent ? from.terminalId : null}, ${agent ? from.handle : null},
-        ${agent ? from.agent : null}, ${agent ? from.sessionId : null}, ${to.terminalId},
+        ${kind}, ${agent ? agent.terminalId : null}, ${agent ? agent.handle : null},
+        ${agent ? agent.agent : null}, ${agent ? agent.sessionId : null}, ${to.terminalId},
         ${to.handle}, ${to.agent}, ${to.sessionId}, ${message.text}, ${message.sentAt},
         ${message.state}, ${message.deliveredAt}, ${message.notified ? 1 : 0},
         ${message.stopped ? 1 : 0}, ${message.fromLead ? 1 : 0}, ${message.toLead ? 1 : 0},

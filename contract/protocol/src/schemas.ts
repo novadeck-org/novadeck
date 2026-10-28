@@ -27,7 +27,8 @@ export const maxUploadPartLength = 196_608
 // Opaque client-owned state the runner stores without reading, such as a UI layout.
 export const clientState = z.string().max(maxClientStateLength)
 
-export const project = z.strictObject({ id, name, cwd: directory })
+// `pinned` when the person pinned it in the switcher; `projects.list` gives their order.
+export const project = z.strictObject({ id, name, cwd: directory, pinned: z.boolean() })
 
 // One folder of a project's directory, as `projects.folder` lists it: each entry by its own
 // name, and whether git ignores it. `truncated` says the folder holds more than is listed.
@@ -453,7 +454,7 @@ export const terminalTitle = z
 
 // A terminal's handle: a word its Novadeck session gives it as it is created, such as
 // `moth`, never twice; once a session has given every word, they come again with a
-// number, as `moth2`. It stays as the terminal is renamed, agents address each other by
+// letter, as `mothz` (an older session's with a number, as `moth2`). It stays as the terminal is renamed, agents address each other by
 // it, and people read it as `@moth`.
 export const handle = z.string().regex(/^[a-z]{2,12}(?:[2-9]|[1-9][0-9]{1,8})?$/)
 
@@ -1062,6 +1063,20 @@ export const deliveryState = z.enum([
   "unknown",
 ])
 
+// Who a message is from or for: a terminal's agent, by the terminal's handle, or the
+// person, whose Inbox answers reach agents as messages and whose Inbox history shows the
+// agents' asks to them. A sender's `agent` is null where none had bound there; a
+// recipient's is always the agent it was for.
+const personParty = z.strictObject({ kind: z.literal("person") })
+export const messageParty = z.discriminatedUnion("kind", [
+  z.strictObject({ kind: z.literal("agent"), handle, agent: agentName.nullable() }),
+  personParty,
+])
+export const messageRecipient = z.discriminatedUnion("kind", [
+  z.strictObject({ kind: z.literal("agent"), handle, agent: agentName }),
+  personParty,
+])
+
 // One message between two terminals' agents, as sent: its text up to 4 KB, its place in
 // its thread, and where it is on its way. `held` says why a held message waits: messaging
 // is paused, or its thread awaits the person's `messages.release`.
@@ -1069,10 +1084,8 @@ export const agentMessage = z.strictObject({
   id: messageId,
   thread: threadId,
   hop: z.number().int().positive(),
-  from: handle,
-  fromAgent: agentName.nullable(),
-  to: handle,
-  toAgent: agentName,
+  from: messageParty,
+  to: messageRecipient,
   text: z.string().max(65_536),
   sentAt: z.number(),
   state: messageState,
@@ -1085,13 +1098,13 @@ export const agentMessage = z.strictObject({
     .optional(),
 })
 
-// A thread between a terminal and one other: the other's handle, how many messages it
+// A thread between a terminal and one other: the other party (an agent, or the person), how many messages it
 // has had, its idle messages in a row (sent while neither end worked), whether it is held
 // until the person releases or stops it and why (`loop`, or null for a hold carried over
 // from the twelve-message rule, or none), and its messages, oldest first.
 export const messageThread = z.strictObject({
   id: threadId,
-  peer: handle,
+  peer: messageParty,
   hops: z.number().int().nonnegative(),
   idle: z.number().int().nonnegative(),
   held: z.boolean(),
@@ -1189,6 +1202,8 @@ export type MurmurSettings = z.infer<typeof murmurSettings>
 export type MessageState = z.infer<typeof messageState>
 export type DeliveryState = z.infer<typeof deliveryState>
 export type DeliveryWaits = z.infer<typeof deliveryWaits>
+export type MessageParty = z.infer<typeof messageParty>
+export type MessageRecipient = z.infer<typeof messageRecipient>
 export type AgentMessage = z.infer<typeof agentMessage>
 export type MessageThread = z.infer<typeof messageThread>
 export type TerminalMessages = z.infer<typeof terminalMessages>

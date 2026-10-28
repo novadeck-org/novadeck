@@ -11,6 +11,15 @@ export const pinLimit = 9
 
 export const noArrangement: ProjectArrangement = { order: [], pinned: [] }
 
+// The arrangement a backend lists its projects in: their order, and the ones it says are
+// pinned.
+export const listedArrangement = (
+  projects: readonly { readonly id: string; readonly pinned?: boolean }[],
+): ProjectArrangement => ({
+  order: projects.map(({ id }) => id),
+  pinned: projects.filter(({ pinned }) => pinned === true).map(({ id }) => id),
+})
+
 // The projects as the switcher lists them: the pinned ones, then the rest, each in the
 // person's order.
 export const arrangeProjects = <P extends { readonly id: string }>(

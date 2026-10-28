@@ -357,8 +357,8 @@ describe("desktop updates", () => {
       const { bridge, set } = updater()
       const channel = desktopUpdates(bridge)!.channel!
       expect(await channel.get()).toBe("stable")
-      channel.set("early")
-      expect(set).toEqual(["early"])
+      channel.set("experimental")
+      expect(set).toEqual(["experimental"])
       await expect(desktopUpdates(updater("nightly").bridge)!.channel!.get()).rejects.toThrow()
     })
 

@@ -15,7 +15,10 @@ import type { UpdateOffer, WhatsNew } from "@novadeck/core/update"
 import { writeCanvasWindowSize } from "../layouts/canvas/window-size-storage"
 import { writePreferences } from "../preferences/preferences-storage"
 import { noArrangement, type ProjectArrangement } from "../projects/project-arrangement"
-import { writeProjectArrangement } from "../projects/project-arrangement-storage"
+import {
+  forgetStoredProjectArrangement,
+  readStoredProjectArrangement,
+} from "../projects/project-arrangement-storage"
 import { initialShell, resetPresentation, type ShellState } from "../shell/shell-state"
 import { writeSidebarCollapsed, writeWindowedView } from "../shell/shell-storage"
 import { nextRecent, visibleSwitcher, type RecentSwitcher } from "../terminals/recent"
@@ -161,7 +164,6 @@ export const persistUi = (ui: Store<UiState>, workspace: Store<Workspace>): (() 
   const stops = [
     persist(ui, (state) => state.preferences, writePreferences),
     persist(ui, (state) => state.shell.sidebarCollapsed, writeSidebarCollapsed),
-    persist(ui, (state) => state.projectArrangement, writeProjectArrangement),
     persist(ui, (state) => state.canvasWindowSize, writeCanvasWindowSize),
     persist(workspace, (snapshot) => currentState(snapshot).windowedView, writeWindowedView),
   ]
@@ -207,6 +209,31 @@ export const trackRecent = (workspace: Store<Workspace>, ui: UiStore): (() => vo
   }
   track()
   return workspace.subscribe(track)
+}
+
+const importing = new WeakSet<UiStore>()
+
+// Has the backend keep the arrangement as the person changes it. A change made before the
+// backend answers is sent as it is, in order; opening a client sends nothing. An arrangement
+// an earlier client left in storage is sent once first (the store was seeded from it) and
+// forgotten once the backend has it or any arrangement since; a failed send leaves it for
+// the next load.
+export const keepProjectArrangement = (
+  ui: UiStore,
+  arrange: NonNullable<Backend["arrange"]>,
+): (() => void) => {
+  const stored = importing.has(ui) ? undefined : readStoredProjectArrangement()
+  if (stored) {
+    importing.add(ui)
+    arrange(stored).then(forgetStoredProjectArrangement, () => {})
+  }
+  let sent = ui.getSnapshot().projectArrangement
+  return ui.subscribe(() => {
+    const next = ui.getSnapshot().projectArrangement
+    if (next === sent) return
+    sent = next
+    arrange(next).then(forgetStoredProjectArrangement, () => {})
+  })
 }
 
 // Closes the switcher once a dialog opens or the session changes under it.
@@ -277,7 +304,7 @@ export const setFeatureFlag = (ui: UiStore, flag: FeatureFlag, on: boolean): voi
   )
 }
 
-// Asks the backend once, as the workspace comes up, whether the desktop app follows early
+// Asks the backend once, as the workspace comes up, whether the desktop app follows experimental
 // builds, which is what turns IS_EXPERIMENTAL on, through `set`. A host that fails to say
 // leaves it off.
 export const watchExperimental = (
@@ -287,7 +314,7 @@ export const watchExperimental = (
   let live = true
   void updates?.channel?.get().then(
     (channel) => {
-      if (live) set(channel === "early")
+      if (live) set(channel === "experimental")
     },
     () => undefined,
   )

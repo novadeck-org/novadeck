@@ -102,7 +102,7 @@ const openCrashing = () => {
   }
   const listing: RunnerListing = [
     {
-      project: { id: "p", name: "P", cwd: "/tmp" },
+      project: { id: "p", name: "P", cwd: "/tmp", pinned: false },
       sessions: [
         {
           session: {
@@ -189,7 +189,7 @@ const openInStore = () => {
   const runner = crashingRunner()
   const listing: RunnerListing = [
     {
-      project: { id: "p", name: "P", cwd: "/tmp" },
+      project: { id: "p", name: "P", cwd: "/tmp", pinned: false },
       sessions: [
         saved("s", "00000000-0000-4000-8000-000000000001", 5),
         saved("s2", "00000000-0000-4000-8000-000000000002", 1),

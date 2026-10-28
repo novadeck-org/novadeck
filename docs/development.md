@@ -285,7 +285,7 @@ Agents:
   shell mode, text in its box, a dialog, asking you, failed, away), which its Messages pane
   says while messages wait for it. "News from a peer" has its latest peer write to it, so the
   peer's row in its Messages list says Unread until the person opens it; "News from a
-  repeated handle" has `fox2` (or `moth2`) write, whose critter carries its 2. The variant's
+  repeated handle" has `foxz` (or `mothz`) write, whose critter is its word's. The variant's
   Messages pane has the rest at rest: the person's entries (an answered ask, an unread tell,
   an open ask with Answer), a thread folded to one line, messages waiting, delivering and
   not delivered, and the critters of agents working (hopping), at rest and gone (dim).
@@ -511,7 +511,7 @@ App:
   reboots the demo, as the card is asked for once at launch.
   For specs, `?update=` opens any of these by key (`download`, `held`, `failed`, `available`,
   `allow`, `ready`, `whatsNew`, `whatsNewMarkup`, `whatsNewLong`, `noHighlights`). Both panels and the spec keys come from one record, `frontend/demo-debug/src/scenarios.ts`.
-  Specs also take `?channel=early`, a host on the early channel, so IS_EXPERIMENTAL is on (the
+  Specs also take `?channel=experimental`, a host on the experimental channel, so IS_EXPERIMENTAL is on (the
   chat view still needs its own switch on); only specs read it, not `dev:web` or the try demo.
 
 ### Visitor build
@@ -1152,7 +1152,7 @@ murmur, the `--list-devices` output: during an update the runner uses an older e
 if it speaks the same interface. Both engines are built by the shared
 `engines/ggml-build`.
 
-There are two channels. Every release from `main` is a prerelease, the early channel. The
+There are two channels. Every release from `main` is a prerelease, the experimental channel. The
 stable channel is GitHub's latest release that is not a prerelease, which installs, the
 `releases/latest/download/` links and, by default, installed apps follow. Promote a tested
 prerelease by running the [Promote to Stable](../.github/workflows/promote.yml) workflow from
