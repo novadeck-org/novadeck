@@ -86,6 +86,37 @@ const jobs: readonly Job[] = [
     command: "pnpm build",
     progress: "Built 14 of 96 routes",
     done: "The cart drawer opens from the header and keeps its items.",
+    // What it did first, so its Inbox sheet (the question) shows its steps above the ask.
+    before: [
+      {
+        tool: "Write",
+        input: {
+          file_path: `${home}/src/components/CartDrawer.tsx`,
+          content: `export const CartDrawer = ({ open }: { open: boolean }) => (\n  <aside data-open={open}>{/* items */}</aside>\n)`,
+        },
+        arg: "src/components/CartDrawer.tsx",
+        title: "Wrote",
+        result: `File created successfully at: ${home}/src/components/CartDrawer.tsx`,
+      },
+      {
+        tool: "Edit",
+        input: {
+          file_path: `${home}/src/components/Header.tsx`,
+          old_string: `<nav>{links}</nav>`,
+          new_string: `<nav>{links}</nav>\n<CartButton onClick={openDrawer} />`,
+        },
+        arg: "src/components/Header.tsx",
+        title: "Edited",
+        result: `The file ${home}/src/components/Header.tsx has been updated successfully.`,
+      },
+      {
+        tool: "Bash",
+        input: { command: "pnpm typecheck" },
+        arg: "pnpm typecheck",
+        title: "Ran",
+        result: "Done in 2.8s",
+      },
+    ],
   },
   {
     name: "Search index",
@@ -171,6 +202,34 @@ const jobs: readonly Job[] = [
     command: "pnpm test --filter emails",
     progress: "",
     done: "A shipped order sends its email, and the tests pass.",
+    // What it did first, so its Inbox sheet (the plan) shows its steps above the ask.
+    before: [
+      {
+        tool: "Bash",
+        input: { command: "pnpm test --filter orders" },
+        arg: "pnpm test --filter orders",
+        title: "Ran",
+        result: "12 passed in 1.9s",
+      },
+      {
+        tool: "Bash",
+        input: { command: "git log --oneline -5 -- src/lib/orders.ts" },
+        arg: "git log --oneline -5 -- src/lib/orders.ts",
+        title: "Ran",
+        result: "5 commits",
+      },
+      {
+        tool: "Write",
+        input: {
+          file_path: `${home}/docs/plans/order-emails.md`,
+          content:
+            "# Order emails\n\n1. Add a shipped-order email template\n2. Queue it when an order is marked shipped\n3. Test it with a sandbox order",
+        },
+        arg: "docs/plans/order-emails.md",
+        title: "Wrote",
+        result: `File created successfully at: ${home}/docs/plans/order-emails.md`,
+      },
+    ],
   },
   {
     name: "Inventory sync",
