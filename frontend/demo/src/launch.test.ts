@@ -187,8 +187,9 @@ describe("the launch demo", () => {
     const seen = new Map<string, { from: string; to: string; state: string; text: string }>()
     for (const each of Object.values(messages.state.getSnapshot().terminals))
       for (const thread of each.threads)
-        for (const message of thread.messages)
-          if (message.from !== "you" && message.to !== "you") seen.set(message.id, message)
+        for (const { id, from, to, state, text } of thread.messages)
+          if (from.kind === "agent" && to.kind === "agent")
+            seen.set(id, { from: from.handle, to: to.handle, state, text })
     return [...seen.values()]
   }
   const lead = demoHandle(launch.lead)
@@ -430,9 +431,14 @@ describe("the launch demo's finishing", () => {
     const seen = new Map<string, { from: string; to: string }>()
     for (const each of Object.values(messages.state.getSnapshot().terminals))
       for (const thread of each.threads)
-        for (const message of thread.messages)
-          if (message.to === demoHandle(launch.lead) && message.text.startsWith("Done."))
-            seen.set(message.id, message)
+        for (const { id, from, to, text } of thread.messages)
+          if (
+            from.kind === "agent" &&
+            to.kind === "agent" &&
+            to.handle === demoHandle(launch.lead) &&
+            text.startsWith("Done.")
+          )
+            seen.set(id, { from: from.handle, to: to.handle })
     const count: Record<string, number> = {}
     for (const each of seen.values()) count[each.from] = (count[each.from] ?? 0) + 1
     return count
