@@ -104,7 +104,7 @@ describe("Canvas with a sheet an agent opens beside a window that is not on top"
   const camera = (): string =>
     document.querySelector<HTMLElement>(".react-flow__viewport")?.style.transform ?? ""
 
-  it("waits behind a toast, the camera still; its Open selects the window, above every other", async () => {
+  it("waits behind a toast, the camera still; a click on it selects the window, above every other", async () => {
     await openWorkspace("/projects/bar-mleczny/sessions/initial/canvas?demo=babcia")
     await expect.element(terminal("Seasonal specials")).toBeVisible()
     await terminalTab("Menu page").click()
@@ -113,15 +113,15 @@ describe("Canvas with a sheet an agent opens beside a window that is not on top"
     const before = camera()
 
     agentShowsPage()
-    const toast = page.getByRole("button", { name: "Open", exact: true })
-    await expect.element(toast).toBeVisible()
     await expect.element(page.getByText("wants to show you")).toBeVisible()
-    expect(document.querySelector(".toast")?.textContent).toContain("Seasonal specials")
+    const toast = document.querySelector<HTMLElement>(".toast")!
+    expect(toast.textContent).toContain("Seasonal specials")
     await expectStaysAbsent(companionPane("Seasonal specials"), { ms: 500 })
     expect(camera()).toBe(before)
     expect(selected("Menu page")).toBe(true)
 
-    await toast.click()
+    // A click on it, as on an Inbox toast, takes the person there.
+    await userEvent.click(page.elementLocator(toast))
     await expect.element(companionPane("Seasonal specials")).toBeVisible()
     await expect.poll(() => selected("Seasonal specials")).toBe(true)
     await expect
