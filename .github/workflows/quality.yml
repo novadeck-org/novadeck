@@ -81,9 +81,9 @@ jobs:
           - name: Build
             os: ubuntu-latest
             command: npm run build
-          # The visitor build, which the Try workflow deploys from each release.
-          # It also captures the posters the deploy makes, so a change that breaks that fails
-          # here rather than at release.
+          # The visitor build, which the Try workflow deploys from each release promoted to
+          # stable. It also captures the posters the deploy makes, so a change that breaks that
+          # fails here rather than at promotion.
           - name: Build (try)
             os: ubuntu-latest
             browser: true

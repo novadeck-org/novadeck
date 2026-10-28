@@ -298,18 +298,3 @@ jobs:
               --jq '.isPrerelease and (.body | contains("\"kind\":\"promote\"") | not)')" == true ]]; then
             gh release edit "$TAG" --notes-file "$RUNNER_TEMP/notes.md"
           fi
-
-  # The visitor demo follows each release, prereleases included, until launch; then it moves
-  # to Promote to Stable. Publishing with GITHUB_TOKEN starts no `release` workflow, so this
-  # calls it here.
-  try:
-    name: Visitor Demo
-    if: >-
-      !cancelled() && needs.prepare.outputs.package == 'true' &&
-      needs.release.result == 'success'
-    needs: [prepare, release]
-    uses: ./.github/workflows/try.yml
-    with:
-      tag: v${{ needs.prepare.outputs.version }}
-    secrets:
-      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
