@@ -337,7 +337,9 @@ describe("the launch demo", () => {
     cues.show()
     cues.showChanges()
     cues.showChanges()
-    expect(activeSession(store.getSnapshot())!.state.items).toHaveLength(2)
+    cues.showVariants()
+    cues.showVariants()
+    expect(activeSession(store.getSnapshot())!.state.items).toHaveLength(3)
     cues.fail()
     cues.fail()
     cues.finishOne()
@@ -373,6 +375,21 @@ describe("the launch demo", () => {
         holder: { terminalId: key(launch.shows).terminalId },
       },
       { kind: "changes", openAsked: true, holder: { terminalId: key(launch.shows).terminalId } },
+    ])
+  })
+
+  it("shows the page, then its button's variants, as a screenshot beside the order-status window", () => {
+    const { cues, store } = open()
+    cues.show()
+    cues.showVariants()
+    const { items } = activeSession(store.getSnapshot())!.state
+    expect(items).toMatchObject([
+      { kind: "page", holder: { terminalId: key(launch.shows).terminalId } },
+      {
+        kind: "image",
+        name: "track-button.png",
+        holder: { terminalId: key(launch.shows).terminalId },
+      },
     ])
   })
 
