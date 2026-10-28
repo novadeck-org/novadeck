@@ -70,17 +70,17 @@ export const launchGroups = (cues: LaunchCues | undefined): readonly DemoActionG
             {
               label: "6a · Agent shows a page",
               hint: "Order status page shows its dev server's page in the pane beside its window",
-              run: () => cues.show(),
+              run: (context) => cues.show(context.select),
             },
             {
               label: "6b · Agent shows its changes",
               hint: "Order status page shows its changes in the pane: the working tree against HEAD, three files as diffs",
-              run: () => cues.showChanges(),
+              run: (context) => cues.showChanges(context.select),
             },
             {
               label: "6c · Agent shows button variants",
               hint: "Order status page shows a screenshot in the pane: three takes on the page's Track package button, side by side",
-              run: () => cues.showVariants(),
+              run: (context) => cues.showVariants(context.select),
             },
             {
               label: "7 · Everyone finishes",
@@ -95,7 +95,7 @@ export const launchGroups = (cues: LaunchCues | undefined): readonly DemoActionG
             {
               label: "8b · Agent shows its plan",
               hint: "Order emails shows its plan, ~/.claude/plans/order-emails.md, rendered in the pane beside its window",
-              run: () => cues.showPlan(),
+              run: (context) => cues.showPlan(context.select),
             },
           ],
         },

@@ -194,6 +194,7 @@ const panel = (selected: string | undefined, { keeping }: { keeping?: number } =
       return aimed
     },
     selected: () => (selected && onScreen() ? inSession(onScreen()!) : undefined),
+    select: () => {},
     addTerminal: () => {
       const created = create(true)
       plus.push(created)
@@ -523,6 +524,7 @@ describe("demo states", () => {
       void run
       action.run({
         selected: () => key("04"),
+        select: () => {},
         addTerminal: () => key("04"),
         addInBackground: () => key("04"),
         startFresh: () => {},
@@ -687,6 +689,7 @@ const openOver = (variant: "plain" | "agents") => {
   const surface: DemoActionContext = {
     target: "selected",
     selected: () => viewed,
+    select: () => {},
     addTerminal: () => viewed,
     addInBackground: (to) => {
       const target = { projectId: to.projectId, workspaceSessionId: to.workspaceSessionId }

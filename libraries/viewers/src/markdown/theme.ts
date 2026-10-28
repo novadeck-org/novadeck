@@ -40,6 +40,9 @@ export const theme = EditorView.theme({
   ".cm-md-quote.cm-md-quote-listed": { paddingLeft: "38px" },
   ".cm-md-item-task.cm-md-quote.cm-md-quote-listed": { paddingLeft: "60px" },
   ".cm-md-codeblock": { padding: "0 14px" },
+  // A code block in a list starts at the item's hang (see ../markdown.css).
+  ".cm-md-codeblock-listed": { paddingLeft: "36px" },
+  ".cm-md-item-task.cm-md-codeblock-listed": { paddingLeft: "58px" },
   "@container md-viewer (max-width: 560px)": {
     ".cm-content": { padding: "10px 20px 40px 20px" },
   },

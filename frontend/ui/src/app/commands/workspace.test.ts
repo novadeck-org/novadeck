@@ -1,7 +1,7 @@
 import type { TerminalRequest } from "@novadeck/core/port"
 import { orderedTiles } from "@novadeck/core/roster"
 import { createStore } from "@novadeck/core/store"
-import { appearance, terminalFixture, workspaceFixture } from "@novadeck/core/testing"
+import { appearance, itemFixture, terminalFixture, workspaceFixture } from "@novadeck/core/testing"
 import { afterEach, vi } from "vitest"
 
 import { context, describe, expect, it } from "../../test"
@@ -553,6 +553,20 @@ describe("workspace commands", () => {
       const { count } = app.shell().navigation
       app.commands.reveal("02")
       expect(app.shell().navigation).toEqual({ count: count + 1, move: "fly" })
+    })
+
+    it("opens what an agent asked to show on it, which waited", () => {
+      const app = openCommands()
+      const page = itemFixture("page", "02", { openAsked: true })
+      app.workspace.dispatch({
+        type: "item/upsert",
+        target: { projectId: "project", workspaceSessionId: "initial" },
+        item: page,
+      })
+      expect(app.state().waiting).toEqual([page.id])
+      app.commands.reveal("02")
+      expect(app.state().waiting).toEqual([])
+      expect(app.state().bars["02"]).toMatchObject({ stack: [page.id], open: true })
     })
 
     it("does nothing for a terminal that is gone", () => {

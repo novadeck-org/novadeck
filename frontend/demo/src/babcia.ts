@@ -559,8 +559,10 @@ export type BabciaCues = {
   // A helper asks the person what only its lead knows. Answered from the Inbox, it writes to
   // its lead; the idle lead, rung awake, works and answers it.
   readonly helperAsks: () => void
-  // The seasonal-specials agent shows its page in the pane beside its window.
-  readonly show: () => void
+  // The seasonal-specials agent shows its page in the pane beside its window. An open waits
+  // for a terminal the person isn't on, so `goThere`, given, takes them to the agent's first,
+  // as the video shows: then it opens beside the window.
+  readonly show: (goThere?: (key: TerminalKey) => void) => void
   // Every agent of both projects ends its turn, one after another, but the ones still waiting
   // on the person: an unanswered request or a helper's unanswered ask.
   readonly finishAll: () => void
@@ -685,7 +687,7 @@ export const createBabcia = (turns: DemoTurns, now: number) => {
       asked = true
       inbox.add(helperAsk(babcia.asking, Date.now()))
     },
-    show: () => {
+    show: (goThere) => {
       if (shown || !sink) return
       shown = true
       const holder = keyOf(babcia.shows)
@@ -707,6 +709,7 @@ export const createBabcia = (turns: DemoTurns, now: number) => {
         shownAt: Date.now(),
         plan: null,
       }
+      goThere?.(holder)
       sink.dispatch([{ type: "item/upsert", target: holder, item }])
     },
     finishAll: () => {

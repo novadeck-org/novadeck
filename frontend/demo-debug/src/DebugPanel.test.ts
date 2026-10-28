@@ -67,6 +67,7 @@ const mount = () => {
       addTerminal: () => ({ projectId: "p", workspaceSessionId: "s", terminalId: "01" }),
       startFresh: () => {},
       selected: () => undefined,
+      select: () => {},
     }),
   )
   mounted.push(view)

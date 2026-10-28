@@ -23,6 +23,8 @@ export type DemoActionContext = {
   readonly target: DemoTarget
   // The selected terminal of the session on screen, if any.
   readonly selected: () => TerminalKey | undefined
+  // Brings a terminal of the session on screen into view selected, as its sidebar row does.
+  readonly select: (key: TerminalKey) => void
   // Adds a terminal to the current session and returns its key.
   readonly addTerminal: () => TerminalKey
   // Adds a terminal to the session holding `to` the way a background process would: it

@@ -698,17 +698,20 @@ export type LaunchCues = {
   // same report to its lead, as a message: the lead is rung.
   readonly teammateDone: () => void
   // The order-status agent shows its page in the pane beside its window, then its changes, as
-  // diffs, or its three takes on the page's Track package button, as a screenshot.
-  readonly show: () => void
-  readonly showChanges: () => void
-  readonly showVariants: () => void
+  // diffs, or its three takes on the page's Track package button, as a screenshot. An open
+  // waits for a terminal the person isn't on, so `goThere`, given, takes them to the agent's
+  // first, as the video shows: then it opens beside the window.
+  readonly show: (goThere?: (key: TerminalKey) => void) => void
+  readonly showChanges: (goThere?: (key: TerminalKey) => void) => void
+  readonly showVariants: (goThere?: (key: TerminalKey) => void) => void
   // An agent asks another to review its change, by message (Cart drawer asks Search index), and
   // the reviewer answers about 4 s after it lands, as long as it's still at that turn. The
   // exchange reads in either one's Messages pane. Neither is woken once the ripple ran, nor one
   // that waits on the person.
   readonly askReview: () => void
-  // The plan's agent shows its plan, the file it writes it in, in the pane beside its window.
-  readonly showPlan: () => void
+  // The plan's agent shows its plan, the file it writes it in, in the pane beside its window,
+  // after `goThere`, given, as the shows above.
+  readonly showPlan: (goThere?: (key: TerminalKey) => void) => void
   // Every agent of both projects ends its turn, one after another, but the ones still waiting
   // on the person: an unanswered request, or a teammate and its lead while their exchange is
   // on its way (they finish when it settles). Each teammate messages its lead its report as it
@@ -947,9 +950,9 @@ export const createLaunch = (turns: DemoTurns, now: number) => {
         })
       })
     },
-    show: () => upsert(preview),
-    showChanges: () => upsert(changes),
-    showVariants: () => upsert(variants),
+    show: (goThere) => upsert(preview, launch.shows, goThere),
+    showChanges: (goThere) => upsert(changes, launch.shows, goThere),
+    showVariants: (goThere) => upsert(variants, launch.shows, goThere),
     askReview: () => {
       if (reviewAsked || ended || !busy(terminal(launch.reviews)) || !terminal(launch.reviewer))
         return
@@ -970,7 +973,7 @@ export const createLaunch = (turns: DemoTurns, now: number) => {
         }, answersMs)
       })
     },
-    showPlan: () => upsert(plan, launch.plan),
+    showPlan: (goThere) => upsert(plan, launch.plan, goThere),
     finishAll: () => {
       if (!latest) return
       ended = true
@@ -981,7 +984,11 @@ export const createLaunch = (turns: DemoTurns, now: number) => {
   // An agent shows something in the pane: the order-status agent its page, then its changes, as
   // the show tool does, and the plan's agent its plan, as the runner shows a plan file it watches,
   // each on its own bar. Each is shown once.
-  const upsert = (artifact: SampleArtifact, number: number = launch.shows): void => {
+  const upsert = (
+    artifact: SampleArtifact,
+    number: number = launch.shows,
+    goThere?: (key: TerminalKey) => void,
+  ): void => {
     if (!sink || shown.has(artifact.item.id) || !busy(terminal(number))) return
     shown.add(artifact.item.id)
     const holder = keyOf(number)
@@ -1003,6 +1010,7 @@ export const createLaunch = (turns: DemoTurns, now: number) => {
       shownAt: Date.now(),
       plan: artifact.item.plan ?? null,
     }
+    goThere?.(holder)
     sink.dispatch([{ type: "item/upsert", target: holder, item }])
   }
 

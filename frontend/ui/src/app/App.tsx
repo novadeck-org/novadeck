@@ -48,6 +48,8 @@ export type WorkspacePanel = ComponentType<{
   readonly addTerminal: () => TerminalKey
   readonly startFresh: () => void
   readonly selected: () => TerminalKey | undefined
+  // Brings a terminal of the session on screen into view selected, as its sidebar row does.
+  readonly select: (key: TerminalKey) => void
 }>
 
 export type AppProps = (
@@ -125,6 +127,7 @@ const PanelSection = ({ panel }: Pick<AppProps, "panel">): React.JSX.Element | n
         const terminalId = currentState(snapshot).selected
         return terminalId ? { ...currentTarget(snapshot), terminalId } : undefined
       }}
+      select={({ terminalId }) => commands.select(terminalId)}
     />
   )
 }

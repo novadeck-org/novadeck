@@ -261,6 +261,7 @@ export const createTerminalState = (
   items: [],
   bars: {},
   fresh: {},
+  waiting: [],
 })
 
 export const createWorkspace = ({
@@ -312,7 +313,12 @@ const updateTarget = (
     const index = project.history.findIndex((session) => session.id === target.workspaceSessionId)
     if (index < 0) return project
     const session = project.history[index]!
-    const state = update(session.state)
+    const updated = update(session.state)
+    // Whatever selected a terminal, the items waiting for it open.
+    const state =
+      updated.selected !== session.state.selected && updated.waiting.length
+        ? openWaiting(updated)
+        : updated
     if (state === session.state) return project
     const history = [...project.history]
     history[index] = { ...session, state }
@@ -384,9 +390,16 @@ const without = <Value>(record: Readonly<Record<string, Value>>, key: string) =>
   return rest
 }
 
+// The item no longer waits to open.
+const unwait = (state: WorkspaceState, id: ItemId): WorkspaceState =>
+  state.waiting.includes(id)
+    ? { ...state, waiting: state.waiting.filter((each) => each !== id) }
+    : state
+
+// The person got to the item, or it's gone: it's no longer new, nor waiting to open.
 const unfresh = (state: WorkspaceState, id: ItemId): WorkspaceState => {
   const fresh = without(state.fresh, id)
-  return fresh === state.fresh ? state : { ...state, fresh }
+  return unwait(fresh === state.fresh ? state : { ...state, fresh }, id)
 }
 
 const barOf = (state: WorkspaceState, terminalId: string): Bar => state.bars[terminalId] ?? emptyBar
@@ -465,7 +478,7 @@ const moveItems = (
     )
     const cleared = twin ? removeItem(next, twin.id) : next
     const moved = withItem(unhold(cleared, item), { ...item, holder: { terminalId } })
-    return withBar(moved, terminalId, (bar) => arriveLast(bar, id))
+    return withBar(unwait(moved, id), terminalId, (bar) => arriveLast(bar, id))
   }, state)
 }
 
@@ -504,7 +517,11 @@ const opensOnArrival = (item: Item): boolean =>
 // What the backend says of an item. Something new, or shown again, comes to its bar: it
 // opens there on top of what's open when the person asked for it, unless an agent showed it
 // and it may hold secrets, and is new otherwise, unless the pane is already showing it. A
-// hidden one is back on the bar.
+// hidden one is back on the bar. What an agent asked to open on a terminal other than the
+// selected one doesn't open over the person's head: it is new, and waits for them to select
+// that terminal (`openWaiting`); shown again, it waits in its new place, or no longer if the
+// ask was dropped. In Grid, where nothing moves as a pane opens, it opens in its window as
+// it waits, for the person to see beside theirs, and still waits to be told of.
 const upsertItem = (state: WorkspaceState, item: Item): WorkspaceState => {
   const previous = state.items.find((each) => each.id === item.id)
   const listed = previous ? withItem(state, item) : { ...state, items: [...state.items, item] }
@@ -513,18 +530,44 @@ const upsertItem = (state: WorkspaceState, item: Item): WorkspaceState => {
   const moved = previous && before !== after ? unhold(listed, previous) : listed
   const again = !previous || item.version > previous.version
   if (!after) return again ? unfresh(moved, item.id) : moved
+  const waits = again && opensOnArrival(item) && after !== state.selected
+  const inPlace = waits && state.view === "grid"
   const arrived = withBar(moved, after, (bar) => {
     const here = before === after ? bar : arrive(bar, item.id)
     if (!again) return here
     const back = reopen(here, item.id)
-    return opensOnArrival(item) ? raise(back, item.id) : back
+    return opensOnArrival(item) && (!waits || inPlace) ? raise(back, item.id) : back
   })
-  if (!again) return arrived
+  if (!again) return before === after ? arrived : unwait(arrived, item.id)
+  if (inPlace)
+    return {
+      ...arrived,
+      waiting: [...arrived.waiting.filter((each) => each !== item.id), item.id],
+    }
   const bar = barOf(arrived, after)
-  return opensOnArrival(item) || (bar.open && topOf(bar) === item.id)
-    ? unfresh(arrived, item.id)
-    : { ...arrived, fresh: { ...arrived.fresh, [item.id]: true } }
+  const open = opensOnArrival(item) && !waits
+  if (open || (bar.open && topOf(bar) === item.id)) return unfresh(arrived, item.id)
+  const fresh = { ...arrived.fresh, [item.id]: true }
+  return {
+    ...arrived,
+    fresh,
+    waiting: waits
+      ? [...arrived.waiting.filter((each) => each !== item.id), item.id]
+      : arrived.waiting.filter((each) => each !== item.id),
+  }
 }
+
+// The selected terminal's waiting items open on its bar, the last to come on top.
+const openWaiting = (state: WorkspaceState): WorkspaceState =>
+  state.waiting.reduce((next, id) => {
+    const item = next.items.find((each) => each.id === id)
+    return item && barHolding(item) === next.selected
+      ? unfresh(
+          withBar(next, next.selected, (bar) => raise(bar, id)),
+          id,
+        )
+      : next
+  }, state)
 
 // What the backend says of a window. One the person didn't just undock here, as from
 // another of their windows, is laid out like a new terminal, without taking the selection.
@@ -813,18 +856,25 @@ export const workspaceReducer = (workspace: Workspace, action: WorkspaceAction):
         const opened = withBar(state, action.terminalId, (bar) => raise(bar, action.key))
         return action.key === messagesKey ? opened : unfresh(opened, action.key)
       })
+    // What the person puts away has had their look: one open where it waits (in Grid) no
+    // longer does.
     case "bar/minimize":
-      return updateTarget(workspace, action.target, (state) =>
-        withBar(state, action.terminalId, (bar) => minimize(bar, action.key)),
-      )
+      return updateTarget(workspace, action.target, (state) => {
+        const minimized = withBar(state, action.terminalId, (bar) => minimize(bar, action.key))
+        return action.key === messagesKey ? minimized : unwait(minimized, action.key)
+      })
     case "bar/close":
-      return updateTarget(workspace, action.target, (state) =>
-        withBar(state, action.terminalId, closePane),
-      )
+      return updateTarget(workspace, action.target, (state) => {
+        const bar = barOf(state, action.terminalId)
+        const shown = bar.open ? topOf(bar) : null
+        const closed = withBar(state, action.terminalId, closePane)
+        return shown === null || shown === messagesKey ? closed : unwait(closed, shown)
+      })
     case "bar/hide":
-      return updateTarget(workspace, action.target, (state) =>
-        withBar(state, action.terminalId, (bar) => hide(bar, action.key)),
-      )
+      return updateTarget(workspace, action.target, (state) => {
+        const hidden = withBar(state, action.terminalId, (bar) => hide(bar, action.key))
+        return action.key === messagesKey ? hidden : unwait(hidden, action.key)
+      })
     case "bar/arrive":
       return updateTarget(workspace, action.target, (state) =>
         withBar(state, action.terminalId, (bar) => arrive(bar, action.key)),

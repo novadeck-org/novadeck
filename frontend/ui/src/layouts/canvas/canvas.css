@@ -15,24 +15,47 @@
   .canvas-viewport .react-flow__node.resizing {
     transition: none;
   }
+  /* How far a node recedes (`--_recede`, its opacity). The window fades, and so does what
+     its sheet holds, but never the sheet's ground: a sheet often lies over a neighbour,
+     which must not show through it, so its ground is the faded paper as solid colour. */
   .canvas-node {
-    opacity: var(--terminal-idle-opacity);
-    transition: opacity var(--motion-state) var(--ease-interface);
+    --_recede: var(--terminal-idle-opacity);
   }
   .canvas-node.selected {
-    opacity: 1;
+    --_recede: 1;
   }
   .canvas-node.selected[data-preview="true"] {
-    opacity: 0.5;
+    --_recede: 0.5;
   }
   /* The selected terminal's team, lead and workers, doesn't recede with the others. A
      preview keeps its own rule. */
   .canvas-node[data-team]:not([data-preview="true"]) {
-    opacity: 1;
+    --_recede: 1;
   }
   /* With nothing selected, no window recedes, as in Grid. */
   .canvas-viewport[data-has-selection="false"] .canvas-node {
-    opacity: 1;
+    --_recede: 1;
+  }
+  /* The window's own opacity is its hiding's (workspace.css), and the grip has its own, so
+     what fades is what the window holds. */
+  .canvas-node > .terminal-visibility > :not(.terminal-resize-grip),
+  .canvas-node > .plan-attached > *,
+  .canvas-node > .plan-attached::before {
+    opacity: var(--_recede);
+    transition: opacity var(--motion-state) var(--ease-interface);
+  }
+  .canvas-node > .plan-attached {
+    --_ground: var(--workspace-bg, var(--color-canvas));
+    background-color: color-mix(
+      in srgb,
+      var(--pane-bg, var(--color-paper)) calc(var(--_recede) * 100%),
+      var(--_ground)
+    );
+    border-color: color-mix(
+      in srgb,
+      var(--pane-attached-border-color, var(--color-line-strong)) calc(var(--_recede) * 100%),
+      var(--_ground)
+    );
   }
   /* A node out of sight whose screen has parked: its content is not laid out or painted,
      and keeps the size its node gives it. Never `auto`, which clips the node's shadow and
@@ -45,7 +68,10 @@
   .canvas-node > .plan-attached {
     /* The window's ink, which it no longer inherits from the window. */
     color: var(--window-fg, var(--color-ink));
-    transition: opacity 180ms var(--ease-interface);
+    transition:
+      opacity 180ms var(--ease-interface),
+      background-color var(--motion-state) var(--ease-interface),
+      border-color var(--motion-state) var(--ease-interface);
   }
   .canvas-node:has(> .terminal-visibility[data-hiding="true"]) > .plan-attached {
     opacity: 0;

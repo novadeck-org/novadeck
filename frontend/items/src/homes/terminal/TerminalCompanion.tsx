@@ -35,6 +35,7 @@ import type { SlotActions } from "../../TaskbarSlot"
 import type { Dragged } from "../../use-bar-drag"
 import { usePlans } from "../../use-item-store"
 import { CompanionPane } from "./CompanionPane"
+import { coverKey } from "./cover-keys"
 import { terminalDrawing } from "./drawing"
 import { useMessages, type MessageLinks } from "./messages/messages"
 import { presentationOf } from "./presentation"
@@ -53,7 +54,9 @@ const clamp = (value: number): number => Math.min(0.7, Math.max(0.22, value))
 // What the pane shows, wherever it's presented.
 type PaneView = Omit<Parameters<typeof CompanionPane>[0], "presentation">
 
-// Terminal left, pane right, inside the terminal's own window. The divider drags.
+// Terminal left, pane right, inside the terminal's own window. The divider drags. Where the
+// window is too narrow for both the pane covers the terminal, which keeps its size beneath;
+// its keys then uncover it (cover-keys.ts).
 const SplitPane = ({
   view: shown,
   owner,
@@ -69,6 +72,48 @@ const SplitPane = ({
 }): React.JSX.Element => {
   const [ratio, setRatio] = useState(terminalView === "focus" ? 0.36 : 0.42)
   const frame = useRef<HTMLDivElement>(null)
+  const { leaving, onHide } = shown
+  const hide = useRef(onHide)
+  useEffect(() => {
+    hide.current = onHide
+  })
+  // Heard in the capture phase, past the app's own shortcuts, which stop their keys first,
+  // and before the terminal's input.
+  useEffect(() => {
+    const element = frame.current
+    const terminal = element?.querySelector(".plan-split-terminal")
+    const pane = element?.querySelector(".plan-split-reader")
+    if (leaving || !element || !terminal || !pane) return
+    const heard = (event: KeyboardEvent): void =>
+      coverKey(event, {
+        covering: () => getComputedStyle(element).getPropertyValue("--_plan-cover").trim() === "1",
+        terminal,
+        pane,
+        uncover: () => hide.current(),
+        // A key pressed elsewhere makes no events in the terminal's input, so it goes there
+        // as the same key's events, which the terminal reads by its code: its keydown, taking
+        // it unless it's left to the keypress after.
+        type: (pressed) => {
+          const input = terminal.querySelector<HTMLElement>("[data-terminal-input]")
+          if (!input) return
+          input.focus({ preventScroll: true })
+          const key = {
+            key: pressed.key,
+            code: pressed.code,
+            keyCode: pressed.keyCode,
+            shiftKey: pressed.shiftKey,
+            bubbles: true,
+            cancelable: true,
+          }
+          if (input.dispatchEvent(new KeyboardEvent("keydown", key)))
+            input.dispatchEvent(
+              new KeyboardEvent("keypress", { ...key, charCode: pressed.key.charCodeAt(0) }),
+            )
+        },
+      })
+    document.addEventListener("keydown", heard, true)
+    return () => document.removeEventListener("keydown", heard, true)
+  }, [leaving])
   return (
     <div
       ref={frame}
