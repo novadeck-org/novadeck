@@ -30,15 +30,15 @@ the same validated owner and repository from that file (`update-release.ts`).
 ## Channels
 
 A build follows one channel, which the person picks with Preferences' Experimental switch
-(on is `early`, which also turns on the IS_EXPERIMENTAL flag) and the host keeps
+(on is `experimental`, which also turns on the IS_EXPERIMENTAL flag) and the host keeps
 across launches in `update.json` in the data folder. The same file keeps what the card of what is
 new needs (see "What is new"): `lastRunVersion`, `whatsNewPending`, `whatsNewFrom`,
 `whatsNewSettled` and `whatsNewCheckedAt`.
 
-| Channel  | Follows                                          |
-| -------- | ------------------------------------------------ |
-| `stable` | GitHub's latest release that is not a prerelease |
-| `early`  | Every release, prereleases included              |
+| Channel        | Follows                                          |
+| -------------- | ------------------------------------------------ |
+| `stable`       | GitHub's latest release that is not a prerelease |
+| `experimental` | Every release, prereleases included              |
 
 Builds start on `stable`. The release workflow publishes every build as a prerelease;
 the "Promote to Stable" workflow (`.github/workflows/promote.yml`, run by hand with an
@@ -54,28 +54,28 @@ next patch, so a promoted release carries the step since the last stable one (1.
 the Release workflow by hand with a version releases `main` as that version.
 
 Switching applies to the next check, and one runs about two seconds later. Switching
-back to `stable` never downgrades: an `early` build newer than stable waits until stable
+back to `stable` never downgrades: an `experimental` build newer than stable waits until stable
 passes it. A downloaded update that waits is replaced by the release the new channel offers
 when that is newer than the running build, as any newer release replaces it (see "Installing
-and telling"): switching from `early` to `stable` with a prerelease waiting installs the
+and telling"): switching from `experimental` to `stable` with a prerelease waiting installs the
 stable release, even one older than that prerelease.
 
 electron-updater decides the release in `GitHubProvider.getLatestVersion`. With
 `allowPrerelease` false it asks `/releases/latest`, which GitHub answers with the latest
 non-prerelease (a 404 when there is none); with it true it takes the newest entry of the
-releases feed. `stable` sets it false and `early` true.
+releases feed. `stable` sets it false and `experimental` true.
 
 ## Checks through novadeck.dev
 
-Checks read `https://novadeck.dev/update/<channel>/` (`stable` or `early`), a generic
+Checks read `https://novadeck.dev/update/<channel>/` (`stable` or `experimental`), a generic
 feed: electron-updater fetches `latest.yml`, `latest-mac.yml` or `latest-linux.yml` there.
 The website counts the request, which is how it knows how many copies are open and
-launched, and answers with that file from GitHub: `stable` the latest release's, `early`
+launched, and answers with that file from GitHub: `stable` the latest release's, `experimental`
 the newest release, prereleases included, which the website asks GitHub for (its answer
 kept a minute in each of Cloudflare's data centres) or, should GitHub not say, takes from
 its own build. It rewrites the file's download addresses to the whole GitHub address at
 that release, so the update itself downloads from GitHub directly. Should the website not
-know the newest release for `early`, or not answer at all, the check fails and the app
+know the newest release for `experimental`, or not answer at all, the check fails and the app
 checks GitHub itself (below);
 should its counting not run, it redirects the checks to GitHub uncounted (novadeck-website,
 README "Counts"). The generic provider ignores `allowPrerelease`, so the channel
@@ -107,14 +107,14 @@ A site that can't be reached or fails never blocks updating: a check through it 
 fails for any reason is made again at once against GitHub (unless the app is quitting)
 with the repository from `app-update.yml`, and the next check goes to novadeck.dev
 again. The site's answer for `stable` is GitHub's file relayed live with `no-store`; its
-answer for `early` lags GitHub's by up to a minute while GitHub answers the site (its
-cache), so a release reaches early copies at their first check a minute or more after it
+answer for `experimental` lags GitHub's by up to a minute while GitHub answers the site (its
+cache), so a release reaches experimental copies at their first check a minute or more after it
 is published. Should GitHub's API not answer the site (down, slow or rate limited), it
 names the release its own build links instead, which can lag by hours, as GitHub runs the
 site's scheduled builds only every few hours; the site distrusts that record after 6 hours
 and answers 503, so the app falls back. A wrong answer from the site, which only a bug of
 the site gives, can delay updates until it is fixed.
-The app does not step back to an older `early` release the website names within 6 hours
+The app does not step back to an older `experimental` release the website names within 6 hours
 of having offered or taken a newer one (kept per run, in memory, on a monotonic clock, and
 only while that release is offered or ready: a failed download of it clears the hold): the answer is ignored,
 with no download, no change of offer and nothing cleared, so a lagging answer cannot
@@ -502,7 +502,7 @@ keeps the workspace.
   `latest.yml` lists for the setup, or the response's `Content-Length`. A download is given up after 60 seconds without data,
   not after a fixed time. The installed (non-portable) copy removes that folder a minute after
   launch, best effort. The release used is `latest`, unless it is missing or older than this copy
-  (an `early` copy ahead of stable): then this copy's own release,
+  (an `experimental` copy ahead of stable): then this copy's own release,
   `releases/download/v<this version>/`, supplies both files and is not compared, as it is
   never older. `latest` is missing until the first stable release, when its `latest.yml`
   answers 404. A network error or any other status at `latest` does not fall back. Installing the
@@ -651,7 +651,7 @@ has nothing to show (no block, no highlights, or GitHub's own JSON 404); nothing
 a settled version is offered again. A read that fails for a reason that may pass (offline,
 timeout, 403, 429, 5xx, or an answer that is not that release) is tried once more two minutes
 later in the same launch, and the page's one request waits for it; if that fails too, the mark
-stays for a later launch. A prerelease's own notes carry up to two highlights, so early builds
+stays for a later launch. A prerelease's own notes carry up to two highlights, so experimental builds
 show the card too. A prerelease whose notes are not written yet, or that gathers no highlights,
 is read at most once a day (`whatsNewCheckedAt`), as its notes or its promotion may still write
 some onto the same tag. Builds that look
@@ -701,12 +701,12 @@ full one.
 - **macOS App Management** may refuse the swap (`EPERM`) where the person has not let
   Novadeck manage apps. The install then fails as any other: the log says where to allow
   it in System Settings, and the page offers the release as "Update available".
-- **A channel switch does not cancel work in progress.** An `early` build that is already
+- **A channel switch does not cancel work in progress.** An `experimental` build that is already
   downloading a prerelease when the person switches to `stable` finishes the download and
   installs it on quit. The same switch made during an in-flight check drops that
   check's answer, and the new channel is checked at once when it ends.
-- **Offers are not retracted.** After switching from `early` to `stable`, an `available`
-  offer for an early-only release stays until a later check offers another version; the
+- **Offers are not retracted.** After switching from `experimental` to `stable`, an `available`
+  offer for an experimental-only release stays until a later check offers another version; the
   bridge has no way to withdraw one. A downloaded update stays `ready` as well, unless a stable release newer than the running
   build replaces it, and a `downloading` offer is replaced only by its own outcome.
 - **Windows updates are not watched past the call.** An installed copy's update runs the

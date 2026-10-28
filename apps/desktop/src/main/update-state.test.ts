@@ -34,22 +34,32 @@ describe("what the host remembers about updating", () => {
 
   context("the channel", () => {
     it("persists across launches", () => {
-      keepUpdateState(file).setChannel("early")
-      expect(keepUpdateState(file).read().channel).toBe("early")
+      keepUpdateState(file).setChannel("experimental")
+      expect(keepUpdateState(file).read().channel).toBe("experimental")
       keepUpdateState(file).setChannel("stable")
       expect(keepUpdateState(file).read().channel).toBe("stable")
     })
 
     it("falls back to stable for anything that is not a channel", () => {
-      for (const channel of ["nightly", 3, null, ["early"], { channel: "early" }])
+      for (const channel of [
+        "nightly",
+        "toString",
+        "__proto__",
+        3,
+        null,
+        ["experimental"],
+        { channel: "experimental" },
+      ])
         expect(updateStateOf(JSON.stringify({ channel })).channel).toBe("stable")
     })
 
     it("falls back to the defaults for a damaged file, each field apart", () => {
-      for (const text of ["", "{", "null", "[]", '"early"'])
+      for (const text of ["", "{", "null", "[]", '"experimental"'])
         expect(updateStateOf(text).channel).toBe("stable")
-      expect(updateStateOf('{"channel":"early","installFailedOn":7,"installing":[]}')).toEqual({
-        channel: "early",
+      expect(
+        updateStateOf('{"channel":"experimental","installFailedOn":7,"installing":[]}'),
+      ).toEqual({
+        channel: "experimental",
         installFailedOn: undefined,
         installing: undefined,
         lastRunVersion: undefined,
@@ -109,10 +119,10 @@ describe("what the host remembers about updating", () => {
 
     it("keeps the launch's version and the notes still to show, each apart", () => {
       const state = keepUpdateState(file)
-      state.setChannel("early")
+      state.setChannel("experimental")
       state.recordLaunch("0.5.0", "0.5.0", undefined)
       expect(state.read()).toMatchObject({
-        channel: "early",
+        channel: "experimental",
         lastRunVersion: "0.5.0",
         whatsNewPending: "0.5.0",
       })
@@ -128,7 +138,7 @@ describe("what the host remembers about updating", () => {
   context("writing", () => {
     it("goes through a temporary file that is renamed over, leaving none behind", async () => {
       const state = keepUpdateState(file)
-      state.setChannel("early")
+      state.setChannel("experimental")
       state.recordInstallFailure("0.4.2")
       expect(await readdir(folder)).toEqual(["update.json"])
     })
@@ -142,7 +152,7 @@ describe("what the host remembers about updating", () => {
 
     it("merges with what another writer left in the file, never with a stale copy", () => {
       const state = keepUpdateState(file)
-      state.setChannel("early")
+      state.setChannel("experimental")
       // Something else changed the file between two changes.
       writeFileSync(file, JSON.stringify({ channel: "stable" }))
       state.recordInstallFailure("0.4.2")
@@ -155,7 +165,7 @@ describe("what the host remembers about updating", () => {
 
     it("leaves the file whole and no temporary file when a write fails", async () => {
       const state = keepUpdateState(join(folder, "missing", "update.json"))
-      expect(() => state.setChannel("early")).toThrow()
+      expect(() => state.setChannel("experimental")).toThrow()
       expect(await readdir(folder)).toEqual([])
     })
   })
@@ -172,11 +182,11 @@ describe("what the host remembers about updating", () => {
 
     it("is replaced by a later failure and keeps the channel", () => {
       const state = keepUpdateState(file)
-      state.setChannel("early")
+      state.setChannel("experimental")
       state.recordInstallFailure("0.4.2")
       state.recordInstallFailure("0.5.0")
       expect(state.read()).toEqual({
-        channel: "early",
+        channel: "experimental",
         installFailedOn: "0.5.0",
         installing: undefined,
       })
@@ -192,7 +202,7 @@ describe("what the host remembers about updating", () => {
     it("is kept when the channel changes afterwards", () => {
       const state = keepUpdateState(file)
       state.recordInstallFailure("0.4.2")
-      state.setChannel("early")
+      state.setChannel("experimental")
       expect(state.read().installFailedOn).toBe("0.4.2")
     })
   })

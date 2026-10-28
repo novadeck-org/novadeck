@@ -447,7 +447,7 @@ export type SetupHost = {
  * release, all while the app runs normally, so a failure changes nothing. The setup is
  * ready only if `latest.yml` lists it with a SHA-512 and the file matches; a mismatch
  * removes the file. A latest release older than this copy is not installed, as that would
- * put an app that cannot open the workspace this one may have upgraded (an `early` copy
+ * put an app that cannot open the workspace this one may have upgraded (an `experimental` copy
  * newer than the latest stable release). While there is no stable release (`latest`
  * answers 404), and in that older case, it uses this copy's own release instead, fetching
  * both files from there; that one is by definition not older. The installed copy updates

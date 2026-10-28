@@ -441,13 +441,13 @@ describe("an update offer", () => {
 
 describe("the update channel", () => {
   it("is what the host answers, when it is a channel", async () => {
-    electron.answer = "early"
-    expect(await electron.exposed.updateChannel!()).toBe("early")
+    electron.answer = "experimental"
+    expect(await electron.exposed.updateChannel!()).toBe("experimental")
     expect(electron.sent).toEqual([updateChannelChannel])
   })
 
   it("is stable when the host answers anything else", async () => {
-    const answers = [undefined, "nightly", { channel: "early" }, 3]
+    const answers = [undefined, "nightly", { channel: "experimental" }, 3]
     const channels = answers.map((answer) => {
       electron.answer = answer
       return electron.exposed.updateChannel!()
@@ -456,8 +456,8 @@ describe("the update channel", () => {
   })
 
   it("is switched by telling the host a known channel", () => {
-    electron.exposed.setUpdateChannel!("early")
-    expect(electron.messages).toEqual([[setUpdateChannelChannel, "early"]])
+    electron.exposed.setUpdateChannel!("experimental")
+    expect(electron.messages).toEqual([[setUpdateChannelChannel, "experimental"]])
   })
 
   it("sends nothing for anything else", () => {

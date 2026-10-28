@@ -128,7 +128,7 @@ type ExperimentalSetting = {
   readonly onChange: (on: boolean) => void
 }
 
-// Preferences' Experimental switch: whether the desktop app follows early builds, which is
+// Preferences' Experimental switch: whether the desktop app follows experimental builds, which is
 // the IS_EXPERIMENTAL flag, asked of it each time Preferences opens; undefined where the app
 // offers no choice. The switch and the flag change at once, as the app remembers the choice.
 const useExperimental = (
@@ -148,7 +148,7 @@ const useExperimental = (
     channel.get().then(
       (value) => {
         if (!current || flips.current !== asked) return
-        setFeatureFlag("IS_EXPERIMENTAL", value === "early")
+        setFeatureFlag("IS_EXPERIMENTAL", value === "experimental")
         setKnown(true)
       },
       () => {},
@@ -164,7 +164,7 @@ const useExperimental = (
         flips.current += 1
         setFeatureFlag("IS_EXPERIMENTAL", next)
         setKnown(true)
-        channel.set(next ? "early" : "stable")
+        channel.set(next ? "experimental" : "stable")
       },
     }
   )

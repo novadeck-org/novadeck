@@ -181,7 +181,7 @@ export const updatesGroup = (launch: DemoLaunch, controls: DemoUpdates): DemoAct
       {
         label: "Experimental on",
         hint: "Takes effect once Preferences is reopened",
-        run: () => controls.updates.channel?.set("early"),
+        run: () => controls.updates.channel?.set("experimental"),
       },
       {
         label: "Experimental off",

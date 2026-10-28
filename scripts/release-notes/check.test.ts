@@ -242,6 +242,8 @@ describe("the checks on a model's answer", () => {
       "Nightly builds install on their own.",
       "Join the canary channel.",
       "Early builds are listed in Preferences.",
+      "Experimental builds are listed in Preferences.",
+      "Switch to the experimental channel.",
       "Choose an update channel.",
       "A prerelease is offered.",
       "Turn on Experimental in Preferences.",
@@ -295,6 +297,7 @@ describe("the checks on a model's answer", () => {
       "A GitHub Action is added.",
       "Novadeck updates itself, with stable and early build channels.",
       "Early updates arrive first.",
+      "Experimental updates arrive first.",
       "Prereleases install on their own.",
     ]) {
       const checked = check(withChange(line))
