@@ -1,3 +1,4 @@
+import { agentContext } from "@novadeck/core/agent-steps"
 import type { InboxRow } from "@novadeck/core/inbox"
 import { orderedTiles } from "@novadeck/core/roster"
 import { workspaceFromSeed } from "@novadeck/core/seed"
@@ -8,7 +9,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import { answerMs, answeredMs } from "./chat"
 import { demoHandle } from "./handles"
 import { isDemoInbox } from "./inbox"
-import { launch, launchCuesOf, launchIntroOf } from "./launch"
+import { launch, launchCuesOf, launchIntroOf, launchTranscripts } from "./launch"
 import { isDemoMessages } from "./messages"
 import { demoTerminalId } from "./samples"
 import { demoTurns } from "./turns"
@@ -376,6 +377,23 @@ describe("the launch demo", () => {
       },
       { kind: "changes", openAsked: true, holder: { terminalId: key(launch.shows).terminalId } },
     ])
+  })
+
+  it("gives the asking agent the steps its Inbox sheet lists above the ask", () => {
+    const transcript = launchTranscripts(0)[String(launch.permission).padStart(2, "0")]!
+    expect(agentContext("claude", transcript.items)).toMatchObject({
+      said: { text: "Cover the checkout with end-to-end tests." },
+      steps: [
+        { kind: "edit", tool: "Write", arg: "…/northwind/e2e/checkout.spec.ts", result: "+5" },
+        {
+          kind: "edit",
+          tool: "Edit",
+          arg: "…/projects/northwind/playwright.config.ts",
+          result: "+1 −1",
+        },
+        { kind: "run", tool: "Bash", arg: "pnpm typecheck", result: "Done in 3.2s" },
+      ],
+    })
   })
 
   it("shows the page, then its button's variants, as a screenshot beside the order-status window", () => {

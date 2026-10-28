@@ -18,14 +18,25 @@ export const session = "initial"
 
 export const directory = (project: string): string => `~/projects/${project}`
 
-// A call an agent made before the command it's on, as its harness records it: the tool, its
-// input, what it was called on (a path, a command), whether it wrote a file, and its result.
+// A call a Claude Code or Codex agent made before the command it's on, as its harness records
+// it: the tool, its input, what its screen shows it called on (a path, a command), its title as
+// the harness's decoder gives it ("Wrote", "Edited", "Ran"), and its result. Antigravity's
+// window has no room for them under its banner, as for its command.
 export type DeskStep = {
   readonly tool: string
   readonly input: Readonly<Record<string, unknown>>
   readonly arg: string
-  readonly wrote?: boolean
+  readonly title: "Wrote" | "Edited" | "Ran"
   readonly result: string
+}
+
+// A step's detail as the decoder writes it: a file by its last three segments (the harnesses'
+// `shortPath`), a command as it is.
+const detailOf = ({ input, arg }: DeskStep): string => {
+  const path = input["file_path"]
+  if (typeof path !== "string") return arg
+  const parts = path.split("/").filter(Boolean)
+  return parts.length > 3 ? `…/${parts.slice(-3).join("/")}` : path
 }
 
 // One of the agents: its terminal's name, the agent, what the person asked it, what it said
@@ -125,12 +136,12 @@ export const deskIntroOf =
     return fixedIntro([
       banner(job.agent, terminal.directory),
       requestBlock(job.agent, promptOf(Number(terminalSlot(terminal.id)), job)),
-      ...(job.before ?? []).map((step) => callBlock(job.agent, step.tool, step.arg)),
       // Antigravity's banner is five rows tall, so what it ran stays off its small window: its
       // name and model, which the banner is for, would scroll out of sight under it.
       ...(job.agent === "agy"
         ? []
         : [
+            ...(job.before ?? []).map((step) => callBlock(job.agent, step.tool, step.arg)),
             callBlock(job.agent, tool, job.command),
             ...(job.progress ? [resultBlock([job.progress], job.agent)] : []),
           ]),
@@ -214,11 +225,11 @@ export const deskTranscripts = (
       const call = `${job.agent === "claude" ? "toolu" : "call"}_${id}a`
       const items = written(id, now, [
         user(promptOf(number, job)),
-        ...(job.before ?? []).flatMap((step, at) => [
+        ...(job.agent === "agy" ? [] : (job.before ?? [])).flatMap((step, at) => [
           use(`${call}${at}`, step.tool, step.input, {
-            kind: step.wrote ? "write" : "run",
-            title: step.wrote ? "Wrote" : "Ran",
-            detail: step.arg,
+            kind: step.title === "Ran" ? "run" : "write",
+            title: step.title,
+            detail: detailOf(step),
           }),
           got(`${call}${at}`, step.result),
         ]),

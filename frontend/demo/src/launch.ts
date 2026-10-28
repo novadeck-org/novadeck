@@ -37,7 +37,8 @@ import type { DemoTurns } from "./turns"
 // "Launch" group fires (see `LaunchCues`), so a capture plan can time each to a frame: a
 // spread of states, three asks that fill the Inbox, a lead that opens three teammates, a
 // teammate's question to the person and the message it then sends its lead, a teammate's
-// done, a page and then the changes shown in the pane, and every agent finishing. It shows
+// done, a page and then the changes (or a screenshot of three takes on a button) shown in the
+// pane, and every agent finishing. It shows
 // nothing the app doesn't do: no cue draws over the app, it only has the agents act.
 
 const shop = "northwind"
@@ -56,7 +57,7 @@ export const launch = {
   finishes: 8,
   // Asks a question and marks its own pick.
   question: 1,
-  // Shows a page, then its changes, in the pane.
+  // Shows a page, then its changes or a screenshot of three takes on a button, in the pane.
   shows: 9,
   // Opens the teammates, numbered after it.
   lead: 10,
@@ -111,7 +112,7 @@ const jobs: readonly Job[] = [
           content: `test("pays for a cart", async ({ page }) => {\n  await page.goto("/cart")\n  await page.getByRole("button", { name: "Checkout" }).click()\n  await expect(page).toHaveURL(/orders/)\n})`,
         },
         arg: "e2e/checkout.spec.ts",
-        wrote: true,
+        title: "Wrote",
         result: `File created successfully at: ${home}/e2e/checkout.spec.ts`,
       },
       {
@@ -122,13 +123,14 @@ const jobs: readonly Job[] = [
           new_string: `testDir: "e2e"`,
         },
         arg: "playwright.config.ts",
-        wrote: true,
-        result: "The file playwright.config.ts has been updated.",
+        title: "Edited",
+        result: `The file ${home}/playwright.config.ts has been updated successfully.`,
       },
       {
         tool: "Bash",
         input: { command: "pnpm typecheck" },
         arg: "pnpm typecheck",
+        title: "Ran",
         result: "Done in 3.2s",
       },
     ],
