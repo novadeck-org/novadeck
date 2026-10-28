@@ -624,21 +624,6 @@ const reviewAnswer =
 
 // The plan the plan's agent writes, in the file Claude Code keeps its plans in.
 const planPath = "/home/dev/.claude/plans/order-emails.md"
-const planText = [
-  "# Order emails",
-  "",
-  "Email the customer when their order ships, with the same timeline as the order page.",
-  "",
-  "## Steps",
-  "",
-  "1. Add a shipped-order email template, `emails/shipped.tsx`",
-  "2. Queue it when an order is marked shipped",
-  "3. Test it with a sandbox order",
-  "",
-  "## Open questions",
-  "",
-  "- Send it from the store's address, or a no-reply one?",
-].join("\n")
 const planArtifact = (): SampleArtifact => ({
   item: {
     id: "northwind-order-emails-plan",
@@ -651,7 +636,27 @@ const planArtifact = (): SampleArtifact => ({
     secret: false,
     plan: { agent: "Claude Code", role: "root", source: "file" },
   },
-  content: ready({ kind: "plan", text: planText, truncated: false, writable: true, skill: false }),
+  content: ready({
+    kind: "plan",
+    text: [
+      "# Order emails",
+      "",
+      "Email the customer when their order ships, with the same timeline as the order page.",
+      "",
+      "## Steps",
+      "",
+      "1. Add a shipped-order email template, `emails/shipped.tsx`",
+      "2. Queue it when an order is marked shipped",
+      "3. Test it with a sandbox order",
+      "",
+      "## Open questions",
+      "",
+      "- Send it from the store's address, or a no-reply one?",
+    ].join("\n"),
+    truncated: false,
+    writable: true,
+    skill: false,
+  }),
 })
 
 // How long the lead takes to answer its teammate once the doorbell rang it awake.
