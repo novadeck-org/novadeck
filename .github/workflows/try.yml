@@ -2,9 +2,9 @@ name: Try
 
 # The visitor build (`pnpm build:try`) on Cloudflare Pages, at try.novadeck.dev, beside the
 # website: it deploys a release's source, so the demo shows a published version and never
-# unreleased work. Until launch, Release calls this with each version it publishes,
-# prereleases included; then it moves to Promote to Stable, so the demo shows what Download
-# gives people. Run workflow deploys a tag by hand. Quality's "Build (try)" builds it on
+# unreleased work. Promote to Stable calls this with the release it promotes, so the demo
+# shows what Download gives people and prereleases never reach it. Run workflow deploys a
+# tag by hand. Quality's "Build (try)" builds it on
 # every pull request first. Without Cloudflare set up (docs/development.md, "Visitor build") it deploys
 # nothing and says so.
 
