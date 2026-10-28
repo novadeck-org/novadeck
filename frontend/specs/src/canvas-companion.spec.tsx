@@ -116,7 +116,7 @@ describe("Canvas with a sheet an agent opens beside a window that is not on top"
     const toast = page.getByRole("button", { name: "Open", exact: true })
     await expect.element(toast).toBeVisible()
     await expect.element(page.getByText("wants to show you")).toBeVisible()
-    expect(document.querySelector(".toast")?.textContent).toMatch(/^Seasonal specials/)
+    expect(document.querySelector(".toast")?.textContent).toContain("Seasonal specials")
     await expectStaysAbsent(companionPane("Seasonal specials"), { ms: 500 })
     expect(camera()).toBe(before)
     expect(selected("Menu page")).toBe(true)
@@ -158,11 +158,6 @@ describe("Canvas with a sheet an agent opens beside a window that is not on top"
     await chooseView("Canvas")
     await layoutSettled()
 
-    const layer = (name: string): number =>
-      Number(
-        getComputedStyle(terminal(name).element().closest<HTMLElement>(".react-flow__node")!)
-          .zIndex,
-      )
     await expect.element(companionPane("Refactor auth")).toBeVisible()
     await expect.poll(() => layer("Build Studio")).toBeGreaterThan(layer("Refactor auth"))
   })

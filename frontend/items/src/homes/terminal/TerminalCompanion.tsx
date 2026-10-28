@@ -86,33 +86,28 @@ const SplitPane = ({
     if (leaving || !element || !terminal || !pane) return
     const heard = (event: KeyboardEvent): void =>
       coverKey(event, {
-        covering: () => getComputedStyle(element).getPropertyValue("--plan-cover").trim() === "1",
+        covering: () => getComputedStyle(element).getPropertyValue("--_plan-cover").trim() === "1",
         terminal,
         pane,
         uncover: () => hide.current(),
-        // A key pressed elsewhere makes no events in the terminal's input, so the character
-        // goes there as the keys of a press do: its keydown, taking it unless it's left to
-        // the keypress after.
-        type: (text) => {
+        // A key pressed elsewhere makes no events in the terminal's input, so it goes there
+        // as the same key's events, which the terminal reads by its code: its keydown, taking
+        // it unless it's left to the keypress after.
+        type: (pressed) => {
           const input = terminal.querySelector<HTMLElement>("[data-terminal-input]")
           if (!input) return
           input.focus({ preventScroll: true })
-          const keyCode = text.toUpperCase().charCodeAt(0)
-          const down = new KeyboardEvent("keydown", {
-            key: text,
-            keyCode,
+          const key = {
+            key: pressed.key,
+            code: pressed.code,
+            keyCode: pressed.keyCode,
+            shiftKey: pressed.shiftKey,
             bubbles: true,
             cancelable: true,
-          })
-          if (input.dispatchEvent(down))
+          }
+          if (input.dispatchEvent(new KeyboardEvent("keydown", key)))
             input.dispatchEvent(
-              new KeyboardEvent("keypress", {
-                key: text,
-                keyCode,
-                charCode: text.charCodeAt(0),
-                bubbles: true,
-                cancelable: true,
-              }),
+              new KeyboardEvent("keypress", { ...key, charCode: pressed.key.charCodeAt(0) }),
             )
         },
       })

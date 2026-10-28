@@ -135,18 +135,49 @@ describe("focusing the terminal the person was taken to", () => {
     expect(asked).toEqual(["02", "02", "02"])
   })
 
-  it("gives up after its tries, and stops when told", () => {
+  it("gives up after its tries", () => {
     const frames: (() => void)[] = []
     let asked = 0
     focusWhenReady(
       "02",
       () => (asked++, false),
       (next) => frames.push(next),
-      () => {},
+      () => null,
       3,
     )
     while (frames.length) frames.shift()!()
     expect(asked).toBe(3)
+  })
+
+  it("gives up once the person puts focus somewhere themselves", () => {
+    const frames: (() => void)[] = []
+    let asked = 0
+    let focused: Element | null = null
+    focusWhenReady(
+      "02",
+      () => (asked++, false),
+      (next) => frames.push(next),
+      () => focused,
+    )
+    frames.shift()!()
+    focused = document.createElement("input")
+    while (frames.length) frames.shift()!()
+    expect(asked).toBe(1)
+  })
+
+  it("keeps trying when its button goes and leaves focus nowhere", () => {
+    const frames: (() => void)[] = []
+    const asked: string[] = []
+    let focused: Element | null = document.createElement("button")
+    focusWhenReady(
+      "02",
+      (id) => (asked.push(id), asked.length === 2),
+      (next) => frames.push(next),
+      () => focused,
+    )
+    focused = document.body
+    while (frames.length) frames.shift()!()
+    expect(asked).toEqual(["02", "02"])
   })
 })
 

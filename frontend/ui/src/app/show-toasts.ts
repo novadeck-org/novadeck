@@ -70,19 +70,24 @@ export const watchShowToasts = (
 
 // Puts keyboard focus in the terminal's input once it can take it: the view may still be
 // moving to it (Focus mounting it, Canvas flying in), so it tries on each frame, for about a
-// second, until `focus` says it holds. Returns the stop.
+// second, until `focus` says it holds. It gives up once the person puts focus somewhere
+// themselves, so it never takes it back from them.
 export const focusWhenReady = (
   terminalId: string,
   focus: (id: string) => boolean,
-  frame: (next: () => void) => number = requestAnimationFrame,
-  cancel: (handle: number) => void = cancelAnimationFrame,
+  frame: (next: () => void) => void = requestAnimationFrame,
+  active: () => Element | null = () => document.activeElement,
   tries = 60,
-): (() => void) => {
-  let handle = 0
-  const attempt = (left: number): void => {
-    if (focus(terminalId) || left <= 1) return
-    handle = frame(() => attempt(left - 1))
+): void => {
+  // The toast's button, which goes with the toast and leaves focus nowhere: not theirs.
+  const from = active()
+  const theirs = (): boolean => {
+    const now = active()
+    return now !== null && now !== from && now !== document.body
   }
-  handle = frame(() => attempt(tries))
-  return () => cancel(handle)
+  const attempt = (left: number): void => {
+    if (theirs() || focus(terminalId) || left <= 1) return
+    frame(() => attempt(left - 1))
+  }
+  frame(() => attempt(tries))
 }

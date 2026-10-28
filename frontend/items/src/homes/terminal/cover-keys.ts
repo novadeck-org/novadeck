@@ -30,8 +30,8 @@ export type CoverKey = {
   readonly terminal: Element
   readonly pane: Element
   readonly uncover: () => void
-  // Types a character into the terminal, for one typed on the pane's surface.
-  readonly type: (text: string) => void
+  // Types a key pressed on the pane's surface into the terminal, as the same key.
+  readonly type: (event: KeyboardEvent) => void
 }
 
 // Holds a swallowed Escape or Enter back until it is released: held down, its repeats must
@@ -79,7 +79,7 @@ export const coverKey = (event: KeyboardEvent, context: CoverKey): void => {
     // The pane's surface: the character is a reply, typed into the terminal.
     event.preventDefault()
     context.uncover()
-    context.type(event.key)
+    context.type(event)
     return
   }
   if (target === document.body || target === document.documentElement) {

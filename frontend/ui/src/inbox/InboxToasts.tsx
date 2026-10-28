@@ -103,6 +103,7 @@ const ShowToast = ({
       <Eye size={15} strokeWidth={1.6} />
     </span>
     <span className="inbox-toast-head">
+      <HandleChip handle={waiting.handle} />
       <span className="inbox-toast-name">{waiting.terminalName}</span>
       <span className="inbox-toast-said">wants to show you</span>
     </span>

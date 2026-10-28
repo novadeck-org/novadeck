@@ -157,7 +157,7 @@ describe("a pane covering its terminal", () => {
         key: hero.id,
       }),
     )
-    container.querySelector<HTMLElement>(".plan-split")?.style.setProperty("--plan-cover", "1")
+    container.querySelector<HTMLElement>(".plan-split")?.style.setProperty("--_plan-cover", "1")
     return { container, input: container.querySelector("textarea")! }
   }
   const press = async (
@@ -238,15 +238,36 @@ describe("a pane covering its terminal", () => {
     expect(open(container)).toBe(true)
   })
 
-  it("takes a character typed on its surface into the terminal", async () => {
-    const { container, input } = covered()
-    const typed: string[] = []
-    input.addEventListener("keydown", (event) => typed.push(event.key))
-    await press(container.querySelector(".plan-reader"), "a")
-    expect(open(container)).toBe(false)
-    expect(document.activeElement).toBe(input)
-    expect(typed).toEqual(["a"])
-  })
+  // The terminal reads a key by its code, so the one it gets is the key pressed, not one
+  // made from its character: "." is not Delete (46), nor "(" Down (40).
+  it.each([
+    ["a", "KeyA", 65, false],
+    [".", "Period", 190, false],
+    ["(", "Digit9", 57, true],
+  ] as const)(
+    "takes %s typed on its surface into the terminal",
+    async (typed, code, keyCode, shiftKey) => {
+      const { container, input } = covered()
+      const reader = await vi.waitFor(() => {
+        const found = container.querySelector(".plan-reader")
+        if (!found) throw new Error("its viewer is still loading")
+        return found
+      })
+      const got: KeyboardEvent[] = []
+      input.addEventListener("keydown", (event) => got.push(event))
+      const event = await press(reader, typed, { code, keyCode, shiftKey })
+      expect(event.defaultPrevented).toBe(true)
+      expect(open(container)).toBe(false)
+      expect(
+        got.map((each) => ({
+          key: each.key,
+          code: each.code,
+          keyCode: each.keyCode,
+          shiftKey: each.shiftKey,
+        })),
+      ).toEqual([{ key: typed, code, keyCode, shiftKey }])
+    },
+  )
 
   it("minimizes on Escape from a control on its surface", async () => {
     const { container } = covered()
@@ -326,7 +347,7 @@ describe("a pane covering its terminal", () => {
 
   it("does nothing where the pane shares the window", async () => {
     const { container, input } = covered()
-    container.querySelector<HTMLElement>(".plan-split")?.style.removeProperty("--plan-cover")
+    container.querySelector<HTMLElement>(".plan-split")?.style.removeProperty("--_plan-cover")
     await press(input, "Escape")
     expect(open(container)).toBe(true)
   })

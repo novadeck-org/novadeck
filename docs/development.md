@@ -121,8 +121,8 @@ for you opens at once only on the terminal you're on, so the view never moves un
 on any other terminal it waits, new, with a toast over the header ("Order status page
 wants to show you localhost:3000") whose Open brings that terminal into view with the
 keyboard in it, and it
-opens when you go to that terminal by any route. Opening, hiding, closing or moving it
-yourself first ends the wait, which nothing keeps across a restart. Hover an icon to peek: a
+opens when you go to that terminal by any route. Opening, peeking at, hiding, closing or
+moving it yourself first ends the wait, which nothing keeps across a restart. Hover an icon to peek: a
 card per thing behind it, each a preview, its name and the same mark, with no copy. Once
 you've peeked, what was new is seen, without opening it. Click an icon or a card to open
 it on top. Click the showing icon again, or the pane's minimize button, to minimize it,
