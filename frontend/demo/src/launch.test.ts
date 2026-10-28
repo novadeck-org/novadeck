@@ -196,6 +196,31 @@ describe("the launch demo", () => {
   const lead = demoHandle(launch.lead)
   const asking = demoHandle(launch.asking)
 
+  it("has one agent ask another for a review, and the reviewer answer, by message", async () => {
+    const { backend, cues } = open()
+    cues.askReview()
+    cues.askReview()
+    await vi.advanceTimersByTimeAsync(10_000)
+    const asks = demoHandle(launch.reviews)
+    const reviews = demoHandle(launch.reviewer)
+    expect(exchange(backend).map(({ from, to, state }) => ({ from, to, state }))).toEqual([
+      { from: asks, to: reviews, state: "delivered" },
+      { from: reviews, to: asks, state: "delivered" },
+    ])
+  })
+
+  it("wakes no one with the review once everyone finished, and sends no answer then", async () => {
+    const { backend, cues, agent } = open()
+    cues.askReview()
+    // The ask has landed; the ripple runs before the reviewer answers.
+    await vi.advanceTimersByTimeAsync(1000)
+    cues.finishAll()
+    await vi.advanceTimersByTimeAsync(10_000)
+    expect(exchange(backend)).toHaveLength(1)
+    expect(agent(launch.reviews)).toMatchObject({ working: false })
+    expect(agent(launch.reviewer)).toMatchObject({ working: false })
+  })
+
   it("opens teammates its lead opened and briefed, on the doorbell's notice, not the person's words", async () => {
     const { backend, cues, terminals } = open()
     cues.teammates()
@@ -394,6 +419,42 @@ describe("the launch demo", () => {
         { kind: "run", tool: "Bash", arg: "pnpm typecheck", result: "Done in 3.2s" },
       ],
     })
+  })
+
+  it("shows the plan's agent's plan, rendered, beside its window", () => {
+    const { cues, store } = open()
+    cues.showPlan()
+    cues.showPlan()
+    const { items } = activeSession(store.getSnapshot())!.state
+    expect(items).toMatchObject([
+      {
+        kind: "plan",
+        name: "Order emails",
+        holder: { terminalId: key(launch.plan).terminalId },
+        plan: { agent: "Claude Code", role: "root", source: "file" },
+      },
+    ])
+  })
+
+  it("shows no plan once its agent asks for the plan's approval instead", () => {
+    const { cues, store } = open()
+    cues.plan()
+    cues.showPlan()
+    expect(activeSession(store.getSnapshot())!.state.items).toEqual([])
+  })
+
+  it("takes the person to the plan's window first, so its plan opens there", () => {
+    const { cues, store } = open()
+    const went: string[] = []
+    cues.showPlan((to) => {
+      went.push(to.terminalId)
+      store.transact([{ type: "terminal/select", target: shop, terminalId: to.terminalId }])
+    })
+    const planned = key(launch.plan).terminalId
+    expect(went).toEqual([planned])
+    const state = activeSession(store.getSnapshot())!.state
+    expect(state.waiting).toEqual([])
+    expect(state.bars[planned]).toMatchObject({ open: true })
   })
 
   it("takes the person to the order-status window first, so what it shows opens there", () => {

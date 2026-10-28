@@ -87,6 +87,16 @@ export const launchGroups = (cues: LaunchCues | undefined): readonly DemoActionG
               hint: "Every agent of both projects ends its turn in a ripple: lines go green, done marks. Agents still waiting on the person stay as they are: an unanswered ask, a failed turn (until it is prompted again), and the teammate and its lead while their exchange is on its way (they finish when it settles). Each teammate messages its lead its report as it finishes, and the lead finishes about 1 s after the ripple starts. Press again to end whoever is working by then",
               run: () => cues.finishAll(),
             },
+            {
+              label: "8a · Agent asks another for a review",
+              hint: "Cart drawer messages Search index to review its change; Search index answers about 4 s after it lands. The exchange reads in either one's Messages pane",
+              run: () => cues.askReview(),
+            },
+            {
+              label: "8b · Agent shows its plan",
+              hint: "Order emails shows its plan, ~/.claude/plans/order-emails.md, rendered in the pane beside its window",
+              run: (context) => cues.showPlan(context.select),
+            },
           ],
         },
       ]
