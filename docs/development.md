@@ -61,9 +61,15 @@ A taskbar along each terminal's bottom has an icon for the plan. Opening it show
 the plan beside its terminal, never over the workspace:
 
 - **Focus** and **Grid** split the window: terminal on the left, plan on the
-  right, with a draggable divider; a narrow window stacks them.
+  right, with a draggable divider. In a window under 640 px wide, as most Grid windows
+  are, the pane covers the terminal instead, which keeps its size underneath, until you
+  minimize or close it. While it covers the terminal, Escape minimizes it and never
+  reaches the agent, Enter only uncovers the terminal, and any other key the terminal
+  would take uncovers it and goes into it, so typing a reply brings the terminal back;
+  keys typed into the pane's own fields, such as a plan, stay there.
 - **Canvas** attaches the plan as a sheet beside the node, which pans and zooms
-  with it; the canvas frames both as it opens.
+  with it; the canvas frames both as it opens. A window that recedes, unselected, fades
+  with its sheet, but the sheet stays solid over whatever lies under it.
 
 The plan is always editable: it's the file's
 Markdown in a CodeMirror 6 live-preview editor. Markdown syntax shows, dimmed,
@@ -110,7 +116,13 @@ stacks windows: it shows the last thing opened, by you or by the agent when you 
 for it, and the rest wait behind it, the nearest two peeking out above it: click one to bring it
 forward. The mark under
 an icon says whether it's new, showing, open behind, or seen: something new gets a dot,
-quietly, and nothing opens on its own unless you asked for it. Hover an icon to peek: a
+quietly, and nothing opens on its own unless you asked for it. Something the agent opens
+for you opens at once only on the terminal you're on, so the view never moves under you:
+on any other terminal it waits, new, with a toast over the header ("Order status page
+wants to show you localhost:3000") whose Open brings that terminal into view with the
+keyboard in it, and it
+opens when you go to that terminal by any route. Opening, peeking at, hiding, closing or
+moving it yourself first ends the wait, which nothing keeps across a restart. Hover an icon to peek: a
 card per thing behind it, each a preview, its name and the same mark, with no copy. Once
 you've peeked, what was new is seen, without opening it. Click an icon or a card to open
 it on top. Click the showing icon again, or the pane's minimize button, to minimize it,
@@ -201,7 +213,8 @@ on the Canvas, all working, beside a second project, setlist; its beats are the 
 `pnpm test`, a plan, a question with its own pick; 1d an agent's rude ask, told No, then its
 polite one), 2 a failed turn, 3 the lead Site API opens
 three helpers, 4 a helper's free-text question, whose answer reaches its lead through a message
-and the doorbell, 5 a page shown in the pane, 6 every agent finishes but those waiting on the
+and the doorbell, 5 a page shown in the pane (the cue selects its agent's window first, as an
+open waits for a terminal you're not on), 6 every agent finishes but those waiting on the
 person (an open ask, one told No, a failed turn until prompted again, and the helper and its lead
 while the helper's answer is on its way); a second press ends whoever works by then. Answered or
 told, an agent works until cue 6; `frontend/demo/src/babcia.ts`) or `launch` (a one-off for the
@@ -214,7 +227,8 @@ the lead Orders API opens three teammates, each briefed by its lead as a message
 person a question and messages its lead the same one, the lead answers first and the teammate
 withdraws its ask; another reports done (a done mark and an Update row, and the same to its lead as
 a message), 6 the page and then the changes (`show { changes }`) or a screenshot of three takes
-on a button (6c) shown in the pane, 7 every agent
+on a button (6c) shown in the pane, each cue selecting Order status page first as Babcia's 5
+does, 7 every agent
 finishes (each teammate reporting to its lead, which finishes after; whoever waits on the person
 stays waiting, and a second press ends whoever is still working); `frontend/demo/src/launch.ts`,
 sharing the desk's builders with Babcia in `desk.ts`). Every variant's Inbox

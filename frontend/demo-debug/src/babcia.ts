@@ -54,7 +54,7 @@ export const babciaGroups = (cues: BabciaCues | undefined): readonly DemoActionG
             {
               label: "5 · Agent shows a page",
               hint: "Seasonal specials shows its dev server's page in the pane beside its window",
-              run: () => cues.show(),
+              run: (context) => cues.show(context.select),
             },
             {
               label: "6 · Everyone finishes",

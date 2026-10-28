@@ -378,7 +378,9 @@ with every safety check again at that time:
   `url`, and optionally `scroll`, a CSS selector of the element to bring into view once it
   loads) or `changes` (`{}` or `{ path }`: the whole change in a repository, see below);
   beside it the options every source shares, a title and `open`, which the agent
-  sets for a deliverable it finished or one the user asked to see (`openAsked`). A new kind
+  sets for a deliverable it finished or one the user asked to see (`openAsked`); the app
+  opens it at once only on the terminal the person is on, and otherwise lets it wait with
+  a toast until they go there (development.md, "Plan review design preview"). A new kind
   of artifact adds a source key of its own rather than more fields beside these. `close`
   takes the same `file` (its path alone), `page` (its url alone) or `changes` and removes what the
   agent showed under it from its own bar, as the person closing it would; what the person attached, moved away from it, or another

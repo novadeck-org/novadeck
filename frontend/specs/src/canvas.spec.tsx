@@ -843,8 +843,17 @@ describe("Canvas's team wire", () => {
   const wire = () => document.querySelectorAll(".canvas-team-wire-tick").length
   const wireOpacity = () =>
     Number(getComputedStyle(document.querySelector(".canvas-team-wire")!).opacity)
-  const opacityOf = (name: string) =>
-    Number(getComputedStyle(terminal(name).element().closest(".canvas-node")!).opacity)
+  // How faded the window shows: its fade sits on what it holds, under its node.
+  const opacityOf = (name: string) => {
+    let shown = 1
+    for (
+      let each: Element | null = terminal(name).element();
+      each && !each.matches(".react-flow__node");
+      each = each.parentElement
+    )
+      shown *= Number(getComputedStyle(each).opacity)
+    return shown
+  }
   const lit = () => document.querySelectorAll(".canvas-team-wire-shape[data-lit]").length
 
   it("joins the lead and its worker, who stay as bright as the selection, while one of the team is selected", async () => {
