@@ -396,6 +396,27 @@ describe("the launch demo", () => {
     })
   })
 
+  it("takes the person to the order-status window first, so what it shows opens there", () => {
+    const { cues, store } = open()
+    const went: string[] = []
+    const goThere = (to: ReturnType<typeof key>) => {
+      went.push(to.terminalId)
+      store.transact([{ type: "terminal/select", target: shop, terminalId: to.terminalId }])
+    }
+    cues.show(goThere)
+    cues.showChanges(goThere)
+    cues.showVariants(goThere)
+    const shows = key(launch.shows).terminalId
+    expect(went).toEqual([shows, shows, shows])
+    const state = activeSession(store.getSnapshot())!.state
+    expect(state.selected).toBe(shows)
+    expect(state.waiting).toEqual([])
+    expect(state.bars[shows]).toMatchObject({ open: true })
+    // Shown once each: a cue pressed again goes nowhere.
+    cues.show(goThere)
+    expect(went).toHaveLength(3)
+  })
+
   it("shows the page, then its button's variants, as a screenshot beside the order-status window", () => {
     const { cues, store } = open()
     cues.show()

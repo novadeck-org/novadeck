@@ -251,6 +251,9 @@ export type WorkspaceState = {
   readonly bars: Readonly<Record<string, Bar>>
   // Items shown again or anew since the person last looked; never saved.
   readonly fresh: Readonly<Record<ItemId, true>>
+  // The items an agent asked to open on a terminal that wasn't selected, in the order they
+  // came: each opens when that terminal is selected. Never saved.
+  readonly waiting: readonly ItemId[]
 }
 export type WorkspaceSession = {
   id: string

@@ -8,6 +8,7 @@ import type { DemoActionContext } from "./types"
 const context = (selected?: DemoActionContext["selected"]): DemoActionContext => ({
   target: "selected",
   selected: selected ?? (() => undefined),
+  select: () => {},
   addTerminal: () => {
     throw new Error("unused")
   },

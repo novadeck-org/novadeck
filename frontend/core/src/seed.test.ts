@@ -253,8 +253,11 @@ describe("workspace from a backend seed", () => {
       })
     })
 
-    it("marks nothing new", () => {
-      expect(seeded({}).fresh).toEqual({})
+    it("marks nothing new, and nothing waits to open", () => {
+      const state = seeded({})
+      expect(state.fresh).toEqual({})
+      expect(state.waiting).toEqual([])
+      expect(viewOf({ ...state, waiting: [itemIdOf("x")] })).not.toHaveProperty("waiting")
     })
 
     it("keeps the saved bars, less what's gone, with what they didn't know after", () => {

@@ -650,10 +650,12 @@ export type LaunchCues = {
   // same report to its lead, as a message: the lead is rung.
   readonly teammateDone: () => void
   // The order-status agent shows its page in the pane beside its window, then its changes, as
-  // diffs, or its three takes on the page's Track package button, as a screenshot.
-  readonly show: () => void
-  readonly showChanges: () => void
-  readonly showVariants: () => void
+  // diffs, or its three takes on the page's Track package button, as a screenshot. An open
+  // waits for a terminal the person isn't on, so `goThere`, given, takes them to the agent's
+  // first, as the video shows: then it opens beside the window.
+  readonly show: (goThere?: (key: TerminalKey) => void) => void
+  readonly showChanges: (goThere?: (key: TerminalKey) => void) => void
+  readonly showVariants: (goThere?: (key: TerminalKey) => void) => void
   // Every agent of both projects ends its turn, one after another, but the ones still waiting
   // on the person: an unanswered request, or a teammate and its lead while their exchange is
   // on its way (they finish when it settles). Each teammate messages its lead its report as it
@@ -889,9 +891,9 @@ export const createLaunch = (turns: DemoTurns, now: number) => {
         })
       })
     },
-    show: () => upsert(preview),
-    showChanges: () => upsert(changes),
-    showVariants: () => upsert(variants),
+    show: (goThere) => upsert(preview, goThere),
+    showChanges: (goThere) => upsert(changes, goThere),
+    showVariants: (goThere) => upsert(variants, goThere),
     finishAll: () => {
       if (!latest) return
       ended = true
@@ -901,7 +903,7 @@ export const createLaunch = (turns: DemoTurns, now: number) => {
 
   // The agent shows something in the pane, as the show tool does: the page, then its changes,
   // on its own bar. Each is shown once.
-  const upsert = (artifact: SampleArtifact): void => {
+  const upsert = (artifact: SampleArtifact, goThere?: (key: TerminalKey) => void): void => {
     if (!sink || shown.has(artifact.item.id) || !busy(terminal(launch.shows))) return
     shown.add(artifact.item.id)
     const holder = keyOf(launch.shows)
@@ -923,6 +925,7 @@ export const createLaunch = (turns: DemoTurns, now: number) => {
       shownAt: Date.now(),
       plan: null,
     }
+    goThere?.(holder)
     sink.dispatch([{ type: "item/upsert", target: holder, item }])
   }
 

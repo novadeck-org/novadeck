@@ -3,14 +3,17 @@ import { useCallback, useEffect, useMemo, type ReactNode } from "react"
 import { AgentContextProvider } from "../inbox/agent-context"
 import { InboxProvider, useInboxOpener } from "../inbox/InboxProvider"
 import { InboxSheet } from "../inbox/InboxSheet"
-import { InboxToasts, type ToastBoard } from "../inbox/InboxToasts"
+import { InboxToasts, type ShowBoard, type ToastBoard } from "../inbox/InboxToasts"
 import { PlanTextProvider } from "../inbox/plan-text"
+import { focusTerminalInput } from "../interaction/dom"
 import { anyAgentWorking } from "../projects/project-status"
 import { useDesktop } from "../shell/desktop"
 import { useWorkspaceServices, useWorkspaceState } from "./controller/context"
 import { dingOf } from "./ding"
 import { clickNotice, noticeBoard } from "./inbox-pings"
 import { watchInboxToasts } from "./inbox-toasts"
+import { currentState } from "./selectors"
+import { focusWhenReady, watchShowToasts } from "./show-toasts"
 
 // The Inbox: the backend's, as it lands (see `inbox-landing.ts`), or, where the backend has
 // none, one that lists nothing.
@@ -59,7 +62,7 @@ export const InboxHost = ({
   const { inbox } = landing
   // Whether an agent is at work in any project, for the empty Inbox to say.
   const working = useWorkspaceState((state) => anyAgentWorking(state.projects))
-  const { hideSidebar, toggleSidebar, reveal, showInbox } = commands
+  const { hideSidebar, toggleSidebar, reveal, select, showInbox } = commands
   const phone = useMemo(
     () => (desktop ? undefined : { hideList: hideSidebar, showList: () => toggleSidebar("inbox") }),
     [desktop, hideSidebar, toggleSidebar],
@@ -71,6 +74,27 @@ export const InboxHost = ({
       watchInboxToasts(inbox, ui, board, { pings, ding: dingOf(backend, ui).ring }),
     [inbox, ui, pings, backend],
   )
+  // What an agent asked to show on a terminal the person isn't on, told as it waits to open.
+  const followShows = useCallback(
+    (board: ShowBoard) => watchShowToasts(workspace, ui, board),
+    [workspace, ui],
+  )
+  // Brings the terminal an item waits on into view, as its sidebar row does where the session
+  // is on screen, else as a click on a notification about it does.
+  const showTerminal = useCallback(
+    (terminalId: string) => {
+      if (
+        currentState(workspace.getSnapshot()).roster.terminals.some(
+          (each) => each.id === terminalId,
+        )
+      )
+        select(terminalId)
+      else reveal(terminalId)
+      // Typing goes where the person is looking, not to the terminal they left.
+      focusWhenReady(terminalId, focusTerminalInput)
+    },
+    [workspace, select, reveal],
+  )
   return (
     <AgentContextProvider conversations={backend.conversations} messages={backend.messages}>
       <InboxProvider inbox={inbox} reveal={reveal} phone={phone} working={working} active={active}>
@@ -79,7 +103,12 @@ export const InboxHost = ({
         <PlanTextProvider workspace={workspace} companions={backend.companions}>
           <InboxSheet active={active} />
         </PlanTextProvider>
-        <InboxToasts follow={follow} showInbox={showInbox} />
+        <InboxToasts
+          follow={follow}
+          followShows={followShows}
+          showInbox={showInbox}
+          showTerminal={showTerminal}
+        />
       </InboxProvider>
     </AgentContextProvider>
   )
