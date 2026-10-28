@@ -18,7 +18,6 @@ export type TagWord =
   | "Stuck"
   | "Undelivered"
   | "Update"
-  | "Feedback"
   | "Withdrawn"
   | "Dismissed"
   | "Replied"
@@ -52,8 +51,6 @@ const wordOf = (item: InboxRow): TagWord => {
       return "Undelivered"
     case "update":
       return "Update"
-    case "feedback":
-      return "Feedback"
   }
 }
 

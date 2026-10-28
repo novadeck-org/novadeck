@@ -110,6 +110,7 @@ export const scriptedRunner = ({
     id: sessionId,
     projectId,
     name: "Agents",
+    visitedAt: 5,
     state: encodeSession(
       savedSession(
         terminalIds.map((terminalId) => ({ id: terminalId, lastProcess: "claude" })),
@@ -117,7 +118,6 @@ export const scriptedRunner = ({
         sessionId,
         canvas,
       ),
-      0,
     ),
   }
   // Tells every watcher of a change, as the runner announces one.
@@ -150,9 +150,12 @@ export const scriptedRunner = ({
       handshake: api.wire.handshake.handler(() => ({ epoch: id(99), protocolVersion })),
     },
     projects: {
-      list: api.projects.list.handler(() => [{ id: projectId, name: "Agents", cwd: "/tmp" }]),
+      list: api.projects.list.handler(() => [
+        { id: projectId, name: "Agents", cwd: "/tmp", pinned: false },
+      ]),
       create: api.projects.create.handler(unplayed("projects.create")),
       rename: api.projects.rename.handler(unplayed("projects.rename")),
+      arrange: api.projects.arrange.handler(() => {}),
       remove: api.projects.remove.handler(unplayed("projects.remove")),
       folder: api.projects.folder.handler(unplayed("projects.folder")),
     },
@@ -167,8 +170,9 @@ export const scriptedRunner = ({
       create: api.terminals.create.handler(unplayed("terminals.create")),
       requests: api.terminals.requests.handler(idle),
       answerRequest: api.terminals.answerRequest.handler(unplayed("terminals.answerRequest")),
-      closeAsks: api.terminals.closeAsks.handler(idle),
-      answerCloseAsk: api.terminals.answerCloseAsk.handler(unplayed("terminals.answerCloseAsk")),
+      approvals: api.terminals.approvals.handler(idle),
+      answerApproval: api.terminals.answerApproval.handler(unplayed("terminals.answerApproval")),
+      release: api.terminals.release.handler(unplayed("terminals.release")),
       watch: api.terminals.watch.handler(async function* ({ signal }) {
         const changes = channel<TerminalChange>()
         watchers.add(changes)
@@ -282,6 +286,11 @@ export const scriptedRunner = ({
       read: api.inbox.read.handler(unplayed("inbox.read")),
       dismiss: api.inbox.dismiss.handler(unplayed("inbox.dismiss")),
       clear: api.inbox.clear.handler(unplayed("inbox.clear")),
+    },
+    feedback: {
+      watch: api.feedback.watch.handler(idle),
+      settle: api.feedback.settle.handler(unplayed("feedback.settle")),
+      ask: api.feedback.ask.handler(unplayed("feedback.ask")),
     },
     messages: {
       list: api.messages.list.handler(unplayed("messages.list")),

@@ -1,5 +1,4 @@
 import type { ChatDialog, ChatDialogOption, ChatRequest } from "@novadeck/core/conversation"
-import { scrub, textToSend } from "@novadeck/core/feedback-scrub"
 import { harnesses, type AgentName } from "@novadeck/core/harnesses"
 import { inboxType, type InboxRow, type InboxSource, type Trouble } from "@novadeck/core/inbox"
 import { unsaidWaits, waitsBehind } from "@novadeck/core/messages"
@@ -100,14 +99,6 @@ const troubleSubject = (trouble: Trouble, source: InboxSource): string => {
     : "Seems stuck: the same failure again"
 }
 
-// A feedback draft's subject: who drafted it and how its text starts, cut at a line's end.
-const feedbackSubject = (text: string, source: InboxSource): string => {
-  // What the draft would send, so a path in its first line shows as `[path]` here too.
-  const first = textToSend(scrub(text.trim().split("\n")[0]!.trim()))
-  const head = first.length > 72 ? `${first.slice(0, 71).trimEnd()}…` : first
-  return `Feedback draft from @${source.handle}${head ? `: ${head}` : ""}`
-}
-
 // The row's subject, as the person reads it first: what is asked, or what happened.
 export const subjectOf = (item: InboxRow): string => {
   switch (item.kind) {
@@ -121,8 +112,6 @@ export const subjectOf = (item: InboxRow): string => {
       return troubleSubject(item.trouble, item.source)
     case "update":
       return item.update.subject
-    case "feedback":
-      return feedbackSubject(item.draft.text, item.source)
   }
 }
 
@@ -173,8 +162,6 @@ export const labelOf = (item: InboxRow): string => {
       return "Novadeck noticed"
     case "update":
       return item.update.type === "done" ? "Done" : "Heads-up"
-    case "feedback":
-      return "Drafted feedback"
   }
 }
 

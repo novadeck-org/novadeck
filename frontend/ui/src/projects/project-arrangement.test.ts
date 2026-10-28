@@ -1,6 +1,7 @@
 import { context, describe, expect, it } from "../test"
 import {
   arrangeProjects,
+  listedArrangement,
   moveProject,
   noArrangement,
   pinAt,
@@ -158,5 +159,13 @@ describe("Arranging projects", () => {
     it("leaves things as they are for a project it doesn't list", () => {
       expect(stepProject(projects, two, "zz", 1)).toBe(two)
     })
+  })
+})
+
+describe("the arrangement a backend lists", () => {
+  it("is the listing's order and the projects it says are pinned", () => {
+    expect(
+      listedArrangement([{ id: "c", pinned: false }, { id: "a", pinned: true }, { id: "b" }]),
+    ).toEqual({ order: ["c", "a", "b"], pinned: ["a"] })
   })
 })

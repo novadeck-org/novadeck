@@ -1,11 +1,11 @@
 import {
   agentContext,
-  handoffsOf,
+  answersOf,
   type AgentContext,
   type AgentStep,
 } from "@novadeck/core/agent-steps"
 import type { Conversation, Conversations } from "@novadeck/core/conversation"
-import type { InboxRow, InboxSource } from "@novadeck/core/inbox"
+import type { InboxRow } from "@novadeck/core/inbox"
 import { companionKeyId } from "@novadeck/core/items"
 import type { Messages, TerminalThreads } from "@novadeck/core/messages"
 import {
@@ -26,18 +26,15 @@ import {
 // path, a command), and what came of it, where known: "+4 −2" for an edit, a short line for
 // a run, the error.
 //
-// The agent's context: the last words it was given, and who gave them (`by` null for the
-// person, a lead's handle, bare, no @, for a teammate's handoff), and at most three steps,
-// oldest first.
+// The agent's context: the person's last words to it, never another agent's, and at most
+// three steps, oldest first.
 export type { AgentContext, AgentStep }
 
-// Where the Inbox reads agents' context from: the backend's conversations and messages, and
-// the lead of an item's terminal, whose messages count as its agent's words. Absent outside
-// the app, as in a sheet's tests: there is no context then.
+// Where the Inbox reads agents' context from: the backend's conversations and messages.
+// Absent outside the app, as in a sheet's tests: there is no context then.
 type Sources = {
   readonly conversations?: Conversations | undefined
   readonly messages?: Messages | undefined
-  readonly leadOf?: ((source: InboxSource) => string | null) | undefined
 }
 
 const AgentSources = createContext<Sources>({})
@@ -46,11 +43,8 @@ export const AgentContextProvider = ({
   children,
   ...sources
 }: Sources & { readonly children?: ReactNode }): React.JSX.Element => {
-  const { conversations, messages, leadOf } = sources
-  const value = useMemo(
-    () => ({ conversations, messages, leadOf }),
-    [conversations, messages, leadOf],
-  )
+  const { conversations, messages } = sources
+  const value = useMemo(() => ({ conversations, messages }), [conversations, messages])
   return createElement(AgentSources.Provider, { value }, children)
 }
 
@@ -61,7 +55,7 @@ const none = () => undefined
 // loads or where there's no transcript (a plain shell). Its conversation is followed only
 // while a sheet calls this, as the backend reads a transcript only for its subscribers.
 export const useAgentContext = (item: InboxRow): AgentContext | undefined => {
-  const { conversations, messages, leadOf } = useContext(AgentSources)
+  const { conversations, messages } = useContext(AgentSources)
   const { projectId, workspaceSessionId, terminalId } = item.source
   const store = useMemo(
     () => conversations?.conversation({ projectId, workspaceSessionId, terminalId }),
@@ -76,9 +70,8 @@ export const useAgentContext = (item: InboxRow): AgentContext | undefined => {
     messages?.state.subscribe ?? nothing,
     () => messages?.state.getSnapshot().terminals[id],
   )
-  const lead = leadOf?.(item.source) ?? null
   return useMemo(() => {
     if (!conversation?.loaded || conversation.agent === null) return undefined
-    return agentContext(conversation.agent, conversation.items, handoffsOf(threads, lead))
-  }, [conversation, threads, lead])
+    return agentContext(conversation.agent, conversation.items, answersOf(threads))
+  }, [conversation, threads])
 }

@@ -220,11 +220,12 @@ const novadeckTool = (tool: string, fields: Fields | null): ToolSummary | undefi
         detail: text("command", "title", "cwd"),
       }
     case "open_agent": {
-      const agent = text("agent")
+      const resume = text("resume")
+      const agent = text("agent") && resume ? `${text("agent")} (resumed ${resume})` : text("agent")
       const task = text("message")
       return {
         kind: "agent",
-        title: "Opened an agent",
+        title: resume ? "Resumed an agent" : "Opened an agent",
         detail: agent ? (task ? `${agent}: ${task}` : agent) : task,
       }
     }

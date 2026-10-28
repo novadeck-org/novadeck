@@ -67,7 +67,7 @@ const droppingRunner = () => {
       list: async () => [],
       watch: nothing,
       requests: nothing,
-      closeAsks: nothing,
+      approvals: nothing,
       create: async (input: { readonly id: string }) => {
         if (shells.has(input.id)) throw new WireError("CONFLICT", "taken")
         shells.add(input.id)
@@ -90,8 +90,13 @@ describe("closing a terminal while its create is unanswered", () => {
     const runner = droppingRunner()
     const listing: RunnerListing = [
       {
-        project: { id: "p", name: "P", cwd: "/tmp" },
-        sessions: [{ session: { id: "s", projectId: "p", name: "S", state: null }, terminals: [] }],
+        project: { id: "p", name: "P", cwd: "/tmp", pinned: false },
+        sessions: [
+          {
+            session: { id: "s", projectId: "p", name: "S", visitedAt: null, state: null },
+            terminals: [],
+          },
+        ],
       },
     ]
     const { backend } = runnerBackend(runner.api, listing, { theme: noTheme, saveDelay: 10 })
@@ -173,7 +178,7 @@ const holdingRunner = (close: (id: string) => Promise<void>) => {
         return changes.iterator
       },
       requests: () => channel<never>().iterator,
-      closeAsks: () => channel<never>().iterator,
+      approvals: () => channel<never>().iterator,
       close: async (terminalId: string) => {
         if (status.state !== "connected") throw new WireError("DISCONNECTED", "lost")
         calls.push(terminalId)
@@ -196,7 +201,7 @@ const holdingRunner = (close: (id: string) => Promise<void>) => {
           threads: [
             {
               id: "th",
-              peer: handles[1 - index]!,
+              peer: { kind: "agent", handle: handles[1 - index]!, agent: null },
               hops: 1,
               idle: 0,
               held: false,
@@ -213,10 +218,10 @@ const holdingRunner = (close: (id: string) => Promise<void>) => {
   } as unknown as RunnerApi
   const listing: RunnerListing = [
     {
-      project: { id: "p", name: "P", cwd: "/tmp" },
+      project: { id: "p", name: "P", cwd: "/tmp", pinned: false },
       sessions: [
         {
-          session: { id: "s", projectId: "p", name: "S", state: null },
+          session: { id: "s", projectId: "p", name: "S", visitedAt: null, state: null },
           terminals: [...held.values()],
         },
       ],

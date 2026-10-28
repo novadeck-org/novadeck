@@ -43,7 +43,7 @@ describe("companion items in the workspace", () => {
     })
 
     it("opens when the person asked for it, and isn't new", () => {
-      const state = stateOf(shown({ ...hero, asked: true }))
+      const state = stateOf(shown({ ...hero, openAsked: true }))
       expect(state.bars["01"]).toMatchObject({ stack: [hero.id], open: true })
       expect(state.fresh).toEqual({})
     })
@@ -55,7 +55,11 @@ describe("companion items in the workspace", () => {
         terminalId: "01",
         key: notes.id,
       })
-      const state = run(reading, { type: "item/upsert", target, item: { ...hero, asked: true } })
+      const state = run(reading, {
+        type: "item/upsert",
+        target,
+        item: { ...hero, openAsked: true },
+      })
       expect(state.bars["01"]).toMatchObject({ stack: [notes.id, hero.id], open: true })
     })
 
@@ -73,13 +77,13 @@ describe("companion items in the workspace", () => {
     })
 
     it("never opens something an agent showed that may hold secrets", () => {
-      const state = stateOf(shown({ ...notes, asked: true, held: true, by: "agent" }))
+      const state = stateOf(shown({ ...notes, openAsked: true, secret: true, by: "agent" }))
       expect(state.bars["01"]).toMatchObject({ stack: [], open: false })
       expect(state.fresh).toEqual({ [notes.id]: true })
     })
 
     it("opens something the person attached though it may hold secrets, for its pane to gate", () => {
-      const state = stateOf(shown({ ...notes, asked: true, held: true, by: "person" }))
+      const state = stateOf(shown({ ...notes, openAsked: true, secret: true, by: "person" }))
       expect(state.bars["01"]).toMatchObject({ stack: [notes.id], open: true })
       expect(state.fresh).toEqual({})
     })
@@ -307,7 +311,7 @@ describe("companion items in the workspace", () => {
         path: `/project/${name}`,
         by: "person",
         from: null,
-        asked: true,
+        openAsked: true,
         version,
         holder: { windowId: "pw" },
       })
@@ -579,6 +583,61 @@ describe("terminals agents open", () => {
     const dragged = apply(handled, { type: "terminal/reorder", target, tabOrder: ["02", "01"] })
     expect(order(run(dragged, ...opened(3, "01")))).toEqual(["02", "01", "03"])
     expect(order(run(dragged, ...opened(3, "02")))).toEqual(["02", "03", "01"])
+  })
+
+  context("when an agent leads a terminal that already exists", () => {
+    const lead = (id: string, ledBy: string | null): WorkspaceAction => ({
+      type: "terminal/update",
+      target,
+      terminalId: id,
+      ledBy,
+    })
+    const three = apply(
+      handled,
+      { type: "terminal/add", target, terminal: terminalFixture(3, "~/project"), select: false },
+      named("03"),
+    )
+
+    it("lists it under its lead, as one opened with a brief", () => {
+      expect(order(run(three, lead("03", "moth")))).toEqual(["01", "03", "02"])
+    })
+
+    it("goes after the lead wherever the person dragged it", () => {
+      const dragged = apply(three, {
+        type: "terminal/reorder",
+        target,
+        tabOrder: ["02", "03", "01"],
+      })
+      expect(order(run(dragged, lead("03", "moth")))).toEqual(["02", "01", "03"])
+    })
+
+    it("moves nothing on a restore, which seeds the lead, nor on the same lead announced again", () => {
+      // As the runner adapter's seed builds it: led from the start, in the saved order.
+      const restored = apply(
+        handled,
+        {
+          type: "terminal/add",
+          target,
+          terminal: { ...terminalFixture(3, "~/project"), ledBy: "moth" },
+          select: false,
+        },
+        named("03"),
+        { type: "terminal/reorder", target, tabOrder: ["02", "01", "03"] },
+      )
+      expect(order(run(restored))).toEqual(["02", "01", "03"])
+      expect(order(run(restored, lead("03", "moth")))).toEqual(["02", "01", "03"])
+    })
+
+    it("moves nothing on a change of lead or a release", () => {
+      const led = apply(three, lead("03", "moth"))
+      const dragged = apply(led, { type: "terminal/reorder", target, tabOrder: ["02", "01", "03"] })
+      expect(order(run(dragged, lead("03", "wren")))).toEqual(["02", "01", "03"])
+      expect(order(run(dragged, lead("03", null)))).toEqual(["02", "01", "03"])
+    })
+
+    it("stays put when no terminal in the session has that handle", () => {
+      expect(order(run(three, lead("03", "nobody")))).toEqual(order(run(three)))
+    })
   })
 
   it("leaves windows after the terminals the person opens later", () => {

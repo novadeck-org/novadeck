@@ -545,8 +545,9 @@
 }
 /* An update chip (PortableInstall.tsx, UpdateAvailable.tsx), in the feedback button's quiet
    look: an icon and the word, the icon alone on a narrow screen, lit under the pointer. An
-   update waiting puts a dot on the icon's corner, cut out of the icon by a ring of the
-   chip's own ground; a toned footer has no ring, as its ground is the tone's. */
+   update waiting puts the attention dot (attention-dot.css) on the icon's corner, cut out
+   of the icon by a ring of the chip's own ground; a toned footer has no ring, as its
+   ground is the tone's. */
 .footer-chip {
   color: inherit;
 }
@@ -561,14 +562,9 @@
   display: inline-flex;
 }
 .footer-chip-dot {
-  position: absolute;
+  --_dot-ground: var(--_chip-ground, transparent);
   top: -2px;
   right: -2px;
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  background-color: var(--color-strong);
-  box-shadow: 0 0 0 1.5px var(--_chip-ground, transparent);
 }
 .footer-chip-text {
   margin-inline-start: 6px;

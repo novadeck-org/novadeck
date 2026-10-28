@@ -13,6 +13,13 @@ export type DockTarget = {
   readonly onDock: (() => void) | undefined
 }
 
+// Ending the lead of a led terminal: its lead's handle, which the item names, and what
+// releases it.
+export type ReleaseLead = {
+  readonly lead: string
+  readonly onRelease: () => void
+}
+
 // Asking the agent in a window to write feedback: its handle, which the item names, and what
 // opens the card.
 export type AskFeedback = {
@@ -22,7 +29,8 @@ export type AskFeedback = {
 
 // A window's own actions, the same in its sidebar tab's menu and its header's: who named
 // it, as a line to read rather than choose, then rename, hand a name the person gave back
-// to Novadeck, dock an undocked window back in its terminal, and close. The project
+// to Novadeck, dock an undocked window back in its terminal, release a terminal from its
+// lead, and close. The project
 // window is named by its file and has no terminal to dock in: it offers Close alone. A window
 // running an agent, on a backend that takes feedback, can ask it to write some. The menu
 // takes only text for a label, so the handle is plain `@handle` there, not the chip.
@@ -32,6 +40,7 @@ export const windowMenu = ({
   onResetTitle,
   dockIn,
   askFeedback,
+  releaseLead,
   onClose,
 }: {
   terminal: Tile
@@ -42,6 +51,8 @@ export const windowMenu = ({
   dockIn?: DockTarget | undefined
   // Present on a window running an agent, where the backend takes feedback.
   askFeedback?: AskFeedback | undefined
+  // Present on a terminal an agent leads, where the backend lets the person end that.
+  releaseLead?: ReleaseLead | undefined
   onClose: () => void
 }): ContextMenuAction[] =>
   isProjectWindow(terminal)
@@ -80,6 +91,15 @@ export const windowMenu = ({
                 label: `Ask @${askFeedback.handle} to write feedback…`,
                 icon: createElement(MessageSquareText, { size: 14, strokeWidth: 1.5 }),
                 onSelect: askFeedback.onAsk,
+              },
+            ]
+          : []),
+        ...(releaseLead
+          ? [
+              {
+                value: "release-lead",
+                label: `Release from @${releaseLead.lead}`,
+                onSelect: releaseLead.onRelease,
               },
             ]
           : []),

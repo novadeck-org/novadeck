@@ -40,7 +40,7 @@ const stackOf = (member: BarMember): StackKind | null =>
 export const isNew = (member: BarMember): boolean => member.kind === "item" && member.fresh
 
 // Something that may hold secrets, which opens only when picked.
-export const isHeld = (member: BarMember): boolean => member.kind === "item" && member.item.held
+export const isSecret = (member: BarMember): boolean => member.kind === "item" && member.item.secret
 
 // What terminal `terminalId`'s bar holds: the items on it but those the person hid, and
 // its messages while it has them.
@@ -103,7 +103,9 @@ export const shownTab = (bar: Bar, members: readonly BarMember[]): BarKey | null
   const top = bar.stack.findLast((key) => members.some((member) => member.key === key))
   if (top !== undefined) return top
   const plan = members.find((member) => member.kind === "item" && member.item.kind === "plan")
-  return (plan ?? members.find((member) => member.kind === "item" && !isHeld(member)))?.key ?? null
+  return (
+    (plan ?? members.find((member) => member.kind === "item" && !isSecret(member)))?.key ?? null
+  )
 }
 
 // What waits behind what the pane shows, open in it, in the stack's order: all of it while
@@ -129,9 +131,9 @@ export const pick = (slot: BarSlot, open: readonly BarKey[]): BarMember => {
     return slot.members.find(isNew) ?? opened ?? root ?? slot.members[0]!
   }
   return (
-    slot.members.findLast((member) => isNew(member) && !isHeld(member)) ??
+    slot.members.findLast((member) => isNew(member) && !isSecret(member)) ??
     opened ??
-    slot.members.findLast((member) => !isHeld(member)) ??
+    slot.members.findLast((member) => !isSecret(member)) ??
     slot.members.at(-1)!
   )
 }

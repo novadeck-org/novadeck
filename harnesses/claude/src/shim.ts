@@ -1,7 +1,7 @@
 import { header } from "@novadeck/harness-core/header"
 
 // Claude Code's commands other than a session, which a status line has no part in.
-const commands = [
+export const commands = [
   "agents",
   "attach",
   "auth",
@@ -16,6 +16,7 @@ const commands = [
   "plugin",
   "plugins",
   "project",
+  "purge",
   "respawn",
   "rm",
   "setup-token",

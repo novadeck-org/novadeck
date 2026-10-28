@@ -37,9 +37,9 @@ export type SavedTerminal = {
   /** The handle of the terminal whose agent opened it; null otherwise. */
   readonly openedBy: string | null
   /**
-   * The handle of its lead: the terminal whose agent opened it with a brief to run an
-   * agent there (`open_agent`); null otherwise, even for a
-   * terminal an agent opened for a command or a plain shell.
+   * The handle of its lead: the terminal whose agent opened it to lead the agent there
+   * (`open_agent`, by default with a brief), or one the person approved through `lead`;
+   * null otherwise, even for a terminal an agent opened for a command or a plain shell.
    */
   readonly ledBy: string | null
   /** The command it was opened to run; null for a plain shell. */
@@ -77,10 +77,11 @@ export type TerminalRecords = {
   /** Every terminal kept, of one session or all, in the order they were created, without transcripts. */
   terminals(sessionId?: string): readonly ListedTerminal[]
   /**
-   * Gives a session's next terminal its handle, never one the session gave before, even
-   * to a terminal since closed (see `nextHandle`), and records it as given.
+   * Gives a session's next terminal its handle, from the words in `order` (the session's
+   * own, see `handleOrder`, when omitted), never one the session gave before, even to a
+   * terminal since closed (see `nextHandle`), and records it as given.
    */
-  giveHandle(sessionId: string): string
+  giveHandle(sessionId: string, order?: readonly string[]): string
   /**
    * Gives a kept terminal the person's title, or with null takes theirs away, so its title
    * is automatic again; false when none is kept by that id.

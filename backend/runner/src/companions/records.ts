@@ -25,12 +25,12 @@ export type ItemRecord = {
   } | null
   readonly name: string
   readonly detail: string
-  readonly held: boolean
+  readonly secret: boolean
   readonly by: CompanionItem["by"]
   /** The terminal it was shown or attached in; null for a file the person opened in their project window. */
   readonly from: { readonly terminalId: string; readonly handle: string } | null
   readonly version: number
-  readonly asked: boolean
+  readonly openAsked: boolean
   readonly shownAt: number
   /** When the plan it points at was last observed, by its harness's clock; null otherwise. */
   readonly observedAt: number | null

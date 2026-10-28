@@ -308,17 +308,19 @@ send `Esc`, `Ctrl+\`, `Ctrl+^` and other control codes; `Ctrl+Shift+2`, a termin
 Without a pin of that number the key reaches the terminal as usual, and it's left alone
 while you rename a tab or type in another field. The bar slides in with the first pin and
 out with the last, and Zen hides it. Pins that don't fit drop off its end, and the
-switcher's dot covers them again. The order and the pins are kept in this browser or app
-(`novadeck.project-arrangement` in local storage), not shared with other clients of the
-runner.
+switcher's dot covers them again. The order and the pins are kept by the runner, so they
+survive clearing the browser's data; another client of the runner sees a change at its next
+load, not as it happens. An arrangement an older version kept in this browser
+(`novadeck.project-arrangement` in local storage) is sent to the runner at the next load
+and then removed from storage.
 
 The Inbox (the bell on the sidebar rail) lists everything
-across every project and session that waits on you, each item its own row, of one of five
+across every project and session that waits on you, each item its own row, of one of four
 kinds: an Unblock ("!"), where the agent can't go on without you (a permission or plan
 dialog, a message held for you to release, or an `ask` whose answer is an action only you
 can do, such as a sign-in, access or a key); an Ask ("?"), a question from the harness or
 sent through the agent's `ask` tool; Trouble, a failed turn, a usage limit or messages held
-long; an Update, an agent's `done` report or a `tell`; and Feedback you asked for. Click a
+long; and an Update, an agent's `done` report or a `tell`. Click a
 row to read it and answer in place, or reveal its terminal. An `ask` returns immediately so
 the agent can keep working; your answer reaches that exact agent session later as a message. Its
 ask clears when answered, withdrawn by the agent, or its session ends; an update clears when
@@ -432,8 +434,8 @@ agent.
   `exec tmux`, resumes nothing. Terminals with an agent to resume start at once, in every session and
   hidden or not; the others start when their session is shown.
 - **Transcripts.** Each terminal's recent output is kept, and a restored terminal shows
-  it read-only above a separator and its fresh prompt; a resumed agent shows its own
-  history instead. Transcripts are on by default and can be turned off in Preferences,
+  it read-only above a separator and its fresh prompt (on Windows, scrolled up just above
+  a fresh screen); a resumed agent shows its own history instead. Transcripts are on by default and can be turned off in Preferences,
   which also forgets the saved ones. A changed terminal's transcript is saved about every
   30 seconds, and when its shell exits or restarts. What looks like a secret (a known
   token prefix, a value named like a secret, a key, a long key-like run) is masked before
@@ -484,7 +486,9 @@ program a terminal runs, the agent whose session the terminal reported is the on
 resume, until its shell has shown its prompt for a second: Windows ends the agents before
 their shells as it shuts down, and an agent ended that way still resumes. The same second
 keeps a worker led there: its lead ends only once its shell has outlived its agent for
-that long, so a team comes back as a team after a reboot.
+that long, so a team comes back as a team after a reboot. A worker whose agent hadn't
+started its first session yet, as one still at its trust screen, starts that agent again
+with its task, still led.
 
 ## Zen mode
 

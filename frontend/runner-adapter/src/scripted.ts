@@ -1,8 +1,8 @@
-import type { BackendAction } from "@novadeck/core/port"
+import type { Backend, BackendAction } from "@novadeck/core/port"
 import { workspaceFromSeed } from "@novadeck/core/seed"
 import { createTerminalState, workspaceReducer, type WorkspaceAction } from "@novadeck/core/state"
 import type { CanvasLayout, Workspace } from "@novadeck/core/types"
-import type { TerminalSummary } from "@novadeck/protocol"
+import type { FeedbackDraftEntry, TerminalSummary } from "@novadeck/protocol"
 import type { CompanionWatchItem, Runner, TerminalWatchItem } from "@novadeck/runner-client"
 import { noTheme } from "@novadeck/terminal-views/theme"
 import type { WireStatus } from "@novadeck/wire/client"
@@ -134,6 +134,8 @@ export const scripted = ({
   createSession = unused,
   apply = false,
   transcriptsAvailable = true,
+  feedback,
+  feedbackCalls = {},
 }: {
   shown: readonly Saved[]
   background?: readonly Saved[]
@@ -152,9 +154,15 @@ export const scripted = ({
   apply?: boolean
   // Whether the runner can keep transcripts encrypted.
   transcriptsAvailable?: boolean
+  // The host's feedback, where it has one.
+  feedback?: Backend["feedback"]
+  // How the runner answers `feedback.settle` and `feedback.ask` (they take by default).
+  feedbackCalls?: { settle?: (id: string) => Promise<void> }
 }) => {
   const changes = channel<TerminalWatchItem>()
   const items = channel<CompanionWatchItem>()
+  // Each `feedback.watch` opens its own stream, the last of which the test pushes drafts to.
+  const watches: ReturnType<typeof channel<FeedbackDraftEntry[]>>[] = []
   const received: BackendAction[] = []
   const statuses = channel<WireStatus>()
   const calls: Call[] = []
@@ -166,7 +174,7 @@ export const scripted = ({
     }
   const api = {
     watch: () => statuses.iterator,
-    projects: { list: unused, create: unused, rename: unused, remove: unused },
+    projects: { list: unused, create: unused, rename: unused, remove: unused, arrange: unused },
     sessions: {
       list: unused,
       create: note("create session", createSession),
@@ -192,13 +200,24 @@ export const scripted = ({
       watch: () => changes.iterator,
       // No agent asks for a terminal here.
       requests: () => channel<never>().iterator,
-      closeAsks: () => channel<never>().iterator,
+      approvals: () => channel<never>().iterator,
       // Never answers: a fresh shell stays starting.
       create: note("create", () => new Promise(() => {})),
       close: async () => {},
       rename: note("rename", async () => {}),
       restart: note("restart", restart),
       attach: () => new Promise(() => {}),
+    },
+    feedback: {
+      watch: () => {
+        const next = channel<FeedbackDraftEntry[]>()
+        watches.push(next)
+        return next.iterator
+      },
+      settle: note("settle feedback", (input) =>
+        (feedbackCalls.settle ?? (async () => {}))((input as [string, string])[0]),
+      ),
+      ask: note("ask feedback", async () => {}),
     },
     companions: {
       list: unused,
@@ -218,14 +237,15 @@ export const scripted = ({
   } as unknown as RunnerApi
   const listing: RunnerListing = [
     {
-      project: { id: "p", name: "P", cwd: "/tmp" },
+      project: { id: "p", name: "P", cwd: "/tmp", pinned: false },
       sessions: [
         {
           session: {
             id: id(8),
             projectId: "p",
             name: "Shown",
-            state: encodeSession(savedSession(shown, 5, id(8)), 2),
+            visitedAt: 5,
+            state: encodeSession(savedSession(shown, 5, id(8))),
           },
           terminals: terminalsOf(shown, listed, id(8)),
           companions,
@@ -235,7 +255,8 @@ export const scripted = ({
             id: id(9),
             projectId: "p",
             name: "Background",
-            state: encodeSession(savedSession(background, 1, id(9)), 0),
+            visitedAt: 1,
+            state: encodeSession(savedSession(background, 1, id(9))),
           },
           terminals: terminalsOf(background, [], id(9)),
         },
@@ -252,6 +273,7 @@ export const scripted = ({
       { agent: "agy", available: false, connected: false },
     ],
     welcomed: false,
+    ...(feedback ? { feedback } : {}),
   })
   let workspace = workspaceFromSeed(created.backend.seed, {
     view: "grid",
@@ -279,6 +301,7 @@ export const scripted = ({
     ...created,
     changes,
     items,
+    watches,
     received,
     calls,
     of,

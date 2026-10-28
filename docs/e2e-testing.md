@@ -527,7 +527,7 @@ for (const setup of setups) {
   `{ from, text }`; `ring` matches the doorbell's line; `opens` is a rule that answers a
   prompt by starting an agent with a task (`open_agent`), and `opened(call, handle)`
   tells the agent's next look once it did; `closes` and `closed(call, handle)` do the
-  same for closing a terminal (`close_terminal`); `answers(text, reply)` answers a
+  same for closing a terminal (`close_terminal`); `leads` and `releases` for `lead` and `release`, with `askedToLead(call, handle)` and `released(call, handle)`; `answers(text, reply)` answers a
   prompt with a reply built from the call, such as a trait's, and `result(call)` is the text of the
   tool result the call looks at, if it looks at one. `unrung` is how long a scenario
   watches a terminal for a ring that mustn't come, past the doorbell's settle window;

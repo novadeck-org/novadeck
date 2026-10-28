@@ -50,7 +50,7 @@ export type Item = {
   // The lines it points at, numbered from 1.
   readonly lines: { readonly from: number; readonly to: number } | null
   // A file that may hold secrets: shown only when the person picks it.
-  readonly held: boolean
+  readonly secret: boolean
   // Shown by an agent, or attached by the person.
   readonly by: "agent" | "person"
   // The terminal it was shown from, which a window docks back into; null for a file the
@@ -59,7 +59,7 @@ export type Item = {
   // Counts its shows; a higher version is something shown again.
   readonly version: number
   // The person asked to see it: it opens rather than waits.
-  readonly asked: boolean
+  readonly openAsked: boolean
   readonly shownAt: number
   // A plan's agent, by the name the person knows it by, whose plan it is, and whether
   // it's a file or text in the agent's own conversation, which `path` then names.
@@ -188,7 +188,7 @@ export type PageContent = {
 }
 
 // One file of a change: how it changed and its diff as hunks of lines. A `binary` file, one
-// that may hold secrets (`held`), or one past the change's bounds (`listed`) has no hunks and
+// that may hold secrets (`secret`), or one past the change's bounds (`listed`) has no hunks and
 // is listed by name. A hunk's line numbers count from its `oldStart` and `newStart`.
 export type ChangedFile = {
   readonly path: string
@@ -197,7 +197,7 @@ export type ChangedFile = {
   readonly added: number
   readonly removed: number
   readonly binary: boolean
-  readonly held: boolean
+  readonly secret: boolean
   readonly listed: boolean
   readonly hunks: readonly {
     readonly oldStart: number
@@ -245,7 +245,7 @@ export type UnavailableReason =
   | "not-a-file"
   | "too-large"
   | "binary"
-  | "held"
+  | "secret"
   | "gone"
 
 // What an item holds now. `stamp` names this exact content: it changes whenever the
@@ -317,7 +317,7 @@ export const pageTroublesPerCall = 20
 // as the backend's seed and actions, like terminals.
 export type Companions = {
   // Reports what the item holds now, then again whenever that changes, until stopped.
-  // One that may hold secrets reports `held` unless `reveal` is the path the item points at:
+  // One that may hold secrets reports `secret` unless `reveal` is the path the item points at:
   // the person's yes is to a file, not to whatever the item is pointed at when it's heard.
   readonly follow: (
     target: WorkspaceTarget,

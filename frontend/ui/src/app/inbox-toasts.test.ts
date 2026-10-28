@@ -49,16 +49,6 @@ const update = (id: string): InboxRow => ({
   update: { type: "told", subject: "Done", body: "" },
 })
 
-const draft = (id: string): InboxRow => ({
-  id,
-  source: sourceOf("t1"),
-  at: Date.now(),
-  stopped: false,
-  seen: false,
-  kind: "feedback",
-  draft: { kind: "bug", text: "It broke." },
-})
-
 const setup = (items: InboxRow[] = [], pings = true) => {
   const inbox = createStore<InboxState>({ ...emptyInbox, items })
   const ui = createUiStore(
@@ -149,14 +139,6 @@ describe("toasts for what needs the person", () => {
       set([ask("a"), update("u")])
       vi.advanceTimersByTime(1000)
       set([update("u")])
-      vi.advanceTimersByTime(5000)
-      expect(shown).toEqual([])
-      stop()
-    })
-
-    it("shows none for a feedback draft, which waits in the Inbox without calling", () => {
-      const { set, shown, stop } = setup()
-      set([draft("f")])
       vi.advanceTimersByTime(5000)
       expect(shown).toEqual([])
       stop()

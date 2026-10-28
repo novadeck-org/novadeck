@@ -2,7 +2,7 @@ import type { AgentActivity, AgentName, TitleSource } from "@novadeck/protocol"
 
 import { mention } from "../terminals/handles.js"
 import { busiestFolders, firstFrom, shorten, type Work } from "../terminals/work.js"
-import { agentLabel, clock, holdOf, isNotice, type Message } from "./messages.js"
+import { agentLabel, clock, holdOf, isNotice, senderTerminal, type Message } from "./messages.js"
 
 /**
  * What the terminal manager knows of a terminal beyond messaging: its title and who it
@@ -153,16 +153,15 @@ export const lastBetween = (
 ): Peer["withYou"] => {
   let last: Message | undefined
   for (const message of messages) {
-    const { from, to } = message
+    const { to } = message
+    const from = senderTerminal(message.from)
     const between =
-      (from.terminalId === self && to.terminalId === peer.terminalId) ||
-      (from.terminalId === peer.terminalId &&
-        to.terminalId === self &&
-        message.state === "delivered")
+      (from === self && to.terminalId === peer.terminalId) ||
+      (from === peer.terminalId && to.terminalId === self && message.state === "delivered")
     if (between && (!last || message.sentAt >= last.sentAt)) last = message
   }
   if (!last) return null
-  const from = last.from.terminalId === self ? "you" : peer.handle
+  const from = senderTerminal(last.from) === self ? "you" : peer.handle
   return { from, text: shorten(last.text, excerptChars), at: last.sentAt }
 }
 
@@ -254,7 +253,7 @@ export type Viewer = { readonly handle: string; readonly lead: string | null }
  * another. A lead whose terminal closed leads no one, so nothing is said of it.
  */
 const relationLine = (peer: Peer, viewer: Viewer): string | null => {
-  if (peer.handle === viewer.lead) return "your lead: it opened this terminal and directs your work"
+  if (peer.handle === viewer.lead) return "your lead: it directs your work"
   if (!peer.lead) return null
   if (peer.lead === viewer.handle) return "led by you"
   return `led by ${mention(peer.lead)}`
@@ -344,7 +343,7 @@ const standing = (
       : "held while the user has messaging paused"
   if (message.state === "gone")
     return message.stopped
-      ? "won't arrive: the user stopped that thread in Novadeck"
+      ? "won't arrive: the user stopped it in Novadeck"
       : "won't arrive: the agent session it was for ended"
   return message.state
 }
@@ -358,6 +357,28 @@ export const untrustedNote = (agent: AgentName): string =>
 export const unboundNote =
   "Novadeck hasn't seen this terminal's own agent session, so replies can't reach you " +
   "until Novadeck's hooks run here (in Codex, trust them with /hooks)."
+
+/** Handles as a listing names them, in order: `@fox, @owl`. */
+const mentions = (peers: readonly Peer[]): string =>
+  peers.map(({ handle }) => mention(handle)).join(", ")
+
+/**
+ * The caller's team, from who leads whom now: its lead and the others that lead leads, and
+ * the terminals the caller leads; nothing when it is in no team.
+ */
+export const teamLines = (
+  handle: string,
+  lead: string | null,
+  peers: readonly Peer[],
+): readonly string[] => {
+  const mates = lead ? peers.filter((peer) => peer.lead === lead) : []
+  const led = peers.filter((peer) => peer.lead === handle)
+  return [
+    lead &&
+      `Your team: led by ${mention(lead)}${mates.length > 0 ? `, with ${mentions(mates)}` : ", no other teammates"}.`,
+    led.length > 0 && `${lead ? "You also lead" : "Your team: you lead"} ${mentions(led)}.`,
+  ].filter((line): line is string => Boolean(line))
+}
 
 /** What `agents` answers, as agents read it. */
 export const renderAgents = (input: {
@@ -376,6 +397,7 @@ export const renderAgents = (input: {
 }): string =>
   [
     `You are ${mention(input.handle)} in Novadeck.`,
+    ...teamLines(input.handle, input.lead, input.peers),
     renderPeers(input.peers, input.now, {
       handle: input.handle,
       lead: input.lead,
@@ -409,5 +431,6 @@ export const unknownHandle = (
       : `"${to.slice(0, 64)}" is no terminal's handle here. Send to one of these by its exact ` +
         "handle, picking by its title, folder and work; if more than one could be meant, ask " +
         "the user rather than guess.",
+    ...teamLines(self, lead, peers),
     renderPeers(peers, now, { handle: self, lead }),
   ].join("\n")

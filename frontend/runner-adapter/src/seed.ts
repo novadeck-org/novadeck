@@ -85,8 +85,8 @@ export const runnerTerminal = (
   }
 }
 
-// A session's seed and where it sorts: by last visit, then by how open it was.
-type Ranked = { readonly seed: SessionSeed; readonly order: readonly [number, number] }
+// A session's seed and when it was last visited; null if never.
+type Visited = { readonly seed: SessionSeed; readonly visitedAt: number | null }
 
 // The session's terminals, windows and items are the runner's, terminals in the order
 // they were created; how the UI showed them, as it saved that, lays them out again. A
@@ -96,7 +96,7 @@ const sessionSeed = (
   summaries: readonly TerminalSummary[],
   quickExitMs: number,
   companions: ListedCompanions = { items: [], windows: [] },
-): Ranked => {
+): Visited => {
   const saved = decodeSession(session.state)
   const terminals = summaries.flatMap((summary) => {
     const terminal = runnerTerminal(summary, quickExitMs)
@@ -112,25 +112,19 @@ const sessionSeed = (
       .filter((window) => companions.items.some((item) => item.id === window.itemId))
       .map(windowOf),
   }
-  // Visit times are epoch milliseconds, so -1 sorts a session never saved last.
-  if (!saved) return { seed: listed, order: [-1, 0] }
-  const seed: SessionSeed = {
-    ...listed,
-    visitedAt: saved.visitedAt,
-    restored: saved.state,
+  const { visitedAt } = session
+  return {
+    seed: { ...listed, visitedAt, ...(saved ? { restored: saved.state } : {}) },
+    visitedAt,
   }
-  return { seed, order: [saved.visitedAt, saved.rank] }
 }
 
-const later = (a: Ranked | undefined, b: Ranked | undefined): number => {
-  const [visitA, rankA] = a?.order ?? [-2, 0]
-  const [visitB, rankB] = b?.order ?? [-2, 0]
-  return visitA - visitB || rankA - rankB
-}
+// Visit times are epoch milliseconds, so -1 sorts a session never visited last.
+const later = (a: Visited | undefined, b: Visited | undefined): number =>
+  (a?.visitedAt ?? -1) - (b?.visitedAt ?? -1)
 
 // The workspace as the runner left it: sessions most recently visited first, and the
-// project visited last opens. Sessions visited at the same moment, as a switch leaves
-// them, sort the one that was open first. Sessions never saved follow in the runner's order.
+// project visited last opens. Sessions never visited follow in the runner's order.
 // Terminals whose shells exited cleanly while the app was away: the seed leaves them
 // out, and the adapter closes what the runner still keeps of them.
 export const cleanlyExited = (listing: RunnerListing): readonly string[] =>
@@ -201,9 +195,10 @@ export const runnerSeed = (
     id: project.id,
     name: project.name,
     directory: project.cwd,
+    pinned: project.pinned,
     sessions: sessions.map((session) => session.seed),
   }))
-  return latest?.sessions[0] && latest.sessions[0].order[0] >= 0
+  return latest?.sessions[0] && latest.sessions[0].visitedAt !== null
     ? { projects, activeProjectId: latest.project.id }
     : { projects }
 }

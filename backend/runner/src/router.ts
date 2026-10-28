@@ -15,6 +15,7 @@ import type { CompanionItems } from "./companions/items.js"
 import { DomainError } from "./errors.js"
 import type { Harnesses } from "./harnesses/service.js"
 import { logs } from "./log.js"
+import type { Feedback } from "./messaging/feedback.js"
 import type { Murmur } from "./murmur/service.js"
 import type { Terminals } from "./terminals/index.js"
 import type { Uploads } from "./terminals/uploads.js"
@@ -52,6 +53,7 @@ export const apiError = (error: unknown): unknown => {
 export const createRouter = (options: {
   store: WorkspaceStore
   terminals: Terminals
+  feedback: Feedback
   projects: Projects
   items: CompanionItems
   agents: Harnesses
@@ -63,7 +65,7 @@ export const createRouter = (options: {
   /** Whether the runner is shutting down. */
   closing: () => boolean
 }) => {
-  const { store, terminals, projects, items, agents, uploads, voice, murmur } = options
+  const { store, terminals, feedback, projects, items, agents, uploads, voice, murmur } = options
   // A plan's content says whether Novadeck's plugin is installed into its agent, which the
   // companions can't know: it is looked up as the content leaves.
   const withSkill = async (content: ItemContent, agent: AgentName | undefined) =>
@@ -81,6 +83,9 @@ export const createRouter = (options: {
         store.createProject({ ...input, cwd: input.cwd ?? homedir() }),
       ),
       rename: api.projects.rename.handler(({ input }) => store.renameProject(input)),
+      arrange: api.projects.arrange.handler(({ input }) =>
+        projects.arrange(input.order, input.pinned),
+      ),
       remove: api.projects.remove.handler(({ input }) => projects.remove(input.projectId)),
       folder: api.projects.folder.handler(({ input }) => {
         projects.ensureNotRemoving(input.projectId)
@@ -119,11 +124,14 @@ export const createRouter = (options: {
       answerRequest: api.terminals.answerRequest.handler(({ input, context }) =>
         terminals.answerRequest(input, context.session.id),
       ),
-      closeAsks: api.terminals.closeAsks.handler(({ context, signal }) =>
-        terminals.closeAsks(context.session.id, signal),
+      approvals: api.terminals.approvals.handler(({ context, signal }) =>
+        terminals.approvals(context.session.id, signal),
       ),
-      answerCloseAsk: api.terminals.answerCloseAsk.handler(({ input, context }) =>
-        terminals.answerCloseAsk(input, context.session.id),
+      answerApproval: api.terminals.answerApproval.handler(({ input, context }) =>
+        terminals.answerApproval(input, context.session.id),
+      ),
+      release: api.terminals.release.handler(({ input }) =>
+        terminals.releaseLead(input.terminalId),
       ),
       watch: api.terminals.watch.handler(({ context, signal }) =>
         terminals.watch(context.session.id, signal),
@@ -243,6 +251,11 @@ export const createRouter = (options: {
       read: api.inbox.read.handler(({ input }) => terminals.readTells(input.ids)),
       dismiss: api.inbox.dismiss.handler(({ input }) => terminals.dismissAsk(input.id)),
       clear: api.inbox.clear.handler(({ input }) => terminals.clearAsks(input.ids)),
+    },
+    feedback: {
+      watch: api.feedback.watch.handler(({ signal }) => feedback.watch(signal)),
+      settle: api.feedback.settle.handler(({ input }) => feedback.settle(input.id)),
+      ask: api.feedback.ask.handler(({ input }) => feedback.ask(input.terminalId, input.hint)),
     },
     messages: {
       list: api.messages.list.handler(({ input }) => terminals.messages(input.terminalId)),

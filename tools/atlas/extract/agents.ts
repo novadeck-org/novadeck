@@ -15,6 +15,8 @@ const mcpFile = "backend/runner/src/shell/mcp.ts"
 const managerFile = "backend/runner/src/terminals/manager.ts"
 const companionFile = "backend/runner/src/terminals/companion.ts"
 const callsFile = "backend/runner/src/terminals/calls.ts"
+const leadsFile = "backend/runner/src/terminals/leads.ts"
+const feedbackFile = "backend/runner/src/messaging/feedback.ts"
 const contractFile = "harnesses/core/src/harness.ts"
 
 // The method that performs each tool's call, and the runner file it is in.
@@ -25,6 +27,8 @@ const handlers: Record<string, { readonly file: string; readonly method: string 
   open_terminal: { file: callsFile, method: "open" },
   open_agent: { file: callsFile, method: "open" },
   close_terminal: { file: callsFile, method: "closePeer" },
+  lead: { file: leadsFile, method: "lead" },
+  release: { file: leadsFile, method: "release" },
   send: { file: managerFile, method: "send" },
   agents: { file: managerFile, method: "agents" },
   summarize: { file: callsFile, method: "summarize" },
@@ -32,6 +36,7 @@ const handlers: Record<string, { readonly file: string; readonly method: string 
   ask: { file: callsFile, method: "call" },
   tell: { file: callsFile, method: "call" },
   done: { file: callsFile, method: "call" },
+  feedback: { file: feedbackFile, method: "call" },
 }
 
 const lineOf = (source: string | null, pattern: RegExp): number | null => {

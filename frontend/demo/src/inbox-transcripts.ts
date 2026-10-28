@@ -1,7 +1,7 @@
 import type { WorkspaceSeed } from "@novadeck/core/seed"
 
 import { demoHandle } from "./handles"
-import type { DemoSessionMessages } from "./messages"
+import { partyOf, type DemoSessionMessages } from "./messages"
 import { demoTerminalId } from "./samples"
 import { got, say, use, user, written, type DemoDraft, type DemoTranscript } from "./transcripts"
 
@@ -53,7 +53,7 @@ const agyRun = (call: string, command: string): DemoDraft =>
 
 // The api-service agent that hit its usage limit got its task from its lead, the
 // project's first terminal: Novadeck's doorbell line is its prompt, the brief a message.
-export const inboxLead = {
+const inboxLead = {
   projectId: "api-service",
   lead: 1,
   worker: 6,
@@ -233,8 +233,8 @@ export const inboxLeadMessages = (now: number): DemoSessionMessages => {
           {
             id: "demo-inbox-brief",
             hop: 1,
-            from: lead,
-            to: worker,
+            from: partyOf(lead),
+            to: partyOf(worker),
             text: inboxLead.brief,
             sentAt: at - 2_000,
             state: "delivered",

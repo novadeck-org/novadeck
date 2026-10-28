@@ -5,8 +5,8 @@ import type {
   AgentDetail,
   AgentName,
   InterruptResult,
-  CloseAsk,
-  CloseAskAnswer,
+  Approval,
+  ApprovalAnswer,
   TerminalAttached,
   TerminalChange,
   TerminalEvent,
@@ -32,6 +32,7 @@ import { DomainError } from "../errors.js"
 import { actorOf, agentDetail } from "../harnesses/detail.js"
 import { harnesses } from "../harnesses/registry.js"
 import { type DoorbellOptions } from "../messaging/doorbell.js"
+import { Feedback } from "../messaging/feedback.js"
 import { Inbox, type InboxRecords } from "../messaging/inbox.js"
 import { Messaging, type AgentsAnswer, type SendAnswer } from "../messaging/messaging.js"
 import type { MessageRecords } from "../messaging/records.js"
@@ -41,13 +42,13 @@ import type { InstalledShell } from "../shell/install.js"
 import { type Ack, type Call } from "../shell/reports.js"
 import type { HintFacts } from "../voice/hint.js"
 import { type AnswerOptions } from "./answers.js"
+import { Approvals } from "./approvals.js"
 import { Bindings } from "./binding/facts.js"
 import { Reports } from "./binding/reports.js"
 import { Shown } from "./binding/shown.js"
 import { savedSession } from "./binding/standing.js"
 import { sameToken } from "./callers.js"
 import { Calls } from "./calls.js"
-import { CloseAsks } from "./closeasks.js"
 import { type CloseAnswer } from "./closes.js"
 import { coalesced } from "./coalesce.js"
 import { expectedAgent } from "./commands.js"
@@ -66,7 +67,7 @@ import type { Record } from "./record.js"
 import { hasRun, type TerminalRecords } from "./records.js"
 import { createTranscriptRedactor, type TranscriptRedactor } from "./redaction.js"
 import { restoredSeparator } from "./restored.js"
-import { cancelResume, Claims } from "./resumes.js"
+import { cancelResume, Claims, restartedTask } from "./resumes.js"
 import { agentWorking } from "./ringing.js"
 import { Sampler, shellProcess } from "./sampling.js"
 import { Saves } from "./saving.js"
@@ -106,6 +107,8 @@ export type TerminalOptions = {
   shellFiles?: Promise<InstalledShell | undefined>
   /** Where terminals are saved for restoring; unsaved when omitted. */
   records?: TerminalRecords
+  /** The order each session gives handle words in: its own shuffle when omitted (see `handleOrder`). */
+  handleOrder?: (sessionId: string) => readonly string[]
   /** The connected harnesses whose shims new shells put first on PATH. */
   shims?: () => Promise<readonly AgentName[]>
   /**
@@ -255,7 +258,7 @@ export class Terminals {
   /** Agents' requests for a new terminal, on their way to the client. */
   private readonly opens = new OpenRequests()
   /** Agents' asks to close a terminal, on their way to the client that asks the person. */
-  private readonly confirms = new CloseAsks()
+  private readonly confirms = new Approvals()
   /** Samples running terminals' foreground processes. */
   private readonly sampler: Sampler<Record>
   /** Who reads the terminals: their watchers, and each one's detail and messages readers. */
@@ -289,6 +292,7 @@ export class Terminals {
       | "shellArgs"
       | "shellFiles"
       | "records"
+      | "handleOrder"
       | "shims"
       | "connected"
       | "transcripts"
@@ -337,6 +341,8 @@ export class Terminals {
   /** Agents' messages to each other, and how each terminal's agent takes them. */
   private readonly messaging: Messaging
   private readonly inbox: Inbox
+  /** Agents' feedback drafts, held in memory for the app's feedback card. */
+  readonly feedback: Feedback
   /** What agents messaging each other, and the runner API about their messages, are answered. */
   private readonly peers: TerminalPeers
   /** Describes terminals with murmur; undefined without a describer. */
@@ -478,7 +484,7 @@ export class Terminals {
         ),
       messages: (terminalId) => this.messages(terminalId),
     })
-    this.names = new Names<Record>(Boolean(this.options.records), this.saves, this.streams, {
+    this.names = new Names<Record>(options, this.saves, this.streams, {
       stopping: () => this.stopping,
       records: () => this.records.values(),
       record: (terminalId) => this.records.get(terminalId),
@@ -557,6 +563,12 @@ export class Terminals {
       },
       options.inbox,
     )
+    this.feedback = new Feedback({
+      owner: (id) => this.messaging.inboxOwner(id),
+      exists: (id) => !this.closedIds.has(id) && this.records.has(id),
+      replyState: (id) => this.messaging.inboxReply(id),
+      request: (id, request, hint) => this.messaging.personFeedbackRequest(id, request, hint),
+    })
     // A lapsed continuation ends its turn; a late prompt may leave only box doubt to settle.
     // Subscribed before typing's doorbell, which subscribes as it is made.
     this.messaging.subscribe((change) => {
@@ -645,11 +657,14 @@ export class Terminals {
       stopping: () => this.stopping,
       messaging: () => this.messaging,
       inbox: () => this.inbox,
+      feedback: () => this.feedback,
       peers: () => this.peers,
       opens: () => this.opens,
-      closeAsks: () => this.confirms,
+      approvals: () => this.confirms,
+      bindings: () => this.bindings,
       companion: () => this.companion,
       launcher: () => this.launcher,
+      claims: () => this.claims,
       install: (agent) => this.options.install(agent),
       models: (agent) => this.options.models(agent),
       closingNow: (terminalId) => this.host.closing(terminalId),
@@ -719,12 +734,12 @@ export class Terminals {
       // asked for, as it requested the terminal, is that agent's.
       let naming: Naming = kept?.naming ?? unnamed
       if (input.title !== undefined) naming = renamedTo(naming, input.title)
-      if (opener?.title !== undefined) naming = openedWith(naming, opener.title, opener.by)
+      if (opener?.title !== undefined) naming = openedWith(naming, opener.title)
       const openedBy = kept?.openedBy ?? opener?.by ?? null
-      const ledBy = kept ? kept.ledBy : opener?.withBrief ? opener.by : null
+      const ledBy = kept ? kept.ledBy : opener?.leads ? opener.by : null
       const work = saved?.work ?? null
       const command = input.command ?? saved?.command ?? null
-      const titled = summaryTitle(naming, { command })
+      const titled = summaryTitle(naming, { command, openedBy })
       const resume =
         input.command === undefined &&
         input.resume &&
@@ -734,10 +749,14 @@ export class Terminals {
           saved?.agents[input.resume]?.sessionId,
           connected,
         )
+      // The session an agent asked to resume, judged again: another terminal may have taken it.
+      const asked = this.claims.recheck(input.id, opener?.resume)
+      // A worker lost before its agent's first session starts that agent again, still led.
+      const task = resume ? undefined : restartedTask(saved, kept?.ledBy)
       const startup =
         input.command !== undefined
           ? { command: input.command, required: true }
-          : resume && { command: resume.argv.join(" ") }
+          : (resume && { command: resume.argv.join(" ") }) || task
       const { spec, started } = this.launcher.launch(
         shell,
         cwd,
@@ -750,9 +769,10 @@ export class Terminals {
         place.open(spec, pending.released ? undefined : ownerId),
       )
       // Claimed once its shell runs, so a shell that didn't start holds no session.
-      if (resume && started.resumes) {
-        this.claims.claim(resume.key, input.id)
-        started.resumeClaim = resume.key
+      const claim = resume ? resume.key : asked
+      if (claim && started.resumes) {
+        this.claims.claim(claim, input.id)
+        started.resumeClaim = claim
       }
       const agents = restored(saved?.agents, resume && started.resumes && input.resume, started)
       const record: Record = {
@@ -802,6 +822,7 @@ export class Terminals {
         work,
         openedBy,
         openerCommand: opener?.command ?? null,
+        ...(task?.nonce && { startedWith: task.nonce }),
         // Only a session the opener's command started, running an agent, is the opener's.
         awaitsOpened:
           opener !== undefined && !kept && expectedAgent(opener.command, undefined) !== null,
@@ -814,7 +835,7 @@ export class Terminals {
       // Restored as a shell that resumes nothing, there is no agent left to lead.
       const unled = record.summary.ledBy !== null && !started.resumes
       if (unled) record.summary = { ...record.summary, ledBy: null }
-      this.register(record, expectedAgent(input.command, input.resume))
+      this.register(record, expectedAgent(input.command ?? task?.command, input.resume))
       if (unled) this.messaging.endLead(record.summary.id)
       // The resumed agent shows its own history; a shell that resumes none, the transcript.
       if (opened && !started.resumes) void this.show(record, opened.text, new Date(opened.at))
@@ -866,8 +887,8 @@ export class Terminals {
    */
   private register(record: Record, agent: AgentName | null): void {
     const { id, sessionId, handle } = record.summary
-    // Its lead is the agent in the terminal that opened it with a brief, until the agent
-    // it leads exits.
+    // Its lead is the agent in the terminal that opened it to lead it, until the agent it
+    // leads exits.
     this.messaging.register(
       id,
       { projectId: this.projectOf(sessionId), sessionId },
@@ -1173,6 +1194,7 @@ export class Terminals {
     // for the next runner to remove.
     if (this.stopping) throw new DomainError("CLOSING")
     this.inbox.forgetProject(projectId)
+    this.feedback.forgetProject(projectId)
     this.messaging.forgetProject(projectId)
   }
 
@@ -1208,7 +1230,7 @@ export class Terminals {
   private forget(terminalId: string, { claims = true } = {}): void {
     // Its items go first, so watchers hear of each before its record cascades them away.
     this.companion.closed(terminalId)
-    this.messaging.unregister(terminalId)
+    this.messaging.unregister(terminalId, true)
     this.inbox.reconcile(terminalId)
     this.typing.forget(terminalId)
     this.murmur?.gone(terminalId)
@@ -1424,15 +1446,20 @@ export class Terminals {
     this.opens.answer(answer, ownerId)
   }
 
-  /** Agents' asks to close a terminal, for the client to confirm with the person. */
-  closeAsks(ownerId: string, signal?: AbortSignal): AsyncGenerator<CloseAsk> {
+  /** Agents' asks to close a terminal or lead one, for the client to approve with the person. */
+  approvals(ownerId: string, signal?: AbortSignal): AsyncGenerator<Approval> {
     if (this.stopping) throw new DomainError("CLOSING")
     return this.confirms.follow(ownerId, signal)
   }
 
-  /** The person's answer to a close ask; NOT_FOUND once nothing waits for it. */
-  answerCloseAsk(answer: CloseAskAnswer, ownerId: string): void {
+  /** The person's answer to an approval; NOT_FOUND once nothing waits for it. */
+  answerApproval(answer: ApprovalAnswer, ownerId: string): void {
     this.confirms.answer(answer, ownerId)
+  }
+
+  /** The person ends a terminal's lead (see `Leads.releaseByPerson`). */
+  releaseLead(terminalId: string): void {
+    this.calls.leads.releaseByPerson(terminalId)
   }
 
   /** The folder of the session's project; undefined when that cannot be told. */
@@ -1510,6 +1537,7 @@ export class Terminals {
     for (const record of this.records.values()) this.bindings.unwatch(record)
     this.typing.close()
     this.inbox.close()
+    this.feedback.close()
     this.messaging.close()
     this.shutdownPromise = Promise.all([last, this.stop()]).then(() => undefined)
     return this.shutdownPromise

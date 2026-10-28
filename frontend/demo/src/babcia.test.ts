@@ -1,4 +1,5 @@
 import type { InboxRow } from "@novadeck/core/inbox"
+import type { MessageParty } from "@novadeck/core/messages"
 import { orderedTiles } from "@novadeck/core/roster"
 import { workspaceFromSeed } from "@novadeck/core/seed"
 import { activeSession } from "@novadeck/core/state"
@@ -9,12 +10,16 @@ import { babcia, babciaCuesOf, babciaIntroOf, politeAfterMs } from "./babcia"
 import { answerMs, answeredMs } from "./chat"
 import { demoHandle } from "./handles"
 import { answerMs as inboxAnswerMs, isDemoInbox } from "./inbox"
-import { deliveryMs, isDemoMessages, rungMs } from "./messages"
+import { deliveryMs, isDemoMessages, partyOf, rungMs } from "./messages"
 import { demoTerminalId } from "./samples"
 import { demoTurns } from "./turns"
 import { createDemo } from "./variants"
 
 const bar = { projectId: "bar-mleczny", workspaceSessionId: "initial" }
+// Whether a message party is the agent at a handle.
+const partyIs = (party: MessageParty, handle: string): boolean =>
+  party.kind === "agent" && party.handle === handle
+
 const key = (number: number) => ({ ...bar, terminalId: demoTerminalId(bar, number) })
 
 // The Babcia demo, opened on the Canvas as its video shows it, its Inbox bound to the
@@ -179,11 +184,15 @@ describe("the Babcia demo", () => {
   const terminalMessages = (backend: ReturnType<typeof open>["backend"]) => {
     const { messages } = backend
     if (!isDemoMessages(messages)) throw new Error("the Babcia demo has the demo's messages")
-    const seen = new Map<string, { from: string; to: string; state: string; text: string }>()
+    const seen = new Map<
+      string,
+      { from: MessageParty; to: MessageParty; state: string; text: string }
+    >()
     for (const each of Object.values(messages.state.getSnapshot().terminals))
       for (const thread of each.threads)
         for (const message of thread.messages)
-          if (message.from !== "you" && message.to !== "you") seen.set(message.id, message)
+          if (message.from.kind === "agent" && message.to.kind === "agent")
+            seen.set(message.id, message)
     return [...seen.values()]
   }
   const typed = "How should I know? Ask your sister."
@@ -218,8 +227,8 @@ describe("the Babcia demo", () => {
     // Delivered, the helper writes to its lead, which the doorbell then rings awake.
     await vi.advanceTimersByTimeAsync(2400)
     expect(terminalMessages(backend)[0]).toMatchObject({
-      from: asking,
-      to: lead,
+      from: partyOf(asking),
+      to: partyOf(lead),
       text: expect.stringContaining(typed),
     })
     await vi.advanceTimersByTimeAsync(rungMs + 50)
@@ -227,8 +236,8 @@ describe("the Babcia demo", () => {
     await vi.advanceTimersByTimeAsync(5000)
     expect(items()).toEqual([])
     expect(terminalMessages(backend).map(({ from, to, state }) => ({ from, to, state }))).toEqual([
-      { from: asking, to: lead, state: "delivered" },
-      { from: lead, to: asking, state: "delivered" },
+      { from: partyOf(asking), to: partyOf(lead), state: "delivered" },
+      { from: partyOf(lead), to: partyOf(asking), state: "delivered" },
     ])
     expect(agent(babcia.asking)).toMatchObject({ working: true })
   })
@@ -263,7 +272,7 @@ describe("the Babcia demo", () => {
     await vi.advanceTimersByTimeAsync(300)
     messages.pause(false)
     await vi.advanceTimersByTimeAsync(10_000)
-    expect(terminalMessages(backend).filter((each) => each.from === asking)).toHaveLength(1)
+    expect(terminalMessages(backend).filter((each) => partyIs(each.from, asking))).toHaveLength(1)
   })
 
   it("words the helper's message to its lead for an empty or unpunctuated reply", async () => {
@@ -278,7 +287,7 @@ describe("the Babcia demo", () => {
       })
       // eslint-disable-next-line no-await-in-loop -- Each demo runs on its own.
       await vi.advanceTimersByTimeAsync(5000)
-      texts.push(terminalMessages(backend).find((each) => each.from === asking)!.text)
+      texts.push(terminalMessages(backend).find((each) => partyIs(each.from, asking))!.text)
     }
     expect(texts).toEqual([
       "Nyx had nothing to add. Do you know which API the site calls? I need it for the orders route.",
@@ -301,17 +310,20 @@ describe("the Babcia demo", () => {
     if (!isDemoMessages(messages)) throw new Error("the demo's messages")
     const thread = Object.values(messages.state.getSnapshot().terminals)
       .flatMap((each) => each.threads)
-      .find((each) => each.messages.some((one) => one.from === asking))!
+      .find((each) => each.messages.some((one) => partyIs(one.from, asking)))!
     messages.stop!(thread.id)
     await vi.advanceTimersByTimeAsync(10_000)
     // The runner adds nothing to the thread, and none of it is the person's.
     const sent = Object.values(messages.state.getSnapshot().terminals)
       .flatMap((each) => each.threads)
       .flatMap((each) => each.messages)
-      .filter((one) => one.id.startsWith("t-") && (one.from === "you" || one.to === "you"))
+      .filter(
+        (one) =>
+          one.id.startsWith("t-") && (one.from.kind === "person" || one.to.kind === "person"),
+      )
     expect(sent).toEqual([])
     expect(terminalMessages(backend).map(({ from, state }) => ({ from, state }))).toEqual([
-      { from: asking, state: "gone" },
+      { from: partyOf(asking), state: "gone" },
     ])
     expect(agent(babcia.lead)).toMatchObject({ working: false })
     // Nothing holds the pair any longer, and the thread takes no more.
@@ -344,7 +356,7 @@ describe("the Babcia demo", () => {
     expect(agent(babcia.lead)).toMatchObject({ working: true })
     await backend.conversations!.interrupt(key(babcia.lead))
     await vi.advanceTimersByTimeAsync(10_000)
-    expect(terminalMessages(backend).filter((each) => each.from === lead)).toEqual([])
+    expect(terminalMessages(backend).filter((each) => partyIs(each.from, lead))).toEqual([])
     // Nothing holds the pair after it: cue 6 ends the helper's turn too.
     cues.finishAll()
     await vi.advanceTimersByTimeAsync(5000)
@@ -719,7 +731,7 @@ describe("the Babcia demo", () => {
     await vi.advanceTimersByTimeAsync(rungMs + 50)
     expect(
       terminalMessages(backend).filter(
-        (each) => each.from === demoHandle(1) && each.state === "held",
+        (each) => partyIs(each.from, demoHandle(1)) && each.state === "held",
       ),
     ).toHaveLength(3)
   })
@@ -733,7 +745,7 @@ describe("the Babcia demo", () => {
     messages.send(target, asking, lead, "Hi")
     const thread = Object.values(messages.state.getSnapshot().terminals)
       .flatMap((each) => each.threads)
-      .find((each) => each.messages.some((one) => one.from === asking))!
+      .find((each) => each.messages.some((one) => partyIs(one.from, asking)))!
     messages.stop!(thread.id)
     expect(messages.send(target, lead, asking, "Hello")).toBe(false)
     await vi.advanceTimersByTimeAsync(9 * 60_000)
@@ -744,7 +756,7 @@ describe("the Babcia demo", () => {
     messages.send(target, demoHandle(1), demoHandle(2), "Hi")
     const other = Object.values(messages.state.getSnapshot().terminals)
       .flatMap((each) => each.threads)
-      .find((each) => each.messages.some((one) => one.from === demoHandle(1)))!
+      .find((each) => each.messages.some((one) => partyIs(one.from, demoHandle(1))))!
     messages.stop!(other.id)
     await vi.advanceTimersByTimeAsync(10 * 60_000 + 1000)
     expect(messages.send(target, demoHandle(1), demoHandle(2), "Hi again")).toBe(true)
@@ -790,7 +802,7 @@ describe("the Babcia demo", () => {
       {
         kind: "page",
         url: "http://localhost:4321/",
-        asked: true,
+        openAsked: true,
         holder: { terminalId: key(babcia.shows).terminalId },
       },
     ])

@@ -76,7 +76,11 @@ describe("scrubbing a feedback draft", () => {
   it("counts by kind and says them", () => {
     const { counts } = scrub("~/a, ~/b, me@mail.dev")
     expect(counts).toEqual({ path: 2, user: 0, host: 0, email: 1 })
-    expect(strikeSummary(counts)).toBe("2 paths, 1 email address")
+    expect(strikeSummary(counts)).toBe("2 home paths and 1 email address")
+    expect(strikeSummary({ path: 1, user: 1, host: 1, email: 1 })).toBe(
+      "1 home path, 1 user name, 1 host name and 1 email address",
+    )
+    expect(strikeSummary({ path: 1, user: 0, host: 0, email: 0 })).toBe("1 home path")
     expect(strikeSummary(scrub("nothing here").counts)).toBeNull()
   })
 

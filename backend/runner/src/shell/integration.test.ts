@@ -21,7 +21,7 @@ import { codex as codexHarness } from "@novadeck/harness-codex/index"
 import type {
   AgentDetail,
   AgentName,
-  CloseAsk,
+  Approval,
   TerminalChange,
   TerminalRequest,
   TerminalSummary,
@@ -32,8 +32,9 @@ import { vi } from "vitest"
 
 import { CompanionItems } from "../companions/items.js"
 import { readyReturnMs } from "../terminals/binding/facts.js"
-import { handleWords } from "../terminals/handles.js"
+import { handleOrder, handleWords } from "../terminals/handles.js"
 import { Terminals, type TerminalOptions } from "../terminals/index.js"
+import { sessionCommandRefusal } from "../terminals/opens.js"
 import type { AgentTurn, TerminalRecords } from "../terminals/records.js"
 import { createTranscriptRedactor } from "../terminals/redaction.js"
 import { describe, expect, it as base } from "../test.js"
@@ -115,6 +116,8 @@ const it = base.extend<{ shell: Fixture }>({
         // Seals nothing: these tests read the transcripts saved.
         sealer: plainSealer(),
         transcriptMs: 50,
+        // The list's order, not each session's shuffle, so tests know the handles given.
+        handleOrder: () => handleWords,
         ...options,
       })
       resources.defer(() => terminals.shutdown())
@@ -165,7 +168,7 @@ const it = base.extend<{ shell: Fixture }>({
         handle: store.terminal(id)?.handle ?? store.giveHandle(session.id),
         naming: store.terminal(id)?.naming ?? {
           person: null,
-          agent: null,
+          opener: null,
           murmur: null,
           summary: null,
         },
@@ -398,7 +401,7 @@ const keepLed = (shell: Fixture, ids: { lead: string; worker: string }, session?
       sessionId: shell.sessionId,
       cwd: shell.home,
       handle,
-      naming: { person: null, agent: null, murmur: null, summary: null },
+      naming: { person: null, opener: null, murmur: null, summary: null },
       openedBy: ledBy,
       ledBy,
       command: null,
@@ -658,7 +661,7 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))("bash shell i
     const told = () => shell.store.messages().filter(({ to }) => to.terminalId === id)
     await expect.poll(told).toMatchObject([
       {
-        from: { handle: "novadeck" },
+        from: { kind: "novadeck" },
         text: expect.stringContaining("while your turn was running"),
       },
     ])
@@ -2078,9 +2081,9 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))("bash shell i
     const records: TerminalRecords = {
       terminal: (terminalId) => shell.store.terminal(terminalId),
       terminals: (sessionId) => shell.store.terminals(sessionId),
-      giveHandle: (sessionId) => {
+      giveHandle: (sessionId, order) => {
         if (refuse) throw new Error("disk full")
-        return shell.store.giveHandle(sessionId)
+        return shell.store.giveHandle(sessionId, order)
       },
       renameTerminal: (terminalId, title) => shell.store.renameTerminal(terminalId, title),
       terminalIdentity: (terminalId) => shell.store.terminalIdentity(terminalId),
@@ -2177,7 +2180,7 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))("bash shell i
         sessionId: shell.sessionId,
         cwd: shell.home,
         handle,
-        naming: { person: null, agent: null, murmur: null, summary: null },
+        naming: { person: null, opener: null, murmur: null, summary: null },
         openedBy,
         ledBy: leader,
         command,
@@ -2211,7 +2214,7 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))("bash shell i
       sessionId: shell.sessionId,
       cwd: shell.home,
       handle: "fox",
-      naming: { person: null, agent: null, murmur: null, summary: null },
+      naming: { person: null, opener: null, murmur: null, summary: null },
       openedBy: null,
       ledBy: null,
       command: null,
@@ -2247,7 +2250,7 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))("bash shell i
         sessionId: shell.sessionId,
         cwd: shell.home,
         handle,
-        naming: { person: null, agent: null, murmur: null, summary: null },
+        naming: { person: null, opener: null, murmur: null, summary: null },
         openedBy: ledBy,
         ledBy,
         command: null,
@@ -2270,6 +2273,48 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))("bash shell i
     await expect.poll(() => manager.get(worker).ledBy).toBeNull()
     expect(shell.store.terminalIdentity(worker)?.ledBy).toBeNull()
     expect(shell.store.terminalIdentity(lead)?.ledBy).toBeNull()
+  })
+
+  it("starts a worker lost before its agent's first session again with its task, still led", async ({
+    shell,
+  }) => {
+    fakeAgent(shell.home, "codex")
+    writeFileSync(join(shell.home, ".bashrc"), 'export PATH="$HOME/bin:$PATH"\n')
+    const task = 'codex "[Novadeck: automatic notice, agent messages waiting, k3f9q2]"'
+    const [lead, worker, ran] = [randomUUID(), randomUUID(), randomUUID()]
+    const keep = (id: string, handle: string, ledBy: string | null, agents = {}) =>
+      shell.store.saveTerminal({
+        id,
+        sessionId: shell.sessionId,
+        cwd: shell.home,
+        handle,
+        naming: { person: null, opener: null, murmur: null, summary: null },
+        openedBy: ledBy,
+        ledBy,
+        command: ledBy ? task : null,
+        lastProgram: null,
+        work: null,
+        agents,
+        promptedAt: null,
+      })
+    keep(lead, "moth", null)
+    keep(worker, "fox", "moth")
+    keep(ran, "owl", "moth", { codex: { sessionId: "t-1", seq: 1 } })
+    const manager = shell.manager()
+    await create(manager, shell, { id: lead, restore: true })
+    await create(manager, shell, { id: worker, restore: true })
+    await create(manager, shell, { id: ran, restore: true })
+    // Lost behind its trust screen, as a reboot leaves it: its task's line starts it again.
+    await shell.until(
+      manager,
+      worker,
+      "codex args: [Novadeck: automatic notice, agent messages waiting, k3f9q2]",
+    )
+    expect(manager.get(worker).ledBy).toBe("moth")
+    expect(shell.store.terminalIdentity(worker)?.ledBy).toBe("moth")
+    // One whose agent ran resumes that session or comes back a shell, no longer led.
+    expect(manager.get(ran).ledBy).toBeNull()
+    expect(shell.store.terminalIdentity(ran)?.ledBy).toBeNull()
   })
 
   it("keeps a worker's lead while its agent is only suspended, as Ctrl+Z leaves it", async ({
@@ -2494,7 +2539,7 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))("bash shell i
         sessionId: shell.sessionId,
         cwd: shell.home,
         handle,
-        naming: { person: null, agent: null, murmur: null, summary: null },
+        naming: { person: null, opener: null, murmur: null, summary: null },
         openedBy: ledBy,
         ledBy,
         command: null,
@@ -2529,7 +2574,7 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))("bash shell i
       sessionId: other.id,
       cwd: shell.home,
       handle: "moth",
-      naming: { person: null, agent: null, murmur: null, summary: null },
+      naming: { person: null, opener: null, murmur: null, summary: null },
       openedBy: "moth",
       ledBy: "moth",
       command: "claude",
@@ -2545,7 +2590,7 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))("bash shell i
     expect(shell.store.terminalIdentity(id)?.openedBy).toBeNull()
   })
 
-  it("gives each session its own handles, preferring words open nowhere else and never reusing one", async ({
+  it("gives each session its own handles, whatever other sessions have open, and never reuses one", async ({
     shell,
   }) => {
     const manager = shell.manager()
@@ -2562,14 +2607,23 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))("bash shell i
       return given
     }
     expect(await handles(shell.sessionId, 2)).toEqual(["moth", "fox"])
-    // "moth" and "fox" are open in the first session, so the second takes others first.
-    expect(await handles(other.id, 2)).toEqual(["owl", "crow"])
-    // A word closed in one session is free for the other, and never for its own again.
+    // "moth" and "fox" being open in the first session changes nothing for the second.
+    expect(await handles(other.id, 2)).toEqual(["moth", "fox"])
+    // A closed terminal's word is never given again in its session.
     const closing = manager.list(shell.sessionId)[0]!
     await manager.close({ terminalId: closing.id })
     expect(closing.handle).toBe("moth")
-    expect(await handles(shell.sessionId, 1)).toEqual(["kite"])
-    expect(await handles(other.id, 1)).toEqual(["moth"])
+    expect(await handles(shell.sessionId, 1)).toEqual(["owl"])
+  })
+
+  it("gives a session's words in its own shuffled order", async ({ shell }) => {
+    const manager = shell.manager({ handleOrder })
+    const given = [
+      await create(manager, shell),
+      await create(manager, shell),
+      await create(manager, shell),
+    ]
+    expect(given.map(({ handle }) => handle)).toEqual(handleOrder(shell.sessionId).slice(0, 3))
   })
 
   it("names terminals by session, renames them, and tells watchers", async ({ shell }) => {
@@ -2698,7 +2752,7 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))(
           name: "a.ts",
           detail: "a.ts",
           version: 1,
-          asked: false,
+          openAsked: false,
         },
         {
           id: expect.any(String),
@@ -2707,7 +2761,7 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))(
           name: "w.txt",
           detail: "w.txt",
           version: 1,
-          asked: true,
+          openAsked: true,
         },
         {
           id: expect.any(String),
@@ -2716,7 +2770,7 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))(
           name: "The plan",
           detail: join(plans, "p.md"),
           version: 1,
-          asked: false,
+          openAsked: false,
         },
         {
           id: expect.any(String),
@@ -2725,7 +2779,7 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))(
           name: "elsewhere.txt",
           detail: join(shell.home, "elsewhere.txt"),
           version: 1,
-          asked: false,
+          openAsked: false,
         },
         {
           id: expect.any(String),
@@ -2734,8 +2788,8 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))(
           name: ".env",
           detail: ".env",
           version: 1,
-          asked: false,
-          held: true,
+          openAsked: false,
+          secret: true,
         },
       ])
       const [first, , , , env] = bar()
@@ -2772,7 +2826,7 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))(
         content: { lines: ["const a = 2"] },
       })
       // Held, it opens only as the person picks it.
-      await expect(items.load(env!.id, false)).resolves.toMatchObject({ reason: "held" })
+      await expect(items.load(env!.id, false)).resolves.toMatchObject({ reason: "secret" })
       await expect(items.load(env!.id, true)).resolves.toMatchObject({
         content: { lines: ["TOKEN=x"] },
       })
@@ -2872,21 +2926,26 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))(
       })()
       try {
         const answers = await present(shell, manager, terminal.id, [
-          open({ command: "claude --fresh", cwd: "project", title: "Agent", focus: true }),
+          open({ command: "claude --version", cwd: "project", title: "Agent", focus: true }),
           open({ title: "Refused" }),
           open({ cwd: "nowhere" }),
           open({ command: "claude\nrm -rf ~" }),
+          // An interactive agent session is open_agent's, however the command spells it.
+          open({ command: "claude --resume s-1" }),
+          open({ command: "/usr/bin/codex 'fix it'" }),
           open({}, "0".repeat(48)),
         ])
         expect(answers).toEqual([
           // Its handle, which agents message it by.
           {
             ok: true,
-            text: `Opened a new terminal, @fox · Agent, running claude --fresh in ${project}.`,
+            text: `Opened a new terminal, @fox · Agent, running claude --version in ${project}.`,
           },
           { ok: false, reason: "Not now." },
           { ok: false, reason: "nowhere isn't a folder a terminal can open in." },
           { ok: false, reason: "The command must be one line, without control characters." },
+          { ok: false, reason: sessionCommandRefusal("claude") },
+          { ok: false, reason: sessionCommandRefusal("codex") },
           unansweredCalls.open,
         ])
         const asked = {
@@ -2896,7 +2955,7 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))(
         }
         expect(requests).toEqual([
           // The title it asked for never goes to the client, which could give it as the person's.
-          { ...asked, cwd: project, command: "claude --fresh", focus: true },
+          { ...asked, cwd: project, command: "claude --version", focus: true },
           { ...asked, cwd: shell.home, focus: false },
         ])
         const [opened] = created
@@ -2910,7 +2969,7 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))(
           handle: "fox",
           naming: {
             person: null,
-            agent: { title: "Agent", by: "moth" },
+            opener: { title: "Agent" },
             murmur: null,
             summary: null,
           },
@@ -2922,7 +2981,7 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))(
         // It is still known as the opener's.
         expect(manager.get(opened!).openedBy).toBe("moth")
         expect(shell.store.terminalIdentity(opened!)).toMatchObject({ ledBy: null })
-        await shell.until(manager, opened!, "claude args: --fresh")
+        await shell.until(manager, opened!, "claude args: --version")
         // Five a minute, counting each request that was asked, opened or not: two more,
         // and the next waits.
         const more = await present(
@@ -3068,9 +3127,8 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))(
         })
         // The task waits for the first session of that agent there.
         expect(manager.messages(created[0]!).threads[0]?.messages[0]).toMatchObject({
-          from: "moth",
-          to: "fox",
-          toAgent: "claude",
+          from: { kind: "agent", handle: "moth" },
+          to: { kind: "agent", handle: "fox", agent: "claude" },
           text: "Review a.ts, please.",
           state: "queued",
         })
@@ -3195,6 +3253,346 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))(
   },
 )
 
+describe.skipIf(process.platform === "win32" || !existsSync(bash))(
+  "agents opening an agent with no task, a lead or a past session from a bash terminal",
+  () => {
+    it("starts each harness at its prompt, led or not, and resumes a session in one terminal only", async ({
+      shell,
+    }) => {
+      const bin = presenter(shell.home)
+      for (const agent of ["claude", "codex", "agy"] as const) fakeAgent(shell.home, agent)
+      const lists = {
+        claude: [{ id: "opus", efforts: ["low", "max"] }],
+        codex: [{ id: "gpt-a", efforts: ["low", "high"] }],
+        agy: [{ id: "flash-high", efforts: ["high"] }],
+      } as const
+      const manager = shell.manager({
+        env: {
+          HOME: shell.home,
+          PS1: "$ ",
+          PATH: `${bin}:${join(shell.home, "bin")}:${process.env.PATH}`,
+        },
+        install: (agent) =>
+          Promise.resolve({
+            env: {},
+            home: shell.home,
+            platform: process.platform,
+            plugin: join(shell.plugins, agent),
+          }),
+        models: (agent) => Promise.resolve(lists[agent]),
+      })
+      const openAgent = (request: object) => ({ ...open(request), type: "open_agent" as "open" })
+      const terminal = await create(manager, shell)
+      const controller = new AbortController()
+      const requests: TerminalRequest[] = []
+      const created: string[] = []
+      const client = (async () => {
+        for await (const request of manager.requests("client", controller.signal)) {
+          requests.push(request)
+          const id = randomUUID()
+          created.push(id)
+          // eslint-disable-next-line no-await-in-loop -- Requests are opened in turn.
+          await manager.create(
+            {
+              id,
+              sessionId: request.sessionId,
+              cwd: request.cwd,
+              cols: 100,
+              rows: 20,
+              ...(request.command && { command: request.command }),
+              requestId: request.requestId,
+            },
+            "client",
+          )
+          manager.answerRequest({ requestId: request.requestId, terminalId: id }, "client")
+        }
+      })()
+      try {
+        const answers = (await present(shell, manager, terminal.id, [
+          openAgent({ agent: "claude" }),
+          openAgent({ agent: "codex", model: "gpt-a", lead: true }),
+          openAgent({ agent: "agy", model: "flash-high", effort: "high", lead: true }),
+          openAgent({ agent: "claude", resume: "sess-1", model: "opus", lead: true }),
+          openAgent({ agent: "agy", resume: "sess-3" }),
+          openAgent({ agent: "claude", resume: "sess-1" }),
+          openAgent({ agent: "claude", resume: "no way" }),
+        ])) as { ok: boolean; reason?: string }[]
+        expect(requests.map(({ command }) => command)).toEqual([
+          "claude",
+          "codex --model gpt-a",
+          "agy --model flash-high --effort high",
+          "claude --model opus --resume sess-1",
+          "agy --conversation sess-3",
+        ])
+        expect(answers.slice(0, 5).map(({ ok }) => ok)).toEqual(Array(5).fill(true))
+        // One session runs in one terminal: refused while the first has it.
+        expect(answers[5]).toMatchObject({
+          ok: false,
+          reason: expect.stringContaining("already open in a terminal"),
+        })
+        expect(answers[6]).toMatchObject({ ok: false, reason: expect.stringContaining("session") })
+        // Led only where asked to; a plain agent has none, but is still known as the opener's.
+        expect(created.map((id) => manager.get(id).ledBy)).toEqual([
+          null,
+          "moth",
+          "moth",
+          "moth",
+          null,
+        ])
+        expect(created.map((id) => manager.get(id).openedBy)).toEqual(Array(5).fill("moth"))
+        await shell.until(manager, created[3]!, "claude args: --model opus --resume sess-1")
+      } finally {
+        controller.abort()
+        await client
+      }
+    })
+  },
+)
+
+describe.skipIf(process.platform === "win32" || !existsSync(bash))(
+  "an agent opened to be led, with a brief or without",
+  () => {
+    // Opens `agent` as `moth` asks, in a terminal where its program is a stand-in that
+    // reports its session and takes hooks; `prompt` is the hook of its prompt, read as the
+    // text it carries into the agent (Antigravity's ephemeral message, the others' context).
+    const opened = async (
+      shell: Fixture,
+      agent: AgentName,
+      request: object,
+      run: (opened: Opened) => Promise<void>,
+    ) => {
+      const bin = presenter(shell.home)
+      const stand = standIn(shell.home)
+      writeFileSync(
+        join(stand, agent),
+        '#!/bin/sh\nmkdir -p "$HOME/steps-$NOVADECK_TERMINAL_ID"\n' +
+          `exec agent ${agent} s-worker "$HOME/steps-$NOVADECK_TERMINAL_ID"\n`,
+        { mode: 0o755 },
+      )
+      const manager = shell.manager({
+        env: { HOME: shell.home, PS1: "$ ", PATH: `${bin}:${stand}:${process.env.PATH}` },
+        install: (name) =>
+          Promise.resolve({
+            env: {},
+            home: shell.home,
+            platform: process.platform,
+            plugin: join(shell.plugins, name),
+          }),
+        models: (name) =>
+          Promise.resolve(
+            {
+              claude: [{ id: "opus", efforts: [] }],
+              codex: [{ id: "gpt-a", efforts: [] }],
+              agy: [],
+            }[name],
+          ),
+      })
+      const terminal = await create(manager, shell)
+      const controller = new AbortController()
+      const created: string[] = []
+      const commands: (string | undefined)[] = []
+      const client = (async () => {
+        for await (const asked of manager.requests("client", controller.signal)) {
+          commands.push(asked.command)
+          const id = randomUUID()
+          created.push(id)
+          // eslint-disable-next-line no-await-in-loop -- Requests are opened in turn.
+          await manager.create(
+            {
+              id,
+              sessionId: asked.sessionId,
+              cwd: asked.cwd,
+              cols: 100,
+              rows: 20,
+              ...(asked.command && { command: asked.command }),
+              requestId: asked.requestId,
+            },
+            "client",
+          )
+          manager.answerRequest({ requestId: asked.requestId, terminalId: id }, "client")
+        }
+      })()
+      try {
+        const [answer] = (await present(shell, manager, terminal.id, [
+          { ...open({ agent, ...request }), type: "open_agent" as "open" },
+        ])) as { ok: boolean; text: string }[]
+        expect(answer!.ok).toBe(true)
+        const [worker] = created
+        await shell.until(manager, worker!, `${agent} ready`)
+        const { step } = driver(shell, manager)
+        await run({
+          manager,
+          worker: worker!,
+          said: answer!.text,
+          command: commands[0],
+          // What the agent's start hook printed: Antigravity's invocation takes its messages.
+          started: () => readFileSync(join(shell.home, `steps-${worker}.start`), "utf8"),
+          // The opener sends the agent a message of its own.
+          sends: async (text) =>
+            present(shell, manager, terminal.id, [
+              { type: "send" as "open", request: { to: "fox", text } },
+            ]),
+          prompt: async (text, ends = false) => {
+            // Antigravity's turn ends with its Stop, which takes what waits for a turn's end.
+            const out = await step(worker!, {
+              hook: agent === "agy" ? (ends ? "Stop" : "PreInvocation") : "UserPromptSubmit",
+              payload:
+                agent === "agy"
+                  ? ends
+                    ? { fullyIdle: true }
+                    : { invocationNum: 1 }
+                  : { prompt: text },
+            })
+            const parsed = JSON.parse(out) as {
+              hookSpecificOutput?: { additionalContext: string }
+              injectSteps?: { ephemeralMessage: string }[]
+              reason?: string
+            }
+            return (
+              parsed.hookSpecificOutput?.additionalContext ??
+              parsed.injectSteps?.map(({ ephemeralMessage }) => ephemeralMessage).join("\n") ??
+              parsed.reason ??
+              ""
+            )
+          },
+        })
+      } finally {
+        controller.abort()
+        await client
+      }
+    }
+    type Opened = {
+      manager: Terminals
+      worker: string
+      said: string
+      started: () => string
+      sends: (text: string) => Promise<unknown[]>
+      command: string | undefined
+      prompt: (text: string, ends?: boolean) => Promise<string>
+    }
+
+    // Antigravity's folder here is not one it trusts: it starts without its prompt.
+    for (const agent of ["claude", "codex", "agy"] as const) {
+      it(`marks ${agent}'s brief as its lead's, then releases the lead once it is delivered, and tells it`, async ({
+        shell,
+      }) => {
+        await opened(
+          shell,
+          agent,
+          { message: "Review a.ts, please.", lead: false },
+          async ({ manager, worker, said, command, prompt, started, sends }) => {
+            // Antigravity here started plain, its task waiting for the first session.
+            expect(said.includes("doesn't trust this folder yet")).toBe(agent === "agy")
+            expect(command === agent).toBe(agent === "agy")
+            const marked = /lead="[^"]+"[^>]*>Review a.ts, please.<\/message>/
+            if (agent === "agy") {
+              // Its first invocation binds and takes the brief at once: the mark is there.
+              const printed = JSON.parse(started()) as {
+                injectSteps: { ephemeralMessage: string }[]
+              }
+              expect(printed.injectSteps[0]!.ephemeralMessage).toMatch(marked)
+            } else {
+              // Led until the brief lands. While it waits, the opener's other messages go as a
+              // peer's: unmarked, and not the brief's end.
+              expect(manager.get(worker).ledBy).toBe("moth")
+              expect(await sends("Also this.")).toEqual([
+                { ok: true, text: expect.stringContaining("Message m-") },
+              ])
+              const first = await prompt("go")
+              expect(first).toMatch(marked)
+              expect(first).toMatch(
+                /<message [^>]*from="moth"(?![^>]*lead=)[^>]*>Also this.<\/message>/,
+              )
+            }
+            await expect
+              .poll(() => manager.messages(worker).threads[0]?.messages[0]?.state)
+              .toBe("delivered")
+            await expect.poll(() => manager.get(worker).ledBy).toBeNull()
+            expect(shell.store.terminalIdentity(worker)).toMatchObject({ ledBy: null })
+            // Its next prompt tells it so: the brief stays its task, the lead's messages are a peer's.
+            // (Antigravity's first invocation took the brief, so its notice may come a prompt later.)
+            await expect
+              .poll(() => prompt("more", true), { interval: 20 })
+              .toContain("@moth no longer leads you. Its brief stays")
+          },
+        )
+      })
+
+      it(`keeps leading ${agent} opened with a brief by default: its later messages are marked`, async ({
+        shell,
+      }) => {
+        await opened(
+          shell,
+          agent,
+          { message: "Review a.ts, please." },
+          async ({ manager, worker, prompt, sends }) => {
+            // The brief and what follows are the lead's: Antigravity's start took the brief,
+            // the others take it with their first prompt.
+            if (agent !== "agy") await prompt("go")
+            await expect
+              .poll(() => manager.messages(worker).threads[0]?.messages[0]?.state)
+              .toBe("delivered")
+            expect(await sends("Next, the tests.")).toEqual([
+              { ok: true, text: expect.stringContaining("Message m-") },
+            ])
+            expect(await prompt("more")).toMatch(
+              /<message [^>]*from="moth"[^>]*lead="[^"]+"[^>]*>Next, the tests.<\/message>/,
+            )
+            expect(manager.get(worker).ledBy).toBe("moth")
+          },
+        )
+      })
+
+      it(`resumes a past ${agent} session with a brief, which reaches the resumed session`, async ({
+        shell,
+      }) => {
+        const form = {
+          claude: "claude --model opus --resume sess-r",
+          codex: "codex resume --model gpt-a sess-r",
+          agy: "agy --conversation sess-r",
+        }
+        await opened(
+          shell,
+          agent,
+          {
+            resume: "sess-r",
+            message: "Carry on with a.ts.",
+            lead: true,
+            ...(agent !== "agy" && { model: agent === "claude" ? "opus" : "gpt-a" }),
+          },
+          async ({ manager, worker, said, command, prompt, started }) => {
+            expect(command).toBe(form[agent])
+            expect(said).toContain("resuming session sess-r")
+            // The resumed session takes the brief as any message, marked as its lead's.
+            const marked = /lead="[^"]+"[^>]*>Carry on with a.ts.<\/message>/
+            if (agent === "agy") {
+              const printed = JSON.parse(started()) as {
+                injectSteps: { ephemeralMessage: string }[]
+              }
+              expect(printed.injectSteps[0]!.ephemeralMessage).toMatch(marked)
+            } else expect(await prompt("go")).toMatch(marked)
+            await expect
+              .poll(() => manager.messages(worker).threads[0]?.messages[0]?.state)
+              .toBe("delivered")
+            expect(manager.get(worker).ledBy).toBe("moth")
+          },
+        )
+      })
+
+      it(`tells ${agent} opened without a brief that its opener leads it, and keeps the lead`, async ({
+        shell,
+      }) => {
+        await opened(shell, agent, { lead: true }, async ({ manager, worker, prompt }) => {
+          expect(manager.get(worker).ledBy).toBe("moth")
+          expect(manager.messages(worker).threads).toEqual([])
+          expect(await prompt("go")).toContain("@moth started you and leads you")
+          expect(manager.get(worker).ledBy).toBe("moth")
+        })
+      })
+    }
+  },
+)
+
 // A command starting an agent with a doorbell line as its prompt.
 const quoted = (start: string) =>
   new RegExp(
@@ -3228,8 +3626,13 @@ const standIn = (home: string): string => {
       "}",
       toolCall,
       "const call = (type, request, done) => toolCall(type, request, token, (answer) => done(JSON.stringify(answer)))",
-      "const start = { hook_event_name: 'SessionStart', source: 'startup', session_id: session, cwd: process.cwd() }",
-      "hook('SessionStart', start, () => {",
+      // Antigravity names no start: its first invocation binds the conversation.
+      "const agy = agent === 'agy'",
+      "const named = (event, fields) => agy ? { conversationId: session, workspacePaths: [process.cwd()], ...fields } : { hook_event_name: event, session_id: session, ...fields }",
+      "const start = agy ? named('PreInvocation', { invocationNum: 0 }) : { hook_event_name: 'SessionStart', source: 'startup', session_id: session, cwd: process.cwd() }",
+      // What the start hook printed (Antigravity's invocation takes its messages) is kept.
+      "hook(agy ? 'PreInvocation' : 'SessionStart', start, (printed) => {",
+      "  fs.writeFileSync(steps + '.start', printed)",
       '  console.log(agent + " ready")',
       "  next()",
       "})",
@@ -3243,7 +3646,7 @@ const standIn = (home: string): string => {
       '    console.log("done " + require("node:path").basename(step.out))',
       "    next()",
       "  }",
-      "  if (step.hook) hook(step.hook, { hook_event_name: step.hook, session_id: session, ...step.payload }, finish)",
+      "  if (step.hook) hook(step.hook, named(step.hook, step.payload), finish)",
       "  else call(step.call, step.request, finish)",
       "}",
       "process.stdin.resume()",
@@ -3526,8 +3929,10 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))(
         value: {
           threads: [
             {
-              peer: "moth",
-              messages: [{ from: "moth", text: "Review a.ts.", state: "queued" }],
+              peer: { kind: "agent", handle: "moth" },
+              messages: [
+                { from: { kind: "agent", handle: "moth" }, text: "Review a.ts.", state: "queued" },
+              ],
             },
           ],
         },
@@ -3723,9 +4128,9 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))(
       })
       expect(manager.get(codex.id).exit).toBeNull()
       const asking = new AbortController()
-      const asked: CloseAsk[] = []
+      const asked: Approval[] = []
       const person = (async () => {
-        for await (const item of manager.closeAsks("person", asking.signal)) asked.push(item)
+        for await (const item of manager.approvals("person", asking.signal)) asked.push(item)
       })()
       // The answer comes at once; the user's yes closes it: its shell ended, the terminal
       // gone and forgotten, and what waited for it gone.
@@ -3736,14 +4141,19 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))(
         ),
       })
       await expect.poll(() => asked).toHaveLength(1)
-      expect(asked[0]).toMatchObject({ type: "ask", from: claude.id, terminalId: codex.id })
+      expect(asked[0]).toMatchObject({
+        type: "ask",
+        from: claude.id,
+        terminalId: codex.id,
+        action: { type: "close" },
+      })
       expect(manager.get(codex.id).exit).toBeNull()
       const request = (asked[0] as { requestId: string }).requestId
       // Not another client's to answer.
-      expect(() => manager.answerCloseAsk({ requestId: request, close: true }, "other")).toThrow(
+      expect(() => manager.answerApproval({ requestId: request, approved: true }, "other")).toThrow(
         expect.objectContaining({ code: "NOT_FOUND" }),
       )
-      manager.answerCloseAsk({ requestId: request, close: true }, "person")
+      manager.answerApproval({ requestId: request, approved: true }, "person")
       await viewing
       expect(events).toContain("exited")
       expect(() => process.kill(shellPid, 0)).toThrow(expect.objectContaining({ code: "ESRCH" }))
@@ -3835,10 +4245,10 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))(
       const call = async (type: string, request: object) =>
         JSON.parse(await step(claude.id, { call: type, request })) as Told
       const prompt = () => step(claude.id, { hook: "UserPromptSubmit", payload: { prompt: "ok" } })
-      const asked: CloseAsk[] = []
+      const asked: Approval[] = []
       const follow = (signal: AbortSignal) =>
         (async () => {
-          for await (const item of manager.closeAsks("person", signal)) asked.push(item)
+          for await (const item of manager.approvals("person", signal)) asked.push(item)
         })()
 
       // The user keeps it open.
@@ -3846,8 +4256,8 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))(
       const one = follow(first.signal)
       await call("close", { to: "fox" })
       await expect.poll(() => asked).toHaveLength(1)
-      manager.answerCloseAsk(
-        { requestId: (asked[0] as { requestId: string }).requestId, close: false },
+      manager.answerApproval(
+        { requestId: (asked[0] as { requestId: string }).requestId, approved: false },
         "person",
       )
       expect(await prompt()).toContain("The user kept @fox")
@@ -3860,6 +4270,54 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))(
       await one
       expect(await prompt()).toContain("Nothing closed: Novadeck's window went away")
       expect(manager.get(codex.id).exit).toBeNull()
+    })
+
+    it("lets an agent lead another's agent once the user approves, and ends it when the user releases", async ({
+      shell,
+    }) => {
+      const bin = standIn(shell.home)
+      const manager = shell.manager({
+        env: { HOME: shell.home, PS1: "$ ", PATH: `${bin}:${process.env.PATH}` },
+      })
+      const claude = await create(manager, shell)
+      const codex = await create(manager, shell)
+      const { start, step } = driver(shell, manager)
+      await start(claude.id, "claude", "s-claude")
+      await start(codex.id, "codex", "s-codex")
+      const call = async (type: string, request: object) =>
+        JSON.parse(await step(claude.id, { call: type, request })) as Told
+      const prompt = () => step(claude.id, { hook: "UserPromptSubmit", payload: { prompt: "ok" } })
+      const asked: Approval[] = []
+      const asking = new AbortController()
+      const person = (async () => {
+        for await (const item of manager.approvals("person", asking.signal)) asked.push(item)
+      })()
+
+      await expect(call("lead", { to: "fox", message: "Fix the lint." })).resolves.toMatchObject({
+        ok: true,
+        text: expect.stringMatching(/^Asked the user to let you lead @fox/),
+      })
+      await expect.poll(() => asked).toHaveLength(1)
+      expect(asked[0]).toMatchObject({
+        type: "ask",
+        from: claude.id,
+        terminalId: codex.id,
+        action: { type: "lead", brief: "Fix the lint." },
+      })
+      expect(manager.get(codex.id).ledBy).toBeNull()
+      manager.answerApproval(
+        { requestId: (asked[0] as { requestId: string }).requestId, approved: true },
+        "person",
+      )
+      expect(manager.get(codex.id).ledBy).toBe(claude.handle)
+      expect(await prompt()).toContain("you now lead @fox")
+
+      // Only the lead releases; the user may too.
+      manager.releaseLead(codex.id)
+      expect(manager.get(codex.id).ledBy).toBeNull()
+      expect(await prompt()).toContain("The user released @fox")
+      asking.abort()
+      await person
     })
 
     it("refuses a terminal already closing, and still closes one as the runner stops", async ({
@@ -4082,7 +4540,7 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))(
       )
       expect(shell.store.terminalIdentity(codex.id)?.naming).toEqual({
         person: null,
-        agent: null,
+        opener: null,
         murmur: { title: "Login fix" },
         summary: "Fixes the login bug.\nThen its tests.",
       })
@@ -4650,8 +5108,9 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))(
         const answer = JSON.parse(
           await step(opener.id, {
             call: "open",
-            // Its program quoted, as a shell takes it all the same.
-            request: { command: `'claude' s-opened ${steps} fix-the-build` },
+            // Its program quoted, as a shell takes it all the same. The trailing help flag lets
+            // open_terminal take it, as a wrapper would, while the runner still sees the agent.
+            request: { command: `'claude' s-opened ${steps} fix-the-build --help` },
           }),
         ) as Told
         expect(answer.ok).toBe(true)
@@ -4763,7 +5222,7 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))(
       try {
         await step(opener.id, {
           call: "open",
-          request: { command: `'claude' s-opened ${steps} fix-the-build` },
+          request: { command: `'claude' s-opened ${steps} fix-the-build --help` },
         })
         const [opened] = created as [string]
         symlinkSync(steps, join(shell.home, `steps-${opened}`))

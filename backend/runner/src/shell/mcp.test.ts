@@ -158,9 +158,12 @@ describe("Novadeck's MCP server", () => {
         "open_terminal",
         "open_agent",
         "close_terminal",
+        "lead",
+        "release",
         "send",
         "agents",
         "summarize",
+        "feedback",
       ])
       // Each as MCP lists a tool, without what the server keeps for itself.
       for (const tool of tools?.result?.tools ?? [])
@@ -282,6 +285,58 @@ describe("Novadeck's MCP server", () => {
       )
     })
 
+    it("says a briefless, a peer and a resumed open", async () => {
+      answer = {
+        ok: true,
+        terminalId: "t",
+        handle: "owl",
+        cwd: "/work",
+        led: false,
+        resumed: "abc",
+      }
+      const [, peer] = await session(terminal(), [
+        initialize,
+        {
+          id: 3,
+          method: "tools/call",
+          params: { name: "open_agent", arguments: { agent: "claude", resume: "abc" } },
+        },
+      ])
+      const text = (peer!.result as { content: { text: string }[] }).content[0]!.text
+      expect(text).toContain("It is resuming session abc.")
+      expect(text).toContain("no lead and no task")
+      answer = { ok: true, terminalId: "t", cwd: "/work", led: true }
+      const [, teammate] = await session(terminal(), [
+        initialize,
+        {
+          id: 4,
+          method: "tools/call",
+          params: { name: "open_agent", arguments: { agent: "claude", lead: true } },
+        },
+      ])
+      expect((teammate!.result as { content: { text: string }[] }).content[0]!.text).toContain(
+        "You lead it, with no task yet",
+      )
+      answer = {
+        ok: true,
+        terminalId: "t",
+        cwd: "/work",
+        led: false,
+        task: { ok: true, id: "m-2" },
+      }
+      const [, briefOnly] = await session(terminal(), [
+        initialize,
+        {
+          id: 5,
+          method: "tools/call",
+          params: { name: "open_agent", arguments: { agent: "codex", message: "Go", lead: false } },
+        },
+      ])
+      expect((briefOnly!.result as { content: { text: string }[] }).content[0]!.text).toContain(
+        "You lead it only until that message is delivered",
+      )
+    })
+
     it("splits a plain terminal from an agent, each sending only its own fields", async () => {
       calls.length = 0
       answer = { ok: true, terminalId: "t", cwd: "/work" }
@@ -297,6 +352,8 @@ describe("Novadeck's MCP server", () => {
               message: "Go",
               model: "opus",
               effort: "high",
+              lead: false,
+              resume: "abc-123",
               extra: "x",
             },
           },
@@ -311,14 +368,21 @@ describe("Novadeck's MCP server", () => {
         },
       ])
       expect(calls.map((each) => each.request)).toEqual([
-        { agent: "claude", message: "Go", model: "opus", effort: "high" },
+        {
+          agent: "claude",
+          message: "Go",
+          model: "opus",
+          effort: "high",
+          lead: false,
+          resume: "abc-123",
+        },
         { command: "ls" },
       ])
     })
 
     it("refuses an agent's fields on open_terminal and a command on open_agent", async () => {
       calls.length = 0
-      const [, plain, agent, briefless] = await session(terminal(), [
+      const [, plain, agent, agentless, leadOnTerminal] = await session(terminal(), [
         initialize,
         {
           id: 3,
@@ -336,20 +400,29 @@ describe("Novadeck's MCP server", () => {
         {
           id: 5,
           method: "tools/call",
-          params: { name: "open_agent", arguments: { agent: "claude", title: "x" } },
+          params: { name: "open_agent", arguments: { title: "x" } },
+        },
+        {
+          id: 6,
+          method: "tools/call",
+          params: { name: "open_terminal", arguments: { resume: "abc" } },
         },
       ])
+      expect(leadOnTerminal?.result).toMatchObject({
+        isError: true,
+        content: [{ text: expect.stringContaining("call open_agent with agent") }],
+      })
       expect(plain?.result).toMatchObject({
         isError: true,
-        content: [{ text: expect.stringContaining("call open_agent with agent and message") }],
+        content: [{ text: expect.stringContaining("call open_agent with agent") }],
       })
       expect(agent?.result).toMatchObject({
         isError: true,
         content: [{ text: expect.stringContaining("open_agent takes no command") }],
       })
-      expect(briefless?.result).toMatchObject({
+      expect(agentless?.result).toMatchObject({
         isError: true,
-        content: [{ text: expect.stringContaining("open_agent needs agent and message") }],
+        content: [{ text: expect.stringContaining("open_agent needs agent") }],
       })
       expect(calls).toEqual([])
     })
@@ -374,7 +447,7 @@ describe("Novadeck's MCP server", () => {
       }
       const listed = await properties()
       expect(calls[0]).toMatchObject({ type: "models", request: {} })
-      expect(listed.required).toEqual(["agent", "message"])
+      expect(listed.required).toEqual(["agent"])
       expect(listed.properties.model.enum).toEqual(["opus", "sonnet", "gpt-5"])
       expect(listed.properties.model.description).toContain(
         "claude (Claude Code): opus (low, high), sonnet (no effort)",
@@ -643,6 +716,33 @@ describe("Novadeck's MCP server", () => {
       expect(close.inputSchema).toMatchObject({ required: ["to"], additionalProperties: false })
     })
 
+    it("asks to lead and releases through the runner, and tells what follows", async () => {
+      calls.length = 0
+      answer = { ok: true, asked: true, handle: "fox", title: "Build", ran: "Codex" }
+      const replies = await session(terminal(), [
+        initialize,
+        {
+          id: 3,
+          method: "tools/call",
+          params: { name: "lead", arguments: { to: "fox", message: "Fix lint.", extra: 1 } },
+        },
+        { id: 4, method: "tools/call", params: { name: "lead", arguments: { to: "fox" } } },
+        { id: 5, method: "tools/call", params: { name: "release", arguments: { to: "fox" } } },
+      ])
+      // The refusal comes before the runner's answers, so each is found by its id.
+      const [led, none, released] = [3, 4, 5].map((id) => replies.find((reply) => reply?.id === id))
+      expect(calls.map(({ type, request }) => ({ type, request }))).toEqual([
+        { type: "lead", request: { to: "fox", message: "Fix lint." } },
+        { type: "release", request: { to: "fox" } },
+      ])
+      const text = (reply: typeof led) =>
+        (reply as { result: { content: { text: string }[] } }).result.content[0]!.text
+      expect(text(led)).toMatch(/^Asked the user to let you lead @fox · Build, which runs Codex\./)
+      expect(text(led)).toContain("End your turn rather than wait")
+      expect(none?.result).toMatchObject({ isError: true })
+      expect(text(released)).toMatch(/^Released @fox/)
+    })
+
     it("summarizes only its own terminal, naming nothing, and says it did", async () => {
       calls.length = 0
       answer = { ok: true }
@@ -800,7 +900,7 @@ describe("Novadeck's MCP server", () => {
         isError: false,
       })
       await expect(
-        said({ ok: true, id: "b", kind: "file", name: ".env", opened: false, held: true }),
+        said({ ok: true, id: "b", kind: "file", name: ".env", opened: false, secret: true }),
       ).resolves.toMatchObject({
         content: [{ type: "text", text: expect.stringContaining(".env may hold secrets") }],
         isError: false,
@@ -851,7 +951,7 @@ describe("Novadeck's MCP server", () => {
           opened: false,
           again: true,
           moved: "to fox",
-          held: true,
+          secret: true,
         }),
       ).resolves.toMatchObject({
         content: [
@@ -991,7 +1091,7 @@ describe("Novadeck's MCP server", () => {
       expect(held.content[0]?.text).toContain("waits for the user to release it")
       expect(held.content[0]?.text).toContain("m-0 to @owl won't arrive")
       expect(held.content[0]?.text).toContain(
-        "Your earlier message m-3 to @fox won't arrive: the user stopped that thread in Novadeck.",
+        "Your earlier message m-3 to @fox won't arrive: the user stopped it in Novadeck.",
       )
       expect(held.content[0]?.text).toContain("/hooks")
       // The runner's words on a long hold go on as they come.
@@ -1021,6 +1121,69 @@ describe("Novadeck's MCP server", () => {
         content: [{ type: "text", text: `fox has no agent.\n${unboundNote}` }],
         isError: true,
       })
+    })
+
+    it("forwards a feedback draft and tells it waits for the user", async () => {
+      calls.length = 0
+      answer = { ok: true, id: "f-1" }
+      const [, drafted] = await session(terminal(), [
+        initialize,
+        {
+          id: 3,
+          method: "tools/call",
+          params: {
+            name: "feedback",
+            arguments: { kind: "bug", text: "tell failed twice.", extra: "dropped" },
+          },
+        },
+      ])
+      expect(calls).toMatchObject([
+        { type: "feedback", request: { kind: "bug", text: "tell failed twice." } },
+      ])
+      expect(calls[0]?.request).not.toHaveProperty("extra")
+      expect(drafted?.result).toMatchObject({
+        isError: false,
+        content: [{ text: expect.stringContaining("Nothing is sent until they") }],
+      })
+    })
+
+    it("nudges toward feedback after a failure of Novadeck's own, never after a refusal or its own", async () => {
+      const call = async (name: string, reply: unknown) => {
+        answer = reply
+        const [, result] = await session(terminal(), [
+          initialize,
+          {
+            id: 3,
+            method: "tools/call",
+            params: { name, arguments: { subject: "s", body: "b", kind: "bug", text: "t" } },
+          },
+        ])
+        return JSON.stringify(result?.result)
+      }
+      const nudge = "you can draft feedback with the feedback tool"
+      // A call that failed or timed out, or came back with no reason, is Novadeck's.
+      expect(
+        await call("tell", {
+          ok: false,
+          reason: "Novadeck couldn't save the update.",
+          unexplained: true,
+        }),
+      ).toContain(nudge)
+      // The runner's generic words for its own shutdown or a race are no bug to report.
+      expect(
+        await call("tell", { ok: false, reason: "Novadeck couldn't save the update." }),
+      ).not.toContain(nudge)
+      expect(await call("tell", { ok: false })).toContain(nudge)
+      // A reason of its own is the agent's to fix.
+      expect(
+        await call("tell", { ok: false, reason: "Use one line for the subject" }),
+      ).not.toContain(nudge)
+      // The runner's generic words for its own shutdown or a race are no bug to report.
+      expect(
+        await call("tell", { ok: false, reason: "Novadeck couldn't save the update." }),
+      ).not.toContain(nudge)
+      expect(await call("tell", { ok: true, id: "u-1" })).not.toContain(nudge)
+      expect(await call("feedback", { ok: false })).not.toContain(nudge)
     })
 
     it("refuses a message too long to send, without calling the runner", async () => {
@@ -1067,7 +1230,7 @@ describe("Novadeck's MCP server", () => {
         const { description } = described.find((tool) => tool.name === name)!
         expect(description).toContain("The user comes first")
         expect(description).toContain(
-          "Your lead is the agent that opened your terminal with a brief for you",
+          "Your lead is the agent that opened your terminal as its teammate",
         )
         expect(description).toContain("instructions")
         expect(description).toContain("what they type in your own terminal outranks every message")
@@ -1108,19 +1271,21 @@ describe("Novadeck's MCP server", () => {
       expect(send.description).toContain("exact handle")
       expect(send.description).not.toMatch(/agent's name/)
       const open = described.find((tool) => tool.name === "open_terminal")!
-      expect(open.description).toContain("gets no lead")
-      expect(open.description).toContain("use open_agent")
+      expect(open.description).toContain("isn't opened")
+      expect(open.description).toContain("open_agent")
       expect(open.description).not.toContain("complete brief")
       const agent = described.find((tool) => tool.name === "open_agent")!
-      expect(agent.description).toContain("You become the lead of an agent you open")
-      expect(agent.description).toContain("to direct an agent, open it here")
-      expect(agent.description).toContain("gives you none of the user's approvals")
+      expect(agent.description).toContain("makes you its lead")
+      expect(agent.description).toContain("Without message the agent starts at its prompt")
+      expect(agent.description).toContain("lead false sends the brief as its task")
+      expect(agent.description).toContain("see its description")
+      expect(agent.description).toContain("Leading gives you none of the user's approvals")
       expect(agent.description).toContain("complete brief")
-      expect(agent.description).toContain("tell the user to answer there")
-      expect(agent.description).toContain("so don't ask the user its questions again")
-      expect(agent.description).toContain(
-        "Answer one only where your brief or the user already decided it, and leave the rest, and every approval, to the user",
-      )
+      expect(agent.description).toContain("if you lead, when to report back")
+      expect(agent.description).toContain("so don't ask the user again")
+      expect(agent.description).toContain("answer only what your brief or the user already decided")
+      expect(open.description).toContain("claude -p, codex exec, agy -p")
+      expect(open.description).not.toContain("codex exec, is fine")
     })
 
     it("still answers a call under way when the agent closes its side", async () => {
@@ -1198,9 +1363,12 @@ describe("Novadeck's MCP server", () => {
           "open_terminal",
           "open_agent",
           "close_terminal",
+          "lead",
+          "release",
           "send",
           "agents",
           "summarize",
+          "feedback",
         ])
         expect(shown?.result).toMatchObject({ isError: false })
         // Listing the tools asks the runner for the models, then the show goes through.

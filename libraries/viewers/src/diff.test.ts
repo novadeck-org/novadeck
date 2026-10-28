@@ -37,7 +37,7 @@ const file = (path: string, rest: Partial<DiffFile> = {}): DiffFile => ({
   added: 0,
   removed: 0,
   binary: false,
-  held: false,
+  secret: false,
   listed: false,
   hunks: [],
   ...rest,
@@ -211,7 +211,7 @@ describe("the diff viewer", () => {
       const { host } = mount(
         change([
           file("logo.png", { binary: true }),
-          file(".env", { held: true }),
+          file(".env", { secret: true }),
           file("big.sql", { listed: true }),
         ]),
       )

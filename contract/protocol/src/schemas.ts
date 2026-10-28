@@ -27,7 +27,8 @@ export const maxUploadPartLength = 196_608
 // Opaque client-owned state the runner stores without reading, such as a UI layout.
 export const clientState = z.string().max(maxClientStateLength)
 
-export const project = z.strictObject({ id, name, cwd: directory })
+// `pinned` when the person pinned it in the switcher; `projects.list` gives their order.
+export const project = z.strictObject({ id, name, cwd: directory, pinned: z.boolean() })
 
 // One folder of a project's directory, as `projects.folder` lists it: each entry by its own
 // name, and whether git ignores it. `truncated` says the folder holds more than is listed.
@@ -47,6 +48,9 @@ export const workspaceSession = z.strictObject({
   name,
   // Last value saved with `sessions.save`, or null before the first save.
   state: clientState.nullable(),
+  // When the person last visited it, as last saved with `sessions.save`; null before. The
+  // latest visit picks a project's current session, and the latest of all the project open.
+  visitedAt: z.number().nullable(),
 })
 
 // `name` is the process's own name. `argv` is the foreground process group leader's
@@ -450,7 +454,7 @@ export const terminalTitle = z
 
 // A terminal's handle: a word its Novadeck session gives it as it is created, such as
 // `moth`, never twice; once a session has given every word, they come again with a
-// number, as `moth2`. It stays as the terminal is renamed, agents address each other by
+// letter, as `mothz` (an older session's with a number, as `moth2`). It stays as the terminal is renamed, agents address each other by
 // it, and people read it as `@moth`.
 export const handle = z.string().regex(/^[a-z]{2,12}(?:[2-9]|[1-9][0-9]{1,8})?$/)
 
@@ -531,8 +535,8 @@ export const terminalSummary = z.strictObject({
 // page or a plan, never a copy of it, which `companions.content` reads when it loads.
 // Each item has one holder, a terminal's bar or a window; `from` is the terminal it was
 // shown or attached in, null for a file the person opened in their project window, which
-// came from no terminal. `version` counts its shows, `asked` says the
-// latest one asked to open it, and `held` marks a file that may hold secrets, which
+// came from no terminal. `version` counts its shows, `openAsked` says the
+// latest one asked to open it, and `secret` marks a file that may hold secrets, which
 // opens only when the person picks it. A plan names its agent, its actor's role, and
 // whether it is a file or text in the agent's own transcript or rollout.
 export const itemHolder = z.union([
@@ -549,11 +553,11 @@ export const companionItem = z.strictObject({
   path: z.string().max(4096).nullable(),
   url: z.string().max(8192).nullable(),
   lines: z.strictObject({ from: z.int().min(1), to: z.int().min(1) }).nullable(),
-  held: z.boolean(),
+  secret: z.boolean(),
   by: z.enum(["agent", "person"]),
   from: z.strictObject({ terminalId: id, handle }).nullable(),
   version: z.int().min(1),
-  asked: z.boolean(),
+  openAsked: z.boolean(),
   shownAt: z.number(),
   plan: z
     .strictObject({
@@ -637,7 +641,7 @@ export const maxChangesBytes = 4 * 1024 * 1024
 
 // One file of a change: its path (and its old one when renamed), how it changed, how many
 // lines were added and removed, and its diff as hunks of lines, each with a line's kind and
-// text. A `binary` file, one that may hold secrets (`held`), or one past the change's bounds
+// text. A `binary` file, one that may hold secrets (`secret`), or one past the change's bounds
 // (`listed`) has no hunks: it is listed by name. Line numbers count from each hunk's start.
 export const changedFile = z.strictObject({
   path: z.string().max(4096),
@@ -646,7 +650,7 @@ export const changedFile = z.strictObject({
   added: z.int().nonnegative(),
   removed: z.int().nonnegative(),
   binary: z.boolean(),
-  held: z.boolean(),
+  secret: z.boolean(),
   listed: z.boolean(),
   hunks: z.array(
     z.strictObject({
@@ -721,7 +725,15 @@ export const itemContent = z.discriminatedUnion("state", [
   }),
   z.strictObject({
     state: z.literal("unavailable"),
-    reason: z.enum(["missing", "unreadable", "not-a-file", "too-large", "binary", "held", "gone"]),
+    reason: z.enum([
+      "missing",
+      "unreadable",
+      "not-a-file",
+      "too-large",
+      "binary",
+      "secret",
+      "gone",
+    ]),
     size: z.number().nullable(),
   }),
 ])
@@ -746,24 +758,33 @@ export const terminalRequestAnswer = z.union([
   z.strictObject({ requestId: id, reason: z.string().trim().min(1).max(512) }),
 ])
 
-// `terminals.closeAsks` items: an agent in terminal `from` asked, through Novadeck's MCP
-// server, to close `terminalId`, a terminal of its session that runs an agent it doesn't
-// lead, so the client asks the person first and answers with `answerCloseAsk`.
-// `withdrawn` takes back an ask the runner no longer waits for, as either terminal closed.
-export const closeAsk = z.discriminatedUnion("type", [
+// What an agent asks the person to approve, through Novadeck's MCP server: `close`, a
+// terminal of its session that runs an agent it doesn't lead, or `lead`, to lead the agent
+// there from now on, with `brief` as the first message it sends it.
+export const approvalAction = z.discriminatedUnion("type", [
+  z.strictObject({ type: z.literal("close") }),
+  z.strictObject({ type: z.literal("lead"), brief: z.string().min(1).max(4096) }),
+])
+
+// `terminals.approvals` items: an agent in terminal `from` asked, through Novadeck's MCP
+// server, to do `action` to `terminalId`, a terminal of its session that runs an agent, so
+// the client asks the person first and answers with `answerApproval`. `withdrawn` takes
+// back an ask the runner no longer waits for, as either terminal closed.
+export const approval = z.discriminatedUnion("type", [
   z.strictObject({
     type: z.literal("ask"),
     requestId: id,
     from: id,
     terminalId: id,
     sessionId: id,
+    action: approvalAction,
   }),
   z.strictObject({ type: z.literal("withdrawn"), requestId: id }),
 ])
 
-// The person's answer to a close ask: `close` when they confirmed it, false when they kept
-// the terminal open.
-export const closeAskAnswer = z.strictObject({ requestId: id, close: z.boolean() })
+// The person's answer to an approval: `approved` when they let it happen, false when they
+// kept things as they are.
+export const approvalAnswer = z.strictObject({ requestId: id, approved: z.boolean() })
 
 // `terminals.watch` events: every terminal's summary, then each later change.
 export const terminalChange = z.discriminatedUnion("type", [
@@ -1042,6 +1063,20 @@ export const deliveryState = z.enum([
   "unknown",
 ])
 
+// Who a message is from or for: a terminal's agent, by the terminal's handle, or the
+// person, whose Inbox answers reach agents as messages and whose Inbox history shows the
+// agents' asks to them. A sender's `agent` is null where none had bound there; a
+// recipient's is always the agent it was for.
+const personParty = z.strictObject({ kind: z.literal("person") })
+export const messageParty = z.discriminatedUnion("kind", [
+  z.strictObject({ kind: z.literal("agent"), handle, agent: agentName.nullable() }),
+  personParty,
+])
+export const messageRecipient = z.discriminatedUnion("kind", [
+  z.strictObject({ kind: z.literal("agent"), handle, agent: agentName }),
+  personParty,
+])
+
 // One message between two terminals' agents, as sent: its text up to 4 KB, its place in
 // its thread, and where it is on its way. `held` says why a held message waits: messaging
 // is paused, or its thread awaits the person's `messages.release`.
@@ -1049,10 +1084,8 @@ export const agentMessage = z.strictObject({
   id: messageId,
   thread: threadId,
   hop: z.number().int().positive(),
-  from: handle,
-  fromAgent: agentName.nullable(),
-  to: handle,
-  toAgent: agentName,
+  from: messageParty,
+  to: messageRecipient,
   text: z.string().max(65_536),
   sentAt: z.number(),
   state: messageState,
@@ -1065,13 +1098,13 @@ export const agentMessage = z.strictObject({
     .optional(),
 })
 
-// A thread between a terminal and one other: the other's handle, how many messages it
+// A thread between a terminal and one other: the other party (an agent, or the person), how many messages it
 // has had, its idle messages in a row (sent while neither end worked), whether it is held
 // until the person releases or stops it and why (`loop`, or null for a hold carried over
 // from the twelve-message rule, or none), and its messages, oldest first.
 export const messageThread = z.strictObject({
   id: threadId,
-  peer: handle,
+  peer: messageParty,
   hops: z.number().int().nonnegative(),
   idle: z.number().int().nonnegative(),
   held: z.boolean(),
@@ -1135,8 +1168,9 @@ export type ChangedFile = z.infer<typeof changedFile>
 export type PlanSaveResult = z.infer<typeof planSaveResult>
 export type TerminalRequest = z.infer<typeof terminalRequest>
 export type TerminalRequestAnswer = z.infer<typeof terminalRequestAnswer>
-export type CloseAsk = z.infer<typeof closeAsk>
-export type CloseAskAnswer = z.infer<typeof closeAskAnswer>
+export type ApprovalAction = z.infer<typeof approvalAction>
+export type Approval = z.infer<typeof approval>
+export type ApprovalAnswer = z.infer<typeof approvalAnswer>
 export type TerminalEvent = z.infer<typeof terminalEvent>
 export type TerminalAttached = z.infer<typeof terminalAttached>
 export type AgentName = z.infer<typeof agentName>
@@ -1168,6 +1202,8 @@ export type MurmurSettings = z.infer<typeof murmurSettings>
 export type MessageState = z.infer<typeof messageState>
 export type DeliveryState = z.infer<typeof deliveryState>
 export type DeliveryWaits = z.infer<typeof deliveryWaits>
+export type MessageParty = z.infer<typeof messageParty>
+export type MessageRecipient = z.infer<typeof messageRecipient>
 export type AgentMessage = z.infer<typeof agentMessage>
 export type MessageThread = z.infer<typeof messageThread>
 export type TerminalMessages = z.infer<typeof terminalMessages>

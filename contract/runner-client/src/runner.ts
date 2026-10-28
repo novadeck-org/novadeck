@@ -2,6 +2,7 @@ import {
   contract,
   type WireClient,
   type AskAnswer,
+  type FeedbackDraftEntry,
   type InboxEntry,
   maxUploadBytes,
   maxUploadPartLength,
@@ -26,8 +27,8 @@ import {
   type TerminalEvent,
   type TerminalMessages,
   type TerminalRequest,
-  type CloseAsk,
-  type CloseAskAnswer,
+  type Approval,
+  type ApprovalAnswer,
   type TerminalRequestAnswer,
   type TerminalSummary,
   type RequestAnswer,
@@ -121,6 +122,16 @@ export type Runner = {
      */
     remove(input: { readonly projectId: string }): Promise<void>
     /**
+     * Keeps the person's arrangement of the projects: `order` by id, first to last, and the
+     * ones `pinned`, at most nine, the first in `order` (one `order` doesn't name isn't
+     * pinned). Unknown ids are ignored, and
+     * projects `order` leaves out follow, in the order they were added.
+     */
+    arrange(input: {
+      readonly order: readonly string[]
+      readonly pinned: readonly string[]
+    }): Promise<void>
+    /**
      * One folder of the project's directory as it is now, by its path from the project's
      * root with `/` between names ("" for the root); the entries come sorted, folders
      * first, and never include `.git`. Rejects with `NOT_FOUND` for a project the runner
@@ -138,8 +149,15 @@ export type Runner = {
       readonly name: string
     }): Promise<WorkspaceSession>
     rename(input: { readonly sessionId: string; readonly name: string }): Promise<WorkspaceSession>
-    /** Replaces the session's `state`, which the runner stores without reading. */
-    save(input: { readonly sessionId: string; readonly state: string }): Promise<void>
+    /**
+     * Replaces the session's `state`, which the runner stores without reading, and its
+     * `visitedAt`: null while the person has never had it open.
+     */
+    save(input: {
+      readonly sessionId: string
+      readonly state: string
+      readonly visitedAt: number | null
+    }): Promise<void>
   }
   readonly terminals: {
     list(input: { readonly sessionId: string }): Promise<TerminalSummary[]>
@@ -193,17 +211,24 @@ export type Runner = {
      */
     answerRequest(answer: TerminalRequestAnswer): Promise<void>
     /**
-     * Follows agents' asks to close a terminal that runs an agent they don't lead, made
-     * through Novadeck's MCP server, across reconnections. The runner sends each to the
-     * client that subscribed last and waits, without a time limit, for `answerCloseAsk`
-     * or until it withdraws the ask; iteration ends when the runner closes or on `return()`.
+     * Follows agents' asks, made through Novadeck's MCP server, to close a terminal that
+     * runs an agent they don't lead, or to lead one, across reconnections. The runner
+     * sends each to the client that subscribed last and waits, without a time limit, for
+     * `answerApproval` or until it withdraws the ask; iteration ends when the runner
+     * closes or on `return()`.
      */
-    closeAsks(): AsyncIterableIterator<CloseAsk, undefined>
+    approvals(): AsyncIterableIterator<Approval, undefined>
     /**
-     * Answers a close ask with the person's choice. Rejects with `NOT_FOUND` once the
+     * Answers an approval with the person's choice. Rejects with `NOT_FOUND` once the
      * runner no longer waits for it.
      */
-    answerCloseAsk(answer: CloseAskAnswer): Promise<void>
+    answerApproval(answer: ApprovalAnswer): Promise<void>
+    /**
+     * Ends a terminal's lead, as the person: the agent's messages are a peer's from then
+     * on. Does nothing for a terminal with no lead; rejects with `TERMINAL_NOT_FOUND` for
+     * one the runner doesn't hold.
+     */
+    release(terminalId: string): Promise<void>
     /**
      * Follows every terminal on the runner, across sessions. Each subscription, the
      * first and every one after a reconnection or a retried refusal, yields `reset`,
@@ -412,6 +437,14 @@ export type Runner = {
     read(ids: readonly string[]): Promise<void>
     dismiss(id: string): Promise<void>
     clear(ids: readonly string[]): Promise<void>
+  }
+  readonly feedback: {
+    /** The agents' feedback drafts waiting for the app, oldest first, then again on each change. */
+    watch(): AsyncIterableIterator<FeedbackDraftEntry[], undefined>
+    /** Drops a draft the app sent or the person discarded; `NOT_FOUND` when none is held. */
+    settle(id: string, outcome: "sent" | "discarded"): Promise<void>
+    /** Asks the agent in a terminal for feedback, with the person's hint (empty for none). */
+    ask(terminalId: string, hint: string): Promise<void>
   }
   readonly messages: {
     /** A terminal's threads and messages with their states; `TERMINAL_NOT_FOUND` when unknown. */
@@ -665,6 +698,10 @@ export const connectRunner = async (
       create: (input) => call((wire) => wire.projects.create(input)),
       rename: (input) => call((wire) => wire.projects.rename(input)),
       remove: (input) => call((wire) => wire.projects.remove(input)),
+      arrange: (input) =>
+        call((wire) =>
+          wire.projects.arrange({ order: [...input.order], pinned: [...input.pinned] }),
+        ),
       folder: (input) => call((wire) => wire.projects.folder(input)),
     },
     sessions: {
@@ -679,9 +716,10 @@ export const connectRunner = async (
       requests: () =>
         resubscribe(connection, (wire, signal) => wire.terminals.requests(undefined, { signal })),
       answerRequest: (answer) => call((wire) => wire.terminals.answerRequest(answer)),
-      closeAsks: () =>
-        resubscribe(connection, (wire, signal) => wire.terminals.closeAsks(undefined, { signal })),
-      answerCloseAsk: (answer) => call((wire) => wire.terminals.answerCloseAsk(answer)),
+      approvals: () =>
+        resubscribe(connection, (wire, signal) => wire.terminals.approvals(undefined, { signal })),
+      answerApproval: (answer) => call((wire) => wire.terminals.answerApproval(answer)),
+      release: (terminalId) => call((wire) => wire.terminals.release({ terminalId })),
       watch: () => watch(connection, (wire, signal) => wire.terminals.watch(undefined, { signal })),
       close: (terminalId) => call((wire) => wire.terminals.close({ terminalId })),
       rename: (terminalId, title) => call((wire) => wire.terminals.rename({ terminalId, title })),
@@ -753,6 +791,12 @@ export const connectRunner = async (
       read: (ids) => call((wire) => wire.inbox.read({ ids: [...ids] })),
       dismiss: (id) => call((wire) => wire.inbox.dismiss({ id })),
       clear: (ids) => call((wire) => wire.inbox.clear({ ids: [...ids] })),
+    },
+    feedback: {
+      watch: () =>
+        resubscribe(connection, (wire, signal) => wire.feedback.watch(undefined, { signal })),
+      settle: (id, outcome) => call((wire) => wire.feedback.settle({ id, outcome })),
+      ask: (terminalId, hint) => call((wire) => wire.feedback.ask({ terminalId, hint })),
     },
     messages: {
       list: (terminalId) => call((wire) => wire.messages.list({ terminalId })),

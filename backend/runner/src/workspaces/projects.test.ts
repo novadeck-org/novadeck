@@ -58,6 +58,8 @@ describe("project removal", () => {
       const refused = expect(removing).rejects.toMatchObject({ code: "CLOSING" })
       // Under way, waiting for the shell to end, when the runner starts shutting down.
       await new Promise((resolve) => setTimeout(resolve, 50))
+      // An arrangement that names it, meanwhile, leaves it as it was: it is as good as gone.
+      projects.arrange([project.id], [project.id])
       await terminals.shutdown()
       await refused
       store.close()

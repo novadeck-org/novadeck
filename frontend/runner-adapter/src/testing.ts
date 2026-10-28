@@ -134,6 +134,10 @@ export const recordingRunner = (runner: Runner, io: string[]): RunnerApi => {
       list: () => runner.projects.list(),
       create: (input) => note(`create project ${input.id}`, () => runner.projects.create(input)),
       rename: (input) => runner.projects.rename(input),
+      arrange: (input) =>
+        note(`arrange ${input.order.join(",")}|${input.pinned.join(",")}`, () =>
+          runner.projects.arrange(input),
+        ),
       remove: (input) =>
         note(`remove project ${input.projectId}`, () => runner.projects.remove(input)),
       folder: (input) => runner.projects.folder(input),
@@ -150,9 +154,10 @@ export const recordingRunner = (runner: Runner, io: string[]): RunnerApi => {
       requests: () => runner.terminals.requests(),
       answerRequest: (answer) =>
         note(`answer ${answer.requestId}`, () => runner.terminals.answerRequest(answer)),
-      closeAsks: () => runner.terminals.closeAsks(),
-      answerCloseAsk: (answer) =>
-        note(`answer close ask ${answer.requestId}`, () => runner.terminals.answerCloseAsk(answer)),
+      approvals: () => runner.terminals.approvals(),
+      answerApproval: (answer) =>
+        note(`answer approval ${answer.requestId}`, () => runner.terminals.answerApproval(answer)),
+      release: (id) => note(`release ${id}`, () => runner.terminals.release(id)),
       create: (input) => note(`create terminal ${input.id}`, () => runner.terminals.create(input)),
       close: (id) => note(`close ${id}`, () => runner.terminals.close(id)),
       rename: (id, title) => note(`rename ${id}`, () => runner.terminals.rename(id, title)),
@@ -178,6 +183,7 @@ export const recordingRunner = (runner: Runner, io: string[]): RunnerApi => {
         note(`agent ${agent} ${connected}`, () => runner.agents.set(agent, connected)),
     },
     inbox: runner.inbox,
+    feedback: runner.feedback,
     messages: {
       list: (terminalId) => runner.messages.list(terminalId),
       watch: (terminalId) => runner.messages.watch(terminalId),

@@ -184,6 +184,13 @@ second call while it goes shares the first, and one after it, like one for a pro
 the runner never had, rejects with `NOT_FOUND`. A runner that shuts down before the
 removal is done rejects it with `CLOSING` and keeps the project, for a client to
 remove again from the next runner.
+`projects.list` gives the projects in the order the person arranged them, each with
+`pinned`; `projects.arrange({ order, pinned })` keeps that arrangement: `order` is project
+ids, first to last, and `pinned` the ones pinned, at most nine, the first in `order` (one
+`order` doesn't name isn't pinned).
+Unknown ids are ignored, projects `order` leaves out follow in the order they were added
+(with no pin), and a project being removed is left out. Other clients see the change when
+they next list the projects.
 `projects.folder({ projectId, folder })` lists one folder of the project's directory,
 `folder` being its path from the project's root with `/` between names (`""` for the
 root). Entries come sorted, folders first, then by name ignoring case and a leading dot
@@ -191,8 +198,10 @@ root). Entries come sorted, folders first, then by name ignoring case and a lead
 (nothing is ignored outside a repository). At most 2000 are listed, the first in that
 order, and `truncated` says there were more. A missing project is `NOT_FOUND`; a folder that is
 missing, not a folder, or outside the project's directory is `INVALID_DIRECTORY`.
-`sessions.save({ sessionId, state })` replaces a session's `state`, a string the
-runner stores with the session without reading it, such as a UI layout. It holds only
+`sessions.save({ sessionId, state, visitedAt })` replaces a session's `state`, a string the
+runner stores with the session without reading it, such as a UI layout, and `visitedAt`,
+when the person last visited it (null: never). Sessions list both; the latest visit picks a
+project's current session, and the latest of all the project that opens. It holds only
 how a client shows the session's terminals, by id: the terminals themselves, their
 titles, directories and what they ran, are the runner's own records. Sessions
 report `null` until the first save. A state holds at most `maxClientStateLength`
@@ -249,7 +258,7 @@ again (see [Agent messaging](agent-messaging.md#naming)). `handle` is its
 handle for agents' messages, a word such as `moth` that its session gives it (people read
 it as `@moth`); every terminal takes one, even one created with its own title, and keeps
 it across renames. A session never gives a word twice, even once its terminal closes;
-once all are given, they come again numbered (`moth2`). Terminals list in the order they
+once all are given, they come again with a letter from the end of the alphabet (`mothz`). Terminals list in the order they
 were created. `command` is what it was opened to run, and
 `lastProgram` the program it last had in its foreground, which a fresh shell resumes
 where that is an agent. Windows doesn't tell a terminal's foreground program, so there it
@@ -309,6 +318,19 @@ at most 1,000 ids per call. A done report, like a tell, outlives its agent and t
 Messages history once read; the latest done of each terminal that still exists is kept
 past the usual day, as the report that still stands (`TerminalSummary.reported`). `watch` resubscribes with a fresh listing on reconnect.
 
+The MCP `feedback` tool drafts feedback about Novadeck for the app's feedback card. Drafts
+are no Inbox entries: the runner holds them in memory only, one per terminal (a new call
+replaces it), past the agent session and the terminal, until the project is removed or the
+runner restarts. `feedback.watch()` follows the waiting drafts, oldest first (id, terminal,
+project, session, agent, handle, time, kind, text, `asked`). The client calls
+`feedback.settle({ id, outcome })` (`"sent"` or `"discarded"`) once it sent one or the person
+discarded it; the runner sends nothing and the agent isn't told; an id it doesn't hold is
+`NOT_FOUND`. `feedback.ask({ terminalId, hint })` relays the person's request for a draft to
+the agent in a terminal as a message from them; the draft that follows, once it reached the
+agent, has `asked: true`. An unknown terminal is `TERMINAL_NOT_FOUND`, one with no agent
+session bound `NOT_FOUND`, one whose earlier request still waits `CONFLICT`. See
+[Agent messaging](agent-messaging.md), "Feedback drafts".
+
 Agents in a project's terminals message each other (see
 [Agent messaging](agent-messaging.md)); the runner API lets a client see and steer it:
 
@@ -323,13 +345,14 @@ for await (const listing of runner.messages.watch(terminalId)) show(listing) // 
 
 `messages.list(terminalId)` gives a running or exited terminal's handle, its delivery
 state (`unbound`, `fresh`, `working`, `settled`, `ringing`, `drafting` or `unknown`), whether
-messaging is paused, and its threads, newest first, each with the other terminal's
-handle, its hops so far, its idle messages in a row (sent while neither end worked, see
+messaging is paused, and its threads, newest first, each with its `peer`, the other party
+(a terminal's agent, `{ kind: "agent", handle, agent }`, or the person, `{ kind: "person" }`),
+its hops so far, its idle messages in a row (sent while neither end worked, see
 [Guards](agent-messaging.md#guards)), whether it is held and why (`heldFor`: `"loop"`, or
-null when not held or for a hold carried over from the twelve-hop rule), whether the person stopped it, and its messages, oldest first: id, hop, sender and recipient
-handles and agents, text, when sent, state (`queued`, `leased`, `delivered`, `held` or
+null when not held or for a hold carried over from the twelve-hop rule), whether the person stopped it, and its messages, oldest first: id, hop, its `from` and `to`
+parties (a recipient agent's `agent` is never null), text, when sent, state (`queued`, `leased`, `delivered`, `held` or
 `gone`), why it is held (`paused` or `release`), and when delivered. Inbox history
-adds optional `inbox: "ask" | "tell" | "done" | "answer"`; its person party is the handle `you`.
+adds optional `inbox: "ask" | "tell" | "done" | "answer"`; the person in it is `{ kind: "person" }`.
 Ask, tell and done traces also have `inboxState`: `open`, `answered`, `read`, `withdrawn`,
 `gone` (the asking session ended, or did not come back within two minutes of a runner restart), or `undelivered` (the person's reply went gone before
 reaching the agent). A reply already delivered stays delivered when the session ends.
@@ -727,7 +750,9 @@ one from an earlier runner.
 
 - `terminals.create({ …, restore: true, resume? })` continues the saved terminal of
   that ID in the same session: in its last directory when that still exists, with its
-  agent sessions, showing its transcript above a separator before the shell's output.
+  agent sessions, showing its transcript above a separator before the shell's output. On
+  Windows both go up into the scrollback, as ConPTY places its cursor at rows counted
+  from the top of a screen it takes as its own and would draw over them.
   `resume` names the agent (`claude`, `codex` or `agy`) that ran there. While it is
   connected, the runner builds the command that resumes the session it last reported
   in this terminal (`claude --resume <id>`, `codex resume <id>`,
@@ -1048,9 +1073,9 @@ one from an earlier runner.
   with the terminal whose bar holds it, or with its session, and a window goes with its
   item. Nothing caps how many there are. An item has a runner-issued id, its `kind`
   (`image`, `file`, `page`, `changes`, `plan`), a name and a one-line `detail`, its `path`
-  or `url`, the `lines` it points at, `held` for a file that may hold secrets, `by`
+  or `url`, the `lines` it points at, `secret` for a file that may hold secrets, `by`
   (`agent` or `person`), `from` (the terminal and handle it was shown in; null in a
-  project window), `version` (counts its shows), `asked` (the latest show asked to open
+  project window), `version` (counts its shows), `openAsked` (the latest show asked to open
   it), `shownAt`, and for a plan its agent, its actor's role and whether it is a file or
   text.
   - `companions.list({ sessionId })` answers a session's `items` and `windows`; an unknown
@@ -1069,9 +1094,9 @@ one from an earlier runner.
     disk now and again each time it changes, until the item is deleted; an unknown item
     is `NOT_FOUND`. It is `ready`, with a `stamp` that changes with it, or `unavailable`
     with a reason and the file's size where known: `missing`, `unreadable`, `not-a-file`,
-    `too-large` (an image over 8 MiB), `binary` (a NUL byte in its first 8 KiB), `held`
+    `too-large` (an image over 8 MiB), `binary` (a NUL byte in its first 8 KiB), `secret`
     (a file that may hold secrets, unless `reveal` is the path the item points at: the
-    person's yes is to a file, so an item re-pointed to another reads `held` again and, pointed
+    person's yes is to a file, so an item re-pointed to another reads `secret` again and, pointed
     back, revealed again), or `gone` (a plan no longer there).
     An image is a data URL; a page its address, which the desktop app loads live, with
     `shown`, its item's version, which each show raises and which loads it afresh, and the
@@ -1087,7 +1112,7 @@ one from an earlier runner.
     `hunks` of context, add and remove lines; at most 300 files and 4 MiB of diff text,
     past the diff text budget files are `listed` by name and counts without hunks, and
     `truncated` is set (it is also set where files past 300 are left out, which are not
-    listed). A binary file or one that may hold secrets (`held`, judged by the new and the
+    listed). A binary file or one that may hold secrets (`secret`, judged by the new and the
     old name) has no hunks; names show invisible characters as U+FFFD. It is read with git about
     every 2 seconds while followed (less often after slow reads, keeping the last good
     content through a failed read or two), and `reveal` has no effect on it; a repository that is

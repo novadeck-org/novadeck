@@ -85,7 +85,7 @@ const scripted = (reported: TerminalSummary, lastProgram = "") => {
       list: unused,
       watch: () => changes.iterator,
       requests: () => channel<never>().iterator,
-      closeAsks: () => channel<never>().iterator,
+      approvals: () => channel<never>().iterator,
       // Never answers: a fresh shell stays starting.
       create: () => new Promise(() => {}),
       close: async () => {},
@@ -102,10 +102,16 @@ const scripted = (reported: TerminalSummary, lastProgram = "") => {
   }
   const listing: RunnerListing = [
     {
-      project: { id: "p", name: "P", cwd: "/tmp" },
+      project: { id: "p", name: "P", cwd: "/tmp", pinned: false },
       sessions: [
         {
-          session: { id: "s", projectId: "p", name: "S", state: encodeSession(session, 2) },
+          session: {
+            id: "s",
+            projectId: "p",
+            name: "S",
+            visitedAt: 5,
+            state: encodeSession(session),
+          },
           terminals: [listed],
         },
       ],

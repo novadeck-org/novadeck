@@ -3,6 +3,7 @@ import { wireContract, wireErrors } from "@novadeck/wire"
 import { eventIterator, oc, type ContractRouterClient } from "@orpc/contract"
 import { z } from "zod"
 
+import { feedbackDraft, maxFeedbackText } from "./feedback.js"
 import { askAnswer, inboxEntry } from "./inbox.js"
 import {
   agentDetail,
@@ -36,8 +37,8 @@ import {
   terminalEvent,
   terminalRequest,
   terminalRequestAnswer,
-  closeAsk,
-  closeAskAnswer,
+  approval,
+  approvalAnswer,
   terminalMessages,
   terminalSummary,
   terminalTitle,
@@ -103,6 +104,18 @@ export const contract = {
       .input(z.strictObject({ id, name, cwd: directory.optional() }))
       .output(project),
     rename: procedure.input(z.strictObject({ projectId: id, name })).output(project),
+    // Keeps how the person arranged the switcher: `order` by id, first to last, and the
+    // ones pinned, at most nine, the first in `order` (one `order` doesn't name isn't
+    // pinned). Ids it doesn't have are ignored;
+    // projects `order` leaves out follow, in the order they were added.
+    arrange: procedure
+      .input(
+        z.strictObject({
+          order: z.array(id).max(1000),
+          pinned: z.array(id).max(1000),
+        }),
+      )
+      .output(z.void()),
     // Closes every terminal of the project's sessions, as `terminals.close` does but
     // whichever connection controls them, then forgets the project, its sessions and its
     // agents' messages; its folder stays. A project the runner doesn't have, as one
@@ -121,8 +134,13 @@ export const contract = {
     list: procedure.input(z.strictObject({ projectId: id })).output(z.array(workspaceSession)),
     create: procedure.input(z.strictObject({ id, projectId: id, name })).output(workspaceSession),
     rename: procedure.input(z.strictObject({ sessionId: id, name })).output(workspaceSession),
-    // Replaces the session's client state; the runner stores it without reading it.
-    save: procedure.input(z.strictObject({ sessionId: id, state: clientState })).output(z.void()),
+    // Replaces the session's client state, which the runner stores without reading it, and
+    // when the person last visited the session (null: never).
+    save: procedure
+      .input(
+        z.strictObject({ sessionId: id, state: clientState, visitedAt: z.number().nullable() }),
+      )
+      .output(z.void()),
   },
   terminals: {
     // Every terminal of the session, running or saved to restore, oldest first.
@@ -167,13 +185,18 @@ export const contract = {
     // Answers a request with the terminal the client opened for it, or why it didn't.
     // One the runner no longer waits for, or sent to another client, is NOT_FOUND.
     answerRequest: procedure.input(terminalRequestAnswer).output(z.void()),
-    // Agents' asks to close a terminal that runs an agent they don't lead, for the client
-    // to confirm with the person: each goes to the client that subscribed last, and waits
-    // for its `answerCloseAsk`, with no time limit, until the runner withdraws it.
-    closeAsks: procedure.input(z.void()).output(eventIterator(closeAsk)),
-    // The person's answer to a close ask. One the runner no longer waits for, or sent to
+    // Agents' asks to close a terminal that runs an agent they don't lead, or to lead one,
+    // for the client to approve with the person: each goes to the client that subscribed
+    // last, and waits for its `answerApproval`, with no time limit, until the runner
+    // withdraws it.
+    approvals: procedure.input(z.void()).output(eventIterator(approval)),
+    // The person's answer to an approval. One the runner no longer waits for, or sent to
     // another client, is NOT_FOUND.
-    answerCloseAsk: procedure.input(closeAskAnswer).output(z.void()),
+    answerApproval: procedure.input(approvalAnswer).output(z.void()),
+    // The person ends a terminal's lead: its agent's messages are a peer's from then on,
+    // and the teammate and the former lead are told. A terminal with no lead is a no-op;
+    // one not there is TERMINAL_NOT_FOUND.
+    release: procedure.input(z.strictObject({ terminalId: id })).output(z.void()),
     // Every terminal across sessions, running or saved: `changed` for each, `synced`, then
     // later changes (creation, title, size, foreground process, exit, restart, and its
     // shell's record let go, when it is saved again) and `removed` once it is closed.
@@ -307,9 +330,9 @@ export const contract = {
     // reported, or one whose removal follows. They agree once the stream is idle.
     watch: procedure.input(z.void()).output(eventIterator(companionChange)),
     // What an item points at, read now, then again each time it changes, until it is
-    // deleted. A file that may hold secrets is `held` unless `reveal` is the path the item
-    // points at, the file the person chose to show: an item pointed at another file since
-    // (a project window re-pointed) is `held` again, and revealed again if pointed back.
+    // deleted. A file that may hold secrets is unavailable as `secret` unless `reveal` is the
+    // path the item points at, the file the person chose to show: an item pointed at
+    // another file since (a project window re-pointed) is `secret` again, and revealed again if pointed back.
     // An unknown item is NOT_FOUND.
     content: procedure
       .input(z.strictObject({ itemId: id, reveal: z.string().max(4096).optional() }))
@@ -398,6 +421,25 @@ export const contract = {
     dismiss: procedure.input(z.strictObject({ id })).output(z.void()),
     // Removes settled asks. Unknown ids, and any entry that isn't a settled ask, are skipped.
     clear: procedure.input(z.strictObject({ ids: z.array(id).max(1000) })).output(z.void()),
+  },
+  // Agents' feedback drafts for the people building Novadeck (see `feedbackDraft`): the app
+  // shows each in its feedback card for the person to send or discard.
+  feedback: {
+    // The drafts waiting, oldest first, then again on each change.
+    watch: procedure.input(z.void()).output(eventIterator(z.array(feedbackDraft))),
+    // Drops a draft once the app sent it or the person discarded it; its agent isn't told.
+    // One the runner doesn't hold is NOT_FOUND.
+    settle: procedure
+      .input(z.strictObject({ id, outcome: z.enum(["sent", "discarded"]) }))
+      .output(z.void()),
+    // Asks the agent in a terminal to write feedback about Novadeck from its session, with the
+    // person's hint (empty for none): a message relayed from the person, delivered as their
+    // Inbox answers are, waking an idle agent and waiting behind a turn in progress. The draft
+    // arrives later with `asked`. An unknown terminal is TERMINAL_NOT_FOUND; one with no agent
+    // session bound is NOT_FOUND; one whose earlier request is still waiting is CONFLICT.
+    ask: procedure
+      .input(z.strictObject({ terminalId: id, hint: z.string().max(maxFeedbackText) }))
+      .output(z.void()),
   },
   messages: {
     // A terminal's threads and messages with their states. An unknown terminal is

@@ -1,26 +1,31 @@
-import { noArrangement, type ProjectArrangement } from "./project-arrangement"
+import type { ProjectArrangement } from "./project-arrangement"
 
 const ids = (value: unknown): string[] =>
   Array.isArray(value) ? value.filter((each) => typeof each === "string") : []
 
-// How the person arranged the switcher's projects: their order and the pinned ones.
+// Where the person's arrangement of the switcher's projects lived before the runner kept it:
+// their order and the pinned ones. A client that finds it sends it to the runner once and
+// forgets it.
 export const projectArrangementStorageKey = "novadeck.project-arrangement"
-export const readProjectArrangement = (): ProjectArrangement => {
+
+export const readStoredProjectArrangement = (): ProjectArrangement | undefined => {
   try {
     const stored = JSON.parse(localStorage.getItem(projectArrangementStorageKey) ?? "null") as {
       order?: unknown
       pinned?: unknown
     } | null
-    return stored ? { order: ids(stored.order), pinned: ids(stored.pinned) } : noArrangement
+    return stored && typeof stored === "object"
+      ? { order: ids(stored.order), pinned: ids(stored.pinned) }
+      : undefined
   } catch {
-    return noArrangement
+    return undefined
   }
 }
 
-export const writeProjectArrangement = (arrangement: ProjectArrangement): void => {
+export const forgetStoredProjectArrangement = (): void => {
   try {
-    localStorage.setItem(projectArrangementStorageKey, JSON.stringify(arrangement))
+    localStorage.removeItem(projectArrangementStorageKey)
   } catch {
-    /* The arrangement holds for this session when storage is unavailable. */
+    /* It is sent again at the next load. */
   }
 }

@@ -61,10 +61,10 @@ describe("an item undocked into a window", () => {
 
   context("an image that may hold secrets", () => {
     it("offers to show it and to copy its path, without a frame of its own", async () => {
-      const item = itemFixture("env", "01", { kind: "image", name: "env.png", held: true })
+      const item = itemFixture("env", "01", { kind: "image", name: "env.png", secret: true })
       const { container } = await undocked(item, {
         state: "unavailable",
-        reason: "held",
+        reason: "secret",
         size: null,
       })
       expect(container.querySelector("section.plan-reader")).toBeNull()

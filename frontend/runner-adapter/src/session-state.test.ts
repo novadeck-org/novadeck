@@ -30,22 +30,23 @@ const session = (): WorkspaceSession => {
 
 describe("saved session state", () => {
   context("after a round trip", () => {
-    const saved = decodeSession(encodeSession(session(), 2))
+    const saved = decodeSession(encodeSession(session()))
 
-    it("keeps order, layouts, view, selection and visit time", () => {
+    it("keeps order, layouts, view and selection", () => {
       expect(saved).toMatchObject({
-        visitedAt: 1_234,
-        rank: 2,
         state: { order: ["02", "01"], view: "canvas", windowedView: "canvas", selected: "02" },
       })
       expect(saved?.state.layout.canvas.viewport).toEqual({ x: 1, y: 2, zoom: 0.5 })
     })
 
     it("leaves out the terminals, which the runner keeps, and gestures in progress", () => {
-      const text = encodeSession(session(), 2)
+      const text = encodeSession(session())
       expect(text).not.toContain("Terminal")
       expect(text).not.toContain("~/one")
       expect(JSON.parse(text).state).not.toHaveProperty("roster")
+      expect(JSON.parse(text)).toMatchObject({ version: 2 })
+      expect(JSON.parse(text)).not.toHaveProperty("visitedAt")
+      expect(JSON.parse(text)).not.toHaveProperty("rank")
       expect(saved?.state.layout.canvas.geometry["01"]).toEqual({
         position: { x: 10, y: 20 },
         width: 400,
@@ -56,7 +57,7 @@ describe("saved session state", () => {
 
   context("when it was saved by a build that kept the terminals too", () => {
     it("reads nothing, as that build is gone", () => {
-      const current = JSON.parse(encodeSession(session(), 1)) as {
+      const current = JSON.parse(encodeSession(session())) as {
         state: Record<string, unknown>
       }
       const { order, ...rest } = current.state
@@ -67,7 +68,7 @@ describe("saved session state", () => {
 
   context("when the runner has nothing this build can read", () => {
     it("reads nothing", () => {
-      const text = encodeSession(session(), 0)
+      const text = encodeSession(session())
       const broken = JSON.parse(text) as Record<string, unknown>
       expect(
         [
@@ -76,7 +77,7 @@ describe("saved session state", () => {
           "not json",
           "[]",
           JSON.stringify({ ...broken, version: 99 }),
-          JSON.stringify({ ...broken, rank: 3 }),
+          JSON.stringify({ ...broken, version: 1 }),
           JSON.stringify({ ...broken, state: { ...(broken.state as object), view: "list" } }),
           JSON.stringify({ ...broken, state: { ...(broken.state as object), layout: {} } }),
           JSON.stringify({ ...broken, state: { ...(broken.state as object), order: [1] } }),
@@ -114,7 +115,7 @@ describe("saved session state", () => {
     }
 
     it("keeps each terminal's bar, less what's gone", () => {
-      const saved = decodeSession(encodeSession(withBars(2), 1))
+      const saved = decodeSession(encodeSession(withBars(2)))
       const ids = withBars(2).state.items.map((item) => item.id)
       expect(saved?.state.bars).toEqual({
         "01": { order: [ids[0], ids[1]], hidden: [messagesKey], stack: [ids[0]], open: true },
@@ -124,8 +125,8 @@ describe("saved session state", () => {
 
     it("drops the order and hidden entries of the largest bars first when it would not fit", () => {
       const big = withBars(40)
-      const whole = encodeSession(big, 1, Infinity)
-      const text = encodeSession(big, 1, whole.length - 1)
+      const whole = encodeSession(big, Infinity)
+      const text = encodeSession(big, whole.length - 1)
       expect(text.length).toBeLessThan(whole.length)
       const saved = decodeSession(text)
       expect(saved?.state.bars?.["01"]).toMatchObject({ order: [], hidden: [], open: true })
@@ -133,7 +134,7 @@ describe("saved session state", () => {
     })
 
     it("reads a bar it can't make sense of as none", () => {
-      const text = JSON.parse(encodeSession(withBars(1), 1)) as {
+      const text = JSON.parse(encodeSession(withBars(1))) as {
         state: { bars: Record<string, unknown> }
       }
       text.state.bars["01"] = { order: "nope" }

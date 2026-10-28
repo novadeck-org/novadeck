@@ -80,7 +80,7 @@ export type Pointed = {
   readonly path: string
   readonly kind: "image" | "file"
   readonly size: number
-  readonly held: boolean
+  readonly secret: boolean
 }
 
 /**
@@ -99,7 +99,7 @@ export const pointAt = async (given: string, cwd: string): Promise<Pointed | Pre
     path,
     kind: isImage(path) ? "image" : "file",
     size: stats.size,
-    held: secret(path),
+    secret: secret(path),
   }
 }
 
@@ -245,12 +245,12 @@ const readLines = async (
 
 /**
  * An image or a text file, as it is now, symlinks resolved. One that may hold secrets is
- * `held` unless `reveal`; an image past the preview limit is `too-large`; a text file
+ * `secret` unless `reveal`; an image past the preview limit is `too-large`; a text file
  * with a NUL byte near its start is `binary`. A text file is read up to a budget, then
  * shown around its lines.
  */
 export const loadFile = async (
-  item: Pick<ItemRecord, "kind" | "path" | "lines" | "held">,
+  item: Pick<ItemRecord, "kind" | "path" | "lines" | "secret">,
   reveal: boolean,
 ): Promise<ItemContent> => {
   if (item.path === null) return unavailable("missing")
@@ -269,7 +269,7 @@ export const loadFile = async (
   if ("state" in opened) return opened
   const { handle, stats } = opened
   try {
-    if ((item.held || secret(path)) && !reveal) return unavailable("held", stats.size)
+    if ((item.secret || secret(path)) && !reveal) return unavailable("secret", stats.size)
     const stamp = stampOf(stats)
     if (item.kind === "image") {
       if (stats.size > maxImageBytes) return unavailable("too-large", stats.size)

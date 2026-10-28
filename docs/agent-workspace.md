@@ -301,8 +301,8 @@ port's optional `companions` capability (`frontend/core/src/items.ts`):
 | `save(target, itemId, text, basedOn)`    | The user's edit written to the plan file, unless it changed since stamp `basedOn`     |
 | `openInProject?(target, path, windowId)` | A file the person opened from Source, in the project window; absent where it can't be |
 
-A file that may hold secrets is `held` until the person asks to see it, and `reveal` is the path
-they asked for: the item re-pointed to another file reads `held` again.
+A file that may hold secrets is `secret` until the person asks to see it, and `reveal` is the path
+they asked for: the item re-pointed to another file reads `secret` again.
 
 A change (the `changes` item kind) shows in the diff viewer (`libraries/viewers/src/diff.ts`),
 read-only: a list of the changed files at the top, each scrolling to its section, then a
@@ -378,7 +378,7 @@ with every safety check again at that time:
   `url`, and optionally `scroll`, a CSS selector of the element to bring into view once it
   loads) or `changes` (`{}` or `{ path }`: the whole change in a repository, see below);
   beside it the options every source shares, a title and `open`, which the agent
-  sets for a deliverable it finished or one the user asked to see (`asked`). A new kind
+  sets for a deliverable it finished or one the user asked to see (`openAsked`). A new kind
   of artifact adds a source key of its own rather than more fields beside these. `close`
   takes the same `file` (its path alone), `page` (its url alone) or `changes` and removes what the
   agent showed under it from its own bar, as the person closing it would; what the person attached, moved away from it, or another
@@ -407,12 +407,12 @@ with every safety check again at that time:
   (`protocol/src/pages.ts`): its address without the fragment, or for a server on this
   machine (`localhost`, `127.0.0.1`, `[::1]`, `0.0.0.0` and `[::]` alike) its scheme and port
   alone, so a dev server stays one item whatever route the agent shows. A file that often holds secrets (`.env`,
-  keys, credentials, agents' and tools' logins, shell history) is held: it never opens
+  keys, credentials, agents' and tools' logins, shell history) is secret: it never opens
   by itself, even when the agent says the person asked (one the person attached themselves does
   open, onto the pane's gate: they picked it); the pane never falls back to
   it, its taskbar peek shows no preview, and it goes by its own name, not the agent's
   title. So none appears unasked while they share their screen. A file that resolves
-  to such a file only later is held when it loads. The server's `showing` tool lists
+  to such a file only later is secret when it loads. The server's `showing` tool lists
   what the agent's bar holds now, with where each item points and who put it there,
   then what it showed that the person moved elsewhere.
   The UI follows each item with `companions.content`, never by path.
@@ -463,7 +463,7 @@ with every safety check again at that time:
   character as U+FFFD.
 
   A binary file and a file that may hold secrets (the rule for files, applied to the new
-  name and the old one of a rename, tracked or not) carry no hunks: a held file's diff
+  name and the old one of a rename, tracked or not) carry no hunks: a secret file's diff
   text is skipped by the reader, and an untracked one is never opened. v1 has no way to
   reveal either.
 
@@ -495,9 +495,10 @@ with every safety check again at that time:
   in `cwd` (absolute, or from the terminal's directory, which is the default), named
   `title`, and can start `command` at the new shell's first prompt, one line as the
   person would type it, such as `npm run dev`; `focus` brings it into view
-  only when the person asked to see it. `open_terminal` takes no agent: to start one with
-  a task (and optionally a `model` and `effort`), an agent calls `open_agent`, which makes
-  it the new agent's lead. The runner checks the token, reads the request
+  only when the person asked to see it. `open_terminal` starts no agent: every agent, with or without a
+  task (and optionally a `model`, `effort` or a session to `resume`), is started by
+  `open_agent`, which makes the caller its lead as `lead` says (by default, when it opens
+  with a task). The runner checks the token, reads the request
   strictly, checks the folder, and lets a terminal's agents open five a minute, a
   terminal opened on request sharing the budget of the one that began the chain, and
   all agents twenty a minute across the runner, so terminals opening terminals can't
@@ -512,6 +513,28 @@ with every safety check again at that time:
   through the same file the shell integration resumes agents from, so it leaves no
   history entry; a shell without the integration, or with configured arguments, can't
   run one, and the terminal does not open rather than start a plain shell.
+- **Leading an existing agent** comes from `lead` and `release`, listed beside the
+  others. `lead` (`to`, a handle, and `message`, a brief up to 4 KB) asks the person to
+  let the caller lead the agent already running in another terminal of its project and
+  session, as `open_agent` makes the caller lead a terminal it opens. It is refused at
+  once, with a sentence to act on, for the caller itself, a handle not there, a terminal
+  that runs no agent (use `open_agent`), one the caller already leads, one with another
+  running lead, one that leads the caller directly or up the chain, one an approval
+  already waits for, and when no client follows approvals. Otherwise the ask goes to the
+  client that subscribed last to `terminals.approvals`, with the action
+  `{ type: "lead", brief }`, and the call answers `asked` at once; the person's
+  `terminals.answerApproval` settles it. On a yes the runner checks everything again,
+  then sets the terminal's `ledBy` to the caller's handle (kept, announced, told to
+  messaging), notices the terminal that the person let the caller lead it, sends the
+  brief from the caller, marked as from its lead, and notices the caller. A no, a gone
+  client or a closed terminal is a notice to the caller. The link is the spawned
+  teammate's: it ends when the agent exits and the lead may close it at once. `release`
+  (`to`) ends it from the lead's side and notices the terminal; anyone else is refused.
+  The person ends it with `terminals.release` (a no-op for a terminal with no lead),
+  which notices the terminal and its former lead, and drops the lead's messages to it that
+  were not delivered yet (their sender is told the user released it). The brief is cleaned as
+  any message is before the person is asked, so they approve exactly what is delivered, and
+  the approval holds only while both terminals run the same agent sessions they did when asked.
 - **Closing terminals** comes from the same server's `close_terminal`, listed only
   inside Novadeck's terminals like the others. An agent closes another terminal of its
   project and session, an agent's or a plain shell, by its exact handle, as `send`
@@ -519,9 +542,9 @@ with every safety check again at that time:
   `send` refuses one. Its own terminal closes a half second after the answer, which ends
   its session; a teammate it leads, and a terminal that runs no agent, close at once;
   any other terminal that runs an agent closes only once the person confirms. That ask
-  goes to the client that subscribed last to `terminals.closeAsks` (refused with none),
+  goes to the client that subscribed last to `terminals.approvals` (refused with none),
   one at a time for each terminal, and the call answers at once, as Codex's tool call
-  would time out waiting; the person's `terminals.answerCloseAsk` closes it or keeps it,
+  would time out waiting; the person's `terminals.answerApproval` closes it or keeps it,
   and Novadeck tells the asking agent either way with a notice. The ask is withdrawn
   when either terminal closes, and settled with a notice that nothing closed when the
   client goes away; a client that resubscribes is not sent the asks of its earlier

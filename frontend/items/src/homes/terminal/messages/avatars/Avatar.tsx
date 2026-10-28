@@ -95,14 +95,17 @@ const Imp = ({ grid }: { grid: LedGrid }): React.JSX.Element => {
 
 // A handle's avatar, only in the Messages pane: its word's critter lit on a small dark LED
 // screen in the word's hue, the number a later round gives the word in its corner, and,
-// where it has room, the program its agent runs. `you` is the person's backlit imp.
+// where it has room, the program its agent runs. The person (`person`) is a backlit imp.
 export const Avatar = ({
   handle,
+  person = false,
   size,
   live = "idle",
   program,
 }: {
   handle: string
+  // The person's, whatever `handle` says.
+  person?: boolean
   // Its side, in CSS pixels.
   size: number
   live?: AvatarLive
@@ -112,7 +115,7 @@ export const Avatar = ({
   const element = useRef<HTMLSpanElement>(null)
   const scale = useDeviceScale(element)
   const grid = ledGrid(size, scale)
-  const you = handle === "you"
+  const you = person
   const sprite = useMemo(() => (you ? imp : spriteOf(handle)), [you, handle])
   const hop = useMemo(() => hopped(sprite), [sprite])
   const { numeral } = handleParts(handle)

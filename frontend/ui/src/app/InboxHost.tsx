@@ -1,5 +1,3 @@
-import { leadOf } from "@novadeck/core/agent-steps"
-import type { InboxSource } from "@novadeck/core/inbox"
 import { useCallback, useEffect, useMemo, type ReactNode } from "react"
 
 import { AgentContextProvider } from "../inbox/agent-context"
@@ -73,25 +71,9 @@ export const InboxHost = ({
       watchInboxToasts(inbox, ui, board, { pings, ding: dingOf(backend, ui).ring }),
     [inbox, ui, pings, backend],
   )
-  // Read as a sheet asks, as a terminal's lead seldom changes while one shows.
-  const lead = useCallback(
-    (source: InboxSource) => leadOf(workspace.getSnapshot(), source),
-    [workspace],
-  )
   return (
-    <AgentContextProvider
-      conversations={backend.conversations}
-      messages={backend.messages}
-      leadOf={lead}
-    >
-      <InboxProvider
-        inbox={inbox}
-        reveal={reveal}
-        phone={phone}
-        working={working}
-        active={active}
-        feedbackAbout={backend.feedback?.about}
-      >
+    <AgentContextProvider conversations={backend.conversations} messages={backend.messages}>
+      <InboxProvider inbox={inbox} reveal={reveal} phone={phone} working={working} active={active}>
         {children}
         <NoticeClicks />
         <PlanTextProvider workspace={workspace} companions={backend.companions}>

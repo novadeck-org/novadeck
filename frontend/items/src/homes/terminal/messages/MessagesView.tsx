@@ -1,5 +1,5 @@
 import { handleText } from "@novadeck/core/handle"
-import { waitsText, type MessagePeer } from "@novadeck/core/messages"
+import { waitsText, type MessageParty, type MessagePeer } from "@novadeck/core/messages"
 import { useShown } from "@novadeck/toolkit/shown"
 import { Switch } from "@novadeck/toolkit/Switch"
 import { ChevronLeft, ChevronRight, ExternalLink } from "lucide-react"
@@ -23,6 +23,7 @@ import {
   cornerOf,
   latestOf,
   entryLabel,
+  handleOf,
   listed,
   openAsks,
   waitsOnPerson,
@@ -69,10 +70,11 @@ const onVisibility = (listener: () => void): (() => void) => {
   return () => document.removeEventListener("visibilitychange", listener)
 }
 
-const party = (handle: string): string => (handle === "you" ? "You" : handleText(handle))
+const party = (who: MessageParty): string =>
+  who.kind === "person" ? "You" : handleText(who.handle)
 
-const nameOf = (peer: string, found: MessagePeer | undefined): string =>
-  peer === "you" ? "You" : (found?.name ?? handleText(peer))
+const nameOf = (conversation: Conversation, found: MessagePeer | undefined): string =>
+  conversation.key === youKey ? "You" : (found?.name ?? handleText(conversation.peer))
 
 const liveOf = (found: MessagePeer | undefined): AvatarLive => found?.live ?? "gone"
 
@@ -138,7 +140,7 @@ const Row = ({
 }): React.JSX.Element => {
   const last = conversation.messages.at(-1)
   const corner = cornerOf(conversation, seenAt)
-  const name = nameOf(conversation.peer, peer)
+  const name = nameOf(conversation, peer)
   const you = conversation.key === youKey
   const preview = useId()
   return (
@@ -158,6 +160,7 @@ const Row = ({
       >
         <Avatar
           handle={conversation.peer}
+          person={you}
           size={30}
           live={you ? "idle" : liveOf(peer)}
           program={you ? undefined : peer?.program}
@@ -207,7 +210,7 @@ const Bubble = ({
       className="message-bubble-row"
       data-side={side}
       data-grouped={grouped || undefined}
-      data-hue={message.from === "you" ? "you" : hueOf(message.from)}
+      data-hue={message.from.kind === "person" ? "you" : hueOf(message.from.handle)}
       data-state={message.state}
       data-open={open || undefined}
       title={exact(message.sentAt)}
@@ -216,9 +219,10 @@ const Bubble = ({
         <span className="message-bubble-av">
           {!grouped && (
             <Avatar
-              handle={message.from}
+              handle={handleOf(message.from)}
+              person={message.from.kind === "person"}
               size={22}
-              live={message.from === "you" ? "idle" : liveOf(peers[message.from])}
+              live={message.from.kind === "person" ? "idle" : liveOf(peers[message.from.handle])}
             />
           )}
         </span>
@@ -331,7 +335,7 @@ const Chat = ({
   const [unfolded, setUnfolded] = useState(false)
   const lines = useMemo(() => chatOf(conversation, self, unfolded), [conversation, self, unfolded])
   const you = conversation.key === youKey
-  const name = nameOf(conversation.peer, peer)
+  const name = nameOf(conversation, peer)
   const asks = openAsks(conversation)
   const scroll = useRef<HTMLDivElement>(null)
   const atEnd = useRef(true)
@@ -345,7 +349,9 @@ const Chat = ({
   const gone =
     !you &&
     liveOf(peer) === "gone" &&
-    conversation.messages.some((message) => message.from === self && message.state === "gone")
+    conversation.messages.some(
+      (message) => handleOf(message.from) === self && message.state === "gone",
+    )
   return (
     <>
       <div className="message-chat-head">
@@ -360,6 +366,7 @@ const Chat = ({
         </button>
         <Avatar
           handle={conversation.peer}
+          person={you}
           size={26}
           live={you ? "idle" : liveOf(peer)}
           program={you ? undefined : peer?.program}

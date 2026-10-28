@@ -15,6 +15,7 @@ import { unreadEnd } from "../terminals/unread-state"
 import { useAskFeedback } from "./ask-feedback"
 import { useUiState, useWorkspaceServices, useWorkspaceState } from "./controller/context"
 import { useDockTarget } from "./dock-target"
+import { useReleaseLead } from "./release-lead"
 import { currentContext, currentState, currentTarget, sameTarget, shallowEqual } from "./selectors"
 import { useTerminalBar } from "./terminal-bar"
 import { useTerminalMarks } from "./useTerminalMarks"
@@ -77,6 +78,7 @@ export const WorkspaceTab = memo(
     )
     const dockIn = useDockTarget(terminal)
     const askFeedback = useAskFeedback(terminal)
+    const releaseLead = useReleaseLead(terminal)
     return (
       <TerminalTab
         terminal={terminal}
@@ -103,6 +105,7 @@ export const WorkspaceTab = memo(
         {...(backend.resetTitle ? { onResetTitle: () => commands.resetTitle(id) } : {})}
         dockIn={dockIn}
         askFeedback={askFeedback}
+        releaseLead={releaseLead}
         folder={folder}
       />
     )

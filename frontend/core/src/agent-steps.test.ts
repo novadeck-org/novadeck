@@ -1,18 +1,18 @@
 import {
   agentContext,
+  answersOf,
   askToFixNudge,
   editCounts,
   failureOf,
-  handoffsOf,
-  leadOf,
   lineCounts,
   type AgentStep,
 } from "./agent-steps"
 import { recorded } from "./agent-steps-recorded"
 import type { ChatItem } from "./conversation"
-import type { AgentMessage, TerminalThreads } from "./messages"
+import type { AgentMessage, MessageParty, TerminalThreads } from "./messages"
 import { context, describe, expect, it } from "./test"
-import type { Workspace } from "./types"
+
+const agentParty = (handle: string): MessageParty => ({ kind: "agent", handle, agent: null })
 
 let count = 0
 const item = (fields: Partial<ChatItem>): ChatItem => ({
@@ -87,7 +87,7 @@ describe("an agent's context from recorded transcripts", () => {
     const said = items[0]!.text
 
     it("gives the person's prompt as their words", () => {
-      expect(agentContext("claude", items).said).toEqual({ text: said, by: null, at: items[0]!.at })
+      expect(agentContext("claude", items).said).toEqual({ text: said, at: items[0]!.at })
     })
 
     it("counts each edit's lines from its input, and a file written whole as added", () => {
@@ -197,7 +197,6 @@ describe("the words an agent was given", () => {
     ]
     expect(agentContext("claude", items).said).toEqual({
       text: "fix the flaky inbox test and push it",
-      by: null,
       at: 1,
     })
   })
@@ -263,17 +262,26 @@ describe("the words an agent was given", () => {
     expect(agentContext("codex", items).said?.text).toBe("draft the 0.9 release notes")
   })
 
-  it("are a lead's handoff when it came later, and the steps are those after it", () => {
+  it("leave out agents' messages a hook delivered, a lead's brief among them", () => {
+    const items = [
+      user("draft the 0.9 release notes", 1),
+      user(
+        'Stop hook feedback:\n<novadeck-messages note="from your lead"><message from="crow">build the context lane, then report</message></novadeck-messages>',
+        2,
+      ),
+    ]
+    expect(agentContext("claude", items).said?.text).toBe("draft the 0.9 release notes")
+  })
+
+  it("are the person's Inbox answer when it came later, and the steps are those after it", () => {
     const items = [
       user("set up the inbox sheet task", 1),
       ...ran("pnpm install", "Done", 2),
       user("[Novadeck: automatic notice, agent messages waiting, ABC123]", 5),
       ...ran("pnpm test", "Tests 48 passed", 6),
     ]
-    const found = agentContext("claude", items, [
-      { text: "build the context lane, then report", by: "crow", at: 5 },
-    ])
-    expect(found.said).toEqual({ text: "build the context lane, then report", by: "crow", at: 5 })
+    const found = agentContext("claude", items, [{ text: "use UTC, then report", at: 5 }])
+    expect(found.said).toEqual({ text: "use UTC, then report", at: 5 })
     expect(found.steps).toEqual([
       { kind: "run", tool: "Bash", arg: "pnpm test", result: "Tests 48 passed" },
     ])
@@ -525,12 +533,12 @@ describe("an edit's line counts", () => {
   })
 })
 
-describe("the handoffs an agent was given", () => {
+describe("the person's Inbox answers an agent was given", () => {
   const message = (fields: Partial<AgentMessage>): AgentMessage => ({
     id: `m${++count}`,
     hop: 1,
-    from: "crow",
-    to: "owl",
+    from: agentParty("crow"),
+    to: agentParty("owl"),
     text: "build the context lane",
     sentAt: 1,
     state: "delivered",
@@ -541,49 +549,29 @@ describe("the handoffs an agent was given", () => {
   const threads = (messages: readonly AgentMessage[]): TerminalThreads => ({
     handle: "owl",
     agent: true,
-    threads: [{ id: "t", peer: "crow", hops: 1, idle: 0, held: false, heldFor: null, messages }],
+    threads: [
+      { id: "t", peer: agentParty("crow"), hops: 1, idle: 0, held: false, heldFor: null, messages },
+    ],
   })
 
-  it("are its lead's messages once delivered, and the person's replies from the Inbox", () => {
+  it("are the person's replies from the Inbox once delivered, never an agent's messages", () => {
     expect(
-      handoffsOf(
+      answersOf(
         threads([
           message({}),
           message({ text: "still on its way", state: "queued", deliveredAt: null }),
-          message({ from: "rook", text: "a peer's note" }),
-          message({ from: "owl", to: "crow", text: "my report" }),
-          message({ from: "you", inbox: "answer", text: "use UTC", deliveredAt: 3 }),
-          message({ from: "owl", to: "you", inbox: "ask", text: "which zone?" }),
+          message({ from: agentParty("rook"), text: "a peer's note" }),
+          message({ from: agentParty("owl"), to: agentParty("crow"), text: "my report" }),
+          message({ from: { kind: "person" }, inbox: "answer", text: "use UTC", deliveredAt: 3 }),
+          message({ from: { kind: "person" }, inbox: "answer", text: "  ", deliveredAt: 4 }),
+          message({
+            from: agentParty("owl"),
+            to: { kind: "person" },
+            inbox: "ask",
+            text: "which zone?",
+          }),
         ]),
-        "crow",
       ),
-    ).toEqual([
-      { text: "build the context lane", by: "crow", at: 2 },
-      { text: "use UTC", by: null, at: 3 },
-    ])
-  })
-
-  it("are only the person's replies for an agent with no lead", () => {
-    expect(handoffsOf(threads([message({})]), null)).toEqual([])
-  })
-})
-
-describe("a terminal's lead", () => {
-  const workspace = (terminal: Record<string, unknown>) =>
-    ({
-      projects: [
-        {
-          id: "p",
-          history: [{ id: "s", state: { roster: { terminals: [{ id: "t", ...terminal }] } } }],
-        },
-      ],
-    }) as unknown as Workspace
-  const key = { projectId: "p", workspaceSessionId: "s", terminalId: "t" }
-
-  it("is the terminal that opened it with a brief, else the one that opened it", () => {
-    expect(leadOf(workspace({ ledBy: "crow", openedBy: "crow" }), key)).toBe("crow")
-    expect(leadOf(workspace({ ledBy: null, openedBy: "crow" }), key)).toBe("crow")
-    expect(leadOf(workspace({}), key)).toBeNull()
-    expect(leadOf(workspace({}), { ...key, terminalId: "gone" })).toBeNull()
+    ).toEqual([{ text: "use UTC", at: 3 }])
   })
 })

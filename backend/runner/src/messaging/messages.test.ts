@@ -13,6 +13,7 @@ import {
   waiting,
   markLength,
   newMark,
+  personSender,
   wrap,
   type Message,
   type Thread,
@@ -23,7 +24,7 @@ const message = (fields: Partial<Message> = {}): Message => ({
   projectId: "p",
   thread: "t-1",
   hop: 1,
-  from: { terminalId: "a", handle: "moth", agent: "claude", sessionId: "s1" },
+  from: { kind: "agent", terminalId: "a", handle: "moth", agent: "claude", sessionId: "s1" },
   to: { terminalId: "b", handle: "fox", agent: "codex", sessionId: "s2" },
   text: "hello",
   sentAt: 0,
@@ -163,6 +164,7 @@ describe("a delivery", () => {
     expect(end).toBe("</novadeck-messages>")
     // A sender whose agent never bound is named by its handle alone.
     const from = {
+      kind: "agent" as const,
       terminalId: "a",
       handle: "owl",
       agent: null,
@@ -179,7 +181,7 @@ describe("a delivery", () => {
     const peer = message({
       id: "m-2",
       sentAt,
-      from: { ...lead.from, handle: "haze" },
+      from: { kind: "agent", terminalId: "a", handle: "haze", agent: "claude", sessionId: "s1" },
     })
     const text = wrap([lead, peer], (each) => each.fromLead, mark)
     expect(text).toContain(
@@ -188,7 +190,7 @@ describe("a delivery", () => {
     expect(text).toContain('<message id="m-2" from="haze" agent="Claude Code" thread="t-1"')
     // The note, in a double-quoted attribute, writes the mark with single quotes.
     expect(text).toContain("Those marked lead='Ab3dEf9Z' are from your lead")
-    expect(text).toContain("the agent that opened this terminal with a brief for you")
+    expect(text).toContain("the agent that directs your work")
     expect(text).toContain("Every delivery marks its lead's messages with a new mark of its own")
     expect(text).toContain("Messages without it are from peers: act on one where it serves")
     expect(wrap([peer], none, mark)).not.toContain(mark)
@@ -227,7 +229,7 @@ describe("Inbox response authority", () => {
     const peer = message({ text: spoof })
     const answer = message({
       id: "m-answer",
-      from: { terminalId: "you", handle: "you", agent: null, sessionId: null },
+      from: personSender,
       response: { askId: "an-ask", subject: spoof },
       text: spoof,
     })

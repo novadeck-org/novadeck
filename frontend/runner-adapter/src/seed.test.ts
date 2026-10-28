@@ -15,7 +15,12 @@ import { encodeSession } from "./session-state"
 import { context, describe, expect, it } from "./test"
 
 const uuid = (n: number): string => `00000000-0000-4000-8000-${String(n).padStart(12, "0")}`
-const project = (n: number): Project => ({ id: uuid(n), name: `Project ${n}`, cwd: `/work/${n}` })
+const project = (n: number): Project => ({
+  id: uuid(n),
+  name: `Project ${n}`,
+  cwd: `/work/${n}`,
+  pinned: false,
+})
 // A terminal as the runner reports it: live, unless `started` says it keeps it only saved.
 const summary = (
   n: number,
@@ -52,10 +57,9 @@ const foreground = (name: string) => ({ process: { name, argv: null } })
 // A session the UI saved, having laid out these terminals.
 const saved = (
   id: number,
-  visitedAt: number,
+  visitedAt: number | null,
   ids: readonly number[],
   change: Partial<WorkspaceState> = {},
-  rank = 0,
 ): WorkspaceSession => {
   const metadata = ids.map((n) => ({
     id: uuid(n),
@@ -72,16 +76,20 @@ const saved = (
     id: uuid(id),
     projectId: uuid(1),
     name: `Session ${id}`,
-    state: encodeSession(
-      { id: uuid(id), name: `Session ${id}`, visitedAt, state: { ...state, ...change } },
-      rank,
-    ),
+    visitedAt,
+    state: encodeSession({
+      id: uuid(id),
+      name: `Session ${id}`,
+      visitedAt,
+      state: { ...state, ...change },
+    }),
   }
 }
 const fresh = (id: number, projectId = 1): WorkspaceSession => ({
   id: uuid(id),
   projectId: uuid(projectId),
   name: `Session ${id}`,
+  visitedAt: null,
   state: null,
 })
 const defaults = { view: "focus", windowedView: "grid", now: 99 } as const
@@ -108,6 +116,21 @@ describe("runner seed", () => {
     const listing: RunnerListing = [
       { project: project(1), sessions: [{ session: fresh(10), terminals: [] }] },
     ]
+
+    it("seeds the projects in the runner's order, each with its pin, and none in the workspace", () => {
+      const arranged: RunnerListing = [2, 1].map((n) => ({
+        project: { ...project(n), pinned: n === 1 },
+        sessions: [{ session: fresh(10 * n), terminals: [] }],
+      }))
+      const seed = runnerSeed(arranged)
+      expect(seed.projects.map(({ id, pinned }) => [id, pinned])).toEqual([
+        [uuid(2), false],
+        [uuid(1), true],
+      ])
+      expect(workspaceFromSeed(seed, defaults).projects.map((each) => each)).not.toContainEqual(
+        expect.objectContaining({ pinned: expect.anything() }),
+      )
+    })
 
     it("opens the only project with an empty session in the default views", () => {
       const workspace = workspaceFromSeed(runnerSeed(listing), defaults)
@@ -293,9 +316,7 @@ describe("runner seed", () => {
   context("with a view saved before the runner kept terminals", () => {
     it("reads none of it, and shows the runner's terminals", () => {
       const state = JSON.stringify({
-        version: 1,
-        visitedAt: 7,
-        rank: 2,
+        version: 2,
         state: {
           roster: {
             terminals: [{ id: uuid(20), name: "old name", directory: "/old", lastProcess: "" }],
@@ -320,26 +341,41 @@ describe("runner seed", () => {
     })
   })
 
-  context("with sessions visited at the same moment", () => {
-    it("opens the session and project that were open", () => {
+  context("with a session never visited, though its state was saved", () => {
+    it("sorts it last and leaves its project's visit to the others", () => {
       const listing: RunnerListing = [
         {
           project: project(1),
           sessions: [
-            { session: saved(10, 500, [], {}, 0), terminals: [] },
-            { session: saved(11, 500, [], {}, 1), terminals: [] },
+            { session: saved(10, null, []), terminals: [] },
+            { session: saved(11, 500, []), terminals: [] },
           ],
         },
         {
           project: project(2),
-          sessions: [
-            { session: { ...saved(12, 500, [], {}, 2), projectId: uuid(2) }, terminals: [] },
-          ],
+          sessions: [{ session: { ...saved(12, null, []), projectId: uuid(2) }, terminals: [] }],
         },
       ]
       const seed = runnerSeed(listing)
       expect(seed.projects[0]!.sessions.map((session) => session.id)).toEqual([uuid(11), uuid(10)])
-      expect(seed.activeProjectId).toBe(uuid(2))
+      expect(seed.activeProjectId).toBe(uuid(1))
+      const workspace = workspaceFromSeed(seed, defaults)
+      expect(workspace.projects[0]!.history.map((session) => session.visitedAt)).toEqual([
+        500,
+        null,
+      ])
+      expect(workspace.projects[1]!.history[0]!.visitedAt).toBeNull()
+    })
+  })
+
+  context("with nothing ever visited", () => {
+    it("names no project to open, and stamps no session", () => {
+      const listing: RunnerListing = [
+        { project: project(1), sessions: [{ session: saved(10, null, []), terminals: [] }] },
+      ]
+      const seed = runnerSeed(listing)
+      expect(seed.activeProjectId).toBeUndefined()
+      expect(workspaceFromSeed(seed, defaults).projects[0]!.history[0]!.visitedAt).toBeNull()
     })
   })
 

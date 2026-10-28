@@ -207,7 +207,7 @@ for (const setup of setups) {
         },
       })
       expect(told.terminalId).toBe(terminal.id)
-      const before = terminal.messages().threads.filter((thread) => thread.peer === "you")
+      const before = terminal.messages().threads.filter((thread) => thread.peer.kind === "person")
       expect(before).toHaveLength(2)
       expect(
         before
@@ -236,8 +236,8 @@ for (const setup of setups) {
       const history = terminal.messages().threads.flatMap((thread) => thread.messages)
       expect(history.filter((message) => message.inbox === "answer")).toMatchObject([
         {
-          from: "you",
-          to: terminal.handle,
+          from: { kind: "person" },
+          to: { kind: "agent", handle: terminal.handle, agent: expect.anything() },
           state: "delivered",
           text: "Green\n\nUse green, please.",
         },
@@ -349,11 +349,79 @@ for (const setup of setups) {
       expect(terminal.messages().threads.flatMap((thread) => thread.messages)).toContainEqual(
         expect.objectContaining({
           inbox: "answer",
-          from: "you",
+          from: { kind: "person" },
           state: "delivered",
           text: "I signed in",
         }),
       )
+    })
+
+    it("drafts feedback on the agent's own, and again when the person asks, leaving it in the feedback card to settle", async ({
+      e2e: run,
+    }) => {
+      // A tool is named as any terminal's request offers it: one may go out before its
+      // MCP tools load.
+      const named = (call: Call, name: string): string => {
+        const found = [call, ...run.model.calls].map((one) => tool(one, name)).find(Boolean)
+        if (!found) throw new Error(`Novadeck's ${name} tool is missing`)
+        return found
+      }
+      let requested = false
+      run.model.use(
+        own((call) => {
+          if (asked(call, "Hit a Novadeck bug"))
+            return {
+              calls: [
+                {
+                  name: named(call, "feedback"),
+                  input: { kind: "bug", text: "The tell tool failed twice." },
+                },
+              ],
+            }
+          if (/feedback draft is in the user's feedback card/.test(result(call) ?? ""))
+            return { text: requested ? "I drafted it again." : "I drafted the feedback." }
+          if (delivered(call, "you")) {
+            requested = true
+            return {
+              calls: [
+                {
+                  name: named(call, "feedback"),
+                  input: { kind: "idea", text: "Show the hint I was given." },
+                },
+              ],
+            }
+          }
+          return undefined
+        }),
+      )
+      const terminal = await start(run, setup)
+      await turn(terminal, "Hit a Novadeck bug", "I drafted the feedback.")
+      // What the app's feedback.watch lists now.
+      const drafts = async () => {
+        const watch = run.deck.terminals.feedback.watch()
+        const first = await watch.next()
+        await watch.return(undefined)
+        return first.value ?? []
+      }
+      expect(await drafts()).toMatchObject([
+        { terminalId: terminal.id, handle: terminal.handle, kind: "bug", asked: false },
+      ])
+      const mark = terminal.mark()
+      run.deck.terminals.feedback.ask(terminal.id, "the hint the person typed")
+      await terminal.until("I drafted it again.")
+      await through(terminal, ["settled"], { after: mark })
+      const received = await run.model.waitFor((call) => !call.side && delivered(call, "you"))
+      const text = [received.system, ...received.turns.map((entry) => entry.text)].join("\n")
+      expect(text).toMatch(/person=['"][A-Za-z0-9]{8}['"]/)
+      expect(text).toContain("the hint the person typed")
+      expect(text).toContain("feedback tool")
+      // The new draft replaced the first, and it answers the person's request.
+      const [draft] = await drafts()
+      expect(await drafts()).toMatchObject([
+        { kind: "idea", text: "Show the hint I was given.", asked: true },
+      ])
+      run.deck.terminals.feedback.settle(draft!.id)
+      expect(await drafts()).toEqual([])
     })
   })
 }

@@ -28,7 +28,7 @@ const file = (
     path: `${storefront}/${path}`,
     url: null,
     lines: pointed ?? null,
-    held: false,
+    secret: false,
   },
   content: ready(fileLines(path, lines, pointed ?? { from: 1, to: lines.length })),
 })
@@ -42,7 +42,7 @@ const image = (id: string, name: string, body: string): SampleArtifact => ({
     path: `${storefront}/drafts/${name}`,
     url: null,
     lines: null,
-    held: false,
+    secret: false,
   },
   content: ready({ kind: "image", src: svg(1600, 900, body) }),
 })
@@ -184,7 +184,7 @@ export const checkoutPlan: SampleArtifact = {
     path: "~/.claude/plans/checkout-flow.md",
     url: null,
     lines: null,
-    held: false,
+    secret: false,
     plan: { agent: "Claude Code", role: "root", source: "file" },
   },
   content: ready({

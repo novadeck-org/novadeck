@@ -381,7 +381,7 @@ describe("sending", () => {
       ],
     ])
     expect(threads[1]).toMatchObject({
-      peer: "fox",
+      peer: { kind: "agent", handle: "fox" },
       hops: 2,
       idle: 0,
       held: false,
@@ -482,7 +482,10 @@ describe("an addressee with no session yet", () => {
       route:
         "when its agent starts: rung once Novadeck sees it at its prompt, else at its first turn",
     })
-    expect(messages(messaging, "N")[0]).toMatchObject({ toAgent: "codex", state: "queued" })
+    expect(messages(messaging, "N")[0]).toMatchObject({
+      to: { kind: "agent", handle: "owl", agent: "codex" },
+      state: "queued",
+    })
     const first = binding("codex", "s-first", "3")
     follow("N", first)
     expect(prompt("N", first).stdout).toContain("hello")
@@ -2059,7 +2062,7 @@ describe("listing", () => {
       threads: [
         {
           id: expect.stringMatching(/^t-/),
-          peer: "moth",
+          peer: { kind: "agent", handle: "moth", agent: "claude" },
           hops: 1,
           idle: 0,
           held: false,
@@ -2070,10 +2073,8 @@ describe("listing", () => {
               id: expect.stringMatching(/^m-/),
               thread: expect.stringMatching(/^t-/),
               hop: 1,
-              from: "moth",
-              fromAgent: "claude",
-              to: "fox",
-              toAgent: "codex",
+              from: { kind: "agent", handle: "moth", agent: "claude" },
+              to: { kind: "agent", handle: "fox", agent: "codex" },
               text: "hello",
               sentAt: 1_000_000,
               state: "queued",
@@ -3916,6 +3917,22 @@ describe("a lead", () => {
     expect(next?.[1]).not.toBe(mark)
   })
 
+  it("marks only its brief while that is what the lead lasts for, and sends the rest as a peer's", () => {
+    const { messaging, records } = withWorker()
+    const brief = messaging.sendBrief("A", { to: "owl", text: "Fix the build." })
+    expect(latestFor(records, "W")).toMatchObject({ fromLead: true })
+    expect(messaging.briefOf("W")).toBe(brief.ok ? brief.id : undefined)
+    messaging.send("A", { to: "owl", text: "Also this." })
+    expect(latestFor(records, "W")).toMatchObject({ text: "Also this.", fromLead: false })
+    // Once its lead ends, or is set again, nothing waits for the brief.
+    messaging.setLead("W", "moth")
+    expect(messaging.briefOf("W")).toBeUndefined()
+    messaging.sendBrief("A", { to: "owl", text: "Again." })
+    expect(messaging.briefOf("W")).toBeDefined()
+    messaging.endLead("W")
+    expect(messaging.briefOf("W")).toBeUndefined()
+  })
+
   it("is a peer, with the peer note, to the one it opened, when it is not the one's lead", () => {
     const { records, send, prompt, claude } = withWorker()
     sent(send("W", "moth", "Done."))
@@ -3989,6 +4006,133 @@ describe("a lead", () => {
     const session = binding("codex", "s-x", "9")
     follow("X", session)
     expect(prompt("X", session).stdout).toBe("")
+  })
+
+  it("drops the lead's undelivered messages when the person releases the worker, and tells the lead", () => {
+    const { messaging, send, records } = withWorker()
+    messaging.register("X", here, "crow", "moth")
+    messaging.expect("X", "codex")
+    const waiting = sent(send("A", "owl", "Keep going."))
+    const unbound = sent(send("A", "crow", "Take the auth bug."))
+    expect(waiting.state).toBe("queued")
+    messaging.dropLeadMessages("W")
+    messaging.dropLeadMessages("X")
+    expect(records.messages().find(({ id }) => id === waiting.id)?.state).toBe("gone")
+    expect(records.messages().find(({ id }) => id === unbound.id)?.state).toBe("gone")
+    // The lead hears once that they went because the user released their recipient.
+    expect(send("A", "owl", "Anyone?")).toMatchObject({
+      ok: true,
+      gone: expect.arrayContaining([{ id: waiting.id, to: "owl", released: true }]),
+    })
+  })
+
+  describe("a lead's message the person released", () => {
+    it("is never delivered, though the same session binds again", () => {
+      const { messaging, send, records, follow, prompt, worker } = withWorker()
+      const message = sent(send("A", "owl", "Keep going."))
+      messaging.dropLeadMessages("W")
+      messaging.endLead("W")
+      follow("W", binding("codex", "s-other", "4"))
+      follow("W", worker)
+      expect(records.messages().find(({ id }) => id === message.id)).toMatchObject({
+        state: "gone",
+        stopped: true,
+      })
+      expect(prompt("W", worker).stdout).not.toContain("Keep going.")
+    })
+
+    it("stays undelivered when a new runner over the same records binds the session", () => {
+      const records = memoryMessages()
+      const first = create(records)
+      const worker = binding("codex", "s-worker", "3")
+      first.messaging.register("W", here, "owl", "moth")
+      first.follow("W", worker)
+      const message = sent(first.send("A", "owl", "Keep going."))
+      first.messaging.dropLeadMessages("W")
+      first.messaging.endLead("W")
+      first.messaging.close()
+      const second = create(records)
+      second.messaging.register("W", here, "owl", null)
+      second.follow("W", worker)
+      expect(records.messages().find(({ id }) => id === message.id)?.state).toBe("gone")
+      expect(second.prompt("W", worker).stdout).not.toContain("Keep going.")
+    })
+
+    it("is gone, not leased, in a new runner when it was leased at the release", () => {
+      const records = memoryMessages()
+      const first = create(records)
+      const worker = binding("codex", "s-worker", "3")
+      first.messaging.register("W", here, "owl", "moth")
+      first.follow("W", worker)
+      const message = sent(first.send("A", "owl", "Keep going."))
+      expect(first.prompt("W", worker).leaseId).not.toBeNull()
+      first.messaging.dropLeadMessages("W")
+      first.messaging.endLead("W")
+      expect(records.messages().find(({ id }) => id === message.id)?.state).toBe("leased")
+      first.messaging.close()
+      const second = create(records)
+      second.messaging.register("W", here, "owl", null)
+      second.follow("W", worker)
+      expect(records.messages().find(({ id }) => id === message.id)?.state).toBe("gone")
+      expect(second.prompt("W", worker).stdout).not.toContain("Keep going.")
+    })
+  })
+
+  describe("a lead's leased message whose lease lapses", () => {
+    const lapsing = () => {
+      vi.useFakeTimers()
+      const run = withWorker()
+      const message = sent(run.send("A", "owl", "Keep going."))
+      expect(run.prompt("W", run.worker).leaseId).not.toBeNull()
+      expect(run.records.messages().find(({ id }) => id === message.id)?.state).toBe("leased")
+      const lapse = () => {
+        run.clock.now += 10_000
+        vi.advanceTimersByTime(10_000)
+      }
+      return { ...run, message, lapse }
+    }
+
+    it("waits again while its sender still leads the recipient", () => {
+      const { records, message, lapse } = lapsing()
+      lapse()
+      expect(records.messages().find(({ id }) => id === message.id)?.state).toBe("queued")
+      vi.useRealTimers()
+    })
+
+    it("is gone, as the user released the recipient, when the person released it meanwhile", () => {
+      const { messaging, records, message, lapse, send } = lapsing()
+      messaging.dropLeadMessages("W")
+      messaging.endLead("W")
+      lapse()
+      expect(records.messages().find(({ id }) => id === message.id)?.state).toBe("gone")
+      expect(send("A", "owl", "Anyone?")).toMatchObject({
+        ok: true,
+        gone: [{ id: message.id, to: "owl", released: true }],
+      })
+      vi.useRealTimers()
+    })
+
+    it("waits again, keeping its authority, when its lead ended meanwhile (release or exit)", () => {
+      const { messaging, records, message, lapse } = lapsing()
+      messaging.endLead("W")
+      lapse()
+      expect(records.messages().find(({ id }) => id === message.id)).toMatchObject({
+        state: "queued",
+        fromLead: true,
+      })
+      vi.useRealTimers()
+    })
+
+    it("waits again, keeping its authority, when the lead's own terminal closed meanwhile", () => {
+      const { messaging, records, message, lapse } = lapsing()
+      messaging.unregister("A")
+      lapse()
+      expect(records.messages().find(({ id }) => id === message.id)).toMatchObject({
+        state: "queued",
+        fromLead: true,
+      })
+      vi.useRealTimers()
+    })
   })
 
   it("is no lead once the terminal's agent exits, for what is sent after", () => {
@@ -4326,7 +4470,7 @@ describe("the listing's lead lines", () => {
       if (!answer.ok) throw new Error(answer.reason)
       return answer.text
     }
-    expect(listed("W")).toContain("your lead: it opened this terminal")
+    expect(listed("W")).toContain("your lead: it directs your work")
     expect(listed("A")).toContain("led by you")
     messaging.unregister("A")
     expect(listed("W")).not.toContain("led by")
@@ -4766,7 +4910,7 @@ describe("the loop hold", () => {
     ).toBe(false)
     messaging.pause(true)
     expect(messaging.notice("A", "Novadeck: automatic notice, not from the user: go on")).toBe(true)
-    expect(records.messages()).toMatchObject([{ from: { handle: "novadeck" }, state: "held" }])
+    expect(records.messages()).toMatchObject([{ from: { kind: "novadeck" }, state: "held" }])
     // At most one waits, and none while any message does.
     expect(messaging.notice("A", "Novadeck: automatic notice, not from the user: again")).toBe(
       false,
@@ -4826,7 +4970,7 @@ describe("the loop hold", () => {
     messaging.shown("B", "codex", "01a0f932")
     expect(messaging.notice("B", notice)).toBe(true)
     expect(records.messages()).toMatchObject([
-      { from: { handle: "novadeck" }, to: { agent: "codex", sessionId: null }, state: "queued" },
+      { from: { kind: "novadeck" }, to: { agent: "codex", sessionId: null }, state: "queued" },
     ])
     expect(messaging.ringable("B")).toBe(true)
     messaging.close()
@@ -4946,15 +5090,22 @@ describe("the loop hold", () => {
       sent(index % 2 === 0 ? send("A", "owl", `c${index}`) : send("C", "moth", `c${index}`))
     }
     const heldThreads = messaging.list("A", "moth").threads.filter((each) => each.held)
-    expect(heldThreads.map(({ peer }) => peer).toSorted()).toEqual(["fox", "fox", "owl"])
-    const old = heldThreads.find((each) => each.peer === "fox" && each.hops === 8)!
+    expect(
+      heldThreads.map(({ peer }) => (peer.kind === "agent" ? peer.handle : "you")).toSorted(),
+    ).toEqual(["fox", "fox", "owl"])
+    const old = heldThreads.find(
+      (each) => each.peer.kind === "agent" && each.peer.handle === "fox" && each.hops === 8,
+    )!
     messaging.release(old.id)
     const after = messaging.list("A", "moth").threads
-    expect(after.filter((each) => each.peer === "fox").map(({ held }) => held)).toEqual([
-      false,
-      false,
-    ])
-    expect(after.find((each) => each.peer === "owl")).toMatchObject({ held: true })
+    expect(
+      after
+        .filter((each) => each.peer.kind === "agent" && each.peer.handle === "fox")
+        .map(({ held }) => held),
+    ).toEqual([false, false])
+    expect(
+      after.find((each) => each.peer.kind === "agent" && each.peer.handle === "owl"),
+    ).toMatchObject({ held: true })
     expect(messages(messaging, "B").every(({ state }) => state === "queued")).toBe(true)
   })
 
@@ -5114,7 +5265,13 @@ describe("a hold carried over from the twelve-message rule", () => {
       projectId: "p",
       thread: "t-old",
       hop: 3,
-      from: { terminalId: "A", handle: "moth", agent: "claude", sessionId: "s-claude" },
+      from: {
+        kind: "agent",
+        terminalId: "A",
+        handle: "moth",
+        agent: "claude",
+        sessionId: "s-claude",
+      },
       to: { terminalId: "B", handle: "fox", agent: "codex", sessionId: "s-codex" },
       text: "from the lead",
       sentAt: 1_000_000 - 1_000,

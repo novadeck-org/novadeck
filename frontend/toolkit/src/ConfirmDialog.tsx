@@ -9,6 +9,8 @@ export type ConfirmDialogProps<Subject> = {
   readonly title: (subject: Subject) => string
   readonly description: (subject: Subject) => ReactNode
   readonly confirmLabel: string
+  // Whether confirming is not yet possible; the button is disabled, cancelling stays.
+  readonly confirmDisabled?: boolean
   readonly cancelLabel: string
   readonly onConfirm: () => void
   // Also on Escape and a click outside.
@@ -27,6 +29,7 @@ export const ConfirmDialog = <Subject,>({
   title,
   description,
   confirmLabel,
+  confirmDisabled = false,
   cancelLabel,
   onConfirm,
   onCancel,
@@ -74,6 +77,7 @@ export const ConfirmDialog = <Subject,>({
           ref={confirm}
           type="button"
           className="button primary"
+          disabled={confirmDisabled}
           onClick={() => {
             confirmed.current = true
             onConfirm()

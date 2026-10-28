@@ -25,7 +25,7 @@ import { CommandBox, Disclosure, Failure, Text } from "./sheet-parts"
 // with none (a plain shell) gives the room back then.
 export const contextWaitMs = 2000
 
-// Your last words, or a lead's, and up to three steps that edited, ran or failed. It fills in
+// Your last words, never an agent's, and up to three steps that edited, ran or failed. It fills in
 // late and in batches, so the block holds the room of its longest self from the start: the menu
 // under it must not move as the person aims at it. Nothing where there is no transcript.
 const Context = ({ item }: { readonly item: InboxRow }): React.JSX.Element | null => {
@@ -46,11 +46,6 @@ const Context = ({ item }: { readonly item: InboxRow }): React.JSX.Element | nul
             ›
           </span>
           <span className="console-line" title={said.text}>
-            {said.by && (
-              <>
-                <HandleChip handle={said.by} /> said{" "}
-              </>
-            )}
             <q>{said.text}</q>
           </span>
         </div>
@@ -304,8 +299,6 @@ const Thing = ({ item, now }: { readonly item: InboxRow; readonly now: number })
       return <TroubleThing item={item} trouble={item.trouble} now={now} />
     case "update":
       return <Prose text={item.update.body} />
-    case "feedback":
-      return null
   }
 }
 

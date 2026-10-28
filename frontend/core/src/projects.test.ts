@@ -47,8 +47,8 @@ describe("removing a project", () => {
       const after = remove(before, "studio")
       expect(after.activeProjectId).toBe("website")
       expect(after.projects.map((each) => each.id)).toEqual(["docs", "website"])
-      // Opening it is a visit.
-      expect(after.projects[1]!.history[0]!.visitedAt).toBe(100)
+      // Opening it is a visit, stamped past the one that closes the open session.
+      expect(after.projects[1]!.history[0]!.visitedAt).toBe(102)
     })
   })
 

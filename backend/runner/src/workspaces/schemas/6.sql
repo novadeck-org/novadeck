@@ -1,4 +1,4 @@
--- The workspace schema at version 4, as that version's runner created it (sqlite3 .schema),
+-- The workspace schema at version 6, as that version's runner created it (sqlite3 .schema),
 -- for store.test.ts to carry forward. Never edit it: a later version gets a file of its own.
 CREATE TABLE projects (
     position INTEGER PRIMARY KEY,
@@ -67,8 +67,10 @@ CREATE TABLE message_threads (
     first_terminal TEXT NOT NULL,
     second_terminal TEXT NOT NULL,
     hops INTEGER NOT NULL,
-    -- How many it may deliver before the person releases it again.
-    allowed INTEGER NOT NULL,
+    -- The hop from which its messages are held for the person, null when none is; held_for
+    -- says why ('loop').
+    held_from INTEGER,
+    held_for TEXT CHECK (held_for IN ('loop')),
     last_at REAL NOT NULL,
     -- When the person stopped it; null if they have not, or released it since.
     stopped_at REAL
@@ -101,7 +103,7 @@ CREATE TABLE messages (
     to_lead INTEGER NOT NULL,
     response TEXT
   ) STRICT;
-CREATE TABLE asks (
+CREATE TABLE inbox (
     id TEXT PRIMARY KEY,
     project_id TEXT NOT NULL,
     terminal_id TEXT NOT NULL,

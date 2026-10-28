@@ -3,6 +3,7 @@ import { hookShellSlackMs, silentFor, type MessagingProfile } from "@novadeck/ha
 import {
   longHoldMs,
   type AgentName,
+  type MessageState,
   type MessageThread,
   type TerminalMessages,
 } from "@novadeck/protocol"
@@ -60,7 +61,11 @@ import {
   markLength,
   isNotice,
   novadeckSender,
+  personSender,
   newMark,
+  senderTerminal,
+  senderParty,
+  addresseeParty,
   wrap,
   type Message,
   type Thread,
@@ -176,6 +181,8 @@ export type SendAnswer =
         readonly to: string
         /** The person stopped the thread it was in. */
         readonly stopped?: true
+        /** The person released its recipient from the lead that sent it. */
+        readonly released?: true
       }[]
       /** Its messages held long behind what keeps their recipient from them, told once each hold. */
       readonly holds?: readonly string[]
@@ -289,7 +296,7 @@ export const nothingWaiting =
   "Novadeck: no agent messages are waiting any more; this automatic notice can be ignored."
 
 /** Why a message's text, cleaned, can't be sent; undefined when it can. */
-const refusalOfText = (text: string): string | undefined => {
+export const refusalOfText = (text: string): string | undefined => {
   if (!text.trim()) return "The message is empty."
   if (byteLength(text) > maxMessageBytes)
     return (
@@ -446,6 +453,14 @@ export class Messaging {
   /** The terminals an answer is pressing its own keys in now (see `pressing`). */
   private readonly pressed = new Set<string>()
   private readonly responses = new Map<string, string>()
+  /**
+   * The brief of each terminal whose lead lasts only until it is delivered, by terminal:
+   * the message that is the one lead-marked message there. In memory only, and gone when
+   * the lead ends or is set again.
+   */
+  private readonly briefs = new Map<string, string>()
+  /** Whether the message being sent is such a brief (see `sendBrief`). */
+  private briefing = false
   private readonly threads = new Map<string, Thread>()
   /** The tracker of what each terminal's agent did, for the loop hold. */
   private readonly loops: Loops
@@ -456,6 +471,9 @@ export class Messaging {
   private readonly runs = new Map<string, { count: number; senders: readonly string[] }>()
   /** The messages judged idle when sent, for the reason their sender is told; in memory only. */
   private readonly idled = new Set<string>()
+  // Messages gone because the person released their recipient from the lead that sent them.
+  // (Dropped with the message when it is pruned, or once its sender is told.)
+  private readonly releasedMessages = new Set<string>()
   private readonly leases: Leases
   private paused: boolean
   // Send times, for the rates: by sender, by sender and recipient, and all.
@@ -594,6 +612,7 @@ export class Messaging {
    * belongs to a session stays, with the authority it had when sent.
    */
   endLead(terminalId: string): void {
+    this.briefs.delete(terminalId)
     const live = this.live.get(terminalId)
     if (!live) return
     live.ledBy = null
@@ -605,6 +624,74 @@ export class Messaging {
         (message.state === "queued" || message.state === "held")
       )
         this.gone(message, "lead-ended")
+  }
+
+  /**
+   * The terminal gains a lead, as the person let an agent lead it: messages that lead sends
+   * after carry the lead mark. The terminal's `ledBy`, as `register` sets it for one opened
+   * with a brief.
+   */
+  setLead(terminalId: string, handle: string): void {
+    const live = this.live.get(terminalId)
+    if (live) live.ledBy = handle
+    this.briefs.delete(terminalId)
+  }
+
+  /**
+   * Sends the brief of a lead that lasts only until it is delivered, the one message of that
+   * lead marked so: the lead's other messages to the terminal while it waits go as a peer's.
+   * Answered as `send` is.
+   */
+  sendBrief(terminalId: string, request: unknown): SendAnswer {
+    this.briefing = true
+    try {
+      const answer = this.send(terminalId, request)
+      const message = answer.ok ? this.messages.get(answer.id) : undefined
+      if (message?.fromLead) this.briefs.set(message.to.terminalId, message.id)
+      return answer
+    } finally {
+      this.briefing = false
+    }
+  }
+
+  /** The brief whose delivery ends the terminal's lead, if it waits for one. */
+  briefOf(terminalId: string): string | undefined {
+    return this.briefs.get(terminalId)
+  }
+
+  /** Where the message is now; undefined once it is forgotten. */
+  stateOf(messageId: string): MessageState | undefined {
+    return this.messages.get(messageId)?.state
+  }
+
+  /** Whether the message was sent by its recipient's running lead, so it is marked so. */
+  isFromLead(messageId: string): boolean {
+    return this.messages.get(messageId)?.fromLead === true
+  }
+
+  /**
+   * The person releases the terminal from its lead: the lead's messages to it that were not
+   * delivered yet, queued or held, whatever session they wait for, are gone, and their
+   * sender is told they went because the user released it. One a lease holds is marked, so
+   * that it is dropped the same way should its lease lapse.
+   */
+  dropLeadMessages(terminalId: string): void {
+    for (const message of this.messages.values())
+      if (
+        message.to.terminalId === terminalId &&
+        message.fromLead &&
+        (message.state === "queued" || message.state === "held" || message.state === "leased")
+      ) {
+        this.releasedMessages.add(message.id)
+        // Kept as the person's stop of a thread is: `stopped` is saved, so no session that
+        // binds again, and no restart, brings it back. A leased one is left to finish; if
+        // its lease lapses, or the runner restarts, it is gone then (`wait`).
+        if (message.state === "leased") this.put({ ...message, stopped: true })
+        else {
+          this.noteGone(message, "lead-released")
+          this.put({ ...message, state: "gone", notified: false, stopped: true })
+        }
+      }
   }
 
   /**
@@ -628,9 +715,13 @@ export class Messaging {
 
   /**
    * A terminal stops running, as it exits or closes: every message for it is gone, those
-   * waiting for its first session too, until its session runs there again.
+   * waiting for its first session too, until its session runs there again. With `forGood`,
+   * as it closes, the brief its lead waits on is let go too; otherwise it is kept, as the
+   * terminal may be restored with its lead.
    */
-  unregister(terminalId: string): void {
+  unregister(terminalId: string, forGood = false): void {
+    // Told to those waiting on it, which stop.
+    if (forGood && this.briefs.delete(terminalId)) this.changed(terminalId)
     const live = this.live.get(terminalId)
     if (!live) return
     this.applyRoot(live, [{ type: "ended" }])
@@ -680,7 +771,7 @@ export class Messaging {
       projectId: owner.projectId,
       thread: `t-${askId.replaceAll("-", "")}`,
       hop: 2,
-      from: { terminalId: "you", handle: "you", agent: null, sessionId: null },
+      from: personSender,
       to: { terminalId, handle: owner.handle, agent: owner.agent, sessionId: owner.sessionId },
       text: cleanText(text),
       sentAt: this.now(),
@@ -709,6 +800,37 @@ export class Messaging {
     this.messages.set(message.id, message)
     this.responses.set(askId, message.id)
     this.changed(terminalId)
+  }
+
+  /**
+   * Queues the person's request that the terminal's agent draft feedback about Novadeck,
+   * with their hint (empty for none), as an Inbox answer is: relayed under the person's
+   * mark, waking an idle agent and waiting behind a turn in progress. `requestId` names it.
+   * NOT_FOUND where no agent session is bound.
+   */
+  personFeedbackRequest(terminalId: string, requestId: string, hint: string): void {
+    const owner = this.inboxOwner(terminalId)
+    if (!owner) throw new DomainError("NOT_FOUND", "No agent session is bound in that terminal.")
+    const message: Message = {
+      id: this.freshMessageId(),
+      projectId: owner.projectId,
+      thread: `t-${requestId.replaceAll("-", "")}`,
+      hop: 2,
+      from: personSender,
+      to: { terminalId, handle: owner.handle, agent: owner.agent, sessionId: owner.sessionId },
+      text: cleanText(hint),
+      sentAt: this.now(),
+      state: "queued",
+      deliveredAt: null,
+      notified: true,
+      stopped: false,
+      fromLead: false,
+      toLead: false,
+      response: { askId: requestId, subject: "", feedback: true },
+    }
+    if (message.text.length > 4096 || deliveredBytes(message) > maxDeliveryBytes)
+      throw new DomainError("ANSWER_FAILED", "That hint is too long. Shorten it and try again.")
+    this.put(message)
   }
 
   /**
@@ -789,6 +911,7 @@ export class Messaging {
     this.records.removeMessages(messages.map((message) => message.id))
     for (const message of messages) {
       this.messages.delete(message.id)
+      this.releasedMessages.delete(message.id)
       this.holdsTold.delete(message.id)
       this.queuedSince.delete(message.id)
       this.responses.delete(message.response!.askId)
@@ -1387,7 +1510,7 @@ export class Messaging {
       { live: Live; waits: Waits | null; since: number; ids: string[] }
     >()
     for (const message of this.messages.values()) {
-      if (message.from.terminalId !== terminalId) continue
+      if (senderTerminal(message.from) !== terminalId) continue
       const to = this.live.get(message.to.terminalId)
       const since = to && this.heldSince(to, message)
       if (!to || since === undefined || now - since < longHoldMs) continue
@@ -1585,26 +1708,35 @@ export class Messaging {
     return [...this.messages.values()].filter(
       (message) =>
         message.to.terminalId === terminalId &&
-        message.from.terminalId !== except &&
+        senderTerminal(message.from) !== except &&
         !isNotice(message) &&
         undelivered(message),
     ).length
   }
 
   /** The caller's messages gone since it was last told, told now, as every answer tells them. */
-  goneFrom(
-    terminalId: string,
-  ): readonly { readonly id: string; readonly to: string; readonly stopped?: true }[] {
+  goneFrom(terminalId: string): readonly {
+    readonly id: string
+    readonly to: string
+    readonly stopped?: true
+    readonly released?: true
+  }[] {
     const gone = [...this.messages.values()].filter(
       (message) =>
-        message.from.terminalId === terminalId && message.state === "gone" && !message.notified,
+        senderTerminal(message.from) === terminalId &&
+        message.state === "gone" &&
+        !message.notified,
     )
     for (const message of gone) this.put({ ...message, notified: true })
-    return gone.map((message) => ({
+    const told = gone.map((message) => ({
       id: message.id,
       to: message.to.handle,
-      ...(message.stopped && { stopped: true as const }),
+      ...(message.stopped && !this.releasedMessages.has(message.id) && { stopped: true as const }),
+      ...(this.releasedMessages.has(message.id) && { released: true as const }),
     }))
+    // Told: the flag has done its work.
+    for (const message of gone) this.releasedMessages.delete(message.id)
+    return told
   }
 
   /**
@@ -1619,6 +1751,48 @@ export class Messaging {
     const answer = this.sendFrom(live, request, about)
     // Refused too, a sender whose own session never bound learns replies can't reach it.
     return answer.ok || !this.unbound(live) ? answer : { ...answer, unbound: true }
+  }
+
+  /**
+   * The agent Novadeck can deliver messages to in a terminal, with its root session's id
+   * once one is bound; or why there is none, as `send` refuses a recipient.
+   */
+  private deliverableAgent(
+    recipient: Live,
+  ):
+    | { readonly ok: true; readonly agent: AgentName; readonly sessionId: string | null }
+    | { readonly ok: false; readonly reason: string; readonly code: "untrusted" | "none" } {
+    const { root } = recipient
+    if (!root && !recipient.shown && recipient.untrusted)
+      return {
+        ok: false,
+        code: "untrusted",
+        reason:
+          `${mention(recipient.handle)} has no agent Novadeck can deliver to: ` +
+          `${untrustedNote(recipient.untrusted)}.`,
+      }
+    const agent = root?.agent ?? recipient.shown?.agent ?? recipient.expecting
+    if (!agent)
+      return {
+        ok: false,
+        code: "none",
+        reason: `${mention(recipient.handle)} has no agent running there that Novadeck can deliver to.`,
+      }
+    return { ok: true, agent, sessionId: root?.sessionId ?? null }
+  }
+
+  /**
+   * The agent messages to the terminal reach, and its root session once bound, as `send`
+   * judges a recipient; or why none does. Undefined for a terminal messaging doesn't hold.
+   */
+  agentIn(
+    terminalId: string,
+  ):
+    | { readonly ok: true; readonly agent: AgentName; readonly sessionId: string | null }
+    | { readonly ok: false; readonly reason: string; readonly code: "untrusted" | "none" }
+    | undefined {
+    const live = this.live.get(terminalId)
+    return live && this.deliverableAgent(live)
   }
 
   private sendFrom(live: Live, request: unknown, about: About): SendAnswer {
@@ -1641,16 +1815,9 @@ export class Messaging {
         ),
       )
     const root = recipient.root
-    if (!root && !recipient.shown && recipient.untrusted)
-      return refused(
-        `${mention(recipient.handle)} has no agent Novadeck can deliver to: ` +
-          `${untrustedNote(recipient.untrusted)}.`,
-      )
-    const agent = root?.agent ?? recipient.shown?.agent ?? recipient.expecting
-    if (!agent)
-      return refused(
-        `${mention(recipient.handle)} has no agent running there that Novadeck can deliver to.`,
-      )
+    const deliverable = this.deliverableAgent(recipient)
+    if (!deliverable.ok) return refused(deliverable.reason)
+    const { agent } = deliverable
     const now = this.now()
     const known = threadBetween(this.threads.values(), terminalId, recipient.terminalId, now)
     // The person stopped it: nothing continues it, and the refusal leaves its clock alone.
@@ -1693,7 +1860,8 @@ export class Messaging {
         }
     // Its authority is fixed now: from the recipient's running lead, it is marked so when
     // delivered, and never awaits release, whatever happens to the lead after.
-    const fromLead = this.leads(recipient, live)
+    const fromLead =
+      this.leads(recipient, live) && (this.briefing || !this.briefs.has(recipient.terminalId))
     const toLead = this.leads(live, recipient)
     const message: Message = {
       ...this.draft(live, text, {
@@ -1781,6 +1949,7 @@ export class Messaging {
       thread: "t-0000000000",
       hop: 1,
       from: {
+        kind: "agent",
         terminalId: live.terminalId,
         handle: live.handle,
         agent: live.root?.agent ?? null,
@@ -1831,6 +2000,8 @@ export class Messaging {
           "wait for it to take them before sending more.",
       )
     const now = message.sentAt
+    // Only terminals' agents send under the rates; the person's and Novadeck's never come here.
+    if (from.kind !== "agent") return refused("Only an agent's message is sent this way.")
     const pair = `${from.terminalId}\0${to.terminalId}`
     const bySender = allowSend(this.sent.get(from.terminalId) ?? [], now, rates.sender)
     const byPair = allowSend(this.pairs.get(pair) ?? [], now, rates.pair)
@@ -1875,8 +2046,8 @@ export class Messaging {
       (message) =>
         !message.response &&
         message.state === "held" &&
-        ((message.from.terminalId === a && message.to.terminalId === b) ||
-          (message.from.terminalId === b && message.to.terminalId === a)) &&
+        ((senderTerminal(message.from) === a && message.to.terminalId === b) ||
+          (senderTerminal(message.from) === b && message.to.terminalId === a)) &&
         this.holdOf(message) === "release",
     )
     if (held.length === 0) return undefined
@@ -1885,8 +2056,8 @@ export class Messaging {
       .filter(
         (message) =>
           !message.response &&
-          ((message.from.terminalId === a && message.to.terminalId === b) ||
-            (message.from.terminalId === b && message.to.terminalId === a)),
+          ((senderTerminal(message.from) === a && message.to.terminalId === b) ||
+            (senderTerminal(message.from) === b && message.to.terminalId === a)),
       )
       .reduce((newest, message) => Math.max(newest, message.sentAt), 0)
     return { from: last, run: run ?? { count: idleToHold, senders: [] } }
@@ -1898,8 +2069,8 @@ export class Messaging {
       (message) =>
         !message.response &&
         message.state === "held" &&
-        ((message.from.terminalId === a && message.to.terminalId === b) ||
-          (message.from.terminalId === b && message.to.terminalId === a)) &&
+        ((senderTerminal(message.from) === a && message.to.terminalId === b) ||
+          (senderTerminal(message.from) === b && message.to.terminalId === a)) &&
         this.holdOf(message) === "release",
     ).length
   }
@@ -1919,7 +2090,7 @@ export class Messaging {
         "it arrives once the user releases it."
       )
     const senders = this.runs.get(message.thread)?.senders ?? []
-    const own = senders.length > 0 && senders.every((each) => each === message.from.terminalId)
+    const own = senders.length > 0 && senders.every((each) => each === senderTerminal(message.from))
     return (
       (own ? `you kept messaging ${peer}` : `you and ${peer} kept messaging`) +
       " while neither of you did any work, so Novadeck holds your thread until the user " +
@@ -1938,7 +2109,7 @@ export class Messaging {
     const mine = [...this.messages.values()]
       .filter(
         (message) =>
-          message.from.terminalId === terminalId &&
+          senderTerminal(message.from) === terminalId &&
           (undelivered(message) || message.state === "gone"),
       )
       .toSorted((a, b) => a.sentAt - b.sentAt)
@@ -1971,7 +2142,7 @@ export class Messaging {
       .filter(
         (message) =>
           !isNotice(message) &&
-          (message.from.terminalId === terminalId || message.to.terminalId === terminalId),
+          (senderTerminal(message.from) === terminalId || message.to.terminalId === terminalId),
       )
       .toSorted((a, b) => a.sentAt - b.sentAt)
     const byThread = new Map<string, Message[]>()
@@ -1980,7 +2151,10 @@ export class Messaging {
     const threads: MessageThread[] = [...byThread].map(([id, messages]) => {
       const thread = this.threads.get(id)
       const [first] = messages
-      const peer = first!.from.terminalId === terminalId ? first!.to.handle : first!.from.handle
+      const peer =
+        senderTerminal(first!.from) === terminalId
+          ? addresseeParty(first!.to)
+          : senderParty(first!.from)
       return {
         id,
         peer,
@@ -1993,20 +2167,20 @@ export class Messaging {
           id: message.id,
           thread: message.thread,
           hop: message.hop,
-          from: message.from.handle,
-          fromAgent: message.from.agent,
-          to: message.to.handle,
-          toAgent: message.to.agent,
-          text: message.response
-            ? [message.response.option ?? message.response.action, message.text]
-                .filter(Boolean)
-                .join("\n\n")
-            : message.text,
+          from: senderParty(message.from),
+          to: addresseeParty(message.to),
+          text: message.response?.feedback
+            ? ["Asked to write feedback about Novadeck.", message.text].filter(Boolean).join("\n\n")
+            : message.response
+              ? [message.response.option ?? message.response.action, message.text]
+                  .filter(Boolean)
+                  .join("\n\n")
+              : message.text,
           sentAt: message.sentAt,
           state: message.state,
           held: message.state === "held" ? this.holdOf(message) : null,
           deliveredAt: message.deliveredAt,
-          ...(message.response && { inbox: "answer" as const }),
+          ...(message.response && !message.response.feedback && { inbox: "answer" as const }),
         })),
       }
     })
@@ -2082,7 +2256,8 @@ export class Messaging {
     const terminals = new Set<string>([a, b])
     for (const message of this.messages.values()) {
       if (!ids.has(message.thread)) continue
-      terminals.add(message.from.terminalId).add(message.to.terminalId)
+      if (message.from.kind === "agent") terminals.add(message.from.terminalId)
+      terminals.add(message.to.terminalId)
       if (message.state === "held") this.wait(message)
     }
     // Its hold ended, whether or not any message waited.
@@ -2105,7 +2280,8 @@ export class Messaging {
     const terminals = new Set<string>()
     for (const message of this.messages.values()) {
       if (message.thread !== threadId) continue
-      terminals.add(message.from.terminalId).add(message.to.terminalId)
+      if (message.from.kind === "agent") terminals.add(message.from.terminalId)
+      terminals.add(message.to.terminalId)
       if (message.state === "queued" || message.state === "held") {
         this.noteGone(message, "thread-stopped")
         this.put({ ...message, state: "gone", notified: false, stopped: true })
@@ -2125,6 +2301,7 @@ export class Messaging {
     for (const [id, message] of this.messages)
       if (message.projectId === projectId) {
         this.messages.delete(id)
+        this.releasedMessages.delete(id)
         this.holdsTold.delete(id)
         this.queuedSince.delete(id)
         this.idled.delete(id)
@@ -2145,13 +2322,14 @@ export class Messaging {
     const now = this.now()
     const old = [...this.messages.values()].filter(
       (message) =>
-        !this.exists(message.from.terminalId) &&
+        (message.from.kind !== "agent" || !this.exists(message.from.terminalId)) &&
         !this.exists(message.to.terminalId) &&
         now - Math.max(message.sentAt, message.deliveredAt ?? 0, message.response?.goneAt ?? 0) >=
           retentionMs,
     )
     for (const { id, response } of old) {
       this.messages.delete(id)
+      this.releasedMessages.delete(id)
       this.holdsTold.delete(id)
       this.queuedSince.delete(id)
       this.idled.delete(id)
@@ -2271,8 +2449,15 @@ export class Messaging {
 
   /** Puts an undelivered message back to waiting: held for a reason, else queued. */
   private wait(message: Message): void {
-    // A stopped thread's message never waits again: one a lease held is gone with it.
-    if (message.stopped) return
+    // A stopped thread's message never waits again: one a lease held is gone with it (a lead
+    // message the person released, kept leased to finish, is marked so too).
+    if (message.stopped) {
+      if (message.state === "leased") {
+        this.noteGone(message, "stopped")
+        this.put({ ...message, state: "gone", notified: false })
+      }
+      return
+    }
     const thread = this.threads.get(message.thread)
     if (thread?.stoppedAt != null && undelivered(message)) {
       this.noteGone(message, "thread-stopped")
@@ -2363,7 +2548,10 @@ export class Messaging {
   private lapse(lease: Lease): void {
     for (const id of lease.messages) {
       const message = this.messages.get(id)
-      if (message?.state === "leased") this.wait(message)
+      if (message?.state !== "leased") continue
+      // One the person's release marked stopped is gone (`wait`); any other end of the lead
+      // leaves a message its authority, as it had when sent.
+      this.wait(message)
     }
     const live = this.live.get(lease.terminalId)
     if (!live || lease.kind !== "stop") return
@@ -2604,6 +2792,7 @@ export class Messaging {
   private discard(message: Message): void {
     if (this.closed) return
     this.messages.delete(message.id)
+    this.releasedMessages.delete(message.id)
     this.holdsTold.delete(message.id)
     this.queuedSince.delete(message.id)
     this.write(() => this.records.removeMessages([message.id]))
@@ -2621,7 +2810,7 @@ export class Messaging {
     if (message.response) this.responses.set(message.response.askId, message.id)
     this.write(() => this.records.saveMessage(message))
     this.changed(message.to.terminalId)
-    this.changed(message.from.terminalId)
+    if (message.from.kind === "agent") this.changed(message.from.terminalId)
   }
 
   private changed(terminalId: string): void {

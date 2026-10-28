@@ -293,7 +293,9 @@ export const hostWindow = {
 // The demo a spec opens, as its address's hash asks.
 export const createSpecBackend = (): ReturnType<typeof createDemoBackend> => {
   const demo = plainSpecBackend()
-  return hostRequested() ? withHost(demo) : demo
+  // Keeps no arrangement, as a demo doesn't, but takes the one a spec leaves in storage
+  // (`novadeck.project-arrangement`) as an earlier client's, which the app imports.
+  return { ...(hostRequested() ? withHost(demo) : demo), arrange: async () => {} }
 }
 
 const plainSpecBackend = (): ReturnType<typeof createDemoBackend> => {

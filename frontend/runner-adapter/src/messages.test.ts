@@ -19,7 +19,7 @@ const listing = (change: Partial<TerminalMessages> = {}): TerminalMessages => ({
   threads: [
     {
       id: "t-1",
-      peer: "fox",
+      peer: { kind: "agent", handle: "fox", agent: "codex" },
       hops: 1,
       idle: 2,
       held: false,
@@ -30,10 +30,8 @@ const listing = (change: Partial<TerminalMessages> = {}): TerminalMessages => ({
           id: "m-1",
           thread: "t-1",
           hop: 1,
-          from: "fox",
-          fromAgent: "codex",
-          to: "moth",
-          toAgent: "claude",
+          from: { kind: "agent", handle: "fox", agent: "codex" },
+          to: { kind: "agent", handle: "moth", agent: "claude" },
           text: "Review a.ts.",
           sentAt: 1,
           state: "queued",
@@ -96,7 +94,7 @@ describe("the runner's messages", () => {
         threads: [
           {
             id: "t-1",
-            peer: "fox",
+            peer: { kind: "agent", handle: "fox", agent: "codex" },
             hops: 1,
             idle: 2,
             held: false,
@@ -105,8 +103,8 @@ describe("the runner's messages", () => {
               {
                 id: "m-1",
                 hop: 1,
-                from: "fox",
-                to: "moth",
+                from: { kind: "agent", handle: "fox", agent: "codex" },
+                to: { kind: "agent", handle: "moth", agent: "claude" },
                 text: "Review a.ts.",
                 sentAt: 1,
                 state: "queued",
@@ -359,14 +357,14 @@ it("keeps Inbox history's kind and You as the person", () => {
     threads: [
       {
         ...thread,
-        peer: "you",
-        messages: [{ ...message, inbox: "answer", from: "you", fromAgent: null }],
+        peer: { kind: "person" },
+        messages: [{ ...message, inbox: "answer", from: { kind: "person" } }],
       },
     ],
   })
   expect(terminalMessages.threads[0]).toMatchObject({
-    peer: "you",
-    messages: [{ inbox: "answer", from: "you" }],
+    peer: { kind: "person" },
+    messages: [{ inbox: "answer", from: { kind: "person" } }],
   })
 })
 
@@ -378,7 +376,7 @@ it("keeps Inbox history's lifecycle outcome", () => {
     threads: [
       {
         ...original,
-        peer: "you",
+        peer: { kind: "person" },
         messages: [{ ...original.messages[0]!, inbox: "ask", inboxState: "withdrawn" }],
       },
     ],

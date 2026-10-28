@@ -24,7 +24,7 @@ export type DiffHunk = {
 }
 
 /**
- * One file. A `binary` file, one that may hold secrets (`held`), or one left out of a long
+ * One file. A `binary` file, one that may hold secrets (`secret`), or one left out of a long
  * change (`listed`) has no hunks and shows its header with a note.
  */
 export type DiffFile = {
@@ -34,7 +34,7 @@ export type DiffFile = {
   readonly added: number
   readonly removed: number
   readonly binary: boolean
-  readonly held: boolean
+  readonly secret: boolean
   readonly listed: boolean
   readonly hunks: readonly DiffHunk[]
 }
@@ -150,7 +150,7 @@ const statusNames = {
 } as const
 
 const noteOf = (file: DiffFile): string | undefined =>
-  file.held
+  file.secret
     ? "May hold secrets — not shown."
     : file.binary
       ? "Binary file — not shown."
@@ -175,7 +175,7 @@ const signatureOf = (file: DiffFile): string => {
     file.added,
     file.removed,
     file.binary,
-    file.held,
+    file.secret,
     file.listed,
     hunks.length,
     hashOf(hunks),

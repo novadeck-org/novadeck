@@ -4,6 +4,7 @@ import { dialogMs, type Asked } from "@novadeck/core/inbox-rows"
 import {
   noMessages,
   type AgentMessage,
+  type MessageParty,
   type MessagesState,
   type MessageThread,
 } from "@novadeck/core/messages"
@@ -15,6 +16,8 @@ import { afterEach, beforeEach, vi } from "vitest"
 
 import { createRunnerInbox, detailGraceMs, retryMs, settleMs, type InboxStreams } from "./inbox"
 import { describe, expect, it } from "./test"
+
+const agentParty = (handle: string): MessageParty => ({ kind: "agent", handle, agent: null })
 
 const choices: ChatDialog = {
   type: "choices",
@@ -82,8 +85,8 @@ const asked = (id: string, askedAt: number, dialog: ChatDialog | null = choices)
 const message = (change: Partial<AgentMessage> = {}): AgentMessage => ({
   id: "m1",
   hop: 3,
-  from: "moth",
-  to: "fox",
+  from: agentParty("moth"),
+  to: agentParty("fox"),
   text: "Is the schema ready?",
   sentAt: 50,
   state: "held",
@@ -94,7 +97,7 @@ const message = (change: Partial<AgentMessage> = {}): AgentMessage => ({
 
 const thread = (change: Partial<MessageThread> = {}): MessageThread => ({
   id: "th1",
-  peer: "fox",
+  peer: agentParty("fox"),
   hops: 3,
   idle: 0,
   held: true,
@@ -378,7 +381,7 @@ describe("The runner's Inbox", () => {
             waitsSince: 10_000,
             threads: [
               thread({
-                peer: "moth",
+                peer: agentParty("moth"),
                 held: false,
                 messages: [message({ state: "queued", held: null })],
               }),
@@ -1024,10 +1027,16 @@ describe("Inbox entries", () => {
       messagesOf(
         thread({
           id: "t-entry1",
-          peer: "you",
+          peer: { kind: "person" },
           held: false,
           messages: [
-            message({ from: "you", to: "moth", inbox: "answer", state: "gone", held: null }),
+            message({
+              from: { kind: "person" },
+              to: agentParty("moth"),
+              inbox: "answer",
+              state: "gone",
+              held: null,
+            }),
           ],
         }),
       ),
@@ -1050,13 +1059,13 @@ describe("Inbox entries", () => {
       messagesOf(
         thread({
           id: "t-entry1",
-          peer: "you",
+          peer: { kind: "person" },
           held: false,
           messages: [
             message({
               inbox: "ask",
               inboxState: "undelivered",
-              to: "you",
+              to: { kind: "person" },
               state: "delivered",
               held: null,
             }),
@@ -1078,21 +1087,23 @@ describe("Inbox entries", () => {
     entries.push([])
     await settle()
     const delivered = message({
-      from: "you",
-      to: "moth",
+      from: { kind: "person" },
+      to: agentParty("moth"),
       inbox: "answer",
       state: "delivered",
       held: null,
       deliveredAt: 10_000,
     })
     messagesStore.update(() =>
-      messagesOf(thread({ id: "t-entry1", peer: "you", held: false, messages: [delivered] })),
+      messagesOf(
+        thread({ id: "t-entry1", peer: { kind: "person" }, held: false, messages: [delivered] }),
+      ),
     )
     messagesStore.update(() =>
       messagesOf(
         thread({
           id: "t-entry1",
-          peer: "you",
+          peer: { kind: "person" },
           held: false,
           messages: [{ ...delivered, state: "gone", deliveredAt: null }],
         }),
@@ -1128,21 +1139,23 @@ describe("Inbox entries", () => {
     entries.push([])
     await settle()
     const response = message({
-      from: "you",
-      to: "moth",
+      from: { kind: "person" },
+      to: agentParty("moth"),
       inbox: "answer",
       state: "queued",
       held: null,
     })
     messagesStore.update(() =>
-      messagesOf(thread({ id: "t-entry1", peer: "you", held: false, messages: [response] })),
+      messagesOf(
+        thread({ id: "t-entry1", peer: { kind: "person" }, held: false, messages: [response] }),
+      ),
     )
     messagesStore.update(() => noMessages)
     messagesStore.update(() =>
       messagesOf(
         thread({
           id: "t-entry1",
-          peer: "you",
+          peer: { kind: "person" },
           held: false,
           messages: [{ ...response, state: "gone" }],
         }),
@@ -1164,13 +1177,23 @@ describe("Inbox entries", () => {
     }
     entries.push([])
     await settle()
-    const lost = message({ from: "you", to: "moth", inbox: "answer", state: "gone", held: null })
+    const lost = message({
+      from: { kind: "person" },
+      to: agentParty("moth"),
+      inbox: "answer",
+      state: "gone",
+      held: null,
+    })
     messagesStore.update(() =>
-      messagesOf(thread({ id: "t-queued0", peer: "you", held: false, messages: [lost] })),
+      messagesOf(
+        thread({ id: "t-queued0", peer: { kind: "person" }, held: false, messages: [lost] }),
+      ),
     )
     expect(inbox.state.getSnapshot().failed["queued-0"]).toBeUndefined()
     messagesStore.update(() =>
-      messagesOf(thread({ id: "t-queued1000", peer: "you", held: false, messages: [lost] })),
+      messagesOf(
+        thread({ id: "t-queued1000", peer: { kind: "person" }, held: false, messages: [lost] }),
+      ),
     )
     expect(inbox.state.getSnapshot().failed["queued-1000"]).toContain(
       "Your reply was not delivered",

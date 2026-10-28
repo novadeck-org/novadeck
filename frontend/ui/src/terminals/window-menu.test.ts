@@ -43,6 +43,19 @@ describe("a window's menu", () => {
     expect(asked).toEqual(["moth"])
   })
 
+  it("offers to release a led terminal from its lead, above Close", () => {
+    const released: string[] = []
+    const items = windowMenu({
+      terminal: terminalFixture(4, "~/p"),
+      onRename: ignore,
+      releaseLead: { lead: "moth", onRelease: () => released.push("moth") },
+      onClose: ignore,
+    })
+    expect(labels(items)).toEqual(["Rename", "Release from @moth", "Close"])
+    items.find((item) => item.value === "release-lead")!.onSelect()
+    expect(released).toEqual(["moth"])
+  })
+
   context("for a window undocked from a terminal's companion", () => {
     const terminal = terminalFixture(3, "~/p")
 

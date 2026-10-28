@@ -19,6 +19,7 @@ import { servePort } from "@novadeck/wire/server"
 
 import { createRunner } from "./index.js"
 import { startServer, type ServerOptions } from "./server.js"
+import { handleWords } from "./terminals/handles.js"
 import { describe, expect, it } from "./test.js"
 import { ptyOptions } from "./testing/pty.js"
 import type { Resources } from "./testing/resources.js"
@@ -40,7 +41,8 @@ const deployed = async (resources: Resources, options: ServerOptions = {}) => {
     token,
     database: join(directory, "workspace.sqlite"),
     ...options,
-    terminals: { ...ptyOptions, ...options.terminals },
+    // The list's order, not each session's shuffle, so tests know the handles given.
+    terminals: { ...ptyOptions, handleOrder: () => handleWords, ...options.terminals },
   })
   resources.defer(() => server.close())
   const url = `${server.origin.replace(/^http/, "ws")}/api/rpc`
@@ -55,7 +57,7 @@ const deployed = async (resources: Resources, options: ServerOptions = {}) => {
 const bundled = async (resources: Resources) => {
   // Created first so it is removed last, after the runner ends shells running inside it.
   const directory = await temporary(resources)
-  const runner = createRunner({ terminals: ptyOptions })
+  const runner = createRunner({ terminals: { ...ptyOptions, handleOrder: () => handleWords } })
   resources.defer(() => runner.close())
   const connect = async () => {
     const { port1, port2 } = new MessageChannel()
@@ -342,7 +344,12 @@ describe("runner client workspace", () => {
     const runner = await app.connect()
     const ids = { project: crypto.randomUUID(), session: crypto.randomUUID() }
     const project = await runner.projects.create({ id: ids.project, name: "Home" })
-    expect(project).toEqual({ id: ids.project, name: "Home", cwd: await realpath(homedir()) })
+    expect(project).toEqual({
+      id: ids.project,
+      name: "Home",
+      cwd: await realpath(homedir()),
+      pinned: false,
+    })
     await expect(
       runner.projects.create({ id: ids.project, name: "Again", cwd: app.directory }),
     ).rejects.toMatchObject({ code: "CONFLICT" })
@@ -351,19 +358,29 @@ describe("runner client workspace", () => {
       projectId: project.id,
       name: "A",
     })
-    expect(created).toEqual({ id: ids.session, projectId: project.id, name: "A", state: null })
+    expect(created).toEqual({
+      id: ids.session,
+      projectId: project.id,
+      name: "A",
+      state: null,
+      visitedAt: null,
+    })
     await expect(
       runner.sessions.create({ id: ids.session, projectId: project.id, name: "B" }),
     ).rejects.toMatchObject({ code: "CONFLICT" })
 
     await expect(
-      runner.sessions.save({ sessionId: created.id, state: '{"layout":"split"}' }),
+      runner.sessions.save({
+        sessionId: created.id,
+        state: '{"layout":"split"}',
+        visitedAt: 5,
+      }),
     ).resolves.toBeUndefined()
     await expect(runner.sessions.list({ projectId: project.id })).resolves.toEqual([
-      { ...created, state: '{"layout":"split"}' },
+      { ...created, state: '{"layout":"split"}', visitedAt: 5 },
     ])
     await expect(
-      runner.sessions.save({ sessionId: crypto.randomUUID(), state: "{}" }),
+      runner.sessions.save({ sessionId: crypto.randomUUID(), state: "{}", visitedAt: null }),
     ).rejects.toMatchObject({ code: "NOT_FOUND" })
 
     const terminal = { id: crypto.randomUUID(), sessionId: created.id, cols: 80, rows: 24 }
@@ -487,7 +504,7 @@ describe("runner client project removal", () => {
         projectId: ids[project],
         thread: `t-${project}`,
         hop: 1,
-        from: { terminalId: "a", handle: "moth", agent: null, sessionId: null },
+        from: { kind: "agent", terminalId: "a", handle: "moth", agent: null, sessionId: null },
         to: { terminalId: "b", handle: "fox", agent: "codex", sessionId: null },
         text: "Hello",
         sentAt: Date.now(),
@@ -507,7 +524,7 @@ describe("runner client project removal", () => {
       agents: {},
       promptedAt: null,
       handle: earlier.giveHandle(sessions.removed),
-      naming: { person: null, agent: null, murmur: null, summary: null },
+      naming: { person: null, opener: null, murmur: null, summary: null },
       openedBy: null,
       ledBy: null,
       command: null,
@@ -534,7 +551,7 @@ describe("runner client project removal", () => {
     expect(removed).toEqual(new Set([running.id, saved]))
 
     await expect(client.projects.list()).resolves.toEqual([
-      { id: ids.kept, name: "kept", cwd: await realpath(directory) },
+      { id: ids.kept, name: "kept", cwd: await realpath(directory), pinned: false },
     ])
     for (const call of [
       () => client.projects.remove({ projectId: ids.removed }),
@@ -1275,9 +1292,13 @@ describe("runner client over MessagePort", () => {
     const { id: sessionId } = await session(client, app.directory)
     // A running shell keeps shutdown busy while it ends, as the desktop app's do.
     await client.terminals.create(shell(sessionId))
-    await expect(client.sessions.save({ sessionId, state: "before" })).resolves.toBeUndefined()
+    await expect(
+      client.sessions.save({ sessionId, state: "before", visitedAt: null }),
+    ).resolves.toBeUndefined()
     const closing = app.runner.close()
-    await expect(client.sessions.save({ sessionId, state: "after" })).rejects.toMatchObject({
+    await expect(
+      client.sessions.save({ sessionId, state: "after", visitedAt: null }),
+    ).rejects.toMatchObject({
       code: "CLOSING",
     })
     await closing

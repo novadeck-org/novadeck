@@ -152,8 +152,8 @@ export type TerminalMetadata = {
   restoredProcess?: string
   // The handle agents message it by, such as `moth`, where its backend has one.
   handle?: string
-  // The handle of the terminal whose agent opened it with a brief, its lead, as its
-  // backend last said; null once that ended. Whether the lead runs is the roster's to say.
+  // The handle of the terminal whose agent leads it, as its backend last said; null once
+  // that ended. Whether the lead runs is the roster's to say.
   ledBy?: string | null
   // The handle of the terminal whose agent opened it, for an agent, a command or a plain
   // shell; null where the person opened it.
@@ -255,7 +255,8 @@ export type WorkspaceState = {
 export type WorkspaceSession = {
   id: string
   name: string
-  visitedAt: number
+  // When the person last had it open; null until they first do.
+  visitedAt: number | null
   state: WorkspaceState
 }
 export type WorkspaceProject = Project & { activeSessionId: string; history: WorkspaceSession[] }

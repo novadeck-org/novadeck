@@ -1,4 +1,4 @@
-import type { MessageWaits, TerminalThreads } from "@novadeck/core/messages"
+import type { MessageParty, MessageWaits, TerminalThreads } from "@novadeck/core/messages"
 import { render } from "@novadeck/test-kit/render"
 import { createElement } from "react"
 import { afterEach } from "vitest"
@@ -7,11 +7,13 @@ import { describe, expect, it } from "../../../test"
 import { noLinks, type MessagesHandle } from "./messages"
 import { MessagesView } from "./MessagesView"
 
+const agent = (handle: string): MessageParty => ({ kind: "agent", handle, agent: null })
+
 const message = {
   id: "m1",
   hop: 1,
-  from: "fox",
-  to: "moth",
+  from: agent("fox"),
+  to: agent("moth"),
   text: "Hello.",
   sentAt: 1,
   state: "queued",
@@ -25,7 +27,15 @@ const messagesOf = (waits: MessageWaits | null, paused = false): MessagesHandle 
     agent: true,
     waits,
     threads: [
-      { id: "t1", peer: "fox", hops: 1, idle: 0, held: false, heldFor: null, messages: [message] },
+      {
+        id: "t1",
+        peer: agent("fox"),
+        hops: 1,
+        idle: 0,
+        held: false,
+        heldFor: null,
+        messages: [message],
+      },
     ],
   }
   return {

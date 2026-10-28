@@ -6,6 +6,14 @@ import { afterEach, beforeEach, vi } from "vitest"
 import { createSessionSaves } from "./saves"
 import { context, describe, expect, it } from "./test"
 
+const visited = (workspace: Workspace, visitedAt: number | null): Workspace => ({
+  ...workspace,
+  projects: workspace.projects.map((project) => ({
+    ...project,
+    history: project.history.map((session) => ({ ...session, visitedAt })),
+  })),
+})
+
 const renamed = (workspace: Workspace, name: string): Workspace => ({
   ...workspace,
   projects: workspace.projects.map((project) => ({
@@ -17,10 +25,12 @@ const renamed = (workspace: Workspace, name: string): Workspace => ({
 // Saves over a runner that records each call and answers as `answer` says.
 const open = (answer: () => Promise<void> = async () => {}) => {
   const sent: string[] = []
+  const visits: (number | null)[] = []
   let latest: Workspace | undefined
   const saves = createSessionSaves({
-    save: (sessionId) => {
+    save: (sessionId, _state, visitedAt) => {
       sent.push(sessionId)
+      visits.push(visitedAt)
       return answer()
     },
     ready: () => Promise.resolve(true),
@@ -34,7 +44,7 @@ const open = (answer: () => Promise<void> = async () => {}) => {
     latest = workspace
     saves.note(workspace)
   }
-  return { saves, sent, commit }
+  return { saves, sent, visits, commit }
 }
 
 beforeEach(() => vi.useFakeTimers())
@@ -65,6 +75,27 @@ describe("session saves", () => {
       app.saves.flush()
       await vi.advanceTimersByTimeAsync(0)
       expect(app.sent).toEqual(["initial"])
+    })
+
+    it("sends a visit alone, which leaves the state as it was", async () => {
+      const app = open()
+      const first = visited(workspaceFixture(), null)
+      app.commit(first)
+      app.commit(visited(first, 9))
+      app.saves.flush()
+      await vi.advanceTimersByTimeAsync(0)
+      expect(app.sent).toEqual(["initial"])
+      expect(app.visits).toEqual([9])
+    })
+
+    it("sends a session never visited with no visit, not a stamp of its own", async () => {
+      const app = open()
+      const first = visited(workspaceFixture(), null)
+      app.commit(first)
+      app.commit(renamed(first, "Renamed"))
+      app.saves.flush()
+      await vi.advanceTimersByTimeAsync(0)
+      expect(app.visits).toEqual([null])
     })
 
     it("tries again shortly while the runner is busy", async () => {

@@ -137,11 +137,12 @@ export const novadeckTool = (tool: string, fields: Fields | null): ToolRun | und
         detail: text("command", "title", "cwd"),
       }
     case "open_agent": {
-      const agent = text("agent")
+      const resume = text("resume")
+      const agent = text("agent") && resume ? `${text("agent")} (resumed ${resume})` : text("agent")
       const task = text("message")
       return {
         kind: "agent",
-        title: "Opened an agent",
+        title: resume ? "Resumed an agent" : "Opened an agent",
         detail: agent ? (task ? `${agent}: ${task}` : agent) : task,
       }
     }
@@ -149,6 +150,18 @@ export const novadeckTool = (tool: string, fields: Fields | null): ToolRun | und
       return {
         kind: "agent",
         title: `Close${text("to") ? ` ${text("to")}` : " a terminal"}`,
+        detail: "",
+      }
+    case "lead":
+      return {
+        kind: "agent",
+        title: `Asked to lead${text("to") ? ` ${text("to")}` : " an agent"}`,
+        detail: text("message"),
+      }
+    case "release":
+      return {
+        kind: "agent",
+        title: `Released${text("to") ? ` ${text("to")}` : " an agent"}`,
         detail: "",
       }
     case "show":
@@ -168,6 +181,8 @@ export const novadeckTool = (tool: string, fields: Fields | null): ToolRun | und
       return { kind: "read", title: "Checked what's shown", detail: "" }
     case "done":
       return { kind: "agent", title: "Reported done", detail: text("subject") }
+    case "feedback":
+      return { kind: "agent", title: "Drafted feedback", detail: text("kind") }
     case "summarize":
       return { kind: "agent", title: "Summarized this terminal", detail: text("summary") }
     default:

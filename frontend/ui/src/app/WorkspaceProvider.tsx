@@ -11,7 +11,8 @@ import { useLocation, useNavigate, useNavigationType, type Location } from "reac
 import type { CanvasHandle } from "../layouts/canvas/types"
 import { readCanvasWindowSize } from "../layouts/canvas/window-size-storage"
 import { readPreferences } from "../preferences/preferences-storage"
-import { readProjectArrangement } from "../projects/project-arrangement-storage"
+import { listedArrangement } from "../projects/project-arrangement"
+import { readStoredProjectArrangement } from "../projects/project-arrangement-storage"
 import { readSidebarCollapsed, readWindowedView } from "../shell/shell-storage"
 import { followSavedPreferences, watchAppearance } from "./appearance"
 import { createNavigator, type NavigatorServices, type RouterBinding } from "./commands/navigator"
@@ -34,6 +35,7 @@ import {
   watchPresentation,
   watchClosing,
   watchCrashLoop,
+  keepProjectArrangement,
   watchSwitcher,
   watchPortable,
   watchSandbox,
@@ -73,7 +75,10 @@ const createServices = (
       location: { route, dialogDepth: dialogDepthOf(location.state), navigationType },
       preferences,
       sidebarCollapsed: readSidebarCollapsed(),
-      projectArrangement: readProjectArrangement(),
+      // What the person arranged before the runner kept it wins until it has been sent.
+      projectArrangement:
+        (backend.arrange && readStoredProjectArrangement()) ||
+        listedArrangement(backend.seed.projects),
       canvasWindowSize: readCanvasWindowSize(),
     }),
   )
@@ -151,6 +156,10 @@ export const WorkspaceProvider = ({
   useEffect(() => watchPresentation(services.workspace, services.ui), [services])
   useEffect(() => trackRecent(services.workspace, services.ui), [services])
   useEffect(() => watchSwitcher(services.workspace, services.ui), [services])
+  useEffect(() => {
+    const { arrange } = services.backend
+    return arrange ? keepProjectArrangement(services.ui, arrange) : undefined
+  }, [services])
   useEffect(() => watchCrashLoop(services.backend.crashLoop?.crashes, services.ui), [services])
   useEffect(() => watchUpdates(services.backend.updates, services.ui), [services])
   useEffect(

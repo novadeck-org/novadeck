@@ -52,6 +52,7 @@ import type {
   Project,
   TerminalLayout,
   TerminalMetadata,
+  TerminalRoster,
   TerminalStatus,
   TitleSource,
   ViewMode,
@@ -62,6 +63,21 @@ import type {
   WorkspaceState,
   WorkspaceTarget,
 } from "./types"
+
+// A terminal that has just come under a lead (its `ledBy` was empty) in the same session
+// is listed under that lead, as one spawned with a brief is, so the team's wire spans no
+// stranger. Anything else, as a restore or a release, leaves the order alone.
+const underNewLead = (
+  before: TerminalRoster,
+  after: TerminalRoster,
+  terminalId: string,
+): TerminalRoster => {
+  const was = before.terminals.find((each) => each.id === terminalId)
+  const now = after.terminals.find((each) => each.id === terminalId)
+  if (!was || !now?.ledBy || was.ledBy) return after
+  const lead = after.terminals.find((each) => each.handle === now.ledBy && each.id !== terminalId)
+  return lead ? listUnderOpener(after, terminalId, lead.id) : after
+}
 
 export type ValueUpdate<Value> = Value | ((previous: Value) => Value)
 
@@ -316,14 +332,24 @@ const restoreView = (state: WorkspaceState, enabledViews?: ViewMode[]): Workspac
   return views.includes(state.view) ? state : { ...state, view: views[0]! }
 }
 
-// When the person was last in any of the project's sessions.
+// When the person was last in any of the project's sessions; -Infinity if never.
 const lastVisit = (project: WorkspaceProject): number =>
-  Math.max(...project.history.map((session) => session.visitedAt))
+  Math.max(...project.history.map((session) => session.visitedAt ?? -Infinity))
 
-const visit = (project: WorkspaceProject, id: string, now: number): WorkspaceProject => ({
+// Visits are stamped in milliseconds, one past what came before, so two never share a time
+// and the latest alone says where the person was: the session a project opens, and the
+// project the workspace opens. Leaving a session stamps it past its project's visits, and
+// arriving stamps the destination past everyone's, the stamp it just left included.
+const leaveSession = (project: WorkspaceProject, id: string, now: number): WorkspaceProject =>
+  stamp(project, id, Math.max(now, lastVisit(project)) + 1)
+
+const arrival = (projects: readonly WorkspaceProject[], now: number): number =>
+  Math.max(now, ...projects.map(lastVisit)) + 1
+
+const stamp = (project: WorkspaceProject, id: string, at: number | null): WorkspaceProject => ({
   ...project,
   history: project.history.map((session) =>
-    session.id === id ? { ...session, visitedAt: now } : session,
+    session.id === id ? { ...session, visitedAt: at } : session,
   ),
 })
 
@@ -472,7 +498,8 @@ const undockItem = (
 // Whether an item opens on its bar when it arrives: the person asked for it, and either they
 // attached it themselves (they picked it, and the pane still gates what it holds behind a
 // click) or it may not hold secrets.
-const opensOnArrival = (item: Item): boolean => item.asked && (!item.held || item.by === "person")
+const opensOnArrival = (item: Item): boolean =>
+  item.openAsked && (!item.secret || item.by === "person")
 
 // What the backend says of an item. Something new, or shown again, comes to its bar: it
 // opens there on top of what's open when the person asked for it, unless an agent showed it
@@ -580,23 +607,28 @@ export const workspaceReducer = (workspace: Workspace, action: WorkspaceAction):
             state: restoreView(action.initialSession.state, action.enabledViews),
           }
         : undefined
-      const projects =
+      // A project added in the background isn't visited; one opened leaves the open session.
+      const left =
         action.activate && initial
           ? workspace.projects.map((project) =>
               project.id === workspace.activeProjectId
-                ? visit(project, project.activeSessionId, initial.visitedAt)
+                ? leaveSession(project, project.activeSessionId, initial.visitedAt ?? Date.now())
                 : project,
             )
           : workspace.projects
+      const arrived = initial && {
+        ...initial,
+        visitedAt: action.activate ? arrival(left, initial.visitedAt ?? Date.now()) : null,
+      }
       return {
         ...workspace,
         activeProjectId: action.activate ? action.project.id : workspace.activeProjectId,
         projects: [
-          ...projects,
+          ...left,
           {
             ...action.project,
-            activeSessionId: initial?.id ?? "",
-            history: initial ? [initial] : [],
+            activeSessionId: arrived?.id ?? "",
+            history: arrived ? [arrived] : [],
           },
         ],
       }
@@ -612,7 +644,13 @@ export const workspaceReducer = (workspace: Workspace, action: WorkspaceAction):
               history: [action.initialSession],
             }
           : project
-      const restored = visit(seeded, seeded.activeSessionId, action.now)
+      // The open session of the project being left, unless it is this one.
+      const left = workspace.projects.map((item) =>
+        item.id !== project.id && item.id === workspace.activeProjectId
+          ? leaveSession(item, item.activeSessionId, action.now)
+          : item,
+      )
+      const restored = stamp(seeded, seeded.activeSessionId, arrival(left, action.now))
       const next = {
         ...restored,
         history: restored.history.map((session) =>
@@ -621,12 +659,7 @@ export const workspaceReducer = (workspace: Workspace, action: WorkspaceAction):
             : session,
         ),
       }
-      const projects = workspace.projects.map((item) => {
-        if (item.id === project.id) return next
-        return item.id === workspace.activeProjectId
-          ? visit(item, item.activeSessionId, action.now)
-          : item
-      })
+      const projects = left.map((item) => (item.id === project.id ? next : item))
       return { ...workspace, projects, activeProjectId: action.projectId }
     }
     case "project/remove": {
@@ -656,22 +689,32 @@ export const workspaceReducer = (workspace: Workspace, action: WorkspaceAction):
     case "session/add":
       return updateProject(workspace, action.projectId, (project) => {
         if (project.history.some((session) => session.id === action.session.id)) return project
-        const previous =
-          action.activate === false
-            ? project
-            : visit(project, project.activeSessionId, action.session.visitedAt)
+        // A session added in the background isn't visited; one opened leaves the open one.
+        if (action.activate === false)
+          return {
+            ...project,
+            history: [{ ...action.session, visitedAt: null }, ...project.history],
+          }
+        const now = action.session.visitedAt ?? Date.now()
+        const previous = leaveSession(project, project.activeSessionId, now)
+        const others = workspace.projects.filter((item) => item.id !== project.id)
+        const at = arrival([...others, previous], now)
         return {
           ...previous,
-          history: [action.session, ...previous.history],
-          activeSessionId: action.activate === false ? previous.activeSessionId : action.session.id,
+          history: [{ ...action.session, visitedAt: at }, ...previous.history],
+          activeSessionId: action.session.id,
         }
       })
     case "session/select":
       return updateProject(workspace, action.projectId, (project) => {
         const session = project.history.find((item) => item.id === action.workspaceSessionId)
         if (!session) return project
-        const visited = visit(project, project.activeSessionId, action.now)
-        const selected = visit(visited, session.id, action.now)
+        const left =
+          project.activeSessionId === session.id
+            ? project
+            : leaveSession(project, project.activeSessionId, action.now)
+        const others = workspace.projects.filter((item) => item.id !== project.id)
+        const selected = stamp(left, session.id, arrival([...others, left], action.now))
         return {
           ...selected,
           activeSessionId: session.id,
@@ -724,7 +767,9 @@ export const workspaceReducer = (workspace: Workspace, action: WorkspaceAction):
           ...(action.agentRan !== undefined && { agentRan: action.agentRan }),
           ...(action.titleSource !== undefined && { titleSource: action.titleSource }),
         })
-        return roster === state.roster ? state : { ...state, roster }
+        return roster === state.roster
+          ? state
+          : { ...state, roster: underNewLead(state.roster, roster, action.terminalId) }
       })
     case "terminal/close":
       return updateTarget(workspace, action.target, (state) =>
