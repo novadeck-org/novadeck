@@ -231,7 +231,9 @@ a message), 6 the page and then the changes (`show { changes }`) or a screenshot
 on a button (6c) shown in the pane, each cue selecting Order status page first as Babcia's 5
 does, 7 every agent
 finishes (each teammate reporting to its lead, which finishes after; whoever waits on the person
-stays waiting, and a second press ends whoever is still working); `frontend/demo/src/launch.ts`,
+stays waiting, and a second press ends whoever is still working), and for the website's /vs pages 8a
+one agent asking another by message to review its change, which it answers, and 8b an agent showing
+its plan in the pane; `frontend/demo/src/launch.ts`,
 sharing the desk's builders with Babcia in `desk.ts`). Every variant's Inbox
 lists what its agents wait on, built as the runner's is. In it each
 agent carries a transcript, and api-service's worker a brief from its lead, so an item's

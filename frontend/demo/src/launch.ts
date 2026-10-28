@@ -38,7 +38,8 @@ import type { DemoTurns } from "./turns"
 // spread of states, three asks that fill the Inbox, a lead that opens three teammates, a
 // teammate's question to the person and the message it then sends its lead, a teammate's
 // done, a page and then the changes (or a screenshot of three takes on a button) shown in the
-// pane, and every agent finishing. It shows
+// pane, and every agent finishing; and, for the website's /vs pages, a review one agent asks of
+// another by message, and a plan shown in the pane. It shows
 // nothing the app doesn't do: no cue draws over the app, it only has the agents act.
 
 const shop = "northwind"
@@ -65,6 +66,9 @@ export const launch = {
   reports: 11,
   // The teammate that asks the person what only its lead knows.
   asking: 13,
+  // Asks another agent, by message, to review its change; the reviewer answers.
+  reviews: 1,
+  reviewer: 2,
 } as const
 
 const jobs: readonly Job[] = [
@@ -610,6 +614,50 @@ const teammateAsk = (number: number, now: number): InboxRow => {
   }
 }
 
+// The review one agent asks of another, and the reviewer's answer.
+const reviewAsk =
+  "Can you review my cart drawer change? It's in src/components/CartDrawer.tsx and the header's cart button."
+const reviewAnswer =
+  "Reviewed. One thing to fix: the drawer doesn't trap focus, so Tab moves to the page behind it. The rest reads well, and the open and close are smooth."
+
+// The plan the plan's agent writes, in the file Claude Code keeps its plans in.
+const planPath = "/home/dev/.claude/plans/order-emails.md"
+const planArtifact = (): SampleArtifact => ({
+  item: {
+    id: "northwind-order-emails-plan",
+    kind: "plan",
+    name: "Order emails",
+    detail: planPath,
+    path: planPath,
+    url: null,
+    lines: null,
+    secret: false,
+    plan: { agent: "Claude Code", role: "root", source: "file" },
+  },
+  content: ready({
+    kind: "plan",
+    text: [
+      "# Order emails",
+      "",
+      "Email the customer when their order ships, with the same timeline as the order page.",
+      "",
+      "## Steps",
+      "",
+      "1. Add a shipped-order email template, `emails/shipped.tsx`",
+      "2. Queue it when an order is marked shipped",
+      "3. Test it with a sandbox order",
+      "",
+      "## Open questions",
+      "",
+      "- Send it from the store's address, or a no-reply one?",
+    ].join("\n"),
+    truncated: false,
+    // Shown, not watched: there's no file to save an edit to, as storefront's shown plan.
+    writable: false,
+    skill: false,
+  }),
+})
+
 // How long the lead takes to answer its teammate once the doorbell rang it awake.
 // (long enough for a capture to show the teammate's ask on its own first)
 const answersMs = 4000
@@ -656,6 +704,14 @@ export type LaunchCues = {
   readonly show: (goThere?: (key: TerminalKey) => void) => void
   readonly showChanges: (goThere?: (key: TerminalKey) => void) => void
   readonly showVariants: (goThere?: (key: TerminalKey) => void) => void
+  // An agent asks another to review its change, by message (Cart drawer asks Search index), and
+  // the reviewer answers about 4 s after it lands, as long as it's still at that turn. The
+  // exchange reads in either one's Messages pane. Neither is woken once the ripple ran, nor one
+  // that waits on the person.
+  readonly askReview: () => void
+  // The plan's agent shows its plan, the file it writes it in, in the pane beside its window,
+  // after `goThere`, given, as the shows above.
+  readonly showPlan: (goThere?: (key: TerminalKey) => void) => void
   // Every agent of both projects ends its turn, one after another, but the ones still waiting
   // on the person: an unanswered request, or a teammate and its lead while their exchange is
   // on its way (they finish when it settles). Each teammate messages its lead its report as it
@@ -684,6 +740,7 @@ export const createLaunch = (turns: DemoTurns, now: number) => {
   const preview = previewArtifact()
   const changes = changesArtifact()
   const variants = variantsArtifact()
+  const plan = planArtifact()
   const messages = createDemoMessages([deskMessages(shop, allJobs.length)], false, (target, id) =>
     latest === undefined ? true : terminalOf(latest, { ...target, terminalId: id }) !== undefined,
   )
@@ -695,6 +752,7 @@ export const createLaunch = (turns: DemoTurns, now: number) => {
         handle: demoHandle(launch.shows),
         artifacts: [preview, changes, variants],
       },
+      { key: keyOf(launch.plan), handle: demoHandle(launch.plan), artifacts: [plan] },
     ],
   })
   let latest: Workspace | undefined
@@ -741,6 +799,7 @@ export const createLaunch = (turns: DemoTurns, now: number) => {
   const shown = new Set<string>()
   let opened = false
   let teammateAsked = false
+  let reviewAsked = false
   let failed = false
   let finished = false
   let reported = false
@@ -891,9 +950,30 @@ export const createLaunch = (turns: DemoTurns, now: number) => {
         })
       })
     },
-    show: (goThere) => upsert(preview, goThere),
-    showChanges: (goThere) => upsert(changes, goThere),
-    showVariants: (goThere) => upsert(variants, goThere),
+    show: (goThere) => upsert(preview, launch.shows, goThere),
+    showChanges: (goThere) => upsert(changes, launch.shows, goThere),
+    showVariants: (goThere) => upsert(variants, launch.shows, goThere),
+    askReview: () => {
+      if (reviewAsked || ended || !busy(terminal(launch.reviews)) || !terminal(launch.reviewer))
+        return
+      const from = demoHandle(launch.reviews)
+      const to = demoHandle(launch.reviewer)
+      // Rings an agent awake for a message, unless the ripple ran or it waits on the person.
+      const ring = (number: number): void => {
+        if (!ended && !resting.has(keyOf(number).terminalId)) wake(keyOf(number))
+      }
+      reviewAsked = messages.send(target, from, to, reviewAsk, () => {
+        ring(launch.reviewer)
+        // The reviewer answers unless the person stopped it or closed it meanwhile.
+        const epoch = turns.epoch(keyOf(launch.reviewer))
+        setTimeout(() => {
+          if (!sink || ended || !busy(terminal(launch.reviewer))) return
+          if (turns.epoch(keyOf(launch.reviewer)) !== epoch) return
+          messages.send(target, to, from, reviewAnswer, () => ring(launch.reviews))
+        }, answersMs)
+      })
+    },
+    showPlan: (goThere) => upsert(plan, launch.plan, goThere),
     finishAll: () => {
       if (!latest) return
       ended = true
@@ -901,12 +981,17 @@ export const createLaunch = (turns: DemoTurns, now: number) => {
     },
   }
 
-  // The agent shows something in the pane, as the show tool does: the page, then its changes,
-  // on its own bar. Each is shown once.
-  const upsert = (artifact: SampleArtifact, goThere?: (key: TerminalKey) => void): void => {
-    if (!sink || shown.has(artifact.item.id) || !busy(terminal(launch.shows))) return
+  // An agent shows something in the pane: the order-status agent its page, then its changes, as
+  // the show tool does, and the plan's agent its plan, as the runner shows a plan file it watches,
+  // each on its own bar. Each is shown once.
+  const upsert = (
+    artifact: SampleArtifact,
+    number: number = launch.shows,
+    goThere?: (key: TerminalKey) => void,
+  ): void => {
+    if (!sink || shown.has(artifact.item.id) || !busy(terminal(number))) return
     shown.add(artifact.item.id)
-    const holder = keyOf(launch.shows)
+    const holder = keyOf(number)
     const item: Item = {
       id: itemIdOf(artifact.item.id),
       holder: { terminalId: holder.terminalId },
@@ -918,12 +1003,12 @@ export const createLaunch = (turns: DemoTurns, now: number) => {
       lines: null,
       secret: false,
       by: "agent",
-      from: { terminalId: holder.terminalId, handle: demoHandle(launch.shows) },
+      from: { terminalId: holder.terminalId, handle: demoHandle(number) },
       version: 1,
       // The agent opens it for the person, as the show tool does.
       openAsked: true,
       shownAt: Date.now(),
-      plan: null,
+      plan: artifact.item.plan ?? null,
     }
     goThere?.(holder)
     sink.dispatch([{ type: "item/upsert", target: holder, item }])
