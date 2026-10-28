@@ -102,6 +102,36 @@ const jobs: readonly Job[] = [
     command: "pnpm test:e2e --filter checkout",
     progress: "",
     done: "The checkout has end-to-end tests, and they pass.",
+    // What it did first, so its Inbox sheet shows its steps above the ask.
+    before: [
+      {
+        tool: "Write",
+        input: {
+          file_path: `${home}/e2e/checkout.spec.ts`,
+          content: `test("pays for a cart", async ({ page }) => {\n  await page.goto("/cart")\n  await page.getByRole("button", { name: "Checkout" }).click()\n  await expect(page).toHaveURL(/orders/)\n})`,
+        },
+        arg: "e2e/checkout.spec.ts",
+        wrote: true,
+        result: `File created successfully at: ${home}/e2e/checkout.spec.ts`,
+      },
+      {
+        tool: "Edit",
+        input: {
+          file_path: `${home}/playwright.config.ts`,
+          old_string: `testDir: "tests"`,
+          new_string: `testDir: "e2e"`,
+        },
+        arg: "playwright.config.ts",
+        wrote: true,
+        result: "The file playwright.config.ts has been updated.",
+      },
+      {
+        tool: "Bash",
+        input: { command: "pnpm typecheck" },
+        arg: "pnpm typecheck",
+        result: "Done in 3.2s",
+      },
+    ],
   },
   {
     name: "Stripe webhooks",

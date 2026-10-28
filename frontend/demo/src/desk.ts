@@ -18,8 +18,19 @@ export const session = "initial"
 
 export const directory = (project: string): string => `~/projects/${project}`
 
+// A call an agent made before the command it's on, as its harness records it: the tool, its
+// input, what it was called on (a path, a command), whether it wrote a file, and its result.
+export type DeskStep = {
+  readonly tool: string
+  readonly input: Readonly<Record<string, unknown>>
+  readonly arg: string
+  readonly wrote?: boolean
+  readonly result: string
+}
+
 // One of the agents: its terminal's name, the agent, what the person asked it, what it said
-// it'd do, the command it's on, what that has printed so far, and what it says when it's done.
+// it'd do, the command it's on, what that has printed so far, and what it says when it's done;
+// and any calls it made first, which its screen and an Inbox sheet show.
 export type Job = {
   readonly name: string
   readonly agent: ChatAgent
@@ -28,6 +39,7 @@ export type Job = {
   readonly command: string
   readonly progress: string
   readonly done: string
+  readonly before?: readonly DeskStep[]
 }
 
 export const project = (id: string): Project => ({ id, name: id, directory: directory(id) })
@@ -113,6 +125,7 @@ export const deskIntroOf =
     return fixedIntro([
       banner(job.agent, terminal.directory),
       requestBlock(job.agent, promptOf(Number(terminalSlot(terminal.id)), job)),
+      ...(job.before ?? []).map((step) => callBlock(job.agent, step.tool, step.arg)),
       // Antigravity's banner is five rows tall, so what it ran stays off its small window: its
       // name and model, which the banner is for, would scroll out of sight under it.
       ...(job.agent === "agy"
@@ -201,6 +214,14 @@ export const deskTranscripts = (
       const call = `${job.agent === "claude" ? "toolu" : "call"}_${id}a`
       const items = written(id, now, [
         user(promptOf(number, job)),
+        ...(job.before ?? []).flatMap((step, at) => [
+          use(`${call}${at}`, step.tool, step.input, {
+            kind: step.wrote ? "write" : "run",
+            title: step.wrote ? "Wrote" : "Ran",
+            detail: step.arg,
+          }),
+          got(`${call}${at}`, step.result),
+        ]),
         say(job.plan),
         runCall(job, call, home),
       ])
