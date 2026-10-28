@@ -138,8 +138,9 @@
 :where(.focus-stage > .terminal-visibility) {
   @apply inset-3 max-[701px]:inset-1.5;
 }
+/* How far it recedes (canvas.css), so its sheet comes forward with it. */
 .canvas-node:not(.selected):hover {
-  opacity: var(--terminal-hover-opacity);
+  --_recede: var(--terminal-hover-opacity);
 }
 /* A window's resize grip, in Canvas a button holding the hatch and in Grid
    react-grid-layout's handle, which draws it after itself: a triangle of hatching in

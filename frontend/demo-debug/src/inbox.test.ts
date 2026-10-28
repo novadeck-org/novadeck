@@ -20,6 +20,7 @@ const run = (inbox: ReturnType<typeof createDemoInbox>, label: string, notes: st
   const context: DemoActionContext = {
     target: "selected",
     selected: () => undefined,
+    select: () => {},
     addTerminal: () => {
       throw new Error("unused")
     },

@@ -1,6 +1,6 @@
 /* The pane recipe: where a terminal shows its plan, what its agent showed, and its
    messages. Split (`.plan-split`), it shares the terminal's window across a divider
-   (`.plan-divider`); attached (`.plan-attached`), it hangs off the canvas node; undocked,
+   (`.plan-divider`), or, in a window too narrow for that, covers the terminal; attached (`.plan-attached`), it hangs off the canvas node; undocked,
    it fills a window of its own (`.artifact-window`, see artifact.css). In each, the
    reader (`.plan-reader`) holds the outline (`.plan-spine`) beside the document, under
    the header every viewer has (`.artifact-meta`, see artifact.css), with the toggle for
@@ -19,7 +19,6 @@
    Tokens, each optional (its fallback in brackets):
    --pane-bg (paper): the reader, the attached sheet and an undocked window.
    --pane-border-color (line): the pane's edge beside the terminal.
-   --pane-stacked-border-color (line-strong): its edge above, stacked under the terminal.
    --pane-divider-hover-bg (line-strong): the divider under the pointer, or focused.
    --pane-attached-border-color (line-strong), --pane-attached-shadow (shadow-floating),
    --pane-attached-radius (radius-panel): the attached sheet.
@@ -53,8 +52,11 @@
   min-height: 0;
   overflow: hidden;
 }
-.plan-split-terminal .terminal-content {
-  padding: 20px;
+/* Only beside the pane: covered, the terminal keeps the size it has without it. */
+@container terminal-plan (min-width: 641px) {
+  .plan-split-terminal .terminal-content {
+    padding: 20px;
+  }
 }
 .plan-split-reader {
   display: flex;
@@ -93,24 +95,34 @@
   background-color: var(--pane-divider-hover-bg, var(--color-line-strong));
 }
 @container terminal-plan (max-width: 640px) {
+  /* Too narrow to share: the pane covers the terminal, one cell with the terminal under
+     it. The terminal keeps its size beneath, so its program isn't resized while it's
+     covered. --_plan-cover tells the keys (cover-keys.ts) that the pane is on top. */
   .plan-split {
+    --_plan-cover: 1;
     grid-template-columns: minmax(0, 1fr);
-    grid-template-rows: minmax(0, 2fr) minmax(0, 3fr);
+    grid-template-rows: minmax(0, 1fr);
+  }
+  .plan-split-terminal,
+  .plan-split-reader {
+    grid-area: 1 / 1;
+  }
+  .plan-split-terminal {
+    isolation: isolate;
   }
   .plan-divider {
     display: none;
   }
-  /* Stacked under the terminal, the pane rises from below as it opens, its top edge
-     the line between them, so the line comes and goes with it. */
+  /* The pane rises over the terminal as it opens. */
   .plan-split-reader {
     --_plan-enter: 0 16px;
-    border-top: var(--border-width) solid var(--pane-stacked-border-color, var(--color-line-strong));
+    z-index: 1;
   }
   .plan-split-reader > .plan-reader {
     border-left: none;
   }
-  /* Its top edge is already the line under the terminal: room only while something's
-     behind, and an edge for what's shown only under it. */
+  /* Its top edge is already the line under the window's header: room only while
+     something's behind, and an edge for what's shown only under it. */
   .plan-split-reader > .plan-stack:empty {
     display: none;
   }
@@ -290,8 +302,8 @@
 
 /* The pane opens and closes on opacity and translate only, which the compositor runs
    without layout: the terminal beside a split takes its new size once, not per frame.
-   It slides from where it sits: the split's from the window's right edge, or from
-   below when stacked under the terminal, and the attached sheet from its node. What
+   It slides from where it sits: the split's from the window's right edge, or up over
+   the terminal it covers in a narrow window, and the attached sheet from its node. What
    was open already, after a view switch or a restore, has no state and appears as it
    was. It fades as it goes with taskbar.css's plan-out. */
 .plan-split-reader[data-state="open"] {
