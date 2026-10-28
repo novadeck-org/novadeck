@@ -121,8 +121,9 @@ for you opens at once only on the terminal you're on, so the view never moves un
 on any other terminal it waits, new, with a toast over the header laid out as the Inbox's
 are ("@haze wants to show you", localhost:3000, and Order status page at its foot), which a
 click takes you from to that terminal, in view with the keyboard in it, and it opens when
-you go to that terminal by any route. Opening, peeking at, hiding, closing or
-moving it yourself first ends the wait, which nothing keeps across a restart. Hover an icon to peek: a
+you go to that terminal by any route. In Grid, where nothing moves as a pane opens, it
+opens in its window at once and the toast still tells you. Opening, peeking at, hiding,
+closing or moving it yourself first ends the wait, as does putting it away in Grid, which nothing keeps across a restart. Hover an icon to peek: a
 card per thing behind it, each a preview, its name and the same mark, with no copy. Once
 you've peeked, what was new is seen, without opening it. Click an icon or a card to open
 it on top. Click the showing icon again, or the pane's minimize button, to minimize it,
