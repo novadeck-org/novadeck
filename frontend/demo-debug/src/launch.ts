@@ -78,6 +78,11 @@ export const launchGroups = (cues: LaunchCues | undefined): readonly DemoActionG
               run: () => cues.showChanges(),
             },
             {
+              label: "6c · Agent shows button variants",
+              hint: "Order status page shows a screenshot in the pane: three takes on the page's Track package button, side by side",
+              run: () => cues.showVariants(),
+            },
+            {
               label: "7 · Everyone finishes",
               hint: "Every agent of both projects ends its turn in a ripple: lines go green, done marks. Agents still waiting on the person stay as they are: an unanswered ask, a failed turn (until it is prompted again), and the teammate and its lead while their exchange is on its way (they finish when it settles). Each teammate messages its lead its report as it finishes, and the lead finishes about 1 s after the ripple starts. Press again to end whoever is working by then",
               run: () => cues.finishAll(),
