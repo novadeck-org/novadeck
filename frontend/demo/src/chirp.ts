@@ -8,7 +8,7 @@ import { demoTerminalId, terminalSlot } from "./samples"
 import { callBlock, requestBlock, resultBlock, textBlock } from "./screen/agent"
 import { banner } from "./screen/openings"
 import { fixedIntro, type DemoIntro } from "./screen/terminal"
-import { got, say, use, user, written, type DemoTranscript } from "./transcripts"
+import { got, say, use, user, written, type DemoDraft, type DemoTranscript } from "./transcripts"
 
 // The Chirp demo: a one-off for the runner-skits video "Chirp", where a runner hunts the one
 // agent waiting on her among the dozens she left running overnight, and finds it here. Her
@@ -282,6 +282,43 @@ const runCall = (job: Job, call: string) =>
         { kind: "run", title: "Ran", detail: job.command },
       )
 
+// What the waiting agent did before it asked, as Claude Code records it, so its Inbox sheet shows
+// its steps between her ask and the command.
+const warmerSteps = (id: string): DemoDraft[] => {
+  const home = `/home/nyx/projects/${desk}`
+  const steps = [
+    {
+      tool: "Write",
+      input: {
+        file_path: `${home}/src/cache/warmer.ts`,
+        content: `export const warm = async (keys: string[]) => {\n  await Promise.all(keys.map((key) => cache.fill(key)))\n}`,
+      },
+      run: { kind: "write", title: "Wrote", detail: "src/cache/warmer.ts" },
+      result: `File created successfully at: ${home}/src/cache/warmer.ts`,
+    },
+    {
+      tool: "Edit",
+      input: {
+        file_path: `${home}/src/jobs/schedule.ts`,
+        old_string: `nightly(backup)`,
+        new_string: `nightly(backup)\nat("05:30", () => warm(hotKeys))`,
+      },
+      run: { kind: "write", title: "Edited", detail: "src/jobs/schedule.ts" },
+      result: `The file ${home}/src/jobs/schedule.ts has been updated successfully.`,
+    },
+    {
+      tool: "Bash",
+      input: { command: "pnpm typecheck", description: "Check the warmer's types" },
+      run: { kind: "run", title: "Ran", detail: "pnpm typecheck" },
+      result: "Done in 2.4s",
+    },
+  ] as const
+  return steps.flatMap((step, index) => {
+    const call = `toolu_${id}s${index + 1}`
+    return [use(call, step.tool, step.input, step.run), got(call, step.result)]
+  })
+}
+
 // What each conversation holds so far: her ask, the agent's plan, and the command it's on;
 // the one that waits asks to run its command, and once allowed reports the tests passed.
 export const chirpTranscripts = (now: number): Readonly<Record<string, DemoTranscript>> =>
@@ -289,8 +326,14 @@ export const chirpTranscripts = (now: number): Readonly<Record<string, DemoTrans
     jobs.map((job, index) => {
       const id = slot(index + 1)
       const call = `${job.agent === "claude" ? "toolu" : "call"}_${id}a`
-      const items = written(id, now, [user(job.ask), say(job.plan), runCall(job, call)])
-      if (index + 1 !== chirpWaiting) return [id, { items, requests: [] }]
+      const asks = index + 1 === chirpWaiting
+      const items = written(id, now, [
+        user(job.ask),
+        ...(asks ? warmerSteps(id) : []),
+        say(job.plan),
+        runCall(job, call),
+      ])
+      if (!asks) return [id, { items, requests: [] }]
       const transcript: DemoTranscript = {
         items,
         requests: [
