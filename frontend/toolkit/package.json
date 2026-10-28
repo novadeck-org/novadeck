@@ -19,6 +19,7 @@
     "./HandleChip": "./src/HandleChip.tsx",
     "./HoverCard": "./src/HoverCard.tsx",
     "./icon-button.css": "./src/icon-button.css",
+    "./icons/AntigravityIcon": "./src/icons/AntigravityIcon.ts",
     "./icons/ClaudeIcon": "./src/icons/ClaudeIcon.ts",
     "./icons/CodexIcon": "./src/icons/CodexIcon.ts",
     "./item.css": "./src/item.css",
