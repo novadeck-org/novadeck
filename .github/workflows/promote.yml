@@ -205,6 +205,8 @@ jobs:
   # (try.yml). A failed deploy leaves the release stable; run Try by hand to retry it.
   try:
     name: Visitor Demo
+    # By the promotion's own result: notes failing doesn't hold the promotion, so nor this.
+    if: ${{ !cancelled() && needs.promote.result == 'success' }}
     needs: [verify, promote]
     permissions:
       contents: read

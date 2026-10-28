@@ -4,9 +4,8 @@ name: Try
 # website: it deploys a release's source, so the demo shows a published version and never
 # unreleased work. Promote to Stable calls this with the release it promotes, so the demo
 # shows what Download gives people and prereleases never reach it. Run workflow deploys a
-# tag by hand. Quality's "Build (try)" builds it on
-# every pull request first. Without Cloudflare set up (docs/development.md, "Visitor build") it deploys
-# nothing and says so.
+# tag by hand. Quality's "Build (try)" builds it on every pull request first. Without
+# Cloudflare set up (docs/development.md, "Visitor build") it deploys nothing and says so.
 
 on:
   workflow_call:
