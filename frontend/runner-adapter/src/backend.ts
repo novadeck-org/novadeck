@@ -1530,6 +1530,14 @@ export const runnerBackend = (
         }),
       ).catch(() => {})
     },
+    // After the projects the person just added exist on the runner, or the arrangement
+    // would name ones it doesn't have yet.
+    arrange: (arrangement) =>
+      track(
+        Promise.allSettled(projects.values()).then(async () => {
+          await untilAnswered(() => runner.projects.arrange(arrangement))
+        }),
+      ),
     source: createRunnerSource(runner.projects),
     resetTitle: (key) => {
       const { terminalId } = key

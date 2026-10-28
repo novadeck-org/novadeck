@@ -35,7 +35,10 @@ describe("the debug panel's Messages group", () => {
       .getSnapshot()
       .terminals[companionKeyId(key)]!.threads.flatMap((thread) => thread.messages)
       .toSorted((a, b) => b.sentAt - a.sentAt)[0]!
-    expect(latest).toMatchObject({ to: "moth", text: expect.stringContaining("Anything else") })
+    expect(latest).toMatchObject({
+      to: { kind: "agent", handle: "moth" },
+      text: expect.stringContaining("Anything else"),
+    })
     expect(run({ ...key, terminalId: "nope" })).toHaveLength(1)
   })
 
@@ -55,6 +58,6 @@ describe("the debug panel's Messages group", () => {
     const peers = messages.state
       .getSnapshot()
       .terminals[companionKeyId(key)]!.threads.map((thread) => thread.peer)
-    expect(peers).toContain("foxz")
+    expect(peers).toContainEqual({ kind: "agent", handle: "foxz", agent: null })
   })
 })

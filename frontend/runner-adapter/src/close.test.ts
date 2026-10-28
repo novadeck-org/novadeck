@@ -90,7 +90,7 @@ describe("closing a terminal while its create is unanswered", () => {
     const runner = droppingRunner()
     const listing: RunnerListing = [
       {
-        project: { id: "p", name: "P", cwd: "/tmp" },
+        project: { id: "p", name: "P", cwd: "/tmp", pinned: false },
         sessions: [
           {
             session: { id: "s", projectId: "p", name: "S", visitedAt: null, state: null },
@@ -201,7 +201,7 @@ const holdingRunner = (close: (id: string) => Promise<void>) => {
           threads: [
             {
               id: "th",
-              peer: handles[1 - index]!,
+              peer: { kind: "agent", handle: handles[1 - index]!, agent: null },
               hops: 1,
               idle: 0,
               held: false,
@@ -218,7 +218,7 @@ const holdingRunner = (close: (id: string) => Promise<void>) => {
   } as unknown as RunnerApi
   const listing: RunnerListing = [
     {
-      project: { id: "p", name: "P", cwd: "/tmp" },
+      project: { id: "p", name: "P", cwd: "/tmp", pinned: false },
       sessions: [
         {
           session: { id: "s", projectId: "p", name: "S", visitedAt: null, state: null },

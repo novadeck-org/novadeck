@@ -2,7 +2,7 @@ import type { AgentActivity, AgentName, TitleSource } from "@novadeck/protocol"
 
 import { mention } from "../terminals/handles.js"
 import { busiestFolders, firstFrom, shorten, type Work } from "../terminals/work.js"
-import { agentLabel, clock, holdOf, isNotice, type Message } from "./messages.js"
+import { agentLabel, clock, holdOf, isNotice, senderTerminal, type Message } from "./messages.js"
 
 /**
  * What the terminal manager knows of a terminal beyond messaging: its title and who it
@@ -153,16 +153,15 @@ export const lastBetween = (
 ): Peer["withYou"] => {
   let last: Message | undefined
   for (const message of messages) {
-    const { from, to } = message
+    const { to } = message
+    const from = senderTerminal(message.from)
     const between =
-      (from.terminalId === self && to.terminalId === peer.terminalId) ||
-      (from.terminalId === peer.terminalId &&
-        to.terminalId === self &&
-        message.state === "delivered")
+      (from === self && to.terminalId === peer.terminalId) ||
+      (from === peer.terminalId && to.terminalId === self && message.state === "delivered")
     if (between && (!last || message.sentAt >= last.sentAt)) last = message
   }
   if (!last) return null
-  const from = last.from.terminalId === self ? "you" : peer.handle
+  const from = senderTerminal(last.from) === self ? "you" : peer.handle
   return { from, text: shorten(last.text, excerptChars), at: last.sentAt }
 }
 

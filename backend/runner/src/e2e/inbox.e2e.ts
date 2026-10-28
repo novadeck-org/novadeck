@@ -207,7 +207,7 @@ for (const setup of setups) {
         },
       })
       expect(told.terminalId).toBe(terminal.id)
-      const before = terminal.messages().threads.filter((thread) => thread.peer === "you")
+      const before = terminal.messages().threads.filter((thread) => thread.peer.kind === "person")
       expect(before).toHaveLength(2)
       expect(
         before
@@ -236,8 +236,8 @@ for (const setup of setups) {
       const history = terminal.messages().threads.flatMap((thread) => thread.messages)
       expect(history.filter((message) => message.inbox === "answer")).toMatchObject([
         {
-          from: "you",
-          to: terminal.handle,
+          from: { kind: "person" },
+          to: { kind: "agent", handle: terminal.handle, agent: expect.anything() },
           state: "delivered",
           text: "Green\n\nUse green, please.",
         },
@@ -349,7 +349,7 @@ for (const setup of setups) {
       expect(terminal.messages().threads.flatMap((thread) => thread.messages)).toContainEqual(
         expect.objectContaining({
           inbox: "answer",
-          from: "you",
+          from: { kind: "person" },
           state: "delivered",
           text: "I signed in",
         }),

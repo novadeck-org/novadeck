@@ -1,4 +1,9 @@
-import type { AgentMessage, MessageThread, TerminalThreads } from "@novadeck/core/messages"
+import type {
+  AgentMessage,
+  MessageParty,
+  MessageThread,
+  TerminalThreads,
+} from "@novadeck/core/messages"
 
 // A terminal's messages as the pane reads them: a list of its conversations, each one
 // other terminal's thread with it or the person's entries, and one opened as a chat.
@@ -17,10 +22,15 @@ export type Conversation = {
 
 export const youKey = "you"
 
+// A party's key and handle as the pane shows it: an agent's terminal handle, or `you` for the
+// person.
+export const handleOf = (party: MessageParty): string =>
+  party.kind === "agent" ? party.handle : youKey
+
 export const conversationsOf = (terminal: TerminalThreads): readonly Conversation[] => {
   const byPeer = new Map<string, MessageThread[]>()
   for (const thread of terminal.threads)
-    byPeer.set(thread.peer, [...(byPeer.get(thread.peer) ?? []), thread])
+    byPeer.set(handleOf(thread.peer), [...(byPeer.get(handleOf(thread.peer)) ?? []), thread])
   return [...byPeer].map(([peer, threads]): Conversation => {
     const asked = new Map<string, AgentMessage>()
     for (const thread of threads) {
@@ -33,7 +43,7 @@ export const conversationsOf = (terminal: TerminalThreads): readonly Conversatio
       threads.length === 1
         ? threads[0]!.messages
         : threads.flatMap((thread) => thread.messages).toSorted((a, b) => a.sentAt - b.sentAt)
-    return { key: peer === "you" ? youKey : peer, peer, messages, asked }
+    return { key: peer, peer, messages, asked }
   })
 }
 
@@ -70,7 +80,7 @@ export const cornerOf = (conversation: Conversation, seenAt: number): Corner => 
   const news = you
     ? openEntries(conversation, "tell") > 0
     : conversation.messages.some(
-        (message) => message.from === conversation.peer && message.sentAt > seenAt,
+        (message) => handleOf(message.from) === conversation.peer && message.sentAt > seenAt,
       )
   return news ? { kind: "unread" } : { kind: "time", at: last?.sentAt ?? 0 }
 }
@@ -142,7 +152,8 @@ export const burstMs = 10 * 60_000
 
 // Whether two messages say the same, numbers aside, from the same sender.
 const same = (a: AgentMessage, b: AgentMessage): boolean =>
-  a.from === b.from && a.text.replace(/\d+/g, "#") === b.text.replace(/\d+/g, "#")
+  handleOf(a.from) === handleOf(b.from) &&
+  a.text.replace(/\d+/g, "#") === b.text.replace(/\d+/g, "#")
 
 // Rounds of two messages that come again: three or more of the same round fold, all but the
 // last, which stays in full, so a loop shows as one; never over a message still on its way
@@ -197,8 +208,8 @@ export const chatOf = (
   unfolded: boolean,
 ): readonly ChatLine[] => {
   const you = conversation.key === youKey
-  const mine = you ? "you" : self
-  const lastMine = conversation.messages.findLast((message) => message.from === mine)
+  const mine = you ? youKey : self
+  const lastMine = conversation.messages.findLast((message) => handleOf(message.from) === mine)
   const lines: ChatLine[] = []
   let prev: AgentMessage | null = null
   let fresh = false
@@ -209,7 +220,7 @@ export const chatOf = (
   }
   const one = (message: AgentMessage): void => {
     burst(message)
-    if (you && !fresh && message.inboxState === "open" && message.from !== "you") {
+    if (you && !fresh && message.inboxState === "open" && message.from.kind === "agent") {
       lines.push({ kind: "new", key: "new" })
       fresh = true
       prev = null
@@ -218,8 +229,8 @@ export const chatOf = (
       kind: "message",
       key: message.id,
       message,
-      side: message.from === mine ? "out" : "in",
-      grouped: prev?.from === message.from,
+      side: handleOf(message.from) === mine ? "out" : "in",
+      grouped: prev !== null && handleOf(prev.from) === handleOf(message.from),
       note: noteOf(message, message === lastMine),
     })
     prev = message

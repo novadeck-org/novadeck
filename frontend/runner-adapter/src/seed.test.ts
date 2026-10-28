@@ -15,7 +15,12 @@ import { encodeSession } from "./session-state"
 import { context, describe, expect, it } from "./test"
 
 const uuid = (n: number): string => `00000000-0000-4000-8000-${String(n).padStart(12, "0")}`
-const project = (n: number): Project => ({ id: uuid(n), name: `Project ${n}`, cwd: `/work/${n}` })
+const project = (n: number): Project => ({
+  id: uuid(n),
+  name: `Project ${n}`,
+  cwd: `/work/${n}`,
+  pinned: false,
+})
 // A terminal as the runner reports it: live, unless `started` says it keeps it only saved.
 const summary = (
   n: number,
@@ -111,6 +116,21 @@ describe("runner seed", () => {
     const listing: RunnerListing = [
       { project: project(1), sessions: [{ session: fresh(10), terminals: [] }] },
     ]
+
+    it("seeds the projects in the runner's order, each with its pin, and none in the workspace", () => {
+      const arranged: RunnerListing = [2, 1].map((n) => ({
+        project: { ...project(n), pinned: n === 1 },
+        sessions: [{ session: fresh(10 * n), terminals: [] }],
+      }))
+      const seed = runnerSeed(arranged)
+      expect(seed.projects.map(({ id, pinned }) => [id, pinned])).toEqual([
+        [uuid(2), false],
+        [uuid(1), true],
+      ])
+      expect(workspaceFromSeed(seed, defaults).projects.map((each) => each)).not.toContainEqual(
+        expect.objectContaining({ pinned: expect.anything() }),
+      )
+    })
 
     it("opens the only project with an empty session in the default views", () => {
       const workspace = workspaceFromSeed(runnerSeed(listing), defaults)

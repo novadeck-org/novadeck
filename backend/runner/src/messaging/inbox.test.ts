@@ -20,7 +20,7 @@ import {
   withdrawnNotice,
   type InboxRecords,
 } from "./inbox.js"
-import { retentionMs, wrap, type Message } from "./messages.js"
+import { personSender, retentionMs, wrap, type Message } from "./messages.js"
 import { Messaging } from "./messaging.js"
 import { memoryMessages, type MessageRecords } from "./records.js"
 
@@ -177,16 +177,21 @@ describe("Inbox asks and updates", () => {
     )
     expect(terminalMessages.safeParse(listing).success).toBe(true)
     expect(listing.threads[0]).toMatchObject({
-      peer: "you",
+      peer: { kind: "person" },
       idle: 0,
       held: false,
       heldFor: null,
       messages: [
-        { inbox: "ask", from: "moth", to: "you", state: "delivered" },
+        {
+          inbox: "ask",
+          from: { kind: "agent", handle: "moth" },
+          to: { kind: "person" },
+          state: "delivered",
+        },
         {
           inbox: "answer",
-          from: "you",
-          to: "moth",
+          from: { kind: "person" },
+          to: { kind: "agent", handle: "moth" },
           text: "Green\n\nPlease use this.",
           state: "queued",
         },
@@ -428,7 +433,7 @@ describe("Inbox persistence and identity", () => {
     ).toBe(true)
     expect(
       messaging.list(identity.terminalId, identity.handle).threads[0]?.messages[0],
-    ).toMatchObject({ from: "fox" })
+    ).toMatchObject({ from: { kind: "agent", handle: "fox" } })
     expect(
       messaging.list(identity.terminalId, identity.handle).threads[0]?.messages[0],
     ).not.toHaveProperty("inbox")
@@ -1309,12 +1314,15 @@ const waitingMessage = (index: number, person = false): Message => ({
   projectId: identity.projectId,
   thread: `t-wait${index}`,
   hop: 1,
-  from: {
-    terminalId: person ? "you" : "peer",
-    handle: person ? "you" : "fox",
-    agent: person ? null : "codex",
-    sessionId: person ? null : "peer-session",
-  },
+  from: person
+    ? personSender
+    : {
+        kind: "agent",
+        terminalId: "peer",
+        handle: "fox",
+        agent: "codex",
+        sessionId: "peer-session",
+      },
   to: {
     terminalId: identity.terminalId,
     handle: identity.handle,

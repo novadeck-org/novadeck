@@ -14,6 +14,7 @@ import { companionKeyId } from "./items"
 import {
   waitingFor,
   type AgentMessage,
+  type MessageParty,
   type MessagesState,
   type MessageWaits,
   type MessageThread,
@@ -100,16 +101,19 @@ const heldOf = (
   message: AgentMessage,
   where: Where[],
 ): InboxRow | undefined => {
-  const named = (handle: string) => where.find(({ terminal }) => terminal.handle === handle)
+  const named = (party: MessageParty) =>
+    party.kind === "agent"
+      ? where.find(({ terminal }) => terminal.handle === party.handle)
+      : undefined
   const sender = named(message.from)
   const recipient = named(message.to)
   const source = [sender, recipient].find((each) => each && agentOf(each.terminal))
   const agent = source && agentOf(source.terminal)
   if (!source || !agent) return undefined
-  const person = (handle: string, found: Where | undefined) => ({
-    handle,
-    title: found?.terminal.name ?? handle,
-  })
+  const person = (party: MessageParty, found: Where | undefined) => {
+    const handle = party.kind === "agent" ? party.handle : "you"
+    return { handle, title: found?.terminal.name ?? handle }
+  }
   return {
     id: `held:${thread.id}`,
     source: sourceOf(source, agent),

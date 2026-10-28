@@ -3,6 +3,7 @@ import { emptyCompanions, isOnBar } from "@novadeck/core/items"
 import {
   noMessages,
   type AgentMessage,
+  type MessageParty,
   type MessagesState,
   type Messages,
 } from "@novadeck/core/messages"
@@ -19,6 +20,8 @@ import { createItemStore, type ItemStore } from "../../state"
 import { context, describe, expect, it } from "../../test"
 import { followMessages, noLinks } from "./messages/messages"
 import { TerminalCompanion, type ItemCommands } from "./TerminalCompanion"
+
+const agent = (handle: string): MessageParty => ({ kind: "agent", handle, agent: null })
 
 // jsdom has no layout and no resizes; the taskbar's drag-to-reorder asks for them.
 vi.hoisted(() => {
@@ -118,8 +121,8 @@ const renderTerminal = (
 const message = (id: string): AgentMessage => ({
   id,
   hop: 1,
-  from: "fox",
-  to: "moth",
+  from: agent("fox"),
+  to: agent("moth"),
   text: "Ready for review",
   sentAt: 0,
   state: "delivered",
@@ -132,7 +135,9 @@ const messagesOf = (messages: readonly AgentMessage[]): MessagesState => ({
     "project/initial/01": {
       handle: "moth",
       agent: true,
-      threads: [{ id: "th", peer: "fox", hops: 1, idle: 0, held: false, heldFor: null, messages }],
+      threads: [
+        { id: "th", peer: agent("fox"), hops: 1, idle: 0, held: false, heldFor: null, messages },
+      ],
     },
   },
 })

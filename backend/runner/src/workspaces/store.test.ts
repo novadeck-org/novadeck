@@ -20,7 +20,7 @@ import { vi } from "vitest"
 
 import type { ItemRecord } from "../companions/records.js"
 import { DomainError } from "../errors.js"
-import { novadeckSender, type Message, type Thread } from "../messaging/messages.js"
+import { novadeckSender, personSender, type Message, type Thread } from "../messaging/messages.js"
 import { handleOrder, handleWords } from "../terminals/handles.js"
 import { sealedShape } from "../terminals/sealing.js"
 import { describe, expect, it as base } from "../test.js"
@@ -190,6 +190,8 @@ const normalisedSchemaOf = (database: DatabaseSync) =>
     sql: sql
       .replace(/--[^\n]*/g, "")
       .replace(/\s+/g, " ")
+      // ALTER TABLE ADD COLUMN leaves its column after a line break, as ` , rank INTEGER`.
+      .replace(/ ,/g, ",")
       .replace(/\( /g, "(")
       .replace(/ \)/g, ")")
       .trim(),
@@ -253,7 +255,7 @@ describe("workspace metadata", () => {
     expect(first.id).toMatch(/^[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12}$/)
     const database = new DatabaseSync(path)
     try {
-      expect(database.prepare("PRAGMA user_version").get()?.user_version).toBe(7)
+      expect(database.prepare("PRAGMA user_version").get()?.user_version).toBe(8)
       expect(database.prepare("PRAGMA foreign_key_check").all()).toEqual([])
       expect(() =>
         database
@@ -382,7 +384,7 @@ describe("workspace metadata", () => {
       ...message(id, "queued"),
       projectId,
       thread: `t-${id}`,
-      from: { terminalId: "you", handle: "you", agent: null, sessionId: null },
+      from: personSender,
       response: { askId: id, subject: "Go?" },
     })
     workspace.saveMessage(answer("a-1", removed.id))
@@ -487,13 +489,13 @@ describe("workspace metadata", () => {
     const path = join(directory(), "workspace.sqlite")
     const future = new DatabaseSync(path)
     future.exec(
-      "CREATE TABLE future_data (value TEXT); INSERT INTO future_data VALUES ('saved'); PRAGMA user_version = 8",
+      "CREATE TABLE future_data (value TEXT); INSERT INTO future_data VALUES ('saved'); PRAGMA user_version = 9",
     )
     future.close()
     expect(() => new WorkspaceStore(path)).toThrow(/newer/)
     const database = new DatabaseSync(path)
     try {
-      expect(database.prepare("PRAGMA user_version").get()?.user_version).toBe(8)
+      expect(database.prepare("PRAGMA user_version").get()?.user_version).toBe(9)
       expect(database.prepare("SELECT value FROM future_data").get()?.value).toBe("saved")
     } finally {
       database.close()
@@ -545,7 +547,7 @@ describe("workspace metadata", () => {
     new WorkspaceStore(path).close()
     const database = new DatabaseSync(path)
     try {
-      expect(database.prepare("PRAGMA user_version").get()?.user_version).toBe(7)
+      expect(database.prepare("PRAGMA user_version").get()?.user_version).toBe(8)
       expect(database.prepare("PRAGMA foreign_key_check").all()).toEqual([])
       // Every old table is gone, and so are the old names.
       expect(Object.keys(rowsOf(database)).toSorted()).toEqual(
@@ -1001,17 +1003,12 @@ describe("workspace metadata", () => {
     })
     expect(workspace.terminal("u")?.naming.opener).toBeNull()
     const messages = workspace.messages()
-    expect(messages.map(({ id, thread, from }) => [id, thread, from.terminalId])).toEqual([
-      ["m", "th", "t"],
-      ["answer", "t-a1b2", "you"],
+    expect(messages.map(({ id, thread, from }) => [id, thread, from.kind])).toEqual([
+      ["m", "th", "agent"],
+      ["answer", "t-a1b2", "person"],
       ["notice", "t-notice-notice", "novadeck"],
     ])
-    expect(messages[1]!.from).toEqual({
-      terminalId: "you",
-      handle: "you",
-      agent: null,
-      sessionId: null,
-    })
+    expect(messages[1]!.from).toEqual(personSender)
     expect(messages[2]!.from).toEqual(novadeckSender)
     // What was read is written back as it was.
     for (const message of messages) workspace.saveMessage(message)
@@ -1040,6 +1037,89 @@ describe("workspace metadata", () => {
     // `schemaDifference` compares only columns; this is every constraint, index and default.
     expect(migrated).toEqual(created)
     expect(created!.length).toBeGreaterThan(15)
+  })
+
+  it("carries a version 7 database to the very tables a new one is made with, its projects unarranged", async ({
+    directory,
+  }) => {
+    const path = join(directory(), "workspace.sqlite")
+    const old = new DatabaseSync(path)
+    old.exec(`${readFileSync(new URL("schemas/7.sql", import.meta.url), "utf8")}
+      PRAGMA user_version = 7;
+      INSERT INTO projects (position, id, name, cwd) VALUES (1, 'b', 'Second', '/b'),
+        (2, 'a', 'First', '/a');`)
+    old.close()
+    const migrated = new WorkspaceStore(path)
+    expect(migrated.projects()).toEqual([
+      { id: "b", name: "Second", cwd: "/b", pinned: false },
+      { id: "a", name: "First", cwd: "/a", pinned: false },
+    ])
+    migrated.close()
+    const fresh = join(directory(), "workspace.sqlite")
+    new WorkspaceStore(fresh).close()
+    const [carried, created] = [path, fresh].map((file) => {
+      const database = new DatabaseSync(file)
+      try {
+        return normalisedSchemaOf(database)
+      } finally {
+        database.close()
+      }
+    })
+    expect(carried).toEqual(created)
+  })
+
+  it("lists projects in the person's order, then the unarranged ones as added, and keeps their pins", async ({
+    directory,
+    store,
+  }) => {
+    const cwd = directory()
+    const path = join(cwd, "workspace.sqlite")
+    const workspace = store(path)
+    for (const id of ["a", "b", "c", "d"]) {
+      // eslint-disable-next-line no-await-in-loop -- Made one after another, so they list in that order.
+      expect((await workspace.createProject({ id, name: id, cwd })).pinned).toBe(false)
+    }
+    expect(workspace.projects().map(({ id, pinned }) => [id, pinned])).toEqual([
+      ["a", false],
+      ["b", false],
+      ["c", false],
+      ["d", false],
+    ])
+    // Unknown ids and repeats are ignored; `d` is left out, and `b` named pinned but not ordered.
+    workspace.arrangeProjects(["c", "gone", "a", "c"], ["a", "b", "gone"])
+    expect(workspace.projects().map(({ id, pinned }) => [id, pinned])).toEqual([
+      ["c", false],
+      ["a", true],
+      ["b", false],
+      ["d", false],
+    ])
+    expect(workspace.renameProject({ projectId: "a", name: "A" }).pinned).toBe(true)
+    workspace.close()
+    expect(
+      store(path)
+        .projects()
+        .map(({ id }) => id),
+    ).toEqual(["c", "a", "b", "d"])
+  })
+
+  it("pins at most nine projects, the first nine in the person's order", async ({
+    directory,
+    store,
+  }) => {
+    const cwd = directory()
+    const workspace = store(join(cwd, "workspace.sqlite"))
+    const ids = Array.from({ length: 11 }, (_, index) => `p${index}`)
+    // eslint-disable-next-line no-await-in-loop -- Made one after another, so they list in that order.
+    for (const id of ids) await workspace.createProject({ id, name: id, cwd })
+    const order = ids.toReversed()
+    workspace.arrangeProjects(order, ids)
+    expect(workspace.projects().map(({ id }) => id)).toEqual(order)
+    expect(
+      workspace
+        .projects()
+        .filter(({ pinned }) => pinned)
+        .map(({ id }) => id),
+    ).toEqual(order.slice(0, 9))
   })
 
   it("sets aside, unchanged, a version 6 database whose step forward fails", ({ directory }) => {
@@ -1254,8 +1334,8 @@ describe("workspace metadata", () => {
       // and adds a step in store.ts's migrations, from schemas/<version before>.sql, which
       // is added for it. Then record the new digest here.
       expect({ version, digest }).toEqual({
-        version: 7,
-        digest: "b2dcd7a505a936f2ec95bd0ded71b7bfffc5882e3934c4238316406237573970",
+        version: 8,
+        digest: "f61e02a512d9a259d5f47cebd870774b66a7d69fa58cf09801e41d863e20d9c1",
       })
     } finally {
       database.close()
@@ -1899,7 +1979,7 @@ const message = (id: string, state: Message["state"]): Message => ({
   projectId: "p",
   thread: "t-1",
   hop: 1,
-  from: { terminalId: "a", handle: "moth", agent: null, sessionId: null },
+  from: { kind: "agent", terminalId: "a", handle: "moth", agent: null, sessionId: null },
   to: { terminalId: "b", handle: "fox", agent: "codex", sessionId: "s" },
   text: "Review a.ts\n\twith care",
   sentAt: 1.5,

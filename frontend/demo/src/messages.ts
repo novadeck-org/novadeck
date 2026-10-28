@@ -4,6 +4,7 @@ import {
   noMessages,
   type AgentMessage,
   type InboxHistory,
+  type MessageParty,
   type MessageWaits,
   type MessagesState,
   type MessageThread,
@@ -17,6 +18,13 @@ import { demoTerminalId } from "./samples"
 
 // A demo set of messages: threads between the sample terminals, kept the way the runner keeps
 // them, so pausing holds what waits and releasing a thread lets it go on, as there.
+
+// The demo keeps who a thread is between by handle, and the person as `you`; its messages
+// name them as the runner's do.
+const person = "you"
+
+export const partyOf = (handle: string): MessageParty =>
+  handle === person ? { kind: "person" } : { kind: "agent", handle, agent: null }
 
 // The runner's loop hold: a thread is held at its sixth idle message in a row, and a pair
 // keeps at most ten messages waiting held for release.
@@ -126,7 +134,7 @@ const messagesOf = (
       const messages = thread.messages.map((message) => shown(message, thread, paused))
       return {
         id: thread.id,
-        peer: thread.between[0] === handle ? thread.between[1] : thread.between[0],
+        peer: partyOf(thread.between[0] === handle ? thread.between[1] : thread.between[0]),
         hops: thread.hops,
         idle: idleRun(thread),
         held: holdHop(thread) !== undefined,
@@ -343,8 +351,8 @@ export const createDemoMessages = (
               ? "done"
               : "tell",
         ...(!reply ? { inboxState: outcome ?? (answer ? "read" : "open") } : {}),
-        from: reply ? "you" : source.handle,
-        to: reply ? source.handle : "you",
+        from: reply ? { kind: "person" } : partyOf(source.handle),
+        to: reply ? partyOf(source.handle) : { kind: "person" },
         text,
         sentAt: reply ? Date.now() : item.at,
         deliveredAt: reply ? null : item.at,
@@ -424,8 +432,8 @@ export const createDemoMessages = (
         id: `${id}-${hop}`,
         hop,
         ...(idle ? { idle: true as const } : {}),
-        from,
-        to,
+        from: partyOf(from),
+        to: partyOf(to),
         text,
         sentAt: Date.now(),
         state: "queued",
@@ -585,8 +593,8 @@ const message = (
 ): DemoMessage => ({
   id: `m-demo${(sequence += 1)}`,
   hop,
-  from,
-  to,
+  from: partyOf(from),
+  to: partyOf(to),
   text,
   sentAt: minutes(now, ago),
   state,

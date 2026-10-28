@@ -83,6 +83,9 @@ export const createRouter = (options: {
         store.createProject({ ...input, cwd: input.cwd ?? homedir() }),
       ),
       rename: api.projects.rename.handler(({ input }) => store.renameProject(input)),
+      arrange: api.projects.arrange.handler(({ input }) =>
+        projects.arrange(input.order, input.pinned),
+      ),
       remove: api.projects.remove.handler(({ input }) => projects.remove(input.projectId)),
       folder: api.projects.folder.handler(({ input }) => {
         projects.ensureNotRemoving(input.projectId)

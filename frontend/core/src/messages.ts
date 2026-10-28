@@ -22,6 +22,13 @@ export type InboxHistory =
   | "gone"
   | "undelivered"
 
+// Who a message is from or for: a terminal's agent, by the terminal's handle such as `moth`
+// (`agent` its name, null while none had bound there), or the person. The core can't import
+// the protocol's wire contracts, so this mirrors its `MessageParty`.
+export type MessageParty =
+  | { readonly kind: "agent"; readonly handle: string; readonly agent: string | null }
+  | { readonly kind: "person" }
+
 export type AgentMessage = {
   readonly id: string
   // Inbox entries and the person's replies share a thread with You.
@@ -29,9 +36,8 @@ export type AgentMessage = {
   readonly inboxState?: InboxHistory
   // Its place in its thread, counted from 1.
   readonly hop: number
-  // The sender's and recipient's handles, such as `moth`.
-  readonly from: string
-  readonly to: string
+  readonly from: MessageParty
+  readonly to: MessageParty
   readonly text: string
   // Epoch milliseconds.
   readonly sentAt: number
@@ -41,13 +47,13 @@ export type AgentMessage = {
   readonly deliveredAt: number | null
 }
 
-// A terminal's thread with one other terminal, by that terminal's handle: how many
+// A terminal's thread with one other party, a terminal by its handle or the person: how many
 // messages it has had, how many idle ones in a row (sent while neither end worked), and its
 // messages, oldest first. `held` while the thread has a hold, `heldFor` its reason: `loop`,
 // or null for a hold carried over from the old rule.
 export type MessageThread = {
   readonly id: string
-  readonly peer: string
+  readonly peer: MessageParty
   readonly hops: number
   readonly idle: number
   readonly held: boolean
@@ -186,7 +192,10 @@ const waitingStates: ReadonlySet<MessageState> = new Set(["queued", "leased", "h
 export const waitingFor = (terminalMessages: TerminalThreads): readonly AgentMessage[] =>
   terminalMessages.threads.flatMap((thread) =>
     thread.messages.filter(
-      (message) => message.to === terminalMessages.handle && waitingStates.has(message.state),
+      (message) =>
+        message.to.kind === "agent" &&
+        message.to.handle === terminalMessages.handle &&
+        waitingStates.has(message.state),
     ),
   )
 

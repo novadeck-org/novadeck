@@ -184,6 +184,13 @@ second call while it goes shares the first, and one after it, like one for a pro
 the runner never had, rejects with `NOT_FOUND`. A runner that shuts down before the
 removal is done rejects it with `CLOSING` and keeps the project, for a client to
 remove again from the next runner.
+`projects.list` gives the projects in the order the person arranged them, each with
+`pinned`; `projects.arrange({ order, pinned })` keeps that arrangement: `order` is project
+ids, first to last, and `pinned` the ones pinned, at most nine, the first in `order` (one
+`order` doesn't name isn't pinned).
+Unknown ids are ignored, projects `order` leaves out follow in the order they were added
+(with no pin), and a project being removed is left out. Other clients see the change when
+they next list the projects.
 `projects.folder({ projectId, folder })` lists one folder of the project's directory,
 `folder` being its path from the project's root with `/` between names (`""` for the
 root). Entries come sorted, folders first, then by name ignoring case and a leading dot
@@ -338,13 +345,14 @@ for await (const listing of runner.messages.watch(terminalId)) show(listing) // 
 
 `messages.list(terminalId)` gives a running or exited terminal's handle, its delivery
 state (`unbound`, `fresh`, `working`, `settled`, `ringing`, `drafting` or `unknown`), whether
-messaging is paused, and its threads, newest first, each with the other terminal's
-handle, its hops so far, its idle messages in a row (sent while neither end worked, see
+messaging is paused, and its threads, newest first, each with its `peer`, the other party
+(a terminal's agent, `{ kind: "agent", handle, agent }`, or the person, `{ kind: "person" }`),
+its hops so far, its idle messages in a row (sent while neither end worked, see
 [Guards](agent-messaging.md#guards)), whether it is held and why (`heldFor`: `"loop"`, or
-null when not held or for a hold carried over from the twelve-hop rule), whether the person stopped it, and its messages, oldest first: id, hop, sender and recipient
-handles and agents, text, when sent, state (`queued`, `leased`, `delivered`, `held` or
+null when not held or for a hold carried over from the twelve-hop rule), whether the person stopped it, and its messages, oldest first: id, hop, its `from` and `to`
+parties (a recipient agent's `agent` is never null), text, when sent, state (`queued`, `leased`, `delivered`, `held` or
 `gone`), why it is held (`paused` or `release`), and when delivered. Inbox history
-adds optional `inbox: "ask" | "tell" | "done" | "answer"`; its person party is the handle `you`.
+adds optional `inbox: "ask" | "tell" | "done" | "answer"`; the person in it is `{ kind: "person" }`.
 Ask, tell and done traces also have `inboxState`: `open`, `answered`, `read`, `withdrawn`,
 `gone` (the asking session ended, or did not come back within two minutes of a runner restart), or `undelivered` (the person's reply went gone before
 reaching the agent). A reply already delivered stays delivered when the session ends.

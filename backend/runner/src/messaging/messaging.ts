@@ -63,6 +63,9 @@ import {
   novadeckSender,
   personSender,
   newMark,
+  senderTerminal,
+  senderParty,
+  addresseeParty,
   wrap,
   type Message,
   type Thread,
@@ -1507,7 +1510,7 @@ export class Messaging {
       { live: Live; waits: Waits | null; since: number; ids: string[] }
     >()
     for (const message of this.messages.values()) {
-      if (message.from.terminalId !== terminalId) continue
+      if (senderTerminal(message.from) !== terminalId) continue
       const to = this.live.get(message.to.terminalId)
       const since = to && this.heldSince(to, message)
       if (!to || since === undefined || now - since < longHoldMs) continue
@@ -1705,7 +1708,7 @@ export class Messaging {
     return [...this.messages.values()].filter(
       (message) =>
         message.to.terminalId === terminalId &&
-        message.from.terminalId !== except &&
+        senderTerminal(message.from) !== except &&
         !isNotice(message) &&
         undelivered(message),
     ).length
@@ -1720,7 +1723,9 @@ export class Messaging {
   }[] {
     const gone = [...this.messages.values()].filter(
       (message) =>
-        message.from.terminalId === terminalId && message.state === "gone" && !message.notified,
+        senderTerminal(message.from) === terminalId &&
+        message.state === "gone" &&
+        !message.notified,
     )
     for (const message of gone) this.put({ ...message, notified: true })
     const told = gone.map((message) => ({
@@ -1944,6 +1949,7 @@ export class Messaging {
       thread: "t-0000000000",
       hop: 1,
       from: {
+        kind: "agent",
         terminalId: live.terminalId,
         handle: live.handle,
         agent: live.root?.agent ?? null,
@@ -1994,6 +2000,8 @@ export class Messaging {
           "wait for it to take them before sending more.",
       )
     const now = message.sentAt
+    // Only terminals' agents send under the rates; the person's and Novadeck's never come here.
+    if (from.kind !== "agent") return refused("Only an agent's message is sent this way.")
     const pair = `${from.terminalId}\0${to.terminalId}`
     const bySender = allowSend(this.sent.get(from.terminalId) ?? [], now, rates.sender)
     const byPair = allowSend(this.pairs.get(pair) ?? [], now, rates.pair)
@@ -2038,8 +2046,8 @@ export class Messaging {
       (message) =>
         !message.response &&
         message.state === "held" &&
-        ((message.from.terminalId === a && message.to.terminalId === b) ||
-          (message.from.terminalId === b && message.to.terminalId === a)) &&
+        ((senderTerminal(message.from) === a && message.to.terminalId === b) ||
+          (senderTerminal(message.from) === b && message.to.terminalId === a)) &&
         this.holdOf(message) === "release",
     )
     if (held.length === 0) return undefined
@@ -2048,8 +2056,8 @@ export class Messaging {
       .filter(
         (message) =>
           !message.response &&
-          ((message.from.terminalId === a && message.to.terminalId === b) ||
-            (message.from.terminalId === b && message.to.terminalId === a)),
+          ((senderTerminal(message.from) === a && message.to.terminalId === b) ||
+            (senderTerminal(message.from) === b && message.to.terminalId === a)),
       )
       .reduce((newest, message) => Math.max(newest, message.sentAt), 0)
     return { from: last, run: run ?? { count: idleToHold, senders: [] } }
@@ -2061,8 +2069,8 @@ export class Messaging {
       (message) =>
         !message.response &&
         message.state === "held" &&
-        ((message.from.terminalId === a && message.to.terminalId === b) ||
-          (message.from.terminalId === b && message.to.terminalId === a)) &&
+        ((senderTerminal(message.from) === a && message.to.terminalId === b) ||
+          (senderTerminal(message.from) === b && message.to.terminalId === a)) &&
         this.holdOf(message) === "release",
     ).length
   }
@@ -2082,7 +2090,7 @@ export class Messaging {
         "it arrives once the user releases it."
       )
     const senders = this.runs.get(message.thread)?.senders ?? []
-    const own = senders.length > 0 && senders.every((each) => each === message.from.terminalId)
+    const own = senders.length > 0 && senders.every((each) => each === senderTerminal(message.from))
     return (
       (own ? `you kept messaging ${peer}` : `you and ${peer} kept messaging`) +
       " while neither of you did any work, so Novadeck holds your thread until the user " +
@@ -2101,7 +2109,7 @@ export class Messaging {
     const mine = [...this.messages.values()]
       .filter(
         (message) =>
-          message.from.terminalId === terminalId &&
+          senderTerminal(message.from) === terminalId &&
           (undelivered(message) || message.state === "gone"),
       )
       .toSorted((a, b) => a.sentAt - b.sentAt)
@@ -2134,7 +2142,7 @@ export class Messaging {
       .filter(
         (message) =>
           !isNotice(message) &&
-          (message.from.terminalId === terminalId || message.to.terminalId === terminalId),
+          (senderTerminal(message.from) === terminalId || message.to.terminalId === terminalId),
       )
       .toSorted((a, b) => a.sentAt - b.sentAt)
     const byThread = new Map<string, Message[]>()
@@ -2143,7 +2151,10 @@ export class Messaging {
     const threads: MessageThread[] = [...byThread].map(([id, messages]) => {
       const thread = this.threads.get(id)
       const [first] = messages
-      const peer = first!.from.terminalId === terminalId ? first!.to.handle : first!.from.handle
+      const peer =
+        senderTerminal(first!.from) === terminalId
+          ? addresseeParty(first!.to)
+          : senderParty(first!.from)
       return {
         id,
         peer,
@@ -2156,10 +2167,8 @@ export class Messaging {
           id: message.id,
           thread: message.thread,
           hop: message.hop,
-          from: message.from.handle,
-          fromAgent: message.from.agent,
-          to: message.to.handle,
-          toAgent: message.to.agent,
+          from: senderParty(message.from),
+          to: addresseeParty(message.to),
           text: message.response?.feedback
             ? ["Asked to write feedback about Novadeck.", message.text].filter(Boolean).join("\n\n")
             : message.response
@@ -2247,7 +2256,8 @@ export class Messaging {
     const terminals = new Set<string>([a, b])
     for (const message of this.messages.values()) {
       if (!ids.has(message.thread)) continue
-      terminals.add(message.from.terminalId).add(message.to.terminalId)
+      if (message.from.kind === "agent") terminals.add(message.from.terminalId)
+      terminals.add(message.to.terminalId)
       if (message.state === "held") this.wait(message)
     }
     // Its hold ended, whether or not any message waited.
@@ -2270,7 +2280,8 @@ export class Messaging {
     const terminals = new Set<string>()
     for (const message of this.messages.values()) {
       if (message.thread !== threadId) continue
-      terminals.add(message.from.terminalId).add(message.to.terminalId)
+      if (message.from.kind === "agent") terminals.add(message.from.terminalId)
+      terminals.add(message.to.terminalId)
       if (message.state === "queued" || message.state === "held") {
         this.noteGone(message, "thread-stopped")
         this.put({ ...message, state: "gone", notified: false, stopped: true })
@@ -2311,7 +2322,7 @@ export class Messaging {
     const now = this.now()
     const old = [...this.messages.values()].filter(
       (message) =>
-        !this.exists(message.from.terminalId) &&
+        (message.from.kind !== "agent" || !this.exists(message.from.terminalId)) &&
         !this.exists(message.to.terminalId) &&
         now - Math.max(message.sentAt, message.deliveredAt ?? 0, message.response?.goneAt ?? 0) >=
           retentionMs,
@@ -2799,7 +2810,7 @@ export class Messaging {
     if (message.response) this.responses.set(message.response.askId, message.id)
     this.write(() => this.records.saveMessage(message))
     this.changed(message.to.terminalId)
-    this.changed(message.from.terminalId)
+    if (message.from.kind === "agent") this.changed(message.from.terminalId)
   }
 
   private changed(terminalId: string): void {

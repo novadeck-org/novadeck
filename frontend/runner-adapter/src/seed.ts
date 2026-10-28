@@ -195,6 +195,7 @@ export const runnerSeed = (
     id: project.id,
     name: project.name,
     directory: project.cwd,
+    pinned: project.pinned,
     sessions: sessions.map((session) => session.seed),
   }))
   return latest?.sessions[0] && latest.sessions[0].visitedAt !== null

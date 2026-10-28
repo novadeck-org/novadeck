@@ -141,7 +141,12 @@ export const agentContext = (
 export const answersOf = (threads: TerminalThreads | undefined): readonly Said[] =>
   (threads?.threads ?? []).flatMap((thread) =>
     thread.messages.flatMap((message): Said[] => {
-      if (message.to !== threads!.handle || message.deliveredAt === null) return []
+      if (
+        message.to.kind !== "agent" ||
+        message.to.handle !== threads!.handle ||
+        message.deliveredAt === null
+      )
+        return []
       if (message.inbox !== "answer") return []
       const text = message.text.trim()
       return text ? [{ text, at: message.deliveredAt }] : []
