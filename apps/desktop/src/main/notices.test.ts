@@ -254,7 +254,7 @@ describe("a notice's sound", () => {
   })
 
   it("is dropped, the notice staying, when it names anything else", () => {
-    for (const sound of ["ding", "../afterglow", "AFTERGLOW", "graphite", "toString", 1, null, {}])
+    for (const sound of ["ding", "../afterglow", "AFTERGLOW", "coolant", "toString", 1, null, {}])
       expect(desktopNoticeOf({ ...notice, sound })).toEqual(notice)
   })
 

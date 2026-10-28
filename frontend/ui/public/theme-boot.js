@@ -8,11 +8,12 @@
 ;(() => {
   // The record carries the theme's schemes, so this file needs no list of themes and
   // shows whatever theme was picked. A theme is a plain id; its schemes are light, dark
-  // or both. The default is Graphite, which has both. The record says which version
+  // or both. The default is Coolant, which has both. The record says which version
   // wrote it (v 2): older versions saved the same fields for themes since retired, so
   // only a version-2 record names the theme.
   const known = new Set(["light", "dark"])
-  let theme = "graphite"
+  const renamed = { __proto__: null, graphite: "coolant" }
+  let theme = "coolant"
   let schemes = ["light", "dark"]
   let choice = "system"
   let ground = ""
@@ -37,7 +38,9 @@
         saved.schemes.length > 0 &&
         saved.schemes.every((entry) => known.has(entry))
       ) {
-        theme = saved.theme
+        // A theme renamed since the record was saved shows under its new id, as the
+        // manifest's formerIds read it in apply.ts.
+        theme = renamed[saved.theme] ?? saved.theme
         schemes = saved.schemes
       }
     }

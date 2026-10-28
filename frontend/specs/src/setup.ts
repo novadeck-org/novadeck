@@ -3,7 +3,7 @@ import { beforeEach } from "vitest"
 
 import "@novadeck/ui/styles.css"
 
-applyAppearance(document.documentElement, { theme: "graphite", scheme: "light" })
+applyAppearance(document.documentElement, { theme: "coolant", scheme: "light" })
 
 beforeEach(() => {
   localStorage.clear()

@@ -102,26 +102,26 @@ describe("watchAppearance", () => {
   it("saves the shown theme's ground in the boot record", () => {
     system(false)
     resolvesPaper()
-    const ui = uiWith({ theme: "graphite", scheme: "light" })
+    const ui = uiWith({ theme: "coolant", scheme: "light" })
     watch(ui)
 
     expect(JSON.parse(localStorage.getItem(bootRecordKey)!)).toEqual({
       v: 2,
-      theme: "graphite",
+      theme: "coolant",
       scheme: "light",
       schemes: ["light", "dark"],
       ground: "#ffffff",
       groundScheme: "light",
     })
 
-    choose(ui, { theme: "graphite", scheme: "dark" })
+    choose(ui, { theme: "coolant", scheme: "dark" })
 
     expect(JSON.parse(localStorage.getItem(bootRecordKey)!).ground).toBe("#191c20")
   })
 
   it("saves no ground where the page has none to read", () => {
     system(false)
-    watch(uiWith({ theme: "graphite", scheme: "light" }))
+    watch(uiWith({ theme: "coolant", scheme: "light" }))
 
     expect(JSON.parse(localStorage.getItem(bootRecordKey)!)).not.toHaveProperty("ground")
   })
@@ -129,45 +129,45 @@ describe("watchAppearance", () => {
   context("while the preference follows the system", () => {
     it("shows the system's scheme, and changes with it", () => {
       const { change } = system(true)
-      watch(uiWith({ theme: "graphite", scheme: "system" }))
-      expect(shown()).toEqual({ theme: "graphite", scheme: "dark" })
+      watch(uiWith({ theme: "coolant", scheme: "system" }))
+      expect(shown()).toEqual({ theme: "coolant", scheme: "dark" })
 
       change(false)
 
-      expect(shown()).toEqual({ theme: "graphite", scheme: "light" })
+      expect(shown()).toEqual({ theme: "coolant", scheme: "light" })
     })
   })
 
   context("while the preference names a scheme", () => {
     it("keeps it whatever the system does", () => {
       const { change } = system(false)
-      watch(uiWith({ theme: "graphite", scheme: "dark" }))
-      expect(shown()).toEqual({ theme: "graphite", scheme: "dark" })
+      watch(uiWith({ theme: "coolant", scheme: "dark" }))
+      expect(shown()).toEqual({ theme: "coolant", scheme: "dark" })
 
       change(true)
       change(false)
 
-      expect(shown()).toEqual({ theme: "graphite", scheme: "dark" })
+      expect(shown()).toEqual({ theme: "coolant", scheme: "dark" })
     })
   })
 
   it("shows a new preference and saves what the boot script needs", () => {
     system(false)
-    const ui = uiWith({ theme: "graphite", scheme: "system" })
+    const ui = uiWith({ theme: "coolant", scheme: "system" })
     watch(ui)
     expect(JSON.parse(localStorage.getItem(bootRecordKey)!)).toEqual({
       v: 2,
-      theme: "graphite",
+      theme: "coolant",
       scheme: "system",
       schemes: ["light", "dark"],
     })
 
-    choose(ui, { theme: "graphite", scheme: "dark" })
+    choose(ui, { theme: "coolant", scheme: "dark" })
 
-    expect(shown()).toEqual({ theme: "graphite", scheme: "dark" })
+    expect(shown()).toEqual({ theme: "coolant", scheme: "dark" })
     expect(JSON.parse(localStorage.getItem(bootRecordKey)!)).toEqual({
       v: 2,
-      theme: "graphite",
+      theme: "coolant",
       scheme: "dark",
       schemes: ["light", "dark"],
     })
@@ -178,10 +178,10 @@ describe("watchAppearance", () => {
       system(true)
       resolvesPaper()
       const reports: WindowAppearance[] = []
-      const ui = uiWith({ theme: "graphite", scheme: "system" })
+      const ui = uiWith({ theme: "coolant", scheme: "system" })
       watch(ui, (look) => reports.push(look))
 
-      choose(ui, { theme: "graphite", scheme: "light" })
+      choose(ui, { theme: "coolant", scheme: "light" })
 
       // While the page follows the system, native parts do too; a named scheme pins them
       // to it.
@@ -195,11 +195,11 @@ describe("watchAppearance", () => {
       const { change } = system(false)
       resolvesPaper()
       const reports: WindowAppearance[] = []
-      const ui = uiWith({ theme: "graphite", scheme: "light" })
+      const ui = uiWith({ theme: "coolant", scheme: "light" })
       watch(ui, (look) => reports.push(look))
 
       change(true)
-      choose(ui, { theme: "graphite", scheme: "light" })
+      choose(ui, { theme: "coolant", scheme: "light" })
 
       expect(reports).toEqual([{ scheme: "light", ground: "#ffffff" }])
     })
@@ -215,14 +215,14 @@ describe("watchAppearance", () => {
       const ui = uiWith({ theme: "phosphor-green", scheme: "system" })
       watch(ui, (look) => reports.push(look))
 
-      choose(ui, { theme: "graphite", scheme: "system" })
+      choose(ui, { theme: "coolant", scheme: "system" })
 
       expect(reports.map((look) => look.scheme)).toEqual(["dark", "system"])
       expect(shown()).toEqual({ theme: "phosphor-green", scheme: "dark" })
 
       change(false)
 
-      expect(shown()).toEqual({ theme: "graphite", scheme: "light" })
+      expect(shown()).toEqual({ theme: "coolant", scheme: "light" })
     })
 
     it("shows it after a moment when the system's scheme was the pinned one", () => {
@@ -234,7 +234,7 @@ describe("watchAppearance", () => {
         const ui = uiWith({ theme: "phosphor-green", scheme: "system" })
         watch(ui, (look) => reports.push(look))
 
-        choose(ui, { theme: "graphite", scheme: "system" })
+        choose(ui, { theme: "coolant", scheme: "system" })
 
         // Released, but still showing and saving what it showed.
         expect(shown()).toEqual({ theme: "phosphor-green", scheme: "dark" })
@@ -249,10 +249,10 @@ describe("watchAppearance", () => {
 
         vi.advanceTimersByTime(releaseMs)
 
-        expect(shown()).toEqual({ theme: "graphite", scheme: "dark" })
+        expect(shown()).toEqual({ theme: "coolant", scheme: "dark" })
         expect(JSON.parse(localStorage.getItem(bootRecordKey)!)).toEqual({
           v: 2,
-          theme: "graphite",
+          theme: "coolant",
           scheme: "system",
           schemes: ["light", "dark"],
           ground: "#191c20",
@@ -272,12 +272,12 @@ describe("watchAppearance", () => {
         const ui = uiWith({ theme: "phosphor-green", scheme: "system" })
         watch(ui, () => {})
 
-        choose(ui, { theme: "graphite", scheme: "system" })
-        choose(ui, { theme: "graphite", scheme: "light" })
+        choose(ui, { theme: "coolant", scheme: "system" })
+        choose(ui, { theme: "coolant", scheme: "light" })
 
-        expect(shown()).toEqual({ theme: "graphite", scheme: "light" })
+        expect(shown()).toEqual({ theme: "coolant", scheme: "light" })
         vi.advanceTimersByTime(releaseMs)
-        expect(shown()).toEqual({ theme: "graphite", scheme: "light" })
+        expect(shown()).toEqual({ theme: "coolant", scheme: "light" })
       } finally {
         vi.useRealTimers()
       }
@@ -291,16 +291,16 @@ describe("watchAppearance", () => {
         const ui = uiWith({ theme: "phosphor-green", scheme: "system" })
         watch(ui, () => {})
 
-        choose(ui, { theme: "graphite", scheme: "system" })
+        choose(ui, { theme: "coolant", scheme: "system" })
         vi.advanceTimersByTime(releaseMs / 2)
-        choose(ui, { theme: "graphite", scheme: "light" })
-        choose(ui, { theme: "graphite", scheme: "system" })
+        choose(ui, { theme: "coolant", scheme: "light" })
+        choose(ui, { theme: "coolant", scheme: "system" })
         vi.advanceTimersByTime(releaseMs / 2)
 
         // The first wait would have ended here; only the second one counts.
-        expect(shown()).toEqual({ theme: "graphite", scheme: "light" })
+        expect(shown()).toEqual({ theme: "coolant", scheme: "light" })
         vi.advanceTimersByTime(releaseMs / 2)
-        expect(shown()).toEqual({ theme: "graphite", scheme: "dark" })
+        expect(shown()).toEqual({ theme: "coolant", scheme: "dark" })
       } finally {
         vi.useRealTimers()
       }
@@ -310,11 +310,11 @@ describe("watchAppearance", () => {
       system(true)
       resolvesPaper()
       const reports: WindowAppearance[] = []
-      const ui = uiWith({ theme: "graphite", scheme: "dark" })
+      const ui = uiWith({ theme: "coolant", scheme: "dark" })
       watch(ui, (look) => reports.push(look))
 
-      choose(ui, { theme: "graphite", scheme: "system" })
-      choose(ui, { theme: "graphite", scheme: "dark" })
+      choose(ui, { theme: "coolant", scheme: "system" })
+      choose(ui, { theme: "coolant", scheme: "dark" })
 
       expect(reports.map((look) => look.scheme)).toEqual(["dark", "system", "dark"])
     })
@@ -327,7 +327,7 @@ describe("watchAppearance", () => {
         const ui = uiWith({ theme: "phosphor-green", scheme: "system" })
         const stop = watchAppearance(ui, window, () => {})
 
-        choose(ui, { theme: "graphite", scheme: "system" })
+        choose(ui, { theme: "coolant", scheme: "system" })
         stop()
         vi.advanceTimersByTime(releaseMs)
 
@@ -363,7 +363,7 @@ describe("watchAppearance", () => {
       const ui = uiWith({ theme: "phosphor-green", scheme: "system" })
       watch(ui, (look) => reports.push(look))
 
-      choose(ui, { theme: "graphite", scheme: "system" })
+      choose(ui, { theme: "coolant", scheme: "system" })
 
       expect(reports.map((look) => look.scheme)).toEqual(["dark", "system"])
     })
@@ -373,15 +373,15 @@ describe("watchAppearance", () => {
     const { change, listeners } = system(false)
     const reports: WindowAppearance[] = []
     resolvesPaper()
-    const ui = uiWith({ theme: "graphite", scheme: "system" })
+    const ui = uiWith({ theme: "coolant", scheme: "system" })
     const stop = watchAppearance(ui, window, (look) => reports.push(look))
 
     stop()
-    choose(ui, { theme: "graphite", scheme: "dark" })
+    choose(ui, { theme: "coolant", scheme: "dark" })
     change(true)
 
     expect(listeners.size).toBe(0)
-    expect(shown()).toEqual({ theme: "graphite", scheme: "light" })
+    expect(shown()).toEqual({ theme: "coolant", scheme: "light" })
     expect(reports).toHaveLength(1)
   })
 })

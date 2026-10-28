@@ -712,7 +712,7 @@ folder of `frontend/ui/src/`:
 | `test/`                                                         | The command harness: the real stores, navigator and commands, for tests.                                                       |
 | `frontend/test-kit/src/`                                        | A jsdom render helper, the port contract suite, and test phase timing.                                                         |
 | `assets/`                                                       | Static files referenced from CSS.                                                                                              |
-| `theme/`                                                        | Tailwind's layout-only theme, token defaults, Graphite and Phosphor, `apply.ts`.                                               |
+| `theme/`                                                        | Tailwind's layout-only theme, token defaults, Coolant and Phosphor, `apply.ts`.                                                |
 | `styles.css`                                                    | The cascade order, every recipe, theme and vendor sheet in its layer, Tailwind sources.                                        |
 | `frontend/specs/src/`                                           | Behaviour specs for the whole UI, and the spec backend over the demo.                                                          |
 | `entries/start.tsx`                                             | How every app starts: applies the theme, renders the app it is given.                                                          |

@@ -606,7 +606,7 @@ describe("appearance preference", () => {
       // As a fresh load finds it: nothing on <html> until the app shows what it saved.
       document.documentElement.removeAttribute("data-scheme")
       await reloadWorkspace()
-      expect(document.documentElement.dataset).toMatchObject({ theme: "graphite", scheme: "dark" })
+      expect(document.documentElement.dataset).toMatchObject({ theme: "coolant", scheme: "dark" })
       await expect.poll(pageScheme).toBe("dark")
       await openAppearance()
       await expect.element(modeChoice("Dark")).toBeChecked()
@@ -648,7 +648,7 @@ describe("appearance preference", () => {
       expect(document.documentElement.dataset.theme).toBe("phosphor-green")
     })
 
-    it("keeps the theme after reloading and gives Graphite its mode back", async () => {
+    it("keeps the theme after reloading and gives Coolant its mode back", async () => {
       await systemScheme("light")
       await openWorkspace()
       await openAppearance()
@@ -669,7 +669,7 @@ describe("appearance preference", () => {
       await openAppearance()
 
       await preferencesDialog().getByRole("combobox", { name: "Theme" }).click()
-      await preferencesDialog().getByRole("option", { name: "Graphite" }).click()
+      await preferencesDialog().getByRole("option", { name: "Coolant" }).click()
 
       await expect.poll(pageScheme).toBe("light")
       await expect.element(modeChoice("Light")).toBeChecked()
@@ -677,7 +677,7 @@ describe("appearance preference", () => {
   })
 
   context("when the saved theme is one the app does not know", () => {
-    it("draws and lists Graphite, and keeps the saved id", async () => {
+    it("draws and lists Coolant, and keeps the saved id", async () => {
       await systemScheme("light")
       await openWorkspace()
       await openAppearance()
@@ -690,13 +690,13 @@ describe("appearance preference", () => {
 
       await expect
         .element(preferencesDialog().getByRole("combobox", { name: "Theme" }))
-        .toHaveTextContent("Graphite")
+        .toHaveTextContent("Coolant")
       expect(JSON.parse(localStorage.getItem("novadeck.preferences")!).appearance.theme).toBe(
         "ember",
       )
     })
 
-    it("saves Graphite when the person picks it", async () => {
+    it("saves Coolant when the person picks it", async () => {
       await systemScheme("light")
       await openWorkspace()
       await openAppearance()
@@ -707,14 +707,14 @@ describe("appearance preference", () => {
       })
       await expect
         .element(preferencesDialog().getByRole("combobox", { name: "Theme" }))
-        .toHaveTextContent("Graphite")
+        .toHaveTextContent("Coolant")
 
       await preferencesDialog().getByRole("combobox", { name: "Theme" }).click()
-      await preferencesDialog().getByRole("option", { name: "Graphite" }).click()
+      await preferencesDialog().getByRole("option", { name: "Coolant" }).click()
 
       await expect
         .poll(() => JSON.parse(localStorage.getItem("novadeck.preferences")!).appearance.theme)
-        .toBe("graphite")
+        .toBe("coolant")
     })
   })
 
@@ -742,7 +742,7 @@ describe("appearance preference", () => {
       const saved = JSON.parse(localStorage.getItem("novadeck.preferences") ?? "{}")
       saveFromAnotherWindow("novadeck.preferences", {
         ...saved,
-        appearance: { theme: "graphite", scheme: "dark" },
+        appearance: { theme: "coolant", scheme: "dark" },
       })
 
       await expect.poll(pageScheme).toBe("dark")
@@ -758,7 +758,7 @@ describe("appearance preference", () => {
       const appearance = preferencesDialog().getByRole("tabpanel", { name: "Appearance" })
       await expect
         .element(appearance.getByRole("combobox", { name: "Theme" }))
-        .toHaveTextContent("Graphite")
+        .toHaveTextContent("Coolant")
       await expect.element(modeChoice("System")).toBeChecked()
       await tab("General").click()
       await expect

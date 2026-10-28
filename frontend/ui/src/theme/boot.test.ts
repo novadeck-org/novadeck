@@ -80,7 +80,7 @@ describe("the boot script", () => {
     boot(
       JSON.stringify({
         v: bootRecordVersion,
-        theme: "graphite",
+        theme: "coolant",
         scheme: "system",
         schemes: ["light", "dark"],
       }),
@@ -119,7 +119,7 @@ describe("the boot script", () => {
       for (const scheme of schemes)
         for (const systemDark of systems)
           expect(boot(JSON.stringify({ scheme }), systemDark)).toEqual(
-            resolveAppearance({ theme: "graphite", scheme }, systemDark, themes),
+            resolveAppearance({ theme: "coolant", scheme }, systemDark, themes),
           )
     })
   })
@@ -133,7 +133,7 @@ describe("the boot script", () => {
           JSON.stringify({ theme: "sandstone", scheme: "dark", schemes: ["light"] }),
           systemDark,
         ),
-      ).toEqual({ theme: "graphite", scheme: "dark" })
+      ).toEqual({ theme: "coolant", scheme: "dark" })
   })
 
   it("shows a theme it does not know from the record's own schemes", () => {
@@ -164,6 +164,33 @@ describe("the boot script", () => {
     }
   })
 
+  it("shows a theme saved under its name before a rename as the theme it is now", () => {
+    for (const systemDark of systems) {
+      expect(
+        boot(
+          JSON.stringify({
+            v: bootRecordVersion,
+            theme: "graphite",
+            scheme: "dark",
+            schemes: ["light", "dark"],
+          }),
+          systemDark,
+        ),
+      ).toEqual({ theme: "coolant", scheme: "dark" })
+      expect(
+        boot(
+          JSON.stringify({
+            v: bootRecordVersion,
+            theme: "constructor",
+            scheme: "dark",
+            schemes: ["dark"],
+          }),
+          systemDark,
+        ),
+      ).toEqual({ theme: "constructor", scheme: "dark" })
+    }
+  })
+
   it("shows the app's default where the app has none of the theme", () => {
     const root = document.documentElement
     boot(
@@ -179,7 +206,7 @@ describe("the boot script", () => {
 
     applyAppearance(root, startingAppearance(window, themes))
 
-    expect(root.dataset).toMatchObject({ theme: "graphite", scheme: "dark" })
+    expect(root.dataset).toMatchObject({ theme: "coolant", scheme: "dark" })
   })
 
   context("with a ground in the record", () => {
@@ -199,7 +226,7 @@ describe("the boot script", () => {
       boot(
         JSON.stringify({
           v: bootRecordVersion,
-          theme: "graphite",
+          theme: "coolant",
           scheme: "system",
           schemes: ["light", "dark"],
           ground: "#f5f3ee",
@@ -246,14 +273,14 @@ describe("the boot script", () => {
         for (const systemDark of systems)
           for (const old of [{ scheme }, { theme: "phosphor-green", scheme }])
             expect(boot(JSON.stringify(old), systemDark)).toEqual(
-              resolveAppearance({ theme: "graphite", scheme }, systemDark, themes),
+              resolveAppearance({ theme: "coolant", scheme }, systemDark, themes),
             )
     })
   })
 
   context("with a record of the wrong shape", () => {
     const wrong = [
-      { theme: "Graphite" },
+      { theme: "Coolant" },
       { theme: "graph ite" },
       { theme: "" },
       { theme: "constructor!" },
@@ -277,7 +304,7 @@ describe("the boot script", () => {
               ...bad,
             }
             expect(boot(JSON.stringify(record), systemDark)).toEqual(
-              resolveAppearance({ theme: "graphite", scheme }, systemDark, themes),
+              resolveAppearance({ theme: "coolant", scheme }, systemDark, themes),
             )
           }
     })
@@ -308,11 +335,11 @@ describe("the boot script", () => {
       JSON.stringify({ scheme: "dim" }),
       JSON.stringify({
         v: bootRecordVersion,
-        theme: "graphite",
+        theme: "coolant",
         scheme: 1,
         schemes: ["light", "dark"],
       }),
-      JSON.stringify({ theme: "graphite" }),
+      JSON.stringify({ theme: "coolant" }),
     ]
 
     it("shows the default theme in the system's scheme, as apply.ts would", () => {

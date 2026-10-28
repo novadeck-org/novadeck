@@ -3,9 +3,9 @@
 @import "@fontsource-variable/jetbrains-mono";
 @import "./chrome.css" layer(components);
 
-/* Novadeck's Graphite theme, replicated rather than imported: the values are copied from
-   frontend/ui/src/theme/graphite.css and base.css, so the atlas looks like the app
-   without depending on the UI package. Copy again when Graphite changes. Light is warm
+/* Novadeck's Coolant theme, replicated rather than imported: the values are copied from
+   frontend/ui/src/theme/coolant.css and base.css, so the atlas looks like the app
+   without depending on the UI package. Copy again when Coolant changes. Light is warm
    paper and a deep teal; dark is slate and an electric cyan. */
 
 @font-face {
@@ -162,7 +162,7 @@
   }
 }
 
-/* The atlas's own small vocabulary, drawn from Graphite's tokens: pages sit on the shell,
+/* The atlas's own small vocabulary, drawn from Coolant's tokens: pages sit on the shell,
    cards and panels are paper with the window outline, fills step off the paper. */
 :root {
   --bg: var(--color-shell);
