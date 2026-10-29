@@ -13,7 +13,7 @@ import {
   type ReactNode,
 } from "react"
 
-import { rowOf } from "./inbox-dom"
+import { focusSheetSoon, rowOf } from "./inbox-dom"
 import {
   clearArrived,
   closeSheet,
@@ -356,13 +356,17 @@ export const InboxProvider = ({
   }, [view.open, current, close])
 
   // Esc closes the sheet; in one of its fields it first leaves the field (or, in one that
-  // cancels, cancels). j and k move down and up the list. Only where the keys are the
-  // Inbox's: on its list, its sheet, or no field at all; every other layer keeps its own.
+  // cancels, cancels). j and k move down and up the list; with a sheet open, the right and
+  // left arrows do too from the sheet, which keeps the keyboard (on the list's row the right
+  // arrow goes into the sheet). Only where the keys are the Inbox's: on its list, its sheet,
+  // or no field at all; every other layer keeps its own.
   useEffect(() => {
     const onKey = (event: KeyboardEvent): void => {
       if (event.defaultPrevented || event.isComposing) return
       if (event.ctrlKey || event.metaKey || event.altKey) return
-      if (event.key !== "Escape" && event.key !== "j" && event.key !== "k") return
+      const arrow = event.key === "ArrowRight" || event.key === "ArrowLeft"
+      if (arrow && event.shiftKey) return
+      if (event.key !== "Escape" && event.key !== "j" && event.key !== "k" && !arrow) return
       const target = event.target
       const ours =
         target === document ||
@@ -388,19 +392,22 @@ export const InboxProvider = ({
       const inList = target instanceof Element && target.closest("#inbox-panel") !== null
       if (live.open === null && !inList) return
       if (!inSheet && !inList && target !== document.body && target !== document) return
+      if (arrow && (live.open === null || inList)) return
       const to = stepFrom(
         visible(live, snapshot.items, dropped, order).filter(
           (item) => !item.settled || item.id === live.open,
         ),
         live.open,
-        event.key === "j" ? 1 : -1,
+        event.key === "j" || event.key === "ArrowRight" ? 1 : -1,
       )
       if (!to) return
       event.preventDefault()
       // A row that is gone, answered, is stepped from where it was.
       if (to.id !== live.open) open(to.id)
-      // The keyboard goes with it, so the row it is on is the one that shows it.
-      rowOf(to.id)?.querySelector<HTMLElement>(".inbox-row-select")?.focus()
+      // The keyboard goes with it: to the next sheet, after an arrow, so the next goes on from
+      // there; else to the row, so the row it is on is the one that shows it.
+      if (arrow) focusSheetSoon()
+      else rowOf(to.id)?.querySelector<HTMLElement>(".inbox-row-select")?.focus()
     }
     // In capture, ahead of the sheet's own layer, which takes Escape's default for itself.
     document.addEventListener("keydown", onKey, true)

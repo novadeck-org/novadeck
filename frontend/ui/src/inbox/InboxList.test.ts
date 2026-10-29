@@ -265,6 +265,59 @@ describe("The Inbox's list", () => {
     })
   })
 
+  context("when moving with the left and right arrows", () => {
+    it("opens the item after and before from the sheet, and keeps the keyboard there", async () => {
+      const inbox = mount([permission("a", 1), permission("b", 2), permission("c", 3)])
+      inbox.open("a")
+      await nextFrame()
+      const current = (): string | null =>
+        inbox.view.container
+          .querySelector('[aria-current="true"]')
+          ?.closest("[data-inbox-row]")
+          ?.getAttribute("data-inbox-row") ?? null
+      const press = async (key: string): Promise<void> => {
+        const from = document.activeElement ?? document.body
+        act(() => {
+          from.dispatchEvent(new KeyboardEvent("keydown", { key, bubbles: true }))
+        })
+        // The next sheet takes the keyboard once it has mounted.
+        await nextFrame()
+        await nextFrame()
+      }
+
+      await press("ArrowRight")
+      expect(current()).toBe("b")
+      expect(document.activeElement?.closest(".inbox-sheet")).not.toBeNull()
+      await press("ArrowRight")
+      expect(current()).toBe("c")
+      await press("ArrowLeft")
+      expect(current()).toBe("b")
+      await nextFrame()
+      inbox.view.unmount()
+    })
+
+    it("leaves them to a field in the sheet, and to the list's rows", async () => {
+      const inbox = mount([agentAsk("a", 1), agentAsk("b", 2)])
+      inbox.open("a")
+      await nextFrame()
+      const field = document.querySelector<HTMLElement>(".inbox-sheet textarea, .inbox-sheet input")
+      expect(field).not.toBeNull()
+      act(() => {
+        field!.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowRight", bubbles: true }))
+      })
+      act(() => {
+        inbox
+          .row("a")
+          .querySelector(".inbox-row-select")!
+          .dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowLeft", bubbles: true }))
+      })
+      await nextFrame()
+      expect(inbox.row("a").dataset.selected).toBe("true")
+      await nextFrame()
+      inbox.view.unmount()
+    })
+  })
+
   context("when a row that asks has been opened", () => {
     it("keeps it asking, marked as opened", async () => {
       const inbox = mount([permission("a", 1), permission("b", 2)])
