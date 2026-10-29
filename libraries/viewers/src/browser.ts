@@ -269,6 +269,19 @@ export const keepMs = 5_000
 export const uncoverMs = 120
 export const fadeMs = 150
 
+/**
+ * How a phone tilts as the person drags across the stage around it: degrees for each pixel
+ * dragged, at most `tiltMaxDeg` each way; let go, it springs back flat over `settleMs`,
+ * which browser.css's spring matches.
+ */
+export const tiltPerPx = 0.25
+export const tiltMaxDeg = 35
+export const settleMs = 600
+
+// How far a drag of `by` pixels turns a phone.
+const toward = (by: number): number =>
+  Math.round(Math.max(-tiltMaxDeg, Math.min(tiltMaxDeg, by * tiltPerPx)))
+
 // Put in a phone's page: no scrollbar of its own, as a phone's takes no room.
 const phoneLook = "html { scrollbar-width: none !important; }"
 
@@ -492,6 +505,47 @@ export const mountBrowser: Mount<BrowserContent, BrowserOptions, BrowserViewer> 
   const resizing = Observer ? new Observer(frame) : undefined
   resizing?.observe(root)
   frame()
+
+  // For fun: a phone tilts as the person drags across the stage around it, as if turned in
+  // the hand, and springs back flat when let go, so the page takes clicks where it shows.
+  let settling: ReturnType<typeof setTimeout> | undefined
+  const tilt = (x: number, y: number): void => {
+    root.style.setProperty("--browser-tilt-x", `${x}`)
+    root.style.setProperty("--browser-tilt-y", `${y}`)
+  }
+  const turning = (event: PointerEvent): void => {
+    if (size !== "phone" || event.target !== root || event.button !== 0) return
+    event.preventDefault()
+    const { pointerId, clientX: fromX, clientY: fromY } = event
+    try {
+      root.setPointerCapture(pointerId)
+    } catch {
+      // A pointer the browser doesn't know, as one a test makes: it tilts all the same.
+    }
+    clearTimeout(settling)
+    delete root.dataset.settling
+    root.dataset.tilting = ""
+    const turn = (move: PointerEvent): void => {
+      if (move.pointerId !== pointerId) return
+      tilt(toward(fromY - move.clientY), toward(move.clientX - fromX))
+    }
+    const letGo = (end: PointerEvent): void => {
+      if (end.pointerId !== pointerId) return
+      root.removeEventListener("pointermove", turn)
+      root.removeEventListener("pointerup", letGo)
+      root.removeEventListener("pointercancel", letGo)
+      root.removeEventListener("lostpointercapture", letGo)
+      delete root.dataset.tilting
+      root.dataset.settling = ""
+      tilt(0, 0)
+      settling = setTimeout(() => delete root.dataset.settling, settleMs)
+    }
+    root.addEventListener("pointermove", turn)
+    root.addEventListener("pointerup", letGo)
+    root.addEventListener("pointercancel", letGo)
+    root.addEventListener("lostpointercapture", letGo)
+  }
+  root.addEventListener("pointerdown", turning)
 
   // Whether it's drawn: not inside an element kept out of sight, as with display: none.
   const shownNow = (): boolean =>
@@ -1060,6 +1114,7 @@ export const mountBrowser: Mount<BrowserContent, BrowserOptions, BrowserViewer> 
     },
     destroy: () => {
       resizing?.disconnect()
+      clearTimeout(settling)
       hostWindow?.removeEventListener("message", requested)
       hostWindow?.removeEventListener("message", signIns)
       clearTimeout(fading)

@@ -8,7 +8,10 @@
    same box on the viewer.
 
    Hooks: data-load="loading" | "ready" | "failed" on the viewer: how the page's latest
-   load went. data-size="desktop" | "phone" on a live one: what its page lays out as.
+   load went. data-size="desktop" | "phone" on a live one: what its page lays out as;
+   data-tilting while the person drags across a phone's stage, turning it in 3D by
+   --browser-tilt-x and --browser-tilt-y (degrees, unitless), and data-settling while it
+   springs back flat.
    data-painting on the <webview>: its first document is ready, so it paints its own
    ground, and keeps its last frame through later loads.
 
@@ -30,7 +33,67 @@
   overflow: hidden;
 }
 .browser-viewer[data-size="phone"] {
+  /* Its phone's middle, which it turns about and is seen from. */
+  --_mid-x: calc(var(--browser-width, 100%) * var(--browser-scale, 1) / 2);
+  --_mid-y: calc(var(--browser-height, 100%) * var(--browser-scale, 1) / 2);
+  --_turn: rotateX(calc(var(--browser-tilt-x, 0) * 1deg))
+    rotateY(calc(var(--browser-tilt-y, 0) * 1deg));
+  perspective: 1100px;
+  perspective-origin: calc(var(--browser-left, 0px) + var(--_mid-x))
+    calc(var(--browser-top, 0px) + var(--_mid-y));
   background-color: var(--browser-stage-bg, transparent);
+  user-select: none;
+}
+.browser-viewer[data-tilting] {
+  cursor: grabbing;
+}
+/* A page view takes the pointer from its host whatever holds it: while the phone turns,
+   its page lets the pointer pass, for the drag to go on over it. */
+.browser-viewer[data-tilting] > webview {
+  pointer-events: none;
+}
+/* Its page, its picture and its frame turn as one, about the phone's middle; flat, each
+   is as it is. The page turns before it's scaled, as its origin is its corner. */
+.browser-viewer[data-size="phone"] > webview {
+  transform: translate(var(--_mid-x), var(--_mid-y)) var(--_turn)
+    translate(calc(var(--_mid-x) * -1), calc(var(--_mid-y) * -1)) scale(var(--browser-scale, 1));
+}
+.browser-viewer[data-size="phone"] > .browser-picture,
+.browser-viewer[data-size="phone"]::after,
+.browser-viewer[data-size="phone"]::before {
+  transform: var(--_turn);
+  transform-origin: center;
+}
+.browser-viewer[data-settling] > :is(webview, .browser-picture),
+.browser-viewer[data-settling]::after,
+.browser-viewer[data-settling]::before {
+  transition: transform 600ms cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+/* Light across its glass, sweeping as it turns: only while it's turned. */
+.browser-viewer[data-size="phone"]::before {
+  content: "";
+  position: absolute;
+  z-index: 2;
+  top: var(--browser-top, 0px);
+  left: var(--browser-left, 0px);
+  width: calc(var(--_mid-x) * 2);
+  height: calc(var(--_mid-y) * 2);
+  border-radius: var(--browser-screen-radius, 28px);
+  background: linear-gradient(115deg, transparent 35%, rgb(255 255 255 / 0.22) 48%, transparent 62%)
+    calc(50% - var(--browser-tilt-y, 0) * 3%) calc(50% + var(--browser-tilt-x, 0) * 3%) / 300% 300%;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 300ms ease-out;
+}
+.browser-viewer[data-tilting]::before {
+  opacity: 1;
+}
+@media (prefers-reduced-motion: reduce) {
+  .browser-viewer[data-settling] > :is(webview, .browser-picture),
+  .browser-viewer[data-settling]::after,
+  .browser-viewer[data-settling]::before {
+    transition: none;
+  }
 }
 /* A phone's frame, around its screen's box: the bezel is `phoneBezel` (10px) wide, drawn
    over the screen's edge by a pixel, where a scaled page can fall a device pixel short. */
@@ -45,8 +108,14 @@
   box-sizing: border-box;
   border: 11px solid var(--browser-device-bg, #141416);
   border-radius: calc(var(--browser-screen-radius, 28px) + 10px);
+  /* Turned, its side shows as an edge toward where it turns from. */
+  --_edge-x: calc(var(--browser-tilt-y, 0) * -0.12px);
+  --_edge-y: calc(var(--browser-tilt-x, 0) * 0.12px);
   box-shadow:
     0 0 0 1px var(--browser-device-edge, rgb(255 255 255 / 0.12)),
+    var(--_edge-x) var(--_edge-y) 0 1px var(--browser-device-bg, #141416),
+    calc(var(--_edge-x) * 2) calc(var(--_edge-y) * 2) 0 1px var(--browser-device-bg, #141416),
+    calc(var(--_edge-x) * 3) calc(var(--_edge-y) * 3) 0 1px var(--browser-device-bg, #141416),
     var(--browser-device-shadow, 0 10px 30px rgb(0 0 0 / 0.25));
   pointer-events: none;
 }

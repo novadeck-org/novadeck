@@ -9,6 +9,9 @@ import {
   keepMs,
   mountBrowser,
   phoneBezel,
+  settleMs,
+  tiltMaxDeg,
+  tiltPerPx,
   phoneMargin,
   phoneScreen,
   scrollWaitMs,
@@ -668,6 +671,54 @@ describe("the browser viewer", () => {
           "insert html { scrollbar-width: none !important; }",
           "remove key 2",
         ])
+    })
+
+    it("tilts a phone as the person drags across its stage, flat again when let go", async () => {
+      vi.useFakeTimers()
+      try {
+        const host = hostIn()
+        const viewer = live(host)
+        const root = host.querySelector<HTMLElement>(".browser-viewer")!
+        const pointer = (type: string, target: Element, x: number, y: number) =>
+          target.dispatchEvent(
+            new PointerEvent(type, {
+              bubbles: true,
+              button: 0,
+              pointerId: 1,
+              clientX: x,
+              clientY: y,
+            }),
+          )
+        const turned = () => [
+          root.style.getPropertyValue("--browser-tilt-x"),
+          root.style.getPropertyValue("--browser-tilt-y"),
+        ]
+        // A desktop's page doesn't turn.
+        pointer("pointerdown", root, 10, 10)
+        expect(root.hasAttribute("data-tilting")).toBe(false)
+        viewer.size("phone")
+        // Nor does a press on the page itself.
+        pointer("pointerdown", pageOf(host), 10, 10)
+        expect(root.hasAttribute("data-tilting")).toBe(false)
+        pointer("pointerdown", root, 10, 10)
+        expect(root.hasAttribute("data-tilting")).toBe(true)
+        pointer("pointermove", root, 10 + 40, 10 - 20)
+        expect(turned()).toEqual([`${20 * tiltPerPx}`, `${40 * tiltPerPx}`])
+        // However far it's dragged, no further than it turns.
+        pointer("pointermove", root, 10 - 4000, 10)
+        expect(turned()).toEqual(["0", `${-tiltMaxDeg}`])
+        pointer("pointerup", root, 10 - 4000, 10)
+        expect(root.hasAttribute("data-tilting")).toBe(false)
+        expect(root.hasAttribute("data-settling")).toBe(true)
+        expect(turned()).toEqual(["0", "0"])
+        await vi.advanceTimersByTimeAsync(settleMs)
+        expect(root.hasAttribute("data-settling")).toBe(false)
+        // Let go, a move turns it no more.
+        pointer("pointermove", root, 200, 200)
+        expect(turned()).toEqual(["0", "0"])
+      } finally {
+        vi.useRealTimers()
+      }
     })
 
     it("frames nothing in a viewer with no room, as one kept out of sight", () => {
