@@ -30,11 +30,12 @@ const alphabetOf = (shape: Shaper): string[] => {
   return [...found].toSorted()
 }
 
-const covers = (text: string, words: readonly string[]): boolean => {
+const covers = (text: string, sequences: readonly string[]): boolean => {
   const marks = Array.from({ length: text.length }, () => false)
   for (let at = 0; at < text.length; at++)
-    for (const word of words)
-      if (text.startsWith(word, at)) for (let i = at; i < at + word.length; i++) marks[i] = true
+    for (const sequence of sequences)
+      if (text.startsWith(sequence, at))
+        for (let i = at; i < at + sequence.length; i++) marks[i] = true
   return marks.every(Boolean)
 }
 
@@ -50,12 +51,12 @@ const strings = function* (alphabet: readonly string[], length: number): Generat
 
 const shape = await loadShaper()
 const alphabet = alphabetOf(shape)
-const words: string[] = []
+const sequences: string[] = []
 for (let length = 2; length <= 4; length++)
   for (const text of strings(alphabet, length)) {
     const ranges = shape(text)
     const whole = ranges.length === 1 && ranges[0]?.[0] === 0 && ranges[0][1] === length
-    if (whole && !covers(text, words)) words.push(text)
+    if (whole && !covers(text, sequences)) sequences.push(text)
   }
 
 writeFileSync(
@@ -64,7 +65,7 @@ writeFileSync(
 // (@fontsource-variable/jetbrains-mono): the sequences its ligature rules join, up to four
 // glyphs, shorter ones first. Longer runs are these, overlapping. Do not edit by hand;
 // \`ligature-font.test.ts\` fails when the font and this table disagree.
-export const ligatureWords: readonly string[] = ${JSON.stringify(words, null, 2)}
+export const ligatureSequences: readonly string[] = ${JSON.stringify(sequences, null, 2)}
 `,
 )
-console.log(`${words.length} sequences over ${alphabet.join("")}`)
+console.log(`${sequences.length} sequences over ${alphabet.join("")}`)

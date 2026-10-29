@@ -1,4 +1,4 @@
-import { ligatureWords } from "./ligature-table.js"
+import { ligatureSequences } from "./ligature-table.js"
 
 // Which runs of a line the font draws as ligatures, for xterm's character joiner. JetBrains
 // Mono makes ligatures by contextual substitution: each glyph of `=>` or `<!--` is swapped for
@@ -10,16 +10,19 @@ import { ligatureWords } from "./ligature-table.js"
 // (`ligature-font.test.ts` checks both against the font).
 
 const buckets = new Map<string, string[]>()
-for (const word of ligatureWords) {
-  const first = word[0] ?? ""
-  buckets.set(first, [...(buckets.get(first) ?? []), word])
+for (const sequence of ligatureSequences) {
+  const first = sequence[0] ?? ""
+  buckets.set(first, [...(buckets.get(first) ?? []), sequence])
 }
 const trigger = new RegExp(`[${[...buckets.keys()].map((c) => `\\${c}`).join("")}]`)
 
 /** The widest run drawn as one glyph, in cells; `runLimit` narrows it for a larger cell. */
 export const maxRunCells = 32
 
-const longestWord = ligatureWords.reduce((most, word) => Math.max(most, word.length), 0)
+const longestSequence = ligatureSequences.reduce(
+  (most, sequence) => Math.max(most, sequence.length),
+  0,
+)
 
 /**
  * How many cells a run may take where a cell is `devicePixels` wide, or 0 where that is fewer
@@ -29,18 +32,20 @@ const longestWord = ligatureWords.reduce((most, word) => Math.max(most, word.len
  */
 export const runLimit = (devicePixels: number): number => {
   const cells = Math.min(maxRunCells, Math.floor(480 / Math.max(1, devicePixels)))
-  return cells < longestWord ? 0 : cells
+  return cells < longestSequence ? 0 : cells
 }
 
 /** Whether the table is the family's: JetBrains Mono's, when it is the first the CSS names. */
 export const hasLigatureTable = (fontFamily: string): boolean =>
   /^\s*["']?jetbrains mono\b/i.test(fontFamily)
 
-// How far into a stretch of one repeated glyph a cut must be, from either end, for the font to
-// draw the same glyphs either side of it as in one piece. The font's rules reach four glyphs
-// into a stretch from what borders it (measured over every glyph of the table, with up to four
-// glyphs of any other kind on each side, `ligature-font.test.ts`); this is twice that. A cut
-// anywhere else may change a glyph: `|---|---|` drawn in two parts gets a tee at the cut.
+/**
+ * How far into a stretch of one repeated glyph a cut must be, from either end, for the font to
+ * draw the same glyphs either side of it as in one piece. The font's rules reach four glyphs
+ * into a stretch from what borders it (measured over every glyph of the table, with up to four
+ * glyphs of any other kind on each side, `ligature-font.test.ts`); this is twice that. A cut
+ * anywhere else may change a glyph: `|---|---|` drawn in two parts gets a tee at the cut.
+ */
 export const cutMargin = 8
 
 // Where a run may be cut: inside a stretch of the same glyph, `cutMargin` cells from both its
@@ -94,12 +99,12 @@ const cut = (text: string, from: number, to: number, limit: number): [number, nu
  * `limit` cells (a longer one is cut into parts).
  */
 export const ligatureRuns = (text: string, limit = maxRunCells): [number, number][] => {
-  if (limit < longestWord || !trigger.test(text)) return []
+  if (limit < longestSequence || !trigger.test(text)) return []
   const runs: [number, number][] = []
   for (let at = 0; at < text.length; at++) {
-    for (const word of buckets.get(text[at] ?? "") ?? []) {
-      if (!text.startsWith(word, at)) continue
-      const end = at + word.length
+    for (const sequence of buckets.get(text[at] ?? "") ?? []) {
+      if (!text.startsWith(sequence, at)) continue
+      const end = at + sequence.length
       const last = runs[runs.length - 1]
       if (last && at <= last[1]) last[1] = Math.max(last[1], end)
       else runs.push([at, end])

@@ -14,7 +14,7 @@ const unicodeVersion = "15-graphemes"
  * `allowProposedApi`, which its `unicode` needs.
  */
 export const applyWidths = (terminal: Terminal | HeadlessTerminal): void => {
-  ;(terminal as Terminal).loadAddon(new UnicodeGraphemesAddon())
+  terminal.loadAddon(new UnicodeGraphemesAddon())
   terminal.unicode.activeVersion = unicodeVersion
 }
 

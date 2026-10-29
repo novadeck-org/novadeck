@@ -5,15 +5,17 @@ import type { IEvent, Terminal } from "@xterm/xterm"
 // fraction of the main thread's time on a busy page of terminals. This module is all the WebGL
 // handling: which screens hold a context, and when one goes back to the DOM renderer.
 
-// Chromium keeps 16 live WebGL contexts per renderer process on desktop, and loses the
-// oldest when more are asked for (it warns on the console and fires webglcontextlost), which
-// would blank a terminal that is still shown. The default pool takes all but two, kept for a
-// canvas the page doesn't own and as a margin while a context the GPU lost waits to be freed.
-// That is a page of 13 or 14 terminals all on WebGL, where one busy terminal left on the DOM
-// costs about as much as the other twelve; a shown screen past the cap draws with the DOM
-// renderer until a slot frees. That is the default, for a browser, where a larger pool would
-// make Chromium drop live contexts; an app that raises Chromium's limit (the desktop app does,
-// to 64) passes `cap` to `webglRenderers`, the limit less two.
+/**
+ * Chromium keeps 16 live WebGL contexts per renderer process on desktop, and loses the
+ * oldest when more are asked for (it warns on the console and fires webglcontextlost), which
+ * would blank a terminal that is still shown. The default pool takes all but two, kept for a
+ * canvas the page doesn't own and as a margin while a context the GPU lost waits to be freed.
+ * That is a page of 13 or 14 terminals all on WebGL, where one busy terminal left on the DOM
+ * costs about as much as the other twelve; a shown screen past the cap draws with the DOM
+ * renderer until a slot frees. That is the default, for a browser, where a larger pool would
+ * make Chromium drop live contexts; an app that raises Chromium's limit (the desktop app does,
+ * to 64) passes `cap` to `webglRenderers`, the limit less two.
+ */
 export const contextCap = 14
 // How many times a screen may lose its context, or fail to load one; it tries again when
 // it is shown again, once, and stays on the DOM renderer after that.
@@ -91,8 +93,9 @@ export type ScreenRenderer = {
   readonly dispose: () => void
 }
 
-/** A page's pool of WebGL contexts, shared by its screens. */
+/** A page's pool of WebGL contexts, shared by its screens: the renderers they draw with. */
 export type Renderers<Target = Terminal> = {
+  /** What the pool has counted so far. */
   readonly stats: () => PoolStats
   /** Tells `listener` after each count changes, until the returned function is called. */
   readonly watch: (listener: () => void) => () => void
@@ -122,6 +125,7 @@ type Member<Target> = {
   closed: boolean
 }
 
+/** The pool of WebGL contexts for a page's screens, built on `deps`. */
 export const createRenderers = <Target>(deps: PoolDeps<Target>): Renderers<Target> => {
   const members = new Set<Member<Target>>()
   let held = 0
@@ -158,10 +162,11 @@ export const createRenderers = <Target>(deps: PoolDeps<Target>): Renderers<Targe
     lastOnDom = now
     notify()
   }
-  // Screens that asked for their atlas to be cleared, and whether the clear is queued.
+  // Screens that asked for their atlas to be cleared.
   const asked = new Set<Member<Target>>()
   // The atlases of drawings that asked and were let go before the moment was over.
   const gone = new Set<unknown>()
+  // Whether the clear they asked for is queued.
   let clearQueued = false
 
   // xterm clears a glyph atlas for the screen that asked and tells no other screen drawing
@@ -370,12 +375,14 @@ export const createRenderers = <Target>(deps: PoolDeps<Target>): Renderers<Targe
 
 let probed: boolean | undefined
 const software = /swiftshader|llvmpipe|softpipe|software|basic render/i
-// Whether the page can have a hardware WebGL 2 context, found once. Software WebGL draws
-// slower than the DOM renderer, and two checks tell it apart: `failIfMajorPerformanceCaveat`
-// makes Chromium refuse a context that would run on software, but it does not always flag
-// SwiftShader as a major caveat (headless Chromium gets a context anyway), so the
-// context's renderer name is read as well; Microsoft's Basic Render Driver is the Windows
-// one. The probe's context is freed at once so it doesn't take one of the page's slots.
+/**
+ * Whether the page can have a hardware WebGL 2 context, found once. Software WebGL draws
+ * slower than the DOM renderer, and two checks tell it apart: `failIfMajorPerformanceCaveat`
+ * makes Chromium refuse a context that would run on software, but it does not always flag
+ * SwiftShader as a major caveat (headless Chromium gets a context anyway), so the
+ * context's renderer name is read as well; Microsoft's Basic Render Driver is the Windows
+ * one. The probe's context is freed at once so it doesn't take one of the page's slots.
+ */
 export const probeWebgl = (): boolean => {
   if (probed !== undefined) return probed
   probed = false
@@ -409,8 +416,10 @@ const contextOf = (found: readonly HTMLCanvasElement[]): WebGL2RenderingContext 
   found.map((canvas) => canvas.getContext("webgl2")).find((context) => context !== null) ??
   undefined
 
-// Loads xterm's WebGL addon into a screen, as a drawing whose dispose frees its context.
-// The terminal is open already, so its canvases are there to find.
+/**
+ * Loads xterm's WebGL addon into a screen, as a drawing whose dispose frees its context.
+ * The terminal is open already, so its canvases are there to find.
+ */
 export const loadWebgl = (xterm: Terminal): Drawing => {
   const canvases = (): HTMLCanvasElement[] => [...(xterm.element?.querySelectorAll("canvas") ?? [])]
   const before = new Set(canvases())
@@ -444,8 +453,10 @@ export const loadWebgl = (xterm: Terminal): Drawing => {
   }
 }
 
-// The pool for a page of xterm terminals, loading xterm's WebGL addon where the page has a
-// hardware context to spare.
+/**
+ * The pool for a page of xterm terminals, loading xterm's WebGL addon where the page has a
+ * hardware context to spare.
+ */
 export const webglRenderers = (options: { readonly cap?: number }): Renderers =>
   createRenderers<Terminal>({
     load: loadWebgl,

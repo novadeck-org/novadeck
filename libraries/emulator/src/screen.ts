@@ -36,7 +36,10 @@ export const serializeWithin = (
   }
 }
 
-/** Writes `data` to the screen, resolving once it is parsed. */
+/**
+ * Writes `data` to the screen, resolving once it is parsed, even where parsing threw (the
+ * browser's `writeTo` rejects then).
+ */
 export const written = (screen: Screen, data: string): Promise<void> =>
   new Promise((resolve) => screen.write(data, resolve))
 
