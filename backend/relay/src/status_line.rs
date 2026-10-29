@@ -4,7 +4,10 @@
 //! relay finds and runs it itself, beside reporting to the runner, so it shows even when
 //! the runner can't be reached, as from a terminal multiplexer that outlived Novadeck.
 
+use std::io::{Read, Write};
 use std::path::{Path, PathBuf};
+use std::sync::mpsc;
+use std::thread;
 use std::time::{Duration, Instant};
 
 use serde_json::Value;
@@ -55,7 +58,7 @@ pub fn own_command(
 }
 
 /// The most of its output kept.
-pub const MOST: usize = 65_536;
+const MOST: usize = 65_536;
 
 /// How long, once the deadline ended it, what it printed has to come through the pipe: it
 /// closes as soon as everything it started has ended, so this is spent only on a command
@@ -65,10 +68,6 @@ const SETTLE: Duration = Duration::from_millis(100);
 /// What the command printed by the time it ended, or by `deadline`, when it and whatever
 /// it started are ended.
 pub fn run(command: &str, input: &[u8], deadline: Instant) -> String {
-    use std::io::{Read, Write};
-    use std::sync::mpsc;
-    use std::thread;
-
     let Some((mut child, started)) = start(command) else {
         return String::new();
     };
@@ -204,7 +203,7 @@ fn git_bash() -> Option<PathBuf> {
 }
 
 #[cfg(test)]
-mod lookup {
+mod tests {
     use std::fs;
 
     use super::*;
@@ -247,12 +246,6 @@ mod lookup {
         );
         let _ = fs::remove_dir_all(&root);
     }
-}
-
-#[cfg(test)]
-mod tests {
-
-    use super::*;
 
     #[test]
     fn prints_what_the_command_printed_from_the_same_input() {
