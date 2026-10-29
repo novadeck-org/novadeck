@@ -9,6 +9,7 @@ import type {
 } from "electron"
 
 import { webAddress } from "./address.js"
+import { chromeMajorOf, phoneEmulation, phoneUserAgent } from "./browser-phone.js"
 import { originOf, type PageRequestFailure } from "./browser-trouble.js"
 
 export { webAddress } from "./address.js"
@@ -46,7 +47,7 @@ const kept = (partition: string): boolean => /^persist:./.test(partition)
  */
 export const attachPage = (
   preferences: WebPreferences,
-  params: { readonly src?: string },
+  params: { readonly src?: string; readonly useragent?: string },
   // The pages' session, named as the viewer's `partition` names it (see `pagesSession`).
   partition: string,
 ): boolean => {
@@ -66,7 +67,123 @@ export const attachPage = (
   // handler, which would let the view attach as it asked.
   if (!kept(partition)) return false
   preferences.partition = partition
+  // A view may name itself a phone's, by the user agent its viewer gives one, and be told
+  // nothing else it runs on.
+  if (params.useragent && params.useragent !== phoneAgent()) return false
   return webAddress(params.src ?? "")
+}
+
+// The Chromium the app runs, which a phone's page view is told it runs too; none outside
+// Electron, as in a test.
+const chromeVersion = (): string => process.versions.chrome ?? "0"
+const phoneAgent = (): string => phoneUserAgent(chromeMajorOf(`Chrome/${chromeVersion()}`))
+
+/** How long a phone's page view's first load waits for it to act as a phone's, at most. */
+export const phoneWaitMs = 2_000
+
+// The page views acting as a phone's.
+const phones = new WeakSet<WebContents>()
+
+// A page view as itself: the protocol let go, which undoes all it set, and the session's
+// user agent back.
+const unemulate = (page: WebContents): void => {
+  phones.delete(page)
+  if (page.debugger.isAttached()) page.debugger.detach()
+  page.setUserAgent(page.session.getUserAgent())
+}
+
+// Makes a page view act as a phone's, through the DevTools protocol, or as itself again;
+// false when it can't. One it can't make a phone's is left as itself, not half a phone,
+// so nothing takes it for one.
+const emulate = async (page: WebContents, phone: boolean): Promise<boolean> => {
+  try {
+    if (!phone) {
+      unemulate(page)
+      return true
+    }
+    phones.add(page)
+    if (!page.debugger.isAttached()) page.debugger.attach("1.3")
+    page.setUserAgent(phoneAgent())
+    await Promise.all(
+      phoneEmulation(chromeVersion()).map(([method, params]) =>
+        page.debugger.sendCommand(method, params),
+      ),
+    )
+    return true
+  } catch {
+    try {
+      if (!page.isDestroyed()) unemulate(page)
+    } catch {
+      // Gone as it was undone: nothing left of it.
+    }
+    return false
+  }
+}
+
+// The page view `id`, as `host` asks for it: one of its own, and only a page view.
+const pageViewOf = (
+  host: WebContents,
+  id: unknown,
+  fromId: (id: number) => WebContents | undefined,
+): WebContents | undefined => {
+  if (typeof id !== "number" || !Number.isSafeInteger(id)) return undefined
+  const page = fromId(id)
+  return page &&
+    !page.isDestroyed() &&
+    page.getType() === "webview" &&
+    page.hostWebContents === host
+    ? page
+    : undefined
+}
+
+/**
+ * Makes the page view `id` act as a phone's, as its viewer shows it at a phone's size, or
+ * as itself again: a phone's screen and layout, a pointer that touches, and a phone's
+ * browser in its user agent and client hints. What it loads from then on is a phone's; a
+ * document already loaded is told of its new screen and pointer, but not what it runs on,
+ * so its viewer loads it again. False unless `id` is a page view of `host`, as for
+ * `picturePage`, and when it can't.
+ */
+export const phonePage = async (
+  host: WebContents,
+  id: unknown,
+  phone: unknown,
+  fromId: (id: number) => WebContents | undefined,
+): Promise<boolean> => {
+  const page = pageViewOf(host, id, fromId)
+  return page ? emulate(page, phone === true) : false
+}
+
+/**
+ * Holds the first load of a page view its viewer named a phone's, by its user agent (see
+ * `attachPage`), until it acts as one, so its first document is a phone's too; at most
+ * `phoneWaitMs`, after which it loads with a phone's user agent alone, its screen and touch
+ * coming to the page once they're set, or never where they can't be. Only page loads are
+ * held up, nothing they load. Electron keeps one listener per request event for a session, so nothing else may
+ * use `onBeforeRequest` on the pages' session.
+ */
+export const holdPhoneLoads = (
+  pages: Session,
+  fromId: (id: number) => WebContents | undefined,
+): void => {
+  pages.webRequest.onBeforeRequest(
+    { urls: ["<all_urls>"], types: ["mainFrame"] },
+    (details, callback) => {
+      const page =
+        details.resourceType === "mainFrame" && details.webContentsId !== undefined
+          ? fromId(details.webContentsId)
+          : undefined
+      if (
+        !page ||
+        page.isDestroyed() ||
+        page.getType() !== "webview" ||
+        phones.has(page) ||
+        page.getUserAgent() !== phoneAgent()
+      )
+        return callback({})
+      void within(emulate(page, true), phoneWaitMs).finally(() => callback({}))
+    },
+  )
 }
 
 type Opener = (url: string) => unknown
@@ -247,10 +364,8 @@ export const picturePage = async (
   fromId: (id: number) => WebContents | undefined,
   width?: unknown,
 ): Promise<string | undefined> => {
-  if (typeof id !== "number" || !Number.isSafeInteger(id)) return undefined
-  const page = fromId(id)
-  if (!page || page.isDestroyed() || page.getType() !== "webview" || page.hostWebContents !== host)
-    return undefined
+  const page = pageViewOf(host, id, fromId)
+  if (!page) return undefined
   const image = await within(page.capturePage(), pictureWaitMs)
   if (!image || image.isEmpty()) return undefined
   const narrower =

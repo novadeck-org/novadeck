@@ -1,6 +1,7 @@
 import "./browser.css"
 import { afterEach, describe as context, describe, expect, it, vi } from "vitest"
 
+import { chromeMajorOf, phoneUserAgent } from "./browser-phone.js"
 import {
   desktopWidth,
   fadeMs,
@@ -614,9 +615,10 @@ describe("the browser viewer", () => {
 
     it("lays out as a phone's screen when told, back to a desktop's when told again", async () => {
       const host = hostIn()
-      // Room for half a phone's width, its frame beside it.
-      host.style.width = `${phoneScreen.width / 2 + 2 * (phoneBezel + phoneMargin)}px`
-      host.style.height = "400px"
+      const room = phoneBezel + phoneMargin
+      // Room for half a phone's width, its frame beside it, and more than its height.
+      host.style.width = `${phoneScreen.width / 2 + 2 * room}px`
+      host.style.height = "1000px"
       const viewer = mountBrowser(host, {
         content: { url: "http://localhost:5173/" },
         label: "page",
@@ -625,13 +627,21 @@ describe("the browser viewer", () => {
         size: "phone",
       })
       expect(host.querySelector(".browser-viewer")!.getAttribute("data-size")).toBe("phone")
-      // Scaled down to fit the viewer's width, and no taller than it, its frame around it.
-      const room = phoneBezel + phoneMargin
-      expect(boxes(host).laid).toEqual([phoneScreen.width, 2 * (400 - 2 * room)])
-      expect(boxes(host).drawn).toEqual([room, room, phoneScreen.width / 2, 400 - 2 * room])
+      // A phone's shape, scaled down whole to fit, in the middle.
+      const half = [phoneScreen.width / 2, phoneScreen.height / 2]
+      expect(boxes(host).laid).toEqual([phoneScreen.width, phoneScreen.height])
+      expect(boxes(host).drawn).toEqual([room, (1000 - half[1]!) / 2, half[0], half[1]])
       viewer.size("desktop")
       expect(boxes(host).laid[0]).toBe(desktopWidth)
-      expect(boxes(host).drawn).toEqual([0, 0, phoneScreen.width / 2 + 2 * room, 400])
+      expect(boxes(host).drawn).toEqual([0, 0, phoneScreen.width / 2 + 2 * room, 1000])
+      viewer.size("phone")
+      // Shorter than a phone: smaller, not squatter.
+      host.style.width = "801px"
+      host.style.height = `${phoneScreen.height / 2 + 2 * room}px`
+      await expect
+        .poll(() => boxes(host).drawn)
+        .toEqual([(801 - half[0]!) / 2, room, half[0], half[1]])
+      expect(boxes(host).laid).toEqual([phoneScreen.width, phoneScreen.height])
       viewer.size("phone")
       host.style.width = "800px"
       host.style.height = "1000px"
@@ -742,7 +752,9 @@ describe("the browser viewer", () => {
         )
       // Its middle, and its frame's edge.
       press(left + width / 2, top + height / 2)
-      press(left + phoneMargin + 2, top + height / 2)
+      const phoneWide =
+        phoneScreen.width * ((height - 2 * (phoneBezel + phoneMargin)) / phoneScreen.height)
+      press(left + (width - phoneWide) / 2 - phoneBezel + 2, top + height / 2)
       expect(root.hasAttribute("data-tilting")).toBe(false)
       // The stage, outside its frame.
       press(left + 4, top + 4)
@@ -827,6 +839,79 @@ describe("the browser viewer", () => {
       const gains = pushes.slice(1).map((push, at) => push - pushes[at]!)
       expect(gains.every((gain, at) => at === 0 || gain < gains[at - 1]!)).toBe(true)
       expect(Math.max(...pushes)).toBeLessThan(tiltMaxDeg)
+    })
+
+    context("where its host can make a view a phone's", () => {
+      const asPhone = (size: "desktop" | "phone", answer = true) => {
+        const host = hostIn()
+        const asked: [number, boolean][] = []
+        const viewer = mountBrowser(host, {
+          content: { url: "http://localhost:5173/" },
+          label: "page",
+          live: true,
+          partition: "pages",
+          size,
+          phone: async (page, phone) => {
+            asked.push([page, phone])
+            return answer
+          },
+        })
+        const calls: string[] = []
+        const attachNow = () => {
+          attach(
+            pageOf(host),
+            { url: "http://localhost:5173/", back: false, forward: false },
+            calls,
+          )
+          Object.assign(pageOf(host), { getWebContentsId: () => 7 })
+        }
+        return { host, viewer, asked, calls, attachNow }
+      }
+
+      it("names a view made at a phone's size a phone's, and not once it's a desktop's", async () => {
+        const { host, viewer, asked, attachNow } = asPhone("phone")
+        expect(pageOf(host).getAttribute("useragent")).toBe(
+          phoneUserAgent(chromeMajorOf(navigator.userAgent)),
+        )
+        // The host makes it one as it loads: nothing to ask, as its document is ready too.
+        attachNow()
+        pageOf(host).dispatchEvent(event("dom-ready"))
+        await new Promise((resolve) => setTimeout(resolve, 0))
+        expect(asked).toEqual([])
+        expect(pageOf(asPhone("desktop").host).hasAttribute("useragent")).toBe(false)
+        // Switched, it's named nothing, as a load from its address again would read it.
+        viewer.size("desktop")
+        expect(pageOf(host).hasAttribute("useragent")).toBe(false)
+        await expect.poll(() => asked).toEqual([[7, false]])
+      })
+
+      it("makes the view a phone's or itself again on a switch, then loads it again", async () => {
+        const { viewer, asked, calls, attachNow } = asPhone("desktop")
+        attachNow()
+        viewer.size("phone")
+        await expect.poll(() => calls).toContain("reload")
+        viewer.size("desktop")
+        await expect.poll(() => calls.filter((call) => call === "reload")).toHaveLength(2)
+        expect(asked).toEqual([
+          [7, true],
+          [7, false],
+        ])
+      })
+
+      it("loads nothing again where the host couldn't, and catches up a view not attached yet", async () => {
+        const failing = asPhone("desktop", false)
+        failing.attachNow()
+        failing.viewer.size("phone")
+        await expect.poll(() => failing.asked).toEqual([[7, true]])
+        expect(failing.calls).not.toContain("reload")
+        const early = asPhone("desktop")
+        // Switched before it's attached: asked once its document is ready.
+        early.viewer.size("phone")
+        expect(early.asked).toEqual([])
+        early.attachNow()
+        pageOf(early.host).dispatchEvent(event("dom-ready"))
+        await expect.poll(() => early.asked).toEqual([[7, true]])
+      })
     })
 
     it("frames nothing in a viewer with no room, as one kept out of sight", () => {
@@ -916,7 +1001,11 @@ describe("the browser viewer", () => {
         .poll(() => widths)
         .toEqual([
           Math.round(400 * devicePixelRatio),
-          Math.round((400 - 2 * (phoneBezel + phoneMargin)) * devicePixelRatio),
+          Math.round(
+            phoneScreen.width *
+              ((300 - 2 * (phoneBezel + phoneMargin)) / phoneScreen.height) *
+              devicePixelRatio,
+          ),
         ])
     })
 

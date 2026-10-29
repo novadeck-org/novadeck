@@ -83,12 +83,14 @@ const ShownPage = ({
   trouble,
   actions,
   picture,
+  phone,
 }: {
   id: string
   content: PageContent
   trouble: ArtifactBodyProps<"page">["trouble"]
   actions: ReactNode
   picture: ((page: number, width?: number) => Promise<string | undefined>) | undefined
+  phone: ((page: number, phone: boolean) => Promise<boolean>) | undefined
 }): React.JSX.Element => {
   const collect = useTroubles(trouble)
   const [place, setPlace] = useState<Place>({ url: page.url, back: false, forward: false })
@@ -113,6 +115,7 @@ const ShownPage = ({
     partition: pagesPartition,
     // Only where it can rest: a picture nothing rests as costs for nothing.
     ...(picture && sleeps ? { picture } : {}),
+    ...(phone ? { phone } : {}),
     awake,
     size,
     on: { navigate: setPlace, load: setLoad, ...(page.live ? { trouble: collect } : {}) },
@@ -217,6 +220,7 @@ export const PageViewer = ({
       trouble={trouble}
       actions={actions}
       picture={itemStore.picture}
+      phone={itemStore.phone}
     />
   ) : (
     <div className="artifact-browser">

@@ -1,4 +1,5 @@
 import { webAddress } from "./address.js"
+import { chromeMajorOf, phoneScreen, phoneUserAgent } from "./browser-phone.js"
 import { pageSignInMessage, parsePageSignIn } from "./browser-sign-in.js"
 import {
   maxTroubles,
@@ -46,13 +47,13 @@ export type Load = "loading" | "ready" | "failed"
 /**
  * What a live page lays out as: a desktop's window, at least `desktopWidth` wide and scaled
  * down to fit a narrower viewer, so a narrow viewer shows a site's desktop layout, not the
- * one it squeezes into; or a phone's screen, `phoneScreen`, in a phone's frame, scaled
- * down only to fit the viewer's width, and no taller than the viewer.
+ * one it squeezes into; or a phone's screen, `phoneScreen`, in a phone's frame, kept a
+ * phone's shape and scaled down whole to fit the viewer, so it reads as a phone in any.
  */
 export type PageSize = "desktop" | "phone"
 
 export const desktopWidth = 1280
-export const phoneScreen = { width: 390, height: 844 } as const
+export { phoneScreen }
 /**
  * The room a phone's screen keeps on each side of it, in CSS pixels: its frame's bezel,
  * which browser.css draws, and a margin around the frame.
@@ -80,14 +81,17 @@ export const framingOf = (size: PageSize, width: number, height: number): Framin
     return { width: desktopWidth, height: height / scale, scale, left: 0, top: 0 }
   }
   const room = 2 * (phoneBezel + phoneMargin)
-  const scale = Math.min(1, Math.max(1, width - room) / phoneScreen.width)
-  const tall = Math.min(phoneScreen.height, Math.max(1, height - room) / scale)
+  const scale = Math.min(
+    1,
+    Math.max(1, width - room) / phoneScreen.width,
+    Math.max(1, height - room) / phoneScreen.height,
+  )
   return {
     width: phoneScreen.width,
-    height: tall,
+    height: phoneScreen.height,
     scale,
     left: (width - phoneScreen.width * scale) / 2,
-    top: (height - tall * scale) / 2,
+    top: (height - phoneScreen.height * scale) / 2,
   }
 }
 
@@ -105,6 +109,13 @@ export type BrowserOptions = {
    * page never rests.
    */
   readonly picture?: (page: number, width?: number) => Promise<string | undefined>
+  /**
+   * Makes the live page's view act as a phone's, by its web contents id, or as itself
+   * again: touched, with a phone's screen and browser; false when it can't. With it, a
+   * page at a phone's size is a phone's, not just as narrow as one, and each view made for
+   * one is named a phone's, for the host to make it one before it loads.
+   */
+  readonly phone?: (page: number, phone: boolean) => Promise<boolean>
   /** Whether a live page starts awake, as it does unless told; it rests only as a picture. */
   readonly awake?: boolean
   /** What a live page lays out as, a desktop's window unless told. */
@@ -365,6 +376,7 @@ export const mountBrowser: Mount<BrowserContent, BrowserOptions, BrowserViewer> 
     snapshot,
     partition,
     picture: take,
+    phone: becomePhone,
     awake: startAwake,
     size: startSize,
     on,
@@ -779,6 +791,31 @@ export const mountBrowser: Mount<BrowserContent, BrowserOptions, BrowserViewer> 
         if (key !== undefined) void attached(() => was!.view.removeInsertedCSS(key))?.catch(nothing)
       })
   }
+  // Where the host can make a view a phone's, or itself again, the live view is as its size
+  // says, and the page loads again once it changes, for it to know what it now runs on. A
+  // view not attached yet catches up as its document is ready.
+  let phoneView: Webview | undefined
+  const navigatorAgent = (): string => document.defaultView?.navigator.userAgent ?? ""
+  const becomeSize = (): void => {
+    const view = page
+    if (!becomePhone || !view) return
+    const asPhone = size === "phone"
+    if ((phoneView === view) === asPhone) return
+    const id = attached(() => view.getWebContentsId())
+    if (id === undefined) return
+    phoneView = asPhone ? view : undefined
+    // Not a phone's any more: loaded again from its address, as by a restore, it isn't one.
+    if (!asPhone) view.removeAttribute("useragent")
+    void becomePhone(id, asPhone)
+      .catch(() => false)
+      .then((done) => {
+        if (!done) {
+          if (asPhone && phoneView === view) phoneView = undefined
+          return
+        }
+        if (page === view) attached(() => view.reload())
+      })
+  }
   const moved = (): void => {
     attached(() => {
       page!.setAudioMuted(muted)
@@ -951,6 +988,7 @@ export const mountBrowser: Mount<BrowserContent, BrowserOptions, BrowserViewer> 
     ["dom-ready", moved],
     ["dom-ready", painting],
     ["dom-ready", dress],
+    ["dom-ready", becomeSize],
     ["did-navigate", moved],
     ["did-navigate-in-page", movedInPage],
     ["did-start-loading", started],
@@ -971,6 +1009,12 @@ export const mountBrowser: Mount<BrowserContent, BrowserOptions, BrowserViewer> 
     const made = document.createElement("webview") as Webview
     made.setAttribute("partition", partition)
     made.setAttribute("allowpopups", "")
+    // A phone's, named by its browser's user agent, which the host's lockdown knows and
+    // makes it one by before it loads.
+    if (becomePhone && size === "phone") {
+      made.setAttribute("useragent", phoneUserAgent(chromeMajorOf(navigatorAgent())))
+      phoneView = made
+    }
     made.setAttribute("src", at)
     page = made
     first = true
@@ -1199,6 +1243,7 @@ export const mountBrowser: Mount<BrowserContent, BrowserOptions, BrowserViewer> 
       frame()
       if (size === "phone") dress()
       else undress()
+      becomeSize()
       // Its picture, and one under way, are of the other size, as is where it was scrolled:
       // it rests as one of this once one is taken. Over a page that's there, or on its way
       // as a press on the switch woke it, the picture goes at once.

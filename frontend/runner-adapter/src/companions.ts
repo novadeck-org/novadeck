@@ -107,16 +107,19 @@ export const createRunnerCompanions = (
   {
     livePages = false,
     picture,
+    phone,
     inOrder = (_target, operation) => operation(),
   }: {
     readonly livePages?: boolean
     readonly picture?: Companions["picture"]
+    readonly phone?: Companions["phone"]
     // Runs a call behind the person's earlier changes to the session's items; direct by
     // default.
     readonly inOrder?: <T>(target: WorkspaceTarget, operation: () => Promise<T>) => Promise<T>
   } = {},
 ): Companions => ({
   ...(livePages && picture ? { picture } : {}),
+  ...(livePages && phone ? { phone } : {}),
   follow: (_target, itemId, { reveal }, on) => {
     let stream: ReturnType<typeof runner.content> | undefined
     let stopped = false
