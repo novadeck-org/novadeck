@@ -86,12 +86,21 @@ const DraggedRow = ({
   readonly settledFirst: boolean
   readonly drag: Drag
 }): React.JSX.Element => {
-  const { ref, isDragSource } = useSortable({
+  // The row's button is what drags: dnd-kit starts no drag from a button that isn't its handle.
+  const { ref, handleRef, isDragSource } = useSortable({
     id: row.item.id,
     index: drag.index,
     transition: { duration: 180, easing: "cubic-bezier(0.16, 1, 0.3, 1)" },
   })
-  return <RowBody {...row} rowRef={ref} dragging={isDragSource} onStep={drag.onStep} />
+  return (
+    <RowBody
+      {...row}
+      rowRef={ref}
+      handleRef={handleRef}
+      dragging={isDragSource}
+      onStep={drag.onStep}
+    />
+  )
 }
 
 const RowBody = ({
@@ -100,6 +109,7 @@ const RowBody = ({
   first,
   settledFirst,
   rowRef,
+  handleRef,
   dragging = false,
   onStep,
 }: {
@@ -108,6 +118,7 @@ const RowBody = ({
   readonly first: boolean
   readonly settledFirst: boolean
   readonly rowRef?: (element: Element | null) => void
+  readonly handleRef?: (element: Element | null) => void
   readonly dragging?: boolean
   readonly onStep?: ((by: -1 | 1) => void) | undefined
 }): React.JSX.Element => {
@@ -148,6 +159,7 @@ const RowBody = ({
       data-dragging={dragging || undefined}
     >
       <button
+        ref={handleRef}
         type="button"
         className="inbox-row-select"
         aria-keyshortcuts={onStep ? "Alt+ArrowUp Alt+ArrowDown" : undefined}
