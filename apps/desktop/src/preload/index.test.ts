@@ -48,7 +48,7 @@ const electron = vi.hoisted(() => ({
   renderer: undefined as unknown as EventEmitter,
   exposed: undefined as unknown as DesktopHost,
   sent: [] as string[],
-  messages: [] as [string, unknown][],
+  messages: [] as [string, ...unknown[]][],
   // What the main process answers a request with.
   answer: undefined as unknown,
 }))
@@ -77,7 +77,7 @@ vi.mock("electron", async () => {
       },
       invoke: async (channel: string, ...values: unknown[]) => {
         electron.sent.push(channel)
-        if (values.length) electron.messages.push([channel, values[0]])
+        if (values.length) electron.messages.push([channel, ...values])
         return electron.answer
       },
     }),
@@ -266,8 +266,8 @@ describe("a pasted file's path", () => {
 describe("a picture of a live page", () => {
   it("is asked for by the page's view id, and comes back as a JPEG address", async () => {
     electron.answer = "data:image/jpeg;base64,AAAA"
-    expect(await electron.exposed.pagePicture?.(7)).toBe("data:image/jpeg;base64,AAAA")
-    expect(electron.messages).toEqual([[pagePictureChannel, 7]])
+    expect(await electron.exposed.pagePicture?.(7, 800)).toBe("data:image/jpeg;base64,AAAA")
+    expect(electron.messages).toEqual([[pagePictureChannel, 7, 800]])
   })
 
   it("is nothing for anything else the main process answers", async () => {

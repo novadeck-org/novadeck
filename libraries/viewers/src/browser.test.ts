@@ -2,10 +2,18 @@ import "./browser.css"
 import { afterEach, describe as context, describe, expect, it, vi } from "vitest"
 
 import {
+  desktopWidth,
   fadeMs,
+  framingOf,
   freshenMs,
   keepMs,
   mountBrowser,
+  phoneBezel,
+  tiltMaxDeg,
+  tiltPerPx,
+  tiltToward,
+  phoneMargin,
+  phoneScreen,
   scrollWaitMs,
   uncoverMs,
   type BrowserContent,
@@ -568,6 +576,265 @@ describe("the browser viewer", () => {
     })
   })
 
+  context("framing its page", () => {
+    // The page's view as it lays out, and as it's drawn on screen.
+    const boxes = (host: HTMLElement) => {
+      const page = pageOf(host)
+      const drawn = page.getBoundingClientRect()
+      const viewer = host.querySelector(".browser-viewer")!.getBoundingClientRect()
+      return {
+        laid: [page.offsetWidth, page.offsetHeight],
+        // To the pixel: scaled, it can fall a hair short of one.
+        drawn: [drawn.left - viewer.left, drawn.top - viewer.top, drawn.width, drawn.height].map(
+          Math.round,
+        ),
+      }
+    }
+
+    it("lays out as a desktop's window, scaled down to fit a narrower viewer", () => {
+      const host = hostIn()
+      live(host)
+      expect(host.querySelector(".browser-viewer")!.getAttribute("data-size")).toBe("desktop")
+      expect(boxes(host)).toEqual({ laid: [desktopWidth, 960], drawn: [0, 0, 400, 300] })
+    })
+
+    it("fills a viewer as wide as a desktop's window, as it is", async () => {
+      const host = hostIn()
+      host.style.width = `${desktopWidth + 100}px`
+      live(host)
+      expect(boxes(host)).toEqual({
+        laid: [desktopWidth + 100, 300],
+        drawn: [0, 0, desktopWidth + 100, 300],
+      })
+      // Narrower, it's scaled down to fit again.
+      host.style.width = "640px"
+      await expect.poll(() => boxes(host).laid).toEqual([desktopWidth, 600])
+      expect(boxes(host).drawn).toEqual([0, 0, 640, 300])
+    })
+
+    it("lays out as a phone's screen when told, back to a desktop's when told again", async () => {
+      const host = hostIn()
+      // Room for half a phone's width, its frame beside it.
+      host.style.width = `${phoneScreen.width / 2 + 2 * (phoneBezel + phoneMargin)}px`
+      host.style.height = "400px"
+      const viewer = mountBrowser(host, {
+        content: { url: "http://localhost:5173/" },
+        label: "page",
+        live: true,
+        partition: "pages",
+        size: "phone",
+      })
+      expect(host.querySelector(".browser-viewer")!.getAttribute("data-size")).toBe("phone")
+      // Scaled down to fit the viewer's width, and no taller than it, its frame around it.
+      const room = phoneBezel + phoneMargin
+      expect(boxes(host).laid).toEqual([phoneScreen.width, 2 * (400 - 2 * room)])
+      expect(boxes(host).drawn).toEqual([room, room, phoneScreen.width / 2, 400 - 2 * room])
+      viewer.size("desktop")
+      expect(boxes(host).laid[0]).toBe(desktopWidth)
+      expect(boxes(host).drawn).toEqual([0, 0, phoneScreen.width / 2 + 2 * room, 400])
+      viewer.size("phone")
+      host.style.width = "800px"
+      host.style.height = "1000px"
+      // Room for the whole screen: as big as a phone's, centred.
+      await expect
+        .poll(() => boxes(host).drawn)
+        .toEqual([205, 78, phoneScreen.width, phoneScreen.height])
+      expect(boxes(host).laid).toEqual([phoneScreen.width, phoneScreen.height])
+    })
+
+    it("hides a phone's page's own scrollbar in each document it loads, and only a phone's", async () => {
+      const host = hostIn()
+      const viewer = live(host)
+      const page = pageOf(host)
+      const calls: string[] = []
+      attach(page, { url: "http://localhost:5173/", back: false, forward: false }, calls)
+      let keys = 0
+      Object.assign(page, {
+        insertCSS: async (css: string) => {
+          calls.push(`insert ${css}`)
+          return `key ${++keys}`
+        },
+        removeInsertedCSS: async (key: string) => {
+          calls.push(`remove ${key}`)
+        },
+      })
+      page.dispatchEvent(event("dom-ready"))
+      expect(calls.filter((call) => call.startsWith("insert"))).toEqual([])
+      viewer.size("phone")
+      // Another document, which has none of the last one's.
+      page.dispatchEvent(event("dom-ready"))
+      viewer.size("desktop")
+      await expect
+        .poll(() => calls.filter((call) => /^(insert|remove)/.test(call)))
+        .toEqual([
+          "insert html { scrollbar-width: none !important; }",
+          "insert html { scrollbar-width: none !important; }",
+          // Both, as dom-ready can come for the document the first went in.
+          "remove key 1",
+          "remove key 2",
+        ])
+    })
+
+    it("tilts a phone as the person drags across its stage, flat again when let go", () => {
+      // The tests' browser prefers reduced motion: the phone goes where it's pushed at once.
+      const host = hostIn()
+      const viewer = live(host)
+      const root = host.querySelector<HTMLElement>(".browser-viewer")!
+      const pointer = (type: string, target: Element, x: number, y: number) =>
+        target.dispatchEvent(
+          new PointerEvent(type, {
+            bubbles: true,
+            button: 0,
+            buttons: type === "pointerup" ? 0 : 1,
+            pointerId: 1,
+            clientX: x,
+            clientY: y,
+          }),
+        )
+      const turned = () => [
+        Number(root.style.getPropertyValue("--browser-tilt-x")),
+        Number(root.style.getPropertyValue("--browser-tilt-y")),
+      ]
+      // A desktop's page doesn't turn.
+      pointer("pointerdown", root, 10, 10)
+      expect(root.hasAttribute("data-tilting")).toBe(false)
+      viewer.size("phone")
+      // Nor does a press on the page itself.
+      pointer("pointerdown", pageOf(host), 10, 10)
+      expect(root.hasAttribute("data-tilting")).toBe(false)
+      pointer("pointerdown", root, 10, 10)
+      expect(root.hasAttribute("data-tilting")).toBe(true)
+      pointer("pointermove", root, 10 + 40, 10 - 20)
+      expect(turned()[0]).toBeCloseTo(tiltToward(20), 2)
+      expect(turned()[1]).toBeCloseTo(tiltToward(40), 2)
+      // However far it's dragged, no further than it turns.
+      pointer("pointermove", root, 10 - 4000, 10)
+      expect(turned()[1]).toBeCloseTo(-tiltMaxDeg, 1)
+      pointer("pointerup", root, 10 - 4000, 10)
+      expect(root.hasAttribute("data-tilting")).toBe(false)
+      expect(root.hasAttribute("data-settling")).toBe(false)
+      expect(turned()).toEqual([0, 0])
+      // Let go, a move turns it no more.
+      pointer("pointermove", root, 200, 200)
+      expect(turned()).toEqual([0, 0])
+    })
+
+    it("doesn't tilt for a press on the phone, as where a Grid tile lets it through", () => {
+      const host = hostIn()
+      mountBrowser(host, {
+        content: { url: "http://localhost:5173/" },
+        label: "page",
+        live: true,
+        partition: "pages",
+        size: "phone",
+      })
+      const root = host.querySelector<HTMLElement>(".browser-viewer")!
+      const { left, top, width, height } = root.getBoundingClientRect()
+      const press = (x: number, y: number) =>
+        root.dispatchEvent(
+          new PointerEvent("pointerdown", {
+            bubbles: true,
+            button: 0,
+            pointerId: 1,
+            clientX: x,
+            clientY: y,
+          }),
+        )
+      // Its middle, and its frame's edge.
+      press(left + width / 2, top + height / 2)
+      press(left + phoneMargin + 2, top + height / 2)
+      expect(root.hasAttribute("data-tilting")).toBe(false)
+      // The stage, outside its frame.
+      press(left + 4, top + 4)
+      expect(root.hasAttribute("data-tilting")).toBe(true)
+    })
+
+    it("swings a phone toward where it's pushed on its spring, and back flat to rest", async () => {
+      // With motion, as the person's browser has it unless they ask for less.
+      vi.spyOn(window, "matchMedia").mockReturnValue({ matches: false } as MediaQueryList)
+      const host = hostIn()
+      mountBrowser(host, {
+        content: { url: "http://localhost:5173/" },
+        label: "page",
+        live: true,
+        partition: "pages",
+        size: "phone",
+      })
+      const root = host.querySelector<HTMLElement>(".browser-viewer")!
+      const { left, top } = root.getBoundingClientRect()
+      const pointer = (type: string, x: number, buttons: number) =>
+        root.dispatchEvent(
+          new PointerEvent(type, {
+            bubbles: true,
+            button: 0,
+            buttons,
+            pointerId: 1,
+            clientX: x,
+            clientY: top + 4,
+          }),
+        )
+      const turned = () => Number(root.style.getPropertyValue("--browser-tilt-y"))
+      try {
+        pointer("pointerdown", left + 4, 1)
+        pointer("pointermove", left + 4 + 200, 1)
+        // It starts slow, then gets there.
+        await expect.poll(turned).toBeGreaterThan(0)
+        expect(turned()).toBeLessThan(tiltToward(200))
+        await expect.poll(turned, { timeout: 3000 }).toBeCloseTo(tiltToward(200), 0)
+        pointer("pointerup", left + 4 + 200, 0)
+        expect(root.hasAttribute("data-settling")).toBe(true)
+        await expect.poll(() => root.hasAttribute("data-settling"), { timeout: 3000 }).toBe(false)
+        expect(turned()).toBe(0)
+      } finally {
+        vi.restoreAllMocks()
+      }
+    })
+
+    it("lets a phone go when a move comes with no button down, its release lost", () => {
+      const host = hostIn()
+      mountBrowser(host, {
+        content: { url: "http://localhost:5173/" },
+        label: "page",
+        live: true,
+        partition: "pages",
+        size: "phone",
+      })
+      const root = host.querySelector<HTMLElement>(".browser-viewer")!
+      const { left, top } = root.getBoundingClientRect()
+      const pointer = (type: string, x: number, buttons: number) =>
+        root.dispatchEvent(
+          new PointerEvent(type, {
+            bubbles: true,
+            button: 0,
+            buttons,
+            pointerId: 1,
+            clientX: x,
+            clientY: top + 4,
+          }),
+        )
+      pointer("pointerdown", left + 4, 1)
+      expect(root.hasAttribute("data-tilting")).toBe(true)
+      pointer("pointermove", left + 60, 0)
+      expect(root.hasAttribute("data-tilting")).toBe(false)
+      expect(root.style.getPropertyValue("--browser-tilt-y")).toBe("0")
+    })
+
+    it("pushes a phone less the further it's dragged, never past its most", () => {
+      expect(tiltToward(0)).toBe(0)
+      expect(tiltToward(10)).toBeCloseTo(10 * tiltPerPx, 1)
+      expect(tiltToward(-10)).toBeCloseTo(-tiltToward(10), 6)
+      const pushes = [0, 100, 200, 300, 400].map(tiltToward)
+      const gains = pushes.slice(1).map((push, at) => push - pushes[at]!)
+      expect(gains.every((gain, at) => at === 0 || gain < gains[at - 1]!)).toBe(true)
+      expect(Math.max(...pushes)).toBeLessThan(tiltMaxDeg)
+    })
+
+    it("frames nothing in a viewer with no room, as one kept out of sight", () => {
+      expect(framingOf("desktop", 0, 300)).toBeUndefined()
+      expect(framingOf("phone", 400, 0)).toBeUndefined()
+    })
+  })
+
   context("at rest", () => {
     const url = "http://localhost:5173/"
     const shot = "data:image/jpeg;base64,c2hvdA=="
@@ -583,7 +850,7 @@ describe("the browser viewer", () => {
       saved,
       awake,
     }: {
-      pictures?: (string | undefined)[]
+      pictures?: (string | undefined | Promise<string | undefined>)[]
       content?: BrowserContent
       saved?: ViewerState
       awake?: boolean
@@ -596,13 +863,15 @@ describe("the browser viewer", () => {
       const calls: string[] = []
       const at = { url: content.url, back: true, forward: false }
       const taken: number[] = []
+      const widths: (number | undefined)[] = []
       const viewer = mountBrowser(host, {
         content,
         label: "page",
         live: true,
         partition: "pages",
-        picture: async (id) => {
+        picture: async (id, width) => {
           taken.push(id)
+          widths.push(width)
           return pictures.shift()
         },
         on: { load: (load) => loads.push(load), navigate: (place) => places.push(place) },
@@ -631,8 +900,75 @@ describe("the browser viewer", () => {
       ready()
       const fire = (type: string, fields?: Record<string, unknown>) =>
         ready()!.dispatchEvent(event(type, fields))
-      return { host, viewer, at, calls, loads, places, taken, fire, ready }
+      return { host, viewer, at, calls, loads, places, taken, widths, fire, ready }
     }
+
+    it("is pictured as wide as it's drawn, not as wide as it lays out", async () => {
+      const { viewer, widths, fire } = resting({ pictures: [shot, later] })
+      fire("did-stop-loading")
+      viewer.awake(false)
+      await expect.poll(() => widths).toEqual([Math.round(400 * devicePixelRatio)])
+      viewer.awake(true)
+      viewer.size("phone")
+      fire("did-stop-loading")
+      viewer.awake(false)
+      await expect
+        .poll(() => widths)
+        .toEqual([
+          Math.round(400 * devicePixelRatio),
+          Math.round((400 - 2 * (phoneBezel + phoneMargin)) * devicePixelRatio),
+        ])
+    })
+
+    it("is pictured as it is where it's drawn no width at all", async () => {
+      const { host, viewer, taken, widths, fire } = resting()
+      host.style.width = "0px"
+      await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)))
+      fire("did-stop-loading")
+      viewer.awake(false)
+      await expect.poll(() => taken).toEqual([7])
+      expect(widths).toEqual([undefined])
+    })
+
+    it("lets a picture of the other size go at once when switched, waking", async () => {
+      vi.useFakeTimers()
+      try {
+        const { host, viewer, calls, fire, ready } = resting()
+        fire("did-stop-loading")
+        viewer.awake(false)
+        await vi.runAllTimersAsync()
+        expect(pageOf(host)).toBeNull()
+        // A press on the switch wakes it, its picture over it until it has loaded.
+        viewer.awake(true)
+        ready()
+        expect(pictureOf(host)).not.toBeNull()
+        viewer.size("phone")
+        expect(pictureOf(host)).toBeNull()
+        expect(viewer.pictured()).toBe(false)
+        expect(viewer.state()).not.toMatchObject({ browser: { picture: {} } })
+        // Loaded, it isn't scrolled to where the desktop's picture was.
+        fire("did-stop-loading")
+        expect(calls.some((call) => call.includes("scrollTo(0, 640)"))).toBe(false)
+      } finally {
+        vi.useRealTimers()
+      }
+    })
+
+    it("lets a picture under way as it's switched go, as one of the other size", async () => {
+      let give: (src: string) => void = () => {}
+      const pending = new Promise<string>((resolve) => (give = resolve))
+      const { host, viewer, fire } = resting({ pictures: [pending] })
+      fire("did-stop-loading")
+      viewer.awake(false)
+      await settled()
+      viewer.size("phone")
+      give(shot)
+      await settled()
+      await settled()
+      // Nothing of this size to rest as: live, until one is taken.
+      expect(pageOf(host)).not.toBeNull()
+      expect(viewer.pictured()).toBe(false)
+    })
 
     it("takes a picture of the page and where it's scrolled, and shows it in its view's place", async () => {
       const { host, viewer, calls, places, taken, fire } = resting()
@@ -667,14 +1003,13 @@ describe("the browser viewer", () => {
         ready()
         // Loading: the picture stays over it, on the page's ground.
         expect(pictureOf(host)).not.toBeNull()
-        const viewerOf = host.querySelector(".browser-viewer")!
-        expect(getComputedStyle(viewerOf).backgroundColor).toBe("rgb(255, 255, 255)")
+        expect(getComputedStyle(pictureOf(host)!).backgroundColor).toBe("rgb(255, 255, 255)")
         fire("did-stop-loading")
         expect(calls.some((call) => call.includes("scrollTo(0, 640)"))).toBe(true)
         await vi.advanceTimersByTimeAsync(uncoverMs)
         expect(pictureOf(host)!.hasAttribute("data-fading")).toBe(true)
         // Fading off a page that has drawn, with no ground to show at its edge.
-        expect(getComputedStyle(viewerOf).backgroundColor).toBe("rgba(0, 0, 0, 0)")
+        expect(getComputedStyle(pictureOf(host)!).backgroundColor).toBe("rgba(0, 0, 0, 0)")
         await vi.advanceTimersByTimeAsync(fadeMs)
         expect(pictureOf(host)).toBeNull()
         // Woken, it's live again: back, forward and the rest work on it.

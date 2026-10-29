@@ -17,8 +17,11 @@ import type { Mount, Viewer, ViewerState } from "./index.js"
 // at it: it shows a picture of itself in its place, and its view goes, so drawing it costs
 // nothing; woken, it loads again under the picture, where the person had scrolled, and the
 // picture fades once it's there. While the page has a sign-in window open, which closes
-// with its view, it stays live instead, and rests once the last one closes. Where live pages aren't available (a plain browser, a demo), it shows a
-// snapshot of the page, or nothing, for the host to say why. Its looks are browser.css's.
+// with its view, it stays live instead, and rests once the last one closes. A live page lays
+// out as a desktop's window or a phone's screen, scaled down to fit where the viewer is
+// narrower (see `framingOf`). Where live pages aren't available (a plain browser, a demo),
+// it shows a snapshot of the page, or nothing, for the host to say why. Its looks are
+// browser.css's.
 
 export type { Trouble }
 
@@ -40,6 +43,54 @@ export type Place = { readonly url: string; readonly back: boolean; readonly for
 /** How the page's latest load went. */
 export type Load = "loading" | "ready" | "failed"
 
+/**
+ * What a live page lays out as: a desktop's window, at least `desktopWidth` wide and scaled
+ * down to fit a narrower viewer, so a narrow viewer shows a site's desktop layout, not the
+ * one it squeezes into; or a phone's screen, `phoneScreen`, in a phone's frame, scaled
+ * down only to fit the viewer's width, and no taller than the viewer.
+ */
+export type PageSize = "desktop" | "phone"
+
+export const desktopWidth = 1280
+export const phoneScreen = { width: 390, height: 844 } as const
+/**
+ * The room a phone's screen keeps on each side of it, in CSS pixels: its frame's bezel,
+ * which browser.css draws, and a margin around the frame.
+ */
+export const phoneBezel = 10
+export const phoneMargin = 16
+
+/**
+ * Where a live page's view goes in a viewer `width` by `height` wide: the size it lays out
+ * at, how far it's scaled, and where it sits; undefined where it fills the viewer as it is.
+ */
+export type Framing = {
+  readonly width: number
+  readonly height: number
+  readonly scale: number
+  readonly left: number
+  readonly top: number
+}
+
+export const framingOf = (size: PageSize, width: number, height: number): Framing | undefined => {
+  if (width <= 0 || height <= 0) return undefined
+  if (size === "desktop") {
+    if (width >= desktopWidth) return undefined
+    const scale = width / desktopWidth
+    return { width: desktopWidth, height: height / scale, scale, left: 0, top: 0 }
+  }
+  const room = 2 * (phoneBezel + phoneMargin)
+  const scale = Math.min(1, Math.max(1, width - room) / phoneScreen.width)
+  const tall = Math.min(phoneScreen.height, Math.max(1, height - room) / scale)
+  return {
+    width: phoneScreen.width,
+    height: tall,
+    scale,
+    left: (width - phoneScreen.width * scale) / 2,
+    top: (height - tall * scale) / 2,
+  }
+}
+
 export type BrowserOptions = {
   /** Whether pages load live here, as in the desktop app. */
   readonly live: boolean
@@ -49,12 +100,15 @@ export type BrowserOptions = {
   readonly partition: string
   /**
    * Takes a picture of what the live page shows now, by its view's web contents id, for
-   * the viewer to show while the page rests; undefined when it can't. Without it, a live
+   * the viewer to show while the page rests, no wider than `width` device pixels, as wide
+   * as it's drawn, where it's drawn any width; undefined when it can't. Without it, a live
    * page never rests.
    */
-  readonly picture?: (page: number) => Promise<string | undefined>
+  readonly picture?: (page: number, width?: number) => Promise<string | undefined>
   /** Whether a live page starts awake, as it does unless told; it rests only as a picture. */
   readonly awake?: boolean
+  /** What a live page lays out as, a desktop's window unless told. */
+  readonly size?: PageSize
   readonly on?: {
     readonly navigate?: (place: Place) => void
     readonly load?: (load: Load) => void
@@ -83,6 +137,8 @@ export type BrowserViewer = Viewer<BrowserContent> & {
   readonly awake: (awake: boolean) => void
   /** Whether it has a picture to rest as. */
   readonly pictured: () => boolean
+  /** Lays the live page out as `size`: its picture, of the other, stands in for nothing. */
+  readonly size: (size: PageSize) => void
 }
 
 // Electron's <webview>: its methods work once it's attached, and throw until then.
@@ -98,6 +154,8 @@ type Webview = HTMLElement & {
   getURL(): string
   getWebContentsId(): number
   setAudioMuted(muted: boolean): void
+  insertCSS(css: string): Promise<string>
+  removeInsertedCSS(key: string): Promise<void>
 }
 
 // A page's scroll, as `[scrollX, scrollY]`.
@@ -212,6 +270,40 @@ export const keepMs = 5_000
 export const uncoverMs = 120
 export const fadeMs = 150
 
+/**
+ * How a phone tilts as the person drags across the stage around it, as if it had weight:
+ * the drag sets where it's pushed toward, which gives way less the further it goes, never
+ * past `tiltMaxDeg` each way; the phone follows on a heavy spring, and let go, swings back
+ * flat on it. `tiltPerPx` is how far the first pixels of a drag push it.
+ */
+export const tiltPerPx = 0.1
+export const tiltMaxDeg = 14
+
+/** Where a drag of `by` pixels pushes a phone toward, in degrees: it stiffens as it goes. */
+export const tiltToward = (by: number): number =>
+  tiltMaxDeg * Math.tanh((by * tiltPerPx) / tiltMaxDeg)
+
+// The spring a phone hangs on: heavy, so it's slow to start and to stop, and just short of
+// critically damped, so it barely swings past flat. Within `restDeg` of where it's pushed,
+// slower than `restSpeed` degrees a second, it rests there.
+const spring = { mass: 2.2, stiffness: 70, damping: 21 }
+const restDeg = 0.05
+const restSpeed = 0.5
+// One step of the spring from `at`, moving at `speed`, toward `to`, over `dt` seconds.
+const stepOf = (
+  at: number,
+  speed: number,
+  to: number,
+  dt: number,
+): { readonly at: number; readonly speed: number } => {
+  const force = spring.stiffness * (to - at) - spring.damping * speed
+  const next = speed + (force / spring.mass) * dt
+  return { at: at + next * dt, speed: next }
+}
+
+// Put in a phone's page: no scrollbar of its own, as a phone's takes no room.
+const phoneLook = "html { scrollbar-width: none !important; }"
+
 // Run in the page: where it's scrolled, read for at most `scrollReadMs`.
 const scrollRead = "[scrollX, scrollY]"
 const scrollReadMs = 500
@@ -265,7 +357,18 @@ const revealing = (selector: string, ms: number): string => `new Promise((done) 
 
 export const mountBrowser: Mount<BrowserContent, BrowserOptions, BrowserViewer> = (
   element,
-  { content, label, saved, live, snapshot, partition, picture: take, awake: startAwake, on },
+  {
+    content,
+    label,
+    saved,
+    live,
+    snapshot,
+    partition,
+    picture: take,
+    awake: startAwake,
+    size: startSize,
+    on,
+  },
 ) => {
   const document = element.ownerDocument
   const root = document.createElement("div")
@@ -352,6 +455,7 @@ export const mountBrowser: Mount<BrowserContent, BrowserOptions, BrowserViewer> 
       // A snapshot is its picture already.
       awake: nothing,
       pictured: () => true,
+      size: nothing,
       destroy: () => root.remove(),
     }
   }
@@ -392,6 +496,157 @@ export const mountBrowser: Mount<BrowserContent, BrowserOptions, BrowserViewer> 
       }, fadeMs)
     }, uncoverMs)
   }
+
+  // What the page lays out as, and where its view and picture go for that in the viewer,
+  // which browser.css reads; framed again as the viewer resizes. By its layout box, which a
+  // zoomed canvas around it doesn't change.
+  let size = startSize ?? "desktop"
+  // The viewer's size as its resizes report it, to the fraction of a pixel, so a scaled
+  // page reaches its edges; its whole pixels where none has reported it yet, or the last
+  // report is behind it, as just after it shows again.
+  let measured: { readonly width: number; readonly height: number } | undefined
+  const sizeNow = (): { readonly width: number; readonly height: number } => {
+    const { clientWidth: width, clientHeight: height } = root
+    return measured &&
+      Math.abs(measured.width - width) < 1 &&
+      Math.abs(measured.height - height) < 1
+      ? measured
+      : { width, height }
+  }
+  // How wide the page is drawn now, in CSS pixels, as its picture is.
+  const drawnWidth = (): number => {
+    const { width, height } = sizeNow()
+    const framing = framingOf(size, width, height)
+    return framing ? framing.width * framing.scale : width
+  }
+  // Where its phone is, for a press on the stage around it, not on it.
+  let framed: Framing | undefined
+  const frame = (): void => {
+    root.dataset.size = size
+    const { width, height } = sizeNow()
+    const framing = framingOf(size, width, height)
+    framed = framing
+    const values: Record<string, string | undefined> = {
+      "--browser-width": framing && `${framing.width}px`,
+      "--browser-height": framing && `${framing.height}px`,
+      "--browser-scale": framing && `${framing.scale}`,
+      "--browser-left": framing && `${framing.left}px`,
+      "--browser-top": framing && `${framing.top}px`,
+    }
+    for (const [name, value] of Object.entries(values)) {
+      if (value === undefined) root.style.removeProperty(name)
+      else root.style.setProperty(name, value)
+    }
+  }
+  // Where there's nothing to report a resize, as outside a browser, it's framed as it mounts.
+  const Observer = document.defaultView?.ResizeObserver
+  const resizing = Observer
+    ? new Observer((entries) => {
+        const box = entries.at(-1)?.contentRect
+        if (box) measured = { width: box.width, height: box.height }
+        frame()
+      })
+    : undefined
+  resizing?.observe(root)
+  frame()
+
+  // For fun: a phone tilts as the person drags across the stage around it, as if turned in
+  // the hand, and swings back flat when let go, so the page takes clicks where it shows.
+  // Where it's pushed toward, and where it is on its spring, each way.
+  let pushed = { x: 0, y: 0 }
+  let hold = { x: 0, y: 0, speedX: 0, speedY: 0 }
+  let swinging: number | undefined
+  let lastFrame = 0
+  // The window it's drawn in, whose frames the swing goes by.
+  const win = document.defaultView
+  const tilt = (x: number, y: number): void => {
+    root.style.setProperty("--browser-tilt-x", `${Math.round(x * 100) / 100}`)
+    root.style.setProperty("--browser-tilt-y", `${Math.round(y * 100) / 100}`)
+    // How far it's turned, of the most it turns: what its glass catches of the light.
+    const turned = Math.min(1, Math.hypot(x, y) / tiltMaxDeg)
+    root.style.setProperty("--browser-tilt-sheen", `${Math.round(turned * 100) / 100}`)
+  }
+  const steady = (): boolean =>
+    Math.abs(hold.x - pushed.x) < restDeg &&
+    Math.abs(hold.y - pushed.y) < restDeg &&
+    Math.abs(hold.speedX) < restSpeed &&
+    Math.abs(hold.speedY) < restSpeed
+  const swing = (now: number): void => {
+    // A frame late, as after a while out of sight, steps as if it weren't, so it can't fly.
+    const dt = Math.min(1 / 30, Math.max(0, (now - lastFrame) / 1000))
+    lastFrame = now
+    const x = stepOf(hold.x, hold.speedX, pushed.x, dt)
+    const y = stepOf(hold.y, hold.speedY, pushed.y, dt)
+    hold = { x: x.at, y: y.at, speedX: x.speed, speedY: y.speed }
+    if (steady() && root.dataset.tilting === undefined) {
+      hold = { x: pushed.x, y: pushed.y, speedX: 0, speedY: 0 }
+      swinging = undefined
+      tilt(hold.x, hold.y)
+      delete root.dataset.settling
+      return
+    }
+    tilt(hold.x, hold.y)
+    swinging = win?.requestAnimationFrame(swing)
+  }
+  // Reduced motion, it goes where it's pushed at once, without the swing.
+  const calm = (): boolean => win?.matchMedia?.("(prefers-reduced-motion: reduce)").matches === true
+  const push = (x: number, y: number): void => {
+    pushed = { x, y }
+    if (calm() || !win) {
+      hold = { x, y, speedX: 0, speedY: 0 }
+      tilt(x, y)
+      if (root.dataset.tilting === undefined) delete root.dataset.settling
+      return
+    }
+    if (swinging !== undefined) return
+    lastFrame = win.performance.now()
+    swinging = win.requestAnimationFrame(swing)
+  }
+  const turning = (event: PointerEvent): void => {
+    if (size !== "phone" || event.target !== root || event.button !== 0) return
+    // On the phone itself, its frame or a screen the pointer reaches through to, as in a
+    // Grid tile not yet picked: not the stage's, so it doesn't turn.
+    if (framed) {
+      const { left, top, width, height, scale } = framed
+      const { offsetX: x, offsetY: y } = event
+      const onPhone =
+        x >= left - phoneBezel &&
+        x <= left + width * scale + phoneBezel &&
+        y >= top - phoneBezel &&
+        y <= top + height * scale + phoneBezel
+      if (onPhone) return
+    }
+    event.preventDefault()
+    const { pointerId, clientX: fromX, clientY: fromY } = event
+    try {
+      root.setPointerCapture(pointerId)
+    } catch {
+      // A pointer the browser doesn't know, as one a test makes: it tilts all the same.
+    }
+    delete root.dataset.settling
+    root.dataset.tilting = ""
+    const turn = (move: PointerEvent): void => {
+      if (move.pointerId !== pointerId) return
+      // Its release never came, as when another window took the pointer mid-drag: let go.
+      if (move.buttons === 0) return letGo(move)
+      push(tiltToward(fromY - move.clientY), tiltToward(move.clientX - fromX))
+    }
+    const letGo = (end: PointerEvent): void => {
+      if (end.pointerId !== pointerId) return
+      root.removeEventListener("pointermove", turn)
+      root.removeEventListener("pointerup", letGo)
+      root.removeEventListener("pointercancel", letGo)
+      root.removeEventListener("lostpointercapture", letGo)
+      delete root.dataset.tilting
+      root.dataset.settling = ""
+      push(0, 0)
+    }
+    root.addEventListener("pointermove", turn)
+    root.addEventListener("pointerup", letGo)
+    root.addEventListener("pointercancel", letGo)
+    root.addEventListener("lostpointercapture", letGo)
+  }
+  root.addEventListener("pointerdown", turning)
 
   // Whether it's drawn: not inside an element kept out of sight, as with display: none.
   const shownNow = (): boolean =>
@@ -502,6 +757,28 @@ export const mountBrowser: Mount<BrowserContent, BrowserOptions, BrowserViewer> 
   }
   hostWindow?.addEventListener("message", signIns)
 
+  // A phone's page has no scrollbar taking room, as a phone's floats over it: put in each
+  // document its view loads while it's a phone's, and taken out of it when it no longer is.
+  // Every look put in a view is kept until taken out: dom-ready can come for a document
+  // already given one, as when the switch came while it loaded, and taking out a look a
+  // later document never had does nothing.
+  let dressed: { readonly view: Webview; readonly keys: Promise<string | undefined>[] } | undefined
+  const dress = (): void => {
+    const view = page
+    if (!view || size !== "phone") return
+    const key = attached(() => view.insertCSS(phoneLook))
+    if (!key) return
+    if (dressed?.view !== view) dressed = { view, keys: [] }
+    dressed.keys.push(key.catch(() => undefined))
+  }
+  const undress = (): void => {
+    const was = dressed
+    dressed = undefined
+    for (const each of was?.keys ?? [])
+      void each.then((key) => {
+        if (key !== undefined) void attached(() => was!.view.removeInsertedCSS(key))?.catch(nothing)
+      })
+  }
   const moved = (): void => {
     attached(() => {
       page!.setAudioMuted(muted)
@@ -673,6 +950,7 @@ export const mountBrowser: Mount<BrowserContent, BrowserOptions, BrowserViewer> 
   const listeners: readonly (readonly [string, (event: Event) => void])[] = [
     ["dom-ready", moved],
     ["dom-ready", painting],
+    ["dom-ready", dress],
     ["did-navigate", moved],
     ["did-navigate-in-page", movedInPage],
     ["did-start-loading", started],
@@ -785,7 +1063,11 @@ export const mountBrowser: Mount<BrowserContent, BrowserOptions, BrowserViewer> 
     const reading = attached(() =>
       Promise.race([view.executeJavaScript(scrollRead), wait(scrollReadMs)]),
     )?.catch(() => undefined)
-    const [src, where] = await Promise.all([take(id).catch(() => undefined), reading])
+    // As wide as it's drawn: a page scaled down to fit lays out, and is pictured, wider.
+    // Drawn no width at all, it's pictured as it is.
+    const drawn = Math.round(drawnWidth() * (document.defaultView?.devicePixelRatio ?? 1))
+    const width = drawn >= 1 ? drawn : undefined
+    const [src, where] = await Promise.all([take(id, width).catch(() => undefined), reading])
     if (src === undefined || asked !== snapping) return undefined
     return { picture: { src, at }, scrolled: isScrolled(where) ? where : undefined }
   }
@@ -911,7 +1193,29 @@ export const mountBrowser: Mount<BrowserContent, BrowserOptions, BrowserViewer> 
       else rest()
     },
     pictured: () => picture !== undefined && !used,
+    size: (next) => {
+      if (next === size) return
+      size = next
+      frame()
+      if (size === "phone") dress()
+      else undress()
+      // Its picture, and one under way, are of the other size, as is where it was scrolled:
+      // it rests as one of this once one is taken. Over a page that's there, or on its way
+      // as a press on the switch woke it, the picture goes at once.
+      if (picture !== undefined) used = true
+      snapping += 1
+      scrolled = undefined
+      if (page) {
+        clearTimeout(fading)
+        fading = undefined
+        still.remove()
+        delete still.dataset.fading
+      }
+      freshen(freshenMs)
+    },
     destroy: () => {
+      resizing?.disconnect()
+      if (swinging !== undefined) win?.cancelAnimationFrame(swinging)
       hostWindow?.removeEventListener("message", requested)
       hostWindow?.removeEventListener("message", signIns)
       clearTimeout(fading)

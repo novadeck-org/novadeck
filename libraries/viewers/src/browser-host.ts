@@ -236,14 +236,16 @@ const within = <T>(promise: Promise<T>, ms: number): Promise<T | undefined> =>
 
 /**
  * A picture of what the page view `id` shows now, as a JPEG `data:` address, for the
- * viewer to show in its place while the page rests. Undefined unless `id` is a page view
- * of `host`, the app's page that asks, so a page can't be asked for another window's, and
- * when the page draws nothing yet. `fromId` is Electron's `webContents.fromId`.
+ * viewer to show in its place while the page rests, scaled down to `width` pixels where
+ * it's wider, as a page laid out wider than it's drawn is. Undefined unless `id` is a page
+ * view of `host`, the app's page that asks, so a page can't be asked for another window's,
+ * and when the page draws nothing yet. `fromId` is Electron's `webContents.fromId`.
  */
 export const picturePage = async (
   host: WebContents,
   id: unknown,
   fromId: (id: number) => WebContents | undefined,
+  width?: unknown,
 ): Promise<string | undefined> => {
   if (typeof id !== "number" || !Number.isSafeInteger(id)) return undefined
   const page = fromId(id)
@@ -251,7 +253,12 @@ export const picturePage = async (
     return undefined
   const image = await within(page.capturePage(), pictureWaitMs)
   if (!image || image.isEmpty()) return undefined
-  return `data:image/jpeg;base64,${image.toJPEG(pictureQuality).toString("base64")}`
+  const narrower =
+    typeof width === "number" && Number.isSafeInteger(width) && width > 0
+      ? width < image.getSize().width
+      : false
+  const drawn = narrower ? image.resize({ width: width as number, quality: "good" }) : image
+  return `data:image/jpeg;base64,${drawn.toJPEG(pictureQuality).toString("base64")}`
 }
 
 /**

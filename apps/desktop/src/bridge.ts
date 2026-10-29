@@ -168,8 +168,9 @@ export const directoryPickerChannel = "novadeck:pick-directory"
 export const openLogsChannel = "novadeck:open-logs"
 
 /**
- * Renderer-to-main request for a picture of a live page, by its view's web contents id;
- * answers a JPEG `data:` address or undefined. See the viewers' `picturePage`.
+ * Renderer-to-main request for a picture of a live page, by its view's web contents id, no
+ * wider than a width; answers a JPEG `data:` address or undefined. See the viewers'
+ * `picturePage`.
  */
 export const pagePictureChannel = "novadeck:page-picture"
 

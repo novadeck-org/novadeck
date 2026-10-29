@@ -203,7 +203,7 @@ export const connectRunnerBackend = async (
           ...(portable ? { portable } : {}),
           ...(uninstall ? { uninstall } : {}),
           livePages: desktopHost()?.livePages === true,
-          ...(pagePicture ? { pagePicture: (page) => pagePicture(page) } : {}),
+          ...(pagePicture ? { pagePicture: (page, width) => pagePicture(page, width) } : {}),
           transcripts,
           transcriptsAvailable,
           agents,

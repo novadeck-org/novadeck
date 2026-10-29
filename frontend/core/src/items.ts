@@ -351,10 +351,11 @@ export type Companions = {
     path: string,
     windowId: string,
   ) => Promise<{ readonly item: Item; readonly window: CompanionWindowMeta }>
-  // A picture of what a live page shows now, by its view's web contents id, which the
-  // pane shows in its place while the person isn't at it; undefined when there's none to
-  // take. Absent where pages don't load live, or the host can't picture them: they stay live.
-  readonly picture?: (page: number) => Promise<string | undefined>
+  // A picture of what a live page shows now, by its view's web contents id, no wider than
+  // `width` device pixels, which the pane shows in its place while the person isn't at it;
+  // undefined when there's none to take. Absent where pages don't load live, or the host
+  // can't picture them: they stay live.
+  readonly picture?: (page: number, width?: number) => Promise<string | undefined>
 }
 
 // Items with nothing to show, for a backend whose terminals have only their messages

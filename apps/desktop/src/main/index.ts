@@ -1869,9 +1869,9 @@ const launch = async (): Promise<void> => {
     log: logger.for("page", "ui"),
   })
   // The app's page has a picture taken of one of its own page views, to show while it rests.
-  ipcMain.handle(pagePictureChannel, (event, id: unknown) =>
+  ipcMain.handle(pagePictureChannel, (event, id: unknown, width: unknown) =>
     appWindow(event)
-      ? picturePage(event.sender, id, (page) => webContents.fromId(page))
+      ? picturePage(event.sender, id, (page) => webContents.fromId(page), width)
       : undefined,
   )
   // Only the app's own pages learn the version it runs.

@@ -215,11 +215,12 @@ export type DesktopBridge = {
   reportRendererPool?(stats: RendererPoolReport): void
   /**
    * A picture of what a live page shows now, as a JPEG `data:` address, for the page's
-   * viewer to show in its place while it rests: the page by its view's `getWebContentsId()`.
-   * Undefined for anything but a page view of the asking page, and for one that draws
-   * nothing yet. Absent from hosts that came before it.
+   * viewer to show in its place while it rests: the page by its view's `getWebContentsId()`,
+   * scaled down to `width` pixels where it's wider. Undefined for anything but a page view
+   * of the asking page, and for one that draws nothing yet. Absent from hosts that came
+   * before it.
    */
-  pagePicture?(page: number): Promise<string | undefined>
+  pagePicture?(page: number, width?: number): Promise<string | undefined>
 }
 
 /** A feedback note as it crosses to the host: the kind the person picked, or none, and the text. */
