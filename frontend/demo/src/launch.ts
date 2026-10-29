@@ -764,9 +764,10 @@ const planArtifact = (): SampleArtifact => ({
 // How long the lead takes to answer its teammate once the doorbell rang it awake.
 // (long enough for a capture to show the teammate's ask on its own first)
 const answersMs = 4000
-// And how long it takes to answer the teammate whose question the video follows (2 s longer, so the
-// answer lands as the camera glides onto the lead's pane).
-const teammateAnswersMs = 6000
+// And how long it takes to answer the teammate whose question the video follows (3.2 s longer, so the
+// question holds a while in the Inbox and the lead's pane before the answer lands, as the camera
+// glides onto the pane).
+const teammateAnswersMs = 7200
 
 // How far apart the agents finish, so the Canvas turns green in a ripple.
 const rippleMs = 60
@@ -797,7 +798,7 @@ export type LaunchCues = {
   readonly teammates: () => void
   // A teammate asks the person what only its lead knows, and messages the lead the same
   // question at once. The ask shows as an Inbox row; the idle lead, rung awake, works and
-  // answers: the answer is sent about 7 s after the cue and lands about 0.8 s later, which is
+  // answers: the answer is sent about 8 s after the cue and lands about 0.8 s later, which is
   // when the teammate acts on it and withdraws its ask: the row stays, settled, "Withdrawn". The person types nothing.
   readonly teammateAsks: () => void
   // A teammate ends its turn with its done report (a done mark and an Update row) and sends the
