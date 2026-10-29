@@ -27,6 +27,7 @@ export type WireErrorCode =
   | "DISCONNECTED"
   /** The client was closed, or its transport can't connect again. */
   | "CLOSED"
+  /** The server failed in a way it doesn't name. */
   | "INTERNAL_SERVER_ERROR"
 
 /** A failure a wire client reports, identified by a stable `code`: the wire's or the app's. */

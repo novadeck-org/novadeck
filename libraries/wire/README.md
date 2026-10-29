@@ -42,7 +42,7 @@ beside the wire's own handshake.
     `fatal(code)` adds. A connection or handshake taking longer than `timeoutMs` (10 s) fails;
     the transport hears of it through its signal, and must give up when that aborts.
     The `Wire` it gives has:
-    - `status`, the `WireStatus` as a read-only `Watched` value: `connected` in an epoch,
+    - `status`, the `WireStatus` as a `Watching` value: `connected` in an epoch,
       `reconnecting` with the error that dropped it, or `closed`, with why if it wasn't
       asked to;
     - `session()`, the live `{ client, epoch, channel }`, for calls that must not wait: it
@@ -72,9 +72,9 @@ beside the wire's own handshake.
     which `session` its stream is open on, and why it `finished`: `ended` by the server,
     `stopped` by `return()` or the connection's close, or `failed`.
 
-  - `Watched<T>`, a value and its changes: `value`, `next()` for the next change, and
-    `watch()`, which yields the latest value after each change, coalescing quick ones, until
-    a final one.
+  - `Watching<T>`, a value and its changes, read-only: `value`, `next()` for the next change,
+    and `watch()`, which yields the latest value after each change, coalescing quick ones,
+    until a final one.
   - `Transport`, how a client opens a channel (`connect(signal)`) and the token it sends in
     its handshake, if any. `websocket(url, { token })` reaches a server deployed on its own,
     the token kept out of the URL; `messagePort(port)` reaches one its host hands a port to.
@@ -97,14 +97,16 @@ beside the wire's own handshake.
   Forking, restarting and closing the service's process stay the app's.
 
 - `./server` (Node only): the server's side.
-  - `createSessions({ protocolVersion, router, admit, closed, error, epoch })`, a server's
-    sessions, and the router its transports serve: the wire's handshake beside the app's
-    `router`, whose context is `{ session }`. The handshake refuses a session whose token its
+  - `createSessions({ protocolVersion, router, admit, closed, error, failed, epoch })`, a
+    server's sessions, and the router its transports serve: the wire's handshake beside the
+    app's `router`, whose context is `{ session }`. The handshake refuses a session whose token its
     transport doesn't accept (`UNAUTHORIZED`) or that speaks another protocol
     (`INCOMPATIBLE_PROTOCOL`), then asks `admit`, which may refuse with a code of the app's.
     A session whose client connects again is closed, and its transport ended, as the new
     one's handshake takes over: a client notices a dead link before the server does.
-    `closed(session)` tells the app a session ended, to release what it held.
+    `closed(session)` tells the app a session ended, to release what it held, and
+    `failed(path, error)` tells it, for a log, each failure a client is answered with, before
+    `error` maps it.
   - The gate, in front of every procedure of the app's `router`: a session that hasn't
     authenticated, or has closed, is `UNAUTHORIZED`; one with `maxCalls` calls running is
     `RESOURCE_LIMIT`. A failure is mapped with `error`, the app's codes beside the wire's. A
