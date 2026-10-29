@@ -14,8 +14,8 @@ import {
   type PasteFailure,
   windowsClipboardKey,
   type PasteTarget,
+  type Platform,
 } from "./paste.js"
-import type { Platform } from "./platform.js"
 
 // The words of a failed paste's notice, as the app gives them.
 const notice = (failure: PasteFailure): string =>
@@ -118,7 +118,7 @@ describe("an uploaded file's name", () => {
 })
 
 describe("a pasted path", () => {
-  context("on a POSIX runner", () => {
+  context("on a POSIX host", () => {
     it("escapes what the shell would split or expand", () => {
       expect(shellPath("/home/me/.local/share/novadeck/uploads/a b/it's (1).png")).toBe(
         "/home/me/.local/share/novadeck/uploads/a\\ b/it\\'s\\ \\(1\\).png",
@@ -132,7 +132,7 @@ describe("a pasted path", () => {
     })
   })
 
-  context("on a Windows runner", () => {
+  context("on a Windows host", () => {
     it("keeps its backslashes, quoting it when it has a space", () => {
       expect(shellPath("C:\\Users\\me\\uploads\\shot.png")).toBe("C:\\Users\\me\\uploads\\shot.png")
       expect(shellPath("C:\\Users\\Jo Doe\\uploads\\shot.png")).toBe(
@@ -289,7 +289,7 @@ describe("pasting into the desktop app's terminal", () => {
   })
 })
 
-describe("pasting into a runner terminal", () => {
+describe("pasting into a host terminal", () => {
   context("with an image in the paste", () => {
     it("uploads it and pastes its path instead of letting the emulator paste", async () => {
       const page = terminal()
@@ -632,7 +632,7 @@ const keyboard = (
   return { log, press, selected: () => selection }
 }
 
-describe("Ctrl+C and Ctrl+V in a runner terminal on Windows", () => {
+describe("Ctrl+C and Ctrl+V in a host terminal on Windows", () => {
   const c = { key: "c", code: "KeyC" }
 
   it("copies the selection with Ctrl+C, clearing it, and sends the program nothing", () => {
@@ -667,7 +667,7 @@ describe("Ctrl+C and Ctrl+V in a runner terminal on Windows", () => {
   })
 })
 
-describe("Ctrl+V in a runner terminal on Linux", () => {
+describe("Ctrl+V in a host terminal on Linux", () => {
   context("with only an image on the clipboard", () => {
     it("pastes the image's path instead of sending Ctrl+V", async () => {
       clipboard(async () => [item("image/png")])

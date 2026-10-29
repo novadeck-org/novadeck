@@ -26,10 +26,10 @@ import {
   type ViewState,
 } from "./view-state.js"
 
-// The sizes a terminal accepts.
 const clamp = (value: number, min: number, max: number): number =>
   Math.min(max, Math.max(min, Math.floor(value)))
-export const runnerSize = (size: {
+// The size, held to the sizes a terminal accepts.
+export const clampSize = (size: {
   readonly cols: number
   readonly rows: number
 }): { readonly cols: number; readonly rows: number } => ({
@@ -38,7 +38,7 @@ export const runnerSize = (size: {
 })
 
 // How long a terminal's size stays still before it refits after a resize. Each refit
-// forces a layout and may tell the runner, so a zoom or a drag refits once it pauses,
+// forces a layout and may tell the host, so a zoom or a drag refits once it pauses,
 // not on every frame across dozens of terminals.
 const resizeSettleMs = 120
 // How long a notice of a failed paste stays.
@@ -208,7 +208,7 @@ export const createTerminalViews = <K>(o: TerminalViewOptions<K>) => {
   const parked = new Map<string, { key: K; entry: Entry }>()
   // Whether Ctrl+V may read the clipboard, the same for every terminal.
   const readable = clipboardAccess(o.paste.trustedClipboard)
-  // The font the app last asked for, which a screen opens in and is brought to.
+  // The font the owner last asked for, which a screen opens in and is brought to.
   let font: TerminalFont = { size: defaultFontSize }
   const entryOf = (key: K): Entry => {
     const known = entries.get(id(key))
@@ -248,7 +248,7 @@ export const createTerminalViews = <K>(o: TerminalViewOptions<K>) => {
       },
       fit: () => {
         const size = view.fit()
-        return size && runnerSize(size)
+        return size && clampSize(size)
       },
     }
     // The state a person sees, with the lock recomputed in the same step as the change that
@@ -318,7 +318,7 @@ export const createTerminalViews = <K>(o: TerminalViewOptions<K>) => {
     const input = xterm.onData(send)
     // Some mouse reports arrive as binary; they go to the shell the same way.
     const binary = xterm.onBinary(send)
-    // Pasted files go in as their paths on the runner's machine, as a bracketed paste. An
+    // Pasted files go in as their paths on the host's machine, as a bracketed paste. An
     // upload that ends after the screen is gone pastes and tells nothing.
     let noticed: ReturnType<typeof setTimeout> | undefined
     let gone = false

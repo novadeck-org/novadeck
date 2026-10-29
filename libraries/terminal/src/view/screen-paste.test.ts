@@ -76,9 +76,9 @@ describe("pasting into a terminal's screen", () => {
     it("says why in its state, then lets the notice go", async () => {
       vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] })
       try {
-        const hold = pasteRefused(new Error("The runner refused it"))
+        const hold = pasteRefused(new Error("The host refused it"))
         await vi.advanceTimersByTimeAsync(0)
-        expect(hold.state.getSnapshot().notice).toBe("image/png: The runner refused it")
+        expect(hold.state.getSnapshot().notice).toBe("image/png: The host refused it")
         await vi.advanceTimersByTimeAsync(pasteNoticeMs)
         expect(hold.state.getSnapshot().notice).toBeNull()
       } finally {
@@ -86,7 +86,7 @@ describe("pasting into a terminal's screen", () => {
       }
     })
 
-    it("says only that it failed when the runner is unreachable", async () => {
+    it("says only that it failed when the host is unreachable", async () => {
       // A failure with no message to give.
       const hold = pasteRefused("unreachable")
       await vi.waitFor(() => expect(hold.state.getSnapshot().notice).toBe("image/png: failed"))

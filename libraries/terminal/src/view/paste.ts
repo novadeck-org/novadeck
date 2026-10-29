@@ -1,8 +1,18 @@
 import type { Terminal } from "@novadeck/emulator/browser"
 
-import { currentPlatform, type Platform } from "./platform.js"
+// Apple platforms, Windows or the others, which differ in their modifier keys and in what
+// Ctrl+C and Ctrl+V do in a terminal. The views read it for those keys, as a library
+// cannot reach the owner's own.
+export type Platform = "mac" | "windows" | "other"
 
-// Files pasted into a terminal reach its programs as paths: the runner saves each one on
+const currentPlatform = (): Platform =>
+  /Mac|iPhone|iPad/.test(navigator.platform)
+    ? "mac"
+    : navigator.platform.startsWith("Win")
+      ? "windows"
+      : "other"
+
+// Files pasted into a terminal reach its programs as paths: the host saves each one on
 // its machine, and the terminal gets their paths as pasted text, as a native terminal
 // does for a dropped file. Claude Code and Codex take a pasted image's path as the image.
 
@@ -87,7 +97,7 @@ export const ownPath = (path: string): string | undefined => {
 // text field can't hold, so a paste of an image alone arrives empty; the clipboard API
 // still has it, once the page may read the clipboard. Undefined where it may not, or
 // has no clipboard API.
-export const clipboardImages = async (now: Date): Promise<File[] | undefined> => {
+const clipboardImages = async (now: Date): Promise<File[] | undefined> => {
   try {
     return await imagesOf(await navigator.clipboard.read(), now)
   } catch {
@@ -131,7 +141,7 @@ class FileTooLarge extends Error {
 }
 
 export type PasteTarget = {
-  // Saves a file on the runner's machine and resolves with its path there.
+  // Saves a file on the host's machine and resolves with its path there.
   readonly upload: (file: { readonly name: string; readonly data: Uint8Array }) => Promise<string>
   // Pastes text into the terminal, as the emulator pastes the clipboard's.
   readonly paste: (text: string) => void
@@ -141,13 +151,13 @@ export type PasteTarget = {
   readonly notice: (failure: PasteFailure) => string
   // The most a file may be to upload; a larger one is never read.
   readonly maxBytes: number
-  // A file's own path on the runner's machine, or "" for one that has none there. Only
-  // the desktop app, whose runner is its own, knows it.
+  // A file's own path on the host's machine, or "" for one that has none there. Only an
+  // owner whose host runs on the page's own machine, as the desktop app's, knows it.
   readonly pathOf?: ((file: File) => string) | undefined
 }
 
 // A file's path as the shell reads it: its own, as of a file or folder copied in a file
-// manager, where that is safe; otherwise a copy's, saved on the runner's machine. One too
+// manager, where that is safe; otherwise a copy's, saved on the host's machine. One too
 // large to copy is never read.
 const save = async (file: File, target: PasteTarget, now: Date): Promise<string> => {
   const own = ownPath(target.pathOf?.(file) ?? "")
@@ -162,7 +172,7 @@ const save = async (file: File, target: PasteTarget, now: Date): Promise<string>
 
 // Saves the files one after another, pasting the path of each one as it is,
 // followed by a space, as a paste of its own: Codex takes a paste for an image only when
-// it is one path. A file the runner could not save is left out, and the first of them
+// it is one path. A file the host could not save is left out, and the first of them
 // told of. Answers how many went in.
 const pasteFiles = async (files: readonly File[], target: PasteTarget): Promise<number> => {
   const now = new Date()
@@ -174,7 +184,7 @@ const pasteFiles = async (files: readonly File[], target: PasteTarget): Promise<
       target.paste(`${await save(file, target, now)} `)
       pasted += 1
     } catch (error) {
-      console.error("Could not save a pasted file on the runner:", error)
+      console.error("Could not save a pasted file on the host:", error)
       notice ??= target.notice({
         kind: "file",
         type: file.type,
@@ -281,11 +291,11 @@ const ctrlVImages = async (now: Date): Promise<File[]> => {
   }
 }
 
-// Whether Ctrl+V may read the clipboard without asking: always in the desktop app, which
-// allows it, and in a browser once the page may, as after a first image pasted with
-// Ctrl+Shift+V. Reading it otherwise would ask on every Ctrl+V, as vim's.
-export const clipboardAccess = (desktop: boolean): (() => boolean) => {
-  if (desktop) return () => true
+// Whether Ctrl+V may read the clipboard without asking: always where the owner trusts it,
+// as the desktop app does, and in a browser once the page may, as after a first image pasted
+// with Ctrl+Shift+V. Reading it otherwise would ask on every Ctrl+V, as vim's.
+export const clipboardAccess = (trusted: boolean): (() => boolean) => {
+  if (trusted) return () => true
   let granted = false
   const watch = async (): Promise<void> => {
     const status = await navigator.permissions.query({ name: "clipboard-read" as PermissionName })
@@ -297,7 +307,7 @@ export const clipboardAccess = (desktop: boolean): (() => boolean) => {
   return () => granted
 }
 
-export type CtrlVTarget = PasteTarget & {
+type CtrlVTarget = PasteTarget & {
   // Puts text on the clipboard, as Ctrl+C copies a selection on Windows.
   readonly copy: (text: string) => void
   // Whether the terminal's program takes input now; otherwise Ctrl+V goes as it did.

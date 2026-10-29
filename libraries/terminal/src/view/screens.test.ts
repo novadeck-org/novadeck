@@ -220,7 +220,7 @@ describe("a mount's hold on a screen", () => {
     }
   })
 
-  it("tells the state of its screen, locked until the runner is reachable", () => {
+  it("tells the state of its screen, locked until the host is reachable", () => {
     vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout", "Date"] })
     try {
       const { show, elementOf, connection } = capped(2)

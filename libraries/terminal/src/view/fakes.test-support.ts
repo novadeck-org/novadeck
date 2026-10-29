@@ -198,7 +198,7 @@ export const exited = (exit: Exit, sequence: number): TerminalEvent => ({
 })
 
 // A stream of `events`, recording what is written and resized through it. It then stays open
-// until closed, as a live shell's does, or ends when `ends` says, as the runner ends one
+// until closed, as a live shell's does, or ends when `ends` says, as the host ends one
 // after an exit; `push` gives it another event.
 export const streamOf = (events: readonly TerminalEvent[] = [], { ends = false } = {}) => {
   const queue = [...events]

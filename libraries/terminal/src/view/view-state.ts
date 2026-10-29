@@ -1,5 +1,5 @@
 // What a terminal's screen tells the person about it, and the rule for when typing is
-// refused. Pure: no app imports, so the view library that replaces the screens can take it.
+// refused. Pure: it imports nothing.
 
 // A synchronous value that notifies subscribers after each change.
 export type Store<S> = {
@@ -11,8 +11,8 @@ export type Store<S> = {
 // value notifies nobody.
 export type MutableStore<S> = Store<S> & { readonly update: (change: (state: S) => S) => S }
 
-// The views' own store, for an owner with none to inject: the same rule as the app's, a
-// change that returns the same value notifies nobody.
+// The views' own store, for an owner with none to inject: a change that returns the same
+// value notifies nobody.
 export const createStore = <S>(initial: S): MutableStore<S> => {
   let snapshot = initial
   const listeners = new Set<() => void>()
@@ -55,7 +55,7 @@ export type ViewState = {
 export type ViewFacts = { readonly link: ViewLink; readonly phase: ViewPhase }
 export type ViewChange = Partial<Omit<ViewState, "lock">>
 
-// Input is refused while the runner is away, and while a running or starting shell has no
+// Input is refused while the host is away, and while a running or starting shell has no
 // stream to take it, as right after a reconnection or a restart. An ended shell, and one the
 // stream says ended, listen for Enter alone.
 export const lockOf = (
