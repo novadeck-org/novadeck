@@ -1,5 +1,5 @@
 import { describe, expect, it } from "../test.js"
-import { readDismissRequest, readRequest } from "./request.js"
+import { readDismissRequest, readLookRequest, readRequest } from "./request.js"
 
 describe("a show request", () => {
   it("names a file by its path, and only lines that run forward, under file", () => {
@@ -128,5 +128,30 @@ describe("a request for the changes", () => {
     expect(readRequest({ changes: {}, file: { path: "a.ts" } })).toMatchObject({ ok: false })
     expect(readDismissRequest({ changes: {} })).toEqual({ ok: true, request: { changes: {} } })
     expect(readDismissRequest({ changes: { paths: [] } })).toMatchObject({ ok: false })
+  })
+})
+
+describe("a look request", () => {
+  it("takes a page by its address, or nothing", () => {
+    expect(readLookRequest({})).toEqual({ ok: true, request: {} })
+    expect(readLookRequest({ page: { url: "http://localhost:5173/" } })).toEqual({
+      ok: true,
+      request: { page: { url: "http://localhost:5173/" } },
+    })
+  })
+
+  it("names what else is wrong", () => {
+    expect(readLookRequest({ page: {} })).toEqual({
+      ok: false,
+      reason: 'The request\'s "page.url" is not valid.',
+    })
+    expect(readLookRequest({ page: { url: "http://a/", scroll: "#x" } })).toEqual({
+      ok: false,
+      reason: 'The request\'s "page.scroll" is not valid.',
+    })
+    expect(readLookRequest({ file: { path: "a" } })).toEqual({
+      ok: false,
+      reason: 'The request\'s "file" is not valid.',
+    })
   })
 })

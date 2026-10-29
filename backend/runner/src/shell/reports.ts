@@ -29,7 +29,7 @@ export type Ack = { readonly terminalId: string; readonly token: string; readonl
 /**
  * What Novadeck's MCP server forwards: a tool call an agent made in a terminal, which
  * waits for its answer. `present` shows something beside it, `showing` lists what is
- * there and `dismiss` closes what it showed (see `companions/items.ts`), `open` opens a new terminal beside it (see
+ * there, `look` pictures a page there and `dismiss` closes what it showed (see `companions/items.ts`), `open` opens a new terminal beside it (see
  * `terminals/opens.ts`), `close` closes another terminal of its project and session (see
  * `terminals/closes.ts`), `lead` asks the person to let it lead another terminal's agent and
  * `release` ends such a lead (see `terminals/leads.ts`), and `send` and `agents` message other terminals' agents and
@@ -47,6 +47,7 @@ export type Call = {
 const callTypes = [
   "present",
   "showing",
+  "look",
   "dismiss",
   "open",
   "close",
@@ -70,6 +71,7 @@ export const unanswered = { ok: false, reason: "Novadeck couldn't show it." } as
 export const unansweredCalls = {
   present: unanswered,
   showing: { ok: false, reason: "Novadeck couldn't list what is showing beside you." },
+  look: { ok: false, reason: "Novadeck couldn't picture the page." },
   dismiss: { ok: false, reason: "Novadeck couldn't close it." },
   open: { ok: false, reason: "Novadeck couldn't open the terminal." },
   close: { ok: false, reason: "Novadeck couldn't close the terminal." },
@@ -265,6 +267,11 @@ export type ReportsOptions = {
    * 10 s Novadeck's MCP server waits.
    */
   readonly answerMs?: number
+  /**
+   * The same for a look, which waits for the client to picture the page, a fresh load
+   * included: by default 24 s, past the runner's 20 s wait for the client.
+   */
+  readonly lookMs?: number
 }
 
 /** What the endpoint hands on, each to the runner, which checks its token. */
@@ -299,7 +306,7 @@ export const listenForReports = async (
   handlers: ReportHandlers,
   options: ReportsOptions = {},
 ): Promise<Reports> => {
-  const { platform = process.platform, readMs = 2_000, answerMs = 8_000 } = options
+  const { platform = process.platform, readMs = 2_000, answerMs = 8_000, lookMs = 24_000 } = options
   const directory =
     platform === "win32" ? undefined : await mkdtemp(join(tmpdir(), "novadeck-reports-"))
   const endpoint =
@@ -310,7 +317,7 @@ export const listenForReports = async (
   const relayCall =
     (from: { terminalId: string; token: string }): McpCall =>
     (type, request) =>
-      within(handlers.call({ type, ...from, request }), answerMs, {
+      within(handlers.call({ type, ...from, request }), type === "look" ? lookMs : answerMs, {
         ...unansweredCalls[type],
         unexplained: true,
       })

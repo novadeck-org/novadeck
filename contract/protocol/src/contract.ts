@@ -21,6 +21,8 @@ import {
   id,
   itemContent,
   maxPageTroubles,
+  pageLook,
+  pageLookAnswer,
   pageTrouble,
   planSaveResult,
   maxUploadPartLength,
@@ -390,6 +392,13 @@ export const contract = {
         }),
       )
       .output(z.void()),
+    // Agents' looks at a page item, made through Novadeck's MCP server, for the client to
+    // picture: the runner sends each to the client that subscribed last and waits a few
+    // seconds for its `answerLook`.
+    looks: procedure.input(z.void()).output(eventIterator(pageLook)),
+    // Answers a look with a picture of the page, or why there's none. One the runner no
+    // longer waits for, or sent to another client, is NOT_FOUND.
+    answerLook: procedure.input(pageLookAnswer).output(z.void()),
     // Moves an item onto a terminal's bar, from a bar or a window, which goes with it; what
     // that bar held under the same pointer is replaced. An unknown item is NOT_FOUND, an
     // unknown terminal TERMINAL_NOT_FOUND, and one of another session, or the item of a

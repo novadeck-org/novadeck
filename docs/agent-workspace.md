@@ -416,7 +416,8 @@ with every safety check again at that time:
   title. So none appears unasked while they share their screen. A file that resolves
   to such a file only later is secret when it loads. The server's `showing` tool lists
   what the agent's bar holds now, with where each item points and who put it there,
-  then what it showed that the person moved elsewhere.
+  then what it showed that the person moved elsewhere. Its `look` tool pictures one of
+  the pages there (see [Agent messaging](agent-messaging.md), "Looking at a page").
   The UI follows each item with `companions.content`, never by path.
 
   A **changes item** (`show { changes: {} }`, kind `changes`) is a git repository as a

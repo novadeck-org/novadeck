@@ -11,6 +11,8 @@ import type {
   CompanionItem,
   CompanionWindow,
   ItemContent,
+  PageLook,
+  PageLookAnswer,
   PageTrouble,
 } from "@novadeck/protocol"
 import { KeyedChanges } from "@novadeck/wire/server"
@@ -40,12 +42,14 @@ import {
   type PlanText,
   type Pointed,
 } from "./content.js"
+import { PageLooks } from "./looks.js"
 import type { ItemRecord, ItemRecords, WindowRecord } from "./records.js"
 import {
   failure,
   named,
   type DismissAnswer,
   type DismissRequest,
+  type LookRequest,
   type PresentAnswer,
   type PresentFailure,
   type PresentRequest,
@@ -86,6 +90,8 @@ export type CompanionOptions = {
   readonly pollMs?: number
   /** How often `content` reads a change again, in milliseconds: git runs each time. */
   readonly changesMs?: number
+  /** How long an agent's look waits for the client's picture, in milliseconds. */
+  readonly lookMs?: number
 }
 
 /** Who hears of the troubles pages had and of the items that go: the terminals. */
@@ -95,6 +101,16 @@ export type TroubleSink = {
   /** An item is gone, or shown again: what was held of its earlier show goes. */
   readonly gone: (item: ItemRecord) => void
 }
+
+/**
+ * How long a look waits for the client's picture. The desktop host takes looks one at a
+ * time and queues the rest, and one look is at worst a pane attempt (2 s) then a fresh load
+ * (about 8.3 s), about 10.5 s: 20 s fits a second look queued behind it.
+ */
+export const defaultLookMs = 20_000
+
+/** A client's answer to a look that has a picture. */
+export type LookPicture = Exclude<PageLookAnswer, { readonly reason: string }>
 
 /** What an item points at, and what it says of it, before it is kept. */
 type Pointer = Pick<
@@ -221,6 +237,9 @@ export class CompanionItems {
     string,
     { readonly version: number; readonly selector: string }
   >()
+  /** Agents' looks at pages, on their way to the client. */
+  private readonly looks = new PageLooks()
+  private readonly lookMs: number
   /** Plan observations, one after another, so two never add the same slot twice. */
   private observing: Promise<void> = Promise.resolve()
   private sink: TroubleSink | undefined
@@ -230,6 +249,7 @@ export class CompanionItems {
     this.records = options.records
     this.pollMs = options.pollMs ?? 500
     this.changesMs = options.changesMs ?? 2000
+    this.lookMs = options.lookMs ?? defaultLookMs
   }
 
   /**
@@ -346,16 +366,7 @@ export class CompanionItems {
    * moved into a window or onto another bar, which its show still updates.
    */
   listing(terminalId: string): string {
-    const bar = this.records.barItems(terminalId)
-    const sessionId = this.options.terminal(terminalId)?.sessionId
-    const moved = (sessionId === undefined ? [] : this.records.items(sessionId)).filter(
-      (item) =>
-        item.kind !== "plan" &&
-        item.by === "agent" &&
-        item.from?.terminalId === terminalId &&
-        item.terminalId !== terminalId,
-    )
-    const items = [...bar, ...moved]
+    const items = this.visible(terminalId)
     if (items.length === 0) return "Nothing is showing beside your terminal in Novadeck."
     const lines = items.map((item) => {
       const own = item.from?.terminalId === terminalId
@@ -388,6 +399,93 @@ export class CompanionItems {
       return `- ${name}: ${where} (${notes}${secrets})`
     })
     return [`Showing beside your terminal in Novadeck (${items.length}):`, ...lines].join("\n")
+  }
+
+  /**
+   * What a terminal's agent sees of its bar: the items on it, then what it showed that the
+   * person moved into a window or onto another bar.
+   */
+  private visible(terminalId: string): readonly ItemRecord[] {
+    const bar = this.records.barItems(terminalId)
+    const sessionId = this.options.terminal(terminalId)?.sessionId
+    const moved = (sessionId === undefined ? [] : this.records.items(sessionId)).filter(
+      (item) =>
+        item.kind !== "plan" &&
+        item.by === "agent" &&
+        item.from?.terminalId === terminalId &&
+        item.terminalId !== terminalId,
+    )
+    return [...bar, ...moved]
+  }
+
+  /** The clients' looks at pages, for the client that shows them to picture. */
+  followLooks(owner: string, signal?: AbortSignal): AsyncGenerator<PageLook> {
+    if (this.stopping) throw new DomainError("CLOSING")
+    return this.looks.follow(owner, signal)
+  }
+
+  /** The client's answer to a look; NOT_FOUND once nothing waits for it. */
+  answerLook(answer: PageLookAnswer, owner: string): void {
+    this.looks.answer(answer, owner)
+  }
+
+  /**
+   * Looks at a page of a terminal's bar for its agent, as `showing` lists it: a page on the
+   * bar, whoever placed it, or one the agent showed that the person moved away, named by
+   * its address, or the only page there. Only a page served from this machine is looked
+   * at, as only such a page's troubles are told. The client pictures it within `lookMs`.
+   */
+  async look(
+    place: TerminalPlace,
+    request: LookRequest,
+  ): Promise<
+    { readonly ok: true; readonly item: ItemRecord; readonly answer: LookPicture } | PresentFailure
+  > {
+    if (this.stopping) return failure("Novadeck is closing.")
+    const pages = this.visible(place.terminalId).filter((item) => item.kind === "page")
+    const listed = pages.map((item) => `${JSON.stringify(item.name)} (${item.url ?? ""})`)
+    let item: ItemRecord | undefined
+    if (request.page) {
+      const page = pageAt(request.page.url)
+      if (!page.ok) return page
+      const key = pageKey(page.url.href)
+      item = pages.find((each) => each.pointerKey === key)
+      if (!item)
+        return failure(
+          `No page is showing beside your terminal at ${named(page.url.href)}` +
+            (listed.length > 0
+              ? `; pages there: ${listed.join(", ")}.`
+              : "; showing lists what is."),
+        )
+    } else if (pages.length === 1) {
+      item = pages[0]
+    } else {
+      return failure(
+        pages.length === 0
+          ? "No page is showing beside your terminal; look takes a page you showed."
+          : `Several pages are showing beside your terminal; give page.url: ${listed.join(", ")}.`,
+      )
+    }
+    if (item?.url == null || !onThisMachine(item.url))
+      return failure(
+        `${JSON.stringify(item?.name ?? "")} isn't served from this machine, and look only ` +
+          "pictures pages you serve here, such as a dev server.",
+      )
+    const looked = await this.looks.ask(
+      { itemId: item.id, shown: item.version, url: item.url },
+      this.lookMs,
+    )
+    switch (looked.type) {
+      case "nobody":
+        return failure("Novadeck isn't open to picture the page.")
+      case "gone":
+        return failure("Novadeck's window went away before it pictured the page.")
+      case "late":
+        return failure("Novadeck didn't picture the page in time; try again.")
+      case "answered":
+        if ("reason" in looked.answer) return failure(looked.answer.reason)
+        return { ok: true, item, answer: looked.answer }
+    }
   }
 
   /** Who is told of page troubles and of items that go; the terminals, once they exist. */
@@ -577,6 +675,7 @@ export class CompanionItems {
 
   /** Ends the watch streams of an owner, as its connection goes. */
   release(ownerId: string): void {
+    this.looks.release(ownerId)
     for (const [watcher, owner] of this.watchers) if (owner === ownerId) watcher.finish()
   }
 
@@ -727,6 +826,7 @@ export class CompanionItems {
   /** Ends every stream; nothing changes afterwards. */
   shutdown(): void {
     this.stopping = true
+    this.looks.finish()
     for (const watcher of this.watchers.keys()) watcher.finish()
     for (const readers of this.readers.values()) for (const reader of readers) reader.abort()
   }

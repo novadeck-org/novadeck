@@ -248,6 +248,14 @@ const novadeckTool = (tool: string, fields: Fields | null): ToolSummary | undefi
     }
     case "showing":
       return { kind: "read", title: "Checked what's shown", detail: "" }
+    case "look": {
+      const page = nested(fields?.page)
+      return {
+        kind: "web",
+        title: "Looked at the page",
+        detail: page ? oneLine(textField(page, "url")) : "",
+      }
+    }
     case "summarize":
       return { kind: "agent", title: "Summarized this terminal", detail: text("summary") }
     default:

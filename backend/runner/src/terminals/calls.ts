@@ -544,6 +544,8 @@ export class Calls {
         return this.host.companion().present(call)
       case "showing":
         return Promise.resolve(this.host.companion().showing(call))
+      case "look":
+        return this.host.companion().look(call)
       case "dismiss":
         return this.host.companion().dismiss(call)
       case "open":

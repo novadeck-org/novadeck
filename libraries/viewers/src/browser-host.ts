@@ -155,6 +155,14 @@ export const phonePage = async (
 }
 
 /**
+ * Makes a look's window act as a phone's, as `phonePage` does a pane's page view, for the
+ * look to load as the pane does: its screen, touch and user agent set before its first
+ * document. A look's window is no page view, so `holdPhoneLoads` never holds it, and the
+ * look awaits this itself. False when it can't.
+ */
+export const emulatePhone = (window: WebContents): Promise<boolean> => emulate(window, true)
+
+/**
  * Holds the first load of a page view its viewer named a phone's, by its user agent (see
  * `attachPage`), until it acts as one, so its first document is a phone's too; at most
  * `phoneWaitMs`, after which it loads with a phone's user agent alone, its screen and touch
@@ -509,3 +517,11 @@ export const watchPageRequests = (
   // A page view gone, as each rest of a page drops one: its counts go with it.
   return { forget: (contentsId) => void told.delete(contentsId) }
 }
+
+export {
+  createLooker,
+  lookSizes,
+  type LookLayout,
+  type Looker,
+  type LookResult,
+} from "./browser-look.js"

@@ -159,6 +159,47 @@ describe("relay sessions", () => {
     expect(calls).toEqual(halfOpen ? [call, call] : [call])
   })
 
+  it("gives a look longer than other calls to be answered, as the client pictures the page", async ({
+    resources,
+  }) => {
+    const slow = (type: string) => async (asked: Call) => {
+      await new Promise((resolve) => setTimeout(resolve, 150))
+      return asked.type === type
+        ? { ok: true, text: "Looked.", picture: { data: "AA==", mimeType: "image/jpeg" } }
+        : { ok: true, text: "Listed." }
+    }
+    const reports = await listenForReports(handlers({ call: slow("look") }), {
+      answerMs: 50,
+      lookMs: 2_000,
+    })
+    resources.defer(() => reports.close())
+    const answers = await session(reports.endpoint, [
+      hello(),
+      tool(1, "look", {}),
+      tool(2, "showing", {}),
+      end,
+    ])
+    expect(answers).toContainEqual(
+      expect.objectContaining({
+        id: 1,
+        result: expect.objectContaining({
+          isError: false,
+          content: [
+            { type: "text", text: "Looked." },
+            { type: "image", data: "AA==", mimeType: "image/jpeg" },
+          ],
+        }),
+      }),
+    )
+    // Any other call still gives up at `answerMs`.
+    expect(answers).toContainEqual(
+      expect.objectContaining({
+        id: 2,
+        result: expect.objectContaining({ isError: true }),
+      }),
+    )
+  })
+
   // What a failure of Novadeck's own adds to its tool's words.
   const nudge =
     "\nIf this looks like a bug in Novadeck, you can draft feedback with the feedback tool."

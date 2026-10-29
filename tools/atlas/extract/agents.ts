@@ -23,6 +23,7 @@ const contractFile = "harnesses/core/src/harness.ts"
 const handlers: Record<string, { readonly file: string; readonly method: string }> = {
   show: { file: companionFile, method: "present" },
   showing: { file: companionFile, method: "showing" },
+  look: { file: companionFile, method: "look" },
   close: { file: companionFile, method: "dismiss" },
   open_terminal: { file: callsFile, method: "open" },
   open_agent: { file: callsFile, method: "open" },

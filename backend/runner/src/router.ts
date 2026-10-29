@@ -192,6 +192,12 @@ export const createRouter = (options: {
       watch: api.companions.watch.handler(({ context, signal }) =>
         items.watch(context.session.id, signal),
       ),
+      looks: api.companions.looks.handler(({ context, signal }) =>
+        items.followLooks(context.session.id, signal),
+      ),
+      answerLook: api.companions.answerLook.handler(({ input, context }) =>
+        items.answerLook(input, context.session.id),
+      ),
       content: api.companions.content.handler(async function* ({ input, signal }) {
         for await (const content of items.content(input.itemId, input.reveal, signal))
           yield await withSkill(content, store.item(input.itemId)?.plan?.agent)

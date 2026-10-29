@@ -150,6 +150,21 @@ export type BrowserViewer = Viewer<BrowserContent> & {
   readonly pictured: () => boolean
   /** Lays the live page out as `size`: its picture, of the other, stands in for nothing. */
   readonly size: (size: PageSize) => void
+  /**
+   * The live page as the person sees it now, for a picture of it to be taken: its view's web
+   * contents id, where it is, its title, and the size it lays out at in CSS pixels. Undefined
+   * unless the page is live, loaded and drawn on screen: not resting as its picture, not
+   * loading or failed, not kept out of sight.
+   */
+  readonly seen: () => PageSeen | undefined
+}
+
+export type PageSeen = {
+  readonly page: number
+  readonly url: string
+  readonly title: string
+  readonly width: number
+  readonly height: number
 }
 
 // Electron's <webview>: its methods work once it's attached, and throw until then.
@@ -468,6 +483,7 @@ export const mountBrowser: Mount<BrowserContent, BrowserOptions, BrowserViewer> 
       awake: nothing,
       pictured: () => true,
       size: nothing,
+      seen: () => undefined,
       destroy: () => root.remove(),
     }
   }
@@ -980,9 +996,14 @@ export const mountBrowser: Mount<BrowserContent, BrowserOptions, BrowserViewer> 
     report("failed")
     uncover()
   }
+  // The page's title as it last named itself.
+  let titleNow = ""
   const titled = (event: Event): void => {
     const { title } = event as Event & { title?: string }
-    if (typeof title === "string") on?.title?.(title)
+    if (typeof title === "string") {
+      titleNow = title
+      on?.title?.(title)
+    }
   }
   const listeners: readonly (readonly [string, (event: Event) => void])[] = [
     ["dom-ready", moved],
@@ -1237,6 +1258,22 @@ export const mountBrowser: Mount<BrowserContent, BrowserOptions, BrowserViewer> 
       else rest()
     },
     pictured: () => picture !== undefined && !used,
+    seen: () => {
+      // Its own picture over it, or no page at all, is a rest; a page still loading or one
+      // that failed isn't how the person would want it seen.
+      if (!page || still.isConnected || load !== "ready" || !shownNow()) return undefined
+      const id = attached(() => page!.getWebContentsId())
+      if (id === undefined) return undefined
+      const { width, height } = sizeNow()
+      const framing = framingOf(size, width, height)
+      return {
+        page: id,
+        url: attached(() => page!.getURL()) || place.url,
+        title: titleNow,
+        width: Math.round(framing?.width ?? width),
+        height: Math.round(framing?.height ?? height),
+      }
+    },
     size: (next) => {
       if (next === size) return
       size = next

@@ -2066,4 +2066,58 @@ describe("the browser viewer", () => {
       expect(host.querySelector(".browser-viewer")!.children).toHaveLength(0)
     })
   })
+  context("as an agent looks at it", () => {
+    const attached = (host: HTMLElement) => {
+      const page = pageOf(host)
+      attach(page, { url: "http://localhost:5173/work", back: false, forward: false })
+      Object.assign(page, { getWebContentsId: () => 7 })
+      return page
+    }
+
+    it("is seen once loaded and drawn: its view, where it is, its title and its laid-out size", () => {
+      const host = hostIn()
+      const viewer = live(host)
+      const page = attached(host)
+      expect(viewer.seen()).toBeUndefined()
+      page.dispatchEvent(event("did-stop-loading"))
+      page.dispatchEvent(event("page-title-updated", { title: "Work" }))
+      // 400 wide and 300 high, scaled down to fit from a desktop's 1280.
+      expect(viewer.seen()).toEqual({
+        page: 7,
+        url: "http://localhost:5173/work",
+        title: "Work",
+        width: desktopWidth,
+        height: Math.round(300 / (400 / desktopWidth)),
+      })
+      viewer.size("phone")
+      expect(viewer.seen()).toMatchObject({ width: phoneScreen.width })
+    })
+
+    it("isn't seen while it loads, has failed, rests as its picture or is kept out of sight", () => {
+      const host = hostIn()
+      const viewer = live(host)
+      const page = attached(host)
+      expect(viewer.seen()).toBeUndefined()
+      page.dispatchEvent(event("did-stop-loading"))
+      expect(viewer.seen()).toBeDefined()
+      host.style.display = "none"
+      expect(viewer.seen()).toBeUndefined()
+      host.style.display = ""
+      page.dispatchEvent(event("did-start-loading"))
+      expect(viewer.seen()).toBeUndefined()
+      page.dispatchEvent(event("did-fail-load", { errorCode: -105, isMainFrame: true }))
+      expect(viewer.seen()).toBeUndefined()
+    })
+
+    it("isn't seen where nothing is live", () => {
+      const host = hostIn()
+      const viewer = mountBrowser(host, {
+        content: { url: "https://example.com/" },
+        label: "page",
+        live: false,
+        partition: "pages",
+      })
+      expect(viewer.seen()).toBeUndefined()
+    })
+  })
 })

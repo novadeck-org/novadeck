@@ -21,6 +21,7 @@ import {
   dismissWhatsNewChannel,
   whatsNewChannel,
   openUpdatePageChannel,
+  pageLookChannel,
   pagePictureChannel,
   pagePhoneChannel,
   portableChannel,
@@ -278,6 +279,57 @@ describe("a picture of a live page", () => {
       return electron.exposed.pagePicture?.(7)
     })
     expect(await Promise.all(pictures)).toEqual(answers.map(() => undefined))
+  })
+})
+
+describe("a look at a page loaded afresh", () => {
+  const picture = "data:image/jpeg;base64,AAAA"
+  const look = {
+    picture,
+    url: "http://localhost:5173/",
+    title: "Home",
+    size: { width: 1280, height: 800 },
+    troubles: [{ kind: "load", text: "ERR_CONNECTION_REFUSED" }],
+  }
+
+  it("is asked for by its address and layout only, and comes back as the main process answered", async () => {
+    electron.answer = look
+    expect(
+      await electron.exposed.lookAtPage?.({
+        url: "http://localhost:5173/",
+        layout: "phone",
+        before: 5,
+        extra: "dropped",
+      } as never),
+    ).toEqual(look)
+    expect(electron.messages).toEqual([
+      [pageLookChannel, { url: "http://localhost:5173/", layout: "phone", before: 5 }],
+    ])
+  })
+
+  it("is a reason, and no picture, for anything else the main process answers", async () => {
+    const answers = [
+      undefined,
+      "data:image/jpeg;base64,AAAA",
+      { ...look, picture: "data:text/html,<script>" },
+      { ...look, size: undefined },
+      { reason: "Busy." },
+    ]
+    const looks = answers.map((answer) => {
+      electron.answer = answer
+      return electron.exposed.lookAtPage?.({
+        url: "http://localhost:5173/",
+        layout: "desktop",
+        before: 5,
+      })
+    })
+    expect(await Promise.all(looks)).toEqual([
+      { reason: "The page could not be pictured." },
+      { reason: "The page could not be pictured." },
+      { reason: "The page could not be pictured." },
+      { reason: "The page could not be pictured." },
+      { reason: "Busy." },
+    ])
   })
 })
 

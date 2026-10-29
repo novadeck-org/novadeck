@@ -9,6 +9,7 @@ import {
   updateChannels,
   updateVersionPattern,
   type DesktopBridge,
+  type HostPageLook,
   type DesktopHost,
   type FeedbackHostAbout,
   type PortableState,
@@ -51,6 +52,7 @@ import {
   notificationsQuietChannel,
   openLogsChannel,
   openUpdatePageChannel,
+  pageLookChannel,
   pagePictureChannel,
   pagePhoneChannel,
   portableChannel,
@@ -191,6 +193,28 @@ const uninstallResultOf = (value: unknown): UninstallResult => {
 // A field of the page's error report, as text cut to `limit`; undefined for anything else.
 const text = (value: unknown, limit: number): string | undefined =>
   typeof value === "string" ? value.slice(0, limit) : undefined
+
+// What the main process answers a look with, as the page takes it: a JPEG picture with where
+// the page was, its title, size and troubles, else a reason; anything else is a reason too.
+const hostLookOf = (look: unknown): HostPageLook => {
+  const { picture, url, title, size, troubles, reason } = (look ?? {}) as Record<string, unknown>
+  const { width, height } = (size ?? {}) as Record<string, unknown>
+  return typeof picture === "string" &&
+    picture.startsWith("data:image/jpeg;base64,") &&
+    typeof url === "string" &&
+    typeof title === "string" &&
+    typeof width === "number" &&
+    typeof height === "number" &&
+    Array.isArray(troubles)
+    ? {
+        picture,
+        url,
+        title,
+        size: { width, height },
+        troubles: troubles as Extract<HostPageLook, { picture: string }>["troubles"],
+      }
+    : { reason: text(reason, 512)?.trim() || "The page could not be pictured." }
+}
 
 const bridge = {
   // The page asks for each port to the runner; its answer comes as a window message.
@@ -371,6 +395,11 @@ const bridge = {
     return typeof picture === "string" && picture.startsWith("data:image/jpeg;base64,")
       ? picture
       : undefined
+  },
+  // Only a JPEG picture, or a reason, comes back; the main process checks the request again.
+  lookAtPage: async ({ url, layout, before }) => {
+    const look: unknown = await ipcRenderer.invoke(pageLookChannel, { url, layout, before })
+    return hostLookOf(look)
   },
   // Only whether it did comes back; the main process checks the page is one of this page's.
   pagePhone: async (page, phone) =>

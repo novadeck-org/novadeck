@@ -24,6 +24,7 @@ import type {
   AgentIntegration,
   Approval as RunnerApproval,
   TerminalExit,
+  PageLook,
   TerminalRequest,
   TerminalRequestAnswer,
   TerminalSummary,
@@ -52,6 +53,7 @@ import { createRunnerConversations } from "./conversations"
 import { runnerFeedback } from "./feedback"
 import { createRunnerInbox } from "./inbox"
 import { createRunnerItems } from "./items"
+import { answerLook, type Looks } from "./looks"
 import { createRunnerMessages } from "./messages"
 import { createRunnerMurmur } from "./murmur"
 import { resumableProgram } from "./resumable"
@@ -122,6 +124,8 @@ export type RunnerBackendOptions = {
   // a picture of one, for it to rest as, and how it makes one a phone's.
   readonly livePages?: boolean
   readonly pagePicture?: NonNullable<Backend["companions"]>["picture"]
+  // Where the host loads a page afresh, out of sight, to picture it for an agent's look.
+  readonly pageLook?: Looks["fresh"]
   readonly pagePhone?: NonNullable<Backend["companions"]>["phone"]
   readonly now?: () => number
   // Whether the runner keeps transcripts, as it said at startup; unknown when absent.
@@ -1398,6 +1402,7 @@ export const runnerBackend = (
     const statuses = runner.watch()
     const requests = runner.terminals.requests()
     const asked = runner.terminals.approvals()
+    const looks = runner.companions.looks()
     // Each request goes to the app, which adds the terminal and answers once.
     const onRequest = (request: TerminalRequest): void => {
       if (!live) return
@@ -1419,6 +1424,16 @@ export const runnerBackend = (
       } finally {
         opening = undefined
       }
+    }
+    // An agent's look at a page is answered with a picture of it, or why there is none; one the
+    // runner no longer waits for needs no answer.
+    const onLook = (look: PageLook): void => {
+      if (!live) return
+      void track(
+        answerLook(look, { fresh: options.pageLook })
+          .then((answer) => runner.companions.answerLook(answer))
+          .catch(() => {}),
+      )
     }
     // An ask waits on the person until they answer or the runner takes it back.
     const onApproval = (ask: RunnerApproval): void => {
@@ -1455,6 +1470,7 @@ export const runnerBackend = (
     void consume(statuses, onStatus)
     void consume(requests, onRequest)
     void consume(asked, onApproval)
+    void consume(looks, onLook)
     following = true
     for (const entry of entries.values()) if (!entry.closed) followWhenReady(entry)
     voice.follow()
@@ -1470,6 +1486,7 @@ export const runnerBackend = (
       void statuses.return?.()
       void requests.return?.()
       void asked.return?.()
+      void looks.return?.()
       approvals.update(() => [])
       window.removeEventListener("pagehide", flush)
       stopQuit?.()

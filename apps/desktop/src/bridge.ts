@@ -175,6 +175,12 @@ export const openLogsChannel = "novadeck:open-logs"
 export const pagePictureChannel = "novadeck:page-picture"
 
 /**
+ * Renderer-to-main request for a look at a page loaded afresh, out of sight, `{ url, layout }`;
+ * answers a `HostPageLook`. See the viewers' `createLooker`.
+ */
+export const pageLookChannel = "novadeck:page-look"
+
+/**
  * Renderer-to-main request to make a live page's view act as a phone's, or as itself
  * again, by its web contents id; answers whether it did. See the viewers' `phonePage`.
  */

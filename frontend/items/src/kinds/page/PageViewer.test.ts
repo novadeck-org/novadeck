@@ -1,4 +1,5 @@
 import type { Companions, ItemContent, PageContent, PageTrouble } from "@novadeck/core/items"
+import { pageSights } from "@novadeck/core/page-sights"
 import { pagesPartition } from "@novadeck/core/pages"
 import { workspaceReducer } from "@novadeck/core/state"
 import { createWorkspaceStore } from "@novadeck/core/store"
@@ -303,6 +304,89 @@ describe("a page beside a terminal", () => {
       fire(pageOf(rendered.container), "did-stop-loading")
       await settled()
       expect(pageOf(rendered.container)).not.toBeNull()
+    })
+  })
+
+  context("when an agent looks at it", () => {
+    const shot = "data:image/jpeg;base64,c2hvdA=="
+    const at = "http://localhost:4410/"
+    const loaded = (container: HTMLElement) => {
+      const page = pageOf(container)
+      Object.assign(page, {
+        getURL: () => `${at}work`,
+        canGoBack: () => false,
+        canGoForward: () => false,
+        setAudioMuted: () => undefined,
+        getWebContentsId: () => 7,
+      })
+      fire(page, "did-stop-loading")
+      fire(page, "page-title-updated", { title: "Work" })
+    }
+    const withPictures = (pictures: string[]) => {
+      const rendered = show({ kind: "page", url: at, shown: 1, live: true }, true, { pictures })
+      loaded(rendered.container)
+      return { rendered }
+    }
+
+    it("is pictured as the pane shows it, with where it is, its title and its size", async () => {
+      const { rendered } = withPictures([shot])
+      const [sight] = pageSights.of(item.id)
+      expect(await sight!(1280, 1)).toEqual({
+        picture: shot,
+        url: `${at}work`,
+        title: "Work",
+        size: expect.objectContaining({ width: expect.any(Number), height: expect.any(Number) }),
+      })
+      // Gone with the pane's page.
+      rendered.unmount()
+      expect(pageSights.of(item.id)).toEqual([])
+    })
+
+    it("isn't pictured while it loads, for the look to load it afresh", async () => {
+      const rendered = show({ kind: "page", url: at, shown: 1, live: true }, true, {
+        pictures: [shot, shot],
+      })
+      const [sight] = pageSights.of(item.id)
+      expect(await sight!(1280, 1)).toBeUndefined()
+      loaded(rendered.container)
+      expect(await sight!(1280, 1)).toBeDefined()
+    })
+
+    it("declines a look of a later show than the pane has rendered, for the look to load it afresh", async () => {
+      withPictures([shot, shot])
+      const [sight] = pageSights.of(item.id)
+      expect(await sight!(1280, 2)).toBeUndefined()
+      expect(await sight!(1280, 1)).toBeDefined()
+    })
+
+    it("declines a picture taken as the page went elsewhere, or to rest", async () => {
+      const { rendered } = withPictures([shot, shot])
+      const [sight] = pageSights.of(item.id)
+      const page = pageOf(rendered.container)
+      const moving = sight!(1280, 1)
+      Object.assign(page, { getURL: () => `${at}elsewhere` })
+      expect(await moving).toBeUndefined()
+      const resting = sight!(1280, 1)
+      Object.assign(page, { getWebContentsId: () => 8 })
+      expect(await resting).toBeUndefined()
+    })
+
+    it("has no sight where its host takes no pictures, nor where it isn't live", () => {
+      const rendered = show({ kind: "page", url: at, shown: 1, live: true })
+      expect(pageSights.of(item.id)).toEqual([])
+      rendered.unmount()
+      show({ kind: "page", url: at, shown: 1, live: false, snapshot: shot }, true, {
+        pictures: [shot],
+      })
+      expect(pageSights.of(item.id)).toEqual([])
+    })
+
+    it("lays out as the person last switched it, for a look to load it afresh", () => {
+      const { rendered } = withPictures([shot])
+      act(() => button(rendered.container, "Phone size")!.click())
+      expect(pageSights.layout(item.id)).toBe("phone")
+      act(() => button(rendered.container, "Phone size")!.click())
+      expect(pageSights.layout(item.id)).toBe("desktop")
     })
   })
 

@@ -7,6 +7,7 @@ import type {
   AgentDetail,
   AgentName,
   InterruptResult,
+  PageLook,
   RequestAnswer,
   TerminalMessages,
   Approval,
@@ -187,6 +188,12 @@ export type Deck = {
    * on, across restarts, until the deck closes, and gives the asks in the order they came.
    */
   readonly answerApprovals: (approved: boolean) => Approvals
+  /**
+   * Answers agents' looks at a page (`look`) as the pane would, with `picture`, a JPEG data
+   * URL, for the page at the address its show gave, and gives the looks in the order they
+   * came. It answers every look from the call on, across restarts, until the deck closes.
+   */
+  readonly answerLooks: (picture: string, delayMs?: number) => readonly PageLook[]
   /**
    * Closes the runner as Novadeck does when it quits, saving every terminal and ending
    * its shells, then wires another, as Novadeck starts again, on the same database, shell
@@ -869,6 +876,37 @@ export const createDeck = async (options: DeckOptions): Promise<Deck> => {
     })()
   }
 
+  // The looks the deck answered, once the test asks it to, and with what.
+  const looked: PageLook[] = []
+  let picture: string | undefined
+  let lookDelay = 0
+  // Follows the runner's looks until it closes, answering each with the picture.
+  const see = (on: Runner) => {
+    if (picture === undefined) return
+    void (async () => {
+      try {
+        for await (const look of on.items.followLooks(owner, on.closing.signal)) {
+          looked.push(look)
+          if (lookDelay > 0) await new Promise((resolve) => setTimeout(resolve, lookDelay))
+          on.items.answerLook(
+            {
+              lookId: look.lookId,
+              picture: picture ?? "",
+              url: look.url,
+              title: "Deck page",
+              taken: "pane",
+              size: { width: 800, height: 600 },
+              troubles: [],
+            },
+            owner,
+          )
+        }
+      } catch {
+        // The runner is closing.
+      }
+    })()
+  }
+
   return {
     get terminals() {
       return runner.terminals
@@ -922,6 +960,14 @@ export const createDeck = async (options: DeckOptions): Promise<Deck> => {
       }
       return { next: approvalAsks.next }
     },
+    answerLooks: (shown, delayMs = 0) => {
+      if (picture === undefined) {
+        picture = shown
+        lookDelay = delayMs
+        see(runner)
+      }
+      return looked
+    },
     restart: async () => {
       await stop(runner, options.model)
       const left = (await options.leftovers?.()) ?? []
@@ -932,6 +978,7 @@ export const createDeck = async (options: DeckOptions): Promise<Deck> => {
       runner = await start()
       answer(runner)
       confirm(runner)
+      see(runner)
     },
     report: async () => {
       const open = watched.filter((one) => one.on === runner)

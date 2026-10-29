@@ -334,3 +334,31 @@ describe("anthropic", () => {
     expect(anthropic.matches(post("/api/event_logging/batch", {}))).toBe(false)
   })
 })
+
+describe("anthropic tool results with pictures", () => {
+  it("counts the image blocks a tool's result holds", () => {
+    const call = parse({
+      model: "claude-test",
+      messages: [
+        { role: "user", content: "Look" },
+        {
+          role: "user",
+          content: [
+            {
+              type: "tool_result",
+              tool_use_id: "toolu_l",
+              content: [
+                { type: "text", text: "Looked." },
+                {
+                  type: "image",
+                  source: { type: "base64", media_type: "image/jpeg", data: "AA==" },
+                },
+              ],
+            },
+          ],
+        },
+      ],
+    })
+    expect(call.turns.at(-1)).toEqual({ role: "tool", id: "toolu_l", text: "Looked.", images: 1 })
+  })
+})

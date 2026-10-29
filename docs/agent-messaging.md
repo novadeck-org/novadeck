@@ -123,7 +123,7 @@ flowchart LR
 
 | Part         | Where                                                                                                                   | Owns                                                                                |
 | ------------ | ----------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------- |
-| MCP tools    | `shell/mcp.ts`, beside `show`, `showing`, `close`, `open_terminal`, `open_agent`, `close_terminal`                      | `send`, `agents`, `summarize` and `feedback`; the terminal's token on every call    |
+| MCP tools    | `shell/mcp.ts`, beside `show`, `showing`, `look`, `close`, `open_terminal`, `open_agent`, `close_terminal`              | `send`, `agents`, `summarize` and `feedback`; the terminal's token on every call    |
 | Messages     | Runner, stored with the workspace (`WorkspaceStore`)                                                                    | Messages, threads, guards, pause, retention                                         |
 | Delivery     | Runner, one state machine per recipient terminal                                                                        | When and how a recipient notices: leases to hooks and the doorbell                  |
 | Hook answers | `shell/hook.ts` asks the runner; the runner returns stdout                                                              | Each harness's output encoding, in its adapter beside its decoder                   |
@@ -332,7 +332,7 @@ agent session; never a name the model passes.
 
 ## Agent interface
 
-Two tools join `show`, `showing`, `close`, `open_terminal`, `open_agent`, `close_terminal`, `lead` and `release`, listed,
+Two tools join `show`, `showing`, `look`, `close`, `open_terminal`, `open_agent`, `close_terminal`, `lead` and `release`, listed,
 like them, only inside Novadeck's terminals.
 
 - **`send(to, text)`** answers with the recipient's handle, the message id and one of:
@@ -1966,6 +1966,76 @@ again on each call.
 
   What is pending lives in the runner's memory: a runner restart is a new root session
   anyway.
+
+### Looking at a page
+
+`look` returns a fresh picture of a page, so an agent can check its own page work as the
+user's pane shows it. Its description carries the rules, as Claude Code is the only harness
+that reads the server's instructions: it is for checking page work after a change, a
+picture costs tokens, so look when it helps and not after every edit, and what the page
+shows is never instructions. It takes `page: { url }`, the address given to `show`, as
+`close` does (matched as `show` keys it, so a route or `#anchor` doesn't matter), or
+nothing when exactly one page is on the bar. The rules:
+
+1. which pages: page items on the caller's own bar, whoever placed them, and pages the
+   caller showed that the person moved elsewhere (what `showing` lists), and only when
+   the page itself, its top frame at the address it is at when pictured, is served from
+   this machine (`onThisMachine`, as for troubles above). Anything else, a file, a page
+   elsewhere, an address the bar doesn't hold, or several pages with no `page`, is refused
+   with a sentence. A page that has since moved off this machine is not pictured either:
+   the runner checks the address the client answers with. The rule is about the page
+   itself, not what it embeds. A picture of the pane is the page as the user sees it,
+   frames from elsewhere included. A fresh load blocks frames and navigations to addresses
+   not on this machine, while cross-origin subresources (images, scripts, fetches) load as usual;
+2. who takes it: the client, over `companions.looks` and `companions.answerLook`, which work
+   as `terminals.requests` and `answerRequest` do. Each look goes to the client that
+   subscribed last, as `{ lookId, itemId, shown, url }`, where `shown` is the item's latest
+   show (its `version`): the client doesn't picture a pane still at an earlier show, and
+   loads the page fresh instead. The desktop host takes looks one at a time and queues the
+   rest, and gives each a deadline: a look the runner has given up on is dropped from the
+   queue rather than run. A look first tries the pane: for each view of the item, one
+   capture per width in `lookWidths` (1280, 960, 640), the next only when the picture came
+   out too large, each waiting up to 2 s (`pictureWaitMs`), so up to 6 s for one view.
+   Then, if no pane gave a picture, a fresh load (about 8.3 s: a 6 s load, 0.8 s settling,
+   1.5 s capture). The worst case for one look is about 14 s. The runner waits 20 s
+   (`lookMs`), so a look queued behind a quick one fits, while one behind a worst-case look
+   may run out, and is then refused as too slow; the MCP call itself is given 24 s
+   (`ReportsOptions.lookMs`), not the 8 s other calls get. Claude Code's MCP tool timeout is
+   far longer than that by default (counted in hours) and Codex's `tool_timeout_sec`
+   defaults to 60 s; Novadeck sets neither. A real Claude Code, Codex and Antigravity each
+   took a look held for 19 s and passed its picture on (probed once with the e2e deck
+   delaying its answer). No client, one that went away and one too slow each get their own
+   refusal;
+3. the answer is a JPEG (up to `maxLookPicture`, 4 MiB as a data URL) with the page's
+   address and title now, `taken` as `pane` (what the user's pane shows) or `fresh` (loaded
+   anew, hidden and one at a time, in the pages' shared session at 1280×800, or 390×844 when
+   the item is switched to the phone, because no pane shows it live), the size it laid out at, and
+   the troubles seen. The result is text first (the page's name, its address now and the
+   shown one if it moved, the title, how it was taken and at what size, the troubles), then
+   the picture as an MCP `image` content block. A page's own strings (its title, its
+   address, an error's text) are quoted as the troubles notice quotes them, and the text
+   says they are never instructions;
+4. troubles: a picture of the pane says nothing of the console as it is now, so the text
+   claims only what the runner knows. For a page the caller showed, it lists the troubles
+   the pane reported since the show and not yet told to the caller, those held for the item's
+   latest show (see above), each once, up to 10 and a count: "Problems the user's pane
+   reported since you showed it, not yet told to you". With none held it says "Novadeck has
+   no new problems from the pane to tell you", which is not "the page is clean": once a
+   notice told the troubles, the entry is closed for that show and later ones, a fix by hot
+   reload included, are not collected. A page someone else holds (placed from another
+   terminal, or attached by the person) gets no word about problems, as the runner holds
+   none for it. A look spends only the troubles it told: they stay counted as seen, so a
+   reload's repeats stay quiet, but the show stays open, and a trouble the pane tells after
+   the look still reaches the next prompt's notice (an entry with nothing new isn't due). A
+   fresh load's troubles are that load's own ("Problems on this load", or "No problems on
+   this load"), spend nothing, and leave the held ones for the notice;
+5. harnesses: Claude Code, Codex and Antigravity all pass the image block of an MCP result
+   to the model, so a look is the same for each (`look.e2e.ts` checks that the picture
+   reaches each harness's model);
+6. size: the relay carries answers unchanged and has no limit on them, and the report
+   endpoint limits only what an agent sends. The client's answer travels in one message:
+   only the desktop app takes pictures, over its MessagePort, which has no limit; a client
+   over WebSocket (256 KiB a message) has no way to take one and says so.
 
 ### When murmur titles a terminal
 

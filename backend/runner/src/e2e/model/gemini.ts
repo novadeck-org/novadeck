@@ -3,7 +3,7 @@ import { randomBytes } from "node:crypto"
 import { z } from "zod"
 
 import type { Dialect, Request, Response } from "./dialect.js"
-import type { Call, Reply, Turn } from "./script.js"
+import { withImages, type Call, type Reply, type Turn } from "./script.js"
 
 // Only what a Call needs; anything else in a request is the harness's business.
 const part = z.looseObject({
@@ -55,6 +55,16 @@ const record = (value: unknown): Readonly<Record<string, unknown>> =>
 const resultOf = (response: unknown): string => {
   const output = record(response).output
   return typeof output === "string" ? output : JSON.stringify(response ?? {})
+}
+
+// How many pictures a value holds, anywhere in it: Gemini's inline data of an image type,
+// in a part of the content or inside a tool's result.
+const imagesIn = (value: unknown): number => {
+  if (Array.isArray(value)) return value.reduce<number>((sum, one) => sum + imagesIn(one), 0)
+  const fields = record(value)
+  const inline = record(fields.inlineData)
+  const own = typeof inline.mimeType === "string" && inline.mimeType.startsWith("image/") ? 1 : 0
+  return own + Object.values(fields).reduce<number>((sum, one) => sum + imagesIn(one), 0)
 }
 
 /**
@@ -112,9 +122,20 @@ const callOf = (call: { id?: string | undefined; name: string; args?: unknown })
  * with them. Antigravity sends tool results in a content of the model's own.
  */
 const turnsOf = (one: z.infer<typeof content>): Turn[] => {
+  // The pictures of a result are those inside it and, when it is the content's only result,
+  // the inline images beside it in that content, as Antigravity sends them.
+  const responses = one.parts.filter((each) => each.functionResponse).length
+  const beside = responses === 1 ? imagesIn(one.parts.filter((each) => !each.functionResponse)) : 0
   const results: Turn[] = one.parts.flatMap(({ functionResponse: result }) =>
     result
-      ? [{ role: "tool" as const, id: result.id ?? result.name, text: resultOf(result.response) }]
+      ? [
+          {
+            role: "tool" as const,
+            id: result.id ?? result.name,
+            text: resultOf(result.response),
+            ...withImages(imagesIn(result) + beside),
+          },
+        ]
       : [],
   )
   const text = textOf(one.parts)

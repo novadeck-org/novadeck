@@ -3,7 +3,7 @@ import { randomBytes } from "node:crypto"
 import { z } from "zod"
 
 import type { Dialect, Request, Response } from "./dialect.js"
-import type { Call, Reply, ToolCall, Turn } from "./script.js"
+import { withImages, type Call, type Reply, type ToolCall, type Turn } from "./script.js"
 
 // Only what a Call needs; anything else in a request is the harness's business.
 const part = z.looseObject({ type: z.string() })
@@ -46,6 +46,14 @@ const textOf = (value: unknown): string =>
         .map((one) => string(one.text))
         .filter(Boolean)
         .join("\n")
+
+// How many pictures a tool's output holds: Codex passes an MCP image as an `input_image` part.
+const imagesIn = (value: unknown): number =>
+  z
+    .array(part)
+    .catch([])
+    .parse(value)
+    .filter((one) => one.type === "input_image").length
 
 /**
  * The name a call or offer of a tool goes by: a namespaced one, as Codex offers an MCP
@@ -116,7 +124,12 @@ const conversation = (input: readonly Item[]): { system: string[]; turns: Turn[]
       continue
     }
     if (outputs.has(one.type)) {
-      turns.push({ role: "tool", id: string(one.call_id), text: textOf(one.output) })
+      turns.push({
+        role: "tool",
+        id: string(one.call_id),
+        text: textOf(one.output),
+        ...withImages(imagesIn(one.output)),
+      })
       continue
     }
     if (one.type !== "message") continue
