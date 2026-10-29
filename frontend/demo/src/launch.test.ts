@@ -337,9 +337,18 @@ describe("the launch demo", () => {
       exchange(backend).find((each) => each.to === lead && each.from === asking),
     ).toMatchObject({ text: expect.stringContaining("Which API version") })
     expect(agent(launch.lead)).toMatchObject({ working: true })
-    // Still open while the lead has not answered.
+    // Still open while the lead has not answered, which the video holds on for a while: no answer
+    // before about 8 s.
     expect(items()[0]).not.toHaveProperty("settled")
-    await vi.advanceTimersByTimeAsync(7200)
+    await vi.advanceTimersByTimeAsync(4600)
+    expect(items()[0]).not.toHaveProperty("settled")
+    expect(
+      exchange(backend).filter(
+        (each) =>
+          each.from === lead && each.to === asking && each.text.startsWith("The storefront"),
+      ),
+    ).toEqual([])
+    await vi.advanceTimersByTimeAsync(2600)
     expect(
       exchange(backend)
         .filter(
