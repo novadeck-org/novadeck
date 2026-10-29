@@ -160,7 +160,7 @@ export const endTree = async (
   if (tree === undefined) return kill(one.pid).catch(() => {})
   if (tree[0]?.startedAt !== one.start) return
   await trees.end(tree)
-  await waitWhile(() => tree.some(({ pid }) => pidRunning(pid, true)), 30_000)
+  await waitWhile(() => tree.some(({ pid }) => pidRunning(pid)), 30_000)
 }
 
 /**
@@ -191,7 +191,7 @@ export const windows = (trees: Trees | undefined): Table => ({
   list,
   // A pid alone, between listings: a process found a moment before isn't replaced by
   // another of the same pid that soon; `current` checks its start before it is ended.
-  alive: (_sandbox, one) => pidRunning(one.pid, false),
+  alive: (_sandbox, one) => pidRunning(one.pid),
   current: async (sandbox, found) => {
     const now = await list(sandbox)
     return found.filter((one) => now.some((it) => it.pid === one.pid && it.start === one.start))

@@ -166,7 +166,7 @@ const list = async (sandbox: Scope): Promise<readonly Process[]> => {
 export const darwin: Table = {
   list,
   // A pid alone, between listings, as on Windows; `current` checks its start.
-  alive: (_sandbox, one) => pidRunning(one.pid, false),
+  alive: (_sandbox, one) => pidRunning(one.pid),
   // The same processes, each by its pid and start, as they are now: never found again
   // from scratch, as one found through its parent no longer is once that parent has gone.
   current: async (_sandbox, found) =>

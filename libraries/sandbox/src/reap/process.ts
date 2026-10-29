@@ -30,15 +30,16 @@ export type Table = {
 }
 
 /**
- * Whether the pid names a process now, by signal 0. `denied` is what a pid that names
- * another user's process, which no sandbox's is, counts as.
+ * Whether the pid names a process of the caller's now, by signal 0. One it may not signal
+ * (EPERM) is another user's or the system's, which no sandbox's process is: the pid has
+ * been given to another process, so the one found has gone.
  */
-export const pidRunning = (pid: number, denied: boolean): boolean => {
+export const pidRunning = (pid: number): boolean => {
   try {
     process.kill(pid, 0)
     return true
-  } catch (error) {
-    return denied && (error as NodeJS.ErrnoException).code === "EPERM"
+  } catch {
+    return false
   }
 }
 

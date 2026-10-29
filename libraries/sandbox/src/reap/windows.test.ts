@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest"
+import { describe, expect, it, onTestFinished, vi } from "vitest"
 
 import { endProcess, endTree } from "./windows.js"
 
@@ -67,6 +67,24 @@ describe("ending a Windows process's tree", () => {
     expect(terminated).toEqual([gone, gone])
     expect(calls.read).toEqual([gone])
   })
+
+  // A wait that stalled would take its 30 s, past this test's time.
+  it(
+    "stops waiting for a member whose pid another user's process has since",
+    { timeout: 2_000 },
+    async () => {
+      const kill = vi.spyOn(process, "kill").mockImplementation(() => {
+        throw Object.assign(new Error("kill EPERM"), { code: "EPERM" })
+      })
+      onTestFinished(() => kill.mockRestore())
+      const tree = [{ pid: gone, startedAt: 100 }]
+      const { calls, trees } = reader(tree)
+
+      await endTree({ pid: gone, start: 100 }, trees)
+
+      expect(calls.end).toEqual([tree])
+    },
+  )
 
   it("ends it by recorded parents where its reader can't read the tree", async () => {
     const { trees } = reader(undefined)
