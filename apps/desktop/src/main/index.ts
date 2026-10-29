@@ -45,6 +45,7 @@ import {
   phonePage,
   picturePage,
   createLooker,
+  emulatePhone,
   holdPhoneLoads,
   watchPageRequests,
   webAddress,
@@ -1513,6 +1514,7 @@ const looker = createLooker({
   partition: pagesSession(pagesPartition),
   create: (options) => new BrowserWindow(options),
   allow: onThisMachine,
+  emulate: emulatePhone,
   forget: (contentsId) => forgetPageRequests(contentsId),
 })
 // What its failed requests keep by view, set once the pages' session is watched.

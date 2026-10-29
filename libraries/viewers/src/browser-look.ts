@@ -1,4 +1,9 @@
-import type { BrowserWindow, BrowserWindowConstructorOptions, NativeImage } from "electron"
+import type {
+  BrowserWindow,
+  BrowserWindowConstructorOptions,
+  NativeImage,
+  WebContents,
+} from "electron"
 
 import { webAddress } from "./address.js"
 import {
@@ -119,11 +124,14 @@ export const createLooker = ({
   create,
   allow,
   forget,
+  emulate,
 }: {
   readonly partition: string
   readonly create: (options: BrowserWindowConstructorOptions) => BrowserWindow
   readonly allow: (address: string) => boolean
   readonly forget?: (contentsId: number) => void
+  // Makes a look's view act as a phone's, as the pane's does; false when it can't.
+  readonly emulate: (contents: WebContents) => Promise<boolean>
 }): Looker => {
   let running = false
   // The looks waiting for their turn, which each is handed as the one before ends.
@@ -183,7 +191,7 @@ export const createLooker = ({
         },
       } as BrowserWindowConstructorOptions)
       windows.add(window)
-      return await loadAndPicture(window, url, layout, hearing, allow)
+      return await loadAndPicture(window, url, layout, hearing, allow, emulate)
     } catch {
       return { reason: "The page could not be pictured." }
     } finally {
@@ -213,6 +221,7 @@ const loadAndPicture = async (
   layout: LookLayout,
   hearing: Map<number, (failure: PageRequestFailure) => void>,
   allow: (address: string) => boolean,
+  emulate: (contents: WebContents) => Promise<boolean>,
 ): Promise<LookResult> => {
   const contents = window.webContents
   const id = contents.id
@@ -265,6 +274,13 @@ const loadAndPicture = async (
     tell({ kind: "load", text: clip(description || `Error ${code}`, 256) })
   })
   try {
+    // A phone's screen, touch and user agent are set before the first document, as the pane's.
+    // Its view has a document of its own first: emulation set on one with none crashes Chromium.
+    if (layout === "phone") {
+      await contents.loadURL("about:blank").catch(() => {})
+      if (!(await emulate(contents)))
+        return { reason: "The page could not be set up as a phone's." }
+    }
     contents.on("did-finish-load", () => {
       if (layout === "phone") void contents.insertCSS(phoneLook).catch(() => {})
     })

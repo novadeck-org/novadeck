@@ -107,7 +107,10 @@ const windowFor = ({
 
 const local = (address: string): boolean => new URL(address).hostname === "localhost"
 
-const setup = (options?: Parameters<typeof windowFor>[0]) => {
+const setup = (
+  options?: Parameters<typeof windowFor>[0],
+  emulate: (contents: unknown) => Promise<boolean> = async () => true,
+) => {
   const made = windowFor(options)
   const created: BrowserWindowConstructorOptions[] = []
   const forgotten: number[] = []
@@ -115,6 +118,7 @@ const setup = (options?: Parameters<typeof windowFor>[0]) => {
     partition: "persist:pages",
     allow: local,
     forget: (id) => forgotten.push(id),
+    emulate: emulate as never,
     create: (each) => {
       created.push(each)
       made.window.destroyed = false
@@ -163,6 +167,39 @@ describe("a look at a page", () => {
     expect(look).toMatchObject({ size: lookSizes.phone })
   })
 
+  it("acts as a phone's before its first document, as the pane's page does, where it is switched to one", async () => {
+    const steps: string[] = []
+    const { looker, contents } = setup(
+      {
+        load: (each, at) => {
+          steps.push(at === url ? "load" : "blank")
+          setTimeout(() => each.emit("did-stop-loading"))
+        },
+      },
+      async (emulated) => {
+        steps.push(emulated === contents ? "emulate" : "other")
+        return true
+      },
+    )
+    await looker.look({ url, layout: "phone" })
+    expect(steps).toEqual(["blank", "emulate", "load"])
+  })
+
+  it("is a desktop's as it is, with no emulation", async () => {
+    const steps: string[] = []
+    const { looker } = setup(undefined, async () => (steps.push("emulate"), true))
+    await looker.look({ url, layout: "desktop" })
+    expect(steps).toEqual([])
+  })
+
+  it("isn't taken as a phone's where it can't act as one, rather than shown as something else", async () => {
+    const { looker, window } = setup(undefined, async () => false)
+    expect(await looker.look({ url, layout: "phone" })).toEqual({
+      reason: "The page could not be set up as a phone's.",
+    })
+    expect(window.destroyed).toBe(true)
+  })
+
   it("answers the picture, where the page ended up, its title and the size it laid out at", async () => {
     const { looker, contents } = setup({
       load: (each, at) => {
@@ -194,6 +231,7 @@ describe("a look at a page", () => {
     const broken = createLooker({
       partition: "persist:pages",
       allow: local,
+      emulate: async () => true,
       create: () => {
         throw new Error("no window")
       },
@@ -232,7 +270,7 @@ describe("a look at a page", () => {
       load: (each) => releases.push(() => each.emit("did-stop-loading")),
     })
     const first = looker.look({ url, layout: "desktop" })
-    const second = looker.look({ url, layout: "phone" })
+    const second = looker.look({ url, layout: "desktop" })
     await vi.waitFor(() => expect(releases).toHaveLength(1))
     // The second has no window while the first is under way.
     expect(created).toHaveLength(1)
@@ -241,7 +279,7 @@ describe("a look at a page", () => {
     await vi.waitFor(() => expect(releases).toHaveLength(2))
     expect(created).toHaveLength(2)
     releases[1]!()
-    expect(await second).toMatchObject({ size: lookSizes.phone })
+    expect(await second).toHaveProperty("picture")
   })
 
   it("refuses a look beyond the few that wait", async () => {
