@@ -185,6 +185,14 @@ export const followNeeds = (
   const timers = new Map<string, ReturnType<typeof setTimeout>>()
   const waitingKeys = (): Set<string> =>
     new Set(needing(inbox.state.getSnapshot().items).map(keyOf))
+  // What the person snoozed is no longer rung, but stays seen: brought back, it is no news.
+  const snoozedKeys = (): Set<string> =>
+    new Set(
+      inbox.state
+        .getSnapshot()
+        .items.filter((item) => item.snoozed)
+        .map(keyOf),
+    )
   const sound = (key: string): void => {
     const item = needing(inbox.state.getSnapshot().items).find((each) => keyOf(each) === key)
     if (!item || rung.has(key)) return
@@ -205,14 +213,16 @@ export const followNeeds = (
             leaving.delete(key)
             if (waitingKeys().has(key)) return
             rung.delete(key)
-            seen.delete(key)
+            if (!snoozedKeys().has(key)) seen.delete(key)
             leave(item)
           }, graceMs),
         )
     }
-    // One that left before it rang is new again if it comes back, its grace begun anew.
+    // One that left before it rang is new again if it comes back, its grace begun anew;
+    // one snoozed is still seen.
+    const sleeping = snoozedKeys()
     for (const key of seen)
-      if (!keys.has(key) && !rung.has(key)) {
+      if (!keys.has(key) && !rung.has(key) && !sleeping.has(key)) {
         seen.delete(key)
         clearTimeout(timers.get(key))
         timers.delete(key)

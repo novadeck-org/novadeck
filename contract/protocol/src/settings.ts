@@ -14,7 +14,8 @@ export const runnerSettings = z.strictObject({
   // The Inbox's rows that ask, by id, in the order the person dragged them into; empty until
   // they do.
   inboxOrder: z.array(z.string().min(1).max(maxInboxRowIdLength)).max(maxInboxOrder),
-  // The Inbox's rows the person snoozed, by id; empty until they snooze one.
+  // The Inbox's rows the person snoozed, each by its id and when it began (`<id>@<at>`), the
+  // latest last; empty until they snooze one.
   inboxSnoozed: z.array(z.string().min(1).max(maxInboxRowIdLength)).max(maxInboxOrder),
 })
 

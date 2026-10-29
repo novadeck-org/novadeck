@@ -126,7 +126,7 @@ const SheetBody = ({ item }: { readonly item: InboxRow }): React.JSX.Element => 
         </span>
         <HandleChip handle={source.handle} />
         <span className="console-grow" />
-        {snooze && asks(item) ? (
+        {snooze && asks(item) && present && !state.answering[item.id] && !answered ? (
           <Tooltip content={item.snoozed ? "Unsnooze · S" : "Snooze · S"}>
             <button
               type="button"

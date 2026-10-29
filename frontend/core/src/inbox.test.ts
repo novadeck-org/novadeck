@@ -226,26 +226,26 @@ describe("withSnoozes", () => {
   const make = (initial: readonly string[] = []) => {
     const state = createStore<InboxState>({ ...emptyInbox, items: rows })
     const saved: (readonly string[])[] = []
-    const inbox = withSnoozes({ ...noInbox, state }, initial, (ids) => saved.push(ids))
+    const inbox = withSnoozes({ ...noInbox, state }, initial, (keys) => saved.push(keys))
     return { state, saved, inbox }
   }
   const snoozedIds = (state: InboxState) =>
     state.items.filter((each) => each.snoozed).map((each) => each.id)
 
   it("marks the rows snoozed before, and nothing else", () => {
-    const { inbox } = make(["b", "gone"])
+    const { inbox } = make(["b@1", "gone@3"])
     expect(snoozedIds(inbox.state.getSnapshot())).toEqual(["b"])
     // The same listing reads as the same state.
     expect(inbox.state.getSnapshot()).toBe(inbox.state.getSnapshot())
   })
 
-  it("snoozes and brings back, tells who listens, and keeps only rows still listed", () => {
-    const { inbox, saved } = make(["gone"])
+  it("snoozes and brings back, tells who listens, and keeps each by its id and start", () => {
+    const { inbox, saved } = make()
     let changes = 0
     const stop = inbox.state.subscribe(() => changes++)
     inbox.snooze?.("a", true)
     expect(snoozedIds(inbox.state.getSnapshot())).toEqual(["a"])
-    expect(saved.at(-1)).toEqual(["a"])
+    expect(saved.at(-1)).toEqual(["a@0"])
     inbox.snooze?.("a", false)
     expect(snoozedIds(inbox.state.getSnapshot())).toEqual([])
     expect(inbox.state.getSnapshot().items[0]).not.toHaveProperty("snoozed")
@@ -254,11 +254,35 @@ describe("withSnoozes", () => {
     stop()
   })
 
-  it("follows the rows as the backend lists them", () => {
-    const { inbox, state } = make(["a"])
+  it("keeps a snooze while its row is away, and keeps the snoozed row the same", () => {
+    const { inbox, state } = make(["a@0"])
+    const before = inbox.state.getSnapshot().items[0]
+    state.update((current) => ({ ...current, items: [...rows, item("c", held, true, 2)] }))
+    expect(inbox.state.getSnapshot().items[0]).toBe(before)
     state.update((current) => ({ ...current, items: [rows[1]!] }))
     expect(snoozedIds(inbox.state.getSnapshot())).toEqual([])
     state.update((current) => ({ ...current, items: rows }))
     expect(snoozedIds(inbox.state.getSnapshot())).toEqual(["a"])
+  })
+
+  it("leaves unsnoozed a newer row under the same id, as a thread held again", () => {
+    const { inbox, state } = make(["a@0"])
+    state.update((current) => ({ ...current, items: [item("a", held, true, 9)] }))
+    expect(snoozedIds(inbox.state.getSnapshot())).toEqual([])
+  })
+
+  it("leaves unsnoozed a row that has settled", () => {
+    const { inbox, state } = make(["a@0"])
+    state.update((current) => ({
+      ...current,
+      items: [{ ...rows[0]!, settled: { how: "dismissed", at: 5 } }],
+    }))
+    expect(snoozedIds(inbox.state.getSnapshot())).toEqual([])
+  })
+
+  it("is left out of a terminal's marks", () => {
+    const snoozed = { ...item("a", held, true), snoozed: true as const }
+    expect(terminalNeed([item("a", held, true)], source, 0)).toBe("unblock")
+    expect(terminalNeed([snoozed], source, 0)).toBeUndefined()
   })
 })

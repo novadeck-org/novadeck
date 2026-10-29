@@ -298,31 +298,37 @@ export const entryRow = (
 ): InboxRow | undefined =>
   items.find((item) => item.id === entry.id || `m-${item.id.replaceAll("-", "")}` === entry.id)
 
-// `inbox` with snoozes: its rows whose ids are snoozed carry `snoozed`, `initial` the ids
-// snoozed before, and `save` keeps them each time one is snoozed or brought back. Only the
-// ids of rows still listed are kept then, so a row that has gone is forgotten.
+// How many snoozes are kept, the latest: as many as the runner keeps.
+export const maxSnoozes = 200
+
+// A row by its id and when it began: a newer row under the same id, as a thread held again,
+// is another, and isn't snoozed.
+const snoozeKey = (item: InboxRow): string => `${item.id}@${item.at}`
+
+// `inbox` with snoozes: its rows that the person snoozed, and that haven't settled, carry
+// `snoozed`. `initial` the snoozes kept before, and `save` keeps them each time one is
+// snoozed or brought back, the latest `maxSnoozes`.
 export const withSnoozes = <I extends Inbox>(
   inbox: I,
   initial: readonly string[],
-  save: (ids: readonly string[]) => void,
+  save: (keys: readonly string[]) => void,
 ): I => {
-  let snoozed: ReadonlySet<string> = new Set(initial)
+  let snoozed: readonly string[] = initial.slice(-maxSnoozes)
+  let keys: ReadonlySet<string> = new Set(snoozed)
   let from: InboxState | undefined
   let marked: InboxState = emptyInbox
+  // Each row's snoozed copy, while the backend keeps the row itself, so it stays the same.
+  let copies = new WeakMap<InboxRow, InboxRow>()
   const listeners = new Set<() => void>()
+  const asleep = (item: InboxRow): boolean => !item.settled && keys.has(snoozeKey(item))
+  const copy = (item: InboxRow): InboxRow => {
+    const made = copies.get(item) ?? { ...item, snoozed: true as const }
+    copies.set(item, made)
+    return made
+  }
   const mark = (state: InboxState): InboxState =>
-    state.items.some((item) => snoozed.has(item.id) !== Boolean(item.snoozed))
-      ? {
-          ...state,
-          items: state.items.map((item) => {
-            if (snoozed.has(item.id) === Boolean(item.snoozed)) return item
-            if (!snoozed.has(item.id)) {
-              const { snoozed: _snoozed, ...rest } = item
-              return rest as InboxRow
-            }
-            return { ...item, snoozed: true as const }
-          }),
-        }
+    state.items.some(asleep)
+      ? { ...state, items: state.items.map((item) => (asleep(item) ? copy(item) : item)) }
       : state
   const getSnapshot = (): InboxState => {
     const now = inbox.state.getSnapshot()
@@ -337,22 +343,25 @@ export const withSnoozes = <I extends Inbox>(
     state: {
       getSnapshot,
       subscribe: (listener) => {
-        listeners.add(listener)
-        const stop = inbox.state.subscribe(listener)
+        // Its own, so one function subscribed twice is told twice, and each stops alone.
+        const own = (): void => listener()
+        listeners.add(own)
+        const stop = inbox.state.subscribe(own)
         return () => {
-          listeners.delete(listener)
+          listeners.delete(own)
           stop()
         }
       },
     },
     snooze: (id, on) => {
-      const listed = new Set(inbox.state.getSnapshot().items.map((item) => item.id))
-      const next = new Set([...snoozed].filter((each) => listed.has(each)))
-      if (on) next.add(id)
-      else next.delete(id)
-      snoozed = next
+      const item = inbox.state.getSnapshot().items.find((each) => each.id === id)
+      if (on && !item) return
+      const kept = snoozed.filter((key) => !key.startsWith(`${id}@`))
+      snoozed = (on && item ? [...kept, snoozeKey(item)] : kept).slice(-maxSnoozes)
+      keys = new Set(snoozed)
       from = undefined
-      save([...next])
+      copies = new WeakMap()
+      save(snoozed)
       for (const listener of listeners) listener()
     },
   }
@@ -380,14 +389,15 @@ const atTerminal = (item: InboxRow, at: TerminalAt): boolean =>
 
 // What a terminal needs of the person, for its tab's mark: "unblock" for any Unblock item
 // or a limit past its reset that Novadeck won't resume from; otherwise "ask" for any Ask;
-// otherwise nothing. Trouble, updates and settled asks don't count. Takes every item, as the backend
-// lists them: the landing rule hides rows from the Inbox, never from the marks.
+// otherwise nothing. Trouble, updates, settled asks and what the person snoozed don't count.
+// Takes every item, as the backend lists them: the landing rule hides rows from the Inbox,
+// never from the marks.
 export const terminalNeed = (
   items: readonly InboxRow[],
   at: TerminalAt,
   now: number,
 ): "unblock" | "ask" | undefined => {
-  const mine = items.filter((item) => atTerminal(item, at) && !item.settled)
+  const mine = items.filter((item) => atTerminal(item, at) && !item.settled && !item.snoozed)
   const limitReset = (item: InboxRow): boolean =>
     item.kind === "trouble" &&
     item.trouble.type === "limit" &&

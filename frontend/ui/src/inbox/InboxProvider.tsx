@@ -435,7 +435,8 @@ export const InboxProvider = ({
       // S in the open sheet snoozes its item, or brings it back; on a row, the row does.
       if (sleep) {
         const item = snapshot.items.find(({ id }) => id === live.open)
-        if (inList || !item || !asks(item) || !latest.current.snoozing) return
+        if (inList || !item || !asks(item) || snapshot.answering[item.id]) return
+        if (!latest.current.snoozing) return
         event.preventDefault()
         latest.current.snoozing(item, !item.snoozed)
         if (!item.snoozed) focusSheetSoon()
