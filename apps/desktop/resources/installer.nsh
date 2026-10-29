@@ -22,11 +22,42 @@
 #     name, and never this setup itself. Without PowerShell nothing is closed: the person
 #     is asked to close Novadeck, or a silent run ends.
 #
+# A self-update stays silent: builder's message boxes that carry a silent default (`/SD`:
+# a failed copy, a failed uninstall retry) answer themselves, where a non-silent run would put
+# Retry/Cancel in front of someone who just quit, and Cancel after the old app was removed
+# leaves none. It shows no progress window either: builder's banner plugin, with no window of
+# the setup's to sit in, looks through every dialog on the desktop.
+#
+# A self-update starts nothing, as the app must not restart itself, except in one case: it
+# had to close a copy the person reopened after the quit began. That copy is told from the
+# quitting app by its start time: the quitting app was running before this setup was started
+# (the app starts it as it quits), a reopened copy started after. `customInstall` then
+# starts the app, which opens as the new version, since the person asked for it. The host's
+# `--force-run` (a reopen while the app was still shutting down) makes builder's template
+# start the app; `customInstall` then starts nothing, so the app starts once.
+#
 # The installer also leaves a marker, `RunningCheck`, in builder's install registry key
 # (deleted with it on uninstall), by which the host tells installed copies that have this
 # check from older ones, whose uninstaller the new setup runs first.
+!ifndef BUILD_UNINSTALLER
+  # 1 once a self-update has closed a copy that was started after this setup was.
+  Var novadeckReopened
+!endif
+
 !macro customInstall
   WriteRegStr SHELL_CONTEXT "${INSTALL_REGISTRY_KEY}" RunningCheck 1
+
+  # Builder's template starts nothing after a silent run unless it is given `--force-run`,
+  # and then this starts nothing, so the app starts once. A self-update that closed a
+  # reopened copy starts it. A portable copy's install (silent, not `--updated`) never does.
+  ${IfNot} ${isForceRun}
+  ${AndIf} ${Silent}
+  ${AndIf} ${isUpdated}
+  ${AndIf} $novadeckReopened == 1
+    # Otherwise the app window would be in the background.
+    HideWindow
+    ${StdUtils.ExecShellAsUser} $0 "$launchLink" "open" "--updated"
+  ${EndIf}
 !macroend
 
 # Takes the variables the PowerShell commands read out of this process's environment once
@@ -48,6 +79,7 @@
   Push $4
   Push $5
   Push $6
+  Push $7
 
   # What the PowerShell commands below read, instead of quoting a path into them.
   System::Call 'kernel32::GetCurrentProcessId() i .r0'
@@ -83,17 +115,31 @@
   ${EndIf}
 
   StrCpy $2 0 # rounds waited for the app to go
+  !ifndef BUILD_UNINSTALLER
+    StrCpy $novadeckReopened 0
+  !endif
+  # $7 = 1 while what runs from the install folder includes a process started after this
+  # setup was: the person reopened Novadeck once the quit had begun. The app that was
+  # quitting started this setup, so it is older.
+  StrCpy $7 0
   ${Do}
     # $1 = 1 while something runs from the install folder; $5 = 1 when PowerShell answered.
     StrCpy $1 0
     StrCpy $5 0
     ${If} ${FileExists} "$PowerShellPath"
-      # Exit 10: found, 11: none, 12: the query itself failed. A timeout answers "timeout".
-      nsExec::Exec /TIMEOUT=15000 `"$PowerShellPath" -NoProfile -NonInteractive -C "try { $$d = $$env:NOVADECK_INSTALL_DIR.TrimEnd('\') + '\'; $$n = @(Get-CimInstance -ClassName Win32_Process -ErrorAction Stop | Where-Object { $$_.ExecutablePath -and $$_.ProcessId -ne [int]$$env:NOVADECK_SETUP_PID -and $$_.ExecutablePath.StartsWith($$d, [System.StringComparison]::OrdinalIgnoreCase) }).Count; if ($$n -gt 0) { exit 10 } else { exit 11 } } catch { exit 12 }"`
+      # Exit 10: found, 13: found and one started after this setup, 11: none, 12: the query
+      # itself failed. A timeout answers "timeout".
+      nsExec::Exec /TIMEOUT=15000 `"$PowerShellPath" -NoProfile -NonInteractive -C "try { $$d = $$env:NOVADECK_INSTALL_DIR.TrimEnd('\') + '\'; $$all = @(Get-CimInstance -ClassName Win32_Process -ErrorAction Stop); $$me = $$all | Where-Object { $$_.ProcessId -eq [int]$$env:NOVADECK_SETUP_PID } | Select-Object -First 1; $$p = @($$all | Where-Object { $$_.ExecutablePath -and $$_.ProcessId -ne [int]$$env:NOVADECK_SETUP_PID -and $$_.ExecutablePath.StartsWith($$d, [System.StringComparison]::OrdinalIgnoreCase) }); if ($$p.Count -eq 0) { exit 11 }; if ($$me -and $$me.CreationDate -and @($$p | Where-Object { $$_.CreationDate -gt $$me.CreationDate }).Count -gt 0) { exit 13 }; exit 10 } catch { exit 12 }"`
       Pop $0
       ${If} $0 == 10
+      ${OrIf} $0 == 13
         StrCpy $1 1
         StrCpy $5 1
+        ${If} $0 == 13
+          StrCpy $7 1
+        ${Else}
+          StrCpy $7 0
+        ${EndIf}
       ${ElseIf} $0 == 11
         StrCpy $5 1
       ${EndIf}
@@ -150,6 +196,14 @@
       ${Else}
         StrCpy $3 "(Get-Process -Id $$_.ProcessId -ErrorAction SilentlyContinue).CloseMainWindow()"
       ${EndIf}
+      !ifndef BUILD_UNINSTALLER
+        # What is closed here that was started after this setup is a reopened copy; a self-update
+        # (the only run that is `isUpdated` here) then starts the new version once installed.
+        ${If} $7 == 1
+        ${AndIf} ${isUpdated}
+          StrCpy $novadeckReopened 1
+        ${EndIf}
+      !endif
       nsExec::Exec /TIMEOUT=15000 `"$PowerShellPath" -NoProfile -NonInteractive -C "$$d = $$env:NOVADECK_INSTALL_DIR.TrimEnd('\') + '\'; Get-CimInstance -ClassName Win32_Process | Where-Object { $$_.ExecutablePath -and $$_.ProcessId -ne [int]$$env:NOVADECK_SETUP_PID -and $$_.ExecutablePath.StartsWith($$d, [System.StringComparison]::OrdinalIgnoreCase) } | ForEach-Object { $3 }"`
       Pop $0
     ${EndIf}
@@ -158,6 +212,7 @@
   ${Loop}
 
   !insertmacro _novadeckClearEnvironment
+  Pop $7
   Pop $6
   Pop $5
   Pop $4

@@ -481,8 +481,17 @@ class FakeUpdater extends EventEmitter implements Pick<Updater, "checkForUpdates
     return this.downloadResult?.() ?? Promise.resolve()
   }
   installed = 0
-  install(): boolean {
+  /** The arguments each install was made with. */
+  installs: unknown[][] = []
+  /** An error the install raises as it runs, as electron-updater's dispatchError does. */
+  installError: Error | undefined
+  install(...args: unknown[]): boolean {
     this.installed += 1
+    this.installs.push(args)
+    if (this.installError) {
+      this.emit("error", this.installError)
+      return false
+    }
     return true
   }
   autoDownload = false
@@ -536,6 +545,7 @@ describe("checking for updates", () => {
       failedVersion?: string
       allow?: boolean
       feed?: Parameters<typeof checkForUpdates>[1]["feed"]
+      runAfterInstall?: () => boolean
     } = {},
   ) => {
     const updater = new FakeUpdater()
@@ -561,6 +571,7 @@ describe("checking for updates", () => {
         )
       },
       installStarted: (version) => void started.push(version),
+      runAfterInstall: options.runAfterInstall,
       installFailed: (version) => void failed.push(version),
       log: (message) => void logged.push(message),
     })
@@ -1032,6 +1043,70 @@ describe("checking for updates", () => {
       updater.install()
       expect(started).toEqual(["1.2.3"])
       expect(updater.installed).toBe(1)
+    })
+
+    context("putting the update in place as the quit begins", () => {
+      it("installs a waiting update at once, and only that once", () => {
+        const { updater, started, installNow } = checking()
+        updater.emit("update-downloaded", { version: "1.2.3" })
+        expect(installNow()).toBe(true)
+        expect(installNow()).toBe(false)
+        expect(updater.installs).toEqual([[true, false]])
+        expect(started).toEqual(["1.2.3"])
+      })
+
+      it("installs nothing when no update has downloaded", () => {
+        const { updater, installNow } = checking()
+        expect(installNow()).toBe(false)
+        expect(updater.installed).toBe(0)
+      })
+
+      it("installs nothing in tell mode, or once installing on quit is switched off", () => {
+        const told = checking({ mode: "tell" })
+        told.updater.emit("update-downloaded", { version: "1.2.3" })
+        expect(told.installNow()).toBe(false)
+        const off = checking()
+        off.updater.emit("update-downloaded", { version: "1.2.3" })
+        off.updater.autoInstallOnAppQuit = false
+        expect(off.installNow()).toBe(false)
+        expect(told.updater.installed + off.updater.installed).toBe(0)
+      })
+
+      it("marks an error the install itself raises as a failed install", () => {
+        const { updater, failed, installNow } = checking()
+        updater.emit("update-downloaded", { version: "1.2.3" })
+        updater.installError = new Error("the folder is read-only")
+        expect(installNow()).toBe(false)
+        expect(failed).toEqual(["1.2.3"])
+      })
+
+      it("does not mark a check or download that fails once the update is in place", () => {
+        const { updater, failed, offered, logged, installNow } = checking()
+        updater.emit("update-downloaded", { version: "1.2.3" })
+        expect(installNow()).toBe(true)
+        updater.emit("error", new Error("offline"))
+        updater.emit("error", new Error("the newer download was aborted"))
+        expect(failed).toEqual([])
+        expect(offered).toEqual([["ready", "1.2.3"]])
+        expect(logged).toEqual(["The update check failed.", "The update check failed."])
+        expect(updater.autoInstallOnAppQuit).toBe(true)
+      })
+    })
+
+    context("a launch that arrived while quitting into the update", () => {
+      it("has the installer start the app when it is done", () => {
+        const { updater } = checking({ runAfterInstall: () => true })
+        updater.emit("update-downloaded", { version: "1.2.3" })
+        updater.install(true, false)
+        expect(updater.installs).toEqual([[true, true]])
+      })
+
+      it("leaves the app closed on a plain quit", () => {
+        const { updater } = checking({ runAfterInstall: () => false })
+        updater.emit("update-downloaded", { version: "1.2.3" })
+        updater.install(true, false)
+        expect(updater.installs).toEqual([[true, false]])
+      })
     })
 
     it("counts a failed install once, though more errors follow", () => {

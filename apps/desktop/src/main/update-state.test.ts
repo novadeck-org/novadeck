@@ -7,7 +7,14 @@ import { afterEach, beforeEach } from "vitest"
 
 import { context, describe, expect, it } from "../test"
 import { isNewerVersion } from "./applications-folder"
-import { installOutcome, keepUpdateState, updateStateOf } from "./update-state"
+import {
+  failureOutdated,
+  fileIdentity,
+  installedBeforeLaunch,
+  installOutcome,
+  keepUpdateState,
+  updateStateOf,
+} from "./update-state"
 
 let folder: string
 let file: string
@@ -24,6 +31,8 @@ describe("what the host remembers about updating", () => {
       channel: "stable",
       installFailedOn: undefined,
       installing: undefined,
+      installedImage: undefined,
+      reopenedFor: undefined,
       lastRunVersion: undefined,
       whatsNewPending: undefined,
       whatsNewFrom: undefined,
@@ -237,6 +246,82 @@ describe("what the host remembers about updating", () => {
 
     it("tells nothing when no install was begun", () => {
       expect(installOutcome({ installing: undefined }, "0.4.2", newer)).toBeUndefined()
+    })
+  })
+
+  context("an AppImage the last quit swapped in", () => {
+    const newer = (a: string, b: string) => a.localeCompare(b, undefined, { numeric: true }) > 0
+    const state = { installing: "0.5.0", installedImage: "10:7:1000", reopenedFor: undefined }
+
+    it("is restarted into when this launch is older and the file is the one swapped in", () => {
+      expect(installedBeforeLaunch(state, "0.4.2", "10:7:1000", newer)).toBe(true)
+    })
+
+    it("is not when the file is another one, missing, or nothing was recorded", () => {
+      expect(installedBeforeLaunch(state, "0.4.2", "10:8:1000", newer)).toBe(false)
+      expect(installedBeforeLaunch(state, "0.4.2", undefined, newer)).toBe(false)
+      expect(
+        installedBeforeLaunch({ ...state, installedImage: undefined }, "0.4.2", "10:7:1000", newer),
+      ).toBe(false)
+    })
+
+    it("is not when this launch is already that version, or no install was begun", () => {
+      expect(installedBeforeLaunch(state, "0.5.0", "10:7:1000", newer)).toBe(false)
+      expect(
+        installedBeforeLaunch({ ...state, installing: undefined }, "0.4.2", "10:7:1000", newer),
+      ).toBe(false)
+    })
+
+    it("is restarted into once per version, so a file that still starts the old one cannot loop", () => {
+      expect(
+        installedBeforeLaunch({ ...state, reopenedFor: "0.5.0" }, "0.4.2", "10:7:1000", newer),
+      ).toBe(false)
+      expect(
+        installedBeforeLaunch({ ...state, reopenedFor: "0.4.9" }, "0.4.2", "10:7:1000", newer),
+      ).toBe(true)
+    })
+
+    it("clears a failure mark on a release this launch runs or is past, and keeps one ahead", () => {
+      expect(failureOutdated({ installFailedOn: "0.5.0" }, "0.5.0", newer)).toBe(true)
+      expect(failureOutdated({ installFailedOn: "0.5.0" }, "0.5.1", newer)).toBe(true)
+      expect(failureOutdated({ installFailedOn: "0.5.0" }, "0.4.2", newer)).toBe(false)
+      expect(failureOutdated({ installFailedOn: undefined }, "0.4.2", newer)).toBe(false)
+      const kept = keepUpdateState(file)
+      kept.recordInstallFailure("0.5.0")
+      kept.clearInstallFailure()
+      expect(kept.read().installFailedOn).toBeUndefined()
+    })
+
+    it("tells a file by its size, inode and modification time", () => {
+      expect(fileIdentity({ size: 10, ino: 7, mtimeMs: 1000.9 })).toBe("10:7:1000")
+    })
+
+    it("keeps what the install began and the swap left until a launch settles them", () => {
+      const kept = keepUpdateState(file)
+      kept.recordInstalling("0.5.0")
+      kept.recordInstalledImage("10:7:1000")
+      kept.recordReopened("0.5.0")
+      expect(kept.read()).toMatchObject({
+        installing: "0.5.0",
+        installedImage: "10:7:1000",
+        reopenedFor: "0.5.0",
+      })
+      kept.clearInstalling()
+      expect(kept.read()).toMatchObject({
+        installing: undefined,
+        installedImage: undefined,
+        reopenedFor: undefined,
+      })
+    })
+
+    it("forgets a swap when a later install begins or fails", () => {
+      const kept = keepUpdateState(file)
+      kept.recordInstalledImage("10:7:1000")
+      kept.recordInstalling("0.6.0")
+      expect(kept.read().installedImage).toBeUndefined()
+      kept.recordInstalledImage("11:7:1000")
+      kept.recordInstallFailure("0.6.0")
+      expect(kept.read()).toMatchObject({ installedImage: undefined, installFailedOn: "0.6.0" })
     })
   })
 })
