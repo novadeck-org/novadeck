@@ -716,6 +716,36 @@ describe("the browser viewer", () => {
       expect(turned()).toEqual([0, 0])
     })
 
+    it("doesn't tilt for a press on the phone, as where a Grid tile lets it through", () => {
+      const host = hostIn()
+      mountBrowser(host, {
+        content: { url: "http://localhost:5173/" },
+        label: "page",
+        live: true,
+        partition: "pages",
+        size: "phone",
+      })
+      const root = host.querySelector<HTMLElement>(".browser-viewer")!
+      const { left, top, width, height } = root.getBoundingClientRect()
+      const press = (x: number, y: number) =>
+        root.dispatchEvent(
+          new PointerEvent("pointerdown", {
+            bubbles: true,
+            button: 0,
+            pointerId: 1,
+            clientX: x,
+            clientY: y,
+          }),
+        )
+      // Its middle, and its frame's edge.
+      press(left + width / 2, top + height / 2)
+      press(left + phoneMargin + 2, top + height / 2)
+      expect(root.hasAttribute("data-tilting")).toBe(false)
+      // The stage, outside its frame.
+      press(left + 4, top + 4)
+      expect(root.hasAttribute("data-tilting")).toBe(true)
+    })
+
     it("pushes a phone less the further it's dragged, never past its most", () => {
       expect(tiltToward(0)).toBe(0)
       expect(tiltToward(10)).toBeCloseTo(10 * tiltPerPx, 1)
@@ -815,6 +845,17 @@ describe("the browser viewer", () => {
           Math.round(400 * devicePixelRatio),
           Math.round((400 - 2 * (phoneBezel + phoneMargin)) * devicePixelRatio),
         ])
+    })
+
+    it("takes no picture of a page drawn nowhere, as in a viewer with no width", async () => {
+      const { host, viewer, taken, fire } = resting()
+      host.style.width = "0px"
+      await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)))
+      fire("did-stop-loading")
+      viewer.awake(false)
+      await settled()
+      expect(taken).toEqual([])
+      expect(pageOf(host)).not.toBeNull()
     })
 
     it("lets a picture of the other size go at once when switched, waking", async () => {

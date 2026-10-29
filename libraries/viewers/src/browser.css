@@ -65,7 +65,8 @@
   pointer-events: none;
 }
 /* Its page, its picture and its frame turn as one, about the phone's middle; flat, each
-   is as it is. The page turns before it's scaled, as its origin is its corner. */
+   is as it is. Read from the right, the page is scaled about its corner, its origin, then
+   turned about the phone's middle. */
 .browser-viewer[data-size="phone"] > webview {
   transform: translate(var(--_mid-x), var(--_mid-y)) var(--_turn)
     translate(calc(var(--_mid-x) * -1), calc(var(--_mid-y) * -1)) scale(var(--browser-scale, 1));

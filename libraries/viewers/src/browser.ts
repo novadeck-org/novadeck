@@ -500,12 +500,31 @@ export const mountBrowser: Mount<BrowserContent, BrowserOptions, BrowserViewer> 
   // which browser.css reads; framed again as the viewer resizes. By its layout box, which a
   // zoomed canvas around it doesn't change.
   let size = startSize ?? "desktop"
-  // How wide the page is drawn, in CSS pixels, as its picture is.
-  let drawnWidth = 0
+  // The viewer's size as its resizes report it, to the fraction of a pixel, so a scaled
+  // page reaches its edges; its whole pixels where none has reported it yet, or the last
+  // report is behind it, as just after it shows again.
+  let measured: { readonly width: number; readonly height: number } | undefined
+  const sizeNow = (): { readonly width: number; readonly height: number } => {
+    const { clientWidth: width, clientHeight: height } = root
+    return measured &&
+      Math.abs(measured.width - width) < 1 &&
+      Math.abs(measured.height - height) < 1
+      ? measured
+      : { width, height }
+  }
+  // How wide the page is drawn now, in CSS pixels, as its picture is.
+  const drawnWidth = (): number => {
+    const { width, height } = sizeNow()
+    const framing = framingOf(size, width, height)
+    return framing ? framing.width * framing.scale : width
+  }
+  // Where its phone is, for a press on the stage around it, not on it.
+  let framed: Framing | undefined
   const frame = (): void => {
     root.dataset.size = size
-    const framing = framingOf(size, root.clientWidth, root.clientHeight)
-    drawnWidth = framing ? framing.width * framing.scale : root.clientWidth
+    const { width, height } = sizeNow()
+    const framing = framingOf(size, width, height)
+    framed = framing
     const values: Record<string, string | undefined> = {
       "--browser-width": framing && `${framing.width}px`,
       "--browser-height": framing && `${framing.height}px`,
@@ -520,7 +539,13 @@ export const mountBrowser: Mount<BrowserContent, BrowserOptions, BrowserViewer> 
   }
   // Where there's nothing to report a resize, as outside a browser, it's framed as it mounts.
   const Observer = document.defaultView?.ResizeObserver
-  const resizing = Observer ? new Observer(frame) : undefined
+  const resizing = Observer
+    ? new Observer((entries) => {
+        const box = entries.at(-1)?.contentRect
+        if (box) measured = { width: box.width, height: box.height }
+        frame()
+      })
+    : undefined
   resizing?.observe(root)
   frame()
 
@@ -578,6 +603,18 @@ export const mountBrowser: Mount<BrowserContent, BrowserOptions, BrowserViewer> 
   }
   const turning = (event: PointerEvent): void => {
     if (size !== "phone" || event.target !== root || event.button !== 0) return
+    // On the phone itself, its frame or a screen the pointer reaches through to, as in a
+    // Grid tile not yet picked: not the stage's, so it doesn't turn.
+    if (framed) {
+      const { left, top, width, height, scale } = framed
+      const { offsetX: x, offsetY: y } = event
+      const onPhone =
+        x >= left - phoneBezel &&
+        x <= left + width * scale + phoneBezel &&
+        y >= top - phoneBezel &&
+        y <= top + height * scale + phoneBezel
+      if (onPhone) return
+    }
     event.preventDefault()
     const { pointerId, clientX: fromX, clientY: fromY } = event
     try {
@@ -1023,10 +1060,9 @@ export const mountBrowser: Mount<BrowserContent, BrowserOptions, BrowserViewer> 
       Promise.race([view.executeJavaScript(scrollRead), wait(scrollReadMs)]),
     )?.catch(() => undefined)
     // As wide as it's drawn: a page scaled down to fit lays out, and is pictured, wider.
-    const width = Math.max(
-      1,
-      Math.round(drawnWidth * (document.defaultView?.devicePixelRatio ?? 1)),
-    )
+    // Drawn nowhere, it has nothing to picture.
+    const width = Math.round(drawnWidth() * (document.defaultView?.devicePixelRatio ?? 1))
+    if (width < 1) return undefined
     const [src, where] = await Promise.all([take(id, width).catch(() => undefined), reading])
     if (src === undefined || asked !== snapping) return undefined
     return { picture: { src, at }, scrolled: isScrolled(where) ? where : undefined }
