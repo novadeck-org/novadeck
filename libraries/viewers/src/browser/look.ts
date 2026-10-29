@@ -6,13 +6,7 @@ import type {
 } from "electron"
 
 import { webAddress } from "./address.js"
-import {
-  clip,
-  maxTroubles,
-  originOf,
-  type PageRequestFailure,
-  type Trouble,
-} from "./browser-trouble.js"
+import { clip, maxTroubles, originOf, type PageRequestFailure, type Trouble } from "./trouble.js"
 
 // An agent's look at a page no pane shows live, in Electron's main process: the address
 // loaded afresh in a window of its own, out of sight, in the pages' session so a sign-in

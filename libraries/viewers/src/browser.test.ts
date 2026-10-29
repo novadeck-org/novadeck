@@ -1,7 +1,6 @@
 import "./browser.css"
 import { afterEach, describe as context, describe, expect, it, vi } from "vitest"
 
-import { chromeMajorOf, phoneUserAgent } from "./browser-phone.js"
 import {
   desktopWidth,
   fadeMs,
@@ -23,6 +22,7 @@ import {
   type Place,
   type Trouble,
 } from "./browser.js"
+import { chromeMajorOf, phoneUserAgent } from "./browser/phone.js"
 import type { ViewerState } from "./index.js"
 
 const hosts: HTMLElement[] = []

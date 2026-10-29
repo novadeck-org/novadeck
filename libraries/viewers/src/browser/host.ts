@@ -9,8 +9,8 @@ import type {
 } from "electron"
 
 import { webAddress } from "./address.js"
-import { chromeMajorOf, phoneEmulation, phoneUserAgent } from "./browser-phone.js"
-import { originOf, type PageRequestFailure } from "./browser-trouble.js"
+import { chromeMajorOf, phoneEmulation, phoneUserAgent } from "./phone.js"
+import { originOf, type PageRequestFailure } from "./trouble.js"
 
 export { webAddress } from "./address.js"
 
@@ -518,10 +518,4 @@ export const watchPageRequests = (
   return { forget: (contentsId) => void told.delete(contentsId) }
 }
 
-export {
-  createLooker,
-  lookSizes,
-  type LookLayout,
-  type Looker,
-  type LookResult,
-} from "./browser-look.js"
+export { createLooker, lookSizes, type LookLayout, type Looker, type LookResult } from "./look.js"

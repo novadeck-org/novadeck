@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest"
 
-import { parsePageSignIn } from "./browser-sign-in.js"
+import { parsePageSignIn } from "./sign-in.js"
 
 describe("a word of a page's sign-in windows", () => {
   it("is a view's id and how many it has open", () => {

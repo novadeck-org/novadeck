@@ -5,7 +5,7 @@
 // unclosed fence (a reply still arriving) runs to the end. `fenceFile` names the file whose
 // language a fence's info string asks for, for the code viewer's highlighter.
 
-export { fenceFile } from "./fence-file.js"
+export { fenceFile } from "./highlight/fence-file.js"
 
 export type Inline =
   | { readonly t: "text"; readonly text: string }

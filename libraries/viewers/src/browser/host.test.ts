@@ -23,8 +23,8 @@ import {
   signInWindow,
   watchPageRequests,
   webAddress,
-} from "./browser-host.js"
-import { chromeMajorOf, phoneUserAgent } from "./browser-phone.js"
+} from "./host.js"
+import { chromeMajorOf, phoneUserAgent } from "./phone.js"
 
 const pagesPartition = "persist:pages"
 const context = describe

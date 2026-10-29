@@ -1,17 +1,17 @@
-import { webAddress } from "./address.js"
-import { chromeMajorOf, phoneScreen, phoneUserAgent } from "./browser-phone.js"
-import { pageSignInMessage, parsePageSignIn } from "./browser-sign-in.js"
+import { webAddress } from "./browser/address.js"
+import { chromeMajorOf, phoneScreen, phoneUserAgent } from "./browser/phone.js"
+import { pageSignInMessage, parsePageSignIn } from "./browser/sign-in.js"
 import {
   maxTroubles,
   originOf,
   pageRequestMessage,
   parsePageRequest,
   type Trouble,
-} from "./browser-trouble.js"
+} from "./browser/trouble.js"
 import type { Mount, Viewer, ViewerState } from "./index.js"
 
 // A web page. Live, it loads in Electron's <webview>, which the host's lockdown
-// (./browser-host.ts) keeps to http(s), on the pages' session that keeps sign-ins, with no
+// (./browser/host.ts) keeps to http(s), on the pages' session that keeps sign-ins, with no
 // Node and no permissions; the viewer reports where it is and how its load went, and goes
 // back, forward or reloads when asked. Shown again, it loads afresh and brings the element
 // the show names into view. A live page can rest, as its host says while the person isn't

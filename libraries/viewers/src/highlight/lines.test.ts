@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest"
 
-import { highlightLines, type HighlightedLine } from "./highlight.js"
 import { languageOf } from "./languages.js"
+import { highlightLines, type HighlightedLine } from "./lines.js"
 
 // Each run's text with its classes, plain text as is.
 const runs = (line: HighlightedLine | undefined) =>

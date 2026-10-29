@@ -1,13 +1,13 @@
 import { hashOf } from "./hash.js"
-import type { HighlightedLine } from "./highlight.js"
+import { languageOf } from "./highlight/languages.js"
+import type { HighlightedLine } from "./highlight/lines.js"
 import { createHold } from "./hold.js"
 import type { Mount, ViewerState } from "./index.js"
-import { languageOf } from "./languages.js"
 
 // A read-only change: a repository's files against a base, each a section under a header
 // (its path, how it changed, what it added and removed) with its hunks as numbered lines
 // that were added, removed or kept for context. Plain text first, then highlighted by each
-// file's language as the code viewer does (./highlight.ts, loaded only when needed), the old
+// file's language as the code viewer does (./highlight/lines.ts, loaded only when needed), the old
 // and the new side of a hunk apart. The rows of a long change are made a few at a time, and
 // highlighted a hunk at a time, so the pane stays alive while it fills. A new change keeps
 // the rows, and their colours, of every file that didn't change, and keeps the place by
@@ -203,7 +203,7 @@ const runsOf = async (
   const key = keyOf(language, text)
   const known = knownRuns(key)
   if (known) return { runs: known, fresh: false }
-  const { highlightLines } = await import("./highlight.js")
+  const { highlightLines } = await import("./highlight/lines.js")
   const runs = await highlightLines(language, lines)
   if (runs) keepRuns(key, runs, text.length)
   return { runs, fresh: true }

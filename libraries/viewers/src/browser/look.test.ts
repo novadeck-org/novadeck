@@ -14,7 +14,7 @@ import {
   lookWorstMs,
   maxWaitingLooks,
   maxLookPicture,
-} from "./browser-look.js"
+} from "./look.js"
 
 afterEach(() => vi.useRealTimers())
 

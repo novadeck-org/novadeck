@@ -1,15 +1,15 @@
 import { hashOf } from "./hash.js"
-import type { HighlightedLine } from "./highlight.js"
+import { languageOf } from "./highlight/languages.js"
+import type { HighlightedLine } from "./highlight/lines.js"
 import { createHold } from "./hold.js"
 import type { Mount, ViewerState } from "./index.js"
 import { createKept } from "./kept.js"
-import { languageOf } from "./languages.js"
 
-export type { HighlightedLine, Run } from "./highlight.js"
-export { languageOf, type Language } from "./languages.js"
+export type { HighlightedLine, Run } from "./highlight/lines.js"
+export { languageOf, type Language } from "./highlight/languages.js"
 
 // A read-only listing of code: numbered lines from any first line, plain text at once,
-// then highlighted once its language's parser has loaded (./highlight.ts, loaded only
+// then highlighted once its language's parser has loaded (./highlight/lines.ts, loaded only
 // when needed), and a range of lines emphasized, which it first scrolls into view.
 // Its looks are code.css's.
 
@@ -30,7 +30,7 @@ export const highlightLines = async (
   language: string,
   lines: readonly string[],
 ): Promise<readonly HighlightedLine[] | null> =>
-  (await import("./highlight.js")).highlightLines(language, lines)
+  (await import("./highlight/lines.js")).highlightLines(language, lines)
 
 // Listings lately highlighted, so one shown again shows highlighted at once. By language
 // and a hash of the text, so a key never holds the text, and only under a size past which
