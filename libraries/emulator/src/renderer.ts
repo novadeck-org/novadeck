@@ -12,72 +12,92 @@ import type { IEvent, Terminal } from "@xterm/xterm"
 // That is a page of 13 or 14 terminals all on WebGL, where one busy terminal left on the DOM
 // costs about as much as the other twelve; a shown screen past the cap draws with the DOM
 // renderer until a slot frees. That is the default, for a browser, where a larger pool would
-// make Chromium drop live contexts; a host that raises Chromium's limit (the desktop app does,
+// make Chromium drop live contexts; an app that raises Chromium's limit (the desktop app does,
 // to 64) passes `cap` to `webglRenderers`, the limit less two.
 export const contextCap = 14
 // How many times a screen may lose its context, or fail to load one; it tries again when
 // it is shown again, once, and stays on the DOM renderer after that.
 const lossesAllowed = 2
 
-// What a loaded addon gives back; xterm's WebglAddon is one.
+/** What a loaded addon gives back; xterm's WebglAddon is one. */
 export type Drawing = {
   readonly onContextLoss: IEvent<void>
   readonly clearTextureAtlas: () => void
-  // What tells which drawings share a glyph atlas: the same value, or undefined while it
-  // has none. xterm's addon gives the atlas's first page canvas.
+  /**
+   * What tells which drawings share a glyph atlas: the same value, or undefined while it
+   * has none. xterm's addon gives the atlas's first page canvas.
+   */
   readonly atlas: () => unknown
   readonly dispose: () => void
 }
 
-export type RendererDeps<Target> = {
-  // Loads the addon into a target, or throws, leaving the target on the DOM renderer.
+/** What the pool is built on: how it loads WebGL into a screen, and how many may hold it. */
+export type PoolDeps<Target> = {
+  /** Loads the addon into a target, or throws, leaving the target on the DOM renderer. */
   readonly load: (target: Target) => Drawing
-  // Whether a real GPU context can be had; asked once.
+  /** Whether a real GPU context can be had; asked once. */
   readonly supported: () => boolean
   readonly cap: number
-  // Runs work once the current task's synchronous work is over; a microtask by default.
+  /** Runs work once the current task's synchronous work is over; a microtask by default. */
   readonly defer?: (work: () => void) => void
 }
 
-// What the pool has counted since the page opened, for the bench and the app's logs.
+/** What the pool has counted since the page opened, for the bench and the app's logs. */
 export type PoolStats = {
-  // Shown screens that found the pool full and had to wait for a context.
+  /** Shown screens that found the pool full and had to wait for a context. */
   readonly waits: number
-  // Contexts taken from idle screens for waiting ones.
+  /** Contexts taken from idle screens for waiting ones. */
   readonly steals: number
-  // Renderer changes, either way: a screen taking a context or giving it back.
+  /** Renderer changes, either way: a screen taking a context or giving it back. */
   readonly swaps: number
-  // Contexts the GPU lost.
+  /** Contexts the GPU lost. */
   readonly lost: number
-  // Loads that failed, as on a context refused for a moment.
+  /** Loads that failed, as on a context refused for a moment. */
   readonly failed: number
-  // Pty resizes a renderer change caused, as its cells measured another size.
+  /** Pty resizes a renderer change caused, as its cells measured another size. */
   readonly resizes: number
-  // A current value, not a total: shown screens wanting WebGL that have no context for lack of
-  // one, not counting those that ran out of tries after losses.
+  /**
+   * A current value, not a total: shown screens wanting WebGL that have no context for lack of
+   * one, not counting those that ran out of tries after losses.
+   */
   readonly onDom: number
 }
 
-// One screen's side of the pool.
+/** One screen's side of the pool. */
 export type ScreenRenderer = {
-  // The screen is shown: it takes a context when one is free, or waits for one. Shown
-  // where WebGL isn't wanted, it stays on the DOM renderer and gives back one it holds.
+  /**
+   * The screen is shown: it takes a context when one is free, or waits for one. Shown
+   * where WebGL isn't wanted, it stays on the DOM renderer and gives back one it holds.
+   */
   readonly take: (webgl?: boolean) => void
-  // Nothing shows the screen now, though it may be shown again at once, as in a view
-  // switch: once that moment is over, a shown screen waiting for a context takes its own.
-  // `take` ends it.
+  /**
+   * Nothing shows the screen now, though it may be shown again at once, as in a view
+   * switch: once that moment is over, a shown screen waiting for a context takes its own.
+   * `take` ends it.
+   */
   readonly idle: () => void
-  // The screen is parked and draws nothing: it gives its context back.
+  /** The screen is parked and draws nothing: it gives its context back. */
   readonly release: () => void
-  // The font may have changed under glyphs already drawn. Once the current task's
-  // synchronous work is over, the screen's glyph atlas is cleared and every screen sharing
-  // that atlas redraws from it, as xterm clears it for the one that asked alone.
+  /**
+   * The font may have changed under glyphs already drawn. Once the current task's
+   * synchronous work is over, the screen's glyph atlas is cleared and every screen sharing
+   * that atlas redraws from it, as xterm clears it for the one that asked alone.
+   */
   readonly refresh: () => void
-  // A renderer change fit the screen to another size, which went to its pty.
+  /** A renderer change fit the screen to another size, which went to its pty. */
   readonly resized: () => void
-  // Whether WebGL draws the screen now.
+  /** Whether WebGL draws the screen now. */
   readonly drawn: () => boolean
   readonly dispose: () => void
+}
+
+/** A page's pool of WebGL contexts, shared by its screens. */
+export type Renderers<Target = Terminal> = {
+  readonly stats: () => PoolStats
+  /** Tells `listener` after each count changes, until the returned function is called. */
+  readonly watch: (listener: () => void) => () => void
+  /** Enters a screen in the pool; `switched` is told each time it changes renderer. */
+  readonly screen: (target: Target, switched?: () => void) => ScreenRenderer
 }
 
 type Member<Target> = {
@@ -92,8 +112,8 @@ type Member<Target> = {
   // Whether where it's shown wants WebGL.
   webgl: boolean
   drawing?: Drawing | undefined
-  // When the screen began waiting, among the shown ones; the longest waiting goes first.
-  since: number
+  // When the screen was shown afresh; among the waiting ones, the longest waiting goes first.
+  shownSince: number
   losses: number
   // Lost its context, or failed to load one, and waits for the next take.
   lost: boolean
@@ -102,12 +122,12 @@ type Member<Target> = {
   closed: boolean
 }
 
-export const createRenderers = <Target>(deps: RendererDeps<Target>) => {
+export const createRenderers = <Target>(deps: PoolDeps<Target>): Renderers<Target> => {
   const members = new Set<Member<Target>>()
   let held = 0
   let clock = 0
   let supported: boolean | undefined
-  let stealing = false
+  let stealQueued = false
   const defer = deps.defer ?? queueMicrotask
   const counts = { waits: 0, steals: 0, swaps: 0, lost: 0, failed: 0, resizes: 0 }
   const watchers = new Set<() => void>()
@@ -127,22 +147,22 @@ export const createRenderers = <Target>(deps: RendererDeps<Target>) => {
   }
   // Whether a shown screen wanting WebGL lacks a context, as nothing here is holding it back
   // (an idle one is let go first) but the pool's cap or a context that did not load.
-  const bare = (member: Member<Target>): boolean =>
+  const lacksContext = (member: Member<Target>): boolean =>
     member.shown && !member.idle && member.webgl && !member.drawing && member.losses < lossesAllowed
   let lastOnDom = 0
-  const domCount = (): number => (usable() ? [...members].filter(bare).length : 0)
+  const onDom = (): number => (usable() ? [...members].filter(lacksContext).length : 0)
   // Tells the watchers when the screens on the DOM for lack of a context changed in number.
   const settled = (): void => {
-    const now = domCount()
+    const now = onDom()
     if (now === lastOnDom) return
     lastOnDom = now
     notify()
   }
-  // Drawings whose screens asked for a clear, and whether the microtask that does it is queued.
+  // Screens that asked for their atlas to be cleared, and whether the clear is queued.
   const asked = new Set<Member<Target>>()
   // The atlases of drawings that asked and were let go before the moment was over.
   const gone = new Set<unknown>()
-  let sharing = false
+  let clearQueued = false
 
   // xterm clears a glyph atlas for the screen that asked and tells no other screen drawing
   // from it, which keep glyph coordinates into pages that are blank or hold others by then
@@ -150,7 +170,7 @@ export const createRenderers = <Target>(deps: RendererDeps<Target>) => {
   // moment: the atlas is empty when the first clears it, and the rest rebuild their models
   // against it before anything draws.
   const clearAtlases = (): void => {
-    sharing = false
+    clearQueued = false
     const wanted = new Set(asked)
     asked.clear()
     const drawn = [...members].filter((member) => member.drawing)
@@ -212,18 +232,18 @@ export const createRenderers = <Target>(deps: RendererDeps<Target>) => {
   // releases every surface and acquires them again in one go: stealing in its middle
   // would take the context of a screen about to be shown again, which would take the next
   // one's, down the line.
-  const later = (): void => {
-    if (stealing) return
-    stealing = true
+  const stealLater = (): void => {
+    if (stealQueued) return
+    stealQueued = true
     defer(() => {
-      stealing = false
+      stealQueued = false
       fill(true)
     })
   }
 
   // Gives free slots to the shown screens on the DOM renderer, longest waiting first. A
   // screen nobody shows at the moment keeps its context until one of them has none to
-  // take, and then only once the moment is over (`later`).
+  // take, and then only once the moment is over (`stealLater`).
   const fill = (fromIdle = false): void => {
     fillSlots(fromIdle)
     settled()
@@ -236,7 +256,7 @@ export const createRenderers = <Target>(deps: RendererDeps<Target>) => {
         if (!member.shown || member.idle || !member.webgl || member.drawing || member.lost) continue
         if (member.losses >= lossesAllowed) continue
         waiting.push(member)
-        if (!next || member.since < next.since) next = member
+        if (!next || member.shownSince < next.shownSince) next = member
       }
       if (!next) return
       const member = next
@@ -247,7 +267,7 @@ export const createRenderers = <Target>(deps: RendererDeps<Target>) => {
           other.waiting = true
           count("waits")
         }
-        if (!fromIdle) return later()
+        if (!fromIdle) return stealLater()
         if (!steal()) return
       }
       let drawing: Drawing
@@ -276,16 +296,12 @@ export const createRenderers = <Target>(deps: RendererDeps<Target>) => {
   }
 
   return {
-    stats: (): PoolStats => ({
-      ...counts,
-      onDom: domCount(),
-    }),
-    // Tells `listener` after each count changes, until the returned function is called.
-    watch: (listener: () => void): (() => void) => {
+    stats: () => ({ ...counts, onDom: onDom() }),
+    watch: (listener) => {
       watchers.add(listener)
       return () => void watchers.delete(listener)
     },
-    screen: (target: Target, switched: () => void = () => {}): ScreenRenderer => {
+    screen: (target, switched = () => {}) => {
       const member: Member<Target> = {
         target,
         switched,
@@ -293,7 +309,7 @@ export const createRenderers = <Target>(deps: RendererDeps<Target>) => {
         idle: false,
         idleSince: 0,
         webgl: true,
-        since: 0,
+        shownSince: 0,
         losses: 0,
         lost: false,
         waiting: false,
@@ -311,7 +327,7 @@ export const createRenderers = <Target>(deps: RendererDeps<Target>) => {
         take: (webgl = true) => {
           // Shown afresh, after a park: a screen that lost its context tries again then.
           if (!member.shown) {
-            member.since = clock++
+            member.shownSince = clock++
             member.lost = false
           }
           member.shown = true
@@ -327,14 +343,14 @@ export const createRenderers = <Target>(deps: RendererDeps<Target>) => {
           if (!member.shown || member.idle) return
           member.idle = true
           member.idleSince = clock++
-          later()
+          stealLater()
         },
         release: leave,
         refresh: () => {
           if (!member.drawing) return
           asked.add(member)
-          if (sharing) return
-          sharing = true
+          if (clearQueued) return
+          clearQueued = true
           defer(clearAtlases)
         },
         resized: () => count("resizes"),
@@ -351,8 +367,6 @@ export const createRenderers = <Target>(deps: RendererDeps<Target>) => {
     },
   }
 }
-
-export type Renderers = ReturnType<typeof createRenderers<Terminal>>
 
 let probed: boolean | undefined
 const software = /swiftshader|llvmpipe|softpipe|software|basic render/i
