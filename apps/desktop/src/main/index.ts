@@ -42,7 +42,9 @@ import {
   pagesSession,
   passkeyLabels,
   pickPasskeys,
+  phonePage,
   picturePage,
+  holdPhoneLoads,
   watchPageRequests,
   webAddress,
 } from "@novadeck/viewers/browser/host"
@@ -77,6 +79,7 @@ import {
   feedbackArgumentPrefix,
   noticeClickChannel,
   pagePictureChannel,
+  pagePhoneChannel,
   portableStateChannel,
   runnerPortChannel,
   versionChannel,
@@ -1874,6 +1877,12 @@ const launch = async (): Promise<void> => {
       ? picturePage(event.sender, id, (page) => webContents.fromId(page), width)
       : undefined,
   )
+  // The app's page makes one of its own page views a phone's, or not, as it shows it.
+  ipcMain.handle(pagePhoneChannel, (event, id: unknown, phone: unknown) =>
+    appWindow(event)
+      ? phonePage(event.sender, id, phone, (page) => webContents.fromId(page))
+      : false,
+  )
   // Only the app's own pages learn the version it runs.
   ipcMain.handle(versionChannel, (event) => (appWindow(event) ? app.getVersion() : ""))
   ipcMain.handle(directoryPickerChannel, async (event) => {
@@ -1981,6 +1990,8 @@ app.whenReady().then(() => {
   )
   lockPagesSession((partition) => session.fromPartition(partition), pagesPartition)
   const pages = session.fromPartition(pagesSession(pagesPartition))
+  // A page view named a phone's loads as one from its first document.
+  holdPhoneLoads(pages, (id) => webContents.fromId(id))
   // A page signing in with a passkey it doesn't name, when more than one fits.
   pickPasskeys(pages, async ({ relyingPartyId, accounts, frame }) => {
     // A page view's window is its host's; a sign-in window's is its own.

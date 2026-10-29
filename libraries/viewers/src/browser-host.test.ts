@@ -11,8 +11,11 @@ import {
   maxForwardedRequests,
   pagesSession,
   countSignIns,
+  holdPhoneLoads,
   passkeyLabels,
   pickPasskeys,
+  phonePage,
+  phoneWaitMs,
   pictureQuality,
   picturePage,
   pictureWaitMs,
@@ -21,6 +24,7 @@ import {
   watchPageRequests,
   webAddress,
 } from "./browser-host.js"
+import { chromeMajorOf, phoneUserAgent } from "./browser-phone.js"
 
 const pagesPartition = "persist:pages"
 const context = describe
@@ -71,6 +75,16 @@ describe("a page view as it attaches", () => {
     const preferences: WebPreferences = { transparent: true }
     attachPage(preferences, { src: "https://example.com" }, pagesPartition)
     expect(preferences.transparent).toBe(false)
+  })
+
+  it("may be a phone's, named by the phone's user agent, and be told nothing else it runs on", () => {
+    const phone = phoneUserAgent(chromeMajorOf(`Chrome/${process.versions.chrome ?? "0"}`))
+    expect(attachPage({}, { src: "https://example.com", useragent: phone }, pagesPartition)).toBe(
+      true,
+    )
+    expect(
+      attachPage({}, { src: "https://example.com", useragent: "Googlebot/2.1" }, pagesPartition),
+    ).toBe(false)
   })
 
   it("is refused for anything but an http(s) address", () => {
@@ -647,5 +661,122 @@ describe("the requests of a page view that fail", () => {
     completed(404, { webContentsId: undefined })
     errored("net::ERR_FAILED", { webContentsId: undefined })
     expect(told).toEqual([])
+  })
+})
+
+describe("a page view as a phone's", () => {
+  const phone = phoneUserAgent(chromeMajorOf(`Chrome/${process.versions.chrome ?? "0"}`))
+  const host = {} as WebContents
+  // A page view of `owner`, its DevTools protocol recording what it's sent.
+  const view = ({ owner = host, agent = "Desktop/1", answers = true } = {}) => {
+    const sent: string[] = []
+    let attachedNow = false
+    let userAgent = agent
+    const contents = {
+      hostWebContents: owner,
+      getType: () => "webview",
+      isDestroyed: () => false,
+      session: { getUserAgent: () => "Desktop/1" },
+      getUserAgent: () => userAgent,
+      setUserAgent: (next: string) => {
+        sent.push(`agent ${next === phone ? "phone" : next}`)
+        userAgent = next
+      },
+      debugger: {
+        isAttached: () => attachedNow,
+        attach: () => {
+          sent.push("attach")
+          attachedNow = true
+        },
+        detach: () => {
+          sent.push("detach")
+          attachedNow = false
+        },
+        sendCommand: (method: string) => {
+          sent.push(method)
+          return answers ? Promise.resolve({}) : new Promise(() => {})
+        },
+      },
+    } as unknown as WebContents
+    return { contents, sent }
+  }
+  const byId =
+    (contents: WebContents) =>
+    (id: number): WebContents | undefined =>
+      id === 7 ? contents : undefined
+
+  it("acts as one, touched, with a phone's screen and browser, and as itself again", async () => {
+    const { contents, sent } = view()
+    expect(await phonePage(host, 7, true, byId(contents))).toBe(true)
+    expect(sent).toEqual([
+      "attach",
+      "agent phone",
+      "Emulation.setDeviceMetricsOverride",
+      "Emulation.setTouchEmulationEnabled",
+      "Emulation.setEmitTouchEventsForMouse",
+      "Emulation.setUserAgentOverride",
+    ])
+    sent.splice(0)
+    // Letting the protocol go undoes all it set.
+    expect(await phonePage(host, 7, false, byId(contents))).toBe(true)
+    expect(sent).toEqual(["detach", "agent Desktop/1"])
+  })
+
+  it("is nothing for another window's page, the app's own, or an id that's no view's", async () => {
+    const other = view({ owner: {} as WebContents })
+    expect(await phonePage(host, 7, true, byId(other.contents))).toBe(false)
+    const ids = [8, "7", 7.5]
+    expect(
+      await Promise.all(ids.map((id) => phonePage(host, id, true, byId(view().contents)))),
+    ).toEqual(ids.map(() => false))
+    expect(other.sent).toEqual([])
+  })
+
+  context("loading", () => {
+    type Details = { resourceType: string; webContentsId?: number }
+    const held = (contents: WebContents) => {
+      let before: ((details: Details, callback: (response: object) => void) => void) | undefined
+      holdPhoneLoads(
+        {
+          webRequest: { onBeforeRequest: (listener: typeof before) => (before = listener) },
+        } as unknown as Session,
+        byId(contents),
+      )
+      return (details: Details): Promise<void> =>
+        new Promise((resolve) => before?.(details, () => resolve()))
+    }
+
+    it("holds a phone's first page load until it acts as one, and nothing else", async () => {
+      const { contents, sent } = view({ agent: phone })
+      const load = held(contents)
+      await load({ resourceType: "mainFrame", webContentsId: 7 })
+      expect(sent).toContain("Emulation.setTouchEmulationEnabled")
+      sent.splice(0)
+      // Already one, its next loads go at once; as do another's, and what isn't a page.
+      await load({ resourceType: "mainFrame", webContentsId: 7 })
+      await load({ resourceType: "script", webContentsId: 7 })
+      await load({ resourceType: "mainFrame", webContentsId: 9 })
+      expect(sent).toEqual([])
+      const desktop = view()
+      await held(desktop.contents)({ resourceType: "mainFrame", webContentsId: 7 })
+      expect(desktop.sent).toEqual([])
+    })
+
+    it("loads it as it is once it has waited a while for a protocol that doesn't answer", async () => {
+      vi.useFakeTimers()
+      try {
+        const { contents } = view({ agent: phone, answers: false })
+        let loaded = false
+        void held(contents)({ resourceType: "mainFrame", webContentsId: 7 }).then(
+          () => (loaded = true),
+        )
+        await vi.advanceTimersByTimeAsync(phoneWaitMs - 1)
+        expect(loaded).toBe(false)
+        await vi.advanceTimersByTimeAsync(1)
+        expect(loaded).toBe(true)
+      } finally {
+        vi.useRealTimers()
+      }
+    })
   })
 })

@@ -1,6 +1,7 @@
 import "./browser.css"
 import { afterEach, describe as context, describe, expect, it, vi } from "vitest"
 
+import { chromeMajorOf, phoneUserAgent } from "./browser-phone.js"
 import {
   desktopWidth,
   fadeMs,
@@ -838,6 +839,72 @@ describe("the browser viewer", () => {
       const gains = pushes.slice(1).map((push, at) => push - pushes[at]!)
       expect(gains.every((gain, at) => at === 0 || gain < gains[at - 1]!)).toBe(true)
       expect(Math.max(...pushes)).toBeLessThan(tiltMaxDeg)
+    })
+
+    context("where its host can make a view a phone's", () => {
+      const asPhone = (size: "desktop" | "phone", answer = true) => {
+        const host = hostIn()
+        const asked: [number, boolean][] = []
+        const viewer = mountBrowser(host, {
+          content: { url: "http://localhost:5173/" },
+          label: "page",
+          live: true,
+          partition: "pages",
+          size,
+          phone: async (page, phone) => {
+            asked.push([page, phone])
+            return answer
+          },
+        })
+        const calls: string[] = []
+        const attachNow = () => {
+          attach(
+            pageOf(host),
+            { url: "http://localhost:5173/", back: false, forward: false },
+            calls,
+          )
+          Object.assign(pageOf(host), { getWebContentsId: () => 7 })
+        }
+        return { host, viewer, asked, calls, attachNow }
+      }
+
+      it("names a view made at a phone's size a phone's, for the host to make it one", () => {
+        const { host, asked } = asPhone("phone")
+        expect(pageOf(host).getAttribute("useragent")).toBe(
+          phoneUserAgent(chromeMajorOf(navigator.userAgent)),
+        )
+        // The host makes it one as it loads: nothing to ask.
+        expect(asked).toEqual([])
+        expect(pageOf(asPhone("desktop").host).hasAttribute("useragent")).toBe(false)
+      })
+
+      it("makes the view a phone's or itself again on a switch, then loads it again", async () => {
+        const { viewer, asked, calls, attachNow } = asPhone("desktop")
+        attachNow()
+        viewer.size("phone")
+        await expect.poll(() => calls).toContain("reload")
+        viewer.size("desktop")
+        await expect.poll(() => calls.filter((call) => call === "reload")).toHaveLength(2)
+        expect(asked).toEqual([
+          [7, true],
+          [7, false],
+        ])
+      })
+
+      it("loads nothing again where the host couldn't, and catches up a view not attached yet", async () => {
+        const failing = asPhone("desktop", false)
+        failing.attachNow()
+        failing.viewer.size("phone")
+        await expect.poll(() => failing.asked).toEqual([[7, true]])
+        expect(failing.calls).not.toContain("reload")
+        const early = asPhone("desktop")
+        // Switched before it's attached: asked once its document is ready.
+        early.viewer.size("phone")
+        expect(early.asked).toEqual([])
+        early.attachNow()
+        pageOf(early.host).dispatchEvent(event("dom-ready"))
+        await expect.poll(() => early.asked).toEqual([[7, true]])
+      })
     })
 
     it("frames nothing in a viewer with no room, as one kept out of sight", () => {

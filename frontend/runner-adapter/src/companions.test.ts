@@ -121,6 +121,19 @@ describe("a picture of a live page", () => {
   })
 })
 
+describe("a live page made a phone's", () => {
+  const runner = {} as Parameters<typeof createRunnerCompanions>[0]
+  const phone = async (page: number, asPhone: boolean) => page === 7 && asPhone
+
+  it("is the host's to make, where pages load live, and nothing otherwise", async () => {
+    expect(await createRunnerCompanions(runner, { livePages: true, phone }).phone?.(7, true)).toBe(
+      true,
+    )
+    expect(createRunnerCompanions(runner, { phone }).phone).toBeUndefined()
+    expect(createRunnerCompanions(runner, { livePages: true }).phone).toBeUndefined()
+  })
+})
+
 describe("the runner's companion content", () => {
   it("follows what an item holds, revealed only for the file asked", async () => {
     const app = following()
