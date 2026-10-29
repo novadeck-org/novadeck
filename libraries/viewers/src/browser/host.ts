@@ -236,7 +236,7 @@ export const signInWindow = (partition: string): BrowserWindowConstructorOptions
 })
 
 /** The smallest a sign-in window gets, whatever size the page asks for. */
-export const signInMinimum = { width: 360, height: 300 } as const
+const signInMinimum = { width: 360, height: 300 } as const
 
 // No place and no largest size, rather than the page's, as off screen or 1×1: Electron's
 // options can't say so in their type, which has no room for one set to nothing.

@@ -239,7 +239,7 @@ export const scrollWaitMs = 5_000
  * never comes in the way of the person using it.
  */
 export const freshenMs = 1_000
-export const leftMs = 300
+const leftMs = 300
 export const keepMs = 5_000
 
 /**

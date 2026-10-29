@@ -1,6 +1,6 @@
 # @novadeck/viewers
 
-Content viewers behind one contract: code, image, markdown and web pages, each mounted into
+Content viewers behind one contract: code, changes, image, markdown and web pages, each mounted into
 an element, keeping its scroll and place across remounts through state its host stores.
 
 A viewer doesn't know what it's shown for. Its host chooses which viewer shows what, gives
@@ -17,6 +17,13 @@ hand back as `saved` to the next viewer of the same thing.
   elsewhere.
 - `./code.css`: the code viewer's looks and the `.tok-*` highlighting classes. Its header
   lists the tokens a host sets to theme it (`--code-*`, `--syntax-*`).
+- `./diff`: `mountDiff`, a read-only change: a repository's files against a base, each
+  under a header saying how it changed, with its hunks as numbered lines, highlighted as the
+  code viewer highlights, the old and new sides apart. A long change fills a batch of rows at
+  a time, and a new change keeps the rows of every file that didn't change, and the place by
+  the file and row it was at.
+- `./diff.css`: the diff viewer's looks, themed through `--diff-*` and the code viewer's
+  `--code-*`; it takes the `.tok-*` classes from `./code.css`.
 - `./image`: `mountImage`, an image on a canvas: fitted whole (never enlarged), or zoomed
   from half its fit to 3200% and moved about. Pinch or Ctrl/⌘+scroll zooms around the
   pointer, a drag moves it at any zoom and a scroll once it's zoomed or moved (a fitted one
@@ -47,7 +54,9 @@ hand back as `saved` to the next viewer of the same thing.
 - `./sync`: `lineChanges`, `distance` and `merge`, how Markdown texts differ and merge.
   Built on CodeMirror's state, so kept apart from `./text`.
 - `./browser`: `mountBrowser`, a web page: live in Electron's `<webview>`, reporting where it
-  is and how its load went, going back, forward or reloading, quiet while out of sight; or,
+  is, how its load went and what goes wrong on it, going back, forward or reloading, quiet
+  while out of sight, and resting as a picture of itself while its host says the person
+  isn't at it; laid out as a desktop's window or a phone's screen, scaled down to fit; or,
   where live pages aren't available, a snapshot of it. It opens where the person had taken
   the page.
 - `./browser.css`: the browser viewer's looks, themed through `--browser-*`.
@@ -61,14 +70,21 @@ hand back as `saved` to the next viewer of the same thing.
   page signs in with when it names none and more than one fits. A sign-in window takes only
   its size from the page, and its title starts with its site. Nothing in their options
   can loosen that. `countSignIns` tells how many sign-in windows a view has open, which
-  close with it.
+  close with it. `phonePage`, `emulatePhone` and `holdPhoneLoads` make a view act as a
+  phone's, `picturePage` takes the picture a resting page shows, `watchPageRequests` tells
+  of the session's failed requests, and `createLooker` gives an agent a look at a page no
+  pane shows live, loaded out of sight in a window of its own.
 - `./browser/sign-in`: the word of how many sign-in windows a page view has open, from the
-  desktop host to its viewer, which keeps the page live meanwhile. Electron is an optional peer dependency, needed only here.
+  desktop host to its viewer, which keeps the page live meanwhile.
+- `./browser/trouble`: the word of a page's failed requests, from the desktop host to its
+  viewer, and `Trouble`, what the viewer reports going wrong on a page.
 - `./react`: `useViewer`, a ref that mounts a viewer into its element and keeps its state by
   id, and the viewer once mounted. React is an optional peer dependency, needed only here.
+
+Electron is an optional peer dependency too, needed only by `./browser/host`.
 
 ## Tests
 
 They run in Chromium (Vitest's browser mode), since keeping a viewer's place is about real
-layout and scrolling; the pages' lockdown, which runs in Electron's main process, is tested
-in Node.
+layout and scrolling; the pages' lockdown and an agent's looks, which run in Electron's main
+process, are tested in Node.
