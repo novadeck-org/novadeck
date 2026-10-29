@@ -652,7 +652,7 @@ describe("the browser viewer", () => {
       saved,
       awake,
     }: {
-      pictures?: (string | undefined)[]
+      pictures?: (string | undefined | Promise<string | undefined>)[]
       content?: BrowserContent
       saved?: ViewerState
       awake?: boolean
@@ -665,13 +665,15 @@ describe("the browser viewer", () => {
       const calls: string[] = []
       const at = { url: content.url, back: true, forward: false }
       const taken: number[] = []
+      const widths: number[] = []
       const viewer = mountBrowser(host, {
         content,
         label: "page",
         live: true,
         partition: "pages",
-        picture: async (id) => {
+        picture: async (id, width) => {
           taken.push(id)
+          widths.push(width)
           return pictures.shift()
         },
         on: { load: (load) => loads.push(load), navigate: (place) => places.push(place) },
@@ -700,8 +702,65 @@ describe("the browser viewer", () => {
       ready()
       const fire = (type: string, fields?: Record<string, unknown>) =>
         ready()!.dispatchEvent(event(type, fields))
-      return { host, viewer, at, calls, loads, places, taken, fire, ready }
+      return { host, viewer, at, calls, loads, places, taken, widths, fire, ready }
     }
+
+    it("is pictured as wide as it's drawn, not as wide as it lays out", async () => {
+      const { viewer, widths, fire } = resting({ pictures: [shot, later] })
+      fire("did-stop-loading")
+      viewer.awake(false)
+      await expect.poll(() => widths).toEqual([Math.round(400 * devicePixelRatio)])
+      viewer.awake(true)
+      viewer.size("phone")
+      fire("did-stop-loading")
+      viewer.awake(false)
+      await expect
+        .poll(() => widths)
+        .toEqual([
+          Math.round(400 * devicePixelRatio),
+          Math.round(phoneScreen.width * devicePixelRatio),
+        ])
+    })
+
+    it("lets a picture of the other size go at once when switched, waking", async () => {
+      vi.useFakeTimers()
+      try {
+        const { host, viewer, calls, fire, ready } = resting()
+        fire("did-stop-loading")
+        viewer.awake(false)
+        await vi.runAllTimersAsync()
+        expect(pageOf(host)).toBeNull()
+        // A press on the switch wakes it, its picture over it until it has loaded.
+        viewer.awake(true)
+        ready()
+        expect(pictureOf(host)).not.toBeNull()
+        viewer.size("phone")
+        expect(pictureOf(host)).toBeNull()
+        expect(viewer.pictured()).toBe(false)
+        expect(viewer.state()).not.toMatchObject({ browser: { picture: {} } })
+        // Loaded, it isn't scrolled to where the desktop's picture was.
+        fire("did-stop-loading")
+        expect(calls.some((call) => call.includes("scrollTo(0, 640)"))).toBe(false)
+      } finally {
+        vi.useRealTimers()
+      }
+    })
+
+    it("lets a picture under way as it's switched go, as one of the other size", async () => {
+      let give: (src: string) => void = () => {}
+      const pending = new Promise<string>((resolve) => (give = resolve))
+      const { host, viewer, fire } = resting({ pictures: [pending] })
+      fire("did-stop-loading")
+      viewer.awake(false)
+      await settled()
+      viewer.size("phone")
+      give(shot)
+      await settled()
+      await settled()
+      // Nothing of this size to rest as: live, until one is taken.
+      expect(pageOf(host)).not.toBeNull()
+      expect(viewer.pictured()).toBe(false)
+    })
 
     it("takes a picture of the page and where it's scrolled, and shows it in its view's place", async () => {
       const { host, viewer, calls, places, taken, fire } = resting()

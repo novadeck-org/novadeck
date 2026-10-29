@@ -365,8 +365,8 @@ const bridge = {
     if (report) ipcRenderer.send(rendererPoolChannel, report)
   },
   // Only a JPEG picture comes back; the main process checks the page is one of this page's.
-  pagePicture: async (page) => {
-    const picture: unknown = await ipcRenderer.invoke(pagePictureChannel, page)
+  pagePicture: async (page, width) => {
+    const picture: unknown = await ipcRenderer.invoke(pagePictureChannel, page, width)
     return typeof picture === "string" && picture.startsWith("data:image/jpeg;base64,")
       ? picture
       : undefined

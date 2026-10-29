@@ -442,19 +442,26 @@ describe("a picture of a page", () => {
     destroyed?: boolean
   } = {}) => {
     const qualities: number[] = []
+    const resized: number[] = []
+    const image = (width: number, jpeg: string) => ({
+      isEmpty: () => drawn === "",
+      getSize: () => ({ width, height: width * 2 }),
+      resize: (options: { width: number }) => {
+        resized.push(options.width)
+        return image(options.width, `${jpeg} at ${options.width}`)
+      },
+      toJPEG: (quality: number) => {
+        qualities.push(quality)
+        return Buffer.from(jpeg)
+      },
+    })
     const contents = {
       hostWebContents: owner,
       getType: () => type,
       isDestroyed: () => destroyed,
-      capturePage: async () => ({
-        isEmpty: () => drawn === "",
-        toJPEG: (quality: number) => {
-          qualities.push(quality)
-          return Buffer.from(drawn)
-        },
-      }),
+      capturePage: async () => image(2560, drawn),
     } as unknown as WebContents
-    return { contents, qualities }
+    return { contents, qualities, resized }
   }
   const byId =
     (contents: WebContents) =>
@@ -467,6 +474,19 @@ describe("a picture of a page", () => {
       `data:image/jpeg;base64,${Buffer.from("jpeg").toString("base64")}`,
     )
     expect(qualities).toEqual([pictureQuality])
+  })
+
+  it("is scaled down to the width it's drawn at, where it's wider, as a page fit to its viewer", async () => {
+    const { contents, resized } = view()
+    expect(await picturePage(host, 7, byId(contents), 800)).toBe(
+      `data:image/jpeg;base64,${Buffer.from("jpeg at 800").toString("base64")}`,
+    )
+    // As wide or wider, or no width a picture can be: as it is.
+    const widths = [2560, 4000, 0, -5, 1.5, "800", undefined]
+    expect(
+      await Promise.all(widths.map((width) => picturePage(host, 7, byId(contents), width))),
+    ).toEqual(widths.map(() => `data:image/jpeg;base64,${Buffer.from("jpeg").toString("base64")}`))
+    expect(resized).toEqual([800])
   })
 
   it("is nothing for another window's page, the app's own, or one gone", async () => {

@@ -8,8 +8,9 @@
    same box on the viewer.
 
    Hooks: data-load="loading" | "ready" | "failed" on the viewer: how the page's latest
-   load went. data-size="desktop" | "phone" on a live one: what its page lays out as. data-painting on the <webview>: its first document is ready, so it paints
-   its own ground, and keeps its last frame through later loads.
+   load went. data-size="desktop" | "phone" on a live one: what its page lays out as.
+   data-painting on the <webview>: its first document is ready, so it paints its own
+   ground, and keeps its last frame through later loads.
 
    Tokens, each optional (its fallback in brackets):
    --browser-page-bg (white): behind a live page until it paints, and behind its resting

@@ -108,11 +108,11 @@ const settle = () => new Promise((resolve) => setTimeout(resolve, 0))
 describe("a picture of a live page", () => {
   // Never asked here: only the picture is.
   const runner = {} as Parameters<typeof createRunnerCompanions>[0]
-  const picture = async (page: number) => `data:image/jpeg;base64,${page}`
+  const picture = async (page: number, width: number) => `data:image/jpeg;base64,${page}-${width}`
 
   it("is the host's to take, where pages load live", async () => {
     const companions = createRunnerCompanions(runner, { livePages: true, picture })
-    expect(await companions.picture?.(7)).toBe("data:image/jpeg;base64,7")
+    expect(await companions.picture?.(7, 640)).toBe("data:image/jpeg;base64,7-640")
   })
 
   it("is none where pages don't load live, or the host takes none", () => {

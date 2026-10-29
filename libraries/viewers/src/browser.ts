@@ -93,10 +93,10 @@ export type BrowserOptions = {
   readonly partition: string
   /**
    * Takes a picture of what the live page shows now, by its view's web contents id, for
-   * the viewer to show while the page rests; undefined when it can't. Without it, a live
-   * page never rests.
+   * the viewer to show while the page rests, no wider than `width` device pixels, as wide
+   * as it's drawn; undefined when it can't. Without it, a live page never rests.
    */
-  readonly picture?: (page: number) => Promise<string | undefined>
+  readonly picture?: (page: number, width: number) => Promise<string | undefined>
   /** Whether a live page starts awake, as it does unless told; it rests only as a picture. */
   readonly awake?: boolean
   /** What a live page lays out as, a desktop's window unless told. */
@@ -457,9 +457,12 @@ export const mountBrowser: Mount<BrowserContent, BrowserOptions, BrowserViewer> 
   // which browser.css reads; framed again as the viewer resizes. By its layout box, which a
   // zoomed canvas around it doesn't change.
   let size = startSize ?? "desktop"
+  // How wide the page is drawn, in CSS pixels, as its picture is.
+  let drawnWidth = 0
   const frame = (): void => {
     root.dataset.size = size
     const framing = framingOf(size, root.clientWidth, root.clientHeight)
+    drawnWidth = framing ? framing.width * framing.scale : root.clientWidth
     const values: Record<string, string | undefined> = {
       "--browser-width": framing && `${framing.width}px`,
       "--browser-height": framing && `${framing.height}px`,
@@ -870,7 +873,12 @@ export const mountBrowser: Mount<BrowserContent, BrowserOptions, BrowserViewer> 
     const reading = attached(() =>
       Promise.race([view.executeJavaScript(scrollRead), wait(scrollReadMs)]),
     )?.catch(() => undefined)
-    const [src, where] = await Promise.all([take(id).catch(() => undefined), reading])
+    // As wide as it's drawn: a page scaled down to fit lays out, and is pictured, wider.
+    const width = Math.max(
+      1,
+      Math.round(drawnWidth * (document.defaultView?.devicePixelRatio ?? 1)),
+    )
+    const [src, where] = await Promise.all([take(id, width).catch(() => undefined), reading])
     if (src === undefined || asked !== snapping) return undefined
     return { picture: { src, at }, scrolled: isScrolled(where) ? where : undefined }
   }
@@ -1000,8 +1008,18 @@ export const mountBrowser: Mount<BrowserContent, BrowserOptions, BrowserViewer> 
       if (next === size) return
       size = next
       frame()
-      // Its picture is of the other size: it rests as one of this once one is taken.
+      // Its picture, and one under way, are of the other size, as is where it was scrolled:
+      // it rests as one of this once one is taken. Over a page that's there, or on its way
+      // as a press on the switch woke it, the picture goes at once.
       if (picture !== undefined) used = true
+      snapping += 1
+      scrolled = undefined
+      if (page) {
+        clearTimeout(fading)
+        fading = undefined
+        still.remove()
+        delete still.dataset.fading
+      }
       freshen(freshenMs)
     },
     destroy: () => {
