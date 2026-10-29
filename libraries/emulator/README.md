@@ -9,10 +9,10 @@ character-width rule every emulator shares, and helpers that need only an emulat
   draws it, and `applyWidths(terminal)`, which sets a browser or headless emulator to count them
   so. Every emulator goes through `applyWidths`: one that counts otherwise puts a screen another
   gives back on different rows.
-- `./browser`: `createView(element, options)`, xterm's browser `Terminal` opened in an element with
-  the width rule applied, the fit and web-links addons loaded, and links, theme, font and fit behind
-  a `View`, which tells of each change of renderer (`onRendererChange`) so its owner fits it again;
-  and the pool that draws views with WebGL (`Renderers`, made by `webglRenderers` for a page or
+- `./browser`: `createView(element, options)` (`ViewOptions`), xterm's browser `Terminal` opened
+  in an element with the width rule applied, the fit and web-links addons loaded, and links, theme,
+  font and fit behind a `View` (links as `ViewLinks`, its place in the pool as `ViewRenderer`),
+  which tells of each change of renderer (`onRendererChange`) so its owner fits it again; and the pool that draws views with WebGL (`Renderers`, made by `webglRenderers` for a page or
   `createRenderers` over any `Drawing`, such as `loadWebgl`'s; each screen's side is a
   `ScreenRenderer`; `stats()` and `watch()` give the pool's counts, `PoolStats`: waits, steals,
   swaps, contexts lost, loads failed, pty resizes a swap caused, and screens left on the DOM). The
