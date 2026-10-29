@@ -1,5 +1,5 @@
 import type { Conversations } from "@novadeck/core/conversation"
-import type { InboxRow } from "@novadeck/core/inbox"
+import { withSnoozes, type InboxRow } from "@novadeck/core/inbox"
 import { emptyCompanions, itemIdOf, type Item } from "@novadeck/core/items"
 import type {
   AgentConnection,
@@ -369,7 +369,8 @@ export const withInbox = (
     if (event.type === "begin" && event.prompt !== undefined && !event.automatic)
       inbox.withdrawAsks(event.key, event.submittedAt ?? Date.now())
   })
-  return { ...backend, inbox }
+  // Snoozes are kept for as long as the page is.
+  return { ...backend, inbox: withSnoozes(inbox, [], () => {}) }
 }
 
 // The agents demo's storefront terminals hold what their agents showed, on their bars,

@@ -1,10 +1,16 @@
-import { emptyInbox, type Inbox, type InboxRow, type InboxState } from "@novadeck/core/inbox"
+import {
+  emptyInbox,
+  withSnoozes,
+  type Inbox,
+  type InboxRow,
+  type InboxState,
+} from "@novadeck/core/inbox"
 import { createStore } from "@novadeck/core/store"
 import { nextFrame, render } from "@novadeck/test-kit/render"
 import { act, createElement } from "react"
 
 import { context, describe, expect, it } from "../test"
-import { HeldPill, InboxClear, InboxList } from "./InboxList"
+import { HeldPill, InboxClear, InboxCount, InboxList } from "./InboxList"
 import { InboxProvider } from "./InboxProvider"
 import { InboxSheet } from "./InboxSheet"
 
@@ -83,6 +89,7 @@ const mount = (
   working = false,
   dismissing = false,
   arranging = false,
+  snoozing = false,
 ) => {
   const state = createStore<InboxState>({ ...emptyInbox, items })
   const answered: string[] = []
@@ -117,10 +124,16 @@ const mount = (
   const view = render(
     createElement(
       InboxProvider,
-      { inbox, reveal: () => {}, working, active: true },
+      {
+        inbox: snoozing ? withSnoozes(inbox, [], () => {}) : inbox,
+        reveal: () => {},
+        working,
+        active: true,
+      },
       createElement(
         "div",
         { id: "inbox-panel" },
+        snoozing ? createElement("span", { className: "count" }, createElement(InboxCount)) : null,
         createElement(HeldPill),
         createElement(InboxClear),
         createElement(InboxList),
@@ -491,6 +504,79 @@ describe("The Inbox's list", () => {
 
       expect(inbox.subjects()).toEqual(["Run a?", "Run b?"])
       expect(inbox.row("a").querySelector(".inbox-row-select")?.ariaKeyShortcuts).toBeNull()
+      await nextFrame()
+      inbox.view.unmount()
+    })
+  })
+
+  context("where the backend keeps snoozes", () => {
+    const current = (inbox: ReturnType<typeof mount>): string | null =>
+      inbox.view.container
+        .querySelector('[aria-current="true"]')
+        ?.closest("[data-inbox-row]")
+        ?.getAttribute("data-inbox-row") ?? null
+    const count = (inbox: ReturnType<typeof mount>): string =>
+      inbox.view.container.querySelector(".count")?.textContent ?? ""
+    const keyOn = (element: Element, key: string): void =>
+      act(() => {
+        element.dispatchEvent(new KeyboardEvent("keydown", { key, bubbles: true }))
+      })
+
+    it("snoozes a row with S: it keeps its place, says so, and stops counting", async () => {
+      const inbox = mount([permission("a", 1), permission("b", 2)], false, false, true, true)
+      expect(count(inbox)).toBe("2 waiting")
+      keyOn(inbox.row("a").querySelector(".inbox-row-select")!, "s")
+
+      expect(inbox.row("a").dataset.snoozed).toBe("true")
+      expect(inbox.row("a").textContent).toContain("Snoozed")
+      expect(inbox.subjects()).toEqual(["Run a?", "Run b?"])
+      expect(count(inbox)).toBe("1 waiting")
+      // It still drags with the rest.
+      expect(inbox.row("a").querySelector(".inbox-row-select")?.ariaKeyShortcuts).toContain(
+        "Alt+ArrowUp",
+      )
+      keyOn(inbox.row("a").querySelector(".inbox-row-select")!, "S")
+      expect(inbox.row("a").dataset.snoozed).toBeUndefined()
+      expect(count(inbox)).toBe("2 waiting")
+      await nextFrame()
+      inbox.view.unmount()
+    })
+
+    it("is stepped past by the arrows from an open sheet", async () => {
+      const inbox = mount(
+        [permission("a", 1), permission("b", 2), permission("c", 3)],
+        false,
+        false,
+        false,
+        true,
+      )
+      keyOn(inbox.row("b").querySelector(".inbox-row-select")!, "s")
+      inbox.open("a")
+      await nextFrame()
+      keyOn(document.querySelector(".inbox-sheet-title") ?? document.body, "ArrowRight")
+      await nextFrame()
+      expect(current(inbox)).toBe("c")
+      await nextFrame()
+      inbox.view.unmount()
+    })
+
+    it("snoozed from its sheet, opens what asks next, past any other snoozed", async () => {
+      const inbox = mount(
+        [permission("a", 1), permission("b", 2), permission("c", 3)],
+        false,
+        false,
+        false,
+        true,
+      )
+      keyOn(inbox.row("b").querySelector(".inbox-row-select")!, "s")
+      inbox.open("a")
+      await nextFrame()
+      act(() => document.querySelector<HTMLElement>('.inbox-sheet [aria-label="Snooze"]')!.click())
+      await nextFrame()
+
+      expect(inbox.row("a").dataset.snoozed).toBe("true")
+      expect(current(inbox)).toBe("c")
+      expect(count(inbox)).toBe("1 waiting")
       await nextFrame()
       inbox.view.unmount()
     })

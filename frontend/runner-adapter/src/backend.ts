@@ -1,4 +1,5 @@
 import { handleText } from "@novadeck/core/handle"
+import { withSnoozes, type Inbox } from "@novadeck/core/inbox"
 import type {
   AgentConnection,
   Backend,
@@ -145,6 +146,9 @@ export type RunnerBackendOptions = {
   // The order the person dragged the Inbox's rows into, as the runner said at startup; the
   // rows keep the Inbox's own order, and can't be dragged, when absent.
   readonly inboxOrder?: readonly string[]
+  // The Inbox's rows the person snoozed, as the runner said at startup; none can be snoozed
+  // when absent.
+  readonly inboxSnoozed?: readonly string[]
   // The page's theme, which its terminals draw in; tests pass `noTheme`.
   readonly theme: ThemeSource
 }
@@ -320,6 +324,11 @@ const revival = (): Pick<RunnerEntry, "revived" | "revive"> => {
   })
   return { revived, revive: () => resolve?.() }
 }
+
+// Inbox rows as the runner keeps them: as many as it takes, from the top (the rows below
+// keep the Inbox's own order), each of an id it can take.
+const fitted = (ids: readonly string[]): string[] =>
+  ids.filter((id) => id.length > 0 && id.length <= maxInboxRowIdLength).slice(0, maxInboxOrder)
 
 // A backend over a connected runner and what it listed at startup. Creating it starts
 // nothing: I/O begins with the first commit that changes the workspace, or `start`.
@@ -1160,8 +1169,15 @@ export const runnerBackend = (
     messages.state,
     { track },
   )
-  // The person's order of the Inbox's rows: shown at once, kept by the runner.
+  // The person's order of the Inbox's rows and their snoozes: shown at once, kept by the
+  // runner (`fitted`).
   const inboxOrder = options.inboxOrder && createStore(options.inboxOrder)
+  const snoozable = (shown: Inbox): Inbox =>
+    options.inboxSnoozed
+      ? withSnoozes(shown, options.inboxSnoozed, (ids) => {
+          void track(runner.settings.set({ inboxSnoozed: fitted(ids) })).catch(() => {})
+        })
+      : shown
   // The voice input addon, followed from `start` like the messages.
   const voice = createRunnerVoice(runner.voice, track)
   // Murmur, followed the same way.
@@ -1543,21 +1559,18 @@ export const runnerBackend = (
     }),
     messages,
     conversations,
-    inbox: inboxOrder
-      ? {
-          ...inbox,
-          order: inboxOrder,
-          arrange: (ids) => {
-            inboxOrder.update(() => ids)
-            // The runner keeps as many as it takes, from the top: the rows below are the
-            // Inbox's own order.
-            const kept = ids
-              .filter((id) => id.length > 0 && id.length <= maxInboxRowIdLength)
-              .slice(0, maxInboxOrder)
-            void track(runner.settings.set({ inboxOrder: kept })).catch(() => {})
-          },
-        }
-      : inbox,
+    inbox: snoozable(
+      inboxOrder
+        ? {
+            ...inbox,
+            order: inboxOrder,
+            arrange: (ids) => {
+              inboxOrder.update(() => ids)
+              void track(runner.settings.set({ inboxOrder: fitted(ids) })).catch(() => {})
+            },
+          }
+        : inbox,
+    ),
     approvals: {
       pending: approvals,
       answer: (requestId, approved) => {

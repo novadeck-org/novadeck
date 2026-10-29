@@ -12,12 +12,19 @@ import { inboxType, type InboxRow, type InboxState } from "@novadeck/core/inbox"
 import { NovaMark } from "@novadeck/toolkit/NovaLogo"
 import { sidebarListClasses } from "@novadeck/toolkit/SidebarItem"
 import { Tooltip } from "@novadeck/toolkit/Tooltip"
-import { CheckCheck, CircleCheck, ListX, LoaderCircle, X } from "lucide-react"
+import { Bell, BellOff, CheckCheck, CircleCheck, ListX, LoaderCircle, X } from "lucide-react"
 import { useMemo, useState } from "react"
 
 import { focusSheet, focusSheetSoon, nextRowButton, rowOf } from "./inbox-dom"
 import { icons, typeWords } from "./inbox-icons"
-import { hasSettled, hasUpdates, needing, needs, settledStart, updatesStart } from "./inbox-state"
+import {
+  asks as asking,
+  hasSettled,
+  hasUpdates,
+  needing,
+  settledStart,
+  updatesStart,
+} from "./inbox-state"
 import { readLabel, resumesLabel, subjectOf, toneOf, waitLabel } from "./inbox-text"
 import { started, useInboxContext } from "./InboxProvider"
 import { Text } from "./sheet-parts"
@@ -56,7 +63,8 @@ type Drag = { readonly index: number; readonly onStep: (by: -1 | 1) => void }
 // after the last that asks, where the updates' line goes; `settledFirst` the first of the settled
 // asks that end the list, where theirs goes. A settled ask (dismissed, withdrawn or answered in
 // its terminal) stays, struck through, and opens nothing; an open Novadeck ask can be dismissed.
-// A row that asks drags among the others that do, into the person's order (`drag`).
+// A row that asks drags among the others that do, into the person's order (`drag`), and can
+// be snoozed (S): it keeps its place, marked, its bell-off where its wait shows.
 const Row = ({
   item,
   asks,
@@ -122,7 +130,7 @@ const RowBody = ({
   readonly dragging?: boolean
   readonly onStep?: ((by: -1 | 1) => void) | undefined
 }): React.JSX.Element => {
-  const { state, view, now, drafts, ghosts, open, close, dismiss } = useInboxContext()
+  const { state, view, now, drafts, ghosts, open, close, dismiss, snooze } = useInboxContext()
   const { settled } = item
   const type = inboxType(item)
   const pending = Boolean(state.answering[item.id])
@@ -132,10 +140,14 @@ const RowBody = ({
   const current = view.open === item.id
   const dismissable =
     dismiss !== undefined && item.kind === "ask" && !settled && !pending && !answered
+  const snoozable = snooze !== undefined && asking(item) && !answering
+  const snoozed = Boolean(item.snoozed) && !answering
   const subject = subjectOf(item).replaceAll("`", "")
+  const toggleSnooze = (): void => snooze?.(item, !item.snoozed)
   const extras = settled
     ? [settledWords[settled.how]]
     : [
+        snoozed ? "Snoozed" : null,
         started(drafts[item.id]) && !answering ? "Draft" : null,
         answering ? null : resumesLabel(item),
         readLabel(item),
@@ -154,6 +166,8 @@ const RowBody = ({
       data-settled-start={settledFirst}
       data-settled={settled?.how}
       data-dismissable={dismissable}
+      data-snoozable={snoozable}
+      data-snoozed={snoozed || undefined}
       data-arrived={view.arrived.includes(item.id)}
       data-selected={current}
       data-dragging={dragging || undefined}
@@ -162,9 +176,12 @@ const RowBody = ({
         ref={handleRef}
         type="button"
         className="inbox-row-select"
-        aria-keyshortcuts={onStep ? "Alt+ArrowUp Alt+ArrowDown" : undefined}
+        aria-keyshortcuts={
+          [onStep && "Alt+ArrowUp Alt+ArrowDown", snoozable && "S"].filter(Boolean).join(" ") ||
+          undefined
+        }
         aria-label={`${typeWords[type]}: ${subject}, ${item.source.projectName}${
-          settled ? `, ${settledWords[settled.how].toLowerCase()}` : ""
+          settled ? `, ${settledWords[settled.how].toLowerCase()}` : snoozed ? ", snoozed" : ""
         }`}
         aria-current={current ? "true" : undefined}
         aria-disabled={settled ? "true" : undefined}
@@ -189,6 +206,19 @@ const RowBody = ({
           ) {
             event.preventDefault()
             onStep(event.key === "ArrowUp" ? -1 : 1)
+            return
+          }
+          // S snoozes the row, or brings it back.
+          if (
+            snoozable &&
+            (event.key === "s" || event.key === "S") &&
+            !event.shiftKey &&
+            !event.ctrlKey &&
+            !event.metaKey &&
+            !event.altKey
+          ) {
+            event.preventDefault()
+            toggleSnooze()
             return
           }
           // Delete dismisses an ask that can be, and the keyboard goes on to the next row.
@@ -218,11 +248,15 @@ const RowBody = ({
           <Text text={subjectOf(item)} />
         </span>
         <span className="inbox-row-wait text-caption">
-          {settled
-            ? waitLabel(settled.at, now)
-            : item.stopped && !answering
-              ? waitLabel(item.at, now)
-              : ""}
+          {settled ? (
+            waitLabel(settled.at, now)
+          ) : snoozed ? (
+            <BellOff size={14} strokeWidth={1.6} aria-hidden="true" />
+          ) : item.stopped && !answering ? (
+            waitLabel(item.at, now)
+          ) : (
+            ""
+          )}
         </span>
         <span className="inbox-row-meta text-caption">
           <span className="inbox-row-project" title={item.source.projectName}>
@@ -254,6 +288,30 @@ const RowBody = ({
             }}
           >
             <X size={14} strokeWidth={1.6} />
+          </button>
+        </Tooltip>
+      ) : null}
+      {snoozable ? (
+        <Tooltip content={item.snoozed ? "Unsnooze · S" : "Snooze · S"}>
+          <button
+            type="button"
+            className="inbox-row-snooze icon-button dim size-7"
+            aria-label={`${item.snoozed ? "Unsnooze" : "Snooze"}: ${subject}`}
+            onClick={(event) => {
+              // The keyboard was on this button, which goes with the click: it stays on the row.
+              const keyboard = event.detail === 0
+              const select = event.currentTarget
+                .closest("[data-inbox-row]")
+                ?.querySelector<HTMLElement>(".inbox-row-select")
+              toggleSnooze()
+              if (keyboard) select?.focus()
+            }}
+          >
+            {item.snoozed ? (
+              <Bell size={14} strokeWidth={1.6} />
+            ) : (
+              <BellOff size={14} strokeWidth={1.6} />
+            )}
           </button>
         </Tooltip>
       ) : null}
@@ -342,13 +400,14 @@ export const arrangedIds = (
 }
 
 // Everything across the workspace that asks for the person, one row each.
-const needsBefore = (before: InboxRow | undefined): boolean => before !== undefined && needs(before)
+const needsBefore = (before: InboxRow | undefined): boolean =>
+  before !== undefined && asking(before)
 
 export const InboxList = (): React.JSX.Element => {
   const { shown, view, working, state, ghosts, arrange } = useInboxContext()
   const rows = shown.map((item) => ({
     item,
-    asks: needs(item) && !answeredIn(item, state, ghosts),
+    asks: asking(item) && !answeredIn(item, state, ghosts),
     // A row that settled in place among the asks keeps its place with them.
     placed: item.settled !== undefined && needsBefore(view.base[item.id]),
   }))
@@ -367,7 +426,7 @@ export const InboxList = (): React.JSX.Element => {
     const live = new Set(state.items.map((item) => item.id))
     const kept = new Set(
       rows
-        .filter(({ item, placed }) => live.has(item.id) && (needs(item) || placed))
+        .filter(({ item, placed }) => live.has(item.id) && (asking(item) || placed))
         .map(({ item }) => item.id),
     )
     arrange(

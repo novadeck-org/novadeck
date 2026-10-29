@@ -18,6 +18,7 @@ import {
   clearArrived,
   closeSheet,
   held,
+  asks,
   informing,
   initialView,
   nextItem,
@@ -93,6 +94,9 @@ export type InboxContextValue = {
   // Keeps the rows that ask in the order the person dragged them into, by id; absent where
   // the backend keeps no order, and the rows can't be dragged.
   readonly arrange: ((ids: readonly string[]) => void) | undefined
+  // Snoozes a row (`on`) or brings it back; snoozed from its open sheet, the next that asks
+  // opens, as after an answer. Absent where the backend keeps no snoozes.
+  readonly snooze: ((item: InboxRow, on: boolean) => void) | undefined
   readonly reveal: (item: InboxRow) => void
 }
 
@@ -212,9 +216,16 @@ export const InboxProvider = ({
   )
 
   // What the handlers below read, as of the last commit.
-  const latest = useRef({ state, view, phone, ghosts, arranged })
+  const latest = useRef({
+    state,
+    view,
+    phone,
+    ghosts,
+    arranged,
+    snoozing: undefined as ((item: InboxRow, on: boolean) => void) | undefined,
+  })
   useLayoutEffect(() => {
-    latest.current = { state, view, phone, ghosts, arranged }
+    latest.current = { ...latest.current, state, view, phone, ghosts, arranged }
   })
   const heldItems = useMemo(() => held(view, state.items), [view, state.items])
   // An ask that settles while its sheet is open stays open, settled, to say so; one settled
@@ -342,6 +353,32 @@ export const InboxProvider = ({
     [inbox],
   )
 
+  const snooze = useMemo(
+    () =>
+      inbox.snooze
+        ? (item: InboxRow, on: boolean): void => {
+            const { view: before, arranged: order } = latest.current
+            inbox.snooze?.(item.id, on)
+            if (!on || before.open !== item.id) return
+            const snapshot = inbox.state.getSnapshot()
+            const target = nextItem(snapshot.items, item.id, snapshot, order)
+            if (!target) return close()
+            setReceipt(null)
+            const kept = before.order.includes(target.id)
+              ? before
+              : release(before, snapshot.items, order)
+            setView(openItem(kept, target.id, snapshot.items, order))
+            if (!target.seen) inbox.see(target.id)
+            requestAnimationFrame(() => rowOf(target.id)?.scrollIntoView?.({ block: "nearest" }))
+          }
+        : undefined,
+    [inbox, close],
+  )
+
+  useLayoutEffect(() => {
+    latest.current.snoozing = snooze
+  }, [snooze])
+
   const revealItem = useCallback(
     (item: InboxRow): void => {
       close()
@@ -365,8 +402,10 @@ export const InboxProvider = ({
       if (event.defaultPrevented || event.isComposing) return
       if (event.ctrlKey || event.metaKey || event.altKey) return
       const arrow = event.key === "ArrowRight" || event.key === "ArrowLeft"
-      if (arrow && event.shiftKey) return
-      if (event.key !== "Escape" && event.key !== "j" && event.key !== "k" && !arrow) return
+      const sleep = event.key === "s" || event.key === "S"
+      if ((arrow || sleep) && event.shiftKey) return
+      if (event.key !== "Escape" && event.key !== "j" && event.key !== "k" && !arrow && !sleep)
+        return
       const target = event.target
       const ours =
         target === document ||
@@ -393,9 +432,19 @@ export const InboxProvider = ({
       if (live.open === null && !inList) return
       if (!inSheet && !inList && target !== document.body && target !== document) return
       if (arrow && (live.open === null || inList)) return
+      // S in the open sheet snoozes its item, or brings it back; on a row, the row does.
+      if (sleep) {
+        const item = snapshot.items.find(({ id }) => id === live.open)
+        if (inList || !item || !asks(item) || !latest.current.snoozing) return
+        event.preventDefault()
+        latest.current.snoozing(item, !item.snoozed)
+        if (!item.snoozed) focusSheetSoon()
+        return
+      }
       const to = stepFrom(
+        // Settled and snoozed rows are stepped past.
         visible(live, snapshot.items, dropped, order).filter(
-          (item) => !item.settled || item.id === live.open,
+          (item) => (!item.settled && !item.snoozed) || item.id === live.open,
         ),
         live.open,
         event.key === "j" || event.key === "ArrowRight" ? 1 : -1,
@@ -438,6 +487,7 @@ export const InboxProvider = ({
       dismiss,
       clear,
       arrange,
+      snooze,
       reveal: revealItem,
     }),
     [
@@ -463,6 +513,7 @@ export const InboxProvider = ({
       dismiss,
       clear,
       arrange,
+      snooze,
       revealItem,
     ],
   )

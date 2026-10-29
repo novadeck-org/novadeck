@@ -159,9 +159,8 @@ export const connectRunnerBackend = async (
   progress("loading")
   try {
     const listing = await loadListing(runner, newId, Date.now)
-    const [{ transcripts, transcriptsAvailable, welcomed, inboxOrder }, agents] = await Promise.all(
-      [runner.settings.get(), runner.agents.list()],
-    )
+    const [{ transcripts, transcriptsAvailable, welcomed, inboxOrder, inboxSnoozed }, agents] =
+      await Promise.all([runner.settings.get(), runner.agents.list()])
     const pick = desktopHost()?.pickDirectory
     const beforeQuit = desktopHost()?.beforeQuit
     const showAppearance = desktopHost()?.showAppearance
@@ -211,6 +210,7 @@ export const connectRunnerBackend = async (
           agents,
           welcomed,
           inboxOrder,
+          inboxSnoozed,
         })
         created.push(next)
         return next.backend

@@ -7,9 +7,14 @@ import {
   terminalDone,
   terminalNeed,
   urgency,
+  withSnoozes,
+  emptyInbox,
+  noInbox,
   type InboxContent,
   type InboxRow,
+  type InboxState,
 } from "./inbox"
+import { createStore } from "./store"
 import { describe, expect, it } from "./test"
 
 const source: InboxRow["source"] = {
@@ -213,5 +218,47 @@ describe("entryRow", () => {
 
   it("finds nothing for an entry with no item, not another item of its terminal", () => {
     expect(entryRow([item("other", held, true)], { id: "m-gone" })).toBeUndefined()
+  })
+})
+
+describe("withSnoozes", () => {
+  const rows = [item("a", held, true), item("b", held, true, 1)]
+  const make = (initial: readonly string[] = []) => {
+    const state = createStore<InboxState>({ ...emptyInbox, items: rows })
+    const saved: (readonly string[])[] = []
+    const inbox = withSnoozes({ ...noInbox, state }, initial, (ids) => saved.push(ids))
+    return { state, saved, inbox }
+  }
+  const snoozedIds = (state: InboxState) =>
+    state.items.filter((each) => each.snoozed).map((each) => each.id)
+
+  it("marks the rows snoozed before, and nothing else", () => {
+    const { inbox } = make(["b", "gone"])
+    expect(snoozedIds(inbox.state.getSnapshot())).toEqual(["b"])
+    // The same listing reads as the same state.
+    expect(inbox.state.getSnapshot()).toBe(inbox.state.getSnapshot())
+  })
+
+  it("snoozes and brings back, tells who listens, and keeps only rows still listed", () => {
+    const { inbox, saved } = make(["gone"])
+    let changes = 0
+    const stop = inbox.state.subscribe(() => changes++)
+    inbox.snooze?.("a", true)
+    expect(snoozedIds(inbox.state.getSnapshot())).toEqual(["a"])
+    expect(saved.at(-1)).toEqual(["a"])
+    inbox.snooze?.("a", false)
+    expect(snoozedIds(inbox.state.getSnapshot())).toEqual([])
+    expect(inbox.state.getSnapshot().items[0]).not.toHaveProperty("snoozed")
+    expect(saved.at(-1)).toEqual([])
+    expect(changes).toBe(2)
+    stop()
+  })
+
+  it("follows the rows as the backend lists them", () => {
+    const { inbox, state } = make(["a"])
+    state.update((current) => ({ ...current, items: [rows[1]!] }))
+    expect(snoozedIds(inbox.state.getSnapshot())).toEqual([])
+    state.update((current) => ({ ...current, items: rows }))
+    expect(snoozedIds(inbox.state.getSnapshot())).toEqual(["a"])
   })
 })

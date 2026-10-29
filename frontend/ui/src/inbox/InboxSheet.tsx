@@ -2,12 +2,13 @@ import { inboxType, type InboxRow } from "@novadeck/core/inbox"
 import { HandleChip } from "@novadeck/toolkit/HandleChip"
 import { Sheet } from "@novadeck/toolkit/Sheet"
 import { Tooltip } from "@novadeck/toolkit/Tooltip"
-import { ArrowLeft, Check, Terminal, X } from "lucide-react"
+import { ArrowLeft, Bell, BellOff, Check, Terminal, X } from "lucide-react"
 import { useEffect, useRef, useState } from "react"
 
 import { ConsoleSheet } from "./ConsoleSheet"
 import { nextRowButton, rowOf, sheetControls } from "./inbox-dom"
 import { icons } from "./inbox-icons"
+import { asks } from "./inbox-state"
 import { tagOf } from "./inbox-tag"
 import { useInboxContext, type Receipt } from "./InboxProvider"
 import type { SheetContentProps } from "./Page"
@@ -60,7 +61,7 @@ const ReceiptLine = ({ receipt }: { readonly receipt: Receipt }): React.JSX.Elem
 
 // One item's sheet: its head, then its page.
 const SheetBody = ({ item }: { readonly item: InboxRow }): React.JSX.Element => {
-  const { state, sent, phone, receipt, close, submit, change, reveal } = useInboxContext()
+  const { state, sent, phone, receipt, close, submit, change, reveal, snooze } = useInboxContext()
   const answered = sent[item.id]
   const failed = state.failed[item.id]
   const present = state.items.some((each) => each.id === item.id)
@@ -125,6 +126,22 @@ const SheetBody = ({ item }: { readonly item: InboxRow }): React.JSX.Element => 
         </span>
         <HandleChip handle={source.handle} />
         <span className="console-grow" />
+        {snooze && asks(item) ? (
+          <Tooltip content={item.snoozed ? "Unsnooze · S" : "Snooze · S"}>
+            <button
+              type="button"
+              className="icon-button dim size-7"
+              aria-label={item.snoozed ? "Unsnooze" : "Snooze"}
+              onClick={() => snooze(item, !item.snoozed)}
+            >
+              {item.snoozed ? (
+                <Bell size={14} strokeWidth={1.6} />
+              ) : (
+                <BellOff size={14} strokeWidth={1.6} />
+              )}
+            </button>
+          </Tooltip>
+        ) : null}
         <Tooltip content="Show terminal">
           <button
             type="button"

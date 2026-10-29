@@ -53,4 +53,10 @@ describe("inboxBadge", () => {
     const list = Array.from({ length: 12 }, (_, index) => entry(held, index))
     expect(inboxBadge(list)).toMatchObject({ count: 12, label: "Inbox, 12 waiting" })
   })
+
+  it("leaves out what the person snoozed, so a snoozed row alone shows no dot", () => {
+    const snoozed = { ...entry(held, 1), snoozed: true as const }
+    expect(inboxBadge([snoozed])).toBeUndefined()
+    expect(inboxBadge([snoozed, entry(held, 2)])).toMatchObject({ count: 1 })
+  })
 })

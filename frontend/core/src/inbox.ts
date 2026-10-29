@@ -149,6 +149,9 @@ export type InboxRow = InboxContent & {
   readonly stopped: boolean
   readonly seen: boolean
   readonly settled?: AskSettled
+  // Set aside by the person until they bring it back: it keeps its place, and asks nothing
+  // of them meanwhile. Only on a row that asks, where the backend keeps snoozes.
+  readonly snoozed?: true
 }
 
 // The four ways the Inbox presents an item: Unblock (the agent can't go on without the
@@ -247,6 +250,9 @@ export type Inbox = {
   // rows keep the Inbox's own order.
   readonly order?: Store<readonly string[]>
   readonly arrange?: (ids: readonly string[]) => void
+  // Optional. Snoozes a row, or brings it back (`on` false); its row then carries `snoozed`.
+  // Absent where the backend keeps no snoozes.
+  readonly snooze?: (id: string, on: boolean) => void
   // The stored finished turns, newest last as the backend lists them, undefined until the
   // backend first lists them (and again where it stops). Includes the rows the Inbox hides
   // under a running lead, and none the person already read. Absent where the backend
@@ -291,6 +297,66 @@ export const entryRow = (
   entry: { readonly id: string },
 ): InboxRow | undefined =>
   items.find((item) => item.id === entry.id || `m-${item.id.replaceAll("-", "")}` === entry.id)
+
+// `inbox` with snoozes: its rows whose ids are snoozed carry `snoozed`, `initial` the ids
+// snoozed before, and `save` keeps them each time one is snoozed or brought back. Only the
+// ids of rows still listed are kept then, so a row that has gone is forgotten.
+export const withSnoozes = <I extends Inbox>(
+  inbox: I,
+  initial: readonly string[],
+  save: (ids: readonly string[]) => void,
+): I => {
+  let snoozed: ReadonlySet<string> = new Set(initial)
+  let from: InboxState | undefined
+  let marked: InboxState = emptyInbox
+  const listeners = new Set<() => void>()
+  const mark = (state: InboxState): InboxState =>
+    state.items.some((item) => snoozed.has(item.id) !== Boolean(item.snoozed))
+      ? {
+          ...state,
+          items: state.items.map((item) => {
+            if (snoozed.has(item.id) === Boolean(item.snoozed)) return item
+            if (!snoozed.has(item.id)) {
+              const { snoozed: _snoozed, ...rest } = item
+              return rest as InboxRow
+            }
+            return { ...item, snoozed: true as const }
+          }),
+        }
+      : state
+  const getSnapshot = (): InboxState => {
+    const now = inbox.state.getSnapshot()
+    if (now !== from) {
+      from = now
+      marked = mark(now)
+    }
+    return marked
+  }
+  return {
+    ...inbox,
+    state: {
+      getSnapshot,
+      subscribe: (listener) => {
+        listeners.add(listener)
+        const stop = inbox.state.subscribe(listener)
+        return () => {
+          listeners.delete(listener)
+          stop()
+        }
+      },
+    },
+    snooze: (id, on) => {
+      const listed = new Set(inbox.state.getSnapshot().items.map((item) => item.id))
+      const next = new Set([...snoozed].filter((each) => listed.has(each)))
+      if (on) next.add(id)
+      else next.delete(id)
+      snoozed = next
+      from = undefined
+      save([...next])
+      for (const listener of listeners) listener()
+    },
+  }
+}
 
 // The Inbox of a backend that has none: it lists nothing, and has nothing to answer.
 export const noInbox: Inbox = {

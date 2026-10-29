@@ -914,8 +914,8 @@ const workOf = (text: string | null): Work | null => {
   }
 }
 
-// The Inbox's order as saved, or none where it can't be read.
-const inboxOrderOf = (text: string | undefined): string[] => {
+// Inbox rows as saved, by id, or none where they can't be read.
+const inboxRowsOf = (text: string | undefined): string[] => {
   if (text === undefined) return []
   try {
     const order = runnerSettings.shape.inboxOrder.safeParse(JSON.parse(text))
@@ -1634,11 +1634,12 @@ export class WorkspaceStore implements TerminalRecords, MessageRecords, InboxRec
     }[]
     const saved = new Map(rows.map((row) => [row.key, row.value]))
     // Transcripts are kept unless turned off; the welcome dialog waits until seen; the Inbox
-    // keeps its own order until the person drags its rows.
+    // keeps its own order until the person drags its rows, and snoozes none until they do.
     return {
       transcripts: saved.get("transcripts") !== "false",
       welcomed: saved.get("welcomed") === "true",
-      inboxOrder: inboxOrderOf(saved.get("inboxOrder")),
+      inboxOrder: inboxRowsOf(saved.get("inboxOrder")),
+      inboxSnoozed: inboxRowsOf(saved.get("inboxSnoozed")),
     }
   }
 

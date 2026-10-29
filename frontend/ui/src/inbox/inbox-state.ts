@@ -36,7 +36,7 @@ const same = (a: readonly string[], b: readonly string[]): boolean =>
 export const arrange = (list: readonly InboxRow[], arranged: readonly string[]): InboxRow[] => {
   if (arranged.length === 0) return [...list]
   const rank = new Map(arranged.map((id, index) => [id, index]))
-  const asking = list.filter(needs)
+  const asking = list.filter(asks)
   const result = asking
     .filter(({ id }) => rank.has(id))
     .toSorted((a, b) => rank.get(a.id)! - rank.get(b.id)!)
@@ -46,7 +46,7 @@ export const arrange = (list: readonly InboxRow[], arranged: readonly string[]):
     result.splice(at < 0 ? result.length : at, 0, item)
   }
   let next = 0
-  return list.map((item) => (needs(item) ? result[next++]! : item))
+  return list.map((item) => (asks(item) ? result[next++]! : item))
 }
 
 // The Inbox's order, the rows that ask as the person arranged them, except that a row which
@@ -173,8 +173,8 @@ export const clearArrived = (view: InboxView): InboxView =>
   view.arrived.length === 0 ? view : { ...view, arrived: [] }
 
 // What the person is asked for next: the first item as they `arranged` them, else the most
-// urgent, that is not an update (which asks nothing of them now), other than `from` and those
-// whose answer is on its way.
+// urgent, that is not an update (which asks nothing of them now) nor snoozed, other than
+// `from` and those whose answer is on its way.
 export const nextItem = (
   items: readonly InboxRow[],
   from: string | null,
@@ -186,6 +186,7 @@ export const nextItem = (
       item.id !== from &&
       !state.answering[item.id] &&
       !item.settled &&
+      !item.snoozed &&
       inboxType(item) !== "update" &&
       !informing(item),
   )
@@ -210,17 +211,21 @@ export const informing = (item: InboxRow): boolean =>
   !item.stopped
 
 // Whether an item asks something of the person: anything but an update, a failed turn that
-// only informs, or an ask that has settled.
-export const needs = (item: InboxRow): boolean =>
+// only informs, or an ask that has settled. A snoozed one still asks: it keeps its place
+// among the rest, and drags with them.
+export const asks = (item: InboxRow): boolean =>
   !item.settled && inboxType(item) !== "update" && !informing(item)
+
+// Whether an item asks something of the person now: one that asks and isn't snoozed.
+export const needs = (item: InboxRow): boolean => asks(item) && !item.snoozed
 
 // Which row the line above the updates goes on, from whether each row asks, in the list's
 // order: the one after the last that asks, or -1 where none asks or nothing follows. Updates
 // rank last, but while a sheet is open the order stays as it opened, so a row that has since
 // stopped asking keeps its place above the line.
-export const updatesStart = (asks: readonly boolean[]): number => {
-  const last = asks.lastIndexOf(true)
-  return last >= 0 && last < asks.length - 1 ? last + 1 : -1
+export const updatesStart = (asking: readonly boolean[]): number => {
+  const last = asking.lastIndexOf(true)
+  return last >= 0 && last < asking.length - 1 ? last + 1 : -1
 }
 
 // Which row the line above the settled asks goes on, from whether each row is settled, in the

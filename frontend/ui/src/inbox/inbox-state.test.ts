@@ -391,3 +391,23 @@ describe("The rows that ask, in the person's order", () => {
     expect(rearranged(closed, ["c", "b", "a"])).toBe(closed)
   })
 })
+
+describe("A snoozed row", () => {
+  const snoozed = (row: InboxRow): InboxRow => ({ ...row, snoozed: true })
+  const items = [approve("a", 1), snoozed(approve("b", 2)), approve("c", 3), update("u", 0)]
+
+  it("asks nothing now: the count, the bell and the rings leave it out", () => {
+    expect(needs(items[1]!)).toBe(false)
+    expect(ids(needing(items))).toEqual(["a", "c"])
+  })
+
+  it("is never what asks next", () => {
+    expect(nextItem(items, "a", { answering: {} })?.id).toBe("c")
+    expect(nextItem([items[1]!], null, { answering: {} })).toBeUndefined()
+  })
+
+  it("keeps its place, and the person's order moves it like any row that asks", () => {
+    expect(ids(visible(initialView, items))).toEqual(["a", "b", "c", "u"])
+    expect(ids(visible(initialView, items, {}, ["b", "c", "a"]))).toEqual(["b", "c", "a", "u"])
+  })
+})

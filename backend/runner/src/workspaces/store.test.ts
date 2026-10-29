@@ -1967,10 +1967,20 @@ describe("saved terminals", () => {
 
   it("keep transcripts until they are turned off", ({ kept }) => {
     const workspace = kept()
-    expect(workspace.settings()).toEqual({ transcripts: true, welcomed: false, inboxOrder: [] })
+    expect(workspace.settings()).toEqual({
+      transcripts: true,
+      welcomed: false,
+      inboxOrder: [],
+      inboxSnoozed: [],
+    })
     workspace.saveSettings({ transcripts: false })
     workspace.saveSettings({ welcomed: true })
-    expect(workspace.settings()).toEqual({ transcripts: false, welcomed: true, inboxOrder: [] })
+    expect(workspace.settings()).toEqual({
+      transcripts: false,
+      welcomed: true,
+      inboxOrder: [],
+      inboxSnoozed: [],
+    })
   })
 
   it("keep the Inbox's order the person dragged its rows into, and read a broken one as none", ({
@@ -1987,6 +1997,8 @@ describe("saved terminals", () => {
     })
     database.exec("UPDATE settings SET value = '[1,' WHERE key = 'inboxOrder'")
     expect(workspace.settings().inboxOrder).toEqual([])
+    workspace.saveSettings({ inboxSnoozed: ["a1b2"] })
+    expect(workspace.settings().inboxSnoozed).toEqual(["a1b2"])
   })
 })
 
@@ -2075,7 +2087,12 @@ describe("the messages", () => {
     ])
     expect(reopened.messagingPaused()).toBe(true)
     // The pause is the runner's own, not one of the client's settings.
-    expect(reopened.settings()).toEqual({ transcripts: true, welcomed: false, inboxOrder: [] })
+    expect(reopened.settings()).toEqual({
+      transcripts: true,
+      welcomed: false,
+      inboxOrder: [],
+      inboxSnoozed: [],
+    })
     expect(reopened.terminalIdentity("a")).toMatchObject({ handle: "moth" })
     expect(reopened.terminalIdentity("b")).toBeUndefined()
     reopened.removeMessages(["m-1"])

@@ -325,6 +325,7 @@ export const scriptedRunner = ({
         transcriptsAvailable: true,
         welcomed: true,
         inboxOrder: [],
+        inboxSnoozed: [],
       })),
       set: api.settings.set.handler(() => {}),
     },
