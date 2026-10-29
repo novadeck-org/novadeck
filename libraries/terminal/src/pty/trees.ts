@@ -36,11 +36,12 @@ type Batch<Ask, Answer> = {
 /**
  * A terminal's process tree on Windows, read and ended through a relay: a program the caller
  * ships, which answers `tree <root>…` with a JSON line for each root and ends each named
- * `<pid>:<start>` on `end <pid:start>…`. Windows has no process group, and keeps a process's parent pid after that parent ends, when
- * another process may get it. The relay counts a process as a child only if it started no
- * earlier than its recorded parent, and ends a process only if it started when the tree
- * was read. Calls in the same tick share one run, as a host ending every terminal as it
- * shuts down makes them. Undefined, or nothing ended, where the relay can't run.
+ * `<pid>:<start>` on `end <pid:start>…`. Windows has no process group, and keeps a
+ * process's parent pid after that parent ends, when another process may get it. The relay
+ * counts a process as a child only if it started no earlier than its recorded parent, and
+ * ends a process only if it started when the tree was read. Calls in the same tick share
+ * one run, as a host ending every terminal as it shuts down makes them. Undefined, or
+ * nothing ended, where the relay can't run.
  */
 export class Trees {
   private reading: Batch<string, Map<string, readonly Member[]> | undefined> | undefined
@@ -98,7 +99,7 @@ export class Trees {
     const relay = await this.relay()
     if (relay === undefined) return undefined
     try {
-      return trees(await this.run(relay, ["tree", ...new Set(roots)], timeoutMs))
+      return parseTrees(await this.run(relay, ["tree", ...new Set(roots)], timeoutMs))
     } catch (error) {
       this.unavailable("tree", error)
       return undefined
@@ -124,7 +125,7 @@ export class Trees {
 }
 
 /** The relay's trees, by root as it was named, from its lines; one it couldn't read is left out. */
-export const trees = (output: string): Map<string, readonly Member[]> => {
+export const parseTrees = (output: string): Map<string, readonly Member[]> => {
   const found = new Map<string, readonly Member[]>()
   for (const line of output.split(/\r?\n/)) {
     if (!line.trim()) continue

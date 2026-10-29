@@ -7,8 +7,8 @@ import { existsSync } from "node:fs"
  * bash's line editor mangles a character such as "ż" as it is typed. Terminal.app sets
  * `LANG` from the system's language and country for the same reason; this does as it
  * does, reading them from `region` (`AppleLocale`, its `@rg=` override left out), and
- * falls back to `en_US.UTF-8` where the system has no such locale. It asks `defaults` once,
- * as the runner starts, within 2 s.
+ * falls back to `en_US.UTF-8` where the system has no such locale. It asks `defaults`
+ * synchronously, for 2 s at most, so its caller asks once.
  * Elsewhere, or with any locale variable set, the environment is left as it is.
  */
 export const withLocale = (

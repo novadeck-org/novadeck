@@ -9,7 +9,7 @@ const usable = (path: string): string | undefined =>
     : undefined
 
 // Host names compare by their first label: a shell may know the machine by its short
-// name and the runner by its full one, or the other way round.
+// name and Node by its full one, or the other way round.
 const local = (host: string, machine: string): boolean => {
   const name = host.toLowerCase().split(".")[0]
   return !name || name === "localhost" || name === machine.toLowerCase().split(".")[0]

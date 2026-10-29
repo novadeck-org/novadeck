@@ -42,7 +42,7 @@ const causeMs = 2_000
  * an earlier program with that pid left running, or systemd was too slow to answer, as
  * while memory runs short.
  */
-export const failedForProgram = (error: unknown): boolean =>
+const failedForProgram = (error: unknown): boolean =>
   (error as { killed?: boolean }).killed === true ||
   /No such process|already exists|already loaded|timed? ?out/i.test(String(error))
 
@@ -55,11 +55,11 @@ const noSystemd = (error: unknown): boolean =>
   /org\.freedesktop\.systemd1 was not provided|ServiceUnknown/i.test(String(error))
 
 /**
- * The name's start for a program's scope: the app's own, from the runner's cgroup, as
+ * The name's start for a program's scope: the app's own, from this process's cgroup, as
  * `app-dev.mzpk.novadeck-1234.scope` gives `app-dev.mzpk.novadeck`; `app-novadeck` where
- * the runner runs in no app scope. Each scope is then `<start>-term<pid>.scope`, the XDG
- * shape `app[-<launcher>]-<id>-<random>.scope`, so desktops count it the app's. A runner
- * started from a Novadeck terminal names its terminals after the same app.
+ * it runs in no app scope. Each scope is then `<start>-term<pid>.scope`, the XDG shape
+ * `app[-<launcher>]-<id>-<random>.scope`, so desktops count it the app's. An app started
+ * from a Novadeck terminal names its terminals after the same app.
  */
 export const scopePrefix = (cgroup: string): string => {
   const leaf = cgroup

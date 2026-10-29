@@ -51,13 +51,13 @@ describe("a scope's name", () => {
     )
   })
 
-  it("is the app's again for a runner started from a Novadeck terminal", () => {
+  it("is the app's again for an app started from a Novadeck terminal", () => {
     expect(scopePrefix("0::/user.slice/app.slice/app-dev.mzpk.novadeck-term4242.scope")).toBe(
       "app-dev.mzpk.novadeck",
     )
   })
 
-  it("is Novadeck's own where the runner runs in no app scope", () => {
+  it("is Novadeck's own where the app runs in no app scope", () => {
     expect(scopePrefix("0::/user.slice/user-1000.slice/session-2.scope")).toBe("app-novadeck")
     expect(scopePrefix("0::/system.slice/novadeck.service")).toBe("app-novadeck")
     expect(scopePrefix("")).toBe("app-novadeck")

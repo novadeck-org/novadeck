@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest"
 
-import { trees, Trees, type RunRelay } from "./trees.js"
+import { parseTrees, Trees, type RunRelay } from "./trees.js"
 
 // A relay that answers from a table of trees and records how it was run.
 const fake = (known: Record<string, { pid: number; startedAt: number }[]>) => {
@@ -76,6 +76,6 @@ describe("Windows process trees", () => {
       '{"root":20,"processes":[]}',
       "",
     ].join("\r\n")
-    expect([...trees(output)]).toEqual([["10", [{ pid: 10, startedAt: 1 }]]])
+    expect([...parseTrees(output)]).toEqual([["10", [{ pid: 10, startedAt: 1 }]]])
   })
 })
