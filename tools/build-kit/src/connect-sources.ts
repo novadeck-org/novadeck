@@ -4,15 +4,38 @@
 /** A URL the app is configured with, and the setting that names it, for its errors. */
 export type ConfiguredUrl = { readonly url: string | undefined; readonly name: string }
 
+type SetUrl = ConfiguredUrl & { readonly url: string }
+
+// A setting with a URL in it, trimmed; none for a setting left out or blank.
+const configured = (setting: ConfiguredUrl | undefined): SetUrl | undefined => {
+  const url = setting?.url?.trim()
+  return setting && url ? { ...setting, url } : undefined
+}
+
 // The origin of a runner a browser build connects to, which must be a WebSocket URL.
-const webSocketOrigin = ({ url, name }: ConfiguredUrl & { url: string }): string => {
-  try {
-    const parsed = new URL(url)
-    if (parsed.protocol === "ws:" || parsed.protocol === "wss:") return parsed.origin
-  } catch {
-    // Reported below.
-  }
+const webSocketOrigin = ({ url, name }: SetUrl): string => {
+  const parsed = URL.parse(url)
+  if (parsed?.protocol === "ws:" || parsed?.protocol === "wss:") return parsed.origin
   throw new Error(`${name} must be an absolute ws: or wss: URL`)
+}
+
+// A path the page's own origin serves, which no scheme-relative or backslash form escapes.
+const relativeBase = new URL("https://build-kit.invalid")
+const isRelativePath = (url: string): boolean =>
+  (url.startsWith("/") || url.startsWith("./")) &&
+  new URL(url, relativeBase).origin === relativeBase.origin
+
+// The origin of an API a build talks to over HTTP(S); none for one on loopback, which every
+// app allows already, or at a relative path, which is the page's own origin.
+const apiOrigin = ({ url, name }: SetUrl): string | undefined => {
+  const parsed = URL.parse(url)
+  if (parsed?.protocol === "http:" || parsed?.protocol === "https:") {
+    return parsed.protocol === "http:" && parsed.hostname === "127.0.0.1"
+      ? undefined
+      : parsed.origin
+  }
+  if (isRelativePath(url)) return undefined
+  throw new Error(`${name} must be an absolute HTTP(S) URL or a relative path`)
 }
 
 /**
@@ -26,32 +49,14 @@ export const connectSources = (options: {
   readonly development: boolean
 }): readonly string[] => {
   const sources = new Set(["'self'", "http://127.0.0.1:*"])
-
   if (options.development) sources.add("ws://127.0.0.1:*")
 
-  const runner = options.runner?.url?.trim()
-  if (runner && options.runner) sources.add(webSocketOrigin({ ...options.runner, url: runner }))
+  const runner = configured(options.runner)
+  if (runner) sources.add(webSocketOrigin(runner))
 
-  const api = options.api?.url?.trim()
-  if (!api || !options.api) return [...sources]
-
-  try {
-    const url = new URL(api)
-
-    if (url.protocol !== "http:" && url.protocol !== "https:") {
-      throw new Error("unsupported protocol")
-    }
-
-    if (!(url.protocol === "http:" && url.hostname === "127.0.0.1")) sources.add(url.origin)
-  } catch {
-    const base = new URL("https://build-kit.invalid")
-    const hasRelativePrefix = api.startsWith("/") || api.startsWith("./")
-    const isRelativePath = hasRelativePrefix && new URL(api, base).origin === base.origin
-
-    if (!isRelativePath) {
-      throw new Error(`${options.api.name} must be an absolute HTTP(S) URL or a relative path`)
-    }
-  }
+  const api = configured(options.api)
+  const origin = api && apiOrigin(api)
+  if (origin) sources.add(origin)
 
   return [...sources]
 }
