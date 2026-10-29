@@ -1,11 +1,58 @@
-//! The runner's endpoint for its terminals: a Unix socket in a private directory, or a
-//! named pipe on Windows. Both are read and written at once, as answers come back while
-//! the agent still writes; Windows serialises blocking reads and writes on one pipe
-//! handle, so the pipe is opened for overlapped I/O, which tokio does.
+//! The runner's endpoint for its terminals, and the terminal the relay runs in: a Unix
+//! socket in a private directory, or a named pipe on Windows. Both are read and written
+//! at once, as answers come back while the agent still writes; Windows serialises
+//! blocking reads and writes on one pipe handle, so the pipe is opened for overlapped
+//! I/O, which tokio does.
 
 use std::io;
 
+use serde_json::{Value, json};
 use tokio::io::{AsyncRead, AsyncWrite};
+use tokio::runtime::Runtime;
+
+use crate::{PROTOCOL, variable};
+
+/// The Novadeck terminal the relay runs in, as its shell's environment names it: the
+/// terminal, the runner's endpoint for it, and its token.
+pub struct Terminal {
+    pub id: String,
+    pub endpoint: String,
+    pub token: String,
+}
+
+impl Terminal {
+    /// None outside Novadeck's terminals, where any of them is missing.
+    pub fn from_env() -> Option<Terminal> {
+        Some(Terminal {
+            id: variable("NOVADECK_TERMINAL_ID")?,
+            endpoint: variable("NOVADECK_REPORT")?,
+            token: variable("NOVADECK_REPORT_TOKEN")?,
+        })
+    }
+
+    /// A connection's first line: the relay's protocol first, so the runner knows the line
+    /// as a relay's, then what the connection carries (`kind`), the terminal and its token,
+    /// then `fields`.
+    pub fn hello(&self, kind: &str, fields: Value) -> String {
+        let mut hello = json!({
+            "relay": PROTOCOL,
+            "kind": kind,
+            "terminalId": self.id,
+            "token": self.token,
+        });
+        if let (Some(hello), Value::Object(fields)) = (hello.as_object_mut(), fields) {
+            hello.extend(fields);
+        }
+        format!("{hello}\n")
+    }
+}
+
+/// The runtime a connection runs on: one thread, as the relay carries one connection.
+pub fn runtime() -> io::Result<Runtime> {
+    tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+}
 
 pub type Reader = Box<dyn AsyncRead + Unpin + Send>;
 pub type Writer = Box<dyn AsyncWrite + Unpin + Send>;
@@ -38,4 +85,26 @@ pub async fn connect(endpoint: &str) -> io::Result<(Reader, Writer)> {
     };
     let (reader, writer) = tokio::io::split(pipe);
     Ok((Box::new(reader), Box::new(writer)))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn names_the_protocol_first_so_the_runner_knows_its_line() {
+        let terminal = Terminal {
+            id: "t1".into(),
+            endpoint: "/tmp/reports".into(),
+            token: "secret".into(),
+        };
+        assert_eq!(
+            terminal.hello("mcp", json!({})),
+            "{\"relay\":2,\"kind\":\"mcp\",\"terminalId\":\"t1\",\"token\":\"secret\"}\n"
+        );
+        assert_eq!(
+            terminal.hello("hook", json!({ "agent": "claude", "event": "Stop" })),
+            "{\"relay\":2,\"kind\":\"hook\",\"terminalId\":\"t1\",\"token\":\"secret\",\"agent\":\"claude\",\"event\":\"Stop\"}\n"
+        );
+    }
 }
