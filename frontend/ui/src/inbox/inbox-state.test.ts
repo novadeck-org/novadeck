@@ -340,13 +340,7 @@ describe("The rows that ask, in the person's order", () => {
   it("keep an ask put off below one that comes after, as urgent", () => {
     const later = [...items, approve("d", 9)]
 
-    expect(ids(visible(initialView, later, {}, ["b", "c", "a"]))).toEqual([
-      "d",
-      "b",
-      "c",
-      "a",
-      "u",
-    ])
+    expect(ids(visible(initialView, later, {}, ["b", "c", "a"]))).toEqual(["d", "b", "c", "a", "u"])
   })
 
   it("let one that comes after go below the placed rows more urgent than it", () => {

@@ -343,9 +343,7 @@ export const InboxList = (): React.JSX.Element => {
   // The rows that drag: those that ask, until the person answers them, where the backend
   // keeps an order.
   const dragged = arrange
-    ? rows
-        .filter(({ item, asks }) => asks && !state.answering[item.id])
-        .map(({ item }) => item.id)
+    ? rows.filter(({ item, asks }) => asks && !state.answering[item.id]).map(({ item }) => item.id)
     : []
   const move = (id: string, to: number): void => {
     const from = dragged.indexOf(id)

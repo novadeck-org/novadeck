@@ -155,7 +155,7 @@ const SheetBody = ({ item }: { readonly item: InboxRow }): React.JSX.Element => 
 // The open item's sheet: beside its row over the workspace, or on a screen of its own.
 // `active` is whether the Inbox is the panel the sidebar shows.
 export const InboxSheet = ({ active }: { readonly active: boolean }): React.JSX.Element | null => {
-  const { view, current, phone, close } = useInboxContext()
+  const { view, current, phone, close, shown } = useInboxContext()
   // What it last showed, which it keeps while it closes.
   const [last, setLast] = useState(current)
   if (current && current !== last) setLast(current)
@@ -205,6 +205,7 @@ export const InboxSheet = ({ active }: { readonly active: boolean }): React.JSX.
       anchor={() => rowOf(item.id)}
       boundary={workspace}
       anchorKey={item.id}
+      placeKey={String(shown.findIndex(({ id }) => id === item.id))}
       onDismiss={close}
       // A press on one of the list's buttons is the list's own: a row opens its item, or closes
       // the sheet when it is the open one. So is one on a list that scrolls, which is its

@@ -42,9 +42,7 @@ export const arrange = (list: readonly InboxRow[], arranged: readonly string[]):
     .toSorted((a, b) => rank.get(a.id)! - rank.get(b.id)!)
   for (const item of asking) {
     if (rank.has(item.id)) continue
-    const at = result.findIndex(
-      (other) => rank.has(other.id) && urgency(other) >= urgency(item),
-    )
+    const at = result.findIndex((other) => rank.has(other.id) && urgency(other) >= urgency(item))
     result.splice(at < 0 ? result.length : at, 0, item)
   }
   let next = 0

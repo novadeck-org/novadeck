@@ -20,14 +20,16 @@ import type {
   TitleSource,
   Workspace,
 } from "@novadeck/core/types"
-import type {
-  AgentIntegration,
-  Approval as RunnerApproval,
-  TerminalExit,
-  PageLook,
-  TerminalRequest,
-  TerminalRequestAnswer,
-  TerminalSummary,
+import {
+  maxInboxOrder,
+  maxInboxRowIdLength,
+  type AgentIntegration,
+  type Approval as RunnerApproval,
+  type TerminalExit,
+  type PageLook,
+  type TerminalRequest,
+  type TerminalRequestAnswer,
+  type TerminalSummary,
 } from "@novadeck/protocol"
 import {
   hasCode,
@@ -1547,7 +1549,12 @@ export const runnerBackend = (
           order: inboxOrder,
           arrange: (ids) => {
             inboxOrder.update(() => ids)
-            void track(runner.settings.set({ inboxOrder: [...ids] })).catch(() => {})
+            // The runner keeps as many as it takes, from the top: the rows below are the
+            // Inbox's own order.
+            const kept = ids
+              .filter((id) => id.length > 0 && id.length <= maxInboxRowIdLength)
+              .slice(0, maxInboxOrder)
+            void track(runner.settings.set({ inboxOrder: kept })).catch(() => {})
           },
         }
       : inbox,
