@@ -9,8 +9,10 @@ import type {
 } from "electron"
 
 import { webAddress } from "./address.js"
+import { lockedPreferences } from "./lockdown.js"
 import { chromeMajorOf, phoneEmulation, phoneUserAgent } from "./phone.js"
 import { originOf, type PageRequestFailure } from "./trouble.js"
+import { within } from "./wait.js"
 
 export { webAddress } from "./address.js"
 
@@ -52,14 +54,7 @@ export const attachPage = (
   partition: string,
 ): boolean => {
   delete preferences.preload
-  preferences.nodeIntegration = false
-  preferences.nodeIntegrationInSubFrames = false
-  preferences.nodeIntegrationInWorker = false
-  preferences.contextIsolation = true
-  preferences.sandbox = true
-  preferences.webSecurity = true
-  preferences.allowRunningInsecureContent = false
-  preferences.webviewTag = false
+  Object.assign(preferences, lockedPreferences)
   // A page with no background of its own gets the ground a browser gives it, white or its
   // scheme's dark, not whatever the viewer draws behind it.
   preferences.transparent = false
@@ -236,14 +231,7 @@ export const signInWindow = (partition: string): BrowserWindowConstructorOptions
   autoHideMenuBar: true,
   webPreferences: {
     partition: pagesSession(partition),
-    nodeIntegration: false,
-    nodeIntegrationInSubFrames: false,
-    nodeIntegrationInWorker: false,
-    contextIsolation: true,
-    sandbox: true,
-    webSecurity: true,
-    allowRunningInsecureContent: false,
-    webviewTag: false,
+    ...lockedPreferences,
   },
 })
 
@@ -347,17 +335,6 @@ export const pictureQuality = 85
 // How long a picture may take: one of a view out of sight never comes, as Chromium draws it
 // no frame, and fails only half a minute later.
 export const pictureWaitMs = 2_000
-
-// What `promise` comes to within `ms`, else undefined, as when it fails.
-const within = <T>(promise: Promise<T>, ms: number): Promise<T | undefined> =>
-  new Promise((resolve) => {
-    const timer = setTimeout(() => resolve(undefined), ms)
-    const done = (value: T | undefined): void => {
-      clearTimeout(timer)
-      resolve(value)
-    }
-    promise.then(done, () => done(undefined))
-  })
 
 /**
  * A picture of what the page view `id` shows now, as a JPEG `data:` address, for the
@@ -518,4 +495,4 @@ export const watchPageRequests = (
   return { forget: (contentsId) => void told.delete(contentsId) }
 }
 
-export { createLooker, lookSizes, type LookLayout, type Looker, type LookResult } from "./look.js"
+export { createLooker, type Looker, type LookResult } from "./look.js"

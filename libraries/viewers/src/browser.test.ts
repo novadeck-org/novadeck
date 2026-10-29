@@ -2,18 +2,10 @@ import "./browser.css"
 import { afterEach, describe as context, describe, expect, it, vi } from "vitest"
 
 import {
-  desktopWidth,
   fadeMs,
-  framingOf,
   freshenMs,
   keepMs,
   mountBrowser,
-  phoneBezel,
-  tiltMaxDeg,
-  tiltPerPx,
-  tiltToward,
-  phoneMargin,
-  phoneScreen,
   scrollWaitMs,
   uncoverMs,
   type BrowserContent,
@@ -22,7 +14,9 @@ import {
   type Place,
   type Trouble,
 } from "./browser.js"
-import { chromeMajorOf, phoneUserAgent } from "./browser/phone.js"
+import { desktopWidth, framingOf, phoneBezel, phoneMargin } from "./browser/framing.js"
+import { chromeMajorOf, phoneScreen, phoneUserAgent } from "./browser/phone.js"
+import { tiltMaxDeg, tiltPerPx, tiltToward } from "./browser/tilt.js"
 import type { ViewerState } from "./index.js"
 
 const hosts: HTMLElement[] = []

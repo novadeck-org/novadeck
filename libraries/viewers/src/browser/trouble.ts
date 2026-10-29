@@ -27,15 +27,12 @@ export type Trouble =
 /** How many troubles one document reports; a page logging in a loop can't flood. */
 export const maxTroubles = 20
 
+/** The load error that isn't a failure: a navigation that replaced the one loading. */
+export const abortedLoad = -3
+
 /** The origin of an http(s) address, or null for anything else. */
-export const originOf = (url: string): string | null => {
-  if (!webAddress(url)) return null
-  try {
-    return new URL(url).origin
-  } catch {
-    return null
-  }
-}
+export const originOf = (url: string): string | null =>
+  webAddress(url) ? new URL(url).origin : null
 
 /**
  * A request the pages' session saw fail: its address, the HTTP error `status` or 0 for no

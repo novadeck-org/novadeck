@@ -7,6 +7,9 @@
 /** A phone's screen, in CSS pixels. */
 export const phoneScreen = { width: 390, height: 844 } as const
 
+/** Put in a phone's page: no scrollbar of its own, as a phone's floats over the page. */
+export const phoneStyle = "html { scrollbar-width: none !important; }"
+
 /**
  * The user agent of Chrome on an Android phone, as Chrome gives it now, reduced: its major
  * version, `major`, and nothing a site could tell one phone from another by.
