@@ -125,6 +125,9 @@ export const agentActivity = z.strictObject({
   attention: z.strictObject({
     pending: z.number().int().nonnegative(),
     kind: z.enum(["permission", "question", "plan"]).nullable(),
+    // How many of them ask without waiting, as Codex's async questions: the agent works on,
+    // and takes prompts and messages; absent where none does.
+    detached: z.number().int().positive().optional(),
   }),
   // Whether it plans rather than acts, as its hooks last said.
   planning: z.boolean(),

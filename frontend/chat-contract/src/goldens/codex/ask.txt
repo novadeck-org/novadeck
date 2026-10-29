@@ -79,6 +79,30 @@ tools: Ran [run] · apply_patch <<'EOF' | Call: exec_command: 6 lines: apply_pat
 # request-permissions
 tools: request_permissions [other] | Call: 2 lines: reason: Need network for the build → 1 line: {"permissions":{"network":{"enabled":true},"fil…
 
+# rui-async-offered
+tools: request_user_input_async [other] | Call: 1 line: [{"title":"Which color should the button be?","… → 1 line: {"accepted":true}
+
+# rui-async-panel-digit-2
+tools: request_user_input_async [other] | Call: 1 line: [{"title":"Which color should the button be?","… → 1 line: {"accepted":true}
+
+# rui-async-panel-free-text
+tools: request_user_input_async [other] | Call: 1 line: [{"title":"What should its label say?"}] → 1 line: {"accepted":true}
+
+# rui-async-panel-free-words
+tools: request_user_input_async [other] | Call: 1 line: [{"title":"What should its label say?"}] → 1 line: {"accepted":true}
+
+# rui-async-panel-other-pasted
+tools: request_user_input_async [other] | Call: 1 line: [{"title":"Which color should the button be?","… → 1 line: {"accepted":true}
+
+# rui-async-panel-other-typed
+tools: request_user_input_async [other] | Call: 1 line: [{"title":"Which color should the button be?","… → 1 line: {"accepted":true}
+
+# rui-async-panel-other-words
+tools: request_user_input_async [other] | Call: 1 line: [{"title":"Which color should the button be?","… → 1 line: {"accepted":true}
+
+# rui-async-panel-two-other
+tools: request_user_input_async [other] | Call: 1 line: [{"title":"Which color should the button be?","… → 1 line: {"accepted":true}
+
 # rui-default-on
 tools: request_user_input [other] | Call: 1 line: [{"id":"color","header":"Color","question":"Whi… → 1 line: {"answers":{"color":{"answers":["Green"]}}}
 

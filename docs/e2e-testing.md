@@ -948,6 +948,16 @@ stops going through a member a probe wraps.
    its display name from the protocol's harness table. Nothing fails where the steps are
    missing: its install just isn't cached.
 
+## The tools each harness offers
+
+`tools.e2e.ts` records, for each harness, the tools it offers the fake model on a plain
+first turn, and fails on any not classified in `tools.ts` as asking the person or not
+(Novadeck's own MCP tools aside). It runs at the pins and in the nightly against the
+latest versions, so a harness that starts offering a new tool fails it until someone
+classifies the tool; one that asks the person must reach the Inbox first. It sees only
+what a harness offers the fake model: a tool gated by a catalog capability the fake
+model's entry doesn't list stays out of sight.
+
 ## Claude Code against the fake model
 
 - **Seeding.** Its config folder is `<sandbox home>/.claude`, set as `CLAUDE_CONFIG_DIR`.
@@ -1051,6 +1061,13 @@ stops going through a member a probe wraps.
   as trusted, and to let Novadeck's MCP tools run without asking. It copies the hashes
   rather than computing them, so it holds as long as that protocol does, which Novadeck's
   own trust check relies on too.
+- **Its model catalog.** `model_catalog_json` points at a `models.json` in its home that
+  gives `fake-model` an entry like OpenAI's: Codex offers a tool only to a model whose
+  entry lists it in `experimental_supported_tools` (`request_user_input_async` comes
+  with `send_user_message_async`), and none to a model without an entry, so the tests
+  missed that tool until the entry came (2026-10-29). A catalog replaces Codex's bundled
+  one, so it also lists a cheaper model (`gpt-6-luna`, found by trial on 0.163.0 and
+  0.165.0) for the rate-limit popup to offer; a Codex that names another needs it changed.
 - **What it calls.** 0.159.3 sends its model calls to `POST /v1/responses`, and asks
   `GET /backend-api/plugins/featured`, which the dialect answers with none. MCP tools
   are offered in a `namespace` (`mcp__novadeck`), and the dialect names them

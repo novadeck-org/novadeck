@@ -109,6 +109,12 @@ export type ActivityEvent = {
       readonly nonce?: string
       /** The turn's id, where the harness names one, as Codex does. */
       readonly turn?: string
+      /**
+       * The questions a prompt of the person's answers by quoting them, as Codex's answer
+       * to an async question once its turn ended does (`> question`, then the answer):
+       * those parts of detached requests it settles, leaving the rest.
+       */
+      readonly answers?: readonly string[]
     }
   | {
       readonly type: "turn-ended"
@@ -270,6 +276,19 @@ export type ActivityEvent = {
        * counts only while a turn runs, or one a `turn-working` resumed.
        */
       readonly midTurn?: boolean
+      /**
+       * Whether it asks without waiting, as Codex's `request_user_input_async` does: the
+       * agent works on and its prompt stays free, so it blocks no prompt or message, and it
+       * outlives the turn that asked it. Only its own result, or the person's prompt once
+       * no turn runs, settles it.
+       */
+      readonly detached?: true
+      /**
+       * The questions a detached request asks where each is answered on its own, as
+       * Codex's async questions are: its results then name the part they answer (`part`),
+       * and it settles once every part has its answer.
+       */
+      readonly parts?: readonly string[]
     }
   | {
       readonly type: "attention-resolved"
@@ -284,6 +303,8 @@ export type ActivityEvent = {
       readonly outcome: "allowed" | "settled"
       /** Whether the call failed as an abort, as Claude Code's `is_interrupt` says. */
       readonly interrupted?: true
+      /** The part of a request asked in parts this answers, by its index (see `parts`). */
+      readonly part?: number
     }
   | {
       readonly type: "subagent-started"

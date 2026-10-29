@@ -415,16 +415,18 @@ export class Dialogs {
     }
     const recognised = reads.length > 0
     // Twins read the same dialog, which is either's to answer; any other pair can't be told
-    // apart on one screen, so neither is answerable.
+    // apart on one screen, so neither is answerable. Dialogs answered as prompts never
+    // clash with each other, each prompt naming its own, but do with one answered by keys.
     const everyone = [...reads, ...ghosts]
-    const alike = everyone.every(
+    const keyed = everyone.filter(({ read }) => !read.prompt)
+    const alike = keyed.every(
       ({ request, read }) =>
-        twin(request, everyone[0]!.request) &&
-        identified(read.dialog)?.id === identified(everyone[0]!.read.dialog)?.id,
+        twin(request, keyed[0]!.request) &&
+        identified(read.dialog)?.id === identified(keyed[0]!.read.dialog)?.id,
     )
     for (const { request, read } of reads)
       state.entries.set(request.ref, {
-        dialog: alike
+        dialog: (read.prompt ? keyed.length === 0 : alike)
           ? identified(read.dialog)!
           : { type: "raw", text: rawText(rows), reason: "unrecognized" },
       })

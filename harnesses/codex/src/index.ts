@@ -132,9 +132,11 @@ export const codex = {
             [
               {
                 ...(event === "SessionStart" && { matcher: "startup|resume|clear|compact|fork" }),
-                // Only the two tools that ask the person without a PermissionRequest.
+                // Only the tools that ask the person without a PermissionRequest, and the
+                // async question, which asks without waiting. The matcher matches the
+                // whole name: `request_user_input` alone doesn't fire for the async one.
                 ...(event === "PreToolUse" && {
-                  matcher: "request_user_input|request_permissions",
+                  matcher: "request_user_input|request_permissions|request_user_input_async",
                 }),
                 hooks: [
                   {

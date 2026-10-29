@@ -215,6 +215,8 @@ export class Answers {
     let hold: InputHold | undefined
     // The person's words, where the option they chose sends them as the next prompt.
     let words: string | undefined
+    // Whether the dialog takes the whole answer as the agent's next prompt, pressing nothing.
+    let byPrompt = false
     try {
       await this.ringDone(terminalId)
       await this.turnSettled(terminalId)
@@ -248,60 +250,78 @@ export class Answers {
       const { read } = found
       if (identified(read.dialog)?.id !== answer.dialog)
         throw new DomainError("DIALOG_CHANGED", "The dialog on screen is not the one answered.")
-      // Setting the questions aside to talk: only where the dialog offers it, and a field
-      // takes words, which are the answer.
-      if (answer.type === "chat") {
-        const chat = read.dialog.type === "questions" ? read.dialog.chat : null
-        if (chat === null)
-          throw new DomainError("CONFLICT", "The dialog can't be set aside to talk it over.")
-        if (chat === "field" && answer.text === undefined)
-          throw new DomainError("CONFLICT", "Talking it over there takes words.")
-        if (chat === "prompt") words = answer.text
+      // A dialog answered as the agent's next prompt: nothing is pressed, and the prompt goes
+      // as the person's would, once their keys are let go.
+      if (read.prompt) {
+        // Only once no turn runs, as its hooks say, whatever the screen read as: a prompt
+        // typed into a running turn waits for its end, a different answer from its dialog's.
+        if (this.host.working(terminalId))
+          throw new DomainError("CONFLICT", "The agent's turn runs: its dialog takes keys.")
+        words = read.prompt(answer)
+        if (words === undefined)
+          throw new DomainError("CONFLICT", "The request's dialog can't take that answer.")
+        const refusal = promptRefusal(words)
+        if (refusal) throw new DomainError("PROMPT_REFUSED", refusal)
+        byPrompt = true
+        hold.release()
+        hold.settle()
+      } else {
+        // Setting the questions aside to talk: only where the dialog offers it, and a field
+        // takes words, which are the answer.
+        if (answer.type === "chat") {
+          const chat = read.dialog.type === "questions" ? read.dialog.chat : null
+          if (chat === null)
+            throw new DomainError("CONFLICT", "The dialog can't be set aside to talk it over.")
+          if (chat === "field" && answer.text === undefined)
+            throw new DomainError("CONFLICT", "Talking it over there takes words.")
+          if (chat === "prompt") words = answer.text
+        }
+        const steps = read.keys(answer)
+        if (!steps)
+          throw new DomainError("CONFLICT", "The request's dialog can't take that answer.")
+        // The hold must outlast every wait of the answer.
+        const needs = steps.reduce(
+          (total, step) => total + ("until" in step ? step.timeoutMs : this.typedMs),
+          this.readMs + this.answeredMs + this.settleMs + 5_000,
+        )
+        if (needs > this.holdMs)
+          throw new DomainError("CONFLICT", "The answer takes longer than the keys can be held.")
+        if (answer.type === "choice" && read.dialog.type === "choices")
+          words =
+            read.dialog.options.find(({ id }) => id === answer.option)?.text === "prompt"
+              ? answer.text
+              : undefined
+        // Words that follow as the agent's next prompt must be ones a prompt can carry, said
+        // before any key is pressed, not after the dialog took its answer.
+        const refusal = words === undefined ? undefined : promptRefusal(words)
+        if (refusal) throw new DomainError("PROMPT_REFUSED", refusal)
+        const pressedAt = await this.run(terminalId, ref, steps, {
+          adapter,
+          facts,
+          id: answer.dialog,
+        })
+        const taken = await this.confirmed(
+          terminalId,
+          ref,
+          read,
+          adapter,
+          self,
+          others,
+          found.rows,
+          pressedAt,
+        )
+        rows = taken.rows
+        hold.discard()
+        hold.release()
+        this.settleLater(hold)
+        // Through a twin's hook, or where its identical dialog shows again at once (the
+        // harness folds twin calls into one request), it waits still, for the dialog that
+        // shows next, which is as much its to answer.
+        const next = adapter.read(taken.rows, facts)
+        const again =
+          next !== undefined && identified(next.dialog)?.id === identified(read.dialog)?.id
+        if (!taken.viaTwin && !again) this.host.done(terminalId, ref)
       }
-      const steps = read.keys(answer)
-      if (!steps) throw new DomainError("CONFLICT", "The request's dialog can't take that answer.")
-      // The hold must outlast every wait of the answer.
-      const needs = steps.reduce(
-        (total, step) => total + ("until" in step ? step.timeoutMs : this.typedMs),
-        this.readMs + this.answeredMs + this.settleMs + 5_000,
-      )
-      if (needs > this.holdMs)
-        throw new DomainError("CONFLICT", "The answer takes longer than the keys can be held.")
-      if (answer.type === "choice" && read.dialog.type === "choices")
-        words =
-          read.dialog.options.find(({ id }) => id === answer.option)?.text === "prompt"
-            ? answer.text
-            : undefined
-      // Words that follow as the agent's next prompt must be ones a prompt can carry, said
-      // before any key is pressed, not after the dialog took its answer.
-      const refusal = words === undefined ? undefined : promptRefusal(words)
-      if (refusal) throw new DomainError("PROMPT_REFUSED", refusal)
-      const pressedAt = await this.run(terminalId, ref, steps, {
-        adapter,
-        facts,
-        id: answer.dialog,
-      })
-      const taken = await this.confirmed(
-        terminalId,
-        ref,
-        read,
-        adapter,
-        self,
-        others,
-        found.rows,
-        pressedAt,
-      )
-      rows = taken.rows
-      hold.discard()
-      hold.release()
-      this.settleLater(hold)
-      // Through a twin's hook, or where its identical dialog shows again at once (the
-      // harness folds twin calls into one request), it waits still, for the dialog that
-      // shows next, which is as much its to answer.
-      const next = adapter.read(taken.rows, facts)
-      const again =
-        next !== undefined && identified(next.dialog)?.id === identified(read.dialog)?.id
-      if (!taken.viaTwin && !again) this.host.done(terminalId, ref)
     } catch (error) {
       // What the person typed meanwhile is dropped: it was meant for a dialog gone by now.
       if (error instanceof Failed && error.pressed) hold?.discard()
@@ -317,6 +337,12 @@ export class Answers {
       this.host.busy(terminalId, false)
     }
     if (words === undefined) return
+    if (byPrompt) {
+      // Nothing took yet: whatever kept the prompt out is the answer's failure as it is.
+      await this.follow(entry, terminalId, words)
+      this.host.done(terminalId, ref)
+      return
+    }
     try {
       await this.follow(entry, terminalId, words)
     } catch {
@@ -465,7 +491,10 @@ export class Answers {
             if (this.host.answered(terminalId, other.ref)) return false
             const theirs = adapter.read(rows, other.facts)
             return (
-              theirs !== undefined && !(twin(self, other) && identified(theirs.dialog)?.id === id)
+              theirs !== undefined &&
+              // Dialogs answered as prompts never clash: each prompt names its own.
+              !(read.prompt && theirs.prompt) &&
+              !(twin(self, other) && identified(theirs.dialog)?.id === id)
             )
           })
           if (shared)

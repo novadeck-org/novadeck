@@ -8,10 +8,12 @@ import type { Install } from "@novadeck/harness-core/harness"
 const pluginId = "novadeck@novadeck"
 
 /**
- * The hooks without which nothing reaches a Codex session: SessionStart binds it, and the
- * prompt's and Stop's hooks deliver and confirm a ring.
+ * The hooks without which nothing reaches a Codex session: SessionStart binds it, the
+ * prompt's and Stop's hooks deliver and confirm a ring, and PreToolUse tells the questions
+ * and permissions that ask with no PermissionRequest. Codex 0.163 and older keep trust per
+ * hook, so a change to one hook's matcher leaves only that one `modified`.
  */
-const needed = ["sessionStart", "userPromptSubmit", "stop"] as const
+const needed = ["sessionStart", "userPromptSubmit", "stop", "preToolUse"] as const
 
 type Hook = {
   readonly pluginId?: unknown

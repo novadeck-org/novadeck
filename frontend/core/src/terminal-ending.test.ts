@@ -106,6 +106,14 @@ describe("terminal ending", () => {
     // Its harness keeps the turn open while the dialog waits, but nothing works until they answer.
     expect(agent(true, "question")).toBe("idle")
     expect(agent(true, "permission")).toBe("idle")
+    // A question asked without waiting holds nothing: it works on.
+    expect(
+      terminalPhase({
+        ...terminal,
+        state: "running",
+        agent: { working: true, attention: { kind: "question", count: 1, detached: true } },
+      }),
+    ).toBe("running")
   })
 
   it("is done only from a done input, never from a turn that ended", () => {
@@ -313,6 +321,9 @@ describe("waitingAgents", () => {
     const held = waiting({ kind: "permission", count: 1 })
     expect(terminalPhase(held)).toBe("waiting")
     expect(waitingAgents([waiting(), held])).toEqual([waiting()])
+    // A question it asked without waiting holds it on nothing.
+    const asked = waiting({ kind: "question", count: 1, detached: true })
+    expect(waitingAgents([asked])).toEqual([asked])
   })
 })
 

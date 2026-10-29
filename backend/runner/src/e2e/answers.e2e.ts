@@ -9,7 +9,7 @@ import type { Question } from "./agents/agent.js"
 import { setups } from "./agents/index.js"
 import type { DeckTerminal } from "./deck.js"
 import { describe, e2e, expect, gated, supported } from "./fixture.js"
-import { text, type Rule } from "./model/script.js"
+import { asked, text, type Rule } from "./model/script.js"
 import type { FakeModel } from "./model/server.js"
 import {
   answers,
@@ -719,3 +719,140 @@ for (const setup of setups) {
     )
   })
 }
+
+// Codex's async question (`request_user_input_async`) asks without stopping the turn; only
+// Codex has such a tool (Claude Code's and Antigravity's questions stop the turn, and are
+// answered above), and the tool inventory guard fails on any harness that offers a new
+// one. While the turn runs it is answered through Codex's picker; once the turn has ended,
+// Codex has dropped it, and the answer goes as the plain prompt Codex itself sends then.
+const codexSetup = setups.find(({ agent }) => agent === "codex")
+describe.skipIf(!supported || !codexSetup)("Codex's async question", () => {
+  const it = e2e(codexSetup!)
+
+  /** Answers, saying what the screen showed should the answer fail. */
+  const answering = async (terminal: DeckTerminal, ref: string, answer: RequestAnswer) => {
+    try {
+      await terminal.answer(ref, answer)
+    } catch (error) {
+      throw new Error(`${String(error)}\nIts screen:\n${await terminal.screen()}`, { cause: error })
+    }
+  }
+  const asking = {
+    questions: [{ title: "Which color should the button be?", options: ["Blue", "Green"] }],
+  }
+
+  const twoAsked = {
+    questions: [...asking.questions, { title: "What should its label say?" }],
+  }
+
+  /** The model asks on "Ask me about the button", holding the turn `holdMs` after. */
+  const rules = (holdMs: number, input: typeof twoAsked = asking): Rule[] => [
+    own((call) =>
+      asked(call, "Ask me about the button") && call.turns.at(-1)?.role === "user"
+        ? { calls: [{ name: "request_user_input_async", input }] }
+        : undefined,
+    ),
+    own(async (call) => {
+      if (!/accepted/.test(result(call) ?? "")) return undefined
+      await sleep(holdMs)
+      return { text: "Finished the request." }
+    }),
+    own((call) => {
+      const last = call.turns.at(-1)
+      if (last?.role !== "user") return undefined
+      if (/question_reply[\s\S]*"answer":"Large"/.test(last.text)) return { text: "Labelled." }
+      if (/question_reply[\s\S]*"answer":"Green"/.test(last.text)) return { text: "Going green." }
+      if (last.text.includes("> Which color should the button be?\n\nPurple"))
+        return { text: "Going purple." }
+      return undefined
+    }),
+  ]
+
+  it("answers it from the chat while the turn runs, through Codex's picker", async ({
+    e2e: run,
+  }) => {
+    run.model.use(...rules(30_000))
+    const t1 = await start(run, codexSetup!)
+    await t1.prompt("Ask me about the button")
+    const request = await dialogOf(t1, "questions")
+    const [question] = questionsOf(request).questions
+    const green = question!.options.find(({ label }) => label === "Green")!
+    await answering(t1, request.ref, {
+      dialog: idOf(request),
+      type: "questions",
+      answers: [{ question: question!.id, options: [green.id] }],
+    })
+    await t1.until("Going green.", 60_000)
+    await unrequested(t1)
+  })
+
+  it("answers several questions of one call from the chat, an option and words", async ({
+    e2e: run,
+  }) => {
+    run.model.use(...rules(30_000, twoAsked))
+    const t1 = await start(run, codexSetup!)
+    await t1.prompt("Ask me about the button")
+    const request = await dialogOf(t1, "questions")
+    const [color, label] = questionsOf(request).questions
+    expect(label!.question).toBe("What should its label say?")
+    const blue = color!.options.find(({ label: name }) => name === "Blue")!
+    await answering(t1, request.ref, {
+      dialog: idOf(request),
+      type: "questions",
+      answers: [
+        { question: color!.id, options: [blue.id] },
+        { question: label!.id, options: [], text: "Large" },
+      ],
+    })
+    await t1.until("Labelled.", 60_000)
+    await unrequested(t1)
+    // Both answers went in as Codex's replies, not as prompts after the turn.
+    const replies = run.model.calls
+      .flatMap((call) => call.turns)
+      .filter((turn) => turn.role === "user" && turn.text.includes("question_reply"))
+      .map((turn) => turn.text)
+      .join("\n")
+    expect(replies).toContain('"answer":"Blue"')
+    expect(replies).toContain('"answer":"Large"')
+  })
+
+  it("keeps it answerable once the turn ends, answering with Codex's own prompt", async ({
+    e2e: run,
+  }) => {
+    run.model.use(...rules(0))
+    const t1 = await start(run, codexSetup!)
+    await t1.prompt("Ask me about the button")
+    await t1.until("Finished the request.", 30_000)
+    const request = await dialogOf(t1, "questions")
+    const [question] = questionsOf(request).questions
+    // Its Stop's hook may come a moment after its last words show.
+    await t1.poll(
+      async () => ((await t1.detail()).activity?.state === "idle" ? true : undefined),
+      "its turn to end",
+      30_000,
+    )
+    await answering(t1, request.ref, {
+      dialog: idOf(request),
+      type: "questions",
+      answers: [{ question: question!.id, options: [], text: "Purple" }],
+    })
+    await t1.until("Going purple.", 60_000)
+    await unrequested(t1)
+  })
+
+  it("lets the person's own prompt after the turn settle it, as Codex dropped it", async ({
+    e2e: run,
+  }) => {
+    run.model.use(
+      ...rules(0),
+      own((call) => (asked(call, "Never mind") ? { text: "OK." } : undefined)),
+    )
+    const t1 = await start(run, codexSetup!)
+    await t1.prompt("Ask me about the button")
+    await t1.until("Finished the request.", 30_000)
+    await dialogOf(t1, "questions")
+    await t1.prompt("Never mind")
+    await t1.until("OK.", 30_000)
+    await unrequested(t1)
+  })
+})

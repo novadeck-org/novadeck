@@ -248,7 +248,7 @@ export const fixtures: readonly Fixture[] = [
     agent: "Codex",
     transcripts: codex,
     tools: true,
-    count: 34,
+    count: 42,
     skipped: codexAskSkipped,
     extract: () => codexAsk("ask.probe.json"),
   },

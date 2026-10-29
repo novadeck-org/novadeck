@@ -5,6 +5,7 @@ import type { AgentName, TerminalSummary } from "@novadeck/protocol"
 
 import {
   apply,
+  blocking,
   escapeScreenMs,
   escapeVerdictMs,
   summary as activitySummary,
@@ -350,12 +351,12 @@ export class Bindings {
 
   /** Applies what the bound session's hooks or records said; true when it changed. */
   applyFact(record: Record, fact: Exclude<HarnessEvent, SessionObserved>): boolean {
-    const waited = (record.bound?.activity.pending.length ?? 0) > 0
+    const waited = blocking(record.bound?.activity.pending).length > 0
     const applied = this.appliedFact(record, fact)
     // A request no longer waits on the person: what they typed meanwhile counts now, at
     // once, before the report's prompt reaches messaging. The doorbell looks again too, as
     // the request kept it from ringing and its screen may not change.
-    const waits = (record.bound?.activity.pending.length ?? 0) > 0
+    const waits = blocking(record.bound?.activity.pending).length > 0
     if (waited && !waits) {
       this.host.messaging().askedCleared(record.summary.id)
       this.host.typing().doorbellChanged(record.summary.id)

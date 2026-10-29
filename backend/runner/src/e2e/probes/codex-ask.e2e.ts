@@ -88,8 +88,11 @@ type Probe = {
   readonly answer: (answer: { stdout?: string; stderr?: string; exit?: number }) => void
 }
 
-/** Registers the probe hook for every event in Codex's own hooks.json (run with the trust bypass). */
-const probe = (run: E2E, timeout = 600): Probe => {
+/**
+ * Registers the probe hook for every event in Codex's own hooks.json (run with the trust
+ * bypass). With `matcher`, a second PreToolUse hook under it logs as `PreToolUse[matched]`.
+ */
+const probe = (run: E2E, timeout = 600, matcher?: string): Probe => {
   const dir = join(run.sandbox.root, "probe")
   mkdirSync(dir, { recursive: true })
   writeFileSync(join(dir, "hook.mjs"), hookScript)
@@ -109,6 +112,20 @@ const probe = (run: E2E, timeout = 600): Probe => {
                 },
               ],
             },
+            ...(event === "PreToolUse" && matcher !== undefined
+              ? [
+                  {
+                    matcher,
+                    hooks: [
+                      {
+                        type: "command",
+                        command: `node ${join(dir, "hook.mjs")} ${dir} PreToolUse[matched]`,
+                        timeout,
+                      },
+                    ],
+                  },
+                ]
+              : []),
           ],
         ]),
       ),
@@ -1112,5 +1129,300 @@ describe.skipIf(!supported)("Codex MCP asks (probe)", () => {
           }),
         }),
     })
+  })
+})
+
+// ---------------------------------------------------------------- request_user_input_async
+
+// request_user_input_async: the question tool Codex offers outside Plan mode (seen from
+// 0.162.1). It returns {"accepted":true} at once and the turn goes on; the person's answer
+// arrives later as a user message, <send_user_message_question_reply>. Novadeck's own
+// PreToolUse matcher is registered beside the probe's (it fires for it only once the tool is named: matchers match the whole name).
+const novadeckMatcher = "request_user_input|request_permissions|request_user_input_async"
+const asyncQuestions = {
+  questions: [{ title: "Which color should the button be?", options: ["Blue", "Green"] }],
+}
+
+describe.skipIf(!supported)("Codex request_user_input_async (probe)", () => {
+  it("rui-async: offered, called, the turn ends with it up", async ({ e2e: run }) => {
+    run.model.use(
+      ...script("Ask me about the button", () => ({
+        calls: [{ name: "request_user_input_async", input: asyncQuestions }],
+      })),
+    )
+    const hooks = probe(run, 600, novadeckMatcher)
+    const t = await open(run)
+    await t.prompt("Ask me about the button")
+    await t.until("Finished the request.", 30_000)
+    await sleep(1500)
+    const first = run.model.calls.find((call) => !call.side)
+    const detail = await t.detail()
+    save(run, "rui-async-offered", {
+      offered: first?.tools.filter((name) => /request_user_input|question|ask/i.test(name)) ?? [],
+      rawTool:
+        (first?.rawTools ?? []).find(
+          (tool) => (tool as Json).name === "request_user_input_async",
+        ) ?? null,
+      screens: await shoot(t),
+      novadeckSees: { activity: detail.activity, requests: detail.requests },
+      hooksAll: hookLines(hooks),
+      rollout: interesting(rollout(run)),
+      toolOutputSeenByModel: lastTool(run) ?? null,
+    })
+  })
+
+  // The person answers by typing in the composer once the turn has ended.
+  it("rui-async: typed in the composer after the turn ends", async ({ e2e: run }) => {
+    run.model.use(
+      ...script("Ask me about the button", () => ({
+        calls: [{ name: "request_user_input_async", input: asyncQuestions }],
+      })),
+      (call) => (!call.side && asked(call, "Green please") ? { text: "Going green." } : undefined),
+    )
+    const hooks = probe(run, 600, novadeckMatcher)
+    const t = await open(run)
+    await t.prompt("Ask me about the button")
+    await t.until("Finished the request.", 30_000)
+    await sleep(1000)
+    const before = hookLines(hooks).length
+    const steps: Json[] = []
+    for (const [label, key] of [
+      ["up", "\x1b[A"],
+      ["tab", "\t"],
+      ["esc", "\x1b"],
+    ] as const) {
+      t.press(key)
+      // eslint-disable-next-line no-await-in-loop -- The keys are pressed in turn.
+      await sleep(800)
+      // eslint-disable-next-line no-await-in-loop -- As above.
+      steps.push({ label, key, screen: rows(await settled(t)) })
+    }
+    await t.prompt("Green please")
+    await t.until("Going green.", 30_000)
+    await sleep(1500)
+    save(run, "rui-async-typed-after", {
+      steps,
+      screen: rows(await settled(t)),
+      hooksAfterQuestion: hookLines(hooks).slice(before),
+      rollout: interesting(rollout(run)),
+      modelSaw: modelSaw(run).at(-1) ?? null,
+    })
+  })
+
+  // The model holds its turn (a slow answer) while the question is up: what shows, and
+  // what a prompt typed meanwhile becomes.
+  it("rui-async: answered while the turn runs", async ({ e2e: run }) => {
+    run.model.use(
+      (call) =>
+        !call.side && asked(call, "Ask me about the button") && call.turns.at(-1)?.role === "user"
+          ? { calls: [{ name: "request_user_input_async", input: asyncQuestions }] }
+          : undefined,
+      async (call) => {
+        const last = call.turns.at(-1)
+        if (call.side || last?.role !== "tool" || !/accepted/.test(last.text)) return undefined
+        await sleep(15_000)
+        return { text: "Finished the request." }
+      },
+      (call) => (!call.side && asked(call, "Green please") ? { text: "Going green." } : undefined),
+    )
+    const hooks = probe(run, 600, novadeckMatcher)
+    const t = await open(run)
+    await t.prompt("Ask me about the button")
+    await t.until("Which color should the button be?", 30_000)
+    await sleep(2000)
+    const during = rows(await settled(t))
+    const detail = await t.detail()
+    await t.submit("Green please")
+    await sleep(1500)
+    const afterTyping = rows(await settled(t))
+    await t.until(/Going green\.|Finished the request\./, 40_000)
+    await sleep(3000)
+    save(run, "rui-async-while-running", {
+      during,
+      novadeckSeesDuring: { activity: detail.activity, requests: detail.requests },
+      afterTyping,
+      screen: rows(await settled(t)),
+      hooksAll: hookLines(hooks),
+      rollout: interesting(rollout(run)),
+      modelSaw: modelSaw(run),
+    })
+  })
+
+  // Its answer panel, opened with shift+left while the question is pending, then steps in
+  // turn (a key, or a key then Enter once `shows` draws again): each step's screen, then
+  // what the model and hooks get once the held turn ends and its queue goes in.
+  type Press = readonly [label: string, key: string, shows?: RegExp]
+  const shiftLeft = "\x1b[1;2D"
+  const answering = (
+    name: string,
+    steps: readonly Press[],
+    options: {
+      readonly holdMs?: number
+      readonly afterTurn?: boolean
+      readonly two?: boolean
+      readonly free?: boolean
+    } = {},
+  ) =>
+    it(`rui-async: panel ${name}`, async ({ e2e: run }) => {
+      const input = options.two
+        ? { questions: [...asyncQuestions.questions, { title: "What should its label say?" }] }
+        : options.free
+          ? { questions: [{ title: "What should its label say?" }] }
+          : asyncQuestions
+      run.model.use(
+        (call) =>
+          !call.side && asked(call, "Ask me about the button") && call.turns.at(-1)?.role === "user"
+            ? { calls: [{ name: "request_user_input_async", input }] }
+            : undefined,
+        async (call) => {
+          const last = call.turns.at(-1)
+          if (call.side || last?.role !== "tool" || !/accepted/.test(last.text)) return undefined
+          await sleep(options.holdMs ?? 20_000)
+          return { text: "Finished the request." }
+        },
+        (call) => {
+          const last = call.turns.at(-1)
+          return !call.side && last?.role === "user" && /question_reply/.test(last.text)
+            ? { text: "Thanks for the answer." }
+            : undefined
+        },
+      )
+      const hooks = probe(run, 600, novadeckMatcher)
+      const t = await open(run)
+      await t.prompt("Ask me about the button")
+      await t.until(
+        options.free ? "What should its label say?" : "Which color should the button be?",
+        30_000,
+      )
+      if (options.afterTurn) await t.until("Finished the request.", 30_000)
+      await sleep(1500)
+      const before = rows(await settled(t))
+      const shown: Json[] = []
+      for (const [label, key, shows] of steps) {
+        try {
+          // eslint-disable-next-line no-await-in-loop -- The steps go in turn.
+          if (shows) await t.confirm(shows, async () => key && t.press(key), { timeoutMs: 8000 })
+          else t.press(key)
+        } catch (error) {
+          shown.push({ label, failed: String(error).split("\n")[0] })
+        }
+        // eslint-disable-next-line no-await-in-loop -- As above.
+        await sleep(900)
+        // eslint-disable-next-line no-await-in-loop -- As above.
+        shown.push({ label, screen: rows(await settled(t)) })
+      }
+      const answered = await t
+        .until(/Thanks for the answer\./, 40_000)
+        .then(() => true)
+        .catch(() => false)
+      await sleep(2000)
+      save(run, `rui-async-panel-${name}`, {
+        before,
+        steps: shown,
+        answered,
+        screen: rows(await settled(t)),
+        hooksAll: hookLines(hooks),
+        rollout: interesting(rollout(run)),
+        modelSaw: modelSaw(run).map((turns) => turns.at(-1)),
+      })
+    })
+
+  answering("enter", [["shift+left, enter", shiftLeft, /enter submit/]])
+  answering("down-enter", [
+    ["shift+left", shiftLeft],
+    ["down, enter", "\x1b[B", /› 2\. Green/],
+  ])
+  answering("digit-2", [
+    ["shift+left", shiftLeft],
+    ["2", "2"],
+  ])
+  answering("esc", [
+    ["shift+left", shiftLeft],
+    ["esc", "\x1b"],
+  ])
+  answering("skip", [
+    ["shift+left", shiftLeft],
+    ["ctrl+]", "\x1d"],
+  ])
+  answering("other-text", [
+    ["shift+left", shiftLeft],
+    ["3", "3"],
+    ["Purple, enter", "Purple", /Purple/],
+  ])
+  // The words typed with the Other row highlighted, then Enter (confirm types them, waits
+  // for them to show, and presses it), with the turn held long enough that none of it
+  // races the turn's end. The screens before Enter are those of the words' own steps.
+  answering(
+    "other-typed",
+    [
+      ["shift+left", shiftLeft],
+      ["3", "3"],
+      ["Purple, enter", "Purple", /Purple/],
+    ],
+    { holdMs: 60_000 },
+  )
+  // What the words look like before Enter, for a reader of the screen to wait on.
+  answering(
+    "other-words",
+    [
+      ["shift+left", shiftLeft],
+      ["3", "3"],
+      ["Purple", "Purple"],
+    ],
+    { holdMs: 30_000 },
+  )
+  answering(
+    "free-words",
+    [
+      ["shift+left", shiftLeft],
+      ["Large", "Large"],
+    ],
+    {
+      holdMs: 30_000,
+      free: true,
+    },
+  )
+  // The same with the words pasted, as the driver's `type` step writes them.
+  answering(
+    "other-pasted",
+    [
+      ["shift+left", shiftLeft],
+      ["3", "3"],
+      ["Purple, enter", "\x1b[200~Purple\x1b[201~", /Purple/],
+    ],
+    { holdMs: 60_000 },
+  )
+  // A question with no options: its field, the words typed in it, then Enter.
+  answering(
+    "free-text",
+    [
+      ["shift+left", shiftLeft],
+      ["Large, enter", "Large", /Large/],
+    ],
+    { holdMs: 60_000, free: true },
+  )
+  // The first of two answered with Other's words: does the second follow at once?
+  answering(
+    "two-other",
+    [
+      ["shift+left", shiftLeft],
+      ["3", "3"],
+      ["Purple, enter", "Purple", /Purple/],
+      ["Large, enter", "Large", /Large/],
+    ],
+    { holdMs: 60_000, two: true },
+  )
+  answering(
+    "two-questions",
+    [
+      ["shift+left", shiftLeft],
+      ["1", "1"],
+      ["Large, enter", "Large", /Large/],
+    ],
+    { two: true },
+  )
+  answering("after-turn", [["shift+left, enter", shiftLeft, /enter submit/]], {
+    afterTurn: true,
+    holdMs: 1000,
   })
 })

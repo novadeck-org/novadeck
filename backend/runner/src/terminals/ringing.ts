@@ -5,6 +5,7 @@ import { foregroundRuns, processGroup, terminalForeground } from "@novadeck/term
 import type { TypingTarget } from "@novadeck/tui-input"
 import { isEmpty, type BoxProfile } from "@novadeck/tui-input/box"
 
+import { blocking } from "../harnesses/activity.js"
 import type { Binding } from "../harnesses/bindings.js"
 import { harnesses } from "../harnesses/registry.js"
 import { doorbellLog } from "../messaging/doorbell-log.js"
@@ -132,7 +133,7 @@ export const doorbellHost = <R extends RingRecord>(
       const record = live(terminalId)
       return (
         record !== undefined &&
-        (record.bound?.activity.pending.length ?? 0) === 0 &&
+        blocking(record.bound?.activity.pending).length === 0 &&
         !working(terminalId, record.bound) &&
         !host.stopping() &&
         messaging.ringable(terminalId)
@@ -181,7 +182,7 @@ export const doorbellHost = <R extends RingRecord>(
       }
       return (
         messaging.stalled(terminalId) ||
-        ((activity?.pending.length ?? 0) > 0 && messaging.idleWaiting(terminalId))
+        (blocking(activity?.pending).length > 0 && messaging.idleWaiting(terminalId))
       )
     },
     stamp: (terminalId) => messaging.stamp(terminalId),
@@ -193,7 +194,7 @@ export const doorbellHost = <R extends RingRecord>(
     reading: (terminalId, screen) => {
       const record = live(terminalId)
       if (!record) return "dialog"
-      if ((record.bound?.activity.pending.length ?? 0) > 0) return "asking"
+      if (blocking(record.bound?.activity.pending).length > 0) return "asking"
       if (working(terminalId, record.bound)) return "working"
       const box = profile(terminalId)
       const text = box?.read(screen)

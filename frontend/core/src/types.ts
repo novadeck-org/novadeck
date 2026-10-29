@@ -51,6 +51,9 @@ export type AgentStatus = {
   readonly attention?: {
     readonly kind: "permission" | "question" | "plan"
     readonly count: number
+    // Every one of them asks without waiting, as Codex's async questions: the agent works
+    // on, and nothing stops it.
+    readonly detached?: true
   }
   readonly subagents?: readonly { readonly id: string; readonly type: string | null }[]
   // What its ended turn waits on, which wakes it with no word from anyone (see

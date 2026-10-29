@@ -52,7 +52,8 @@ export const endingText = ({ status, reason }: TerminalEnding): string =>
 // `outcome` is what the caller says is unseen and final: a report the agent made itself (its
 // MCP `done` call) or a turn that stopped on an error, never a turn that merely ended. A
 // reply the person hasn't read leaves an idle agent idle, for its tab to brighten its
-// program. A dialog the agent waits on (`attention`) rests it too. A limit pauses an agent that stopped on one until it works again. What an agent
+// program. A dialog the agent waits on (`attention`) rests it too, but for a request it asked
+// without waiting, which it works on through. A limit pauses an agent that stopped on one until it works again. What an agent
 // needs of the person, a dialog or an ask, is no phase: see `terminalNeedMark`.
 export type TerminalPhase =
   | "starting"
@@ -71,6 +72,13 @@ export const pausedUntil = (terminal: TerminalMetadata): number | undefined =>
     ? terminal.agent.lastTurn?.limit?.resetsAt
     : undefined
 
+// Whether a dialog its agent shows holds it: a request that asks without waiting holds
+// nothing, as the agent works on.
+export const heldByDialog = (terminal: TerminalMetadata): boolean =>
+  terminal.state === "running" &&
+  terminal.agent?.attention !== undefined &&
+  terminal.agent.attention.detached !== true
+
 export const terminalPhase = (
   terminal: TerminalMetadata,
   outcome = false,
@@ -82,7 +90,7 @@ export const terminalPhase = (
   if (!terminal.agent && isAgentProgram(terminal.process)) return "unheard"
   // A dialog it shows stops it: its harness keeps the turn open, but nothing works until the
   // person answers, so it rests as far as the glyph and the window's line say.
-  if (terminal.agent && (!terminal.agent.working || terminal.agent.attention)) {
+  if (terminal.agent && (!terminal.agent.working || heldByDialog(terminal))) {
     if (pausedUntil(terminal) !== undefined) return "paused"
     if (outcome) return "done"
     return waitingOf(terminal, now) ? "waiting" : "idle"
@@ -98,9 +106,7 @@ export const waitingAgents = (
   now = Date.now(),
 ): TerminalMetadata[] =>
   terminals.filter(
-    (terminal) =>
-      terminalPhase(terminal, false, now) === "waiting" &&
-      !(terminal.state === "running" && terminal.agent?.attention),
+    (terminal) => terminalPhase(terminal, false, now) === "waiting" && !heldByDialog(terminal),
   )
 
 // What a terminal needs of the person, for the mark right after its program: `unblock` (a

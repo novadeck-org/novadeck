@@ -69,6 +69,8 @@ const terminal = (
     drift?: boolean
     /** Its dialog is questions that may be set aside to talk over: how, or null. */
     chat?: "field" | "prompt" | null
+    /** Its dialog is a question answered as the agent's next prompt, pressing nothing. */
+    byPrompt?: boolean
     /** Its keys come with a few hundred seconds' worth of waits, which hold at once. */
     longSteps?: boolean
     /** Its keys type words with no check after that they showed. */
@@ -105,6 +107,36 @@ const terminal = (
   let settled = 0
   const adapter = (): DialogAdapter => {
     const plain = fakeAdapter()
+    if (options.byPrompt)
+      return {
+        read: (rows, each) => {
+          const read = plain.read(rows, each)
+          return (
+            read && {
+              ...read,
+              dialog: {
+                type: "questions" as const,
+                questions: [
+                  {
+                    id: "q1",
+                    header: null,
+                    question: "Which?",
+                    options: [{ id: "1", label: "Blue", description: null }],
+                    multiSelect: false,
+                    text: true,
+                  },
+                ],
+                chat: null,
+              },
+              keys: () => [{ press: "1" }],
+              prompt: (answer) =>
+                answer.type !== "questions"
+                  ? undefined
+                  : `> Which?\n\n${answer.answers[0]?.text ?? "Blue"}`,
+            }
+          )
+        },
+      }
     if (options.chat !== undefined) {
       const { chat } = options
       return {
@@ -755,6 +787,74 @@ describe("answering a request through its dialog", () => {
     })
     expect(tui.written).toEqual(["1"])
     expect(calls).toContain("prompt Let us discuss")
+  })
+
+  describe("a dialog answered as the agent's next prompt", () => {
+    // The answer of the question, with the words given if any.
+    const questions = (
+      read: () => { dialog: Parameters<typeof identified>[0] } | undefined,
+      text?: string,
+    ) => ({
+      dialog: identified(read()!.dialog)!.id,
+      type: "questions" as const,
+      answers: [
+        {
+          question: "q1",
+          options: text === undefined ? ["1"] : [],
+          ...(text !== undefined && { text }),
+        },
+      ],
+    })
+
+    it("sends the prompt once the person's keys are let go, pressing nothing, and marks it answered", async () => {
+      const { tui, answers, calls, read } = terminal({ byPrompt: true })
+      await answers.answer("t", "r1", questions(read))
+      expect(tui.written).toEqual([])
+      expect(calls).toEqual(["release", "prompt > Which?\n\nBlue", "done"])
+    })
+
+    it("fails as the prompt's refusal does, leaving the request open and its dialog unlocked", async () => {
+      const { tui, answers, calls, locks, read } = terminal({
+        byPrompt: true,
+        refusals: [refusal("draft")],
+      })
+      expect(await fails(answers.answer("t", "r1", questions(read, "Purple")))).toBe("CONFLICT")
+      expect(tui.written).toEqual([])
+      expect(calls).not.toContain("done")
+      expect(locks).toEqual([])
+    })
+
+    it("refuses it while the agent's turn runs, sending nothing", async () => {
+      const { answers, calls, read } = terminal({ byPrompt: true, working: true })
+      expect(await fails(answers.answer("t", "r1", questions(read)))).toBe("CONFLICT")
+      expect(calls.filter((call) => call.startsWith("prompt"))).toEqual([])
+    })
+
+    it("refuses an answer it gives no prompt for, or one a prompt can't carry", async () => {
+      const { answers, calls, read } = terminal({ byPrompt: true })
+      expect(
+        await fails(
+          answers.answer("t", "r1", {
+            dialog: identified(read()!.dialog)!.id,
+            type: "chat",
+            text: "hi",
+          }),
+        ),
+      ).toBe("CONFLICT")
+      expect(await fails(answers.answer("t", "r1", questions(read, "ask @")))).toBe(
+        "PROMPT_REFUSED",
+      )
+      expect(calls.filter((call) => call.startsWith("prompt"))).toEqual([])
+    })
+
+    it("doesn't clash with another request's dialog answered as a prompt on the same screen", async () => {
+      const { answers, calls, read } = terminal({
+        byPrompt: true,
+        others: [{ ref: "r3", facts: { ...facts, input: { command: "pwd" } } }],
+      })
+      await answers.answer("t", "r1", questions(read))
+      expect(calls).toContain("done")
+    })
   })
 
   it("refuses to set aside what has no chat, and a field chat without words, pressing nothing", async () => {

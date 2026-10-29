@@ -1,5 +1,6 @@
 import { handleText } from "./handle"
 import type { Store } from "./store"
+import { heldByDialog } from "./terminal-ending"
 import type { AgentTurnEnd, TerminalMetadata, Workspace } from "./types"
 
 // An agent that finished: its turn over on its own, completed or `failed` on an error,
@@ -33,7 +34,7 @@ export const sightTurnEnd = (
   const end = turnEnd(terminal)
   if (seen === undefined) return { seen: end?.at ?? null }
   if (!end || end.at === seen || agentWorking(terminal)) return { seen }
-  const waiting = terminal.state === "running" && terminal.agent?.attention !== undefined
+  const waiting = heldByDialog(terminal)
   if (waiting || (end.outcome !== "completed" && end.outcome !== "failed")) return { seen: end.at }
   const failed = end.outcome === "failed"
   return {
