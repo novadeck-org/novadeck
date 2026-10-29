@@ -31,7 +31,7 @@ export type SessionTransport = {
   readonly maxCalls: number
 }
 
-class Record implements Session {
+class SessionRecord implements Session {
   readonly id = randomUUID()
   clientId: string | undefined
   authenticated = false
@@ -82,13 +82,6 @@ export type Sessions = {
   close(session: Session): void
 }
 
-/** Checks a limit given as an option. */
-export const positive = (name: string, value: number): number => {
-  if (!Number.isSafeInteger(value) || value < 1)
-    throw new Error(`${name} must be a positive integer`)
-  return value
-}
-
 const isStream = (value: unknown): value is AsyncIterable<unknown> =>
   typeof value === "object" &&
   value !== null &&
@@ -111,10 +104,10 @@ export const createSessions = (
   if ("wire" in options.router)
     throw new Error("The app's router can't serve the wire's procedures")
   const epoch = options.epoch ?? randomUUID()
-  const clients = new Map<string, Record>()
+  const clients = new Map<string, SessionRecord>()
 
-  const record = (session: Session): Record => {
-    if (!(session instanceof Record)) throw new Error("Not a session of these sessions.")
+  const record = (session: Session): SessionRecord => {
+    if (!(session instanceof SessionRecord)) throw new Error("Not a session of these sessions.")
     return session
   }
 
@@ -129,7 +122,7 @@ export const createSessions = (
 
   // A client notices a dead link first; end its stale session now instead of after missed
   // heartbeats, so its new one can reclaim what the old held.
-  const claim = (session: Record, clientId: string) => {
+  const claim = (session: SessionRecord, clientId: string) => {
     const previous = clients.get(clientId)
     if (previous !== undefined && previous !== session) {
       close(previous)
@@ -147,7 +140,7 @@ export const createSessions = (
 
   // Ends a stream once its session closed, even one that began after, and maps its failures.
   const guard = async function* <T>(
-    session: Record,
+    session: SessionRecord,
     stream: AsyncIterable<T>,
     path: readonly string[],
   ): AsyncGenerator<T> {
@@ -215,7 +208,7 @@ export const createSessions = (
   return {
     epoch,
     router: { ...os.$context<SessionContext>().use(gate).router(options.router), ...wire },
-    open: (transport) => new Record(transport),
+    open: (transport) => new SessionRecord(transport),
     close,
   }
 }
