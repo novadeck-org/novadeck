@@ -60,14 +60,10 @@ export const clip = (text: string, max: number): string => {
   return text.slice(0, last >= 0xd800 && last <= 0xdbff ? max - 1 : max)
 }
 
-const record = (value: unknown): Record<string, unknown> | null =>
-  typeof value === "object" && value !== null ? (value as Record<string, unknown>) : null
-
 /** `value` as a notice if it is one: a whole status, strings, which it clips as the runner does. */
 export const parsePageRequest = (value: unknown): PageRequestNotice | null => {
-  const notice = record(value)
-  if (!notice) return null
-  const { contentsId, url, status, what } = notice
+  if (typeof value !== "object" || value === null) return null
+  const { contentsId, url, status, what } = value as Record<string, unknown>
   return typeof contentsId === "number" &&
     Number.isSafeInteger(contentsId) &&
     typeof url === "string" &&

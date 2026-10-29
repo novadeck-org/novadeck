@@ -30,7 +30,7 @@ const linesOf = (state: EditorState, ranges: readonly ClassedRange[]): Decoratio
   )
 }
 
-const ranged = StateField.define<DecorationSet>({
+export const rangedLines = StateField.define<DecorationSet>({
   create: () => Decoration.none,
   update: (ranges, transaction) => {
     for (const effect of transaction.effects)
@@ -40,12 +40,10 @@ const ranged = StateField.define<DecorationSet>({
   provide: (field) => EditorView.decorations.from(field),
 })
 
-export const rangedLines = ranged
-
 // The classed lines as they stand, moved along with the edits made since they were set.
 export const currentRanges = (state: EditorState): ClassedRange[] => {
   const ranges: ClassedRange[] = []
-  const iterator = state.field(ranged).iter()
+  const iterator = state.field(rangedLines).iter()
   for (; iterator.value; iterator.next()) {
     const { from, to } = state.doc.lineAt(iterator.from)
     ranges.push({ from, to, className: iterator.value.spec.class as string })

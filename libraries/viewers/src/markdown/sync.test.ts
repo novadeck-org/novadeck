@@ -60,7 +60,7 @@ describe("markdown sync", () => {
       expect(merge("a\nb", "a\nb\nuser", "a\nb\nagent").text).toBe("a\nb\nuser\nagent")
     })
 
-    it("ends as the agent left it when it changed that, else as the user did", () => {
+    it("ends as the agent left it when it changed that, else as the person did", () => {
       expect(merge("a\nb", "a\nb", "a\nb\n").text).toBe("a\nb\n")
       expect(merge("a\nb\n", "a\nb", "a\nc\n").text).toBe("a\nc")
     })

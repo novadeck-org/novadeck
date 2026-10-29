@@ -152,7 +152,7 @@ export const cellSource = (text: string): string =>
 
 export type Change = { readonly from: number; readonly to: number; readonly insert: string }
 
-const width = (table: Table): number => Math.max(...table.rows.map((row) => row.length))
+export const columnsOf = (table: Table): number => Math.max(...table.rows.map((row) => row.length))
 
 // A row's parts between unescaped pipes, and where its cells start among them.
 const partsOf = (text: string): { parts: string[]; first: number; count: number } => {
@@ -167,7 +167,7 @@ const edged = (table: Table): boolean => table.lines[0]!.text.trimStart().starts
 // An empty row after the given one (after the header means first in the body).
 export const addRow = (table: Table, after: number): Change => {
   const line = table.lines[after === 0 ? 1 : after + 1]!
-  const cells = Array.from({ length: width(table) }, () => " ")
+  const cells = Array.from({ length: columnsOf(table) }, () => " ")
   const row = edged(table) ? `|${cells.join("|")}|` : cells.join("|")
   return { from: line.to, to: line.to, insert: `\n${row}` }
 }
@@ -187,7 +187,7 @@ export const addColumn = (table: Table, after: number): Change[] =>
   })
 
 export const removeColumn = (table: Table, column: number): Change[] =>
-  width(table) < 2
+  columnsOf(table) < 2
     ? []
     : table.lines.flatMap((line) => {
         const { parts, first, count } = partsOf(line.text)

@@ -7,6 +7,7 @@ import {
   addRow,
   addRowAnnotation,
   cellSource,
+  columnsOf,
   findTables,
   removeColumn,
   removeRow,
@@ -30,8 +31,6 @@ const texts = (table: Table): string =>
     table.rows.map((row) => row.map((cell) => cell.text)),
     table.annotations.map((annotation) => annotation?.text),
   ])
-
-const columnsOf = (table: Table): number => Math.max(...table.rows.map((row) => row.length))
 
 const placeCaret = (cell: HTMLTextAreaElement): void => {
   cell.focus()

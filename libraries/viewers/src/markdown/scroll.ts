@@ -14,7 +14,7 @@ const scrollerOf = (element: HTMLElement): HTMLElement | null => {
 // Only the scroller moves: CodeMirror's scrollIntoView also scrolls every
 // ancestor whose content overflows, clipped ones included, which shifts the whole page.
 // Lines out of view have estimated heights, so once the scroll stops, or a frame after an
-// instant one, it corrects for where the line really is, unless the user took over the
+// instant one, it corrects for where the line really is, unless the person took over the
 // scroll meanwhile.
 export const scrollLineToTop = (view: EditorView, at: number): void => {
   const scroller = scrollerOf(view.dom)
@@ -199,7 +199,7 @@ export const restoreScroll = (
     const held = now - moved >= 150 && still >= 8
     const late = (!behind && now - began >= 500 && frames >= 20) || now - began >= 3000
     // Out of time with the editor still behind: the best place its measure gives, rather than
-    // the plan's top.
+    // the text's top.
     if (late && behind) go()
     if (!held && !late) frame = requestAnimationFrame(settle)
   }
