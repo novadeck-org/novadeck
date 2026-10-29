@@ -43,6 +43,7 @@ import {
   passkeyLabels,
   pickPasskeys,
   picturePage,
+  createLooker,
   watchPageRequests,
   webAddress,
 } from "@novadeck/viewers/browser/host"
@@ -77,6 +78,7 @@ import {
   feedbackArgumentPrefix,
   noticeClickChannel,
   pagePictureChannel,
+  pageLookChannel,
   portableStateChannel,
   runnerPortChannel,
   versionChannel,
@@ -1502,6 +1504,12 @@ const loadKey = (): Promise<string | null> =>
   })
 let transcriptKey: Promise<string | null> = Promise.resolve(null)
 
+// Looks at pages for agents, out of sight, in the pages' session; see `createLooker`.
+const looker = createLooker({
+  partition: pagesSession(pagesPartition),
+  create: (options) => new BrowserWindow(options),
+})
+
 const launch = async (): Promise<void> => {
   // The signature is not asked here: it takes a moment, and a portable copy is told
   // without it.
@@ -1874,6 +1882,12 @@ const launch = async (): Promise<void> => {
       ? picturePage(event.sender, id, (page) => webContents.fromId(page), width)
       : undefined,
   )
+  // An agent's look at a page no pane shows live: loaded afresh, out of sight, and pictured.
+  ipcMain.handle(pageLookChannel, (event, request: unknown) => {
+    if (!appWindow(event)) return { reason: "Not from the app's own page." }
+    const { url, layout } = (request ?? {}) as { url?: unknown; layout?: unknown }
+    return looker.look({ url, layout })
+  })
   // Only the app's own pages learn the version it runs.
   ipcMain.handle(versionChannel, (event) => (appWindow(event) ? app.getVersion() : ""))
   ipcMain.handle(directoryPickerChannel, async (event) => {
@@ -2002,6 +2016,8 @@ app.whenReady().then(() => {
   })
   // The app's page hears of the requests a page in its view sees fail, to tell the agent.
   const pageRequests = watchPageRequests(pages, (contentsId, failure) => {
+    // A look's own window, out of sight, hears its failures itself.
+    if (looker.failed(contentsId, failure)) return
     const host = webContents.fromId(contentsId)?.hostWebContents
     if (!host || host.isDestroyed()) return
     // A window closing or reloading meanwhile must not throw into the main process.

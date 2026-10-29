@@ -1,3 +1,4 @@
+import type { PageTrouble } from "./schemas.js"
 import type { NoticeSound } from "./sounds.js"
 
 /**
@@ -221,7 +222,29 @@ export type DesktopBridge = {
    * before it.
    */
   pagePicture?(page: number, width?: number): Promise<string | undefined>
+  /**
+   * Loads a page afresh, out of sight, in the pages' session, laid out as a `desktop`'s
+   * window (1280 wide) or a `phone`'s screen, and takes a JPEG picture of it, for an agent's
+   * look at a page no pane shows live. Answers the picture with where the page ended up, its
+   * title, the size it laid out at and what went wrong while it loaded, or why there is none.
+   * Only http(s) addresses, one look at a time. Absent from hosts that came before it.
+   */
+  lookAtPage?(request: {
+    readonly url: string
+    readonly layout: "desktop" | "phone"
+  }): Promise<HostPageLook>
 }
+
+/** What `DesktopBridge.lookAtPage` answers: a look at a page, or why there is none. */
+export type HostPageLook =
+  | {
+      readonly picture: string
+      readonly url: string
+      readonly title: string
+      readonly size: { readonly width: number; readonly height: number }
+      readonly troubles: readonly PageTrouble[]
+    }
+  | { readonly reason: string }
 
 /** A feedback note as it crosses to the host: the kind the person picked, or none, and the text. */
 export type FeedbackHostNote = {

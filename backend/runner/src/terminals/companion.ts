@@ -6,6 +6,7 @@ import type { CompanionItems, TerminalPlace } from "../companions/items.js"
 import type { ItemRecord } from "../companions/records.js"
 import {
   readDismissRequest,
+  readLookRequest,
   readRequest,
   type DismissAnswer,
   type PresentAnswer,
@@ -15,10 +16,20 @@ import { harnesses } from "../harnesses/registry.js"
 import { unanswered, unansweredCalls, type Call } from "../shell/reports.js"
 import type { HintFacts } from "../voice/hint.js"
 import { callerOf } from "./callers.js"
+import { lookText, lookTroubles, pictureAllowed } from "./looks.js"
 import { peerOf, type TerminalPeers } from "./peers.js"
 import type { Record } from "./record.js"
 import type { SavedTerminal } from "./records.js"
-import { itemGone, troubled } from "./troubles.js"
+import { itemGone, lookedAt, troubled } from "./troubles.js"
+
+/** What `look` answers: words and the picture, or why there is none. */
+export type LookAnswer =
+  | {
+      readonly ok: true
+      readonly text: string
+      readonly picture: { readonly data: string; readonly mimeType: "image/jpeg" }
+    }
+  | { readonly ok: false; readonly reason: string }
 
 export type CompanionHost = {
   /** Every terminal the runner holds, by id. */
@@ -106,6 +117,48 @@ export class Companion {
     if (!callerOf(this.host.records(), call)) return unansweredCalls.showing
     if (!this.items) return unansweredCalls.showing
     return { ok: true, text: this.items.listing(call.terminalId) }
+  }
+
+  /**
+   * Pictures a page on the caller's own terminal's bar for its agent, through Novadeck's
+   * MCP server (see `CompanionItems.look`): the picture as an MCP image, and in words the
+   * page's name, address, title, how it was taken and its troubles, those the runner holds
+   * of the user's pane too, which this look then spends, so the next prompt's notice does
+   * not repeat them. A page that moved off this machine since is
+   * not pictured. A call without the shell's own token learns nothing more.
+   */
+  async look(call: Call): Promise<LookAnswer> {
+    const record = callerOf(this.host.records(), call)
+    if (!record) return unansweredCalls.look
+    const read = readLookRequest(call.request)
+    if (!read.ok) return read
+    const place = this.place(call.terminalId)
+    if (!place || !this.items) return unansweredCalls.look
+    const looked = await this.items.look(place, read.request)
+    if (!looked.ok) return looked
+    const { item, answer } = looked
+    if (!pictureAllowed(answer.url))
+      return {
+        ok: false,
+        reason:
+          "The page moved on to an address not served from this machine, and look only " +
+          "pictures pages you serve here.",
+      }
+    const entry = record.nudges.troubles.get(item.id)
+    const held = entry?.version === item.version && !entry.told ? entry : undefined
+    const told = lookTroubles(answer, held)
+    // The look tells what was held, and a pane's picture is the show it was held for.
+    if (answer.taken === "pane" && held)
+      record.nudges = {
+        ...record.nudges,
+        troubles: lookedAt(record.nudges.troubles, item.id, item.version),
+      }
+    const base64 = answer.picture.slice(answer.picture.indexOf(",") + 1)
+    return {
+      ok: true,
+      text: lookText(item, answer, told),
+      picture: { data: base64, mimeType: "image/jpeg" },
+    }
   }
 
   /**

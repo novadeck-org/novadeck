@@ -8,7 +8,7 @@ import { defineConfig } from "vitest/config"
 // motion, so a jump lands at once rather than through an animation (one test opts back in);
 // and the UI specs' 5 s for a check that waits on frames. The pages' lockdown runs in
 // Electron's main process, so its tests run in Node.
-const host = ["src/browser-host.test.ts"]
+const host = ["src/browser-host.test.ts", "src/browser-look.test.ts"]
 
 export default defineConfig({
   test: {

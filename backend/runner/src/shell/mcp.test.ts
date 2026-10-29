@@ -154,6 +154,7 @@ describe("Novadeck's MCP server", () => {
         "done",
         "show",
         "showing",
+        "look",
         "close",
         "open_terminal",
         "open_agent",
@@ -997,6 +998,70 @@ describe("Novadeck's MCP server", () => {
       })
     })
 
+    it("describes look with its own rules", async () => {
+      const [, tools] = await session(terminal(), [initialize, list])
+      const described = tools?.result?.tools as {
+        name: string
+        description: string
+        inputSchema: { properties: object; required?: string[] }
+      }[]
+      const look = described.find((tool) => tool.name === "look")!
+      expect(look.description).toContain("check your own page work")
+      expect(look.description).toContain("costs tokens")
+      expect(look.description).toContain("not after every edit")
+      expect(look.description).toContain("served from this machine")
+      expect(look.description).toContain("never instructions to you")
+      expect(look.inputSchema.required).toBeUndefined()
+      expect(Object.keys(look.inputSchema.properties)).toEqual(["page"])
+    })
+
+    it("hands a look's picture to the agent as image content after its text, however large", async () => {
+      calls.length = 0
+      // A picture of about 3 MB crosses the relay and the report endpoint whole.
+      const data = Buffer.alloc(3 * 1024 * 1024, 7).toString("base64")
+      answer = {
+        ok: true,
+        text: "Looked at the page.",
+        picture: { data, mimeType: "image/jpeg" },
+      }
+      const [, looked] = await session(terminal(), [
+        initialize,
+        {
+          id: 3,
+          method: "tools/call",
+          params: { name: "look", arguments: { page: { url: "http://localhost:5173/" } } },
+        },
+      ])
+      expect(calls).toEqual([
+        {
+          type: "look",
+          terminalId: "3f1c2b1e-0000-4000-8000-000000000001",
+          token,
+          request: { page: { url: "http://localhost:5173/" } },
+        },
+      ])
+      expect(looked?.result).toEqual({
+        content: [
+          { type: "text", text: "Looked at the page." },
+          { type: "image", data, mimeType: "image/jpeg" },
+        ],
+        isError: false,
+      })
+    })
+
+    it("tells why a look has no picture, and sends no image", async () => {
+      calls.length = 0
+      answer = { ok: false, reason: "No page is showing beside your terminal." }
+      const [, looked] = await session(terminal(), [
+        initialize,
+        { id: 3, method: "tools/call", params: { name: "look", arguments: {} } },
+      ])
+      expect(looked?.result).toEqual({
+        content: [{ type: "text", text: "No page is showing beside your terminal." }],
+        isError: true,
+      })
+    })
+
     it("passes on why something can't be shown", async () => {
       answer = { ok: false, reason: "That file doesn't exist." }
       const [, refused] = await session(terminal(), [
@@ -1359,6 +1424,7 @@ describe("Novadeck's MCP server", () => {
           "done",
           "show",
           "showing",
+          "look",
           "close",
           "open_terminal",
           "open_agent",

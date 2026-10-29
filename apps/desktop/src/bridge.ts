@@ -175,6 +175,12 @@ export const openLogsChannel = "novadeck:open-logs"
 export const pagePictureChannel = "novadeck:page-picture"
 
 /**
+ * Renderer-to-main request for a look at a page loaded afresh, out of sight, `{ url, layout }`;
+ * answers a `HostPageLook`. See the viewers' `createLooker`.
+ */
+export const pageLookChannel = "novadeck:page-look"
+
+/**
  * Renderer-to-main report of an error the page didn't catch, `{ kind, name, message, stack }`,
  * which the host logs; see main/ui-errors.ts.
  */

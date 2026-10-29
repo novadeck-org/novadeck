@@ -3,7 +3,7 @@ import { randomBytes } from "node:crypto"
 import { z } from "zod"
 
 import type { Dialect, Request, Response } from "./dialect.js"
-import type { Call, Reply, Turn } from "./script.js"
+import { withImages, type Call, type Reply, type Turn } from "./script.js"
 
 // Only what a Call needs; anything else in a request is the harness's business.
 const block = z.looseObject({ type: z.string() })
@@ -37,6 +37,10 @@ const textOf = (value: string | readonly Block[]): string =>
         .map((one) => string(one.text))
         .join("\n")
 
+// How many image blocks a content holds.
+const imagesIn = (value: string | readonly Block[]): number =>
+  typeof value === "string" ? 0 : value.filter((one) => one.type === "image").length
+
 // One message as turns: a user message's tool results first, each a turn of its own,
 // then whatever text came with them; an assistant's text and the tools it called.
 const turnsOf = (message: z.infer<typeof messages>["messages"][number]): Turn[] => {
@@ -61,6 +65,7 @@ const turnsOf = (message: z.infer<typeof messages>["messages"][number]): Turn[] 
       role: "tool",
       id: string(one.tool_use_id),
       text: textOf(content.catch("").parse(one.content ?? "")),
+      ...withImages(imagesIn(content.catch("").parse(one.content ?? ""))),
     }))
   const text = textOf(message.content)
   return text || results.length === 0 ? [...results, { role: "user", text }] : results

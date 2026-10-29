@@ -79,6 +79,14 @@ suite("what a Claude Code tool call was", () => {
       "http://localhost:5173/",
     ],
     ["showing", {}, "read", "Checked what's shown", ""],
+    ["look", {}, "web", "Looked at the page", ""],
+    [
+      "look",
+      { page: { url: "http://localhost:5173/" } },
+      "web",
+      "Looked at the page",
+      "http://localhost:5173/",
+    ],
     [
       "summarize",
       { summary: "Fixing the cart rounding" },

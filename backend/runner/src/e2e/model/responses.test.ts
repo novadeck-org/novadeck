@@ -193,3 +193,23 @@ describe("responses", () => {
     expect(responses.matches(post("/backend-api/codex/analytics-events"))).toBe(false)
   })
 })
+
+describe("responses tool results with pictures", () => {
+  it("counts the input_image parts of a tool's output", () => {
+    const call = parse({
+      model: "gpt-test",
+      input: [
+        { type: "message", role: "user", content: [{ type: "input_text", text: "Look" }] },
+        {
+          type: "function_call_output",
+          call_id: "c1",
+          output: [
+            { type: "input_text", text: "Looked." },
+            { type: "input_image", image_url: "data:image/jpeg;base64,AA==" },
+          ],
+        },
+      ],
+    })
+    expect(call.turns.at(-1)).toEqual({ role: "tool", id: "c1", text: "Looked.", images: 1 })
+  })
+})

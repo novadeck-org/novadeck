@@ -18,6 +18,8 @@ import {
   type PlanSaveResult,
   type ItemContent,
   type FolderListing,
+  type PageLook,
+  type PageLookAnswer,
   type PageTrouble,
   type Project,
   type RunnerSettings,
@@ -429,6 +431,14 @@ export type Runner = {
       readonly shown: number
       readonly troubles: PageTrouble[]
     }): Promise<void>
+    /**
+     * Follows agents' looks at a page item, made through Novadeck's MCP server. The runner
+     * sends each to the client that followed last and waits a few seconds for `answerLook`;
+     * iteration ends when the runner closes or on `return()`.
+     */
+    looks(): AsyncIterableIterator<PageLook, undefined>
+    /** Answers a look with a picture of the page, or why there is none; rejects with NOT_FOUND once the runner no longer waits. */
+    answerLook(answer: PageLookAnswer): Promise<void>
   }
   readonly inbox: {
     list(): Promise<InboxEntry[]>
@@ -782,6 +792,9 @@ export const connectRunner = async (
       resetWindowTitle: (windowId) =>
         call((wire) => wire.companions.resetWindowTitle({ windowId })),
       pageTrouble: (input) => call((wire) => wire.companions.pageTrouble(input)),
+      looks: () =>
+        resubscribe(connection, (wire, signal) => wire.companions.looks(undefined, { signal })),
+      answerLook: (answer) => call((wire) => wire.companions.answerLook(answer)),
     },
     inbox: {
       list: () => call((wire) => wire.inbox.list()),

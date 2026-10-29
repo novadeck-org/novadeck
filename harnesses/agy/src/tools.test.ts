@@ -90,6 +90,14 @@ suite("what an Antigravity tool call was", () => {
     ],
     ["show", { file: '{"path":"/a/b/c/d/mock.png"}' }, "read", "Showed", "…/c/d/mock.png"],
     ["showing", {}, "read", "Checked what's shown", ""],
+    ["look", {}, "web", "Looked at the page", ""],
+    [
+      "look",
+      { page: { url: "http://localhost:5173/" } },
+      "web",
+      "Looked at the page",
+      "http://localhost:5173/",
+    ],
     [
       "summarize",
       { summary: "Fixing the cart rounding" },

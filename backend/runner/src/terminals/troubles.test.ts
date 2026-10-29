@@ -16,6 +16,7 @@ import {
   due,
   itemGone,
   keptTroubles,
+  lookedAt,
   noTroubles,
   pageNotice,
   spend,
@@ -249,5 +250,24 @@ describe("the size of page notices", () => {
     const taken = take(many(1), true, () => false)
     expect(taken.pages).toEqual([])
     expect(due(taken.nudges.troubles)).toBe(false)
+  })
+})
+
+describe("troubles a look tells", () => {
+  const held = troubled(noTroubles, page, [error("boom")])
+
+  it("are spent: nothing more of that show is held for a notice", () => {
+    const after = lookedAt(held, page.itemId, page.version)
+    expect(entryOf(after)).toMatchObject({ told: true, troubles: [], more: 0 })
+    expect(due(after)).toBe(false)
+    // A later show's troubles are held again, as after a notice.
+    expect(due(troubled(after, { ...page, version: 2 }, [error("again")]))).toBe(true)
+  })
+
+  it("leave a later show, one already told and an unknown item alone", () => {
+    expect(lookedAt(held, page.itemId, 0)).toBe(held)
+    expect(lookedAt(held, "other", page.version)).toBe(held)
+    const told = lookedAt(held, page.itemId, page.version)
+    expect(lookedAt(told, page.itemId, page.version)).toBe(told)
   })
 })

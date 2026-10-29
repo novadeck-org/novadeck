@@ -232,6 +232,9 @@ export const recordingRunner = (runner: Runner, io: string[]): RunnerApi => {
         note(`reset window ${windowId}`, () => runner.companions.resetWindowTitle(windowId)),
       pageTrouble: (input) =>
         note(`page trouble ${input.itemId}`, () => runner.companions.pageTrouble(input)),
+      looks: () => runner.companions.looks(),
+      answerLook: (answer) =>
+        note(`answer look ${answer.lookId}`, () => runner.companions.answerLook(answer)),
     },
     settings: {
       get: () => runner.settings.get(),

@@ -394,3 +394,11 @@ export const watchPageRequests = (
   // A page view gone, as each rest of a page drops one: its counts go with it.
   return { forget: (contentsId) => void told.delete(contentsId) }
 }
+
+export {
+  createLooker,
+  lookSizes,
+  type LookLayout,
+  type Looker,
+  type LookResult,
+} from "./browser-look.js"

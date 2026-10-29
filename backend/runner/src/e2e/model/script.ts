@@ -30,7 +30,13 @@ export type Api = "anthropic" | "responses" | "gemini"
 export type Turn =
   | { readonly role: "user"; readonly text: string }
   | { readonly role: "assistant"; readonly text: string; readonly calls: readonly ToolCall[] }
-  | { readonly role: "tool"; readonly id: string; readonly text: string }
+  | {
+      readonly role: "tool"
+      readonly id: string
+      readonly text: string
+      /** How many pictures the harness passed to the model with the result. */
+      readonly images?: number
+    }
 
 export type ToolCall = {
   readonly id: string
@@ -144,3 +150,7 @@ export const tool = (call: Call, name: string): string | undefined =>
 export const asked = (call: Call, words: string): boolean =>
   call.turns.findLastIndex((turn) => turn.role === "user" && turn.text.includes(words)) >
   call.turns.findLastIndex((turn) => turn.role === "assistant")
+
+/** A tool turn's `images`, left out when the result held none. */
+export const withImages = (count: number): { readonly images?: number } =>
+  count > 0 ? { images: count } : {}

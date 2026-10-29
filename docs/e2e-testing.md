@@ -384,7 +384,7 @@ network:
 
 Messaging scenarios live in `messaging.e2e.ts`, a runner restart's in `restart.e2e.ts`,
 an agent starting another with a task, or closing another's terminal, in
-`tasks.e2e.ts`, the person typing around messages in `person.e2e.ts`, messages that come while the agent waits on the person (a
+`tasks.e2e.ts`, an agent's look at a page it showed (the picture reaches each harness's model) in `look.e2e.ts`, the person typing around messages in `person.e2e.ts`, messages that come while the agent waits on the person (a
 permission question, its own popup, a picker) in `requests.e2e.ts`, a nested run of the
 harness inside an agent's turn in `nested.e2e.ts`, the person forking a session in a new
 terminal or in place in `forks.e2e.ts`, the person clearing the conversation

@@ -1,14 +1,9 @@
 import { pageTroublesPerCall, type PageContent } from "@novadeck/core/items"
+import { pageSights } from "@novadeck/core/page-sights"
 import { pagesPartition } from "@novadeck/core/pages"
 import { useShown } from "@novadeck/toolkit/shown"
 import { Tooltip } from "@novadeck/toolkit/Tooltip"
-import {
-  mountBrowser,
-  type Load,
-  type PageSize,
-  type Place,
-  type Trouble,
-} from "@novadeck/viewers/browser"
+import { mountBrowser, type Load, type Place, type Trouble } from "@novadeck/viewers/browser"
 import { ArrowLeft, ArrowRight, ExternalLink, RotateCw, Smartphone } from "lucide-react"
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react"
 
@@ -70,10 +65,6 @@ const useTroubles = (tell: Tell): ((trouble: Trouble, shown: number) => void) =>
   return batch.collect
 }
 
-// What each page item lays out as, as the person last switched it, for as long as the app
-// runs: a page shown again, or at another address, keeps it.
-const sizes = new Map<string, PageSize>()
-
 // A page in the browser viewer: live where the backend's host allows, else its snapshot.
 // Where its viewer was, by item, is kept: where the person had taken it, and the picture
 // of it a live page rests as while the pane sleeps, which costs nothing to draw.
@@ -93,7 +84,7 @@ const ShownPage = ({
   const collect = useTroubles(trouble)
   const [place, setPlace] = useState<Place>({ url: page.url, back: false, forward: false })
   const [load, setLoad] = useState<Load>("loading")
-  const [size, setSize] = useState<PageSize>(() => sizes.get(id) ?? "desktop")
+  const [size, setSize] = useState(() => pageSights.layout(id))
   // Each show of it loads it afresh and brings its scroll into view, once.
   const content = useMemo(
     () => ({
@@ -124,9 +115,26 @@ const ShownPage = ({
   useEffect(() => viewer?.size(size), [viewer, size])
   const switchSize = (): void => {
     const next = size === "phone" ? "desktop" : "phone"
-    sizes.set(id, next)
+    pageSights.setLayout(id, next)
     setSize(next)
   }
+  // An agent's look at the page is a picture of it as it is here, while it is live on screen.
+  useEffect(() => {
+    if (!viewer || !picture || !page.live) return
+    return pageSights.register(id, async (width) => {
+      const seen = viewer.seen()
+      if (!seen) return undefined
+      const src = await picture(seen.page, width)
+      // Gone to rest, or off screen, while the picture was taken: it is of what it was then.
+      if (!src || viewer.seen()?.page !== seen.page) return undefined
+      return {
+        picture: src,
+        url: seen.url,
+        title: seen.title,
+        size: { width: seen.width, height: seen.height },
+      }
+    })
+  }, [viewer, picture, page.live, id])
   // On screen with no picture to rest as, it wakes for a while, to be pictured as it
   // rests; shown again by its agent, as soon as it's on screen, to show what changed.
   const show = useRef(page.shown)

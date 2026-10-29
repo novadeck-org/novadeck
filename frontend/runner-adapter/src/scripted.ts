@@ -43,7 +43,10 @@ export const channel = <T>() => {
 }
 
 // A runner whose terminals' companions hold nothing and never change.
-export const noCompanions = { watch: () => channel<never>().iterator }
+export const noCompanions = {
+  watch: () => channel<never>().iterator,
+  looks: () => channel<never>().iterator,
+}
 
 const unused = (): never => {
   throw new Error("not used here")
@@ -233,6 +236,9 @@ export const scripted = ({
       close: note("close item", (input) => respond("close item", input)),
       renameWindow: note("rename window", (input) => respond("rename window", input)),
       resetWindowTitle: note("reset window", (input) => respond("reset window", input)),
+      // No agent looks at a page here.
+      looks: () => channel<never>().iterator,
+      answerLook: note("answer look", (input) => respond("answer look", input)),
     },
   } as unknown as RunnerApi
   const listing: RunnerListing = [

@@ -285,3 +285,21 @@ describe("gemini", () => {
     expect(gemini.matches(post("/v1/responses", {}))).toBe(false)
   })
 })
+
+describe("gemini tool results with pictures", () => {
+  it("counts the inline images of the result's content, however nested", () => {
+    const call = parse("gemini-3.1-pro-preview", {
+      contents: [
+        { role: "user", parts: [{ text: "Look" }] },
+        {
+          role: "model",
+          parts: [
+            { functionResponse: { id: "c1", name: "look", response: { output: "Looked." } } },
+            { inlineData: { mimeType: "image/jpeg", data: "AA==" } },
+          ],
+        },
+      ],
+    })
+    expect(call.turns.at(-1)).toEqual({ role: "tool", id: "c1", text: "Looked.", images: 1 })
+  })
+})

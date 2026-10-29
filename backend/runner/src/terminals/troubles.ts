@@ -70,6 +70,22 @@ export const troubled = (
   })
 }
 
+/**
+ * A look told of the item's held troubles: nothing more of that show is held for the next
+ * prompt's notice. A show the look isn't of (a later one replaced it) is left.
+ */
+export const lookedAt = (troubles: Troubles, itemId: string, version: number): Troubles => {
+  const own = troubles.get(itemId)
+  if (!own || own.version !== version || own.told) return troubles
+  return new Map(troubles).set(itemId, {
+    ...own,
+    troubles: [],
+    more: 0,
+    seen: new Set(),
+    told: true,
+  })
+}
+
 /** An item is gone: what was held for it goes. */
 export const itemGone = (troubles: Troubles, itemId: string): Troubles => {
   if (!troubles.has(itemId)) return troubles
@@ -185,17 +201,32 @@ const troubleText = (trouble: PageTrouble, page: string): string => {
 }
 
 /**
+ * Up to 5 of a page's troubles, each as the notice words it, then how many more, joined
+ * for one sentence; `more` counts those beyond `troubles`.
+ */
+export const troubleList = (
+  troubles: readonly PageTrouble[],
+  more: number,
+  page: string,
+): string => {
+  const listed = troubles.slice(0, listedTroubles)
+  const rest = troubles.length - listed.length + more
+  return [
+    ...listed.map((trouble) => troubleText(trouble, page)),
+    ...(rest > 0 ? [`and ${rest} more`] : []),
+  ].join("; ")
+}
+
+/** What a page supplied, as a quoted string of one clipped line (see `pageNotice`). */
+export const quotedText = quoted
+
+/**
  * What a session is told of a page it showed that had problems in the user's pane, a
  * paragraph worded as Novadeck's automatic notice. What a page supplies is its own text, so
  * the notice quotes each such string, a line at a time and bounded in bytes.
  */
 export const pageNotice = (entry: PageEntry): string => {
-  const listed = entry.troubles.slice(0, listedTroubles)
-  const more = entry.troubles.length - listed.length + entry.more
-  const told = [
-    ...listed.map((trouble) => troubleText(trouble, entry.url)),
-    ...(more > 0 ? [`and ${more} more`] : []),
-  ].join("; ")
+  const told = troubleList(entry.troubles, entry.more, entry.url)
   return (
     "Novadeck: automatic notice, not from the user: the page you showed, " +
     `${clip(line(entry.name), 80)} (${clip(line(entry.url), 200)}), had problems in the ` +

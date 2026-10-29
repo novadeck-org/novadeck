@@ -8,7 +8,10 @@ export const id = z.uuid()
 export const name = z.string().trim().min(1).max(200)
 export const directory = z.string().min(1).max(4096)
 
-/** The largest incoming WebSocket message a runner accepts; every call must fit in one. */
+/**
+ * The largest incoming WebSocket message a runner accepts; every call must fit in one. A
+ * look's picture never comes this way: only the desktop app takes them, over its port.
+ */
 export const maxWebSocketMessageBytes = 256 * 1024
 /**
  * The longest saved session state, in characters. Over WebSocket, the whole
@@ -638,6 +641,36 @@ export const pageTrouble = z.discriminatedUnion("kind", [
 /** How many troubles one `companions.pageTrouble` call carries at most. */
 export const maxPageTroubles = 20
 
+// `companions.looks` items: an agent's look, through Novadeck's MCP server, at a page item
+// it may look at, for the client to picture: the item, and the address its latest show
+// pointed at.
+export const pageLook = z.strictObject({
+  lookId: id,
+  itemId: id,
+  url: z.string().max(2048),
+})
+
+/** The largest picture a look is answered with: a JPEG data URL, in characters. */
+export const maxLookPicture = 4 * 1024 * 1024
+
+// The client's answer to a look: a JPEG picture of the page; where it was then, its address
+// and title; how it was taken, `pane` as the person's pane shows it now, or `fresh`, its
+// address loaded anew at the pane's size, as no pane shows it live; the size it laid out at,
+// in CSS pixels; and what went wrong on a fresh load. Or why there's none, in a sentence the
+// agent can pass on.
+export const pageLookAnswer = z.union([
+  z.strictObject({
+    lookId: id,
+    picture: z.string().max(maxLookPicture).startsWith("data:image/jpeg;base64,"),
+    url: z.string().max(2048),
+    title: z.string().max(1024),
+    taken: z.enum(["pane", "fresh"]),
+    size: z.strictObject({ width: z.int().min(1).max(8192), height: z.int().min(1).max(8192) }),
+    troubles: z.array(pageTrouble).max(maxPageTroubles),
+  }),
+  z.strictObject({ lookId: id, reason: z.string().trim().min(1).max(512) }),
+])
+
 /** Bounds of a change as `companions.content` carries it: files, and the diff text in all. */
 export const maxChangedFiles = 300
 export const maxChangesBytes = 4 * 1024 * 1024
@@ -1167,6 +1200,8 @@ export type CompanionWindow = z.infer<typeof companionWindow>
 export type CompanionChange = z.infer<typeof companionChange>
 export type ItemContent = z.infer<typeof itemContent>
 export type PageTrouble = z.infer<typeof pageTrouble>
+export type PageLook = z.infer<typeof pageLook>
+export type PageLookAnswer = z.infer<typeof pageLookAnswer>
 export type ChangedFile = z.infer<typeof changedFile>
 export type PlanSaveResult = z.infer<typeof planSaveResult>
 export type TerminalRequest = z.infer<typeof terminalRequest>

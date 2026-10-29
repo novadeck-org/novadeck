@@ -149,3 +149,27 @@ export const readRequest: Read<PresentRequest> = reader<PresentRequest>(sources)
 
 /** A `close` request, or why it cannot be one. */
 export const readDismissRequest: Read<DismissRequest> = reader<DismissRequest>(dismissSources)
+
+/**
+ * What `look` takes: the page to look at, named by the address given `show`, or nothing
+ * when the terminal's bar holds a single page.
+ */
+export const lookRequest = z.strictObject({
+  page: z.strictObject({ url: pageSource.shape.url }).optional(),
+})
+
+export type LookRequest = z.infer<typeof lookRequest>
+
+/** A `look` request, or why it cannot be one. */
+export const readLookRequest = (
+  value: unknown,
+): { readonly ok: true; readonly request: LookRequest } | PresentFailure => {
+  const parsed = lookRequest.safeParse(value)
+  if (parsed.success) return { ok: true, request: parsed.data }
+  const [issue] = parsed.error.issues
+  const path = issue?.code === "unrecognized_keys" ? [...issue.path, issue.keys[0]] : issue?.path
+  const field = path?.map(String).join(".")
+  return failure(
+    field ? `The request's ${named(field)} is not valid.` : "The request is not valid.",
+  )
+}
