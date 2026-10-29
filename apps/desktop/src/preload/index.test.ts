@@ -298,11 +298,12 @@ describe("a look at a page loaded afresh", () => {
       await electron.exposed.lookAtPage?.({
         url: "http://localhost:5173/",
         layout: "phone",
+        before: 5,
         extra: "dropped",
       } as never),
     ).toEqual(look)
     expect(electron.messages).toEqual([
-      [pageLookChannel, { url: "http://localhost:5173/", layout: "phone" }],
+      [pageLookChannel, { url: "http://localhost:5173/", layout: "phone", before: 5 }],
     ])
   })
 
@@ -316,7 +317,11 @@ describe("a look at a page loaded afresh", () => {
     ]
     const looks = answers.map((answer) => {
       electron.answer = answer
-      return electron.exposed.lookAtPage?.({ url: "http://localhost:5173/", layout: "desktop" })
+      return electron.exposed.lookAtPage?.({
+        url: "http://localhost:5173/",
+        layout: "desktop",
+        before: 5,
+      })
     })
     expect(await Promise.all(looks)).toEqual([
       { reason: "The page could not be pictured." },

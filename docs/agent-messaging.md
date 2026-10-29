@@ -1978,28 +1978,34 @@ shows is never instructions. It takes `page: { url }`, the address given to `sho
 nothing when exactly one page is on the bar. The rules:
 
 1. which pages: page items on the caller's own bar, whoever placed them, and pages the
-   caller showed that the person moved elsewhere (what `showing` lists), and only when the
-   top page is served from this machine (`onThisMachine`, as for troubles above). Anything
-   else, a file, a page elsewhere, an address the bar doesn't hold, or several pages with
-   no `page`, is refused with a sentence. A page that has since moved off this machine is
-   not pictured either: the runner checks the address the client answers with. The rule is
-   about the page itself, not what it embeds: a picture of the pane is the page as the user
-   sees it, frames from elsewhere included, while a fresh load blocks frames from other
-   origins;
+   caller showed that the person moved elsewhere (what `showing` lists), and only when
+   the page itself, its top frame at the address it is at when pictured, is served from
+   this machine (`onThisMachine`, as for troubles above). Anything else, a file, a page
+   elsewhere, an address the bar doesn't hold, or several pages with no `page`, is refused
+   with a sentence. A page that has since moved off this machine is not pictured either:
+   the runner checks the address the client answers with. The rule is about the page
+   itself, not what it embeds. A picture of the pane is the page as the user sees it,
+   frames from elsewhere included. A fresh load blocks frames and navigations to other
+   origins, while cross-origin subresources (images, scripts, fetches) load as usual;
 2. who takes it: the client, over `companions.looks` and `companions.answerLook`, which work
    as `terminals.requests` and `answerRequest` do. Each look goes to the client that
    subscribed last, as `{ lookId, itemId, shown, url }`, where `shown` is the item's latest
    show (its `version`): the client doesn't picture a pane still at an earlier show, and
    loads the page fresh instead. The desktop host takes looks one at a time and queues the
-   rest. One look is at worst a pane attempt (up to 2 s, `pictureWaitMs`) and then a fresh
-   load (about 8.3 s: a 6 s load, 0.8 s settling, 1.5 s capture), about 10.5 s. The runner
-   waits 20 s (`lookMs`), so a second look queued behind one fits, and the MCP call itself is
-   given 24 s (`ReportsOptions.lookMs`), not the 8 s other calls get. Claude Code's MCP tool
-   timeout is far longer than that by default (counted in hours) and Codex's
-   `tool_timeout_sec` defaults to 60 s; Novadeck sets neither. A real Claude Code, Codex and
-   Antigravity each took a look held for 19 s and passed its picture on (probed once with
-   the e2e deck delaying its answer). No client, one that went away and one too
-   slow each get their own refusal;
+   rest, and gives each a deadline: a look the runner has given up on is dropped from the
+   queue rather than run. A look first tries the pane: for each view of the item, one
+   capture per width in `lookWidths` (1280, 960, 640), the next only when the picture came
+   out too large, each waiting up to 2 s (`pictureWaitMs`), so up to 6 s for one view.
+   Then, if no pane gave a picture, a fresh load (about 8.3 s: a 6 s load, 0.8 s settling,
+   1.5 s capture). The worst case for one look is about 14 s. The runner waits 20 s
+   (`lookMs`), so a look queued behind a quick one fits, while one behind a worst-case look
+   may run out, and is then refused as too slow; the MCP call itself is given 24 s
+   (`ReportsOptions.lookMs`), not the 8 s other calls get. Claude Code's MCP tool timeout is
+   far longer than that by default (counted in hours) and Codex's `tool_timeout_sec`
+   defaults to 60 s; Novadeck sets neither. A real Claude Code, Codex and Antigravity each
+   took a look held for 19 s and passed its picture on (probed once with the e2e deck
+   delaying its answer). No client, one that went away and one too slow each get their own
+   refusal;
 3. the answer is a JPEG (up to `maxLookPicture`, 4 MiB as a data URL) with the page's
    address and title now, `taken` as `pane` (what the user's pane shows) or `fresh` (loaded
    anew, hidden and one at a time, in the pages' shared session at 1280×800, or 390×844 when

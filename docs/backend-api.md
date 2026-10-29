@@ -1162,12 +1162,12 @@ one from an earlier runner.
     call fails with nothing: an unknown item, a file, a person's item, a show other than the
     latest, or a page not served from this machine is let be.
   - `companions.looks()` streams agents' looks at a page item, made with the MCP `look`
-    tool, to the client that subscribed last: `{ lookId, itemId, url }`, `url` being the
-    address its latest show pointed at. The client answers each with
+    tool, to the client that subscribed last: `{ lookId, itemId, shown, url }`, `shown` being the
+    item's latest show (its `version`) and `url` the address that show pointed at. The client answers each with
     `companions.answerLook`: a JPEG data URL (up to `maxLookPicture`, 4 MiB) with the
     page's `url` and `title` now, `taken` (`pane`: as the pane shows it; `fresh`: loaded
     anew at the pane's size), its `size` and the `troubles` seen; or `{ lookId, reason }`.
-    The runner waits 12 s; an answer it no longer waits for, or sent from another client
+    The runner waits 20 s; an answer it no longer waits for, or sent from another client
     than the one the look went to, is `NOT_FOUND`. See [Agent
     messaging](agent-messaging.md), "Looking at a page".
 

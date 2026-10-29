@@ -271,10 +271,24 @@ describe("troubles a look tells", () => {
       error("later"),
     ])
     expect(entryOf(after).troubles).toEqual([error("later")])
+    // What the look told is never "more", nor does it use up what an entry counts.
+    expect(entryOf(after).more).toBe(0)
+    expect(pageNotice(entryOf(after))).not.toContain("more")
     expect(due(after)).toBe(true)
     expect(pageNotice(entryOf(after))).not.toContain("boom")
     // A later show's troubles are held as ever.
     expect(due(troubled(after, { ...page, version: 2 }, [error("again")]))).toBe(true)
+  })
+
+  it("count only the troubles told after them as more", () => {
+    const later = Array.from({ length: keptTroubles + 2 }, (_, index) => error(`later ${index}`))
+    const after = troubled(lookedAt(held, page.itemId, page.version), page, later)
+    expect(entryOf(after).troubles).toHaveLength(keptTroubles)
+    expect(entryOf(after).more).toBe(2)
+    // A second look spends those too, and counts nothing it told.
+    const again = lookedAt(after, page.itemId, page.version)
+    expect(entryOf(again)).toMatchObject({ troubles: [], more: 0 })
+    expect(entryOf(troubled(again, page, [error("last")])).more).toBe(0)
   })
 
   it("leave a later show, one already told and an unknown item alone", () => {

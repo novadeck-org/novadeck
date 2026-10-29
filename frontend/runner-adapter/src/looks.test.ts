@@ -10,7 +10,7 @@ import { noTheme } from "@novadeck/terminal-views/theme"
 import { afterAll, vi } from "vitest"
 
 import { runnerBackend, type RunnerApi } from "./backend"
-import { answerLook, lookWidths, noPictures, type Looks } from "./looks"
+import { answerLook, lookDeadlineMs, lookWidths, noPictures, type Looks } from "./looks"
 import { context, describe, expect, it } from "./test"
 import { startTestRunner } from "./testing"
 
@@ -107,13 +107,34 @@ describe("an agent's look at a page", () => {
         size: { width: 390, height: 844 },
         troubles: [{ kind: "load", text: "ERR_CONNECTION_REFUSED" }],
       })
-      expect(fresh).toHaveBeenCalledWith({ url: look.url, layout: "phone" })
+      expect(fresh).toHaveBeenCalledWith({
+        url: look.url,
+        layout: "phone",
+        before: expect.any(Number),
+      })
+    })
+
+    it("is given until the runner stops waiting, to be begun by", async () => {
+      vi.useFakeTimers({ toFake: ["Date"] })
+      try {
+        vi.setSystemTime(1_000_000)
+        const fresh = vi.fn<NonNullable<Looks["fresh"]>>(async () => freshLook())
+        await answerLook(look, { sights: createPageSights(), fresh })
+        expect(fresh.mock.calls[0]![0].before).toBe(1_000_000 + lookDeadlineMs)
+        expect(lookDeadlineMs).toBeLessThan(20_000)
+      } finally {
+        vi.useRealTimers()
+      }
     })
 
     it("is loaded afresh as a desktop's, unless the person switched it", async () => {
       const fresh = vi.fn<NonNullable<Looks["fresh"]>>(async () => freshLook())
       await answerLook(look, { sights: createPageSights(), fresh })
-      expect(fresh).toHaveBeenCalledWith({ url: look.url, layout: "desktop" })
+      expect(fresh).toHaveBeenCalledWith({
+        url: look.url,
+        layout: "desktop",
+        before: expect.any(Number),
+      })
     })
 
     it("is loaded afresh when its pane's viewer has no picture, as at rest", async () => {

@@ -397,8 +397,8 @@ const bridge = {
       : undefined
   },
   // Only a JPEG picture, or a reason, comes back; the main process checks the request again.
-  lookAtPage: async ({ url, layout }) => {
-    const look: unknown = await ipcRenderer.invoke(pageLookChannel, { url, layout })
+  lookAtPage: async ({ url, layout, before }) => {
+    const look: unknown = await ipcRenderer.invoke(pageLookChannel, { url, layout, before })
     return hostLookOf(look)
   },
   // Only whether it did comes back; the main process checks the page is one of this page's.

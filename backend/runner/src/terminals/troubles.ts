@@ -17,6 +17,8 @@ export type PageEntry = {
   /** The distinct troubles kept, in the order told, and how many more were told. */
   readonly troubles: readonly PageTrouble[]
   readonly more: number
+  /** How many of `seen` a look already told, which neither count as more nor use up the cap. */
+  readonly spent: number
   /** Every trouble told so far, by its text, so a reload's repeats count once. */
   readonly seen: ReadonlySet<string>
   /** The notice went to the agent: nothing more is held for this show. */
@@ -53,26 +55,27 @@ export const troubled = (
   const base: PageEntry =
     own?.version === page.version
       ? own
-      : { ...page, troubles: [], more: 0, seen: new Set(), told: false }
+      : { ...page, troubles: [], more: 0, spent: 0, seen: new Set(), told: false }
   const seen = new Set(base.seen)
   const kept = [...base.troubles]
   for (const trouble of told) {
     const key = JSON.stringify(trouble)
-    if (seen.has(key) || seen.size >= countedTroubles) continue
+    if (seen.has(key) || seen.size - base.spent >= countedTroubles) continue
     seen.add(key)
     if (kept.length < keptTroubles) kept.push(trouble)
   }
   return new Map(troubles).set(page.itemId, {
     ...base,
     troubles: kept,
-    more: seen.size - kept.length,
+    more: seen.size - base.spent - kept.length,
     seen,
   })
 }
 
 /**
  * A look told of the troubles held for the item: those are spent, so the next prompt's
- * notice doesn't repeat them, and they stay in `seen`, so a reload's repeats stay quiet. The
+ * notice doesn't repeat them, and they stay in `seen`, so a reload's repeats stay quiet, but
+ * count as `spent`: they are never "more", and don't use up what an entry counts. The
  * show stays open: troubles that arrive after the look are still held to be told. A show
  * the look isn't of (a later one replaced it), or one already told, is left.
  */
@@ -80,7 +83,7 @@ export const lookedAt = (troubles: Troubles, itemId: string, version: number): T
   const own = troubles.get(itemId)
   if (!own || own.version !== version || own.told) return troubles
   if (own.troubles.length === 0 && own.more === 0) return troubles
-  return new Map(troubles).set(itemId, { ...own, troubles: [], more: 0 })
+  return new Map(troubles).set(itemId, { ...own, troubles: [], more: 0, spent: own.seen.size })
 }
 
 /** An item is gone: what was held for it goes. */
@@ -111,7 +114,14 @@ export const spend = (
   const pages: PageEntry[] = []
   const after = new Map(troubles)
   const closed = (page: PageEntry) =>
-    after.set(page.itemId, { ...page, troubles: [], more: 0, seen: new Set(), told: true })
+    after.set(page.itemId, {
+      ...page,
+      troubles: [],
+      more: 0,
+      spent: 0,
+      seen: new Set(),
+      told: true,
+    })
   for (const page of waiting) {
     if (pages.length >= listedPages) break
     if (fits([...pages, page])) {

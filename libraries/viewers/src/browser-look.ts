@@ -19,8 +19,10 @@ import {
 // carries over, laid out as the pane would lay it out, and pictured. The window has the
 // pane's pages' lockdown (no Node or preload, a sandbox, http(s) only, no popups) and is
 // never shown, focused or kept: whatever happens, it is destroyed before the answer goes.
-// Only addresses the host allows (the app allows those on this machine) are looked at,
-// loaded, redirected to or framed: nothing from elsewhere ever loads in the signed-in session.
+// Only addresses the host allows (the app allows those on this machine) are looked at, and
+// the page's navigations, redirects and frames are held to them, so no frame or page from
+// elsewhere loads in the signed-in session. Its subresources (images, scripts, fetches) from
+// other origins do load, as in the pane.
 
 /** What a look lays out as: a desktop's window or a phone's screen, as the pane's switch has it. */
 export type LookLayout = "desktop" | "phone"
@@ -58,6 +60,8 @@ export type Looker = {
   readonly look: (request: {
     readonly url: unknown
     readonly layout: unknown
+    // When the caller stops waiting, in `Date.now()` milliseconds: a look not begun by then is dropped.
+    readonly before?: unknown
   }) => Promise<LookResult>
   /**
    * Hands a failed request of the pages' session to the look it is for, by its view's web
@@ -153,11 +157,17 @@ export const createLooker = ({
   const windows = new Set<BrowserWindow>()
   // The failures of the look under way's view, by its view's web contents id.
   const hearing = new Map<number, (failure: PageRequestFailure) => void>()
-  const look: Looker["look"] = async ({ url, layout }) => {
+  const look: Looker["look"] = async ({ url, layout, before }) => {
     if (typeof url !== "string" || !webAddress(url) || !allow(url))
       return { reason: "Novadeck only looks at pages on this machine." }
     if (layout !== "desktop" && layout !== "phone") return { reason: "That layout is unknown." }
     if (!(await turn())) return { reason: busy }
+    // Looks queue behind slower ones: one its caller has stopped waiting for is dropped
+    // unbegun, so it doesn't hold up those after it.
+    if (typeof before === "number" && Date.now() > before) {
+      next()
+      return { reason: "Novadeck didn't get to this picture in time." }
+    }
     const size = lookSizes[layout]
     let window: BrowserWindow | undefined
     try {

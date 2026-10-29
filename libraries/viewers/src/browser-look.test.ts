@@ -282,6 +282,26 @@ describe("a look at a page", () => {
     expect(await second).toHaveProperty("picture")
   })
 
+  it("drops a waiting look its caller has stopped waiting for, unbegun, and goes on to the next", async () => {
+    const releases: (() => void)[] = []
+    const { looker, created } = setup({
+      load: (each) => releases.push(() => each.emit("did-stop-loading")),
+    })
+    const first = looker.look({ url, layout: "desktop" })
+    const late = looker.look({ url, layout: "desktop", before: Date.now() + 50 })
+    const fine = looker.look({ url, layout: "desktop", before: Date.now() + 60_000 })
+    await vi.waitFor(() => expect(releases).toHaveLength(1))
+    await new Promise((resolve) => setTimeout(resolve, 100))
+    releases[0]!()
+    expect(await first).toHaveProperty("picture")
+    expect(await late).toEqual({ reason: "Novadeck didn't get to this picture in time." })
+    await vi.waitFor(() => expect(releases).toHaveLength(2))
+    releases[1]!()
+    expect(await fine).toHaveProperty("picture")
+    // The dropped look never made a window.
+    expect(created).toHaveLength(2)
+  })
+
   it("refuses a look beyond the few that wait", async () => {
     const releases: (() => void)[] = []
     const { looker } = setup({

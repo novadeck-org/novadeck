@@ -72,7 +72,11 @@ describe("compiled desktop host", () => {
       const preload = await read("preload/index.cjs")
 
       expect(main).toContain('app.on("before-quit"')
-      expect(main).toContain("saveWindows(BrowserWindow.getAllWindows())")
+      // Only the app's own windows: a look's, out of sight, has no page to save.
+      expect(main).toContain("saveWindows(appWindows())")
+      expect(main).toMatch(
+        /appWindows = \(\) => BrowserWindow\.getAllWindows\(\)\.filter\(\(window\) => !looker\.is\(window\)\)/,
+      )
       expect(main).toContain("() => saveWindows([window])")
       expect(main).toContain("saveBeforeQuitChannel")
       expect(preload).toContain("novadeck:save-before-quit")

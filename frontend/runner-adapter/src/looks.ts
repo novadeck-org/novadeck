@@ -15,6 +15,9 @@ import { clip, troubleOf } from "./companions"
 /** The widest a look's picture is, in device pixels; the widths it then tries if it comes out too large. */
 export const lookWidths = [1280, 960, 640] as const
 
+/** How long a look has from its arrival until the runner gives up on it, less a margin. */
+export const lookDeadlineMs = 18_000
+
 export const noPictures =
   "Novadeck can't take pictures of pages here: only the desktop app loads them."
 
@@ -26,6 +29,8 @@ export type Looks = {
     | ((request: {
         readonly url: string
         readonly layout: "desktop" | "phone"
+        // When the runner stops waiting, in the clock's milliseconds: a look not begun by then is dropped.
+        readonly before: number
       }) => Promise<HostPageLook>)
     | undefined
   readonly sights?: PageSights
@@ -36,6 +41,8 @@ export const answerLook = async (
   { fresh, sights = pageSights }: Looks,
 ): Promise<PageLookAnswer> => {
   const { lookId, itemId } = look
+  // The runner waits only so long for an answer; one that comes later is no use to anyone.
+  const before = Date.now() + lookDeadlineMs
   for (const sight of sights.of(itemId)) {
     for (const width of lookWidths) {
       // eslint-disable-next-line no-await-in-loop -- Each width is tried only if the last was too large.
@@ -55,7 +62,7 @@ export const answerLook = async (
   }
   if (!fresh) return { lookId, reason: noPictures }
   try {
-    const seen = await fresh({ url: look.url, layout: sights.layout(itemId) })
+    const seen = await fresh({ url: look.url, layout: sights.layout(itemId), before })
     if ("reason" in seen) return { lookId, reason: clip(seen.reason, 512) }
     if (seen.picture.length > maxLookPicture)
       return { lookId, reason: "The page's picture came out too large." }

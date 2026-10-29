@@ -232,6 +232,8 @@ export type DesktopBridge = {
   lookAtPage?(request: {
     readonly url: string
     readonly layout: "desktop" | "phone"
+    /** When the caller stops waiting, in `Date.now()` milliseconds: a look still queued by then is dropped. */
+    readonly before: number
   }): Promise<HostPageLook>
   /**
    * Makes a live page's view act as a phone's, by its view's `getWebContentsId()`, or as

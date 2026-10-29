@@ -1899,11 +1899,15 @@ const launch = async (): Promise<void> => {
   // An agent's look at a page no pane shows live: loaded afresh, out of sight, and pictured.
   ipcMain.handle(pageLookChannel, (event, request: unknown) => {
     if (!appWindow(event)) return { reason: "Not from the app's own page." }
-    const { url, layout } = (request ?? {}) as { url?: unknown; layout?: unknown }
+    const { url, layout, before } = (request ?? {}) as {
+      url?: unknown
+      layout?: unknown
+      before?: unknown
+    }
     // The looker checks the address too; this is the door, so it asks first.
     if (typeof url !== "string" || !onThisMachine(url))
       return { reason: "Novadeck only looks at pages on this machine." }
-    return looker.look({ url, layout })
+    return looker.look({ url, layout, before })
   })
   // The app's page makes one of its own page views a phone's, or not, as it shows it.
   ipcMain.handle(pagePhoneChannel, (event, id: unknown, phone: unknown) =>
@@ -2026,6 +2030,8 @@ app.whenReady().then(() => {
     const contents = frame ? webContents.fromFrame(frame) : undefined
     const owner = contents?.hostWebContents ?? contents
     const window = owner ? BrowserWindow.fromWebContents(owner) : null
+    // A look's window is out of sight: no one is there to pick, so the sign-in is cancelled.
+    if (window && looker.is(window)) return undefined
     const labels = passkeyLabels(accounts)
     const options = {
       type: "question" as const,
