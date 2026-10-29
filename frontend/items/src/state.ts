@@ -75,6 +75,8 @@ export type ItemStore = {
   readonly connect: () => () => void
   // Takes a picture of a live page for it to rest as: the backend's, where it has one.
   readonly picture?: Companions["picture"]
+  // Makes a live page's view a phone's, or not: the backend's, where it has one.
+  readonly phone?: Companions["phone"]
 }
 
 type Followed = {
@@ -688,7 +690,7 @@ export const createItemStore = ({
       for (const id of session.followed.keys()) unfollow(session, id)
     }
   }
-  const { picture } = companions
+  const { picture, phone } = companions
   const trouble: ItemStore["trouble"] = (target, itemId, shown, troubles) =>
     session.companions.trouble(target, itemId, shown, troubles)
   return {
@@ -699,5 +701,6 @@ export const createItemStore = ({
     trouble,
     connect,
     ...(picture && { picture }),
+    ...(phone && { phone }),
   }
 }

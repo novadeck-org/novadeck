@@ -181,6 +181,12 @@ export const pagePictureChannel = "novadeck:page-picture"
 export const pageLookChannel = "novadeck:page-look"
 
 /**
+ * Renderer-to-main request to make a live page's view act as a phone's, or as itself
+ * again, by its web contents id; answers whether it did. See the viewers' `phonePage`.
+ */
+export const pagePhoneChannel = "novadeck:page-phone"
+
+/**
  * Renderer-to-main report of an error the page didn't catch, `{ kind, name, message, stack }`,
  * which the host logs; see main/ui-errors.ts.
  */

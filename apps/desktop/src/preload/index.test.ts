@@ -23,6 +23,7 @@ import {
   openUpdatePageChannel,
   pageLookChannel,
   pagePictureChannel,
+  pagePhoneChannel,
   portableChannel,
   portableStateChannel,
   quitAppChannel,
@@ -324,6 +325,20 @@ describe("a look at a page loaded afresh", () => {
       { reason: "The page could not be pictured." },
       { reason: "Busy." },
     ])
+  })
+})
+
+describe("a live page made a phone's", () => {
+  it("is asked for by the page's view id, and did only when the main process says so", async () => {
+    electron.answer = true
+    expect(await electron.exposed.pagePhone?.(7, true)).toBe(true)
+    expect(electron.messages).toEqual([[pagePhoneChannel, 7, true]])
+    const answers = [false, undefined, "true", 1]
+    const phones = answers.map((answer) => {
+      electron.answer = answer
+      return electron.exposed.pagePhone?.(7, false)
+    })
+    expect(await Promise.all(phones)).toEqual(answers.map(() => false))
   })
 })
 

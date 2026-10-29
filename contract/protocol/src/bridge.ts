@@ -233,6 +233,12 @@ export type DesktopBridge = {
     readonly url: string
     readonly layout: "desktop" | "phone"
   }): Promise<HostPageLook>
+  /**
+   * Makes a live page's view act as a phone's, by its view's `getWebContentsId()`, or as
+   * itself again: touched, with a phone's screen and browser. False for anything but a
+   * page view of the asking page, and when it can't. Absent from hosts that came before it.
+   */
+  pagePhone?(page: number, phone: boolean): Promise<boolean>
 }
 
 /** What `DesktopBridge.lookAtPage` answers: a look at a page, or why there is none. */

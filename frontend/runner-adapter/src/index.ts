@@ -177,6 +177,7 @@ export const connectRunnerBackend = async (
     const feedback = desktopFeedback(desktopHost())
     const pagePicture = desktopHost()?.pagePicture
     const pageLook = desktopHost()?.lookAtPage
+    const pagePhone = desktopHost()?.pagePhone
     reportPoolTo(desktopHost())
     const sandbox = desktopSandbox(desktopHost())
     const portable = desktopPortable(desktopHost())
@@ -206,6 +207,7 @@ export const connectRunnerBackend = async (
           livePages: desktopHost()?.livePages === true,
           ...(pagePicture ? { pagePicture: (page, width) => pagePicture(page, width) } : {}),
           ...(pageLook ? { pageLook: (request) => pageLook(request) } : {}),
+          ...(pagePhone ? { pagePhone: (page, phone) => pagePhone(page, phone) } : {}),
           transcripts,
           transcriptsAvailable,
           agents,

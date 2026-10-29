@@ -356,6 +356,10 @@ export type Companions = {
   // undefined when there's none to take. Absent where pages don't load live, or the host
   // can't picture them: they stay live.
   readonly picture?: (page: number, width?: number) => Promise<string | undefined>
+  // Makes a live page's view act as a phone's, by its web contents id, or as itself again:
+  // touched, with a phone's screen and browser; false when it can't. Absent where pages
+  // don't load live, or the host can't: a page at a phone's size is then only as narrow.
+  readonly phone?: (page: number, phone: boolean) => Promise<boolean>
 }
 
 // Items with nothing to show, for a backend whose terminals have only their messages

@@ -54,6 +54,7 @@ import {
   openUpdatePageChannel,
   pageLookChannel,
   pagePictureChannel,
+  pagePhoneChannel,
   portableChannel,
   rendererPoolChannel,
   quitAppChannel,
@@ -400,6 +401,9 @@ const bridge = {
     const look: unknown = await ipcRenderer.invoke(pageLookChannel, { url, layout })
     return hostLookOf(look)
   },
+  // Only whether it did comes back; the main process checks the page is one of this page's.
+  pagePhone: async (page, phone) =>
+    (await ipcRenderer.invoke(pagePhoneChannel, page, phone)) === true,
   pathForFile: (file) => {
     try {
       return webUtils.getPathForFile(file)
