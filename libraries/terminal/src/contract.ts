@@ -36,7 +36,7 @@ export const terminalEvents = {
   exited: z.strictObject({ sequence, type: z.literal("exited"), exit }),
 }
 
-export const terminalEvent = z.discriminatedUnion("type", [
+const terminalEvent = z.discriminatedUnion("type", [
   terminalEvents.snapshot,
   terminalEvents.output,
   terminalEvents.resized,
@@ -50,7 +50,7 @@ export type TerminalEvent = z.infer<typeof terminalEvent>
  * Why a terminal call fails. `SLOW_CONSUMER` and `INVALID_CURSOR` are a stream's, and
  * name the same failures a transport's resumable streams do.
  */
-export const terminalErrorCodes = [
+const terminalErrorCodes = [
   "TERMINAL_LIMIT",
   "SPAWN_FAILED",
   "INVALID_DIRECTORY",
@@ -67,7 +67,7 @@ export const terminalErrorCodes = [
   "SLOW_CONSUMER",
 ] as const
 
-export type TerminalErrorCode = (typeof terminalErrorCodes)[number]
+type TerminalErrorCode = (typeof terminalErrorCodes)[number]
 
 /** A terminal call's failure, by its code; its consumer maps the code to its own errors. */
 export class TerminalError extends Error {
