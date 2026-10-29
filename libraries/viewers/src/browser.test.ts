@@ -669,6 +669,8 @@ describe("the browser viewer", () => {
         .toEqual([
           "insert html { scrollbar-width: none !important; }",
           "insert html { scrollbar-width: none !important; }",
+          // Both, as dom-ready can come for the document the first went in.
+          "remove key 1",
           "remove key 2",
         ])
     })
@@ -683,6 +685,7 @@ describe("the browser viewer", () => {
           new PointerEvent(type, {
             bubbles: true,
             button: 0,
+            buttons: type === "pointerup" ? 0 : 1,
             pointerId: 1,
             clientX: x,
             clientY: y,
@@ -744,6 +747,76 @@ describe("the browser viewer", () => {
       // The stage, outside its frame.
       press(left + 4, top + 4)
       expect(root.hasAttribute("data-tilting")).toBe(true)
+    })
+
+    it("swings a phone toward where it's pushed on its spring, and back flat to rest", async () => {
+      // With motion, as the person's browser has it unless they ask for less.
+      vi.spyOn(window, "matchMedia").mockReturnValue({ matches: false } as MediaQueryList)
+      const host = hostIn()
+      mountBrowser(host, {
+        content: { url: "http://localhost:5173/" },
+        label: "page",
+        live: true,
+        partition: "pages",
+        size: "phone",
+      })
+      const root = host.querySelector<HTMLElement>(".browser-viewer")!
+      const { left, top } = root.getBoundingClientRect()
+      const pointer = (type: string, x: number, buttons: number) =>
+        root.dispatchEvent(
+          new PointerEvent(type, {
+            bubbles: true,
+            button: 0,
+            buttons,
+            pointerId: 1,
+            clientX: x,
+            clientY: top + 4,
+          }),
+        )
+      const turned = () => Number(root.style.getPropertyValue("--browser-tilt-y"))
+      try {
+        pointer("pointerdown", left + 4, 1)
+        pointer("pointermove", left + 4 + 200, 1)
+        // It starts slow, then gets there.
+        await expect.poll(turned).toBeGreaterThan(0)
+        expect(turned()).toBeLessThan(tiltToward(200))
+        await expect.poll(turned, { timeout: 3000 }).toBeCloseTo(tiltToward(200), 0)
+        pointer("pointerup", left + 4 + 200, 0)
+        expect(root.hasAttribute("data-settling")).toBe(true)
+        await expect.poll(() => root.hasAttribute("data-settling"), { timeout: 3000 }).toBe(false)
+        expect(turned()).toBe(0)
+      } finally {
+        vi.restoreAllMocks()
+      }
+    })
+
+    it("lets a phone go when a move comes with no button down, its release lost", () => {
+      const host = hostIn()
+      mountBrowser(host, {
+        content: { url: "http://localhost:5173/" },
+        label: "page",
+        live: true,
+        partition: "pages",
+        size: "phone",
+      })
+      const root = host.querySelector<HTMLElement>(".browser-viewer")!
+      const { left, top } = root.getBoundingClientRect()
+      const pointer = (type: string, x: number, buttons: number) =>
+        root.dispatchEvent(
+          new PointerEvent(type, {
+            bubbles: true,
+            button: 0,
+            buttons,
+            pointerId: 1,
+            clientX: x,
+            clientY: top + 4,
+          }),
+        )
+      pointer("pointerdown", left + 4, 1)
+      expect(root.hasAttribute("data-tilting")).toBe(true)
+      pointer("pointermove", left + 60, 0)
+      expect(root.hasAttribute("data-tilting")).toBe(false)
+      expect(root.style.getPropertyValue("--browser-tilt-y")).toBe("0")
     })
 
     it("pushes a phone less the further it's dragged, never past its most", () => {

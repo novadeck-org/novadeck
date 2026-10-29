@@ -627,6 +627,8 @@ export const mountBrowser: Mount<BrowserContent, BrowserOptions, BrowserViewer> 
     root.dataset.tilting = ""
     const turn = (move: PointerEvent): void => {
       if (move.pointerId !== pointerId) return
+      // Its release never came, as when another window took the pointer mid-drag: let go.
+      if (move.buttons === 0) return letGo(move)
       push(tiltToward(fromY - move.clientY), tiltToward(move.clientX - fromX))
     }
     const letGo = (end: PointerEvent): void => {
@@ -757,24 +759,25 @@ export const mountBrowser: Mount<BrowserContent, BrowserOptions, BrowserViewer> 
 
   // A phone's page has no scrollbar taking room, as a phone's floats over it: put in each
   // document its view loads while it's a phone's, and taken out of it when it no longer is.
-  let dressed: { readonly view: Webview; readonly key: Promise<string | undefined> } | undefined
+  // Every look put in a view is kept until taken out: dom-ready can come for a document
+  // already given one, as when the switch came while it loaded, and taking out a look a
+  // later document never had does nothing.
+  let dressed: { readonly view: Webview; readonly keys: Promise<string | undefined>[] } | undefined
   const dress = (): void => {
     const view = page
     if (!view || size !== "phone") return
     const key = attached(() => view.insertCSS(phoneLook))
-    dressed = key ? { view, key: key.catch(() => undefined) } : undefined
+    if (!key) return
+    if (dressed?.view !== view) dressed = { view, keys: [] }
+    dressed.keys.push(key.catch(() => undefined))
   }
   const undress = (): void => {
     const was = dressed
     dressed = undefined
-    void was?.key.then((key) => {
-      if (key !== undefined) void attached(() => was.view.removeInsertedCSS(key))?.catch(nothing)
-    })
-  }
-  // A new document has none of the last one's.
-  const loaded = (): void => {
-    dressed = undefined
-    dress()
+    for (const each of was?.keys ?? [])
+      void each.then((key) => {
+        if (key !== undefined) void attached(() => was!.view.removeInsertedCSS(key))?.catch(nothing)
+      })
   }
   const moved = (): void => {
     attached(() => {
@@ -947,7 +950,7 @@ export const mountBrowser: Mount<BrowserContent, BrowserOptions, BrowserViewer> 
   const listeners: readonly (readonly [string, (event: Event) => void])[] = [
     ["dom-ready", moved],
     ["dom-ready", painting],
-    ["dom-ready", loaded],
+    ["dom-ready", dress],
     ["did-navigate", moved],
     ["did-navigate-in-page", movedInPage],
     ["did-start-loading", started],
