@@ -9,9 +9,9 @@ import {
   keepMs,
   mountBrowser,
   phoneBezel,
-  settleMs,
   tiltMaxDeg,
   tiltPerPx,
+  tiltToward,
   phoneMargin,
   phoneScreen,
   scrollWaitMs,
@@ -673,52 +673,57 @@ describe("the browser viewer", () => {
         ])
     })
 
-    it("tilts a phone as the person drags across its stage, flat again when let go", async () => {
-      vi.useFakeTimers()
-      try {
-        const host = hostIn()
-        const viewer = live(host)
-        const root = host.querySelector<HTMLElement>(".browser-viewer")!
-        const pointer = (type: string, target: Element, x: number, y: number) =>
-          target.dispatchEvent(
-            new PointerEvent(type, {
-              bubbles: true,
-              button: 0,
-              pointerId: 1,
-              clientX: x,
-              clientY: y,
-            }),
-          )
-        const turned = () => [
-          root.style.getPropertyValue("--browser-tilt-x"),
-          root.style.getPropertyValue("--browser-tilt-y"),
-        ]
-        // A desktop's page doesn't turn.
-        pointer("pointerdown", root, 10, 10)
-        expect(root.hasAttribute("data-tilting")).toBe(false)
-        viewer.size("phone")
-        // Nor does a press on the page itself.
-        pointer("pointerdown", pageOf(host), 10, 10)
-        expect(root.hasAttribute("data-tilting")).toBe(false)
-        pointer("pointerdown", root, 10, 10)
-        expect(root.hasAttribute("data-tilting")).toBe(true)
-        pointer("pointermove", root, 10 + 40, 10 - 20)
-        expect(turned()).toEqual([`${20 * tiltPerPx}`, `${40 * tiltPerPx}`])
-        // However far it's dragged, no further than it turns.
-        pointer("pointermove", root, 10 - 4000, 10)
-        expect(turned()).toEqual(["0", `${-tiltMaxDeg}`])
-        pointer("pointerup", root, 10 - 4000, 10)
-        expect(root.hasAttribute("data-tilting")).toBe(false)
-        expect(root.hasAttribute("data-settling")).toBe(true)
-        expect(turned()).toEqual(["0", "0"])
-        await vi.advanceTimersByTimeAsync(settleMs)
-        expect(root.hasAttribute("data-settling")).toBe(false)
-        // Let go, a move turns it no more.
-        pointer("pointermove", root, 200, 200)
-        expect(turned()).toEqual(["0", "0"])
-      } finally {
-        vi.useRealTimers()
-      }
+    it("tilts a phone as the person drags across its stage, flat again when let go", () => {
+      // The tests' browser prefers reduced motion: the phone goes where it's pushed at once.
+      const host = hostIn()
+      const viewer = live(host)
+      const root = host.querySelector<HTMLElement>(".browser-viewer")!
+      const pointer = (type: string, target: Element, x: number, y: number) =>
+        target.dispatchEvent(
+          new PointerEvent(type, {
+            bubbles: true,
+            button: 0,
+            pointerId: 1,
+            clientX: x,
+            clientY: y,
+          }),
+        )
+      const turned = () => [
+        Number(root.style.getPropertyValue("--browser-tilt-x")),
+        Number(root.style.getPropertyValue("--browser-tilt-y")),
+      ]
+      // A desktop's page doesn't turn.
+      pointer("pointerdown", root, 10, 10)
+      expect(root.hasAttribute("data-tilting")).toBe(false)
+      viewer.size("phone")
+      // Nor does a press on the page itself.
+      pointer("pointerdown", pageOf(host), 10, 10)
+      expect(root.hasAttribute("data-tilting")).toBe(false)
+      pointer("pointerdown", root, 10, 10)
+      expect(root.hasAttribute("data-tilting")).toBe(true)
+      pointer("pointermove", root, 10 + 40, 10 - 20)
+      expect(turned()[0]).toBeCloseTo(tiltToward(20), 2)
+      expect(turned()[1]).toBeCloseTo(tiltToward(40), 2)
+      // However far it's dragged, no further than it turns.
+      pointer("pointermove", root, 10 - 4000, 10)
+      expect(turned()[1]).toBeCloseTo(-tiltMaxDeg, 1)
+      pointer("pointerup", root, 10 - 4000, 10)
+      expect(root.hasAttribute("data-tilting")).toBe(false)
+      expect(root.hasAttribute("data-settling")).toBe(false)
+      expect(turned()).toEqual([0, 0])
+      // Let go, a move turns it no more.
+      pointer("pointermove", root, 200, 200)
+      expect(turned()).toEqual([0, 0])
+    })
+
+    it("pushes a phone less the further it's dragged, never past its most", () => {
+      expect(tiltToward(0)).toBe(0)
+      expect(tiltToward(10)).toBeCloseTo(10 * tiltPerPx, 1)
+      expect(tiltToward(-10)).toBeCloseTo(-tiltToward(10), 6)
+      const pushes = [0, 100, 200, 300, 400].map(tiltToward)
+      const gains = pushes.slice(1).map((push, at) => push - pushes[at]!)
+      expect(gains.every((gain, at) => at === 0 || gain < gains[at - 1]!)).toBe(true)
+      expect(Math.max(...pushes)).toBeLessThan(tiltMaxDeg)
     })
 
     it("frames nothing in a viewer with no room, as one kept out of sight", () => {
