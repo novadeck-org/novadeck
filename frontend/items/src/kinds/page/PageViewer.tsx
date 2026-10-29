@@ -1,8 +1,15 @@
 import { pageTroublesPerCall, type PageContent } from "@novadeck/core/items"
 import { pagesPartition } from "@novadeck/core/pages"
 import { useShown } from "@novadeck/toolkit/shown"
-import { mountBrowser, type Load, type Place, type Trouble } from "@novadeck/viewers/browser"
-import { ArrowLeft, ArrowRight, ExternalLink, RotateCw } from "lucide-react"
+import { Tooltip } from "@novadeck/toolkit/Tooltip"
+import {
+  mountBrowser,
+  type Load,
+  type PageSize,
+  type Place,
+  type Trouble,
+} from "@novadeck/viewers/browser"
+import { ArrowLeft, ArrowRight, ExternalLink, RotateCw, Smartphone } from "lucide-react"
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react"
 
 import type { ArtifactBodyProps } from "../../ArtifactViewer"
@@ -63,6 +70,10 @@ const useTroubles = (tell: Tell): ((trouble: Trouble, shown: number) => void) =>
   return batch.collect
 }
 
+// What each page item lays out as, as the person last switched it, for as long as the app
+// runs: a page shown again, or at another address, keeps it.
+const sizes = new Map<string, PageSize>()
+
 // A page in the browser viewer: live where the backend's host allows, else its snapshot.
 // Where its viewer was, by item, is kept: where the person had taken it, and the picture
 // of it a live page rests as while the pane sleeps, which costs nothing to draw.
@@ -82,6 +93,7 @@ const ShownPage = ({
   const collect = useTroubles(trouble)
   const [place, setPlace] = useState<Place>({ url: page.url, back: false, forward: false })
   const [load, setLoad] = useState<Load>("loading")
+  const [size, setSize] = useState<PageSize>(() => sizes.get(id) ?? "desktop")
   // Each show of it loads it afresh and brings its scroll into view, once.
   const content = useMemo(
     () => ({
@@ -102,12 +114,19 @@ const ShownPage = ({
     // Only where it can rest: a picture nothing rests as costs for nothing.
     ...(picture && sleeps ? { picture } : {}),
     awake,
+    size,
     on: { navigate: setPlace, load: setLoad, ...(page.live ? { trouble: collect } : {}) },
   })
   // Kept out of sight, the page goes quiet: it stops drawing on its own, but not playing.
   const shown = useShown()
   useEffect(() => viewer?.muted(!shown), [viewer, shown])
   useEffect(() => viewer?.awake(awake), [viewer, awake])
+  useEffect(() => viewer?.size(size), [viewer, size])
+  const switchSize = (): void => {
+    const next = size === "phone" ? "desktop" : "phone"
+    sizes.set(id, next)
+    setSize(next)
+  }
   // On screen with no picture to rest as, it wakes for a while, to be pictured as it
   // rests; shown again by its agent, as soon as it's on screen, to show what changed.
   const show = useRef(page.shown)
@@ -148,6 +167,19 @@ const ShownPage = ({
           </>
         )}
         <span className="artifact-url">{place.url}</span>
+        {page.live && (
+          <Tooltip content={size === "phone" ? "Back to desktop size" : "Show at phone size"}>
+            <button
+              type="button"
+              className="icon-button"
+              aria-label="Phone size"
+              aria-pressed={size === "phone"}
+              onClick={switchSize}
+            >
+              <Smartphone size={14} aria-hidden />
+            </button>
+          </Tooltip>
+        )}
         <OpenInBrowser url={place.url} />
         {actions}
       </div>

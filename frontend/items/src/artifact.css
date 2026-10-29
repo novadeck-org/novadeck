@@ -41,6 +41,7 @@
    --artifact-webview-bg (paper): behind a live page until it paints, and its resting
    picture; pages assume a white ground, so a theme sets it to the page's white rather
    than its own paper.
+   --artifact-stage-bg (soft): around a live page shown at a phone's size.
    --pane-bg (paper): an undocked window, as the pane recipe draws it. */
 
 /* While an artifact loads, or when it couldn't. */
@@ -276,6 +277,7 @@
   flex-direction: column;
   min-height: 0;
   --browser-page-bg: var(--artifact-webview-bg, var(--color-paper));
+  --browser-stage-bg: var(--artifact-stage-bg, var(--color-soft));
 }
 /* A page that didn't load, over what's left of it. */
 .artifact-page-failed {

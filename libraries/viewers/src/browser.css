@@ -2,13 +2,19 @@
    scrolls itself, or a snapshot of the page (`.browser-snapshot`), which scrolls under
    whatever the host draws above it.
 
+   A live page lays out at the size its viewer frames it as (see `framingOf`), scaled to
+   fit: --browser-width, --browser-height, --browser-scale, --browser-left and
+   --browser-top, set on the viewer while it doesn't simply fill it; its picture takes the
+   same box on the viewer.
+
    Hooks: data-load="loading" | "ready" | "failed" on the viewer: how the page's latest
-   load went. data-painting on the <webview>: its first document is ready, so it paints
+   load went. data-size="desktop" | "phone" on a live one: what its page lays out as. data-painting on the <webview>: its first document is ready, so it paints
    its own ground, and keeps its last frame through later loads.
 
    Tokens, each optional (its fallback in brackets):
    --browser-page-bg (white): behind a live page until it paints, and behind its resting
-   picture; pages assume a white ground. */
+   picture; pages assume a white ground.
+   --browser-stage-bg (transparent): around a phone's screen. */
 .browser-viewer {
   display: flex;
   position: relative;
@@ -16,10 +22,21 @@
   flex-direction: column;
   min-height: 0;
 }
+.browser-viewer[data-size] {
+  overflow: hidden;
+}
+.browser-viewer[data-size="phone"] {
+  background-color: var(--browser-stage-bg, transparent);
+}
 .browser-viewer > webview {
   display: flex;
-  flex: 1;
-  min-height: 0;
+  position: absolute;
+  top: var(--browser-top, 0);
+  left: var(--browser-left, 0);
+  width: var(--browser-width, 100%);
+  height: var(--browser-height, 100%);
+  transform: scale(var(--browser-scale, 1));
+  transform-origin: 0 0;
   border: 0;
 }
 /* Only until it paints: where the viewer's edges fall between device pixels, Electron
@@ -41,19 +58,23 @@
 }
 /* A live page's picture: in its place while it rests, and over it as it wakes, until it
    has drawn; then it fades (`data-fading`, as long as the viewer's `fadeMs`). Taken at the
-   page's width, it keeps to it. */
+   page's width, it keeps to it, on the page's ground until it fades. */
 .browser-viewer:has(> .browser-picture) {
   overflow: hidden;
 }
-.browser-viewer:has(> .browser-picture:not([data-fading])) {
-  background-color: var(--browser-page-bg, white);
-}
 .browser-picture {
   position: absolute;
-  inset: 0;
+  top: var(--browser-top, 0);
+  left: var(--browser-left, 0);
+  width: calc(var(--browser-width, 100%) * var(--browser-scale, 1));
+  height: calc(var(--browser-height, 100%) * var(--browser-scale, 1));
+  overflow: hidden;
   z-index: 1;
   outline-offset: -2px;
   transition: opacity 150ms ease-out;
+}
+.browser-picture:not([data-fading]) {
+  background-color: var(--browser-page-bg, white);
 }
 .browser-picture[data-fading] {
   opacity: 0;

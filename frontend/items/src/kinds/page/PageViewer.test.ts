@@ -119,6 +119,23 @@ describe("a page beside a terminal", () => {
       expect(reloads).toBe(1)
     })
 
+    it("switches between a desktop's size and a phone's, kept for the item when shown anew", () => {
+      const rendered = show({ kind: "page", url, shown: 1, live: true })
+      const size = () =>
+        rendered.container.querySelector(".browser-viewer")!.getAttribute("data-size")
+      const phone = () => button(rendered.container, "Phone size")!
+      expect(size()).toBe("desktop")
+      expect(phone().getAttribute("aria-pressed")).toBe("false")
+      act(() => phone().click())
+      expect(size()).toBe("phone")
+      expect(phone().getAttribute("aria-pressed")).toBe("true")
+      // At another address, its view made anew, it's still a phone's.
+      rendered.show({ kind: "page", url: "https://example.com/", shown: 1, live: true })
+      expect(size()).toBe("phone")
+      act(() => phone().click())
+      expect(size()).toBe("desktop")
+    })
+
     it("goes quiet while it's kept out of sight", () => {
       const { container } = show({ kind: "page", url, shown: 1, live: true }, false)
       const page = pageOf(container)
@@ -385,7 +402,7 @@ describe("a page beside a terminal", () => {
       expect(told).toEqual([])
     })
 
-    it("shows its snapshot under its address, with nothing to go back or forward to", () => {
+    it("shows its snapshot under its address, with nothing to go back or forward to or resize", () => {
       const { container } = show({
         kind: "page",
         url,
@@ -396,6 +413,7 @@ describe("a page beside a terminal", () => {
       expect(container.querySelector("webview")).toBeNull()
       expect(container.querySelector("img")?.getAttribute("alt")).toBe(`${url} as shown`)
       expect(button(container, "Back")).toBeUndefined()
+      expect(button(container, "Phone size")).toBeUndefined()
       expect(container.querySelector(".artifact-browser")?.getAttribute("aria-busy")).toBe("false")
     })
 

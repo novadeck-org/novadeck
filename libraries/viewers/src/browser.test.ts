@@ -2,10 +2,13 @@ import "./browser.css"
 import { afterEach, describe as context, describe, expect, it, vi } from "vitest"
 
 import {
+  desktopWidth,
   fadeMs,
+  framingOf,
   freshenMs,
   keepMs,
   mountBrowser,
+  phoneScreen,
   scrollWaitMs,
   uncoverMs,
   type BrowserContent,
@@ -568,6 +571,72 @@ describe("the browser viewer", () => {
     })
   })
 
+  context("framing its page", () => {
+    // The page's view as it lays out, and as it's drawn on screen.
+    const boxes = (host: HTMLElement) => {
+      const page = pageOf(host)
+      const drawn = page.getBoundingClientRect()
+      const viewer = host.querySelector(".browser-viewer")!.getBoundingClientRect()
+      return {
+        laid: [page.offsetWidth, page.offsetHeight],
+        drawn: [drawn.left - viewer.left, drawn.top - viewer.top, drawn.width, drawn.height],
+      }
+    }
+
+    it("lays out as a desktop's window, scaled down to fit a narrower viewer", () => {
+      const host = hostIn()
+      live(host)
+      expect(host.querySelector(".browser-viewer")!.getAttribute("data-size")).toBe("desktop")
+      expect(boxes(host)).toEqual({ laid: [desktopWidth, 960], drawn: [0, 0, 400, 300] })
+    })
+
+    it("fills a viewer as wide as a desktop's window, as it is", async () => {
+      const host = hostIn()
+      host.style.width = `${desktopWidth + 100}px`
+      live(host)
+      expect(boxes(host)).toEqual({
+        laid: [desktopWidth + 100, 300],
+        drawn: [0, 0, desktopWidth + 100, 300],
+      })
+      // Narrower, it's scaled down to fit again.
+      host.style.width = "640px"
+      await expect.poll(() => boxes(host).laid).toEqual([desktopWidth, 600])
+      expect(boxes(host).drawn).toEqual([0, 0, 640, 300])
+    })
+
+    it("lays out as a phone's screen when told, back to a desktop's when told again", async () => {
+      const host = hostIn()
+      host.style.width = "300px"
+      host.style.height = "600px"
+      const viewer = mountBrowser(host, {
+        content: { url: "http://localhost:5173/" },
+        label: "page",
+        live: true,
+        partition: "pages",
+        size: "phone",
+      })
+      expect(host.querySelector(".browser-viewer")!.getAttribute("data-size")).toBe("phone")
+      // Scaled down to fit the viewer's width, and no taller than it.
+      expect(boxes(host).laid).toEqual([phoneScreen.width, 780])
+      expect(boxes(host).drawn).toEqual([0, 0, 300, 600])
+      viewer.size("desktop")
+      expect(boxes(host).laid).toEqual([desktopWidth, 2560])
+      viewer.size("phone")
+      host.style.width = "800px"
+      host.style.height = "1000px"
+      // Room for the whole screen: as big as a phone's, centred.
+      await expect
+        .poll(() => boxes(host).drawn)
+        .toEqual([205, 78, phoneScreen.width, phoneScreen.height])
+      expect(boxes(host).laid).toEqual([phoneScreen.width, phoneScreen.height])
+    })
+
+    it("frames nothing in a viewer with no room, as one kept out of sight", () => {
+      expect(framingOf("desktop", 0, 300)).toBeUndefined()
+      expect(framingOf("phone", 400, 0)).toBeUndefined()
+    })
+  })
+
   context("at rest", () => {
     const url = "http://localhost:5173/"
     const shot = "data:image/jpeg;base64,c2hvdA=="
@@ -667,14 +736,13 @@ describe("the browser viewer", () => {
         ready()
         // Loading: the picture stays over it, on the page's ground.
         expect(pictureOf(host)).not.toBeNull()
-        const viewerOf = host.querySelector(".browser-viewer")!
-        expect(getComputedStyle(viewerOf).backgroundColor).toBe("rgb(255, 255, 255)")
+        expect(getComputedStyle(pictureOf(host)!).backgroundColor).toBe("rgb(255, 255, 255)")
         fire("did-stop-loading")
         expect(calls.some((call) => call.includes("scrollTo(0, 640)"))).toBe(true)
         await vi.advanceTimersByTimeAsync(uncoverMs)
         expect(pictureOf(host)!.hasAttribute("data-fading")).toBe(true)
         // Fading off a page that has drawn, with no ground to show at its edge.
-        expect(getComputedStyle(viewerOf).backgroundColor).toBe("rgba(0, 0, 0, 0)")
+        expect(getComputedStyle(pictureOf(host)!).backgroundColor).toBe("rgba(0, 0, 0, 0)")
         await vi.advanceTimersByTimeAsync(fadeMs)
         expect(pictureOf(host)).toBeNull()
         // Woken, it's live again: back, forward and the rest work on it.

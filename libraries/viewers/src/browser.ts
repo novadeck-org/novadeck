@@ -17,8 +17,11 @@ import type { Mount, Viewer, ViewerState } from "./index.js"
 // at it: it shows a picture of itself in its place, and its view goes, so drawing it costs
 // nothing; woken, it loads again under the picture, where the person had scrolled, and the
 // picture fades once it's there. While the page has a sign-in window open, which closes
-// with its view, it stays live instead, and rests once the last one closes. Where live pages aren't available (a plain browser, a demo), it shows a
-// snapshot of the page, or nothing, for the host to say why. Its looks are browser.css's.
+// with its view, it stays live instead, and rests once the last one closes. A live page lays
+// out as a desktop's window or a phone's screen, scaled down to fit where the viewer is
+// narrower (see `framingOf`). Where live pages aren't available (a plain browser, a demo),
+// it shows a snapshot of the page, or nothing, for the host to say why. Its looks are
+// browser.css's.
 
 export type { Trouble }
 
@@ -40,6 +43,47 @@ export type Place = { readonly url: string; readonly back: boolean; readonly for
 /** How the page's latest load went. */
 export type Load = "loading" | "ready" | "failed"
 
+/**
+ * What a live page lays out as: a desktop's window, at least `desktopWidth` wide and scaled
+ * down to fit a narrower viewer, so a narrow viewer shows a site's desktop layout, not the
+ * one it squeezes into; or a phone's screen, `phoneScreen`, scaled down only to fit the
+ * viewer's width, and no taller than the viewer.
+ */
+export type PageSize = "desktop" | "phone"
+
+export const desktopWidth = 1280
+export const phoneScreen = { width: 390, height: 844 } as const
+
+/**
+ * Where a live page's view goes in a viewer `width` by `height` wide: the size it lays out
+ * at, how far it's scaled, and where it sits; undefined where it fills the viewer as it is.
+ */
+export type Framing = {
+  readonly width: number
+  readonly height: number
+  readonly scale: number
+  readonly left: number
+  readonly top: number
+}
+
+export const framingOf = (size: PageSize, width: number, height: number): Framing | undefined => {
+  if (width <= 0 || height <= 0) return undefined
+  if (size === "desktop") {
+    if (width >= desktopWidth) return undefined
+    const scale = width / desktopWidth
+    return { width: desktopWidth, height: height / scale, scale, left: 0, top: 0 }
+  }
+  const scale = Math.min(1, width / phoneScreen.width)
+  const tall = Math.min(phoneScreen.height, height / scale)
+  return {
+    width: phoneScreen.width,
+    height: tall,
+    scale,
+    left: (width - phoneScreen.width * scale) / 2,
+    top: (height - tall * scale) / 2,
+  }
+}
+
 export type BrowserOptions = {
   /** Whether pages load live here, as in the desktop app. */
   readonly live: boolean
@@ -55,6 +99,8 @@ export type BrowserOptions = {
   readonly picture?: (page: number) => Promise<string | undefined>
   /** Whether a live page starts awake, as it does unless told; it rests only as a picture. */
   readonly awake?: boolean
+  /** What a live page lays out as, a desktop's window unless told. */
+  readonly size?: PageSize
   readonly on?: {
     readonly navigate?: (place: Place) => void
     readonly load?: (load: Load) => void
@@ -83,6 +129,8 @@ export type BrowserViewer = Viewer<BrowserContent> & {
   readonly awake: (awake: boolean) => void
   /** Whether it has a picture to rest as. */
   readonly pictured: () => boolean
+  /** Lays the live page out as `size`: its picture, of the other, stands in for nothing. */
+  readonly size: (size: PageSize) => void
 }
 
 // Electron's <webview>: its methods work once it's attached, and throw until then.
@@ -265,7 +313,18 @@ const revealing = (selector: string, ms: number): string => `new Promise((done) 
 
 export const mountBrowser: Mount<BrowserContent, BrowserOptions, BrowserViewer> = (
   element,
-  { content, label, saved, live, snapshot, partition, picture: take, awake: startAwake, on },
+  {
+    content,
+    label,
+    saved,
+    live,
+    snapshot,
+    partition,
+    picture: take,
+    awake: startAwake,
+    size: startSize,
+    on,
+  },
 ) => {
   const document = element.ownerDocument
   const root = document.createElement("div")
@@ -352,6 +411,7 @@ export const mountBrowser: Mount<BrowserContent, BrowserOptions, BrowserViewer> 
       // A snapshot is its picture already.
       awake: nothing,
       pictured: () => true,
+      size: nothing,
       destroy: () => root.remove(),
     }
   }
@@ -392,6 +452,31 @@ export const mountBrowser: Mount<BrowserContent, BrowserOptions, BrowserViewer> 
       }, fadeMs)
     }, uncoverMs)
   }
+
+  // What the page lays out as, and where its view and picture go for that in the viewer,
+  // which browser.css reads; framed again as the viewer resizes. By its layout box, which a
+  // zoomed canvas around it doesn't change.
+  let size = startSize ?? "desktop"
+  const frame = (): void => {
+    root.dataset.size = size
+    const framing = framingOf(size, root.clientWidth, root.clientHeight)
+    const values: Record<string, string | undefined> = {
+      "--browser-width": framing && `${framing.width}px`,
+      "--browser-height": framing && `${framing.height}px`,
+      "--browser-scale": framing && `${framing.scale}`,
+      "--browser-left": framing && `${framing.left}px`,
+      "--browser-top": framing && `${framing.top}px`,
+    }
+    for (const [name, value] of Object.entries(values)) {
+      if (value === undefined) root.style.removeProperty(name)
+      else root.style.setProperty(name, value)
+    }
+  }
+  // Where there's nothing to report a resize, as outside a browser, it's framed as it mounts.
+  const Observer = document.defaultView?.ResizeObserver
+  const resizing = Observer ? new Observer(frame) : undefined
+  resizing?.observe(root)
+  frame()
 
   // Whether it's drawn: not inside an element kept out of sight, as with display: none.
   const shownNow = (): boolean =>
@@ -911,7 +996,16 @@ export const mountBrowser: Mount<BrowserContent, BrowserOptions, BrowserViewer> 
       else rest()
     },
     pictured: () => picture !== undefined && !used,
+    size: (next) => {
+      if (next === size) return
+      size = next
+      frame()
+      // Its picture is of the other size: it rests as one of this once one is taken.
+      if (picture !== undefined) used = true
+      freshen(freshenMs)
+    },
     destroy: () => {
+      resizing?.disconnect()
       hostWindow?.removeEventListener("message", requested)
       hostWindow?.removeEventListener("message", signIns)
       clearTimeout(fading)
