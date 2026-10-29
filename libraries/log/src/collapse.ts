@@ -11,8 +11,11 @@ type Held = {
 /** The lines seen lately, by what makes two of them the same. */
 export type Repeats = ReadonlyMap<string, Held>
 
+/** The repeats to remember next, and the lines to write now. */
+export type Collapsed = { readonly repeats: Repeats; readonly write: readonly Entry[] }
+
 /** How many different lines are remembered at once; the oldest is let go past it. */
-const remembered = 256
+const maxRemembered = 256
 
 /** What makes two lines the same: all but their time. */
 const keyOf = (entry: Entry): string =>
@@ -31,11 +34,7 @@ const summary = (held: Held): Entry => ({
  * The lines due from `repeats` at `now`: a summary of each line that came again and whose
  * window is over. What is left is remembered.
  */
-export const due = (
-  repeats: Repeats,
-  now: number,
-  windowMs: number,
-): { readonly repeats: Repeats; readonly write: readonly Entry[] } => {
+export const due = (repeats: Repeats, now: number, windowMs: number): Collapsed => {
   const kept = new Map<string, Held>()
   const write: Entry[] = []
   for (const [key, held] of repeats) {
@@ -55,7 +54,7 @@ export const collapse = (
   entry: Entry,
   now: number,
   windowMs: number,
-): { readonly repeats: Repeats; readonly write: readonly Entry[] } => {
+): Collapsed => {
   const settled = due(repeats, now, windowMs)
   if (entry.level === "fatal" || windowMs <= 0)
     return { repeats: settled.repeats, write: [...settled.write, entry] }
@@ -67,7 +66,7 @@ export const collapse = (
     return { repeats: next, write: settled.write }
   }
   const write = [...settled.write]
-  if (next.size >= remembered) {
+  if (next.size >= maxRemembered) {
     const [oldest] = next
     if (oldest) {
       next.delete(oldest[0])
