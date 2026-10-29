@@ -84,14 +84,21 @@ export const phoneWaitMs = 2_000
 // The page views acting as a phone's.
 const phones = new WeakSet<WebContents>()
 
-// Makes a page view act as a phone's, through the DevTools protocol, or as itself again,
-// which letting the protocol go undoes; false when it can't.
+// A page view as itself: the protocol let go, which undoes all it set, and the session's
+// user agent back.
+const unemulate = (page: WebContents): void => {
+  phones.delete(page)
+  if (page.debugger.isAttached()) page.debugger.detach()
+  page.setUserAgent(page.session.getUserAgent())
+}
+
+// Makes a page view act as a phone's, through the DevTools protocol, or as itself again;
+// false when it can't. One it can't make a phone's is left as itself, not half a phone,
+// so nothing takes it for one.
 const emulate = async (page: WebContents, phone: boolean): Promise<boolean> => {
   try {
     if (!phone) {
-      phones.delete(page)
-      if (page.debugger.isAttached()) page.debugger.detach()
-      page.setUserAgent(page.session.getUserAgent())
+      unemulate(page)
       return true
     }
     phones.add(page)
@@ -104,7 +111,11 @@ const emulate = async (page: WebContents, phone: boolean): Promise<boolean> => {
     )
     return true
   } catch {
-    phones.delete(page)
+    try {
+      if (!page.isDestroyed()) unemulate(page)
+    } catch {
+      // Gone as it was undone: nothing left of it.
+    }
     return false
   }
 }
@@ -146,28 +157,32 @@ export const phonePage = async (
 /**
  * Holds the first load of a page view its viewer named a phone's, by its user agent (see
  * `attachPage`), until it acts as one, so its first document is a phone's too; at most
- * `phoneWaitMs`, after which it loads as it is. Electron keeps one listener per request
- * event for a session, so nothing else may use `onBeforeRequest` on the pages' session.
+ * `phoneWaitMs`, after which it loads as it is. Only page loads are held up, nothing they
+ * load. Electron keeps one listener per request event for a session, so nothing else may
+ * use `onBeforeRequest` on the pages' session.
  */
 export const holdPhoneLoads = (
   pages: Session,
   fromId: (id: number) => WebContents | undefined,
 ): void => {
-  pages.webRequest.onBeforeRequest((details, callback) => {
-    const page =
-      details.resourceType === "mainFrame" && details.webContentsId !== undefined
-        ? fromId(details.webContentsId)
-        : undefined
-    if (
-      !page ||
-      page.isDestroyed() ||
-      page.getType() !== "webview" ||
-      phones.has(page) ||
-      page.getUserAgent() !== phoneAgent()
-    )
-      return callback({})
-    void within(emulate(page, true), phoneWaitMs).finally(() => callback({}))
-  })
+  pages.webRequest.onBeforeRequest(
+    { urls: ["<all_urls>"], types: ["mainFrame"] },
+    (details, callback) => {
+      const page =
+        details.resourceType === "mainFrame" && details.webContentsId !== undefined
+          ? fromId(details.webContentsId)
+          : undefined
+      if (
+        !page ||
+        page.isDestroyed() ||
+        page.getType() !== "webview" ||
+        phones.has(page) ||
+        page.getUserAgent() !== phoneAgent()
+      )
+        return callback({})
+      void within(emulate(page, true), phoneWaitMs).finally(() => callback({}))
+    },
+  )
 }
 
 type Opener = (url: string) => unknown

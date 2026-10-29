@@ -668,7 +668,11 @@ describe("a page view as a phone's", () => {
   const phone = phoneUserAgent(chromeMajorOf(`Chrome/${process.versions.chrome ?? "0"}`))
   const host = {} as WebContents
   // A page view of `owner`, its DevTools protocol recording what it's sent.
-  const view = ({ owner = host, agent = "Desktop/1", answers = true } = {}) => {
+  const view = ({
+    owner = host,
+    agent = "Desktop/1",
+    answers = true as boolean | "rejects",
+  } = {}) => {
     const sent: string[] = []
     let attachedNow = false
     let userAgent = agent
@@ -694,6 +698,7 @@ describe("a page view as a phone's", () => {
         },
         sendCommand: (method: string) => {
           sent.push(method)
+          if (answers === "rejects") return Promise.reject(new Error("No target"))
           return answers ? Promise.resolve({}) : new Promise(() => {})
         },
       },
@@ -722,6 +727,13 @@ describe("a page view as a phone's", () => {
     expect(sent).toEqual(["detach", "agent Desktop/1"])
   })
 
+  it("is left as itself, not half a phone, where it can't be made one", async () => {
+    const { contents, sent } = view({ answers: "rejects" })
+    expect(await phonePage(host, 7, true, byId(contents))).toBe(false)
+    expect(sent.slice(-2)).toEqual(["detach", "agent Desktop/1"])
+    expect(contents.getUserAgent()).toBe("Desktop/1")
+  })
+
   it("is nothing for another window's page, the app's own, or an id that's no view's", async () => {
     const other = view({ owner: {} as WebContents })
     expect(await phonePage(host, 7, true, byId(other.contents))).toBe(false)
@@ -736,19 +748,28 @@ describe("a page view as a phone's", () => {
     type Details = { resourceType: string; webContentsId?: number }
     const held = (contents: WebContents) => {
       let before: ((details: Details, callback: (response: object) => void) => void) | undefined
+      let filter: unknown
       holdPhoneLoads(
         {
-          webRequest: { onBeforeRequest: (listener: typeof before) => (before = listener) },
+          webRequest: {
+            onBeforeRequest: (only: unknown, listener: typeof before) => {
+              filter = only
+              before = listener
+            },
+          },
         } as unknown as Session,
         byId(contents),
       )
-      return (details: Details): Promise<void> =>
+      const load = (details: Details): Promise<void> =>
         new Promise((resolve) => before?.(details, () => resolve()))
+      return Object.assign(load, { filter: () => filter })
     }
 
     it("holds a phone's first page load until it acts as one, and nothing else", async () => {
       const { contents, sent } = view({ agent: phone })
       const load = held(contents)
+      // Only page loads come to it, not what they load.
+      expect(load.filter()).toEqual({ urls: ["<all_urls>"], types: ["mainFrame"] })
       await load({ resourceType: "mainFrame", webContentsId: 7 })
       expect(sent).toContain("Emulation.setTouchEmulationEnabled")
       sent.splice(0)

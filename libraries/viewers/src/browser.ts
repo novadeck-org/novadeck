@@ -804,6 +804,8 @@ export const mountBrowser: Mount<BrowserContent, BrowserOptions, BrowserViewer> 
     const id = attached(() => view.getWebContentsId())
     if (id === undefined) return
     phoneView = asPhone ? view : undefined
+    // Not a phone's any more: loaded again from its address, as by a restore, it isn't one.
+    if (!asPhone) view.removeAttribute("useragent")
     void becomePhone(id, asPhone)
       .catch(() => false)
       .then((done) => {

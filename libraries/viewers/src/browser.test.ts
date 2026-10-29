@@ -868,14 +868,19 @@ describe("the browser viewer", () => {
         return { host, viewer, asked, calls, attachNow }
       }
 
-      it("names a view made at a phone's size a phone's, for the host to make it one", () => {
-        const { host, asked } = asPhone("phone")
+      it("names a view made at a phone's size a phone's, and not once it's a desktop's", async () => {
+        const { host, viewer, asked, attachNow } = asPhone("phone")
         expect(pageOf(host).getAttribute("useragent")).toBe(
           phoneUserAgent(chromeMajorOf(navigator.userAgent)),
         )
         // The host makes it one as it loads: nothing to ask.
         expect(asked).toEqual([])
         expect(pageOf(asPhone("desktop").host).hasAttribute("useragent")).toBe(false)
+        // Switched, it's named nothing, as a load from its address again would read it.
+        attachNow()
+        viewer.size("desktop")
+        expect(pageOf(host).hasAttribute("useragent")).toBe(false)
+        await expect.poll(() => asked).toEqual([[7, false]])
       })
 
       it("makes the view a phone's or itself again on a switch, then loads it again", async () => {
