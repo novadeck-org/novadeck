@@ -1,8 +1,8 @@
 import { execFileSync } from "node:child_process"
 
-import { afterAll, describe, expect, it } from "vitest"
+import { afterAll, beforeAll, describe, expect, it, vi } from "vitest"
 
-import { history, removeHistories, type Step } from "../release-notes/history.ts"
+import { history, removeHistories, type History, type Step } from "../release-notes/history.ts"
 import { makeGitSources, newestRelease, refOf } from "../release-notes/sources.ts"
 import { main, planVersion, type Sources } from "./main.ts"
 
@@ -207,6 +207,9 @@ const steps: Step[] = [
 
 afterAll(removeHistories)
 
+// Git processes are slow to start on some runners, and these tests start many.
+vi.setConfig({ testTimeout: 60_000, hookTimeout: 120_000 })
+
 /**
  * Real git over `cwd`, with release-it's step stood in for by what the subjects call for: the
  * newest tag on main raised by the commits since `from`, as the command does (see main.ts).
@@ -233,85 +236,96 @@ const gitPlan = (cwd: string, stable: string | undefined, releases = true): Sour
 }
 
 describe("planVersion over rewritten history", () => {
-  const made = (subject: string, marked: string[]) => {
+  // Real git, and each history is built once: the tests only read them. An original history
+  // never holds a marker, so one original serves wherever the tests read only that.
+  const mark = (subject: string, marked: string[]) => {
     const built = history(steps, 2)
     built.mark(...marked)
     built.after([subject])
     return built
   }
+  let fixed: History
+  let featured: History
+  let chored: History
+  let partial: History
+  let released: History
+  let unmarked: History
+  let first: History
 
-  it.each([
-    ["fix: seventh (#8)", "1.1.2"],
-    ["feat: seventh (#8)", "1.2.0"],
-    ["chore: seventh (#8)", undefined],
-  ] as const)("plans what the original history planned for %s", async (subject, version) => {
-    const { original, rewritten } = made(subject, ["v1.1.0", "v1.1.1"])
-    expect(await planVersion(undefined, gitPlan(original, "v1.1.0"))).toBe(version)
-    expect(await planVersion(undefined, gitPlan(rewritten, "v1.1.0"))).toBe(version)
+  beforeAll(() => {
+    fixed = mark("fix: seventh (#8)", ["v1.1.0", "v1.1.1"])
+    featured = mark("feat: seventh (#8)", ["v1.1.0", "v1.1.1"])
+    chored = mark("chore: seventh (#8)", ["v1.1.0", "v1.1.1"])
+    partial = mark("fix: seventh (#8)", ["v1.1.1"])
+    released = history(steps, 2)
+    released.mark("v1.1.0", "v1.1.1")
+    released.after(["fix: seventh (#8)", "v1.1.2"], ["fix: eighth (#9)"])
+    unmarked = history(steps)
+    unmarked.after(["fix: seventh (#8)"])
+    first = history([["feat: first (#1)"]])
   })
 
+  it.each([
+    ["fix: seventh (#8)", () => fixed, "1.1.2"],
+    ["feat: seventh (#8)", () => featured, "1.2.0"],
+    ["chore: seventh (#8)", () => chored, undefined],
+  ] as const)(
+    "plans what the original history planned for %s",
+    async (_subject, built, version) => {
+      const { original, rewritten } = built()
+      expect(await planVersion(undefined, gitPlan(original, "v1.1.0"))).toBe(version)
+      expect(await planVersion(undefined, gitPlan(rewritten, "v1.1.0"))).toBe(version)
+    },
+  )
+
   it("plans as before once a release of its own follows the markers", async () => {
-    const built = history(steps, 2)
-    built.mark("v1.1.0", "v1.1.1")
-    built.after(["fix: seventh (#8)", "v1.1.2"], ["fix: eighth (#9)"])
-    expect(await planVersion(undefined, gitPlan(built.rewritten, "v1.1.0"))).toBe("1.1.3")
-    expect(await planVersion(undefined, gitPlan(built.original, "v1.1.0"))).toBe("1.1.3")
+    expect(await planVersion(undefined, gitPlan(released.rewritten, "v1.1.0"))).toBe("1.1.3")
+    expect(await planVersion(undefined, gitPlan(released.original, "v1.1.0"))).toBe("1.1.3")
   })
 
   it("plans the same on today's history, which has no markers", async () => {
-    const built = history(steps, steps.length)
-    built.after(["fix: seventh (#8)"])
-    expect(await planVersion(undefined, gitPlan(built.original, "v1.1.0"))).toBe("1.1.2")
+    expect(await planVersion(undefined, gitPlan(fixed.original, "v1.1.0"))).toBe("1.1.2")
   })
 
   it("reads the newest release across tags that stayed and markers, release-it's base included", async () => {
-    const built = made("fix: seventh (#8)", ["v1.1.0", "v1.1.1"])
     // v0.0.1 is still reachable but older than the marker: the marker is the one to read.
-    expect(await newestRelease(built.rewritten)).toEqual({
+    expect(await newestRelease(fixed.rewritten)).toEqual({
       tag: "v1.1.1",
       ref: "release-base/v1.1.1",
     })
-    expect(await newestRelease(built.original)).toEqual({ tag: "v1.1.1", ref: "v1.1.1" })
-    expect(await newestRelease(history([["chore: init (#1)"]]).original)).toBeUndefined()
+    expect(await newestRelease(fixed.original)).toEqual({ tag: "v1.1.1", ref: "v1.1.1" })
+    expect(await newestRelease(first.original)).toBeUndefined()
   })
 
   it("fails loudly when releases exist but no tag or marker is on main", async () => {
-    const built = history(steps)
-    built.after(["fix: seventh (#8)"])
     const message = "no vX.Y.Z tag or release-base/vX.Y.Z marker"
-    await expect(planVersion(undefined, gitPlan(built.rewritten, "v1.1.0"))).rejects.toThrow(
+    await expect(planVersion(undefined, gitPlan(unmarked.rewritten, "v1.1.0"))).rejects.toThrow(
       message,
     )
     // A requested version does not get past it either.
-    await expect(planVersion("2.0.0", gitPlan(built.rewritten, undefined))).rejects.toThrow(message)
+    await expect(planVersion("2.0.0", gitPlan(unmarked.rewritten, undefined))).rejects.toThrow(
+      message,
+    )
   })
 
   it("fails loudly when the stable release has no marker, though an older tag stayed", async () => {
-    const built = made("fix: seventh (#8)", ["v1.1.1"])
-    await expect(planVersion(undefined, gitPlan(built.rewritten, "v1.1.0"))).rejects.toThrow(
+    await expect(planVersion(undefined, gitPlan(partial.rewritten, "v1.1.0"))).rejects.toThrow(
       "v1.1.0 is not an ancestor of HEAD, and has no release-base/v1.1.0 marker",
     )
   })
 
   it("refuses a requested version too when the stable release is out of reach", async () => {
-    const built = made("fix: seventh (#8)", ["v1.1.1"])
-    const stuck = gitPlan(built.rewritten, "v1.1.0")
+    const stuck = gitPlan(partial.rewritten, "v1.1.0")
     const message = "v1.1.0 is not an ancestor of HEAD, and has no release-base/v1.1.0 marker"
     await expect(planVersion("1.2.0", stuck)).rejects.toThrow(message)
     await expect(planVersion("1.0.5", stuck)).rejects.toThrow(message)
-    expect(
-      await planVersion(
-        "1.2.0",
-        gitPlan(made("fix: x (#8)", ["v1.1.0", "v1.1.1"]).rewritten, "v1.1.0"),
-      ),
-    ).toBe("1.2.0")
+    expect(await planVersion("1.2.0", gitPlan(fixed.rewritten, "v1.1.0"))).toBe("1.2.0")
   })
 
   it("asks GitHub for the stable release once per plan", async () => {
-    const built = made("fix: seventh (#8)", ["v1.1.0", "v1.1.1"])
     const calls: string[] = []
     const watched: Sources = {
-      ...gitPlan(built.rewritten, "v1.1.0"),
+      ...gitPlan(fixed.rewritten, "v1.1.0"),
       anyRelease: async () => (calls.push("anyRelease"), true),
       stable: async () => (calls.push("stable"), "v1.1.0"),
     }
@@ -320,8 +334,7 @@ describe("planVersion over rewritten history", () => {
   })
 
   it("plans a first release when GitHub has none", async () => {
-    const built = history([["feat: first (#1)"]])
-    const none = { ...gitPlan(built.original, undefined, false), recommend: async () => "0.1.0" }
+    const none = { ...gitPlan(first.original, undefined, false), recommend: async () => "0.1.0" }
     expect(await planVersion(undefined, none)).toBe("0.1.0")
   })
 })
