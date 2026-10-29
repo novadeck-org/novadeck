@@ -7,7 +7,7 @@ import { wireErrors } from "./errors.js"
  * Opens a session: the first call on every connection, before any other is served. A server
  * may refuse it with a code of its own, after authenticating, as one that can't serve yet.
  */
-export const handshake = oc
+const handshake = oc
   .errors(wireErrors)
   .input(
     z.strictObject({
