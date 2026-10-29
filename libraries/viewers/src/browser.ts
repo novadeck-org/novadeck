@@ -536,6 +536,9 @@ export const mountBrowser: Mount<BrowserContent, BrowserOptions, BrowserViewer> 
   const tilt = (x: number, y: number): void => {
     root.style.setProperty("--browser-tilt-x", `${Math.round(x * 100) / 100}`)
     root.style.setProperty("--browser-tilt-y", `${Math.round(y * 100) / 100}`)
+    // How far it's turned, of the most it turns: what its glass catches of the light.
+    const turned = Math.min(1, Math.hypot(x, y) / tiltMaxDeg)
+    root.style.setProperty("--browser-tilt-sheen", `${Math.round(turned * 100) / 100}`)
   }
   const steady = (): boolean =>
     Math.abs(hold.x - pushed.x) < restDeg &&

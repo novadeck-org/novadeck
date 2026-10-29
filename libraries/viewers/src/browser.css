@@ -11,7 +11,8 @@
    load went. data-size="desktop" | "phone" on a live one: what its page lays out as;
    data-tilting while the person drags across a phone's stage, turning it in 3D by
    --browser-tilt-x and --browser-tilt-y (degrees, unitless), which the viewer moves on a
-   spring, and data-settling while it swings back flat.
+   spring, its glass catching light by --browser-tilt-sheen (0 to 1, as far as it's
+   turned), and data-settling while it swings back flat.
    data-painting on the <webview>: its first document is ready, so it paints its own
    ground, and keeps its last frame through later loads.
 
@@ -64,7 +65,8 @@
   transform: var(--_turn);
   transform-origin: center;
 }
-/* Light across its glass, sweeping as it turns: only while it's turned. */
+/* Light its glass catches as it turns: a broad, faint wash, from the side turned toward
+   the light, as bright as it's turned, and none flat. */
 .browser-viewer[data-size="phone"]::before {
   content: "";
   position: absolute;
@@ -74,14 +76,26 @@
   width: calc(var(--_mid-x) * 2);
   height: calc(var(--_mid-y) * 2);
   border-radius: var(--browser-screen-radius, 28px);
-  background: linear-gradient(115deg, transparent 35%, rgb(255 255 255 / 0.22) 48%, transparent 62%)
-    calc(50% - var(--browser-tilt-y, 0) * 3%) calc(50% + var(--browser-tilt-x, 0) * 3%) / 300% 300%;
-  opacity: 0;
+  /* Eased off, not in straight stretches, so no stop shows as a line on a white page. */
+  background: linear-gradient(
+      135deg,
+      rgb(255 255 255 / 0.1) 0%,
+      rgb(255 255 255 / 0.0766) 9.4%,
+      rgb(255 255 255 / 0.0563) 18.8%,
+      rgb(255 255 255 / 0.0391) 28.1%,
+      rgb(255 255 255 / 0.025) 37.5%,
+      rgb(255 255 255 / 0.0141) 46.9%,
+      rgb(255 255 255 / 0.0063) 56.2%,
+      rgb(255 255 255 / 0.0016) 65.6%,
+      rgb(255 255 255 / 0) 75%
+    )
+    calc(50% - var(--browser-tilt-y, 0) * 1.5%) calc(50% + var(--browser-tilt-x, 0) * 1.5%) / 160%
+    160%;
+  opacity: var(--browser-tilt-sheen, 0);
+  /* Only ever lighter: a gradient is dithered, and blended as is it would fleck a white
+     page with darker dots. */
+  mix-blend-mode: screen;
   pointer-events: none;
-  transition: opacity 300ms ease-out;
-}
-.browser-viewer[data-tilting]::before {
-  opacity: 1;
 }
 /* A phone's frame, around its screen's box: the bezel is `phoneBezel` (10px) wide, drawn
    over the screen's edge by a pixel, where a scaled page can fall a device pixel short. */
