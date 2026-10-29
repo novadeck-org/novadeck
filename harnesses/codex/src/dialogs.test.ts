@@ -1346,6 +1346,32 @@ describe("Codex's async question", () => {
     expect(found.answered(open)).toBe(false)
   })
 
+  it("reads the keys of its hints as macOS draws them, and the picker they open", () => {
+    const mac = (rows: readonly string[]) =>
+      rows.map((row) =>
+        row
+          .replace("shift+← to answer", "⇧← to answer")
+          .replace("^] skip", "⌃] skip")
+          .replace("shift+→ main prompt", "⇧→ main prompt"),
+      )
+    const found = read(mac(panel("rui-async-panel-digit-2")), one)!
+    const [, opened] = found.keys(reply({ question: "1", options: ["2"] }))!
+    expect(
+      (opened as { until: (rows: readonly string[]) => boolean }).until(
+        mac(step("rui-async-panel-digit-2", "shift+left")),
+      ),
+    ).toBe(true)
+    // Any other key said to open it is not the one pressed.
+    expect(
+      read(
+        panel("rui-async-panel-digit-2").map((row) =>
+          row.replace("shift+← to answer", "alt+← to answer"),
+        ),
+        one,
+      ),
+    ).toBeUndefined()
+  })
+
   it("asks only the questions still to answer, once some were answered on their own", () => {
     const rest = { ...two, answered: [0] }
     // The first answer queued, the picker moved on to the second at once.

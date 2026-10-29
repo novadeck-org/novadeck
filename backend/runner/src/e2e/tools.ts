@@ -14,9 +14,9 @@ import type { AgentName } from "@novadeck/protocol"
 type Classes = { readonly asking: readonly string[]; readonly other: readonly string[] }
 
 const lists: { readonly [agent in AgentName]: Classes } = {
-  // Recorded from Claude Code 2.1.304 (the pin) and the latest of 2026-10-29 (Monitor).
-  // EnterPlanMode and EnterWorktree ask the
-  // person to approve them, through its ordinary permission prompt, which Novadeck reads for
+  // Recorded from Claude Code 2.1.304 (the pin) and the latest of 2026-10-29 (Monitor);
+  // on Windows it offers Glob and Grep too (seen in CI, 2026-10-29).
+  // EnterPlanMode and EnterWorktree ask the person to approve them, through its ordinary permission prompt, which Novadeck reads for
   // every tool; they are not questions of their own.
   claude: {
     asking: ["AskUserQuestion", "ExitPlanMode"],
@@ -31,6 +31,8 @@ const lists: { readonly [agent in AgentName]: Classes } = {
       "EnterPlanMode",
       "EnterWorktree",
       "ExitWorktree",
+      "Glob",
+      "Grep",
       "ListAgents",
       "Monitor",
       "NotebookEdit",

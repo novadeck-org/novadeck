@@ -728,6 +728,15 @@ for (const setup of setups) {
 const codexSetup = setups.find(({ agent }) => agent === "codex")
 describe.skipIf(!supported || !codexSetup)("Codex's async question", () => {
   const it = e2e(codexSetup!)
+
+  /** Answers, saying what the screen showed should the answer fail. */
+  const answering = async (terminal: DeckTerminal, ref: string, answer: RequestAnswer) => {
+    try {
+      await terminal.answer(ref, answer)
+    } catch (error) {
+      throw new Error(`${String(error)}\nIts screen:\n${await terminal.screen()}`, { cause: error })
+    }
+  }
   const asking = {
     questions: [{ title: "Which color should the button be?", options: ["Blue", "Green"] }],
   }
@@ -768,7 +777,7 @@ describe.skipIf(!supported || !codexSetup)("Codex's async question", () => {
     const request = await dialogOf(t1, "questions")
     const [question] = questionsOf(request).questions
     const green = question!.options.find(({ label }) => label === "Green")!
-    await t1.answer(request.ref, {
+    await answering(t1, request.ref, {
       dialog: idOf(request),
       type: "questions",
       answers: [{ question: question!.id, options: [green.id] }],
@@ -787,7 +796,7 @@ describe.skipIf(!supported || !codexSetup)("Codex's async question", () => {
     const [color, label] = questionsOf(request).questions
     expect(label!.question).toBe("What should its label say?")
     const blue = color!.options.find(({ label: name }) => name === "Blue")!
-    await t1.answer(request.ref, {
+    await answering(t1, request.ref, {
       dialog: idOf(request),
       type: "questions",
       answers: [
@@ -816,8 +825,13 @@ describe.skipIf(!supported || !codexSetup)("Codex's async question", () => {
     await t1.until("Finished the request.", 30_000)
     const request = await dialogOf(t1, "questions")
     const [question] = questionsOf(request).questions
-    expect((await t1.detail()).activity?.state).toBe("idle")
-    await t1.answer(request.ref, {
+    // Its Stop's hook may come a moment after its last words show.
+    await t1.poll(
+      async () => ((await t1.detail()).activity?.state === "idle" ? true : undefined),
+      "its turn to end",
+      30_000,
+    )
+    await answering(t1, request.ref, {
       dialog: idOf(request),
       type: "questions",
       answers: [{ question: question!.id, options: [], text: "Purple" }],

@@ -636,8 +636,12 @@ const asyncQuestionsOf = (input: unknown): readonly AsyncQuestion[] | undefined 
 const queuedHeading = /^\s*• Queued follow-up inputs\s*$/
 const answeredHeading = /^\s*• Messages to be submitted after next tool call/
 const asyncPanel = /^\s*\? (\d+) questions?(?: · \S+)?\s*$/
-const asyncFooter =
-  /^\s*enter submit {3}\^\] skip {3}shift\+→ main prompt(?: {3}shift\+← next question)?\s*$/
+// Its hints' words are fixed; their keys are drawn as the platform spells them (`^]` here,
+// `⌃]` on macOS, as the approvals' ctrl) and may be rebound, so any key reads.
+const asyncFooter = /^\s*\S+ submit {2,}\S+ skip {2,}\S+ main prompt(?: {2,}\S+ next question)?\s*$/
+// The key the panel says opens the picker, as Linux and Windows spell it and as macOS
+// does (`⇧`, as its ctrl is `⌃`): shift+←, the key pressed to open it.
+const asyncOpens = /^\s*(?:shift\+|⇧ ?)← to answer\s*$/
 const asyncOther = "Other"
 
 type Picker = {
@@ -727,7 +731,7 @@ const wordsShown = (lines: readonly string[], question: AsyncQuestion, text: str
 const panelOf = (lines: readonly string[]): number | undefined => {
   const at = lastIndex(lines, (line) => asyncPanel.test(line))
   if (at < 0 || lastIndex(lines, (line) => queuedHeading.test(line)) !== at - 1) return undefined
-  if (!/^\s*shift\+← to answer\s*$/.test(lines[at + 1] ?? "")) return undefined
+  if (!asyncOpens.test(lines[at + 1] ?? "")) return undefined
   return Number(asyncPanel.exec(lines[at]!)![1])
 }
 
