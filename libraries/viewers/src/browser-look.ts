@@ -14,6 +14,8 @@ import {
 // carries over, laid out as the pane would lay it out, and pictured. The window has the
 // pane's pages' lockdown (no Node or preload, a sandbox, http(s) only, no popups) and is
 // never shown, focused or kept: whatever happens, it is destroyed before the answer goes.
+// Only addresses the host allows (the app allows those on this machine) are looked at,
+// loaded, redirected to or framed: nothing from elsewhere ever loads in the signed-in session.
 
 /** What a look lays out as: a desktop's window or a phone's screen, as the pane's switch has it. */
 export type LookLayout = "desktop" | "phone"
@@ -39,9 +41,12 @@ export const lookPictureMs = 1_500
 // The qualities a too large picture is tried at, then its widths.
 const qualities = [85, 70, 55, 40] as const
 
+/** How many looks wait for the one under way; one asked beyond them is refused. */
+export const maxWaitingLooks = 4
+
 /**
- * A look under way, or a refusal: one at a time, as each loads a whole page in a renderer
- * of its own.
+ * A look under way, or waiting its turn: one at a time, first come first served, as each
+ * loads a whole page in a renderer of its own.
  */
 export type Looker = {
   /** The picture of `url` loaded afresh as `layout`, else why there is none. */
@@ -54,6 +59,8 @@ export type Looker = {
    * contents id; false when no look has that view, so the request is another's.
    */
   readonly failed: (contentsId: number, failure: PageRequestFailure) => boolean
+  /** Whether `window` is a look's, not one of the app's. */
+  readonly is: (window: BrowserWindow) => boolean
 }
 
 export type LookResult =
@@ -98,29 +105,51 @@ export const lookPicture = (image: NativeImage): string | undefined => {
 // A phone's page has no scrollbar taking room, as in the pane.
 const phoneLook = "html { scrollbar-width: none !important; }"
 
-const busy = "Another picture of a page is being taken. Try again in a moment."
+const busy = "Too many pictures of pages are waiting. Try again in a moment."
 
 /**
  * Makes the looker of a host. `create` makes the window, and gets the options it must be
  * made with: the lockdown above, which a caller can't loosen; `partition` is the pages'
- * session (see `pagesSession`).
+ * session (see `pagesSession`). `allow` says which addresses may be looked at, loaded or
+ * framed (the app's: those on this machine); `forget` is told of each look's view once it
+ * is gone, for whatever the host kept by its id.
  */
 export const createLooker = ({
   partition,
   create,
+  allow,
+  forget,
 }: {
   readonly partition: string
   readonly create: (options: BrowserWindowConstructorOptions) => BrowserWindow
+  readonly allow: (address: string) => boolean
+  readonly forget?: (contentsId: number) => void
 }): Looker => {
-  let looking = false
+  let running = false
+  // The looks waiting for their turn, which each is handed as the one before ends.
+  const waiting: (() => void)[] = []
+  const turn = async (): Promise<boolean> => {
+    if (!running) {
+      running = true
+      return true
+    }
+    if (waiting.length >= maxWaitingLooks) return false
+    await new Promise<void>((resolve) => waiting.push(resolve))
+    return true
+  }
+  const next = (): void => {
+    const following = waiting.shift()
+    if (following) following()
+    else running = false
+  }
+  const windows = new Set<BrowserWindow>()
   // The failures of the look under way's view, by its view's web contents id.
   const hearing = new Map<number, (failure: PageRequestFailure) => void>()
   const look: Looker["look"] = async ({ url, layout }) => {
-    if (typeof url !== "string" || !webAddress(url))
-      return { reason: "Novadeck only looks at http(s) pages." }
+    if (typeof url !== "string" || !webAddress(url) || !allow(url))
+      return { reason: "Novadeck only looks at pages on this machine." }
     if (layout !== "desktop" && layout !== "phone") return { reason: "That layout is unknown." }
-    if (looking) return { reason: busy }
-    looking = true
+    if (!(await turn())) return { reason: busy }
     const size = lookSizes[layout]
     let window: BrowserWindow | undefined
     try {
@@ -149,16 +178,22 @@ export const createLooker = ({
           webSecurity: true,
           allowRunningInsecureContent: false,
           webviewTag: false,
-          // Nothing it plays is heard.
-          audio: false,
+          // An alert or confirm would hold the look until it timed out.
+          disableDialogs: true,
         },
       } as BrowserWindowConstructorOptions)
-      return await loadAndPicture(window, url, layout, hearing)
+      windows.add(window)
+      return await loadAndPicture(window, url, layout, hearing, allow)
     } catch {
       return { reason: "The page could not be pictured." }
     } finally {
-      looking = false
-      if (window && !window.isDestroyed()) window.destroy()
+      if (window) {
+        const id = window.isDestroyed() ? undefined : window.webContents.id
+        if (!window.isDestroyed()) window.destroy()
+        windows.delete(window)
+        if (id !== undefined) forget?.(id)
+      }
+      next()
     }
   }
   return {
@@ -168,11 +203,8 @@ export const createLooker = ({
       hear?.(failure)
       return hear !== undefined
     },
+    is: (window) => windows.has(window),
   }
-}
-
-const refuse = (event: { preventDefault: () => void }, to: string): void => {
-  if (!webAddress(to)) event.preventDefault()
 }
 
 const loadAndPicture = async (
@@ -180,16 +212,22 @@ const loadAndPicture = async (
   url: string,
   layout: LookLayout,
   hearing: Map<number, (failure: PageRequestFailure) => void>,
+  allow: (address: string) => boolean,
 ): Promise<LookResult> => {
   const contents = window.webContents
   const id = contents.id
   const size = lookSizes[layout]
   contents.setAudioMuted(true)
-  // No popup opens, and the page stays on http(s): the pane's guard, with no person to
-  // click, so every window it asks for is refused.
+  // No popup opens, and the page, its redirects and its frames stay on addresses the host
+  // allows: the pane's guard, with no person to click, so every window it asks for is refused,
+  // and a frame from elsewhere never loads in the signed-in session.
   contents.setWindowOpenHandler(() => ({ action: "deny" }))
+  const refuse = (event: { preventDefault: () => void }, to: string): void => {
+    if (!webAddress(to) || !allow(to)) event.preventDefault()
+  }
   contents.on("will-navigate", refuse)
   contents.on("will-redirect", refuse)
+  contents.on("will-frame-navigate", (details) => refuse(details, details.url))
 
   // What goes wrong while the page is at the origin it was asked at, as the pane counts it:
   // errors it logs, requests of that origin that fail, and a load that fails outright.

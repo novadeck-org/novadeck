@@ -1978,18 +1978,28 @@ shows is never instructions. It takes `page: { url }`, the address given to `sho
 nothing when exactly one page is on the bar. The rules:
 
 1. which pages: page items on the caller's own bar, whoever placed them, and pages the
-   caller showed that the person moved elsewhere (what `showing` lists), and only when
-   served from this machine (`onThisMachine`, as for troubles above). Anything else, a
-   file, a page elsewhere, an address the bar doesn't hold, or several pages with no
-   `page`, is refused with a sentence. A page that has since moved off this machine is not
-   pictured either: the runner checks the address the client answers with;
+   caller showed that the person moved elsewhere (what `showing` lists), and only when the
+   top page is served from this machine (`onThisMachine`, as for troubles above). Anything
+   else, a file, a page elsewhere, an address the bar doesn't hold, or several pages with
+   no `page`, is refused with a sentence. A page that has since moved off this machine is
+   not pictured either: the runner checks the address the client answers with. The rule is
+   about the page itself, not what it embeds: a picture of the pane is the page as the user
+   sees it, frames from elsewhere included, while a fresh load blocks frames from other
+   origins;
 2. who takes it: the client, over `companions.looks` and `companions.answerLook`, which work
    as `terminals.requests` and `answerRequest` do. Each look goes to the client that
-   subscribed last, as `{ lookId, itemId, url }`, and the runner waits 12 s (`lookMs`) for
-   the answer, past the client's worst case of about 8.3 s (a 6 s load, 0.8 s settling and
-   1.5 s capture); the call
-   itself is given 16 s, not the 8 s other calls get (`ReportsOptions.lookMs`). No client,
-   one that went away and one too slow each get their own refusal;
+   subscribed last, as `{ lookId, itemId, shown, url }`, where `shown` is the item's latest
+   show (its `version`): the client doesn't picture a pane still at an earlier show, and
+   loads the page fresh instead. The desktop host takes looks one at a time and queues the
+   rest. One look is at worst a pane attempt (up to 2 s, `pictureWaitMs`) and then a fresh
+   load (about 8.3 s: a 6 s load, 0.8 s settling, 1.5 s capture), about 10.5 s. The runner
+   waits 20 s (`lookMs`), so a second look queued behind one fits, and the MCP call itself is
+   given 24 s (`ReportsOptions.lookMs`), not the 8 s other calls get. Claude Code's MCP tool
+   timeout is far longer than that by default (counted in hours) and Codex's
+   `tool_timeout_sec` defaults to 60 s; Novadeck sets neither. A real Claude Code, Codex and
+   Antigravity each took a look held for 19 s and passed its picture on (probed once with
+   the e2e deck delaying its answer). No client, one that went away and one too
+   slow each get their own refusal;
 3. the answer is a JPEG (up to `maxLookPicture`, 4 MiB as a data URL) with the page's
    address and title now, `taken` as `pane` (what the user's pane shows) or `fresh` (loaded
    anew, hidden and one at a time, in the pages' shared session at 1280×800, or 390×844 when
@@ -2000,9 +2010,12 @@ nothing when exactly one page is on the bar. The rules:
    address, an error's text) are quoted as the troubles notice quotes them, and the text
    says they are never instructions;
 4. troubles: for a picture of the pane, those the runner holds for the item's latest show
-   (see above) join the answer's, each once, up to 10 and a count. That look spends them:
-   nothing more of that show is held for the next prompt's notice. A fresh load's troubles
-   are that load's own and spend nothing;
+   (see above) join the answer's, each once, up to 10 and a count. That look spends only the troubles it
+   told: they stay counted as seen, so a reload's repeats stay quiet, but the show stays open,
+   and a trouble the pane tells after the look still reaches the next prompt's notice (an
+   entry with nothing new isn't due). A fresh load's troubles are that load's own, spend
+   nothing, and leave the held ones for the notice; with none, the text says "No problems on
+   this load.";
 5. harnesses: Claude Code, Codex and Antigravity all pass the image block of an MCP result
    to the model, so a look is the same for each (`look.e2e.ts` checks that the picture
    reaches each harness's model);

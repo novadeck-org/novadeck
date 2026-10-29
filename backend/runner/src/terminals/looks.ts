@@ -54,7 +54,9 @@ export const lookText = (
       : `The user's pane isn't showing the page live, so Novadeck loaded it anew at the pane's size, ${width}×${height}; the user's own view may differ.`
   const wrong =
     told.troubles.length === 0
-      ? "No problems were reported on it."
+      ? answer.taken === "pane"
+        ? "No problems were reported on it."
+        : "No problems on this load."
       : `Problems on it: ${troubleList(told.troubles, told.more, now)}.`
   return [
     `Looked at the page ${quotedText(item.name, 80)} in Novadeck. ${where}`,

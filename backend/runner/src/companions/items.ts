@@ -103,11 +103,11 @@ export type TroubleSink = {
 }
 
 /**
- * How long a look waits for the client's picture: the client's worst case, a fresh load
- * with its settling and capture, is about 8.3 s, and the runner waits a few seconds more
- * for its answer to cross.
+ * How long a look waits for the client's picture. The desktop host takes looks one at a
+ * time and queues the rest, and one look is at worst a pane attempt (2 s) then a fresh load
+ * (about 8.3 s), about 10.5 s: 20 s fits a second look queued behind it.
  */
-export const defaultLookMs = 12_000
+export const defaultLookMs = 20_000
 
 /** A client's answer to a look that has a picture. */
 export type LookPicture = Exclude<PageLookAnswer, { readonly reason: string }>
@@ -471,7 +471,10 @@ export class CompanionItems {
         `${JSON.stringify(item?.name ?? "")} isn't served from this machine, and look only ` +
           "pictures pages you serve here, such as a dev server.",
       )
-    const looked = await this.looks.ask({ itemId: item.id, url: item.url }, this.lookMs)
+    const looked = await this.looks.ask(
+      { itemId: item.id, shown: item.version, url: item.url },
+      this.lookMs,
+    )
     switch (looked.type) {
       case "nobody":
         return failure("Novadeck isn't open to picture the page.")

@@ -256,11 +256,24 @@ describe("the size of page notices", () => {
 describe("troubles a look tells", () => {
   const held = troubled(noTroubles, page, [error("boom")])
 
-  it("are spent: nothing more of that show is held for a notice", () => {
+  it("are spent, and an entry with nothing new isn't due", () => {
     const after = lookedAt(held, page.itemId, page.version)
-    expect(entryOf(after)).toMatchObject({ told: true, troubles: [], more: 0 })
+    expect(entryOf(after)).toMatchObject({ told: false, troubles: [], more: 0 })
+    expect(due(held)).toBe(true)
     expect(due(after)).toBe(false)
-    // A later show's troubles are held again, as after a notice.
+    // A reload repeating what the look told stays quiet.
+    expect(due(troubled(after, page, [error("boom")]))).toBe(false)
+  })
+
+  it("leave the show open: a trouble that comes after is still told", () => {
+    const after = troubled(lookedAt(held, page.itemId, page.version), page, [
+      error("boom"),
+      error("later"),
+    ])
+    expect(entryOf(after).troubles).toEqual([error("later")])
+    expect(due(after)).toBe(true)
+    expect(pageNotice(entryOf(after))).not.toContain("boom")
+    // A later show's troubles are held as ever.
     expect(due(troubled(after, { ...page, version: 2 }, [error("again")]))).toBe(true)
   })
 

@@ -269,7 +269,7 @@ export type ReportsOptions = {
   readonly answerMs?: number
   /**
    * The same for a look, which waits for the client to picture the page, a fresh load
-   * included: by default 16 s, past the runner's 12 s wait for the client.
+   * included: by default 24 s, past the runner's 20 s wait for the client.
    */
   readonly lookMs?: number
 }
@@ -306,7 +306,7 @@ export const listenForReports = async (
   handlers: ReportHandlers,
   options: ReportsOptions = {},
 ): Promise<Reports> => {
-  const { platform = process.platform, readMs = 2_000, answerMs = 8_000, lookMs = 16_000 } = options
+  const { platform = process.platform, readMs = 2_000, answerMs = 8_000, lookMs = 24_000 } = options
   const directory =
     platform === "win32" ? undefined : await mkdtemp(join(tmpdir(), "novadeck-reports-"))
   const endpoint =

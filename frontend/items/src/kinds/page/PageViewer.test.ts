@@ -322,16 +322,16 @@ describe("a page beside a terminal", () => {
       fire(page, "did-stop-loading")
       fire(page, "page-title-updated", { title: "Work" })
     }
-    const withPictures = (pictures: string[], taken: number[] = []) => {
+    const withPictures = (pictures: string[]) => {
       const rendered = show({ kind: "page", url: at, shown: 1, live: true }, true, { pictures })
       loaded(rendered.container)
-      return { rendered, taken }
+      return { rendered }
     }
 
     it("is pictured as the pane shows it, with where it is, its title and its size", async () => {
       const { rendered } = withPictures([shot])
       const [sight] = pageSights.of(item.id)
-      expect(await sight!(1280)).toEqual({
+      expect(await sight!(1280, 1)).toEqual({
         picture: shot,
         url: `${at}work`,
         title: "Work",
@@ -347,9 +347,28 @@ describe("a page beside a terminal", () => {
         pictures: [shot, shot],
       })
       const [sight] = pageSights.of(item.id)
-      expect(await sight!(1280)).toBeUndefined()
+      expect(await sight!(1280, 1)).toBeUndefined()
       loaded(rendered.container)
-      expect(await sight!(1280)).toBeDefined()
+      expect(await sight!(1280, 1)).toBeDefined()
+    })
+
+    it("declines a look of a later show than the pane has rendered, for the look to load it afresh", async () => {
+      withPictures([shot, shot])
+      const [sight] = pageSights.of(item.id)
+      expect(await sight!(1280, 2)).toBeUndefined()
+      expect(await sight!(1280, 1)).toBeDefined()
+    })
+
+    it("declines a picture taken as the page went elsewhere, or to rest", async () => {
+      const { rendered } = withPictures([shot, shot])
+      const [sight] = pageSights.of(item.id)
+      const page = pageOf(rendered.container)
+      const moving = sight!(1280, 1)
+      Object.assign(page, { getURL: () => `${at}elsewhere` })
+      expect(await moving).toBeUndefined()
+      const resting = sight!(1280, 1)
+      Object.assign(page, { getWebContentsId: () => 8 })
+      expect(await resting).toBeUndefined()
     })
 
     it("has no sight where its host takes no pictures, nor where it isn't live", () => {

@@ -15,7 +15,12 @@ import { context, describe, expect, it } from "./test"
 import { startTestRunner } from "./testing"
 
 const jpeg = "data:image/jpeg;base64,AAAA"
-const look: PageLook = { lookId: "look-1", itemId: "item-1", url: "http://localhost:5173/" }
+const look: PageLook = {
+  lookId: "look-1",
+  itemId: "item-1",
+  shown: 3,
+  url: "http://localhost:5173/",
+}
 const seen = (picture = jpeg): PageSeen => ({
   picture,
   url: "http://localhost:5173/work",
@@ -64,6 +69,15 @@ describe("an agent's look at a page", () => {
       })
       expect(await answerLook(look, { sights })).toMatchObject({ taken: "pane", picture: jpeg })
       expect(widths).toEqual([...lookWidths])
+    })
+
+    it("is asked of each viewer with the show the agent made, so one at an earlier show can decline", async () => {
+      const sights = createPageSights()
+      const asked: number[] = []
+      sights.register("item-1", async (_width, shown) => (asked.push(shown), undefined))
+      const fresh = vi.fn<NonNullable<Looks["fresh"]>>(async () => freshLook())
+      expect(await answerLook(look, { sights, fresh })).toMatchObject({ taken: "fresh" })
+      expect(asked).toEqual([3])
     })
 
     it("asks the latest viewer first, and the next when one has none to give", async () => {

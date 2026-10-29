@@ -16,9 +16,11 @@ export type PageSeen = {
 
 /**
  * Pictures the page as its pane shows it, no wider than `width` device pixels; undefined
- * unless it is live and on screen, not resting as its picture or kept out of sight.
+ * unless it is live and on screen, not resting as its picture or kept out of sight, and at
+ * the item's show `shown` or a later one: a pane still at an earlier show isn't what the
+ * agent showed.
  */
-export type PageSight = (width: number) => Promise<PageSeen | undefined>
+export type PageSight = (width: number, shown: number) => Promise<PageSeen | undefined>
 
 export type PageSights = {
   /** Registers the live viewer of an item's page; returns the undo. */

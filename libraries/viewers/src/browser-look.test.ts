@@ -11,6 +11,7 @@ import {
   lookSettleMs,
   lookSizes,
   lookWidth,
+  maxWaitingLooks,
   maxLookPicture,
 } from "./browser-look.js"
 
@@ -104,18 +105,23 @@ const windowFor = ({
   return { contents, window }
 }
 
+const local = (address: string): boolean => new URL(address).hostname === "localhost"
+
 const setup = (options?: Parameters<typeof windowFor>[0]) => {
   const made = windowFor(options)
   const created: BrowserWindowConstructorOptions[] = []
+  const forgotten: number[] = []
   const looker = createLooker({
     partition: "persist:pages",
+    allow: local,
+    forget: (id) => forgotten.push(id),
     create: (each) => {
       created.push(each)
       made.window.destroyed = false
       return made.window as unknown as BrowserWindow
     },
   })
-  return { ...made, created, looker }
+  return { ...made, created, forgotten, looker }
 }
 
 const url = "http://localhost:5173/"
@@ -187,6 +193,7 @@ describe("a look at a page", () => {
     expect(blank.window.destroyed).toBe(true)
     const broken = createLooker({
       partition: "persist:pages",
+      allow: local,
       create: () => {
         throw new Error("no window")
       },
@@ -199,28 +206,108 @@ describe("a look at a page", () => {
   it("is refused for anything but an http(s) address and the two layouts", async () => {
     const { looker, created } = setup()
     const refused = await Promise.all(
-      ["file:///etc/passwd", "javascript:1", "chrome://gpu", "", 7, undefined].map((at) =>
-        looker.look({ url: at, layout: "desktop" }),
-      ),
+      [
+        "file:///etc/passwd",
+        "javascript:1",
+        "chrome://gpu",
+        "https://example.com/",
+        "",
+        7,
+        undefined,
+      ].map((at) => looker.look({ url: at, layout: "desktop" })),
     )
     expect(refused).toEqual(
-      refused.map(() => ({ reason: "Novadeck only looks at http(s) pages." })),
+      refused.map(() => ({ reason: "Novadeck only looks at pages on this machine." })),
     )
-    expect(refused).toHaveLength(6)
+    expect(refused).toHaveLength(7)
     expect(await looker.look({ url, layout: "tablet" })).toEqual({
       reason: "That layout is unknown.",
     })
     expect(created).toEqual([])
   })
 
-  it("is one at a time: another asked meanwhile is refused", async () => {
-    const { looker } = setup()
+  it("is one at a time: another asked meanwhile waits its turn, and succeeds", async () => {
+    const releases: (() => void)[] = []
+    const { looker, created } = setup({
+      load: (each) => releases.push(() => each.emit("did-stop-loading")),
+    })
     const first = looker.look({ url, layout: "desktop" })
-    const second = await looker.look({ url, layout: "desktop" })
-    expect(second).toEqual({ reason: expect.stringContaining("Another picture") })
+    const second = looker.look({ url, layout: "phone" })
+    await vi.waitFor(() => expect(releases).toHaveLength(1))
+    // The second has no window while the first is under way.
+    expect(created).toHaveLength(1)
+    releases[0]!()
     expect(await first).toHaveProperty("picture")
-    // Free again once it's done.
-    expect(await looker.look({ url, layout: "desktop" })).toHaveProperty("picture")
+    await vi.waitFor(() => expect(releases).toHaveLength(2))
+    expect(created).toHaveLength(2)
+    releases[1]!()
+    expect(await second).toMatchObject({ size: lookSizes.phone })
+  })
+
+  it("refuses a look beyond the few that wait", async () => {
+    const releases: (() => void)[] = []
+    const { looker } = setup({
+      load: (each) => releases.push(() => each.emit("did-stop-loading")),
+    })
+    const looks = Array.from({ length: 1 + maxWaitingLooks }, () =>
+      looker.look({ url, layout: "desktop" }),
+    )
+    expect(await looker.look({ url, layout: "desktop" })).toEqual({
+      reason: expect.stringContaining("waiting"),
+    })
+    // Each in its turn.
+    for (let each = 0; each < looks.length; each += 1) {
+      // eslint-disable-next-line no-await-in-loop -- Each look starts once the one before ends.
+      await vi.waitFor(() => expect(releases).toHaveLength(each + 1))
+      releases[each]!()
+    }
+    const answers = await Promise.all(looks)
+    expect(answers.every((answer) => "picture" in answer)).toBe(true)
+  })
+
+  it("is a window of its own, none of the app's, until it is destroyed, and is forgotten after", async () => {
+    let during: boolean | undefined
+    const { looker, window, forgotten } = setup()
+    const done = looker.look({ url, layout: "desktop" })
+    await vi.waitFor(() => expect(looker.is(window as unknown as BrowserWindow)).toBe(true))
+    during = looker.is(window as unknown as BrowserWindow)
+    await done
+    expect(during).toBe(true)
+    expect(looker.is(window as unknown as BrowserWindow)).toBe(false)
+    expect(forgotten).toEqual([41])
+  })
+
+  it("takes no dialog, which would hold the page until the look gave up", async () => {
+    const { looker, created } = setup()
+    await looker.look({ url, layout: "desktop" })
+    expect(created[0]?.webPreferences).toMatchObject({ disableDialogs: true })
+  })
+
+  it("keeps its frames to the pages the host allows, as its navigations and redirects", async () => {
+    const prevented: Record<string, boolean[]> = { frame: [], redirect: [], navigate: [] }
+    const { looker } = setup({
+      load: (each) => {
+        const ask = (type: string, key: string, to: string): void => {
+          const event = {
+            prevented: false,
+            preventDefault() {
+              this.prevented = true
+            },
+          }
+          // A frame's navigation says where in its event, the others as a second argument.
+          if (type === "will-frame-navigate") each.emit(type, Object.assign(event, { url: to }))
+          else each.emit(type, event, to)
+          prevented[key]!.push(event.prevented)
+        }
+        ask("will-frame-navigate", "frame", "http://example.com/frame")
+        ask("will-frame-navigate", "frame", "http://localhost:3000/frame")
+        ask("will-redirect", "redirect", "https://example.com/")
+        ask("will-navigate", "navigate", "file:///etc/passwd")
+        setTimeout(() => each.emit("did-stop-loading"))
+      },
+    })
+    await looker.look({ url, layout: "desktop" })
+    expect(prevented).toEqual({ frame: [true, false], redirect: [true], navigate: [true] })
   })
 
   it("keeps the page to http(s) addresses by its own redirects", async () => {
@@ -239,7 +326,7 @@ describe("a look at a page", () => {
             this.prevented = true
           },
         }
-        each.emit("will-navigate", fine, "https://example.com/")
+        each.emit("will-navigate", fine, "http://localhost:3000/")
         expect([event.prevented, fine.prevented]).toEqual([true, false])
         setTimeout(() => each.emit("did-stop-loading"))
       },

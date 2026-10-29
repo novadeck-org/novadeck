@@ -5,7 +5,7 @@ import type { PageLookAnswer } from "@novadeck/protocol"
 import { describe, expect, it } from "../test.js"
 import { PageLooks } from "./looks.js"
 
-const look = { itemId: randomUUID(), url: "http://localhost:5173/" }
+const look = { itemId: randomUUID(), shown: 1, url: "http://localhost:5173/" }
 const refusal = (lookId: string): PageLookAnswer => ({ lookId, reason: "No pane shows it." })
 
 describe("agents' looks at pages", () => {

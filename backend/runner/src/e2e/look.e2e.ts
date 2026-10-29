@@ -58,7 +58,9 @@ for (const setup of setups) {
       await t1.until("Saw the page.")
       await through(t1, ["settled"], { after: mark })
 
-      expect(looks).toEqual([{ lookId: expect.any(String), itemId: expect.any(String), url }])
+      expect(looks).toEqual([
+        { lookId: expect.any(String), itemId: expect.any(String), shown: 1, url },
+      ])
       const last = seen.at(-1)?.turns.at(-1)
       expect(last?.role === "tool" ? last.text : "").toContain('Its title is "Deck page".')
       // The picture itself reached the model, not only words about it.

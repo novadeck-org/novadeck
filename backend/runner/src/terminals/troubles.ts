@@ -71,19 +71,16 @@ export const troubled = (
 }
 
 /**
- * A look told of the item's held troubles: nothing more of that show is held for the next
- * prompt's notice. A show the look isn't of (a later one replaced it) is left.
+ * A look told of the troubles held for the item: those are spent, so the next prompt's
+ * notice doesn't repeat them, and they stay in `seen`, so a reload's repeats stay quiet. The
+ * show stays open: troubles that arrive after the look are still held to be told. A show
+ * the look isn't of (a later one replaced it), or one already told, is left.
  */
 export const lookedAt = (troubles: Troubles, itemId: string, version: number): Troubles => {
   const own = troubles.get(itemId)
   if (!own || own.version !== version || own.told) return troubles
-  return new Map(troubles).set(itemId, {
-    ...own,
-    troubles: [],
-    more: 0,
-    seen: new Set(),
-    told: true,
-  })
+  if (own.troubles.length === 0 && own.more === 0) return troubles
+  return new Map(troubles).set(itemId, { ...own, troubles: [], more: 0 })
 }
 
 /** An item is gone: what was held for it goes. */

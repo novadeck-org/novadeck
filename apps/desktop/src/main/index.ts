@@ -32,7 +32,7 @@ import { fileURLToPath, pathToFileURL } from "node:url"
 
 import { consoleLogger, logPath, openSession, type Logger, type Session } from "@novadeck/log"
 import type { DesktopBadge, FeedbackHostAbout, UpdateChannel } from "@novadeck/protocol/bridge"
-import { pagesPartition } from "@novadeck/protocol/pages"
+import { onThisMachine, pagesPartition } from "@novadeck/protocol/pages"
 import { startHttpServer, type HttpServer } from "@novadeck/runner/http"
 import {
   attachPage,
@@ -488,12 +488,12 @@ const saveWindows = (windows: readonly BrowserWindow[]): Promise<void> =>
 // What quitting and restarting into an update both run: every page saves before the runner
 // ends its shells, so the saves name what still runs.
 const shutDown = async (): Promise<void> => {
-  await saveWindows(BrowserWindow.getAllWindows())
+  await saveWindows(appWindows())
   await Promise.allSettled([runner?.close(), server?.close()])
 }
 
 // The last update offer, told to the app's pages as it arrives and to any that ask later.
-const offers = trackOffer(() => appPages(BrowserWindow.getAllWindows()))
+const offers = trackOffer(() => appPages(appWindows()))
 
 // Whether `codesign` finds a Developer ID signature on the running macOS app bundle; run
 // once, as the update plan asks.
@@ -1505,10 +1505,19 @@ const loadKey = (): Promise<string | null> =>
 let transcriptKey: Promise<string | null> = Promise.resolve(null)
 
 // Looks at pages for agents, out of sight, in the pages' session; see `createLooker`.
+// Only pages on this machine, as the runner checks too.
 const looker = createLooker({
   partition: pagesSession(pagesPartition),
   create: (options) => new BrowserWindow(options),
+  allow: onThisMachine,
+  forget: (contentsId) => forgetPageRequests(contentsId),
 })
+// What its failed requests keep by view, set once the pages' session is watched.
+let forgetPageRequests = (_contentsId: number): void => {}
+
+// The app's own windows: a look's is out of sight and no one's to save, show or count.
+const appWindows = (): BrowserWindow[] =>
+  BrowserWindow.getAllWindows().filter((window) => !looker.is(window))
 
 const launch = async (): Promise<void> => {
   // The signature is not asked here: it takes a moment, and a portable copy is told
@@ -1762,7 +1771,7 @@ const launch = async (): Promise<void> => {
           ? installWindowsSetup(progress)
           : installAppImageOver(target, progress),
     changed: (state) => {
-      for (const page of appPages(BrowserWindow.getAllWindows())) {
+      for (const page of appPages(appWindows())) {
         try {
           page.send(portableStateChannel, state)
         } catch (error) {
@@ -1886,6 +1895,9 @@ const launch = async (): Promise<void> => {
   ipcMain.handle(pageLookChannel, (event, request: unknown) => {
     if (!appWindow(event)) return { reason: "Not from the app's own page." }
     const { url, layout } = (request ?? {}) as { url?: unknown; layout?: unknown }
+    // The looker checks the address too; this is the door, so it asks first.
+    if (typeof url !== "string" || !onThisMachine(url))
+      return { reason: "Novadeck only looks at pages on this machine." }
     return looker.look({ url, layout })
   })
   // Only the app's own pages learn the version it runs.
@@ -1958,7 +1970,7 @@ const bringForward = (window: BrowserWindow): void => {
 }
 
 app.on("second-instance", () => {
-  const [window] = BrowserWindow.getAllWindows()
+  const [window] = appWindows()
   if (window) bringForward(window)
   // On macOS the app lives on with no window, so a second launch has none to show; one
   // that is quitting opens none.
@@ -2029,6 +2041,7 @@ app.whenReady().then(() => {
       })
     }
   })
+  forgetPageRequests = pageRequests.forget
   app.on("web-contents-created", (_event, contents) => {
     if (contents.getType() === "webview") {
       guardPage(contents, (url) => shell.openExternal(url), pagesPartition)
@@ -2066,7 +2079,7 @@ app.whenReady().then(() => {
   })
 
   app.on("activate", () => {
-    if (BrowserWindow.getAllWindows().length === 0) {
+    if (appWindows().length === 0) {
       if (server && !stopping) createWindow(server.origin)
     }
   })

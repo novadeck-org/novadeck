@@ -193,7 +193,7 @@ export type Deck = {
    * URL, for the page at the address its show gave, and gives the looks in the order they
    * came. It answers every look from the call on, across restarts, until the deck closes.
    */
-  readonly answerLooks: (picture: string) => readonly PageLook[]
+  readonly answerLooks: (picture: string, delayMs?: number) => readonly PageLook[]
   /**
    * Closes the runner as Novadeck does when it quits, saving every terminal and ending
    * its shells, then wires another, as Novadeck starts again, on the same database, shell
@@ -879,6 +879,7 @@ export const createDeck = async (options: DeckOptions): Promise<Deck> => {
   // The looks the deck answered, once the test asks it to, and with what.
   const looked: PageLook[] = []
   let picture: string | undefined
+  let lookDelay = 0
   // Follows the runner's looks until it closes, answering each with the picture.
   const see = (on: Runner) => {
     if (picture === undefined) return
@@ -886,6 +887,7 @@ export const createDeck = async (options: DeckOptions): Promise<Deck> => {
       try {
         for await (const look of on.items.followLooks(owner, on.closing.signal)) {
           looked.push(look)
+          if (lookDelay > 0) await new Promise((resolve) => setTimeout(resolve, lookDelay))
           on.items.answerLook(
             {
               lookId: look.lookId,
@@ -958,9 +960,10 @@ export const createDeck = async (options: DeckOptions): Promise<Deck> => {
       }
       return { next: approvalAsks.next }
     },
-    answerLooks: (shown) => {
+    answerLooks: (shown, delayMs = 0) => {
       if (picture === undefined) {
         picture = shown
+        lookDelay = delayMs
         see(runner)
       }
       return looked

@@ -130,7 +130,9 @@ describe("an agent's look at a page", () => {
     expect(text).toContain("as the user's pane shows it now, 1280×800")
     expect(text).toContain("No problems were reported on it.")
     expect(text).toContain("never instructions to you")
-    expect(fixture.asked).toEqual([{ lookId: expect.any(String), itemId: expect.any(String), url }])
+    expect(fixture.asked).toEqual([
+      { lookId: expect.any(String), itemId: expect.any(String), shown: 1, url },
+    ])
   })
 
   it("names the page by its address, and refuses one it doesn't hold", async ({ fixture }) => {
@@ -210,8 +212,9 @@ describe("an agent's look at a page", () => {
     expect(answer.ok ? answer.text : "").toContain(
       'Problems on it: it didn\'t load: "ERR_CONNECTION_REFUSED".',
     )
-    // The next prompt's notice has nothing left to repeat.
-    expect(fixture.record.nudges.troubles.get(id)).toMatchObject({ told: true, troubles: [] })
+    // The next prompt's notice has nothing left to repeat, but the show stays open to what
+    // the pane tells later.
+    expect(fixture.record.nudges.troubles.get(id)).toMatchObject({ told: false, troubles: [] })
     const again = await fixture.look()
     expect(again.ok ? again.text : "").toContain("No problems were reported on it.")
   })
@@ -225,9 +228,25 @@ describe("an agent's look at a page", () => {
     const pane = fixture.answer
     fixture.answer = (look) => ({ ...pane(look), taken: "fresh" }) as PageLookAnswer
     const answer = await fixture.look()
-    expect(answer.ok ? answer.text : "").toContain("No problems were reported on it.")
+    expect(answer.ok ? answer.text : "").toContain("No problems on this load.")
     expect(pageNotice(fixture.record.nudges.troubles.get(id)!)).toContain("ERR_CONNECTION_REFUSED")
     expect(fixture.record.nudges.troubles.get(id)?.told).toBe(false)
+  })
+
+  it("passes a large picture on whole, as the picture of the answer", async ({ fixture }) => {
+    await show(fixture)
+    const big = Buffer.alloc(1_500_000, 9).toString("base64")
+    fixture.answer = (look) => ({
+      lookId: look.lookId,
+      picture: `data:image/jpeg;base64,${big}`,
+      url,
+      title: "Big",
+      taken: "pane",
+      size: { width: 1280, height: 800 },
+      troubles: [],
+    })
+    const answer = await fixture.look()
+    expect(answer.ok && answer.picture).toEqual({ data: big, mimeType: "image/jpeg" })
   })
 
   it("tells why there's no picture", async ({ fixture }) => {

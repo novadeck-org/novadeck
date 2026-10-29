@@ -39,7 +39,7 @@ export const answerLook = async (
   for (const sight of sights.of(itemId)) {
     for (const width of lookWidths) {
       // eslint-disable-next-line no-await-in-loop -- Each width is tried only if the last was too large.
-      const seen = await sight(width).catch(() => undefined)
+      const seen = await sight(width, look.shown).catch(() => undefined)
       if (!seen) break
       if (seen.picture.length > maxLookPicture) continue
       return {

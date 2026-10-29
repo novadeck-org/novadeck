@@ -642,11 +642,12 @@ export const pageTrouble = z.discriminatedUnion("kind", [
 export const maxPageTroubles = 20
 
 // `companions.looks` items: an agent's look, through Novadeck's MCP server, at a page item
-// it may look at, for the client to picture: the item, and the address its latest show
-// pointed at.
+// it may look at, for the client to picture: the item, its latest show (its version) and
+// the address that show pointed at. A pane still showing an earlier show isn't pictured.
 export const pageLook = z.strictObject({
   lookId: id,
   itemId: id,
+  shown: z.int().min(1),
   url: z.string().max(2048),
 })
 

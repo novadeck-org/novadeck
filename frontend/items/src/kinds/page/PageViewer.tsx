@@ -121,12 +121,15 @@ const ShownPage = ({
   // An agent's look at the page is a picture of it as it is here, while it is live on screen.
   useEffect(() => {
     if (!viewer || !picture || !page.live) return
-    return pageSights.register(id, async (width) => {
+    return pageSights.register(id, async (width, looked) => {
+      // A look of a later show than this pane has rendered, as one reaching it before the show.
+      if (page.shown < looked) return undefined
       const seen = viewer.seen()
       if (!seen) return undefined
       const src = await picture(seen.page, width)
-      // Gone to rest, or off screen, while the picture was taken: it is of what it was then.
-      if (!src || viewer.seen()?.page !== seen.page) return undefined
+      // Gone to rest, off screen or elsewhere while the picture was taken: it is of what it was then.
+      const now = viewer.seen()
+      if (!src || now?.page !== seen.page || now.url !== seen.url) return undefined
       return {
         picture: src,
         url: seen.url,
@@ -134,7 +137,7 @@ const ShownPage = ({
         size: { width: seen.width, height: seen.height },
       }
     })
-  }, [viewer, picture, page.live, id])
+  }, [viewer, picture, page.live, page.shown, id])
   // On screen with no picture to rest as, it wakes for a while, to be pictured as it
   // rests; shown again by its agent, as soon as it's on screen, to show what changed.
   const show = useRef(page.shown)
