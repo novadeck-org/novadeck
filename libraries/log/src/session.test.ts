@@ -20,7 +20,7 @@ const logsFolder = (): string => {
   return folder
 }
 
-/** One launch of the host: its logger, and its session started. */
+/** One launch of the desktop app: its logger, and its session started. */
 const launch = (folder: string, sid: string, at: number) => {
   const logger = createLogger({
     proc: "host",
@@ -34,7 +34,7 @@ const launch = (folder: string, sid: string, at: number) => {
     marker: join(folder, "session.json"),
     sid,
     log: logger.for("session"),
-    file: logPath(folder, "host"),
+    logFile: logPath(folder, "host"),
     now: () => at,
   })
   session.start({ version: "1.2.3" })
@@ -134,7 +134,7 @@ describe("openSession", () => {
   it("finds a launch that crashed before it said what it was", () => {
     const folder = logsFolder()
     const marker = join(folder, "session.json")
-    // The host opens its records first thing, then throws before its first await.
+    // The desktop app opens its records first thing, then throws before its first await.
     const crashing = (): void => {
       const logger = createLogger({ proc: "host", sid: "one", redact: (text) => text })
       openSession({ marker, sid: "one", log: logger.for("session"), now: () => 0 })
