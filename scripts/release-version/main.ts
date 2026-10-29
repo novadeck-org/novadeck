@@ -1,11 +1,11 @@
 import { execFile } from "node:child_process"
 import { promisify } from "node:util"
 
-import { gitSources } from "../release-notes/sources.ts"
+import { makeGitSources, markerPrefix, newestRelease, refOf } from "../release-notes/sources.ts"
 
 const run = promisify(execFile)
 
-const usage = "Usage: main.ts [version]"
+const usage = "Usage: main.ts [version | --newest | --base]"
 
 type Version = readonly [number, number, number]
 type Level = "major" | "minor" | "patch"
@@ -27,8 +27,13 @@ const bump = ([major, minor, patch]: Version, level: Level): Version =>
 
 /** Everything the plan reads from outside, behind functions so tests run offline. */
 export type Sources = {
-  /** Every `vX.Y.Z` tag on main, in any order; tags of another shape are ignored. */
+  /**
+   * Every `vX.Y.Z` tag on main, in any order; tags of another shape are ignored. A
+   * `release-base/vX.Y.Z` marker (see `markerPrefix`) counts as its `vX.Y.Z`.
+   */
   readonly tags: () => Promise<string[]>
+  /** Whether the repository has any release on GitHub, a draft or prerelease included. */
+  readonly anyRelease: () => Promise<boolean>
   /** The tag of the latest stable release, or `undefined` before there is one. */
   readonly stable: () => Promise<string | undefined>
   /**
@@ -38,19 +43,43 @@ export type Sources = {
   readonly recommend: (from: string | undefined) => Promise<string | undefined>
 }
 
-const commandSources: Sources = {
-  tags: () => gitSources.tags("HEAD"),
-  stable: gitSources.stable,
-  recommend: async (from) => {
-    const { stdout } = await run("pnpm", [
-      "exec",
-      "release-it",
-      "--release-version",
-      "--no-github.release",
-      ...(from ? [`--plugins.@release-it/conventional-changelog.commitsOpts.from=${from}`] : []),
-    ])
-    return stdout.trim() || undefined
-  },
+export const commandSources = (cwd?: string): Sources => {
+  const git = makeGitSources(cwd)
+  return {
+    tags: () => git.tags("HEAD"),
+    anyRelease: async () => {
+      const { stdout } = await run("gh", ["release", "list", "--limit", "1", "--json", "tagName"])
+      return (JSON.parse(stdout) as unknown[]).length > 0
+    },
+    stable: git.stable,
+    recommend: async (from) => {
+      // release-it finds its newest tag with `git describe`, which reads no marker as one and
+      // may stop at an older tag that history kept. When the newest release is a marker it is
+      // told which, and to name its tags the same way.
+      const base = await newestRelease(cwd)
+      const markers =
+        base && base.ref !== base.tag
+          ? [`--git.tagName=${markerPrefix}v\${version}`, `--git.tagMatch=${base.ref}`]
+          : []
+      const { stdout } = await run(
+        "pnpm",
+        [
+          "exec",
+          "release-it",
+          "--release-version",
+          "--no-github.release",
+          ...markers,
+          ...(from
+            ? [
+                `--plugins.@release-it/conventional-changelog.commitsOpts.from=${await refOf(from, cwd)}`,
+              ]
+            : []),
+        ],
+        { cwd },
+      )
+      return stdout.trim() || undefined
+    },
+  }
 }
 
 /**
@@ -71,12 +100,27 @@ export const planVersion = async (
   requested: string | undefined,
   sources: Sources,
 ): Promise<string | undefined> => {
-  const newest = (await sources.tags())
+  const tagged = await sources.tags()
+  const newest = tagged
     .map(parse)
     .filter((version) => version !== undefined)
     .toSorted(compare)
     .at(-1)
+  // Releases that leave no tag on main mean history was replaced without markers; planning on
+  // would count from zero, or from commits that were released long ago.
+  if (!newest && (await sources.anyRelease()))
+    throw new Error(
+      `GitHub has releases, but no vX.Y.Z tag or ${markerPrefix}vX.Y.Z marker is an ancestor of HEAD. Create the markers for the newest release and the latest stable one on main's commits, or fetch the tags.`,
+    )
+  // Whatever is planned counts from the latest stable release, so it has to be on main.
+  const requireStable = (stableTag: string | undefined) => {
+    if (stableTag && parse(stableTag) && !tagged.includes(stableTag))
+      throw new Error(
+        `The latest stable release ${stableTag} is not an ancestor of HEAD, and has no ${markerPrefix}${stableTag} marker.`,
+      )
+  }
   if (requested) {
+    requireStable(await sources.stable())
     const wanted = parse(requested)
     if (!wanted) throw new Error(`'${requested}' is not a version like 1.2.3.`)
     if (newest && compare(wanted, newest) <= 0)
@@ -88,6 +132,7 @@ export const planVersion = async (
   const recommended = await sources.recommend(undefined)
   if (!recommended || !newest) return recommended
   const stableTag = await sources.stable()
+  requireStable(stableTag)
   const stable = stableTag ? parse(stableTag) : undefined
   if (!stableTag || !stable) return bump(newest, "patch").join(".")
   // release-it raises the newest tag, so the step it took names the level.
@@ -110,10 +155,18 @@ export const planVersion = async (
  */
 export const main = async (
   args = process.argv.slice(2),
-  sources: Sources = commandSources,
+  sources: Sources = commandSources(),
   log: (message: string) => void = console.log,
 ): Promise<void> => {
   if (args.length > 1) throw new Error(usage)
+  if (args[0] === "--newest" || args[0] === "--base") {
+    const newest = await newestRelease()
+    // The tag of the newest release, or the marker to read it from when that is not a tag.
+    const printed =
+      args[0] === "--newest" ? newest?.tag : newest?.ref !== newest?.tag && newest?.ref
+    if (printed) log(printed)
+    return
+  }
   const version = await planVersion(args[0] || undefined, sources)
   if (version) log(version)
 }

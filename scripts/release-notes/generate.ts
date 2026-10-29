@@ -5,7 +5,7 @@ import { commitItem, type Item } from "./items.ts"
 import { parseOutput, type Answer } from "./model.ts"
 import { originalOf } from "./render.ts"
 import { Skip, viaGh } from "./skip.ts"
-import { type Sources } from "./sources.ts"
+import { markerPrefix, type Sources } from "./sources.ts"
 
 /** Asks the model about the items and returns its answer's text, or throws `Skip`. */
 export type Ask = (
@@ -46,6 +46,19 @@ const compare = (a: string, b: string): number => {
 /** Release tags among `tags`, oldest version first. */
 const sorted = (tags: readonly string[]): string[] =>
   tags.filter((tag) => versionOf(tag)).toSorted(compare)
+
+const unmarked = (stable: string, tag: string): string =>
+  `The latest stable release ${stable} is not among the release tags merged into ${tag}, and has no ${markerPrefix}${stable} marker.`
+
+const requireStableBefore = async (
+  tag: string,
+  tags: readonly string[],
+  sources: Sources,
+): Promise<void> => {
+  const stable = await viaGh("look up the latest stable release", sources.stable())
+  if (stable && versionOf(stable) && compare(stable, tag) < 0 && !tags.includes(stable))
+    throw new Error(unmarked(stable, tag))
+}
 
 /**
  * The notes for these items, as the model wrote them and the checks left them. Throws
@@ -110,6 +123,10 @@ export const generateRelease = async (
   const tags = sorted(await sources.tags(tag))
   const at = tags.indexOf(tag)
   if (at < 0) throw new Error(`${tag} is not among the release tags merged into it`)
+  // A stable release older than the tag has to be among the tags merged into it: if a rewrite
+  // of history took it out of reach without a marker (see sources.ts), the range would list
+  // history that was released long ago.
+  await requireStableBefore(tag, tags, sources)
   const items = parseCommits(await sources.commits(tags[at - 1], tag)).map(commitItem)
   const release = await viaGh(`read ${tag}'s release`, sources.release(tag))
   if (!release) throw new Skip(`${tag} has no release to write notes on`)
@@ -139,6 +156,7 @@ export const generatePromote = async (
   const stable = await viaGh("look up the latest stable release", sources.stable())
   if (stable && versionOf(stable) && compare(stable, tag) >= 0)
     throw new Skip(`${tag} is not newer than the stable release ${stable}`)
+  if (stable && versionOf(stable) && !tags.includes(stable)) throw new Error(unmarked(stable, tag))
   const known = stable && versionOf(stable) ? stable : undefined
   // Every commit of the range goes to the model as it is, not through what a prerelease's
   // own run made of it: the model that picks the highlights judges every change itself.
@@ -151,7 +169,7 @@ export const generatePromote = async (
     original: own,
     // Without a stable release there is no start to compare from, so the link is the history.
     compare: known
-      ? `https://github.com/${repo}/compare/${known}...${tag}`
+      ? `https://github.com/${repo}/compare/${await sources.ref(known)}...${tag}`
       : `https://github.com/${repo}/commits/${tag}`,
   }
 }

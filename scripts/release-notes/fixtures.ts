@@ -30,6 +30,7 @@ export const fakeSources = (options: {
   return {
     ranges,
     tags: async () => options.tags,
+    ref: async (tag) => tag,
     commits: async (from, to) => {
       const range = `${from ?? ""}..${to}`
       ranges.push(range)
