@@ -39,10 +39,14 @@ const settledRows = 15
 
 const rows = () =>
   page.getByRole("list", { name: "Messages from your agents" }).getByRole("listitem")
-const row = (subject: RegExp | string) =>
-  page
-    .getByRole("list", { name: "Messages from your agents" })
-    .getByRole("button", { name: typeof subject === "string" ? new RegExp(subject) : subject })
+// A row's own button, by its words: not the buttons beside it that name it too (Dismiss,
+// Snooze, Unsnooze).
+const row = (subject: RegExp | string) => {
+  const words = typeof subject === "string" ? new RegExp(subject) : subject
+  return page.getByRole("list", { name: "Messages from your agents" }).getByRole("button", {
+    name: new RegExp(`^(?!(?:Dismiss|Snooze|Unsnooze): ).*(?:${words.source})`, words.flags),
+  })
+}
 const sheet = (title: string) => page.getByRole("dialog", { name: title })
 const confirmation = () => page.getByRole("status").filter({ hasText: /\w/ })
 // A row of an open sheet's numbered menu, by its words.
@@ -217,7 +221,9 @@ describe("An item's sheet", () => {
       await userEvent.keyboard("{Enter}")
       await expectStaysAbsent(confirmation())
 
-      // Past the head's two buttons, Tab reaches the menu, on Allow.
+      // Past the head's three buttons (Snooze, Show terminal, Close), Tab reaches the menu,
+      // on Allow.
+      await userEvent.tab()
       await userEvent.tab()
       await userEvent.tab()
       await userEvent.tab()
@@ -262,6 +268,8 @@ describe("An item's sheet", () => {
       await expect
         .element(sheet("Checkout review").getByRole("button", { name: "Close" }))
         .toHaveFocus()
+      // Back past Show terminal and Snooze.
+      await userEvent.tab({ shift: true })
       await userEvent.tab({ shift: true })
       await userEvent.tab({ shift: true })
       await expect.element(row("Run pnpm add")).toHaveFocus()
