@@ -101,9 +101,10 @@ export type BrowserOptions = {
   /**
    * Takes a picture of what the live page shows now, by its view's web contents id, for
    * the viewer to show while the page rests, no wider than `width` device pixels, as wide
-   * as it's drawn; undefined when it can't. Without it, a live page never rests.
+   * as it's drawn, where it's drawn any width; undefined when it can't. Without it, a live
+   * page never rests.
    */
-  readonly picture?: (page: number, width: number) => Promise<string | undefined>
+  readonly picture?: (page: number, width?: number) => Promise<string | undefined>
   /** Whether a live page starts awake, as it does unless told; it rests only as a picture. */
   readonly awake?: boolean
   /** What a live page lays out as, a desktop's window unless told. */
@@ -1060,9 +1061,9 @@ export const mountBrowser: Mount<BrowserContent, BrowserOptions, BrowserViewer> 
       Promise.race([view.executeJavaScript(scrollRead), wait(scrollReadMs)]),
     )?.catch(() => undefined)
     // As wide as it's drawn: a page scaled down to fit lays out, and is pictured, wider.
-    // Drawn nowhere, it has nothing to picture.
-    const width = Math.round(drawnWidth() * (document.defaultView?.devicePixelRatio ?? 1))
-    if (width < 1) return undefined
+    // Drawn no width at all, it's pictured as it is.
+    const drawn = Math.round(drawnWidth() * (document.defaultView?.devicePixelRatio ?? 1))
+    const width = drawn >= 1 ? drawn : undefined
     const [src, where] = await Promise.all([take(id, width).catch(() => undefined), reading])
     if (src === undefined || asked !== snapping) return undefined
     return { picture: { src, at }, scrolled: isScrolled(where) ? where : undefined }

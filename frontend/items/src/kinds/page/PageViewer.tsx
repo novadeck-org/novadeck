@@ -88,7 +88,7 @@ const ShownPage = ({
   content: PageContent
   trouble: ArtifactBodyProps<"page">["trouble"]
   actions: ReactNode
-  picture: ((page: number, width: number) => Promise<string | undefined>) | undefined
+  picture: ((page: number, width?: number) => Promise<string | undefined>) | undefined
 }): React.JSX.Element => {
   const collect = useTroubles(trouble)
   const [place, setPlace] = useState<Place>({ url: page.url, back: false, forward: false })

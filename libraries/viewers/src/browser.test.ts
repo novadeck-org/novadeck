@@ -790,7 +790,7 @@ describe("the browser viewer", () => {
       const calls: string[] = []
       const at = { url: content.url, back: true, forward: false }
       const taken: number[] = []
-      const widths: number[] = []
+      const widths: (number | undefined)[] = []
       const viewer = mountBrowser(host, {
         content,
         label: "page",
@@ -847,15 +847,14 @@ describe("the browser viewer", () => {
         ])
     })
 
-    it("takes no picture of a page drawn nowhere, as in a viewer with no width", async () => {
-      const { host, viewer, taken, fire } = resting()
+    it("is pictured as it is where it's drawn no width at all", async () => {
+      const { host, viewer, taken, widths, fire } = resting()
       host.style.width = "0px"
       await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)))
       fire("did-stop-loading")
       viewer.awake(false)
-      await settled()
-      expect(taken).toEqual([])
-      expect(pageOf(host)).not.toBeNull()
+      await expect.poll(() => taken).toEqual([7])
+      expect(widths).toEqual([undefined])
     })
 
     it("lets a picture of the other size go at once when switched, waking", async () => {
