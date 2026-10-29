@@ -26,32 +26,39 @@ beforeEach(async () => {
 })
 afterEach(() => rm(folder, { recursive: true, force: true }))
 
-describe("swapping the AppImage for the update", () => {
-  it("renames the update over the file in one step and says how the file then looks", async () => {
-    const target = join(folder, "novadeck.AppImage")
-    const update = join(folder, "download.AppImage")
-    await writeFile(target, "old")
-    await writeFile(update, "new")
-    await chmod(update, 0o755)
-    const before = fileIdentity(await stat(update))
-    const steps: string[] = []
-    const identity = swapAppImage(update, target, {
-      rename: (from, to) => {
-        steps.push("rename")
-        return renameThrough(from, to)
-      },
-      copy: () => void steps.push("copy"),
-      chmod: () => void steps.push("chmod"),
-      remove: () => void steps.push("remove"),
-      identity: (path) => fileIdentity(statSync(path)),
-    })
-    expect(steps).toEqual(["rename"])
-    expect(identity).toBe(before)
-    expect(await readFile(target, "utf8")).toBe("new")
-    expect((await stat(target)).mode & 0o111).not.toBe(0)
-  })
+// An AppImage is swapped on Linux alone; Windows has no inodes to tell the file by, and
+// won't rename over a file that is open.
+const posix = it.skipIf(process.platform === "win32")
 
-  it("leaves the running image readable: its open file keeps the old contents", async () => {
+describe("swapping the AppImage for the update", () => {
+  posix(
+    "renames the update over the file in one step and says how the file then looks",
+    async () => {
+      const target = join(folder, "novadeck.AppImage")
+      const update = join(folder, "download.AppImage")
+      await writeFile(target, "old")
+      await writeFile(update, "new")
+      await chmod(update, 0o755)
+      const before = fileIdentity(await stat(update))
+      const steps: string[] = []
+      const identity = swapAppImage(update, target, {
+        rename: (from, to) => {
+          steps.push("rename")
+          return renameThrough(from, to)
+        },
+        copy: () => void steps.push("copy"),
+        chmod: () => void steps.push("chmod"),
+        remove: () => void steps.push("remove"),
+        identity: (path) => fileIdentity(statSync(path)),
+      })
+      expect(steps).toEqual(["rename"])
+      expect(identity).toBe(before)
+      expect(await readFile(target, "utf8")).toBe("new")
+      expect((await stat(target)).mode & 0o111).not.toBe(0)
+    },
+  )
+
+  posix("leaves the running image readable: its open file keeps the old contents", async () => {
     const target = join(folder, "novadeck.AppImage")
     const update = join(folder, "download.AppImage")
     await writeFile(target, "old")
