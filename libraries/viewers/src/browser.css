@@ -15,7 +15,10 @@
    Tokens, each optional (its fallback in brackets):
    --browser-page-bg (white): behind a live page until it paints, and behind its resting
    picture; pages assume a white ground.
-   --browser-stage-bg (transparent): around a phone's screen. */
+   --browser-stage-bg (transparent): around a phone's frame.
+   --browser-device-bg (a near black), --browser-device-edge (a faint light line),
+   --browser-device-shadow (a soft drop shadow): a phone's frame, its bezel as wide as
+   `phoneBezel`. --browser-screen-radius (28px): its screen's corners, as drawn. */
 .browser-viewer {
   display: flex;
   position: relative;
@@ -28,6 +31,32 @@
 }
 .browser-viewer[data-size="phone"] {
   background-color: var(--browser-stage-bg, transparent);
+}
+/* A phone's frame, around its screen's box: the bezel is `phoneBezel` (10px) wide, drawn
+   over the screen's edge by a pixel, where a scaled page can fall a device pixel short. */
+.browser-viewer[data-size="phone"]::after {
+  content: "";
+  position: absolute;
+  z-index: 2;
+  top: calc(var(--browser-top, 0px) - 10px);
+  left: calc(var(--browser-left, 0px) - 10px);
+  width: calc(var(--browser-width, 100%) * var(--browser-scale, 1) + 20px);
+  height: calc(var(--browser-height, 100%) * var(--browser-scale, 1) + 20px);
+  box-sizing: border-box;
+  border: 11px solid var(--browser-device-bg, #141416);
+  border-radius: calc(var(--browser-screen-radius, 28px) + 10px);
+  box-shadow:
+    0 0 0 1px var(--browser-device-edge, rgb(255 255 255 / 0.12)),
+    var(--browser-device-shadow, 0 10px 30px rgb(0 0 0 / 0.25));
+  pointer-events: none;
+}
+/* Its screen's corners, rounded as drawn: the view is drawn scaled, its picture as is. */
+.browser-viewer[data-size="phone"] > webview {
+  overflow: hidden;
+  border-radius: calc(var(--browser-screen-radius, 28px) / var(--browser-scale, 1));
+}
+.browser-viewer[data-size="phone"] > .browser-picture {
+  border-radius: var(--browser-screen-radius, 28px);
 }
 .browser-viewer > webview {
   display: flex;

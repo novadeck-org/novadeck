@@ -8,6 +8,8 @@ import {
   freshenMs,
   keepMs,
   mountBrowser,
+  phoneBezel,
+  phoneMargin,
   phoneScreen,
   scrollWaitMs,
   uncoverMs,
@@ -579,7 +581,10 @@ describe("the browser viewer", () => {
       const viewer = host.querySelector(".browser-viewer")!.getBoundingClientRect()
       return {
         laid: [page.offsetWidth, page.offsetHeight],
-        drawn: [drawn.left - viewer.left, drawn.top - viewer.top, drawn.width, drawn.height],
+        // To the pixel: scaled, it can fall a hair short of one.
+        drawn: [drawn.left - viewer.left, drawn.top - viewer.top, drawn.width, drawn.height].map(
+          Math.round,
+        ),
       }
     }
 
@@ -606,8 +611,9 @@ describe("the browser viewer", () => {
 
     it("lays out as a phone's screen when told, back to a desktop's when told again", async () => {
       const host = hostIn()
-      host.style.width = "300px"
-      host.style.height = "600px"
+      // Room for half a phone's width, its frame beside it.
+      host.style.width = `${phoneScreen.width / 2 + 2 * (phoneBezel + phoneMargin)}px`
+      host.style.height = "400px"
       const viewer = mountBrowser(host, {
         content: { url: "http://localhost:5173/" },
         label: "page",
@@ -616,11 +622,13 @@ describe("the browser viewer", () => {
         size: "phone",
       })
       expect(host.querySelector(".browser-viewer")!.getAttribute("data-size")).toBe("phone")
-      // Scaled down to fit the viewer's width, and no taller than it.
-      expect(boxes(host).laid).toEqual([phoneScreen.width, 780])
-      expect(boxes(host).drawn).toEqual([0, 0, 300, 600])
+      // Scaled down to fit the viewer's width, and no taller than it, its frame around it.
+      const room = phoneBezel + phoneMargin
+      expect(boxes(host).laid).toEqual([phoneScreen.width, 2 * (400 - 2 * room)])
+      expect(boxes(host).drawn).toEqual([room, room, phoneScreen.width / 2, 400 - 2 * room])
       viewer.size("desktop")
-      expect(boxes(host).laid).toEqual([desktopWidth, 2560])
+      expect(boxes(host).laid[0]).toBe(desktopWidth)
+      expect(boxes(host).drawn).toEqual([0, 0, phoneScreen.width / 2 + 2 * room, 400])
       viewer.size("phone")
       host.style.width = "800px"
       host.style.height = "1000px"
@@ -629,6 +637,37 @@ describe("the browser viewer", () => {
         .poll(() => boxes(host).drawn)
         .toEqual([205, 78, phoneScreen.width, phoneScreen.height])
       expect(boxes(host).laid).toEqual([phoneScreen.width, phoneScreen.height])
+    })
+
+    it("hides a phone's page's own scrollbar in each document it loads, and only a phone's", async () => {
+      const host = hostIn()
+      const viewer = live(host)
+      const page = pageOf(host)
+      const calls: string[] = []
+      attach(page, { url: "http://localhost:5173/", back: false, forward: false }, calls)
+      let keys = 0
+      Object.assign(page, {
+        insertCSS: async (css: string) => {
+          calls.push(`insert ${css}`)
+          return `key ${++keys}`
+        },
+        removeInsertedCSS: async (key: string) => {
+          calls.push(`remove ${key}`)
+        },
+      })
+      page.dispatchEvent(event("dom-ready"))
+      expect(calls.filter((call) => call.startsWith("insert"))).toEqual([])
+      viewer.size("phone")
+      // Another document, which has none of the last one's.
+      page.dispatchEvent(event("dom-ready"))
+      viewer.size("desktop")
+      await expect
+        .poll(() => calls.filter((call) => /^(insert|remove)/.test(call)))
+        .toEqual([
+          "insert html { scrollbar-width: none !important; }",
+          "insert html { scrollbar-width: none !important; }",
+          "remove key 2",
+        ])
     })
 
     it("frames nothing in a viewer with no room, as one kept out of sight", () => {
@@ -718,7 +757,7 @@ describe("the browser viewer", () => {
         .poll(() => widths)
         .toEqual([
           Math.round(400 * devicePixelRatio),
-          Math.round(phoneScreen.width * devicePixelRatio),
+          Math.round((400 - 2 * (phoneBezel + phoneMargin)) * devicePixelRatio),
         ])
     })
 

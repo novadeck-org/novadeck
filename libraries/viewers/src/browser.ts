@@ -46,13 +46,19 @@ export type Load = "loading" | "ready" | "failed"
 /**
  * What a live page lays out as: a desktop's window, at least `desktopWidth` wide and scaled
  * down to fit a narrower viewer, so a narrow viewer shows a site's desktop layout, not the
- * one it squeezes into; or a phone's screen, `phoneScreen`, scaled down only to fit the
- * viewer's width, and no taller than the viewer.
+ * one it squeezes into; or a phone's screen, `phoneScreen`, in a phone's frame, scaled
+ * down only to fit the viewer's width, and no taller than the viewer.
  */
 export type PageSize = "desktop" | "phone"
 
 export const desktopWidth = 1280
 export const phoneScreen = { width: 390, height: 844 } as const
+/**
+ * The room a phone's screen keeps on each side of it, in CSS pixels: its frame's bezel,
+ * which browser.css draws, and a margin around the frame.
+ */
+export const phoneBezel = 10
+export const phoneMargin = 16
 
 /**
  * Where a live page's view goes in a viewer `width` by `height` wide: the size it lays out
@@ -73,8 +79,9 @@ export const framingOf = (size: PageSize, width: number, height: number): Framin
     const scale = width / desktopWidth
     return { width: desktopWidth, height: height / scale, scale, left: 0, top: 0 }
   }
-  const scale = Math.min(1, width / phoneScreen.width)
-  const tall = Math.min(phoneScreen.height, height / scale)
+  const room = 2 * (phoneBezel + phoneMargin)
+  const scale = Math.min(1, Math.max(1, width - room) / phoneScreen.width)
+  const tall = Math.min(phoneScreen.height, Math.max(1, height - room) / scale)
   return {
     width: phoneScreen.width,
     height: tall,
@@ -146,6 +153,8 @@ type Webview = HTMLElement & {
   getURL(): string
   getWebContentsId(): number
   setAudioMuted(muted: boolean): void
+  insertCSS(css: string): Promise<string>
+  removeInsertedCSS(key: string): Promise<void>
 }
 
 // A page's scroll, as `[scrollX, scrollY]`.
@@ -259,6 +268,9 @@ export const keepMs = 5_000
  */
 export const uncoverMs = 120
 export const fadeMs = 150
+
+// Put in a phone's page: no scrollbar of its own, as a phone's takes no room.
+const phoneLook = "html { scrollbar-width: none !important; }"
 
 // Run in the page: where it's scrolled, read for at most `scrollReadMs`.
 const scrollRead = "[scrollX, scrollY]"
@@ -590,6 +602,27 @@ export const mountBrowser: Mount<BrowserContent, BrowserOptions, BrowserViewer> 
   }
   hostWindow?.addEventListener("message", signIns)
 
+  // A phone's page has no scrollbar taking room, as a phone's floats over it: put in each
+  // document its view loads while it's a phone's, and taken out of it when it no longer is.
+  let dressed: { readonly view: Webview; readonly key: Promise<string | undefined> } | undefined
+  const dress = (): void => {
+    const view = page
+    if (!view || size !== "phone") return
+    const key = attached(() => view.insertCSS(phoneLook))
+    dressed = key ? { view, key: key.catch(() => undefined) } : undefined
+  }
+  const undress = (): void => {
+    const was = dressed
+    dressed = undefined
+    void was?.key.then((key) => {
+      if (key !== undefined) void attached(() => was.view.removeInsertedCSS(key))?.catch(nothing)
+    })
+  }
+  // A new document has none of the last one's.
+  const loaded = (): void => {
+    dressed = undefined
+    dress()
+  }
   const moved = (): void => {
     attached(() => {
       page!.setAudioMuted(muted)
@@ -761,6 +794,7 @@ export const mountBrowser: Mount<BrowserContent, BrowserOptions, BrowserViewer> 
   const listeners: readonly (readonly [string, (event: Event) => void])[] = [
     ["dom-ready", moved],
     ["dom-ready", painting],
+    ["dom-ready", loaded],
     ["did-navigate", moved],
     ["did-navigate-in-page", movedInPage],
     ["did-start-loading", started],
@@ -1008,6 +1042,8 @@ export const mountBrowser: Mount<BrowserContent, BrowserOptions, BrowserViewer> 
       if (next === size) return
       size = next
       frame()
+      if (size === "phone") dress()
+      else undress()
       // Its picture, and one under way, are of the other size, as is where it was scrolled:
       // it rests as one of this once one is taken. Over a page that's there, or on its way
       // as a press on the switch woke it, the picture goes at once.
