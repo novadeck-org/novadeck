@@ -122,6 +122,10 @@ const callOf = (call: { id?: string | undefined; name: string; args?: unknown })
  * with them. Antigravity sends tool results in a content of the model's own.
  */
 const turnsOf = (one: z.infer<typeof content>): Turn[] => {
+  // The pictures of a result are those inside it and, when it is the content's only result,
+  // the inline images beside it in that content, as Antigravity sends them.
+  const responses = one.parts.filter((each) => each.functionResponse).length
+  const beside = responses === 1 ? imagesIn(one.parts.filter((each) => !each.functionResponse)) : 0
   const results: Turn[] = one.parts.flatMap(({ functionResponse: result }) =>
     result
       ? [
@@ -129,7 +133,7 @@ const turnsOf = (one: z.infer<typeof content>): Turn[] => {
             role: "tool" as const,
             id: result.id ?? result.name,
             text: resultOf(result.response),
-            ...withImages(imagesIn(one.parts)),
+            ...withImages(imagesIn(result) + beside),
           },
         ]
       : [],

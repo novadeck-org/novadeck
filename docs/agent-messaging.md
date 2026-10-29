@@ -1985,8 +1985,8 @@ nothing when exactly one page is on the bar. The rules:
    with a sentence. A page that has since moved off this machine is not pictured either:
    the runner checks the address the client answers with. The rule is about the page
    itself, not what it embeds. A picture of the pane is the page as the user sees it,
-   frames from elsewhere included. A fresh load blocks frames and navigations to other
-   origins, while cross-origin subresources (images, scripts, fetches) load as usual;
+   frames from elsewhere included. A fresh load blocks frames and navigations to addresses
+   not on this machine, while cross-origin subresources (images, scripts, fetches) load as usual;
 2. who takes it: the client, over `companions.looks` and `companions.answerLook`, which work
    as `terminals.requests` and `answerRequest` do. Each look goes to the client that
    subscribed last, as `{ lookId, itemId, shown, url }`, where `shown` is the item's latest
@@ -2015,13 +2015,20 @@ nothing when exactly one page is on the bar. The rules:
    the picture as an MCP `image` content block. A page's own strings (its title, its
    address, an error's text) are quoted as the troubles notice quotes them, and the text
    says they are never instructions;
-4. troubles: for a picture of the pane, those the runner holds for the item's latest show
-   (see above) join the answer's, each once, up to 10 and a count. That look spends only the troubles it
-   told: they stay counted as seen, so a reload's repeats stay quiet, but the show stays open,
-   and a trouble the pane tells after the look still reaches the next prompt's notice (an
-   entry with nothing new isn't due). A fresh load's troubles are that load's own, spend
-   nothing, and leave the held ones for the notice; with none, the text says "No problems on
-   this load.";
+4. troubles: a picture of the pane says nothing of the console as it is now, so the text
+   claims only what the runner knows. For a page the caller showed, it lists the troubles
+   the pane reported since the show and not yet told to the caller, those held for the item's
+   latest show (see above), each once, up to 10 and a count: "Problems the user's pane
+   reported since you showed it, not yet told to you". With none held it says "Novadeck has
+   no new problems from the pane to tell you", which is not "the page is clean": once a
+   notice told the troubles, the entry is closed for that show and later ones, a fix by hot
+   reload included, are not collected. A page someone else holds (placed from another
+   terminal, or attached by the person) gets no word about problems, as the runner holds
+   none for it. A look spends only the troubles it told: they stay counted as seen, so a
+   reload's repeats stay quiet, but the show stays open, and a trouble the pane tells after
+   the look still reaches the next prompt's notice (an entry with nothing new isn't due). A
+   fresh load's troubles are that load's own ("Problems on this load", or "No problems on
+   this load"), spend nothing, and leave the held ones for the notice;
 5. harnesses: Claude Code, Codex and Antigravity all pass the image block of an MCP result
    to the model, so a look is the same for each (`look.e2e.ts` checks that the picture
    reaches each harness's model);

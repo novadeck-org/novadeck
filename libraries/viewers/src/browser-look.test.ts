@@ -11,6 +11,7 @@ import {
   lookSettleMs,
   lookSizes,
   lookWidth,
+  lookWorstMs,
   maxWaitingLooks,
   maxLookPicture,
 } from "./browser-look.js"
@@ -300,6 +301,34 @@ describe("a look at a page", () => {
     expect(await fine).toHaveProperty("picture")
     // The dropped look never made a window.
     expect(created).toHaveLength(2)
+  })
+
+  it("doesn't begin a look that couldn't end before its caller stops waiting, even at its slowest", async () => {
+    const { looker, created } = setup()
+    expect(
+      await looker.look({ url, layout: "desktop", before: Date.now() + lookWorstMs - 500 }),
+    ).toEqual({
+      reason: "Novadeck didn't get to this picture in time.",
+    })
+    expect(created).toEqual([])
+    expect(
+      await looker.look({ url, layout: "desktop", before: Date.now() + lookWorstMs + 5_000 }),
+    ).toHaveProperty("picture")
+    // The turn went on: nothing is held up.
+    expect(await looker.look({ url, layout: "desktop" })).toHaveProperty("picture")
+  })
+
+  it("forgets the view even when the page closed its own window", async () => {
+    const { looker, window, forgotten } = setup({
+      load: (each) => {
+        window.destroyed = true
+        setTimeout(() => each.emit("did-stop-loading"))
+      },
+    })
+    expect(await looker.look({ url, layout: "desktop" })).toEqual({
+      reason: "The page could not be pictured.",
+    })
+    expect(forgotten).toEqual([41])
   })
 
   it("refuses a look beyond the few that wait", async () => {

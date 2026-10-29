@@ -156,7 +156,12 @@ export class Companion {
     const base64 = answer.picture.slice(answer.picture.indexOf(",") + 1)
     return {
       ok: true,
-      text: lookText(item, answer, told),
+      text: lookText(
+        item,
+        answer,
+        told,
+        item.by === "agent" && item.from?.terminalId === call.terminalId,
+      ),
       picture: { data: base64, mimeType: "image/jpeg" },
     }
   }

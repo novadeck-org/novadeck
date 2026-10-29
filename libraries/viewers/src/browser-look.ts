@@ -45,6 +45,9 @@ export const lookSettleMs = 800
 /** How long the picture itself may take; the whole look is over within a second or two of the sum. */
 export const lookPictureMs = 1_500
 
+/** The longest a look can take: its load, its settle and its picture, all at their limits. */
+export const lookWorstMs = lookLoadMs + lookSettleMs + lookPictureMs
+
 // The qualities a too large picture is tried at, then its widths.
 const qualities = [85, 70, 55, 40] as const
 
@@ -164,12 +167,16 @@ export const createLooker = ({
     if (!(await turn())) return { reason: busy }
     // Looks queue behind slower ones: one its caller has stopped waiting for is dropped
     // unbegun, so it doesn't hold up those after it.
-    if (typeof before === "number" && Date.now() > before) {
+    // Nor does one that couldn't end in time even at its slowest begin: the caller is gone by
+    // then, and it would hold up all those behind it.
+    if (typeof before === "number" && Date.now() + lookWorstMs > before) {
       next()
       return { reason: "Novadeck didn't get to this picture in time." }
     }
     const size = lookSizes[layout]
     let window: BrowserWindow | undefined
+    // Read as it is made: a page that closes its own window leaves no view to ask after.
+    let viewId: number | undefined
     try {
       window = create({
         width: size.width,
@@ -200,17 +207,17 @@ export const createLooker = ({
           disableDialogs: true,
         },
       } as BrowserWindowConstructorOptions)
+      viewId = window.webContents.id
       windows.add(window)
       return await loadAndPicture(window, url, layout, hearing, allow, emulate)
     } catch {
       return { reason: "The page could not be pictured." }
     } finally {
       if (window) {
-        const id = window.isDestroyed() ? undefined : window.webContents.id
         if (!window.isDestroyed()) window.destroy()
         windows.delete(window)
-        if (id !== undefined) forget?.(id)
       }
+      if (viewId !== undefined) forget?.(viewId)
       next()
     }
   }

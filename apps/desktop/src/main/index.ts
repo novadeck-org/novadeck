@@ -2055,11 +2055,14 @@ app.on("child-process-gone", (_event, details) => {
 // it didn't load, or its preload failed.
 const pageLog = logger.for("page", "ui")
 // A webview's page is a browser pane's, not the app's: `contents` tells them apart.
-app.on("render-process-gone", (_event, contents, details) =>
-  pageLog.error("ui.gone", "A page ended unexpectedly.", {
-    data: { reason: details.reason, exitCode: details.exitCode, contents: contents.getType() },
-  }),
-)
+app.on("render-process-gone", (_event, contents, details) => {
+  const data = { reason: details.reason, exitCode: details.exitCode, contents: contents.getType() }
+  // A page an agent's look loads out of sight is not the app's UI: its look says so.
+  const window = BrowserWindow.fromWebContents(contents)
+  if (window && looker.is(window))
+    pageLog.warn("look.gone", "A page being looked at ended unexpectedly.", { data })
+  else pageLog.error("ui.gone", "A page ended unexpectedly.", { data })
+})
 const watchPage = (contents: WebContents): void => {
   contents.on("unresponsive", () =>
     pageLog.warn("ui.unresponsive", "A window's page stopped answering."),
