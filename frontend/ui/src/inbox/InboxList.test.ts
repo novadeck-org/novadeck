@@ -78,9 +78,15 @@ const agentAsk = (id: string, at: number, settled?: InboxRow["settled"]): InboxR
   ...(settled ? { settled } : {}),
 })
 
-const mount = (items: readonly InboxRow[], working = false, dismissing = false) => {
+const mount = (
+  items: readonly InboxRow[],
+  working = false,
+  dismissing = false,
+  arranging = false,
+) => {
   const state = createStore<InboxState>({ ...emptyInbox, items })
   const answered: string[] = []
+  const order = createStore<readonly string[]>([])
   const inbox: Inbox = {
     state,
     answer: (id) => answered.push(id),
@@ -106,6 +112,7 @@ const mount = (items: readonly InboxRow[], working = false, dismissing = false) 
             })),
         }
       : {}),
+    ...(arranging ? { order, arrange: (ids: readonly string[]) => order.update(() => ids) } : {}),
   }
   const view = render(
     createElement(
@@ -142,7 +149,14 @@ const mount = (items: readonly InboxRow[], working = false, dismissing = false) 
     })
   const row = (id: string): HTMLElement =>
     view.container.querySelector<HTMLElement>(`[data-inbox-row="${id}"]`)!
-  return { view, subjects, pill, open, arrive, press, answered, row }
+  // Alt and an arrow on a row's button, which moves a row that drags.
+  const step = (id: string, key: "ArrowUp" | "ArrowDown"): void =>
+    act(() => {
+      row(id)
+        .querySelector(".inbox-row-select")!
+        .dispatchEvent(new KeyboardEvent("keydown", { key, altKey: true, bubbles: true }))
+    })
+  return { view, subjects, pill, open, arrive, press, answered, row, order, step }
 }
 
 describe("The Inbox's list", () => {
@@ -381,6 +395,49 @@ describe("The Inbox's list", () => {
       )
 
       expect(inbox.subjects()).toEqual(["a"])
+      await nextFrame()
+      inbox.view.unmount()
+    })
+  })
+
+  context("where the backend keeps an order", () => {
+    it("moves a row that asks a place with Alt and an arrow, and keeps the new order", async () => {
+      const inbox = mount(
+        [permission("a", 1), permission("b", 2), told("u", 0)],
+        false,
+        false,
+        true,
+      )
+      inbox.step("a", "ArrowDown")
+
+      expect(inbox.order.getSnapshot()).toEqual(["b", "a"])
+      expect(inbox.subjects()).toEqual(["Run b?", "Run a?", "u"])
+      // The last row that asks goes no further: the updates below it never move.
+      inbox.step("a", "ArrowDown")
+      expect(inbox.order.getSnapshot()).toEqual(["b", "a"])
+      expect(inbox.row("u").querySelector(".inbox-row-select")?.ariaKeyShortcuts).toBeNull()
+      await nextFrame()
+      inbox.view.unmount()
+    })
+
+    it("puts what comes after ahead of a row put off", async () => {
+      const inbox = mount([permission("a", 1), permission("b", 2)], false, false, true)
+      inbox.step("a", "ArrowDown")
+      inbox.arrive(permission("c", 3))
+
+      expect(inbox.subjects()).toEqual(["Run c?", "Run b?", "Run a?"])
+      await nextFrame()
+      inbox.view.unmount()
+    })
+  })
+
+  context("where the backend keeps no order", () => {
+    it("moves no row", async () => {
+      const inbox = mount([permission("a", 1), permission("b", 2)])
+      inbox.step("a", "ArrowDown")
+
+      expect(inbox.subjects()).toEqual(["Run a?", "Run b?"])
+      expect(inbox.row("a").querySelector(".inbox-row-select")?.ariaKeyShortcuts).toBeNull()
       await nextFrame()
       inbox.view.unmount()
     })

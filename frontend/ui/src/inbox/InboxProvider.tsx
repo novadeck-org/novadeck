@@ -22,6 +22,7 @@ import {
   initialView,
   nextItem,
   openItem,
+  rearranged,
   release,
   settle,
   stepFrom,
@@ -89,6 +90,9 @@ export type InboxContextValue = {
   // Dismisses an open ask, and clears the settled ones; absent where the backend has no such.
   readonly dismiss: ((id: string) => void) | undefined
   readonly clear: (() => void) | undefined
+  // Keeps the rows that ask in the order the person dragged them into, by id; absent where
+  // the backend keeps no order, and the rows can't be dragged.
+  readonly arrange: ((ids: readonly string[]) => void) | undefined
   readonly reveal: (item: InboxRow) => void
 }
 
@@ -115,6 +119,9 @@ const answerKey = (item: InboxRow): string => `${item.id}@${item.at}`
 // How long a freshly arrived item stays marked, and how often waits are read again.
 const arrivedMs = 1700
 const tickMs = 30_000
+
+const noOrder: readonly string[] = []
+const noOrderStore = { subscribe: () => () => {}, getSnapshot: () => noOrder }
 
 const editable = (target: EventTarget | null): boolean =>
   target instanceof HTMLElement &&
@@ -146,6 +153,8 @@ export const InboxProvider = ({
   readonly children?: ReactNode
 }): React.JSX.Element => {
   const state = useSyncExternalStore(inbox.state.subscribe, inbox.state.getSnapshot)
+  const orderStore = inbox.order ?? noOrderStore
+  const arranged = useSyncExternalStore(orderStore.subscribe, orderStore.getSnapshot)
   const [view, setView] = useState<InboxView>(initialView)
   const [answered, setAnswered] = useState<Readonly<Record<string, Sent>>>({})
   const [receipt, setReceipt] = useState<Receipt | null>(null)
@@ -197,12 +206,15 @@ export const InboxProvider = ({
     setDrafts((record) =>
       Object.fromEntries(Object.entries(record).filter(([id]) => !gone.includes(id))),
     )
-  const shown = useMemo(() => visible(view, state.items, ghosts), [view, state.items, ghosts])
+  const shown = useMemo(
+    () => visible(view, state.items, ghosts, arranged),
+    [view, state.items, ghosts, arranged],
+  )
 
   // What the handlers below read, as of the last commit.
-  const latest = useRef({ state, view, phone, ghosts })
+  const latest = useRef({ state, view, phone, ghosts, arranged })
   useLayoutEffect(() => {
-    latest.current = { state, view, phone, ghosts }
+    latest.current = { state, view, phone, ghosts, arranged }
   })
   const heldItems = useMemo(() => held(view, state.items), [view, state.items])
   // An ask that settles while its sheet is open stays open, settled, to say so; one settled
@@ -213,14 +225,14 @@ export const InboxProvider = ({
   const open = useCallback(
     // `items` where the caller read them newer than the last commit.
     (id: string, items?: readonly InboxRow[]): void => {
-      const { state: snapshot, view: before, phone: screen } = latest.current
+      const { state: snapshot, view: before, phone: screen, arranged: order } = latest.current
       const list = items ?? snapshot.items
       const found = list.find((item) => item.id === id)
       // A settled ask has no sheet.
       if (found?.settled) return
       // Answered rows keep their place, and their answers, until the sheet closes.
       if (before.open !== id) setReceipt(null)
-      setView(openItem(before, id, list))
+      setView(openItem(before, id, list, order))
       if (found && !found.seen) inbox.see(id)
       if (before.open === null) screen?.hideList()
     },
@@ -239,23 +251,25 @@ export const InboxProvider = ({
   }, [])
 
   const showHeld = useCallback((): void => {
-    const { state: snapshot, view: before } = latest.current
-    setView(release(before, snapshot.items))
+    const { state: snapshot, view: before, arranged: order } = latest.current
+    setView(release(before, snapshot.items, order))
   }, [])
 
   // Once an answer has taken, on to what asks next, with the receipt; with nothing left, the
   // sheet closes. The answered row keeps its place, answered, until it does.
   const moveOn = useCallback(
     (from: InboxRow, note: string): void => {
-      const { state: snapshot, view: before } = latest.current
+      const { state: snapshot, view: before, arranged: order } = latest.current
       if (before.open !== from.id || movedOn.current.has(answerKey(from))) return
       movedOn.current.add(answerKey(from))
-      const target = nextItem(snapshot.items, from.id, snapshot)
+      const target = nextItem(snapshot.items, from.id, snapshot, order)
       if (!target) return close()
       setReceipt({ from: from.id, note })
       // The list stays as it is, the answered row in it, unless what is next has yet to join.
-      const kept = before.order.includes(target.id) ? before : release(before, snapshot.items)
-      setView(openItem(kept, target.id, snapshot.items))
+      const kept = before.order.includes(target.id)
+        ? before
+        : release(before, snapshot.items, order)
+      setView(openItem(kept, target.id, snapshot.items, order))
       if (!target.seen) inbox.see(target.id)
       // Its row comes into view, for the sheet to sit beside.
       requestAnimationFrame(() => rowOf(target.id)?.scrollIntoView?.({ block: "nearest" }))
@@ -317,6 +331,17 @@ export const InboxProvider = ({
     [inbox],
   )
 
+  const arrange = useMemo(
+    () =>
+      inbox.arrange
+        ? (ids: readonly string[]): void => {
+            inbox.arrange?.(ids)
+            setView((before) => rearranged(before, ids))
+          }
+        : undefined,
+    [inbox],
+  )
+
   const revealItem = useCallback(
     (item: InboxRow): void => {
       close()
@@ -346,7 +371,7 @@ export const InboxProvider = ({
         (target instanceof Element &&
           target.closest(".inbox-sheet, #inbox-panel, .inbox-fullscreen") !== null)
       if (!ours) return
-      const { view: live, state: snapshot, ghosts: dropped } = latest.current
+      const { view: live, state: snapshot, ghosts: dropped, arranged: order } = latest.current
       if (event.key === "Escape") {
         if (live.open === null) return
         if (editable(target) && target instanceof HTMLElement) {
@@ -364,7 +389,7 @@ export const InboxProvider = ({
       if (live.open === null && !inList) return
       if (!inSheet && !inList && target !== document.body && target !== document) return
       const to = stepFrom(
-        visible(live, snapshot.items, dropped).filter(
+        visible(live, snapshot.items, dropped, order).filter(
           (item) => !item.settled || item.id === live.open,
         ),
         live.open,
@@ -405,6 +430,7 @@ export const InboxProvider = ({
       readAll,
       dismiss,
       clear,
+      arrange,
       reveal: revealItem,
     }),
     [
@@ -429,6 +455,7 @@ export const InboxProvider = ({
       readAll,
       dismiss,
       clear,
+      arrange,
       revealItem,
     ],
   )

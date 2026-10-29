@@ -184,6 +184,8 @@ export const createDemoInbox = (
     })
   }
   const state = createStore<InboxState>(combine(emptyInbox))
+  // The order the person drags the rows into, kept for as long as the page is.
+  const order = createStore<readonly string[]>([])
   // The finished turns it stores, as the runner stores them (a completed one only marks its tab): until read, while their terminal
   // is there. Undefined while nothing is bound.
   const turns = createStore<readonly InboxTurn[] | undefined>(undefined)
@@ -501,6 +503,8 @@ export const createDemoInbox = (
       }
       settle(id, "dismissed")
     },
+    order,
+    arrange: (ids) => void order.update(() => ids),
     clear: (ids) => {
       const gone = new Set(ids)
       change((current) => ({

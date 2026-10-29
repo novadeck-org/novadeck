@@ -140,6 +140,9 @@ export type RunnerBackendOptions = {
   // choice, as it said at startup; agents are not offered when absent.
   readonly agents?: readonly AgentIntegration[]
   readonly welcomed?: boolean
+  // The order the person dragged the Inbox's rows into, as the runner said at startup; the
+  // rows keep the Inbox's own order, and can't be dragged, when absent.
+  readonly inboxOrder?: readonly string[]
   // The page's theme, which its terminals draw in; tests pass `noTheme`.
   readonly theme: ThemeSource
 }
@@ -1155,6 +1158,8 @@ export const runnerBackend = (
     messages.state,
     { track },
   )
+  // The person's order of the Inbox's rows: shown at once, kept by the runner.
+  const inboxOrder = options.inboxOrder && createStore(options.inboxOrder)
   // The voice input addon, followed from `start` like the messages.
   const voice = createRunnerVoice(runner.voice, track)
   // Murmur, followed the same way.
@@ -1536,7 +1541,16 @@ export const runnerBackend = (
     }),
     messages,
     conversations,
-    inbox,
+    inbox: inboxOrder
+      ? {
+          ...inbox,
+          order: inboxOrder,
+          arrange: (ids) => {
+            inboxOrder.update(() => ids)
+            void track(runner.settings.set({ inboxOrder: [...ids] })).catch(() => {})
+          },
+        }
+      : inbox,
     approvals: {
       pending: approvals,
       answer: (requestId, approved) => {

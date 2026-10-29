@@ -242,6 +242,11 @@ export type Inbox = {
   readonly dismiss?: (id: string) => void
   // Optional. Removes these settled asks.
   readonly clear?: (ids: readonly string[]) => void
+  // Optional. The rows that ask, by id, in the order the person dragged them into, and how
+  // that order is kept; empty until they do. Absent where the backend keeps none, and the
+  // rows keep the Inbox's own order.
+  readonly order?: Store<readonly string[]>
+  readonly arrange?: (ids: readonly string[]) => void
   // The stored finished turns, newest last as the backend lists them, undefined until the
   // backend first lists them (and again where it stops). Includes the rows the Inbox hides
   // under a running lead, and none the person already read. Absent where the backend

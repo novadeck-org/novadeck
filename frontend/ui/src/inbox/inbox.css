@@ -13,7 +13,7 @@
    "update", how it asks in data-urgency="urgent" | "waiting" | "quiet" | "answered", data-seen,
    data-needs while it asks something of the person and isn't answered, data-updates-start on
    the row after the last that asks (the updates' line), data-dismissable while its dismiss
-   button shows, data-settled="dismissed" | "withdrawn" | "replied" on an ask that no longer
+   button shows, data-dragging="true" on a row that asks while it is dragged to a new place, data-settled="dismissed" | "withdrawn" | "replied" on an ask that no longer
    waits (it stays, struck through unless replied, its wait time the age since it settled, and
    opens no sheet), data-settled-start on the first of the settled asks that end the list (their
    line, as the updates' line; a row that settles while the panel is on screen keeps its place
@@ -85,6 +85,13 @@
 }
 /* The open row is lifted out of the list its sheet comes from. */
 .item.inbox-row[data-selected="true"] {
+  --_shadow: var(--inbox-row-lifted-shadow, var(--shadow-panel));
+}
+/* A row carried to a new place among the rows that ask is lifted with it. */
+.item.inbox-row[data-dragging="true"] {
+  z-index: 1;
+  --_bg: var(--item-selected-bg, var(--color-paper));
+  --_border-color: var(--item-selected-border-color, var(--color-line));
   --_shadow: var(--inbox-row-lifted-shadow, var(--shadow-panel));
 }
 /* While a sheet is open only what asks nothing steps back: what still asks keeps its place

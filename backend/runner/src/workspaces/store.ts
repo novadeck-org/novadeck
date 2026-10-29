@@ -15,6 +15,7 @@ import { DatabaseSync, type SQLTagStore } from "node:sqlite"
 
 import {
   murmurCheck,
+  runnerSettings,
   voiceCheck,
   voiceLanguage,
   voiceModel,
@@ -913,6 +914,17 @@ const workOf = (text: string | null): Work | null => {
   }
 }
 
+// The Inbox's order as saved, or none where it can't be read.
+const inboxOrderOf = (text: string | undefined): string[] => {
+  if (text === undefined) return []
+  try {
+    const order = runnerSettings.shape.inboxOrder.safeParse(JSON.parse(text))
+    return order.success ? order.data : []
+  } catch {
+    return []
+  }
+}
+
 type NamingRow = Pick<TerminalRow, "person_title" | "opener_title" | "murmur_title" | "summary">
 
 const namingOf = (row: NamingRow): Naming => ({
@@ -1621,18 +1633,21 @@ export class WorkspaceStore implements TerminalRecords, MessageRecords, InboxRec
       value: string
     }[]
     const saved = new Map(rows.map((row) => [row.key, row.value]))
-    // Transcripts are kept unless turned off; the welcome dialog waits until seen.
+    // Transcripts are kept unless turned off; the welcome dialog waits until seen; the Inbox
+    // keeps its own order until the person drags its rows.
     return {
       transcripts: saved.get("transcripts") !== "false",
       welcomed: saved.get("welcomed") === "true",
+      inboxOrder: inboxOrderOf(saved.get("inboxOrder")),
     }
   }
 
+  // Each as JSON, which writes a switch as `true` or `false`, as it always was.
   saveSettings(settings: SettingsChange): void {
     for (const [key, value] of Object.entries(settings))
       if (value !== undefined)
         void this.queries.run`
-        INSERT INTO settings (key, value) VALUES (${key}, ${String(value)})
+        INSERT INTO settings (key, value) VALUES (${key}, ${JSON.stringify(value)})
         ON CONFLICT (key) DO UPDATE SET value = excluded.value
       `
   }

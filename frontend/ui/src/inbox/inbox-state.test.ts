@@ -2,6 +2,7 @@ import type { InboxRow } from "@novadeck/core/inbox"
 
 import { context, describe, expect, it } from "../test"
 import {
+  arrange,
   clearArrived,
   closeSheet,
   held,
@@ -11,6 +12,7 @@ import {
   needs,
   nextItem,
   openItem,
+  rearranged,
   release,
   settle,
   settledStart,
@@ -321,5 +323,77 @@ describe("The line above the settled asks", () => {
     expect(settledStart([true, true])).toBe(-1)
     expect(settledStart([false, true, false])).toBe(-1)
     expect(settledStart([])).toBe(-1)
+  })
+})
+
+describe("The rows that ask, in the person's order", () => {
+  const items = [approve("a", 1), approve("b", 2), approve("c", 3), update("u", 0)]
+
+  it("keep the Inbox's own order until the person drags them", () => {
+    expect(ids(visible(initialView, items, {}, []))).toEqual(["a", "b", "c", "u"])
+  })
+
+  it("follow it, the updates still below them", () => {
+    expect(ids(visible(initialView, items, {}, ["c", "a", "b"]))).toEqual(["c", "a", "b", "u"])
+  })
+
+  it("keep an ask put off below one that comes after, as urgent", () => {
+    const later = [...items, approve("d", 9)]
+
+    expect(ids(visible(initialView, later, {}, ["b", "c", "a"]))).toEqual([
+      "d",
+      "b",
+      "c",
+      "a",
+      "u",
+    ])
+  })
+
+  it("let one that comes after go below the placed rows more urgent than it", () => {
+    // "w" waits while its agent works on: less urgent than any that stopped it.
+    const later = [...items, approve("w", 0, false)]
+
+    expect(ids(arrange(visible(initialView, later), ["c", "a", "b"]))).toEqual([
+      "c",
+      "a",
+      "b",
+      "w",
+      "u",
+    ])
+  })
+
+  it("forget the rows that have gone", () => {
+    expect(ids(visible(initialView, items, {}, ["gone", "b", "a"]))).toEqual(["c", "b", "a", "u"])
+  })
+
+  it("set what asks next", () => {
+    expect(nextItem(items, "c", { answering: {} }, ["c", "b", "a"])?.id).toBe("b")
+  })
+
+  it("leave a settled ask below them, and one that settled in place where it was", () => {
+    const open = [ask("a", 1), ask("b", 2), ask("c", 3)]
+    const view = settle(initialView, open, true)
+    const after = [open[0]!, ask("b", 2, { how: "dismissed", at: 9 }), open[2]!]
+
+    expect(ids(visible(settle(view, after, true), after, {}, ["c", "b", "a"]))).toEqual([
+      "c",
+      "b",
+      "a",
+    ])
+    expect(ids(visible(settle(view, after, false), after, {}, ["c", "b", "a"]))).toEqual([
+      "c",
+      "a",
+      "b",
+    ])
+  })
+
+  it("move in the list an open sheet holds still, in the places they had", () => {
+    const open = openItem(settle(initialView, items), "a", items)
+    const moved = rearranged(open, ["c", "b", "a"])
+
+    expect(ids(visible(moved, items))).toEqual(["c", "b", "a", "u"])
+    // With no sheet open the list follows the order itself.
+    const closed = { ...open, open: null }
+    expect(rearranged(closed, ["c", "b", "a"])).toBe(closed)
   })
 })
