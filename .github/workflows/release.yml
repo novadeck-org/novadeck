@@ -75,15 +75,16 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          latest_tag=""
-          while IFS= read -r tag; do
-            if [[ "$tag" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
-              latest_tag="$tag"
-              break
-            fi
-          done < <(git tag --merged HEAD --sort=-version:refname)
+          # The newest release reachable from HEAD, a vX.Y.Z tag or a release-base/vX.Y.Z marker
+          # that stands in for one history was rewritten away from (see sources.ts).
+          latest_tag="$(node scripts/release-version/main.ts --newest)"
 
           if [[ -z "$latest_tag" ]]; then
+            releases="$(gh release list --limit 1 --json tagName --jq '.[].tagName')"
+            if [[ -n "$releases" ]]; then
+              echo "::error::GitHub has releases, but no vX.Y.Z tag or release-base/vX.Y.Z marker is an ancestor of HEAD."
+              exit 1
+            fi
             exit 0
           fi
 
@@ -269,7 +270,15 @@ jobs:
       - name: Publish Experimental Release
         env:
           GITHUB_TOKEN: ${{ github.token }}
-        run: pnpm exec release-it "${{ needs.prepare.outputs.version }}" --ci
+        run: |
+          # When the newest release is a release-base/vX.Y.Z marker, release-it reads it as its
+          # newest tag, or its changelog would list everything since an older tag.
+          base="$(node scripts/release-version/main.ts --base)"
+          args=()
+          if [[ -n "$base" ]]; then
+            args=(--git.tagMatch="$base")
+          fi
+          pnpm exec release-it "${{ needs.prepare.outputs.version }}" --ci "${args[@]}"
 
       # Notes people can read: a model rewrites the release's commits into short lines, and
       # the body gains the hidden block the app reads (scripts/release-notes). It never
