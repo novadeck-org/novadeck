@@ -1,8 +1,9 @@
 import { describe, expect, it, vi } from "vitest"
 
-import { Watched, type Session, type Wire, type WireStatus } from "./connection.js"
+import type { Session, Wire, WireStatus } from "./connection.js"
 import { WireError } from "./errors.js"
 import { follow, type FollowOptions } from "./follow.js"
+import { Watched } from "./watched.js"
 
 // The streams' contract is the test's own: follow passes the client to `open` and `ack` only.
 type Contract = Record<never, never>

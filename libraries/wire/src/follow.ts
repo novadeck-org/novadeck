@@ -2,6 +2,7 @@ import type { AnyContractRouter, ContractRouterClient } from "@orpc/contract"
 
 import type { Session, Wire } from "./connection.js"
 import { hasCode, normalize, WireError } from "./errors.js"
+import { sleep } from "./sleep.js"
 
 /**
  * A stream that resumes from a cursor: each item may carry its position, a reconnection asks
@@ -36,7 +37,7 @@ export type FollowOptions<C extends AnyContractRouter, T> = {
   /**
    * For a restarting stream: whether a failure says its subject is gone, which ends it. A stream that
    * can lose its subject is opened again as soon as it ends, to learn whether it's still there;
-   * one that can't ends only as its server goes, and is opened again on the next connection.
+   * one that can't ends only as its server goes, and is opened again on the next session.
    */
   readonly gone?: (error: WireError) => boolean
 }
@@ -63,17 +64,6 @@ type Open<C extends AnyContractRouter, T> = {
 const done = { value: undefined, done: true } as const
 
 const noop = (): void => {}
-
-const sleep = (ms: number, signal: AbortSignal) =>
-  new Promise<void>((resolve) => {
-    const wake = () => {
-      clearTimeout(timer)
-      signal.removeEventListener("abort", wake)
-      resolve()
-    }
-    const timer = setTimeout(wake, ms)
-    signal.addEventListener("abort", wake, { once: true })
-  })
 
 /** Reports a failure on a closed channel as `DISCONNECTED`, whatever oRPC raised. */
 const lost = <C extends AnyContractRouter>(error: unknown, session: Session<C>): unknown => {
@@ -265,7 +255,7 @@ class Follower<C extends AnyContractRouter, T> implements Following<C, T> {
       return
     }
     this.drop()
-    // One that can't lose its subject ends as its server goes: wait for the next connection.
+    // One that can't lose its subject ends as its server goes: wait for the next session.
     if (!this.options.gone) this.spent = stream.session
   }
 

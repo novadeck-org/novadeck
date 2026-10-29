@@ -3,7 +3,10 @@ import type { AnyContractRouter, ContractRouterClient } from "@orpc/contract"
 import type { Channel } from "./channel.js"
 import { hasCode, normalize, WireError } from "./errors.js"
 import type { WireContract } from "./handshake.js"
-import { createWireClient, type Transport } from "./transport.js"
+import { sleep } from "./sleep.js"
+import type { Transport } from "./transport.js"
+import { Watched, type Watching } from "./watched.js"
+import { createWireClient } from "./wire-client.js"
 
 /**
  * Where a connection stands. `epoch` names the server's lifetime: it changes when the server
@@ -48,9 +51,6 @@ export type ConnectOptions<C extends AnyContractRouter & WireContract> = {
   readonly signal?: AbortSignal
 }
 
-/** A `Watched` value as its readers see it: they can't set it. */
-export type Watching<T> = Pick<Watched<T>, "value" | "next" | "watch">
-
 /** A supervised connection: it replaces its channel after every disconnection. */
 export type Wire<C extends AnyContractRouter> = {
   readonly status: Watching<WireStatus>
@@ -74,81 +74,6 @@ const asWireError = (error: unknown): WireError => {
   return failure instanceof WireError
     ? failure
     : new WireError("DISCONNECTED", "Could not connect.", { cause: failure })
-}
-
-const sleep = (ms: number, signal: AbortSignal) =>
-  new Promise<void>((resolve) => {
-    const wake = () => {
-      clearTimeout(timer)
-      signal.removeEventListener("abort", wake)
-      resolve()
-    }
-    const timer = setTimeout(wake, ms)
-    signal.addEventListener("abort", wake, { once: true })
-  })
-
-const done = { value: undefined, done: true } as const
-
-/** A value with an async stream of its changes. */
-export class Watched<T> {
-  private wake = () => {}
-  private changed = new Promise<void>((resolve) => {
-    this.wake = resolve
-  })
-
-  constructor(
-    private current: T,
-    private readonly final: (value: T) => boolean,
-  ) {}
-
-  get value(): T {
-    return this.current
-  }
-
-  set(value: T): void {
-    this.current = value
-    const wake = this.wake
-    this.changed = new Promise((resolve) => {
-      this.wake = resolve
-    })
-    wake()
-  }
-
-  /** Resolves on the next change; reading `value` afterwards gives the latest one. */
-  next(): Promise<void> {
-    return this.changed
-  }
-
-  /**
-   * Iterates the latest values, ending after a final one. Quick successive changes may be
-   * coalesced. Unlike a generator, `return()` also ends a pending wait.
-   */
-  watch(): AsyncIterableIterator<T, undefined> {
-    let last: { value: T } | undefined
-    let stop: (() => void) | undefined
-    const stopped = new Promise<typeof done>((resolve) => {
-      stop = () => resolve(done)
-    })
-    let active = true
-    const iterator: AsyncIterableIterator<T, undefined> = {
-      [Symbol.asyncIterator]: () => iterator,
-      next: async () => {
-        if (last && this.final(last.value)) active = false
-        if (active && last?.value === this.current) {
-          await Promise.race([this.changed, stopped])
-        }
-        if (!active) return done
-        last = { value: this.current }
-        return { value: this.current, done: false }
-      },
-      return: () => {
-        active = false
-        stop?.()
-        return Promise.resolve(done)
-      },
-    }
-    return iterator
-  }
 }
 
 class Connection<C extends AnyContractRouter & WireContract> implements Wire<C> {
