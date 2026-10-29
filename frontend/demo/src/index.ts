@@ -29,7 +29,7 @@ import { demoHandle } from "./handles"
 import { createDemoInbox, isDemoInbox } from "./inbox"
 import { demoInboxRows, demoEntries, demoPlanStates } from "./inbox-fixtures"
 import { inboxLeadMessages, inboxTranscripts, withInboxLead } from "./inbox-transcripts"
-import { launchIntroOf, createLaunch } from "./launch"
+import { createLaunch } from "./launch"
 import { checkoutMessages, createDemoMessages, isDemoMessages } from "./messages"
 import { createDemoMurmur, heldMurmurTiming, requestedMurmur } from "./murmur"
 import {
@@ -576,6 +576,9 @@ const plainBackend = (
   terminals: DemoTerminalSetup | undefined,
   turns: DemoTurns,
 ): Backend => {
+  const now = Date.now()
+  // Launch's agents print more as the video goes on, so its screens come from the demo itself.
+  const launch = variant === "launch" ? createLaunch(turns, now) : undefined
   // Every agent takes a prompt, works a moment, and finishes, however it is sent; the
   // seeds and the debug panel drive the same turns.
   const backend = demoBackend(createDemoEngine(), {
@@ -588,11 +591,10 @@ const plainBackend = (
       ? { terminals: { ...terminals, introOf: chirpIntroOf } }
       : variant === "babcia"
         ? { terminals: { ...terminals, introOf: babciaIntroOf } }
-        : variant === "launch"
-          ? { terminals: { ...terminals, introOf: launchIntroOf } }
+        : launch
+          ? { terminals: { ...terminals, introOf: launch.introOf } }
           : terminals && { terminals }),
   })
-  const now = Date.now()
   turns.telemetry.update(() =>
     variant === "plain" ||
     variant === "welcome" ||
@@ -619,8 +621,7 @@ const plainBackend = (
       ),
     )
   }
-  if (variant === "launch") {
-    const launch = createLaunch(turns, now)
+  if (launch) {
     return launch.over(
       withFeedback(
         withInbox(

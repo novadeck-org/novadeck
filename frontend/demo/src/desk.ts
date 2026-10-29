@@ -1,5 +1,6 @@
 import type { ChatAnswer } from "@novadeck/core/conversation"
 import type { TerminalKey } from "@novadeck/core/port"
+import type { Store } from "@novadeck/core/store"
 import type { AgentStatus, Project, TerminalMetadata } from "@novadeck/core/types"
 
 import { demoHandle } from "./handles"
@@ -7,6 +8,7 @@ import type { DemoSessionMessages } from "./messages"
 import { demoTerminalId, terminalSlot, type ChatAgent } from "./samples"
 import { callBlock, requestBlock, resultBlock } from "./screen/agent"
 import { banner } from "./screen/openings"
+import type { Block } from "./screen/screen"
 import { fixedIntro, type DemoIntro } from "./screen/terminal"
 import { got, say, use, user, written, type DemoTranscript } from "./transcripts"
 
@@ -121,30 +123,50 @@ export const declined = (answer: ChatAnswer): boolean =>
 
 // What each of a project's agents shows on its screen as the demo opens: its banner, the
 // person's ask, and the command it's running with what it has printed so far: no plan
-// between, so the banner naming the agent stays on screen in a small window.
+// between, so the banner naming the agent stays on screen in a small window. An agent that
+// `liveOf` gives a store of blocks prints those under its command instead of its fixed
+// progress, and its screen follows the store as it changes (Antigravity's, whose small window
+// shows no command, stays as it is).
 export const deskIntroOf =
   (
     projectId: string,
     jobs: readonly Job[],
     promptOf: (number: number, job: Job) => string = (_, job) => job.ask,
+    liveOf?: (number: number, job: Job) => Store<readonly Block[]> | undefined,
   ) =>
   (terminal: TerminalMetadata, key: TerminalKey): DemoIntro | undefined => {
     if (key.projectId !== projectId) return undefined
-    const job = jobs[Number(terminalSlot(terminal.id)) - 1]
+    const number = Number(terminalSlot(terminal.id))
+    const job = jobs[number - 1]
     if (!job) return undefined
     const tool = job.agent === "codex" ? "Ran" : "Bash"
-    return fixedIntro([
+    // Antigravity's banner is five rows tall, so what it ran stays off its small window: its
+    // name and model, which the banner is for, would scroll out of sight under it.
+    const head = [
       banner(job.agent, terminal.directory),
-      requestBlock(job.agent, promptOf(Number(terminalSlot(terminal.id)), job)),
-      // Antigravity's banner is five rows tall, so what it ran stays off its small window: its
-      // name and model, which the banner is for, would scroll out of sight under it.
+      requestBlock(job.agent, promptOf(number, job)),
       ...(job.agent === "agy"
         ? []
         : [
             ...(job.before ?? []).map((step) => callBlock(job.agent, step.tool, step.arg)),
             callBlock(job.agent, tool, job.command),
-            ...(job.progress ? [resultBlock([job.progress], job.agent)] : []),
           ]),
+    ]
+    const live = job.agent === "agy" ? undefined : liveOf?.(number, job)
+    if (live) {
+      let made: { readonly tail: readonly Block[]; readonly blocks: readonly Block[] } | undefined
+      return {
+        getSnapshot: () => {
+          const tail = live.getSnapshot()
+          if (made?.tail !== tail) made = { tail, blocks: [...head, ...tail] }
+          return made.blocks
+        },
+        subscribe: live.subscribe,
+      }
+    }
+    return fixedIntro([
+      ...head,
+      ...(job.agent !== "agy" && job.progress ? [resultBlock([job.progress], job.agent)] : []),
     ])
   }
 
