@@ -1,13 +1,13 @@
 import { hashOf } from "./hash.js"
 import { languageOf } from "./highlight/languages.js"
-import type { HighlightedLine } from "./highlight/lines.js"
+import { highlightLines, paintRows, runsKey, type HighlightedLine } from "./highlight/rows.js"
 import { createHold } from "./hold.js"
 import type { Mount, ViewerState } from "./index.js"
 
 // A read-only change: a repository's files against a base, each a section under a header
 // (its path, how it changed, what it added and removed) with its hunks as numbered lines
 // that were added, removed or kept for context. Plain text first, then highlighted by each
-// file's language as the code viewer does (./highlight/lines.ts, loaded only when needed), the old
+// file's language as the code viewer does (./highlight/rows.ts), the old
 // and the new side of a hunk apart. The rows of a long change are made a few at a time, and
 // highlighted a hunk at a time, so the pane stays alive while it fills. A new change keeps
 // the rows, and their colours, of every file that didn't change, and keeps the place by
@@ -129,9 +129,6 @@ const keepRuns = (key: string, runs: readonly HighlightedLine[], size: number): 
   }
 }
 
-const keyOf = (language: string, text: string): string =>
-  `${language}\n${text.length}:${hashOf(text)}`
-
 // The files' keys: a file's path, and for each more with the same path, which it is.
 const keysOf = (files: readonly DiffFile[]): string[] => {
   const seen = new Map<string, number>()
@@ -200,10 +197,9 @@ const runsOf = async (
   lines: readonly string[],
 ): Promise<{ runs: readonly HighlightedLine[] | null; fresh: boolean }> => {
   const text = lines.join("\n")
-  const key = keyOf(language, text)
+  const key = runsKey(language, text)
   const known = knownRuns(key)
   if (known) return { runs: known, fresh: false }
-  const { highlightLines } = await import("./highlight/lines.js")
   const runs = await highlightLines(language, lines)
   if (runs) keepRuns(key, runs, text.length)
   return { runs, fresh: true }
@@ -225,6 +221,37 @@ const sidesOf = (work: Drawn) => ({
   old: work.hunk.lines.filter((line) => line.kind !== "add").map((line) => line.text),
   now: work.hunk.lines.filter((line) => line.kind !== "remove").map((line) => line.text),
 })
+
+// A hunk's old side (context and removed lines) and new side (context and added) are
+// parsed apart, so a string or comment opened on one doesn't colour the other.
+// Puts runs of the two sides on a hunk's rows: a removed line takes the old side's, any
+// other the new side's.
+const paintHunk = (
+  work: Drawn,
+  before: readonly HighlightedLine[] | null,
+  after: readonly HighlightedLine[] | null,
+): void => {
+  let oldAt = 0
+  let newAt = 0
+  paintRows(
+    work.rows,
+    work.hunk.lines.map((line) => {
+      const found = line.kind === "remove" ? before?.[oldAt] : after?.[newAt]
+      if (line.kind !== "add") oldAt += 1
+      if (line.kind !== "remove") newAt += 1
+      return found
+    }),
+  )
+}
+
+const highlightHunk = async (language: string, work: Drawn): Promise<boolean> => {
+  const { old, now } = sidesOf(work)
+  const before = await runsOf(language, old)
+  const after = await runsOf(language, now)
+  paintHunk(work, before.runs, after.runs)
+  work.painted = true
+  return before.fresh || after.fresh
+}
 
 type Entry = {
   readonly key: string
@@ -572,55 +599,7 @@ export const mountDiff: Mount<DiffContent> = (element, { content, label, saved }
     }
   }
 
-  const paint = (rows: readonly HTMLElement[], lines: readonly (HighlightedLine | undefined)[]) => {
-    rows.forEach((row, index) => {
-      const runs = lines[index]
-      const text = row.lastElementChild
-      if (!runs || !text) return
-      text.replaceChildren(
-        ...runs.map((run) => {
-          if (!run.classes) return run.text
-          const span = document.createElement("span")
-          span.className = run.classes
-          span.textContent = run.text
-          return span
-        }),
-      )
-    })
-  }
-
   let highlighting = false
-
-  // A hunk's old side (context and removed lines) and new side (context and added) are
-  // parsed apart, so a string or comment opened on one doesn't colour the other.
-  // Puts runs of the two sides on a hunk's rows: a removed line takes the old side's, any
-  // other the new side's.
-  const paintHunk = (
-    work: Drawn,
-    before: readonly HighlightedLine[] | null,
-    after: readonly HighlightedLine[] | null,
-  ): void => {
-    let oldAt = 0
-    let newAt = 0
-    paint(
-      work.rows,
-      work.hunk.lines.map((line) => {
-        const found = line.kind === "remove" ? before?.[oldAt] : after?.[newAt]
-        if (line.kind !== "add") oldAt += 1
-        if (line.kind !== "remove") newAt += 1
-        return found
-      }),
-    )
-  }
-
-  const highlightHunk = async (language: string, work: Drawn): Promise<boolean> => {
-    const { old, now } = sidesOf(work)
-    const before = await runsOf(language, old)
-    const after = await runsOf(language, now)
-    paintHunk(work, before.runs, after.runs)
-    work.painted = true
-    return before.fresh || after.fresh
-  }
 
   // Each file by its language, a hunk at a time with the page drawing between; a file
   // whose parser fails, or in no language, or too long, stays plain, and the rest go on.
@@ -632,8 +611,8 @@ export const mountDiff: Mount<DiffContent> = (element, { content, label, saved }
       // The hunks seen before first, as a changed file's unchanged ones are.
       for (const work of entry.drawn) {
         const { old, now } = sidesOf(work)
-        const before = knownRuns(keyOf(language, old.join("\n")))
-        const after = knownRuns(keyOf(language, now.join("\n")))
+        const before = knownRuns(runsKey(language, old.join("\n")))
+        const after = knownRuns(runsKey(language, now.join("\n")))
         if (before && after) {
           paintHunk(work, before, after)
           work.painted = true

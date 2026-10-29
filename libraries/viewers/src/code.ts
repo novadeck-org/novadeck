@@ -1,17 +1,15 @@
-import { hashOf } from "./hash.js"
 import { languageOf } from "./highlight/languages.js"
-import type { HighlightedLine } from "./highlight/lines.js"
+import { highlightLines, paintRows, runsKey, type HighlightedLine } from "./highlight/rows.js"
 import { createHold } from "./hold.js"
 import type { Mount, ViewerState } from "./index.js"
 import { createKept } from "./kept.js"
 
-export type { HighlightedLine, Run } from "./highlight/lines.js"
 export { languageOf, type Language } from "./highlight/languages.js"
+export { highlightLines, type HighlightedLine, type Run } from "./highlight/rows.js"
 
 // A read-only listing of code: numbered lines from any first line, plain text at once,
-// then highlighted once its language's parser has loaded (./highlight/lines.ts, loaded only
-// when needed), and a range of lines emphasized, which it first scrolls into view.
-// Its looks are code.css's.
+// then highlighted once its language's parser has loaded (./highlight/rows.ts), and a range
+// of lines emphasized, which it first scrolls into view. Its looks are code.css's.
 
 export type CodeContent = {
   readonly lines: readonly string[]
@@ -24,14 +22,6 @@ export type CodeContent = {
   readonly emphasis?: { readonly from: number; readonly to: number }
 }
 
-// The lines split into runs by kind of token, or null when the language isn't one the
-// viewer highlights.
-export const highlightLines = async (
-  language: string,
-  lines: readonly string[],
-): Promise<readonly HighlightedLine[] | null> =>
-  (await import("./highlight/lines.js")).highlightLines(language, lines)
-
 // Listings lately highlighted, so one shown again shows highlighted at once. By language
 // and a hash of the text, so a key never holds the text, and only under a size past which
 // keeping them costs more than parsing again.
@@ -40,7 +30,7 @@ const keptSize = 200_000
 
 const keyOf = (language: string, lines: readonly string[]): string | null => {
   const text = lines.join("\n")
-  return text.length > keptSize ? null : `${language}\n${text.length}:${hashOf(text)}`
+  return text.length > keptSize ? null : runsKey(language, text)
 }
 
 // The language the content names, or its file's.
@@ -83,23 +73,6 @@ export const mountCode: Mount<CodeContent> = (element, { content, label, saved }
   // Which listing a highlighting that finishes is for: only the latest paints.
   let listing = 0
 
-  const paint = (lines: readonly HighlightedLine[]): void => {
-    rows.forEach((row, index) => {
-      const runs = lines[index]
-      const text = row.lastElementChild
-      if (!runs || !text) return
-      text.replaceChildren(
-        ...runs.map((run) => {
-          if (!run.classes) return run.text
-          const span = document.createElement("span")
-          span.className = run.classes
-          span.textContent = run.text
-          return span
-        }),
-      )
-    })
-  }
-
   // Each line as plain text, as the listing first shows.
   const plain = (): void => {
     rows.forEach((row, index) => row.lastElementChild?.replaceChildren(shown.lines[index] ?? ""))
@@ -112,13 +85,13 @@ export const mountCode: Mount<CodeContent> = (element, { content, label, saved }
     const { lines } = shown
     const key = keyOf(language, lines)
     const known = key === null ? undefined : highlighted.get(key)
-    if (known) return paint(known)
+    if (known) return paintRows(rows, known)
     highlightLines(language, lines).then(
       (found) => {
         if (found && key !== null) highlighted.keep(key, found)
         // A language it has no parser for reads as plain text.
         if (current !== listing) return
-        if (found) paint(found)
+        if (found) paintRows(rows, found)
         else plain()
       },
       // Plain text is the fallback when a parser can't load.
