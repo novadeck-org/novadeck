@@ -610,12 +610,18 @@ describe("the environment of the installed copy", () => {
 
 const starting = (
   behave: (child: EventEmitter & { unref: () => void }) => void,
-  overrides: { runnable?: (path: string) => boolean; throws?: boolean; refused?: boolean } = {},
+  overrides: {
+    runnable?: (path: string) => boolean
+    throws?: boolean
+    refused?: boolean
+    after?: number
+  } = {},
 ) => {
   const calls: string[] = []
   const spawned: { file: string; args: readonly string[]; options: unknown }[] = []
   const start = startAppImage({
     image: "/i/novadeck.AppImage",
+    after: overrides.after,
     env: { APPIMAGE: "/dl/n.AppImage", HOME: "/home/me", PATH: "/tmp/.mount_n/usr/bin:/usr/bin" },
     mounts: ["/tmp/.mount_n"],
     spawn: (file, args, options) => {
@@ -636,6 +642,26 @@ const starting = (
 
 describe("starting the installed copy", () => {
   const env = { HOME: "/home/me", PATH: "/usr/bin" }
+
+  it("waits for the process to be gone first when asked, handing bash its id", async () => {
+    const { start, spawned } = starting((child) => child.emit("spawn"), { after: 4242 })
+    expect(await start).toBe(true)
+    const [call] = spawned
+    expect(call?.file).toBe("/bin/bash")
+    expect(call?.args.slice(2)).toEqual(["/i/novadeck.AppImage", "4242"])
+    expect(call?.args[1]).toContain('kill -0 "$1"')
+    expect(call?.args[1]).toContain(closeDescriptors)
+  })
+
+  it("starts nothing, and takes the lock back, when it must wait and there is no bash", async () => {
+    const { start, calls, spawned } = starting(() => {}, {
+      after: 4242,
+      runnable: (path) => !path.endsWith("bash"),
+    })
+    expect(await start).toBe(false)
+    expect(spawned).toEqual([])
+    expect(calls).toContain("reclaim")
+  })
 
   it("releases the lock, spawns detached through bash with a clean environment, then exits", async () => {
     const { start, calls, spawned } = starting((child) => child.emit("spawn"))

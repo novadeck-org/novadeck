@@ -6,13 +6,15 @@ shortly after launch and every hour. The app never restarts on its own, and the 
 button: a downloaded update installs when the app next quits, and the page shows only a
 progress bar while it downloads.
 
-Every system follows one rule: a normal quit puts the new version in place before the
-app has gone, so the next launch is the new version however soon it comes; a quit as the
+Every system follows one rule: a normal quit puts the new version in place, and a
+Novadeck the person opens meanwhile opens once it is there, as the new version, however
+soon they open it (see "Opening Novadeck while it quits into an update"); a quit as the
 system shuts down or the session ends installs nothing; a copy that can't install itself
 says "Update available"; and an install that did not take is noticed at the next launch
-(see "Install failures"). Linux swaps the AppImage as it quits, macOS swaps the app bundle
-(see "macOS"), and Windows runs the installer, which closes a copy reopened before it
-finishes, so its update lands all the same.
+(see "Install failures"). Linux swaps the AppImage as the quit begins, macOS swaps the app
+bundle once the app has shut down (see "macOS"), and Windows runs the installer, which
+closes a copy reopened before it finishes so its update lands all the same, and then
+starts the new one in its place.
 
 What the host says of checks, downloads and installs goes to the app's `host.log` as
 `update.progress` and `update.warning` lines, and electron-updater's own messages as
@@ -200,7 +202,8 @@ said it was ready again. electron-updater still downloads the zip; with
   account whose app is its own in an Applications folder it can't write, its `Contents`
   are, inside the bundle. Either way the new one is first staged beside the old
   (`.novadeck.app.new`, or `.Contents.new` in the bundle), renamed there or, across
-  volumes, copied with `ditto` while the old app is still whole; then two renames in that one folder put the old one aside and the new one in place, between which alone there is no app at its path. The prepared app is checked again just before, as it waited in a folder anything the person runs can write; one that can't be checked then, as when `codesign` is stopped, is left alone with the old app, and a later session prepares and installs it again (`recheckMacUpdate`, `InstallPostponed`). Any failed step puts the old app back. A second quit meanwhile, as a logout's, waits for the swap. The old app then moves into the prepared folder, as removing it would hold up the quit, and the next launch removes it; where that crosses volumes an old app stays beside the bundle until then, and old `Contents` are removed at once, as left in the bundle they would break its seal. A prepared folder changed in the last ten minutes is left, as another copy on its own data folder may be installing from it; what a swap leaves beside the bundle is not guarded so. A bundle that is no longer the
+  volumes, copied with `ditto` while the old app is still whole; then two renames in that one folder put the old one aside and the new one in place, between which alone there is no app at its path. The prepared app is checked again just before, as it waited in a folder anything the person runs can write; one that can't be checked then, as when `codesign` is stopped, is left alone with the old app, and a later session prepares and installs it again (`recheckMacUpdate`, `InstallPostponed`). Any failed step puts the old app back. A second quit meanwhile, as a logout's, waits for the swap. The old app then moves into the prepared folder, as removing it would hold up the quit, and the next launch removes it; where that crosses volumes an old app stays beside the bundle until then, and old `Contents` are removed at once, as left in the bundle they would break its seal. A prepared folder changed in the last ten minutes is left, as another copy on its own data folder may be installing from it; what a swap leaves beside the bundle is not guarded so. A launch that came meanwhile, a Dock click, opens the new app once the swap is done
+  (see "Opening Novadeck while it quits into an update"). A bundle that is no longer the
   running version, as one install.sh replaced, is left alone. A quit as the session ends,
   and the uninstall, install nothing.
 - **A copy the person can't write** only tells. When it is signed and installed, the offer
@@ -287,7 +290,14 @@ is written as the app exits, cannot race another change.
 An install that fails after the app has gone, as the Windows installer may, is noticed at
 the next launch: as a quit begins an install it writes the version to `update.json`
 (`installing`), and a launch that installs updates and finds itself still older than that
-version marks it failed as above (`installOutcome`), then clears it either way. A copy
+version marks it failed as above (`installOutcome`), then clears it either way. On Linux a
+launch that is older only because it started before the swap is not a failure; see
+"Opening Novadeck while it quits into an update".
+
+A mark never outlives the install it names: a launch that installs updates and runs the
+marked version or a newer one clears the mark and logs it as installed (`failureOutdated`).
+This covers a copy the person reopened while the Windows installer ran, which marks the
+install failed before the installer closes it and starts the new version. A copy
 that only tells, such as a portable one sharing the data folder, leaves it for the
 installed copy.
 
@@ -311,6 +321,70 @@ from signals by marking them before they begin:
 
 The app has no tray and no page command that quits. A `before-quit` without the mark, which
 is what a signal gives, switches installing on quit off.
+
+### Opening Novadeck while it quits into an update
+
+The person may open Novadeck again while their quit is still putting an update in place, as
+shutting down takes a moment. That launch is theirs, and it is honoured: it opens once the
+update is in place, as the new version. This is not a restart of the app on its own; a quit
+nobody reopens leaves Novadeck closed on every system. Nor does it apply to a quit that
+installs nothing, as a signal's or the session ending, or to a quit with no update.
+
+- **Linux** swaps the AppImage at the start of an orderly quit, not after the shutdown
+  (`installNow` in `updater.ts`, called from `before-quit` only for the person's quit; see
+  "Quitting by a signal on Linux"). Replacing the file is safe while the app runs, as the
+  mounted image holds the old file through its inode. electron-updater's own install is not
+  used: it deletes `$APPIMAGE` and then moves the new file in, so a launch in between finds
+  no file, and it then runs the new AppImage once with `APPIMAGE_EXIT_AFTER_INSTALL`, which
+  only skips the desktop integration and the EULA of the AppRun this build has (neither),
+  so the step does nothing here. The host replaces `doInstall` of the `AppImageUpdater`
+  (`loadUpdater`, `swapAppImage` in `appimage-swap.ts`) with one atomic rename of the
+  verified download over `$APPIMAGE` (or, when the download sits on another file system,
+  a copy beside the file that is renamed over it); the file keeps its name, as no release
+  file carries a version. Everything else of electron-updater's install stays: it is the
+  updater's `install` that is called, so the bookkeeping (`installing`, a failed install)
+  and the once-only guard are its own, and the quit-time install finds it done. The swap
+  also records how the file then looks (`installedImage` in `update.json`: size, inode and
+  modification time, which a rename keeps). Launches from then on get the new file, and one
+  that finds the lock held by the quitting app is remembered (`reopenWanted`); after the
+  shutdown the quitting app has the new AppImage started the way a portable copy starts the
+  installed one (`startAppImage`) and exits, and the child waits until this process is gone
+  (`after`) before it starts, so the new copy never runs beside the old one's windows and
+  storage. Electron's own `relaunch` would not do, for the reason `startAppImage` gives. Once the swap
+  has returned, an error from a check or download still in flight is logged as theirs and
+  never marks the install failed; only an error the install itself raises does.
+- **A safety net on Linux.** A launch can still start the old file: it began before the
+  swap, or the launcher had resolved the file already. Such a launch, older than the
+  `installing` version, looks at `$APPIMAGE` before anything starts: when it has the
+  identity the swap recorded, the new version is on disk, and it starts that and exits
+  instead of marking the install failed. It does so once per version (`reopenedFor`): if
+  the file starts the old version after all, the next launch settles it as a failed
+  install as usual.
+- **macOS.** A Dock click or second launch during the quit reaches the quitting process
+  (`activate`, `second-instance`) and is remembered. Once `installMacUpdateOnQuit` has put
+  the new bundle in place, the app relaunches into the bundle's executable (`startBundle`,
+  `app.relaunch`; Chromium's relauncher waits for this process to exit). Nothing is
+  relaunched when the swap did not happen or failed.
+- **Windows.** A launch during the quit hits `second-instance` and is remembered. The
+  quit-time install is electron-updater's installer run (`--updated /S`) after the app has
+  exited; when a launch was remembered it is run with `--force-run` as well
+  (`runAfterInstall` in `checkForUpdates`), so the installer starts the new app when it is
+  done. A plain quit passes no `--force-run`, so the app stays closed. A launch that comes
+  after that and finds the old app still running is answered by the installer: when it
+  had to close a copy the person reopened, it starts the new one once it is done (see "The
+  installer's running-app check"). Two gaps remain. A launch in the moment between the
+  installer starting and the quitting app exiting finds the lock held and ends, and the
+  installer never sees it, so the click does nothing. And while the installer replaces the
+  files, the shortcut's target is briefly gone, so Windows says the shortcut no longer
+  works. The installer shows no progress window to explain it: in a silent run builder's
+  banner plugin has no window of its own and reaches for other programs' dialogs, and a
+  non-silent run would put builder's Retry/Cancel boxes in front of someone who just quit,
+  where Cancel can leave no app installed.
+
+The update log tells it: "Put 1.2.0 in place as the app quits." (Linux), "Opening 1.2.0,
+which was put in place as the app quit." (the quitting app opening it; the safety net's line
+adds ": this is still 1.1.0."), and on Windows, where the installer puts it in place after
+the app has gone, "Opening 1.2.0, which is put in place as the app quits.".
 
 ### Linux builds
 
@@ -539,7 +613,15 @@ keeps the workspace.
     exit with no copy left is the generic "did not finish").
   - A self-update by an installed copy (`--updated`; the app is quitting) and a silent
     uninstaller (an update's run of the old one, or `/S` from a script) wait one round, then
-    close what still runs from the install folder. An interactive uninstaller (Windows
+    close what still runs from the install folder. A self-update stays silent, so builder's
+    message boxes that carry a silent default (`/SD`: a failed copy, a failed uninstall
+    retry) answer themselves; the few without one, as an old uninstaller that exits with an
+    error, still show. It starts nothing, except when the
+    check had to close a copy that started after the setup did (its `CreationDate`, exit code
+    13 of the query): the quitting app started the setup and is older, so a newer copy was
+    reopened by the person. Then `customInstall` starts the new version once, with
+    `--updated`, and does nothing under `--force-run`, where builder's template starts the
+    app. Where the setup's own start time can't be read, nothing counts as reopened. An interactive uninstaller (Windows
     Settings, or Preferences' Uninstall, which starts it and quits 250 ms later) waits two
     rounds the same way, then asks (OK/Cancel) before closing; an interactive installer
     asks in round 1. Closing is polite (`CloseMainWindow`) for its first two rounds, then

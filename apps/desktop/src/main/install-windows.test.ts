@@ -706,6 +706,24 @@ describe("the installer's running-app check", () => {
     expect(template("installSection.nsh")).toContain("!insertmacro customInstall")
   })
 
+  it("keeps a self-update silent and starts the app only on a reopen", () => {
+    const macro = readFileSync(join(process.cwd(), "resources", "installer.nsh"), "utf8")
+    // Silent, so builder's `/SD` message boxes answer themselves, and no banner, which in a
+    // silent run would reach for other programs' dialogs.
+    expect(macro).not.toContain("SetSilent")
+    expect(macro).not.toContain("SpiderBanner")
+    // With the default runAfterFinish, builder starts the app after a silent run only on
+    // `--force-run`, which `customInstall` leaves to it.
+    const section = template("installSection.nsh")
+    expect(section).toMatch(
+      /!ifdef RUN_AFTER_FINISH\s+\$\{ifNot\} \$\{Silent\}\s+\$\{orIf\} \$\{isForceRun\}\s+!insertmacro doStartApp/u,
+    )
+    expect(section).toContain("!insertmacro customInstall")
+    expect(macro).toMatch(
+      /\$\{IfNot\} \$\{isForceRun\}\s+\$\{AndIf\} \$\{Silent\}\s+\$\{AndIf\} \$\{isUpdated\}/u,
+    )
+  })
+
   it("is still reached by the installer and the uninstaller", () => {
     expect(template("installSection.nsh")).toContain("!insertmacro CHECK_APP_RUNNING")
     expect(template("uninstaller.nsh")).toContain("!insertmacro CHECK_APP_RUNNING")

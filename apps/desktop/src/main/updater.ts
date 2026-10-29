@@ -484,6 +484,10 @@ export type Updater = {
  *
  * `logger` hears electron-updater's own messages; without one they are dropped.
  *
+ * `installNow` puts a waiting update in place at once, as the quit-time install would, for a
+ * copy that is swapped while the app still runs (the AppImage); it returns whether it did. The
+ * quit-time install then finds it done and does nothing.
+ *
  * `setChannel` follows another channel from the next check, and makes one soon, unless the
  * schedule has ended. `stop` ends the schedule, after which no new download starts; one
  * under way goes on. Quitting stops it first.
@@ -500,6 +504,7 @@ export const checkForUpdates = (
     rejected = () => true,
     offer,
     installStarted,
+    runAfterInstall,
     installFailed,
     log,
     logger,
@@ -521,6 +526,13 @@ export const checkForUpdates = (
     readonly offer: (offer: UpdateOffer) => void
     /** Hears the version an install on quitting is about to put in place. */
     readonly installStarted?: ((version: string) => void) | undefined
+    /**
+     * Asked as the quit-time install starts whether the installer should start the app
+     * once it is done, because the person opened Novadeck while it was quitting. Asked only
+     * where an installer runs after the app has gone (Windows); see `installNow` for the
+     * AppImage, which is swapped before.
+     */
+    readonly runAfterInstall?: (() => boolean) | undefined
     readonly installFailed: (version: string) => void
     readonly log: (message: string, error: unknown) => void
     readonly logger?: Updater["logger"] | undefined
@@ -528,6 +540,7 @@ export const checkForUpdates = (
 ): {
   readonly setChannel: (channel: UpdateChannel) => void
   readonly stop: () => void
+  readonly installNow: () => boolean
 } => {
   // Downloads are asked for, to leave out the release that failed to install.
   updater.autoDownload = false
@@ -567,6 +580,9 @@ export const checkForUpdates = (
   let checkedChannel = channel
   // Once an install has begun the app is on its way out, so the mark never goes back.
   let installing = false
+  // Whether the install returned having put the update in place, as the AppImage's does as
+  // the quit begins. Errors after that belong to whatever else is still in flight.
+  let placed = false
   let failed = false
   const original: unknown = updater.install
   if (typeof original === "function")
@@ -574,13 +590,21 @@ export const checkForUpdates = (
       install: (...args: unknown[]): unknown => {
         installing = true
         if (downloaded !== undefined) installStarted?.(downloaded.version)
-        return Reflect.apply(original, updater, args)
+        // (silent, force run): the installer starts the app when it is done only if asked.
+        const [silent, forceRun] = args
+        return Reflect.apply(
+          original,
+          updater,
+          runAfterInstall?.() ? [silent ?? false, true] : [silent, forceRun],
+        )
       },
     })
   updater.on("error", (error) => {
     // An install fails once; an error reported after it adds nothing to log or mark.
     if (failed) return
-    if (downloaded === undefined || !installing) {
+    if (downloaded === undefined || !installing || placed) {
+      // An install that has put the update in place is done: what is reported after it, by a
+      // check or a download still in flight as the quit began, is theirs, not the install's.
       // A check through novadeck.dev that fails is logged as it falls back to GitHub. Which
       // error is the check's is known when it rejects, so the others, a download's, wait
       // for that and are logged then.
@@ -792,5 +816,20 @@ export const checkForUpdates = (
       first = setTimeout(() => check("switch"), switchCheckMs)
     },
     stop,
+    installNow: () => {
+      // Only a download waiting, in a copy that installs on quitting and has not failed.
+      if (
+        mode !== "install" ||
+        downloaded === undefined ||
+        installing ||
+        failed ||
+        !updater.autoInstallOnAppQuit ||
+        typeof updater.install !== "function"
+      )
+        return false
+      const done = updater.install(true, false)
+      placed = done
+      return done
+    },
   }
 }

@@ -84,6 +84,7 @@ import {
 } from "../bridge.js"
 import { openProcessLog, saltFileIn, type LogSetup } from "../logging.js"
 import { keepAppearance, registerAppearanceIpc } from "./appearance.js"
+import { swapAppImage } from "./appimage-swap.js"
 import {
   bundleVersionOf,
   findInstalledApps,
@@ -163,6 +164,7 @@ import {
   startAppImage,
 } from "./portable.js"
 import { ntdllQuery, platformQuiet, registerQuietIpc, windowsProbe } from "./quiet.js"
+import { opensAfterQuit, rememberReopen, swapsAtQuitStart } from "./quit-install.js"
 import { quitOnShutdown, saveBeforeClose, saveOnSessionEnd, savePages } from "./quit.js"
 import { prepareAppImage } from "./release-appimage.js"
 import { portableAssets, streamToFile, type Download, type Fetched } from "./release-download.js"
@@ -177,7 +179,13 @@ import {
   releasePageUrl,
   releaseRepositoryOf,
 } from "./update-release.js"
-import { installOutcome, keepUpdateState } from "./update-state.js"
+import {
+  failureOutdated,
+  fileIdentity,
+  installedBeforeLaunch,
+  installOutcome,
+  keepUpdateState,
+} from "./update-state.js"
 import {
   bundleOf,
   checkForUpdates,
@@ -356,6 +364,12 @@ const run = randomUUID()
 // the menu's Quit. On Linux Electron turns SIGTERM, SIGINT and SIGHUP into an
 // ordinary quit, which must not install an update; see ./updater.ts.
 let orderlyQuit = false
+// Whether the person opened Novadeck while it was quitting (a second launch, or the Dock icon
+// on macOS), which a quit that puts an update in place answers by opening the new version once
+// it is there. The launch itself could do nothing: the quitting app holds the data folder.
+let reopenWanted = false
+// Whether the AppImage was swapped for the update at the start of this quit (Linux).
+let appImageSwapped = false
 // The auto-updater of a build that looks for updates, once it has loaded, and what keeps
 // its schedule.
 let updater: Updater | undefined
@@ -545,8 +559,35 @@ const loadUpdater = async (kind: UpdaterKind): Promise<NonNullable<typeof update
       return new electronUpdater.NsisUpdater()
     case "mac":
       return new electronUpdater.MacUpdater()
-    case "appimage":
-      return new electronUpdater.AppImageUpdater()
+    case "appimage": {
+      const appImage = new electronUpdater.AppImageUpdater()
+      // electron-updater's own install deletes the AppImage and then moves the new one in,
+      // so for a moment nothing is there for a launch to find, and then runs the new file
+      // once for a desktop integration this build's AppRun skips. This one renames the update
+      // over the file in a single step; see `swapAppImage`. It is called as the quit begins.
+      Object.assign(appImage, {
+        doInstall(this: {
+          readonly installerPath: string | null
+          dispatchError(error: Error): void
+        }): boolean {
+          const target = process.env.APPIMAGE
+          if (!target || this.installerPath == null) {
+            this.dispatchError(new Error("No update file or AppImage path, can't install"))
+            return false
+          }
+          const identity = swapAppImage(this.installerPath, target)
+          appImageSwapped = true
+          updatesLog.info(`Put ${installingVersion ?? "the update"} in place as the app quits.`)
+          try {
+            if (identity !== undefined) updateState.recordInstalledImage(identity)
+          } catch (error) {
+            updateWarning("The installed file was not kept.", error)
+          }
+          return true
+        },
+      })
+      return appImage
+    }
   }
 }
 
@@ -649,9 +690,13 @@ const installFailed = (version: string): void => {
   }
 }
 
+// The version the quit's install is putting in place, for the lines that tell of it.
+let installingVersion: string | undefined
+
 // Marks the version an install on quitting begins to put in place, for the next launch
 // to check; see `settleLastInstall`. Synchronous, as the app is exiting.
 const recordInstalling = (version: string): void => {
+  installingVersion = version
   updatesLog.info(`Installing ${version} on quitting.`)
   try {
     updateState.recordInstalling(version)
@@ -665,6 +710,16 @@ const recordInstalling = (version: string): void => {
 // exited, so it is marked like any failed install and told of rather than tried again
 // at every launch. See `installOutcome`.
 const settleLastInstall = (): void => {
+  const kept = updateState.read()
+  // A release marked failed that this launch runs, or is past, did install: a copy reopened
+  // while the installer ran may have marked it before the installer closed that copy.
+  if (kept.installFailedOn !== undefined && failureOutdated(kept, app.getVersion(), isNewerVersion))
+    try {
+      updatesLog.info(`Installed ${app.getVersion()}; the failure marked on it is cleared.`)
+      updateState.clearInstallFailure()
+    } catch (error) {
+      updateWarning("The failed install was not cleared.", error)
+    }
   const { installing } = updateState.read()
   const outcome = installOutcome({ installing }, app.getVersion(), isNewerVersion)
   if (outcome === undefined || installing === undefined) return
@@ -805,6 +860,18 @@ const startUpdates = async (): Promise<void> => {
       )
     },
     installStarted: recordInstalling,
+    // Windows runs the installer after the app has gone: asked to start the app again when
+    // the person opened it meanwhile.
+    runAfterInstall:
+      plan.kind === "nsis"
+        ? () => {
+            if (!reopenWanted) return false
+            updatesLog.info(
+              `Opening ${installingVersion ?? "the update"}, which is put in place as the app quits.`,
+            )
+            return true
+          }
+        : undefined,
     installFailed,
     log: updateWarning,
     logger: updatesLog.logger,
@@ -848,7 +915,12 @@ const installMacUpdateOnQuit = async (): Promise<void> => {
       updatesLog.info(`Installed ${update.version}; it starts at the next launch.`)
     } catch (error) {
       updateWarning("Installing the update failed.", error)
-      installFailed(update.version)
+      return installFailed(update.version)
+    }
+    // The person opened Novadeck while it was quitting: open the new version now it is there.
+    if (reopenWanted) {
+      updatesLog.info(`Opening ${update.version}, which was put in place as the app quit.`)
+      await startBundle(bundle)
     }
   } finally {
     macInstalling = false
@@ -1059,9 +1131,10 @@ const appImageMounts = (): string[] => {
 }
 
 // Starts the AppImage at `image` in place of this process; see `startAppImage`.
-const startInstalled = (image: string): Promise<boolean> =>
+const startInstalled = (image: string, after?: number): Promise<boolean> =>
   startAppImage({
     image,
+    after,
     env: process.env,
     mounts: appImageMounts(),
     spawn,
@@ -1527,6 +1600,32 @@ const launch = async (): Promise<void> => {
     join(app.getPath("logs"), "crash-dumps.json"),
     logger.for("crash"),
   )
+  // The last quit put a newer AppImage in place, but this launch started from the old one: it
+  // came before the swap, or the launcher had resolved the file already. Nothing has started
+  // yet, so the newer one starts in its place instead of the install being called a failure.
+  if (process.platform === "linux" && !portable && process.env.APPIMAGE) {
+    const state = updateState.read()
+    let image: string | undefined
+    try {
+      image = fileIdentity(statSync(process.env.APPIMAGE))
+    } catch {
+      image = undefined
+    }
+    if (
+      state.installing !== undefined &&
+      installedBeforeLaunch(state, app.getVersion(), image, isNewerVersion)
+    ) {
+      updatesLog.info(
+        `Opening ${state.installing}, which was put in place as the app quit: this is still ${app.getVersion()}.`,
+      )
+      try {
+        updateState.recordReopened(state.installing)
+        if (await startInstalled(process.env.APPIMAGE)) return
+      } catch (error) {
+        updateWarning("The newer AppImage was not started.", error)
+      }
+    }
+  }
   // An installed copy that starts answers a redirect: a later portable launch redirects again.
   if (!portable) redirect.clear()
   // An install interrupted on macOS may have left the only installed copy renamed aside,
@@ -1944,6 +2043,7 @@ const bringForward = (window: BrowserWindow): void => {
 }
 
 app.on("second-instance", () => {
+  reopenWanted = rememberReopen(reopenWanted, stopping)
   const [window] = BrowserWindow.getAllWindows()
   if (window) bringForward(window)
   // On macOS the app lives on with no window, so a second launch has none to show; one
@@ -2050,11 +2150,25 @@ app.whenReady().then(() => {
   })
 
   app.on("activate", () => {
+    reopenWanted = rememberReopen(reopenWanted, stopping)
     if (BrowserWindow.getAllWindows().length === 0) {
       if (server && !stopping) createWindow(server.origin)
     }
   })
 })
+
+// On Linux, opens the AppImage the quit swapped in when the person opened Novadeck while it
+// was quitting: that launch found the data folder held and went away.
+const openAppImageAfterQuit = async (): Promise<void> => {
+  const image = process.env.APPIMAGE
+  if (!image || !opensAfterQuit({ placed: appImageSwapped, wanted: reopenWanted })) return
+  updatesLog.info(
+    `Opening ${installingVersion ?? "the update"}, which was put in place as the app quit.`,
+  )
+  // Started only once this process has gone: its windows and their storage are still open
+  // while it shuts down, and the data folder's lock is released with it.
+  await startInstalled(image, process.pid)
+}
 
 const declineUnorderlyInstall = installOnlyOnOrderlyQuit(
   () => updater,
@@ -2067,13 +2181,18 @@ app.on("before-quit", (event) => {
   if (!stopping) log.info("app.quit", "The app is quitting.", { data: { orderly: orderlyQuit } })
   // No new download starts on the way out.
   updates?.stop()
-  if (process.platform === "linux") declineUnorderlyInstall()
+  if (process.platform === "linux") {
+    if (swapsAtQuitStart({ platform: process.platform, orderly: orderlyQuit, stopping }))
+      updates?.installNow()
+    else declineUnorderlyInstall()
+  }
   if ((!server && !runner) || stopping) return
 
   event.preventDefault()
   stopping = true
   void shutDown()
     .then(installMacUpdateOnQuit)
+    .then(openAppImageAfterQuit)
     .finally(() => app.quit())
 })
 

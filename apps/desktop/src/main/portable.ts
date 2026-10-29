@@ -354,6 +354,9 @@ export type StartedProcess = {
 // mounted as long as the installed app runs. Bash is needed: dash cannot name those above 9.
 export const closeDescriptors =
   'for fd in /proc/$$/fd/*; do n=${fd##*/}; [ "$n" -gt 2 ] && eval "exec $n>&-"; done; exec "$0"'
+// What the shell runs first to wait for the process in $1 to be gone, for at most 30 seconds.
+const waitForExit =
+  'n=0; while kill -0 "$1" 2>/dev/null && [ $n -lt 300 ]; do sleep 0.1; n=$((n+1)); done'
 // Where bash may be; the first that can run starts the copy.
 const shells = ["/bin/bash", "/usr/bin/bash"]
 
@@ -372,6 +375,7 @@ const shells = ["/bin/bash", "/usr/bin/bash"]
  */
 export const startAppImage = ({
   image,
+  after,
   env,
   mounts,
   spawn,
@@ -382,6 +386,13 @@ export const startAppImage = ({
   log,
 }: {
   readonly image: string
+  /**
+   * A process to wait for before the child starts the app, for a start that happens while
+   * this process is still shutting down: the child polls until the process is gone (at most
+   * 30 seconds), so the app never starts beside its windows and storage. Needs bash; without
+   * it nothing is started, as starting at once is the very thing waiting avoids.
+   */
+  readonly after?: number | undefined
   readonly env: Readonly<Record<string, string | undefined>>
   /** The folders this copy's AppImage is mounted at, which the child's environment drops. */
   readonly mounts: readonly string[]
@@ -419,8 +430,16 @@ export const startAppImage = ({
           "Starting the installed copy without bash, so this copy's mount stays while it runs.",
           image,
         )
+      if (bash === undefined && after !== undefined) {
+        log("The installed copy was not started: waiting for this one to exit needs bash.", image)
+        return failed(new Error("no bash to wait with"))
+      }
       const [file, args] =
-        bash === undefined ? [image, [] as string[]] : [bash, ["-c", closeDescriptors, image]]
+        bash === undefined
+          ? [image, [] as string[]]
+          : after === undefined
+            ? [bash, ["-c", closeDescriptors, image]]
+            : [bash, ["-c", `${waitForExit}; ${closeDescriptors}`, image, String(after)]]
       const child = spawn(file, args, {
         detached: true,
         stdio: "ignore",
