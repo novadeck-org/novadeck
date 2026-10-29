@@ -157,8 +157,9 @@ export const phonePage = async (
 /**
  * Holds the first load of a page view its viewer named a phone's, by its user agent (see
  * `attachPage`), until it acts as one, so its first document is a phone's too; at most
- * `phoneWaitMs`, after which it loads as it is. Only page loads are held up, nothing they
- * load. Electron keeps one listener per request event for a session, so nothing else may
+ * `phoneWaitMs`, after which it loads with a phone's user agent alone, its screen and touch
+ * coming to the page once they're set, or never where they can't be. Only page loads are
+ * held up, nothing they load. Electron keeps one listener per request event for a session, so nothing else may
  * use `onBeforeRequest` on the pages' session.
  */
 export const holdPhoneLoads = (

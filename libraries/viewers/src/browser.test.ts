@@ -873,11 +873,13 @@ describe("the browser viewer", () => {
         expect(pageOf(host).getAttribute("useragent")).toBe(
           phoneUserAgent(chromeMajorOf(navigator.userAgent)),
         )
-        // The host makes it one as it loads: nothing to ask.
+        // The host makes it one as it loads: nothing to ask, as its document is ready too.
+        attachNow()
+        pageOf(host).dispatchEvent(event("dom-ready"))
+        await new Promise((resolve) => setTimeout(resolve, 0))
         expect(asked).toEqual([])
         expect(pageOf(asPhone("desktop").host).hasAttribute("useragent")).toBe(false)
         // Switched, it's named nothing, as a load from its address again would read it.
-        attachNow()
         viewer.size("desktop")
         expect(pageOf(host).hasAttribute("useragent")).toBe(false)
         await expect.poll(() => asked).toEqual([[7, false]])
