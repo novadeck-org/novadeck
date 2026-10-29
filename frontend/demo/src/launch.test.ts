@@ -339,7 +339,7 @@ describe("the launch demo", () => {
     expect(agent(launch.lead)).toMatchObject({ working: true })
     // Still open while the lead has not answered.
     expect(items()[0]).not.toHaveProperty("settled")
-    await vi.advanceTimersByTimeAsync(6000)
+    await vi.advanceTimersByTimeAsync(7200)
     expect(
       exchange(backend)
         .filter(
