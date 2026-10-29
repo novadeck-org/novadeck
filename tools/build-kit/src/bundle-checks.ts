@@ -26,6 +26,9 @@ export type BuiltAsset = {
 // A module id or a file with forward slashes, as Windows builds write them with backslashes.
 const slashed = (id: string): string => id.split("\\").join("/")
 
+// A file's name without its folders.
+const baseName = (path: string): string => path.split("/").at(-1)!
+
 // A built file's text, whatever form the bundle holds it in.
 const textOf = (source: unknown): string =>
   typeof source === "string"
@@ -179,12 +182,12 @@ export const budgetViolations = (
     const named = new Set(
       [...sheets].flatMap((sheet) =>
         [...textOf(bundle[sheet]?.source).matchAll(/url\(["']?([^)"']+\.woff2)["']?\)/g)].map(
-          ([, url]) => url!.split("/").at(-1)!,
+          ([, url]) => baseName(url!),
         ),
       ),
     )
     return Object.entries(bundle)
-      .filter(([fileName]) => named.has(fileName.split("/").at(-1)!))
+      .filter(([fileName]) => named.has(baseName(fileName)))
       .reduce((sum, [, asset]) => sum + bytesOf(asset.source), 0)
   }
   const weight = (files: Iterable<string>, withFonts: boolean): number => {
