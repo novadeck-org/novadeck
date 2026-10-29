@@ -675,7 +675,7 @@ describe("the launch demo's finishing", () => {
     expect(reportsOf(backend)).toEqual(once)
   })
 
-  it("reports once for each teammate when 7 comes just before the exchange settles", async () => {
+  it("reports once for each teammate when 7 comes before the exchange settles", async () => {
     const { backend, cues, agent } = open()
     cues.teammates()
     await vi.advanceTimersByTimeAsync(4000)
