@@ -5,7 +5,7 @@ character-width rule every emulator shares, and helpers that need only an emulat
 
 ## Subpaths
 
-- `./width`: `unicodeVersion`, `cells(text)`, the columns a string takes as every emulator here
+- `./width`: `cells(text)`, the columns a string takes as every emulator here
   draws it, and `applyWidths(terminal)`, which sets a browser or headless emulator to count them
   so. Every emulator goes through `applyWidths`: one that counts otherwise puts a screen another
   gives back on different rows.

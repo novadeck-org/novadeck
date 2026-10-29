@@ -33,7 +33,7 @@ export const runLimit = (devicePixels: number): number => {
 }
 
 /** Whether the table is the family's: JetBrains Mono's, when it is the first the CSS names. */
-export const hasTable = (fontFamily: string): boolean =>
+export const hasLigatureTable = (fontFamily: string): boolean =>
   /^\s*["']?jetbrains mono\b/i.test(fontFamily)
 
 // How far into a stretch of one repeated glyph a cut must be, from either end, for the font to

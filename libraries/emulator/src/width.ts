@@ -6,8 +6,8 @@ import type { Terminal } from "@xterm/xterm"
 // them, emoji sequences and CJK included. A screen one of them gives back replays on the same
 // rows in another, and a row a TUI erased is the rows it means.
 
-/** The Unicode version every emulator here measures with. */
-export const unicodeVersion = "15-graphemes"
+// The Unicode version every emulator here measures with.
+const unicodeVersion = "15-graphemes"
 
 /**
  * Sets an emulator to count widths as every other one here does. It must be made with
