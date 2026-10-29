@@ -23,6 +23,12 @@ export type Request = {
   readonly cwd?: string
   /** Whether only the screen told it (see `DialogAdapter.screenRequest`), no hook. */
   readonly screen?: true
+  /** Whether it asks without waiting (see the `attention-requested` event's `detached`). */
+  readonly detached?: true
+  /** The questions it asks where each is answered on its own (see the event's `parts`). */
+  readonly parts?: readonly string[]
+  /** Which of its parts are answered already, by index. */
+  readonly answered?: readonly number[]
   /** When its hook started: asked again later, the same call is another request. */
   readonly askedAt: number
 }
@@ -70,6 +76,8 @@ const maxSubagents = 32
 const maxEnded = 64
 // What the protocol carries of an id or a kind.
 const maxText = 256
+// The most parts a request is asked in that are told apart: more than a harness asks at once.
+const maxParts = 16
 // How many background tasks' starts are remembered, and how many jobs an agent waits on.
 const maxTasks = 64
 const maxJobs = 16
@@ -389,14 +397,71 @@ const resolved = (
 
 /**
  * The requests a root turn's start or end leaves waiting: a running subagent's, as a
- * background one's outlives the turn. The root's own, and those of a subagent no longer
- * running, are settled.
+ * background one's outlives the turn, and a detached one, which asked without waiting on
+ * any turn. The root's own, and those of a subagent no longer running, are settled.
  */
 const outliving = (
   pending: readonly Request[],
   subagents: readonly Subagent[],
 ): readonly Request[] =>
-  pending.filter(({ actor }) => actor !== null && subagents.some(({ id }) => id === actor))
+  pending.filter(
+    ({ actor, detached }) =>
+      detached === true || (actor !== null && subagents.some(({ id }) => id === actor)),
+  )
+
+/**
+ * The request with the parts at `indices` answered too, or undefined once every part is:
+ * it is settled then. A request asked in no parts is settled by any answer.
+ */
+const answering = (request: Request, indices: readonly number[]): Request | undefined => {
+  const { parts } = request
+  if (!parts) return undefined
+  const answered = [
+    ...new Set([
+      ...(request.answered ?? []),
+      ...indices.filter((index) => Number.isInteger(index) && index >= 0 && index < parts.length),
+    ]),
+  ].toSorted((a, b) => a - b)
+  return answered.length >= parts.length ? undefined : { ...request, answered }
+}
+
+/**
+ * The requests left once the person's prompt comes with no turn running. One that quotes
+ * questions (`answers`) answers those parts of the detached requests, and leaves the rest;
+ * any other is the person's next word, after which nothing detached is answered any more:
+ * its harness drops such questions at its turn's end, so they all go.
+ */
+const afterPrompt = (
+  pending: readonly Request[],
+  answers: readonly string[] | undefined,
+): readonly Request[] =>
+  pending.flatMap((request) => {
+    if (!request.detached) return [request]
+    if (!answers?.length) return []
+    const quoted = (request.parts ?? []).flatMap((part, index) =>
+      answers.some((answer) => answer.slice(0, maxText) === part) ? [index] : [],
+    )
+    if (quoted.length === 0) return [request]
+    const left = answering(request, quoted)
+    return left ? [left] : []
+  })
+
+/**
+ * The requests that keep the agent from taking a prompt or a message: all but the detached
+ * ones, which ask without waiting and leave its prompt free.
+ */
+export const blocking = (pending: readonly Request[] | undefined): readonly Request[] =>
+  (pending ?? []).filter(({ detached }) => detached !== true)
+
+/**
+ * The requests in the order the person meets them: those that hold the agent first, then
+ * the detached ones, each oldest first. A detached request lasts past its turn, and would
+ * otherwise stand ahead of the approval that holds the agent now.
+ */
+export const ordered = (pending: readonly Request[]): readonly Request[] => [
+  ...blocking(pending),
+  ...pending.filter(({ detached }) => detached === true),
+]
 
 /**
  * The turn's end as the activity takes it, for a root turn still running or one an Escape
@@ -581,8 +646,9 @@ const continuedAfterEscape = (activity: Activity, escaped: Escape): Activity | u
  * or from a turn already over. A root turn's start or end settles the root's own requests
  * still waiting: no harness ends a root turn normally while its own dialog waits, a
  * denial ends it abnormally, and one answered with no report, as another hook's denial,
- * would otherwise wait forever. A running subagent's requests answer to no root turn: each
- * waits for its own resolution, its turn's abort or its stop. An interrupted turn ends the
+ * would otherwise wait forever. A detached request answers to no turn either: its own
+ * results, or the person's prompt once none runs, settle it. A running subagent's requests
+ * answer to no root turn: each waits for its own resolution, its turn's abort or its stop. An interrupted turn ends the
  * subagents it started, which report no stop then; a background one from an earlier turn
  * runs on.
  */
@@ -739,13 +805,22 @@ export const apply = (
     case "attention-resolved": {
       const index = resolved(activity.pending, event)
       // A subagent's request outlives the root's turn, and so does its result; the root's
-      // own results answer to its turns.
+      // own results answer to its turns, but for a detached request's, which outlives them.
+      const request = activity.pending[index]
       if (
-        index < 0 ||
-        (event.startedAt < activity.turnAt && activity.pending[index]!.actor === null)
+        !request ||
+        (event.startedAt < activity.turnAt && request.actor === null && !request.detached)
       )
         return undefined
-      return { ...activity, pending: activity.pending.toSpliced(index, 1) }
+      // A part's answer settles the request only once every part has one.
+      const left =
+        request.parts && event.part !== undefined ? answering(request, [event.part]) : undefined
+      return {
+        ...activity,
+        pending: left
+          ? activity.pending.toSpliced(index, 1, left)
+          : activity.pending.toSpliced(index, 1),
+      }
     }
     case "attention-requested": {
       // A subagent's request answers to no root turn, as its result doesn't. One not seen
@@ -780,7 +855,15 @@ export const apply = (
       return {
         ...activity,
         state: "working",
-        pending: outliving(activity.pending, activity.subagents),
+        // The person's prompt once no turn runs is their next word: what was asked without
+        // waiting goes with the turn it was asked in, as its harness drops it then, or is
+        // the answer itself.
+        pending: outliving(
+          event.cause === "prompt" && activity.state !== "working"
+            ? afterPrompt(activity.pending, event.answers)
+            : activity.pending,
+          activity.subagents,
+        ),
         turnAt: event.startedAt,
         idled: false,
         background: null,
@@ -972,6 +1055,10 @@ const asked = (
         ...(event.input !== undefined && { input: event.input }),
         ...(event.cwd !== undefined && { cwd: event.cwd }),
         ...(event.screen === true && { screen: true as const }),
+        ...(event.detached === true && { detached: true as const }),
+        ...(event.parts && {
+          parts: event.parts.slice(0, maxParts).map((part) => part.slice(0, maxText)),
+        }),
         askedAt: startedAt,
       },
     ],
@@ -1020,6 +1107,7 @@ export const summary = ({
   listed,
   lastTurn,
 }: Activity): AgentActivity => {
+  const detached = pending.length - blocking(pending).length
   const working =
     state === "working" ||
     (background !== null && (background.agents > 0 || (background.more === true && !listed)))
@@ -1040,7 +1128,8 @@ export const summary = ({
     waiting: working ? null : waits,
     attention: {
       pending: pending.length,
-      kind: pending[0]?.kind ?? null,
+      kind: ordered(pending)[0]?.kind ?? null,
+      ...(detached > 0 && { detached }),
     },
     subagents: subagents.map(({ id, type }) => ({ id: subagentRef(id), type })),
     lastTurn:

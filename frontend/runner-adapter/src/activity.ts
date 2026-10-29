@@ -79,7 +79,11 @@ const agentStatus = ({
   ...(planning ? { planning: true as const } : {}),
   ...(attention.pending > 0 && attention.kind
     ? {
-        attention: { kind: attention.kind, count: attention.pending },
+        attention: {
+          kind: attention.kind,
+          count: attention.pending,
+          ...(attention.detached === attention.pending ? { detached: true as const } : {}),
+        },
       }
     : {}),
   ...(subagents.length > 0 ? { subagents } : {}),

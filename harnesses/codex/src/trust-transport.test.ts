@@ -31,7 +31,7 @@ vi.mock("node:child_process", () => transport)
 const listed = {
   data: [
     {
-      hooks: ["sessionStart", "userPromptSubmit", "stop"].map((eventName) => ({
+      hooks: ["sessionStart", "userPromptSubmit", "stop", "preToolUse"].map((eventName) => ({
         pluginId: "novadeck@novadeck",
         eventName,
         trustStatus: "trusted",

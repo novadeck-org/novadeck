@@ -25,6 +25,11 @@ export type RequestFacts = {
    * resolve the paths a dialog shows (a relative file, `~`).
    */
   readonly cwd: string | null
+  /**
+   * The parts of a request asked in parts that are answered already, by index, as Codex's
+   * async questions are one by one: what remains is what its dialog still asks.
+   */
+  readonly answered?: readonly number[]
 }
 
 /**
@@ -74,6 +79,14 @@ export type DialogRead = {
    * fails the answer.
    */
   readonly answered: (rows: readonly string[]) => boolean
+  /**
+   * Where the dialog takes its answer as the agent's next prompt rather than keys, as
+   * Codex's async question once the turn that asked it has ended: the prompt that gives
+   * `answer`, undefined where it can't take it. Its `keys` and `answered` go unused then;
+   * the prompt goes as the person's would, and the request waits until its hooks settle it.
+   * Such dialogs never clash with each other on one screen: each prompt names its own.
+   */
+  readonly prompt?: (answer: RequestAnswer) => string | undefined
 }
 
 /** A request the screen alone tells, as a prompt that fires no hook. */

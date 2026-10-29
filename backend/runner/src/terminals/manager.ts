@@ -29,6 +29,7 @@ import type { PlanText } from "../companions/content.js"
 import type { CompanionItems, TerminalPlace } from "../companions/items.js"
 import type { ItemRecord } from "../companions/records.js"
 import { DomainError } from "../errors.js"
+import { blocking } from "../harnesses/activity.js"
 import { actorOf, agentDetail } from "../harnesses/detail.js"
 import { harnesses } from "../harnesses/registry.js"
 import { type DoorbellOptions } from "../messaging/doorbell.js"
@@ -1004,7 +1005,7 @@ export class Terminals {
     this.messaging.keys(
       record.summary.id,
       keys.map(({ kind }) => kind),
-      (record.bound?.activity.pending.length ?? 0) > 0,
+      blocking(record.bound?.activity.pending).length > 0,
     )
     this.bindings.escaped(record)
     if (this.messaging.untrustedAgent(record.summary.id)) this.shown.recheckTrust(record)

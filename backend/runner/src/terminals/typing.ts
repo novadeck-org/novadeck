@@ -11,7 +11,7 @@ import type { HoldBudget, InputHold, InterruptOptions, PromptOptions } from "@no
 import { isEmpty, type BoxProfile } from "@novadeck/tui-input/box"
 
 import { DomainError } from "../errors.js"
-import type { Activity } from "../harnesses/activity.js"
+import { blocking, type Activity } from "../harnesses/activity.js"
 import { requestRef } from "../harnesses/detail.js"
 import { harnesses } from "../harnesses/registry.js"
 import { Doorbell, type DoorbellOptions } from "../messaging/doorbell.js"
@@ -180,7 +180,7 @@ export class Typing {
         undefined,
         "no-agent",
       )
-    if ((record.bound?.activity.pending.length ?? 0) > 0)
+    if (blocking(record.bound?.activity.pending).length > 0)
       throw new DomainError(
         "CONFLICT",
         "The agent waits on the person's answer to a request.",
@@ -300,7 +300,7 @@ export class Typing {
   private astray(terminalId: string): void {
     const record = this.host.live(terminalId)
     if (!record) return
-    const asked = (record.bound?.activity.pending.length ?? 0) > 0
+    const asked = blocking(record.bound?.activity.pending).length > 0
     this.host.messaging().keys(terminalId, ["content"], asked)
   }
 
@@ -357,6 +357,7 @@ export class Typing {
       tool: request.toolName,
       input: request.input,
       cwd: request.cwd ?? record.summary.cwd,
+      ...(request.answered && { answered: request.answered }),
     }
   }
 

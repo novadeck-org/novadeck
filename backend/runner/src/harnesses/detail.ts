@@ -1,7 +1,7 @@
 import { ref } from "@novadeck/harness-core/harness"
 import type { AgentDetail, RequestDialog } from "@novadeck/protocol"
 
-import { subagentRef, summary, type Activity, type Request } from "./activity.js"
+import { ordered, subagentRef, summary, type Activity, type Request } from "./activity.js"
 import type { Binding } from "./bindings.js"
 import { harnesses } from "./registry.js"
 import { telemetrySummary, type Telemetry } from "./telemetry.js"
@@ -42,7 +42,7 @@ export const agentDetail = (
       coverage: null,
     }
   const root = rootRef(binding)
-  const pending = (activity?.pending ?? []).slice(0, maxRequests)
+  const pending = ordered(activity?.pending ?? []).slice(0, maxRequests)
   const subagents = activity?.subagents ?? []
   // A subagent asking before its start was seen, as one running when the session was
   // bound, is listed too, so every request names a listed actor. Those asking take

@@ -510,7 +510,7 @@ again with its harness's own resume command, on whatever model that restores.
 Inbox and returns its id immediately. The person rarely watches an agent's terminal, so
 a question only in the reply goes unseen. A question the agent would stop to ask with its
 harness's own question tool (Claude Code's AskUserQuestion, Codex's request_user_input in
-Plan mode, Antigravity's ask_question) it still asks there, as it normally would: the Inbox
+Plan mode or request_user_input_async, Antigravity's ask_question) it still asks there, as it normally would: the Inbox
 shows that request as it is, so it needs no `ask`, and the wording never names a tool, as
 it is the same in every harness. Every other question it ends its turn waiting on (which
 option? open a pull request?) it always asks with `ask`, and in full in its reply, unless

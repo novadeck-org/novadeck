@@ -11,10 +11,11 @@ import type { AgentReport, AgentTurn } from "./records.js"
  * agents it left included, as a restart of Novadeck stops them too; "waking" is an agent
  * idle but waiting on a wake-up or background command it set, which the restart stopped,
  * so nothing wakes it. Neither when it waits on the person (a permission, question or
- * plan), is idle, finished, Escaped or ended by an error: a resume of those has nothing cut.
+ * plan, but for one asked without waiting), is idle, finished, Escaped or ended by an error: a resume of those has nothing cut.
  */
 export const turnOf = (activity: AgentActivity | null): AgentTurn | undefined => {
-  if (!activity || activity.attention.pending > 0) return undefined
+  // A request asked without waiting leaves its turn running all the same.
+  if (!activity || activity.attention.pending > (activity.attention.detached ?? 0)) return undefined
   if (activity.state === "working") return "running"
   const { waiting } = activity
   return waiting && (waiting.jobs.length > 0 || waiting.wake) ? "waking" : undefined

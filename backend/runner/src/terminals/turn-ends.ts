@@ -150,7 +150,8 @@ export class TurnEnds {
     }
     if (ends.considered === at) return
     ends.considered = at
-    if (!ok || activity.attention.pending > 0) return
+    // A request that holds the agent replaces its end; one asked without waiting doesn't.
+    if (!ok || activity.attention.pending > (activity.attention.detached ?? 0)) return
     const owner = this.host.owner(id)
     if (!owner) return
     const seen: Seen = {

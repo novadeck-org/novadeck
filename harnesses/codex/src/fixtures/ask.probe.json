@@ -15047,6 +15047,4275 @@
       ],
       "toolOutputSeenByModel": "{\"permissions\":{\"network\":{\"enabled\":true},\"file_system\":null},\"scope\":\"turn\"}"
     },
+    "rui-async-offered": {
+      "offered": ["request_user_input", "request_user_input_async"],
+      "rawTool": {
+        "type": "function",
+        "name": "request_user_input_async",
+        "description": "Ask the user one or more questions during ongoing work. Use this tool only to request missing information, preferences, constraints, clarification, or approval. The tool returns immediately without ending the turn or waiting for a reply; any reply arrives asynchronously as a new user message. Keep questions concise, self-contained, and easy to understand, using a level of detail appropriate to the user and task. The UI always allows a free-text answer, including when suggested options are provided. A preselected option is not submitted automatically.",
+        "strict": false,
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "questions": {
+              "type": "array",
+              "description": "One or more self-contained questions to present together, in display order.",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "options": {
+                    "type": "array",
+                    "description": "Suggested answers, in display order. Put the recommended answer first; the first option is preselected by default. The user can select one option or enter a free-text answer. Do not include an Other option or a free-text placeholder; the UI provides free-text input automatically. Omit options for a free-text-only question.",
+                    "items": {
+                      "type": "string"
+                    },
+                    "minItems": 1
+                  },
+                  "title": {
+                    "type": "string",
+                    "description": "The complete question shown to the user, including any context needed to answer it."
+                  }
+                },
+                "required": ["title"],
+                "additionalProperties": false
+              },
+              "minItems": 1
+            }
+          },
+          "required": ["questions"],
+          "additionalProperties": false
+        }
+      },
+      "screens": {
+        "wide": {
+          "height": 11,
+          "columns": 120,
+          "rows": {
+            "0": "  >_ OpenAI Codex (v0.163.0)",
+            "1": "     /tmp/sandbox/project",
+            "2": "› Ask me about the button",
+            "3": "• Which color should the button be?",
+            "4": "  • Blue",
+            "5": "  • Green",
+            "6": "• Finished the request.",
+            "7": "  Worked for <n> • <HH:MM>",
+            "8": "› Ask Codex to do anything",
+            "9": "  fake-model default · /tmp/sandbox/project",
+            "10": "  ? for shortcuts                                                                             ⚠ 3 warnings · f2 to view"
+          }
+        },
+        "narrow": {
+          "height": 10,
+          "columns": 60,
+          "rows": {
+            "0": "     /tmp/sandbox/project",
+            "1": "› Ask me about the button",
+            "2": "• Which color should the button be?",
+            "3": "  • Blue",
+            "4": "  • Green",
+            "5": "• Finished the request.",
+            "6": "  Worked for <n> • <HH:MM>",
+            "7": "› Ask Codex to do anything",
+            "8": "  fake-model default · /tmp/sandbox/project",
+            "9": "  ? for shortcuts                 ⚠ 3 warnings · f2 to view"
+          }
+        }
+      },
+      "novadeckSees": {
+        "activity": null,
+        "requests": []
+      },
+      "hooksAll": [
+        {
+          "kind": "start",
+          "event": "SessionStart",
+          "payload": {
+            "session_id": "<uuid>",
+            "transcript_path": "/tmp/sandbox/home/.codex/sessions/<date>/rollout-<time>-<uuid>.jsonl",
+            "cwd": "/tmp/sandbox/project",
+            "hook_event_name": "SessionStart",
+            "model": "fake-model",
+            "permission_mode": "default",
+            "source": "startup"
+          }
+        },
+        {
+          "kind": "end",
+          "event": "SessionStart"
+        },
+        {
+          "kind": "start",
+          "event": "UserPromptSubmit",
+          "payload": {
+            "session_id": "<uuid>",
+            "turn_id": "<uuid>",
+            "transcript_path": "/tmp/sandbox/home/.codex/sessions/<date>/rollout-<time>-<uuid>.jsonl",
+            "cwd": "/tmp/sandbox/project",
+            "hook_event_name": "UserPromptSubmit",
+            "model": "fake-model",
+            "permission_mode": "default",
+            "prompt": "Ask me about the button"
+          }
+        },
+        {
+          "kind": "end",
+          "event": "UserPromptSubmit"
+        },
+        {
+          "kind": "start",
+          "event": "PreToolUse",
+          "payload": {
+            "session_id": "<uuid>",
+            "turn_id": "<uuid>",
+            "transcript_path": "/tmp/sandbox/home/.codex/sessions/<date>/rollout-<time>-<uuid>.jsonl",
+            "cwd": "/tmp/sandbox/project",
+            "hook_event_name": "PreToolUse",
+            "model": "fake-model",
+            "permission_mode": "default",
+            "tool_name": "request_user_input_async",
+            "tool_input": {
+              "questions": [
+                {
+                  "title": "Which color should the button be?",
+                  "options": ["Blue", "Green"]
+                }
+              ]
+            },
+            "tool_use_id": "call_<id>"
+          }
+        },
+        {
+          "kind": "end",
+          "event": "PreToolUse"
+        },
+        {
+          "kind": "start",
+          "event": "PostToolUse",
+          "payload": {
+            "session_id": "<uuid>",
+            "turn_id": "<uuid>",
+            "transcript_path": "/tmp/sandbox/home/.codex/sessions/<date>/rollout-<time>-<uuid>.jsonl",
+            "cwd": "/tmp/sandbox/project",
+            "hook_event_name": "PostToolUse",
+            "model": "fake-model",
+            "permission_mode": "default",
+            "tool_name": "request_user_input_async",
+            "tool_input": {
+              "questions": [
+                {
+                  "title": "Which color should the button be?",
+                  "options": ["Blue", "Green"]
+                }
+              ]
+            },
+            "tool_response": "{\"accepted\":true}",
+            "tool_use_id": "call_<id>"
+          }
+        },
+        {
+          "kind": "end",
+          "event": "PostToolUse"
+        },
+        {
+          "kind": "start",
+          "event": "Stop",
+          "payload": {
+            "session_id": "<uuid>",
+            "turn_id": "<uuid>",
+            "transcript_path": "/tmp/sandbox/home/.codex/sessions/<date>/rollout-<time>-<uuid>.jsonl",
+            "cwd": "/tmp/sandbox/project",
+            "hook_event_name": "Stop",
+            "model": "fake-model",
+            "permission_mode": "default",
+            "stop_hook_active": false,
+            "last_assistant_message": "Finished the request."
+          }
+        },
+        {
+          "kind": "end",
+          "event": "Stop"
+        }
+      ],
+      "rollout": [
+        {
+          "timestamp": "2000-01-01T00:00:00.000Z",
+          "ordinal": 1,
+          "type": "event_msg",
+          "payload": {
+            "type": "task_started",
+            "turn_attribution": {
+              "turn_id": "<uuid>",
+              "turn_trigger": "user",
+              "parent_turn_id": null,
+              "initiating_agent_path": null,
+              "root_turn_id": "<uuid>"
+            },
+            "turn_id": "<uuid>",
+            "root_turn_id": "<uuid>",
+            "started_at": 0,
+            "model_context_window": 190000,
+            "collaboration_mode_kind": "default"
+          }
+        },
+        {
+          "timestamp": "2000-01-01T00:00:00.000Z",
+          "ordinal": 6,
+          "type": "event_msg",
+          "payload": {
+            "type": "thread_settings_applied",
+            "thread_id": "<uuid>",
+            "thread_settings": {
+              "model": "fake-model",
+              "model_provider_id": "novadeck-e2e",
+              "service_tier": "default",
+              "approval_policy": "on-request",
+              "approvals_reviewer": "user",
+              "permission_profile": {
+                "type": "managed",
+                "file_system": {
+                  "type": "restricted",
+                  "entries": [
+                    {
+                      "path": {
+                        "type": "special",
+                        "value": {
+                          "kind": "root"
+                        }
+                      },
+                      "access": "read"
+                    },
+                    {
+                      "path": {
+                        "type": "path",
+                        "path": "/tmp/sandbox/project"
+                      },
+                      "access": "write"
+                    },
+                    {
+                      "path": {
+                        "type": "special",
+                        "value": {
+                          "kind": "slash_tmp"
+                        }
+                      },
+                      "access": "write"
+                    },
+                    {
+                      "path": {
+                        "type": "special",
+                        "value": {
+                          "kind": "tmpdir"
+                        }
+                      },
+                      "access": "write"
+                    },
+                    {
+                      "path": {
+                        "type": "path",
+                        "path": "/tmp/sandbox/project/.git"
+                      },
+                      "access": "read",
+                      "missing_path_behavior": "skip"
+                    },
+                    {
+                      "path": {
+                        "type": "path",
+                        "path": "/tmp/sandbox/project/.agents"
+                      },
+                      "access": "read",
+                      "missing_path_behavior": "skip"
+                    },
+                    {
+                      "path": {
+                        "type": "path",
+                        "path": "/tmp/sandbox/project/.codex"
+                      },
+                      "access": "read",
+                      "missing_path_behavior": "skip"
+                    },
+                    {
+                      "path": {
+                        "type": "path",
+                        "path": "/tmp/sandbox/project/.aws"
+                      },
+                      "access": "read",
+                      "missing_path_behavior": "skip"
+                    }
+                  ]
+                },
+                "network": "restricted"
+              },
+              "active_permission_profile": {
+                "id": ":workspace"
+              },
+              "cwd": "/tmp/sandbox/project",
+              "runtime_workspace_roots": ["/tmp/sandbox/project"],
+              "collaboration_mode": {
+                "mode": "default",
+                "settings": {
+                  "model": "fake-model",
+                  "reasoning_effort": null,
+                  "developer_instructions": "# Collaboration Mode: Default\n\nYou are now in Default mode. Any previous instructions for other modes (e.g. Plan mode) are no longer active.\n\nYour active mode changes only when new developer instructions with a different `<collaboration_mode>...</collaboration_mode>` change it; user requests or tool descriptions do not change mode by themselves. Known mode names are Default and Plan.\n\n## request_user_input availability\n\nUse the `request_user_input` tool only when it is listed in the available tools for this turn.\n\nIn Default mode, strongly prefer making reasonable assumptions and executing the user's request rather than stopping to ask questions.\n\nUse the `request_user_input` tool only for optional questions where the answer would materially improve the quality of the work.\n\nIf `request_user_input` returns no answers, continue with best judgment instead of asking again or treating the turn as blocked.\n\nNever use the `request_user_input` tool for permission requests or permission-related escalations.\n\nIf explicit user input is required for another reason before progress can safely continue, do not use the `request_user_input` tool. Ask the user directly with one concise plain-text question instead. Never write a multiple choice question as a textual assistant message.\n"
+                }
+              },
+              "disabled_plugin_ids": []
+            }
+          }
+        },
+        {
+          "timestamp": "2000-01-01T00:00:00.000Z",
+          "ordinal": 8,
+          "type": "event_msg",
+          "payload": {
+            "type": "item_completed",
+            "thread_id": "<uuid>",
+            "turn_id": "<uuid>",
+            "item": {
+              "type": "UserMessage",
+              "id": "<uuid>",
+              "client_id": "<uuid>",
+              "content": [
+                {
+                  "type": "text",
+                  "text": "Ask me about the button",
+                  "text_elements": []
+                }
+              ]
+            },
+            "started_at_ms": 0,
+            "completed_at_ms": 0
+          }
+        },
+        {
+          "timestamp": "2000-01-01T00:00:00.000Z",
+          "ordinal": 9,
+          "type": "response_item",
+          "payload": {
+            "type": "function_call",
+            "status": "completed",
+            "id": "fc_<id>",
+            "name": "request_user_input_async",
+            "arguments": "{\"questions\":[{\"title\":\"Which color should the button be?\",\"options\":[\"Blue\",\"Green\"]}]}",
+            "call_id": "call_<id>",
+            "internal_chat_message_metadata_passthrough": {
+              "turn_id": "<uuid>"
+            }
+          },
+          "metadata": {
+            "client_authored": false,
+            "user_input_order": 1
+          }
+        },
+        {
+          "timestamp": "2000-01-01T00:00:00.000Z",
+          "ordinal": 11,
+          "type": "event_msg",
+          "payload": {
+            "type": "item_completed",
+            "thread_id": "<uuid>",
+            "turn_id": "<uuid>",
+            "item": {
+              "type": "AgentMessage",
+              "id": "call_<id>",
+              "content": [
+                {
+                  "type": "Text",
+                  "text": "Which color should the button be?\n- Blue\n- Green"
+                }
+              ],
+              "phase": "final_answer",
+              "delivery": "async",
+              "questions": [
+                {
+                  "title": "Which color should the button be?",
+                  "options": ["Blue", "Green"]
+                }
+              ]
+            },
+            "started_at_ms": 0,
+            "completed_at_ms": 0
+          }
+        },
+        {
+          "timestamp": "2000-01-01T00:00:00.000Z",
+          "ordinal": 12,
+          "type": "response_item",
+          "payload": {
+            "type": "function_call_output",
+            "id": "fco_<uuid>",
+            "call_id": "call_<id>",
+            "output": "{\"accepted\":true}",
+            "internal_chat_message_metadata_passthrough": {
+              "turn_id": "<uuid>",
+              "create_time": 0
+            }
+          },
+          "metadata": {
+            "client_authored": false,
+            "fallback_token_limit_override": 12000
+          }
+        },
+        {
+          "timestamp": "2000-01-01T00:00:00.000Z",
+          "ordinal": 14,
+          "type": "event_msg",
+          "payload": {
+            "type": "item_completed",
+            "thread_id": "<uuid>",
+            "turn_id": "<uuid>",
+            "item": {
+              "type": "AgentMessage",
+              "id": "msg_<id>",
+              "content": [
+                {
+                  "type": "Text",
+                  "text": "Finished the request."
+                }
+              ]
+            },
+            "started_at_ms": 0,
+            "completed_at_ms": 0
+          }
+        },
+        {
+          "timestamp": "2000-01-01T00:00:00.000Z",
+          "ordinal": 18,
+          "type": "event_msg",
+          "payload": {
+            "type": "task_complete",
+            "root_turn_id": "<uuid>",
+            "turn_id": "<uuid>",
+            "last_agent_message": "Finished the request.",
+            "started_at": 0,
+            "completed_at": 0,
+            "duration_ms": 0,
+            "time_to_first_token_ms": 0
+          }
+        }
+      ],
+      "toolOutputSeenByModel": "{\"accepted\":true}"
+    },
+    "rui-async-panel-digit-2": {
+      "before": {
+        "height": 13,
+        "rows": {
+          "0": "  >_ OpenAI Codex (v0.163.0)",
+          "1": "     /tmp/sandbox/project",
+          "2": "› Ask me about the button",
+          "3": "• Which color should the button be?",
+          "4": "  • Blue",
+          "5": "  • Green",
+          "6": "• Working (10s • esc to interrupt)",
+          "7": "• Queued follow-up inputs",
+          "8": "  ? 1 question · 20s",
+          "9": "    shift+← to answer",
+          "10": "› Ask Codex to do anything",
+          "11": "  fake-model default · /tmp/sandbox/project",
+          "12": "  ? for shortcuts                                                                             ⚠ 3 warnings · f2 to view"
+        }
+      },
+      "steps": [
+        {
+          "label": "shift+left",
+          "screen": {
+            "height": 13,
+            "rows": {
+              "0": "  >_ OpenAI Codex (v0.163.0)",
+              "1": "     /tmp/sandbox/project",
+              "2": "› Ask me about the button",
+              "3": "• Which color should the button be?",
+              "4": "  • Blue",
+              "5": "  • Green",
+              "6": "• Working (15s • esc to interrupt)",
+              "7": "• Queued follow-up inputs",
+              "8": "  Which color should the button be?",
+              "9": "  › 1. Blue",
+              "10": "    2. Green",
+              "11": "    3. Other",
+              "12": "  enter submit   ^] skip   shift+→ main prompt"
+            }
+          }
+        },
+        {
+          "label": "2",
+          "screen": {
+            "height": 13,
+            "rows": {
+              "0": "  >_ OpenAI Codex (v0.163.0)",
+              "1": "     /tmp/sandbox/project",
+              "2": "› Ask me about the button",
+              "3": "• Which color should the button be?",
+              "4": "  • Blue",
+              "5": "  • Green",
+              "6": "• Working (20s • esc to interrupt)",
+              "7": "• Messages to be submitted after next tool call (press esc to interrupt and send immediately)",
+              "8": "  ↳ > Which color should the button be?",
+              "9": "    Green",
+              "10": "› Ask Codex to do anything",
+              "11": "  fake-model default · /tmp/sandbox/project",
+              "12": "  ? for shortcuts                                                                             ⚠ 3 warnings · f2 to view"
+            }
+          }
+        }
+      ],
+      "answered": true,
+      "screen": {
+        "height": 13,
+        "rows": {
+          "0": "  >_ OpenAI Codex (v0.163.0)",
+          "1": "     /tmp/sandbox/project",
+          "2": "› Ask me about the button",
+          "3": "• Which color should the button be?",
+          "4": "  • Blue",
+          "5": "  • Green",
+          "6": "› > Which color should the button be?",
+          "7": "  Green",
+          "8": "• Thanks for the answer.",
+          "9": "  Worked for <n> • <HH:MM>",
+          "10": "› Ask Codex to do anything",
+          "11": "  fake-model default · /tmp/sandbox/project",
+          "12": "  ? for shortcuts                                                                             ⚠ 3 warnings · f2 to view"
+        }
+      },
+      "hooksAll": [
+        {
+          "kind": "start",
+          "event": "SessionStart",
+          "payload": {
+            "session_id": "<uuid>",
+            "transcript_path": "/tmp/sandbox/home/.codex/sessions/<date>/rollout-<time>-<uuid>.jsonl",
+            "cwd": "/tmp/sandbox/project",
+            "hook_event_name": "SessionStart",
+            "model": "fake-model",
+            "permission_mode": "default",
+            "source": "startup"
+          }
+        },
+        {
+          "kind": "end",
+          "event": "SessionStart"
+        },
+        {
+          "kind": "start",
+          "event": "UserPromptSubmit",
+          "payload": {
+            "session_id": "<uuid>",
+            "turn_id": "<uuid>",
+            "transcript_path": "/tmp/sandbox/home/.codex/sessions/<date>/rollout-<time>-<uuid>.jsonl",
+            "cwd": "/tmp/sandbox/project",
+            "hook_event_name": "UserPromptSubmit",
+            "model": "fake-model",
+            "permission_mode": "default",
+            "prompt": "Ask me about the button"
+          }
+        },
+        {
+          "kind": "end",
+          "event": "UserPromptSubmit"
+        },
+        {
+          "kind": "start",
+          "event": "PreToolUse",
+          "payload": {
+            "session_id": "<uuid>",
+            "turn_id": "<uuid>",
+            "transcript_path": "/tmp/sandbox/home/.codex/sessions/<date>/rollout-<time>-<uuid>.jsonl",
+            "cwd": "/tmp/sandbox/project",
+            "hook_event_name": "PreToolUse",
+            "model": "fake-model",
+            "permission_mode": "default",
+            "tool_name": "request_user_input_async",
+            "tool_input": {
+              "questions": [
+                {
+                  "title": "Which color should the button be?",
+                  "options": ["Blue", "Green"]
+                }
+              ]
+            },
+            "tool_use_id": "call_<id>"
+          }
+        },
+        {
+          "kind": "end",
+          "event": "PreToolUse"
+        },
+        {
+          "kind": "start",
+          "event": "PostToolUse",
+          "payload": {
+            "session_id": "<uuid>",
+            "turn_id": "<uuid>",
+            "transcript_path": "/tmp/sandbox/home/.codex/sessions/<date>/rollout-<time>-<uuid>.jsonl",
+            "cwd": "/tmp/sandbox/project",
+            "hook_event_name": "PostToolUse",
+            "model": "fake-model",
+            "permission_mode": "default",
+            "tool_name": "request_user_input_async",
+            "tool_input": {
+              "questions": [
+                {
+                  "title": "Which color should the button be?",
+                  "options": ["Blue", "Green"]
+                }
+              ]
+            },
+            "tool_response": "{\"accepted\":true}",
+            "tool_use_id": "call_<id>"
+          }
+        },
+        {
+          "kind": "end",
+          "event": "PostToolUse"
+        },
+        {
+          "kind": "start",
+          "event": "UserPromptSubmit",
+          "payload": {
+            "session_id": "<uuid>",
+            "turn_id": "<uuid>",
+            "transcript_path": "/tmp/sandbox/home/.codex/sessions/<date>/rollout-<time>-<uuid>.jsonl",
+            "cwd": "/tmp/sandbox/project",
+            "hook_event_name": "UserPromptSubmit",
+            "model": "fake-model",
+            "permission_mode": "default",
+            "prompt": "<send_user_message_question_reply>\n[{\"answer\":\"Green\",\"question\":\"Which color should the button be?\",\"questionItemId\":\"[\\\"request_user_input_async\\\",\\\"call_<id>\\\",0]\"}]\n</send_user_message_question_reply>"
+          }
+        },
+        {
+          "kind": "end",
+          "event": "UserPromptSubmit"
+        },
+        {
+          "kind": "start",
+          "event": "Stop",
+          "payload": {
+            "session_id": "<uuid>",
+            "turn_id": "<uuid>",
+            "transcript_path": "/tmp/sandbox/home/.codex/sessions/<date>/rollout-<time>-<uuid>.jsonl",
+            "cwd": "/tmp/sandbox/project",
+            "hook_event_name": "Stop",
+            "model": "fake-model",
+            "permission_mode": "default",
+            "stop_hook_active": false,
+            "last_assistant_message": "Thanks for the answer."
+          }
+        },
+        {
+          "kind": "end",
+          "event": "Stop"
+        }
+      ],
+      "rollout": [
+        {
+          "timestamp": "2000-01-01T00:00:00.000Z",
+          "ordinal": 1,
+          "type": "event_msg",
+          "payload": {
+            "type": "task_started",
+            "turn_attribution": {
+              "turn_id": "<uuid>",
+              "turn_trigger": "user",
+              "parent_turn_id": null,
+              "initiating_agent_path": null,
+              "root_turn_id": "<uuid>"
+            },
+            "turn_id": "<uuid>",
+            "root_turn_id": "<uuid>",
+            "started_at": 0,
+            "model_context_window": 190000,
+            "collaboration_mode_kind": "default"
+          }
+        },
+        {
+          "timestamp": "2000-01-01T00:00:00.000Z",
+          "ordinal": 6,
+          "type": "event_msg",
+          "payload": {
+            "type": "thread_settings_applied",
+            "thread_id": "<uuid>",
+            "thread_settings": {
+              "model": "fake-model",
+              "model_provider_id": "novadeck-e2e",
+              "service_tier": "default",
+              "approval_policy": "on-request",
+              "approvals_reviewer": "user",
+              "permission_profile": {
+                "type": "managed",
+                "file_system": {
+                  "type": "restricted",
+                  "entries": [
+                    {
+                      "path": {
+                        "type": "special",
+                        "value": {
+                          "kind": "root"
+                        }
+                      },
+                      "access": "read"
+                    },
+                    {
+                      "path": {
+                        "type": "path",
+                        "path": "/tmp/sandbox/project"
+                      },
+                      "access": "write"
+                    },
+                    {
+                      "path": {
+                        "type": "special",
+                        "value": {
+                          "kind": "slash_tmp"
+                        }
+                      },
+                      "access": "write"
+                    },
+                    {
+                      "path": {
+                        "type": "special",
+                        "value": {
+                          "kind": "tmpdir"
+                        }
+                      },
+                      "access": "write"
+                    },
+                    {
+                      "path": {
+                        "type": "path",
+                        "path": "/tmp/sandbox/project/.git"
+                      },
+                      "access": "read",
+                      "missing_path_behavior": "skip"
+                    },
+                    {
+                      "path": {
+                        "type": "path",
+                        "path": "/tmp/sandbox/project/.agents"
+                      },
+                      "access": "read",
+                      "missing_path_behavior": "skip"
+                    },
+                    {
+                      "path": {
+                        "type": "path",
+                        "path": "/tmp/sandbox/project/.codex"
+                      },
+                      "access": "read",
+                      "missing_path_behavior": "skip"
+                    },
+                    {
+                      "path": {
+                        "type": "path",
+                        "path": "/tmp/sandbox/project/.aws"
+                      },
+                      "access": "read",
+                      "missing_path_behavior": "skip"
+                    }
+                  ]
+                },
+                "network": "restricted"
+              },
+              "active_permission_profile": {
+                "id": ":workspace"
+              },
+              "cwd": "/tmp/sandbox/project",
+              "runtime_workspace_roots": ["/tmp/sandbox/project"],
+              "collaboration_mode": {
+                "mode": "default",
+                "settings": {
+                  "model": "fake-model",
+                  "reasoning_effort": null,
+                  "developer_instructions": "# Collaboration Mode: Default\n\nYou are now in Default mode. Any previous instructions for other modes (e.g. Plan mode) are no longer active.\n\nYour active mode changes only when new developer instructions with a different `<collaboration_mode>...</collaboration_mode>` change it; user requests or tool descriptions do not change mode by themselves. Known mode names are Default and Plan.\n\n## request_user_input availability\n\nUse the `request_user_input` tool only when it is listed in the available tools for this turn.\n\nIn Default mode, strongly prefer making reasonable assumptions and executing the user's request rather than stopping to ask questions.\n\nUse the `request_user_input` tool only for optional questions where the answer would materially improve the quality of the work.\n\nIf `request_user_input` returns no answers, continue with best judgment instead of asking again or treating the turn as blocked.\n\nNever use the `request_user_input` tool for permission requests or permission-related escalations.\n\nIf explicit user input is required for another reason before progress can safely continue, do not use the `request_user_input` tool. Ask the user directly with one concise plain-text question instead. Never write a multiple choice question as a textual assistant message.\n"
+                }
+              },
+              "disabled_plugin_ids": []
+            }
+          }
+        },
+        {
+          "timestamp": "2000-01-01T00:00:00.000Z",
+          "ordinal": 8,
+          "type": "event_msg",
+          "payload": {
+            "type": "item_completed",
+            "thread_id": "<uuid>",
+            "turn_id": "<uuid>",
+            "item": {
+              "type": "UserMessage",
+              "id": "<uuid>",
+              "client_id": "<uuid>",
+              "content": [
+                {
+                  "type": "text",
+                  "text": "Ask me about the button",
+                  "text_elements": []
+                }
+              ]
+            },
+            "started_at_ms": 0,
+            "completed_at_ms": 0
+          }
+        },
+        {
+          "timestamp": "2000-01-01T00:00:00.000Z",
+          "ordinal": 9,
+          "type": "response_item",
+          "payload": {
+            "type": "function_call",
+            "status": "completed",
+            "id": "fc_<id>",
+            "name": "request_user_input_async",
+            "arguments": "{\"questions\":[{\"title\":\"Which color should the button be?\",\"options\":[\"Blue\",\"Green\"]}]}",
+            "call_id": "call_<id>",
+            "internal_chat_message_metadata_passthrough": {
+              "turn_id": "<uuid>"
+            }
+          },
+          "metadata": {
+            "client_authored": false,
+            "user_input_order": 1
+          }
+        },
+        {
+          "timestamp": "2000-01-01T00:00:00.000Z",
+          "ordinal": 11,
+          "type": "event_msg",
+          "payload": {
+            "type": "item_completed",
+            "thread_id": "<uuid>",
+            "turn_id": "<uuid>",
+            "item": {
+              "type": "AgentMessage",
+              "id": "call_<id>",
+              "content": [
+                {
+                  "type": "Text",
+                  "text": "Which color should the button be?\n- Blue\n- Green"
+                }
+              ],
+              "phase": "final_answer",
+              "delivery": "async",
+              "questions": [
+                {
+                  "title": "Which color should the button be?",
+                  "options": ["Blue", "Green"]
+                }
+              ]
+            },
+            "started_at_ms": 0,
+            "completed_at_ms": 0
+          }
+        },
+        {
+          "timestamp": "2000-01-01T00:00:00.000Z",
+          "ordinal": 12,
+          "type": "response_item",
+          "payload": {
+            "type": "function_call_output",
+            "id": "fco_<uuid>",
+            "call_id": "call_<id>",
+            "output": "{\"accepted\":true}",
+            "internal_chat_message_metadata_passthrough": {
+              "turn_id": "<uuid>",
+              "create_time": 0
+            }
+          },
+          "metadata": {
+            "client_authored": false,
+            "fallback_token_limit_override": 12000
+          }
+        },
+        {
+          "timestamp": "2000-01-01T00:00:00.000Z",
+          "ordinal": 15,
+          "type": "event_msg",
+          "payload": {
+            "type": "item_completed",
+            "thread_id": "<uuid>",
+            "turn_id": "<uuid>",
+            "item": {
+              "type": "UserMessage",
+              "id": "<uuid>",
+              "client_id": "<uuid>",
+              "content": [
+                {
+                  "type": "text",
+                  "text": "<send_user_message_question_reply>\n[{\"answer\":\"Green\",\"question\":\"Which color should the button be?\",\"questionItemId\":\"[\\\"request_user_input_async\\\",\\\"call_<id>\\\",0]\"}]\n</send_user_message_question_reply>",
+                  "text_elements": []
+                }
+              ]
+            },
+            "started_at_ms": 0,
+            "completed_at_ms": 0
+          }
+        },
+        {
+          "timestamp": "2000-01-01T00:00:00.000Z",
+          "ordinal": 16,
+          "type": "event_msg",
+          "payload": {
+            "type": "item_completed",
+            "thread_id": "<uuid>",
+            "turn_id": "<uuid>",
+            "item": {
+              "type": "AgentMessage",
+              "id": "msg_<id>",
+              "content": [
+                {
+                  "type": "Text",
+                  "text": "Thanks for the answer."
+                }
+              ]
+            },
+            "started_at_ms": 0,
+            "completed_at_ms": 0
+          }
+        },
+        {
+          "timestamp": "2000-01-01T00:00:00.000Z",
+          "ordinal": 20,
+          "type": "event_msg",
+          "payload": {
+            "type": "task_complete",
+            "root_turn_id": "<uuid>",
+            "turn_id": "<uuid>",
+            "last_agent_message": "Thanks for the answer.",
+            "started_at": 0,
+            "completed_at": 0,
+            "duration_ms": 0,
+            "time_to_first_token_ms": 0
+          }
+        }
+      ],
+      "modelSaw": [
+        {
+          "role": "user",
+          "text": "<environment_context>\n  <cwd>/tmp/sandbox/project</cwd>\n  <shell>bash</shell>\n  <current_date>2026-10-29</current_date>\n  <timezone>Europe/Warsaw</timezone>\n  <filesystem><workspace_roots><root>/tmp/sandbox/project</root></workspace_roots><permission_profile type=\"managed\"><file_system type=\"restricted\"><entry access=\"read\"><special>:root</special></entry><entry access=\"write\"><path>/tmp/sandbox/project</path></entry><entry access=\"write\"><special>:slash_tmp</special></entry><entry access=\"write\"><special>:tmpdir</special></entry><entry access=\"read\"><path>/tmp/sandbox/project/.git</path></entry><entry access=\"read\"><path>/tmp/sandbox/project/.agents</path></entry><entry access=\"read\"><path>/tmp/sandbox/project/.codex</path></entry><entry access=\"read\"><path>/tmp/sandbox/project/.aws</path></entry></file_system></permission_profile></filesystem>\n</environment_context>\nAsk me about the button"
+        },
+        {
+          "role": "user",
+          "text": "<environment_context>\n  <current_date>2026-10-29</current_date>\n  <timezone>Europe/Warsaw</timezone>\n</environment_context>\nGenerate a concise, single-line task title of at most 36 characters and under five words where possible. Start with an imperative verb. Capitalize only the first word unless the user's language, proper nouns, acronyms, or code terms require otherwise. Preserve ticket references exactly. Write in the user's language. Do not use quotes, markdown, or trailing punctuation. Do not answer the request.\n\nUser prompt:\nAsk me about the button"
+        },
+        {
+          "role": "tool",
+          "id": "call_<id>",
+          "text": "{\"accepted\":true}"
+        },
+        {
+          "role": "user",
+          "text": "<send_user_message_question_reply>\n[{\"answer\":\"Green\",\"question\":\"Which color should the button be?\",\"questionItemId\":\"[\\\"request_user_input_async\\\",\\\"call_<id>\\\",0]\"}]\n</send_user_message_question_reply>"
+        },
+        {
+          "role": "user",
+          "text": "<environment_context>\n  <current_date>2026-10-29</current_date>\n  <timezone>Europe/Warsaw</timezone>\n</environment_context>\nGenerate a concise, single-line task title of at most 36 characters and under five words where possible. Start with an imperative verb. Capitalize only the first word unless the user's language, proper nouns, acronyms, or code terms require otherwise. Preserve ticket references exactly. Write in the user's language. Do not use quotes, markdown, or trailing punctuation. Do not answer the request.\n\nUser prompt:\n<send_user_message_question_reply>\n[{\"answer\":\"Green\",\"question\":\"Which color should the button be?\",\"questionItemId\":\"[\\\"request_user_input_async\\\",\\\"call_<id>\\\",0]\"}]\n</send_user_message_question_reply>"
+        }
+      ]
+    },
+    "rui-async-panel-free-text": {
+      "before": {
+        "height": 11,
+        "rows": {
+          "0": "  >_ OpenAI Codex (v0.163.0)",
+          "1": "     /tmp/sandbox/project",
+          "2": "› Ask me about the button",
+          "3": "• What should its label say?",
+          "4": "• Working (5s • esc to interrupt)",
+          "5": "• Queued follow-up inputs",
+          "6": "  ? 1 question",
+          "7": "    shift+← to answer",
+          "8": "› Ask Codex to do anything",
+          "9": "  fake-model default · /tmp/sandbox/project",
+          "10": "  ? for shortcuts                                                                             ⚠ 2 warnings · f2 to view"
+        }
+      },
+      "steps": [
+        {
+          "label": "shift+left",
+          "screen": {
+            "height": 9,
+            "rows": {
+              "0": "  >_ OpenAI Codex (v0.163.0)",
+              "1": "     /tmp/sandbox/project",
+              "2": "› Ask me about the button",
+              "3": "• What should its label say?",
+              "4": "• Working (10s • esc to interrupt)",
+              "5": "• Queued follow-up inputs",
+              "6": "  What should its label say?",
+              "7": "  Type your answer",
+              "8": "  enter submit   ^] skip   shift+→ main prompt"
+            }
+          }
+        },
+        {
+          "label": "Large, enter",
+          "screen": {
+            "height": 11,
+            "rows": {
+              "0": "  >_ OpenAI Codex (v0.163.0)",
+              "1": "     /tmp/sandbox/project",
+              "2": "› Ask me about the button",
+              "3": "• What should its label say?",
+              "4": "• Working (16s • esc to interrupt)",
+              "5": "• Messages to be submitted after next tool call (press esc to interrupt and send immediately)",
+              "6": "  ↳ > What should its label say?",
+              "7": "    Large",
+              "8": "› Ask Codex to do anything",
+              "9": "  fake-model default · /tmp/sandbox/project",
+              "10": "  ? for shortcuts                                                                             ⚠ 2 warnings · f2 to view"
+            }
+          }
+        }
+      ],
+      "answered": false,
+      "screen": {
+        "height": 11,
+        "rows": {
+          "0": "  >_ OpenAI Codex (v0.163.0)",
+          "1": "     /tmp/sandbox/project",
+          "2": "› Ask me about the button",
+          "3": "• What should its label say?",
+          "4": "› > What should its label say?",
+          "5": "  Large",
+          "6": "• Thanks for the answer.",
+          "7": "  Worked for <n> • <HH:MM>",
+          "8": "› Ask Codex to do anything",
+          "9": "  fake-model default · /tmp/sandbox/project",
+          "10": "  ? for shortcuts                                                                             ⚠ 2 warnings · f2 to view"
+        }
+      },
+      "hooksAll": [
+        {
+          "kind": "start",
+          "event": "SessionStart",
+          "payload": {
+            "session_id": "<uuid>",
+            "transcript_path": "/tmp/sandbox/home/.codex/sessions/<date>/rollout-<time>-<uuid>.jsonl",
+            "cwd": "/tmp/sandbox/project",
+            "hook_event_name": "SessionStart",
+            "model": "fake-model",
+            "permission_mode": "default",
+            "source": "startup"
+          }
+        },
+        {
+          "kind": "end",
+          "event": "SessionStart"
+        },
+        {
+          "kind": "start",
+          "event": "UserPromptSubmit",
+          "payload": {
+            "session_id": "<uuid>",
+            "turn_id": "<uuid>",
+            "transcript_path": "/tmp/sandbox/home/.codex/sessions/<date>/rollout-<time>-<uuid>.jsonl",
+            "cwd": "/tmp/sandbox/project",
+            "hook_event_name": "UserPromptSubmit",
+            "model": "fake-model",
+            "permission_mode": "default",
+            "prompt": "Ask me about the button"
+          }
+        },
+        {
+          "kind": "end",
+          "event": "UserPromptSubmit"
+        },
+        {
+          "kind": "start",
+          "event": "PreToolUse[matched]",
+          "payload": {
+            "session_id": "<uuid>",
+            "turn_id": "<uuid>",
+            "transcript_path": "/tmp/sandbox/home/.codex/sessions/<date>/rollout-<time>-<uuid>.jsonl",
+            "cwd": "/tmp/sandbox/project",
+            "hook_event_name": "PreToolUse",
+            "model": "fake-model",
+            "permission_mode": "default",
+            "tool_name": "request_user_input_async",
+            "tool_input": {
+              "questions": [
+                {
+                  "title": "What should its label say?"
+                }
+              ]
+            },
+            "tool_use_id": "call_<id>"
+          }
+        },
+        {
+          "kind": "end",
+          "event": "PreToolUse[matched]"
+        },
+        {
+          "kind": "start",
+          "event": "PreToolUse",
+          "payload": {
+            "session_id": "<uuid>",
+            "turn_id": "<uuid>",
+            "transcript_path": "/tmp/sandbox/home/.codex/sessions/<date>/rollout-<time>-<uuid>.jsonl",
+            "cwd": "/tmp/sandbox/project",
+            "hook_event_name": "PreToolUse",
+            "model": "fake-model",
+            "permission_mode": "default",
+            "tool_name": "request_user_input_async",
+            "tool_input": {
+              "questions": [
+                {
+                  "title": "What should its label say?"
+                }
+              ]
+            },
+            "tool_use_id": "call_<id>"
+          }
+        },
+        {
+          "kind": "end",
+          "event": "PreToolUse"
+        },
+        {
+          "kind": "start",
+          "event": "PostToolUse",
+          "payload": {
+            "session_id": "<uuid>",
+            "turn_id": "<uuid>",
+            "transcript_path": "/tmp/sandbox/home/.codex/sessions/<date>/rollout-<time>-<uuid>.jsonl",
+            "cwd": "/tmp/sandbox/project",
+            "hook_event_name": "PostToolUse",
+            "model": "fake-model",
+            "permission_mode": "default",
+            "tool_name": "request_user_input_async",
+            "tool_input": {
+              "questions": [
+                {
+                  "title": "What should its label say?"
+                }
+              ]
+            },
+            "tool_response": "{\"accepted\":true}",
+            "tool_use_id": "call_<id>"
+          }
+        },
+        {
+          "kind": "end",
+          "event": "PostToolUse"
+        },
+        {
+          "kind": "start",
+          "event": "UserPromptSubmit",
+          "payload": {
+            "session_id": "<uuid>",
+            "turn_id": "<uuid>",
+            "transcript_path": "/tmp/sandbox/home/.codex/sessions/<date>/rollout-<time>-<uuid>.jsonl",
+            "cwd": "/tmp/sandbox/project",
+            "hook_event_name": "UserPromptSubmit",
+            "model": "fake-model",
+            "permission_mode": "default",
+            "prompt": "<send_user_message_question_reply>\n[{\"answer\":\"Large\",\"question\":\"What should its label say?\",\"questionItemId\":\"[\\\"request_user_input_async\\\",\\\"call_<id>\\\",0]\"}]\n</send_user_message_question_reply>"
+          }
+        },
+        {
+          "kind": "end",
+          "event": "UserPromptSubmit"
+        },
+        {
+          "kind": "start",
+          "event": "Stop",
+          "payload": {
+            "session_id": "<uuid>",
+            "turn_id": "<uuid>",
+            "transcript_path": "/tmp/sandbox/home/.codex/sessions/<date>/rollout-<time>-<uuid>.jsonl",
+            "cwd": "/tmp/sandbox/project",
+            "hook_event_name": "Stop",
+            "model": "fake-model",
+            "permission_mode": "default",
+            "stop_hook_active": false,
+            "last_assistant_message": "Thanks for the answer."
+          }
+        },
+        {
+          "kind": "end",
+          "event": "Stop"
+        }
+      ],
+      "rollout": [
+        {
+          "timestamp": "2000-01-01T00:00:00.000Z",
+          "ordinal": 1,
+          "type": "event_msg",
+          "payload": {
+            "type": "task_started",
+            "turn_attribution": {
+              "turn_id": "<uuid>",
+              "turn_trigger": "user",
+              "parent_turn_id": null,
+              "initiating_agent_path": null,
+              "root_turn_id": "<uuid>"
+            },
+            "turn_id": "<uuid>",
+            "root_turn_id": "<uuid>",
+            "started_at": 0,
+            "model_context_window": 190000,
+            "collaboration_mode_kind": "default"
+          }
+        },
+        {
+          "timestamp": "2000-01-01T00:00:00.000Z",
+          "ordinal": 6,
+          "type": "event_msg",
+          "payload": {
+            "type": "thread_settings_applied",
+            "thread_id": "<uuid>",
+            "thread_settings": {
+              "model": "fake-model",
+              "model_provider_id": "novadeck-e2e",
+              "service_tier": "default",
+              "approval_policy": "on-request",
+              "approvals_reviewer": "user",
+              "permission_profile": {
+                "type": "managed",
+                "file_system": {
+                  "type": "restricted",
+                  "entries": [
+                    {
+                      "path": {
+                        "type": "special",
+                        "value": {
+                          "kind": "root"
+                        }
+                      },
+                      "access": "read"
+                    },
+                    {
+                      "path": {
+                        "type": "path",
+                        "path": "/tmp/sandbox/project"
+                      },
+                      "access": "write"
+                    },
+                    {
+                      "path": {
+                        "type": "special",
+                        "value": {
+                          "kind": "slash_tmp"
+                        }
+                      },
+                      "access": "write"
+                    },
+                    {
+                      "path": {
+                        "type": "special",
+                        "value": {
+                          "kind": "tmpdir"
+                        }
+                      },
+                      "access": "write"
+                    },
+                    {
+                      "path": {
+                        "type": "path",
+                        "path": "/tmp/sandbox/project/.git"
+                      },
+                      "access": "read",
+                      "missing_path_behavior": "skip"
+                    },
+                    {
+                      "path": {
+                        "type": "path",
+                        "path": "/tmp/sandbox/project/.agents"
+                      },
+                      "access": "read",
+                      "missing_path_behavior": "skip"
+                    },
+                    {
+                      "path": {
+                        "type": "path",
+                        "path": "/tmp/sandbox/project/.codex"
+                      },
+                      "access": "read",
+                      "missing_path_behavior": "skip"
+                    },
+                    {
+                      "path": {
+                        "type": "path",
+                        "path": "/tmp/sandbox/project/.aws"
+                      },
+                      "access": "read",
+                      "missing_path_behavior": "skip"
+                    }
+                  ]
+                },
+                "network": "restricted"
+              },
+              "active_permission_profile": {
+                "id": ":workspace"
+              },
+              "cwd": "/tmp/sandbox/project",
+              "runtime_workspace_roots": ["/tmp/sandbox/project"],
+              "collaboration_mode": {
+                "mode": "default",
+                "settings": {
+                  "model": "fake-model",
+                  "reasoning_effort": null,
+                  "developer_instructions": "# Collaboration Mode: Default\n\nYou are now in Default mode. Any previous instructions for other modes (e.g. Plan mode) are no longer active.\n\nYour active mode changes only when new developer instructions with a different `<collaboration_mode>...</collaboration_mode>` change it; user requests or tool descriptions do not change mode by themselves. Known mode names are Default and Plan.\n\n## request_user_input availability\n\nUse the `request_user_input` tool only when it is listed in the available tools for this turn.\n\nIn Default mode, strongly prefer making reasonable assumptions and executing the user's request rather than stopping to ask questions.\n\nUse the `request_user_input` tool only for optional questions where the answer would materially improve the quality of the work.\n\nIf `request_user_input` returns no answers, continue with best judgment instead of asking again or treating the turn as blocked.\n\nNever use the `request_user_input` tool for permission requests or permission-related escalations.\n\nIf explicit user input is required for another reason before progress can safely continue, do not use the `request_user_input` tool. Ask the user directly with one concise plain-text question instead. Never write a multiple choice question as a textual assistant message.\n"
+                }
+              },
+              "disabled_plugin_ids": []
+            }
+          }
+        },
+        {
+          "timestamp": "2000-01-01T00:00:00.000Z",
+          "ordinal": 8,
+          "type": "event_msg",
+          "payload": {
+            "type": "item_completed",
+            "thread_id": "<uuid>",
+            "turn_id": "<uuid>",
+            "item": {
+              "type": "UserMessage",
+              "id": "<uuid>",
+              "client_id": "<uuid>",
+              "content": [
+                {
+                  "type": "text",
+                  "text": "Ask me about the button",
+                  "text_elements": []
+                }
+              ]
+            },
+            "started_at_ms": 0,
+            "completed_at_ms": 0
+          }
+        },
+        {
+          "timestamp": "2000-01-01T00:00:00.000Z",
+          "ordinal": 10,
+          "type": "response_item",
+          "payload": {
+            "type": "function_call",
+            "status": "completed",
+            "id": "fc_<id>",
+            "name": "request_user_input_async",
+            "arguments": "{\"questions\":[{\"title\":\"What should its label say?\"}]}",
+            "call_id": "call_<id>",
+            "internal_chat_message_metadata_passthrough": {
+              "turn_id": "<uuid>"
+            }
+          },
+          "metadata": {
+            "client_authored": false,
+            "user_input_order": 1
+          }
+        },
+        {
+          "timestamp": "2000-01-01T00:00:00.000Z",
+          "ordinal": 12,
+          "type": "event_msg",
+          "payload": {
+            "type": "item_completed",
+            "thread_id": "<uuid>",
+            "turn_id": "<uuid>",
+            "item": {
+              "type": "AgentMessage",
+              "id": "call_<id>",
+              "content": [
+                {
+                  "type": "Text",
+                  "text": "What should its label say?"
+                }
+              ],
+              "phase": "final_answer",
+              "delivery": "async",
+              "questions": [
+                {
+                  "title": "What should its label say?",
+                  "options": null
+                }
+              ]
+            },
+            "started_at_ms": 0,
+            "completed_at_ms": 0
+          }
+        },
+        {
+          "timestamp": "2000-01-01T00:00:00.000Z",
+          "ordinal": 13,
+          "type": "response_item",
+          "payload": {
+            "type": "function_call_output",
+            "id": "fco_<uuid>",
+            "call_id": "call_<id>",
+            "output": "{\"accepted\":true}",
+            "internal_chat_message_metadata_passthrough": {
+              "turn_id": "<uuid>",
+              "create_time": 0
+            }
+          },
+          "metadata": {
+            "client_authored": false,
+            "fallback_token_limit_override": 12000
+          }
+        },
+        {
+          "timestamp": "2000-01-01T00:00:00.000Z",
+          "ordinal": 16,
+          "type": "event_msg",
+          "payload": {
+            "type": "item_completed",
+            "thread_id": "<uuid>",
+            "turn_id": "<uuid>",
+            "item": {
+              "type": "UserMessage",
+              "id": "<uuid>",
+              "client_id": "<uuid>",
+              "content": [
+                {
+                  "type": "text",
+                  "text": "<send_user_message_question_reply>\n[{\"answer\":\"Large\",\"question\":\"What should its label say?\",\"questionItemId\":\"[\\\"request_user_input_async\\\",\\\"call_<id>\\\",0]\"}]\n</send_user_message_question_reply>",
+                  "text_elements": []
+                }
+              ]
+            },
+            "started_at_ms": 0,
+            "completed_at_ms": 0
+          }
+        },
+        {
+          "timestamp": "2000-01-01T00:00:00.000Z",
+          "ordinal": 17,
+          "type": "event_msg",
+          "payload": {
+            "type": "item_completed",
+            "thread_id": "<uuid>",
+            "turn_id": "<uuid>",
+            "item": {
+              "type": "AgentMessage",
+              "id": "msg_<id>",
+              "content": [
+                {
+                  "type": "Text",
+                  "text": "Thanks for the answer."
+                }
+              ]
+            },
+            "started_at_ms": 0,
+            "completed_at_ms": 0
+          }
+        },
+        {
+          "timestamp": "2000-01-01T00:00:00.000Z",
+          "ordinal": 21,
+          "type": "event_msg",
+          "payload": {
+            "type": "task_complete",
+            "root_turn_id": "<uuid>",
+            "turn_id": "<uuid>",
+            "last_agent_message": "Thanks for the answer.",
+            "started_at": 0,
+            "completed_at": 0,
+            "duration_ms": 0,
+            "time_to_first_token_ms": 0
+          }
+        }
+      ],
+      "modelSaw": [
+        {
+          "role": "user",
+          "text": "<environment_context>\n  <cwd>/tmp/sandbox/project</cwd>\n  <shell>bash</shell>\n  <current_date>2026-10-29</current_date>\n  <timezone>Europe/Warsaw</timezone>\n  <filesystem><workspace_roots><root>/tmp/sandbox/project</root></workspace_roots><permission_profile type=\"managed\"><file_system type=\"restricted\"><entry access=\"read\"><special>:root</special></entry><entry access=\"write\"><path>/tmp/sandbox/project</path></entry><entry access=\"write\"><special>:slash_tmp</special></entry><entry access=\"write\"><special>:tmpdir</special></entry><entry access=\"read\"><path>/tmp/sandbox/project/.git</path></entry><entry access=\"read\"><path>/tmp/sandbox/project/.agents</path></entry><entry access=\"read\"><path>/tmp/sandbox/project/.codex</path></entry><entry access=\"read\"><path>/tmp/sandbox/project/.aws</path></entry></file_system></permission_profile></filesystem>\n</environment_context>\nAsk me about the button\nNovadeck: automatic notice, not from the user: beside this terminal is a bar where you show the user what you make, with Novadeck's show tool. Show a deliverable when it is done, not each file you touch: an image or screenshot, a rendered page or a dev server's address, a report, mockup, diagram or generated document, the one file the user asked you for, or whatever they ask to see. Show a page you serve or just deployed, such as a dev server or a preview; a link to someone else's site, which often wants a sign-in in the pane, goes in your reply unless they ask to see it there. A source file is one too while it is the file you are working on together, so show it and keep it shown; the files a change touches on the way aren't: once a piece of work is done, show the working tree's changes with changes, as diffs. Show a deliverable with open when you finish it or they asked to see it, so it opens at once; leave open off for anything supporting, which waits for them marked new. Showing the same file or page again updates it, so one item per deliverable, and while they have it open each save shows at once. close takes away what no longer applies, never what they may still be looking at unless they asked; showing lists what is there. This notice needs no reply.\n\nNovadeck: automatic notice, not from the user: the user rarely watches this terminal, so a question only in your reply goes unseen. When your harness has its own question tool and you'd stop to ask with it, do, as you normally would: Novadeck shows that question in their Inbox as it is, so it needs no ask. Always put every other question you end your turn waiting on, such as which option to take or whether to open a pull request, in their Inbox with Novadeck's ask tool, unless it is already an open ask, and put the full question in your reply too; a closing offer such as 'anything else?' isn't one, nor is an action your harness is already prompting them for. When you can't go on without something only the user can do, such as a sign-in, access to a service or repo, or a key put in place, that is an ask with the action shape, not just words in your reply; never ask for a secret value. When the task you were given is finished, report it with Novadeck's done tool, your own short report, not when you answer a question or finish a step. With a lead, use ask, tell and done all the same, and send your lead your report and your questions too; approvals of actions are still only the user's. When they write to you here, Novadeck takes your open asks out of their Inbox and tells you; ask again only what their message leaves open. If they answer one here and no such notice came, withdraw it yourself. This notice needs no reply.\n\nNovadeck: automatic notice, not from the user: this terminal has no summary yet. Call Novadeck's summarize tool now, before you go on with the work you were given, with one short line on what the work here is about, at a high level: its subject, with no status, PR or issue numbers, or details; with no work given yet, do so as soon as there is. Novadeck titles this terminal from it, and other agents read it in their agents listing. This notice needs no reply."
+        },
+        {
+          "role": "user",
+          "text": "<environment_context>\n  <current_date>2026-10-29</current_date>\n  <timezone>Europe/Warsaw</timezone>\n</environment_context>\nGenerate a concise, single-line task title of at most 36 characters and under five words where possible. Start with an imperative verb. Capitalize only the first word unless the user's language, proper nouns, acronyms, or code terms require otherwise. Preserve ticket references exactly. Write in the user's language. Do not use quotes, markdown, or trailing punctuation. Do not answer the request.\n\nUser prompt:\nAsk me about the button"
+        },
+        {
+          "role": "tool",
+          "id": "call_<id>",
+          "text": "{\"accepted\":true}"
+        },
+        {
+          "role": "user",
+          "text": "<send_user_message_question_reply>\n[{\"answer\":\"Large\",\"question\":\"What should its label say?\",\"questionItemId\":\"[\\\"request_user_input_async\\\",\\\"call_<id>\\\",0]\"}]\n</send_user_message_question_reply>"
+        },
+        {
+          "role": "user",
+          "text": "<environment_context>\n  <current_date>2026-10-29</current_date>\n  <timezone>Europe/Warsaw</timezone>\n</environment_context>\nGenerate a concise, single-line task title of at most 36 characters and under five words where possible. Start with an imperative verb. Capitalize only the first word unless the user's language, proper nouns, acronyms, or code terms require otherwise. Preserve ticket references exactly. Write in the user's language. Do not use quotes, markdown, or trailing punctuation. Do not answer the request.\n\nUser prompt:\n<send_user_message_question_reply>\n[{\"answer\":\"Large\",\"question\":\"What should its label say?\",\"questionItemId\":\"[\\\"request_user_input_async\\\",\\\"call_<id>\\\",0]\"}]\n</send_user_message_question_reply>"
+        }
+      ]
+    },
+    "rui-async-panel-free-words": {
+      "before": {
+        "height": 11,
+        "rows": {
+          "0": "  >_ OpenAI Codex (v0.163.0)",
+          "1": "     /tmp/sandbox/project",
+          "2": "› Ask me about the button",
+          "3": "• What should its label say?",
+          "4": "• Working (5s • esc to interrupt)",
+          "5": "• Queued follow-up inputs",
+          "6": "  ? 1 question",
+          "7": "    shift+← to answer",
+          "8": "› Ask Codex to do anything",
+          "9": "  fake-model default · /tmp/sandbox/project",
+          "10": "  ? for shortcuts                                                                             ⚠ 2 warnings · f2 to view"
+        }
+      },
+      "steps": [
+        {
+          "label": "shift+left",
+          "screen": {
+            "height": 9,
+            "rows": {
+              "0": "  >_ OpenAI Codex (v0.163.0)",
+              "1": "     /tmp/sandbox/project",
+              "2": "› Ask me about the button",
+              "3": "• What should its label say?",
+              "4": "• Working (10s • esc to interrupt)",
+              "5": "• Queued follow-up inputs",
+              "6": "  What should its label say?",
+              "7": "  Type your answer",
+              "8": "  enter submit   ^] skip   shift+→ main prompt"
+            }
+          }
+        },
+        {
+          "label": "Large",
+          "screen": {
+            "height": 9,
+            "rows": {
+              "0": "  >_ OpenAI Codex (v0.163.0)",
+              "1": "     /tmp/sandbox/project",
+              "2": "› Ask me about the button",
+              "3": "• What should its label say?",
+              "4": "• Working (15s • esc to interrupt)",
+              "5": "• Queued follow-up inputs",
+              "6": "  What should its label say?",
+              "7": "  Large",
+              "8": "  enter submit   ^] skip   shift+→ main prompt"
+            }
+          }
+        }
+      ],
+      "answered": false,
+      "screen": {
+        "height": 10,
+        "rows": {
+          "0": "  >_ OpenAI Codex (v0.163.0)",
+          "1": "     /tmp/sandbox/project",
+          "2": "› Ask me about the button",
+          "3": "• What should its label say?",
+          "4": "• Finished the request.",
+          "5": "  Worked for <n> • <HH:MM>",
+          "6": "› > What should its label say?",
+          "7": "  Large",
+          "8": "  fake-model default · /tmp/sandbox/project",
+          "9": "                                                                                              ⚠ 2 warnings · f2 to view"
+        }
+      },
+      "hooksAll": [
+        {
+          "kind": "start",
+          "event": "SessionStart",
+          "payload": {
+            "session_id": "<uuid>",
+            "transcript_path": "/tmp/sandbox/home/.codex/sessions/<date>/rollout-<time>-<uuid>.jsonl",
+            "cwd": "/tmp/sandbox/project",
+            "hook_event_name": "SessionStart",
+            "model": "fake-model",
+            "permission_mode": "default",
+            "source": "startup"
+          }
+        },
+        {
+          "kind": "end",
+          "event": "SessionStart"
+        },
+        {
+          "kind": "start",
+          "event": "UserPromptSubmit",
+          "payload": {
+            "session_id": "<uuid>",
+            "turn_id": "<uuid>",
+            "transcript_path": "/tmp/sandbox/home/.codex/sessions/<date>/rollout-<time>-<uuid>.jsonl",
+            "cwd": "/tmp/sandbox/project",
+            "hook_event_name": "UserPromptSubmit",
+            "model": "fake-model",
+            "permission_mode": "default",
+            "prompt": "Ask me about the button"
+          }
+        },
+        {
+          "kind": "end",
+          "event": "UserPromptSubmit"
+        },
+        {
+          "kind": "start",
+          "event": "PreToolUse[matched]",
+          "payload": {
+            "session_id": "<uuid>",
+            "turn_id": "<uuid>",
+            "transcript_path": "/tmp/sandbox/home/.codex/sessions/<date>/rollout-<time>-<uuid>.jsonl",
+            "cwd": "/tmp/sandbox/project",
+            "hook_event_name": "PreToolUse",
+            "model": "fake-model",
+            "permission_mode": "default",
+            "tool_name": "request_user_input_async",
+            "tool_input": {
+              "questions": [
+                {
+                  "title": "What should its label say?"
+                }
+              ]
+            },
+            "tool_use_id": "call_<id>"
+          }
+        },
+        {
+          "kind": "end",
+          "event": "PreToolUse[matched]"
+        },
+        {
+          "kind": "start",
+          "event": "PreToolUse",
+          "payload": {
+            "session_id": "<uuid>",
+            "turn_id": "<uuid>",
+            "transcript_path": "/tmp/sandbox/home/.codex/sessions/<date>/rollout-<time>-<uuid>.jsonl",
+            "cwd": "/tmp/sandbox/project",
+            "hook_event_name": "PreToolUse",
+            "model": "fake-model",
+            "permission_mode": "default",
+            "tool_name": "request_user_input_async",
+            "tool_input": {
+              "questions": [
+                {
+                  "title": "What should its label say?"
+                }
+              ]
+            },
+            "tool_use_id": "call_<id>"
+          }
+        },
+        {
+          "kind": "end",
+          "event": "PreToolUse"
+        },
+        {
+          "kind": "start",
+          "event": "PostToolUse",
+          "payload": {
+            "session_id": "<uuid>",
+            "turn_id": "<uuid>",
+            "transcript_path": "/tmp/sandbox/home/.codex/sessions/<date>/rollout-<time>-<uuid>.jsonl",
+            "cwd": "/tmp/sandbox/project",
+            "hook_event_name": "PostToolUse",
+            "model": "fake-model",
+            "permission_mode": "default",
+            "tool_name": "request_user_input_async",
+            "tool_input": {
+              "questions": [
+                {
+                  "title": "What should its label say?"
+                }
+              ]
+            },
+            "tool_response": "{\"accepted\":true}",
+            "tool_use_id": "call_<id>"
+          }
+        },
+        {
+          "kind": "end",
+          "event": "PostToolUse"
+        },
+        {
+          "kind": "start",
+          "event": "Stop",
+          "payload": {
+            "session_id": "<uuid>",
+            "turn_id": "<uuid>",
+            "transcript_path": "/tmp/sandbox/home/.codex/sessions/<date>/rollout-<time>-<uuid>.jsonl",
+            "cwd": "/tmp/sandbox/project",
+            "hook_event_name": "Stop",
+            "model": "fake-model",
+            "permission_mode": "default",
+            "stop_hook_active": false,
+            "last_assistant_message": "Finished the request."
+          }
+        },
+        {
+          "kind": "end",
+          "event": "Stop"
+        }
+      ],
+      "rollout": [
+        {
+          "timestamp": "2000-01-01T00:00:00.000Z",
+          "ordinal": 1,
+          "type": "event_msg",
+          "payload": {
+            "type": "task_started",
+            "turn_attribution": {
+              "turn_id": "<uuid>",
+              "turn_trigger": "user",
+              "parent_turn_id": null,
+              "initiating_agent_path": null,
+              "root_turn_id": "<uuid>"
+            },
+            "turn_id": "<uuid>",
+            "root_turn_id": "<uuid>",
+            "started_at": 0,
+            "model_context_window": 190000,
+            "collaboration_mode_kind": "default"
+          }
+        },
+        {
+          "timestamp": "2000-01-01T00:00:00.000Z",
+          "ordinal": 6,
+          "type": "event_msg",
+          "payload": {
+            "type": "thread_settings_applied",
+            "thread_id": "<uuid>",
+            "thread_settings": {
+              "model": "fake-model",
+              "model_provider_id": "novadeck-e2e",
+              "service_tier": "default",
+              "approval_policy": "on-request",
+              "approvals_reviewer": "user",
+              "permission_profile": {
+                "type": "managed",
+                "file_system": {
+                  "type": "restricted",
+                  "entries": [
+                    {
+                      "path": {
+                        "type": "special",
+                        "value": {
+                          "kind": "root"
+                        }
+                      },
+                      "access": "read"
+                    },
+                    {
+                      "path": {
+                        "type": "path",
+                        "path": "/tmp/sandbox/project"
+                      },
+                      "access": "write"
+                    },
+                    {
+                      "path": {
+                        "type": "special",
+                        "value": {
+                          "kind": "slash_tmp"
+                        }
+                      },
+                      "access": "write"
+                    },
+                    {
+                      "path": {
+                        "type": "special",
+                        "value": {
+                          "kind": "tmpdir"
+                        }
+                      },
+                      "access": "write"
+                    },
+                    {
+                      "path": {
+                        "type": "path",
+                        "path": "/tmp/sandbox/project/.git"
+                      },
+                      "access": "read",
+                      "missing_path_behavior": "skip"
+                    },
+                    {
+                      "path": {
+                        "type": "path",
+                        "path": "/tmp/sandbox/project/.agents"
+                      },
+                      "access": "read",
+                      "missing_path_behavior": "skip"
+                    },
+                    {
+                      "path": {
+                        "type": "path",
+                        "path": "/tmp/sandbox/project/.codex"
+                      },
+                      "access": "read",
+                      "missing_path_behavior": "skip"
+                    },
+                    {
+                      "path": {
+                        "type": "path",
+                        "path": "/tmp/sandbox/project/.aws"
+                      },
+                      "access": "read",
+                      "missing_path_behavior": "skip"
+                    }
+                  ]
+                },
+                "network": "restricted"
+              },
+              "active_permission_profile": {
+                "id": ":workspace"
+              },
+              "cwd": "/tmp/sandbox/project",
+              "runtime_workspace_roots": ["/tmp/sandbox/project"],
+              "collaboration_mode": {
+                "mode": "default",
+                "settings": {
+                  "model": "fake-model",
+                  "reasoning_effort": null,
+                  "developer_instructions": "# Collaboration Mode: Default\n\nYou are now in Default mode. Any previous instructions for other modes (e.g. Plan mode) are no longer active.\n\nYour active mode changes only when new developer instructions with a different `<collaboration_mode>...</collaboration_mode>` change it; user requests or tool descriptions do not change mode by themselves. Known mode names are Default and Plan.\n\n## request_user_input availability\n\nUse the `request_user_input` tool only when it is listed in the available tools for this turn.\n\nIn Default mode, strongly prefer making reasonable assumptions and executing the user's request rather than stopping to ask questions.\n\nUse the `request_user_input` tool only for optional questions where the answer would materially improve the quality of the work.\n\nIf `request_user_input` returns no answers, continue with best judgment instead of asking again or treating the turn as blocked.\n\nNever use the `request_user_input` tool for permission requests or permission-related escalations.\n\nIf explicit user input is required for another reason before progress can safely continue, do not use the `request_user_input` tool. Ask the user directly with one concise plain-text question instead. Never write a multiple choice question as a textual assistant message.\n"
+                }
+              },
+              "disabled_plugin_ids": []
+            }
+          }
+        },
+        {
+          "timestamp": "2000-01-01T00:00:00.000Z",
+          "ordinal": 8,
+          "type": "event_msg",
+          "payload": {
+            "type": "item_completed",
+            "thread_id": "<uuid>",
+            "turn_id": "<uuid>",
+            "item": {
+              "type": "UserMessage",
+              "id": "<uuid>",
+              "client_id": "<uuid>",
+              "content": [
+                {
+                  "type": "text",
+                  "text": "Ask me about the button",
+                  "text_elements": []
+                }
+              ]
+            },
+            "started_at_ms": 0,
+            "completed_at_ms": 0
+          }
+        },
+        {
+          "timestamp": "2000-01-01T00:00:00.000Z",
+          "ordinal": 10,
+          "type": "response_item",
+          "payload": {
+            "type": "function_call",
+            "status": "completed",
+            "id": "fc_<id>",
+            "name": "request_user_input_async",
+            "arguments": "{\"questions\":[{\"title\":\"What should its label say?\"}]}",
+            "call_id": "call_<id>",
+            "internal_chat_message_metadata_passthrough": {
+              "turn_id": "<uuid>"
+            }
+          },
+          "metadata": {
+            "client_authored": false,
+            "user_input_order": 1
+          }
+        },
+        {
+          "timestamp": "2000-01-01T00:00:00.000Z",
+          "ordinal": 12,
+          "type": "event_msg",
+          "payload": {
+            "type": "item_completed",
+            "thread_id": "<uuid>",
+            "turn_id": "<uuid>",
+            "item": {
+              "type": "AgentMessage",
+              "id": "call_<id>",
+              "content": [
+                {
+                  "type": "Text",
+                  "text": "What should its label say?"
+                }
+              ],
+              "phase": "final_answer",
+              "delivery": "async",
+              "questions": [
+                {
+                  "title": "What should its label say?",
+                  "options": null
+                }
+              ]
+            },
+            "started_at_ms": 0,
+            "completed_at_ms": 0
+          }
+        },
+        {
+          "timestamp": "2000-01-01T00:00:00.000Z",
+          "ordinal": 13,
+          "type": "response_item",
+          "payload": {
+            "type": "function_call_output",
+            "id": "fco_<uuid>",
+            "call_id": "call_<id>",
+            "output": "{\"accepted\":true}",
+            "internal_chat_message_metadata_passthrough": {
+              "turn_id": "<uuid>",
+              "create_time": 0
+            }
+          },
+          "metadata": {
+            "client_authored": false,
+            "fallback_token_limit_override": 12000
+          }
+        },
+        {
+          "timestamp": "2000-01-01T00:00:00.000Z",
+          "ordinal": 15,
+          "type": "event_msg",
+          "payload": {
+            "type": "item_completed",
+            "thread_id": "<uuid>",
+            "turn_id": "<uuid>",
+            "item": {
+              "type": "AgentMessage",
+              "id": "msg_<id>",
+              "content": [
+                {
+                  "type": "Text",
+                  "text": "Finished the request."
+                }
+              ]
+            },
+            "started_at_ms": 0,
+            "completed_at_ms": 0
+          }
+        },
+        {
+          "timestamp": "2000-01-01T00:00:00.000Z",
+          "ordinal": 19,
+          "type": "event_msg",
+          "payload": {
+            "type": "task_complete",
+            "root_turn_id": "<uuid>",
+            "turn_id": "<uuid>",
+            "last_agent_message": "Finished the request.",
+            "started_at": 0,
+            "completed_at": 0,
+            "duration_ms": 0,
+            "time_to_first_token_ms": 0
+          }
+        }
+      ],
+      "modelSaw": [
+        {
+          "role": "user",
+          "text": "<environment_context>\n  <cwd>/tmp/sandbox/project</cwd>\n  <shell>bash</shell>\n  <current_date>2026-10-29</current_date>\n  <timezone>Europe/Warsaw</timezone>\n  <filesystem><workspace_roots><root>/tmp/sandbox/project</root></workspace_roots><permission_profile type=\"managed\"><file_system type=\"restricted\"><entry access=\"read\"><special>:root</special></entry><entry access=\"write\"><path>/tmp/sandbox/project</path></entry><entry access=\"write\"><special>:slash_tmp</special></entry><entry access=\"write\"><special>:tmpdir</special></entry><entry access=\"read\"><path>/tmp/sandbox/project/.git</path></entry><entry access=\"read\"><path>/tmp/sandbox/project/.agents</path></entry><entry access=\"read\"><path>/tmp/sandbox/project/.codex</path></entry><entry access=\"read\"><path>/tmp/sandbox/project/.aws</path></entry></file_system></permission_profile></filesystem>\n</environment_context>\nAsk me about the button\nNovadeck: automatic notice, not from the user: beside this terminal is a bar where you show the user what you make, with Novadeck's show tool. Show a deliverable when it is done, not each file you touch: an image or screenshot, a rendered page or a dev server's address, a report, mockup, diagram or generated document, the one file the user asked you for, or whatever they ask to see. Show a page you serve or just deployed, such as a dev server or a preview; a link to someone else's site, which often wants a sign-in in the pane, goes in your reply unless they ask to see it there. A source file is one too while it is the file you are working on together, so show it and keep it shown; the files a change touches on the way aren't: once a piece of work is done, show the working tree's changes with changes, as diffs. Show a deliverable with open when you finish it or they asked to see it, so it opens at once; leave open off for anything supporting, which waits for them marked new. Showing the same file or page again updates it, so one item per deliverable, and while they have it open each save shows at once. close takes away what no longer applies, never what they may still be looking at unless they asked; showing lists what is there. This notice needs no reply.\n\nNovadeck: automatic notice, not from the user: the user rarely watches this terminal, so a question only in your reply goes unseen. When your harness has its own question tool and you'd stop to ask with it, do, as you normally would: Novadeck shows that question in their Inbox as it is, so it needs no ask. Always put every other question you end your turn waiting on, such as which option to take or whether to open a pull request, in their Inbox with Novadeck's ask tool, unless it is already an open ask, and put the full question in your reply too; a closing offer such as 'anything else?' isn't one, nor is an action your harness is already prompting them for. When you can't go on without something only the user can do, such as a sign-in, access to a service or repo, or a key put in place, that is an ask with the action shape, not just words in your reply; never ask for a secret value. When the task you were given is finished, report it with Novadeck's done tool, your own short report, not when you answer a question or finish a step. With a lead, use ask, tell and done all the same, and send your lead your report and your questions too; approvals of actions are still only the user's. When they write to you here, Novadeck takes your open asks out of their Inbox and tells you; ask again only what their message leaves open. If they answer one here and no such notice came, withdraw it yourself. This notice needs no reply.\n\nNovadeck: automatic notice, not from the user: this terminal has no summary yet. Call Novadeck's summarize tool now, before you go on with the work you were given, with one short line on what the work here is about, at a high level: its subject, with no status, PR or issue numbers, or details; with no work given yet, do so as soon as there is. Novadeck titles this terminal from it, and other agents read it in their agents listing. This notice needs no reply."
+        },
+        {
+          "role": "user",
+          "text": "<environment_context>\n  <current_date>2026-10-29</current_date>\n  <timezone>Europe/Warsaw</timezone>\n</environment_context>\nGenerate a concise, single-line task title of at most 36 characters and under five words where possible. Start with an imperative verb. Capitalize only the first word unless the user's language, proper nouns, acronyms, or code terms require otherwise. Preserve ticket references exactly. Write in the user's language. Do not use quotes, markdown, or trailing punctuation. Do not answer the request.\n\nUser prompt:\nAsk me about the button"
+        },
+        {
+          "role": "tool",
+          "id": "call_<id>",
+          "text": "{\"accepted\":true}"
+        }
+      ]
+    },
+    "rui-async-panel-other-pasted": {
+      "before": {
+        "height": 13,
+        "rows": {
+          "0": "  >_ OpenAI Codex (v0.163.0)",
+          "1": "     /tmp/sandbox/project",
+          "2": "› Ask me about the button",
+          "3": "• Which color should the button be?",
+          "4": "  • Blue",
+          "5": "  • Green",
+          "6": "• Working (5s • esc to interrupt)",
+          "7": "• Queued follow-up inputs",
+          "8": "  ? 1 question",
+          "9": "    shift+← to answer",
+          "10": "› Ask Codex to do anything",
+          "11": "  fake-model default · /tmp/sandbox/project",
+          "12": "  ? for shortcuts                                                                             ⚠ 2 warnings · f2 to view"
+        }
+      },
+      "steps": [
+        {
+          "label": "shift+left",
+          "screen": {
+            "height": 13,
+            "rows": {
+              "0": "  >_ OpenAI Codex (v0.163.0)",
+              "1": "     /tmp/sandbox/project",
+              "2": "› Ask me about the button",
+              "3": "• Which color should the button be?",
+              "4": "  • Blue",
+              "5": "  • Green",
+              "6": "• Working (10s • esc to interrupt)",
+              "7": "• Queued follow-up inputs",
+              "8": "  Which color should the button be?",
+              "9": "  › 1. Blue",
+              "10": "    2. Green",
+              "11": "    3. Other",
+              "12": "  enter submit   ^] skip   shift+→ main prompt"
+            }
+          }
+        },
+        {
+          "label": "3",
+          "screen": {
+            "height": 13,
+            "rows": {
+              "0": "  >_ OpenAI Codex (v0.163.0)",
+              "1": "     /tmp/sandbox/project",
+              "2": "› Ask me about the button",
+              "3": "• Which color should the button be?",
+              "4": "  • Blue",
+              "5": "  • Green",
+              "6": "• Working (15s • esc to interrupt)",
+              "7": "• Queued follow-up inputs",
+              "8": "  Which color should the button be?",
+              "9": "    1. Blue",
+              "10": "    2. Green",
+              "11": "  › 3. Other",
+              "12": "  enter submit   ^] skip   shift+→ main prompt"
+            }
+          }
+        },
+        {
+          "label": "Purple, enter",
+          "screen": {
+            "height": 13,
+            "rows": {
+              "0": "  >_ OpenAI Codex (v0.163.0)",
+              "1": "     /tmp/sandbox/project",
+              "2": "› Ask me about the button",
+              "3": "• Which color should the button be?",
+              "4": "  • Blue",
+              "5": "  • Green",
+              "6": "• Working (20s • esc to interrupt)",
+              "7": "• Messages to be submitted after next tool call (press esc to interrupt and send immediately)",
+              "8": "  ↳ > Which color should the button be?",
+              "9": "    Purple",
+              "10": "› Ask Codex to do anything",
+              "11": "  fake-model default · /tmp/sandbox/project",
+              "12": "  ? for shortcuts                                                                             ⚠ 2 warnings · f2 to view"
+            }
+          }
+        }
+      ],
+      "answered": true,
+      "screen": {
+        "height": 13,
+        "rows": {
+          "0": "  >_ OpenAI Codex (v0.163.0)",
+          "1": "     /tmp/sandbox/project",
+          "2": "› Ask me about the button",
+          "3": "• Which color should the button be?",
+          "4": "  • Blue",
+          "5": "  • Green",
+          "6": "› > Which color should the button be?",
+          "7": "  Purple",
+          "8": "• Thanks for the answer.",
+          "9": "  Worked for <n> • <HH:MM>",
+          "10": "› Ask Codex to do anything",
+          "11": "  fake-model default · /tmp/sandbox/project",
+          "12": "  ? for shortcuts                                                                             ⚠ 2 warnings · f2 to view"
+        }
+      },
+      "hooksAll": [
+        {
+          "kind": "start",
+          "event": "SessionStart",
+          "payload": {
+            "session_id": "<uuid>",
+            "transcript_path": "/tmp/sandbox/home/.codex/sessions/<date>/rollout-<time>-<uuid>.jsonl",
+            "cwd": "/tmp/sandbox/project",
+            "hook_event_name": "SessionStart",
+            "model": "fake-model",
+            "permission_mode": "default",
+            "source": "startup"
+          }
+        },
+        {
+          "kind": "end",
+          "event": "SessionStart"
+        },
+        {
+          "kind": "start",
+          "event": "UserPromptSubmit",
+          "payload": {
+            "session_id": "<uuid>",
+            "turn_id": "<uuid>",
+            "transcript_path": "/tmp/sandbox/home/.codex/sessions/<date>/rollout-<time>-<uuid>.jsonl",
+            "cwd": "/tmp/sandbox/project",
+            "hook_event_name": "UserPromptSubmit",
+            "model": "fake-model",
+            "permission_mode": "default",
+            "prompt": "Ask me about the button"
+          }
+        },
+        {
+          "kind": "end",
+          "event": "UserPromptSubmit"
+        },
+        {
+          "kind": "start",
+          "event": "PreToolUse[matched]",
+          "payload": {
+            "session_id": "<uuid>",
+            "turn_id": "<uuid>",
+            "transcript_path": "/tmp/sandbox/home/.codex/sessions/<date>/rollout-<time>-<uuid>.jsonl",
+            "cwd": "/tmp/sandbox/project",
+            "hook_event_name": "PreToolUse",
+            "model": "fake-model",
+            "permission_mode": "default",
+            "tool_name": "request_user_input_async",
+            "tool_input": {
+              "questions": [
+                {
+                  "title": "Which color should the button be?",
+                  "options": ["Blue", "Green"]
+                }
+              ]
+            },
+            "tool_use_id": "call_<id>"
+          }
+        },
+        {
+          "kind": "end",
+          "event": "PreToolUse[matched]"
+        },
+        {
+          "kind": "start",
+          "event": "PreToolUse",
+          "payload": {
+            "session_id": "<uuid>",
+            "turn_id": "<uuid>",
+            "transcript_path": "/tmp/sandbox/home/.codex/sessions/<date>/rollout-<time>-<uuid>.jsonl",
+            "cwd": "/tmp/sandbox/project",
+            "hook_event_name": "PreToolUse",
+            "model": "fake-model",
+            "permission_mode": "default",
+            "tool_name": "request_user_input_async",
+            "tool_input": {
+              "questions": [
+                {
+                  "title": "Which color should the button be?",
+                  "options": ["Blue", "Green"]
+                }
+              ]
+            },
+            "tool_use_id": "call_<id>"
+          }
+        },
+        {
+          "kind": "end",
+          "event": "PreToolUse"
+        },
+        {
+          "kind": "start",
+          "event": "PostToolUse",
+          "payload": {
+            "session_id": "<uuid>",
+            "turn_id": "<uuid>",
+            "transcript_path": "/tmp/sandbox/home/.codex/sessions/<date>/rollout-<time>-<uuid>.jsonl",
+            "cwd": "/tmp/sandbox/project",
+            "hook_event_name": "PostToolUse",
+            "model": "fake-model",
+            "permission_mode": "default",
+            "tool_name": "request_user_input_async",
+            "tool_input": {
+              "questions": [
+                {
+                  "title": "Which color should the button be?",
+                  "options": ["Blue", "Green"]
+                }
+              ]
+            },
+            "tool_response": "{\"accepted\":true}",
+            "tool_use_id": "call_<id>"
+          }
+        },
+        {
+          "kind": "end",
+          "event": "PostToolUse"
+        },
+        {
+          "kind": "start",
+          "event": "UserPromptSubmit",
+          "payload": {
+            "session_id": "<uuid>",
+            "turn_id": "<uuid>",
+            "transcript_path": "/tmp/sandbox/home/.codex/sessions/<date>/rollout-<time>-<uuid>.jsonl",
+            "cwd": "/tmp/sandbox/project",
+            "hook_event_name": "UserPromptSubmit",
+            "model": "fake-model",
+            "permission_mode": "default",
+            "prompt": "<send_user_message_question_reply>\n[{\"answer\":\"Purple\",\"question\":\"Which color should the button be?\",\"questionItemId\":\"[\\\"request_user_input_async\\\",\\\"call_<id>\\\",0]\"}]\n</send_user_message_question_reply>"
+          }
+        },
+        {
+          "kind": "end",
+          "event": "UserPromptSubmit"
+        },
+        {
+          "kind": "start",
+          "event": "Stop",
+          "payload": {
+            "session_id": "<uuid>",
+            "turn_id": "<uuid>",
+            "transcript_path": "/tmp/sandbox/home/.codex/sessions/<date>/rollout-<time>-<uuid>.jsonl",
+            "cwd": "/tmp/sandbox/project",
+            "hook_event_name": "Stop",
+            "model": "fake-model",
+            "permission_mode": "default",
+            "stop_hook_active": false,
+            "last_assistant_message": "Thanks for the answer."
+          }
+        },
+        {
+          "kind": "end",
+          "event": "Stop"
+        }
+      ],
+      "rollout": [
+        {
+          "timestamp": "2000-01-01T00:00:00.000Z",
+          "ordinal": 1,
+          "type": "event_msg",
+          "payload": {
+            "type": "task_started",
+            "turn_attribution": {
+              "turn_id": "<uuid>",
+              "turn_trigger": "user",
+              "parent_turn_id": null,
+              "initiating_agent_path": null,
+              "root_turn_id": "<uuid>"
+            },
+            "turn_id": "<uuid>",
+            "root_turn_id": "<uuid>",
+            "started_at": 0,
+            "model_context_window": 190000,
+            "collaboration_mode_kind": "default"
+          }
+        },
+        {
+          "timestamp": "2000-01-01T00:00:00.000Z",
+          "ordinal": 6,
+          "type": "event_msg",
+          "payload": {
+            "type": "thread_settings_applied",
+            "thread_id": "<uuid>",
+            "thread_settings": {
+              "model": "fake-model",
+              "model_provider_id": "novadeck-e2e",
+              "service_tier": "default",
+              "approval_policy": "on-request",
+              "approvals_reviewer": "user",
+              "permission_profile": {
+                "type": "managed",
+                "file_system": {
+                  "type": "restricted",
+                  "entries": [
+                    {
+                      "path": {
+                        "type": "special",
+                        "value": {
+                          "kind": "root"
+                        }
+                      },
+                      "access": "read"
+                    },
+                    {
+                      "path": {
+                        "type": "path",
+                        "path": "/tmp/sandbox/project"
+                      },
+                      "access": "write"
+                    },
+                    {
+                      "path": {
+                        "type": "special",
+                        "value": {
+                          "kind": "slash_tmp"
+                        }
+                      },
+                      "access": "write"
+                    },
+                    {
+                      "path": {
+                        "type": "special",
+                        "value": {
+                          "kind": "tmpdir"
+                        }
+                      },
+                      "access": "write"
+                    },
+                    {
+                      "path": {
+                        "type": "path",
+                        "path": "/tmp/sandbox/project/.git"
+                      },
+                      "access": "read",
+                      "missing_path_behavior": "skip"
+                    },
+                    {
+                      "path": {
+                        "type": "path",
+                        "path": "/tmp/sandbox/project/.agents"
+                      },
+                      "access": "read",
+                      "missing_path_behavior": "skip"
+                    },
+                    {
+                      "path": {
+                        "type": "path",
+                        "path": "/tmp/sandbox/project/.codex"
+                      },
+                      "access": "read",
+                      "missing_path_behavior": "skip"
+                    },
+                    {
+                      "path": {
+                        "type": "path",
+                        "path": "/tmp/sandbox/project/.aws"
+                      },
+                      "access": "read",
+                      "missing_path_behavior": "skip"
+                    }
+                  ]
+                },
+                "network": "restricted"
+              },
+              "active_permission_profile": {
+                "id": ":workspace"
+              },
+              "cwd": "/tmp/sandbox/project",
+              "runtime_workspace_roots": ["/tmp/sandbox/project"],
+              "collaboration_mode": {
+                "mode": "default",
+                "settings": {
+                  "model": "fake-model",
+                  "reasoning_effort": null,
+                  "developer_instructions": "# Collaboration Mode: Default\n\nYou are now in Default mode. Any previous instructions for other modes (e.g. Plan mode) are no longer active.\n\nYour active mode changes only when new developer instructions with a different `<collaboration_mode>...</collaboration_mode>` change it; user requests or tool descriptions do not change mode by themselves. Known mode names are Default and Plan.\n\n## request_user_input availability\n\nUse the `request_user_input` tool only when it is listed in the available tools for this turn.\n\nIn Default mode, strongly prefer making reasonable assumptions and executing the user's request rather than stopping to ask questions.\n\nUse the `request_user_input` tool only for optional questions where the answer would materially improve the quality of the work.\n\nIf `request_user_input` returns no answers, continue with best judgment instead of asking again or treating the turn as blocked.\n\nNever use the `request_user_input` tool for permission requests or permission-related escalations.\n\nIf explicit user input is required for another reason before progress can safely continue, do not use the `request_user_input` tool. Ask the user directly with one concise plain-text question instead. Never write a multiple choice question as a textual assistant message.\n"
+                }
+              },
+              "disabled_plugin_ids": []
+            }
+          }
+        },
+        {
+          "timestamp": "2000-01-01T00:00:00.000Z",
+          "ordinal": 8,
+          "type": "event_msg",
+          "payload": {
+            "type": "item_completed",
+            "thread_id": "<uuid>",
+            "turn_id": "<uuid>",
+            "item": {
+              "type": "UserMessage",
+              "id": "<uuid>",
+              "client_id": "<uuid>",
+              "content": [
+                {
+                  "type": "text",
+                  "text": "Ask me about the button",
+                  "text_elements": []
+                }
+              ]
+            },
+            "started_at_ms": 0,
+            "completed_at_ms": 0
+          }
+        },
+        {
+          "timestamp": "2000-01-01T00:00:00.000Z",
+          "ordinal": 10,
+          "type": "response_item",
+          "payload": {
+            "type": "function_call",
+            "status": "completed",
+            "id": "fc_<id>",
+            "name": "request_user_input_async",
+            "arguments": "{\"questions\":[{\"title\":\"Which color should the button be?\",\"options\":[\"Blue\",\"Green\"]}]}",
+            "call_id": "call_<id>",
+            "internal_chat_message_metadata_passthrough": {
+              "turn_id": "<uuid>"
+            }
+          },
+          "metadata": {
+            "client_authored": false,
+            "user_input_order": 1
+          }
+        },
+        {
+          "timestamp": "2000-01-01T00:00:00.000Z",
+          "ordinal": 12,
+          "type": "event_msg",
+          "payload": {
+            "type": "item_completed",
+            "thread_id": "<uuid>",
+            "turn_id": "<uuid>",
+            "item": {
+              "type": "AgentMessage",
+              "id": "call_<id>",
+              "content": [
+                {
+                  "type": "Text",
+                  "text": "Which color should the button be?\n- Blue\n- Green"
+                }
+              ],
+              "phase": "final_answer",
+              "delivery": "async",
+              "questions": [
+                {
+                  "title": "Which color should the button be?",
+                  "options": ["Blue", "Green"]
+                }
+              ]
+            },
+            "started_at_ms": 0,
+            "completed_at_ms": 0
+          }
+        },
+        {
+          "timestamp": "2000-01-01T00:00:00.000Z",
+          "ordinal": 13,
+          "type": "response_item",
+          "payload": {
+            "type": "function_call_output",
+            "id": "fco_<uuid>",
+            "call_id": "call_<id>",
+            "output": "{\"accepted\":true}",
+            "internal_chat_message_metadata_passthrough": {
+              "turn_id": "<uuid>",
+              "create_time": 0
+            }
+          },
+          "metadata": {
+            "client_authored": false,
+            "fallback_token_limit_override": 12000
+          }
+        },
+        {
+          "timestamp": "2000-01-01T00:00:00.000Z",
+          "ordinal": 16,
+          "type": "event_msg",
+          "payload": {
+            "type": "item_completed",
+            "thread_id": "<uuid>",
+            "turn_id": "<uuid>",
+            "item": {
+              "type": "UserMessage",
+              "id": "<uuid>",
+              "client_id": "<uuid>",
+              "content": [
+                {
+                  "type": "text",
+                  "text": "<send_user_message_question_reply>\n[{\"answer\":\"Purple\",\"question\":\"Which color should the button be?\",\"questionItemId\":\"[\\\"request_user_input_async\\\",\\\"call_<id>\\\",0]\"}]\n</send_user_message_question_reply>",
+                  "text_elements": []
+                }
+              ]
+            },
+            "started_at_ms": 0,
+            "completed_at_ms": 0
+          }
+        },
+        {
+          "timestamp": "2000-01-01T00:00:00.000Z",
+          "ordinal": 17,
+          "type": "event_msg",
+          "payload": {
+            "type": "item_completed",
+            "thread_id": "<uuid>",
+            "turn_id": "<uuid>",
+            "item": {
+              "type": "AgentMessage",
+              "id": "msg_<id>",
+              "content": [
+                {
+                  "type": "Text",
+                  "text": "Thanks for the answer."
+                }
+              ]
+            },
+            "started_at_ms": 0,
+            "completed_at_ms": 0
+          }
+        },
+        {
+          "timestamp": "2000-01-01T00:00:00.000Z",
+          "ordinal": 21,
+          "type": "event_msg",
+          "payload": {
+            "type": "task_complete",
+            "root_turn_id": "<uuid>",
+            "turn_id": "<uuid>",
+            "last_agent_message": "Thanks for the answer.",
+            "started_at": 0,
+            "completed_at": 0,
+            "duration_ms": 0,
+            "time_to_first_token_ms": 0
+          }
+        }
+      ],
+      "modelSaw": [
+        {
+          "role": "user",
+          "text": "<environment_context>\n  <cwd>/tmp/sandbox/project</cwd>\n  <shell>bash</shell>\n  <current_date>2026-10-29</current_date>\n  <timezone>Europe/Warsaw</timezone>\n  <filesystem><workspace_roots><root>/tmp/sandbox/project</root></workspace_roots><permission_profile type=\"managed\"><file_system type=\"restricted\"><entry access=\"read\"><special>:root</special></entry><entry access=\"write\"><path>/tmp/sandbox/project</path></entry><entry access=\"write\"><special>:slash_tmp</special></entry><entry access=\"write\"><special>:tmpdir</special></entry><entry access=\"read\"><path>/tmp/sandbox/project/.git</path></entry><entry access=\"read\"><path>/tmp/sandbox/project/.agents</path></entry><entry access=\"read\"><path>/tmp/sandbox/project/.codex</path></entry><entry access=\"read\"><path>/tmp/sandbox/project/.aws</path></entry></file_system></permission_profile></filesystem>\n</environment_context>\nAsk me about the button\nNovadeck: automatic notice, not from the user: beside this terminal is a bar where you show the user what you make, with Novadeck's show tool. Show a deliverable when it is done, not each file you touch: an image or screenshot, a rendered page or a dev server's address, a report, mockup, diagram or generated document, the one file the user asked you for, or whatever they ask to see. Show a page you serve or just deployed, such as a dev server or a preview; a link to someone else's site, which often wants a sign-in in the pane, goes in your reply unless they ask to see it there. A source file is one too while it is the file you are working on together, so show it and keep it shown; the files a change touches on the way aren't: once a piece of work is done, show the working tree's changes with changes, as diffs. Show a deliverable with open when you finish it or they asked to see it, so it opens at once; leave open off for anything supporting, which waits for them marked new. Showing the same file or page again updates it, so one item per deliverable, and while they have it open each save shows at once. close takes away what no longer applies, never what they may still be looking at unless they asked; showing lists what is there. This notice needs no reply.\n\nNovadeck: automatic notice, not from the user: the user rarely watches this terminal, so a question only in your reply goes unseen. When your harness has its own question tool and you'd stop to ask with it, do, as you normally would: Novadeck shows that question in their Inbox as it is, so it needs no ask. Always put every other question you end your turn waiting on, such as which option to take or whether to open a pull request, in their Inbox with Novadeck's ask tool, unless it is already an open ask, and put the full question in your reply too; a closing offer such as 'anything else?' isn't one, nor is an action your harness is already prompting them for. When you can't go on without something only the user can do, such as a sign-in, access to a service or repo, or a key put in place, that is an ask with the action shape, not just words in your reply; never ask for a secret value. When the task you were given is finished, report it with Novadeck's done tool, your own short report, not when you answer a question or finish a step. With a lead, use ask, tell and done all the same, and send your lead your report and your questions too; approvals of actions are still only the user's. When they write to you here, Novadeck takes your open asks out of their Inbox and tells you; ask again only what their message leaves open. If they answer one here and no such notice came, withdraw it yourself. This notice needs no reply.\n\nNovadeck: automatic notice, not from the user: this terminal has no summary yet. Call Novadeck's summarize tool now, before you go on with the work you were given, with one short line on what the work here is about, at a high level: its subject, with no status, PR or issue numbers, or details; with no work given yet, do so as soon as there is. Novadeck titles this terminal from it, and other agents read it in their agents listing. This notice needs no reply."
+        },
+        {
+          "role": "user",
+          "text": "<environment_context>\n  <current_date>2026-10-29</current_date>\n  <timezone>Europe/Warsaw</timezone>\n</environment_context>\nGenerate a concise, single-line task title of at most 36 characters and under five words where possible. Start with an imperative verb. Capitalize only the first word unless the user's language, proper nouns, acronyms, or code terms require otherwise. Preserve ticket references exactly. Write in the user's language. Do not use quotes, markdown, or trailing punctuation. Do not answer the request.\n\nUser prompt:\nAsk me about the button"
+        },
+        {
+          "role": "tool",
+          "id": "call_<id>",
+          "text": "{\"accepted\":true}"
+        },
+        {
+          "role": "user",
+          "text": "<send_user_message_question_reply>\n[{\"answer\":\"Purple\",\"question\":\"Which color should the button be?\",\"questionItemId\":\"[\\\"request_user_input_async\\\",\\\"call_<id>\\\",0]\"}]\n</send_user_message_question_reply>"
+        },
+        {
+          "role": "user",
+          "text": "<environment_context>\n  <current_date>2026-10-29</current_date>\n  <timezone>Europe/Warsaw</timezone>\n</environment_context>\nGenerate a concise, single-line task title of at most 36 characters and under five words where possible. Start with an imperative verb. Capitalize only the first word unless the user's language, proper nouns, acronyms, or code terms require otherwise. Preserve ticket references exactly. Write in the user's language. Do not use quotes, markdown, or trailing punctuation. Do not answer the request.\n\nUser prompt:\n<send_user_message_question_reply>\n[{\"answer\":\"Purple\",\"question\":\"Which color should the button be?\",\"questionItemId\":\"[\\\"request_user_input_async\\\",\\\"call_<id>\\\",0]\"}]\n</send_user_message_question_reply>"
+        }
+      ]
+    },
+    "rui-async-panel-other-typed": {
+      "before": {
+        "height": 13,
+        "rows": {
+          "0": "  >_ OpenAI Codex (v0.163.0)",
+          "1": "     /tmp/sandbox/project",
+          "2": "› Ask me about the button",
+          "3": "• Which color should the button be?",
+          "4": "  • Blue",
+          "5": "  • Green",
+          "6": "• Working (5s • esc to interrupt)",
+          "7": "• Queued follow-up inputs",
+          "8": "  ? 1 question",
+          "9": "    shift+← to answer",
+          "10": "› Ask Codex to do anything",
+          "11": "  fake-model default · /tmp/sandbox/project",
+          "12": "  ? for shortcuts                                                                             ⚠ 2 warnings · f2 to view"
+        }
+      },
+      "steps": [
+        {
+          "label": "shift+left",
+          "screen": {
+            "height": 13,
+            "rows": {
+              "0": "  >_ OpenAI Codex (v0.163.0)",
+              "1": "     /tmp/sandbox/project",
+              "2": "› Ask me about the button",
+              "3": "• Which color should the button be?",
+              "4": "  • Blue",
+              "5": "  • Green",
+              "6": "• Working (10s • esc to interrupt)",
+              "7": "• Queued follow-up inputs",
+              "8": "  Which color should the button be?",
+              "9": "  › 1. Blue",
+              "10": "    2. Green",
+              "11": "    3. Other",
+              "12": "  enter submit   ^] skip   shift+→ main prompt"
+            }
+          }
+        },
+        {
+          "label": "3",
+          "screen": {
+            "height": 13,
+            "rows": {
+              "0": "  >_ OpenAI Codex (v0.163.0)",
+              "1": "     /tmp/sandbox/project",
+              "2": "› Ask me about the button",
+              "3": "• Which color should the button be?",
+              "4": "  • Blue",
+              "5": "  • Green",
+              "6": "• Working (15s • esc to interrupt)",
+              "7": "• Queued follow-up inputs",
+              "8": "  Which color should the button be?",
+              "9": "    1. Blue",
+              "10": "    2. Green",
+              "11": "  › 3. Other",
+              "12": "  enter submit   ^] skip   shift+→ main prompt"
+            }
+          }
+        },
+        {
+          "label": "Purple, enter",
+          "screen": {
+            "height": 13,
+            "rows": {
+              "0": "  >_ OpenAI Codex (v0.163.0)",
+              "1": "     /tmp/sandbox/project",
+              "2": "› Ask me about the button",
+              "3": "• Which color should the button be?",
+              "4": "  • Blue",
+              "5": "  • Green",
+              "6": "• Working (20s • esc to interrupt)",
+              "7": "• Messages to be submitted after next tool call (press esc to interrupt and send immediately)",
+              "8": "  ↳ > Which color should the button be?",
+              "9": "    Purple",
+              "10": "› Ask Codex to do anything",
+              "11": "  fake-model default · /tmp/sandbox/project",
+              "12": "  ? for shortcuts                                                                             ⚠ 2 warnings · f2 to view"
+            }
+          }
+        }
+      ],
+      "answered": true,
+      "screen": {
+        "height": 13,
+        "rows": {
+          "0": "  >_ OpenAI Codex (v0.163.0)",
+          "1": "     /tmp/sandbox/project",
+          "2": "› Ask me about the button",
+          "3": "• Which color should the button be?",
+          "4": "  • Blue",
+          "5": "  • Green",
+          "6": "› > Which color should the button be?",
+          "7": "  Purple",
+          "8": "• Thanks for the answer.",
+          "9": "  Worked for <n> • <HH:MM>",
+          "10": "› Ask Codex to do anything",
+          "11": "  fake-model default · /tmp/sandbox/project",
+          "12": "  ? for shortcuts                                                                             ⚠ 2 warnings · f2 to view"
+        }
+      },
+      "hooksAll": [
+        {
+          "kind": "start",
+          "event": "SessionStart",
+          "payload": {
+            "session_id": "<uuid>",
+            "transcript_path": "/tmp/sandbox/home/.codex/sessions/<date>/rollout-<time>-<uuid>.jsonl",
+            "cwd": "/tmp/sandbox/project",
+            "hook_event_name": "SessionStart",
+            "model": "fake-model",
+            "permission_mode": "default",
+            "source": "startup"
+          }
+        },
+        {
+          "kind": "end",
+          "event": "SessionStart"
+        },
+        {
+          "kind": "start",
+          "event": "UserPromptSubmit",
+          "payload": {
+            "session_id": "<uuid>",
+            "turn_id": "<uuid>",
+            "transcript_path": "/tmp/sandbox/home/.codex/sessions/<date>/rollout-<time>-<uuid>.jsonl",
+            "cwd": "/tmp/sandbox/project",
+            "hook_event_name": "UserPromptSubmit",
+            "model": "fake-model",
+            "permission_mode": "default",
+            "prompt": "Ask me about the button"
+          }
+        },
+        {
+          "kind": "end",
+          "event": "UserPromptSubmit"
+        },
+        {
+          "kind": "start",
+          "event": "PreToolUse[matched]",
+          "payload": {
+            "session_id": "<uuid>",
+            "turn_id": "<uuid>",
+            "transcript_path": "/tmp/sandbox/home/.codex/sessions/<date>/rollout-<time>-<uuid>.jsonl",
+            "cwd": "/tmp/sandbox/project",
+            "hook_event_name": "PreToolUse",
+            "model": "fake-model",
+            "permission_mode": "default",
+            "tool_name": "request_user_input_async",
+            "tool_input": {
+              "questions": [
+                {
+                  "title": "Which color should the button be?",
+                  "options": ["Blue", "Green"]
+                }
+              ]
+            },
+            "tool_use_id": "call_<id>"
+          }
+        },
+        {
+          "kind": "end",
+          "event": "PreToolUse[matched]"
+        },
+        {
+          "kind": "start",
+          "event": "PreToolUse",
+          "payload": {
+            "session_id": "<uuid>",
+            "turn_id": "<uuid>",
+            "transcript_path": "/tmp/sandbox/home/.codex/sessions/<date>/rollout-<time>-<uuid>.jsonl",
+            "cwd": "/tmp/sandbox/project",
+            "hook_event_name": "PreToolUse",
+            "model": "fake-model",
+            "permission_mode": "default",
+            "tool_name": "request_user_input_async",
+            "tool_input": {
+              "questions": [
+                {
+                  "title": "Which color should the button be?",
+                  "options": ["Blue", "Green"]
+                }
+              ]
+            },
+            "tool_use_id": "call_<id>"
+          }
+        },
+        {
+          "kind": "end",
+          "event": "PreToolUse"
+        },
+        {
+          "kind": "start",
+          "event": "PostToolUse",
+          "payload": {
+            "session_id": "<uuid>",
+            "turn_id": "<uuid>",
+            "transcript_path": "/tmp/sandbox/home/.codex/sessions/<date>/rollout-<time>-<uuid>.jsonl",
+            "cwd": "/tmp/sandbox/project",
+            "hook_event_name": "PostToolUse",
+            "model": "fake-model",
+            "permission_mode": "default",
+            "tool_name": "request_user_input_async",
+            "tool_input": {
+              "questions": [
+                {
+                  "title": "Which color should the button be?",
+                  "options": ["Blue", "Green"]
+                }
+              ]
+            },
+            "tool_response": "{\"accepted\":true}",
+            "tool_use_id": "call_<id>"
+          }
+        },
+        {
+          "kind": "end",
+          "event": "PostToolUse"
+        },
+        {
+          "kind": "start",
+          "event": "UserPromptSubmit",
+          "payload": {
+            "session_id": "<uuid>",
+            "turn_id": "<uuid>",
+            "transcript_path": "/tmp/sandbox/home/.codex/sessions/<date>/rollout-<time>-<uuid>.jsonl",
+            "cwd": "/tmp/sandbox/project",
+            "hook_event_name": "UserPromptSubmit",
+            "model": "fake-model",
+            "permission_mode": "default",
+            "prompt": "<send_user_message_question_reply>\n[{\"answer\":\"Purple\",\"question\":\"Which color should the button be?\",\"questionItemId\":\"[\\\"request_user_input_async\\\",\\\"call_<id>\\\",0]\"}]\n</send_user_message_question_reply>"
+          }
+        },
+        {
+          "kind": "end",
+          "event": "UserPromptSubmit"
+        },
+        {
+          "kind": "start",
+          "event": "Stop",
+          "payload": {
+            "session_id": "<uuid>",
+            "turn_id": "<uuid>",
+            "transcript_path": "/tmp/sandbox/home/.codex/sessions/<date>/rollout-<time>-<uuid>.jsonl",
+            "cwd": "/tmp/sandbox/project",
+            "hook_event_name": "Stop",
+            "model": "fake-model",
+            "permission_mode": "default",
+            "stop_hook_active": false,
+            "last_assistant_message": "Thanks for the answer."
+          }
+        },
+        {
+          "kind": "end",
+          "event": "Stop"
+        }
+      ],
+      "rollout": [
+        {
+          "timestamp": "2000-01-01T00:00:00.000Z",
+          "ordinal": 1,
+          "type": "event_msg",
+          "payload": {
+            "type": "task_started",
+            "turn_attribution": {
+              "turn_id": "<uuid>",
+              "turn_trigger": "user",
+              "parent_turn_id": null,
+              "initiating_agent_path": null,
+              "root_turn_id": "<uuid>"
+            },
+            "turn_id": "<uuid>",
+            "root_turn_id": "<uuid>",
+            "started_at": 0,
+            "model_context_window": 190000,
+            "collaboration_mode_kind": "default"
+          }
+        },
+        {
+          "timestamp": "2000-01-01T00:00:00.000Z",
+          "ordinal": 6,
+          "type": "event_msg",
+          "payload": {
+            "type": "thread_settings_applied",
+            "thread_id": "<uuid>",
+            "thread_settings": {
+              "model": "fake-model",
+              "model_provider_id": "novadeck-e2e",
+              "service_tier": "default",
+              "approval_policy": "on-request",
+              "approvals_reviewer": "user",
+              "permission_profile": {
+                "type": "managed",
+                "file_system": {
+                  "type": "restricted",
+                  "entries": [
+                    {
+                      "path": {
+                        "type": "special",
+                        "value": {
+                          "kind": "root"
+                        }
+                      },
+                      "access": "read"
+                    },
+                    {
+                      "path": {
+                        "type": "path",
+                        "path": "/tmp/sandbox/project"
+                      },
+                      "access": "write"
+                    },
+                    {
+                      "path": {
+                        "type": "special",
+                        "value": {
+                          "kind": "slash_tmp"
+                        }
+                      },
+                      "access": "write"
+                    },
+                    {
+                      "path": {
+                        "type": "special",
+                        "value": {
+                          "kind": "tmpdir"
+                        }
+                      },
+                      "access": "write"
+                    },
+                    {
+                      "path": {
+                        "type": "path",
+                        "path": "/tmp/sandbox/project/.git"
+                      },
+                      "access": "read",
+                      "missing_path_behavior": "skip"
+                    },
+                    {
+                      "path": {
+                        "type": "path",
+                        "path": "/tmp/sandbox/project/.agents"
+                      },
+                      "access": "read",
+                      "missing_path_behavior": "skip"
+                    },
+                    {
+                      "path": {
+                        "type": "path",
+                        "path": "/tmp/sandbox/project/.codex"
+                      },
+                      "access": "read",
+                      "missing_path_behavior": "skip"
+                    },
+                    {
+                      "path": {
+                        "type": "path",
+                        "path": "/tmp/sandbox/project/.aws"
+                      },
+                      "access": "read",
+                      "missing_path_behavior": "skip"
+                    }
+                  ]
+                },
+                "network": "restricted"
+              },
+              "active_permission_profile": {
+                "id": ":workspace"
+              },
+              "cwd": "/tmp/sandbox/project",
+              "runtime_workspace_roots": ["/tmp/sandbox/project"],
+              "collaboration_mode": {
+                "mode": "default",
+                "settings": {
+                  "model": "fake-model",
+                  "reasoning_effort": null,
+                  "developer_instructions": "# Collaboration Mode: Default\n\nYou are now in Default mode. Any previous instructions for other modes (e.g. Plan mode) are no longer active.\n\nYour active mode changes only when new developer instructions with a different `<collaboration_mode>...</collaboration_mode>` change it; user requests or tool descriptions do not change mode by themselves. Known mode names are Default and Plan.\n\n## request_user_input availability\n\nUse the `request_user_input` tool only when it is listed in the available tools for this turn.\n\nIn Default mode, strongly prefer making reasonable assumptions and executing the user's request rather than stopping to ask questions.\n\nUse the `request_user_input` tool only for optional questions where the answer would materially improve the quality of the work.\n\nIf `request_user_input` returns no answers, continue with best judgment instead of asking again or treating the turn as blocked.\n\nNever use the `request_user_input` tool for permission requests or permission-related escalations.\n\nIf explicit user input is required for another reason before progress can safely continue, do not use the `request_user_input` tool. Ask the user directly with one concise plain-text question instead. Never write a multiple choice question as a textual assistant message.\n"
+                }
+              },
+              "disabled_plugin_ids": []
+            }
+          }
+        },
+        {
+          "timestamp": "2000-01-01T00:00:00.000Z",
+          "ordinal": 8,
+          "type": "event_msg",
+          "payload": {
+            "type": "item_completed",
+            "thread_id": "<uuid>",
+            "turn_id": "<uuid>",
+            "item": {
+              "type": "UserMessage",
+              "id": "<uuid>",
+              "client_id": "<uuid>",
+              "content": [
+                {
+                  "type": "text",
+                  "text": "Ask me about the button",
+                  "text_elements": []
+                }
+              ]
+            },
+            "started_at_ms": 0,
+            "completed_at_ms": 0
+          }
+        },
+        {
+          "timestamp": "2000-01-01T00:00:00.000Z",
+          "ordinal": 10,
+          "type": "response_item",
+          "payload": {
+            "type": "function_call",
+            "status": "completed",
+            "id": "fc_<id>",
+            "name": "request_user_input_async",
+            "arguments": "{\"questions\":[{\"title\":\"Which color should the button be?\",\"options\":[\"Blue\",\"Green\"]}]}",
+            "call_id": "call_<id>",
+            "internal_chat_message_metadata_passthrough": {
+              "turn_id": "<uuid>"
+            }
+          },
+          "metadata": {
+            "client_authored": false,
+            "user_input_order": 1
+          }
+        },
+        {
+          "timestamp": "2000-01-01T00:00:00.000Z",
+          "ordinal": 12,
+          "type": "event_msg",
+          "payload": {
+            "type": "item_completed",
+            "thread_id": "<uuid>",
+            "turn_id": "<uuid>",
+            "item": {
+              "type": "AgentMessage",
+              "id": "call_<id>",
+              "content": [
+                {
+                  "type": "Text",
+                  "text": "Which color should the button be?\n- Blue\n- Green"
+                }
+              ],
+              "phase": "final_answer",
+              "delivery": "async",
+              "questions": [
+                {
+                  "title": "Which color should the button be?",
+                  "options": ["Blue", "Green"]
+                }
+              ]
+            },
+            "started_at_ms": 0,
+            "completed_at_ms": 0
+          }
+        },
+        {
+          "timestamp": "2000-01-01T00:00:00.000Z",
+          "ordinal": 13,
+          "type": "response_item",
+          "payload": {
+            "type": "function_call_output",
+            "id": "fco_<uuid>",
+            "call_id": "call_<id>",
+            "output": "{\"accepted\":true}",
+            "internal_chat_message_metadata_passthrough": {
+              "turn_id": "<uuid>",
+              "create_time": 0
+            }
+          },
+          "metadata": {
+            "client_authored": false,
+            "fallback_token_limit_override": 12000
+          }
+        },
+        {
+          "timestamp": "2000-01-01T00:00:00.000Z",
+          "ordinal": 16,
+          "type": "event_msg",
+          "payload": {
+            "type": "item_completed",
+            "thread_id": "<uuid>",
+            "turn_id": "<uuid>",
+            "item": {
+              "type": "UserMessage",
+              "id": "<uuid>",
+              "client_id": "<uuid>",
+              "content": [
+                {
+                  "type": "text",
+                  "text": "<send_user_message_question_reply>\n[{\"answer\":\"Purple\",\"question\":\"Which color should the button be?\",\"questionItemId\":\"[\\\"request_user_input_async\\\",\\\"call_<id>\\\",0]\"}]\n</send_user_message_question_reply>",
+                  "text_elements": []
+                }
+              ]
+            },
+            "started_at_ms": 0,
+            "completed_at_ms": 0
+          }
+        },
+        {
+          "timestamp": "2000-01-01T00:00:00.000Z",
+          "ordinal": 17,
+          "type": "event_msg",
+          "payload": {
+            "type": "item_completed",
+            "thread_id": "<uuid>",
+            "turn_id": "<uuid>",
+            "item": {
+              "type": "AgentMessage",
+              "id": "msg_<id>",
+              "content": [
+                {
+                  "type": "Text",
+                  "text": "Thanks for the answer."
+                }
+              ]
+            },
+            "started_at_ms": 0,
+            "completed_at_ms": 0
+          }
+        },
+        {
+          "timestamp": "2000-01-01T00:00:00.000Z",
+          "ordinal": 21,
+          "type": "event_msg",
+          "payload": {
+            "type": "task_complete",
+            "root_turn_id": "<uuid>",
+            "turn_id": "<uuid>",
+            "last_agent_message": "Thanks for the answer.",
+            "started_at": 0,
+            "completed_at": 0,
+            "duration_ms": 0,
+            "time_to_first_token_ms": 0
+          }
+        }
+      ],
+      "modelSaw": [
+        {
+          "role": "user",
+          "text": "<environment_context>\n  <cwd>/tmp/sandbox/project</cwd>\n  <shell>bash</shell>\n  <current_date>2026-10-29</current_date>\n  <timezone>Europe/Warsaw</timezone>\n  <filesystem><workspace_roots><root>/tmp/sandbox/project</root></workspace_roots><permission_profile type=\"managed\"><file_system type=\"restricted\"><entry access=\"read\"><special>:root</special></entry><entry access=\"write\"><path>/tmp/sandbox/project</path></entry><entry access=\"write\"><special>:slash_tmp</special></entry><entry access=\"write\"><special>:tmpdir</special></entry><entry access=\"read\"><path>/tmp/sandbox/project/.git</path></entry><entry access=\"read\"><path>/tmp/sandbox/project/.agents</path></entry><entry access=\"read\"><path>/tmp/sandbox/project/.codex</path></entry><entry access=\"read\"><path>/tmp/sandbox/project/.aws</path></entry></file_system></permission_profile></filesystem>\n</environment_context>\nAsk me about the button\nNovadeck: automatic notice, not from the user: beside this terminal is a bar where you show the user what you make, with Novadeck's show tool. Show a deliverable when it is done, not each file you touch: an image or screenshot, a rendered page or a dev server's address, a report, mockup, diagram or generated document, the one file the user asked you for, or whatever they ask to see. Show a page you serve or just deployed, such as a dev server or a preview; a link to someone else's site, which often wants a sign-in in the pane, goes in your reply unless they ask to see it there. A source file is one too while it is the file you are working on together, so show it and keep it shown; the files a change touches on the way aren't: once a piece of work is done, show the working tree's changes with changes, as diffs. Show a deliverable with open when you finish it or they asked to see it, so it opens at once; leave open off for anything supporting, which waits for them marked new. Showing the same file or page again updates it, so one item per deliverable, and while they have it open each save shows at once. close takes away what no longer applies, never what they may still be looking at unless they asked; showing lists what is there. This notice needs no reply.\n\nNovadeck: automatic notice, not from the user: the user rarely watches this terminal, so a question only in your reply goes unseen. When your harness has its own question tool and you'd stop to ask with it, do, as you normally would: Novadeck shows that question in their Inbox as it is, so it needs no ask. Always put every other question you end your turn waiting on, such as which option to take or whether to open a pull request, in their Inbox with Novadeck's ask tool, unless it is already an open ask, and put the full question in your reply too; a closing offer such as 'anything else?' isn't one, nor is an action your harness is already prompting them for. When you can't go on without something only the user can do, such as a sign-in, access to a service or repo, or a key put in place, that is an ask with the action shape, not just words in your reply; never ask for a secret value. When the task you were given is finished, report it with Novadeck's done tool, your own short report, not when you answer a question or finish a step. With a lead, use ask, tell and done all the same, and send your lead your report and your questions too; approvals of actions are still only the user's. When they write to you here, Novadeck takes your open asks out of their Inbox and tells you; ask again only what their message leaves open. If they answer one here and no such notice came, withdraw it yourself. This notice needs no reply.\n\nNovadeck: automatic notice, not from the user: this terminal has no summary yet. Call Novadeck's summarize tool now, before you go on with the work you were given, with one short line on what the work here is about, at a high level: its subject, with no status, PR or issue numbers, or details; with no work given yet, do so as soon as there is. Novadeck titles this terminal from it, and other agents read it in their agents listing. This notice needs no reply."
+        },
+        {
+          "role": "user",
+          "text": "<environment_context>\n  <current_date>2026-10-29</current_date>\n  <timezone>Europe/Warsaw</timezone>\n</environment_context>\nGenerate a concise, single-line task title of at most 36 characters and under five words where possible. Start with an imperative verb. Capitalize only the first word unless the user's language, proper nouns, acronyms, or code terms require otherwise. Preserve ticket references exactly. Write in the user's language. Do not use quotes, markdown, or trailing punctuation. Do not answer the request.\n\nUser prompt:\nAsk me about the button"
+        },
+        {
+          "role": "tool",
+          "id": "call_<id>",
+          "text": "{\"accepted\":true}"
+        },
+        {
+          "role": "user",
+          "text": "<send_user_message_question_reply>\n[{\"answer\":\"Purple\",\"question\":\"Which color should the button be?\",\"questionItemId\":\"[\\\"request_user_input_async\\\",\\\"call_<id>\\\",0]\"}]\n</send_user_message_question_reply>"
+        },
+        {
+          "role": "user",
+          "text": "<environment_context>\n  <current_date>2026-10-29</current_date>\n  <timezone>Europe/Warsaw</timezone>\n</environment_context>\nGenerate a concise, single-line task title of at most 36 characters and under five words where possible. Start with an imperative verb. Capitalize only the first word unless the user's language, proper nouns, acronyms, or code terms require otherwise. Preserve ticket references exactly. Write in the user's language. Do not use quotes, markdown, or trailing punctuation. Do not answer the request.\n\nUser prompt:\n<send_user_message_question_reply>\n[{\"answer\":\"Purple\",\"question\":\"Which color should the button be?\",\"questionItemId\":\"[\\\"request_user_input_async\\\",\\\"call_<id>\\\",0]\"}]\n</send_user_message_question_reply>"
+        }
+      ]
+    },
+    "rui-async-panel-other-words": {
+      "before": {
+        "height": 13,
+        "rows": {
+          "0": "  >_ OpenAI Codex (v0.163.0)",
+          "1": "     /tmp/sandbox/project",
+          "2": "› Ask me about the button",
+          "3": "• Which color should the button be?",
+          "4": "  • Blue",
+          "5": "  • Green",
+          "6": "• Working (5s • esc to interrupt)",
+          "7": "• Queued follow-up inputs",
+          "8": "  ? 1 question",
+          "9": "    shift+← to answer",
+          "10": "› Ask Codex to do anything",
+          "11": "  fake-model default · /tmp/sandbox/project",
+          "12": "  ? for shortcuts                                                                             ⚠ 2 warnings · f2 to view"
+        }
+      },
+      "steps": [
+        {
+          "label": "shift+left",
+          "screen": {
+            "height": 13,
+            "rows": {
+              "0": "  >_ OpenAI Codex (v0.163.0)",
+              "1": "     /tmp/sandbox/project",
+              "2": "› Ask me about the button",
+              "3": "• Which color should the button be?",
+              "4": "  • Blue",
+              "5": "  • Green",
+              "6": "• Working (10s • esc to interrupt)",
+              "7": "• Queued follow-up inputs",
+              "8": "  Which color should the button be?",
+              "9": "  › 1. Blue",
+              "10": "    2. Green",
+              "11": "    3. Other",
+              "12": "  enter submit   ^] skip   shift+→ main prompt"
+            }
+          }
+        },
+        {
+          "label": "3",
+          "screen": {
+            "height": 13,
+            "rows": {
+              "0": "  >_ OpenAI Codex (v0.163.0)",
+              "1": "     /tmp/sandbox/project",
+              "2": "› Ask me about the button",
+              "3": "• Which color should the button be?",
+              "4": "  • Blue",
+              "5": "  • Green",
+              "6": "• Working (15s • esc to interrupt)",
+              "7": "• Queued follow-up inputs",
+              "8": "  Which color should the button be?",
+              "9": "    1. Blue",
+              "10": "    2. Green",
+              "11": "  › 3. Other",
+              "12": "  enter submit   ^] skip   shift+→ main prompt"
+            }
+          }
+        },
+        {
+          "label": "Purple",
+          "screen": {
+            "height": 13,
+            "rows": {
+              "0": "  >_ OpenAI Codex (v0.163.0)",
+              "1": "     /tmp/sandbox/project",
+              "2": "› Ask me about the button",
+              "3": "• Which color should the button be?",
+              "4": "  • Blue",
+              "5": "  • Green",
+              "6": "• Working (20s • esc to interrupt)",
+              "7": "• Queued follow-up inputs",
+              "8": "  Which color should the button be?",
+              "9": "    1. Blue",
+              "10": "    2. Green",
+              "11": "  › 3. Purple",
+              "12": "  enter submit   ^] skip   shift+→ main prompt"
+            }
+          }
+        }
+      ],
+      "answered": false,
+      "screen": {
+        "height": 12,
+        "rows": {
+          "0": "  >_ OpenAI Codex (v0.163.0)",
+          "1": "     /tmp/sandbox/project",
+          "2": "› Ask me about the button",
+          "3": "• Which color should the button be?",
+          "4": "  • Blue",
+          "5": "  • Green",
+          "6": "• Finished the request.",
+          "7": "  Worked for <n> • <HH:MM>",
+          "8": "› > Which color should the button be?",
+          "9": "  Purple",
+          "10": "  fake-model default · /tmp/sandbox/project",
+          "11": "                                                                                              ⚠ 2 warnings · f2 to view"
+        }
+      },
+      "hooksAll": [
+        {
+          "kind": "start",
+          "event": "SessionStart",
+          "payload": {
+            "session_id": "<uuid>",
+            "transcript_path": "/tmp/sandbox/home/.codex/sessions/<date>/rollout-<time>-<uuid>.jsonl",
+            "cwd": "/tmp/sandbox/project",
+            "hook_event_name": "SessionStart",
+            "model": "fake-model",
+            "permission_mode": "default",
+            "source": "startup"
+          }
+        },
+        {
+          "kind": "end",
+          "event": "SessionStart"
+        },
+        {
+          "kind": "start",
+          "event": "UserPromptSubmit",
+          "payload": {
+            "session_id": "<uuid>",
+            "turn_id": "<uuid>",
+            "transcript_path": "/tmp/sandbox/home/.codex/sessions/<date>/rollout-<time>-<uuid>.jsonl",
+            "cwd": "/tmp/sandbox/project",
+            "hook_event_name": "UserPromptSubmit",
+            "model": "fake-model",
+            "permission_mode": "default",
+            "prompt": "Ask me about the button"
+          }
+        },
+        {
+          "kind": "end",
+          "event": "UserPromptSubmit"
+        },
+        {
+          "kind": "start",
+          "event": "PreToolUse[matched]",
+          "payload": {
+            "session_id": "<uuid>",
+            "turn_id": "<uuid>",
+            "transcript_path": "/tmp/sandbox/home/.codex/sessions/<date>/rollout-<time>-<uuid>.jsonl",
+            "cwd": "/tmp/sandbox/project",
+            "hook_event_name": "PreToolUse",
+            "model": "fake-model",
+            "permission_mode": "default",
+            "tool_name": "request_user_input_async",
+            "tool_input": {
+              "questions": [
+                {
+                  "title": "Which color should the button be?",
+                  "options": ["Blue", "Green"]
+                }
+              ]
+            },
+            "tool_use_id": "call_<id>"
+          }
+        },
+        {
+          "kind": "end",
+          "event": "PreToolUse[matched]"
+        },
+        {
+          "kind": "start",
+          "event": "PreToolUse",
+          "payload": {
+            "session_id": "<uuid>",
+            "turn_id": "<uuid>",
+            "transcript_path": "/tmp/sandbox/home/.codex/sessions/<date>/rollout-<time>-<uuid>.jsonl",
+            "cwd": "/tmp/sandbox/project",
+            "hook_event_name": "PreToolUse",
+            "model": "fake-model",
+            "permission_mode": "default",
+            "tool_name": "request_user_input_async",
+            "tool_input": {
+              "questions": [
+                {
+                  "title": "Which color should the button be?",
+                  "options": ["Blue", "Green"]
+                }
+              ]
+            },
+            "tool_use_id": "call_<id>"
+          }
+        },
+        {
+          "kind": "end",
+          "event": "PreToolUse"
+        },
+        {
+          "kind": "start",
+          "event": "PostToolUse",
+          "payload": {
+            "session_id": "<uuid>",
+            "turn_id": "<uuid>",
+            "transcript_path": "/tmp/sandbox/home/.codex/sessions/<date>/rollout-<time>-<uuid>.jsonl",
+            "cwd": "/tmp/sandbox/project",
+            "hook_event_name": "PostToolUse",
+            "model": "fake-model",
+            "permission_mode": "default",
+            "tool_name": "request_user_input_async",
+            "tool_input": {
+              "questions": [
+                {
+                  "title": "Which color should the button be?",
+                  "options": ["Blue", "Green"]
+                }
+              ]
+            },
+            "tool_response": "{\"accepted\":true}",
+            "tool_use_id": "call_<id>"
+          }
+        },
+        {
+          "kind": "end",
+          "event": "PostToolUse"
+        },
+        {
+          "kind": "start",
+          "event": "Stop",
+          "payload": {
+            "session_id": "<uuid>",
+            "turn_id": "<uuid>",
+            "transcript_path": "/tmp/sandbox/home/.codex/sessions/<date>/rollout-<time>-<uuid>.jsonl",
+            "cwd": "/tmp/sandbox/project",
+            "hook_event_name": "Stop",
+            "model": "fake-model",
+            "permission_mode": "default",
+            "stop_hook_active": false,
+            "last_assistant_message": "Finished the request."
+          }
+        },
+        {
+          "kind": "end",
+          "event": "Stop"
+        }
+      ],
+      "rollout": [
+        {
+          "timestamp": "2000-01-01T00:00:00.000Z",
+          "ordinal": 1,
+          "type": "event_msg",
+          "payload": {
+            "type": "task_started",
+            "turn_attribution": {
+              "turn_id": "<uuid>",
+              "turn_trigger": "user",
+              "parent_turn_id": null,
+              "initiating_agent_path": null,
+              "root_turn_id": "<uuid>"
+            },
+            "turn_id": "<uuid>",
+            "root_turn_id": "<uuid>",
+            "started_at": 0,
+            "model_context_window": 190000,
+            "collaboration_mode_kind": "default"
+          }
+        },
+        {
+          "timestamp": "2000-01-01T00:00:00.000Z",
+          "ordinal": 6,
+          "type": "event_msg",
+          "payload": {
+            "type": "thread_settings_applied",
+            "thread_id": "<uuid>",
+            "thread_settings": {
+              "model": "fake-model",
+              "model_provider_id": "novadeck-e2e",
+              "service_tier": "default",
+              "approval_policy": "on-request",
+              "approvals_reviewer": "user",
+              "permission_profile": {
+                "type": "managed",
+                "file_system": {
+                  "type": "restricted",
+                  "entries": [
+                    {
+                      "path": {
+                        "type": "special",
+                        "value": {
+                          "kind": "root"
+                        }
+                      },
+                      "access": "read"
+                    },
+                    {
+                      "path": {
+                        "type": "path",
+                        "path": "/tmp/sandbox/project"
+                      },
+                      "access": "write"
+                    },
+                    {
+                      "path": {
+                        "type": "special",
+                        "value": {
+                          "kind": "slash_tmp"
+                        }
+                      },
+                      "access": "write"
+                    },
+                    {
+                      "path": {
+                        "type": "special",
+                        "value": {
+                          "kind": "tmpdir"
+                        }
+                      },
+                      "access": "write"
+                    },
+                    {
+                      "path": {
+                        "type": "path",
+                        "path": "/tmp/sandbox/project/.git"
+                      },
+                      "access": "read",
+                      "missing_path_behavior": "skip"
+                    },
+                    {
+                      "path": {
+                        "type": "path",
+                        "path": "/tmp/sandbox/project/.agents"
+                      },
+                      "access": "read",
+                      "missing_path_behavior": "skip"
+                    },
+                    {
+                      "path": {
+                        "type": "path",
+                        "path": "/tmp/sandbox/project/.codex"
+                      },
+                      "access": "read",
+                      "missing_path_behavior": "skip"
+                    },
+                    {
+                      "path": {
+                        "type": "path",
+                        "path": "/tmp/sandbox/project/.aws"
+                      },
+                      "access": "read",
+                      "missing_path_behavior": "skip"
+                    }
+                  ]
+                },
+                "network": "restricted"
+              },
+              "active_permission_profile": {
+                "id": ":workspace"
+              },
+              "cwd": "/tmp/sandbox/project",
+              "runtime_workspace_roots": ["/tmp/sandbox/project"],
+              "collaboration_mode": {
+                "mode": "default",
+                "settings": {
+                  "model": "fake-model",
+                  "reasoning_effort": null,
+                  "developer_instructions": "# Collaboration Mode: Default\n\nYou are now in Default mode. Any previous instructions for other modes (e.g. Plan mode) are no longer active.\n\nYour active mode changes only when new developer instructions with a different `<collaboration_mode>...</collaboration_mode>` change it; user requests or tool descriptions do not change mode by themselves. Known mode names are Default and Plan.\n\n## request_user_input availability\n\nUse the `request_user_input` tool only when it is listed in the available tools for this turn.\n\nIn Default mode, strongly prefer making reasonable assumptions and executing the user's request rather than stopping to ask questions.\n\nUse the `request_user_input` tool only for optional questions where the answer would materially improve the quality of the work.\n\nIf `request_user_input` returns no answers, continue with best judgment instead of asking again or treating the turn as blocked.\n\nNever use the `request_user_input` tool for permission requests or permission-related escalations.\n\nIf explicit user input is required for another reason before progress can safely continue, do not use the `request_user_input` tool. Ask the user directly with one concise plain-text question instead. Never write a multiple choice question as a textual assistant message.\n"
+                }
+              },
+              "disabled_plugin_ids": []
+            }
+          }
+        },
+        {
+          "timestamp": "2000-01-01T00:00:00.000Z",
+          "ordinal": 8,
+          "type": "event_msg",
+          "payload": {
+            "type": "item_completed",
+            "thread_id": "<uuid>",
+            "turn_id": "<uuid>",
+            "item": {
+              "type": "UserMessage",
+              "id": "<uuid>",
+              "client_id": "<uuid>",
+              "content": [
+                {
+                  "type": "text",
+                  "text": "Ask me about the button",
+                  "text_elements": []
+                }
+              ]
+            },
+            "started_at_ms": 0,
+            "completed_at_ms": 0
+          }
+        },
+        {
+          "timestamp": "2000-01-01T00:00:00.000Z",
+          "ordinal": 10,
+          "type": "response_item",
+          "payload": {
+            "type": "function_call",
+            "status": "completed",
+            "id": "fc_<id>",
+            "name": "request_user_input_async",
+            "arguments": "{\"questions\":[{\"title\":\"Which color should the button be?\",\"options\":[\"Blue\",\"Green\"]}]}",
+            "call_id": "call_<id>",
+            "internal_chat_message_metadata_passthrough": {
+              "turn_id": "<uuid>"
+            }
+          },
+          "metadata": {
+            "client_authored": false,
+            "user_input_order": 1
+          }
+        },
+        {
+          "timestamp": "2000-01-01T00:00:00.000Z",
+          "ordinal": 12,
+          "type": "event_msg",
+          "payload": {
+            "type": "item_completed",
+            "thread_id": "<uuid>",
+            "turn_id": "<uuid>",
+            "item": {
+              "type": "AgentMessage",
+              "id": "call_<id>",
+              "content": [
+                {
+                  "type": "Text",
+                  "text": "Which color should the button be?\n- Blue\n- Green"
+                }
+              ],
+              "phase": "final_answer",
+              "delivery": "async",
+              "questions": [
+                {
+                  "title": "Which color should the button be?",
+                  "options": ["Blue", "Green"]
+                }
+              ]
+            },
+            "started_at_ms": 0,
+            "completed_at_ms": 0
+          }
+        },
+        {
+          "timestamp": "2000-01-01T00:00:00.000Z",
+          "ordinal": 13,
+          "type": "response_item",
+          "payload": {
+            "type": "function_call_output",
+            "id": "fco_<uuid>",
+            "call_id": "call_<id>",
+            "output": "{\"accepted\":true}",
+            "internal_chat_message_metadata_passthrough": {
+              "turn_id": "<uuid>",
+              "create_time": 0
+            }
+          },
+          "metadata": {
+            "client_authored": false,
+            "fallback_token_limit_override": 12000
+          }
+        },
+        {
+          "timestamp": "2000-01-01T00:00:00.000Z",
+          "ordinal": 15,
+          "type": "event_msg",
+          "payload": {
+            "type": "item_completed",
+            "thread_id": "<uuid>",
+            "turn_id": "<uuid>",
+            "item": {
+              "type": "AgentMessage",
+              "id": "msg_<id>",
+              "content": [
+                {
+                  "type": "Text",
+                  "text": "Finished the request."
+                }
+              ]
+            },
+            "started_at_ms": 0,
+            "completed_at_ms": 0
+          }
+        },
+        {
+          "timestamp": "2000-01-01T00:00:00.000Z",
+          "ordinal": 19,
+          "type": "event_msg",
+          "payload": {
+            "type": "task_complete",
+            "root_turn_id": "<uuid>",
+            "turn_id": "<uuid>",
+            "last_agent_message": "Finished the request.",
+            "started_at": 0,
+            "completed_at": 0,
+            "duration_ms": 0,
+            "time_to_first_token_ms": 0
+          }
+        }
+      ],
+      "modelSaw": [
+        {
+          "role": "user",
+          "text": "<environment_context>\n  <cwd>/tmp/sandbox/project</cwd>\n  <shell>bash</shell>\n  <current_date>2026-10-29</current_date>\n  <timezone>Europe/Warsaw</timezone>\n  <filesystem><workspace_roots><root>/tmp/sandbox/project</root></workspace_roots><permission_profile type=\"managed\"><file_system type=\"restricted\"><entry access=\"read\"><special>:root</special></entry><entry access=\"write\"><path>/tmp/sandbox/project</path></entry><entry access=\"write\"><special>:slash_tmp</special></entry><entry access=\"write\"><special>:tmpdir</special></entry><entry access=\"read\"><path>/tmp/sandbox/project/.git</path></entry><entry access=\"read\"><path>/tmp/sandbox/project/.agents</path></entry><entry access=\"read\"><path>/tmp/sandbox/project/.codex</path></entry><entry access=\"read\"><path>/tmp/sandbox/project/.aws</path></entry></file_system></permission_profile></filesystem>\n</environment_context>\nAsk me about the button\nNovadeck: automatic notice, not from the user: beside this terminal is a bar where you show the user what you make, with Novadeck's show tool. Show a deliverable when it is done, not each file you touch: an image or screenshot, a rendered page or a dev server's address, a report, mockup, diagram or generated document, the one file the user asked you for, or whatever they ask to see. Show a page you serve or just deployed, such as a dev server or a preview; a link to someone else's site, which often wants a sign-in in the pane, goes in your reply unless they ask to see it there. A source file is one too while it is the file you are working on together, so show it and keep it shown; the files a change touches on the way aren't: once a piece of work is done, show the working tree's changes with changes, as diffs. Show a deliverable with open when you finish it or they asked to see it, so it opens at once; leave open off for anything supporting, which waits for them marked new. Showing the same file or page again updates it, so one item per deliverable, and while they have it open each save shows at once. close takes away what no longer applies, never what they may still be looking at unless they asked; showing lists what is there. This notice needs no reply.\n\nNovadeck: automatic notice, not from the user: the user rarely watches this terminal, so a question only in your reply goes unseen. When your harness has its own question tool and you'd stop to ask with it, do, as you normally would: Novadeck shows that question in their Inbox as it is, so it needs no ask. Always put every other question you end your turn waiting on, such as which option to take or whether to open a pull request, in their Inbox with Novadeck's ask tool, unless it is already an open ask, and put the full question in your reply too; a closing offer such as 'anything else?' isn't one, nor is an action your harness is already prompting them for. When you can't go on without something only the user can do, such as a sign-in, access to a service or repo, or a key put in place, that is an ask with the action shape, not just words in your reply; never ask for a secret value. When the task you were given is finished, report it with Novadeck's done tool, your own short report, not when you answer a question or finish a step. With a lead, use ask, tell and done all the same, and send your lead your report and your questions too; approvals of actions are still only the user's. When they write to you here, Novadeck takes your open asks out of their Inbox and tells you; ask again only what their message leaves open. If they answer one here and no such notice came, withdraw it yourself. This notice needs no reply.\n\nNovadeck: automatic notice, not from the user: this terminal has no summary yet. Call Novadeck's summarize tool now, before you go on with the work you were given, with one short line on what the work here is about, at a high level: its subject, with no status, PR or issue numbers, or details; with no work given yet, do so as soon as there is. Novadeck titles this terminal from it, and other agents read it in their agents listing. This notice needs no reply."
+        },
+        {
+          "role": "user",
+          "text": "<environment_context>\n  <current_date>2026-10-29</current_date>\n  <timezone>Europe/Warsaw</timezone>\n</environment_context>\nGenerate a concise, single-line task title of at most 36 characters and under five words where possible. Start with an imperative verb. Capitalize only the first word unless the user's language, proper nouns, acronyms, or code terms require otherwise. Preserve ticket references exactly. Write in the user's language. Do not use quotes, markdown, or trailing punctuation. Do not answer the request.\n\nUser prompt:\nAsk me about the button"
+        },
+        {
+          "role": "tool",
+          "id": "call_<id>",
+          "text": "{\"accepted\":true}"
+        }
+      ]
+    },
+    "rui-async-panel-two-other": {
+      "before": {
+        "height": 14,
+        "rows": {
+          "0": "  >_ OpenAI Codex (v0.163.0)",
+          "1": "     /tmp/sandbox/project",
+          "2": "› Ask me about the button",
+          "3": "• Which color should the button be?",
+          "4": "  • Blue",
+          "5": "  • Green",
+          "6": "  What should its label say?",
+          "7": "• Working (5s • esc to interrupt)",
+          "8": "• Queued follow-up inputs",
+          "9": "  ? 2 questions",
+          "10": "    shift+← to answer",
+          "11": "› Ask Codex to do anything",
+          "12": "  fake-model default · /tmp/sandbox/project",
+          "13": "  ? for shortcuts                                                                             ⚠ 2 warnings · f2 to view"
+        }
+      },
+      "steps": [
+        {
+          "label": "shift+left",
+          "screen": {
+            "height": 15,
+            "rows": {
+              "0": "  >_ OpenAI Codex (v0.163.0)",
+              "1": "     /tmp/sandbox/project",
+              "2": "› Ask me about the button",
+              "3": "• Which color should the button be?",
+              "4": "  • Blue",
+              "5": "  • Green",
+              "6": "  What should its label say?",
+              "7": "• Working (10s • esc to interrupt)",
+              "8": "• Queued follow-up inputs",
+              "9": "  1 of 2",
+              "10": "  Which color should the button be?",
+              "11": "  › 1. Blue",
+              "12": "    2. Green",
+              "13": "    3. Other",
+              "14": "  enter submit   ^] skip   shift+→ main prompt   shift+← next question"
+            }
+          }
+        },
+        {
+          "label": "3",
+          "screen": {
+            "height": 15,
+            "rows": {
+              "0": "  >_ OpenAI Codex (v0.163.0)",
+              "1": "     /tmp/sandbox/project",
+              "2": "› Ask me about the button",
+              "3": "• Which color should the button be?",
+              "4": "  • Blue",
+              "5": "  • Green",
+              "6": "  What should its label say?",
+              "7": "• Working (15s • esc to interrupt)",
+              "8": "• Queued follow-up inputs",
+              "9": "  1 of 2",
+              "10": "  Which color should the button be?",
+              "11": "    1. Blue",
+              "12": "    2. Green",
+              "13": "  › 3. Other",
+              "14": "  enter submit   ^] skip   shift+→ main prompt   shift+← next question"
+            }
+          }
+        },
+        {
+          "label": "Purple, enter",
+          "screen": {
+            "height": 15,
+            "rows": {
+              "0": "  >_ OpenAI Codex (v0.163.0)",
+              "1": "     /tmp/sandbox/project",
+              "2": "› Ask me about the button",
+              "3": "• Which color should the button be?",
+              "4": "  • Blue",
+              "5": "  • Green",
+              "6": "  What should its label say?",
+              "7": "• Working (20s • esc to interrupt)",
+              "8": "• Messages to be submitted after next tool call (press esc to interrupt and send immediately)",
+              "9": "  ↳ > Which color should the button be?",
+              "10": "    Purple",
+              "11": "• Queued follow-up inputs",
+              "12": "  What should its label say?",
+              "13": "  Type your answer",
+              "14": "  enter submit   ^] skip   shift+→ main prompt"
+            }
+          }
+        },
+        {
+          "label": "Large, enter",
+          "screen": {
+            "height": 16,
+            "rows": {
+              "0": "  >_ OpenAI Codex (v0.163.0)",
+              "1": "     /tmp/sandbox/project",
+              "2": "› Ask me about the button",
+              "3": "• Which color should the button be?",
+              "4": "  • Blue",
+              "5": "  • Green",
+              "6": "  What should its label say?",
+              "7": "• Working (25s • esc to interrupt)",
+              "8": "• Messages to be submitted after next tool call (press esc to interrupt and send immediately)",
+              "9": "  ↳ > Which color should the button be?",
+              "10": "    Purple",
+              "11": "  ↳ > What should its label say?",
+              "12": "    Large",
+              "13": "› Ask Codex to do anything",
+              "14": "  fake-model default · /tmp/sandbox/project",
+              "15": "  ? for shortcuts                                                                             ⚠ 2 warnings · f2 to view"
+            }
+          }
+        }
+      ],
+      "answered": true,
+      "screen": {
+        "height": 16,
+        "rows": {
+          "0": "  >_ OpenAI Codex (v0.163.0)",
+          "1": "     /tmp/sandbox/project",
+          "2": "› Ask me about the button",
+          "3": "• Which color should the button be?",
+          "4": "  • Blue",
+          "5": "  • Green",
+          "6": "  What should its label say?",
+          "7": "› > Which color should the button be?",
+          "8": "  Purple",
+          "9": "› > What should its label say?",
+          "10": "  Large",
+          "11": "• Thanks for the answer.",
+          "12": "  Worked for <n> • <HH:MM>",
+          "13": "› Ask Codex to do anything",
+          "14": "  fake-model default · /tmp/sandbox/project",
+          "15": "  ? for shortcuts                                                                             ⚠ 2 warnings · f2 to view"
+        }
+      },
+      "hooksAll": [
+        {
+          "kind": "start",
+          "event": "SessionStart",
+          "payload": {
+            "session_id": "<uuid>",
+            "transcript_path": "/tmp/sandbox/home/.codex/sessions/<date>/rollout-<time>-<uuid>.jsonl",
+            "cwd": "/tmp/sandbox/project",
+            "hook_event_name": "SessionStart",
+            "model": "fake-model",
+            "permission_mode": "default",
+            "source": "startup"
+          }
+        },
+        {
+          "kind": "end",
+          "event": "SessionStart"
+        },
+        {
+          "kind": "start",
+          "event": "UserPromptSubmit",
+          "payload": {
+            "session_id": "<uuid>",
+            "turn_id": "<uuid>",
+            "transcript_path": "/tmp/sandbox/home/.codex/sessions/<date>/rollout-<time>-<uuid>.jsonl",
+            "cwd": "/tmp/sandbox/project",
+            "hook_event_name": "UserPromptSubmit",
+            "model": "fake-model",
+            "permission_mode": "default",
+            "prompt": "Ask me about the button"
+          }
+        },
+        {
+          "kind": "end",
+          "event": "UserPromptSubmit"
+        },
+        {
+          "kind": "start",
+          "event": "PreToolUse[matched]",
+          "payload": {
+            "session_id": "<uuid>",
+            "turn_id": "<uuid>",
+            "transcript_path": "/tmp/sandbox/home/.codex/sessions/<date>/rollout-<time>-<uuid>.jsonl",
+            "cwd": "/tmp/sandbox/project",
+            "hook_event_name": "PreToolUse",
+            "model": "fake-model",
+            "permission_mode": "default",
+            "tool_name": "request_user_input_async",
+            "tool_input": {
+              "questions": [
+                {
+                  "title": "Which color should the button be?",
+                  "options": ["Blue", "Green"]
+                },
+                {
+                  "title": "What should its label say?"
+                }
+              ]
+            },
+            "tool_use_id": "call_<id>"
+          }
+        },
+        {
+          "kind": "end",
+          "event": "PreToolUse[matched]"
+        },
+        {
+          "kind": "start",
+          "event": "PreToolUse",
+          "payload": {
+            "session_id": "<uuid>",
+            "turn_id": "<uuid>",
+            "transcript_path": "/tmp/sandbox/home/.codex/sessions/<date>/rollout-<time>-<uuid>.jsonl",
+            "cwd": "/tmp/sandbox/project",
+            "hook_event_name": "PreToolUse",
+            "model": "fake-model",
+            "permission_mode": "default",
+            "tool_name": "request_user_input_async",
+            "tool_input": {
+              "questions": [
+                {
+                  "title": "Which color should the button be?",
+                  "options": ["Blue", "Green"]
+                },
+                {
+                  "title": "What should its label say?"
+                }
+              ]
+            },
+            "tool_use_id": "call_<id>"
+          }
+        },
+        {
+          "kind": "end",
+          "event": "PreToolUse"
+        },
+        {
+          "kind": "start",
+          "event": "PostToolUse",
+          "payload": {
+            "session_id": "<uuid>",
+            "turn_id": "<uuid>",
+            "transcript_path": "/tmp/sandbox/home/.codex/sessions/<date>/rollout-<time>-<uuid>.jsonl",
+            "cwd": "/tmp/sandbox/project",
+            "hook_event_name": "PostToolUse",
+            "model": "fake-model",
+            "permission_mode": "default",
+            "tool_name": "request_user_input_async",
+            "tool_input": {
+              "questions": [
+                {
+                  "title": "Which color should the button be?",
+                  "options": ["Blue", "Green"]
+                },
+                {
+                  "title": "What should its label say?"
+                }
+              ]
+            },
+            "tool_response": "{\"accepted\":true}",
+            "tool_use_id": "call_<id>"
+          }
+        },
+        {
+          "kind": "end",
+          "event": "PostToolUse"
+        },
+        {
+          "kind": "start",
+          "event": "UserPromptSubmit",
+          "payload": {
+            "session_id": "<uuid>",
+            "turn_id": "<uuid>",
+            "transcript_path": "/tmp/sandbox/home/.codex/sessions/<date>/rollout-<time>-<uuid>.jsonl",
+            "cwd": "/tmp/sandbox/project",
+            "hook_event_name": "UserPromptSubmit",
+            "model": "fake-model",
+            "permission_mode": "default",
+            "prompt": "<send_user_message_question_reply>\n[{\"answer\":\"Purple\",\"question\":\"Which color should the button be?\",\"questionItemId\":\"[\\\"request_user_input_async\\\",\\\"call_<id>\\\",0]\"}]\n</send_user_message_question_reply>"
+          }
+        },
+        {
+          "kind": "end",
+          "event": "UserPromptSubmit"
+        },
+        {
+          "kind": "start",
+          "event": "UserPromptSubmit",
+          "payload": {
+            "session_id": "<uuid>",
+            "turn_id": "<uuid>",
+            "transcript_path": "/tmp/sandbox/home/.codex/sessions/<date>/rollout-<time>-<uuid>.jsonl",
+            "cwd": "/tmp/sandbox/project",
+            "hook_event_name": "UserPromptSubmit",
+            "model": "fake-model",
+            "permission_mode": "default",
+            "prompt": "<send_user_message_question_reply>\n[{\"answer\":\"Large\",\"question\":\"What should its label say?\",\"questionItemId\":\"[\\\"request_user_input_async\\\",\\\"call_<id>\\\",1]\"}]\n</send_user_message_question_reply>"
+          }
+        },
+        {
+          "kind": "end",
+          "event": "UserPromptSubmit"
+        },
+        {
+          "kind": "start",
+          "event": "Stop",
+          "payload": {
+            "session_id": "<uuid>",
+            "turn_id": "<uuid>",
+            "transcript_path": "/tmp/sandbox/home/.codex/sessions/<date>/rollout-<time>-<uuid>.jsonl",
+            "cwd": "/tmp/sandbox/project",
+            "hook_event_name": "Stop",
+            "model": "fake-model",
+            "permission_mode": "default",
+            "stop_hook_active": false,
+            "last_assistant_message": "Thanks for the answer."
+          }
+        },
+        {
+          "kind": "end",
+          "event": "Stop"
+        }
+      ],
+      "rollout": [
+        {
+          "timestamp": "2000-01-01T00:00:00.000Z",
+          "ordinal": 1,
+          "type": "event_msg",
+          "payload": {
+            "type": "task_started",
+            "turn_attribution": {
+              "turn_id": "<uuid>",
+              "turn_trigger": "user",
+              "parent_turn_id": null,
+              "initiating_agent_path": null,
+              "root_turn_id": "<uuid>"
+            },
+            "turn_id": "<uuid>",
+            "root_turn_id": "<uuid>",
+            "started_at": 0,
+            "model_context_window": 190000,
+            "collaboration_mode_kind": "default"
+          }
+        },
+        {
+          "timestamp": "2000-01-01T00:00:00.000Z",
+          "ordinal": 6,
+          "type": "event_msg",
+          "payload": {
+            "type": "thread_settings_applied",
+            "thread_id": "<uuid>",
+            "thread_settings": {
+              "model": "fake-model",
+              "model_provider_id": "novadeck-e2e",
+              "service_tier": "default",
+              "approval_policy": "on-request",
+              "approvals_reviewer": "user",
+              "permission_profile": {
+                "type": "managed",
+                "file_system": {
+                  "type": "restricted",
+                  "entries": [
+                    {
+                      "path": {
+                        "type": "special",
+                        "value": {
+                          "kind": "root"
+                        }
+                      },
+                      "access": "read"
+                    },
+                    {
+                      "path": {
+                        "type": "path",
+                        "path": "/tmp/sandbox/project"
+                      },
+                      "access": "write"
+                    },
+                    {
+                      "path": {
+                        "type": "special",
+                        "value": {
+                          "kind": "slash_tmp"
+                        }
+                      },
+                      "access": "write"
+                    },
+                    {
+                      "path": {
+                        "type": "special",
+                        "value": {
+                          "kind": "tmpdir"
+                        }
+                      },
+                      "access": "write"
+                    },
+                    {
+                      "path": {
+                        "type": "path",
+                        "path": "/tmp/sandbox/project/.git"
+                      },
+                      "access": "read",
+                      "missing_path_behavior": "skip"
+                    },
+                    {
+                      "path": {
+                        "type": "path",
+                        "path": "/tmp/sandbox/project/.agents"
+                      },
+                      "access": "read",
+                      "missing_path_behavior": "skip"
+                    },
+                    {
+                      "path": {
+                        "type": "path",
+                        "path": "/tmp/sandbox/project/.codex"
+                      },
+                      "access": "read",
+                      "missing_path_behavior": "skip"
+                    },
+                    {
+                      "path": {
+                        "type": "path",
+                        "path": "/tmp/sandbox/project/.aws"
+                      },
+                      "access": "read",
+                      "missing_path_behavior": "skip"
+                    }
+                  ]
+                },
+                "network": "restricted"
+              },
+              "active_permission_profile": {
+                "id": ":workspace"
+              },
+              "cwd": "/tmp/sandbox/project",
+              "runtime_workspace_roots": ["/tmp/sandbox/project"],
+              "collaboration_mode": {
+                "mode": "default",
+                "settings": {
+                  "model": "fake-model",
+                  "reasoning_effort": null,
+                  "developer_instructions": "# Collaboration Mode: Default\n\nYou are now in Default mode. Any previous instructions for other modes (e.g. Plan mode) are no longer active.\n\nYour active mode changes only when new developer instructions with a different `<collaboration_mode>...</collaboration_mode>` change it; user requests or tool descriptions do not change mode by themselves. Known mode names are Default and Plan.\n\n## request_user_input availability\n\nUse the `request_user_input` tool only when it is listed in the available tools for this turn.\n\nIn Default mode, strongly prefer making reasonable assumptions and executing the user's request rather than stopping to ask questions.\n\nUse the `request_user_input` tool only for optional questions where the answer would materially improve the quality of the work.\n\nIf `request_user_input` returns no answers, continue with best judgment instead of asking again or treating the turn as blocked.\n\nNever use the `request_user_input` tool for permission requests or permission-related escalations.\n\nIf explicit user input is required for another reason before progress can safely continue, do not use the `request_user_input` tool. Ask the user directly with one concise plain-text question instead. Never write a multiple choice question as a textual assistant message.\n"
+                }
+              },
+              "disabled_plugin_ids": []
+            }
+          }
+        },
+        {
+          "timestamp": "2000-01-01T00:00:00.000Z",
+          "ordinal": 8,
+          "type": "event_msg",
+          "payload": {
+            "type": "item_completed",
+            "thread_id": "<uuid>",
+            "turn_id": "<uuid>",
+            "item": {
+              "type": "UserMessage",
+              "id": "<uuid>",
+              "client_id": "<uuid>",
+              "content": [
+                {
+                  "type": "text",
+                  "text": "Ask me about the button",
+                  "text_elements": []
+                }
+              ]
+            },
+            "started_at_ms": 0,
+            "completed_at_ms": 0
+          }
+        },
+        {
+          "timestamp": "2000-01-01T00:00:00.000Z",
+          "ordinal": 10,
+          "type": "response_item",
+          "payload": {
+            "type": "function_call",
+            "status": "completed",
+            "id": "fc_<id>",
+            "name": "request_user_input_async",
+            "arguments": "{\"questions\":[{\"title\":\"Which color should the button be?\",\"options\":[\"Blue\",\"Green\"]},{\"title\":\"What should its label say?\"}]}",
+            "call_id": "call_<id>",
+            "internal_chat_message_metadata_passthrough": {
+              "turn_id": "<uuid>"
+            }
+          },
+          "metadata": {
+            "client_authored": false,
+            "user_input_order": 1
+          }
+        },
+        {
+          "timestamp": "2000-01-01T00:00:00.000Z",
+          "ordinal": 12,
+          "type": "event_msg",
+          "payload": {
+            "type": "item_completed",
+            "thread_id": "<uuid>",
+            "turn_id": "<uuid>",
+            "item": {
+              "type": "AgentMessage",
+              "id": "call_<id>",
+              "content": [
+                {
+                  "type": "Text",
+                  "text": "Which color should the button be?\n- Blue\n- Green\n\nWhat should its label say?"
+                }
+              ],
+              "phase": "final_answer",
+              "delivery": "async",
+              "questions": [
+                {
+                  "title": "Which color should the button be?",
+                  "options": ["Blue", "Green"]
+                },
+                {
+                  "title": "What should its label say?",
+                  "options": null
+                }
+              ]
+            },
+            "started_at_ms": 0,
+            "completed_at_ms": 0
+          }
+        },
+        {
+          "timestamp": "2000-01-01T00:00:00.000Z",
+          "ordinal": 13,
+          "type": "response_item",
+          "payload": {
+            "type": "function_call_output",
+            "id": "fco_<uuid>",
+            "call_id": "call_<id>",
+            "output": "{\"accepted\":true}",
+            "internal_chat_message_metadata_passthrough": {
+              "turn_id": "<uuid>",
+              "create_time": 0
+            }
+          },
+          "metadata": {
+            "client_authored": false,
+            "fallback_token_limit_override": 12000
+          }
+        },
+        {
+          "timestamp": "2000-01-01T00:00:00.000Z",
+          "ordinal": 16,
+          "type": "event_msg",
+          "payload": {
+            "type": "item_completed",
+            "thread_id": "<uuid>",
+            "turn_id": "<uuid>",
+            "item": {
+              "type": "UserMessage",
+              "id": "<uuid>",
+              "client_id": "<uuid>",
+              "content": [
+                {
+                  "type": "text",
+                  "text": "<send_user_message_question_reply>\n[{\"answer\":\"Purple\",\"question\":\"Which color should the button be?\",\"questionItemId\":\"[\\\"request_user_input_async\\\",\\\"call_<id>\\\",0]\"}]\n</send_user_message_question_reply>",
+                  "text_elements": []
+                }
+              ]
+            },
+            "started_at_ms": 0,
+            "completed_at_ms": 0
+          }
+        },
+        {
+          "timestamp": "2000-01-01T00:00:00.000Z",
+          "ordinal": 18,
+          "type": "event_msg",
+          "payload": {
+            "type": "item_completed",
+            "thread_id": "<uuid>",
+            "turn_id": "<uuid>",
+            "item": {
+              "type": "UserMessage",
+              "id": "<uuid>",
+              "client_id": "<uuid>",
+              "content": [
+                {
+                  "type": "text",
+                  "text": "<send_user_message_question_reply>\n[{\"answer\":\"Large\",\"question\":\"What should its label say?\",\"questionItemId\":\"[\\\"request_user_input_async\\\",\\\"call_<id>\\\",1]\"}]\n</send_user_message_question_reply>",
+                  "text_elements": []
+                }
+              ]
+            },
+            "started_at_ms": 0,
+            "completed_at_ms": 0
+          }
+        },
+        {
+          "timestamp": "2000-01-01T00:00:00.000Z",
+          "ordinal": 19,
+          "type": "event_msg",
+          "payload": {
+            "type": "item_completed",
+            "thread_id": "<uuid>",
+            "turn_id": "<uuid>",
+            "item": {
+              "type": "AgentMessage",
+              "id": "msg_<id>",
+              "content": [
+                {
+                  "type": "Text",
+                  "text": "Thanks for the answer."
+                }
+              ]
+            },
+            "started_at_ms": 0,
+            "completed_at_ms": 0
+          }
+        },
+        {
+          "timestamp": "2000-01-01T00:00:00.000Z",
+          "ordinal": 23,
+          "type": "event_msg",
+          "payload": {
+            "type": "task_complete",
+            "root_turn_id": "<uuid>",
+            "turn_id": "<uuid>",
+            "last_agent_message": "Thanks for the answer.",
+            "started_at": 0,
+            "completed_at": 0,
+            "duration_ms": 0,
+            "time_to_first_token_ms": 0
+          }
+        }
+      ],
+      "modelSaw": [
+        {
+          "role": "user",
+          "text": "<environment_context>\n  <cwd>/tmp/sandbox/project</cwd>\n  <shell>bash</shell>\n  <current_date>2026-10-29</current_date>\n  <timezone>Europe/Warsaw</timezone>\n  <filesystem><workspace_roots><root>/tmp/sandbox/project</root></workspace_roots><permission_profile type=\"managed\"><file_system type=\"restricted\"><entry access=\"read\"><special>:root</special></entry><entry access=\"write\"><path>/tmp/sandbox/project</path></entry><entry access=\"write\"><special>:slash_tmp</special></entry><entry access=\"write\"><special>:tmpdir</special></entry><entry access=\"read\"><path>/tmp/sandbox/project/.git</path></entry><entry access=\"read\"><path>/tmp/sandbox/project/.agents</path></entry><entry access=\"read\"><path>/tmp/sandbox/project/.codex</path></entry><entry access=\"read\"><path>/tmp/sandbox/project/.aws</path></entry></file_system></permission_profile></filesystem>\n</environment_context>\nAsk me about the button\nNovadeck: automatic notice, not from the user: beside this terminal is a bar where you show the user what you make, with Novadeck's show tool. Show a deliverable when it is done, not each file you touch: an image or screenshot, a rendered page or a dev server's address, a report, mockup, diagram or generated document, the one file the user asked you for, or whatever they ask to see. Show a page you serve or just deployed, such as a dev server or a preview; a link to someone else's site, which often wants a sign-in in the pane, goes in your reply unless they ask to see it there. A source file is one too while it is the file you are working on together, so show it and keep it shown; the files a change touches on the way aren't: once a piece of work is done, show the working tree's changes with changes, as diffs. Show a deliverable with open when you finish it or they asked to see it, so it opens at once; leave open off for anything supporting, which waits for them marked new. Showing the same file or page again updates it, so one item per deliverable, and while they have it open each save shows at once. close takes away what no longer applies, never what they may still be looking at unless they asked; showing lists what is there. This notice needs no reply.\n\nNovadeck: automatic notice, not from the user: the user rarely watches this terminal, so a question only in your reply goes unseen. When your harness has its own question tool and you'd stop to ask with it, do, as you normally would: Novadeck shows that question in their Inbox as it is, so it needs no ask. Always put every other question you end your turn waiting on, such as which option to take or whether to open a pull request, in their Inbox with Novadeck's ask tool, unless it is already an open ask, and put the full question in your reply too; a closing offer such as 'anything else?' isn't one, nor is an action your harness is already prompting them for. When you can't go on without something only the user can do, such as a sign-in, access to a service or repo, or a key put in place, that is an ask with the action shape, not just words in your reply; never ask for a secret value. When the task you were given is finished, report it with Novadeck's done tool, your own short report, not when you answer a question or finish a step. With a lead, use ask, tell and done all the same, and send your lead your report and your questions too; approvals of actions are still only the user's. When they write to you here, Novadeck takes your open asks out of their Inbox and tells you; ask again only what their message leaves open. If they answer one here and no such notice came, withdraw it yourself. This notice needs no reply.\n\nNovadeck: automatic notice, not from the user: this terminal has no summary yet. Call Novadeck's summarize tool now, before you go on with the work you were given, with one short line on what the work here is about, at a high level: its subject, with no status, PR or issue numbers, or details; with no work given yet, do so as soon as there is. Novadeck titles this terminal from it, and other agents read it in their agents listing. This notice needs no reply."
+        },
+        {
+          "role": "user",
+          "text": "<environment_context>\n  <current_date>2026-10-29</current_date>\n  <timezone>Europe/Warsaw</timezone>\n</environment_context>\nGenerate a concise, single-line task title of at most 36 characters and under five words where possible. Start with an imperative verb. Capitalize only the first word unless the user's language, proper nouns, acronyms, or code terms require otherwise. Preserve ticket references exactly. Write in the user's language. Do not use quotes, markdown, or trailing punctuation. Do not answer the request.\n\nUser prompt:\nAsk me about the button"
+        },
+        {
+          "role": "tool",
+          "id": "call_<id>",
+          "text": "{\"accepted\":true}"
+        },
+        {
+          "role": "user",
+          "text": "<environment_context>\n  <current_date>2026-10-29</current_date>\n  <timezone>Europe/Warsaw</timezone>\n</environment_context>\nGenerate a concise, single-line task title of at most 36 characters and under five words where possible. Start with an imperative verb. Capitalize only the first word unless the user's language, proper nouns, acronyms, or code terms require otherwise. Preserve ticket references exactly. Write in the user's language. Do not use quotes, markdown, or trailing punctuation. Do not answer the request.\n\nUser prompt:\n<send_user_message_question_reply>\n[{\"answer\":\"Purple\",\"question\":\"Which color should the button be?\",\"questionItemId\":\"[\\\"request_user_input_async\\\",\\\"call_<id>\\\",0]\"}]\n</send_user_message_question_reply>"
+        },
+        {
+          "role": "user",
+          "text": "<send_user_message_question_reply>\n[{\"answer\":\"Purple\",\"question\":\"Which color should the button be?\",\"questionItemId\":\"[\\\"request_user_input_async\\\",\\\"call_<id>\\\",0]\"}]\n</send_user_message_question_reply>\n<send_user_message_question_reply>\n[{\"answer\":\"Large\",\"question\":\"What should its label say?\",\"questionItemId\":\"[\\\"request_user_input_async\\\",\\\"call_<id>\\\",1]\"}]\n</send_user_message_question_reply>"
+        },
+        {
+          "role": "user",
+          "text": "<environment_context>\n  <current_date>2026-10-29</current_date>\n  <timezone>Europe/Warsaw</timezone>\n</environment_context>\nGenerate a concise, single-line task title of at most 36 characters and under five words where possible. Start with an imperative verb. Capitalize only the first word unless the user's language, proper nouns, acronyms, or code terms require otherwise. Preserve ticket references exactly. Write in the user's language. Do not use quotes, markdown, or trailing punctuation. Do not answer the request.\n\nUser prompt:\n<send_user_message_question_reply>\n[{\"answer\":\"Large\",\"question\":\"What should its label say?\",\"questionItemId\":\"[\\\"request_user_input_async\\\",\\\"call_<id>\\\",1]\"}]\n</send_user_message_question_reply>"
+        }
+      ]
+    },
     "rui-default-off": {
       "hooksAll": [
         {

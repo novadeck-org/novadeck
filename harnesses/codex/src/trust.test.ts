@@ -27,7 +27,7 @@ const hook = (
   trustStatus,
 })
 const listed = (...hooks: object[]) => ({ data: [{ cwd: "/work", hooks }] })
-const ours = ["sessionStart", "userPromptSubmit", "stop"]
+const ours = ["sessionStart", "userPromptSubmit", "stop", "preToolUse"]
 
 describe("Novadeck's Codex hooks", () => {
   it("run once each one it needs is trusted", () => {
@@ -42,6 +42,14 @@ describe("Novadeck's Codex hooks", () => {
         ),
       ).toBe(false)
     expect(trustedIn(listed(hook("sessionStart", "trusted"), hook("stop", "trusted")))).toBe(false)
+    // Codex 0.163 keeps trust per hook: a changed matcher leaves PreToolUse alone modified.
+    expect(
+      trustedIn(
+        listed(
+          ...ours.map((event) => hook(event, event === "preToolUse" ? "modified" : "trusted")),
+        ),
+      ),
+    ).toBe(false)
   })
 
   it("count only Novadeck's plugin's, and nothing Codex couldn't list", () => {

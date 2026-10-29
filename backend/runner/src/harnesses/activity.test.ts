@@ -7,8 +7,10 @@ import { describe, expect, it } from "../test.js"
 import { adapterFolder } from "../testing/adapters.js"
 import {
   apply,
+  blocking,
   boundSince,
   escapeVerdictMs,
+  ordered,
   started,
   subagentRef,
   summary,
@@ -370,6 +372,165 @@ describe("applying activity", () => {
         kind: "permission",
       })
     }
+  })
+
+  // The root asking without waiting, as Codex's async question, in a turn from 4.
+  const detached = () =>
+    apply(apply(started(0), binding, fact({ type: "turn-started", startedAt: 4 }))!, binding, {
+      ...request("q:async", null, 6),
+      toolName: "request_user_input_async",
+      kind: "question",
+      detached: true,
+    } as ActivityEvent)!
+
+  it("keeps a detached request past the turn's end, idle, escape and the turns it doesn't start", () => {
+    for (const boundary of [
+      fact({ type: "turn-ended", outcome: "completed", startedAt: 10 }),
+      fact({ type: "turn-ended", outcome: "interrupted", startedAt: 10 }),
+      fact({ type: "turn-idle", startedAt: 10 }),
+      fact({ type: "turn-escaped", startedAt: 10 }),
+      // The person's prompt queued while the turn runs, and a turn Novadeck or the
+      // harness starts.
+      fact({ type: "turn-started", cause: "prompt", startedAt: 10 }),
+      fact({ type: "turn-started", cause: "doorbell", nonce: "n", startedAt: 10 }),
+    ]) {
+      const next = apply(detached(), binding, boundary)!
+      expect(ids(next), boundary.type).toEqual(["q:async"])
+      expect(summary(next).attention, boundary.type).toEqual({
+        pending: 1,
+        kind: "question",
+        detached: 1,
+      })
+    }
+    const ended = apply(
+      detached(),
+      binding,
+      fact({ type: "turn-ended", outcome: "completed", startedAt: 10 }),
+    )!
+    const rung = apply(
+      ended,
+      binding,
+      fact({ type: "turn-started", cause: "doorbell", nonce: "n", startedAt: 11 }),
+    )!
+    expect(ids(rung)).toEqual(["q:async"])
+  })
+
+  it("settles a detached request at the person's prompt once no turn runs", () => {
+    const ended = apply(
+      detached(),
+      binding,
+      fact({ type: "turn-ended", outcome: "completed", startedAt: 10 }),
+    )!
+    const next = apply(
+      ended,
+      binding,
+      fact({ type: "turn-started", cause: "prompt", startedAt: 11 }),
+    )!
+    expect(ids(next)).toEqual([])
+  })
+
+  it("settles a detached request at its own result, from whichever turn", () => {
+    const later = apply(
+      apply(
+        detached(),
+        binding,
+        fact({ type: "turn-ended", outcome: "completed", startedAt: 10 }),
+      )!,
+      binding,
+      fact({ type: "turn-started", cause: "doorbell", nonce: "n", startedAt: 11 }),
+    )!
+    // Its reply's hook started before the latest turn's fence, which a root request's
+    // result must not cross, but it answers to no turn.
+    const settled = apply(later, binding, {
+      ...result("q:async", null, "request_user_input_async"),
+      startedAt: 9,
+    })!
+    expect(ids(settled)).toEqual([])
+  })
+
+  // The root asking two questions without waiting, each answered on its own.
+  const inParts = () =>
+    apply(apply(started(0), binding, fact({ type: "turn-started", startedAt: 4 }))!, binding, {
+      ...request("q:parts", null, 6),
+      toolName: "request_user_input_async",
+      kind: "question",
+      detached: true,
+      parts: ["Which color?", "Which label?"],
+    } as ActivityEvent)!
+
+  it("settles a request asked in parts once each part has its answer, in any order", () => {
+    const answer = (part: number) => ({
+      ...result("q:parts", null, "request_user_input_async"),
+      part,
+    })
+    const half = apply(inParts(), binding, answer(1))!
+    expect(half.pending).toMatchObject([{ requestId: "q:parts", answered: [1] }])
+    // The same part again changes nothing it settles.
+    expect(apply(half, binding, answer(1))!.pending).toHaveLength(1)
+    expect(apply(half, binding, answer(0))!.pending).toEqual([])
+  })
+
+  it("settles only the parts a prompt after the turn quotes, leaving other detached requests", () => {
+    const ended = apply(
+      apply(inParts(), binding, {
+        ...request("q:other", null, 7),
+        toolName: "request_user_input_async",
+        kind: "question",
+        detached: true,
+        parts: ["Ship it?"],
+      } as ActivityEvent)!,
+      binding,
+      fact({ type: "turn-ended", outcome: "completed", startedAt: 10 }),
+    )!
+    const quoted = apply(
+      ended,
+      binding,
+      fact({ type: "turn-started", cause: "prompt", answers: ["Which color?"], startedAt: 11 }),
+    )!
+    expect(quoted.pending.map(({ requestId, answered }) => [requestId, answered])).toEqual([
+      ["q:parts", [0]],
+      ["q:other", undefined],
+    ])
+    const both = apply(
+      ended,
+      binding,
+      fact({
+        type: "turn-started",
+        cause: "prompt",
+        answers: ["Which color?", "Which label?"],
+        startedAt: 11,
+      }),
+    )!
+    expect(ids(both)).toEqual(["q:other"])
+    // One that answers some other question leaves them all, as an answer to one does the rest.
+    const other = apply(
+      ended,
+      binding,
+      fact({ type: "turn-started", cause: "prompt", answers: ["Unrelated?"], startedAt: 11 }),
+    )!
+    expect(ids(other)).toEqual(["q:parts", "q:other"])
+    const next = apply(
+      ended,
+      binding,
+      fact({ type: "turn-started", cause: "prompt", startedAt: 11 }),
+    )!
+    expect(ids(next)).toEqual([])
+  })
+
+  it("puts the requests that hold the agent ahead of a detached one asked before them", () => {
+    const both = apply(detached(), binding, request("root:Bash:1", null, 7))!
+    expect(ordered(both.pending).map(({ requestId }) => requestId)).toEqual([
+      "root:Bash:1",
+      "q:async",
+    ])
+    expect(summary(both).attention).toEqual({ pending: 2, kind: "permission", detached: 1 })
+  })
+
+  it("lets only the requests that aren't detached block the agent's prompt", () => {
+    const both = apply(detached(), binding, request("root:Bash:1", null, 7))!
+    expect(blocking(both.pending).map(({ requestId }) => requestId)).toEqual(["root:Bash:1"])
+    expect(blocking(detached().pending)).toEqual([])
+    expect(blocking(undefined)).toEqual([])
   })
 
   it("settles a background subagent's request at its own resolution or stop", () => {

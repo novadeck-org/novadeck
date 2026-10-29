@@ -117,6 +117,29 @@ describe("each request's dialog", () => {
     expect(twins.dialogs.shown("t", "r2")).toEqual(twins.dialogs.shown("t", "r1"))
   })
 
+  it("is answerable for each request whose dialog takes a prompt, though one screen reads for several", async () => {
+    // A request asked from elsewhere reads the same screen, as a dialog answered as a prompt.
+    const prompting = (cwd: string | null): DialogAdapter => ({
+      read: (rows, facts) => {
+        const read = fakeAdapter().read(rows, facts)
+        return read && (facts.cwd === cwd ? read : { ...read, prompt: () => "> Which?\n\nYes" })
+      },
+    })
+    const other = { ...request("r2", "ls"), facts: { ...request("r2", "ls").facts, cwd: "/else" } }
+    const both = terminal({ requests: [request("r1", "ls"), other], adapter: prompting("none") })
+    both.dialogs.changed("t")
+    await until(() => both.dialogs.shown("t", "r2") !== null)
+    expect(both.dialogs.shown("t", "r1")).toMatchObject({ type: "choices" })
+    expect(both.dialogs.shown("t", "r2")).toMatchObject({ type: "choices" })
+
+    // Beside a dialog answered by keys, it can't be told from that one: it is raw.
+    const mixed = terminal({ requests: [request("r1", "ls"), other], adapter: prompting(null) })
+    mixed.dialogs.changed("t")
+    await until(() => mixed.dialogs.shown("t", "r2") !== null)
+    expect(mixed.dialogs.shown("t", "r1")).toMatchObject({ type: "choices" })
+    expect(mixed.dialogs.shown("t", "r2")).toMatchObject({ type: "raw", reason: "unrecognized" })
+  })
+
   it("is raw, with the screen's text, once the screen is still and nothing reads", async () => {
     const { tui, dialogs } = terminal()
     tui.state = "other"

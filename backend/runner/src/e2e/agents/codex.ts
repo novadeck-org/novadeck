@@ -23,9 +23,45 @@ const planMode = async (terminal: DeckTerminal): Promise<void> => {
   await new Promise((resolve) => setTimeout(resolve, 1500))
 }
 
-const config = (sandbox: Sandbox, url: string, trusted: boolean): string =>
+const modelEntry = (slug: string, priority: number, tools: readonly string[]) => ({
+  slug,
+  display_name: slug,
+  description: "Novadeck's fake model",
+  default_reasoning_level: "medium",
+  supported_reasoning_levels: [{ effort: "medium", description: "Medium" }],
+  shell_type: "unified_exec",
+  visibility: "list",
+  supported_in_api: true,
+  priority,
+  context_window: 200_000,
+  truncation_policy: { mode: "tokens", limit: 10_000 },
+  support_verbosity: true,
+  base_instructions: "You are Codex, here against Novadeck's fake model.",
+  experimental_supported_tools: tools,
+})
+
+/**
+ * The catalog entry of the fake model, as OpenAI's catalog has one for each of its models.
+ * Codex offers a tool only to a model whose entry lists it in `experimental_supported_tools`
+ * (request_user_input_async comes with `send_user_message_async`), and offers none to a
+ * model without an entry; OpenAI's current entries list these two (seen in a
+ * models_cache.json of 2026-10-29). The other fields are those 0.163.0 and 0.165.0 need to
+ * accept the entry, found by trial.
+ */
+export const catalog = JSON.stringify({
+  models: [
+    modelEntry("fake-model", 1, ["send_user_message_async", "clock"]),
+    // The cheaper model it offers once its rate limits run low ("Switch to ..."), which it
+    // takes from its catalog: the bundled one has it, a catalog of ours must too (0.163.0:
+    // gpt-6-luna; gpt-5.6-luna and gpt-5.1-codex-mini don't do).
+    modelEntry("gpt-6-luna", 2, []),
+  ],
+})
+
+const config = (sandbox: Sandbox, url: string, trusted: boolean, catalogFile: string): string =>
   `# Codex against Novadeck's fake model, for end-to-end tests.
 model = "fake-model"
+model_catalog_json = ${JSON.stringify(catalogFile)}
 model_provider = "novadeck-e2e"
 # Its ChatGPT backend, which it asks for featured plugins on the way to its prompt.
 chatgpt_base_url = ${JSON.stringify(`${url}/backend-api/`)}
@@ -212,9 +248,11 @@ export const codex: AgentSetup = {
   prepare: async (sandbox, model, _installed, seed) => {
     const home = join(sandbox.home, ".codex")
     await mkdir(home, { recursive: true, mode: 0o700 })
+    const catalogFile = join(home, "models.json")
+    await writeFile(catalogFile, catalog)
     await writeFile(
       join(home, "config.toml"),
-      config(sandbox, model.url, seed?.folderTrusted !== false),
+      config(sandbox, model.url, seed?.folderTrusted !== false, catalogFile),
     )
     // It asks about a folder only if a git repository, since 0.160.1 (probed 2026-10-08):
     // 0.159.3 asked about any folder. Without the repository, a newer Codex shows its
