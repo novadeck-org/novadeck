@@ -4,6 +4,7 @@ import { itemIdOf, type Item } from "@novadeck/core/items"
 import type { Backend, BackendSink, TerminalKey } from "@novadeck/core/port"
 import type { WorkspaceSeed } from "@novadeck/core/seed"
 import { sessionName } from "@novadeck/core/session-name"
+import { createStore } from "@novadeck/core/store"
 import type { CanvasLayout, TerminalMetadata, Workspace } from "@novadeck/core/types"
 
 import {
@@ -22,7 +23,11 @@ import {
 import { demoHandle } from "./handles"
 import { isDemoInbox } from "./inbox"
 import { createDemoMessages } from "./messages"
+import { lessMotion } from "./motion"
 import { demoTerminalId, terminalSlot, type ChatAgent } from "./samples"
+import { resultBlock } from "./screen/agent"
+import type { Block } from "./screen/screen"
+import { span, wrap } from "./screen/vt"
 import { ready, svg, type SampleArtifact } from "./showcase/artifacts"
 import { add, context, file, hunk, remove } from "./showcase/changes"
 import { createShowcase } from "./showcase/simulation"
@@ -31,8 +36,9 @@ import type { DemoTranscript } from "./transcripts"
 import type { DemoTurns } from "./turns"
 
 // The launch demo: the launch walkthrough video's tour of the app, captured from
-// `?demo=launch`. A small software team's deck: project northwind, a web storefront, has ten
-// agents on the Canvas, mixing Claude Code, Codex and Antigravity, all at work; a second
+// `?demo=launch`. A small software team's deck: project northwind, a web storefront, has eight
+// agents on the Canvas (eleven once its lead's team lands), mixing Claude Code, Codex and
+// Antigravity, all at work, a few with a line of output that moves; a second
 // project, northwind-docs, works beside it. The video's beats are cues the debug panel's
 // "Launch" group fires (see `LaunchCues`), so a capture plan can time each to a frame: a
 // spread of states, three asks that fill the Inbox, a lead that opens three teammates, a
@@ -78,8 +84,39 @@ const jobs: readonly Job[] = [
     ask: "Add a cart drawer that opens from the header.",
     plan: "Wiring the drawer to the cart store, then checking it on a phone.",
     command: "pnpm build",
-    progress: "Built 14 of 22 routes",
+    progress: "Built 14 of 96 routes",
     done: "The cart drawer opens from the header and keeps its items.",
+    // What it did first, so its Inbox sheet (the question) shows its steps above the ask.
+    before: [
+      {
+        tool: "Write",
+        input: {
+          file_path: `${home}/src/components/CartDrawer.tsx`,
+          content: `export const CartDrawer = ({ open }: { open: boolean }) => (\n  <aside data-open={open}>{/* items */}</aside>\n)`,
+        },
+        arg: "src/components/CartDrawer.tsx",
+        title: "Wrote",
+        result: `File created successfully at: ${home}/src/components/CartDrawer.tsx`,
+      },
+      {
+        tool: "Edit",
+        input: {
+          file_path: `${home}/src/components/Header.tsx`,
+          old_string: `<nav>{links}</nav>`,
+          new_string: `<nav>{links}</nav>\n<CartButton onClick={openDrawer} />`,
+        },
+        arg: "src/components/Header.tsx",
+        title: "Edited",
+        result: `The file ${home}/src/components/Header.tsx has been updated successfully.`,
+      },
+      {
+        tool: "Bash",
+        input: { command: "pnpm typecheck" },
+        arg: "pnpm typecheck",
+        title: "Ran",
+        result: "Done in 2.8s",
+      },
+    ],
   },
   {
     name: "Search index",
@@ -145,7 +182,7 @@ const jobs: readonly Job[] = [
     ask: "Handle Stripe's payment webhooks.",
     plan: "Verifying the signature before reading the event.",
     command: "pnpm test --filter webhooks",
-    progress: "",
+    progress: "Passed 11 of 64 webhook tests",
     done: "Payment webhooks are verified and recorded.",
   },
   {
@@ -165,10 +202,39 @@ const jobs: readonly Job[] = [
     command: "pnpm test --filter emails",
     progress: "",
     done: "A shipped order sends its email, and the tests pass.",
+    // What it did first, so its Inbox sheet (the plan) shows its steps above the ask.
+    before: [
+      {
+        tool: "Bash",
+        input: { command: "pnpm test --filter orders" },
+        arg: "pnpm test --filter orders",
+        title: "Ran",
+        result: "12 passed in 1.9s",
+      },
+      {
+        tool: "Bash",
+        input: { command: "git log --oneline -5 -- src/lib/orders.ts" },
+        arg: "git log --oneline -5 -- src/lib/orders.ts",
+        title: "Ran",
+        result: "5 commits",
+      },
+      {
+        tool: "Write",
+        input: {
+          file_path: `${home}/docs/plans/order-emails.md`,
+          content:
+            "# Order emails\n\n1. Add a shipped-order email template\n2. Queue it when an order is marked shipped\n3. Test it with a sandbox order",
+        },
+        arg: "docs/plans/order-emails.md",
+        title: "Wrote",
+        result: `File created successfully at: ${home}/docs/plans/order-emails.md`,
+      },
+    ],
   },
   {
     name: "Inventory sync",
-    agent: "codex",
+    // The deck's one Antigravity window, now the idle Antigravity agents are off it.
+    agent: "agy",
     ask: "Sync stock counts from the warehouse feed.",
     plan: "Writing the job that reads the feed.",
     command: "pnpm test --filter inventory",
@@ -204,7 +270,7 @@ const teammates: readonly Job[] = [
     ask: "Serve prices from the API.",
     plan: "Reading the price list into a route.",
     command: "pnpm test --filter pricing-api",
-    progress: "",
+    progress: "Passed 3 of 40 pricing tests",
     done: "The pricing endpoint answers.",
   },
   {
@@ -222,7 +288,7 @@ const teammates: readonly Job[] = [
     ask: "Keep the cart in the API.",
     plan: "Writing the route that saves a cart.",
     command: "pnpm test --filter cart-api",
-    progress: "",
+    progress: "Passed 4 of 36 cart tests",
     done: "The cart endpoint saves and returns a cart.",
   },
 ]
@@ -238,43 +304,38 @@ const allJobs: readonly Job[] = [...jobs, ...teammates]
 
 const keyOf = (number: number, projectId = shop): TerminalKey => deskKey(projectId, number)
 
-// The Canvas: windows on a grid four across, each a little off the line as windows end up when
-// moved by hand. The ten fill the first two rows and two places of the third, the lead (the
-// tenth) the third column of it, with a free place to its left, one to its right and one under
-// that: the Canvas puts its three teammates in those itself, the free places nearest the middle
-// of the deck it shows. Each window's column and row, by its place in the list.
-const cells = [
-  [0, 0],
-  [1, 0],
-  [2, 0],
-  [3, 0],
-  [0, 1],
-  [1, 1],
-  [2, 1],
-  [3, 1],
-  [0, 2],
-  [2, 2],
-] as const
-const nudges = [
-  [0, 10],
-  [25, -15],
-  [-10, 20],
-  [15, 0],
-  [-20, 5],
-  [10, 25],
-  [0, -10],
-  [-15, 15],
-  [20, -5],
-  [0, 0],
-] as const
-const windowSize = { width: 550, height: 380 }
+// Two of northwind's agents, which no cue acts on, sit this video out (Product pages and Image
+// pipeline, both Antigravity's): the deck shows the other eight, and the numbers stay, so the
+// teammates keep theirs (11 to 13) and every cue its agent. Search index stays, as the review cue's
+// reviewer (the website's /vs pages ask it for one); Inventory sync, which finishes alone, took an
+// Antigravity place, so the deck still shows all three harnesses.
+const benched: ReadonlySet<number> = new Set([3, 6])
+const onDeck = (number: number): boolean => !benched.has(number)
+
+// The Canvas: windows on a grid three across, each a little off the line as windows end up when
+// moved by hand, and big, so the deck fills the frame. Six fill the first two rows; the lead (the
+// tenth) and the reviewer take the fourth, and the third row is left empty. The Canvas puts a new
+// window in the free place showing most, nearest the middle of the deck it fits (the app fits it
+// on open, so only rows with a window show), so the lead's three teammates land in that empty row,
+// in a line just above the lead, and the deck keeps its size when they do. Each window's column,
+// row and little offset, by its terminal's number.
+const cells: Readonly<Record<number, readonly [number, number, number, number]>> = {
+  1: [0, 0, 0, 10],
+  4: [1, 0, 20, -12],
+  5: [2, 0, -10, 16],
+  7: [0, 1, -16, 4],
+  8: [1, 1, 8, 16],
+  9: [2, 1, 0, -8],
+  2: [0, 3, -10, -6],
+  10: [1, 3, 0, 0],
+}
+const windowSize = { width: 660, height: 280 }
 // The space between windows' corners, wide enough that the Canvas finds free places in the
 // middle of the deck (it keeps 60 clear of a window and snaps to 24).
-const columnPitch = 648
-const rowPitch = 504
-const place = (index: number) => {
-  const [dx, dy] = nudges[index]!
-  const [column, row] = cells[index]!
+const columnPitch = 730
+const rowPitch = 380
+const place = (number: number) => {
+  const [column, row, dx, dy] = cells[number]!
   return {
     position: { x: column * columnPitch + dx, y: row * rowPitch + dy },
     ...windowSize,
@@ -283,10 +344,16 @@ const place = (index: number) => {
 const deskLayout = (): CanvasLayout => ({
   viewport: { x: 120, y: 60, zoom: 0.5 },
   geometry: Object.fromEntries(
-    jobs.map((_, index) => [
-      demoTerminalId({ projectId: shop, workspaceSessionId: session }, index + 1),
-      place(index),
-    ]),
+    jobs.flatMap((_, index) =>
+      onDeck(index + 1)
+        ? [
+            [
+              demoTerminalId({ projectId: shop, workspaceSessionId: session }, index + 1),
+              place(index + 1),
+            ] as const,
+          ]
+        : [],
+    ),
   ),
 })
 
@@ -314,7 +381,9 @@ export const launchSeed = (now: number): WorkspaceSeed => ({
       sessions: [
         sessionOf(
           now,
-          jobs.map((job, index) => agentTerminal(shop, index + 1, job.name, job.agent, working)),
+          jobs.flatMap((job, index) =>
+            onDeck(index + 1) ? [agentTerminal(shop, index + 1, job.name, job.agent, working)] : [],
+          ),
           deskLayout(),
         ),
       ],
@@ -385,7 +454,41 @@ const noticeOf = (number: number): string =>
 const promptOf = (number: number, job: Job): string =>
   number > jobs.length ? noticeOf(number) : job.ask
 
-export const launchIntroOf = deskIntroOf(shop, allJobs, promptOf)
+// The agents at work print more as the video goes on, as a build or a test run does: every
+// `pulseMs` each one still at work (not asking, not finished) takes one more step, for as many
+// as `pulseMax`, and its screen shows it. A pulse is the lines an agent's command has printed at
+// a step: its first line is drawn in place (a count that climbs), the rest after it (a log that
+// grows). Antigravity's window shows no command, so its agent has none.
+const pulseMs = 1500
+const pulseMax = 200
+type Pulse = (step: number) => readonly string[]
+const counting =
+  (verb: string, unit: string, from: number, of: number, by: number): Pulse =>
+  (step) => [`${verb} ${Math.min(from + by * step, of)} of ${of} ${unit}`]
+const logging =
+  (first: string, line: (at: number) => string): Pulse =>
+  (step) => [first, ...Array.from({ length: step }, (_, at) => line(at))]
+const routes = ["/orders", "/prices", "/stock", "/orders/1042", "/cart"]
+const pulses: Readonly<Record<number, Pulse>> = {
+  [launch.question]: counting("Built", "routes", 14, 96, 2),
+  [launch.failing]: counting("Passed", "webhook tests", 11, 64, 3),
+  [launch.shows]: logging("Ready on http://localhost:3000", (at) =>
+    at % 4 === 3
+      ? `✓ Compiled /orders/[id] in ${240 + ((at * 37) % 180)}ms`
+      : `GET /orders/${1040 + ((at * 3) % 9)} 200 in ${12 + ((at * 17) % 40)}ms`,
+  ),
+  [launch.lead]: logging(
+    "Listening on :8787",
+    (at) => `GET ${routes[at % routes.length]} 200 in ${6 + ((at * 11) % 24)}ms`,
+  ),
+  [launch.reports]: counting("Passed", "pricing tests", 3, 40, 2),
+  [launch.asking]: counting("Passed", "cart tests", 4, 36, 2),
+}
+// A line of a log, under the result's first.
+const logBlock =
+  (text: string): Block =>
+  (width) =>
+    wrap([span(text, "muted")], width, { first: [span("    ", "muted")], rest: [span("    ")] })
 
 // The page the order-status agent shows in the pane: its dev server's, as a snapshot. A
 // page half built: the layout and the timeline are in, the tracking map is still a placeholder.
@@ -661,6 +764,10 @@ const planArtifact = (): SampleArtifact => ({
 // How long the lead takes to answer its teammate once the doorbell rang it awake.
 // (long enough for a capture to show the teammate's ask on its own first)
 const answersMs = 4000
+// And how long it takes to answer the teammate whose question the video follows (3.2 s longer, so the
+// question holds a while in the Inbox and the lead's pane before the answer lands, as the camera
+// glides onto the pane).
+const teammateAnswersMs = 7200
 
 // How far apart the agents finish, so the Canvas turns green in a ripple.
 const rippleMs = 60
@@ -691,7 +798,7 @@ export type LaunchCues = {
   readonly teammates: () => void
   // A teammate asks the person what only its lead knows, and messages the lead the same
   // question at once. The ask shows as an Inbox row; the idle lead, rung awake, works and
-  // answers: the answer is sent about 5 s after the cue and lands about 0.8 s later, which is
+  // answers: the answer is sent about 8 s after the cue and lands about 0.8 s later, which is
   // when the teammate acts on it and withdraws its ask: the row stays, settled, "Withdrawn". The person types nothing.
   readonly teammateAsks: () => void
   // A teammate ends its turn with its done report (a done mark and an Update row) and sends the
@@ -761,6 +868,54 @@ export const createLaunch = (turns: DemoTurns, now: number) => {
   const terminal = (number: number): TerminalMetadata | undefined =>
     terminalOf(latest, keyOf(number))
 
+  // How many steps each pulsing agent has taken, and what its screen shows at its step. A line
+  // keeps its block while its text stays, so a log grows by appending and only a count redraws.
+  const steps = createStore<Readonly<Record<number, number>>>({})
+  const blocks = new Map<string, Block>()
+  const lineBlock = (text: string, first: boolean, agent: ChatAgent): Block => {
+    const id = `${first ? agent : ""}|${text}`
+    const known = blocks.get(id)
+    if (known) return known
+    const made = first ? resultBlock([text], agent) : logBlock(text)
+    blocks.set(id, made)
+    return made
+  }
+  const drawn = new Map<number, { readonly taken: number; readonly tail: readonly Block[] }>()
+  const liveOf = (number: number, job: Job) => {
+    const pulse = pulses[number]
+    if (!pulse) return undefined
+    return {
+      getSnapshot: (): readonly Block[] => {
+        const taken = steps.getSnapshot()[number] ?? 0
+        const known = drawn.get(number)
+        if (known?.taken === taken) return known.tail
+        const tail = pulse(taken).map((text, at) => lineBlock(text, at === 0, job.agent))
+        drawn.set(number, { taken, tail })
+        return tail
+      },
+      subscribe: steps.subscribe,
+    }
+  }
+  // The agents that have asked something: what they printed before stays as it was, as a finished
+  // command does in a real harness's scrollback once the conversation goes on.
+  const frozen = new Set<number>()
+  const pulse = (): void => {
+    if (typeof document !== "undefined" && document.hidden) return
+    const moving = Object.keys(pulses)
+      .map(Number)
+      .filter(
+        (number) =>
+          !frozen.has(number) &&
+          (steps.getSnapshot()[number] ?? 0) < pulseMax &&
+          busy(terminal(number)),
+      )
+    if (!moving.length) return
+    steps.update((was) => ({
+      ...was,
+      ...Object.fromEntries(moving.map((number) => [number, (was[number] ?? 0) + 1])),
+    }))
+  }
+
   const work = (key: TerminalKey): void => {
     const found = terminalOf(latest, key)
     if (found?.state === "running" && found.agent) turns.work(key, found)
@@ -788,6 +943,7 @@ export const createLaunch = (turns: DemoTurns, now: number) => {
     if (asked.has(kind)) return
     on(number, (key, found) => {
       asked.add(kind)
+      frozen.add(number)
       turns.ask(key, found, kind, 1)
     })
   }
@@ -924,7 +1080,7 @@ export const createLaunch = (turns: DemoTurns, now: number) => {
               },
             )
             if (!replied) settle()
-          }, answersMs)
+          }, teammateAnswersMs)
         },
         () => {
           settle()
@@ -1116,6 +1272,8 @@ export const createLaunch = (turns: DemoTurns, now: number) => {
 
   return {
     transcripts: launchTranscripts(now),
+    // What each agent's screen opens on, and follows as its command prints more.
+    introOf: deskIntroOf(shop, allJobs, promptOf, liveOf),
     // The seed with its messages and pane, and a view of the workspace and the sink.
     under: (backend: Backend): Backend => ({
       ...backend,
@@ -1131,8 +1289,11 @@ export const createLaunch = (turns: DemoTurns, now: number) => {
       start: (next) => {
         sink = next
         const stop = backend.start?.(next)
+        // The agents at work print more as it goes (unless the visitor asked for less motion).
+        const ticking = lessMotion() ? undefined : setInterval(pulse, pulseMs)
         return () => {
           stop?.()
+          clearInterval(ticking)
           if (sink === next) sink = undefined
         }
       },

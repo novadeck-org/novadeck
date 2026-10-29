@@ -9,7 +9,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import { answerMs, answeredMs } from "./chat"
 import { demoHandle } from "./handles"
 import { isDemoInbox } from "./inbox"
-import { launch, launchCuesOf, launchIntroOf, launchTranscripts } from "./launch"
+import { createLaunch, launch, launchCuesOf, launchTranscripts } from "./launch"
 import { isDemoMessages } from "./messages"
 import { demoTerminalId } from "./samples"
 import { demoTurns } from "./turns"
@@ -50,13 +50,19 @@ describe("the launch demo", () => {
     vi.useRealTimers()
   })
 
-  it("opens on the storefront's project, ten agents of all three harnesses at work, and a second project", () => {
+  it("opens on the storefront's project, eight agents of all three harnesses at work, and a second project", () => {
     const { backend } = open()
     const [first, second] = backend.seed.projects
     expect(first?.id).toBe("northwind")
     expect(second?.id).toBe("northwind-docs")
     const terminals = first!.sessions[0]!.terminals
-    expect(terminals).toHaveLength(10)
+    expect(terminals).toHaveLength(8)
+    // The two no cue acts on are left off the deck, and the cues' agents are all on it.
+    for (const number of [3, 6])
+      expect(terminals.map((terminal) => terminal.id)).not.toContain(key(number).terminalId)
+    // (the teammates, 11 to 13, come when the lead opens them)
+    for (const number of Object.values(launch).filter((each) => each <= 10))
+      expect(terminals.map((terminal) => terminal.id)).toContain(key(number).terminalId)
     expect(new Set(terminals.map((terminal) => terminal.process))).toEqual(
       new Set(["claude", "codex", "agy"]),
     )
@@ -68,14 +74,90 @@ describe("the launch demo", () => {
 
   it("opens the storefront's screens on their own work, and leaves the other project's to the demo", () => {
     const { backend } = open()
+    const { introOf } = createLaunch(demoTurns(), 0)
     const [mine, other] = backend.seed.projects
     const at = (project: typeof mine, number: number) => ({
       projectId: project!.id,
       workspaceSessionId: "initial",
       terminalId: project!.sessions[0]!.terminals[number - 1]!.id,
     })
-    expect(launchIntroOf(mine!.sessions[0]!.terminals[0]!, at(mine, 1))).toBeDefined()
-    expect(launchIntroOf(other!.sessions[0]!.terminals[0]!, at(other, 1))).toBeUndefined()
+    expect(introOf(mine!.sessions[0]!.terminals[0]!, at(mine, 1))).toBeDefined()
+    expect(introOf(other!.sessions[0]!.terminals[0]!, at(other, 1))).toBeUndefined()
+  })
+
+  it("has the agents at work print more as it goes, and the ones that ended or ask stop", async () => {
+    const launched = createLaunch(demoTurns(), 0)
+    // The demo's own Backend is not needed: only what the launch wraps, its commit and start.
+    const under = launched.under({
+      commit: () => {},
+      start: () => () => {},
+    } as never)
+    const workspace = workspaceFromSeed(under.seed, {
+      view: "canvas",
+      windowedView: "canvas",
+      now: 0,
+    })
+    const commit = (agent: (number: number) => object) =>
+      under.commit(
+        {
+          ...workspace,
+          projects: workspace.projects.map((project) => ({
+            ...project,
+            history: project.history.map((each) => ({
+              ...each,
+              state: {
+                ...each.state,
+                roster: {
+                  ...each.state.roster,
+                  terminals: each.state.roster.terminals.map((terminal) => ({
+                    ...terminal,
+                    agent: agent(Number(terminal.id.slice(-2))),
+                  })),
+                },
+              },
+            })),
+          })),
+        } as never,
+        [],
+      )
+    commit(() => ({ working: true }))
+    const stop = under.start!({ dispatch: () => {}, open: () => {} })
+    const terminal = (number: number) =>
+      under.seed.projects[0]!.sessions[0]!.terminals.find(
+        (each) => each.id === key(number).terminalId,
+      )!
+    const screen = (number: number): string => {
+      const blocks = launched.introOf(terminal(number), key(number))!.getSnapshot()
+      return blocks
+        .flatMap((block) => block(80))
+        .map((line) => line.map((part) => part.text).join(""))
+        .join("\n")
+    }
+    const cart = screen(launch.question)
+    const server = screen(launch.shows)
+    await vi.advanceTimersByTimeAsync(3100)
+    // A count climbs in place; a log grows by lines.
+    expect(screen(launch.question)).not.toBe(cart)
+    expect(screen(launch.question)).toContain("Built 18 of 96 routes")
+    expect(screen(launch.shows).length).toBeGreaterThan(server.length)
+    // One that waits on the person, or ended its turn, prints no more.
+    commit((number) => (number === launch.question ? { working: false } : { working: true }))
+    const held = screen(launch.question)
+    await vi.advanceTimersByTimeAsync(3100)
+    expect(screen(launch.question)).toBe(held)
+    // Back at work after its question, it prints no more under it, while the others go on.
+    commit(() => ({ working: true }))
+    launchCuesOf(launched.over(under))!.question()
+    const asked = screen(launch.question)
+    const going = screen(launch.shows)
+    await vi.advanceTimersByTimeAsync(3100)
+    expect(screen(launch.question)).toBe(asked)
+    expect(screen(launch.shows)).not.toBe(going)
+    // Nothing ticks once the demo stops.
+    stop()
+    const stopped = screen(launch.shows)
+    await vi.advanceTimersByTimeAsync(3100)
+    expect(screen(launch.shows)).toBe(stopped)
   })
 
   it("shows a spread of states: one agent asking, one failed, one done, the rest working", async () => {
@@ -146,9 +228,9 @@ describe("the launch demo", () => {
   it("has the lead open three teammates its team wire draws to, and rest", () => {
     const { cues, terminals, agent, store } = open()
     cues.teammates()
-    expect(terminals()).toHaveLength(13)
+    expect(terminals()).toHaveLength(11)
     const lead = terminals().find((each) => each.id === key(launch.lead).terminalId)!
-    const teammates = terminals().slice(10)
+    const teammates = terminals().slice(8)
     expect(teammates.map((each) => each.ledBy)).toEqual([lead.handle, lead.handle, lead.handle])
     expect(new Set(teammates.map((each) => each.process))).toEqual(
       new Set(["codex", "agy", "claude"]),
@@ -160,7 +242,7 @@ describe("the launch demo", () => {
     expect(listed.slice(below, below + 3)).toEqual(teammates.map((each) => each.id))
     expect(agent(launch.lead)).toMatchObject({ working: false })
     cues.teammates()
-    expect(terminals()).toHaveLength(13)
+    expect(terminals()).toHaveLength(11)
   })
 
   it("has a teammate ask what only its lead knows, and ask nothing before the teammates open", () => {
@@ -224,7 +306,7 @@ describe("the launch demo", () => {
   it("opens teammates its lead opened and briefed, on the doorbell's notice, not the person's words", async () => {
     const { backend, cues, terminals } = open()
     cues.teammates()
-    const teammates = terminals().slice(10)
+    const teammates = terminals().slice(8)
     for (const each of teammates) expect(each).toMatchObject({ ledBy: lead, openedBy: lead })
     await vi.advanceTimersByTimeAsync(4000)
     expect(exchange(backend).map(({ from, to, text }) => ({ from, to, text }))).toEqual([
@@ -255,9 +337,18 @@ describe("the launch demo", () => {
       exchange(backend).find((each) => each.to === lead && each.from === asking),
     ).toMatchObject({ text: expect.stringContaining("Which API version") })
     expect(agent(launch.lead)).toMatchObject({ working: true })
-    // Still open while the lead has not answered.
+    // Still open while the lead has not answered, which the video holds on for a while: no answer
+    // before about 8 s.
     expect(items()[0]).not.toHaveProperty("settled")
-    await vi.advanceTimersByTimeAsync(6000)
+    await vi.advanceTimersByTimeAsync(4600)
+    expect(items()[0]).not.toHaveProperty("settled")
+    expect(
+      exchange(backend).filter(
+        (each) =>
+          each.from === lead && each.to === asking && each.text.startsWith("The storefront"),
+      ),
+    ).toEqual([])
+    await vi.advanceTimersByTimeAsync(2600)
     expect(
       exchange(backend)
         .filter(
@@ -352,10 +443,10 @@ describe("the launch demo", () => {
     cues.teammateAsks()
     cues.teammateDone()
     expect(items()).toEqual([])
-    expect(terminals()).toHaveLength(10)
+    expect(terminals()).toHaveLength(8)
     cues.teammates()
     cues.teammates()
-    expect(terminals()).toHaveLength(13)
+    expect(terminals()).toHaveLength(11)
     cues.teammateAsks()
     cues.teammateAsks()
     expect(items()).toHaveLength(1)
@@ -530,7 +621,7 @@ describe("the launch demo's teammates cue", () => {
     turns.interrupt(key(launch.lead), agent(launch.lead)!)
     expect(agent(launch.lead)).toMatchObject({ working: false })
     cues.teammates()
-    expect(terminals()).toHaveLength(10)
+    expect(terminals()).toHaveLength(8)
   })
 })
 
@@ -584,7 +675,7 @@ describe("the launch demo's finishing", () => {
     expect(reportsOf(backend)).toEqual(once)
   })
 
-  it("reports once for each teammate when 7 comes just before the exchange settles", async () => {
+  it("reports once for each teammate when 7 comes before the exchange settles", async () => {
     const { backend, cues, agent } = open()
     cues.teammates()
     await vi.advanceTimersByTimeAsync(4000)
