@@ -95,9 +95,20 @@ export const InboxHost = ({
     },
     [workspace, select, reveal],
   )
+  // Going to an Inbox row's terminal from the Inbox's list turns the sidebar to the terminals.
+  const revealItem = useCallback(
+    (terminalId: string) => reveal(terminalId, active ? "terminals" : undefined),
+    [reveal, active],
+  )
   return (
     <AgentContextProvider conversations={backend.conversations} messages={backend.messages}>
-      <InboxProvider inbox={inbox} reveal={reveal} phone={phone} working={working} active={active}>
+      <InboxProvider
+        inbox={inbox}
+        reveal={revealItem}
+        phone={phone}
+        working={working}
+        active={active}
+      >
         {children}
         <NoticeClicks />
         <PlanTextProvider workspace={workspace} companions={backend.companions}>

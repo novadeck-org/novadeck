@@ -5,7 +5,7 @@ import { hasControlCharacters } from "@novadeck/core/conversation/prompt-refusal
 // the values it makes. Pure, so the form's rules read apart from its markup.
 
 // A boolean is `"yes"`, `"no"` or, until the person says, `""`.
-export type Entry = { readonly kind: ChatFormField["kind"]; readonly value: string }
+type Entry = { readonly kind: ChatFormField["kind"]; readonly value: string }
 export type Entries = Readonly<Record<string, Entry>>
 
 const blank = (field: ChatFormField): Entry => ({
@@ -25,7 +25,7 @@ export const enter = (entries: Entries, field: ChatFormField, value: string): En
 
 // What stays of the entries once the form is read again: a field that is still there with
 // the same kind keeps its value, a choice only if it is still offered.
-export const keep = (entries: Entries, fields: readonly ChatFormField[]): Entries =>
+export const keptEntries = (entries: Entries, fields: readonly ChatFormField[]): Entries =>
   Object.fromEntries(
     fields.flatMap((field) => {
       const entry = entries[field.id]
@@ -40,7 +40,7 @@ const text = (entry: Entry): string => entry.value.trim()
 const numeric = (value: string): boolean => value !== "" && Number.isFinite(Number(value))
 
 // A field is fine when it holds a value of its kind, or is optional and empty.
-export const valid = (entries: Entries, field: ChatFormField): boolean => {
+export const entryValid = (entries: Entries, field: ChatFormField): boolean => {
   const entry = entryOf(entries, field)
   const value = text(entry)
   if (field.kind === "text" && hasControlCharacters(entry.value)) return false
@@ -51,8 +51,8 @@ export const valid = (entries: Entries, field: ChatFormField): boolean => {
   return true
 }
 
-export const complete = (entries: Entries, fields: readonly ChatFormField[]): boolean =>
-  fields.every((field) => valid(entries, field))
+export const formComplete = (entries: Entries, fields: readonly ChatFormField[]): boolean =>
+  fields.every((field) => entryValid(entries, field))
 
 // The answer to send: a value per field, numbers as numbers, booleans as yes or no,
 // anything only where something was entered.

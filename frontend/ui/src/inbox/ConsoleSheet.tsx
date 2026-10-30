@@ -378,6 +378,8 @@ const ChoicesMenu = ({
     row.kind === "ask"
       ? setDraft(row.id, { text })
       : setLocal((record) => ({ ...record, [at]: text }))
+  // The rows that answer, the way to the terminal aside.
+  const answers = model.rows.filter((menuRow) => menuRow.type !== "reveal").length
   const items = model.rows.map((menuRow, at): MenuItem => {
     switch (menuRow.type) {
       case "answer":
@@ -402,12 +404,12 @@ const ChoicesMenu = ({
             field: menuRow.field,
             required: menuRow.required,
             refused: value.trim() === "" ? null : menuRow.refused(value),
-            hint: row.kind === "ask" && model.rows.length > 1 ? "send your words instead" : "send",
+            hint: row.kind === "ask" && answers > 1 ? "send your words instead" : "send",
           },
         }
       }
       case "reveal":
-        return { key: `r${at}`, label: menuRow.label, effect: menuRow.effect }
+        return { key: `r${at}`, label: menuRow.label, effect: menuRow.effect, away: true }
       case "toggle":
         return { key: `t${at}`, label: menuRow.label, effect: null, check: menuRow.on }
     }
@@ -466,7 +468,7 @@ const QuestionsMenu = ({
   readonly handles: React.RefObject<(MenuHandle | null)[]>
   readonly arrived: boolean
 }): React.JSX.Element => {
-  const { row, answering, submit } = props
+  const { row, answering, submit, reveal } = props
   const { drafts, setDraft } = useInboxContext()
   const picks: Picks = drafts[row.id]?.picks ?? {}
   const leftOut = drafts[row.id]?.leftOut ?? []
@@ -486,7 +488,8 @@ const QuestionsMenu = ({
     const long = questions.findIndex(
       (question) => (ready[question.id]?.text.length ?? 0) > wordsLimit,
     )
-    if (long >= 0) return void handles.current[long]?.key("End")
+    // Its words row comes after its options.
+    if (long >= 0) return void handles.current[long]?.go(questions[long]!.options.length)
     submit({ kind: "request", answer: questionsAnswer(dialog, ready, questions) }, receipt)
   }
   return (
@@ -537,6 +540,11 @@ const QuestionsMenu = ({
             },
           })
         }
+        // The words row, where there is one, before the way to the terminal.
+        const wordsAt = items.length - 1
+        // Every question's menu ends on the way to the terminal.
+        const terminalAt = items.length
+        items.push({ key: "terminal", label: "Go to terminal", effect: null, away: true })
         return (
           <div className="console-question" key={question.id}>
             <Heading>
@@ -554,6 +562,7 @@ const QuestionsMenu = ({
                 handles.current[index] = handle
               }}
               onPress={(at) => {
+                if (at === terminalAt) return reveal()
                 const option = question.options[at]
                 if (!option) {
                   // The words row, in a menu of several picks: ticking brings the words
@@ -575,7 +584,7 @@ const QuestionsMenu = ({
                 finish(after, leftOut)
               }}
               onWords={() => {
-                setPressed({ question: index, at: items.length - 1 })
+                setPressed({ question: index, at: wordsAt })
                 finish(picks, leftOut)
               }}
               onSend={() => finish(picks, leftOut)}

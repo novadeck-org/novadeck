@@ -304,7 +304,6 @@
 .inbox-sheet {
   --_tone: var(--inbox-waiting-fg, var(--color-warning-fg));
   --_box-bg: var(--inbox-card-bg, color-mix(in srgb, var(--color-ink) 3.5%, var(--color-paper)));
-  --_muted: var(--color-muted);
   display: flex;
   flex: 1 1 auto;
   flex-direction: column;

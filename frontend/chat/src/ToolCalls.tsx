@@ -1,4 +1,4 @@
-import type { ToolKind, ToolRun as Run } from "@novadeck/core/conversation"
+import type { ToolKind, ToolRun } from "@novadeck/core/conversation"
 import type { ToolEntry } from "@novadeck/core/conversation/turns"
 import {
   Bot,
@@ -29,7 +29,7 @@ const icons: Readonly<Record<ToolKind, LucideIcon>> = {
 
 // What a call was, as its decoder said; a call with none shows its tool's name. Nothing for
 // a result whose call is outside the window.
-const callRun = (entry: ToolEntry): Run | null =>
+const callRun = (entry: ToolEntry): ToolRun | null =>
   entry.tool === null ? null : (entry.run ?? { kind: "other", title: entry.tool, detail: "" })
 
 // A run of this many calls or more folds into one line until opened.
@@ -65,7 +65,7 @@ const ToolRow = ({
   const [open, setOpen] = useState(false)
   const body = useId()
   // A result whose call is outside the window is "Result".
-  const summary: Run = callRun(entry) ?? { kind: "other", title: "Result", detail: "" }
+  const summary: ToolRun = callRun(entry) ?? { kind: "other", title: "Result", detail: "" }
   const Icon = icons[summary.kind]
   return (
     <li className="chat-tool" data-kind={summary.kind} data-running={running || undefined}>
@@ -104,7 +104,7 @@ const ToolRow = ({
 
 // Consecutive tool calls, as one card of one-line rows. A long run folds into a line that
 // counts them.
-export const ToolRun = ({
+export const ToolCalls = ({
   entries,
   live,
 }: {

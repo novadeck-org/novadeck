@@ -256,6 +256,7 @@ describe("The Console sheet", () => {
         "Yes, and don't ask again",
         "Deny",
         "Deny, with your words",
+        "Go to terminal",
       ])
       expect(inbox.row("ask again").querySelector(".console-s")?.textContent).toBe(
         "for commands that start with pnpm add",
@@ -343,6 +344,7 @@ describe("The Console sheet", () => {
         "Approve",
         "Yes, and bypass permissions",
         "Send it back, with your words",
+        "Go to terminal",
       ])
       inbox.key("2", document.querySelector(".inbox-row-select")!)
       expect(inbox.sent).toEqual([])
@@ -369,6 +371,7 @@ describe("The Console sheet", () => {
         "Approve",
         "Send it back",
         "Send it back, with your words",
+        "Go to terminal",
       ])
       inbox.press("Send it back, with your words")
       inbox.type("/compact")
@@ -512,6 +515,16 @@ describe("The Console sheet", () => {
       await inbox.done()
     })
 
+    it("goes to the terminal on the first press, hard to undo or not, answering nothing", async () => {
+      const inbox = mount([asked(options, { hard: "It sets the schema." })])
+      const away = String(inbox.rows().length)
+      inbox.key(away, document.querySelector(".inbox-row-select")!)
+
+      expect(inbox.revealed).toEqual(["t-owl"])
+      expect(inbox.sent).toEqual([])
+      await inbox.done()
+    })
+
     it("keeps an overlong reply editable and won't send it", async () => {
       const inbox = mount([asked({ type: "text" })])
 
@@ -628,6 +641,28 @@ describe("The Console sheet", () => {
     const two = () =>
       questions(question("q1", ["A1", "B1", "C1"]), question("q2", ["A2", "B2", "C2"]))
 
+    it("goes to the terminal from any question, and Enter there goes even among several picks", async () => {
+      const inbox = mount([
+        questions(
+          question("q1", ["A1", "B1"]),
+          question("q2", ["A2", "B2"], { multiSelect: true }),
+        ),
+      ])
+      act(() => optionIn(0, "Go to terminal").click())
+      expect(inbox.revealed).toEqual(["t-moth"])
+
+      act(() => optionIn(1, "A2").click())
+      const away = optionIn(1, "Go to terminal")
+      expect(away.getAttribute("role")).toBe("menuitem")
+      expect(away.textContent).not.toContain("[ ]")
+      inbox.key("End", optionIn(1, "A2"))
+      expect(document.activeElement).toBe(away)
+      inbox.key("Enter")
+      expect(inbox.revealed).toEqual(["t-moth", "t-moth"])
+      expect(inbox.sent).toEqual([])
+      await inbox.done()
+    })
+
     it("sends the moment every question is answered, in whatever order, and never an unpicked row", async () => {
       const inbox = mount([two()])
       act(() => optionIn(1, "C2").click())
@@ -657,11 +692,15 @@ describe("The Console sheet", () => {
       act(() => optionIn(0, "B1").click())
 
       const rows = Array.from(menus()[0]!.querySelectorAll(".console-option"))
-      expect(rows.map((row) => row.getAttribute("role"))).toEqual(Array(3).fill("menuitemradio"))
+      expect(rows.map((row) => row.getAttribute("role"))).toEqual([
+        ...Array(3).fill("menuitemradio"),
+        "menuitem",
+      ])
       expect(rows.map((row) => row.getAttribute("aria-checked"))).toEqual([
         "false",
         "true",
         "false",
+        null,
       ])
       expect(optionIn(0, "B1").querySelector(".console-chosen")?.textContent).toContain("your pick")
       expect(optionIn(0, "A1").querySelector(".console-chosen")).toBeNull()
@@ -739,6 +778,26 @@ describe("The Console sheet", () => {
         inbox.key("Escape", inbox.field())
         inbox.key("Enter", inbox.row("A"))
 
+        expect(inbox.sent).toEqual([])
+        await inbox.done()
+      })
+
+      it("takes the person to the words that are too long, not past them to the terminal", async () => {
+        const inbox = mount([
+          questions(
+            question("q1", ["A1", "B1"], { multiSelect: true, text: true }),
+            question("q2", ["A2", "B2"]),
+          ),
+        ])
+        act(() => optionIn(0, "A1").click())
+        act(() => optionIn(0, "Reply in your own words").click())
+        inbox.type("x".repeat(5000))
+        inbox.key("Escape", inbox.field())
+        act(() => optionIn(1, "A2").click())
+
+        expect(document.activeElement?.textContent).toContain("xxx")
+        inbox.key("Enter")
+        expect(inbox.revealed).toEqual([])
         expect(inbox.sent).toEqual([])
         await inbox.done()
       })
@@ -937,7 +996,9 @@ describe("The Console sheet", () => {
       })
       const before = mount([limit(Date.now() + 3_600_000)])
       expect(text(".console-tag")).toBe("Limit")
-      expect(document.querySelector("[role=menu]")).toBeNull()
+      expect(before.rows().map((row) => row.querySelector(".console-t")?.textContent)).toEqual([
+        "Go to terminal",
+      ])
       expect(text(".console-body")).toContain("from here once it resets")
       await before.done()
 

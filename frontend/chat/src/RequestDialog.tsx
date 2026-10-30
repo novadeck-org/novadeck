@@ -27,15 +27,16 @@ import { Loader } from "lucide-react"
 import { useEffect, useId, useRef, useState } from "react"
 
 import {
-  complete as completeForm,
   enter,
   entryOf,
+  entryValid,
   formAnswer,
-  keep as keepEntries,
-  valid as validEntry,
+  formComplete,
+  keptEntries,
   type Entries,
 } from "./forms"
 import { Hint } from "./Hint"
+import { submitOnEnter } from "./submit-on-enter"
 
 // What a request's dialog offers, as controls the person answers with. Each takes `send`,
 // which gives the answer to the backend and says nothing until the card shows the outcome,
@@ -49,22 +50,6 @@ type Controls = {
   // The person edited something: an error shown for the last answer no longer applies.
   readonly edited: () => void
 }
-
-// Enter sends from a text field; Shift+Enter starts a line, a modified Enter belongs to
-// the workspace's shortcuts.
-const submitOnEnter =
-  (submit: () => void, single = false) =>
-  (event: React.KeyboardEvent<HTMLTextAreaElement | HTMLInputElement>): void => {
-    if (event.key !== "Enter" || event.nativeEvent.isComposing) return
-    if (event.shiftKey) {
-      // A field of the agent's own takes one line.
-      if (single) event.preventDefault()
-      return
-    }
-    if (event.ctrlKey || event.metaKey || event.altKey) return
-    event.preventDefault()
-    submit()
-  }
 
 const Sending = ({ sending }: { readonly sending: boolean }): React.JSX.Element | null =>
   sending ? <Loader size={12} aria-hidden className="chat-spinner" /> : null
@@ -345,8 +330,8 @@ const Form = ({
   const base = useId()
   const { fields } = dialog
   // A form read again keeps what was entered in the fields that are still there.
-  const entries = keepEntries(typed, fields)
-  const ready = completeForm(entries, fields)
+  const entries = keptEntries(typed, fields)
+  const ready = formComplete(entries, fields)
   const change = (field: ChatFormField, value: string): void => {
     setEntries(enter(entries, field, value))
     edited()
@@ -380,7 +365,7 @@ const Form = ({
               {" *"}
             </span>
           )
-          const invalid = !validEntry(entries, field)
+          const invalid = !entryValid(entries, field)
           return (
             <div key={field.id} className="chat-form-field">
               <label className="chat-form-label" htmlFor={id}>

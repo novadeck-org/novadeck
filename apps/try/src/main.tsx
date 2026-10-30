@@ -5,8 +5,9 @@ import { App } from "@novadeck/ui/app/App"
 import { start } from "@novadeck/ui/entries/start"
 import { pageTheme } from "@novadeck/ui/theme/source"
 
-// The visitor build, for a website: the demo without its debug panel, loaded with the
-// connection, so no other build carries it.
+// The visitor build, for a website: the demo without its debug panel. It loads with the
+// connection, so the page's first load carries neither it nor its terminal emulator: the
+// build checks that, and holds each part to its budget in vite.config.ts.
 const visitor: BackendSelection = {
   connect: async (signal, progress) =>
     (await import("@novadeck/demo/visitor/connect")).connectVisitor(signal, progress, {

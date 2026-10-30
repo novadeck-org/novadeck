@@ -9,7 +9,7 @@
     "dev": "vite --host 127.0.0.1 --mode try",
     "build": "vite build --mode try",
     "preview": "vite preview --host 127.0.0.1",
-    "poster:try": "node scripts/poster.ts",
+    "poster": "node scripts/poster.ts",
     "test": "vitest run",
     "typecheck": "tsc --noEmit -p tsconfig.json"
   },
