@@ -1,4 +1,4 @@
-import { relative } from "node:path"
+import { relative, sep } from "node:path"
 // The real clock: a test's fake one replaces only the global timers, so the bound on its
 // cleanups still runs out while they wait on a timer it faked.
 import { clearTimeout, setTimeout } from "node:timers"
@@ -61,8 +61,9 @@ const firstLine = (cleanup: () => unknown): string => {
 }
 
 // The file and line that called `defer`, from the stack taken there: past its own frame.
+// Written with forward slashes, as on every system.
 const deferredAt = (deferred: Error): string | undefined => {
   const frame = deferred.stack?.split("\n")[2]
   const location = frame?.match(/\(?(?:file:\/\/)?([^\s()]+:\d+):\d+\)?$/)?.[1]
-  return location && relative(process.cwd(), location)
+  return location && relative(process.cwd(), location).split(sep).join("/")
 }
