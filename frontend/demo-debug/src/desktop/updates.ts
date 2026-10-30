@@ -1,8 +1,8 @@
 import type { UpdateChannel, UpdateOffer, WhatsNew } from "@novadeck/core/desktop/update"
 
-import { updateScenarios } from "./scenarios"
-import type { DemoActionGroup, DemoStates } from "./types"
-import type { DemoLaunch } from "./with-debug"
+import type { DemoLaunch } from "../debug-demo"
+import type { DemoActionGroup, DemoStates } from "../types"
+import { releaseVersions, updateScenarios } from "./scenarios"
 
 // The browser's stand-in for the desktop app's self-updates: `offer` has an update, which
 // listeners hear at once if they come later and again for each newer one. `finish` stands
@@ -11,10 +11,10 @@ import type { DemoLaunch } from "./with-debug"
 // offered ready; any later offer, or a failed download, calls a running one off.
 // `openPage` does nothing, since a browser has no release page to open. `allow`, on an
 // offer that has it, stands for the administrator's step succeeding: the update downloads.
-// The channel is remembered until the page reloads. `showWhatsNew` has the host answer, when
+// The channel is remembered until the page reloads. `showWhatsNew` has the app answer, when
 // asked, that the app updated to `version`, from `from` when given, whose release names the
 // highlights below, until they are dismissed; `whatsNewCalls` counts what the page asked of
-// the host since.
+// the app since.
 export const createDemoUpdates = (
   restart: () => void = () => window.location.reload(),
 ): {
@@ -32,7 +32,7 @@ export const createDemoUpdates = (
     notes?: { readonly highlights?: WhatsNew["highlights"]; readonly from?: string },
   ) => void
   readonly whatsNewCalls: { dismissed: number; asked: number }
-  // Has the host take this long to answer what is new.
+  // Has the app take this long to answer what is new.
   readonly delayWhatsNew: (ms: number) => void
 } => {
   let notes: WhatsNew | undefined
@@ -146,8 +146,7 @@ export const failAfterMs = 1500
 export type DemoUpdates = ReturnType<typeof createDemoUpdates>
 
 // Each press offers a newer version than the last, across boots too.
-let patch = 79
-const nextVersion = (): string => `0.0.${(patch += 1)}`
+const nextVersion = releaseVersions()
 
 // The panel's group for an installed copy's updates. On a portable copy, whose install
 // entry would stand in for them, each one boots the demo again as an installed copy and

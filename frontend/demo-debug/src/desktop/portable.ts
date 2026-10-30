@@ -2,9 +2,9 @@ import type { PortableInstall, PortableState } from "@novadeck/core/desktop/port
 import type { UpdateOffer, WhatsNew } from "@novadeck/core/desktop/update"
 import type { Backend } from "@novadeck/core/port"
 
-import { portableScenarios } from "./scenarios"
-import type { DemoActionGroup } from "./types"
-import type { DemoLaunch } from "./with-debug"
+import type { DemoLaunch } from "../debug-demo"
+import type { DemoActionGroup } from "../types"
+import { portableScenarios, releaseVersions } from "./scenarios"
 
 // A portable copy as the demo plays one: the release waiting, if any, and how installing
 // from it goes: what it ends as, which comes after `installAfterMs` (at once when absent),
@@ -20,11 +20,11 @@ export type DemoPortable = {
   // opened again after this run installed the app.
   readonly opens?: PortableInstall
   readonly offer?: UpdateOffer
-  // What is new in the offered release, as the host tells it; none when absent.
+  // What is new in the offered release, as the app tells it; none when absent.
   readonly news?: WhatsNew
   // Where the workspace lives, as the person would find it; the Linux default when absent.
   readonly dataFolder?: string
-  // How long the host takes to say it is a portable copy; at once when absent.
+  // How long the app takes to say it is a portable copy; at once when absent.
   readonly answerAfterMs?: number
 }
 
@@ -40,8 +40,8 @@ export const portableRun = crypto.randomUUID()
 // When each step of an install comes: after its wait, unless a spec steps it (`schedule`).
 export type PortableSchedule = (apply: () => void, next: PortableInstall, ms: number) => void
 
-// The browser's stand-in for the desktop host's portable copy: it says it is one and owns
-// the install as the host does, holding where it stands and pushing the whole state at each
+// The browser's stand-in for the desktop app's portable copy: it says it is one and owns
+// the install as the app does, holding where it stands and pushing the whole state at each
 // step: a download and then the install where `progress` is set, then how it `ends`. Asking
 // while it is under way, or once installed or found newer, changes nothing; after a failure
 // it starts over.
@@ -85,7 +85,7 @@ export const createDemoPortable = (
           : Promise.resolve(state()),
       install: () => {
         if (install.phase !== "idle" && install.phase !== "failed") return
-        // Installing at once, as the host answers the click before anything else.
+        // Installing at once, as the app answers the click before anything else.
         step({ phase: "installing" })
         if (progress) {
           // A download in five steps over the first two thirds of the wait, then the install.
@@ -95,7 +95,7 @@ export const createDemoPortable = (
         }
         if (ends !== "never") later(ends, installAfterMs)
       },
-      // Opening the download page does nothing visible here, which has no browser to open; the real host offers it always.
+      // Opening the download page does nothing visible here, which has no browser to open; the desktop app offers it always.
       openDownload: () => {},
       showDataFolder: () => {},
       // The release's notes name no version it is new since: this copy's is.
@@ -104,11 +104,11 @@ export const createDemoPortable = (
   }
 }
 
-// Each press is another release.
-let patch = 79
+// Each press is another release, across boots too.
+const nextVersion = releaseVersions()
 
 // The panel's group for portable copies. Each action boots the demo again as one (or as
-// an installed copy), with the host's answer to an install armed.
+// an installed copy), with the app's answer to an install armed.
 export const portableGroup = (launch: DemoLaunch): DemoActionGroup => ({
   section: "App",
   title: "Portable",
@@ -116,6 +116,6 @@ export const portableGroup = (launch: DemoLaunch): DemoActionGroup => ({
     label,
     hint,
     reboots: true,
-    run: () => launch.setPortable(setup(`0.0.${(patch += 1)}`)),
+    run: () => launch.setPortable(setup(nextVersion())),
   })),
 })

@@ -5,12 +5,12 @@ import { keepVariant, rememberVariant, requestedVariant } from "@novadeck/demo/v
 
 import { bootFailures } from "./boot-failures"
 import type { BootRehearsals } from "./boot-rehearsal"
+import { createDebugDemo, type DemoLaunch } from "./debug-demo"
+import type { DemoPortable } from "./desktop/portable"
+import type { DemoUninstall } from "./desktop/uninstall"
 import { restoreIconGuides } from "./icon-guides"
-import type { DemoPortable } from "./portable"
-import type { DemoUninstall } from "./uninstall"
-import { createDebugDemo, type DemoLaunch } from "./with-debug"
 
-export { debugPanelOf } from "./with-debug"
+export { debugPanelOf } from "./debug-demo"
 
 const unavailable = (code: string): Error => {
   const failure =

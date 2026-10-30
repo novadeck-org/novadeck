@@ -408,7 +408,7 @@ describe("demo states", () => {
     it("lets go of the terminals of the gallery's metadata tiles, not its agents'", async () => {
       const { run, released, added } = panel("04")
       await run("Every state at once")
-      // The ten that set no agent verb: two that ask through MCP (their Inbox items are the
+      // The ten that set no agent verb: two that ask through MCP (their Inbox rows are the
       // demo's own), unheard, program, a shell an agent opened, one an
       // agent exited from, starting, and the three ways to end.
       expect(released).toHaveLength(10)

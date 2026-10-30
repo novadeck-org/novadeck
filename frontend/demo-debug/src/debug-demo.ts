@@ -19,11 +19,16 @@ import { isDemoSource } from "@novadeck/demo/source"
 import { createDemo, type DemoVariant } from "@novadeck/demo/variants"
 import { babciaCuesOf } from "@novadeck/demo/videos/babcia"
 import { launchCuesOf } from "@novadeck/demo/videos/launch"
+import { sessionOf } from "@novadeck/demo/workspace"
 
 import { approvalGroups, createDemoApprovals } from "./approvals"
 import { babciaGroups } from "./babcia"
 import type { BootRehearsals } from "./boot-rehearsal"
 import { createDebugPanel, type DebugPanel } from "./DebugPanel"
+import { createDemoPortable, type DemoPortable } from "./desktop/portable"
+import { createDemoSandbox } from "./desktop/sandbox"
+import { createDemoUninstall, type DemoUninstall } from "./desktop/uninstall"
+import { updatesGroup, type DemoUpdates } from "./desktop/updates"
 import { doorbellGroups } from "./doorbell"
 import { feedbackGroups } from "./feedback"
 import { inboxGroups } from "./inbox"
@@ -31,13 +36,10 @@ import { launchGroups } from "./launch"
 import { messageGroups } from "./messages"
 import { murmurGroups } from "./murmur"
 import { planGroups } from "./plans"
-import { createDemoPortable, type DemoPortable } from "./portable"
-import { createDemoSandbox } from "./sandbox"
 import { sourceGroups } from "./source"
 import { createDemoStates } from "./states"
+import { sessionTarget } from "./terminals"
 import type { DemoActionContext } from "./types"
-import { createDemoUninstall, type DemoUninstall } from "./uninstall"
-import { updatesGroup, type DemoUpdates } from "./updates"
 import { voiceGroups } from "./voice"
 
 // What one connection to the demo knows of the boot that made it, and how the panel
@@ -53,11 +55,11 @@ export type DemoLaunch = {
   readonly switchVariant: (variant: DemoVariant) => void
   // Boots again, with the next boot attaching slowly.
   readonly armSlowAttach: () => void
-  // What the host says of its sandbox; undefined where it says nothing, as in a browser.
+  // What the desktop app says of its sandbox; undefined where it says nothing, as in a browser.
   readonly sandbox: SandboxState | undefined
-  // Boots again with the host saying this of its sandbox (or nothing).
+  // Boots again with the desktop app saying this of its sandbox (or nothing).
   readonly setSandbox: (sandbox: SandboxState | undefined) => void
-  // The portable copy the host plays; undefined for an installed one.
+  // The portable copy the desktop app plays; undefined for an installed one.
   readonly portable: DemoPortable | undefined
   // Boots again as this portable copy (or an installed one).
   readonly setPortable: (portable: DemoPortable | undefined) => void
@@ -66,9 +68,9 @@ export type DemoLaunch = {
   readonly bootInstalled: (play: (updates: DemoUpdates) => void) => void
   // What to play on this boot's updates, as `bootInstalled` armed it.
   readonly play: ((updates: DemoUpdates) => void) | undefined
-  // The uninstall the host offers; undefined for a host that offers none.
+  // The uninstall the desktop app offers; undefined for an app that offers none.
   readonly uninstall: DemoUninstall | undefined
-  // Boots again with the host offering this uninstall (or none).
+  // Boots again with the desktop app offering this uninstall (or none).
   readonly setUninstall: (uninstall: DemoUninstall | undefined) => void
 }
 
@@ -96,7 +98,7 @@ const terminalCount = (workspace: Workspace | undefined): number =>
     .reduce((count, session) => count + session.state.roster.terminals.length, 0) ?? 0
 
 // Each debug demo's panel, by its backend: the content preview's entry hands it to the app
-// (see src/entries/previews.tsx), as a panel isn't part of what a backend offers.
+// (see apps/previews/src/main.tsx), as a panel isn't part of what a backend offers.
 const panels = new WeakMap<Backend, DebugPanel>()
 
 /** The debug panel for a backend `createDebugDemo` made. */
@@ -128,7 +130,7 @@ export const createDebugDemo = (launch: DemoLaunch): Backend => {
     },
     turns,
   )
-  const asks = createDemoApprovals(
+  const approvals = createDemoApprovals(
     () => sink?.dispatch,
     () => latest,
   )
@@ -157,11 +159,9 @@ export const createDebugDemo = (launch: DemoLaunch): Backend => {
     },
     tripCrashLoop: ({ selected, workspace, dispatch, note }) => {
       const key = selected()
-      const session = workspace()
-        ?.projects.find((project) => project.id === key?.projectId)
-        ?.history.find((each) => each.id === key?.workspaceSessionId)
+      const session = key && sessionOf(workspace(), key)
       if (!key || !session || !dispatch) return note("Select a terminal first.")
-      const target = { projectId: key.projectId, workspaceSessionId: key.workspaceSessionId }
+      const target = sessionTarget(key)
       const terminals = session.state.roster.terminals
       for (const terminal of terminals) turns.release({ ...key, terminalId: terminal.id })
       dispatch(
@@ -214,8 +214,8 @@ export const createDebugDemo = (launch: DemoLaunch): Backend => {
     },
     connection,
     crashLoop: { crashes, retry },
-    approvals: asks.approvals,
-    releaseLead: asks.release,
+    approvals: approvals.approvals,
+    releaseLead: approvals.release,
     ...(launch.slowAttach ? { boot } : {}),
     agents: states.agents,
     notices: states.notices,
@@ -237,7 +237,7 @@ export const createDebugDemo = (launch: DemoLaunch): Backend => {
         groups: [
           ...states.groups,
           updatesGroup(launch, states.updateControls),
-          ...approvalGroups(asks, () => latest),
+          ...approvalGroups(approvals, () => latest),
           ...inboxGroups(isDemoInbox(inner.inbox) ? inner.inbox : undefined, inner.seed),
           ...feedbackGroups(launch, isDemoFeedback(inner.feedback) ? inner.feedback : undefined),
           ...planGroups(inner.companions),
@@ -253,7 +253,7 @@ export const createDebugDemo = (launch: DemoLaunch): Backend => {
       dispatch: () => sink?.dispatch,
       workspace: () => latest,
       addInBackground: (to) => {
-        const target = { projectId: to.projectId, workspaceSessionId: to.workspaceSessionId }
+        const target = sessionTarget(to)
         const directory = latest?.projects.find((each) => each.id === to.projectId)?.directory
         const terminal = inner.newTerminal({ target, directory: directory ?? "~" })
         sink?.dispatch([{ type: "terminal/add", target, terminal, select: false }])
