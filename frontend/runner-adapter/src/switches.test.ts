@@ -1,3 +1,5 @@
+import { maxSnoozes } from "@novadeck/core/inbox"
+import { maxInboxOrder } from "@novadeck/protocol"
 import { WireError } from "@novadeck/wire"
 
 import { scripted } from "./scripted"
@@ -79,6 +81,31 @@ describe("the agent switches", () => {
     expect(agents.welcome.getSnapshot()).toBe(false)
     await app.idle()
     expect(app.of("settings")).toEqual([{ welcomed: true }])
+    app.stop()
+  })
+})
+
+describe("the Inbox's order and snoozes", () => {
+  it("show what the runner kept, and keep each change there, in ids it takes", async () => {
+    const app = scripted({ shown: [], inboxOrder: ["b", "a"], inboxSnoozed: ["a@1", "b@2"] })
+    const inbox = app.backend.inbox!
+    expect(inbox.order?.getSnapshot()).toEqual(["b", "a"])
+    inbox.arrange?.(["a", "x".repeat(201), "b"])
+    expect(inbox.order?.getSnapshot()).toEqual(["a", "x".repeat(201), "b"])
+    inbox.snooze?.("a", false)
+    await app.idle()
+    expect(app.of("settings")).toEqual([{ inboxOrder: ["a", "b"] }, { inboxSnoozed: ["b@2"] }])
+    app.stop()
+  })
+
+  it("keep as many snoozes as the runner takes", () => {
+    expect(maxSnoozes).toBe(maxInboxOrder)
+  })
+
+  it("aren't offered where the runner keeps none", () => {
+    const app = scripted({ shown: [] })
+    expect(app.backend.inbox?.arrange).toBeUndefined()
+    expect(app.backend.inbox?.snooze).toBeUndefined()
     app.stop()
   })
 })

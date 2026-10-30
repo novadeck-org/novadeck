@@ -21,6 +21,7 @@ import {
   asks,
   informing,
   initialView,
+  keptOrder,
   nextItem,
   openItem,
   rearranged,
@@ -346,7 +347,7 @@ export const InboxProvider = ({
     () =>
       inbox.arrange
         ? (ids: readonly string[]): void => {
-            inbox.arrange?.(ids)
+            inbox.arrange?.(keptOrder(latest.current.arranged, ids))
             setView((before) => rearranged(before, ids))
           }
         : undefined,

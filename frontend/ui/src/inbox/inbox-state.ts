@@ -158,6 +158,25 @@ export const release = (
   arrived: held(view, items).map(({ id }) => id),
 })
 
+// The person's order after a drag: `dragged`, the rows the list showed in their new order,
+// with every row of the order `before` that the list didn't show (as one the landing rule
+// hides while the person looks at its terminal) kept after the rows it followed, wherever
+// the drag put them: one put last stays last.
+export const keptOrder = (before: readonly string[], dragged: readonly string[]): string[] => {
+  const shown = new Set(dragged)
+  const order = [...dragged]
+  let after = -1
+  for (const id of before) {
+    if (shown.has(id)) {
+      after = Math.max(after, order.indexOf(id))
+      continue
+    }
+    order.splice(after + 1, 0, id)
+    after++
+  }
+  return order
+}
+
 // The rows that ask, `ids`, dragged into this order: while a sheet is open, the list it holds
 // still takes it too, each in the places those rows had.
 export const rearranged = (view: InboxView, ids: readonly string[]): InboxView => {

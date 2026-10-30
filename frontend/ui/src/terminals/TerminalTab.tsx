@@ -63,6 +63,7 @@ export const TerminalTab = ({
   needSubject,
   needDialog,
   needSnoozed,
+  needSnoozedRequests,
   rename,
   messageBadge = null,
   companion,
@@ -98,8 +99,10 @@ export const TerminalTab = ({
   need?: "unblock" | "ask" | undefined
   needSubject?: string | undefined
   needDialog?: NeedDialog | undefined
-  // What it needs the person for is snoozed in the Inbox: a bell-off takes the need's mark.
+  // What it needs the person for is snoozed in the Inbox, and how many of its snoozed rows
+  // are requests (its live dialogs): a bell-off takes the need's mark.
   needSnoozed?: boolean | undefined
+  needSnoozedRequests?: number | undefined
   rename: TerminalRename | null
   // What waits for its agent, when anything does: the tab says it in words.
   messageBadge?: MessageBadge | null
@@ -139,7 +142,9 @@ export const TerminalTab = ({
           need: inboxNeed,
           subject: needSubject,
           dialog: needDialog,
-          ...(needSnoozed ? { snoozed: true as const } : {}),
+          ...(needSnoozed
+            ? { snoozed: true as const, snoozedRequests: needSnoozedRequests ?? 0 }
+            : {}),
         },
         unread,
       )

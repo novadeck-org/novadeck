@@ -350,6 +350,25 @@ by its id, as Answer in Messages or a click on a notification does, lands it at 
 its read is under way. If a read fails, the update lands so you can read it by hand. The tabs and windows read the Inbox's raw items,
 so their "!" and "?" show at once, before the list lists them.
 
+The rows that ask something of you keep the Inbox's own order (most pressing first, then the
+longest waiting) until you drag one: they drag among each other into your order, or move a
+place with Alt+↑/↓ on the focused row, while updates and settled asks stay below. Your order
+is kept across a restart; a row that arrives later goes ahead of the rows you placed that are
+as urgent as it or less, so one you put off stays below what comes after. Next, after an
+answer, follows your order. With a card open, ← and → open the card before and after it (as j
+and k do), not in a text field, and not on a list row, where → goes into the card.
+
+To set one aside without answering it, snooze it: **S** on the row or in its open card, or the
+bell-off button on the row or in the card's head. A snoozed row keeps its place and height,
+with a gray wash, a dashed bar and a bell-off where its wait shows, and still drags with the
+rest; Next, the arrows and j/k step past it, and the bell, its count, toasts and OS pings
+leave it out. Snoozed from its card, the next card opens. S again, or the bell button, brings
+it back, which rings nothing. A terminal whose every need is snoozed shows a gray bell-off for
+its "!" or "?", the tab a gray wash and dashed bar and the window's head a wash, with no warning
+line; a new prompt from it is marked at once. The project switcher's dot leaves snoozed needs
+out. Snoozes are kept across a restart, each for the row it was made on: a message thread held
+again later is a new row.
+
 While Novadeck has your focus, a new item that needs you (an approval, a question, or trouble
 that stopped an agent) shows as a toast over the header's right end after a 2 s grace. When
 Novadeck is in the background, the OS ping rings instead, never both for one item. Up to three
@@ -553,7 +572,8 @@ a terminal never acts on it; only the Canvas zoom keys also work whenever the Ca
 itself has focus, as after clicking its background.
 
 Letters and other typed characters are never shortcuts: typed outside a terminal, they go into the selected terminal, which takes keyboard focus. With no
-terminal selected they do nothing, and Space still presses the focused button.
+terminal selected they do nothing, and Space still presses the focused button. The Inbox is
+the one exception, on its own list and open card: j and k move down and up it, and S snoozes.
 
 Web addresses in a terminal, and the web hyperlinks programs print, open in your browser on
 Ctrl-click (⌘-click on macOS); hovering one shows where it goes. A plain click still selects

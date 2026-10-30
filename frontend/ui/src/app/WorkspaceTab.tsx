@@ -49,7 +49,7 @@ export const WorkspaceTab = memo(
     const unread = useUiState((state) => unreadEnd(state.unread, context, id))
     // What the raw Inbox says of it: a need. Not the landing rule's
     // Inbox, which hides rows from its list, never from the marks.
-    const { need, subject, dialog, snoozed } = useTerminalMarks(backend.inbox, {
+    const { need, subject, dialog, snoozed, snoozedRequests } = useTerminalMarks(backend.inbox, {
       ...target,
       terminalId: id,
     })
@@ -93,6 +93,7 @@ export const WorkspaceTab = memo(
         needSubject={subject}
         needDialog={dialog}
         needSnoozed={snoozed}
+        needSnoozedRequests={snoozedRequests}
         rename={rename}
         messageBadge={badge}
         companion={<TabKinds slots={slots} messagesWait={badge !== null} />}

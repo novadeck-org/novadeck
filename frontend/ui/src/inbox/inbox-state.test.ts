@@ -8,6 +8,7 @@ import {
   held,
   initialView,
   hasUpdates,
+  keptOrder,
   needing,
   needs,
   nextItem,
@@ -409,5 +410,20 @@ describe("A snoozed row", () => {
   it("keeps its place, and the person's order moves it like any row that asks", () => {
     expect(ids(visible(initialView, items))).toEqual(["a", "b", "c", "u"])
     expect(ids(visible(initialView, items, {}, ["b", "c", "a"]))).toEqual(["b", "c", "a", "u"])
+  })
+})
+
+describe("The order after a drag", () => {
+  it("keeps the place of a row the list didn't show, after the rows it followed", () => {
+    // "x" was put last; it is hidden while the person looks at its terminal, and they drag
+    // "c" to the top meanwhile.
+    expect(keptOrder(["a", "b", "c", "x"], ["c", "a", "b"])).toEqual(["c", "a", "b", "x"])
+    expect(keptOrder(["x", "a", "b"], ["b", "a"])).toEqual(["x", "b", "a"])
+    expect(keptOrder(["a", "x", "b"], ["b", "a"])).toEqual(["b", "a", "x"])
+  })
+
+  it("is the drag's own order where nothing was hidden", () => {
+    expect(keptOrder(["a", "b"], ["b", "a"])).toEqual(["b", "a"])
+    expect(keptOrder([], ["b", "a"])).toEqual(["b", "a"])
   })
 })

@@ -298,7 +298,8 @@ export const entryRow = (
 ): InboxRow | undefined =>
   items.find((item) => item.id === entry.id || `m-${item.id.replaceAll("-", "")}` === entry.id)
 
-// How many snoozes are kept, the latest: as many as the runner keeps.
+// How many snoozes are kept, the latest: as many as the runner keeps (`maxInboxOrder`, which
+// the runner adapter's tests hold it to).
 export const maxSnoozes = 200
 
 // A row by its id and when it began: a newer row under the same id, as a thread held again,

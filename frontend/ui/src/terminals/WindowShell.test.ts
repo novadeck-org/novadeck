@@ -265,6 +265,28 @@ describe("terminal frame marks", () => {
     })
   })
 
+  context("while what it needs is snoozed in the Inbox", () => {
+    const permission = agent({ working: false, attention: { kind: "permission", count: 1 } })
+
+    it("shows a bell-off for its open dialog, the snoozed request, and says so", () => {
+      const frame = renderFrame(permission, {
+        needSnoozed: true,
+        needSnoozedRequests: 1,
+        needSubject: "pnpm test",
+      })
+      expect(section(frame).getAttribute("data-terminal-snoozed")).toBe("true")
+      expect(section(frame).hasAttribute("data-terminal-need")).toBe(false)
+      expect(frame.querySelector('.terminal-need[data-need="snoozed"] svg')).not.toBeNull()
+      expect(section(frame).getAttribute("aria-description")).toBe("Snoozed: pnpm test")
+    })
+
+    it("marks a dialog more than its snoozed requests, as a new prompt", () => {
+      const frame = renderFrame(permission, { needSnoozed: true, needSnoozedRequests: 0 })
+      expect(need(frame)).toBe("!")
+      expect(section(frame).hasAttribute("data-terminal-snoozed")).toBe(false)
+    })
+  })
+
   it("keeps the kind of a dialog in the words, with the subject of the item behind it", () => {
     const frame = renderFrame(
       agent({ working: false, attention: { kind: "permission", count: 1 } }),
