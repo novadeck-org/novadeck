@@ -1,7 +1,6 @@
 import "./terminal-xterm.css"
-import type { TerminalKey, TerminalMountProps, MountTerminal, ViewState } from "@novadeck/core/port"
-import type { Hold, TerminalViews } from "@novadeck/terminal/view"
-import type { ViewPhase } from "@novadeck/terminal/view"
+import type { MountTerminal, TerminalKey, TerminalMountProps, ViewState } from "@novadeck/core/port"
+import type { Hold, TerminalViews, ViewPhase } from "@novadeck/terminal/view"
 
 import { wantsWebgl } from "./renderers"
 
@@ -13,8 +12,13 @@ const phaseOf = (status: TerminalMountProps["status"]): ViewPhase =>
       ? "starting"
       : "running"
 
-// The input's accessible name, in the app's words.
-const labelOf = (name: string): string => `Input for ${name}`
+// What a mount asks of its screen: the input's accessible name in the app's words, the
+// shell's stage, and whether the view draws with WebGL.
+const screenOptions = (props: TerminalMountProps) => ({
+  label: `Input for ${props.name}`,
+  phase: phaseOf(props.status),
+  webgl: wantsWebgl(props.view),
+})
 
 // What every backend's screens are drawn in: the one input the port asks for, and the host
 // element this folder's styles reach (terminal-xterm.css).
@@ -57,13 +61,9 @@ export const createTerminalMount =
     }
 
     // Takes the screen and places it, again after every acquire: one the cap closed opens in a
-    // new host.
+    // new container.
     const acquire = (): void => {
-      const acquired = screens.acquire(key, {
-        label: labelOf(props.name),
-        phase: phaseOf(props.status),
-        webgl: wantsWebgl(props.view),
-      })
+      const acquired = screens.acquire(key, screenOptions(props))
       holdScreen(acquired)
       acquired.place(element)
     }
@@ -90,12 +90,7 @@ export const createTerminalMount =
           holdScreen(undefined)
           released?.release()
         } else if (!was && is) acquire()
-        else
-          hold?.update({
-            label: labelOf(next.name),
-            phase: phaseOf(next.status),
-            webgl: wantsWebgl(next.view),
-          })
+        else hold?.update(screenOptions(next))
       },
       focus: () => hold?.focus() ?? false,
       restart: () => hold?.restart(),
