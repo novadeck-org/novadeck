@@ -1330,7 +1330,7 @@ export const createLaunch = (turns: DemoTurns, now: number) => {
       },
       answer: async (key, request, answer) => {
         // Claude Code's plan dialog takes words only in its third option, which needs them
-        // (harnesses/claude's dialogs refuse the others, as dialogs.test.ts has it).
+        // (harnesses/claude's dialogs refuse the others, as plan-dialog.test.ts has it).
         if (request === `${slot(launch.plan)}:plan` && answer.type === "choice") {
           const words = (answer.text ?? "").trim() !== ""
           if (answer.option === "3" ? !words : words)
