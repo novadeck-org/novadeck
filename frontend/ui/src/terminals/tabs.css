@@ -6,6 +6,8 @@
    "paused" | "starting" | "unheard" | "ended" (what the agent does: the glyph before the
    program), data-terminal-need="unblock" | "ask" (what it needs of the person: the mark
    right after the program; a dialog its agent shows counts at once),
+   data-terminal-snoozed="true" (what it needs is snoozed in the Inbox: a bell-off for the mark,
+   its `.terminal-tab-need` data-need="snoozed"),
    data-terminal-unread="true" (an idle agent whose reply the person hasn't read: its program
    brightens, no glyph), data-terminal-wait="job" | "wake" (what
    a waiting agent waits on; its glyph, a `.terminal-tab-wait`, holds data-wait the same and
@@ -39,6 +41,8 @@
    `.terminal-tab-rename`, `.terminal-tab-empty`.
 
    Tokens, each optional (its fallback in brackets):
+   --tab-snoozed-fg (muted), --tab-snoozed-bg (the ink at 6%), --tab-snoozed-bar-color
+   (muted): a snoozed tab's bell-off, wash and dashed bar.
    --tab-glyph-fg (ink): the phase glyph. --tab-starting-fg (muted): the glyph while the
    shell starts. --tab-need-fg (warning-fg): the need mark after the program, the only
    warning colour on the tab. --tab-paused-fg (muted): the glyph while an agent is paused at
@@ -264,6 +268,25 @@
   font-family: var(--tab-process-font, var(--font-glyphs));
   font-weight: 700;
   color: var(--tab-need-fg, var(--color-warning-fg));
+}
+/* What it needs of the person, snoozed in the Inbox: a gray bell-off for the mark, and the
+   snoozed Inbox row's look, a gray wash and a dashed bar where the selected tab's bar goes. */
+.terminal-tab-need[data-need="snoozed"] {
+  display: inline-flex;
+  align-self: center;
+  color: var(--tab-snoozed-fg, var(--color-muted));
+}
+.terminal-tab[data-terminal-snoozed="true"]:not([data-selected="true"]) {
+  --_bg: var(--tab-snoozed-bg, color-mix(in srgb, var(--color-ink) 6%, transparent));
+}
+.terminal-tab[data-terminal-snoozed="true"]:not([data-selected="true"])::before {
+  top: 18%;
+  bottom: 18%;
+  width: 0;
+  border-left: 2px dashed var(--tab-snoozed-bar-color, var(--color-muted));
+  background: none;
+  box-shadow: none;
+  opacity: 1;
 }
 /* A working agent's spinner: the braille frames stand in a column, one line of which the
    glyph shows, and the column steps up a line every 80ms. Moving it is a transform, which

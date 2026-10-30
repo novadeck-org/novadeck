@@ -4,6 +4,7 @@
    Hooks: data-terminal-phase="idle" | "done" | "running" | "waiting" | "paused" |
    "starting" | "unheard" | "ended" (what the agent does), data-terminal-need="unblock" |
    "ask" (what it needs of the person; a dialog its agent shows counts at once),
+   data-terminal-snoozed="true" (what it needs is snoozed in the Inbox),
    data-terminal-failed="true" (done on an error) and data-new="true" on `.terminal-window`; `.terminal-focused` (Focus) and
    `.terminal-compact` (Grid, Canvas); a selected window is `.terminal-focused`, or sits
    in a `.grid-terminal.selected` or `.canvas-node.selected`; a `.grid-terminal` or
@@ -25,6 +26,8 @@
    --window-bg (paper), --window-fg (ink), --window-border-color (line),
    --window-shadow (shadow-panel), --window-radius (radius-panel): the window at rest.
    --window-selected-border-color (line-strong): the selected window's outline.
+   --window-snoozed-fg (muted), --window-snoozed-bg (the ink at 6%): a snoozed window's bell-off
+   and its head's wash.
    --window-selected-shadow (the window's shadow): the selected window's lift.
    --window-header-bg (the window's bg), --window-header-border-color (line): the header
    and its hairline. --window-header-icon-fg (muted): the icons in it.
@@ -491,6 +494,16 @@
   font-family: var(--window-metadata-font, var(--font-glyphs));
   font-weight: 700;
   color: var(--window-need-fg, var(--color-warning-fg));
+}
+/* Snoozed in the Inbox: a gray bell-off, and the head washed gray as the snoozed row is; the
+   line under it is the phase's, with no warning. */
+.terminal-need[data-need="snoozed"] {
+  display: inline-flex;
+  align-self: center;
+  color: var(--window-snoozed-fg, var(--color-muted));
+}
+.terminal-window[data-terminal-snoozed="true"] .terminal-heading {
+  background-color: var(--window-snoozed-bg, color-mix(in srgb, var(--color-ink) 6%, transparent));
 }
 .terminal-paused {
   flex: none;

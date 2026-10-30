@@ -23,13 +23,25 @@ const subjectOf = (item: InboxRow): string | undefined => {
 // The marks of one terminal from the Inbox's items: raw ones, as the backend lists them, since
 // the landing rule hides rows from the Inbox, never from the marks. `now` decides whether a
 // limit has reset.
+// Where all it needs is snoozed, it says so, with what the snoozed would need and its subject.
 export const inboxMarks = (items: readonly InboxRow[], at: TerminalAt, now: number): InboxMarks => {
   const need = terminalNeed(items, at, now)
   const mine = items.filter((item) => here(item, at) && !item.settled && !item.snoozed)
   const behind = need && mine.find((item) => inboxType(item) === need)
-  return {
-    need,
-    subject: behind ? subjectOf(behind) : undefined,
-    dialog: behind ? dialogOf(behind) : undefined,
-  }
+  if (need)
+    return {
+      need,
+      subject: behind ? subjectOf(behind) : undefined,
+      dialog: behind ? dialogOf(behind) : undefined,
+    }
+  const asleep = items.filter((item) => here(item, at) && !item.settled && item.snoozed)
+  const would = terminalNeed(
+    asleep.map(({ snoozed: _snoozed, ...item }) => item as InboxRow),
+    at,
+    now,
+  )
+  const first = would && asleep.find((item) => inboxType(item) === would)
+  return would
+    ? { need: undefined, subject: first ? subjectOf(first) : undefined, snoozed: true }
+    : { need: undefined, subject: undefined, dialog: undefined }
 }

@@ -113,4 +113,19 @@ describe("the marks the raw Inbox makes", () => {
     expect(inboxMarks([done()], at, now)).toEqual(inboxMarks([], at, now))
     expect(inboxMarks([done(true)], at, now)).toEqual(inboxMarks([], at, now))
   })
+
+  it("says where all a terminal needs is snoozed, with what the snoozed asks", () => {
+    const snoozed = { ...ask({ type: "text" }, "Which way?"), snoozed: true as const }
+    expect(inboxMarks([snoozed], at, now)).toEqual({
+      need: undefined,
+      subject: "Which way?",
+      snoozed: true,
+    })
+    // What isn't snoozed comes first.
+    expect(inboxMarks([snoozed, ask({ type: "text" })], at, now)).toEqual({
+      need: "ask",
+      subject: "Which?",
+      dialog: undefined,
+    })
+  })
 })

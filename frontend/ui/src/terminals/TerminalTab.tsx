@@ -24,7 +24,7 @@ import { ContextMenu } from "@novadeck/toolkit/ContextMenu"
 import { HandleChip } from "@novadeck/toolkit/HandleChip"
 import { SidebarItem } from "@novadeck/toolkit/SidebarItem"
 import { Tooltip } from "@novadeck/toolkit/Tooltip"
-import { Check, Eye, EyeOff, Pencil, X, type LucideIcon } from "lucide-react"
+import { BellOff, Check, Eye, EyeOff, Pencil, X, type LucideIcon } from "lucide-react"
 import { lazy, Suspense, type ReactNode } from "react"
 
 import { workspaceShortcutBindings } from "../interaction/shortcuts"
@@ -62,6 +62,7 @@ export const TerminalTab = ({
   need: inboxNeed,
   needSubject,
   needDialog,
+  needSnoozed,
   rename,
   messageBadge = null,
   companion,
@@ -97,6 +98,8 @@ export const TerminalTab = ({
   need?: "unblock" | "ask" | undefined
   needSubject?: string | undefined
   needDialog?: NeedDialog | undefined
+  // What it needs the person for is snoozed in the Inbox: a bell-off takes the need's mark.
+  needSnoozed?: boolean | undefined
   rename: TerminalRename | null
   // What waits for its agent, when anything does: the tab says it in words.
   messageBadge?: MessageBadge | null
@@ -129,8 +132,17 @@ export const TerminalTab = ({
   // program, what the agent needs of the person right after it, or a note while the shell
   // starts. A tab that has ended is hatched (styles.css); assistive technology says how it
   // ended.
-  const { phase, need, failed, brightened, text } = shell
-    ? terminalNote(shell, { need: inboxNeed, subject: needSubject, dialog: needDialog }, unread)
+  const { phase, need, snoozed, failed, brightened, text } = shell
+    ? terminalNote(
+        shell,
+        {
+          need: inboxNeed,
+          subject: needSubject,
+          dialog: needDialog,
+          ...(needSnoozed ? { snoozed: true as const } : {}),
+        },
+        unread,
+      )
     : idleNote
   const ending = shell && terminalEnding(shell)
   const ended = ending ? endingText(ending) : undefined
@@ -182,12 +194,17 @@ export const TerminalTab = ({
     disabled: editing,
     transition: { duration: 180, easing: "cubic-bezier(0.16, 1, 0.3, 1)" },
   })
-  // Right after the program: `!` where it can't go on without the person, `?` where it asks.
-  const needMark = need && (
+  // Right after the program: `!` where it can't go on without the person, `?` where it asks,
+  // a bell-off where that is snoozed.
+  const needMark = need ? (
     <span aria-hidden className="terminal-tab-need shrink-0" data-need={need}>
       {need === "unblock" ? "!" : "?"}
     </span>
-  )
+  ) : snoozed ? (
+    <span aria-hidden className="terminal-tab-need shrink-0" data-need="snoozed">
+      <BellOff size={11} strokeWidth={2} />
+    </span>
+  ) : undefined
   const tab = (
     <div className="contents">
       <SidebarItem
@@ -263,6 +280,7 @@ export const TerminalTab = ({
         data-terminal-phase={phase}
         {...(phase === "done" && failed ? { "data-terminal-failed": true } : {})}
         {...(need ? { "data-terminal-need": need } : {})}
+        {...(snoozed ? { "data-terminal-snoozed": true } : {})}
         {...(brightened ? { "data-terminal-unread": true } : {})}
         {...(waits ? { "data-terminal-wait": waits.jobs.length > 0 ? "job" : "wake" } : {})}
         {...(marks ? { "data-terminal-subagents": marks.working ? "working" : "background" } : {})}

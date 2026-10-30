@@ -342,10 +342,27 @@ describe("a terminal's note", () => {
     expect(terminalNote(agent(), quiet, undefined, now)).toEqual({
       phase: "idle",
       need: undefined,
+      snoozed: false,
       failed: false,
       brightened: false,
       text: undefined,
     })
+  })
+
+  it("shows what it needs, snoozed, as such: no mark, its dialog's either, and says so", () => {
+    const asking = agent({ attention: { kind: "permission", count: 1 } })
+    expect(
+      terminalNote(
+        asking,
+        { need: undefined, subject: "pnpm lint", snoozed: true },
+        undefined,
+        now,
+      ),
+    ).toMatchObject({ need: undefined, snoozed: true, text: "Snoozed: pnpm lint" })
+    // What it needs and hasn't snoozed is marked as ever.
+    expect(
+      terminalNote(asking, { need: "ask", subject: "Which?", snoozed: true }, undefined, now),
+    ).toMatchObject({ need: "unblock", snoozed: false })
   })
 
   it("says the need first, then what the terminal does", () => {

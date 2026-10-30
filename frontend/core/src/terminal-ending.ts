@@ -229,14 +229,19 @@ export type NoteMarks = {
   readonly need: TerminalNeed | undefined
   readonly subject?: string | undefined
   readonly dialog?: NeedDialog | undefined
+  // What it would need the person for, all snoozed: it shows it set aside, and its live
+  // dialog, the same ask, makes no mark either.
+  readonly snoozed?: true | undefined
 }
 
 // How a terminal reads at a glance, once, for its tab, its window and its project's status, so
 // that they cannot drift apart.
 export type TerminalGlance = {
   readonly phase: TerminalPhase
-  // The mark after the program: none for an ended terminal.
+  // The mark after the program: none for an ended terminal, nor where what it needs is snoozed.
   readonly need: TerminalNeed | undefined
+  // What it needs the person for is snoozed: a bell-off takes the mark's place.
+  readonly snoozed: boolean
   // Its final outcome shows as a stopped turn rather than a report.
   readonly failed: boolean
   // A reply the person hasn't read, on an agent that rests: its program brightens.
@@ -253,9 +258,11 @@ export const terminalGlance = (
   const failed = unread === "failed"
   const reported = terminal.state === "running" && terminal.agent?.reported === true
   const phase = terminalPhase(terminal, reported || failed, now)
+  const snoozed = phase !== "ended" && marks.snoozed === true && marks.need === undefined
   return {
     phase,
-    need: phase === "ended" ? undefined : terminalNeedMark(terminal, marks.need),
+    need: phase === "ended" || snoozed ? undefined : terminalNeedMark(terminal, marks.need),
+    snoozed,
     failed,
     brightened: unread === "unread" && phase === "idle",
   }
@@ -271,6 +278,7 @@ export type TerminalNote = TerminalGlance & { readonly text: string | undefined 
 export const idleNote: TerminalNote = {
   phase: "idle",
   need: undefined,
+  snoozed: false,
   failed: false,
   brightened: false,
   text: undefined,
@@ -283,9 +291,11 @@ export const terminalNote = (
   now = Date.now(),
 ): TerminalNote => {
   const glance = terminalGlance(terminal, marks, unread, now)
-  const { phase, failed, brightened } = glance
+  const { phase, failed, brightened, snoozed } = glance
   const text = joinNote([
-    needText(terminal, marks.need, marks.subject, marks.dialog),
+    snoozed
+      ? `Snoozed${marks.subject ? `: ${marks.subject}` : ""}`
+      : needText(terminal, marks.need, marks.subject, marks.dialog),
     unheardText(terminal) ??
       (phase === "paused" ? pausedText(terminal, now) : undefined) ??
       (phase === "waiting" ? waitingNote(terminal, now) : undefined) ??

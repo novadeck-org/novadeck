@@ -11,7 +11,15 @@ import type { Tile } from "@novadeck/core/types"
 import { ContextMenu, type ContextMenuItem } from "@novadeck/toolkit/ContextMenu"
 import { HandleChip } from "@novadeck/toolkit/HandleChip"
 import { Tooltip } from "@novadeck/toolkit/Tooltip"
-import { Minimize2, FoldHorizontal, UnfoldHorizontal, Maximize2, Mic, X } from "lucide-react"
+import {
+  BellOff,
+  Minimize2,
+  FoldHorizontal,
+  UnfoldHorizontal,
+  Maximize2,
+  Mic,
+  X,
+} from "lucide-react"
 import { lazy, Suspense, useRef, type ReactNode } from "react"
 
 import { shortcutBindings } from "../interaction/shortcuts"
@@ -74,6 +82,8 @@ export type WindowShellProps = {
   need?: "unblock" | "ask" | undefined
   needSubject?: string | undefined
   needDialog?: NeedDialog | undefined
+  // What it needs the person for is snoozed in the Inbox: a bell-off takes the need's mark.
+  needSnoozed?: boolean | undefined
   // The terminal that directs this one's work while it runs, by its handle and name.
   lead?: { handle: string; name: string }
   // The terminals this one directs while it leads: how many, and who in words.
@@ -110,6 +120,7 @@ export const WindowShell = ({
   need: inboxNeed,
   needSubject,
   needDialog,
+  needSnoozed,
   lead,
   leads,
   rename,
@@ -148,10 +159,20 @@ export const WindowShell = ({
   const {
     phase,
     need,
+    snoozed,
     failed,
     text: note,
   } = shell
-    ? terminalNote(shell, { need: inboxNeed, subject: needSubject, dialog: needDialog }, unread)
+    ? terminalNote(
+        shell,
+        {
+          need: inboxNeed,
+          subject: needSubject,
+          dialog: needDialog,
+          ...(needSnoozed ? { snoozed: true as const } : {}),
+        },
+        unread,
+      )
     : idleNote
   const resets = shell && phase === "paused" ? pausedUntil(shell) : undefined
   // Said again once the limit it waits on resets, or its wake-up passes.
@@ -294,10 +315,15 @@ export const WindowShell = ({
             )}
           </span>
           {/* Right after the name: `!` where the agent can't go on without the person, `?`
-              where it asks. */}
+              where it asks, a bell-off where that is snoozed. */}
           {!renaming && need && (
             <span aria-hidden className="terminal-need nodrag nopan" data-need={need}>
               {need === "unblock" ? "!" : "?"}
+            </span>
+          )}
+          {!renaming && snoozed && (
+            <span aria-hidden className="terminal-need nodrag nopan" data-need="snoozed">
+              <BellOff size={12} strokeWidth={2} />
             </span>
           )}
           {!renaming && titleExtra}
@@ -421,6 +447,7 @@ export const WindowShell = ({
       data-terminal-phase={phase}
       {...(phase === "done" && failed ? { "data-terminal-failed": true } : {})}
       {...(need ? { "data-terminal-need": need } : {})}
+      {...(snoozed ? { "data-terminal-snoozed": true } : {})}
       {...(note ? { "aria-description": note } : {})}
       data-process-window={processWindow}
       data-new={fresh}
