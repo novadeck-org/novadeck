@@ -51,7 +51,7 @@ export const socketChannel = (socket: WebSocketLike): Channel => {
 
 /**
  * A remote close is detected through the port's `close` event, which Chromium-based
- * hosts such as Electron and Node.js provide.
+ * runtimes such as Electron and Node.js provide.
  */
 export const portChannel = (port: MessagePortLike): Channel => {
   let open = true

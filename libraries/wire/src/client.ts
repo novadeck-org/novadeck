@@ -12,7 +12,7 @@ export {
   type Following,
   type RestartResume,
 } from "./follow.js"
-export { hostTransport } from "./page.js"
+export { brokeredPort } from "./page.js"
 export { messagePort, websocket, type Transport } from "./transport.js"
 export type { Watching } from "./watched.js"
 export { createWireClient } from "./wire-client.js"

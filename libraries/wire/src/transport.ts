@@ -1,7 +1,7 @@
 import { portChannel, socketChannel, type Channel, type MessagePortLike } from "./channel.js"
 import { WireError } from "./errors.js"
 
-/** How a client reaches a server. See `websocket`, `messagePort` and `hostTransport`. */
+/** How a client reaches a server. See `websocket`, `messagePort` and `brokeredPort`. */
 export type Transport = {
   /** Sent in the handshake. Trusted transports omit it. */
   readonly token?: string
@@ -41,7 +41,7 @@ export const websocket = (
 })
 
 /**
- * Reaches a server bundled with its host, such as an Electron utility process. Holding
+ * Reaches a server bundled with the app, such as an Electron utility process. Holding
  * the port is the credential. Pass a function to obtain a fresh port on reconnection;
  * it should give up when `signal` aborts. A single port can't reconnect once it closes.
  */
