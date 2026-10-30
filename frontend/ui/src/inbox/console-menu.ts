@@ -67,11 +67,17 @@ export type Menu = {
 
 const none: Menu = { rows: [], hard: false }
 
+// The way to an item's terminal.
+const goToTerminal: Row = { type: "reveal", label: "Go to terminal", effect: null }
+
 // A prompt that can't be answered from here: the way to its terminal.
-const inTerminal: Menu = {
-  rows: [{ type: "reveal", label: "Go to terminal", effect: null }],
-  hard: false,
-}
+const inTerminal: Menu = { rows: [goToTerminal], hard: false }
+
+// Every menu ends on the way to the item's terminal, where it has none of its own.
+const withTerminal = (menu: Menu): Menu =>
+  menu.rows.some((row) => row.type === "reveal")
+    ? menu
+    : { ...menu, rows: [...menu.rows, goToTerminal] }
 
 // Whether the sheet can answer a request: its dialog read, and its options ones the menu
 // can tell apart (a yes among them). Every other item it can.
@@ -353,7 +359,9 @@ const troubleMenu = (item: InboxRow, trouble: Trouble, now: number): Menu => {
 
 // The menu of every item but a dialog of questions, at `now`: a limit's reset is read
 // against it.
-export const menuOf = (item: InboxRow, now: number): Menu => {
+export const menuOf = (item: InboxRow, now: number): Menu => withTerminal(answersOf(item, now))
+
+const answersOf = (item: InboxRow, now: number): Menu => {
   switch (item.kind) {
     case "request": {
       if (item.request.dialog?.type !== "choices") return inTerminal

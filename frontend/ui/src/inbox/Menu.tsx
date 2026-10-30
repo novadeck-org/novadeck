@@ -46,6 +46,9 @@ export type MenuItem = {
   // More about the row, shown under the menu while the cursor is on it.
   readonly more?: ReactNode
   readonly words?: Words
+  // A way out of the sheet, as to the item's terminal: it answers nothing, so it never arms,
+  // ticks, nor sends on Enter.
+  readonly away?: boolean
 }
 
 export type MenuHandle = {
@@ -95,9 +98,9 @@ export const Menu = ({
 }): React.JSX.Element => {
   const [cursor, setCursor] = useState<Cursor>(startCursor)
   // The words row whose box has the keys.
-  // A menu that is only a words row opens on its box.
+  // A menu that is only a words row, and ways out, opens on its box.
   const [typing, setTyping] = useState<number | null>(
-    items.length === 1 && items[0]?.words ? 0 : null,
+    items[0]?.words && items.slice(1).every((item) => item.away) ? 0 : null,
   )
   const rows = useRef<(HTMLElement | null)[]>([])
   const boxes = useRef<(HTMLTextAreaElement | null)[]>([])
@@ -107,7 +110,9 @@ export const Menu = ({
   const shape = {
     count: items.length,
     multi,
-    arms: (index: number) => (hard && !items[index]?.words) || Boolean(items[index]?.arms),
+    arms: (index: number) =>
+      (hard && !items[index]?.words && !items[index]?.away) || Boolean(items[index]?.arms),
+    leaves: (index: number) => Boolean(items[index]?.away),
   }
   const hints = useId()
 
@@ -192,8 +197,9 @@ export const Menu = ({
       {items.map((item, index) => {
         const on = index === at
         const armed = cursor.armed === index
-        const role =
-          multi || item.check !== undefined
+        const role = item.away
+          ? "menuitem"
+          : multi || item.check !== undefined
             ? "menuitemcheckbox"
             : item.chosen !== undefined
               ? "menuitemradio"
