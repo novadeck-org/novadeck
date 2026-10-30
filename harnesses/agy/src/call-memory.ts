@@ -1,6 +1,7 @@
 import { errorText } from "@novadeck/harness-core/decode"
 import type { EventBase, HarnessEvent } from "@novadeck/harness-core/events"
 import { oneLine } from "@novadeck/harness-core/tools"
+import { agentLimits } from "@novadeck/protocol"
 
 import type { ToolCall } from "./tools.js"
 
@@ -42,13 +43,10 @@ export const remember = (conversation: string, call: ToolCall, id: string): void
 export const latestOf = (conversation: string): { call: ToolCall; id: string } | undefined =>
   latest.get(conversation)
 
-// How much of a job's description the protocol takes.
-const maxDescription = 512
-
 // The first line of what the agent wrote, sanitized and cut to what the protocol takes;
 // undefined if blank.
 const firstLine = (value: unknown): string | undefined => {
-  const line = oneLine(errorText(value) ?? "").slice(0, maxDescription)
+  const line = oneLine(errorText(value) ?? "").slice(0, agentLimits.description)
   return line === "" ? undefined : line
 }
 

@@ -134,10 +134,10 @@ export const twin = (
 
 /**
  * The screen's text around a dialog no adapter recognised, the same for every harness: the
- * screen's rows without their trailing blanks, taken from the bottom up while they fit
- * in what the protocol carries of it (`maxRawDialogText`; a row is never cut), a run of blank rows shortened to one, and none leading.
- * Where a dialog shows it, it is at the bottom; whatever above it belongs to the
- * transcript goes with it only as far as the space allows.
+ * screen's rows without their trailing blanks, taken from the bottom up while they fit in
+ * what the protocol carries of it (`maxRawDialogText`; a row is never cut), a run of blank
+ * rows shortened to one, and none leading. Where a dialog shows it, it is at the bottom;
+ * whatever above it belongs to the transcript goes with it only as far as the space allows.
  */
 export const rawText = (rows: readonly string[]): string => {
   const lines = rows.map((row) => row.trimEnd())

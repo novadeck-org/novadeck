@@ -31,11 +31,13 @@
 import { efforts } from "@novadeck/harness-core/harness"
 import { manifest } from "@novadeck/harness-core/plugin"
 import {
-  harnessIds,
   harnesses,
+  harnessIds,
   inboxTextLimits,
   maxAskOptions,
   maxCommandLines,
+  maxFeedbackText,
+  maxStartupCommand,
 } from "@novadeck/protocol"
 
 import { maxMessageBytes } from "../messaging/messages.js"
@@ -431,7 +433,7 @@ const openTerminal: Tool<Opened> = {
         description:
           "A command line to run at the new shell's first prompt, as if the user typed it, " +
           "such as npm run dev: one line. Leave it out for a plain shell.",
-        maxLength: 4096,
+        maxLength: maxStartupCommand,
       },
       cwd: cwdProperty,
       title: {
@@ -1173,8 +1175,8 @@ const feedback: Tool<unknown> = {
       },
       text: {
         type: "string",
-        description: "The feedback, up to 2,000 characters.",
-        maxLength: 2000,
+        description: `The feedback, up to ${maxFeedbackText.toLocaleString("en-US")} characters.`,
+        maxLength: maxFeedbackText,
       },
     },
     required: ["kind", "text"],

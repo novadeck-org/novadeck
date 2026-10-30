@@ -3,6 +3,7 @@ import type { Report } from "@novadeck/harness-core/report"
 import { loadProbe } from "@novadeck/harness-core/testing/probes"
 import {
   agentActivity,
+  agentLimits,
   maxTurnError,
   maxTurnFilePath,
   maxTurnFiles,
@@ -646,14 +647,15 @@ describe("applying activity", () => {
   })
 
   it("carries no id or kind longer than the protocol takes", () => {
-    const long = "x".repeat(300)
+    const long = "x".repeat(agentLimits.name + 50)
     expect(apply(started(0), binding, subagent("subagent-started", long))).toBeUndefined()
     const typed = apply(
       started(0),
       binding,
       fact({ type: "subagent-started", actor: "a", actorType: long }),
     )!
-    expect(summary(typed).subagents[0]?.type).toHaveLength(256)
+    expect(summary(typed).subagents[0]?.type).toHaveLength(agentLimits.name)
+    expect(agentActivity.safeParse(summary(typed)).success).toBe(true)
   })
 
   it("keeps a subagent's request when it asks again, as its parallel calls show dialogs together", () => {
@@ -749,18 +751,19 @@ describe("applying activity", () => {
     expect(apply(again, binding, { ...early, startedAt: 11 })?.pending).toEqual([])
   })
 
-  it("keeps at most 32 subagents", () => {
+  it("keeps as many subagents as the protocol takes", () => {
     let activity = started(0)
-    for (let index = 0; index < 40; index += 1)
+    for (let index = 0; index < agentLimits.subagents + 8; index += 1)
       activity = apply(activity, binding, subagent("subagent-started", `a${index}`)) ?? activity
-    expect(activity.subagents).toHaveLength(32)
+    expect(activity.subagents).toHaveLength(agentLimits.subagents)
+    expect(agentActivity.safeParse(summary(activity)).success).toBe(true)
   })
 
-  it("makes room at 32 subagents for a new one's request, the one whose turn aborted longest ago giving way", () => {
+  it("makes room at the subagents' limit for a new one's request, the one whose turn aborted longest ago giving way", () => {
     // Codex keeps a subagent's thread open after Esc aborted its turn: it may never run
     // again, and must not crowd a live one's request out of the subagents it follows.
     let full = started(0)
-    for (let index = 0; index < 32; index += 1)
+    for (let index = 0; index < agentLimits.subagents; index += 1)
       full = apply(full, binding, subagent("subagent-started", `a${index}`, 1))!
     const abort = (activity: Activity, actor: string, at: number) =>
       apply(
@@ -771,7 +774,7 @@ describe("applying activity", () => {
     const aborted = abort(abort(full, "a7", 4), "a3", 6)
     const asked = apply(aborted, binding, request("n:Bash:1", "n", 9))!
     const running = asked.subagents.map(({ id }) => id)
-    expect(running).toHaveLength(32)
+    expect(running).toHaveLength(agentLimits.subagents)
     expect(running).toContain("n")
     expect(running).not.toContain("a7")
     expect(running).toContain("a3")
@@ -1965,14 +1968,14 @@ describe("what a turn wrote and how it failed", () => {
     })
     expect(summary(error).lastTurn?.error).toBe("x".repeat(maxTurnError - 1))
 
-    const long = `${"x".repeat(255)}${emoji}tail`
+    const long = `${"x".repeat(agentLimits.name - 1)}${emoji}tail`
     const sub = on(turn(started(0), 1), {
       type: "subagent-started",
       actor: "a",
       actorType: long,
       startedAt: 3,
     })
-    expect(sub.subagents[0]?.type).toBe("x".repeat(255))
+    expect(sub.subagents[0]?.type).toBe("x".repeat(agentLimits.name - 1))
 
     const detached = on(turn(started(0), 1), {
       type: "attention-requested",
@@ -1984,7 +1987,7 @@ describe("what a turn wrote and how it failed", () => {
       parts: [long],
       startedAt: 4,
     })
-    expect(detached.pending[0]?.parts).toEqual(["x".repeat(255)])
+    expect(detached.pending[0]?.parts).toEqual(["x".repeat(agentLimits.name - 1)])
     // The prompt quoting the whole text still settles the part it was cut from.
     const quoted = apply(
       stop(detached, 5),

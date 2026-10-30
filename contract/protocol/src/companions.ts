@@ -4,6 +4,20 @@ import { agentName } from "./agents.js"
 import { id } from "./fields.js"
 import { handle, terminalTitle } from "./terminals.js"
 
+// How long an item's name and detail, a path, a page's address and the element to bring into
+// view run at most, in UTF-16 code units; how many lines of a file are read, each of at most
+// `lineLength` (a diff's lines too); and how long a plan's text runs.
+export const companionLimits = {
+  name: 256,
+  detail: 512,
+  path: 4096,
+  url: 8192,
+  scroll: 1024,
+  lines: 2000,
+  lineLength: 4096,
+  plan: 256 * 1024,
+} as const
+
 // What agents show and the person attaches beside a terminal: a pointer to a file, a
 // page or a plan, never a copy of it, which `companions.content` reads when it loads.
 // Each item has one holder, a terminal's bar or a window; `from` is the terminal it was
@@ -18,10 +32,10 @@ export const companionItem = z.strictObject({
   sessionId: id,
   holder: itemHolder,
   kind: z.enum(["image", "file", "page", "plan", "changes"]),
-  name: z.string().max(256),
-  detail: z.string().max(512),
-  path: z.string().max(4096).nullable(),
-  url: z.string().max(8192).nullable(),
+  name: z.string().max(companionLimits.name),
+  detail: z.string().max(companionLimits.detail),
+  path: z.string().max(companionLimits.path).nullable(),
+  url: z.string().max(companionLimits.url).nullable(),
   lines: z.strictObject({ from: z.int().min(1), to: z.int().min(1) }).nullable(),
   secret: z.boolean(),
   by: z.enum(["agent", "person"]),
@@ -71,7 +85,7 @@ export const planSaveResult = z.discriminatedUnion("saved", [
     saved: z.literal(false),
     current: z.strictObject({
       stamp: z.string().max(128),
-      text: z.string().max(256 * 1024),
+      text: z.string().max(companionLimits.plan),
       truncated: z.boolean(),
       // As in the plan's content.
       skill: z.boolean(),
@@ -145,8 +159,8 @@ export const maxChangesBytes = 4 * 1024 * 1024
 // text. A `binary` file, one that may hold secrets (`secret`), or one past the change's bounds
 // (`listed`) has no hunks: it is listed by name. Line numbers count from each hunk's start.
 const changedFile = z.strictObject({
-  path: z.string().max(4096),
-  oldPath: z.string().max(4096).nullable(),
+  path: z.string().max(companionLimits.path),
+  oldPath: z.string().max(companionLimits.path).nullable(),
   status: z.enum(["added", "modified", "deleted", "renamed"]),
   added: z.int().nonnegative(),
   removed: z.int().nonnegative(),
@@ -162,7 +176,7 @@ const changedFile = z.strictObject({
       lines: z.array(
         z.strictObject({
           kind: z.enum(["context", "add", "remove"]),
-          text: z.string().max(4096),
+          text: z.string().max(companionLimits.lineLength),
         }),
       ),
     }),
@@ -188,9 +202,9 @@ export const itemContent = z.discriminatedUnion("state", [
       z.strictObject({ kind: z.literal("image"), src: z.string().max(12 * 1024 * 1024) }),
       z.strictObject({
         kind: z.literal("file"),
-        path: z.string().max(4096),
+        path: z.string().max(companionLimits.path),
         firstLine: z.int().min(1),
-        lines: z.array(z.string().max(4096)).max(2000),
+        lines: z.array(z.string().max(companionLimits.lineLength)).max(companionLimits.lines),
         from: z.int().min(1),
         to: z.int().min(1),
         total: z.int().nonnegative().nullable(),
@@ -199,20 +213,20 @@ export const itemContent = z.discriminatedUnion("state", [
       }),
       z.strictObject({
         kind: z.literal("page"),
-        url: z.string().max(8192),
+        url: z.string().max(companionLimits.url),
         shown: z.int().min(1),
-        scroll: z.string().max(1024).optional(),
+        scroll: z.string().max(companionLimits.scroll).optional(),
       }),
       z.strictObject({
         kind: z.literal("changes"),
-        root: z.string().max(4096),
+        root: z.string().max(companionLimits.path),
         base: z.string().max(256),
         files: z.array(changedFile).max(maxChangedFiles),
         truncated: z.boolean(),
       }),
       z.strictObject({
         kind: z.literal("plan"),
-        text: z.string().max(256 * 1024),
+        text: z.string().max(companionLimits.plan),
         truncated: z.boolean(),
         changedAt: z.number().nullable(),
         // Whether `companions.save` can write it: a plan in a file, not one the agent

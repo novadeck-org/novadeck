@@ -3,6 +3,7 @@ import { tmpdir } from "node:os"
 import { join } from "node:path"
 
 import { loadProbe } from "@novadeck/harness-core/testing/probes"
+import { transcriptLimits } from "@novadeck/protocol"
 import { describe, expect, it } from "vitest"
 
 import { transcripts } from "./transcripts.js"
@@ -89,7 +90,7 @@ describe("Codex's shell-mode commands, as captured", () => {
       }),
     ])
     expect(result).toMatchObject({ truncated: true })
-    expect(result?.text).toHaveLength(16_384)
+    expect(result?.text).toHaveLength(transcriptLimits.text)
   })
 })
 

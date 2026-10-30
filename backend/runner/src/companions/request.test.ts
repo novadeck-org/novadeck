@@ -1,3 +1,5 @@
+import { companionLimits } from "@novadeck/protocol"
+
 import { describe, expect, it } from "../test.js"
 import { named, readCloseShownRequest, readLookRequest, readShowRequest } from "./request.js"
 
@@ -17,7 +19,9 @@ describe("a show request", () => {
       ok: false,
       reason: 'The request\'s "file.path" is not valid.',
     })
-    expect(readShowRequest({ file: { path: "a.ts" }, title: "t".repeat(257) })).toMatchObject({
+    expect(
+      readShowRequest({ file: { path: "a.ts" }, title: "t".repeat(companionLimits.name + 1) }),
+    ).toMatchObject({
       ok: false,
     })
     expect(readShowRequest({ file: { path: "a.ts" }, extra: 1 })).toMatchObject({ ok: false })
@@ -73,7 +77,7 @@ describe("a show request", () => {
       ok: true,
       request: { page: { url: "http://a/", scroll: "#pricing" } },
     })
-    for (const scroll of ["", "   ", "x".repeat(1025), 1])
+    for (const scroll of ["", "   ", "x".repeat(companionLimits.scroll + 1), 1])
       expect(readShowRequest({ page: { url: "http://a/", scroll } })).toEqual({
         ok: false,
         reason: 'The request\'s "page.scroll" is not valid.',

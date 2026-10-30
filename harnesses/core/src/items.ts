@@ -1,11 +1,7 @@
-import type { ToolRun, TranscriptItem } from "@novadeck/protocol"
+import { transcriptLimits, type ToolRun, type TranscriptItem } from "@novadeck/protocol"
 
 import { ref } from "./decode.js"
 import type { TranscriptEntry } from "./harness.js"
-
-// What the protocol takes of an item's text and a tool's name.
-const maxText = 16_384
-const maxTool = 256
 
 // Claude Code records a stopped turn as a user message in brackets. Every harness's items
 // are checked for it.
@@ -63,18 +59,20 @@ export function entry(
   text: string,
   fields: EntryFields & { readonly describe?: Describe },
 ): TranscriptEntry {
-  const cut = text.slice(0, maxText)
-  const tool = typeof fields.tool === "string" ? fields.tool.slice(0, maxTool) : null
+  const cut = text.slice(0, transcriptLimits.text)
+  const tool = typeof fields.tool === "string" ? fields.tool.slice(0, transcriptLimits.name) : null
   return {
     at: fields.at,
     role,
     kind,
     text: cut,
-    truncated: text.length > maxText,
+    truncated: text.length > transcriptLimits.text,
     tool,
     call: typeof fields.call === "string" && fields.call ? ref("call", fields.call) : null,
     author:
-      typeof fields.author === "string" && fields.author ? fields.author.slice(0, maxTool) : null,
+      typeof fields.author === "string" && fields.author
+        ? fields.author.slice(0, transcriptLimits.name)
+        : null,
     run: kind === "tool-call" ? (fields.describe?.(tool ?? "tool", cut) ?? null) : null,
     interrupted: role === "user" && kind === "text" && interruption.test(cut),
   }

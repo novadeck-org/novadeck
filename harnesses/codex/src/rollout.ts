@@ -12,7 +12,7 @@ import type { EventBase, HarnessEvent } from "@novadeck/harness-core/events"
 import { isFields, parseFields, type Fields } from "@novadeck/harness-core/fields"
 import { followLines } from "@novadeck/harness-core/follow"
 import type { Harness, Run, WrittenPlan } from "@novadeck/harness-core/harness"
-import type { AgentTelemetry } from "@novadeck/protocol"
+import { telemetryLimits, type AgentTelemetry } from "@novadeck/protocol"
 
 import { callOf } from "./decode.js"
 import { mcpTool } from "./tools.js"
@@ -84,8 +84,8 @@ export const rolloutEvents = (
   if (type === "turn_context") {
     const { model, effort } = fields
     // A turn that names its model names its effort too, none clearing the last model's.
-    const level = shortName(effort, 32) ?? null
-    const name = shortName(model, 128)
+    const level = shortName(effort, telemetryLimits.effort) ?? null
+    const name = shortName(model, telemetryLimits.model)
     const named = {
       ...(name && { model: name, effort: level }),
       ...(level !== null && { effort: level }),

@@ -1,7 +1,13 @@
 import { flavourOf, patchRequested } from "@novadeck/harness-codex/patch"
 import { ref } from "@novadeck/harness-core/decode"
 import type { ActivityEvent, Background, PlanSource } from "@novadeck/harness-core/events"
-import { maxTurnError, maxTurnFilePath, maxTurnFiles, type AgentActivity } from "@novadeck/protocol"
+import {
+  agentLimits,
+  maxTurnError,
+  maxTurnFilePath,
+  maxTurnFiles,
+  type AgentActivity,
+} from "@novadeck/protocol"
 
 import { cut } from "../text.js"
 import type { Binding } from "./bindings.js"
@@ -69,19 +75,13 @@ type Subagent = {
   readonly abortedAt?: number
 }
 
-// More than any agent runs at once; a runaway harness cannot grow the summary. Once full,
-// the subagent whose turn aborted longest ago, idle since, makes room for another.
-const maxSubagents = 32
 // How many ended subagents are remembered, so a start arriving after its end is ignored.
 // A resumed one keeps its id, and starts after that end.
 const maxEnded = 64
-// What the protocol carries of an id or a kind.
-const maxText = 256
 // The most parts a request is asked in that are told apart: more than a harness asks at once.
 const maxParts = 16
-// How many background tasks' starts are remembered, and how many jobs an agent waits on.
+// How many background tasks' starts are remembered.
 const maxTasks = 64
-const maxJobs = 16
 
 /**
  * A background task the agent started, as its call's result named it: when, and until when
@@ -319,7 +319,7 @@ const waitsOn = (
     return [{ id, description, command, since: task?.at ?? endedAt, until: task?.until ?? null }]
   })
   const { wake } = activity
-  return waited.length > 0 || wake ? { jobs: waited.slice(0, maxJobs), wake } : null
+  return waited.length > 0 || wake ? { jobs: waited.slice(0, agentLimits.jobs), wake } : null
 }
 
 /** What a turn's start leaves of what the last one waited on: its jobs. */
@@ -336,12 +336,13 @@ const endOf = (ended: Activity["ended"], actor: string): number | undefined =>
   ended.find(({ id }) => id === actor)?.at
 
 /**
- * The subagents with room for one more: full, less the one whose turn aborted longest ago
- * with no request since (it asks again as one never seen starting); undefined when none
- * can give way.
+ * The subagents with room for one more: full (at the protocol's limit, more than any agent
+ * runs at once, so a runaway harness cannot grow the summary), less the one whose turn
+ * aborted longest ago with no request since (it asks again as one never seen starting);
+ * undefined when none can give way.
  */
 const room = (subagents: readonly Subagent[]): readonly Subagent[] | undefined => {
-  if (subagents.length < maxSubagents) return subagents
+  if (subagents.length < agentLimits.subagents) return subagents
   let oldest: number | undefined
   for (const [index, { abortedAt }] of subagents.entries())
     if (
@@ -361,7 +362,7 @@ const startable = (
   id: string,
   startedAt: number,
 ): boolean =>
-  id.length <= maxText &&
+  id.length <= agentLimits.name &&
   room(subagents) !== undefined &&
   !subagents.some((subagent) => subagent.id === id) &&
   startedAt >= (endOf(ended, id) ?? Number.NEGATIVE_INFINITY) &&
@@ -440,7 +441,7 @@ const afterPrompt = (
     if (!request.detached) return [request]
     if (!answers?.length) return []
     const quoted = (request.parts ?? []).flatMap((part, index) =>
-      answers.some((answer) => cut(answer, maxText) === part) ? [index] : [],
+      answers.some((answer) => cut(answer, agentLimits.name) === part) ? [index] : [],
     )
     if (quoted.length === 0) return [request]
     const left = answering(request, quoted)
@@ -723,7 +724,8 @@ export const apply = (
     case "task-started": {
       // Remembered across turns: the Stop that lists it may be a later turn's.
       const { id, startedAt: at, until, persistent } = event
-      if (id.length > maxText || activity.tasks.some((task) => task.id === id)) return undefined
+      if (id.length > agentLimits.name || activity.tasks.some((task) => task.id === id))
+        return undefined
       const task = { id, at, until, persistent: persistent === true }
       return { ...activity, tasks: [...activity.tasks, task].slice(-maxTasks) }
     }
@@ -768,14 +770,14 @@ export const apply = (
     case "subagent-started": {
       const { actor: id, startedAt } = event
       if (!startable(activity, id, startedAt)) return undefined
-      const type = (event.actorType && cut(event.actorType, maxText)) ?? null
+      const type = (event.actorType && cut(event.actorType, agentLimits.name)) ?? null
       return { ...activity, subagents: [...room(activity.subagents)!, { id, type, startedAt }] }
     }
     case "subagent-stopped": {
       const { subagents, ended } = activity
       const { actor, startedAt } = event
       const running = subagents.some(({ id }) => id === actor)
-      if (actor.length > maxText || (!running && startedAt <= (endOf(ended, actor) ?? -1)))
+      if (actor.length > agentLimits.name || (!running && startedAt <= (endOf(ended, actor) ?? -1)))
         return undefined
       // A stop may arrive before its start: remembered, it keeps that start out. A
       // stopped subagent waits on the person no longer, whatever it asked.
@@ -1058,7 +1060,7 @@ const asked = (
         ...(event.screen === true && { screen: true as const }),
         ...(event.detached === true && { detached: true as const }),
         ...(event.parts && {
-          parts: event.parts.slice(0, maxParts).map((part) => cut(part, maxText)),
+          parts: event.parts.slice(0, maxParts).map((part) => cut(part, agentLimits.name)),
         }),
         askedAt: startedAt,
       },

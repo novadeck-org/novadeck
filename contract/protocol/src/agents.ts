@@ -20,6 +20,22 @@ export const maxTurnError = 2048
 export const maxTurnFiles = 16
 export const maxTurnFilePath = 1024
 
+// How much an agent's activity and detail carry at most: its subagents running, the jobs it
+// waits on, its actors (the root and its subagents) and the requests waiting on the person,
+// a request's choices; and, in UTF-16 code units, a name (an id, a kind, a tool, a choice),
+// a description (a job's, a wake's reason), a request's subject and a waited job's command.
+export const agentLimits = {
+  subagents: 32,
+  jobs: 16,
+  actors: 33,
+  requests: 32,
+  choices: 16,
+  name: 256,
+  description: 512,
+  subject: 1024,
+  command: 4096,
+} as const
+
 // Fields of an agent's last turn, shared by its summary and by a stored turn entry.
 export const turnReply = z.string().min(1).max(replyPreviewLength)
 export const turnError = z.string().min(1).max(maxTurnError)
@@ -54,18 +70,18 @@ export const agentActivity = z.strictObject({
       jobs: z
         .array(
           z.strictObject({
-            id: z.string().min(1).max(256),
-            description: z.string().min(1).max(512).nullable(),
-            command: z.string().max(4096),
+            id: z.string().min(1).max(agentLimits.name),
+            description: z.string().min(1).max(agentLimits.description).nullable(),
+            command: z.string().max(agentLimits.command),
             since: z.number(),
             until: z.number().nullable(),
           }),
         )
-        .max(16),
+        .max(agentLimits.jobs),
       wake: z
         .strictObject({
           at: z.number(),
-          reason: z.string().min(1).max(512).nullable(),
+          reason: z.string().min(1).max(agentLimits.description).nullable(),
         })
         .nullable(),
     })
@@ -83,11 +99,11 @@ export const agentActivity = z.strictObject({
   subagents: z
     .array(
       z.strictObject({
-        id: z.string().min(1).max(256),
-        type: z.string().max(256).nullable(),
+        id: z.string().min(1).max(agentLimits.name),
+        type: z.string().max(agentLimits.name).nullable(),
       }),
     )
-    .max(32),
+    .max(agentLimits.subagents),
   // How its latest turn ended: `completed` as its harness said, `failed` on an error,
   // `interrupted` by the person (Escape, or a request they refused, as its hooks or records
   // tell), or `unknown` when it only went idle, as an Escape or a refusal shows in
@@ -121,6 +137,10 @@ export const agentActivity = z.strictObject({
     .nullable(),
 })
 
+// How many rate-limit windows an agent's telemetry carries, and how long its model's and
+// effort's names run, in UTF-16 code units.
+export const telemetryLimits = { windows: 8, model: 128, effort: 32 } as const
+
 // What an agent's own records say of its tokens and quotas: how many tokens its context
 // holds, of how many where known, and how much of each rate-limit window it has used, as
 // a fraction, with the instant the window resets in epoch milliseconds where known. Every
@@ -140,11 +160,11 @@ export const agentTelemetry = z.strictObject({
         resetsAt: z.number().nullable(),
       }),
     )
-    .max(8),
+    .max(telemetryLimits.windows),
   // The model it runs, in its harness's words (a display name where it gives one), and
   // the reasoning effort it was set to; null where its harness doesn't say.
-  model: z.string().min(1).max(128).nullable(),
-  effort: z.string().min(1).max(32).nullable(),
+  model: z.string().min(1).max(telemetryLimits.model).nullable(),
+  effort: z.string().min(1).max(telemetryLimits.effort).nullable(),
 })
 
 // A runner-issued reference to an agent's actor or request: clients compare it, and
@@ -182,19 +202,19 @@ export const agentDetail = z.strictObject({
         ref: agentRef,
         role: z.enum(["root", "subagent"]),
         parent: agentRef.nullable(),
-        type: z.string().max(256).nullable(),
+        type: z.string().max(agentLimits.name).nullable(),
       }),
     )
-    .max(33),
+    .max(agentLimits.actors),
   requests: z
     .array(
       z.strictObject({
         ref: agentRef,
         actor: agentRef,
         kind: z.enum(["permission", "question", "plan"]),
-        tool: z.string().max(256),
-        subject: z.string().max(1024).nullable(),
-        choices: z.array(z.string().max(256)).max(16),
+        tool: z.string().max(agentLimits.name),
+        subject: z.string().max(agentLimits.subject).nullable(),
+        choices: z.array(z.string().max(agentLimits.name)).max(agentLimits.choices),
         dialog: requestDialog.nullable(),
         // Whether Novadeck answered it, through `agents.answer`, and the agent has yet to
         // report it settled: nothing more is to be answered there meanwhile.
@@ -203,7 +223,7 @@ export const agentDetail = z.strictObject({
         askedAt: z.number(),
       }),
     )
-    .max(32),
+    .max(agentLimits.requests),
   coverage: agentCoverage.nullable(),
 })
 

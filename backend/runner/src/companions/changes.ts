@@ -4,6 +4,7 @@ import { lstat, open, readlink, stat } from "node:fs/promises"
 import { basename, delimiter, dirname, isAbsolute, join, resolve } from "node:path"
 
 import {
+  companionLimits,
   hiddenCharacter,
   maxChangedFiles,
   maxChangesBytes,
@@ -12,7 +13,7 @@ import {
 } from "@novadeck/protocol"
 
 import { cut, ellipsized } from "../text.js"
-import { hashOf, maxLineChars } from "./content.js"
+import { hashOf } from "./content.js"
 import { secret } from "./secrets.js"
 
 /** The empty tree, which a repository with no commit yet is diffed against, by object format. */
@@ -259,7 +260,7 @@ const namesIn = (rest: string): string => {
 }
 
 // Cut to what the protocol takes.
-const clipLine = (text: string): string => cut(text, maxLineChars)
+const clipLine = (text: string): string => cut(text, companionLimits.lineLength)
 
 /** What is left of the diff text a change may carry, as encoded: shared by its files. */
 export type Budget = { left: number }

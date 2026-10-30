@@ -1,7 +1,7 @@
 import { createHash } from "node:crypto"
 import { isAbsolute } from "node:path"
 
-import { agentSessionId, maxTurnError, replyPreviewLength } from "@novadeck/protocol"
+import { agentLimits, agentSessionId, maxTurnError, replyPreviewLength } from "@novadeck/protocol"
 
 import type { Continuity, HarnessEvent } from "./events.js"
 import type { Report } from "./report.js"
@@ -141,8 +141,8 @@ export const replied = (value: unknown): { readonly reply?: string } => {
 
 /**
  * What a harness said of a failed turn, as plain text a person reads: escapes, control
- * characters and reordering marks out (a line break kept), cut to the protocol's `maxTurnError`. Undefined when
- * nothing is left.
+ * characters and reordering marks out (a line break kept), cut to the protocol's
+ * `maxTurnError`. Undefined when nothing is left.
  */
 export const errorText = (value: unknown): string | undefined => {
   if (typeof value !== "string") return undefined
@@ -168,11 +168,6 @@ export const withRequestCwd = (
     event.type === "attention-requested" && event.cwd === undefined ? { ...event, cwd } : event,
   )
 }
-
-// What a request shows of its subject and choices, bounded as the protocol takes them.
-const maxSubject = 1024
-const maxChoice = 256
-const maxChoices = 16
 
 const field = (input: Record<string, unknown>, ...names: string[]): string | undefined => {
   for (const name of names) {
@@ -200,12 +195,15 @@ export const subjectOf = (
     const choices = (Array.isArray(options) ? options : [])
       .map((option) => (option as { label?: unknown } | null)?.label)
       .filter((label): label is string => typeof label === "string" && label.length > 0)
-      .slice(0, maxChoices)
-      .map((label) => label.slice(0, maxChoice))
-    return { subject: typeof prompt === "string" ? prompt.slice(0, maxSubject) : null, choices }
+      .slice(0, agentLimits.choices)
+      .map((label) => label.slice(0, agentLimits.name))
+    return {
+      subject: typeof prompt === "string" ? prompt.slice(0, agentLimits.subject) : null,
+      choices,
+    }
   }
   const subject = field(fields, "planFilePath", "command", "file_path", "path", "url", "pattern")
-  return { subject: subject?.slice(0, maxSubject) ?? null, choices: [] }
+  return { subject: subject?.slice(0, agentLimits.subject) ?? null, choices: [] }
 }
 
 /** A value as JSON with every object's keys sorted, so the same value reads the same. */
