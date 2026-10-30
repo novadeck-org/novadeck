@@ -58,7 +58,7 @@ class Tether extends RestrictToElement {
 // A sortable's modifier holding its drag to the element `within` finds.
 export const tether = (
   within: (operation: RestrictToElement["manager"]["dragOperation"]) => Element | null,
-): ReturnType<typeof RestrictToElement.configure> =>
-  ({ plugin: Tether, options: { element: within } }) as unknown as ReturnType<
-    typeof RestrictToElement.configure
-  >
+): ReturnType<typeof RestrictToElement.configure> => ({
+  plugin: Tether,
+  options: { element: within },
+})

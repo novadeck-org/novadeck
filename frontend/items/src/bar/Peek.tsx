@@ -1,7 +1,7 @@
 import { X } from "lucide-react"
 import type { ReactNode } from "react"
 
-// What a mark says, as an OS taskbar's does: new since the user last looked, showing in
+// What a mark says, as an OS taskbar's does: new since the person last looked, showing in
 // the pane now, open in it behind what it shows, or seen.
 export type Indicator = "new" | "open" | "behind" | "seen"
 

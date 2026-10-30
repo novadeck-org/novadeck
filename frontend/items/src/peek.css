@@ -1,9 +1,9 @@
 /* The peek recipe: the cards above a taskbar icon (`.peek`), one for each thing
    behind it, each a preview (`.peek-thumb`), an icon and a name
    (`.peek-name`), the taskbar's own mark, and a close button (`.peek-close`,
-   an `.icon-button.raised`) that shows on hover; and the previews in miniature
-   (`.peek-*`). The peek itself is a `.floating.peek` (see surface.css). A plan's
-   miniature takes the prose tokens.
+   an `.icon-button.raised`) that shows on hover; and the previews in miniature. The
+   peek itself is a `.floating.peek` (see surface.css). An outline's miniature takes the
+   prose tokens.
 
    Hooks: on a card's button (`.peek-open`), aria-pressed="true" while the pane
    shows it, and data-state="new" | "open" | "behind" | "seen" for its mark.
@@ -155,7 +155,7 @@
 .peek-changes > [data-status="deleted"] {
   color: var(--color-danger-fg);
 }
-.peek-plan {
+.peek-list {
   display: flex;
   flex-direction: column;
   gap: 4px;
@@ -164,14 +164,14 @@
   font-size: 7.5px;
   color: var(--prose-muted-fg, var(--color-muted));
 }
-.peek-plan b {
+.peek-list b {
   margin-bottom: 2px;
   font-size: var(--text-caption);
   line-height: var(--text-caption--line-height);
   font-weight: 600;
   color: var(--prose-heading-fg, var(--color-ink));
 }
-.peek-plan span::before {
+.peek-list span::before {
   content: "## ";
   opacity: 0.5;
 }

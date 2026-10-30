@@ -1,4 +1,4 @@
-/* The taskbar recipe: the terminal's host (`.terminal-companion`, its body and its bar), and
+/* The taskbar recipe: the terminal's container (`.terminal-companion`, its body and its bar), and
    the bar along the terminal's bottom (`.taskbar`) with an icon (`.taskbar-item`)
    for the plan and for each thing its agent showed, a mark under each as an OS taskbar
    has, and a count (`.taskbar-count`) on a stack or on the messages. What the pane shows
@@ -34,7 +34,7 @@
    --taskbar-count-paused-bg (paper), --taskbar-count-paused-fg (muted),
    --taskbar-count-paused-border-color (line): the pause mark. */
 
-/* Host: the terminal body plus its taskbar. */
+/* The container: the terminal body plus its taskbar. */
 .terminal-companion {
   display: flex;
   flex: 1;

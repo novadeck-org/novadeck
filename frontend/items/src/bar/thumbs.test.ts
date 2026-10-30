@@ -81,9 +81,9 @@ describe("a peek's miniature", () => {
           truncated: false,
         }),
       )
-      expect(document.container.querySelector(".peek-plan b")?.textContent).toBe("Brand voice")
+      expect(document.container.querySelector(".peek-list b")?.textContent).toBe("Brand voice")
       expect(
-        [...document.container.querySelectorAll(".peek-plan span")].map((each) => each.textContent),
+        [...document.container.querySelectorAll(".peek-list span")].map((each) => each.textContent),
       ).toContain("Words")
 
       const page = peek(
