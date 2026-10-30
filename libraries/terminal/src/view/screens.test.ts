@@ -56,8 +56,8 @@ const capped = (cap: number) => {
         return new Promise(() => {})
       },
       connection,
-      // The hosts are marked, so the test can give them a size.
-      markup: { hostClass: "screen" },
+      // The containers are marked, so the test can give them a size.
+      markup: { containerClass: "screen" },
       park: { afterMs: parkMs, keep: cap },
       on: { resized, stage: (key, stage) => void told.push(`${key} ${stage}`) },
     }),
@@ -296,7 +296,7 @@ describe("a mount's hold on a screen", () => {
     }
   })
 
-  it("says its focus did not land when its host is not in the page", () => {
+  it("says its focus did not land when its container is not in the page", () => {
     vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout", "Date"] })
     try {
       const { screens, show } = capped(2)
@@ -337,7 +337,7 @@ describe("a mount's hold on a screen", () => {
     vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout", "Date", "requestAnimationFrame"] })
     try {
       const { screens, show, resized } = capped(2)
-      // The screens' hosts have a size, as laid out; nothing else in the page does.
+      // The screens' containers have a size, as laid out; nothing else in the page does.
       for (const [name, value] of [
         ["clientWidth", 800],
         ["clientHeight", 600],
@@ -393,7 +393,7 @@ describe("the views over options of their own", () => {
           return own
         },
         ...(marked.markup
-          ? { markup: { input: { "data-input": "mine" }, hostClass: "my-screen" } }
+          ? { markup: { input: { "data-input": "mine" }, containerClass: "my-screen" } }
           : {}),
         park: { afterMs: 50, keep: 1 },
         retain: { afterMs: 10_000, shown: () => false },
@@ -411,9 +411,9 @@ describe("the views over options of their own", () => {
       hold.place(element)
       expect(stores).toHaveLength(1)
       expect(hold.state).toBe(stores[0])
-      const host = element.firstElementChild!
-      expect(host.getAttribute("class")).toBe("my-screen")
-      const field = host.querySelector("textarea")!
+      const container = element.firstElementChild!
+      expect(container.getAttribute("class")).toBe("my-screen")
+      const field = container.querySelector("textarea")!
       expect(field.getAttribute("data-input")).toBe("mine")
       expect(field.getAttribute("aria-label")).toBe("Input for a")
       hold.release()
@@ -429,9 +429,9 @@ describe("the views over options of their own", () => {
       const { views, element } = standalone()
       const hold = views.acquire("a", { label: "Input for a", phase: "running", webgl: false })
       hold.place(element)
-      const host = element.firstElementChild!
-      expect(host.hasAttribute("class")).toBe(false)
-      expect(host.querySelector("textarea")!.hasAttribute("data-terminal-input")).toBe(false)
+      const container = element.firstElementChild!
+      expect(container.hasAttribute("class")).toBe(false)
+      expect(container.querySelector("textarea")!.hasAttribute("data-terminal-input")).toBe(false)
       hold.release()
     } finally {
       closeViews()

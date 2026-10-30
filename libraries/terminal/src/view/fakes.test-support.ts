@@ -94,7 +94,7 @@ const noticeOf: TerminalViewOptions<string>["paste"]["notice"] = (failure) =>
 export const optionsOf = (over: Partial<TerminalViewOptions<string>> = {}) =>
   ({
     keyOf: (key) => key,
-    emulator: (host, open) => createView(host, { ...open, scrollback: 0 }),
+    emulator: (container, open) => createView(container, { ...open, scrollback: 0 }),
     theme: themed().theme,
     attach: () => new Promise(() => {}),
     lifecycle: () => shell(),

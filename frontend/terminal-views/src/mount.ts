@@ -20,7 +20,7 @@ const labelOf = (name: string): string => `Input for ${name}`
 // element this folder's styles reach (terminal-xterm.css).
 export const screenMarkup = {
   input: { "data-terminal-input": "" },
-  hostClass: "terminal-xterm min-h-0 flex-1",
+  containerClass: "terminal-xterm min-h-0 flex-1",
 } as const
 
 // What the UI sees of a mount before it has a screen, or while it lets its screen go.

@@ -197,13 +197,13 @@ const pasteFiles = async (files: readonly File[], target: PasteTarget): Promise<
   return pasted
 }
 
-// Takes the pastes into `host` that carry files and no text, before the emulator inside
+// Takes the pastes into `container` that carry files and no text, before the emulator inside
 // it sees them, and pastes the files' paths instead. A paste with text is the emulator's,
 // even with an image beside it, as a spreadsheet's cells come; one with neither, as of
 // an image alone, reads the clipboard's images, and says so when it can't. That empty
 // paste goes to the program only when no image's path does, as some read the clipboard
 // themselves on one, and would take the image twice. Returns the undo.
-export const takeFilePastes = (host: HTMLElement, target: PasteTarget): (() => void) => {
+export const takeFilePastes = (container: HTMLElement, target: PasteTarget): (() => void) => {
   const listener = (event: ClipboardEvent): void => {
     if (pastedText(event.clipboardData)) return
     const files = pastedFiles(event.clipboardData)
@@ -221,12 +221,12 @@ export const takeFilePastes = (host: HTMLElement, target: PasteTarget): (() => v
       if (!images) target.failed(target.notice({ kind: "clipboard" }))
     })
   }
-  host.addEventListener("paste", listener, true)
-  return () => host.removeEventListener("paste", listener, true)
+  container.addEventListener("paste", listener, true)
+  return () => container.removeEventListener("paste", listener, true)
 }
 
 // How long typing waits behind Ctrl+V while the clipboard is read, at most.
-export const ctrlVWaitMs = 1_000
+const ctrlVWaitMs = 1_000
 // How long typing waits behind Ctrl+V at all, even for an image still uploading, whose
 // path then goes in when it is saved.
 export const ctrlVHoldMs = 2_000

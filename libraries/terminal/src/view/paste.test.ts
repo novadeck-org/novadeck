@@ -39,7 +39,7 @@ const pasteEvent = (carried: Parameters<typeof transfer>[0]) => {
 
 const shot = () => new File([new Uint8Array([137, 80, 78, 71])], "", { type: "image/png" })
 
-// Files on this machine as the desktop host names them: only those copied in a file
+// Files on this machine as the desktop app names them: only those copied in a file
 // manager have a path; bytes from the clipboard have none.
 const disk = new Map<File, string>()
 const onDisk = (path: string, file = new File(["x"], path.split(/[/\\]/).pop()!)) => {
@@ -48,16 +48,16 @@ const onDisk = (path: string, file = new File(["x"], path.split(/[/\\]/).pop()!)
 }
 const pathOf = (file: File) => disk.get(file) ?? ""
 
-// A terminal host with the emulator's field inside, recording uploads and pastes; in the
-// desktop app when `desktop`.
+// A terminal's container with the emulator's field inside, recording uploads and pastes; the desktop
+// app's (a trusted page with file paths) when `trusted`.
 const terminal = (
   saved = (name: string) => Promise.resolve(`/data/uploads/t/${name}`),
-  desktop = false,
+  trusted = false,
 ) => {
-  const host = document.createElement("div")
+  const container = document.createElement("div")
   const field = document.createElement("textarea")
-  host.append(field)
-  document.body.append(host)
+  container.append(field)
+  document.body.append(container)
   const uploads: { name: string; data: Uint8Array }[] = []
   const pasted: string[] = []
   const notices: string[] = []
@@ -70,12 +70,12 @@ const terminal = (
     failed: (text) => notices.push(text),
     notice,
     maxBytes,
-    pathOf: desktop ? pathOf : undefined,
+    pathOf: trusted ? pathOf : undefined,
   }
   const reached: Event[] = []
   field.addEventListener("paste", (event) => reached.push(event))
-  const undo = takeFilePastes(host, target)
-  return { host, field, uploads, pasted, notices, reached, undo }
+  const undo = takeFilePastes(container, target)
+  return { container, field, uploads, pasted, notices, reached, undo }
 }
 
 afterEach(() => {
@@ -118,7 +118,7 @@ describe("an uploaded file's name", () => {
 })
 
 describe("a pasted path", () => {
-  context("on a POSIX host", () => {
+  context("on a POSIX machine", () => {
     it("escapes what the shell would split or expand", () => {
       expect(shellPath("/home/me/.local/share/novadeck/uploads/a b/it's (1).png")).toBe(
         "/home/me/.local/share/novadeck/uploads/a\\ b/it\\'s\\ \\(1\\).png",
@@ -132,7 +132,7 @@ describe("a pasted path", () => {
     })
   })
 
-  context("on a Windows host", () => {
+  context("on a Windows machine", () => {
     it("keeps its backslashes, quoting it when it has a space", () => {
       expect(shellPath("C:\\Users\\me\\uploads\\shot.png")).toBe("C:\\Users\\me\\uploads\\shot.png")
       expect(shellPath("C:\\Users\\Jo Doe\\uploads\\shot.png")).toBe(
@@ -289,7 +289,7 @@ describe("pasting into the desktop app's terminal", () => {
   })
 })
 
-describe("pasting into a host terminal", () => {
+describe("pasting into a terminal in a browser page", () => {
   context("with an image in the paste", () => {
     it("uploads it and pastes its path instead of letting the emulator paste", async () => {
       const page = terminal()
@@ -632,7 +632,7 @@ const keyboard = (
   return { log, press, selected: () => selection }
 }
 
-describe("Ctrl+C and Ctrl+V in a host terminal on Windows", () => {
+describe("Ctrl+C and Ctrl+V in a terminal in a browser page on Windows", () => {
   const c = { key: "c", code: "KeyC" }
 
   it("copies the selection with Ctrl+C, clearing it, and sends the program nothing", () => {
@@ -667,7 +667,7 @@ describe("Ctrl+C and Ctrl+V in a host terminal on Windows", () => {
   })
 })
 
-describe("Ctrl+V in a host terminal on Linux", () => {
+describe("Ctrl+V in a terminal in a browser page on Linux", () => {
   context("with only an image on the clipboard", () => {
     it("pastes the image's path instead of sending Ctrl+V", async () => {
       clipboard(async () => [item("image/png")])

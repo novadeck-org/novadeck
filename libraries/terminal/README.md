@@ -27,8 +27,8 @@ resumable stream of it, its browser view, and shell integration.
     knows no app, wire or protocol. `store` is optional (a plain store otherwise); an owner
     that observes its stores passes its own. Files pasted in are saved on the terminal's host
     through the owner's `paste.upload`, and go in as their paths there.
-  - `parkMs` and `parkedCap` are the park defaults, `ViewPhase` and `PasteFailure` what an
-    owner words, and `pause(ms)` a promise that resolves after `ms`.
+  - `parkMs` and `parkedCap` are the park defaults, and `ViewPhase` and `PasteFailure` what an
+    owner words.
   - It builds on `@novadeck/emulator/browser`, and its tests run under jsdom.
 
 The others are Node only: each names only the `node` condition, so a browser bundle can't

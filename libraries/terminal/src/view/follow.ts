@@ -79,8 +79,7 @@ export type FollowedTerminal = {
 }
 
 // Resolves after `ms` milliseconds.
-export const pause = (ms: number): Promise<void> =>
-  new Promise((resolve) => setTimeout(resolve, ms))
+const pause = (ms: number): Promise<void> => new Promise((resolve) => setTimeout(resolve, ms))
 
 // How long a screen that failed to draw waits before it attaches again: the first, doubling
 // with each failure in a row up to the most. A failure `apart` after the one before it is the

@@ -69,7 +69,7 @@ export type TerminalViewOptions<K> = FollowOptions<K> & {
     // Attributes of the emulator's input field, set before its accessible name.
     readonly input?: Readonly<Record<string, string>>
     // The class of the element a screen draws in.
-    readonly hostClass?: string
+    readonly containerClass?: string
   }
   // Called with the terminal's restart, as Enter asks for it in an ended shell.
   readonly restart: (key: K) => void
@@ -81,12 +81,12 @@ export type TerminalViewOptions<K> = FollowOptions<K> & {
   // `afterMs` of the clock's time.
   readonly retain: { readonly afterMs: number; readonly shown: (key: K) => boolean }
   readonly paste: {
-    // Saves a file on the terminal's machine and resolves with its path there.
+    // Saves a file on the host's machine and resolves with its path there.
     readonly upload: (
       key: K,
       file: { readonly name: string; readonly data: Uint8Array },
     ) => Promise<string>
-    // A file's own path on that machine, or "" for one that has none there.
+    // A file's own path on the host's machine, or "" for one that has none there.
     readonly pathOf?: ((file: File) => string) | undefined
     // The most a file may be to upload.
     readonly maxBytes: number
@@ -102,11 +102,11 @@ export type TerminalViewOptions<K> = FollowOptions<K> & {
 }
 
 // One terminal's emulator and its attachment to its host, outliving the mounts that
-// show it: switching views moves its host into the next mount's element instead of opening
+// show it: switching views moves its container into the next mount's element instead of opening
 // a new emulator and attaching again.
 type OpenScreen = {
   // The element the emulator draws in; a mount moves it into its own element.
-  readonly host: HTMLDivElement
+  readonly container: HTMLDivElement
   readonly xterm: Terminal
   readonly followed: FollowedTerminal
   // Which renderer draws it: WebGL while shown where its view wants it and a context is
@@ -157,7 +157,7 @@ export type Hold = {
 }
 
 type Entry = {
-  readonly host: HTMLDivElement
+  readonly container: HTMLDivElement
   screen?: OpenScreen
   dispose?: () => void
   users: number
@@ -214,15 +214,16 @@ export const createTerminalViews = <K>(o: TerminalViewOptions<K>) => {
   const entryOf = (key: K): Entry => {
     const known = entries.get(id(key))
     if (known) return known
-    const host = document.createElement("div")
-    if (o.markup?.hostClass !== undefined) host.setAttribute("class", o.markup.hostClass)
-    const created: Entry = { host, users: 0 }
+    const container = document.createElement("div")
+    if (o.markup?.containerClass !== undefined)
+      container.setAttribute("class", o.markup.containerClass)
+    const created: Entry = { container, users: 0 }
     entries.set(id(key), created)
     return created
   }
 
   const open = (key: K, entry: Entry, { label, phase }: Omit<ShowOptions, "webgl">): OpenScreen => {
-    const element = entry.host
+    const element = entry.container
     const resolved = o.theme.resolve(element)
     const view = o.emulator(element, {
       fontSize: font.size,
@@ -281,7 +282,7 @@ export const createTerminalViews = <K>(o: TerminalViewOptions<K>) => {
       if (followed.refit()) view.renderer.resized()
     })
     const screen: OpenScreen = {
-      host: element,
+      container: element,
       xterm,
       followed,
       renderer: view.renderer,
@@ -384,7 +385,7 @@ export const createTerminalViews = <K>(o: TerminalViewOptions<K>) => {
       view.setTheme(theme.theme)
       takeFont(theme)
     }
-    // A host opened before it had a slot took the page's colours and font; once in one,
+    // A container opened before it had a slot took the page's colours and font; once in one,
     // it takes its region's.
     let placed = element.isConnected
     // Out of sight, as a view keeps a terminal it isn't showing, it has no size. Shown
@@ -529,13 +530,13 @@ export const createTerminalViews = <K>(o: TerminalViewOptions<K>) => {
       return {
         state: screen.state,
         place: (element) => {
-          // The element holds the host alone: one a screen opened again replaces the one before.
-          if (screen.host.parentElement !== element) element.replaceChildren(screen.host)
+          // The element holds the container alone: one a screen opened again replaces the one before.
+          if (screen.container.parentElement !== element) element.replaceChildren(screen.container)
           screen.followed.refit()
           cancelFrame()
           frame = requestAnimationFrame(() => {
             frame = undefined
-            if (screen.host.isConnected) screen.followed.refit()
+            if (screen.container.isConnected) screen.followed.refit()
           })
           if (screen.refocus) {
             screen.xterm.focus()
@@ -556,14 +557,14 @@ export const createTerminalViews = <K>(o: TerminalViewOptions<K>) => {
         },
         focus: () => {
           screen.xterm.focus()
-          return screen.host.contains(document.activeElement)
+          return screen.container.contains(document.activeElement)
         },
         restart: screen.restart,
         release: ({ unmount = false } = {}) => {
           if (released) return
           released = true
           cancelFrame()
-          if (unmount && screen.host.contains(document.activeElement)) screen.refocus = true
+          if (unmount && screen.container.contains(document.activeElement)) screen.refocus = true
           letGo(key)
         },
       }
