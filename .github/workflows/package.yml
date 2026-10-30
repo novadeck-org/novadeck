@@ -97,6 +97,9 @@ jobs:
       # Debian 12 and anything newer.
       ENGINE_BUILD_BASE: ubuntu:22.04@sha256:0a9887931b0e38af2e3487ed39e29436b0535c4f3f52e57745baaf79d1898956
       ENGINE_GLIBC_FLOOR: "2.35"
+      # The Vulkan SDK the Windows engines are built with; the Linux image pins its own
+      # (engines/ggml-build/Dockerfile), and the two move together.
+      ENGINE_VULKAN_SDK: 1.4.363.0
     strategy:
       fail-fast: false
       matrix:
@@ -351,25 +354,31 @@ jobs:
         if: matrix.target == 'win'
         uses: jakoch/install-vulkan-sdk-action@d17de7e2f5e50efb5d2123efed18497d3c58c533 # v1.7.0
         with:
-          vulkan_version: 1.4.363.0
+          vulkan_version: ${{ env.ENGINE_VULKAN_SDK }}
           install_runtime: false
           cache: true
 
-      # Keyed on the runner's label and the build image too, so an engine built on another is
-      # not reused. The image is built once for both engines, and only when one is missing.
+      # Keyed on what makes an engine's bytes: the shared build's code, the engine's script
+      # (which pins the upstream source) and patches, the runner's label (and so its image's
+      # compilers) and signing identity, on Linux the build image and on Windows the Vulkan
+      # SDK. Not the packages' package.json: Node runs the build's scripts as they are, so
+      # Dependabot's monthly devDependency bumps would only rebuild and re-sign the same engine
+      # and have every user download it again. engines/ggml-build/src/cache-keys.test.ts holds
+      # the keys to the build's inputs. The image is built once for both engines, and only when
+      # one is missing.
       - name: Restore Voice Engine
         id: engine
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: engines/whisper/dist
-          key: whisper-engine-${{ matrix.os }}-${{ runner.arch }}-${{ steps.signing.outputs.engine }}-${{ hashFiles('engines/ggml-build/src/**', '!engines/ggml-build/src/**/*.test.ts', 'engines/ggml-build/package.json', 'engines/whisper/scripts/**', 'engines/whisper/patches/**', 'engines/whisper/package.json') }}${{ matrix.target == 'linux' && format('-{0}-{1}', env.ENGINE_BUILD_BASE, hashFiles('engines/ggml-build/Dockerfile')) || '' }}
+          key: whisper-engine-${{ matrix.os }}-${{ runner.arch }}-${{ steps.signing.outputs.engine }}-${{ hashFiles('engines/ggml-build/src/**', '!engines/ggml-build/src/**/*.test.ts', 'engines/whisper/scripts/**', 'engines/whisper/patches/**') }}${{ matrix.target == 'linux' && format('-{0}-{1}', env.ENGINE_BUILD_BASE, hashFiles('engines/ggml-build/Dockerfile')) || matrix.target == 'win' && format('-vulkan-{0}', env.ENGINE_VULKAN_SDK) || '' }}
 
       - name: Restore Murmur Engine
         id: murmur
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: engines/murmur/dist
-          key: murmur-engine-${{ matrix.os }}-${{ runner.arch }}-${{ steps.signing.outputs.engine }}-${{ hashFiles('engines/ggml-build/src/**', '!engines/ggml-build/src/**/*.test.ts', 'engines/ggml-build/package.json', 'engines/murmur/scripts/**', 'engines/murmur/patches/**', 'engines/murmur/package.json') }}${{ matrix.target == 'linux' && format('-{0}-{1}', env.ENGINE_BUILD_BASE, hashFiles('engines/ggml-build/Dockerfile')) || '' }}
+          key: murmur-engine-${{ matrix.os }}-${{ runner.arch }}-${{ steps.signing.outputs.engine }}-${{ hashFiles('engines/ggml-build/src/**', '!engines/ggml-build/src/**/*.test.ts', 'engines/murmur/scripts/**', 'engines/murmur/patches/**') }}${{ matrix.target == 'linux' && format('-{0}-{1}', env.ENGINE_BUILD_BASE, hashFiles('engines/ggml-build/Dockerfile')) || matrix.target == 'win' && format('-vulkan-{0}', env.ENGINE_VULKAN_SDK) || '' }}
 
       - name: Build Engine Image (Linux)
         if: matrix.target == 'linux' && (steps.engine.outputs.cache-hit != 'true' || steps.murmur.outputs.cache-hit != 'true')

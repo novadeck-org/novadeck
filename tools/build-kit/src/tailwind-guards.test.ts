@@ -3,7 +3,7 @@ import { join, posix } from "node:path"
 
 import { describe, expect, it } from "vitest"
 
-import { desktopUtilities } from "./bundle-checks.ts"
+import { desktopUtilities, unguardedFolders } from "./bundle-checks.ts"
 
 // The guards say a build's CSS lost a folder Tailwind scans only if no other file Tailwind
 // scans can make the guard's class: a copy of it in the UI's own files, a config or a comment
@@ -18,6 +18,9 @@ const scanned = [
   ...[...css.matchAll(/source\("([^"]+)"\)/g)].map((match) => match[1]!),
   ...[...css.matchAll(/^@source "([^"]+)";/gm)].map((match) => match[1]!),
 ].map((path) => posix.normalize(posix.join(posix.dirname(sheet), path)))
+
+// A scanned folder as the guards name it: its package's folder.
+const packageOf = (path: string): string => `${path.replace(/\/src$/, "")}/`
 
 // What the sheet leaves out with `@source not`, each as the folder it names and the file suffix.
 const left = [...css.matchAll(/^@source not "([^"]+)\/\*\*\/\*(\.[^"/*]+)";/gm)].map((match) => ({
@@ -58,12 +61,15 @@ describe("the Tailwind guards", () => {
     expect(files.some((file) => /\.(?:tsx|mts|json|md|html)$/.test(file))).toBe(true)
   })
 
-  it("read the folders the stylesheet scans, and the guarded ones are among them", () => {
+  it("read the folders the stylesheet scans", () => {
     expect(scanned.length).toBeGreaterThan(2)
-    for (const { folder } of desktopUtilities)
-      expect(scanned.some((path) => folder.startsWith(`${path.replace(/\/src$/, "")}/`))).toBe(true)
     expect(files.length).toBeGreaterThan(100)
     for (const path of scanned) expect(statSync(join(root, path)).isDirectory()).toBe(true)
+  })
+
+  it("guard each folder the stylesheet scans, or list it as unguarded, and no other", () => {
+    const named = [...desktopUtilities, ...unguardedFolders].map(({ folder }) => folder)
+    expect(scanned.map(packageOf).toSorted()).toEqual(named.toSorted())
   })
 
   it.each(desktopUtilities)(
