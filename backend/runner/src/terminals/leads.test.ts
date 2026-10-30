@@ -199,7 +199,7 @@ describe("an agent asking to lead another terminal's agent", () => {
     await settle()
     expect(asked).toEqual([
       {
-        type: "ask",
+        type: "request",
         requestId: expect.any(String),
         from: "id-moth",
         terminalId: "id-fox",

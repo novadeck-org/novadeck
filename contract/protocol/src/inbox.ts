@@ -1,6 +1,7 @@
 import { z } from "zod"
 
-import { agentName, id, turnError, turnFiles, turnReply } from "./schemas.js"
+import { agentName, turnError, turnFiles, turnReply } from "./agents.js"
+import { id } from "./fields.js"
 import { hiddenIn, maxCommandLines } from "./text.js"
 
 const line = z
@@ -12,14 +13,14 @@ const line = z
   .refine((text) => !/[\r\n\x00-\x1f]/.test(text), "Use one line")
 const markdown = z.string().max(16_384)
 
-export const askOption = z.strictObject({
+const askOption = z.strictObject({
   label: line,
   summary: z.string().max(2048).nullable(),
   details: markdown.nullable(),
   code: z.strictObject({ path: line, text: markdown }).nullable(),
 })
 
-export const askShape = z.discriminatedUnion("type", [
+const askShape = z.discriminatedUnion("type", [
   z.strictObject({ type: z.literal("text") }),
   z
     .strictObject({
@@ -67,7 +68,7 @@ export const askAnswer = z.discriminatedUnion("type", [
 // How an ask ended without an answer from the Inbox, and when: the person dismissed it there,
 // its agent withdrew it, or the person wrote to the agent in its terminal, which withdrew it.
 // The runner keeps listing such an ask, settled, until the person clears it or it expires.
-export const askSettled = z.strictObject({
+const askSettled = z.strictObject({
   how: z.enum(["dismissed", "withdrawn", "replied"]),
   at: z.number(),
 })
@@ -101,6 +102,5 @@ export const inboxEntry = z.strictObject({
 })
 
 export type AgentAsk = z.infer<typeof agentAsk>
-export type AskSettled = z.infer<typeof askSettled>
 export type AskAnswer = z.infer<typeof askAnswer>
 export type InboxEntry = z.infer<typeof inboxEntry>

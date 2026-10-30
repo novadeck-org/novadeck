@@ -1,5 +1,5 @@
 /**
- * One watch stream of keyed state: the current state, one change per key, then `synced`,
+ * One reader's stream of keyed state: the current state, one change per key, then `synced`,
  * then later changes. It holds at most one pending change per key, so a slow reader
  * receives the latest change instead of every step, and a key it never saw leaves without
  * a removal. Coalesced changes keep their first place: what one key's change refers to in

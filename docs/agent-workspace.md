@@ -523,7 +523,7 @@ with every safety check again at that time:
   once, with a sentence to act on, for the caller itself, a handle not there, a terminal
   that runs no agent (use `open_agent`), one the caller already leads, one with another
   running lead, one that leads the caller directly or up the chain, one an approval
-  already waits for, and when no client follows approvals. Otherwise the ask goes to the
+  already waits for, and when no client follows approvals. Otherwise the request goes to the
   client that subscribed last to `terminals.approvals`, with the action
   `{ type: "lead", brief }`, and the call answers `asked` at once; the person's
   `terminals.answerApproval` settles it. On a yes the runner checks everything again,
@@ -544,13 +544,13 @@ with every safety check again at that time:
   names its recipient; any other `to` is refused with the terminals there described, as
   `send` refuses one. Its own terminal closes a half second after the answer, which ends
   its session; a teammate it leads, and a terminal that runs no agent, close at once;
-  any other terminal that runs an agent closes only once the person confirms. That ask
+  any other terminal that runs an agent closes only once the person confirms. That request
   goes to the client that subscribed last to `terminals.approvals` (refused with none),
   one at a time for each terminal, and the call answers at once, as Codex's tool call
   would time out waiting; the person's `terminals.answerApproval` closes it or keeps it,
-  and Novadeck tells the asking agent either way with a notice. The ask is withdrawn
+  and Novadeck tells the asking agent either way with a notice. The request is withdrawn
   when either terminal closes, and settled with a notice that nothing closed when the
-  client goes away; a client that resubscribes is not sent the asks of its earlier
+  client goes away; a client that resubscribes is not sent the requests of its earlier
   stream. Its description tells agents to close only a terminal they are done with or
   the person asked about, as closing ends whatever runs there. The runner checks the
   token, reads the request strictly, and closes it as the person's close does: it ends
@@ -588,7 +588,7 @@ with every safety check again at that time:
   else opens in the person's browser. A frame from another site in the page can take
   that one window, as Electron doesn't say which frame opened it. A passkey sign-in
   that names no passkey asks the person which, when more than one fits
-  (`libraries/viewers/src/browser-host.ts`). Where the host can't, as the web version, a
+  (`libraries/viewers/src/browser/host.ts`). Where the host can't, as the web version, a
   page is a link to open in the browser. Each show of a page loads it afresh: the
   page's content carries `shown`, its item's version, and a later one reloads it, past
   the cache so changed styles and scripts show too, or loads the address it was shown at

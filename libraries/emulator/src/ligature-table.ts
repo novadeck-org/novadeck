@@ -2,7 +2,7 @@
 // (@fontsource-variable/jetbrains-mono): the sequences its ligature rules join, up to four
 // glyphs, shorter ones first. Longer runs are these, overlapping. Do not edit by hand;
 // `ligature-font.test.ts` fails when the font and this table disagree.
-export const ligatureWords: readonly string[] = [
+export const ligatureSequences: readonly string[] = [
   "!!",
   "!=",
   "#!",

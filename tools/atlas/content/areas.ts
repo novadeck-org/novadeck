@@ -329,7 +329,10 @@ export const notes: Record<string, Note> = {
     purpose:
       "The chat's contract test: recorded harness transcripts run through every stage to the rendered chat, against goldens.",
   },
-  "frontend/test-kit": { purpose: "Fixtures and render helpers the UI's tests share." },
+  "frontend/test-kit": {
+    purpose:
+      "The frontend's test helpers: a jsdom render, the port contract suite, test phase timing.",
+  },
   "frontend/toolkit": {
     purpose:
       "Reusable controls, their recipes, class-name composition, the sidebar item and the Markdown every feature draws with.",
@@ -362,7 +365,7 @@ export const notes: Record<string, Note> = {
   },
   "engines/ggml-build": {
     purpose: "The shared ggml build the engines use.",
-    entries: [{ file: "engines/ggml-build/index.ts", text: "export const buildEngine" }],
+    entries: [{ file: "engines/ggml-build/src/index.ts", text: "export const buildEngine" }],
   },
   "engines/murmur": {
     purpose:

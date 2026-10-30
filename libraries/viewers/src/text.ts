@@ -1,5 +1,5 @@
 // What a Markdown text says, without an editor: the markdown viewer is a heavy import, and
-// a host that only lists a document's headings shouldn't load it. Nothing here imports
+// an app that only lists a document's headings shouldn't load it. Nothing here imports
 // CodeMirror, and nothing that does may be imported from here.
 
 /** A heading below the title, and where it starts in the text. */

@@ -41,7 +41,7 @@ afterEach(() => {
 let kept = createKept<ViewerState>(4)
 let show: (shown: { id: string; content: string } | null) => void = () => undefined
 
-const Host = () => {
+const App = () => {
   const [shown, setShown] = useState<{ id: string; content: string } | null>({
     id: "a",
     content: "first",
@@ -60,9 +60,7 @@ const render = (strict = false) => {
   const root = createRoot(document.body.appendChild(document.createElement("div")))
   roots.push(root)
   act(() =>
-    root.render(
-      strict ? createElement(StrictMode, null, createElement(Host)) : createElement(Host),
-    ),
+    root.render(strict ? createElement(StrictMode, null, createElement(App)) : createElement(App)),
   )
 }
 

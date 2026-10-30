@@ -1,6 +1,7 @@
 import { RPCHandler } from "@orpc/server/message-port"
 
-import { positive, type Sessions } from "./sessions.js"
+import { positive } from "./limits.js"
+import type { Sessions } from "./sessions.js"
 
 /** A port to serve one client over: a DOM `MessagePort` or Electron's `MessagePortMain`. */
 export type ServedPort = Parameters<RPCHandler<object>["upgrade"]>[0] & {

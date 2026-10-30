@@ -28,7 +28,7 @@
    --md-table-tool-fg (--md-muted-fg), --md-table-tool-hover-bg, --md-table-tool-hover-fg
    (--md-fg), --md-table-tool-disabled-opacity (0.35): each tool.
    --md-annotation-bg (the text, faintly), --md-annotation-text-fg (--md-fg): a row's
-   annotation, where its host sets them.
+   annotation, where its app sets them.
    --md-checkbox-bg (transparent), --md-checkbox-border-color, --md-checkbox-checked-bg
    (currentColor), --md-checkbox-checked-border-color (currentColor), --md-checkbox-check-fg
    (white): a task's checkbox.
@@ -292,7 +292,7 @@
   opacity: var(--md-table-tool-disabled-opacity, 0.35);
 }
 
-/* Row annotations, where a host sets them: a button beside every row, in the margin to
+/* Row annotations, where an app sets them: a button beside every row, in the margin to
    the text's left, and the annotation under its row. */
 .cm-md-table-widget tr > :first-child {
   position: relative;

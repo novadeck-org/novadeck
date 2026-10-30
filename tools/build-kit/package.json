@@ -2,7 +2,7 @@
   "name": "@novadeck/build-kit",
   "version": "0.0.0",
   "private": true,
-  "description": "The apps' Vite helpers: the Content Security Policy's sources, hosting headers, noindex and the font rule.",
+  "description": "The apps' Vite helpers: the Content Security Policy's sources, hosting headers, noindex, the font rule, the bundle checks and the unit test project.",
   "license": "GPL-3.0-or-later",
   "type": "module",
   "exports": {

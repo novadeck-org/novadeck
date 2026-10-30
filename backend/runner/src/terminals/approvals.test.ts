@@ -46,7 +46,7 @@ describe("requests to close a terminal, on their way to the client", () => {
     approvals.request(request, (outcome) => outcomes.push(outcome))
     await tick()
     expect(first.items).toEqual([])
-    expect(second.items).toEqual([{ type: "ask", requestId: expect.any(String), ...request }])
+    expect(second.items).toEqual([{ type: "request", requestId: expect.any(String), ...request }])
     const requestId = second.items[0]!.requestId
     // Another client's answer doesn't count.
     expect(() => approvals.answer({ requestId, approved: true }, "old")).toThrow(

@@ -137,7 +137,7 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))(
       })
       await expect.poll(() => asked).toHaveLength(1)
       expect(asked[0]).toMatchObject({
-        type: "ask",
+        type: "request",
         from: claude.id,
         terminalId: codex.id,
         action: { type: "close" },
@@ -294,7 +294,7 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))(
       })
       await expect.poll(() => asked).toHaveLength(1)
       expect(asked[0]).toMatchObject({
-        type: "ask",
+        type: "request",
         from: claude.id,
         terminalId: codex.id,
         action: { type: "lead", brief: "Fix the lint." },

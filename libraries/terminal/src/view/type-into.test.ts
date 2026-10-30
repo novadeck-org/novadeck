@@ -96,7 +96,7 @@ describe("typing into a terminal's screen", () => {
     expect(written).toEqual([])
   })
 
-  it("types nothing while the runner is out of reach", async () => {
+  it("types nothing while the host is out of reach", async () => {
     const { screens, written, ready, connection } = running("$ ")
     await ready()
     connection.update(() => "reconnecting")

@@ -199,7 +199,7 @@ describe("an agent closing another agent's terminal", () => {
     await settle()
     expect(requested).toEqual([
       {
-        type: "ask",
+        type: "request",
         requestId: expect.any(String),
         from: "id-moth",
         terminalId: "id-fox",
@@ -243,7 +243,7 @@ describe("an agent closing another agent's terminal", () => {
     await settle()
     run.calls.forgetOpener("id-fox")
     await settle()
-    expect(requested.map((item) => item.type)).toEqual(["ask", "withdrawn"])
+    expect(requested.map((item) => item.type)).toEqual(["request", "withdrawn"])
     expect(run.notices).toEqual([
       { to: "id-moth", always: true, text: closeNotice.vanished("fox") },
     ])
@@ -277,7 +277,7 @@ describe("an agent closing another agent's terminal", () => {
     run.records.delete("id-moth")
     run.calls.forgetOpener("id-moth")
     await settle()
-    expect(requested.map((item) => item.type)).toEqual(["ask", "withdrawn"])
+    expect(requested.map((item) => item.type)).toEqual(["request", "withdrawn"])
     expect(run.steps).toEqual([])
   })
 

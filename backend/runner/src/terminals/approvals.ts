@@ -97,7 +97,7 @@ export class Approvals {
         settled(outcome)
       },
     })
-    follower.push({ type: "ask", requestId, ...item })
+    follower.push({ type: "request", requestId, ...item })
   }
 
   /** The client's answer; NOT_FOUND once nothing waits for it from this client. */

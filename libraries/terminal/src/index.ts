@@ -4,12 +4,9 @@ export {
   exit,
   rows,
   sequence,
-  terminalErrorCodes,
   TerminalError,
-  terminalEvent,
   terminalEvents,
   type AttachStream,
   type Exit,
-  type TerminalErrorCode,
   type TerminalEvent,
 } from "./contract.js"

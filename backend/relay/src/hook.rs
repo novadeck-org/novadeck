@@ -12,17 +12,19 @@
 //! What it knows of the agents comes from that configuration, `relay.json` beside it,
 //! which the runner writes: which events wait the long limit (`asks`), which variables
 //! tell agents apart, and what each agent needs printed without Novadeck. Nothing here
-//! names an agent but Claude Code, whose status line only the relay can run.
+//! names an agent but Claude Code, whose status line only the relay can run, and
+//! Antigravity, whose PreToolUse must say "ask" even without that configuration.
 
-use std::env;
 use std::io::{self, Read, Write};
 use std::path::{Path, PathBuf};
-use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
+use std::thread::{self, JoinHandle};
+use std::time::{Duration, Instant};
 
 use serde_json::{Map, Value, json};
 use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
 
-use crate::{PROTOCOL, ancestors, endpoint, status_line};
+use crate::endpoint::{self, Terminal};
+use crate::{ancestors, epoch_ms, status_line, variable};
 
 /// What the runner tells the relay about the agents, from `relay.json`. Missing or
 /// unreadable, it is empty: every hook reports, forwards nothing of its environment, and
@@ -42,7 +44,7 @@ impl Config {
             .unwrap_or_default()
     }
 
-    pub fn of(value: &Value) -> Config {
+    fn of(value: &Value) -> Config {
         let names = value.get("env").and_then(Value::as_array);
         Config {
             asks: value.get("asks").cloned().unwrap_or(Value::Null),
@@ -69,7 +71,7 @@ impl Config {
     /// own, else the agent's for any event (`*`), else nothing, except that Antigravity's
     /// PreToolUse always prints "ask" (it denies a tool otherwise), even where the
     /// configuration is unreadable or lacks it.
-    pub fn fallback(&self, agent: &str, event: &str) -> String {
+    fn fallback(&self, agent: &str, event: &str) -> String {
         let named = self.fallbacks.get(agent);
         let text = named
             .and_then(|each| each.get(event).or_else(|| each.get("*")))
@@ -89,10 +91,7 @@ impl Config {
     fn env(&self) -> Map<String, Value> {
         self.env
             .iter()
-            .filter_map(|name| {
-                let value = env::var(name).ok().filter(|value| !value.is_empty())?;
-                Some((name.clone(), Value::String(value)))
-            })
+            .filter_map(|name| Some((name.clone(), Value::String(variable(name)?))))
             .collect()
     }
 
@@ -102,13 +101,18 @@ impl Config {
     /// among them, the short limit of a report, as the runner answers it at once, with
     /// messages to print or none. The relay tells the runner its deadline for every hook,
     /// so the runner never leases past it.
-    pub fn limit(&self, agent: &str, event: &str) -> Duration {
+    fn limit(&self, agent: &str, event: &str) -> Duration {
         Duration::from_millis(match (agent, event) {
-            ("claude", "StatusLine") => 5_000,
+            _ if claude_status_line(agent, event) => 5_000,
             _ if self.asks(agent, event) => 4_000,
             _ => 2_000,
         })
     }
+}
+
+/// Whether `agent`'s `event` is Claude Code's status line, which runs the person's own.
+fn claude_status_line(agent: &str, event: &str) -> bool {
+    agent == "claude" && event == "StatusLine"
 }
 
 /// The most of an agent's payload the hook takes; past it, it reports nothing.
@@ -116,19 +120,22 @@ const MAX_PAYLOAD: u64 = 1_000_000;
 
 /// What the runner answered: what to print, and the lease that delivers it.
 #[derive(Default, Debug, PartialEq)]
-pub struct Answer {
-    pub stdout: Option<String>,
-    pub lease: Option<String>,
+struct Answer {
+    stdout: Option<String>,
+    lease: Option<String>,
 }
 
-pub fn answer_of(line: &str) -> Answer {
-    let Ok(value) = serde_json::from_str::<Value>(line) else {
-        return Answer::default();
-    };
-    let text = |key: &str| value.get(key).and_then(Value::as_str).map(str::to_owned);
-    Answer {
-        stdout: text("stdout"),
-        lease: text("leaseId"),
+impl Answer {
+    /// The runner's answer line; nothing to print where it can't be read.
+    fn of(line: &str) -> Answer {
+        let Ok(value) = serde_json::from_str::<Value>(line) else {
+            return Answer::default();
+        };
+        let text = |key: &str| value.get(key).and_then(Value::as_str).map(str::to_owned);
+        Answer {
+            stdout: text("stdout"),
+            lease: text("leaseId"),
+        }
     }
 }
 
@@ -149,94 +156,76 @@ fn print(text: &str) -> bool {
 /// Runs the hook for `agent`'s `event`, as `config` describes the agents.
 pub fn run(agent: &str, event: &str, config: &Config) {
     // When the hook started, in wall-clock milliseconds: a later hook reports a larger one.
-    let seq = SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .map_or(0.0, |since| since.as_secs_f64() * 1000.0);
+    let started = epoch_ms().unwrap_or(0.0);
     let limit = config.limit(agent, event);
     let deadline = Instant::now() + limit;
     let fallback = || config.fallback(agent, event);
     // The agent's payload, read whole even where it goes unused, so the agent never
     // writes into a closed pipe; within the hook's limit, as an agent may leave it open.
-    let payload = read_input(deadline);
-    let terminal = [
-        "NOVADECK_TERMINAL_ID",
-        "NOVADECK_REPORT",
-        "NOVADECK_REPORT_TOKEN",
-    ]
-    .map(|name| env::var(name).ok().filter(|value| !value.is_empty()));
-    let [Some(terminal), Some(endpoint), Some(token)] = terminal else {
+    let payload = read_payload(deadline);
+    let Some(terminal) = Terminal::from_env() else {
         return say(&fallback());
     };
     let Some(payload) = payload else {
         return say(&fallback());
     };
     let payload = String::from_utf8_lossy(&payload).into_owned();
-    let message = json!({
-        "relay": PROTOCOL,
-        "kind": "hook",
-        "terminalId": terminal,
-        "token": token,
-        "agent": agent,
-        "event": event,
-        "seq": seq,
-        // When this hook gives up, so the runner leases nothing it couldn't print.
-        "deadline": seq + limit.as_secs_f64() * 1000.0,
-        "ancestors": ancestors::of_this_process(),
-        "env": config.env(),
-        "payload": payload,
-    });
-    // Claude Code's status line: the person's own runs beside the report, which it needs
-    // nothing of, and shows whatever the runner does.
-    let variable = |name: &str| env::var(name).ok().filter(|value| !value.is_empty());
-    let own = (agent == "claude" && event == "StatusLine").then(|| {
-        let config = variable("CLAUDE_CONFIG_DIR").map(PathBuf::from);
-        // Windows names the person's folder in USERPROFILE, where Git Bash hasn't set HOME.
-        let home = variable("HOME")
-            .or_else(|| variable("USERPROFILE"))
-            .map(PathBuf::from);
-        let input = payload.clone();
-        std::thread::spawn(move || {
-            status_line::own_command(&input, config.as_deref(), home.as_deref())
-                .map(|command| status_line::run(&command, input.as_bytes(), deadline))
-        })
-    });
+    let hello = terminal.hello(
+        "hook",
+        json!({
+            "agent": agent,
+            "event": event,
+            "seq": started,
+            // When this hook gives up, so the runner leases nothing it couldn't print.
+            "deadline": started + limit.as_secs_f64() * 1000.0,
+            "ancestors": ancestors::of_this_process(),
+            "env": config.env(),
+            "payload": payload,
+        }),
+    );
+    let own = claude_status_line(agent, event).then(|| own_status_line(payload, deadline));
     let shown = move || own.and_then(|running| running.join().ok().flatten());
-    let Ok(runtime) = tokio::runtime::Builder::new_current_thread()
-        .enable_all()
-        .build()
-    else {
+    let Ok(runtime) = endpoint::runtime() else {
         return say(&fallback());
     };
     runtime.block_on(async {
         let left = deadline.saturating_duration_since(Instant::now());
-        let asked = tokio::time::timeout(left, ask(&endpoint, format!("{message}\n"))).await;
-        let Ok(Some((answer, mut to_runner))) = asked else {
+        let sent = tokio::time::timeout(left, send(&terminal.endpoint, hello)).await;
+        let Ok(Some((answer, mut to_runner))) = sent else {
             return say(&shown().unwrap_or_else(fallback));
         };
-        if let Some(stdout) = &answer.stdout {
-            // Printed: what the lease delivers has reached the agent. Otherwise the lease
-            // lapses, and the runner delivers its messages again.
-            let printed = print(stdout);
-            if let Some(lease) = answer.lease.as_ref().filter(|_| printed) {
-                let ack = format!("{}\n", json!({ "ack": lease }));
-                let sent = async {
-                    to_runner.write_all(ack.as_bytes()).await?;
-                    to_runner.flush().await
-                };
-                let _ = tokio::time::timeout(Duration::from_millis(500), sent).await;
-            }
-            return;
+        let Some(stdout) = &answer.stdout else {
+            return say(&shown().unwrap_or_else(fallback));
+        };
+        // Printed: what the lease delivers has reached the agent. Otherwise the lease
+        // lapses, and the runner delivers its messages again.
+        let printed = print(stdout);
+        if let Some(lease) = answer.lease.as_ref().filter(|_| printed) {
+            acknowledge(&mut to_runner, lease).await;
         }
-        say(&shown().unwrap_or_else(fallback));
     });
     runtime.shutdown_background();
 }
 
+/// Claude Code's status line: the person's own command, run on a thread of its own beside
+/// the report, which it needs nothing of, for what it prints by `deadline`.
+fn own_status_line(payload: String, deadline: Instant) -> JoinHandle<Option<String>> {
+    let config = variable("CLAUDE_CONFIG_DIR").map(PathBuf::from);
+    // Windows names the person's folder in USERPROFILE, where Git Bash hasn't set HOME.
+    let home = variable("HOME")
+        .or_else(|| variable("USERPROFILE"))
+        .map(PathBuf::from);
+    thread::spawn(move || {
+        status_line::own_command(&payload, config.as_deref(), home.as_deref())
+            .map(|command| status_line::run(&command, payload.as_bytes(), deadline))
+    })
+}
+
 /// The agent's payload, or None once it runs past what the hook takes, or past
 /// `deadline`, when what is left goes unread.
-fn read_input(deadline: Instant) -> Option<Vec<u8>> {
+fn read_payload(deadline: Instant) -> Option<Vec<u8>> {
     let (sent, received) = std::sync::mpsc::channel();
-    std::thread::spawn(move || {
+    thread::spawn(move || {
         let mut payload = Vec::new();
         let read = io::stdin()
             .lock()
@@ -257,16 +246,26 @@ fn read_input(deadline: Instant) -> Option<Vec<u8>> {
 
 /// Sends the hook and reads the runner's one-line answer, keeping the connection for
 /// the acknowledgement.
-async fn ask(endpoint: &str, line: String) -> Option<(Answer, endpoint::Writer)> {
+async fn send(endpoint: &str, hello: String) -> Option<(Answer, endpoint::Writer)> {
     let (from_runner, mut to_runner) = endpoint::connect(endpoint).await.ok()?;
-    to_runner.write_all(line.as_bytes()).await.ok()?;
+    to_runner.write_all(hello.as_bytes()).await.ok()?;
     to_runner.flush().await.ok()?;
     let mut reply = String::new();
     BufReader::new(from_runner)
         .read_line(&mut reply)
         .await
         .ok()?;
-    Some((answer_of(&reply), to_runner))
+    Some((Answer::of(&reply), to_runner))
+}
+
+/// Tells the runner what `lease` delivers has been printed, giving it half a second.
+async fn acknowledge(to_runner: &mut endpoint::Writer, lease: &str) {
+    let ack = format!("{}\n", json!({ "ack": lease }));
+    let sent = async {
+        to_runner.write_all(ack.as_bytes()).await?;
+        to_runner.flush().await
+    };
+    let _ = tokio::time::timeout(Duration::from_millis(500), sent).await;
 }
 
 #[cfg(test)]
@@ -284,21 +283,21 @@ mod tests {
     #[test]
     fn reads_the_runners_answer() {
         assert_eq!(
-            answer_of(r#"{"leaseId":"abc","stdout":"{\"decision\":\"block\"}"}"#),
+            Answer::of(r#"{"leaseId":"abc","stdout":"{\"decision\":\"block\"}"}"#),
             Answer {
                 stdout: Some("{\"decision\":\"block\"}".into()),
                 lease: Some("abc".into()),
             }
         );
         assert_eq!(
-            answer_of(r#"{"leaseId":null,"stdout":null}"#),
+            Answer::of(r#"{"leaseId":null,"stdout":null}"#),
             Answer::default()
         );
-        assert_eq!(answer_of("not json"), Answer::default());
+        assert_eq!(Answer::of("not json"), Answer::default());
     }
 
     #[test]
-    fn prints_what_each_agent_needs_without_nova_deck_as_configured() {
+    fn prints_what_each_agent_needs_without_novadeck_as_configured() {
         let config = config();
         assert_eq!(
             config.fallback("agy", "PreToolUse"),
@@ -344,11 +343,5 @@ mod tests {
             Config::read(Some(Path::new("/no/such/relay.json"))),
             Config::default()
         );
-    }
-
-    #[test]
-    fn names_itself_first_so_the_runner_knows_its_line() {
-        let hello = json!({ "relay": PROTOCOL, "kind": "hook", "agent": "claude" }).to_string();
-        assert!(hello.starts_with("{\"relay\":2,"));
     }
 }

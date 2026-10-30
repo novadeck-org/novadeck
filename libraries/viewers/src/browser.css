@@ -1,6 +1,6 @@
 /* The browser viewer: a live page (`.browser-viewer > webview`) filling the viewer, which
    scrolls itself, or a snapshot of the page (`.browser-snapshot`), which scrolls under
-   whatever the host draws above it.
+   whatever the app draws above it.
 
    A live page lays out at the size its viewer frames it as (see `framingOf`), scaled to
    fit: --browser-width, --browser-height, --browser-scale, --browser-left and
@@ -59,7 +59,7 @@
 .browser-viewer[data-tilting] {
   cursor: grabbing;
 }
-/* A page view takes the pointer from its host whatever holds it: while the phone turns,
+/* A page view takes the pointer from the app's page whatever holds it: while the phone turns,
    its page lets the pointer pass, for the drag to go on over it. */
 .browser-viewer[data-tilting] > webview {
   pointer-events: none;

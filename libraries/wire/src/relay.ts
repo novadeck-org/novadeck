@@ -8,7 +8,7 @@ declare const window: {
 /**
  * The preload's half of `brokerPorts`. A port can't cross the context bridge, so the
  * preload relays each one the main process sends on `channel` to the page as a window
- * message `{ type: message, id }` carrying the port, for `hostTransport` to take. Returns
+ * message `{ type: message, id }` carrying the port, for `brokeredPort` to take. Returns
  * the request the page's bridge exposes: it asks the main process for a port under `id`.
  */
 export const relayPorts = (options: {

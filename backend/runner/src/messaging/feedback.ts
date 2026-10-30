@@ -4,7 +4,7 @@ import {
   feedbackKind,
   maxFeedbackText,
   type AgentName,
-  type FeedbackDraftEntry,
+  type FeedbackDraft,
 } from "@novadeck/protocol"
 import { Latest } from "@novadeck/wire/server"
 import { z } from "zod"
@@ -48,7 +48,7 @@ const draftRequest = z.strictObject({
  * runner restarts, which forgets it. The runner never sends one.
  */
 export class Feedback {
-  private readonly drafts = new Map<string, FeedbackDraftEntry>()
+  private readonly drafts = new Map<string, FeedbackDraft>()
   /** The person's request for a draft, per terminal, with the agent session it is for. */
   private readonly asks = new Map<
     string,
@@ -64,7 +64,7 @@ export class Feedback {
     string,
     { readonly projectId: string; readonly times: readonly number[] }
   >()
-  private readonly readers = new Set<Latest<FeedbackDraftEntry[]>>()
+  private readonly readers = new Set<Latest<FeedbackDraft[]>>()
   private closed = false
   constructor(
     private readonly host: Host,
@@ -98,7 +98,7 @@ export class Feedback {
     this.sent.set(terminalId, { projectId: owner.projectId, times })
     const asked = this.requested(terminalId, owner) === "delivered"
     if (asked) this.asks.delete(terminalId)
-    const draft: FeedbackDraftEntry = {
+    const draft: FeedbackDraft = {
       id: randomUUID(),
       terminalId,
       projectId: owner.projectId,
@@ -150,12 +150,12 @@ export class Feedback {
   }
 
   /** The drafts waiting, oldest first. */
-  list(): FeedbackDraftEntry[] {
+  list(): FeedbackDraft[] {
     return [...this.drafts.values()].toSorted((a, b) => a.at - b.at)
   }
 
-  async *watch(signal?: AbortSignal): AsyncGenerator<FeedbackDraftEntry[]> {
-    const reader = new Latest<FeedbackDraftEntry[]>()
+  async *watch(signal?: AbortSignal): AsyncGenerator<FeedbackDraft[]> {
+    const reader = new Latest<FeedbackDraft[]>()
     this.readers.add(reader)
     reader.push(this.list())
     const abort = () => reader.finish()
