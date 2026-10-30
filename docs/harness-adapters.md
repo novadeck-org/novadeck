@@ -138,8 +138,9 @@ Beside that common set, each keeps what only it has:
 - Codex (`harnesses/codex`): `rollout.ts` (its rollout, followed as its `watch` and
   `watchActor`, and read back for plans), `async-question.ts` and
   `async-question-dialog.ts` (the question it asks without waiting), `patch.ts` (the
-  files a patch names), `title.ts` (the terminal title its shim sets), `trust.ts`
-  (whether it runs Novadeck's hooks in a folder) and `shim.ts`.
+  files a patch names), `title.ts` (the terminal title its shim sets, and the thread lock
+  that confirms a new session), `trust.ts` (whether it runs Novadeck's hooks in a folder)
+  and `shim.ts`.
 - Antigravity (`harnesses/agy`): `status-line.ts` (its status line's report, and the
   prompt it says shows), `call-memory.ts` (what its decoder holds of each conversation's
   calls from one hook to the next) and `settings.ts` (the settings it takes only from its
