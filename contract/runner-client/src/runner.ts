@@ -1,58 +1,52 @@
 import {
   contract,
-  type WireClient,
-  type AskAnswer,
-  type FeedbackDraft,
-  type InboxEntry,
   maxUploadBytes,
   maxUploadPartLength,
   maxVoicePartLength,
   protocolVersion,
   type AgentDetail,
   type AgentIntegration,
-  type InterruptResult,
   type AgentName,
+  type Approval,
+  type ApprovalAnswer,
+  type AskAnswer,
   type CompanionChange,
   type CompanionItem,
   type CompanionWindow,
-  type PlanSaveResult,
-  type ItemContent,
+  type FeedbackDraft,
   type FolderListing,
+  type InboxEntry,
+  type InterruptResult,
+  type ItemContent,
+  type MurmurSettings,
+  type MurmurState,
   type PageLook,
   type PageLookAnswer,
   type PageTrouble,
+  type PlanSaveResult,
   type Project,
+  type RequestAnswer,
   type RunnerSettings,
   type RunnerSettingsState,
-  type TerminalAttached,
   type TerminalChange,
-  type TerminalEvent,
   type TerminalMessages,
   type TerminalRequest,
-  type Approval,
-  type ApprovalAnswer,
   type TerminalRequestAnswer,
   type TerminalSummary,
-  type RequestAnswer,
   type TranscriptChange,
-  type MurmurSettings,
-  type MurmurState,
   type VoiceChange,
   type VoiceState,
   type VoiceTranscript,
+  type WireClient,
   type WorkspaceSession,
 } from "@novadeck/protocol"
-import { normalize, WireError } from "@novadeck/wire"
-import {
-  connect,
-  follow,
-  type Session,
-  type Transport,
-  type Wire,
-  type WireStatus,
-} from "@novadeck/wire/client"
+import { WireError } from "@novadeck/wire"
+import { connect, type Transport, type WireStatus } from "@novadeck/wire/client"
 
-import { hasCode, type RunnerErrorCode } from "./errors.js"
+import { lost, type RunnerErrorCode } from "./errors.js"
+import { followAll, followRestarting, type Reset } from "./follow.js"
+import { base64Parts } from "./parts.js"
+import { attachTerminal, type AttachedTerminal, type TerminalMode } from "./terminal.js"
 
 export type ConnectOptions = {
   /** Cancels the initial connection. Afterwards, use `runner.close()`. */
@@ -60,42 +54,20 @@ export type ConnectOptions = {
   /** Milliseconds to wait before reconnection attempt `attempt`, counting from zero. */
   readonly retryDelay?: (attempt: number) => number
   /** Milliseconds a connection may take to open and complete its handshake. */
-  readonly timeout?: number
+  readonly timeoutMs?: number
 }
-
-export type TerminalMode = "control" | "observe"
 
 /**
  * An item of `runner.terminals.watch()`: a runner change, or `reset`, which the client
  * yields before each fresh `changed`…`synced` sequence.
  */
-export type TerminalWatchItem = TerminalChange | { readonly type: "reset" }
+export type TerminalWatchItem = TerminalChange | Reset
 
 /**
  * An item of `runner.companions.watch()`: a runner change, or `reset`, which the client
  * yields before each fresh sequence of items and windows ending in `synced`.
  */
-export type CompanionWatchItem = CompanionChange | { readonly type: "reset" }
-
-/**
- * One attachment to a running terminal. Iterate it for screen events; each event is
- * acknowledged when the next one is requested. The attachment follows the runner
- * through reconnections, resuming after the last event it produced, so a consumer
- * sees one continuous stream. A `snapshot` replaces the screen; it is not appended.
- *
- * Iteration ends when the shell exits or the terminal is detached. It throws a
- * `WireError` when the attachment cannot continue, such as `CONTROL_IN_USE` after
- * another client took control during a disconnection.
- */
-export type AttachedTerminal = AsyncIterableIterator<TerminalEvent> & {
-  readonly id: string
-  readonly mode: TerminalMode
-  /** Sends input, including control characters. Never retried; success means accepted. */
-  write(data: string): Promise<void>
-  resize(size: { readonly cols: number; readonly rows: number }): Promise<void>
-  /** Releases this attachment and ends iteration. The shell keeps running. */
-  detach(): Promise<void>
-}
+export type CompanionWatchItem = CompanionChange | Reset
 
 export type Runner = {
   readonly status: WireStatus
@@ -126,8 +98,8 @@ export type Runner = {
     /**
      * Keeps the person's arrangement of the projects: `order` by id, first to last, and the
      * ones `pinned`, at most nine, the first in `order` (one `order` doesn't name isn't
-     * pinned). Unknown ids are ignored, and
-     * projects `order` leaves out follow, in the order they were added.
+     * pinned). Unknown ids are ignored, and projects `order` leaves out follow, in the order
+     * they were added.
      */
     arrange(input: {
       readonly order: readonly string[]
@@ -213,10 +185,10 @@ export type Runner = {
      */
     answerRequest(answer: TerminalRequestAnswer): Promise<void>
     /**
-     * Follows agents' asks, made through Novadeck's MCP server, to close a terminal that
+     * Follows agents' requests, made through Novadeck's MCP server, to close a terminal that
      * runs an agent they don't lead, or to lead one, across reconnections. The runner
      * sends each to the client that subscribed last and waits, without a time limit, for
-     * `answerApproval` or until it withdraws the ask; iteration ends when the runner
+     * `answerApproval` or until it withdraws the request; iteration ends when the runner
      * closes or on `return()`.
      */
     approvals(): AsyncIterableIterator<Approval, undefined>
@@ -232,8 +204,8 @@ export type Runner = {
      */
     release(terminalId: string): Promise<void>
     /**
-     * Follows every terminal on the runner, across sessions. Each subscription, the
-     * first and every one after a reconnection or a retried refusal, yields `reset`,
+     * Follows every terminal on the runner, across sessions. Each time the stream opens,
+     * first and again after every reconnection or retried refusal, it yields `reset`,
      * then `changed` for each terminal, then `synced`. On `reset`, clear the set of
      * reported terminals; at `synced`, forget any terminal not reported since, for
      * example one that ended with a restarted runner. Later events report creation,
@@ -278,7 +250,7 @@ export type Runner = {
      */
     restart(
       terminalId: string,
-      size: { readonly cols: number; readonly rows: number; readonly resume?: AgentName },
+      options: { readonly cols: number; readonly rows: number; readonly resume?: AgentName },
     ): Promise<TerminalSummary>
     /** Resolves once the runner has granted the attachment; `control` is the default mode. */
     attach(
@@ -290,7 +262,7 @@ export type Runner = {
     list(): Promise<AgentIntegration[]>
     /**
      * Follows what the agent in a terminal does, in detail: a snapshot, then another on
-     * each change, across reconnections, each subscription starting with a fresh one. It
+     * each change, across reconnections, with a fresh one when the stream is opened again. It
      * follows the terminal from agent to agent; iteration ends once the terminal is gone,
      * when the runner closes, or on `return()`.
      */
@@ -324,8 +296,8 @@ export type Runner = {
      * (nothing pressed either way, and `DIALOG_CHANGED` leaves the dialog as it is), and
      * `ANSWER_FAILED` when the keys didn't take, after which the request's dialog is `raw`,
      * and `PROMPT_REFUSED` when the words that follow it as a prompt are ones `promptRefusal`
-     * refuses (nothing pressed), and `WORDS_NOT_SENT` when the answer took but the words that follow it as the agent's
-     * next prompt did not go (the dialog was answered).
+     * refuses (nothing pressed), and `WORDS_NOT_SENT` when the answer took but the words that
+     * follow it as the agent's next prompt did not go (the dialog was answered).
      */
     answer(terminalId: string, request: string, answer: RequestAnswer): Promise<void>
     /**
@@ -352,9 +324,9 @@ export type Runner = {
       readonly sessionId: string
     }): Promise<{ items: CompanionItem[]; windows: CompanionWindow[] }>
     /**
-     * Follows every item and window on the runner, across sessions, as
-     * `terminals.watch()` follows terminals: each subscription yields `reset`, every item
-     * and window, then `synced`; at `synced`, forget any not reported since. Later events
+     * Follows every item and window on the runner, across sessions, as `terminals.watch()`
+     * follows terminals: each time the stream opens it yields `reset`, every item and window,
+     * then `synced`; at `synced`, forget any not reported since. Later events
      * report changes and removals, each the latest state of its item or window, in the
      * order they first changed since this client last caught up. A reference may name an
      * item, window or terminal not yet reported, or one whose removal follows: keep both
@@ -437,15 +409,34 @@ export type Runner = {
      * iteration ends when the runner closes or on `return()`.
      */
     looks(): AsyncIterableIterator<PageLook, undefined>
-    /** Answers a look with a picture of the page, or why there is none; rejects with NOT_FOUND once the runner no longer waits. */
+    /**
+     * Answers a look with a picture of the page, or why there is none. Rejects with `NOT_FOUND`
+     * once the runner no longer waits for it.
+     */
     answerLook(answer: PageLookAnswer): Promise<void>
   }
+  /** The person's Inbox: what agents ask and tell them. */
   readonly inbox: {
     list(): Promise<InboxEntry[]>
+    /**
+     * Follows the Inbox: its entries, then again on each change, across reconnections, with a
+     * fresh list when the stream is opened again. Iteration ends when the runner closes, or on
+     * `return()`.
+     */
     watch(): AsyncIterableIterator<InboxEntry[], undefined>
+    /** Answers an agent's ask with the person's answer. */
     answer(id: string, answer: AskAnswer): Promise<void>
+    /**
+     * Marks entries read: a tell stays as history, a finished turn is removed, an ask is not
+     * touched. Unknown ids are skipped.
+     */
     read(ids: readonly string[]): Promise<void>
+    /**
+     * Dismisses an open ask without answering it: it stays listed, settled, and its agent is
+     * told. Rejects with `NOT_FOUND` for one that isn't an open ask.
+     */
     dismiss(id: string): Promise<void>
+    /** Removes settled asks; unknown ids, and any entry that isn't a settled ask, are skipped. */
     clear(ids: readonly string[]): Promise<void>
   }
   readonly feedback: {
@@ -470,18 +461,30 @@ export type Runner = {
      * the runner keeps the switch.
      */
     pause(paused: boolean): Promise<void>
-    /** Releases a held thread: its hold ends and its messages go on. */
+    /**
+     * Releases a held thread, and its pair's other held threads: their holds end and their
+     * messages go on. Rejects with `NOT_FOUND` for a thread the runner doesn't keep.
+     */
     release(thread: string): Promise<void>
+    /**
+     * Stops a thread: its messages not yet delivered or leased are gone, their senders told
+     * the person stopped it, and the pair may not send to each other for a while. Rejects
+     * with `NOT_FOUND` for a thread the runner doesn't keep; stopping a stopped thread does
+     * nothing.
+     */
     stop(thread: string): Promise<void>
   }
   readonly voice: {
     /**
      * Follows the voice input addon: its state, then again on each change, across
-     * reconnections, each subscription starting with a fresh one. Iteration ends when the
+     * reconnections, with a fresh one when the stream is opened again. Iteration ends when the
      * runner closes, or on `return()`.
      */
     watch(): AsyncIterableIterator<VoiceState, undefined>
-    /** Starts installing the engine, if missing, and the model that suits this computer; `watch` shows progress. */
+    /**
+     * Starts installing the engine, if missing, and the model that suits this computer; `watch`
+     * shows progress.
+     */
     install(): Promise<void>
     /** Stops an install. */
     cancel(): Promise<void>
@@ -505,7 +508,7 @@ export type Runner = {
   readonly murmur: {
     /**
      * Follows the murmur addon: its state, then again on each change, across
-     * reconnections, each subscription starting with a fresh one. Iteration ends when the
+     * reconnections, with a fresh one when the stream is opened again. Iteration ends when the
      * runner closes, or on `return()`.
      */
     watch(): AsyncIterableIterator<MurmurState, undefined>
@@ -529,149 +532,6 @@ export type Runner = {
   close(): Promise<void>
 }
 
-type Link = Session<typeof contract>
-
-/** Reports failures on a closed channel as `DISCONNECTED`, whatever oRPC raised. */
-const failure = (error: unknown, link: Link): unknown => {
-  const normalized = normalize(error)
-  if (normalized instanceof WireError || link.channel.open) return normalized
-  return new WireError<RunnerErrorCode>("DISCONNECTED", "Runner connection was lost.", {
-    cause: normalized,
-  })
-}
-
-type Connection = Wire<typeof contract>
-
-// What a stream follows (a terminal, an item) is gone: following it ends.
-const gone = (error: WireError) => hasCode(error, "TERMINAL_NOT_FOUND", "NOT_FOUND")
-
-/**
- * `agents.detail()`, `agents.transcript()` and the like: one subscription per connection, opened
- * again after each reconnection or when the runner ends it, until what it follows is no longer
- * found. Each new subscription starts over; `reset`, where given, says so first.
- */
-const resubscribe = <T>(
-  connection: Connection,
-  open: (wire: WireClient, signal: AbortSignal) => Promise<AsyncIterable<T>>,
-  reset?: T,
-) =>
-  follow(connection, {
-    open: (wire, { signal }) => open(wire, signal),
-    resume: reset === undefined ? { restart: true } : { restart: true, reset, holdReset: true },
-    gone,
-  })
-
-/**
- * `terminals.watch()` and `companions.watch()`: one subscription per connection, opened again
- * after each reconnection, each opening with `reset`.
- */
-const watch = <Change>(
-  connection: Connection,
-  open: (wire: WireClient, signal: AbortSignal) => Promise<AsyncIterable<Change>>,
-) =>
-  follow<typeof contract, Change | { readonly type: "reset" }>(connection, {
-    open: (wire, { signal }) => open(wire, signal),
-    resume: { restart: true, reset: { type: "reset" } },
-  })
-
-/**
- * Attaches to a terminal, resolving once the runner grants it: its events follow the runner
- * across reconnections from the last one read, each acknowledged as the next is asked for.
- */
-const attachTerminal = async (
-  connection: Connection,
-  id: string,
-  mode: TerminalMode,
-): Promise<AttachedTerminal> => {
-  const stream = follow<typeof contract, TerminalAttached | TerminalEvent>(connection, {
-    // Each attachment opens with the runner's grant, which a reattachment must also have.
-    open: async function* (wire, { after, signal }) {
-      const events = await wire.terminals.attach(
-        { terminalId: id, mode, ...(after !== undefined && { afterSequence: after }) },
-        { signal },
-      )
-      const first = await events.next()
-      if (first.done || first.value.type !== "attached") {
-        throw new WireError<RunnerErrorCode>(
-          "DISCONNECTED",
-          "Runner ended the attachment before granting it.",
-        )
-      }
-      yield first.value
-      yield* events
-    },
-    resume: {
-      cursor: (event) => (event.type === "attached" ? undefined : event.sequence),
-      ack: (wire, sequence) => wire.terminals.ack({ terminalId: id, sequence }),
-    },
-  })
-  const granted = await stream.next()
-  if (granted.done) throw new WireError<RunnerErrorCode>("CLOSED", "Terminal is detached.")
-  const control = (): Link => {
-    if (stream.finished === "ended") throw new WireError<RunnerErrorCode>("TERMINAL_EXITED")
-    if (stream.finished) throw new WireError<RunnerErrorCode>("CLOSED", "Terminal is detached.")
-    if (mode !== "control") throw new WireError<RunnerErrorCode>("CONTROL_REQUIRED")
-    const link = stream.session
-    if (!link?.channel.open) {
-      throw new WireError<RunnerErrorCode>("DISCONNECTED", "Terminal is reattaching.")
-    }
-    return link
-  }
-  const terminal: AttachedTerminal = {
-    id,
-    mode,
-    [Symbol.asyncIterator]: () => terminal,
-    async next() {
-      while (true) {
-        // eslint-disable-next-line no-await-in-loop -- Events are delivered in order.
-        const result = await stream.next()
-        if (result.done) return result
-        // A reattachment's grant is the stream's own business.
-        if (result.value.type !== "attached") return { value: result.value, done: false }
-      }
-    },
-    async return() {
-      await stream.return()
-      return { value: undefined, done: true }
-    },
-    async write(data) {
-      const link = control()
-      try {
-        await link.client.terminals.write({ terminalId: id, data })
-      } catch (error) {
-        throw failure(error, link)
-      }
-    },
-    async resize(size) {
-      const link = control()
-      try {
-        await link.client.terminals.resize({ terminalId: id, cols: size.cols, rows: size.rows })
-      } catch (error) {
-        throw failure(error, link)
-      }
-    },
-    async detach() {
-      await stream.return()
-    },
-  }
-  return terminal
-}
-
-// Bytes as base64 parts of at most `length` characters: whole groups of three bytes, so
-// no part but the last is padded.
-const base64Parts = (data: Uint8Array, length: number): string[] => {
-  const size = (length / 4) * 3
-  const parts: string[] = []
-  for (let start = 0; start < data.length; start += size) {
-    const part = data.subarray(start, start + size)
-    let binary = ""
-    for (let at = 0; at < part.length; at += 8192)
-      binary += String.fromCharCode(...part.subarray(at, at + 8192))
-    parts.push(btoa(binary))
-  }
-  return parts
-}
-
 /**
  * Connects to a runner and resolves after the first successful handshake. Later
  * disconnections reconnect automatically; `status` and `watch()` report them.
@@ -682,20 +542,18 @@ export const connectRunner = async (
   options: ConnectOptions = {},
 ): Promise<Runner> => {
   const connection = await connect({
+    ...options,
     contract,
     transport,
     protocolVersion,
     fatal: (code) => code === "WORKSPACE_TOO_NEW",
-    ...(options.signal && { signal: options.signal }),
-    ...(options.retryDelay && { retryDelay: options.retryDelay }),
-    ...(options.timeout !== undefined && { timeoutMs: options.timeout }),
   })
-  const call = async <T>(operation: (wire: WireClient) => Promise<T>): Promise<T> => {
-    const link = connection.session()
+  const call = async <T>(operation: (client: WireClient) => Promise<T>): Promise<T> => {
+    const session = connection.session()
     try {
-      return await operation(link.client)
+      return await operation(session.client)
     } catch (error) {
-      throw failure(error, link)
+      throw lost(error, session)
     }
   }
   return {
@@ -704,154 +562,173 @@ export const connectRunner = async (
     },
     watch: () => connection.status.watch(),
     projects: {
-      list: () => call((wire) => wire.projects.list()),
-      create: (input) => call((wire) => wire.projects.create(input)),
-      rename: (input) => call((wire) => wire.projects.rename(input)),
-      remove: (input) => call((wire) => wire.projects.remove(input)),
+      list: () => call((client) => client.projects.list()),
+      create: (input) => call((client) => client.projects.create(input)),
+      rename: (input) => call((client) => client.projects.rename(input)),
+      remove: (input) => call((client) => client.projects.remove(input)),
       arrange: (input) =>
-        call((wire) =>
-          wire.projects.arrange({ order: [...input.order], pinned: [...input.pinned] }),
+        call((client) =>
+          client.projects.arrange({ order: [...input.order], pinned: [...input.pinned] }),
         ),
-      folder: (input) => call((wire) => wire.projects.folder(input)),
+      folder: (input) => call((client) => client.projects.folder(input)),
     },
     sessions: {
-      list: (input) => call((wire) => wire.sessions.list(input)),
-      create: (input) => call((wire) => wire.sessions.create(input)),
-      rename: (input) => call((wire) => wire.sessions.rename(input)),
-      save: (input) => call((wire) => wire.sessions.save(input)),
+      list: (input) => call((client) => client.sessions.list(input)),
+      create: (input) => call((client) => client.sessions.create(input)),
+      rename: (input) => call((client) => client.sessions.rename(input)),
+      save: (input) => call((client) => client.sessions.save(input)),
     },
     terminals: {
-      list: (input) => call((wire) => wire.terminals.list(input)),
-      create: (input) => call((wire) => wire.terminals.create(input)),
+      list: (input) => call((client) => client.terminals.list(input)),
+      create: (input) => call((client) => client.terminals.create(input)),
       requests: () =>
-        resubscribe(connection, (wire, signal) => wire.terminals.requests(undefined, { signal })),
-      answerRequest: (answer) => call((wire) => wire.terminals.answerRequest(answer)),
+        followRestarting(connection, (client, signal) =>
+          client.terminals.requests(undefined, { signal }),
+        ),
+      answerRequest: (answer) => call((client) => client.terminals.answerRequest(answer)),
       approvals: () =>
-        resubscribe(connection, (wire, signal) => wire.terminals.approvals(undefined, { signal })),
-      answerApproval: (answer) => call((wire) => wire.terminals.answerApproval(answer)),
-      release: (terminalId) => call((wire) => wire.terminals.release({ terminalId })),
-      watch: () => watch(connection, (wire, signal) => wire.terminals.watch(undefined, { signal })),
-      close: (terminalId) => call((wire) => wire.terminals.close({ terminalId })),
-      rename: (terminalId, title) => call((wire) => wire.terminals.rename({ terminalId, title })),
-      resetTitle: (terminalId) => call((wire) => wire.terminals.resetTitle({ terminalId })),
+        followRestarting(connection, (client, signal) =>
+          client.terminals.approvals(undefined, { signal }),
+        ),
+      answerApproval: (answer) => call((client) => client.terminals.answerApproval(answer)),
+      release: (terminalId) => call((client) => client.terminals.release({ terminalId })),
+      watch: () =>
+        followAll(connection, (client, signal) => client.terminals.watch(undefined, { signal })),
+      close: (terminalId) => call((client) => client.terminals.close({ terminalId })),
+      rename: (terminalId, title) =>
+        call((client) => client.terminals.rename({ terminalId, title })),
+      resetTitle: (terminalId) => call((client) => client.terminals.resetTitle({ terminalId })),
       async upload(terminalId, { name, data }) {
         if (data.length > maxUploadBytes) throw new WireError<RunnerErrorCode>("UPLOAD_TOO_LARGE")
-        const [first = "", ...rest] = base64Parts(data, maxUploadPartLength)
-        const started = await call((wire) =>
-          wire.terminals.upload({ terminalId, name, data: first }),
+        const [first, ...rest] = base64Parts(data, maxUploadPartLength)
+        const started = await call((client) =>
+          client.terminals.upload({ terminalId, name, data: first?.data ?? "" }),
         )
         // Each later part adds to the file the first one started.
         for (const part of rest)
           // eslint-disable-next-line no-await-in-loop -- Parts arrive in order.
-          await call((wire) =>
-            wire.terminals.upload({ terminalId, path: started.path, data: part }),
+          await call((client) =>
+            client.terminals.upload({ terminalId, path: started.path, data: part.data }),
           )
         return started.path
       },
       restart: (terminalId, { cols, rows, resume }) =>
-        call((wire) =>
-          wire.terminals.restart({ terminalId, cols, rows, ...(resume ? { resume } : {}) }),
+        call((client) =>
+          client.terminals.restart({ terminalId, cols, rows, ...(resume && { resume }) }),
         ),
-      async attach(terminalId, { mode = "control" } = {}) {
-        return attachTerminal(connection, terminalId, mode)
-      },
+      attach: (terminalId, { mode = "control" } = {}) =>
+        attachTerminal(connection, terminalId, mode),
     },
     agents: {
-      list: () => call((wire) => wire.agents.list()),
+      list: () => call((client) => client.agents.list()),
       detail: (terminalId) =>
-        resubscribe(connection, (wire, signal) => wire.agents.detail({ terminalId }, { signal })),
+        followRestarting(connection, (client, signal) =>
+          client.agents.detail({ terminalId }, { signal }),
+        ),
       transcript: (terminalId, actor) =>
-        resubscribe<TranscriptChange>(
+        followRestarting<TranscriptChange>(
           connection,
-          (wire, signal) => wire.agents.transcript({ terminalId, actor }, { signal }),
+          (client, signal) => client.agents.transcript({ terminalId, actor }, { signal }),
           { type: "reset" },
         ),
       prompt: (terminalId, text, automatic) =>
-        call((wire) => wire.agents.prompt({ terminalId, text, ...(automatic && { automatic }) })),
+        call((client) =>
+          client.agents.prompt({ terminalId, text, ...(automatic && { automatic }) }),
+        ),
       answer: (terminalId, request, answer) =>
-        call((wire) => wire.agents.answer({ terminalId, request, answer })),
-      interrupt: (terminalId) => call((wire) => wire.agents.interrupt({ terminalId })),
-      set: (agent, connected) => call((wire) => wire.agents.set({ agent, connected })),
+        call((client) => client.agents.answer({ terminalId, request, answer })),
+      interrupt: (terminalId) => call((client) => client.agents.interrupt({ terminalId })),
+      set: (agent, connected) => call((client) => client.agents.set({ agent, connected })),
     },
     companions: {
-      list: (input) => call((wire) => wire.companions.list(input)),
+      list: (input) => call((client) => client.companions.list(input)),
       watch: () =>
-        watch(connection, (wire, signal) => wire.companions.watch(undefined, { signal })),
+        followAll(connection, (client, signal) => client.companions.watch(undefined, { signal })),
       content: (itemId, { reveal } = {}) =>
-        resubscribe(connection, (wire, signal) =>
-          wire.companions.content({ itemId, ...(reveal !== undefined && { reveal }) }, { signal }),
+        followRestarting(connection, (client, signal) =>
+          client.companions.content(
+            { itemId, ...(reveal !== undefined && { reveal }) },
+            { signal },
+          ),
         ),
-      save: (input) => call((wire) => wire.companions.save(input)),
-      attach: (input) => call((wire) => wire.companions.attach(input)),
-      openInProject: (input) => call((wire) => wire.companions.openInProject(input)),
-      move: (itemId, terminalId) => call((wire) => wire.companions.move({ itemId, terminalId })),
-      undock: (itemId, windowId) => call((wire) => wire.companions.undock({ itemId, windowId })),
-      close: (itemId) => call((wire) => wire.companions.close({ itemId })),
+      save: (input) => call((client) => client.companions.save(input)),
+      attach: (input) => call((client) => client.companions.attach(input)),
+      openInProject: (input) => call((client) => client.companions.openInProject(input)),
+      move: (itemId, terminalId) =>
+        call((client) => client.companions.move({ itemId, terminalId })),
+      undock: (itemId, windowId) =>
+        call((client) => client.companions.undock({ itemId, windowId })),
+      close: (itemId) => call((client) => client.companions.close({ itemId })),
       renameWindow: (windowId, title) =>
-        call((wire) => wire.companions.renameWindow({ windowId, title })),
+        call((client) => client.companions.renameWindow({ windowId, title })),
       resetWindowTitle: (windowId) =>
-        call((wire) => wire.companions.resetWindowTitle({ windowId })),
-      pageTrouble: (input) => call((wire) => wire.companions.pageTrouble(input)),
+        call((client) => client.companions.resetWindowTitle({ windowId })),
+      pageTrouble: (input) => call((client) => client.companions.pageTrouble(input)),
       looks: () =>
-        resubscribe(connection, (wire, signal) => wire.companions.looks(undefined, { signal })),
-      answerLook: (answer) => call((wire) => wire.companions.answerLook(answer)),
+        followRestarting(connection, (client, signal) =>
+          client.companions.looks(undefined, { signal }),
+        ),
+      answerLook: (answer) => call((client) => client.companions.answerLook(answer)),
     },
     inbox: {
-      list: () => call((wire) => wire.inbox.list()),
+      list: () => call((client) => client.inbox.list()),
       watch: () =>
-        resubscribe(connection, (wire, signal) => wire.inbox.watch(undefined, { signal })),
-      answer: (id, answer) => call((wire) => wire.inbox.answer({ id, answer })),
-      read: (ids) => call((wire) => wire.inbox.read({ ids: [...ids] })),
-      dismiss: (id) => call((wire) => wire.inbox.dismiss({ id })),
-      clear: (ids) => call((wire) => wire.inbox.clear({ ids: [...ids] })),
+        followRestarting(connection, (client, signal) => client.inbox.watch(undefined, { signal })),
+      answer: (id, answer) => call((client) => client.inbox.answer({ id, answer })),
+      read: (ids) => call((client) => client.inbox.read({ ids: [...ids] })),
+      dismiss: (id) => call((client) => client.inbox.dismiss({ id })),
+      clear: (ids) => call((client) => client.inbox.clear({ ids: [...ids] })),
     },
     feedback: {
       watch: () =>
-        resubscribe(connection, (wire, signal) => wire.feedback.watch(undefined, { signal })),
-      settle: (id, outcome) => call((wire) => wire.feedback.settle({ id, outcome })),
-      ask: (terminalId, hint) => call((wire) => wire.feedback.ask({ terminalId, hint })),
+        followRestarting(connection, (client, signal) =>
+          client.feedback.watch(undefined, { signal }),
+        ),
+      settle: (id, outcome) => call((client) => client.feedback.settle({ id, outcome })),
+      ask: (terminalId, hint) => call((client) => client.feedback.ask({ terminalId, hint })),
     },
     messages: {
-      list: (terminalId) => call((wire) => wire.messages.list({ terminalId })),
+      list: (terminalId) => call((client) => client.messages.list({ terminalId })),
       watch: (terminalId) =>
-        resubscribe(connection, (wire, signal) => wire.messages.watch({ terminalId }, { signal })),
-      pause: (paused) => call((wire) => wire.messages.pause({ paused })),
-      release: (thread) => call((wire) => wire.messages.release({ thread })),
-      stop: (thread) => call((wire) => wire.messages.stop({ thread })),
+        followRestarting(connection, (client, signal) =>
+          client.messages.watch({ terminalId }, { signal }),
+        ),
+      pause: (paused) => call((client) => client.messages.pause({ paused })),
+      release: (thread) => call((client) => client.messages.release({ thread })),
+      stop: (thread) => call((client) => client.messages.stop({ thread })),
     },
     voice: {
       watch: () =>
-        resubscribe(connection, (wire, signal) => wire.voice.watch(undefined, { signal })),
-      install: () => call((wire) => wire.voice.install()),
-      cancel: () => call((wire) => wire.voice.cancel()),
-      uninstall: () => call((wire) => wire.voice.uninstall()),
-      set: (settings) => call((wire) => wire.voice.set(settings)),
+        followRestarting(connection, (client, signal) => client.voice.watch(undefined, { signal })),
+      install: () => call((client) => client.voice.install()),
+      cancel: () => call((client) => client.voice.cancel()),
+      uninstall: () => call((client) => client.voice.uninstall()),
+      set: (settings) => call((client) => client.voice.set(settings)),
       async record(clipId, offset, audio) {
-        const size = (maxVoicePartLength / 4) * 3
-        let at = offset
-        for (const data of base64Parts(audio, maxVoicePartLength)) {
-          const start = at
+        for (const part of base64Parts(audio, maxVoicePartLength))
           // eslint-disable-next-line no-await-in-loop -- Parts arrive in order.
-          await call((wire) => wire.voice.record({ clipId, offset: start, data }))
-          at += size
-        }
+          await call((client) =>
+            client.voice.record({ clipId, offset: offset + part.offset, data: part.data }),
+          )
       },
       transcribe: (clipId, { terminalId } = {}) =>
-        call((wire) => wire.voice.transcribe({ clipId, ...(terminalId ? { terminalId } : {}) })),
-      discard: (clipId) => call((wire) => wire.voice.discard({ clipId })),
+        call((client) => client.voice.transcribe({ clipId, ...(terminalId && { terminalId }) })),
+      discard: (clipId) => call((client) => client.voice.discard({ clipId })),
     },
     murmur: {
       watch: () =>
-        resubscribe(connection, (wire, signal) => wire.murmur.watch(undefined, { signal })),
-      install: () => call((wire) => wire.murmur.install()),
-      cancel: () => call((wire) => wire.murmur.cancel()),
-      uninstall: () => call((wire) => wire.murmur.uninstall()),
-      set: (settings) => call((wire) => wire.murmur.set(settings)),
-      noteOffered: () => call((wire) => wire.murmur.noteOffered()),
+        followRestarting(connection, (client, signal) =>
+          client.murmur.watch(undefined, { signal }),
+        ),
+      install: () => call((client) => client.murmur.install()),
+      cancel: () => call((client) => client.murmur.cancel()),
+      uninstall: () => call((client) => client.murmur.uninstall()),
+      set: (settings) => call((client) => client.murmur.set(settings)),
+      noteOffered: () => call((client) => client.murmur.noteOffered()),
     },
     settings: {
-      get: () => call((wire) => wire.settings.get()),
-      set: (settings) => call((wire) => wire.settings.set(settings)),
+      get: () => call((client) => client.settings.get()),
+      set: (settings) => call((client) => client.settings.set(settings)),
     },
     close: () => Promise.resolve(connection.close()),
   }

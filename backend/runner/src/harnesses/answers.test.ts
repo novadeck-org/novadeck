@@ -3,16 +3,15 @@ import { tmpdir } from "node:os"
 import { join } from "node:path"
 
 import type { HarnessEvent } from "@novadeck/harness-core/events"
+import { type Launchers, silentFor } from "@novadeck/harness-core/harness"
+import { hookSeconds } from "@novadeck/harness-core/hook-command"
 import {
   continuationPrompt,
   doorbellLine,
   doorbellNonce,
-  hookSeconds,
   promptStart,
   withoutDoorbell,
-  type Launchers,
-  silentFor,
-} from "@novadeck/harness-core/harness"
+} from "@novadeck/harness-core/prompts"
 import type { Report } from "@novadeck/harness-core/report"
 import { loadProbe } from "@novadeck/harness-core/testing/probes"
 import type { AgentName } from "@novadeck/protocol"

@@ -1,7 +1,8 @@
 import { dirname, join } from "node:path"
 
+import { parseFields } from "@novadeck/harness-core/fields"
 import type { Harness, TranscriptEntry } from "@novadeck/harness-core/harness"
-import { at, entry, joined, record, textOf } from "@novadeck/harness-core/items"
+import { at, entry, joined, textOf } from "@novadeck/harness-core/items"
 import { shellCall } from "@novadeck/harness-core/tools"
 
 import { describe } from "./tools.js"
@@ -98,7 +99,7 @@ export const transcripts: NonNullable<Harness["transcripts"]> = {
     return Promise.resolve(join(dirname(root), sessionId, "subagents", `agent-${subagent}.jsonl`))
   },
   items: (line) => {
-    const fields = record(line)
+    const fields = parseFields(line)
     if (!fields || fields.isMeta === true || fields.isCompactSummary === true) return []
     if (fields.type === "attachment") {
       const queued = queuedPrompt(fields)

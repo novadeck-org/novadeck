@@ -1,8 +1,8 @@
 import { createHash } from "node:crypto"
 import { extname, isAbsolute, relative } from "node:path"
 
+import { absolute, errorText, shortName, sessionId, text } from "@novadeck/harness-core/decode"
 import type { BackgroundJob, HarnessEvent, PromptShown } from "@novadeck/harness-core/events"
-import { absolute, errorText, shortName, sessionId, text } from "@novadeck/harness-core/harness"
 import type { Report } from "@novadeck/harness-core/report"
 import { oneLine } from "@novadeck/harness-core/tools"
 

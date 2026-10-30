@@ -1,4 +1,4 @@
-import type { BabciaCues } from "@novadeck/demo/babcia"
+import type { BabciaCues } from "@novadeck/demo/videos/babcia"
 
 import type { DemoActionGroup } from "./types"
 

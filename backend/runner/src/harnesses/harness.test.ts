@@ -1,5 +1,5 @@
+import { replyPreview, sessionStart } from "@novadeck/harness-core/decode"
 import type { HarnessEvent } from "@novadeck/harness-core/events"
-import { replyPreview, sessionStart } from "@novadeck/harness-core/harness"
 import type { Report } from "@novadeck/harness-core/report"
 import { loadProbe } from "@novadeck/harness-core/testing/probes"
 import type { AgentName } from "@novadeck/protocol"
