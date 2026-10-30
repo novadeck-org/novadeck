@@ -4,9 +4,6 @@ import type { DemoOutcome } from "./transcripts"
 
 export type DemoRequestOutcome = (answer: ChatAnswer, dialog: ChatDialog) => DemoOutcome
 
-// A request the demo makes up for an agent that reports one its transcript doesn't hold,
-// with what answering it does. Each is a dialog the screen can answer, whichever the
-// agent and project.
 const picked = (answer: ChatAnswer): string | undefined =>
   answer.type === "choice" ? answer.option : undefined
 
@@ -38,6 +35,9 @@ const approaches = [
   },
 ]
 
+// A request the demo makes up for an agent that reports one its transcript doesn't hold,
+// with what answering it does. Each is a dialog the screen can answer, whichever the
+// agent and project.
 // `index` is the request's place among those the agent waits on, which picks what it asks.
 export const madeRequest = (
   kind: ChatRequest["kind"],

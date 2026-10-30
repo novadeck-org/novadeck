@@ -80,10 +80,10 @@ const statusOf = (terminal: TerminalMetadata | undefined): AgentStatus | undefin
 // as they do from a real agent. A prompt to one of them idle at its prompt works for a
 // moment, then finishes with the reply it shows, as its hooks would report it, anything it
 // left running still running, and a task reporting itself done (a question gets only its
-// reply). `prompt` starts a turn and `interrupt` ends one early, as
-// Escape does; `resume` takes an agent past what it asked; the verbs `work`, `ask`,
-// `finish`, `rest` and `usage` put an agent in a state of the seeds' and the debug panel's choosing
-// (see `DemoAgentVerbs`), each cancelling what an earlier one or a turn still had pending;
+// reply). `prompt` starts a turn and `interrupt` ends one early, as Escape does; `resume`
+// takes an agent past what it asked; the verbs `work`, `ask`, `finish`, `rest` and `usage`
+// put an agent in a state of the seeds' and the debug panel's choosing (see
+// `DemoAgentVerbs`), each cancelling what an earlier one or a turn still had pending;
 // `watch` hears every turn's events; and `start` takes the sink the statuses go to.
 export const demoTurns = (turnMs = demoTurnMs) => {
   let sink: BackendSink | undefined
@@ -181,42 +181,25 @@ export const demoTurns = (turnMs = demoTurnMs) => {
     if (!chatAgent(terminal) || !agent || agent.working || agent.attention || active.has(id))
       return false
     bump(id)
-    // An agent Novadeck hears nothing from reports no status, so a turn can't show: its
-    // screen takes the person's line and the reply, which moves it past what it showed.
-    if (terminal.state === "running" && !terminal.agent) {
-      emit({
-        type: "begin",
-        key,
-        prompt: text.trim(),
-        ...(options.automatic && { automatic: true as const }),
-        ...(options.submittedAt !== undefined && { submittedAt: options.submittedAt }),
-      })
-      emit({
-        type: "end",
-        key,
-        outcome: "completed",
-        reply: `Done: ${text.trim()}. Nothing else changed.`,
-      })
-      return true
-    }
+    const line = text.trim()
+    const reply = `Done: ${line}. Nothing else changed.`
     emit({
       type: "begin",
       key,
-      prompt: text.trim(),
+      prompt: line,
       ...(options.automatic && { automatic: true as const }),
       ...(options.submittedAt !== undefined && { submittedAt: options.submittedAt }),
     })
-    const reply = `Done: ${text.trim()}. Nothing else changed.`
+    // An agent Novadeck hears nothing from reports no status, so a turn can't show: its
+    // screen takes the person's line and the reply, which moves it past what it showed.
+    if (terminal.state === "running" && !terminal.agent) {
+      emit({ type: "end", key, outcome: "completed", reply })
+      return true
+    }
     // The demo's convention: a prompt ending in `?` is a question, answered in the reply with
     // no `done` call; any other prompt is a task, reported finished through `done`.
-    const asked = text.trim().endsWith("?")
-    run(
-      key,
-      agent,
-      reply,
-      true,
-      asked ? undefined : { subject: text.trim().split("\n")[0]!, body: reply },
-    )
+    const asked = line.endsWith("?")
+    run(key, agent, reply, true, asked ? undefined : { subject: line.split("\n")[0]!, body: reply })
     return true
   }
   // Takes an agent past what it asked, once the person answered: it waits no more, and
@@ -313,7 +296,8 @@ export const demoTurns = (turnMs = demoTurnMs) => {
             ...(done ? { done } : {}),
           })
           if (!waiting) {
-            return void active.delete(id)
+            active.delete(id)
+            return
           }
           active.set(id, [
             setTimeout(() => {
