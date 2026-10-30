@@ -62,7 +62,7 @@ describe("reporting the pool's counts", () => {
     }
   })
 
-  it("reports what is pending when the page is hidden", () => {
+  it("reports what is pending when the page goes away", () => {
     const { pool, swap } = pooled()
     const hide = page()
     const report = vi.fn<(stats: unknown) => void>()

@@ -12,7 +12,7 @@ import { describe, expect, it } from "./test"
 //
 // 13 px JetBrains Mono advances 7.8 px, and a cell is `floor(7.8 * ratio) / ratio`: 7 px at a
 // ratio of 1, where a run drawn at the font's own advance spills past its cells. The spec runs at
-// the runner's ratio of 1: a page in the runner's iframe keeps xterm's WebGL canvas at CSS size
+// Vitest's runner's ratio of 1: a page in its iframe keeps xterm's WebGL canvas at CSS size
 // whatever ratio is set on it, so other ratios are measured outside it (the emulator's README).
 
 const family = "'JetBrains Mono Variable', monospace"

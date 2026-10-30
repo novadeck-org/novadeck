@@ -27,7 +27,7 @@ const readWhileFocused = (element: HTMLElement, view: View): (() => void) => {
 }
 
 // How every backend's screens open their emulator: in the font and theme the views pass, with
-// the page's WebGL pool and its links. With `screenReader`, the terminal is read only while
+// the WebGL pool it is given and its links. With `screenReader`, the terminal is read only while
 // focus is in it: an emulator announces whatever is written to it, so terminals out of focus,
 // which go on printing, would talk over the one the person is in.
 export const openEmulator =
@@ -44,8 +44,10 @@ export const openEmulator =
     })
     // Ligatures follow the preference on <html> (data-ligatures, set from Preferences).
     view.setLigatures(ligaturesOn())
-    const stops = [watchLigatures(() => view.setLigatures(ligaturesOn()))]
-    if (screenReader) stops.push(readWhileFocused(element, view))
+    const stops = [
+      watchLigatures(() => view.setLigatures(ligaturesOn())),
+      ...(screenReader ? [readWhileFocused(element, view)] : []),
+    ]
     return {
       ...view,
       dispose: () => {

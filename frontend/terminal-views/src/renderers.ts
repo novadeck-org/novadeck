@@ -26,6 +26,7 @@ export const configurePageRenderers = ({ cap }: { readonly cap: number }): void 
     )
   configuredCap = cap
 }
+
 // The page's pool: the context budget is the page's, whichever backend's screens draw. The app
 // draws nothing else with WebGL, but its browser build can run beside an extension's canvas,
 // which the pool's margin of two contexts leaves room for.
@@ -40,7 +41,7 @@ const reportAfterMs = 10_000
 
 const reporting = new WeakSet<Renderers>()
 // Tells `report` the pool's counts at most once per `afterMs` while they change, only when they
-// differ from the last report, and at once when the page is hidden or closing. Once per pool;
+// differ from the last report, and at once when the page goes away (`pagehide`). Once per pool;
 // the page's pool lives as long as the page.
 export const reportRenderers = (
   pool: Renderers,

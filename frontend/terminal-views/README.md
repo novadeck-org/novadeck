@@ -9,10 +9,10 @@ The terminal views every backend draws its terminals with: what the runner's bac
 - **`./mount`:** `createTerminalMount`, the port's `MountTerminal` over the views: each mount
   holds its terminal's screen while it is on screen and places it in the UI's element; and
   `screenMarkup`, the input attribute and the class of the element a screen draws in, which
-  `src/terminal-xterm.css` styles.
+  `src/terminal-xterm.css` styles; importing `./mount` brings that stylesheet.
 - **`./emulator`:** `openEmulator`, how a screen opens its emulator: the views' font and theme,
-  the page's WebGL pool, links that open web pages on ⌘- or Ctrl-click, the Ligatures setting
-  from `<html>`, and a screen reader's tree only while focus is in the terminal.
+  the WebGL pool it is given, links that open web pages on ⌘- or Ctrl-click, the Ligatures
+  setting from `<html>`, and a screen reader's tree only while focus is in the terminal.
 - **`./renderers`:** the page's WebGL pool (`pageRenderers`), its cap for a desktop app that
   raised Chromium's limit (`configurePageRenderers`), its counts reported to the app
   (`reportRenderers`), and which views draw with WebGL (`wantsWebgl`: all but Canvas).

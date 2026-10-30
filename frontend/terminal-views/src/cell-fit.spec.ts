@@ -11,7 +11,7 @@ import { describe, expect, it } from "./test"
 // patch made it the same.
 //
 // The device pixel ratio is set on the page with CDP's Emulation.setDeviceMetricsOverride (the
-// spec's page is an iframe of the runner's, so a browser context per ratio isn't available);
+// spec's page is an iframe of Vitest's runner's, so a browser context per ratio isn't available);
 // xterm follows it through matchMedia like a window moved between displays.
 
 const closers: (() => void)[] = []
