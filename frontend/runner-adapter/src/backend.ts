@@ -1435,23 +1435,23 @@ export const runnerBackend = (
           .catch(() => {}),
       )
     }
-    // An ask waits on the person until they answer or the runner takes it back.
-    const onApproval = (ask: RunnerApproval): void => {
+    // A request waits on the person until they answer or the runner takes it back.
+    const onApproval = (item: RunnerApproval): void => {
       if (!live) return
       // One still on its way as the link dropped was settled with the rest: never show it.
-      if (ask.type === "request" && lastStatus && lastStatus.state !== "connected") return
+      if (item.type === "request" && lastStatus && lastStatus.state !== "connected") return
       approvals.update((waiting) =>
-        ask.type === "withdrawn"
-          ? waiting.filter((each) => each.requestId !== ask.requestId)
-          : waiting.some((each) => each.requestId === ask.requestId)
+        item.type === "withdrawn"
+          ? waiting.filter((each) => each.requestId !== item.requestId)
+          : waiting.some((each) => each.requestId === item.requestId)
             ? waiting
             : [
                 ...waiting,
                 {
-                  requestId: ask.requestId,
-                  from: ask.from,
-                  terminalId: ask.terminalId,
-                  action: ask.action,
+                  requestId: item.requestId,
+                  from: item.from,
+                  terminalId: item.terminalId,
+                  action: item.action,
                 },
               ],
       )

@@ -455,7 +455,7 @@ describe("E2E jobs", () => {
 
   it("splits only the systems the plan chose", () => {
     const linux = plan(
-      pullRequest(["@novadeck/protocol"], ["contract/protocol/src/schemas.ts"]),
+      pullRequest(["@novadeck/protocol"], ["contract/protocol/src/contract.ts"]),
       ids,
     )
     expect(linux.rows.map((row) => row.job)).toEqual([

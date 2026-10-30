@@ -82,7 +82,7 @@ describe("groupOf", () => {
       "packages",
     )
     expect(groupOf(at("/r/contract/runner-client/dist/runner.js"))).toBe("protocol")
-    expect(groupOf(at("/r/contract/protocol/dist/schemas.js"))).toBe("protocol")
+    expect(groupOf(at("/r/contract/protocol/dist/agents.js"))).toBe("protocol")
     expect(groupOf(at("/r/libraries/wire/src/client.ts"))).toBe("protocol")
     expect(groupOf(at("/r/frontend/ui/src/App.tsx"))).toBe("app")
     expect(groupOf(undefined)).toBe("unmapped")

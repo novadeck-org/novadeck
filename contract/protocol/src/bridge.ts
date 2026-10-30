@@ -184,7 +184,10 @@ export type DesktopBridge = {
    * the answer is `failed` and nothing is touched. See `UninstallResult`.
    */
   uninstallApp?(options: { readonly keepData: boolean }): Promise<UninstallResult>
-  /** Quits the app, after its shutdown; the page offers it once `uninstallApp` answered `removed`. */
+  /**
+   * Quits the app, after its shutdown; the page offers it once `uninstallApp` answered
+   * `removed`.
+   */
   quitApp?(): void
   /**
    * Opens the folder of the app's logs in the system's file manager, for a person to read
@@ -233,7 +236,10 @@ export type DesktopBridge = {
   lookAtPage?(request: {
     readonly url: string
     readonly layout: "desktop" | "phone"
-    /** When the caller stops waiting, in `Date.now()` milliseconds: a look still queued by then is dropped. */
+    /**
+     * When the caller stops waiting, in `Date.now()` milliseconds: a look still queued by
+     * then is dropped.
+     */
     readonly before: number
   }): Promise<DesktopPageLook>
   /**

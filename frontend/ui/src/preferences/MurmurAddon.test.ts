@@ -243,7 +243,7 @@ describe("murmur's card on a computer that can't run it", () => {
     unmount()
   })
 
-  it("has no Check again for what the host saw", () => {
+  it("has no Check again for what the app saw", () => {
     const { container, unmount } = render(
       createElement(MurmurAddon, {
         murmur: {
@@ -317,7 +317,7 @@ describe("murmur's card when a verdict stands beside files", () => {
     unmount()
   })
 
-  it("keeps the switch for an install that passed its check, whatever the host says", () => {
+  it("keeps the switch for an install that passed its check, whatever the app says", () => {
     const { container, unmount } = render(
       createElement(MurmurAddon, {
         murmur: {
@@ -362,7 +362,7 @@ describe("murmur's card when an install runs beside a standing verdict", () => {
   })
 })
 
-describe("murmur's card under the host's verdict", () => {
+describe("murmur's card under the app's verdict", () => {
   it("offers no retry for a runtime failure of an install that works, only Uninstall", () => {
     const { container, unmount } = render(
       createElement(MurmurAddon, {

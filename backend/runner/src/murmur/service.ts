@@ -62,7 +62,7 @@ export type MurmurOptions = {
   /** The model to download; the one Novadeck ships unless a test brings its own. */
   readonly model?: Artifact
   /**
-   * Whether the host saw only software rendering, so no graphics hardware: murmur is then
+   * Whether the desktop app saw only software rendering, so no graphics hardware: murmur is then
    * known not to run here, and nothing is downloaded. Unset when unsure.
    */
   readonly softwareGraphics?: boolean

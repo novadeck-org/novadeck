@@ -81,7 +81,7 @@ export type DemoMurmurScenario =
   | "installing"
   | "network-failure"
   | "unsupported-after-install"
-  | "unsupported-host"
+  | "unsupported-app"
   | "unsupported-with-files"
   | "checking"
   | "done"
@@ -215,7 +215,7 @@ export const createDemoMurmur = (
       return Promise.resolve()
     }
     if (state.getSnapshot().installing) return refuse("An install is already running.")
-    // As the runner: the host's word is final, a check's verdict stands until a check passes.
+    // As the runner: the app's word is final, a check's verdict stands until a check passes.
     if (state.getSnapshot().unsupported?.source === "app")
       return refuse("Murmur can't run on this computer.")
     // As the runner: a first install says murmur is wanted, whatever was chosen before.
@@ -243,8 +243,8 @@ export const createDemoMurmur = (
     if (scenario === "installed") keepOffers(state, installedState)
     else if (scenario === "unsupported")
       keepOffers(state, { ...demoMurmurState, unsupported: unsupportedSample })
-    else if (scenario === "unsupported-host")
-      // The host saw only software rendering: no Check again.
+    else if (scenario === "unsupported-app")
+      // The app saw only software rendering: no Check again.
       keepOffers(state, { ...demoMurmurState, unsupported: softwareSample })
     else if (scenario === "unsupported-with-files")
       // Removing the files for a verdict failed: they stay, unchecked, beside it.
