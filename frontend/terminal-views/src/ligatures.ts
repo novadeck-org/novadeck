@@ -6,7 +6,7 @@ export const ligaturesOn = (): boolean => document.documentElement.dataset.ligat
 const listeners = new Set<() => void>()
 let observer: MutationObserver | undefined
 
-// Tells `changed` when the setting changes, until the returned function is called.
+// Tells `changed` when the setting changes, until the returned stop.
 export const watchLigatures = (changed: () => void): (() => void) => {
   listeners.add(changed)
   if (!observer) {
