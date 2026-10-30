@@ -31,7 +31,7 @@ const readMarker = (file: string): Marker | undefined => {
 const tailBytes = 64 * 1024
 
 /** When the last line of launch `sid` in the log `file` was written, if it is near the file's end. */
-export const lastSeen = (file: string, sid: string): string | undefined => {
+const lastSeen = (file: string, sid: string): string | undefined => {
   let fd: number | undefined
   try {
     const size = statSync(file).size
@@ -56,6 +56,16 @@ export const lastSeen = (file: string, sid: string): string | undefined => {
   }
 }
 
+export type SessionOptions = {
+  /** The file that marks a launch as running, such as `logs/session.json`. */
+  readonly marker: string
+  readonly sid: string
+  readonly log: Log
+  /** The log file, read for when an unclean launch last wrote. */
+  readonly logFile?: string
+  readonly now?: () => number
+}
+
 export type Session = {
   /** Logs `session.start` with what the launch is, once it is known. Once. */
   start(data?: Data): void
@@ -68,24 +78,17 @@ export type Session = {
  * for the launch before it, when that one left its `marker` behind, as a launch that never
  * ended does, killed or crashed; then this launch's marker, its folder made first. A launch
  * that crashes before it says what it is (`start`), or straight after, is found by the next
- * all the same. `file` is the log's, read for when the unclean launch last wrote.
+ * all the same.
  *
  * One process owns a launch's marker, the one whose end is the launch's: a process started
  * within the launch, and again, never touches it, or its own end would hide the launch's.
  */
-export const openSession = (options: {
-  /** The file that marks a launch as running, such as `logs/session.json`. */
-  readonly marker: string
-  readonly sid: string
-  readonly log: Log
-  readonly file?: string
-  readonly now?: () => number
-}): Session => {
+export const openSession = (options: SessionOptions): Session => {
   const { marker, sid, log } = options
   const now = options.now ?? Date.now
   const previous = readMarker(marker)
   if (previous && previous.sid !== sid) {
-    const last = options.file && lastSeen(options.file, previous.sid)
+    const last = options.logFile && lastSeen(options.logFile, previous.sid)
     log.warn("session.unclean", "The last launch ended without closing its log.", {
       data: {
         sid: previous.sid,
