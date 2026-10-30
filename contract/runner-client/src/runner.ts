@@ -54,7 +54,7 @@ export type ConnectOptions = {
   /** Milliseconds to wait before reconnection attempt `attempt`, counting from zero. */
   readonly retryDelay?: (attempt: number) => number
   /** Milliseconds a connection may take to open and complete its handshake. */
-  readonly timeout?: number
+  readonly timeoutMs?: number
 }
 
 /**
@@ -204,8 +204,8 @@ export type Runner = {
      */
     release(terminalId: string): Promise<void>
     /**
-     * Follows every terminal on the runner, across sessions. Each subscription, the
-     * first and every one after a reconnection or a retried refusal, yields `reset`,
+     * Follows every terminal on the runner, across sessions. Each time the stream opens,
+     * the first and again after a reconnection or a retried refusal, it yields `reset`,
      * then `changed` for each terminal, then `synced`. On `reset`, clear the set of
      * reported terminals; at `synced`, forget any terminal not reported since, for
      * example one that ended with a restarted runner. Later events report creation,
@@ -262,7 +262,7 @@ export type Runner = {
     list(): Promise<AgentIntegration[]>
     /**
      * Follows what the agent in a terminal does, in detail: a snapshot, then another on
-     * each change, across reconnections, each subscription starting with a fresh one. It
+     * each change, across reconnections, with a fresh one when the stream is opened again. It
      * follows the terminal from agent to agent; iteration ends once the terminal is gone,
      * when the runner closes, or on `return()`.
      */
@@ -324,9 +324,9 @@ export type Runner = {
       readonly sessionId: string
     }): Promise<{ items: CompanionItem[]; windows: CompanionWindow[] }>
     /**
-     * Follows every item and window on the runner, across sessions, as
-     * `terminals.watch()` follows terminals: each subscription yields `reset`, every item
-     * and window, then `synced`; at `synced`, forget any not reported since. Later events
+     * Follows every item and window on the runner, across sessions, as `terminals.watch()`
+     * follows terminals: each time the stream opens it yields `reset`, every item and window,
+     * then `synced`; at `synced`, forget any not reported since. Later events
      * report changes and removals, each the latest state of its item or window, in the
      * order they first changed since this client last caught up. A reference may name an
      * item, window or terminal not yet reported, or one whose removal follows: keep both
@@ -419,8 +419,8 @@ export type Runner = {
   readonly inbox: {
     list(): Promise<InboxEntry[]>
     /**
-     * Follows the Inbox: its entries, then again on each change, across reconnections, each
-     * subscription starting with a fresh list. Iteration ends when the runner closes, or on
+     * Follows the Inbox: its entries, then again on each change, across reconnections, with a
+     * fresh list when the stream is opened again. Iteration ends when the runner closes, or on
      * `return()`.
      */
     watch(): AsyncIterableIterator<InboxEntry[], undefined>
@@ -477,11 +477,14 @@ export type Runner = {
   readonly voice: {
     /**
      * Follows the voice input addon: its state, then again on each change, across
-     * reconnections, each subscription starting with a fresh one. Iteration ends when the
+     * reconnections, with a fresh one when the stream is opened again. Iteration ends when the
      * runner closes, or on `return()`.
      */
     watch(): AsyncIterableIterator<VoiceState, undefined>
-    /** Starts installing the engine, if missing, and the model that suits this computer; `watch` shows progress. */
+    /**
+     * Starts installing the engine, if missing, and the model that suits this computer; `watch`
+     * shows progress.
+     */
     install(): Promise<void>
     /** Stops an install. */
     cancel(): Promise<void>
@@ -505,7 +508,7 @@ export type Runner = {
   readonly murmur: {
     /**
      * Follows the murmur addon: its state, then again on each change, across
-     * reconnections, each subscription starting with a fresh one. Iteration ends when the
+     * reconnections, with a fresh one when the stream is opened again. Iteration ends when the
      * runner closes, or on `return()`.
      */
     watch(): AsyncIterableIterator<MurmurState, undefined>
@@ -539,13 +542,11 @@ export const connectRunner = async (
   options: ConnectOptions = {},
 ): Promise<Runner> => {
   const connection = await connect({
+    ...options,
     contract,
     transport,
     protocolVersion,
     fatal: (code) => code === "WORKSPACE_TOO_NEW",
-    ...(options.signal && { signal: options.signal }),
-    ...(options.retryDelay && { retryDelay: options.retryDelay }),
-    ...(options.timeout !== undefined && { timeoutMs: options.timeout }),
   })
   const call = async <T>(operation: (client: WireClient) => Promise<T>): Promise<T> => {
     const session = connection.session()

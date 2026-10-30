@@ -3,7 +3,7 @@ import { WireError } from "@novadeck/wire"
 import { follow, type Session } from "@novadeck/wire/client"
 
 import { lost, type RunnerErrorCode } from "./errors.js"
-import type { Connection } from "./follow.js"
+import type { RunnerWire } from "./follow.js"
 
 export type TerminalMode = "control" | "observe"
 
@@ -32,7 +32,7 @@ export type AttachedTerminal = AsyncIterableIterator<TerminalEvent> & {
  * across reconnections from the last one read, each acknowledged as the next is asked for.
  */
 export const attachTerminal = async (
-  connection: Connection,
+  connection: RunnerWire,
   id: string,
   mode: TerminalMode,
 ): Promise<AttachedTerminal> => {

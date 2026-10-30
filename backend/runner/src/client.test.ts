@@ -1225,7 +1225,7 @@ describe("runner client resilience", () => {
     const { port1, port2 } = new MessageChannel()
     resources.defer(() => port1.close())
     const silent = messagePort(port2)
-    await expect(connectRunner(silent, { timeout: 50 })).rejects.toMatchObject({
+    await expect(connectRunner(silent, { timeoutMs: 50 })).rejects.toMatchObject({
       code: "DISCONNECTED",
     })
     const cancel = new AbortController()
