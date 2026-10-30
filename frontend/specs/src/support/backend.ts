@@ -7,17 +7,17 @@ import {
   createDemoPortable,
   type DemoPortable,
   type PortableSchedule,
-} from "@novadeck/demo-debug/portable"
-import { createDemoSandbox, sampleFix } from "@novadeck/demo-debug/sandbox"
+} from "@novadeck/demo-debug/desktop/portable"
+import { createDemoSandbox, sampleFix } from "@novadeck/demo-debug/desktop/sandbox"
 import {
   portableScenarios,
   updateScenarios,
   type PortableScenarioKey,
   type UpdateScenario,
   type UpdateScenarioKey,
-} from "@novadeck/demo-debug/scenarios"
-import { createDemoUninstall, uninstallScenarios } from "@novadeck/demo-debug/uninstall"
-import { createDemoUpdates } from "@novadeck/demo-debug/updates"
+} from "@novadeck/demo-debug/desktop/scenarios"
+import { createDemoUninstall, uninstallScenarios } from "@novadeck/demo-debug/desktop/uninstall"
+import { createDemoUpdates } from "@novadeck/demo-debug/desktop/updates"
 import { babciaCuesOf, type BabciaCues } from "@novadeck/demo/babcia"
 import { createContentDemo } from "@novadeck/demo/content"
 import { isDemoInbox } from "@novadeck/demo/inbox"
@@ -38,7 +38,7 @@ const showcaseRequested = (): boolean =>
   new URLSearchParams(window.location.hash.split("?")[1] ?? "").get("demo") === "showcase"
 
 // Specs open the demo on a host that has an update with `?update=` one of the debug
-// panel's update scenarios (see @novadeck/demo-debug/scenarios), beside any other variant.
+// panel's update scenarios (see @novadeck/demo-debug/desktop/scenarios), beside any other variant.
 const requestedUpdate = (): UpdateScenario | undefined => {
   const key = new URLSearchParams(window.location.hash.split("?")[1] ?? "").get("update")
   return key && Object.hasOwn(updateScenarios, key)
