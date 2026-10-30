@@ -1,8 +1,8 @@
-import { transcripts as agy } from "@novadeck/harness-agy/transcripts"
-import { transcripts as claude } from "@novadeck/harness-claude/transcripts"
-import { transcripts as codex } from "@novadeck/harness-codex/transcripts"
+// harness-core's, named apart from the old function's own `parseFields` below.
+import { parseFields as parsedFields } from "@novadeck/harness-core/fields"
+import { harnessIds, type AgentName } from "@novadeck/protocol/harnesses"
 
-import type { Transcripts } from "./pipeline"
+import { transcriptsOf } from "./pipeline"
 import { describe, expect, it } from "./test"
 
 // Splitting the tool vocabulary by harness (each harness's `describe`) must not change a
@@ -410,13 +410,9 @@ const knownTool = (name: string, fields: Fields | null, input: string): ToolSumm
 
 // ---- The table.
 
-type Harness = "claude" | "codex" | "agy"
-
-const harnesses: Readonly<Record<Harness, Transcripts>> = { claude, codex, agy }
-
 // Each harness's records for a tool call of this name and input (text).
 const records: Readonly<
-  Record<Harness, (tool: string | undefined, input: string) => readonly object[]>
+  Record<AgentName, (name: string | undefined, input: string) => readonly object[]>
 > = {
   claude: (name, input) => [
     {
@@ -440,31 +436,23 @@ const records: Readonly<
   ],
 }
 
+// A way a harness writes a call: each harness's own above, and Codex's others below.
+type Variant = {
+  readonly label: string
+  readonly harness: AgentName
+  readonly records: (name: string | undefined, input: string) => readonly object[] | null
+}
+
 // Codex writes a call as a function call (arguments as JSON text) or a custom tool call (raw
 // input); a function call's arguments may be an object, and an MCP tool's server goes in a
 // namespace of its own, which the decoder joins to the name.
-type Variant = {
-  readonly label: string
-  readonly harness: Harness
-  readonly records: (tool: string | undefined, input: string) => readonly object[] | null
-}
-
-const asObject = (input: string): object | null => {
-  try {
-    const value: unknown = JSON.parse(input)
-    return typeof value === "object" && value !== null && !Array.isArray(value) ? value : null
-  } catch {
-    return null
-  }
-}
-
-const codexFunction = (name: string | undefined, input: string, namespace?: string) => ({
+const codexFunction = (name: string | undefined, input: string | object, namespace?: string) => ({
   type: "response_item",
   payload: { type: "function_call", name, namespace, arguments: input, call_id: "call_1" },
 })
 
 const variants: readonly Variant[] = [
-  ...(["claude", "codex", "agy"] as const).map((harness) => ({
+  ...harnessIds.map((harness) => ({
     label: harness,
     harness,
     records: records[harness],
@@ -478,8 +466,8 @@ const variants: readonly Variant[] = [
     label: "codex function_call, arguments as an object",
     harness: "codex",
     records: (name, input) => {
-      const object = asObject(input)
-      return object ? [codexFunction(name, object as unknown as string)] : null
+      const object = parsedFields(input)
+      return object ? [codexFunction(name, object)] : null
     },
   },
   {
@@ -494,11 +482,11 @@ const variants: readonly Variant[] = [
 
 // The call a harness's decoder makes of a record, with the run it gave it.
 const callOf = (
-  harness: Harness,
+  harness: AgentName,
   lines: readonly object[],
 ): { tool: string | null; text: string; run: unknown } => {
   const [call, ...rest] = lines.flatMap((line) =>
-    harnesses[harness].items(JSON.stringify(line)).filter((each) => each.kind === "tool-call"),
+    transcriptsOf[harness].items(JSON.stringify(line)).filter((each) => each.kind === "tool-call"),
   )
   if (!call || rest.length > 0) throw new Error(`${harness} made ${rest.length + 1} calls`)
   return { tool: call.tool, text: call.text, run: call.run }
@@ -510,7 +498,7 @@ const oldOf = (call: { tool: string | null; text: string }): ToolSummary =>
 
 // The names each harness has (lower case), the tool names the old table knew that its
 // decoder can emit. A name outside the list may differ; one inside must not.
-const emits: Readonly<Record<Harness, ReadonlySet<string>>> = {
+const emits: Readonly<Record<AgentName, ReadonlySet<string>>> = {
   claude: new Set([
     "bash",
     "read",
@@ -562,7 +550,7 @@ const emits: Readonly<Record<Harness, ReadonlySet<string>>> = {
 // decoder, or written whole), and Antigravity's eager prefix and lazy call.
 // `mcp__novadeck_novadeck__` is the old table's reading of the Antigravity server name in the
 // generic form; no harness spells it so, so every harness may differ there.
-const spellings: readonly [Harness | null, RegExp][] = [
+const spellings: readonly [AgentName | null, RegExp][] = [
   ["claude", /^mcp__plugin_novadeck_novadeck__/],
   [null, /^mcp__novadeck_novadeck__/],
   ["codex", /^mcp__novadeck__/],
@@ -571,7 +559,7 @@ const spellings: readonly [Harness | null, RegExp][] = [
 ]
 
 // Whether a harness's decoder can emit a call of this name.
-const emitted = (harness: Harness, tool: string | undefined): boolean => {
+const emitted = (harness: AgentName, tool: string | undefined): boolean => {
   if (tool === undefined) return true
   const spelled = spellings.find(([, pattern]) => pattern.test(tool))
   if (spelled) return spelled[0] === harness
@@ -800,7 +788,7 @@ add("Write", json({ file_path: `/${"a/".repeat(6000)}x.ts` }))
 add("mcp__novadeck__send", json({ to: "fox", text: big }))
 
 describe("the tool vocabulary split by harness", () => {
-  for (const harness of ["claude", "codex", "agy"] as const) {
+  for (const harness of harnessIds) {
     const mine = variants.filter((variant) => variant.harness === harness)
     describe(harness, () => {
       it("describes every call as the old flat table did, except names its decoder never emits", () => {

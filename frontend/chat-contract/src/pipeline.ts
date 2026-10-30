@@ -1,26 +1,30 @@
 import { Transcript } from "@novadeck/chat/Transcript"
 import type { ChatItem } from "@novadeck/core/conversation"
-import { groupItems } from "@novadeck/core/conversation/turns"
+import { agentName, groupItems } from "@novadeck/core/conversation/turns"
+import { transcripts as agy } from "@novadeck/harness-agy/transcripts"
+import { transcripts as claude } from "@novadeck/harness-claude/transcripts"
+import { transcripts as codex } from "@novadeck/harness-codex/transcripts"
 import type { Harness } from "@novadeck/harness-core/harness"
 import { transcriptItem } from "@novadeck/protocol"
+import type { AgentName } from "@novadeck/protocol/harnesses"
 import { withBatch } from "@novadeck/runner-adapter/conversations"
 import { render } from "@novadeck/test-kit/render"
 import { act, createElement } from "react"
 
 // The stages between a harness's record and the rendered chat, run as the app runs them.
 
-export type Transcripts = NonNullable<Harness["transcripts"]>
+type Transcripts = NonNullable<Harness["transcripts"]>
+
+// Each harness's transcripts, whose decoder reads its records.
+export const transcriptsOf: Readonly<Record<AgentName, Transcripts>> = { claude, codex, agy }
 
 const session = "contract"
 
-// The chat items of a conversation: each record line through the harness's decoder, the
+// The chat items of a conversation: each record line through its harness's decoder, the
 // entries given the index the runner gives them and parsed by the protocol's strict schema,
 // and mapped by the runner adapter.
-export const chatItemsOf = (
-  transcripts: Transcripts,
-  lines: readonly string[],
-): readonly ChatItem[] => {
-  const entries = lines.flatMap((line) => transcripts.items(line))
+export const chatItemsOf = (harness: AgentName, lines: readonly string[]): readonly ChatItem[] => {
+  const entries = lines.flatMap((line) => transcriptsOf[harness].items(line))
   const batch = entries.map((entry, index) => transcriptItem.parse({ ...entry, index }))
   return withBatch([], session, batch)
 }
@@ -104,9 +108,9 @@ const lineOf = (block: Element): { line: string; rows: number } => {
   }
   if (block.matches(".chat-note")) return { line: `note: ${textOf(block)}`, rows: 0 }
   const role = block.getAttribute("data-role")
-  if (role === "agent") {
+  const bubble = role === "agent" ? block.querySelector(".chat-bubble")?.cloneNode(true) : null
+  if (bubble instanceof Element) {
     const from = block.getAttribute("aria-label")?.replace(/^Message from /, "") ?? ""
-    const bubble = block.querySelector(".chat-bubble")!.cloneNode(true) as Element
     bubble.querySelector(".chat-author")?.remove()
     return { line: `agent (${from}): ${textOf(bubble)}`, rows: 0 }
   }
@@ -121,10 +125,15 @@ export type Rendered = {
   readonly toolRows: number
 }
 
-// The conversation as the UI draws it: core's blocks through the real Transcript in jsdom.
-export const renderChat = (items: readonly ChatItem[], agent: string): Rendered => {
+// The conversation as the UI draws it: core's blocks through the real Transcript in jsdom,
+// with the agent named as the chat names it.
+export const renderChat = (items: readonly ChatItem[], harness: AgentName): Rendered => {
   const view = render(
-    createElement(Transcript, { blocks: groupItems(items), agent, working: false }),
+    createElement(Transcript, {
+      blocks: groupItems(items),
+      agent: agentName(harness),
+      working: false,
+    }),
   )
   try {
     const drawn = [...view.container.children].map(lineOf)
