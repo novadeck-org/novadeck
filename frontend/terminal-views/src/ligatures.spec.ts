@@ -1,6 +1,6 @@
 import "@novadeck/emulator/browser.css"
 import fontUrl from "@fontsource-variable/jetbrains-mono/files/jetbrains-mono-latin-wght-normal.woff2?url"
-import { createRenderers, createView, loadWebgl, type View } from "@novadeck/emulator/browser"
+import { createRendererPool, createView, loadWebgl, type View } from "@novadeck/emulator/browser"
 import { afterAll, afterEach, beforeAll } from "vitest"
 import { page } from "vitest/browser"
 
@@ -77,13 +77,13 @@ const open = async (
   // The DOM renderer takes ligatures from the page's CSS (theme/base.css names calt).
   if (renderer === "dom") element.style.fontFeatureSettings = '"calt"'
   document.body.append(element)
-  const pool = createRenderers({ load: loadWebgl, supported: () => true, cap: 4 })
+  const pool = createRendererPool({ load: loadWebgl, supported: () => true, cap: 4 })
   const view: View = createView(element, {
     fontSize,
     fontFamily: family,
     theme: { background: "#000000", foreground: "#ffffff" },
     scrollback: 0,
-    ...(renderer === "webgl" && { renderers: pool }),
+    ...(renderer === "webgl" && { pool }),
   })
   closers.push(() => {
     view.dispose()

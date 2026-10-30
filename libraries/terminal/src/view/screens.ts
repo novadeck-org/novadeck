@@ -45,12 +45,12 @@ const resizeSettleMs = 120
 // How long a notice of a failed paste stays.
 export const pasteNoticeMs = 4_000
 
-// What the views are built from: the owner's emulator, theme, stream and policies. The
-// views know no app, wire or protocol; whatever is the owner's comes in here.
-export type TerminalViewOptions<K> = FollowOptions<K> & {
+// What the screens are built from: the owner's emulator, theme, stream and policies. The
+// screens know no app, wire or protocol; whatever is the owner's comes in here.
+export type TerminalScreensOptions<K> = FollowOptions<K> & {
   // The key as a string, which names its screen.
   readonly keyOf: (key: K) => string
-  // Opens an emulator in `container`. The views subscribe to its renderer changes themselves.
+  // Opens an emulator in `container`. The screens subscribe to its renderer changes themselves.
   readonly emulator: (
     container: HTMLElement,
     open: { readonly fontSize: number; readonly fontFamily: string; readonly theme: ITheme },
@@ -63,7 +63,7 @@ export type TerminalViewOptions<K> = FollowOptions<K> & {
     readonly changed: (listener: () => void) => () => void
   }
   // Makes the store of each screen's state; the owner's own, so what it observes of stores
-  // reaches the views' too. Default: a plain store.
+  // reaches the screens' too. Default: a plain store.
   readonly store?: <S>(initial: S) => MutableStore<S>
   readonly markup?: {
     // Attributes of the emulator's input field, set before its accessible name.
@@ -167,6 +167,26 @@ type Entry = {
   parking?: ReturnType<typeof setTimeout> | undefined
 }
 
+// One owner's screens of its terminals, from `createTerminalScreens`.
+export type TerminalScreens<K> = {
+  // The terminal's screen for a mount that shows it, opened on first use. Each acquire has
+  // the one release its handle makes.
+  readonly acquire: (key: K, options: ShowOptions) => Hold
+  // Sets the terminal font from Preferences: new screens open in it and the open ones
+  // whose size differs change to it and fit again.
+  readonly setFont: (font: TerminalFont) => void
+  // Pastes text into the terminal's screen as the person's own paste: bracketed when its
+  // program asked for that, and never followed by Enter. Dictation targets a terminal the
+  // person is looking at, so a terminal with no open screen, or one whose stream isn't
+  // drawing it (parked out of sight, reconnecting, or taking up again), or whose shell
+  // exited, has nothing to type into and gets nothing: opening a second attachment to write
+  // behind a screen that is not there, for a paste with no brackets, would run the text as
+  // typed commands. Says whether it pasted. Line breaks and other control characters become
+  // spaces first: outside bracketed paste xterm turns a newline into Enter, which would
+  // submit what was said.
+  readonly typeInto: (key: K, text: string) => boolean
+}
+
 // The terminal font the owner asks for.
 export type TerminalFont = { readonly size: number }
 
@@ -199,7 +219,7 @@ const writeLabel = (screen: OpenScreen, label: string): void => {
 // exists, so the other views, and later the other sessions and projects, find it ready; it
 // closes once its terminal does, its session has stayed off screen for `retain.afterMs`, or more than
 // `park.keep` screens are parked and it was parked longest.
-export const createTerminalViews = <K>(o: TerminalViewOptions<K>) => {
+export const createTerminalScreens = <K>(o: TerminalScreensOptions<K>): TerminalScreens<K> => {
   const id = o.keyOf
   const parkAfterMs = o.park?.afterMs ?? parkMs
   const cap = o.park?.keep ?? parkedCap
@@ -516,9 +536,7 @@ export const createTerminalViews = <K>(o: TerminalViewOptions<K>) => {
   }
 
   return {
-    // The terminal's screen for a mount that shows it, opened on first use. Each acquire has
-    // the one release its handle makes.
-    acquire: (key: K, options: ShowOptions): Hold => {
+    acquire: (key, options) => {
       const screen = take(key, options)
       let released = false
       let wantsWebgl = options.webgl
@@ -570,9 +588,7 @@ export const createTerminalViews = <K>(o: TerminalViewOptions<K>) => {
         },
       }
     },
-    // Sets the terminal font from Preferences: new screens open in it and the open ones
-    // whose size differs change to it and fit again.
-    setFont: (next: TerminalFont): void => {
+    setFont: (next) => {
       font = next
       for (const { screen } of entries.values()) {
         if (!screen || screen.xterm.options.fontSize === next.size) continue
@@ -580,16 +596,7 @@ export const createTerminalViews = <K>(o: TerminalViewOptions<K>) => {
         screen.followed.refit()
       }
     },
-    // Pastes text into the terminal's screen as the person's own paste: bracketed when its
-    // program asked for that, and never followed by Enter. Dictation targets a terminal the
-    // person is looking at, so a terminal with no open screen, or one whose stream isn't
-    // drawing it (parked out of sight, reconnecting, or taking up again), or whose shell
-    // exited, has nothing to type into and gets nothing: opening a second attachment to write
-    // behind a screen that is not there, for a paste with no brackets, would run the text as
-    // typed commands. Says whether it pasted. Line breaks and other control characters become
-    // spaces first: outside bracketed paste xterm turns a newline into Enter, which would
-    // submit what was said.
-    typeInto: (key: K, text: string): boolean => {
+    typeInto: (key, text) => {
       const screen = entries.get(id(key))?.screen
       const state = screen?.state.getSnapshot()
       if (!screen || !state?.live || o.connection.getSnapshot() !== "connected") return false
@@ -609,5 +616,3 @@ export const createTerminalViews = <K>(o: TerminalViewOptions<K>) => {
     },
   }
 }
-
-export type TerminalViews<K> = ReturnType<typeof createTerminalViews<K>>

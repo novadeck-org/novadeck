@@ -17,16 +17,17 @@ resumable stream of it, its browser view, and shell integration.
     reads the next.
 
 - `./view` (browser): the terminal's view, which the app's terminals mount on.
-  - `createTerminalViews(options)` keeps one screen per terminal: an emulator, its attachment
-    followed into it, and the pastes it takes. `acquire(key, { label, phase, webgl })` returns a
+  - `createTerminalScreens(options)` (`TerminalScreensOptions`) keeps one screen per terminal:
+    an emulator, its attachment followed into it, and the pastes it takes, as `TerminalScreens`.
+    `acquire(key, { label, phase, webgl })` (`ShowOptions`) returns a
     `Hold` to `place` the screen in an element, `update`, `focus`, `restart` and `release`; its
     `state` is a store of what the person is told (`live`, `resuming`, `waits`, `lock`, `notice`).
     A released screen parks after `park.afterMs`, closes after `retain.afterMs` away, and the
     parked longest closes past `park.keep`. `setFont` sets the font every screen opens in and
     the open ones fit to, and `typeInto(key, text)` pastes text, such as dictation, into a
     screen that is drawing its live terminal, and says whether it did.
-  - The owner gives the emulator, theme, stream, wording and policies as options; the view
-    knows no app, wire or protocol. `store` is optional (a plain store otherwise); an owner
+  - The owner gives the emulator, theme, stream, wording and policies as options; the screens
+    know no app, wire or protocol. `store` is optional (a plain store otherwise); an owner
     that observes its stores passes its own. Files pasted in are saved on the terminal's host
     through the owner's `paste.upload`, and go in as their paths there.
   - `parkMs` and `parkedCap` are the park defaults, and `ViewPhase` and `PasteFailure` what an
