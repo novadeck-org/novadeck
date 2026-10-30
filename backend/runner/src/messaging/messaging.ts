@@ -4,7 +4,6 @@ import {
   longHoldMs,
   type AgentName,
   type MessageState,
-  type MessageThread,
   type TerminalMessages,
 } from "@novadeck/protocol"
 import type { KeyKind } from "@novadeck/tui-input"
@@ -36,9 +35,9 @@ import {
   waitsIn,
 } from "./delivery.js"
 import { Leases, type Lease } from "./leases.js"
+import { listedThreads } from "./listing.js"
 import { Loops } from "./loops.js"
 import {
-  allowSend,
   byteLength,
   cleanText,
   clock,
@@ -47,11 +46,11 @@ import {
   freshId,
   heldPerPair,
   holdOf,
+  isBetween,
   idleToHold,
   maxDeliveryBytes,
   maxMessageBytes,
   maxUndelivered,
-  rates,
   retentionMs,
   stopBlocks,
   stoppedBetween,
@@ -64,8 +63,6 @@ import {
   personSender,
   newMark,
   senderTerminal,
-  senderParty,
-  addresseeParty,
   wrap,
   type Message,
   type Thread,
@@ -81,6 +78,7 @@ import {
   type Peer,
 } from "./peers.js"
 import { memoryMessages, type MessageRecords } from "./records.js"
+import { SendRates } from "./send-rates.js"
 import { longWaits } from "./waits.js"
 
 const log = logs.for("messaging")
@@ -92,7 +90,7 @@ const longWaitMs = 5 * 60_000
 const longWaitAgainMs = 60 * 60_000
 
 /** Which terminals see each other: those of one project and one Novadeck session. */
-export type Scope = { readonly projectId: string; readonly sessionId: string }
+type Scope = { readonly projectId: string; readonly sessionId: string }
 
 /** A running terminal, as messaging knows it. */
 type Live = Scope & {
@@ -256,7 +254,7 @@ export type MessagingChange =
   | { readonly kind: "pause"; readonly paused: boolean }
 
 /** What a doorbell prompt's hook adds when its messages couldn't come now. */
-export const stillWaiting =
+const stillWaiting =
   "Novadeck: agent messages are still waiting for this session; they will come on a later turn, and this automatic notice can be ignored."
 
 /** Message ids as a notice names them: the first few, then how many more. */
@@ -292,7 +290,7 @@ const idle = (delivery: Delivery, inBackground: boolean): boolean =>
 const maxUnconfirmed = 8
 
 /** What a doorbell prompt's hook adds when nothing waits for it any more. */
-export const nothingWaiting =
+const nothingWaiting =
   "Novadeck: no agent messages are waiting any more; this automatic notice can be ignored."
 
 /** Why a message's text, cleaned, can't be sent; undefined when it can. */
@@ -409,9 +407,6 @@ const turnMarks: ReadonlySet<string> = new Set([
   "turn-working",
 ])
 
-/** When a thread's latest message was sent. */
-const latest = (thread: MessageThread): number => thread.messages.at(-1)?.sentAt ?? 0
-
 /** The bytes the largest of a message's deliveries on its own would print, in any harness. */
 const deliveredBytes = (message: Message): number => {
   // Agent messages use the longer lead note. Person replies use their own note and nonce.
@@ -476,10 +471,7 @@ export class Messaging {
   private readonly releasedMessages = new Set<string>()
   private readonly leases: Leases
   private paused: boolean
-  // Send times, for the rates: by sender, by sender and recipient, and all.
-  private readonly sent = new Map<string, readonly number[]>()
-  private readonly pairs = new Map<string, readonly number[]>()
-  private allSent: readonly number[] = []
+  private readonly rates = new SendRates()
   private readonly sweeper: ReturnType<typeof setInterval> | undefined
   private readonly restoring: ReturnType<typeof setTimeout> | undefined
   private readonly waitWatch: ReturnType<typeof setInterval> | undefined
@@ -672,7 +664,7 @@ export class Messaging {
   /**
    * The person releases the terminal from its lead: the lead's messages to it that were not
    * delivered yet, queued or held, whatever session they wait for, are gone, and their
-   * sender is told they went because the user released it. One a lease holds is marked, so
+   * sender is told they went because the person released it. One a lease holds is marked, so
    * that it is dropped the same way should its lease lapse.
    */
   dropLeadMessages(terminalId: string): void {
@@ -1902,10 +1894,7 @@ export class Messaging {
           `${mention(recipient.handle)} again.`,
       )
     }
-    const { bySender, byPair, byAll, pair } = vetted
-    this.sent.set(terminalId, bySender)
-    this.pairs.set(pair, byPair)
-    this.allSent = byAll
+    vetted.spend()
     this.runs.set(thread.id, run)
     if (quiet) this.idled.add(message.id)
     this.loops.sent(terminalId, now)
@@ -1972,15 +1961,11 @@ export class Messaging {
    * delivered, the recipient's undelivered cap, and the rates, with the send times it
    * would spend. One check for every way a message is sent, so they never drift apart.
    */
-  private vet(message: Message):
+  private vet(
+    message: Message,
+  ):
     | { readonly ok: false; readonly reason: string }
-    | {
-        readonly ok: true
-        readonly pair: string
-        readonly bySender: readonly number[]
-        readonly byPair: readonly number[]
-        readonly byAll: readonly number[]
-      } {
+    | { readonly ok: true; readonly spend: () => void } {
     // Alone in a delivery, it must fit whichever harness it reaches, as it is printed.
     const size = deliveredBytes(message)
     if (size > maxDeliveryBytes)
@@ -1999,23 +1984,9 @@ export class Messaging {
         `${mention(to.handle)} already has ${maxUndelivered} messages waiting; ` +
           "wait for it to take them before sending more.",
       )
-    const now = message.sentAt
     // Only terminals' agents send under the rates; the person's and Novadeck's never come here.
     if (from.kind !== "agent") return refused("Only an agent's message is sent this way.")
-    const pair = `${from.terminalId}\0${to.terminalId}`
-    const bySender = allowSend(this.sent.get(from.terminalId) ?? [], now, rates.sender)
-    const byPair = allowSend(this.pairs.get(pair) ?? [], now, rates.pair)
-    const byAll = allowSend(this.allSent, now, rates.all)
-    if (!bySender || !byPair)
-      return refused(
-        `An agent may send ${rates.sender} messages a minute, ${rates.pair} of them to any ` +
-          "one terminal; try again shortly.",
-      )
-    if (!byAll)
-      return refused(
-        "Agents in Novadeck have sent as many messages as they may this minute; try again shortly.",
-      )
-    return { ok: true, pair, bySender, byPair, byAll }
+    return this.rates.check(from.terminalId, to.terminalId, message.sentAt)
   }
 
   /**
@@ -2042,37 +2013,29 @@ export class Messaging {
    * undefined when none waits.
    */
   private carriedRun(a: string, b: string) {
-    const held = [...this.messages.values()].filter(
-      (message) =>
-        !message.response &&
-        message.state === "held" &&
-        ((senderTerminal(message.from) === a && message.to.terminalId === b) ||
-          (senderTerminal(message.from) === b && message.to.terminalId === a)) &&
-        this.holdOf(message) === "release",
-    )
+    const held = this.heldForRelease(a, b)
     if (held.length === 0) return undefined
     const run = held.map((message) => this.runs.get(message.thread)).find((each) => each?.count)
     const last = [...this.messages.values()]
-      .filter(
-        (message) =>
-          !message.response &&
-          ((senderTerminal(message.from) === a && message.to.terminalId === b) ||
-            (senderTerminal(message.from) === b && message.to.terminalId === a)),
-      )
+      .filter((message) => !message.response && isBetween(message, a, b))
       .reduce((newest, message) => Math.max(newest, message.sentAt), 0)
     return { from: last, run: run ?? { count: idleToHold, senders: [] } }
   }
 
   /** How many messages between two terminals wait held for release, across their threads. */
   private heldBetween(a: string, b: string): number {
+    return this.heldForRelease(a, b).length
+  }
+
+  /** The messages between two terminals that wait held for release, across their threads. */
+  private heldForRelease(a: string, b: string): Message[] {
     return [...this.messages.values()].filter(
       (message) =>
         !message.response &&
         message.state === "held" &&
-        ((senderTerminal(message.from) === a && message.to.terminalId === b) ||
-          (senderTerminal(message.from) === b && message.to.terminalId === a)) &&
+        isBetween(message, a, b) &&
         this.holdOf(message) === "release",
-    ).length
+    )
   }
 
   /**
@@ -2119,11 +2082,10 @@ export class Messaging {
       handle: live.handle,
       lead: this.leadOf(live.terminalId) ?? null,
       peers: this.peers(live, about),
-      messages: mine.map((message) => ({
-        message,
-        hold: this.holdOf(message),
-        ...(this.holdWhy(message) !== undefined && { why: this.holdWhy(message)! }),
-      })),
+      messages: mine.map((message) => {
+        const why = this.holdWhy(message)
+        return { message, hold: this.holdOf(message), ...(why !== undefined && { why }) }
+      }),
       unbound: live.root === null,
       now: this.now(),
     })
@@ -2145,44 +2107,11 @@ export class Messaging {
           (senderTerminal(message.from) === terminalId || message.to.terminalId === terminalId),
       )
       .toSorted((a, b) => a.sentAt - b.sentAt)
-    const byThread = new Map<string, Message[]>()
-    for (const message of mine)
-      byThread.set(message.thread, [...(byThread.get(message.thread) ?? []), message])
-    const threads: MessageThread[] = [...byThread].map(([id, messages]) => {
-      const thread = this.threads.get(id)
-      const [first] = messages
-      const peer =
-        senderTerminal(first!.from) === terminalId
-          ? addresseeParty(first!.to)
-          : senderParty(first!.from)
-      return {
-        id,
-        peer,
-        hops: thread?.hops ?? messages.length,
-        idle: this.runs.get(id)?.count ?? 0,
-        held: thread?.heldFrom != null,
-        heldFor: thread?.heldFor ?? null,
-        stopped: thread !== undefined && stopBlocks(thread, this.now()),
-        messages: messages.slice(-1000).map((message) => ({
-          id: message.id,
-          thread: message.thread,
-          hop: message.hop,
-          from: senderParty(message.from),
-          to: addresseeParty(message.to),
-          text: message.response?.feedback
-            ? ["Asked to write feedback about Novadeck.", message.text].filter(Boolean).join("\n\n")
-            : message.response
-              ? [message.response.option ?? message.response.action, message.text]
-                  .filter(Boolean)
-                  .join("\n\n")
-              : message.text,
-          sentAt: message.sentAt,
-          state: message.state,
-          held: message.state === "held" ? this.holdOf(message) : null,
-          deliveredAt: message.deliveredAt,
-          ...(message.response && !message.response.feedback && { inbox: "answer" as const }),
-        })),
-      }
+    const threads = listedThreads(terminalId, mine, {
+      thread: (id) => this.threads.get(id),
+      idled: (id) => this.runs.get(id)?.count ?? 0,
+      holdOf: (message) => this.holdOf(message),
+      now: this.now(),
     })
     return {
       terminalId,
@@ -2191,7 +2120,7 @@ export class Messaging {
       waits: live ? this.waitsOf(live) : null,
       waitsSince: live ? this.oldestHeld(live) : null,
       paused: this.paused,
-      threads: threads.toSorted((a, b) => latest(b) - latest(a)).slice(0, 1000),
+      threads,
     }
   }
 

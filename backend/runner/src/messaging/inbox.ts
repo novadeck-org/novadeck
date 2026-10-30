@@ -25,6 +25,7 @@ import {
   byteLength,
   cleanInboxText,
   rates,
+  recentSends,
   retentionMs,
   undelivered,
   type Message,
@@ -217,8 +218,8 @@ const askText = (ask: AgentAsk): string => {
     .join("\n\n")
 }
 
-export const maxOpenAsks = 50
-export const maxUnreadTells = 50
+const maxOpenAsks = 50
+const maxUnreadTells = 50
 /** Unread finished turns kept per terminal: the oldest goes at the 51st. */
 export const maxUnreadTurns = 50
 const maxTurnFiles = 16
@@ -229,7 +230,7 @@ export const askSweepMs = 60_000
  * before it ends: a restored terminal resumes its agent and binds the session again within
  * seconds, or never. An ask it ended reopens if that session binds after all.
  */
-export const askResumeGraceMs = 120_000
+const askResumeGraceMs = 120_000
 
 const isTurn = (entry: StoredEntry): boolean => entry.content.kind === "turn"
 const clipped = (value: unknown, max: number): string | null =>
@@ -262,8 +263,8 @@ const clampedTurn = (content: unknown): TurnContent | undefined => {
 const noticedSubjects = 5
 
 /**
- * Novadeck's notice to an agent whose open asks it took out of the user's Inbox because the
- * user wrote to it in its terminal: one paragraph, in the voice of Novadeck's other notices.
+ * Novadeck's notice to an agent whose open asks it took out of the person's Inbox because the
+ * person wrote to it in its terminal: one paragraph, in the voice of Novadeck's other notices.
  * The subjects are the agent's own words, shortened and quoted.
  */
 export const withdrawnNotice = (subjects: readonly string[]): string => {
@@ -280,7 +281,7 @@ export const withdrawnNotice = (subjects: readonly string[]): string => {
 }
 
 /**
- * Novadeck's quiet notice to an agent whose open asks the user dismissed from their Inbox
+ * Novadeck's quiet notice to an agent whose open asks the person dismissed from their Inbox
  * without answering: printed beside the agent's next hook answer, waking nothing.
  */
 export const dismissedNotice = (
@@ -988,7 +989,7 @@ export class Inbox {
     }
     this.remove(gone)
     for (const [id, times] of this.sent) {
-      const recent = times.filter((time) => at - time < rates.windowMs)
+      const recent = recentSends(times, at)
       if (recent.length) this.sent.set(id, recent)
       else this.sent.delete(id)
     }

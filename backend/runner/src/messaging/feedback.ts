@@ -10,7 +10,14 @@ import { Latest } from "@novadeck/wire/server"
 import { z } from "zod"
 
 import { DomainError } from "../errors.js"
-import { allowSend, cleanInboxText, rates, undelivered, type Message } from "./messages.js"
+import {
+  allowSend,
+  cleanInboxText,
+  rates,
+  recentSends,
+  undelivered,
+  type Message,
+} from "./messages.js"
 
 /** The agent session a terminal's draft is written by. */
 type Owner = {
@@ -208,7 +215,7 @@ export class Feedback {
   /** Forgets the rate record of drafts older than the window, and what a closed terminal left. */
   private prune(at: number): void {
     for (const [terminalId, each] of this.sent) {
-      const recent = each.times.filter((time) => at - time < rates.windowMs)
+      const recent = recentSends(each.times, at)
       if (recent.length > 0 && this.host.exists(terminalId))
         this.sent.set(terminalId, { ...each, times: recent })
       else this.sent.delete(terminalId)

@@ -76,7 +76,7 @@ export type Delivery = Counts &
  * What Novadeck knows of the agent's input box, from the person's keys (see
  * docs/agent-messaging.md, "What counts"). It errs toward a draft.
  */
-export type Box = {
+type Box = {
   /**
    * Whether the prompt is known empty: since the session bound (with nothing typed since
    * the Enter before it) or the person's last confirmed submission, they typed nothing
@@ -859,7 +859,7 @@ export const continues = (delivery: Delivery): boolean =>
   stoppable(delivery) && !delivery.box.queuing && delivery.continued < maxContinuations
 
 /** The call of a running turn that a lead's message reaches its agent at, in `send`'s words. */
-export type MidTurnCall = "tool call" | "model call"
+type MidTurnCall = "tool call" | "model call"
 
 /**
  * Where a lead's message reaches the harness's agent while its turn runs: at its next tool

@@ -68,7 +68,7 @@ export type Peer = {
   readonly expecting: AgentName | null
   /**
    * The agent whose prompt shows there with no session bound, but whose hooks Novadeck
-   * can't run there until the user trusts them (Codex's `/hooks`): nothing can deliver.
+   * can't run there until the person trusts them (Codex's `/hooks`): nothing can deliver.
    */
   readonly untrusted: AgentName | null
   readonly title: string | null
@@ -80,7 +80,7 @@ export type Peer = {
   readonly startedWith: string | null
   /** The handle of the terminal that leads it now: running, and in its session; else null. */
   readonly lead: string | null
-  /** The opener whose command "started with" is, not the user's; null when it is the user's. */
+  /** The opener whose command "started with" is, not the person's; null when it is the person's. */
   readonly startedBy: string | null
   /** Left out when it is the prompt it started with. */
   readonly latest: string | null
@@ -108,9 +108,9 @@ export type Peer = {
 }
 
 /** How long a message's excerpt shows, in characters. */
-export const excerptChars = 80
+const excerptChars = 80
 /** How long a report's subject shows, in characters. */
-export const reportChars = 120
+const reportChars = 120
 
 /**
  * The `done` of an agent session that still stands: its latest, read or not, unless the
@@ -246,7 +246,7 @@ const titleNote = (peer: Peer): string => {
 }
 
 /** Who is reading a listing: its handle, and the handle of the terminal that leads it. */
-export type Viewer = { readonly handle: string; readonly lead: string | null }
+type Viewer = { readonly handle: string; readonly lead: string | null }
 
 /**
  * How a peer relates to the reader, by who leads it now: led by you, your lead, or led by
@@ -321,7 +321,7 @@ export const renderPeer = (peer: Peer, now: number, viewer: Viewer): readonly st
   ].filter((line): line is string => Boolean(line))
 
 /** The other terminals in the project and session, as agents read them. */
-export const renderPeers = (peers: readonly Peer[], now: number, viewer: Viewer): string =>
+const renderPeers = (peers: readonly Peer[], now: number, viewer: Viewer): string =>
   peers.length === 0
     ? "There are no other terminals in this project and session."
     : [
@@ -366,7 +366,7 @@ const mentions = (peers: readonly Peer[]): string =>
  * The caller's team, from who leads whom now: its lead and the others that lead leads, and
  * the terminals the caller leads; nothing when it is in no team.
  */
-export const teamLines = (
+const teamLines = (
   handle: string,
   lead: string | null,
   peers: readonly Peer[],

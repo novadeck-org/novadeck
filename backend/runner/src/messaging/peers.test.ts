@@ -163,7 +163,7 @@ describe("a peer as agents read it", () => {
       expecting: "codex",
     })
     expect(read(starting)).toEqual(["- @crow: expecting Codex, not started yet"])
-    // Its agent at its prompt, whose hooks Novadeck can't run there until the user trusts them.
+    // Its agent at its prompt, whose hooks Novadeck can't run there until the person trusts them.
     const untrusted = listing({
       terminalId: "F",
       handle: "raven",
