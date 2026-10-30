@@ -30,7 +30,7 @@
     }
   },
   "scripts": {
-    "build": "tsc -p tsconfig.build.json && node --input-type=module -e \"import { cpSync } from 'node:fs'; cpSync('src/reap-lister.cs', 'dist/reap-lister.cs')\"",
+    "build": "tsc -p tsconfig.build.json && node --input-type=module -e \"import { cpSync } from 'node:fs'; cpSync('src/reap/lister.cs', 'dist/reap/lister.cs')\"",
     "test": "vitest run",
     "typecheck": "tsc --noEmit -p tsconfig.json"
   },

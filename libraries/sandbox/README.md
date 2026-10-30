@@ -19,6 +19,8 @@ started outlives the run. Node only.
   option, a reader that ends a process and what it started, each only as the one it read;
   without it, a forcible end takes the process alone, as taskkill's tree goes by recorded parent
   pids, which may name an unrelated process, and the next round finds what it started.
+  `census(sandbox)` names, on Windows, what runs in the sandbox now, each with how its recorded
+  parent stands, ending nothing.
 - `./tripwire`: `tripwire(sandbox, watches)` notes paths in the developer's real home before a
   run and returns, after it, those a program that escaped the sandbox wrote to.
 
