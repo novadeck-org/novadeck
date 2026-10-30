@@ -649,7 +649,7 @@ atlas.
 | `frontend/terminal-views` | The xterm mount both backends draw terminals with.                                         |
 | `frontend/demo`           | The demo backend: a scripted workspace and simulated terminals.                            |
 | `frontend/demo-debug`     | The demo's debug panel and rehearsals.                                                     |
-| `frontend/test-kit`       | What the UI's tests render and drive the app with.                                         |
+| `frontend/test-kit`       | The frontend's test helpers: a jsdom render, the port contract suite, test phase timing.   |
 | `frontend/specs`          | Behaviour specs: the whole app in a real browser, over the demo.                           |
 | `frontend/chat-contract`  | The chat's contract test: recorded harness transcripts through to the rendered chat.       |
 | `apps/desktop`            | Electron host that starts the runner and loads the packaged UI.                            |
