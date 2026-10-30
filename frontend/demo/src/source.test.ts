@@ -3,6 +3,7 @@ import { workspaceReducer } from "@novadeck/core/state"
 import type { TerminalStatus } from "@novadeck/core/types"
 import { afterEach, vi } from "vitest"
 
+import { demoTurns } from "./agents/turns"
 import { plainDemo } from "./index"
 import { demoSeed } from "./samples"
 import {
@@ -19,7 +20,6 @@ import {
   type SourceClock,
 } from "./source"
 import { context, describe, expect, it } from "./test"
-import { demoTurns } from "./turns"
 import { visitorSeed } from "./visitor/seed"
 
 const now = 1_000_000

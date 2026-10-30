@@ -1,7 +1,7 @@
 import { notePattern } from "@novadeck/core/items"
 
 // How a sample agent revises its plan: edits to the file as it finds it, as an agent
-// rewrites the lines it means to change and leaves the rest, the user's edits included.
+// rewrites the lines it means to change and leaves the rest, the person's edits included.
 export type PlanEdit =
   // The line reading `line`, notes aside, now reads `with`; its notes stay, after it.
   | { readonly line: string; readonly with: string }

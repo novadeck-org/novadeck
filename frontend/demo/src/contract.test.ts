@@ -1,8 +1,8 @@
 import { describeBackendContract } from "@novadeck/test-kit/backend-contract"
 import { vi } from "vitest"
 
-import { createDemoEngine } from "./engine"
 import { demoBackend } from "./index"
+import { createDemoEngine } from "./terminals/engine"
 
 // jsdom has no layout observers, media queries or canvas; xterm falls back without them.
 vi.hoisted(() => {

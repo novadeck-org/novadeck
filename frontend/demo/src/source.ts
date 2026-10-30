@@ -10,11 +10,11 @@ import type {
 } from "@novadeck/core/source"
 import { createStore } from "@novadeck/core/store"
 
+import type { DemoTurns } from "./agents/turns"
 import { demoHandle } from "./handles"
 import { lessMotion, stillRequested } from "./motion"
 import { demoTerminalId } from "./samples"
-import { terminalOf } from "./terminals"
-import type { DemoTurns } from "./turns"
+import { terminalOf } from "./workspace"
 
 // The demo's Source panel: the storefront project's files, listed a folder at a time from
 // fixtures, as its agents change them. Each agent notionally works in its own worktree, so every write is its handle's.
