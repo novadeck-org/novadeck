@@ -21,10 +21,25 @@ mod status_line;
 use std::collections::HashMap;
 use std::path::Path;
 use std::process::ExitCode;
+use std::time::{SystemTime, UNIX_EPOCH};
 
 /// The version of the protocol the relay and the runner speak (see docs/backend-api.md,
 /// "Relay protocol"); the runner takes the versions it knows.
 pub const PROTOCOL: u32 = 2;
+
+/// An environment variable's value, where it holds one.
+pub fn variable(name: &str) -> Option<String> {
+    std::env::var(name).ok().filter(|value| !value.is_empty())
+}
+
+/// Wall-clock milliseconds since the Unix epoch, with their fraction; None on a clock set
+/// before it.
+pub fn epoch_ms() -> Option<f64> {
+    SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .ok()
+        .map(|since| since.as_secs_f64() * 1000.0)
+}
 
 const USAGE: &str = "usage: novadeck-relay mcp <server-version> <protocol-version>...
        novadeck-relay hook [--config <relay.json>] [--<option> <value>]... <agent> [event]
@@ -74,10 +89,7 @@ fn main() -> ExitCode {
                 mcp::run(server, versions);
                 ExitCode::SUCCESS
             }
-            _ => {
-                eprintln!("{USAGE}");
-                ExitCode::from(2)
-            }
+            _ => usage(),
         },
         #[cfg(windows)]
         Some((mode, _)) if mode == "environment" => {
@@ -108,46 +120,38 @@ fn usage() -> ExitCode {
     ExitCode::from(2)
 }
 
-/// A root as `<pid>` or `<pid>:<started-ms>`, each as written and as read; None where
-/// any isn't one, or none is given.
+/// A process as `<pid>` or `<pid>:<started-ms>`; None where it is neither.
 #[cfg(any(windows, test))]
-fn parsed_roots(args: &[String]) -> Option<Vec<(String, u32, Option<u64>)>> {
-    let found: Option<Vec<(String, u32, Option<u64>)>> = args
-        .iter()
-        .map(|arg| match arg.split_once(':') {
-            Some((pid, started)) => {
-                Some((arg.clone(), pid.parse().ok()?, Some(started.parse().ok()?)))
-            }
-            None => Some((arg.clone(), arg.parse().ok()?, None)),
-        })
-        .collect();
-    found.filter(|roots| !roots.is_empty())
+fn pid_and_start(arg: &str) -> Option<(u32, Option<u64>)> {
+    match arg.split_once(':') {
+        Some((pid, started)) => Some((pid.parse().ok()?, Some(started.parse().ok()?))),
+        None => Some((arg.parse().ok()?, None)),
+    }
 }
 
+/// Each argument as `read` reads it, one or more; None where any can't be read.
+#[cfg(any(windows, test))]
+fn all<T>(args: &[String], read: impl Fn(&str) -> Option<T>) -> Option<Vec<T>> {
+    let found: Option<Vec<T>> = args.iter().map(|arg| read(arg)).collect();
+    found.filter(|found| !found.is_empty())
+}
+
+/// Roots as `<pid>` or `<pid>:<started-ms>`, each beside the argument that named it.
 #[cfg(windows)]
 fn roots(args: &[String]) -> Option<Vec<(String, processes::Root)>> {
-    Some(
-        parsed_roots(args)?
-            .into_iter()
-            .map(|(named, pid, started)| (named, processes::Root { pid, started }))
-            .collect(),
-    )
+    all(args, |arg| {
+        let (pid, started) = pid_and_start(arg)?;
+        Some((arg.to_owned(), processes::Root { pid, started }))
+    })
 }
 
-/// Processes as `<pid>:<started-ms>`, one or more; None where any isn't one.
+/// Processes as `<pid>:<started-ms>`.
 #[cfg(windows)]
 fn members(args: &[String]) -> Option<Vec<processes::Member>> {
-    let found: Option<Vec<processes::Member>> = args
-        .iter()
-        .map(|arg| {
-            let (pid, started) = arg.split_once(':')?;
-            Some(processes::Member {
-                pid: pid.parse().ok()?,
-                started: started.parse().ok()?,
-            })
-        })
-        .collect();
-    found.filter(|members| !members.is_empty())
+    all(args, |arg| match pid_and_start(arg)? {
+        (pid, Some(started)) => Some(processes::Member { pid, started }),
+        (_, None) => None,
+    })
 }
 
 #[cfg(test)]
@@ -169,16 +173,15 @@ mod tests {
     }
 
     #[test]
-    fn reads_roots_by_pid_or_by_pid_and_start_and_refuses_anything_else() {
+    fn reads_processes_by_pid_or_by_pid_and_start_and_refuses_anything_else() {
+        let processes = |given: &[&str]| all(&args(given), pid_and_start);
         assert_eq!(
-            parsed_roots(&args(&["12", "34:5600"])),
-            Some(vec![
-                ("12".to_owned(), 12, None),
-                ("34:5600".to_owned(), 34, Some(5600))
-            ])
+            processes(&["12", "34:5600"]),
+            Some(vec![(12, None), (34, Some(5600))])
         );
-        assert_eq!(parsed_roots(&args(&[])), None);
-        assert_eq!(parsed_roots(&args(&["12", "x"])), None);
-        assert_eq!(parsed_roots(&args(&["12:x"])), None);
+        assert_eq!(processes(&[]), None);
+        assert_eq!(processes(&["12", "x"]), None);
+        assert_eq!(processes(&["12:x"]), None);
+        assert_eq!(processes(&["12:"]), None);
     }
 }

@@ -5,7 +5,7 @@ import {
   type PageLook,
   type PageLookAnswer,
 } from "@novadeck/protocol"
-import type { HostPageLook } from "@novadeck/protocol/bridge"
+import type { DesktopPageLook } from "@novadeck/protocol/bridge"
 
 import { clip, troubleOf } from "./companions"
 
@@ -31,7 +31,7 @@ export type Looks = {
         readonly layout: "desktop" | "phone"
         // When the runner stops waiting, in the clock's milliseconds: a look not begun by then is dropped.
         readonly before: number
-      }) => Promise<HostPageLook>)
+      }) => Promise<DesktopPageLook>)
     | undefined
   readonly sights?: PageSights
 }

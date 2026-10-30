@@ -5,7 +5,7 @@ import {
   type PageLook,
   type PageLookAnswer,
 } from "@novadeck/protocol"
-import type { HostPageLook } from "@novadeck/protocol/bridge"
+import type { DesktopPageLook } from "@novadeck/protocol/bridge"
 import { noTheme } from "@novadeck/terminal-views/theme"
 import { afterAll, vi } from "vitest"
 
@@ -28,8 +28,8 @@ const seen = (picture = jpeg): PageSeen => ({
   size: { width: 1280, height: 640.4 },
 })
 const freshLook = (
-  fields: Partial<Extract<HostPageLook, { picture: string }>> = {},
-): HostPageLook => ({
+  fields: Partial<Extract<DesktopPageLook, { picture: string }>> = {},
+): DesktopPageLook => ({
   picture: jpeg,
   url: "http://localhost:5173/",
   title: "Home",

@@ -10,33 +10,7 @@ export {
   shellInForeground,
   terminalForeground,
   type Foreground,
-  type ForegroundProcess,
 } from "./pty/foreground.js"
-export {
-  anyRunning,
-  relayMs,
-  taskkillTree,
-  Trees,
-  type Member,
-  type RunRelay,
-} from "./pty/trees.js"
-export {
-  spawnPty,
-  type Disposable,
-  type EndBudget,
-  type EndOptions,
-  type NativePty,
-  type NativeSpawn,
-  type ProcessTrees,
-  type Pty,
-  type PtyExit,
-  type PtyOptions,
-} from "./pty/pty.js"
-export {
-  userScopes,
-  UserScopes,
-  type ExitCause,
-  type RunTool,
-  type Scope,
-  type Scopes,
-} from "./pty/scopes.js"
+export { anyRunning, relayMs, Trees, type Member } from "./pty/trees.js"
+export type { ProcessTrees, Pty, PtyOptions } from "./pty/pty.js"
+export { userScopes } from "./pty/scopes.js"

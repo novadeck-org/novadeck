@@ -55,7 +55,7 @@ const setup = ({ cap = 2, supported = true, failing = false } = {}) => {
   }
 }
 
-describe("the renderer budget", () => {
+describe("the WebGL pool", () => {
   it("fits a page of 13 terminals, two contexts short of Chromium's 16", () => {
     expect(contextCap).toBeGreaterThanOrEqual(13)
     expect(contextCap).toBeLessThanOrEqual(16 - 2)
@@ -172,7 +172,7 @@ describe("the renderer budget", () => {
     expect([a!.drawn(), b!.drawn()]).toEqual([false, true])
   })
 
-  it("clears the texture atlas of a screen that has one", () => {
+  it("clears the glyph atlas of a screen that has one", () => {
     const { pool, drawing, settle } = setup()
     const a = pool.screen("a")
     a.refresh()
@@ -182,7 +182,7 @@ describe("the renderer budget", () => {
     expect(drawing("a").cleared).toBe(1)
   })
 
-  describe("when a screen clears its texture atlas", () => {
+  describe("when a screen clears its glyph atlas", () => {
     const shared = () => {
       const kit = setup({ cap: 4 })
       const screens = Object.fromEntries(

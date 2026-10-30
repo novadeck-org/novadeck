@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
 import type { MessagePortLike } from "./channel.js"
-import { hostTransport } from "./page.js"
+import { brokeredPort } from "./page.js"
 import { memoryPorts } from "./testing.js"
 
 type Listener = (event: {
@@ -10,7 +10,7 @@ type Listener = (event: {
   readonly ports: readonly MessagePortLike[]
 }) => void
 
-// The page's window: its message listeners, and what its host answers with.
+// The page's window: its message listeners, and what the main process answers with.
 const listeners = new Set<Listener>()
 const answer = (data: unknown, port: MessagePortLike, source: unknown = globalThis) => {
   for (const listener of listeners) listener({ data, source, ports: [port] })
@@ -30,10 +30,10 @@ afterEach(() => {
 })
 
 const transport = (request: (id: string) => void) =>
-  hostTransport({ request, message: "page-port", lateAnswerMs: 60_000 })
+  brokeredPort({ request, message: "page-port", lateAnswerMs: 60_000 })
 
-describe("hostTransport", () => {
-  it("connects over the port its host answers its request with", async () => {
+describe("brokeredPort", () => {
+  it("connects over the port the main process answers its request with", async () => {
     const asked: string[] = []
     const connecting = transport((id) => asked.push(id)).connect(new AbortController().signal)
     const [port] = memoryPorts()
@@ -47,18 +47,18 @@ describe("hostTransport", () => {
 
   it("asks again, under a new id, for each connection", async () => {
     const asked: string[] = []
-    const host = transport((id) => {
+    const brokered = transport((id) => {
       asked.push(id)
       queueMicrotask(() => answer({ type: "page-port", id }, memoryPorts()[0]))
     })
-    await host.connect(new AbortController().signal)
-    await host.connect(new AbortController().signal)
+    await brokered.connect(new AbortController().signal)
+    await brokered.connect(new AbortController().signal)
     expect(asked).toHaveLength(2)
     expect(asked[0]).not.toBe(asked[1])
   })
 
-  it("fails with the request's error when there's no host to ask", async () => {
-    const missing = new Error("No host.")
+  it("fails with the request's error when there's no main process to ask", async () => {
+    const missing = new Error("No main process.")
     const connecting = transport(() => {
       throw missing
     }).connect(new AbortController().signal)

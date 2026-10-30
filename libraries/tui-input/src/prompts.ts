@@ -2,16 +2,58 @@ import { setTimeout as sleep } from "node:timers/promises"
 
 import type { ScreenText } from "@novadeck/emulator/headless"
 
-import { isEmpty, sameText, showsTail, wrappedRows, type BoxProfile } from "./box.js"
-import { PromptRefusal } from "./errors.js"
-import { type HoldBudget, type InputEntry, type InputQueue } from "./queue.js"
+import { isEmpty, showsTail, type BoxProfile } from "./box/box.js"
+import { sameText, wrappedRows } from "./box/text.js"
+import type { HoldBudget, InputEntry, InputQueue } from "./queue.js"
 import { bracketedPaste } from "./typing.js"
+
+/**
+ * Why a prompt was not given. All but `not-switched`, `not-shown` and `unexpanded` write
+ * nothing; those three leave what landed of the text as a draft.
+ * - `refused`: the caller's `refuse` rule judged the text, and said why in the message;
+ * - `gone`: the terminal ended, or the hold on the person's input lapsed, while it waited;
+ * - `no-paste`: the screen takes no bracketed paste;
+ * - `no-box`: the program's input box is not on its screen;
+ * - `shell-mode`: the box is in its shell mode already, where a message would run;
+ * - `draft`: the box holds text already, which the prompt would merge into;
+ * - `too-tall`: the text shows whole in a box with no room for it on this screen;
+ * - `ringing`: a delivery to the terminal outlasted the wait for it;
+ * - `unrunnable`: a shell command that its shell mode can't run as written;
+ * - `not-switched`: the box did not switch to its shell mode at a typed `!`;
+ * - `not-shown`: the paste never showed in the box as exactly the text;
+ * - `unexpanded`: the box showed a shell command only as a placeholder its shell would run
+ *   as text.
+ */
+export type PromptRefusalReason =
+  | "refused"
+  | "gone"
+  | "no-paste"
+  | "no-box"
+  | "shell-mode"
+  | "draft"
+  | "too-tall"
+  | "ringing"
+  | "unrunnable"
+  | "not-switched"
+  | "not-shown"
+  | "unexpanded"
+
+/** A prompt that was not given, with why. What the host's `admit` throws passes as it is. */
+export class PromptRefusal extends Error {
+  constructor(
+    readonly reason: PromptRefusalReason,
+    message: string,
+  ) {
+    super(message)
+    this.name = "PromptRefusal"
+  }
+}
 
 /** What prompts need of the terminal and its owner, by terminal. */
 export type PromptHost = {
   /**
    * Throws whatever refuses a prompt now (the terminal is gone, no program is there to take
-   * it, or one waits on the user's answer, whose dialog would take the text), and the
+   * it, or one waits on the person's answer, whose dialog would take the text), and the
    * prompt lets it through as it is. Returns how the input box of the program admitted
    * reads off the screen, which the prompt keeps for all it does: a program that has gone
    * by then leaves a screen that box is not found on.
@@ -27,7 +69,7 @@ export type PromptHost = {
   /** The screen once it has drawn all pending output; undefined once the terminal is gone. */
   readonly screen: (terminalId: string) => Promise<ScreenText | undefined>
   /**
-   * Writes keys to the program as the user's, through the bookkeeping their own keys get,
+   * Writes keys to the program as the person's, through the bookkeeping their own keys get,
    * ahead of anything their held input waits to send; false once the terminal is gone.
    */
   readonly type: (terminalId: string, data: string) => boolean
@@ -85,15 +127,15 @@ const shellCommand = (text: string): string | undefined => {
 }
 
 /**
- * Gives programs prompts as a user would: the text as one bracketed paste with the user's
+ * Gives programs prompts as a person would: the text as one bracketed paste with the person's
  * keys held, then Enter once the box shows exactly that text, or its placeholder for it, on
- * two reads running, both through the same bookkeeping the user's keys get. A profile reads
+ * two reads running, both through the same bookkeeping the person's keys get. A profile reads
  * the box (see `./box`): the paste goes in only where it is empty, so it
  * never merges into a draft, and Enter only where it holds nothing else. It never presses
  * Enter after a failed check: the text stays as a draft. Prompts to one terminal take their
  * turn in the terminal's input queue, with whatever else types there, and wait for a
  * delivery under way to be confirmed, so none of them share a box. A shell command (`!` and
- * a command) goes the way a user types it, which every TUI takes: the `!` as a key, then,
+ * a command) goes the way a person types it, which every TUI takes: the `!` as a key, then,
  * once the box reads empty in its shell mode, the command as the paste, and Enter once the
  * box holds exactly it. A message never goes into a box in its shell mode, where Enter
  * would run it. It fails closed: a screen the box is not found on, whatever the reason,
@@ -188,7 +230,7 @@ export class Prompts {
     // The first prompt of a program shown before its session binds starts that session, as a
     // shell command does only where its TUI starts one for it.
     const starts = !this.host.bound(terminalId) && (!shell || profile.shell.starts)
-    // The user's keys are held from before the box is looked at, so none comes between.
+    // The person's keys are held from before the box is looked at, so none comes between.
     const hold = entry.hold(this.budget)
     if (!hold.holding()) throw this.gone()
     let pressed = false
@@ -218,7 +260,7 @@ export class Prompts {
       this.host.admit(terminalId)
       if (shell) {
         // The `!` as a key: pasted whole, some TUIs send it to the model as text.
-        if (!this.host.type(terminalId, "!")) throw this.failed()
+        if (!this.host.type(terminalId, "!")) throw this.notShown()
         if (!(await this.switched(terminalId, profile, hold.holding))) {
           // It may have switched just too late: the `!` goes back out where it shows alone.
           await this.unbang(terminalId, profile)
@@ -234,8 +276,8 @@ export class Prompts {
           throw error
         }
       }
-      // A user's paste, whose line breaks the TUI takes as text, never as Enter.
-      if (!this.host.type(terminalId, bracketedPaste(inPaste(typed)))) throw this.failed()
+      // A person's paste, whose line breaks the TUI takes as text, never as Enter.
+      if (!this.host.type(terminalId, bracketedPaste(inPaste(typed)))) throw this.notShown()
       const landed = await this.landed(
         terminalId,
         typed,
@@ -254,7 +296,7 @@ export class Prompts {
           pressed = false
         }
       }
-      // The user's keys wait until the Enter is out, so none comes between the paste and it.
+      // The person's keys wait until the Enter is out, so none comes between the paste and it.
       if (pressed) this.host.type(terminalId, "\r")
     } catch (error) {
       hold.settle()
@@ -269,7 +311,7 @@ export class Prompts {
           "unexpanded",
           "The box shows a command this long as a placeholder, which its shell would run as text: it stays in the box, unsent.",
         )
-      throw this.failed()
+      throw this.notShown()
     }
     // The next prompt waits until the session it started is there: a program given one while
     // it still starts its conversation may start another with it, and the first is lost
@@ -284,7 +326,7 @@ export class Prompts {
 
   /**
    * The screen once the box reads empty in its prompt mode, within `emptyMs`: a draft the
-   * user left, or a failed paste's, never goes, and is refused then; the TUI still
+   * person left, or a failed paste's, never goes, and is refused then; the TUI still
    * clearing the text of a prompt just sent does, as does a shell mode that a command's
    * Enter is leaving. A box left in its shell mode, even empty, would run a message as a
    * command: refused all the same, to be cleared in the terminal.
@@ -354,7 +396,7 @@ export class Prompts {
     if (box && box.mode === "shell" && isEmpty(box)) this.host.type(terminalId, "\x7f")
   }
 
-  private failed(): PromptRefusal {
+  private notShown(): PromptRefusal {
     return new PromptRefusal("not-shown", "The prompt did not show in the input box.")
   }
 

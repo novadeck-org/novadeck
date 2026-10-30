@@ -1,19 +1,19 @@
 /** How long a hold's safety caps let it last, in milliseconds. */
 export type HoldBudget = {
-  /** How long the user's input is held at most. */
+  /** How long the person's input is held at most. */
   readonly inputMs: number
   /** How long the window's resizes are held at most, or until `settle`. */
   readonly sizeMs: number
   /**
-   * Whether the keys held count as the user's only once delivered, as a hold that may
+   * Whether the keys held count as the person's only once delivered, as a hold that may
    * drop them (see `discard`).
    */
   readonly deferred?: boolean
 }
 
-/** The user's input to a terminal, held for one piece of work at the program's input box. */
+/** The person's input to a terminal, held for one piece of work at the program's input box. */
 export type InputHold = {
-  /** Lets the user's input go on, writing the keys it held; the resizes stay held. */
+  /** Lets the person's input go on, writing the keys it held; the resizes stay held. */
   readonly release: () => void
   /** Lets the window's resizes go on too, releasing the input if it is still held. */
   readonly settle: () => void
@@ -25,14 +25,14 @@ export type InputHold = {
   readonly settleAfter: (ms: number) => void
   /** Whether the input is still held. */
   readonly holding: () => boolean
-  /** Drops what the user typed while their input was held. */
+  /** Drops what the person typed while their input was held. */
   readonly discard: () => void
 }
 
 /** What the queue needs of the terminal host, by terminal. */
 export type InputQueueHost = {
   /**
-   * Holds the user's input to the terminal for at most `budget.inputMs`, and its
+   * Holds the person's input to the terminal for at most `budget.inputMs`, and its
    * window's resizes for at most `budget.sizeMs` or until `settle`. Never in force at the
    * same time as another's, apart from one that only waits on its resizes, whose hold
    * this one takes over. A hold on a terminal that is gone is not `holding`.
@@ -42,7 +42,7 @@ export type InputQueueHost = {
 
 /** What a piece of work given the terminal's input may take. */
 export type InputEntry = {
-  /** Holds the user's input for the work, which the queue lets go of when it ends. */
+  /** Holds the person's input for the work, which the queue lets go of when it ends. */
   readonly hold: (budget: HoldBudget) => InputHold
 }
 
@@ -50,7 +50,7 @@ export type InputEntry = {
  * The one line of work at each terminal's input box. Everything that puts keys in the box
  * takes its turn here. Entries of one terminal go one at a time, in the order they came,
  * and those of different terminals never wait for each other; so no two pieces of work
- * ever hold the user's input at once, and nothing comes into the middle of an entry.
+ * ever hold the person's input at once, and nothing comes into the middle of an entry.
  * An entry that fails, by throwing, wedges nothing: the next one starts. Whatever input an
  * entry holds is let go when it ends, however it ends; its resizes are its own to settle.
  */

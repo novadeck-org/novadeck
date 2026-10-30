@@ -3,57 +3,56 @@ import { wireContract, wireErrors } from "@novadeck/wire"
 import { eventIterator, oc, type ContractRouterClient } from "@orpc/contract"
 import { z } from "zod"
 
-import { feedbackDraft, maxFeedbackText } from "./feedback.js"
-import { askAnswer, inboxEntry } from "./inbox.js"
+import {
+  maxVoicePartLength,
+  murmurSettings,
+  murmurState,
+  voiceChange,
+  voiceState,
+  voiceTranscript,
+  voiceUnavailable,
+} from "./addons.js"
 import {
   agentDetail,
   agentIntegration,
-  agentRef,
-  interruptResult,
-  requestAnswer,
-  transcriptChange,
   agentName,
-  clientState,
+  agentRef,
+  conflictReason,
+  interruptResult,
+} from "./agents.js"
+import {
   companionChange,
   companionItem,
   companionWindow,
-  directory,
-  id,
   itemContent,
   maxPageTroubles,
   pageLook,
   pageLookAnswer,
   pageTrouble,
   planSaveResult,
+  planUnwritable,
+} from "./companions.js"
+import { requestAnswer } from "./dialogs.js"
+import { feedbackDraft, maxFeedbackText } from "./feedback.js"
+import { directory, id, name } from "./fields.js"
+import { askAnswer, inboxEntry } from "./inbox.js"
+import { terminalMessages, threadId } from "./messages.js"
+import { clientState, folderListing, project, workspaceSession } from "./projects.js"
+import { runnerSettings, runnerSettingsState } from "./settings.js"
+import {
+  approval,
+  approvalAnswer,
   maxUploadPartLength,
-  maxVoicePartLength,
-  murmurSettings,
-  murmurState,
-  name,
-  project,
-  runnerSettings,
-  runnerSettingsState,
   startupCommand,
   terminalAttached,
   terminalChange,
   terminalEvent,
   terminalRequest,
   terminalRequestAnswer,
-  approval,
-  approvalAnswer,
-  terminalMessages,
   terminalSummary,
   terminalTitle,
-  threadId,
-  voiceChange,
-  voiceState,
-  voiceTranscript,
-  voiceUnavailable,
-  conflictReason,
-  planUnwritable,
-  folderListing,
-  workspaceSession,
-} from "./schemas.js"
+} from "./terminals.js"
+import { transcriptChange } from "./transcripts.js"
 
 export const errors = {
   ...wireErrors,
@@ -79,8 +78,8 @@ export const errors = {
   PROMPT_FAILED: { status: 409 },
   // A prompt a TUI would read as more than text (`promptRefusal`): a control character, a
   // command (a leading `/` or `!`) or a file or skill mention left open at its end (`@name`,
-  // `$name`); or one of nothing but white space. Nothing is written. Words that follow an answer as a prompt are judged alike,
-  // before any key of the answer is pressed.
+  // `$name`); or one of nothing but white space. Nothing is written. Words that follow an
+  // answer as a prompt are judged alike, before any key of the answer is pressed.
   PROMPT_REFUSED: { status: 409 },
   // The turn was stopped, but the agent's input box holds text (the person's queued
   // messages, put back by the Escape) that could not be cleared out with certainty.
@@ -187,7 +186,7 @@ export const contract = {
     // Answers a request with the terminal the client opened for it, or why it didn't.
     // One the runner no longer waits for, or sent to another client, is NOT_FOUND.
     answerRequest: procedure.input(terminalRequestAnswer).output(z.void()),
-    // Agents' asks to close a terminal that runs an agent they don't lead, or to lead one,
+    // Agents' requests to close a terminal that runs an agent they don't lead, or to lead one,
     // for the client to approve with the person: each goes to the client that subscribed
     // last, and waits for its `answerApproval`, with no time limit, until the runner
     // withdraws it.
@@ -300,9 +299,9 @@ export const contract = {
     // as the dialog the answer names (its `id` changed) is DIALOG_CHANGED, both pressing
     // nothing and leaving the dialog as it is (a CONFLICT from a dialog that showed and no
     // longer reads turns it `raw`, though). Keys pressed without the dialog going as
-    // expected are ANSWER_FAILED (an answer that took whose following words, sent as the agent's
-    // next prompt, did not go is WORDS_NOT_SENT: the dialog was answered), after which the request's dialog turns `raw`, and nothing
-    // more is pressed for it.
+    // expected are ANSWER_FAILED (an answer that took whose following words, sent as the
+    // agent's next prompt, did not go is WORDS_NOT_SENT: the dialog was answered), after which
+    // the request's dialog turns `raw`, and nothing more is pressed for it.
     answer: procedure
       .input(z.strictObject({ terminalId: id, request: agentRef, answer: requestAnswer }))
       .output(z.void()),
@@ -334,7 +333,8 @@ export const contract = {
     // What an item points at, read now, then again each time it changes, until it is
     // deleted. A file that may hold secrets is unavailable as `secret` unless `reveal` is the
     // path the item points at, the file the person chose to show: an item pointed at
-    // another file since (a project window re-pointed) is `secret` again, and revealed again if pointed back.
+    // another file since (a project window re-pointed) is `secret` again, and revealed again
+    // if pointed back.
     // An unknown item is NOT_FOUND.
     content: procedure
       .input(z.strictObject({ itemId: id, reveal: z.string().max(4096).optional() }))
@@ -470,7 +470,8 @@ export const contract = {
     release: procedure.input(z.strictObject({ thread: threadId })).output(z.void()),
     // Stops a thread: its messages not yet delivered or leased are gone, their senders told
     // the person stopped it, and a send between the pair is refused for 10 minutes after the
-    // later of the stop and the thread's last message. One the runner does not keep is NOT_FOUND; stopping a stopped thread does nothing.
+    // later of the stop and the thread's last message. One the runner does not keep is
+    // NOT_FOUND; stopping a stopped thread does nothing.
     stop: procedure.input(z.strictObject({ thread: threadId })).output(z.void()),
   },
   // Voice input, transcribed on this machine (see `voiceState`).
@@ -523,8 +524,8 @@ export const contract = {
     watch: procedure.input(z.void()).output(eventIterator(murmurState)),
     // Downloads the engine and the model, unless they are there, and checks that they
     // describe on this computer's graphics. It returns once the install starts; `watch` shows
-    // its progress, and its end or failure. One already installing, or a computer the host
-    // saw only software rendering on, is a CONFLICT. An install's earlier `unsupported`
+    // its progress, and its end or failure. One already installing, or a computer the desktop
+    // app saw only software rendering on, is a CONFLICT. An install's earlier `unsupported`
     // verdict is cleared by installing again, which checks anew.
     install: procedure.input(z.void()).output(z.void()),
     // Stops an install, keeping what had finished before it. Nothing installing is fine.

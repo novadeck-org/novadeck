@@ -1,5 +1,4 @@
-import type { Screen } from "./screen.js"
-import { serializerOf } from "./screen.js"
+import { serializeWithin, written, type Screen } from "./screen.js"
 
 /**
  * The screen and scrollback as text that draws them again, within `maxChars` characters:
@@ -8,18 +7,14 @@ import { serializerOf } from "./screen.js"
  * when the screen is blank, or not even its visible rows fit.
  */
 export const transcript = (screen: Screen, maxChars: number): string | null => {
-  const serializer = serializerOf(screen)
-  let scrollback = screen.buffer.normal.baseY
-  while (true) {
-    const text = serializer.serialize({ scrollback, excludeAltBuffer: true, excludeModes: true })
-    if (text.length <= maxChars) return text.trim() ? text : null
-    if (scrollback === 0) return null
-    scrollback = Math.floor(scrollback / 2)
-  }
+  const text = serializeWithin(
+    screen,
+    (serializer, scrollback) =>
+      serializer.serialize({ scrollback, excludeAltBuffer: true, excludeModes: true }),
+    (candidate) => candidate.length <= maxChars,
+  )
+  return text?.trim() ? text : null
 }
-
-const written = (screen: Screen, data: string): Promise<void> =>
-  new Promise((resolve) => screen.write(data, resolve))
 
 /**
  * Draws a transcript on a fresh screen before anything else, followed by the separator,

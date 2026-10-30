@@ -103,7 +103,12 @@ const returning = (anchors: Anchors, files: string[], tables: Table[]): void => 
   }
 }
 
-const schemasFile = "contract/protocol/src/schemas.ts"
+// Each settings schema the protocol exports: its group, and the file it is kept in.
+const settingsSchemas = {
+  runnerSettings: { group: "runner", file: "contract/protocol/src/settings.ts" },
+  voiceSettings: { group: "voice", file: "contract/protocol/src/addons.ts" },
+  murmurSettings: { group: "murmur", file: "contract/protocol/src/addons.ts" },
+}
 
 const typeName = (schema: z.core.JSONSchema.JSONSchema): string => {
   if (schema.enum) return schema.enum.map((each) => JSON.stringify(each)).join(" | ")
@@ -115,11 +120,10 @@ const typeName = (schema: z.core.JSONSchema.JSONSchema): string => {
 
 const settingsIn = async (anchors: Anchors): Promise<Setting[]> => {
   const schemas = (await import("@novadeck/protocol")) as Record<string, unknown>
-  const groups = { runnerSettings: "runner", voiceSettings: "voice", murmurSettings: "murmur" }
-  const source = anchors.read(schemasFile) ?? ""
-  return Object.entries(groups).flatMap(([name, group]) => {
+  return Object.entries(settingsSchemas).flatMap(([name, { group, file }]) => {
     const schema = schemas[name] as z.ZodObject | undefined
     if (!schema) return []
+    const source = anchors.read(file) ?? ""
     const start = source.indexOf(`export const ${name} =`)
     return Object.entries(schema.shape).map(([key, field]): Setting => {
       let type = "unknown"
@@ -131,7 +135,7 @@ const settingsIn = async (anchors: Anchors): Promise<Setting[]> => {
         key,
         group,
         type,
-        anchor: { file: schemasFile, line: at === -1 ? null : lineAt(source, at) },
+        anchor: { file, line: at === -1 ? null : lineAt(source, at) },
       }
     })
   })

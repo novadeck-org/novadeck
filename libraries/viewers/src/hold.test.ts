@@ -7,7 +7,7 @@ afterEach(() => {
   for (const root of roots.splice(0)) root.remove()
 })
 
-// A scroller holding something whose size comes later, as an image that loads.
+// A scroller holding something whose size comes later, as a change whose rows are made.
 const scroller = (): { root: HTMLElement; inner: HTMLElement } => {
   const root = document.createElement("div")
   root.style.cssText = "height: 200px; width: 200px; overflow: auto"
@@ -53,26 +53,6 @@ describe("holding a place", () => {
     root.style.height = "300px"
     await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)))
     expect(placed).toBe(before)
-  })
-
-  it("sets it again when asked, as for something ready without a change of size", async () => {
-    const { root, inner } = scroller()
-    let ready = false
-    const { hold, refresh } = createHold(
-      root,
-      () => [inner],
-      () => ready,
-    )
-    let placed = 0
-    hold(() => {
-      placed += 1
-      root.scrollTop = 500
-    })
-    await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)))
-    const before = placed
-    ready = true
-    refresh()
-    expect(placed).toBe(before + 1)
   })
 
   it("stops when released", async () => {

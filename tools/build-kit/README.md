@@ -8,9 +8,7 @@ policy, so it needs no library fences.
   page's Content Security Policy. `placeholder`, in `index.html`, becomes the sources
   `connect(build)` gives for the build's `mode`, `command` and environment: the variables of
   the env files the app's build reads, with `envPrefix` (the app's own by default; never
-  empty), the process's before the files'. A page without the
-  placeholder fails the build. `contentSecurityPolicyName` names the plugin, for a test
-  runner's config that leaves it out of its own page.
+  empty), the process's before the files'. A page without the placeholder fails the build.
 - `connectSources({ api, runner, development })` (`/connect-sources`, with nothing of Vite, so
   an app's tests can read its policy anywhere), the sources of an app that talks to services
   on loopback, and where configured to an HTTP(S) API (an absolute URL, or a relative path,
@@ -38,7 +36,7 @@ policy, so it needs no library fences.
   app's (`frontend/specs` runs projects of its own, and `frontend/test-kit` has no tests).
 
 Each is a subpath of its own (`@novadeck/build-kit/content-security-policy`, `/connect-sources`,
-`/hosting-headers`, `/search-visibility`, `/fonts`, `/bundle-checks`, `/vitest`). It ships as TypeScript source, with no build: Vite loads a
-config's workspace packages in Node, which runs the source as it is, so no module imports
-another, and its syntax is erasable (`erasableSyntaxOnly`): no enums, namespaces or
-parameter properties, which Node can't strip.
+`/hosting-headers`, `/search-visibility`, `/fonts`, `/bundle-checks`, `/vitest`). It ships as
+TypeScript source, with no build: Vite loads a config's workspace packages in Node, which runs
+the source as it is, so no module imports another, and its syntax is erasable
+(`erasableSyntaxOnly`): no enums, namespaces or parameter properties, which Node can't strip.

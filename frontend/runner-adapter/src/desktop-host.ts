@@ -15,15 +15,15 @@ import {
   noticeTitleLength,
   updateChannels,
   updateVersionPattern,
-  type DesktopHost,
+  type DesktopApp,
   parsePortableState,
   parseUpdateOffer,
   parseWhatsNew,
 } from "@novadeck/protocol/bridge"
 
 // What the desktop host's preload script offers the page; absent in a browser.
-export const desktopHost = (): DesktopHost | undefined =>
-  (globalThis as { novadeck?: DesktopHost }).novadeck
+export const desktopHost = (): DesktopApp | undefined =>
+  (globalThis as { novadeck?: DesktopApp }).novadeck
 
 // Text a notice may show: one line, without control characters, cut to `length` with an
 // ellipsis, never inside a character.
@@ -54,7 +54,7 @@ export const hostNotice = ({ id, title, body, silent, sound }: Notice): Notice |
 
 // The host's desktop notifications, where it has them: what crosses the bridge is
 // checked both ways, so a click names only a terminal id.
-export const desktopNotices = (host: DesktopHost | undefined): Backend["notices"] => {
+export const desktopNotices = (host: DesktopApp | undefined): Backend["notices"] => {
   const show = host?.showNotice
   const listen = host?.onNoticeClick
   if (!show || !listen) return undefined
@@ -94,7 +94,7 @@ export const desktopNotices = (host: DesktopHost | undefined): Backend["notices"
 }
 
 // The host's icon badge, where it has one: only a badge the contract allows crosses.
-export const desktopBadge = (host: DesktopHost | undefined): Backend["badge"] => {
+export const desktopBadge = (host: DesktopApp | undefined): Backend["badge"] => {
   const set = host?.setBadge
   if (!set) return undefined
   return (badge) => {
@@ -104,7 +104,7 @@ export const desktopBadge = (host: DesktopHost | undefined): Backend["badge"] =>
 }
 
 // The host's report of its window's focus, where it has one: only a boolean crosses.
-export const desktopWindowFocus = (host: DesktopHost | undefined): Backend["windowFocus"] => {
+export const desktopWindowFocus = (host: DesktopApp | undefined): Backend["windowFocus"] => {
   const listen = host?.onWindowFocus
   if (!listen) return undefined
   return (listener) =>
@@ -115,7 +115,7 @@ export const desktopWindowFocus = (host: DesktopHost | undefined): Backend["wind
 
 // The host's self-updates, where it has them: what crosses the bridge is checked, so the
 // page shows only what looks like a release's, and the channel only as one it knows.
-export const desktopUpdates = (host: DesktopHost | undefined): Backend["updates"] => {
+export const desktopUpdates = (host: DesktopApp | undefined): Backend["updates"] => {
   const listen = host?.onUpdate
   const openPage = host?.openUpdatePage
   if (!listen || !openPage) return undefined
@@ -148,7 +148,7 @@ export const desktopUpdates = (host: DesktopHost | undefined): Backend["updates"
 // What is new in the version the app updated to, where the host tells: what crosses the
 // bridge is checked, so the page shows only highlights the contract allows, as plain text.
 // The two calls come together; a host with some of them is taken as having none.
-export const desktopWhatsNew = (host: DesktopHost | undefined): Backend["whatsNew"] => {
+export const desktopWhatsNew = (host: DesktopApp | undefined): Backend["whatsNew"] => {
   const ask = host?.whatsNew
   const dismiss = host?.dismissWhatsNew
   if (!ask || !dismiss) return undefined
@@ -160,7 +160,7 @@ export const desktopWhatsNew = (host: DesktopHost | undefined): Backend["whatsNe
 
 // The host's version, where it gives one: what crosses the bridge must look like a
 // release's, so the page shows nothing else.
-export const desktopVersion = (host: DesktopHost | undefined): Backend["version"] => {
+export const desktopVersion = (host: DesktopApp | undefined): Backend["version"] => {
   const ask = host?.version
   if (!ask) return undefined
   return async () => {
@@ -177,7 +177,7 @@ const osLabels = { macos: "macOS", windows: "Windows", linux: "Linux" } as const
 
 // The host's feedback, where it sends notes: what it says goes along with a note is checked,
 // and the card shows it as the demo does (`Linux x64`). A note crosses as its kind and text.
-export const desktopFeedback = (host: DesktopHost | undefined): Backend["feedback"] => {
+export const desktopFeedback = (host: DesktopApp | undefined): Backend["feedback"] => {
   const about = host?.feedbackAbout
   const send = host?.sendFeedback
   if (host?.feedback !== true || !about || !send) return undefined
@@ -217,7 +217,7 @@ export const hostSandbox = (state: unknown): SandboxState => {
   return { sandboxed: false, fix: plain ? command : "" }
 }
 
-export const desktopSandbox = (host: DesktopHost | undefined): Backend["sandbox"] => {
+export const desktopSandbox = (host: DesktopApp | undefined): Backend["sandbox"] => {
   const ask = host?.sandbox
   if (!ask) return undefined
   return async () => hostSandbox(await ask())
@@ -226,7 +226,7 @@ export const desktopSandbox = (host: DesktopHost | undefined): Backend["sandbox"
 // The host's portable copy, where it has one: asked whether this is one, told how an
 // install stands, and asked to install the app from it or to open the newest portable's download page.
 // What crosses the bridge is checked; a state that is none of the host's is not heard.
-export const desktopPortable = (host: DesktopHost | undefined): Backend["portable"] => {
+export const desktopPortable = (host: DesktopApp | undefined): Backend["portable"] => {
   const ask = host?.portable
   const install = host?.installApp
   const listen = host?.onPortableState
@@ -301,7 +301,7 @@ export const hostUninstallResult = (result: unknown): UninstallResult => {
 
 // The host's uninstall, where it has one: asked what it would do, told to do it, and told
 // to quit once it has.
-export const desktopUninstall = (host: DesktopHost | undefined): Backend["uninstall"] => {
+export const desktopUninstall = (host: DesktopApp | undefined): Backend["uninstall"] => {
   const ask = host?.uninstallPlan
   const run = host?.uninstallApp
   const quit = host?.quitApp

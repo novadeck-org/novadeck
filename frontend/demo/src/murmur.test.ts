@@ -72,7 +72,7 @@ describe("the demo's murmur", () => {
       })
     })
 
-    it("keeps a check's verdict while it checks again, until a check passes, and refuses the host's", async () => {
+    it("keeps a check's verdict while it checks again, until a check passes, and refuses the app's", async () => {
       const murmur = createDemoMurmur({ step: 100, device: "Intel Arc Graphics" }, "unsupported")
       void murmur.install()
       await vi.advanceTimersByTimeAsync(50)
@@ -83,7 +83,7 @@ describe("the demo's murmur", () => {
       await vi.advanceTimersByTimeAsync(400)
       expect(murmur.state.getSnapshot()).toMatchObject({ installed: true, unsupported: null })
 
-      murmur.show("unsupported-host")
+      murmur.show("unsupported-app")
       await murmur.install()
       expect(murmur.state.getSnapshot().refused).toMatchObject({ call: "install" })
       expect(murmur.state.getSnapshot().installing).toBeNull()
@@ -171,11 +171,11 @@ describe("the demo's murmur", () => {
       expect(createDemoMurmur(undefined, "offered-out").state.getSnapshot().offers).toBe(3)
     })
 
-    it("shows the host's software-rendering verdict with nothing to check again", () => {
+    it("shows the app's software-rendering verdict with nothing to check again", () => {
       const murmur = createDemoMurmur()
-      murmur.show("unsupported-host")
+      murmur.show("unsupported-app")
       expect(murmur.state.getSnapshot()).toMatchObject({
-        unsupported: { reason: expect.stringMatching(/software rendering/), source: "host" },
+        unsupported: { reason: expect.stringMatching(/software rendering/), source: "app" },
       })
     })
 

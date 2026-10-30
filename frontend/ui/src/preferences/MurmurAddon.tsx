@@ -94,9 +94,9 @@ export const MurmurAddon = ({
         />
       </div>
     )
-  // Known not to run here, by the host or by an install: nothing to install, and why behind Details.
+  // Known not to run here, by the app or by an install: nothing to install, and why behind Details.
   // Files that stay beside the verdict (their removal failed) keep the installed card, with its
-  // Uninstall; the host's word also never takes away an install that works.
+  // Uninstall; the app's word also never takes away an install that works.
   const dialog = (
     <ConfirmDialog
       subject={confirming ? state : null}
@@ -194,7 +194,7 @@ export const MurmurAddon = ({
   const busy = removing !== null
   // Files beside a verdict and no passed check: it can't run, so no switch that looks as if it did.
   const blocked = unsupported !== null && check === null
-  // Nothing to retry where the host's word holds, or no check can run beside a verdict.
+  // Nothing to retry where the app's word holds, or no check can run beside a verdict.
   const noRetry = unsupported !== null && (check === null || !recheck)
   return (
     <>
@@ -247,7 +247,7 @@ export const MurmurAddon = ({
         </AddonRow>
         {(failure || (owed && !noRetry)) && (
           // Installed with no check that passed, murmur can't run yet: another install runs
-          // the check again, unless the host's word holds, where nothing can run it.
+          // the check again, unless the app's word holds, where nothing can run it.
           <div className="flex items-center justify-between gap-6">
             {failure ? (
               <AddonFailure>{failure}</AddonFailure>

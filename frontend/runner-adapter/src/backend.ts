@@ -36,7 +36,6 @@ import {
   type TerminalWatchItem,
 } from "@novadeck/runner-client"
 import { createTerminalMount } from "@novadeck/terminal-views/mount"
-import { pause } from "@novadeck/terminal/view"
 import { createTerminalViews } from "@novadeck/terminal/view"
 import type { WireStatus } from "@novadeck/wire/client"
 
@@ -71,6 +70,10 @@ import {
 import { createRunnerSource } from "./source"
 import { viewOptions } from "./view-options"
 import { createRunnerVoice } from "./voice"
+
+/** Resolves after `ms` milliseconds. */
+export const pause = (ms: number): Promise<void> =>
+  new Promise((resolve) => setTimeout(resolve, ms))
 
 // The part of the runner client the adapter uses.
 export type RunnerApi = Pick<
@@ -1435,23 +1438,23 @@ export const runnerBackend = (
           .catch(() => {}),
       )
     }
-    // An ask waits on the person until they answer or the runner takes it back.
-    const onApproval = (ask: RunnerApproval): void => {
+    // A request waits on the person until they answer or the runner takes it back.
+    const onApproval = (item: RunnerApproval): void => {
       if (!live) return
       // One still on its way as the link dropped was settled with the rest: never show it.
-      if (ask.type === "ask" && lastStatus && lastStatus.state !== "connected") return
+      if (item.type === "request" && lastStatus && lastStatus.state !== "connected") return
       approvals.update((waiting) =>
-        ask.type === "withdrawn"
-          ? waiting.filter((each) => each.requestId !== ask.requestId)
-          : waiting.some((each) => each.requestId === ask.requestId)
+        item.type === "withdrawn"
+          ? waiting.filter((each) => each.requestId !== item.requestId)
+          : waiting.some((each) => each.requestId === item.requestId)
             ? waiting
             : [
                 ...waiting,
                 {
-                  requestId: ask.requestId,
-                  from: ask.from,
-                  terminalId: ask.terminalId,
-                  action: ask.action,
+                  requestId: item.requestId,
+                  from: item.from,
+                  terminalId: item.terminalId,
+                  action: item.action,
                 },
               ],
       )

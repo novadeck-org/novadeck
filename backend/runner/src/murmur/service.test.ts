@@ -413,7 +413,7 @@ describe("installing murmur", () => {
     expect(next.murmur.state()).toMatchObject({ unsupported: null })
   })
 
-  it("is Not available from the host's word alone, with nothing downloaded", async ({
+  it("is Not available from the app's word alone, with nothing downloaded", async ({
     resources,
   }) => {
     const store = new WorkspaceStore()
@@ -432,15 +432,15 @@ describe("installing murmur", () => {
     expect(murmur.state()).toMatchObject({
       available: true,
       installed: false,
-      unsupported: { reason: expect.stringMatching(/software rendering/), source: "host" },
+      unsupported: { reason: expect.stringMatching(/software rendering/), source: "app" },
     })
     await expect(murmur.install()).rejects.toMatchObject({ code: "CONFLICT" })
     expect(await readdir(directory)).toEqual([])
-    // Nothing is stored: a host that sees hardware next time offers it again.
+    // Nothing is stored: an app that sees hardware next time offers it again.
     expect(store.murmurUnsupported()).toBeNull()
   })
 
-  it("is not Not available while the host and the install say nothing against it", async ({
+  it("is not Not available while the app and the install say nothing against it", async ({
     resources,
   }) => {
     const { murmur } = await setup(resources)

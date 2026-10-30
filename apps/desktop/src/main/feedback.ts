@@ -1,4 +1,4 @@
-import type { FeedbackHostAbout, FeedbackHostNote } from "@novadeck/protocol/bridge"
+import type { DesktopFeedbackAbout, DesktopFeedbackNote } from "@novadeck/protocol/bridge"
 import type { IpcMain } from "electron"
 
 import { feedbackAboutChannel, feedbackSendChannel } from "../bridge.js"
@@ -7,7 +7,7 @@ import { localOrigin, novadeckSite } from "./updater.js"
 /** How long a note may take to be answered before it counts as not sent. */
 export const feedbackTimeoutMs = 15_000
 
-const systems: Readonly<Record<string, FeedbackHostAbout["os"]>> = {
+const systems: Readonly<Record<string, DesktopFeedbackAbout["os"]>> = {
   darwin: "macos",
   win32: "windows",
   linux: "linux",
@@ -38,7 +38,7 @@ export const feedbackAbout = (options: {
   readonly version: string
   readonly platform: string
   readonly arch: string
-}): FeedbackHostAbout => ({
+}): DesktopFeedbackAbout => ({
   version: options.version,
   os: systems[options.platform] ?? "linux",
   arch: options.arch,
@@ -47,13 +47,13 @@ export const feedbackAbout = (options: {
 const kinds = new Set(["bug", "idea", "other"])
 
 /** A note when it is one the website takes: a kind or none, and text. Otherwise undefined. */
-export const feedbackNoteOf = (value: unknown): FeedbackHostNote | undefined => {
+export const feedbackNoteOf = (value: unknown): DesktopFeedbackNote | undefined => {
   if (typeof value !== "object" || value === null) return undefined
   const { kind, text } = value as Record<string, unknown>
   if (typeof text !== "string") return undefined
   if (kind === null) return { kind: null, text }
   return typeof kind === "string" && kinds.has(kind)
-    ? { kind: kind as FeedbackHostNote["kind"], text }
+    ? { kind: kind as DesktopFeedbackNote["kind"], text }
     : undefined
 }
 
@@ -65,10 +65,10 @@ export const feedbackNoteOf = (value: unknown): FeedbackHostNote | undefined => 
  * rejects: another status, the network failing, or no answer in `timeoutMs`.
  */
 export const sendFeedback = async (
-  note: FeedbackHostNote,
+  note: DesktopFeedbackNote,
   options: {
     readonly origin: string
-    readonly about: FeedbackHostAbout
+    readonly about: DesktopFeedbackAbout
     readonly fetch: (url: string, init: RequestInit) => Promise<{ readonly status: number }>
     readonly timeoutMs?: number
   },
@@ -102,8 +102,8 @@ export const registerFeedbackIpc = <Window>(
   ipc: Pick<IpcMain, "handle">,
   options: {
     readonly window: (event: Parameters<Parameters<IpcMain["handle"]>[1]>[0]) => Window | undefined
-    readonly about: () => FeedbackHostAbout
-    readonly send: (note: FeedbackHostNote) => Promise<void>
+    readonly about: () => DesktopFeedbackAbout
+    readonly send: (note: DesktopFeedbackNote) => Promise<void>
   },
 ): void => {
   ipc.handle(feedbackAboutChannel, (event) => {
