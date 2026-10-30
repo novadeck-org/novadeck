@@ -211,7 +211,7 @@ export const budgetViolations = (
 // that no other scanned file does), and each is written here in halves: Tailwind scans no file
 // of this package, but a whole copy anywhere it does scan would make the class itself, and the
 // check would pass however much the scan lost. Do not quote one whole in a comment either.
-// A scanned folder that writes no utility of their own is in `unguardedFolders` instead.
+// A scanned folder that writes no utility of its own is in `unguardedFolders` instead.
 export const frontendUtilities: readonly ScannedUtility[] = [
   { folder: "frontend/demo-debug/", utility: ["h-[min(760px,", "calc(100vh-80px))]"].join("") },
   { folder: "frontend/demo/", utility: ["under", "line"].join("") },

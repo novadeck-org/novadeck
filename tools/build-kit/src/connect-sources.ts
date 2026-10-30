@@ -1,5 +1,3 @@
-import type { Build } from "./content-security-policy.ts"
-
 // The connect-src sources of these apps, with nothing of Vite: an app's policy reads them
 // where its build runs and where its tests do.
 
@@ -36,7 +34,10 @@ export const connectSources = (options: {
  * What a build reaches as it is configured: the runner `VITE_NOVADECK_RUNNER_URL` names, the
  * one a browser build connects to, and while served, the development server.
  */
-export const configuredSources = (build: Pick<Build, "command" | "env">): readonly string[] =>
+export const configuredSources = (build: {
+  readonly command: string
+  readonly env: Readonly<Record<string, string | undefined>>
+}): readonly string[] =>
   connectSources({
     runner: { url: build.env.VITE_NOVADECK_RUNNER_URL, name: "VITE_NOVADECK_RUNNER_URL" },
     development: build.command === "serve",
