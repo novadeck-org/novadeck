@@ -3,7 +3,7 @@ import { mkdir, readdir } from "node:fs/promises"
 import { join } from "node:path"
 import { gzipSync } from "node:zlib"
 
-import { replaceFile, sha256 } from "./host.ts"
+import { replaceFile, sha256 } from "./machine.ts"
 
 // The archive is flat, so the runner can unpack it with the system `tar` and run the server
 // where it stands. It is written here, not by whichever tar the computer has, so the same
@@ -82,7 +82,12 @@ export const manifest = (
   archive: string,
   data: Uint8Array,
   engineInterface: number,
-): { file: string; sha256: string; size: number; interface: number } => ({
+): {
+  readonly file: string
+  readonly sha256: string
+  readonly size: number
+  readonly interface: number
+} => ({
   file: archive,
   sha256: sha256(data),
   size: data.length,

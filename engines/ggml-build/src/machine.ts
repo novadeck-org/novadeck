@@ -6,8 +6,23 @@ import { join } from "node:path"
 // The computer the engine is built on, and how the build runs its commands and handles its
 // files there.
 
-export const windows = process.platform === "win32"
-export const macos = process.platform === "darwin"
+/** A computer the engine is built on, as the build's rules read it. */
+export type Machine = {
+  readonly platform: NodeJS.Platform
+  readonly arch: string
+  /** Where the Vulkan SDK is, when `VULKAN_SDK` names it. */
+  readonly vulkanSdk: string | undefined
+}
+
+/** This computer. */
+export const machine: Machine = {
+  platform: process.platform,
+  arch: process.arch,
+  vulkanSdk: process.env.VULKAN_SDK,
+}
+
+export const windows = machine.platform === "win32"
+export const macos = machine.platform === "darwin"
 
 // Windows ships bsdtar in System32; the `tar` first on a CI runner's PATH may be GNU tar
 // from Git, which reads `C:` in a path as a host name.

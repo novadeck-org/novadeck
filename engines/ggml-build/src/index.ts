@@ -2,7 +2,7 @@ import { join } from "node:path"
 
 import { archiveName, pack, publish, readStaging } from "./archive.ts"
 import { compile } from "./cmake.ts"
-import { commands, windows } from "./host.ts"
+import { commands, machine, windows } from "./machine.ts"
 import { sign } from "./sign.ts"
 import { download, prepare } from "./source.ts"
 import type { EngineSpec } from "./spec.ts"
@@ -34,7 +34,7 @@ export const buildEngine = async (spec: EngineSpec): Promise<void> => {
   await sign(staging, executable, run)
   await publish(
     join(spec.root, "dist"),
-    archiveName(spec.name, process.platform, process.arch),
+    archiveName(spec.name, machine.platform, machine.arch),
     pack(await readStaging(staging)),
     spec.engineInterface,
   )

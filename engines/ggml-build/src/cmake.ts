@@ -1,15 +1,7 @@
 import { availableParallelism } from "node:os"
 
-import { type Run, windows } from "./host.ts"
+import { type Machine, machine, type Run, windows } from "./machine.ts"
 import type { EngineSpec } from "./spec.ts"
-
-/** The computer the engine is built for: this one, except that macOS builds both architectures. */
-export type Machine = {
-  readonly platform: NodeJS.Platform
-  readonly arch: string
-  /** Where the Vulkan SDK is, when `VULKAN_SDK` names it. */
-  readonly vulkanSdk: string | undefined
-}
 
 // The oldest macOS Electron 44 runs on; a newer target would drop computers the app runs on.
 const macosTarget = "12.0"
@@ -67,10 +59,10 @@ const platformOptions = ({ platform, arch, vulkanSdk }: Machine): string[] => {
 }
 
 /** The options CMake configures the project with: the common ones, the project's own, then the platform's. */
-export const cmakeOptions = (options: readonly string[], machine: Machine): string[] => [
+export const cmakeOptions = (options: readonly string[], on: Machine): string[] => [
   ...common,
   ...options,
-  ...platformOptions(machine),
+  ...platformOptions(on),
 ]
 
 /** Configures and builds the engine's server, and through it the backend modules it loads. */
@@ -89,11 +81,6 @@ export const compile = (
     ...process.env,
     GIT_CEILING_DIRECTORIES: cache,
     ...(windows && { CFLAGS: "/Brepro", CXXFLAGS: "/Brepro", LDFLAGS: "/Brepro" }),
-  }
-  const machine = {
-    platform: process.platform,
-    arch: process.arch,
-    vulkanSdk: process.env.VULKAN_SDK,
   }
   run("cmake", ["-S", source, "-B", build, ...cmakeOptions(spec.options, machine)], {
     env: reproducible,

@@ -7,7 +7,7 @@ import { gunzipSync } from "node:zlib"
 import { afterEach, describe as context, describe, expect, it } from "vitest"
 
 import { archiveName, type Entry, manifest, pack, publish, readStaging } from "./archive.ts"
-import { sha256 } from "./host.ts"
+import { sha256 } from "./machine.ts"
 
 const text = (value: string): Uint8Array => new TextEncoder().encode(value)
 

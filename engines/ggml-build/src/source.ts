@@ -3,7 +3,7 @@ import { existsSync, readdirSync, readFileSync } from "node:fs"
 import { mkdir, rm, writeFile } from "node:fs/promises"
 import { join, parse } from "node:path"
 
-import { replaceFile, type Run, sha256, tar, windows } from "./host.ts"
+import { replaceFile, type Run, sha256, tar, windows } from "./machine.ts"
 import type { EngineSpec } from "./spec.ts"
 
 /** The source tarball at the pinned commit, checked before anything reads it and kept so later builds need no network. */

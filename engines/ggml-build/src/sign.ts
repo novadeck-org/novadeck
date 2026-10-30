@@ -2,7 +2,7 @@ import { lstatSync } from "node:fs"
 import { readdir } from "node:fs/promises"
 import { join } from "node:path"
 
-import { macos, type Run, windows } from "./host.ts"
+import { macos, type Run, windows } from "./machine.ts"
 import { isLibrary } from "./stage.ts"
 
 /** Signs the staged server and its libraries as the app is signed on this platform. */
@@ -11,7 +11,7 @@ export const sign = async (staging: string, executable: string, run: Run): Promi
   if (windows) signWindows(staging, run)
 }
 
-// Apple silicon runs only signed code, so on macOS every Mach-O is signed again: with the
+// Apple silicon runs only signed code, so on macOS every Mach-O is signed: with the
 // Developer ID that NOVADECK_MAC_IDENTITY names, under the hardened runtime as the app is,
 // or else ad hoc.
 const signMac = async (staging: string, executable: string, run: Run): Promise<void> => {

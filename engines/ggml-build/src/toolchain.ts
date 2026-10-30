@@ -1,7 +1,7 @@
 import { existsSync } from "node:fs"
 import { join } from "node:path"
 
-import { has, macos, tar, windows } from "./host.ts"
+import { has, machine, macos, tar, windows } from "./machine.ts"
 
 /** Names what the toolchain lacks, before a build spends minutes finding out. */
 export const requireTools = (label: string): void => {
@@ -20,7 +20,7 @@ export const requireTools = (label: string): void => {
     throw new Error(`Building the ${label} needs a C++ compiler, such as g++.`)
   }
   // The Vulkan backend compiles its shaders with glslc, from the Vulkan SDK or a package.
-  const sdk = process.env.VULKAN_SDK
+  const sdk = machine.vulkanSdk
   const glslc = windows ? "glslc.exe" : "glslc"
   const found =
     has("glslc") || (sdk !== undefined && existsSync(join(sdk, windows ? "Bin" : "bin", glslc)))
