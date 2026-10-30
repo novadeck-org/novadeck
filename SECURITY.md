@@ -77,7 +77,7 @@ What a notification shows is the start of the agent's last reply, which the runn
 from the agent's own Stop hook payload or its transcript or rollout, strips of terminal
 escapes, control characters and bidirectional marks and overrides, and cuts to 120 characters
 before it reaches any client (`replyPreview` in
-`harnesses/core/src/harness.ts`). It is the agent's words, so it may echo
+`harnesses/core/src/decode.ts`). It is the agent's words, so it may echo
 what the agent read, a secret included, onto the system's notification centre, which
 other applications and the lock screen may show; turn **Notify when an agent finishes**
 off in Preferences where that matters. A compromised UI can show no more through this

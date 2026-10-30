@@ -1,4 +1,4 @@
-import { ref } from "@novadeck/harness-core/harness"
+import { ref } from "@novadeck/harness-core/decode"
 import type { AgentDetail, RequestDialog } from "@novadeck/protocol"
 
 import { ordered, subagentRef, summary, type Activity, type Request } from "./activity.js"

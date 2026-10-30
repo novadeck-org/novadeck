@@ -1,27 +1,15 @@
-import type { TranscriptItem } from "@novadeck/protocol"
+import type { ToolRun, TranscriptItem } from "@novadeck/protocol"
 
-import { ref, type TranscriptEntry } from "./harness.js"
-import type { ToolRun } from "./tools.js"
+import { ref } from "./decode.js"
+import type { TranscriptEntry } from "./harness.js"
 
 // What the protocol takes of an item's text and a tool's name.
 const maxText = 16_384
 const maxTool = 256
 
 // Claude Code records a stopped turn as a user message in brackets. Every harness's items
-// are read for it, as the chat always did.
+// are checked for it.
 const interruption = /^\s*\[Request interrupted by user[^\]]*\]\s*$/
-
-/** A transcript line's record, or undefined for one that is not a JSON object. */
-export const record = (line: string): Record<string, unknown> | undefined => {
-  try {
-    const value = JSON.parse(line) as unknown
-    return typeof value === "object" && value !== null && !Array.isArray(value)
-      ? (value as Record<string, unknown>)
-      : undefined
-  } catch {
-    return undefined
-  }
-}
 
 /** When a record was written, from its ISO timestamp. */
 export const at = (value: unknown): number | null => {
@@ -43,7 +31,7 @@ export const joined = (parts: unknown, types: readonly string[]): string =>
 
 type Describe = (tool: string, input: string) => ToolRun
 
-type Fields = {
+type EntryFields = {
   readonly at: number | null
   readonly tool?: unknown
   readonly call?: unknown
@@ -61,19 +49,19 @@ export function entry(
   role: TranscriptItem["role"],
   kind: "text" | "tool-result",
   text: string,
-  fields: Fields,
+  fields: EntryFields,
 ): TranscriptEntry
 export function entry(
   role: TranscriptItem["role"],
   kind: "tool-call",
   text: string,
-  fields: Fields & { readonly describe: Describe },
+  fields: EntryFields & { readonly describe: Describe },
 ): TranscriptEntry
 export function entry(
   role: TranscriptItem["role"],
   kind: TranscriptItem["kind"],
   text: string,
-  fields: Fields & { readonly describe?: Describe },
+  fields: EntryFields & { readonly describe?: Describe },
 ): TranscriptEntry {
   const cut = text.slice(0, maxText)
   const tool = typeof fields.tool === "string" ? fields.tool.slice(0, maxTool) : null

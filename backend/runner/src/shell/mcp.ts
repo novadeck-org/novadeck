@@ -22,7 +22,8 @@
  * Only Claude Code reads a server's own instructions, so each tool's description carries
  * its rules.
  */
-import { efforts, plugin } from "@novadeck/harness-core/harness"
+import { efforts } from "@novadeck/harness-core/harness"
+import { manifest } from "@novadeck/harness-core/plugin"
 import { harnessIds, harnesses } from "@novadeck/protocol"
 
 import { maxMessageBytes } from "../messaging/messages.js"
@@ -1259,7 +1260,7 @@ const respond = async (line: string, call?: McpCall): Promise<Reply | undefined>
       result: {
         protocolVersion: mcpVersions.find((version) => version === asked) ?? mcpVersions[0],
         capabilities: { tools: {} },
-        serverInfo: { name: "novadeck", version: plugin.version },
+        serverInfo: { name: "novadeck", version: manifest.version },
         ...(call ? { instructions } : {}),
       },
     }

@@ -3,7 +3,7 @@ import { tmpdir } from "node:os"
 import { join } from "node:path"
 
 import type { ActivityEvent, HarnessEvent } from "@novadeck/harness-core/events"
-import { doorbellLine } from "@novadeck/harness-core/harness"
+import { doorbellLine } from "@novadeck/harness-core/prompts"
 import { consoleLogger, createLogger, logPath, type Entry } from "@novadeck/log"
 import { longHoldMs, type AgentName } from "@novadeck/protocol"
 import { keysOf } from "@novadeck/tui-input"

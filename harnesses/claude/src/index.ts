@@ -3,17 +3,13 @@ import { join } from "node:path"
 
 import { followLines } from "@novadeck/harness-core/follow"
 import {
-  hookSeconds,
-  json,
-  marketplace,
-  mcpServer,
-  plugin,
   efforts,
   type MessagingProfile,
   type Harness,
   type Install,
 } from "@novadeck/harness-core/harness"
-import { hookCommand, type Dialect } from "@novadeck/harness-core/hook-command"
+import { hookSeconds, hookCommand, type Dialect } from "@novadeck/harness-core/hook-command"
+import { json, marketplace, manifest } from "@novadeck/harness-core/plugin"
 
 import { box } from "./box.js"
 import { decode, transcriptPlans } from "./decode.js"
@@ -125,13 +121,13 @@ export const claude = {
   hookDialect,
   hook,
   files: (platform, launchers) => [
-    { path: join(".claude-plugin", "marketplace.json"), content: marketplace },
-    { path: join("novadeck", ".claude-plugin", "plugin.json"), content: json(plugin) },
+    { path: join(".claude-plugin", "marketplace.json"), content: json(marketplace) },
+    { path: join("novadeck", ".claude-plugin", "plugin.json"), content: json(manifest) },
     // Its MCP server, which Claude Code finds at the plugin's root and starts with the
     // terminal's environment.
     {
       path: join("novadeck", ".mcp.json"),
-      content: json({ mcpServers: { novadeck: mcpServer(launchers) } }),
+      content: json({ mcpServers: { novadeck: launchers.mcp } }),
     },
     {
       path: join("novadeck", "hooks", "hooks.json"),

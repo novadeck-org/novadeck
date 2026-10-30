@@ -1,4 +1,4 @@
-import { callId } from "@novadeck/harness-core/harness"
+import { callId } from "@novadeck/harness-core/decode"
 import type { Report } from "@novadeck/harness-core/report"
 import { loadProbe } from "@novadeck/harness-core/testing/probes"
 import { describe, expect, it } from "vitest"

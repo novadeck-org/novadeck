@@ -1,6 +1,7 @@
 import { rmSync } from "node:fs"
 
-import { doorbell, type Choice } from "@novadeck/harness-core/harness"
+import type { Choice } from "@novadeck/harness-core/harness"
+import { doorbell } from "@novadeck/harness-core/prompts"
 import type { AgentName } from "@novadeck/protocol"
 
 import { DomainError } from "../errors.js"

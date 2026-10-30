@@ -1,5 +1,6 @@
 import type { ActivityEvent, Background, HarnessEvent } from "@novadeck/harness-core/events"
-import { hookShellSlackMs, silentFor, type MessagingProfile } from "@novadeck/harness-core/harness"
+import { silentFor, type MessagingProfile } from "@novadeck/harness-core/harness"
+import { hookShellSlackMs } from "@novadeck/harness-core/hook-command"
 import {
   longHoldMs,
   type AgentName,

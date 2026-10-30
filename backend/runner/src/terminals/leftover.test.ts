@@ -1,4 +1,4 @@
-import { doorbellLine } from "@novadeck/harness-core/harness"
+import { doorbellLine } from "@novadeck/harness-core/prompts"
 
 import { describe, expect, it } from "../test.js"
 import { leftoverNonce } from "./leftover.js"
