@@ -1,5 +1,5 @@
-import { clockTime, waitingLine, wakeFill } from "@novadeck/core/agents/waiting"
-import { minutesWaited, wakeIn } from "@novadeck/core/agents/waiting-clock"
+import { clockTime, waitingLine, wakeFill } from "@novadeck/core/terminals/waiting"
+import { minutesWaited, wakeIn } from "@novadeck/core/terminals/waiting-clock"
 import type { TerminalMetadata } from "@novadeck/core/types"
 
 import { useSecond } from "./useSecond"

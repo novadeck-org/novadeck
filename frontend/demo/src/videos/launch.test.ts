@@ -1,5 +1,6 @@
 import { agentContext } from "@novadeck/core/agents/steps"
 import type { InboxRow } from "@novadeck/core/inbox"
+import { planItemOf } from "@novadeck/core/inbox/plan"
 import { orderedTiles } from "@novadeck/core/roster"
 import { workspaceFromSeed } from "@novadeck/core/seed"
 import { activeSession } from "@novadeck/core/state"
@@ -278,6 +279,117 @@ describe("the launch demo", () => {
       expect(agent(launch.command)).toMatchObject({ working: text !== undefined })
       expect(agent(launch.command)?.reported).toBeUndefined()
       expect(rows().filter((each) => each.kind === "update")).toEqual([])
+    }
+  })
+
+  it("has an Antigravity agent show its implementation plan and ask to approve it, in Antigravity's words", () => {
+    const { cues, rows, store, agent } = open()
+    cues.agyPlan()
+    cues.agyPlan()
+    expect(rows()).toHaveLength(1)
+    const [row] = rows()
+    if (row?.kind !== "request" || row.request.dialog?.type !== "choices")
+      throw new Error("a plan to approve")
+    expect(row.source.title).toBe("Inventory sync")
+    expect(row.request).toMatchObject({ kind: "plan", tool: "artifact" })
+    // As harnesses/agy's plan-dialog.ts builds it from its footer.
+    expect(row.request.dialog).toMatchObject({
+      title: "1 artifact to review",
+      detail: null,
+      options: [
+        { id: "approve", label: "Approve", text: null },
+        { id: "reject", label: "Reject", text: null },
+        { id: "feedback", label: "Tell it what to change", text: "field" },
+      ],
+    })
+    // Its plan is the artifact it wrote, on its bar, where the Inbox sheet finds it.
+    const { items } = activeSession(store.getSnapshot())!.state
+    expect(items).toMatchObject([
+      {
+        kind: "plan",
+        name: "Stock sync",
+        path: expect.stringMatching(
+          /\/\.gemini\/antigravity-cli\/brain\/[^/]+\/implementation_plan\.md$/,
+        ),
+        holder: { terminalId: key(launch.agyPlan).terminalId },
+        from: { terminalId: key(launch.agyPlan).terminalId },
+        plan: { agent: "Antigravity", role: "root", source: "file" },
+      },
+    ])
+    expect(planItemOf(items, row, Date.now())).toMatchObject({ state: "found" })
+    expect(agent(launch.agyPlan)).toMatchObject({ attention: { kind: "plan" } })
+    // The window stays shut, and its pane waits to be opened: the person answers from the Inbox.
+    const { bars, waiting } = activeSession(store.getSnapshot())!.state
+    expect(bars[key(launch.agyPlan).terminalId]).toMatchObject({ open: false })
+    expect(waiting).toHaveLength(1)
+  })
+
+  it("takes what the person answers Antigravity's plan with as its next request, and goes on", async () => {
+    for (const [option, text] of [
+      ["approve", undefined],
+      ["reject", undefined],
+      ["feedback", "Do it in one pass."],
+    ] as const) {
+      const { cues, inbox, rows, agent } = open()
+      cues.agyPlan()
+      const [row] = rows()
+      if (row?.kind !== "request" || row.request.dialog?.type !== "choices")
+        throw new Error("a plan to approve")
+      inbox.answer(row.id, {
+        kind: "request",
+        answer: {
+          type: "choice",
+          dialog: row.request.dialog.id,
+          option,
+          ...(text ? { text } : {}),
+        },
+      })
+      // eslint-disable-next-line no-await-in-loop -- One answer at a time.
+      await vi.advanceTimersByTimeAsync(answerMs + answeredMs + 3000)
+      expect(agent(launch.agyPlan)).toMatchObject({ working: true })
+      expect(agent(launch.agyPlan)?.attention).toBeUndefined()
+      expect(
+        rows().filter((each) => each.kind === "request" && !("settled" in each && each.settled)),
+      ).toEqual([])
+    }
+  })
+
+  it("refuses Antigravity's plan words with approve, and none with the third option", async () => {
+    const { cues, inbox, rows } = open()
+    cues.agyPlan()
+    const [row] = rows()
+    if (row?.kind !== "request" || row.request.dialog?.type !== "choices")
+      throw new Error("a plan to approve")
+    const dialog = row.request.dialog.id
+    for (const [option, text] of [
+      ["approve", "Go."],
+      ["feedback", undefined],
+    ] as const)
+      expect(() =>
+        inbox.answer(row.id, {
+          kind: "request",
+          answer: { type: "choice", dialog, option, ...(text ? { text } : {}) },
+        }),
+      ).not.toThrow()
+    await vi.advanceTimersByTimeAsync(answerMs + answeredMs + 3000)
+    expect(
+      rows().some((each) => each.kind === "request" && !("settled" in each && each.settled)),
+    ).toBe(true)
+  })
+
+  it("lets the Claude Code question, the Codex command and the Antigravity plan all be asked, in any order", () => {
+    for (const order of [
+      ["question", "command", "agyPlan"],
+      ["agyPlan", "question", "command"],
+      ["command", "agyPlan", "question"],
+    ] as const) {
+      const { cues, rows } = open()
+      for (const cue of order) cues[cue]()
+      expect(
+        rows()
+          .map((row) => row.source.title)
+          .toSorted(),
+      ).toEqual(["Cart drawer", "Inventory sync", "Search index"])
     }
   })
 

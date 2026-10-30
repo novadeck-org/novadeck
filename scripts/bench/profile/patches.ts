@@ -110,25 +110,25 @@ export const softwareWebglPatch = {
   },
 } as const
 
-const viewsFile = /\/frontend\/terminal-views\/src\/renderers\.ts$/
-const created = /\bwebglRenderers\(\{$/gm
+const poolFile = /\/frontend\/terminal-views\/src\/renderer-pool\.ts$/
+const created = /\bwebglRendererPool\(\{$/gm
 
 /**
- * The page's pool takes `cap` contexts, in place of its default: the `contexts` flag raises
- * Chromium's limit to match (`--max-active-webgl-contexts`), and the pool keeps two free, as
- * its default does of 16. The option goes on the call's own line, so no line moves.
+ * The page's pool is sized to `contexts`, in place of the browser's limit: the `contexts` flag
+ * raises Chromium's limit to match (`--max-active-webgl-contexts`), and the pool keeps its own
+ * margin free of it. The option goes on the call's own line, so no line moves.
  */
 export const raisedCapPatch = (contexts: number) =>
   ({
     name: "profile-raised-cap",
     enforce: "pre",
     transform: (code: string, id: string): { code: string; map: null } | null => {
-      if (!viewsFile.test(id)) return null
+      if (!poolFile.test(id)) return null
       if (code.match(created)?.length !== 1)
         throw new Error(
-          "The page's pool is no longer created by webglRenderers({ as the patch expects",
+          "The page's pool is no longer created by webglRendererPool({ as the patch expects",
         )
-      return { code: code.replace(created, `$& cap: ${contexts - 2},`), map: null }
+      return { code: code.replace(created, `$& contexts: ${contexts},`), map: null }
     },
   }) as const
 

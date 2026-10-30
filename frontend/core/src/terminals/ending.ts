@@ -1,7 +1,6 @@
-import { clockTime, waitingOf, waitingText as waitingNote } from "../agents/waiting"
-import type { InboxMarks } from "../inbox/marks"
 import type { TerminalMetadata } from "../types"
 import { isAgentProgram } from "./process"
+import { clockTime, waitingOf, waitingText as waitingNote } from "./waiting"
 
 // How a terminal's session ended, in words for its end-of-session bar and its sidebar
 // tab. The tone ranks it: a warning for a shell that exited with an error code, danger
@@ -222,6 +221,16 @@ export const needText = (
   if (attentionNeed(terminal) === need) return attentionText(terminal)
   if (kind) return dialogBare[kind]
   return need === "ask" ? "Asks a question" : "Needs you"
+}
+
+// What the Inbox says of one terminal, for its tab, its window and its project's status: the
+// need its rows make, and the subject and the dialog kind of the row that makes the need
+// (`inboxMarks` in inbox/marks.ts). Its done report is no mark of the Inbox: it stands with
+// the agent (`AgentStatus.reported`).
+export type InboxMarks = {
+  readonly need: TerminalNeed | undefined
+  readonly subject?: string | undefined
+  readonly dialog?: NeedDialog | undefined
 }
 
 // How a terminal reads at a glance, once, for its tab, its window and its project's status, so

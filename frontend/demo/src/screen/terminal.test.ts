@@ -48,7 +48,7 @@ const slot = (number: number): TerminalKey => ({
 const closing: (() => void)[] = []
 afterEach(() => closing.splice(0).forEach((close) => close()))
 
-// A real emulator, as the views draw with, reading what the screen writes.
+// A real emulator, as the terminal screens draw with, reading what the screen writes.
 const emulator = (cols: number, rows: number): Terminal => {
   const element = document.body.appendChild(document.createElement("div"))
   const view = createView(element, {

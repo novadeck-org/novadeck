@@ -60,7 +60,7 @@ Object.defineProperty(HTMLElement.prototype, "offsetHeight", {
 // Nothing here reads a stylesheet; parsing them was half of what these tests took.
 leaveStylesheetsUnparsed()
 
-const hosts: HTMLElement[] = []
+const containers: HTMLElement[] = []
 const terminals: Terminal[] = []
 type Renderer = {
   handleCharSizeChanged(): void
@@ -87,11 +87,11 @@ const renderer = (terminal: Terminal): Renderer => renderService(terminal)["_ren
 // screen, come back.
 const open = async (options: ConstructorParameters<typeof Terminal>[0] = {}) => {
   const before = reads
-  const host = document.body.appendChild(document.createElement("div"))
+  const container = document.body.appendChild(document.createElement("div"))
   const terminal = new Terminal({ fontFamily: "Test Mono", fontSize: 14, ...options })
-  hosts.push(host)
+  containers.push(container)
   terminals.push(terminal)
-  terminal.open(host)
+  terminal.open(container)
   await new Promise<void>((done) =>
     terminal.write("Hello, wörld! \u001b[1mbold\u001b[0m \u001b[3mitalic\u001b[0m", done),
   )
@@ -101,7 +101,7 @@ const open = async (options: ConstructorParameters<typeof Terminal>[0] = {}) => 
 
 afterEach(() => {
   terminals.splice(0).forEach((terminal) => terminal.dispose())
-  hosts.splice(0).forEach((host) => host.remove())
+  containers.splice(0).forEach((container) => container.remove())
   broken = false
   jbLoaded = false
   glyph = 8

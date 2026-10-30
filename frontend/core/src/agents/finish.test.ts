@@ -46,6 +46,18 @@ describe("an agent finishing", () => {
     expect(sightTurnEnd(null, left).finish).toEqual({ failed: false, reply: "All green." })
   })
 
+  it("still finishes a turn that ended waiting on a job, whatever its outcome", () => {
+    const job = { id: "job-1", description: "Watch CI checks", command: "", since: 5, until: null }
+    for (const outcome of ["completed", "failed"] as const) {
+      const lastTurn = { outcome, at: 10 }
+      const waiting = agent({ working: false, waiting: { jobs: [job], wake: null }, lastTurn })
+      expect(sightTurnEnd(null, waiting)).toEqual({
+        seen: 10,
+        finish: { failed: outcome === "failed" },
+      })
+    }
+  })
+
   it("finishes on a new end even when the status never showed it working", () => {
     // Two updates of one terminal that came as one: its next turn ran and ended unseen.
     const next = agent({ working: false, lastTurn: { ...completed, at: 20, reply: "Again." } })

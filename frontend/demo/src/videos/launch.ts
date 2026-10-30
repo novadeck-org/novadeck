@@ -65,6 +65,10 @@ export const launch = {
   plan: 7,
   // Finishes alone, with a report, for the spread of states.
   finishes: 8,
+  // Asks to approve its implementation plan, in Antigravity's words: the deck's one Antigravity
+  // window, so the same agent as the one that finishes alone (the cues don't exclude each other:
+  // whichever comes first, the other finds it asking or done).
+  agyPlan: 8,
   // Asks a question and marks its own pick.
   question: 1,
   // Shows a page, then its changes or a screenshot of three takes on a button, in the pane.
@@ -392,9 +396,10 @@ const launchSeed = (now: number): WorkspaceSeed => ({
   ],
 })
 
-// What each conversation holds so far. Four agents also hold what they'll ask when the cues
+// What each conversation holds so far. Five agents also hold what they'll ask when the cues
 // come: the checkout tests and the search index (in Codex's words) a permission, the order
-// emails a plan, the cart drawer a question with its own pick.
+// emails a plan and the inventory sync (in Antigravity's words) its implementation plan, the
+// cart drawer a question with its own pick.
 export const launchTranscripts = (now: number): Readonly<Record<string, DemoTranscript>> =>
   deskTranscripts(
     now,
@@ -402,12 +407,16 @@ export const launchTranscripts = (now: number): Readonly<Record<string, DemoTran
     home,
     {
       permissions: [launch.permission, launch.command],
-      plan: {
-        number: launch.plan,
-        subject: "Order emails plan",
-        steps:
-          "1. Add a shipped-order email template\n2. Queue it when an order is marked shipped\n3. Test it with a sandbox order",
-      },
+      plans: [
+        {
+          number: launch.plan,
+          subject: "Order emails plan",
+          steps:
+            "1. Add a shipped-order email template\n2. Queue it when an order is marked shipped\n3. Test it with a sandbox order",
+        },
+        // Antigravity's dialog holds neither: its plan is the artifact shown beside the window.
+        { number: launch.agyPlan, subject: "1 artifact to review", steps: "" },
+      ],
       question: {
         number: launch.question,
         id: "cart",
@@ -749,6 +758,44 @@ const planArtifact = (): SampleArtifact => ({
   }),
 })
 
+// The implementation plan the inventory sync writes, as Antigravity does: an artifact in its
+// conversation's folder under `brain`, written for review (the runner shows it beside the
+// window as the artifact is written, as it does Claude Code's plan file).
+const agyPlanPath =
+  "/home/dev/.gemini/antigravity-cli/brain/6f3b2c1e-9d47-4a85-b0c2-5e1d8a7f4c39/implementation_plan.md"
+const agyPlanArtifact = (): SampleArtifact => ({
+  item: {
+    id: "northwind-inventory-sync-plan",
+    kind: "plan",
+    name: "Stock sync",
+    detail: agyPlanPath,
+    path: agyPlanPath,
+    url: null,
+    lines: null,
+    secret: false,
+    plan: { agent: "Antigravity", role: "root", source: "file" },
+  },
+  content: ready({
+    kind: "plan",
+    text: [
+      "# Stock sync",
+      "",
+      "Keep the storefront's stock counts in step with the warehouse feed.",
+      "",
+      "## Steps",
+      "",
+      "1. Read the warehouse feed on a schedule",
+      "2. Update each product's stock count from it",
+      "3. Test it against a sample feed",
+    ].join("\n"),
+    truncated: false,
+    // A file the runner reads whole, so writable, as companions/content.ts has it: its pane says
+    // nothing of being read-only, as the real one doesn't.
+    writable: true,
+    skill: false,
+  }),
+})
+
 // How long the lead takes to answer its teammate once the doorbell rang it awake.
 // (long enough for a capture to show the teammate's ask on its own first)
 const answersMs = 4000
@@ -785,6 +832,12 @@ export type LaunchCues = {
   // report (a done mark and an Update row) about 2 s later. It and `askReview` (whose reviewer
   // it is) each do nothing once the other has run.
   readonly command: () => void
+  // An Antigravity agent asks the person to approve its implementation plan, in Antigravity's
+  // own words ("1 artifact to review": Approve, Reject, Tell it what to change): Inventory
+  // sync, whose plan is the artifact it shows beside its window as it asks, and the Inbox
+  // sheet's plan box reads. It shows the plan without opening the window. Answered, it goes on
+  // working on the person's choice, as Antigravity takes it as its next request.
+  readonly agyPlan: () => void
   // One agent's turn ends in an error: a Trouble row, and its line goes red.
   readonly fail: () => void
   // One agent ends its turn with a report: a done mark and an Update row.
@@ -844,6 +897,7 @@ export const createLaunch = (turns: DemoTurns, now: number) => {
   const changes = changesArtifact()
   const variants = variantsArtifact()
   const plan = planArtifact()
+  const agyPlan = agyPlanArtifact()
   const messages = createDemoMessages([deskMessages(shop, allJobs.length)], false, (target, id) =>
     latest === undefined ? true : terminalOf(latest, { ...target, terminalId: id }) !== undefined,
   )
@@ -856,6 +910,11 @@ export const createLaunch = (turns: DemoTurns, now: number) => {
         artifacts: [preview, changes, variants],
       },
       { key: keyOf(launch.plan), handle: demoHandle(launch.plan), artifacts: [plan] },
+      {
+        key: keyOf(launch.agyPlan),
+        handle: demoHandle(launch.agyPlan),
+        artifacts: [agyPlan],
+      },
     ],
   })
   let latest: Workspace | undefined
@@ -973,6 +1032,12 @@ export const createLaunch = (turns: DemoTurns, now: number) => {
     question: () => !ended && ask(launch.question, "question"),
     // Not once the review is asked: its reviewer is the command's agent, and answers it.
     command: () => !ended && !reviewAsked && ask(launch.command, "permission"),
+    agyPlan: () => {
+      if (ended || asked.has(launch.agyPlan) || !busy(terminal(launch.agyPlan))) return
+      // Written first, then asked about: the artifact is on the bar when the review shows.
+      upsert(agyPlan, launch.agyPlan)
+      ask(launch.agyPlan, "plan")
+    },
     asks: () => {
       cues.permission()
       cues.plan()
@@ -1307,6 +1372,13 @@ export const createLaunch = (turns: DemoTurns, now: number) => {
         if (request === `${slot(launch.plan)}:plan` && answer.type === "choice") {
           const words = (answer.text ?? "").trim() !== ""
           if (answer.option === "3" ? !words : words)
+            throw new Error("Couldn't answer that here. Answer it in the terminal.")
+        }
+        // Antigravity's review takes words only in its third option, which needs them
+        // (harnesses/agy's plan-dialog refuses the others).
+        if (request === `${slot(launch.agyPlan)}:plan` && answer.type === "choice") {
+          const words = (answer.text ?? "").trim() !== ""
+          if (answer.option === "feedback" ? !words : words)
             throw new Error("Couldn't answer that here. Answer it in the terminal.")
         }
         await conversations.answer(key, request, answer)
