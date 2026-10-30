@@ -1,6 +1,6 @@
 import { SerializeAddon } from "@xterm/addon-serialize"
 import headless from "@xterm/headless"
-import type { Terminal as HeadlessTerminal } from "@xterm/headless"
+import type { IBufferCell, IBufferLine, Terminal as HeadlessTerminal } from "@xterm/headless"
 
 import { applyWidths } from "./width.js"
 
@@ -16,6 +16,32 @@ export const serializerOf = (screen: Screen): SerializeAddon => {
   if (!serializer) throw new Error("A screen is made with createScreen, which loads its serializer")
   return serializer
 }
+
+/**
+ * The screen serialized with as much scrollback as `fits` accepts, halving it until then:
+ * the visible screen always stays. Undefined when not even the visible screen fits.
+ */
+export const serializeWithin = (
+  screen: Screen,
+  serialize: (serializer: SerializeAddon, scrollback: number) => string,
+  fits: (data: string) => boolean,
+): string | undefined => {
+  const serializer = serializerOf(screen)
+  let scrollback = screen.buffer.normal.baseY
+  while (true) {
+    const data = serialize(serializer, scrollback)
+    if (fits(data)) return data
+    if (scrollback === 0) return undefined
+    scrollback = Math.floor(scrollback / 2)
+  }
+}
+
+/**
+ * Writes `data` to the screen, resolving once it is parsed, even where parsing threw (the
+ * browser's `writeTo` rejects then).
+ */
+export const written = (screen: Screen, data: string): Promise<void> =>
+  new Promise((resolve) => screen.write(data, resolve))
 
 /**
  * A headless emulator that counts widths as every emulator here does (see `applyWidths`),
@@ -64,11 +90,7 @@ export type ScreenText = {
 
 // Whether a row's last cell holds a character: the second half of a double-width one does
 // (its cell has no width of its own, and the first half is before it).
-const lastCellFilled = (
-  line: NonNullable<ReturnType<Screen["buffer"]["active"]["getLine"]>>,
-  columns: number,
-  cell: ReturnType<Screen["buffer"]["active"]["getNullCell"]>,
-): boolean => {
+const lastCellFilled = (line: IBufferLine, columns: number, cell: IBufferCell): boolean => {
   const last = line.getCell(columns - 1, cell)
   if (!last) return false
   if (last.getWidth() === 0) return true

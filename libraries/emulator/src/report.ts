@@ -15,10 +15,15 @@ const report =
  */
 export type Reporting = { readonly mouse: "sgr" | "x10" | null; readonly focus: boolean }
 
-// What a report is to the program: none of its typed keys; content, as a click, which can
-// open a menu; or keys, not a report at all: one the program never asked for, one in
-// another encoding than it reads, or an X10 one it may not read whole.
-const kindOf = (match: RegExpExecArray, reporting: Reporting): "none" | "content" | "keys" => {
+/**
+ * What a report is to the program: `none`, never one of its typed keys; `content`, as a
+ * click, which can change what it shows (open a menu); or `keys`, not a report at all: one
+ * the program never asked for, one in another encoding than it reads, or an X10 one it may
+ * not read whole.
+ */
+type ReportKind = "none" | "content" | "keys"
+
+const kindOf = (match: RegExpExecArray, reporting: Reporting): ReportKind => {
   const { sgr, x10, focus } = match.groups ?? {}
   if (focus !== undefined) return reporting.focus ? "none" : "keys"
   // Answers to queries, whatever the program asked for.
@@ -34,15 +39,11 @@ const kindOf = (match: RegExpExecArray, reporting: Reporting): "none" | "content
   return (button & (64 | 32)) !== 0 ? "none" : "content"
 }
 
-/**
- * The terminal's own reply at the start of `data`, if any, and what it is to the program:
- * `none`, never one of its typed keys; `content`, as a click, which can change what it
- * shows; or `keys`, so what looks like a reply is typed.
- */
+/** The terminal's own reply at the start of `data`, if any, and what it is to the program. */
 export const matchReport = (
   data: string,
   reporting: Reporting,
-): { readonly length: number; readonly kind: "none" | "content" | "keys" } | undefined => {
+): { readonly length: number; readonly kind: ReportKind } | undefined => {
   const match = report.exec(data)
   return match ? { length: match[0].length, kind: kindOf(match, reporting) } : undefined
 }
