@@ -36,7 +36,6 @@ import {
   type TerminalWatchItem,
 } from "@novadeck/runner-client"
 import { createTerminalMount } from "@novadeck/terminal-views/mount"
-import { pause } from "@novadeck/terminal/view"
 import { createTerminalViews } from "@novadeck/terminal/view"
 import type { WireStatus } from "@novadeck/wire/client"
 
@@ -71,6 +70,10 @@ import {
 import { createRunnerSource } from "./source"
 import { viewOptions } from "./view-options"
 import { createRunnerVoice } from "./voice"
+
+/** Resolves after `ms` milliseconds. */
+export const pause = (ms: number): Promise<void> =>
+  new Promise((resolve) => setTimeout(resolve, ms))
 
 // The part of the runner client the adapter uses.
 export type RunnerApi = Pick<

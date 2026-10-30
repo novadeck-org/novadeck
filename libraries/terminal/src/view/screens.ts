@@ -6,6 +6,7 @@ import {
   type ViewRenderer,
 } from "@novadeck/emulator/browser"
 
+import { sizeBounds } from "../size.js"
 import { followTerminal, type FollowedTerminal, type FollowOptions, type Screen } from "./follow.js"
 import {
   clipboardAccess,
@@ -26,19 +27,19 @@ import {
   type ViewState,
 } from "./view-state.js"
 
-// The sizes a terminal accepts.
-const clamp = (value: number, min: number, max: number): number =>
-  Math.min(max, Math.max(min, Math.floor(value)))
-export const runnerSize = (size: {
+const clamp = (value: number, bounds: { readonly min: number; readonly max: number }): number =>
+  Math.min(bounds.max, Math.max(bounds.min, Math.floor(value)))
+// The size, held to the sizes a terminal takes.
+export const clampSize = (size: {
   readonly cols: number
   readonly rows: number
 }): { readonly cols: number; readonly rows: number } => ({
-  cols: clamp(size.cols, 2, 500),
-  rows: clamp(size.rows, 1, 200),
+  cols: clamp(size.cols, sizeBounds.cols),
+  rows: clamp(size.rows, sizeBounds.rows),
 })
 
 // How long a terminal's size stays still before it refits after a resize. Each refit
-// forces a layout and may tell the runner, so a zoom or a drag refits once it pauses,
+// forces a layout and may tell the host, so a zoom or a drag refits once it pauses,
 // not on every frame across dozens of terminals.
 const resizeSettleMs = 120
 // How long a notice of a failed paste stays.
@@ -49,9 +50,9 @@ export const pasteNoticeMs = 4_000
 export type TerminalViewOptions<K> = FollowOptions<K> & {
   // The key as a string, which names its screen.
   readonly keyOf: (key: K) => string
-  // Opens an emulator in `element`. The views subscribe to its renderer changes themselves.
+  // Opens an emulator in `container`. The views subscribe to its renderer changes themselves.
   readonly emulator: (
-    element: HTMLElement,
+    container: HTMLElement,
     open: { readonly fontSize: number; readonly fontFamily: string; readonly theme: ITheme },
   ) => View
   readonly theme: {
@@ -68,7 +69,7 @@ export type TerminalViewOptions<K> = FollowOptions<K> & {
     // Attributes of the emulator's input field, set before its accessible name.
     readonly input?: Readonly<Record<string, string>>
     // The class of the element a screen draws in.
-    readonly hostClass?: string
+    readonly containerClass?: string
   }
   // Called with the terminal's restart, as Enter asks for it in an ended shell.
   readonly restart: (key: K) => void
@@ -80,12 +81,12 @@ export type TerminalViewOptions<K> = FollowOptions<K> & {
   // `afterMs` of the clock's time.
   readonly retain: { readonly afterMs: number; readonly shown: (key: K) => boolean }
   readonly paste: {
-    // Saves a file on the terminal's machine and resolves with its path there.
+    // Saves a file on the host's machine and resolves with its path there.
     readonly upload: (
       key: K,
       file: { readonly name: string; readonly data: Uint8Array },
     ) => Promise<string>
-    // A file's own path on that machine, or "" for one that has none there.
+    // A file's own path on the host's machine, or "" for one that has none there.
     readonly pathOf?: ((file: File) => string) | undefined
     // The most a file may be to upload.
     readonly maxBytes: number
@@ -101,11 +102,11 @@ export type TerminalViewOptions<K> = FollowOptions<K> & {
 }
 
 // One terminal's emulator and its attachment to its host, outliving the mounts that
-// show it: switching views moves its host into the next mount's element instead of opening
+// show it: switching views moves its container into the next mount's element instead of opening
 // a new emulator and attaching again.
 type OpenScreen = {
   // The element the emulator draws in; a mount moves it into its own element.
-  readonly host: HTMLDivElement
+  readonly container: HTMLDivElement
   readonly xterm: Terminal
   readonly followed: FollowedTerminal
   // Which renderer draws it: WebGL while shown where its view wants it and a context is
@@ -156,7 +157,7 @@ export type Hold = {
 }
 
 type Entry = {
-  readonly host: HTMLDivElement
+  readonly container: HTMLDivElement
   screen?: OpenScreen
   dispose?: () => void
   users: number
@@ -208,22 +209,23 @@ export const createTerminalViews = <K>(o: TerminalViewOptions<K>) => {
   const parked = new Map<string, { key: K; entry: Entry }>()
   // Whether Ctrl+V may read the clipboard, the same for every terminal.
   const readable = clipboardAccess(o.paste.trustedClipboard)
-  // The font the app last asked for, which a screen opens in and is brought to.
+  // The font the owner last asked for, which a screen opens in and is brought to.
   let font: TerminalFont = { size: defaultFontSize }
   const entryOf = (key: K): Entry => {
     const known = entries.get(id(key))
     if (known) return known
-    const host = document.createElement("div")
-    if (o.markup?.hostClass !== undefined) host.setAttribute("class", o.markup.hostClass)
-    const created: Entry = { host, users: 0 }
+    const container = document.createElement("div")
+    if (o.markup?.containerClass !== undefined)
+      container.setAttribute("class", o.markup.containerClass)
+    const created: Entry = { container, users: 0 }
     entries.set(id(key), created)
     return created
   }
 
   const open = (key: K, entry: Entry, { label, phase }: Omit<ShowOptions, "webgl">): OpenScreen => {
-    const element = entry.host
-    const resolved = o.theme.resolve(element)
-    const view = o.emulator(element, {
+    const { container } = entry
+    const resolved = o.theme.resolve(container)
+    const view = o.emulator(container, {
       fontSize: font.size,
       fontFamily: resolved.fontFamily,
       theme: resolved.theme,
@@ -248,7 +250,7 @@ export const createTerminalViews = <K>(o: TerminalViewOptions<K>) => {
       },
       fit: () => {
         const size = view.fit()
-        return size && runnerSize(size)
+        return size && clampSize(size)
       },
     }
     // The state a person sees, with the lock recomputed in the same step as the change that
@@ -280,7 +282,7 @@ export const createTerminalViews = <K>(o: TerminalViewOptions<K>) => {
       if (followed.refit()) view.renderer.resized()
     })
     const screen: OpenScreen = {
-      host: element,
+      container,
       xterm,
       followed,
       renderer: view.renderer,
@@ -318,7 +320,7 @@ export const createTerminalViews = <K>(o: TerminalViewOptions<K>) => {
     const input = xterm.onData(send)
     // Some mouse reports arrive as binary; they go to the shell the same way.
     const binary = xterm.onBinary(send)
-    // Pasted files go in as their paths on the runner's machine, as a bracketed paste. An
+    // Pasted files go in as their paths on the host's machine, as a bracketed paste. An
     // upload that ends after the screen is gone pastes and tells nothing.
     let noticed: ReturnType<typeof setTimeout> | undefined
     let gone = false
@@ -337,7 +339,7 @@ export const createTerminalViews = <K>(o: TerminalViewOptions<K>) => {
         noticed = setTimeout(() => refresh({ notice: null }), pasteNoticeMs)
       },
     }
-    const pastes = takeFilePastes(element, target)
+    const pastes = takeFilePastes(container, target)
     // Ctrl+C copies a selection on Windows, where Ctrl+V pastes; on Linux Ctrl+V pastes a
     // clipboard of images too, and what is typed while it looks waits behind it.
     takeClipboardKeys(
@@ -372,35 +374,35 @@ export const createTerminalViews = <K>(o: TerminalViewOptions<K>) => {
     // The theme's font, once it has loaded: a bundled font still on its way arrives later,
     // and the terminal keeps the font it has until then. A new font changes the cell size,
     // so the terminal fits again.
-    const takeFont = (theme = o.theme.resolve(element)): void => {
+    const takeFont = (theme = o.theme.resolve(container)): void => {
       void view.setFont(theme.fontFamily).then((measured) => {
         if (measured && !gone) followed.refit()
       })
     }
     // A theme sets the colours and the font.
     const retheme = (): void => {
-      const theme = o.theme.resolve(element)
+      const theme = o.theme.resolve(container)
       view.setTheme(theme.theme)
       takeFont(theme)
     }
-    // A host opened before it had a slot took the page's colours and font; once in one,
+    // A container opened before it had a slot took the page's colours and font; once in one,
     // it takes its region's.
-    let placed = element.isConnected
+    let placed = container.isConnected
     // Out of sight, as a view keeps a terminal it isn't showing, it has no size. Shown
     // again, it takes the size it has now at once, not after a pause.
-    let sized = Boolean(element.clientWidth && element.clientHeight)
+    let sized = Boolean(container.clientWidth && container.clientHeight)
     const resizes = new ResizeObserver(() => {
-      if (!placed && element.isConnected) {
+      if (!placed && container.isConnected) {
         placed = true
         retheme()
       }
       const was = sized
-      sized = Boolean(element.clientWidth && element.clientHeight)
+      sized = Boolean(container.clientWidth && container.clientHeight)
       clearTimeout(settling)
       if (sized && !was) followed.refit()
       else settling = setTimeout(() => followed.refit(), resizeSettleMs)
     })
-    resizes.observe(element)
+    resizes.observe(container)
     const unthemed = o.theme.changed(retheme)
     // The terminal opened in its font whether it had loaded or not; one still on its way
     // is measured again once it arrives.
@@ -419,7 +421,7 @@ export const createTerminalViews = <K>(o: TerminalViewOptions<K>) => {
       queries.dispose()
       followed.stop()
       view.dispose()
-      element.remove()
+      container.remove()
     }
     return screen
   }
@@ -528,13 +530,14 @@ export const createTerminalViews = <K>(o: TerminalViewOptions<K>) => {
       return {
         state: screen.state,
         place: (element) => {
-          // The element holds the host alone: one a screen opened again replaces the one before.
-          if (screen.host.parentElement !== element) element.replaceChildren(screen.host)
+          // The element holds the container alone: one a screen opened again replaces the one
+          // before.
+          if (screen.container.parentElement !== element) element.replaceChildren(screen.container)
           screen.followed.refit()
           cancelFrame()
           frame = requestAnimationFrame(() => {
             frame = undefined
-            if (screen.host.isConnected) screen.followed.refit()
+            if (screen.container.isConnected) screen.followed.refit()
           })
           if (screen.refocus) {
             screen.xterm.focus()
@@ -555,14 +558,14 @@ export const createTerminalViews = <K>(o: TerminalViewOptions<K>) => {
         },
         focus: () => {
           screen.xterm.focus()
-          return screen.host.contains(document.activeElement)
+          return screen.container.contains(document.activeElement)
         },
         restart: screen.restart,
         release: ({ unmount = false } = {}) => {
           if (released) return
           released = true
           cancelFrame()
-          if (unmount && screen.host.contains(document.activeElement)) screen.refocus = true
+          if (unmount && screen.container.contains(document.activeElement)) screen.refocus = true
           letGo(key)
         },
       }
@@ -581,11 +584,11 @@ export const createTerminalViews = <K>(o: TerminalViewOptions<K>) => {
     // program asked for that, and never followed by Enter. Dictation targets a terminal the
     // person is looking at, so a terminal with no open screen, or one whose stream isn't
     // drawing it (parked out of sight, reconnecting, or taking up again), or whose shell
-    // exited, has nothing to type into and gets nothing: opening a second attachment to write behind a screen that
-    // is not there, for a paste with no brackets, would run the text as typed commands. Says
-    // whether it pasted. Line breaks and other control characters become spaces first:
-    // outside bracketed paste xterm turns a newline into Enter, which would submit what was
-    // said.
+    // exited, has nothing to type into and gets nothing: opening a second attachment to write
+    // behind a screen that is not there, for a paste with no brackets, would run the text as
+    // typed commands. Says whether it pasted. Line breaks and other control characters become
+    // spaces first: outside bracketed paste xterm turns a newline into Enter, which would
+    // submit what was said.
     typeInto: (key: K, text: string): boolean => {
       const screen = entries.get(id(key))?.screen
       const state = screen?.state.getSnapshot()

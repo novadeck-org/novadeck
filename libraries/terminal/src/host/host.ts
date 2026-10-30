@@ -30,7 +30,7 @@ export type TerminalHostOptions = {
   }
   /** Windows' process trees, which a closed terminal's programs are ended by. */
   readonly trees: ProcessTrees
-  /** How its ptys start: as a test plays them, and where their programs are kept (see `spawnPty`). */
+  /** How its ptys start: as a test plays them, and where their programs are kept. */
   readonly pty?: PtyOptions
 }
 
