@@ -84,7 +84,7 @@ export const notes: Record<string, Note> = {
   },
   "backend/runner/terminals": {
     purpose:
-      "Owns every terminal: spawns shells, keeps their screen, scrollback and transcripts, tracks the foreground process and its agent, handles prompts, answers, naming and nudges, and performs the calls agents make through the MCP server.",
+      "Owns every terminal: spawns shells, keeps their screen, scrollback and transcripts, tracks the foreground process and its agent, handles prompts, answers, naming and nudges, holds approvals and uploads, and performs the calls agents make through the MCP server.",
     entries: [
       { file: `${runner}/terminals/manager.ts`, text: "export class Terminals" },
       { file: `${runner}/terminals/opens.ts` },
@@ -103,13 +103,13 @@ export const notes: Record<string, Note> = {
   },
   "backend/runner/companions": {
     purpose:
-      "The items an agent shows beside its terminal (files, pages, plans), their records, content and the requests that open them.",
+      "The items an agent shows beside its terminal (files, pages, plans), their records, content, the requests that open them, the looks at a page, and the files it never shows by itself.",
     entries: [{ file: `${runner}/companions/items.ts`, text: "export class CompanionItems" }],
     docs: ["docs/agent-workspace.md"],
   },
   "backend/runner/messaging": {
     purpose:
-      "Lets agents in one project and session message each other: size and rate limits, leads and peers, held threads, and delivery through each harness's hooks and the terminal doorbell.",
+      "Lets agents in one project and session message each other: size and rate limits, leads and peers, held threads, and delivery through each harness's hooks and the terminal doorbell; also the Inbox entries agents leave the person and the feedback drafts they write.",
     entries: [
       { file: `${runner}/messaging/messaging.ts`, text: "export type Scope" },
       { file: `${runner}/messaging/messages.ts`, text: "export const maxMessageBytes" },
@@ -222,11 +222,12 @@ export const notes: Record<string, Note> = {
     docs: ["docs/harness-coverage.md"],
   },
   "apps/desktop": {
-    purpose: "The desktop package's build, packaging scripts and the bridge types it shares.",
+    purpose:
+      "The desktop package's build, packaging scripts, the launch arguments and channels it shares with the runner and the page, and the runner's log setup.",
   },
   "apps/desktop/main": {
     purpose:
-      "The desktop app's main process: windows and menus, starting the runner in a utility process, permissions and sandbox choices, installation, auto-update and quitting.",
+      "The desktop app's main process: windows and menus, starting the runner in a utility process, permissions and sandbox choices, installation, auto-update, notices, feedback notes, logs and quitting.",
     entries: [
       { file: "apps/desktop/src/main/index.ts", text: "const createWindow" },
       { file: "apps/desktop/src/main/updater.ts" },
@@ -235,7 +236,7 @@ export const notes: Record<string, Note> = {
   },
   "apps/desktop/preload": {
     purpose:
-      "The narrow, validated API the window gets from the host: the runner's port and the desktop actions it may request.",
+      "The narrow, validated API the window gets from the desktop app's main process: the runner's port and the desktop actions it may request.",
     entries: [{ file: "apps/desktop/src/preload/index.ts" }],
   },
   "apps/desktop/runner": {
@@ -282,6 +283,14 @@ export const notes: Record<string, Note> = {
     purpose: "The demo backend with sample data that tests, specs and the web preview run on.",
     entries: [{ file: `${demo}/index.ts`, text: "export const createDemoBackend" }],
   },
+  "frontend/ui/entries": {
+    purpose: "The start every page entry renders its app with, once the page has its theme.",
+  },
+  "frontend/ui/feedback": {
+    purpose: "The feedback note the person sends, and the card that asks an agent to write one.",
+    entries: [{ file: `${ui}/feedback/FeedbackButton.tsx` }],
+  },
+  "frontend/ui/sounds": { purpose: "The notice sounds Preferences offers and the page plays." },
   "frontend/ui/test": {
     purpose:
       "The command harness for the UI's tests: the real stores, navigator and commands over a workspace fixture.",

@@ -2,9 +2,9 @@ import type { AnchorRef, Flow, FlowStep } from "../src/atlas.ts"
 
 type CuratedStep = Omit<FlowStep, "anchor" | "label"> & { label?: string; anchor: AnchorRef }
 
-const host = "apps/desktop/src"
+const desktop = "apps/desktop/src"
 const runnerSrc = "backend/runner/src"
-const hostSrc = "libraries/terminal/src/host"
+const terminalHost = "libraries/terminal/src/host"
 const adapter = "frontend/runner-adapter/src"
 const relay = "backend/relay/src"
 
@@ -21,8 +21,8 @@ export const flows: (Omit<Flow, "steps"> & { steps: CuratedStep[] })[] = [
         from: "electron-main",
         to: "runner",
         label: "fork runner",
-        text: "The host forks the runner as a utility process, passing the database, relay and engine paths as arguments.",
-        anchor: { file: `${host}/main/runner.ts`, text: "utilityProcess.fork(" },
+        text: "The desktop app forks the runner as a utility process, passing the database, relay and engine paths as arguments.",
+        anchor: { file: `${desktop}/main/runner.ts`, text: "utilityProcess.fork(" },
       },
       {
         from: "runner",
@@ -38,8 +38,8 @@ export const flows: (Omit<Flow, "steps"> & { steps: CuratedStep[] })[] = [
         from: "electron-main",
         to: "renderer",
         label: "load packaged UI",
-        text: "The host creates the window and loads the packaged UI, or the Vite dev server in development.",
-        anchor: { file: `${host}/main/index.ts`, text: "void window.loadFile(" },
+        text: "The desktop app creates the window and loads the packaged UI, or the Vite dev server in development.",
+        anchor: { file: `${desktop}/main/index.ts`, text: "void window.loadFile(" },
       },
       {
         from: "preload",
@@ -47,7 +47,7 @@ export const flows: (Omit<Flow, "steps"> & { steps: CuratedStep[] })[] = [
         label: "expose window.novadeck",
         text: "The preload exposes window.novadeck, including requestRunner, to the page.",
         anchor: {
-          file: `${host}/preload/index.ts`,
+          file: `${desktop}/preload/index.ts`,
           text: 'contextBridge.exposeInMainWorld("novadeck"',
         },
       },
@@ -55,7 +55,7 @@ export const flows: (Omit<Flow, "steps"> & { steps: CuratedStep[] })[] = [
         from: "renderer",
         to: "electron-main",
         label: "request runner port",
-        text: "The UI's desktop transport asks the host for a runner port, which the preload sends over IPC.",
+        text: "The UI's desktop transport asks the desktop app for a runner port, which the preload sends over IPC.",
         anchor: {
           file: "contract/runner-client/src/desktop.ts",
           text: "host.requestRunner(id)",
@@ -65,9 +65,9 @@ export const flows: (Omit<Flow, "steps"> & { steps: CuratedStep[] })[] = [
         from: "electron-main",
         to: "runner",
         label: "MessageChannel to runner",
-        text: "After checking that the sender is its own window, the host makes a MessageChannel and gives one end to the runner.",
+        text: "After checking that the sender is its own window, the desktop app makes a MessageChannel and gives one end to the runner.",
         anchor: {
-          file: `${host}/main/runner.ts`,
+          file: `${desktop}/main/runner.ts`,
           text: 'send(child ?? spawn(), { type: "connect" }, [port])',
         },
       },
@@ -76,14 +76,17 @@ export const flows: (Omit<Flow, "steps"> & { steps: CuratedStep[] })[] = [
         to: "renderer",
         label: "port → page via preload",
         text: "The other end goes to the page, relayed by the preload as a window message because a port cannot cross the context bridge.",
-        anchor: { file: `${host}/preload/index.ts`, text: "requestRunner: relayPorts(" },
+        anchor: { file: `${desktop}/preload/index.ts`, text: "requestRunner: relayPorts(" },
       },
       {
         from: "runner",
         to: "runner",
         label: "serve router on port",
         text: "The runner serves the router over the port it was handed.",
-        anchor: { file: `${host}/runner/index.ts`, text: "servePort(runner.sessions, ports[0])" },
+        anchor: {
+          file: `${desktop}/runner/index.ts`,
+          text: "servePort(runner.sessions, ports[0])",
+        },
       },
       {
         from: "renderer",
@@ -148,14 +151,17 @@ export const flows: (Omit<Flow, "steps"> & { steps: CuratedStep[] })[] = [
         to: "agent",
         label: "write to PTY",
         text: "Unless a doorbell or answer holds the input, the terminal writes the data to the PTY.",
-        anchor: { file: `${hostSrc}/terminal.ts`, text: "input: (data) => {" },
+        anchor: { file: `${terminalHost}/terminal.ts`, text: "input: (data) => {" },
       },
       {
         from: "agent",
         to: "runner",
         label: "PTY output",
         text: "The shell or agent in the PTY prints, and node-pty reports the output.",
-        anchor: { file: `${hostSrc}/terminal.ts`, text: "pty.onData((data) => output(pty, data))" },
+        anchor: {
+          file: `${terminalHost}/terminal.ts`,
+          text: "pty.onData((data) => output(pty, data))",
+        },
       },
       {
         from: "runner",
@@ -163,7 +169,7 @@ export const flows: (Omit<Flow, "steps"> & { steps: CuratedStep[] })[] = [
         label: "draw headless screen",
         text: "The terminal draws the output on its own headless screen, then emits it in chunks to every subscriber.",
         anchor: {
-          file: `${hostSrc}/terminal.ts`,
+          file: `${terminalHost}/terminal.ts`,
           text: "const output = (from: Pty, data: string) => {",
         },
       },

@@ -55,12 +55,12 @@ extract`, for `jq`; it is large, so prefer briefs.
 - `extract/` reads facts from the code; `content/` holds the little that is written by
   hand: package roots and a purpose per area token (`areas.ts`), the runtime map
   (`runtime.ts`), flows (`flows.ts`) and library roles (`stack.ts`); `src/` is the web app,
-  which renders only the generated data; `brief/` renders it as text.
+  which renders only the generated data; `brief/` renders it as text (`pnpm -s atlas:brief`).
 - Prefer extracting to curating. Whatever is curated points into the code with an anchor
   (`{ file, text }`), and `pnpm --filter @novadeck/atlas check` fails when one rots, when
   source under `apps/`, `backend/`, `contract/`, `frontend/`, `harnesses/` or `engines/` belongs to no area, or when a
   note names an area that no longer exists. `pnpm lint` runs it, so CI's Lint job does too. A new folder becomes a token on its own; give
-  it a purpose in `content/areas.ts`. A new package needs a root there.
+  it a purpose in `content/areas.ts` (the index lists a token without one bare). A new package needs a root there.
 - Every structure an extractor depends on (a type, a class, a marker line) is expected, not
   assumed: when it is gone, or a scan that must find something finds nothing, the extractor
   reports it as broken (`anchors.expect` / `anchors.report`) and `check` fails. Add the same
