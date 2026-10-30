@@ -146,7 +146,7 @@ const main = async (): Promise<void> => {
       }
     ).version
   const files = [
-    "frontend/specs/src/companions.spec.tsx",
+    "frontend/specs/src/companions/companions.spec.tsx",
     "frontend/specs/src/support/companions.tsx",
     "frontend/specs/src/support/bar-drag.ts",
     "frontend/items/src/bar/use-bar-drag.ts",

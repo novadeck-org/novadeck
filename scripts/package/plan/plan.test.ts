@@ -60,7 +60,7 @@ describe("packaging a pull request", () => {
     expect(
       pullRequest([
         "backend/runner/src/terminals/manager.test.ts",
-        "frontend/specs/src/agents.spec.tsx",
+        "frontend/specs/src/agents/agents.spec.tsx",
         "frontend/runner-adapter/src/switches.test.ts",
         "backend/runner/src/e2e/chat.e2e.ts",
         "backend/runner/src/e2e/trace.ts",

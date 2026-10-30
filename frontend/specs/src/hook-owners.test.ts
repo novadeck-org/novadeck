@@ -4,8 +4,8 @@ import { join } from "node:path"
 import { describe, expect, it } from "./test"
 
 // The stores' instrumentation hook, which only the counter run installs: it spans two
-// packages (the core defines it, the counter run uses it), so this repository-wide check
-// lives with the specs, and names the hook once, so this file is the one other place it appears.
+// packages (core defines it, the counter run uses it), so this repository-wide check lives
+// with the specs. It names the hook once, so this file is the one other place it appears.
 const hook = "countListenersWoken"
 const owners = [
   "frontend/core/src/store.ts",

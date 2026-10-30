@@ -110,7 +110,7 @@ export const packages: readonly Pkg[] = [
     dir: "frontend/specs",
     name: "@novadeck/specs",
     description:
-      "The UI's behaviour specs: the whole app in a real browser, over the demo backend.",
+      "The UI's behaviour specs and integration tests: the whole app over the demo backend, in a real browser or jsdom.",
     allDev: true,
     scripts: unitScripts,
     vitest: "template",

@@ -652,7 +652,7 @@ atlas.
 | `frontend/demo`           | The demo backend: a scripted workspace and simulated terminals.                            |
 | `frontend/demo-debug`     | The demo's debug panel and rehearsals.                                                     |
 | `frontend/test-kit`       | The frontend's test helpers: a jsdom render, the port contract suite, test phase timing.   |
-| `frontend/specs`          | Behaviour specs: the whole app in a real browser, over the demo.                           |
+| `frontend/specs`          | Behaviour specs and integration tests: the whole app over the demo, in a browser or jsdom. |
 | `frontend/chat-contract`  | The chat's contract test: recorded harness transcripts through to the rendered chat.       |
 | `apps/desktop`            | Electron host that starts the runner and loads the packaged UI.                            |
 | `apps/try`                | The visitor build of the demo, which the website embeds.                                   |
@@ -753,7 +753,7 @@ folder of `frontend/ui/src/`:
 | `assets/`                                                       | Static files referenced from CSS.                                                                                              |
 | `theme/`                                                        | Tailwind's layout-only theme, token defaults, Coolant and Phosphor, `apply.ts`.                                                |
 | `styles.css`                                                    | The cascade order, every recipe, theme and vendor sheet in its layer, Tailwind sources.                                        |
-| `frontend/specs/src/`                                           | Behaviour specs for the whole UI, and the spec backend over the demo.                                                          |
+| `frontend/specs/src/`                                           | Behaviour specs for the whole UI in domain folders, and the spec backend over the demo.                                        |
 | `entries/start.tsx`                                             | How every app starts: applies the theme, renders the app it is given.                                                          |
 | `apps/try/src/`, `apps/previews/src/`, `apps/desktop/renderer/` | Each app's pages and entry: it picks its backend and renders `App` with `start`. The desktop app's `src/` is its main process. |
 
@@ -981,7 +981,7 @@ when markup changes on purpose, update it there. If a behaviour can't be reached
 through accessible markup, improve the markup rather than adding test IDs.
 
 Install the browser once with `pnpm --filter @novadeck/specs exec playwright install chromium`.
-Run a single spec with `pnpm --filter @novadeck/specs exec vitest run --project behaviour src/canvas.spec.tsx`,
+Run a single spec with `pnpm --filter @novadeck/specs exec vitest run --project behaviour src/views/canvas.spec.tsx`,
 or `--project integration` for the tests that render the whole workspace in jsdom over the
 spec backend (render scope, the terminal and overlay wiring; they are `*.test.ts` files here,
 as `support/backend.ts` is the one file that may import the demo), and `--project motion` for

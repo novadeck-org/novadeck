@@ -2,7 +2,7 @@ import { expect } from "vitest"
 import { page, userEvent, type Locator } from "vitest/browser"
 
 import { noteBarDragTarget } from "./bar-drag"
-import { labelled, openWorkspace, terminal, terminalTab } from "./workspace"
+import { labelled, literal, openWorkspace, terminal, terminalTab } from "./workspace"
 
 // Vocabulary for the companion taskbar along each terminal's bottom: its icons, their
 // menus, and dragging them onto another terminal's bar or into a view's free space.
@@ -19,14 +19,12 @@ export const openShowcase = async (view: "focus" | "grid" | "canvas" = "grid"): 
 export const taskbar = (name: string): Locator =>
   terminal(name).getByRole("group", { name: /^What .+ showed you$/ })
 
-const escaped = (text: string): string => text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")
-
 /**
  * An icon on a terminal's taskbar by how it reads, without what follows its first comma
  * unless given: `Plan: refactor-auth.md`, `2 images`, `hero.png, from @moth · Build Studio`.
  */
 export const taskbarIcon = (name: string, label: string): Locator =>
-  taskbar(name).getByRole("button", { name: new RegExp(`^${escaped(label)}(,|$)`) })
+  taskbar(name).getByRole("button", { name: new RegExp(`^${literal(label)}(,|$)`) })
 
 const pane = { name: /^(What .+ showed you|Messages)$/ }
 
@@ -116,7 +114,7 @@ export const dragCardToBar = async (
   to: string,
 ): Promise<void> => {
   await taskbarIcon(from, stack).hover()
-  const pulled = page.getByRole("button", { name: new RegExp(`^${escaped(card)}(,|$)`) })
+  const pulled = page.getByRole("button", { name: new RegExp(`^${literal(card)}(,|$)`) })
   await expect.element(pulled).toBeVisible()
   await drag(pulled, taskbar(to))
 }

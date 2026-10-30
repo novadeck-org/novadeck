@@ -6,7 +6,7 @@ import { page, userEvent, type Locator } from "vitest/browser"
 
 import { createSpecBackend, forgetBabciaCues } from "./backend"
 
-// User-level vocabulary for behaviour specs. Specs describe what a person sees and
+// The person's vocabulary for behaviour specs. Specs describe what a person sees and
 // does; only this module knows how that maps to accessible roles and names, so a
 // reworked implementation that keeps the same UI needs changes here at most.
 //
@@ -15,7 +15,8 @@ import { createSpecBackend, forgetBabciaCues } from "./backend"
 // code. Keep workspace state owned by the App instance (for example a store created
 // in a provider) so every test and every "reload" starts from the sample workspace.
 
-const nextFrame = (): Promise<number> => new Promise(requestAnimationFrame)
+/** Resolves on the next rendered frame. */
+export const nextFrame = (): Promise<number> => new Promise(requestAnimationFrame)
 
 /**
  * Opens the app, optionally at a deep link such as `/projects/storefront/sessions/initial/grid`,
@@ -159,6 +160,12 @@ export const recordAppearance = (selector: string): (() => boolean) => {
   return () => seen
 }
 
+/** Closes the first-run welcome, where the demo opens with it. */
+export const skipWelcome = async (): Promise<void> => {
+  const skip = page.getByRole("button", { name: "Skip for now" })
+  if (await skip.query()) await skip.click()
+}
+
 /** Reloads the app at its current address: in-memory work starts over, stored preferences stay. */
 export const reloadWorkspace = async (): Promise<void> => {
   const route = window.location.hash.replace(/^#/, "")
@@ -189,7 +196,8 @@ export const sidebarPanel = (name: "Terminals" | "Source" | "Sessions" | "Inbox"
       name: name === "Inbox" ? new RegExp(`^${name}(,|$)`) : name,
     })
 
-const literal = (text: string): string => text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")
+/** `text` as a regular expression that matches it as written. */
+export const literal = (text: string): string => text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")
 
 /** A terminal's name from an accessible name that carries its `, @handle` after it. */
 export const nameOf = (label: string): string => label.replace(/, @[a-z0-9]+(?= |$)/, "")
@@ -261,11 +269,11 @@ export const expectTypingIn = async (name: string): Promise<void> => {
 export const commandInput = (name: string): Locator =>
   page.getByRole("textbox", { name: labelled("Input for ", name) })
 
-// A terminal's text is read as a person reads it, whatever draws it: the demo's output
-// as page text today, and a terminal emulator's rows (its accessibility tree, or the DOM
-// renderer's rows) once the demo draws real terminal output.
+// A terminal's text is read as a person reads it, whatever draws it: the emulator's rows
+// (its accessibility tree, or the DOM renderer's rows), or, for a terminal drawn as plain
+// page text, that text as laid out.
 
-// The rows an emulator shows, where a terminal is drawn as terminal output.
+// The rows an emulator shows, where a terminal is drawn by one.
 const emulatorRows = (region: Element): Element[] | undefined => {
   const rows =
     region.querySelector(".xterm-accessibility-tree") ?? region.querySelector(".xterm-rows")

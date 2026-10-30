@@ -1,7 +1,7 @@
 import { expect } from "vitest"
 import { page, userEvent, type Locator } from "vitest/browser"
 
-import { nameOf, stillFor, terminal } from "./workspace"
+import { nameOf, nextFrame, stillFor, terminal } from "./workspace"
 
 // Canvas vocabulary: where things appear on screen and the pointer gestures a person
 // makes. Geometry is measured from rendered boxes, relative to the Canvas view.
@@ -20,7 +20,7 @@ export type Box = {
 export const canvasView = (): Locator => page.getByRole("region", { name: "canvas view" })
 
 /** The Canvas surface behind the terminals, which receives background gestures. */
-export const canvasBackground = (): Locator => page.getByLabelText("Terminal canvas")
+const canvasBackground = (): Locator => page.getByLabelText("Terminal canvas")
 
 export const canvasMenu = (): Locator => page.getByRole("menu", { name: "Canvas actions" })
 
@@ -60,7 +60,7 @@ export const terminalAt = (point: Point): string | undefined => {
 }
 
 /** Guards a gesture's starting point: it must be bare Canvas, not a terminal. */
-export const expectBareCanvasAt = (point: Point): void => {
+const expectBareCanvasAt = (point: Point): void => {
   expect(terminalAt(point), `a terminal covers ${point.x},${point.y}`).toBeUndefined()
 }
 
@@ -112,7 +112,7 @@ export const rightClickBackground = async (at: Point): Promise<void> => {
  * relative to the terminal. A terminal partly outside the view uses only the part
  * of its header a person can see.
  */
-export const besideName = (name: string): Point => {
+const besideName = (name: string): Point => {
   const region = screenBox(terminal(name))
   const heading = screenBox(terminal(name).getByRole("heading", { name, exact: true }))
   const actions = terminal(name)
@@ -156,8 +156,6 @@ export const scrollCanvas = async (deltaY: number): Promise<void> => {
   expectBareCanvasAt({ x: centerX, y: centerY })
   await userEvent.wheel(canvasBackground(), { delta: { y: deltaY } })
 }
-
-const nextFrame = (): Promise<number> => new Promise(requestAnimationFrame)
 
 /**
  * Resolves with the measurement once it has stayed the same for several rendered
