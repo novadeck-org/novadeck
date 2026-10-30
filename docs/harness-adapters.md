@@ -30,15 +30,15 @@ transcripts and telemetry are fixed only after per-harness coverage probes
 
 ## Existing seams
 
-| Current code                                                                            | Responsibility to preserve                                                    | Destination                                                              |
-| --------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------- | ------------------------------------------------------------------------ |
-| `backend/runner/src/shell/agents.ts`                                                    | Detect config, inspect plugin connection, plan install/remove commands        | `home`, `connected`, `connect`/`disconnect`; shared inspection and setup |
-| `backend/runner/src/shell/resume.ts`                                                    | Build the exact resume command for an identified session                      | `resume` field                                                           |
-| `backend/runner/src/shell/scripts.ts`                                                   | Provider manifests, hook configuration, Codex launch shim                     | `files` and `shims`; shared artifact writer                              |
-| `backend/runner/src/shell/hook.ts`                                                      | Native payload interpretation, nested-session filtering, hook response format | Per-harness `decode.ts` in its package; one shared hook script           |
-| `backend/runner/src/shell/reports.ts`                                                   | Authenticate and accept session reports                                       | Shared ingress and binding policy                                        |
-| `backend/runner/src/terminals/manager.ts`, `resumes.ts`, `saving.ts`                    | PTY lifetime, resume claims, persistence, foreground ownership                | Terminal manager, using the harness service                              |
-| `frontend/core/src/terminals/process.ts` and `frontend/runner-adapter/src/resumable.ts` | Provider recognition and resume eligibility                                   | `programs` and shared recognition; UI keeps generic program presentation |
+| Current code                                                                                      | Responsibility to preserve                                                    | Destination                                                              |
+| ------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------- | ------------------------------------------------------------------------ |
+| `backend/runner/src/shell/agents.ts`                                                              | Detect config, inspect plugin connection, plan install/remove commands        | `home`, `connected`, `connect`/`disconnect`; shared inspection and setup |
+| `backend/runner/src/shell/resume.ts`                                                              | Build the exact resume command for an identified session                      | `resume` field                                                           |
+| `backend/runner/src/shell/scripts.ts`                                                             | Provider manifests, hook configuration, Codex launch shim                     | `files` and `shims`; shared artifact writer                              |
+| `backend/runner/src/shell/hook.ts`                                                                | Native payload interpretation, nested-session filtering, hook response format | Per-harness `decode.ts` in its package; one shared hook script           |
+| `backend/runner/src/shell/reports.ts`                                                             | Authenticate and accept session reports                                       | Shared ingress and binding policy                                        |
+| `backend/runner/src/terminals/manager.ts`, `resumes.ts`, `saving.ts`                              | PTY lifetime, resume claims, persistence, foreground ownership                | Terminal manager, using the harness service                              |
+| `frontend/core/src/terminals/process.ts` and `frontend/runner-adapter/src/terminals/resumable.ts` | Provider recognition and resume eligibility                                   | `programs` and shared recognition; UI keeps generic program presentation |
 
 `shell/agents.ts` and `shell/resume.ts` are named as this proposal found them: their work
 went into each adapter's `src/index.ts` when the adapters were extracted (#35). In particular,
