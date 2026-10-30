@@ -777,7 +777,7 @@ describe("appearance preference", () => {
       JSON.parse(localStorage.getItem("novadeck.preferences") ?? "{}").soundChoice
 
     it("follows the theme until another sound is chosen, which it keeps", async () => {
-      await openWorkspace("/?host=on")
+      await openWorkspace("/?desktop=on")
       await openAppearance()
 
       await expect.element(sound()).toHaveTextContent("Theme's bell (Felt)")
@@ -811,7 +811,7 @@ describe("appearance preference", () => {
         return Promise.resolve()
       }
       try {
-        await openWorkspace("/?host=on")
+        await openWorkspace("/?desktop=on")
         await openAppearance()
 
         await sound().click()
@@ -826,7 +826,7 @@ describe("appearance preference", () => {
     const soundSwitch = () => preferencesDialog().getByRole("switch", { name: "Ring the bell" })
 
     it("is set on a host that shows desktop notifications, its sound and volume only while it rings", async () => {
-      await openWorkspace("/?host=on")
+      await openWorkspace("/?desktop=on")
       await openAppearance()
       const volume = () => preferencesDialog().getByRole("slider", { name: "Volume" })
       const hear = () => preferencesDialog().getByRole("button", { name: "Hear it" })
@@ -845,7 +845,7 @@ describe("appearance preference", () => {
     })
 
     it("keeps the volume it is set to, said as a percentage", async () => {
-      await openWorkspace("/?host=on")
+      await openWorkspace("/?desktop=on")
       await openAppearance()
       const volume = () => preferencesDialog().getByRole("slider", { name: "Volume" })
 

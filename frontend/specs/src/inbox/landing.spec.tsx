@@ -2,16 +2,16 @@ import { demoInboxIds } from "@novadeck/demo/inbox-fixtures"
 import { beforeEach } from "vitest"
 import { page } from "vitest/browser"
 
-import { forgetHostWindow, hostWindow } from "../support/backend"
+import { forgetDesktopWindow, desktopWindow } from "../support/backend"
 import { expectStaysAbsent, openWorkspace, sidebarPanel, terminalTab } from "../support/workspace"
 import { context, describe, expect, it } from "../test"
 
 // The landing rule: what an agent says from the terminal the person is looking at doesn't
-// reach the Inbox, the bell or a toast until they look away. The spec host (`&host=on`) starts
+// reach the Inbox, the bell or a toast until they look away. The spec host (`&desktop=on`) starts
 // with an empty Inbox the spec fills.
 const storefront =
-  "/projects/storefront/sessions/initial/focus?terminal=storefront-initial-01&host=on"
-const docs = "/projects/docs-site/sessions/initial/focus?terminal=docs-site-initial-02&host=on"
+  "/projects/storefront/sessions/initial/focus?terminal=storefront-initial-01&desktop=on"
+const docs = "/projects/docs-site/sessions/initial/focus?terminal=docs-site-initial-02&desktop=on"
 
 const bell = () => page.getByRole("radio", { name: /^Inbox, \d+ waiting$/ })
 const inboxRow = (subject: RegExp | string) =>
@@ -35,14 +35,14 @@ const nothingLands = (): Promise<void> =>
     { ms: 3_000 },
   )
 
-beforeEach(forgetHostWindow)
+beforeEach(forgetDesktopWindow)
 
 describe("The landing rule", () => {
   context("when an agent asks from the terminal the person looks at", () => {
     it("lands in the Inbox only once they select another terminal", async () => {
       await open(storefront)
 
-      hostWindow.arrive(demoInboxIds.preview)
+      desktopWindow.arrive(demoInboxIds.preview)
 
       await nothingLands()
       await sidebarPanel("Inbox").click()
@@ -60,7 +60,7 @@ describe("The landing rule", () => {
     it("lands quietly: on the bell, with no toast", async () => {
       await open(storefront)
 
-      hostWindow.arrive(demoInboxIds.preview)
+      desktopWindow.arrive(demoInboxIds.preview)
       await nothingLands()
       await terminalTab("Checkout review").click()
 
@@ -82,11 +82,11 @@ describe("The landing rule", () => {
         .first()
         .element() as HTMLElement
 
-      hostWindow.arrive(demoInboxIds.done)
+      desktopWindow.arrive(demoInboxIds.done)
       away.click()
 
       await expectStaysAbsent(
-        { shown: () => !hostWindow.itemIds().includes(demoInboxIds.done), name: "a read" },
+        { shown: () => !desktopWindow.rowIds().includes(demoInboxIds.done), name: "a read" },
         { ms: 2_500 },
       )
       await sidebarPanel("Inbox").click()
@@ -99,7 +99,7 @@ describe("The landing rule", () => {
       await open(storefront)
       const away = terminalTab("Checkout review").element() as HTMLElement
 
-      hostWindow.arrive(demoInboxIds.preview)
+      desktopWindow.arrive(demoInboxIds.preview)
       away.click()
 
       await expect.element(bell()).toHaveAccessibleName("Inbox, 1 waiting")
@@ -114,12 +114,12 @@ describe("The landing rule", () => {
     it("reads it by being seen, so it never lands, however they look away", async () => {
       await open(docs)
 
-      hostWindow.arrive(demoInboxIds.done)
+      desktopWindow.arrive(demoInboxIds.done)
       // It isn't read by the arrival itself, only once the person has looked at the terminal
       // for a moment; then the backend has it read, and it was never a row.
-      expect(hostWindow.itemIds()).toContain(demoInboxIds.done)
+      expect(desktopWindow.rowIds()).toContain(demoInboxIds.done)
       await expect
-        .poll(() => hostWindow.itemIds(), { timeout: 5_000 })
+        .poll(() => desktopWindow.rowIds(), { timeout: 5_000 })
         .not.toContain(demoInboxIds.done)
 
       await page

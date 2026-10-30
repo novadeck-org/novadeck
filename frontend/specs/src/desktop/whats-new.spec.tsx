@@ -2,7 +2,7 @@ import { beforeEach } from "vitest"
 import { page, type Locator } from "vitest/browser"
 
 import {
-  forgetHostCalls,
+  forgetUpdates,
   reportProgress,
   startDownload,
   whatsNewAsked,
@@ -35,7 +35,7 @@ const slow = { timeout: 12_000 }
 const cardElement = (): Element | null => document.querySelector(".whats-new")
 
 describe("the what's-new card", () => {
-  beforeEach(forgetHostCalls)
+  beforeEach(forgetUpdates)
 
   it("is absent where the host has no word of it", async () => {
     await openWorkspace()

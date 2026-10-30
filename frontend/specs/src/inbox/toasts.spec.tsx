@@ -2,18 +2,18 @@ import { demoInboxIds } from "@novadeck/demo/inbox-fixtures"
 import { beforeEach } from "vitest"
 import { page, userEvent } from "vitest/browser"
 
-import { forgetHostWindow, hostWindow } from "../support/backend"
+import { forgetDesktopWindow, desktopWindow } from "../support/backend"
 import { preferencesDialog } from "../support/keyboard"
 import { expectStaysAbsent, openWorkspace, sidebarPanel } from "../support/workspace"
 import { context, describe, expect, it } from "../test"
 
 // The Inbox's toasts: a new item that needs the person rings as a toast while the app has
-// their focus, and as the OS notification while it hasn't. The spec host (`&host=on`) is a
+// their focus, and as the OS notification while it hasn't. The spec host (`&desktop=on`) is a
 // desktop-like one: it reports the window's focus, which the spec moves, and keeps the
 // notifications it was asked to show. The person looks at storefront's first terminal, which
 // is where the preview ask (the demo's) comes from.
 const route = (extra = "") =>
-  `/projects/storefront/sessions/initial/focus?terminal=storefront-initial-01&host=on${extra}`
+  `/projects/storefront/sessions/initial/focus?terminal=storefront-initial-01&desktop=on${extra}`
 
 // The demo's items that need the person, from terminals other than the one looked at.
 const asks = [
@@ -49,26 +49,26 @@ const open = async (extra?: string): Promise<void> => {
 const nothingToasts = (): Promise<void> =>
   expectStaysAbsent({ shown: () => toasts().length > 0, name: "a toast" }, { ms: 5_000 })
 
-beforeEach(forgetHostWindow)
+beforeEach(forgetDesktopWindow)
 
 describe("The Inbox's toasts", () => {
   context("while the app has the person's focus", () => {
     it("rings a new item that needs them after a grace, and sends no OS notice", async () => {
       await open()
 
-      hostWindow.arrive(demoInboxIds.webhook)
+      desktopWindow.arrive(demoInboxIds.webhook)
       // Not at once: the person or the agent may settle it in the grace.
       await expectStaysAbsent({ shown: () => toasts().length > 0, name: "a toast" }, { ms: 1_000 })
 
       await expect.poll(toastTexts, rings).toHaveLength(1)
       expect(toastTexts()[0]).toMatch(/asks you/)
       expect(toastTexts()[0]).toMatch(/api-service/)
-      expect(hostWindow.notices()).toEqual([])
+      expect(desktopWindow.notices()).toEqual([])
     })
 
     it("closes at its ×, leaving the item in the Inbox", async () => {
       await open()
-      hostWindow.arrive(demoInboxIds.webhook)
+      desktopWindow.arrive(demoInboxIds.webhook)
       await expect.poll(toastTexts, rings).toHaveLength(1)
 
       // The × takes presses only once the toast is hovered (or focused), and after it landed.
@@ -83,7 +83,7 @@ describe("The Inbox's toasts", () => {
 
     it("opens the item in the Inbox at a click", async () => {
       await open()
-      hostWindow.arrive(demoInboxIds.webhook)
+      desktopWindow.arrive(demoInboxIds.webhook)
       await expect.poll(toastTexts, rings).toHaveLength(1)
       // A click as a toast lands is ignored (for 400 ms), as one meant for what was under it.
       await new Promise((resolve) => setTimeout(resolve, 600))
@@ -98,7 +98,7 @@ describe("The Inbox's toasts", () => {
     it("shows three of four and counts the rest in a pill, which opens the Inbox", async () => {
       await open()
 
-      hostWindow.arrive(...asks)
+      desktopWindow.arrive(...asks)
 
       await expect.poll(toastTexts, rings).toHaveLength(4)
       expect(toasts().filter((each) => !each.hasAttribute("data-beyond"))).toHaveLength(3)
@@ -120,10 +120,10 @@ describe("The Inbox's toasts", () => {
 
     it("takes a toast away when its item is answered elsewhere", async () => {
       await open()
-      hostWindow.arrive(demoInboxIds.webhook, demoInboxIds.login)
+      desktopWindow.arrive(demoInboxIds.webhook, demoInboxIds.login)
       await expect.poll(toastTexts, rings).toHaveLength(2)
 
-      hostWindow.withdraw(demoInboxIds.login)
+      desktopWindow.withdraw(demoInboxIds.login)
 
       // After its own grace, as the item may come back.
       await expect.poll(toastTexts, rings).toHaveLength(1)
@@ -133,19 +133,19 @@ describe("The Inbox's toasts", () => {
     it("rings nothing for an update, which needs no one", async () => {
       await open()
 
-      hostWindow.arrive(demoInboxIds.told)
+      desktopWindow.arrive(demoInboxIds.told)
 
       await nothingToasts()
-      expect(hostWindow.notices()).toEqual([])
+      expect(desktopWindow.notices()).toEqual([])
     })
 
     it("rings nothing for the terminal the person has selected", async () => {
       await open()
 
-      hostWindow.arrive(demoInboxIds.preview)
+      desktopWindow.arrive(demoInboxIds.preview)
 
       await nothingToasts()
-      expect(hostWindow.notices()).toEqual([])
+      expect(desktopWindow.notices()).toEqual([])
     })
 
     it("rings nothing while the Inbox panel is open", async () => {
@@ -153,7 +153,7 @@ describe("The Inbox's toasts", () => {
       await sidebarPanel("Inbox").click()
       await expect.element(sidebarPanel("Inbox")).toBeChecked()
 
-      hostWindow.arrive(demoInboxIds.webhook)
+      desktopWindow.arrive(demoInboxIds.webhook)
 
       await nothingToasts()
     })
@@ -163,7 +163,7 @@ describe("The Inbox's toasts", () => {
       await page.getByRole("button", { name: "Workspace preferences" }).click()
       await expect.element(preferencesDialog()).toBeVisible()
 
-      hostWindow.arrive(demoInboxIds.webhook)
+      desktopWindow.arrive(demoInboxIds.webhook)
       await nothingToasts()
       await userEvent.keyboard("{Escape}")
 
@@ -174,12 +174,12 @@ describe("The Inbox's toasts", () => {
   context("while the app is in the background", () => {
     it("pings through the OS instead, and shows no toast", async () => {
       await open()
-      hostWindow.focus(false)
+      desktopWindow.focus(false)
 
-      hostWindow.arrive(demoInboxIds.webhook)
+      desktopWindow.arrive(demoInboxIds.webhook)
 
-      await expect.poll(hostWindow.notices, rings).toHaveLength(1)
-      expect(hostWindow.notices()[0]).toMatch(/asks you/)
+      await expect.poll(desktopWindow.notices, rings).toHaveLength(1)
+      expect(desktopWindow.notices()[0]).toMatch(/asks you/)
       await nothingToasts()
     })
   })
@@ -196,10 +196,10 @@ describe("The Inbox's toasts", () => {
       await userEvent.keyboard("{Escape}")
       await expect.element(preferencesDialog()).not.toBeInTheDocument()
 
-      hostWindow.arrive(demoInboxIds.webhook)
+      desktopWindow.arrive(demoInboxIds.webhook)
 
       await nothingToasts()
-      expect(hostWindow.notices()).toEqual([])
+      expect(desktopWindow.notices()).toEqual([])
     })
   })
 })
