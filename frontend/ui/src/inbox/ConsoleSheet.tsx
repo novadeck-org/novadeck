@@ -466,7 +466,8 @@ const QuestionsMenu = ({
     const long = questions.findIndex(
       (question) => (ready[question.id]?.text.length ?? 0) > wordsLimit,
     )
-    if (long >= 0) return void handles.current[long]?.key("End")
+    // Its words row comes after its options.
+    if (long >= 0) return void handles.current[long]?.go(questions[long]!.options.length)
     submit({ kind: "request", answer: questionsAnswer(dialog, ready, questions) }, receipt)
   }
   return (

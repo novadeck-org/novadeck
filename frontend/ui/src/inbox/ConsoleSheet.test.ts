@@ -781,6 +781,26 @@ describe("The Console sheet", () => {
         expect(inbox.sent).toEqual([])
         await inbox.done()
       })
+
+      it("takes the person to the words that are too long, not past them to the terminal", async () => {
+        const inbox = mount([
+          questions(
+            question("q1", ["A1", "B1"], { multiSelect: true, text: true }),
+            question("q2", ["A2", "B2"]),
+          ),
+        ])
+        act(() => optionIn(0, "A1").click())
+        act(() => optionIn(0, "Reply in your own words").click())
+        inbox.type("x".repeat(5000))
+        inbox.key("Escape", inbox.field())
+        act(() => optionIn(1, "A2").click())
+
+        expect(document.activeElement?.textContent).toContain("xxx")
+        inbox.key("Enter")
+        expect(inbox.revealed).toEqual([])
+        expect(inbox.sent).toEqual([])
+        await inbox.done()
+      })
     })
   })
 

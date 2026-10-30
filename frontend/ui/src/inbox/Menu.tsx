@@ -55,6 +55,8 @@ export type MenuHandle = {
   // Takes a key pressed outside the menu (on its row, the sheet's title): true where it was
   // the menu's, and focus is in the menu now.
   readonly key: (key: string) => boolean
+  // Moves the cursor, and focus, to a row, pressing nothing.
+  readonly go: (at: number) => void
 }
 
 // How long a sheet the Inbox moved on to takes no answer from the keyboard: a key pressed
@@ -165,7 +167,13 @@ export const Menu = ({
     return true
   }
 
-  useImperativeHandle(handle, () => ({ key: (key) => (held(key, false) ? true : apply(key)) }))
+  useImperativeHandle(handle, () => ({
+    key: (key) => (held(key, false) ? true : apply(key)),
+    go: (index) => {
+      setCursor({ at: index, armed: null })
+      focusAt.current = index
+    },
+  }))
 
   const sendWords = (index: number, words: Words): void => {
     if (busy || words.refused) return
