@@ -10,7 +10,8 @@ import type { DemoScreenState } from "@novadeck/demo/runtime"
 import { terminalOf } from "@novadeck/demo/terminals"
 
 import { createDemoAgents } from "./agents"
-import { createDebugChat } from "./chat"
+import { createChatFailures } from "./chat"
+import { createDemoUpdates } from "./desktop/updates"
 import { createDemoFolders } from "./folders"
 import { createDemoNotices } from "./notices"
 import {
@@ -22,6 +23,7 @@ import {
   doneReport,
   exitedWithCode,
   failedToStart,
+  isLive,
   killedBy,
   killedForMemory,
   mcpAsk,
@@ -40,7 +42,6 @@ import {
   withUsage,
 } from "./terminals"
 import type { DemoAction, DemoActionContext, DemoActionGroup, DemoStates } from "./types"
-import { createDemoUpdates } from "./updates"
 
 // How long an agent works before its turn ends, so the person can look elsewhere.
 const turnMs = 3000
@@ -79,15 +80,30 @@ const onSelected = (
   },
 })
 
+// An action that makes the selected terminal lead others, with the notes for when it can
+// lead none, and for a lead whose shell doesn't run, which the others name but which leads
+// no one yet.
+const leading = (
+  label: string,
+  hint: string,
+  leads: (workspace: Workspace | undefined, key: TerminalKey) => BackendAction[],
+  notes: { readonly none: string; readonly notRunning: string },
+): DemoAction =>
+  onSelected(label, hint, (key, { dispatch, workspace, note }) => {
+    const actions = leads(workspace(), key)
+    if (!actions.length) return note(notes.none)
+    dispatch(actions)
+    if (!["idle", "running", "finished"].includes(terminalOf(workspace(), key)?.state ?? ""))
+      note(notes.notRunning)
+  })
+
 // The first live terminal of another project's open session: where an agent can wait or
 // finish while the person looks at the project on screen, for the switcher to mark.
 const elsewhere = (workspace: Workspace | undefined): TerminalKey | undefined => {
   for (const project of workspace?.projects ?? []) {
     if (project.id === workspace?.activeProjectId) continue
     const session = project.history.find((each) => each.id === project.activeSessionId)
-    const terminal = session?.state.roster.terminals.find(
-      (each) => each.state !== "exited" && each.state !== "failed",
-    )
+    const terminal = session?.state.roster.terminals.find(isLive)
     if (session && terminal)
       return {
         projectId: project.id,
@@ -172,7 +188,7 @@ const limitResetMs = 80 * 60_000
 // The last stays selected; a done mark needs the person to be looking elsewhere, so the
 // finished ones come first, ending their turns a moment later. An agent's state is its
 // verb's, the rest the terminal's metadata; what an agent asks through its MCP `ask` is an
-// Inbox item of the demo's own, added once the terminal is in its state.
+// Inbox row of the demo's own, added once the terminal is in its state.
 const gallery: readonly {
   readonly name: string
   readonly state?: (key: TerminalKey) => BackendAction[]
@@ -372,7 +388,7 @@ export const createDemoStates = (
   const updateControls = createDemoUpdates()
   const { updates, offer, whatsNew } = updateControls
   const { pickDirectory, failNext: failPick } = createDemoFolders()
-  const chat = createDebugChat()
+  const chat = createChatFailures()
   const waitingActions = createWaitingActions(verbs, inbox)
   const screens = createStore<ReadonlyMap<string, DemoScreenState>>(new Map())
   // The terminals whose next pasted file fails to save.
@@ -418,31 +434,22 @@ export const createDemoStates = (
         setting("Codex", "Window switches to Codex", (key, { dispatch }) =>
           dispatch(runAgent(key, "codex")),
         ),
-        onSelected(
+        leading(
           "Leads the others",
           "Every other terminal joins its team; the wire joins them on the rail, in Grid and Canvas",
-          (key, { dispatch, workspace, note }) => {
-            const actions = leadsOthers(workspace(), key)
-            if (!actions.length) return note("It needs a handle and other terminals to lead.")
-            dispatch(actions)
-            if (
-              !["idle", "running", "finished"].includes(terminalOf(workspace(), key)?.state ?? "")
-            )
-              note("They name it as their lead, but a lead leads only while it runs.")
+          leadsOthers,
+          {
+            none: "It needs a handle and other terminals to lead.",
+            notRunning: "They name it as their lead, but a lead leads only while it runs.",
           },
         ),
-        onSelected(
+        leading(
           "Leads the next one",
           "The next live terminal leaves any team for this one's; on two terminals apart, Grid and Canvas wire two teams",
-          (key, { dispatch, workspace, note }) => {
-            const actions = leadsNext(workspace(), key)
-            if (!actions.length)
-              return note("It needs a handle and a live terminal after it to lead.")
-            dispatch(actions)
-            if (
-              !["idle", "running", "finished"].includes(terminalOf(workspace(), key)?.state ?? "")
-            )
-              note("The next one names it as its lead, but a lead leads only while it runs.")
+          leadsNext,
+          {
+            none: "It needs a handle and a live terminal after it to lead.",
+            notRunning: "The next one names it as its lead, but a lead leads only while it runs.",
           },
         ),
         onSelected("Paste fails", "The next pasted file, with a notice", (key) => {

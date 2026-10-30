@@ -8,11 +8,11 @@
   "exports": {
     "./boot-rehearsal": "./src/boot-rehearsal.ts",
     "./connect": "./src/connect.ts",
-    "./portable": "./src/portable.ts",
-    "./sandbox": "./src/sandbox.ts",
-    "./scenarios": "./src/scenarios.ts",
-    "./uninstall": "./src/uninstall.ts",
-    "./updates": "./src/updates.ts"
+    "./portable": "./src/desktop/portable.ts",
+    "./sandbox": "./src/desktop/sandbox.ts",
+    "./scenarios": "./src/desktop/scenarios.ts",
+    "./uninstall": "./src/desktop/uninstall.ts",
+    "./updates": "./src/desktop/updates.ts"
   },
   "scripts": {
     "test": "vitest run",

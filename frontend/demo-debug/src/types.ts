@@ -4,7 +4,7 @@ import type { Workspace } from "@novadeck/core/types"
 import type { DemoScreenStates } from "@novadeck/demo/runtime"
 import type { ComponentType } from "react"
 
-import type { DemoUpdates } from "./updates"
+import type { DemoUpdates } from "./desktop/updates"
 
 // The demo's debug layer, in two halves: the shell (startup, connection, crash loop, the
 // panel itself and which demo runs) and the states a terminal, an agent or the page can
@@ -52,7 +52,7 @@ export type DemoAction = {
 // Where a group sits in the panel, in this order: what the selected or a new terminal
 // can be in, what its agent can be in, and the app around them.
 export const demoSections = ["Terminals", "Agents", "App"] as const
-export type DemoSection = (typeof demoSections)[number]
+type DemoSection = (typeof demoSections)[number]
 
 export type DemoActionGroup = {
   readonly section: DemoSection
@@ -71,7 +71,7 @@ export type DemoStates = {
   readonly openWelcome: () => void
   readonly notices: NonNullable<Backend["notices"]>
   readonly updates: NonNullable<Backend["updates"]>
-  // What the host says is new after an update, as the Updates group plays it.
+  // What the desktop app says is new after an update, as the Updates group plays it.
   readonly whatsNew: NonNullable<Backend["whatsNew"]>
   // Tells `updates`' listeners of a release, as the Update group's actions do.
   readonly offer: (offer: UpdateOffer) => void

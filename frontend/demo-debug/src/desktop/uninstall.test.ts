@@ -1,6 +1,6 @@
 import { afterEach, vi } from "vitest"
 
-import { describe, expect, it } from "./test"
+import { describe, expect, it } from "../test"
 import {
   createDemoUninstall,
   sampleLeftover,

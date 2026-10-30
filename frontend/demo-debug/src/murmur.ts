@@ -5,7 +5,7 @@ import type { DemoActionGroup } from "./types"
 // The panel's Murmur group: the states of Murmur's one-time offer (a chip beside a terminal's
 // title, with its popover), of its install in the footer (a ring and "Murmur 42%", with a
 // sheet), and of Preferences' Addons card. The chip also comes up on its own at the next agent
-// finish (Agents > Completes) while Murmur is not installed, once per page load.
+// finish (Agent › Completes) while Murmur is not installed, once per page load.
 export const murmurGroups = (murmur: DemoMurmur | undefined): readonly DemoActionGroup[] =>
   murmur
     ? [

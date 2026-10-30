@@ -5,6 +5,13 @@ import type { DemoUpdates } from "./updates"
 // debug panel lists every one (App › Updates, App › Portable) and a spec asks for one by
 // its key in the address (`?update=ready`, `?portable=failed`). A new state is one entry.
 
+// Versions for releases the panel offers, each newer than the last; a module-level one keeps
+// counting across boots.
+export const releaseVersions = (): (() => string) => {
+  let patch = 79
+  return () => `0.0.${(patch += 1)}`
+}
+
 export type UpdateScenario = {
   readonly label: string
   readonly hint: string
@@ -42,7 +49,7 @@ export const updateScenarios = {
   },
   failed: {
     label: "Download failed",
-    hint: "Bar stands at 40% for a moment, then drops and nothing shows; the host retries later",
+    hint: "Bar stands at 40% for a moment, then drops and nothing shows; the app retries later",
     play: ({ failDownload }, version) => failDownload(version),
   },
   available: {
@@ -82,13 +89,13 @@ export const updateScenarios = {
   },
   whatsNewLong: {
     label: "What's new, longest highlights",
-    hint: "Four highlights at the longest the host allows: the list scrolls in a short window; reboots",
+    hint: "Four highlights at the longest the app allows: the list scrolls in a short window; reboots",
     play: ({ showWhatsNew }, version) =>
       showWhatsNew(version, {
         ...fromEarlier(version),
         highlights: ["First", "Second", "Third", "Fourth"].map((word) => ({
           title: `${word} highlight with a title that runs to the longest allowed`.padEnd(80, "."),
-          line: `${word}: a line that runs on to the longest the host allows, `.padEnd(
+          line: `${word}: a line that runs on to the longest the app allows, `.padEnd(
             240,
             "and on ",
           ),
@@ -98,7 +105,7 @@ export const updateScenarios = {
   },
   noHighlights: {
     label: "Updated, no highlights",
-    hint: "The host takes 1.5 s to answer it has nothing to show: no card appears; reboots",
+    hint: "The app takes 1.5 s to answer it has nothing to show: no card appears; reboots",
     play: ({ delayWhatsNew }) => delayWhatsNew(1500),
     reboots: true,
   },
@@ -106,15 +113,15 @@ export const updateScenarios = {
 
 export type UpdateScenarioKey = keyof typeof updateScenarios
 
-export type PortableScenario = {
+type PortableScenario = {
   readonly label: string
   readonly hint: string
-  // The portable copy the host plays, given the version of the release waiting where the
+  // The portable copy the desktop app plays, given the version of the release waiting where the
   // scenario has one; undefined for an installed copy.
   readonly setup: (version: string) => DemoPortable | undefined
 }
 
-// How long the host takes to install, so Installing is there to look at.
+// How long the desktop app takes to install, so Installing is there to look at.
 const installTakes = 4000
 
 const installs: DemoPortable = {
@@ -165,7 +172,7 @@ export const portableScenarios = {
   },
   "update-no-news": {
     label: "Update, no highlights",
-    hint: "The host has no notes to show: the card says the release is out",
+    hint: "The app has no notes to show: the card says the release is out",
     setup: (version) => offered(version, false),
   },
   "update-long-path": {
@@ -199,8 +206,8 @@ export const portableScenarios = {
     hint: "A window opened again after installing: no card, chip reads Installed",
     setup: () => ({ ends: { phase: "installed" }, opens: { phase: "installed" } }),
   },
-  "slow-host": {
-    label: "Slow host",
+  "slow-app": {
+    label: "Slow app",
     hint: "Chip comes after 4 s",
     setup: () => ({ ...installs, answerAfterMs: 4000 }),
   },

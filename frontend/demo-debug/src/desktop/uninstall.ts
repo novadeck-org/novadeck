@@ -1,10 +1,10 @@
 import type { UninstallPlan, UninstallResult } from "@novadeck/core/desktop/uninstall"
 import type { Backend } from "@novadeck/core/port"
 
-import type { DemoActionGroup } from "./types"
-import type { DemoLaunch } from "./with-debug"
+import type { DemoLaunch } from "../debug-demo"
+import type { DemoActionGroup } from "../types"
 
-// An uninstall as the demo plays one: what the host says it would do, and how running it
+// An uninstall as the demo plays one: what the desktop app says it would do, and how running it
 // ends.
 export type DemoUninstall = {
   readonly plan: UninstallPlan
@@ -16,11 +16,11 @@ export type DemoUninstall = {
 // Long enough to see Removing….
 export const uninstallMs = 1500
 
-// The command a Homebrew copy is removed with, and the one the host leaves for the person.
-export const sampleBrewCommand = "brew uninstall --cask novadeck"
+// The command a Homebrew copy is removed with, and the one the app leaves for the person.
+const sampleBrewCommand = "brew uninstall --cask novadeck"
 export const sampleLeftover = "sudo rm /etc/apparmor.d/novadeck"
 
-// The reason the host gives once it has stopped the terminals: ending in its advice, and
+// The reason the app gives once it has stopped the terminals: ending in its advice, and
 // the same on every retry.
 export const stoppedReason =
   "Novadeck couldn't remove its files: permission denied. Novadeck has stopped your terminals; quit it and open it again."
@@ -31,7 +31,7 @@ export const trashReason =
 
 const dataFolders = ["/home/mzpk/.config/novadeck", "/home/mzpk/Novadeck"] as const
 
-// The browser's stand-in for the desktop host's uninstall: it says what it would do, and
+// The browser's stand-in for the desktop app's uninstall: it says what it would do, and
 // every run ends as armed after a moment. `runs` records the `keepData` of each run and
 // `quits` counts the presses of Quit, since a browser has no app to remove or quit.
 export const createDemoUninstall = ({
@@ -97,9 +97,9 @@ export const uninstallScenarios = {
   },
 } as const satisfies Record<string, DemoUninstall>
 
-// The panel's group for uninstalling the app. Each action boots the demo again as a host
+// The panel's group for uninstalling the app. Each action boots the demo again as an app
 // that offers it, with the end of a run armed. The dialog names the agents connected in
-// Preferences, and Agents > Fail next change makes a disconnect fail before the run.
+// Preferences, and Agent connections › Connect fails makes a disconnect fail before the run.
 export const uninstallGroup = (launch: DemoLaunch): DemoActionGroup => {
   const boot = (name: keyof typeof uninstallScenarios | undefined) => () =>
     launch.setUninstall(name && uninstallScenarios[name])

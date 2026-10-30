@@ -1,8 +1,8 @@
 import type { PortableState } from "@novadeck/core/desktop/portable"
 import { afterEach, vi } from "vitest"
 
+import { describe, expect, it } from "../test"
 import { createDemoPortable, portableDataFolder, portableRun, portableVersion } from "./portable"
-import { describe, expect, it } from "./test"
 
 const phases = (heard: PortableState[]): string[] =>
   heard.map((state) => (state.portable ? state.install.phase : "installed copy"))

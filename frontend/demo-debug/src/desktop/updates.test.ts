@@ -1,7 +1,7 @@
 import type { UpdateOffer } from "@novadeck/core/desktop/update"
 import { afterEach, vi } from "vitest"
 
-import { describe, expect, it } from "./test"
+import { describe, expect, it } from "../test"
 import { createDemoUpdates, downloadMs, failAfterMs, downloadStep } from "./updates"
 
 const ready = (version: string): UpdateOffer => ({

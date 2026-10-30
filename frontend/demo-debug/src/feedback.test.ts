@@ -4,10 +4,10 @@ import { demoTurns } from "@novadeck/demo/turns"
 import { vi } from "vitest"
 
 import type { BootRehearsal } from "./boot-rehearsal"
+import type { DemoLaunch } from "./debug-demo"
 import { feedbackGroups } from "./feedback"
 import { describe, expect, it } from "./test"
 import type { DemoActionContext } from "./types"
-import type { DemoLaunch } from "./with-debug"
 
 const rehearse = vi.fn<(rehearsal: BootRehearsal) => void>()
 const launch = { rehearsals: { rehearse } } as unknown as DemoLaunch

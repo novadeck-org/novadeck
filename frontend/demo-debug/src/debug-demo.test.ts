@@ -2,8 +2,8 @@ import { noTheme } from "@novadeck/terminal-views/theme"
 import { vi } from "vitest"
 
 import { createBootRehearsals } from "./boot-rehearsal"
+import { createDebugDemo, type DemoLaunch } from "./debug-demo"
 import { describe, expect, it } from "./test"
-import { createDebugDemo, type DemoLaunch } from "./with-debug"
 
 // What the demo's terminals were told: started or stopped.
 const life = vi.hoisted(() => ({ calls: [] as string[] }))
