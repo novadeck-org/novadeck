@@ -37,7 +37,7 @@ const wholeLines = 400
 const contextLines = 40
 // What the protocol takes of a file and a plan.
 const maxLines = 2000
-const maxLineChars = 4096
+export const maxLineChars = 4096
 const maxPlanBytes = 256 * 1024
 
 /** What an item's content reads of a pointer: unavailable, with why, or ready. */

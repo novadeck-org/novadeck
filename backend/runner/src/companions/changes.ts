@@ -12,7 +12,7 @@ import {
 } from "@novadeck/protocol"
 
 import { cut } from "../text.js"
-import { hashOf } from "./content.js"
+import { hashOf, maxLineChars } from "./content.js"
 import { secret } from "./secrets.js"
 
 /** The empty tree, which a repository with no commit yet is diffed against, by object format. */
@@ -33,8 +33,7 @@ const metaBytes = 32 * 1024 * 1024
 const namesBytes = 2 * 1024 * 1024
 // The raw diff text read: what fits the budget needs hardly more than the budget itself.
 const patchBytes = 2 * maxChangesBytes
-// A line is cut to what the protocol takes; a text file has no NUL byte in this much of its start.
-const maxLineChars = 4096
+// A text file has no NUL byte in this much of its start.
 const sniffBytes = 8 * 1024
 // Untracked files: the largest one read, and how much all of them are read in one look.
 const maxUntrackedBytes = 1024 * 1024
