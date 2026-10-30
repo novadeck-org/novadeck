@@ -307,7 +307,7 @@ describe("An item's sheet", () => {
       await openInbox()
       await row("Run pnpm add").click()
       const open = sheet("Checkout review")
-      await answer(open, /tell Codex what to do differently/).click()
+      await answer(open, "Deny, with your words").click()
       await userEvent.type(
         open.getByRole("textbox", { name: /what Codex should do instead/i }),
         "Use npm.",
@@ -317,6 +317,26 @@ describe("An item's sheet", () => {
       await expect
         .element(confirmation())
         .toMatchTextContent("Denied @crow's command, with your words.")
+    })
+  })
+
+  context("when sending a plan back", () => {
+    it("takes the person's words in place of its row, named as Novadeck names it", async () => {
+      await openInbox("/?demo=agents")
+      // storefront's plan waits on the terminal the demo opens on, which may hold it back.
+      await lookAway()
+      await row(/Approve the plan\?.*storefront/).click()
+      const open = page.getByRole("dialog")
+      await answer(open, "Send it back, with your words").click()
+      await userEvent.type(
+        open.getByRole("textbox", { name: /what Claude should do instead/i }),
+        "Add a rollback step.",
+      )
+      await userEvent.keyboard("{Enter}")
+
+      await expect
+        .element(confirmation())
+        .toMatchTextContent(/Sent back @\w+'s plan, with your words\./)
     })
   })
 

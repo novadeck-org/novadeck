@@ -61,7 +61,7 @@ describe("A sheet's menu", () => {
         "Allow",
         "Yes, and don't ask again",
         "Deny",
-        "No, and tell Codex what to do differently",
+        "Deny, with your words",
       ])
       expect(rows[1]).toMatchObject({ effect: "for commands that start with `pnpm add`" })
       expect(rows[0]).toMatchObject({ effect: null, receipt: "Allowed @crow's command." })
@@ -133,7 +133,11 @@ describe("A sheet's menu", () => {
         ),
         0,
       )
-      expect(labels(rows)).toEqual(["Approve", "Yes, and bypass permissions", "No, keep planning"])
+      expect(labels(rows)).toEqual([
+        "Approve",
+        "Yes, and bypass permissions",
+        "Send it back, with your words",
+      ])
       expect(rows[0]).toMatchObject({
         answer: { kind: "request", answer: { option: "manual" } },
         receipt: "Approved @crow's plan.",
@@ -191,12 +195,129 @@ describe("A sheet's menu", () => {
         ),
         0,
       )
-      expect(labels(rows)).toEqual(["Approve", "Send it back", "Tell it what to change"])
+      expect(labels(rows)).toEqual(["Approve", "Send it back", "Send it back, with your words"])
       const back = words(rows[2])
       expect(back.refused("/compact")).toBe(
         "Antigravity can't take words that start with /, ? or !, or that have an @.",
       )
       expect(back.refused("Split the second step")).toBeNull()
+    })
+  })
+
+  context("on every harness", () => {
+    // Each harness's own options, as its adapter reads them.
+    const harnessPermissions: readonly [string, InboxRow["source"]["agent"], ChatDialogOption[]][] =
+      [
+        [
+          "Claude Code",
+          "claude",
+          [
+            { id: "1", label: "Yes", text: null },
+            { id: "2", label: "Yes, and don't ask again for example.com", text: null },
+            { id: "3", label: "No", text: null },
+            { id: "tell", label: "No, and tell Claude what to do", text: "prompt" },
+          ],
+        ],
+        // Codex numbers its options.
+        ["Codex", "codex", codex.map((each, at) => ({ ...each, id: String(at + 1) }))],
+        [
+          "Antigravity",
+          "agy",
+          [
+            { id: "1", label: "Yes, run command", text: null },
+            {
+              id: "2",
+              label:
+                "Yes, and always allow in this conversation for commands that start with 'echo'",
+              text: null,
+            },
+            {
+              id: "3",
+              label:
+                "Yes, and always allow for commands that start with 'echo' (Persist to settings.json)",
+              text: null,
+            },
+            { id: "4", label: "No, cancel", text: "prompt" },
+          ],
+        ],
+      ]
+    const harnessPlans: readonly [string, InboxRow["source"]["agent"], ChatDialogOption[]][] = [
+      [
+        "Claude Code",
+        "claude",
+        [
+          { id: "1", label: "Yes, auto-accept edits", text: null },
+          { id: "2", label: "Yes, manually approve edits", text: null },
+          { id: "3", label: "Tell Claude what to change", text: "field" },
+        ],
+      ],
+      [
+        "Codex",
+        "codex",
+        [
+          { id: "1", label: "Yes, implement this plan", text: null },
+          { id: "2", label: "Yes, clear context and implement", text: null },
+          { id: "3", label: "No, stay in Plan mode", text: "prompt" },
+        ],
+      ],
+      [
+        "Antigravity",
+        "agy",
+        [
+          { id: "approve", label: "Approve", text: null },
+          { id: "reject", label: "Reject", text: null },
+          { id: "feedback", label: "Tell it what to change", text: "field" },
+        ],
+      ],
+    ]
+    const wordsRow = (rows: readonly Row[]) => words(rows.find((row) => row.type === "words"))
+
+    it.each(harnessPermissions)(
+      "names %s's no with words Deny, with your words, and sends its own option",
+      (_, agent, options) => {
+        const back = wordsRow(menuOf(permission(options, "permission", agent), 0).rows)
+        const note = options.find((each) => each.text !== null)!
+        expect(back.label).toBe("Deny, with your words")
+        expect(back.answer("Use npm.")).toMatchObject({
+          answer: { option: note.id, text: "Use npm." },
+        })
+      },
+    )
+
+    it.each(harnessPlans)(
+      "names %s's way back with words Send it back, with your words, and sends its own option",
+      (_, agent, options) => {
+        const back = wordsRow(menuOf(permission(options, "plan", agent), 0).rows)
+        const note = options.find((each) => each.text !== null)!
+        expect(back.label).toBe("Send it back, with your words")
+        expect(back.answer("Split it.")).toMatchObject({
+          answer: { option: note.id, text: "Split it." },
+        })
+      },
+    )
+
+    it("keeps the harness's words on a yes that sets something standing, or that isn't plain", () => {
+      const [, , claude] = harnessPlans[0]!
+      const [, , numbered] = harnessPermissions[1]!
+      const [, , agy] = harnessPermissions[2]!
+      expect(labels(menuOf(permission(claude, "plan", "claude"), 0).rows)).toEqual([
+        "Approve",
+        "Yes, auto-accept edits",
+        "Send it back, with your words",
+      ])
+      expect(labels(menuOf(permission(numbered, "permission", "codex"), 0).rows)).toEqual([
+        "Allow",
+        "Yes, and don't ask again",
+        "Deny",
+        "Deny, with your words",
+      ])
+      // No yes is plain here, so the run-once yes keeps its words too.
+      expect(labels(menuOf(permission(agy, "permission", "agy"), 0).rows)).toEqual([
+        "Yes, run command",
+        "Yes, and always allow in this conversation for commands that start with 'echo'",
+        "Yes, and always allow for commands that start with 'echo' (Persist to settings.json)",
+        "Deny, with your words",
+      ])
     })
   })
 
