@@ -29,7 +29,7 @@ import { createStore, type Store } from "@novadeck/core/store"
 import type { TerminalKey, TerminalMetadata, Workspace } from "@novadeck/core/types"
 import { longHoldMs, type AgentDetail, type AskAnswer, type InboxEntry } from "@novadeck/protocol"
 
-import { requestOf } from "./conversations"
+import { requestOf, rootOf } from "./conversations"
 
 // The runner's Inbox: what every agent terminal waits on the person for, one row per
 // terminal, built from what the UI already has: the terminals' statuses (a finished turn,
@@ -43,6 +43,12 @@ export const detailGraceMs = 5000
 export const retryMs = 1000
 const retryCapMs = 10_000
 const replyTrackingLimit = 1000
+// As many ids as the runner takes in one `read` or `clear`.
+const idsPerCall = 1000
+const batchesOf = (ids: readonly string[]): string[][] =>
+  Array.from({ length: Math.ceil(ids.length / idsPerCall) }, (_, index) =>
+    ids.slice(index * idsPerCall, (index + 1) * idsPerCall),
+  )
 // How long an answer to trouble may leave its item standing before it can be answered again.
 // Antigravity marks a turn's start at its first model call, which can take a while.
 export const settleMs = 15_000
@@ -114,7 +120,7 @@ const sameTurns = (
 ): boolean => a === b || (!!a && !!b && JSON.stringify(a) === JSON.stringify(b))
 
 const askedOf = (detail: AgentDetail): readonly Asked[] => {
-  const root = detail.actors.find((actor) => actor.role === "root")?.ref ?? null
+  const root = rootOf(detail)
   return detail.requests.map((request) => ({
     request: requestOf(request, root),
     askedAt: request.askedAt,
@@ -257,14 +263,13 @@ export const createRunnerInbox = (
         }, detailGraceMs)
   }
 
-  // Sends the reads of turn rows, a thousand ids at a time. A failed one is tried again with
-  // the next listing, or after a backoff, never because of its own change.
+  // Sends the reads of turn rows, as many ids at a time as the runner takes. A failed one is
+  // tried again with the next listing, or after a backoff, never because of its own change.
   const sendReads = (ids: readonly string[]): void => {
     const next = binding
     if (!next || ended) return
     const fresh = ids.filter((id) => !inflight.has(id))
-    for (let start = 0; start < fresh.length; start += 1000) {
-      const batch = fresh.slice(start, start + 1000)
+    for (const batch of batchesOf(fresh)) {
       for (const id of batch) inflight.add(id)
       track(Promise.resolve().then(() => streams.inbox.read(batch))).then(
         () => {
@@ -490,8 +495,7 @@ export const createRunnerInbox = (
       const wanted = ids.filter((id) => settled.has(id))
       if (wanted.length === 0) return
       const live = tracker.guard()
-      for (let start = 0; start < wanted.length; start += 1000) {
-        const batch = wanted.slice(start, start + 1000)
+      for (const batch of batchesOf(wanted)) {
         track(Promise.resolve().then(() => streams.inbox.clear(batch))).catch((error: unknown) => {
           if (!live()) return
           for (const id of batch) tracker.fail(id, answerFailure(error))
@@ -508,8 +512,7 @@ export const createRunnerInbox = (
       tracker.submit(ids)
       recompute()
       const live = tracker.guard()
-      for (let start = 0; start < ids.length; start += 1000) {
-        const batch = ids.slice(start, start + 1000)
+      for (const batch of batchesOf(ids)) {
         track(Promise.resolve().then(() => streams.inbox.read(batch))).catch((error: unknown) => {
           if (!live()) return
           for (const id of batch) tracker.fail(id, answerFailure(error))

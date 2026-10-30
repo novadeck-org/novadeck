@@ -9,6 +9,8 @@ import { createStore } from "@novadeck/core/store"
 import { type TerminalKey, terminalKeyPath } from "@novadeck/core/types"
 import type { MessageParty, TerminalMessages } from "@novadeck/protocol"
 
+import { reasonOf } from "../errors"
+
 // The runner's messages between agents: each terminal's threads as `messages.watch`
 // streams them, and the one pause switch, which every listing reports. A pause the runner
 // accepted is so; a release goes on once a listing shows its thread no longer held, as a
@@ -97,9 +99,6 @@ export const reconcile = (current: MessagesState, gone = false): MessagesState =
   return same ? current : { ...current, releasing, failed }
 }
 
-const reason = (error: unknown): string =>
-  error instanceof Error && error.message ? error.message : String(error)
-
 export const createRunnerMessages = (
   streams: MessageStreams,
   // Keeps a call the backend waits for before it stops, as its other calls are.
@@ -182,7 +181,7 @@ export const createRunnerMessages = (
           // A thread a listing already shows going on was released all the same.
           failed: goesOn(current, thread)
             ? current.failed
-            : { ...current.failed, [thread]: `Couldn't ${what} it: ${reason(error)}` },
+            : { ...current.failed, [thread]: `Couldn't ${what} it: ${reasonOf(error)}` },
         })),
     )
   }
@@ -198,7 +197,7 @@ export const createRunnerMessages = (
           state.update((current) => ({
             ...current,
             pending: false,
-            error: `Couldn't ${paused ? "pause" : "resume"} messaging: ${reason(error)}`,
+            error: `Couldn't ${paused ? "pause" : "resume"} messaging: ${reasonOf(error)}`,
           })),
       )
     },

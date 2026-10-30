@@ -10,6 +10,8 @@ import {
 } from "@novadeck/protocol"
 import { hasCode, type Runner } from "@novadeck/runner-client"
 
+import { reasonOf } from "../errors"
+
 // The runner's voice input addon: its state as `voice.watch` streams it, installs and
 // settings as calls whose failures show in that state until the next snapshot, and clips
 // whose audio goes up while the person still speaks, so stopping only waits for the engine.
@@ -46,9 +48,6 @@ export const noVoice: VoiceState = {
 // sentence has little left to send, rarely enough to stay a handful of calls.
 export const flushMs = 300
 
-const reason = (error: unknown): string =>
-  error instanceof Error && error.message ? error.message : String(error)
-
 // What each reason voice input is unavailable means for the person, with what to do next.
 const unavailable: Record<VoiceUnavailable["reason"], string> = {
   unavailable: "This version of Novadeck has no voice input for this computer.",
@@ -69,18 +68,19 @@ const clipFailure = (error: unknown): Error => {
     // A missing engine's own message says more, such as that the disk is full.
     if (why.success)
       return new Error(
-        why.data.reason === "missing" && reason(error) !== "VOICE_UNAVAILABLE"
-          ? reason(error)
+        why.data.reason === "missing" && reasonOf(error) !== "VOICE_UNAVAILABLE"
+          ? reasonOf(error)
           : unavailable[why.data.reason],
       )
-    return new Error(reason(error) !== "VOICE_UNAVAILABLE" ? reason(error) : unavailable.off)
+    return new Error(reasonOf(error) !== "VOICE_UNAVAILABLE" ? reasonOf(error) : unavailable.off)
   }
-  if (hasCode(error, "VOICE_FAILED")) return new Error(`The speech engine failed: ${reason(error)}`)
+  if (hasCode(error, "VOICE_FAILED"))
+    return new Error(`The speech engine failed: ${reasonOf(error)}`)
   if (hasCode(error, "NOT_FOUND"))
     return new Error("The runner lost the recording. Try dictating again.")
   if (hasCode(error, "DISCONNECTED") || hasCode(error, "CLOSED"))
     return new Error("The runner isn't reachable, so nothing was transcribed.")
-  return new Error(`Couldn't transcribe: ${reason(error)}`, { cause: error })
+  return new Error(`Couldn't transcribe: ${reasonOf(error)}`, { cause: error })
 }
 
 // 16-bit samples as the little-endian bytes the runner takes, whatever this machine's order.
@@ -142,7 +142,7 @@ export const createRunnerVoice = (
       state.update((current) => ({
         ...current,
         ...(optimistic && { installing: null }),
-        refused: { call: which, message: reason(error) },
+        refused: { call: which, message: reasonOf(error) },
       }))
     })
   }

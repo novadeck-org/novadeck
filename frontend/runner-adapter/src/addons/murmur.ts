@@ -4,6 +4,8 @@ import { createStore } from "@novadeck/core/store"
 import type { MurmurState as WireMurmurState } from "@novadeck/protocol"
 import type { Runner } from "@novadeck/runner-client"
 
+import { reasonOf } from "../errors"
+
 // The runner's murmur addon: its state as `murmur.watch` streams it, and installs and
 // settings as calls whose refusals show in that state until the next snapshot.
 
@@ -34,9 +36,6 @@ export const noMurmur: MurmurState = {
   failure: null,
   stopped: null,
 }
-
-const reason = (error: unknown): string =>
-  error instanceof Error && error.message ? error.message : String(error)
 
 export const createRunnerMurmur = (
   calls: MurmurCalls,
@@ -75,7 +74,7 @@ export const createRunnerMurmur = (
     track(call()).catch((error: unknown) => {
       state.update((current) => ({
         ...current,
-        refused: { call: which, message: reason(error) },
+        refused: { call: which, message: reasonOf(error) },
       }))
     })
 

@@ -91,6 +91,10 @@ export const withBatch = (
   return next
 }
 
+// The root agent's ref in the agent's detail, or null before it has one.
+export const rootOf = (detail: AgentDetail): string | null =>
+  detail.actors.find((actor) => actor.role === "root")?.ref ?? null
+
 // A request of the agent's detail, as the chat has it; `root` is the root agent's ref.
 export const requestOf = (
   request: AgentDetail["requests"][number],
@@ -268,7 +272,7 @@ const read = (
 
   const apply = (snapshot: AgentDetail): void => {
     const session = snapshot.agent === null ? null : snapshot.sessionId
-    const root = snapshot.actors.find((actor) => actor.role === "root")?.ref ?? null
+    const root = rootOf(snapshot)
     const key = session !== null && root !== null ? `${session}/${root}` : null
     const changed = key !== following
     if (changed) {
