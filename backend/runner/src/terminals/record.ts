@@ -8,10 +8,10 @@ import type { Activity } from "../harnesses/activity.js"
 import type { Binding } from "../harnesses/bindings.js"
 import type { Root } from "../harnesses/roots.js"
 import type { Telemetry } from "../harnesses/telemetry.js"
-import type { Naming } from "./naming.js"
 import type { Nudges } from "./nudges.js"
-import type { AgentReport, AgentTurn } from "./records.js"
+import type { AgentReport, AgentTurn } from "./saved-terminals.js"
 import type { AgentSummary } from "./summary.js"
+import type { Naming } from "./titles.js"
 import type { Work } from "./work.js"
 
 /** A harness session bound to a terminal (`Record.bound`). */
@@ -28,7 +28,7 @@ export type Bound = {
  * What the runner holds of a terminal while it runs, or exited and retained: one mutable
  * object per terminal, which every part of the agent layer reads and writes through the
  * slice of it its host names (see architecture/manager-split.md). Saved terminals are
- * `records.ts`'s.
+ * `saved-terminals.ts`'s.
  */
 export type Record = {
   /** The agent layer's half of its summary; `summaryOf` composes the whole with the host's. */

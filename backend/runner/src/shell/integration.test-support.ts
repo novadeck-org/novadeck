@@ -16,7 +16,7 @@ import type { AgentName, TerminalChange, TerminalSummary } from "@novadeck/proto
 import { CompanionItems } from "../companions/items.js"
 import { handleWords } from "../terminals/handles.js"
 import { Terminals, type TerminalOptions } from "../terminals/index.js"
-import type { AgentTurn } from "../terminals/records.js"
+import type { AgentTurn } from "../terminals/saved-terminals.js"
 import { it as base } from "../test.js"
 import { plainSealer } from "../testing/sealing.js"
 import { WorkspaceStore } from "../workspaces/store.js"

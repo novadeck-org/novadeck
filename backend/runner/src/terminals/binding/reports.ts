@@ -18,9 +18,9 @@ import type { HookAnswer } from "../../shell/reports.js"
 import { sameToken } from "../callers.js"
 import { promptIn } from "../commands.js"
 import type { Companion } from "../companion.js"
+import type { Murmur } from "../descriptions.js"
 import { failed } from "../failures.js"
 import { tellInterrupted } from "../interrupted.js"
-import type { Murmur } from "../murmur.js"
 import {
   atTurnStart,
   fired,
@@ -28,7 +28,7 @@ import {
   personPrompted as promptCounted,
   sessionBegan,
 } from "../nudges.js"
-import { peerOf, type TerminalPeers } from "../peers.js"
+import { peerOf, type TerminalPeers } from "../peers-host.js"
 import type { Record } from "../record.js"
 import { boundProgram } from "../sampling.js"
 import type { Typing } from "../typing.js"

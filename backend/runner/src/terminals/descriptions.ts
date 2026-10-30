@@ -7,7 +7,7 @@ import { logs } from "../log.js"
 import type { Describer, Description, Digest, ShellDigest } from "../murmur/describer.js"
 import { sharesContentWord } from "../murmur/description.js"
 import { shorten } from "../text.js"
-import type { PeerTerminal } from "./peers.js"
+import type { PeerTerminal } from "./peers-host.js"
 
 const log = logs.for("murmur")
 

@@ -10,7 +10,7 @@ import { harnesses } from "../harnesses/registry.js"
 import { agentLabel } from "../messaging/messages.js"
 import { expectedAgent } from "./commands.js"
 import type { Record } from "./record.js"
-import { hasRun, type SavedTerminal } from "./records.js"
+import { hasRun, type SavedTerminal } from "./saved-terminals.js"
 
 /**
  * The task a worker lost before its agent's first session starts with again: the command

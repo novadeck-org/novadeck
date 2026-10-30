@@ -35,14 +35,14 @@ import type { InboxRecords, StoredEntry } from "../messaging/inbox.js"
 import { novadeckSender, personSender, type Message, type Thread } from "../messaging/messages.js"
 import type { MessageRecords } from "../messaging/records.js"
 import { handleOrder, nextHandle } from "../terminals/handles.js"
-import type { Naming } from "../terminals/naming.js"
 import type {
   ListedTerminal,
   SavedTerminal,
   TerminalIdentity,
   TerminalRecords,
   TerminalToSave,
-} from "../terminals/records.js"
+} from "../terminals/saved-terminals.js"
+import type { Naming } from "../terminals/titles.js"
 import type { Work } from "../terminals/work.js"
 
 const log = logs.for("store")

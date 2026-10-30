@@ -5,7 +5,7 @@ import type { TerminalSummary } from "@novadeck/protocol"
 import type { Request } from "../harnesses/activity.js"
 import type { Messaging } from "../messaging/messaging.js"
 import { describe, expect, it } from "../test.js"
-import { TerminalPeers, waitingOf, type PeerRecord, type PeerTerminal } from "./peers.js"
+import { TerminalPeers, waitingOf, type PeerRecord, type PeerTerminal } from "./peers-host.js"
 import { freshWork } from "./work.js"
 
 const request = (fields: Partial<Request>): Request => ({

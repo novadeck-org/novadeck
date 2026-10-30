@@ -11,7 +11,7 @@ import {
   titleOf,
   unnamed,
   type Naming,
-} from "./naming.js"
+} from "./titles.js"
 
 const terminal = { command: null, openedBy: "moth" }
 const opener = { title: "Login fix" }

@@ -13,7 +13,7 @@ import { callerOf } from "./callers.js"
 import { notice } from "./closes.js"
 import { bareHandle, mention } from "./handles.js"
 import { refused, type OpenFailure } from "./opens.js"
-import { peerOf, type TerminalPeers } from "./peers.js"
+import { peerOf, type TerminalPeers } from "./peers-host.js"
 import type { Record } from "./record.js"
 
 /**

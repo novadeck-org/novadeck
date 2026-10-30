@@ -18,7 +18,7 @@ import { Doorbell, type DoorbellOptions } from "../messaging/doorbell.js"
 import type { Messaging } from "../messaging/messaging.js"
 import { Answers, type AnswersOptions } from "./answers.js"
 import { Dialogs, type DialogsOptions } from "./dialogs.js"
-import { agentWorking, doorbellHost, profileOf } from "./doorbell.js"
+import { agentWorking, doorbellHost, profileOf } from "./doorbell-host.js"
 import { Interrupts, Prompts } from "./prompting.js"
 import type { Record } from "./record.js"
 

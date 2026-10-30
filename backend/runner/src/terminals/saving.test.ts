@@ -2,8 +2,8 @@ import { afterEach, beforeEach, vi } from "vitest"
 
 import { describe, expect, it } from "../test.js"
 import { plainSealer, sealed, unsealed } from "../testing/sealing.js"
-import type { SavedTerminal, TerminalRecords, TerminalToSave } from "./records.js"
 import type { TranscriptRedactor } from "./redaction.js"
+import type { SavedTerminal, TerminalRecords, TerminalToSave } from "./saved-terminals.js"
 import { Saves, type SavedRecord, type SavesOptions } from "./saving.js"
 import { sealedShape, type TranscriptSealer } from "./sealing.js"
 

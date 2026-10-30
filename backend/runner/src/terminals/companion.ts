@@ -17,9 +17,9 @@ import { unanswered, unansweredCalls, type Call } from "../shell/reports.js"
 import type { HintFacts } from "../voice/hint.js"
 import { callerOf } from "./callers.js"
 import { lookText, lookTroubles, pictureAllowed } from "./looks.js"
-import { peerOf, type TerminalPeers } from "./peers.js"
+import { peerOf, type TerminalPeers } from "./peers-host.js"
 import type { Record } from "./record.js"
-import type { SavedTerminal } from "./records.js"
+import type { SavedTerminal } from "./saved-terminals.js"
 import { itemGone, lookedAt, troubled } from "./troubles.js"
 
 /** What `look` answers: words and the picture, or why there is none. */

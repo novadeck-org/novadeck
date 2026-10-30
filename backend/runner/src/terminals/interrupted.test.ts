@@ -10,7 +10,7 @@ import { describe, expect, it } from "../test.js"
 import { adapterFolder } from "../testing/adapters.js"
 import { interruptedFor, markTurn, restored, tellInterrupted, turnOf } from "./interrupted.js"
 import type { Record } from "./record.js"
-import type { AgentReport } from "./records.js"
+import type { AgentReport } from "./saved-terminals.js"
 
 type Held = Pick<Record, "resumeClaim" | "resumeTold" | "resumeTurn" | "bound">
 

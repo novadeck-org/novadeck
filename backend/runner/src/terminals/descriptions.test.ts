@@ -16,8 +16,8 @@ import {
   type MurmurHost,
   type MurmurTimes,
   type MurmurSubject,
-} from "./murmur.js"
-import { unnamed } from "./naming.js"
+} from "./descriptions.js"
+import { unnamed } from "./titles.js"
 import { freshWork, type Work } from "./work.js"
 
 const work = (fields: Partial<Work> = {}): Work => ({

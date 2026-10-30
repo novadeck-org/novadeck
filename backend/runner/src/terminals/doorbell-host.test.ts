@@ -23,7 +23,7 @@ import {
   typingTarget,
   type DoorbellBound,
   type DoorbellRecord,
-} from "./doorbell.js"
+} from "./doorbell-host.js"
 
 const bound = (agent: AgentName, instance?: string) =>
   ({ agent, ...(instance && { instance }) }) as unknown as Binding

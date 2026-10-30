@@ -1931,7 +1931,7 @@ export const kept: Kept = [
     path: ".github/workflows/try.yml",
     why: "its layouts are those of tags it deploys, the old one among them",
   },
-  { path: "backend/runner/src/terminals/peers.test.ts", why: "sample paths" },
+  { path: "backend/runner/src/terminals/peers-host.test.ts", why: "sample paths" },
   { path: "scripts/flaky-capture/grid-results.test.ts", why: "a sample result's checkout path" },
   { path: "scripts/libraries/graph.test.ts", why: "sample specs the package graph refuses" },
   { path: "scripts/libraries/fence.test.ts", why: "sample paths the fence refuses" },

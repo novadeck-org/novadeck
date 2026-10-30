@@ -121,14 +121,14 @@ flowchart LR
   R --> U[Runner API: messages, pause, release, stop]
 ```
 
-| Part         | Where                                                                                                                    | Owns                                                                                |
-| ------------ | ------------------------------------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------- |
-| MCP tools    | `shell/mcp.ts`, beside `show`, `showing`, `look`, `close`, `open_terminal`, `open_agent`, `close_terminal`               | `send`, `agents`, `summarize` and `feedback`; the terminal's token on every call    |
-| Messages     | Runner, stored with the workspace (`WorkspaceStore`)                                                                     | Messages, threads, guards, pause, retention                                         |
-| Delivery     | Runner, one state machine per recipient terminal                                                                         | When and how a recipient notices: leases to hooks and the doorbell                  |
-| Hook answers | `shell/hook.ts` asks the runner; the runner returns stdout                                                               | Each harness's output encoding, in its adapter beside its decoder                   |
-| Doorbell     | `messaging/doorbell.ts`, behind `DoorbellHost` (built in `terminals/doorbell.ts`); the manager owns every PTY and screen | The settle window, the calm check, the test paste, Enter, holding input and resizes |
-| Runner API   | Protocol and router                                                                                                      | Listing messages, pause and release, for the UI to come                             |
+| Part         | Where                                                                                                                         | Owns                                                                                |
+| ------------ | ----------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------- |
+| MCP tools    | `shell/mcp.ts`, beside `show`, `showing`, `look`, `close`, `open_terminal`, `open_agent`, `close_terminal`                    | `send`, `agents`, `summarize` and `feedback`; the terminal's token on every call    |
+| Messages     | Runner, stored with the workspace (`WorkspaceStore`)                                                                          | Messages, threads, guards, pause, retention                                         |
+| Delivery     | Runner, one state machine per recipient terminal                                                                              | When and how a recipient notices: leases to hooks and the doorbell                  |
+| Hook answers | `shell/hook.ts` asks the runner; the runner returns stdout                                                                    | Each harness's output encoding, in its adapter beside its decoder                   |
+| Doorbell     | `messaging/doorbell.ts`, behind `DoorbellHost` (built in `terminals/doorbell-host.ts`); the manager owns every PTY and screen | The settle window, the calm check, the test paste, Enter, holding input and resizes |
+| Runner API   | Protocol and router                                                                                                           | Listing messages, pause and release, for the UI to come                             |
 
 Messaging is an application operation like `show`, `open_terminal` and `open_agent`: the MCP
 server only forwards calls with the terminal's token, and the runner decides.
@@ -1824,9 +1824,9 @@ an opt-in local model (see [murmur.md](murmur.md)), writes the titles, for agent
 and plain shells. Each agent writes the summary of its own terminal, through its
 `summarize` tool. No agent has a way to set a title: no tool takes one, nothing grants a
 rename, and the only title an agent gives is the one it opens another terminal with.
-Built: the layers in `terminals/naming.ts`, the summary tool in `terminals/summarize.ts`
+Built: the layers in `terminals/titles.ts`, the summary tool in `terminals/summarize-request.ts`
 and `Calls.summarize` (`terminals/calls.ts`), the tool in `shell/mcp.ts`, its nudges
-in `terminals/nudges.ts`, murmur's triggers and digests in `terminals/murmur.ts`, and the
+in `terminals/nudges.ts`, murmur's triggers and digests in `terminals/descriptions.ts`, and the
 model behind a `Describer` (`murmur/`).
 
 - **`summarize(summary)`**, listed like the other tools only inside Novadeck's terminals,
@@ -2074,7 +2074,7 @@ A refusal from the model names nothing until the next summary. A title that did 
 (murmur busy or backed off) is asked again after a minute (`retryMs`), and one stopped by
 murmur becoming unusable, or a summary that came meanwhile or while another was named,
 once it is usable again. What
-murmur remembers of a terminal (`Watch` in `terminals/murmur.ts`) is lost with the runner,
+murmur remembers of a terminal (`Watch` in `terminals/descriptions.ts`) is lost with the runner,
 so after a restart a terminal's title stays until its agent's next summary.
 
 A **plain shell** is titled (never summarized) on:
@@ -2284,9 +2284,9 @@ again.
    `terminals/TerminalTab.tsx`.
 4. **Naming:** the title's layers (the person, murmur, the opener, the default) and
    agents' own `summarize`, which replaced `describe` and the first-prompt title. Built:
-   the layers in `backend/runner/src/terminals/naming.ts`, the summary tool in
-   `terminals/summarize.ts`, its nudges in `terminals/nudges.ts`, murmur's triggers and
-   digests in `terminals/murmur.ts`, their wiring in `terminals/describing.ts`, the person's turn
+   the layers in `backend/runner/src/terminals/titles.ts`, the summary tool in
+   `terminals/summarize-request.ts`, its nudges in `terminals/nudges.ts`, murmur's triggers and
+   digests in `terminals/descriptions.ts`, their wiring in `terminals/murmur-host.ts`, the person's turn
    (`byPerson`) in `messaging/delivery.ts` and their prompt in `messaging/messaging.ts`,
    and the runner API as `titleSource`, `terminals.resetTitle` and `create`'s
    `requestId`.

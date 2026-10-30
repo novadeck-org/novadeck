@@ -1,7 +1,7 @@
 import type { SessionObserved } from "@novadeck/harness-core/events"
 import type { AgentName } from "@novadeck/protocol"
 
-import type { AgentReport } from "../terminals/records.js"
+import type { AgentReport } from "../terminals/saved-terminals.js"
 
 /**
  * The harness session that holds a terminal's foreground since the shell's last prompt.
