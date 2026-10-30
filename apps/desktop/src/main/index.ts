@@ -31,7 +31,7 @@ import { basename, dirname, join, win32 } from "node:path"
 import { fileURLToPath, pathToFileURL } from "node:url"
 
 import { consoleLogger, logPath, openSession, type Logger, type Session } from "@novadeck/log"
-import type { DesktopBadge, FeedbackHostAbout, UpdateChannel } from "@novadeck/protocol/bridge"
+import type { DesktopBadge, DesktopFeedbackAbout, UpdateChannel } from "@novadeck/protocol/bridge"
 import { onThisMachine, pagesPartition } from "@novadeck/protocol/pages"
 import { startHttpServer, type HttpServer } from "@novadeck/runner/http"
 import {
@@ -223,7 +223,7 @@ const feedbackTo = feedbackOrigin({
   version: app.getVersion(),
   env: process.env.NOVADECK_FEEDBACK_ORIGIN,
 })
-const feedbackDetails = (): FeedbackHostAbout =>
+const feedbackDetails = (): DesktopFeedbackAbout =>
   feedbackAbout({ version: app.getVersion(), platform: process.platform, arch: process.arch })
 // Where the app keeps its data; a development launch keeps its own (see ./data-folder.ts).
 // One given by --user-data-dir, as the packaged smoke test gives, is kept; the switch

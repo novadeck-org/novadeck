@@ -1,4 +1,4 @@
-import type { DesktopHost, PageError } from "@novadeck/protocol/bridge"
+import type { DesktopApp, PageError } from "@novadeck/protocol/bridge"
 
 /**
  * What the page tells the host of something thrown that nothing caught: an Error by its name,
@@ -22,7 +22,7 @@ export const pageError = (kind: PageError["kind"], thrown: unknown, fallback = "
  * that fails with nothing to catch it, for its log. What else the page does with them is as
  * it was.
  */
-export const reportPageErrors = (page: Window, host: DesktopHost | undefined): void => {
+export const reportPageErrors = (page: Window, host: DesktopApp | undefined): void => {
   const report = host?.reportError
   if (!report) return
   page.addEventListener("error", (event) => report(pageError("error", event.error, event.message)))
