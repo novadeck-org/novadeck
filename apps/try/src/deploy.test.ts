@@ -12,7 +12,7 @@ const root = join(import.meta.dirname, "../../..")
 // read too. Builds and installed packages hold pages that aren't an app's own.
 const pages = globSync("apps/**/index.html", {
   cwd: root,
-  exclude: ["**/node_modules/**", "**/dist*/**", "**/out/**", "**/release/**"],
+  exclude: ["**/node_modules", "**/dist*", "**/out", "**/release"],
 })
   .map((path) => ({
     path: path.split("\\").join("/"),
