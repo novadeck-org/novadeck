@@ -857,7 +857,9 @@ export const createDeck = async (options: DeckOptions): Promise<Deck> => {
   }
 
   // The requests to close or lead a terminal, once the test asks the deck to answer them, and how.
-  let approvalRequests: ReturnType<typeof arrivals<Extract<Approval, { type: "request" }>>> | undefined
+  let approvalRequests:
+    | ReturnType<typeof arrivals<Extract<Approval, { type: "request" }>>>
+    | undefined
   let confirming = true
   // Follows the runner's approvals until it closes, answering each as the person would.
   const confirm = (on: Runner) => {
