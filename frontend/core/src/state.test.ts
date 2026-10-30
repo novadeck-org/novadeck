@@ -28,7 +28,7 @@ const shown = (...items: Item[]): Workspace =>
 const run = (from: Workspace, ...actions: WorkspaceAction[]): WorkspaceState =>
   stateOf(apply(from, ...actions))
 
-describe("companion items in the workspace", () => {
+describe("items in the workspace", () => {
   context("when the backend reports something new", () => {
     it("joins its terminal's bar, last, as new", () => {
       const state = stateOf(shown(notes, hero))

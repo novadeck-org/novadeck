@@ -3,7 +3,7 @@ import { remembered } from "./roster"
 import { activeSession } from "./state"
 import { handleText } from "./terminals/handle"
 import { isAgentProgram } from "./terminals/process"
-import type { TerminalMetadata, Workspace } from "./types"
+import type { TerminalMetadata, TerminalRoster, Workspace } from "./types"
 
 // What the workspace alone says of its current session's terminals, for the views that
 // name one terminal by another. They read no UI state.
@@ -166,13 +166,13 @@ const listed = (words: readonly string[], shown = 3): string => {
 }
 
 // A terminal of the roster as its team names it: by handle, by name where it has none.
-const memberName = (roster: ReturnType<typeof rosterOf>, id: string): string => {
+const memberName = (roster: TerminalRoster, id: string): string => {
   const each = roster.terminals.find((terminal) => terminal.id === id)
   return each?.handle ? handleText(each.handle) : (each?.name ?? id)
 }
 
 // Whom a lead directs, in words: up to four named, or three and the rest counted.
-const ledWords = (roster: ReturnType<typeof rosterOf>, led: readonly string[]): string =>
+const ledWords = (roster: TerminalRoster, led: readonly string[]): string =>
   listed([...led.slice(0, 4).map((id) => memberName(roster, id)), ...led.slice(4)])
 
 // A terminal's team in words, for its tab's description, as the rail's wire only draws it:

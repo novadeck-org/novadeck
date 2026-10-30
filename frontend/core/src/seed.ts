@@ -50,7 +50,7 @@ export type SessionSeed = {
   readonly name: string
   // The session's terminals, as the backend reports them, oldest first.
   readonly terminals: readonly TerminalMetadata[]
-  // Its windows undocked from companions, each with its item among `items`, and what
+  // Its windows undocked from bars, each with its item among `items`, and what
   // agents showed and the person attached.
   readonly windows: readonly CompanionWindowMeta[]
   readonly items: readonly Item[]
@@ -170,7 +170,7 @@ const restoredState = (
   return withItems(laid, items, bars)
 }
 
-export type SeedDefaults = {
+type SeedDefaults = {
   readonly view: ViewMode
   readonly windowedView: WindowedView
   readonly now: number
