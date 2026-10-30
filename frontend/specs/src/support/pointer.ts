@@ -2,7 +2,7 @@ import { commands } from "vitest/browser"
 
 declare module "vitest/browser" {
   // Declaration merging extends Vitest's command registry.
-  // oxlint-disable-next-line typescript/consistent-type-definitions
+  // eslint-disable-next-line typescript/consistent-type-definitions
   interface BrowserCommands {
     pinPointer: (
       action: "press" | "move" | "release",

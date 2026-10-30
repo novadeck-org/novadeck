@@ -543,10 +543,10 @@ describe("closing terminals", () => {
     it("shows an empty workspace that can start again", async () => {
       await openWorkspace()
       for (const name of terminalTabNames()) {
-        // oxlint-disable-next-line no-await-in-loop -- Each close changes the list.
+        // eslint-disable-next-line no-await-in-loop -- Each close changes the list.
         await tabAction(`Close ${name}`).click()
         // Every demo terminal but Build runs a program, so closing it asks first.
-        // oxlint-disable-next-line no-await-in-loop -- Answers this close before the next.
+        // eslint-disable-next-line no-await-in-loop -- Answers this close before the next.
         if (name !== "Build") await confirmClose()
       }
 
@@ -563,10 +563,10 @@ describe("closing terminals", () => {
     it("counts it in the singular", async () => {
       await openWorkspace()
       for (const name of terminalTabNames().slice(1)) {
-        // oxlint-disable-next-line no-await-in-loop -- Each close changes the list.
+        // eslint-disable-next-line no-await-in-loop -- Each close changes the list.
         await tabAction(`Close ${name}`).click()
         // Every demo terminal but Build runs a program, so closing it asks first.
-        // oxlint-disable-next-line no-await-in-loop -- Answers this close before the next.
+        // eslint-disable-next-line no-await-in-loop -- Answers this close before the next.
         if (name !== "Build") await confirmClose()
       }
 

@@ -376,7 +376,7 @@ describe("Zen dock", () => {
       await showControls().click()
       await expect.element(hideControls()).toHaveAttribute("aria-expanded", "true")
       for (const name of ["Focus", "Grid", "Canvas"] as const) {
-        // oxlint-disable-next-line no-await-in-loop -- Checks each view choice in turn.
+        // eslint-disable-next-line no-await-in-loop -- Checks each view choice in turn.
         await expect.element(dockView(name)).toBeVisible()
       }
       await expect.element(exitZen()).toBeVisible()

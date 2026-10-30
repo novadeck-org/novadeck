@@ -15,7 +15,8 @@ import { createSpecBackend, forgetBabciaCues } from "./backend"
 // code. Keep workspace state owned by the App instance (for example a store created
 // in a provider) so every test and every "reload" starts from the sample workspace.
 
-const nextFrame = (): Promise<number> => new Promise(requestAnimationFrame)
+/** Resolves on the next rendered frame. */
+export const nextFrame = (): Promise<number> => new Promise(requestAnimationFrame)
 
 /**
  * Opens the app, optionally at a deep link such as `/projects/storefront/sessions/initial/grid`,
@@ -195,7 +196,8 @@ export const sidebarPanel = (name: "Terminals" | "Source" | "Sessions" | "Inbox"
       name: name === "Inbox" ? new RegExp(`^${name}(,|$)`) : name,
     })
 
-const literal = (text: string): string => text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")
+/** `text` as a regular expression that matches it as written. */
+export const literal = (text: string): string => text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")
 
 /** A terminal's name from an accessible name that carries its `, @handle` after it. */
 export const nameOf = (label: string): string => label.replace(/, @[a-z0-9]+(?= |$)/, "")

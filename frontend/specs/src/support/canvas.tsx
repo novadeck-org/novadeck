@@ -1,7 +1,7 @@
 import { expect } from "vitest"
 import { page, userEvent, type Locator } from "vitest/browser"
 
-import { nameOf, stillFor, terminal } from "./workspace"
+import { nameOf, nextFrame, stillFor, terminal } from "./workspace"
 
 // Canvas vocabulary: where things appear on screen and the pointer gestures a person
 // makes. Geometry is measured from rendered boxes, relative to the Canvas view.
@@ -156,8 +156,6 @@ export const scrollCanvas = async (deltaY: number): Promise<void> => {
   expectBareCanvasAt({ x: centerX, y: centerY })
   await userEvent.wheel(canvasBackground(), { delta: { y: deltaY } })
 }
-
-const nextFrame = (): Promise<number> => new Promise(requestAnimationFrame)
 
 /**
  * Resolves with the measurement once it has stayed the same for several rendered

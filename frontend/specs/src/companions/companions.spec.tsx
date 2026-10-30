@@ -42,10 +42,8 @@ describe("A terminal's taskbar", () => {
     ])
   })
 
-  // App bug: dnd-kit's Accessibility plugin writes `aria-pressed` (whether the icon is being
-  // dragged) onto each icon, its sortable handle, over the app's own (whether the pane shows
-  // it), so the icon reads as not pressed until React renders it again. Expected to fail
-  // until that's fixed; then make it a plain `it`.
+  // dnd-kit's Accessibility plugin writes its own `aria-pressed` (whether the icon is being
+  // dragged) onto each icon, its sortable handle: the app's (whether the pane shows it) wins.
   it("marks the icon of what the pane shows as pressed", async () => {
     await openShowcase()
     await expect

@@ -1,7 +1,7 @@
 import { expect } from "vitest"
 import { page, type Locator } from "vitest/browser"
 
-import { stillFor, terminal } from "./workspace"
+import { nextFrame, stillFor, terminal } from "./workspace"
 
 // Geometry vocabulary for Focus and Grid specs. Rendered rectangles are compared
 // with each other rather than with fixed pixel values, so specs survive changes to
@@ -46,8 +46,6 @@ export const headerGap = (name: string): { x: number; y: number } => {
     y: (heading.top + heading.bottom) / 2 - box.top,
   }
 }
-
-const nextFrame = (): Promise<number> => new Promise(requestAnimationFrame)
 
 /**
  * Confirms that something stays true: the check holds on every one of several

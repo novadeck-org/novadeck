@@ -483,7 +483,7 @@ describe("narrow screens", () => {
         page.getByRole("button", { name: "Workspace preferences" }),
       ]
       for (const action of actions) {
-        // oxlint-disable-next-line no-await-in-loop -- Checks each header action in turn.
+        // eslint-disable-next-line no-await-in-loop -- Checks each header action in turn.
         await expect.element(action).toBeVisible()
       }
       for (const action of actions) {

@@ -2,7 +2,7 @@ import { expect } from "vitest"
 import { userEvent, type Locator } from "vitest/browser"
 
 import { windowMenu } from "./companions"
-import { openWorkspace, skipWelcome, terminal, terminalTab } from "./workspace"
+import { literal, openWorkspace, skipWelcome, terminal, terminalTab } from "./workspace"
 
 // Vocabulary for agents' messages: the counts on terminals' tabs, a terminal's messages
 // in its companion pane, and who named a terminal.
@@ -45,9 +45,7 @@ export const conversationRows = (pane: Locator): Locator =>
  * its name goes on from to say what its corner says. */
 export const conversationRow = (pane: Locator, label: string): Locator =>
   pane.getByRole("list", { name: "Conversations" }).getByRole("button", {
-    name: new RegExp(
-      `^${label.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}, (asks you|not delivered|unread|last at)`,
-    ),
+    name: new RegExp(`^${literal(label)}, (asks you|not delivered|unread|last at)`),
   })
 
 /** Opens a conversation from a messages pane's list; returns its chat. */
