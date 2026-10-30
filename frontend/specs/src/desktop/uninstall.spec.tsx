@@ -1,18 +1,11 @@
 import { vi } from "vitest"
 import { page, type Locator } from "vitest/browser"
 
-import { expectFocusWithin, preferencesDialog } from "../support/keyboard"
+import { openPreferencesOn, preferencesDialog } from "../support/keyboard"
 import { expectStaysAbsent, openWorkspace } from "../support/workspace"
 import { context, describe, expect, it } from "../test"
 
 const tab = (name: "General" | "About"): Locator => preferencesDialog().getByRole("tab", { name })
-
-// Opens Preferences on its About tab, where Uninstall is.
-const openPreferences = async (): Promise<void> => {
-  await page.getByRole("button", { name: "Workspace preferences" }).click()
-  await expectFocusWithin(preferencesDialog())
-  await tab("About").click()
-}
 
 const about = (): Locator => preferencesDialog().getByRole("tabpanel", { name: "About" })
 const row = (): Locator => about().getByRole("button", { name: "Uninstall…" })
@@ -23,7 +16,7 @@ describe("Preferences' Uninstall Novadeck", () => {
   context("where the app offers none or nothing", () => {
     it.each([["/"], ["/?uninstall=unavailable"]])("is absent on %s", async (route) => {
       await openWorkspace(route)
-      await openPreferences()
+      await openPreferencesOn("About")
       await expect.element(about().getByText("Version")).toBeVisible()
       await expectStaysAbsent(row())
       expect(about().getByText("Uninstall Novadeck").query()).toBeNull()
@@ -33,7 +26,7 @@ describe("Preferences' Uninstall Novadeck", () => {
   context("for a copy a package manager installed", () => {
     it("gives the command to copy, with no way to uninstall from here", async () => {
       await openWorkspace("/?uninstall=manual")
-      await openPreferences()
+      await openPreferencesOn("About")
       await expect.element(about().getByText(/Homebrew installed Novadeck/)).toBeVisible()
       await expect.element(about().getByText("brew uninstall --cask novadeck")).toBeVisible()
       vi.spyOn(navigator.clipboard, "writeText").mockResolvedValue(undefined)
@@ -46,7 +39,7 @@ describe("Preferences' Uninstall Novadeck", () => {
   context("for a copy the app removes", () => {
     it("asks first, keeping data by default, and cancels without a trace", async () => {
       await openWorkspace("/?uninstall=removed")
-      await openPreferences()
+      await openPreferencesOn("About")
       await expect.element(about().getByText("Removes the app from this computer.")).toBeVisible()
       await row().click()
       await expect.element(dialog().getByText("Uninstall Novadeck?")).toBeVisible()
@@ -62,7 +55,7 @@ describe("Preferences' Uninstall Novadeck", () => {
 
     it("disconnects the connected agents, shows Removing…, then offers Quit", async () => {
       await openWorkspace("/?uninstall=removed")
-      await openPreferences()
+      await openPreferencesOn("About")
       await tab("General").click()
       const claude = preferencesDialog().getByRole("switch", { name: "Claude Code" })
       await claude.click()
@@ -78,7 +71,7 @@ describe("Preferences' Uninstall Novadeck", () => {
 
     it("has no data choice where the app has no data folder", async () => {
       await openWorkspace("/?uninstall=no-data")
-      await openPreferences()
+      await openPreferencesOn("About")
       await row().click()
       await expect.element(dialog().getByText("Uninstall Novadeck?")).toBeVisible()
       expect(dialog().getByRole("checkbox").query()).toBeNull()
@@ -86,7 +79,7 @@ describe("Preferences' Uninstall Novadeck", () => {
 
     it("keeps the dialog open with the reason when the removal fails", async () => {
       await openWorkspace("/?uninstall=failed")
-      await openPreferences()
+      await openPreferencesOn("About")
       await row().click()
       await dialog().getByRole("button", { name: "Uninstall", exact: true }).click()
       await expect
@@ -99,7 +92,7 @@ describe("Preferences' Uninstall Novadeck", () => {
 
     it("keeps the advice of a failure after the terminals ended, on every retry", async () => {
       await openWorkspace("/?uninstall=stopped")
-      await openPreferences()
+      await openPreferencesOn("About")
       await row().click()
       const retry = async (): Promise<void> => {
         await dialog().getByRole("button", { name: "Uninstall", exact: true }).click()
@@ -113,7 +106,7 @@ describe("Preferences' Uninstall Novadeck", () => {
 
     it("lets a Trash refusal succeed on the second try", async () => {
       await openWorkspace("/?uninstall=trash")
-      await openPreferences()
+      await openPreferencesOn("About")
       await row().click()
       await dialog().getByRole("button", { name: "Uninstall", exact: true }).click()
       await expect
@@ -125,7 +118,7 @@ describe("Preferences' Uninstall Novadeck", () => {
 
     it("hands over to the platform's uninstaller, which finishes the job", async () => {
       await openWorkspace("/?uninstall=windows")
-      await openPreferences()
+      await openPreferencesOn("About")
       await row().click()
       await expect
         .element(dialog().getByText(/Windows' uninstaller finishes the job/))
@@ -139,7 +132,7 @@ describe("Preferences' Uninstall Novadeck", () => {
 
     it("gives the leftover command to copy before Quit", async () => {
       await openWorkspace("/?uninstall=leftover")
-      await openPreferences()
+      await openPreferencesOn("About")
       await row().click()
       await dialog().getByRole("button", { name: "Uninstall", exact: true }).click()
       await expect

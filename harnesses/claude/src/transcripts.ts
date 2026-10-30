@@ -6,6 +6,7 @@ import { at, entry, joined, textOf } from "@novadeck/harness-core/items"
 import { shellCall } from "@novadeck/harness-core/tools"
 
 import { taskNotification } from "./decode.js"
+import { interruption } from "./interruption.js"
 import { describe } from "./tools.js"
 
 // A subagent id Claude Code names its transcript by, as it writes them.
@@ -88,7 +89,7 @@ const textItems = (
       ),
     ]
   return content && !taskNotification.test(content)
-    ? [entry(role, "text", content, { at: time })]
+    ? [entry(role, "text", content, { at: time, interrupted: interruption(content) })]
     : []
 }
 
@@ -121,7 +122,7 @@ export const transcripts: NonNullable<Harness["transcripts"]> = {
         tool_use_id: call,
       } = (part ?? {}) as Record<string, unknown>
       if (type === "text" && typeof text === "string" && text)
-        return [entry(role, "text", text, { at: time })]
+        return [entry(role, "text", text, { at: time, interrupted: interruption(text) })]
       if (type === "tool_use")
         return [
           entry("assistant", "tool-call", textOf(input), {

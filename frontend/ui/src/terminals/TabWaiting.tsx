@@ -1,5 +1,5 @@
-import { clockTime, wakeFill, type Waiting } from "@novadeck/core/agents/waiting"
-import { minutesWaited } from "@novadeck/core/agents/waiting-clock"
+import { clockTime, wakeFill, type Waiting } from "@novadeck/core/terminals/waiting"
+import { minutesWaited } from "@novadeck/core/terminals/waiting-clock"
 import type { TerminalMetadata } from "@novadeck/core/types"
 
 // How many rows a tab's waiting lists before it counts the rest on the last.

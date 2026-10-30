@@ -2,14 +2,14 @@ import type { BackendConnectionState, TerminalKey, ThemeSource } from "@novadeck
 import { createStore, type Store } from "@novadeck/core/store"
 import { terminalKeyId } from "@novadeck/core/terminals/registry"
 import type { TerminalMetadata } from "@novadeck/core/types"
-import type { Renderers } from "@novadeck/emulator/browser"
+import type { RendererPool } from "@novadeck/emulator/browser"
 import type { AttachStream, TerminalEvent } from "@novadeck/terminal"
 import { openEmulator } from "@novadeck/terminal-views/emulator"
 import { createTerminalMount, screenMarkup } from "@novadeck/terminal-views/mount"
 import { pasteNotice } from "@novadeck/terminal-views/paste-notice"
-import { pageRenderers } from "@novadeck/terminal-views/renderers"
+import { pageRendererPool } from "@novadeck/terminal-views/renderer-pool"
 import { noTheme, terminalTheme } from "@novadeck/terminal-views/theme"
-import { createTerminalViews, type TerminalViewOptions } from "@novadeck/terminal/view"
+import { createTerminalScreens, type TerminalScreensOptions } from "@novadeck/terminal/view"
 
 import type { DemoAgentLink } from "../agents/link"
 import {
@@ -20,21 +20,21 @@ import {
 import type { DemoEngine } from "./engine"
 import type { DemoTerminalRuntime } from "./runtime"
 
-// The demo's terminals, drawn as the runner's are: real terminals, through the same views and
-// mount, each fed by a screen the demo writes as terminal output (see screen/terminal.ts).
+// The demo's terminals, drawn as the runner's are: real terminals, through the same screens
+// and mount, each fed by a screen the demo writes as terminal output (see screen/terminal.ts).
 
 // Where a demo terminal draws and what it opens with: the page's theme (none in tests), the
 // WebGL pool (the page's), and a terminal's own opening output in place of its program's.
 export type DemoTerminalSetup = {
   readonly theme?: ThemeSource
-  readonly renderers?: Renderers
+  readonly pool?: RendererPool
   readonly introOf?: (terminal: TerminalMetadata, key: TerminalKey) => DemoIntro | undefined
   // The debug layer's: what its terminals read of the connection, how they restart, and what
   // their screens are doing.
   readonly runtime?: DemoTerminalRuntime
 }
 
-// The size a screen is written at until the views fit it: a terminal's usual one.
+// The size a screen is written at until the screens fit it: a terminal's usual one.
 const opening = { cols: 80, rows: 24 }
 // The most a pasted file may be, as the runner takes them.
 const maxUploadBytes = 32 * 1024 * 1024
@@ -52,11 +52,11 @@ const until = <S>(store: Store<S>, ready: (state: S) => boolean): Promise<void> 
     })
   })
 
-// What the views draw the demo's terminals from: the options, and how its screens are
+// What the demo's terminals are drawn from: the screens' options, and how its screens are
 // linked to the agents' conversations.
-export const demoViewOptions = (
+export const demoScreensOptions = (
   engine: DemoEngine,
-  { theme = noTheme, renderers = pageRenderers(), introOf, runtime }: DemoTerminalSetup = {},
+  { theme = noTheme, pool = pageRendererPool(), introOf, runtime }: DemoTerminalSetup = {},
 ) => {
   let link: DemoAgentLink | undefined
   const screens = new Map<string, DemoTerminalScreen>()
@@ -79,7 +79,7 @@ export const demoViewOptions = (
     })
     screens.set(id, made)
     // It goes with its terminal, and its stream with a shell that starts again, so the
-    // views lock until it has.
+    // screens lock until it has.
     const stop = engine.subscribe(key, () => {
       if (engine.terminal(key)?.state === "starting") streams.get(id)?.end()
       if (engine.has(key)) return
@@ -97,7 +97,8 @@ export const demoViewOptions = (
     for (const { key, end } of streams.values()) if (attaching(key)) end()
   }
   // While the backend runs: stopped, as a reboot or the app going leaves it, its terminals
-  // read as closed, so the views let their screens go, and its own screens and waits go too.
+  // read as closed, so the terminal screens let theirs go, and its own demo screens and waits go
+  // too.
   let running = true
   let stopAttaching = runtime?.screens.subscribe(endAttaching)
 
@@ -124,7 +125,7 @@ export const demoViewOptions = (
     streams.get(id)?.end()
     streams.set(id, { key, end: close })
     // Bracketed paste, so a paste reaches the line editor whole rather than line by line;
-    // the views reset the emulator before a snapshot, so each one sets it again.
+    // the screens reset the emulator before a snapshot, so each one sets it again.
     const { cols, rows } = screen.size()
     push({
       sequence: (sequence += 1),
@@ -169,7 +170,7 @@ export const demoViewOptions = (
   const showable = (key: TerminalKey): boolean =>
     engine.terminal(key)?.state !== "starting" && !attaching(key)
   // Resolves once it can be shown, or its terminal is gone: one wait for each terminal while
-  // it lasts, as the views ask on every key and every second.
+  // it lasts, as the screens ask on every key and every second.
   const waits = new Map<string, Promise<boolean>>()
   const waiting = new Set<() => void>()
   const shown = (key: TerminalKey): Promise<boolean> => {
@@ -198,9 +199,9 @@ export const demoViewOptions = (
     return wait
   }
 
-  const options: TerminalViewOptions<TerminalKey> = {
+  const options: TerminalScreensOptions<TerminalKey> = {
     keyOf: terminalKeyId,
-    emulator: openEmulator({ renderers, screenReader: true }),
+    emulator: openEmulator({ pool, screenReader: true }),
     theme: terminalTheme(theme),
     store: createStore,
     // As far in from the window's edge as the demo's output always sat.
@@ -209,7 +210,7 @@ export const demoViewOptions = (
       if (!running || !(await shown(key))) throw new Error("The terminal closed")
       return streamOf(key, screenOf(key))
     },
-    // A stream ends only for a screen held back a while, so the views attach again once it
+    // A stream ends only for a screen held back a while, so the screens attach again once it
     // can be shown.
     lifecycle: (key) =>
       running && engine.has(key)
@@ -271,12 +272,12 @@ export const demoViewOptions = (
 }
 
 export const createDemoTerminals = (engine: DemoEngine, setup: DemoTerminalSetup = {}) => {
-  const { options, link, start, stop } = demoViewOptions(engine, setup)
-  const views = createTerminalViews(options)
+  const { options, link, start, stop } = demoScreensOptions(engine, setup)
+  const screens = createTerminalScreens(options)
   return {
-    mountTerminal: createTerminalMount(views),
-    setFont: views.setFont,
-    typeInto: views.typeInto,
+    mountTerminal: createTerminalMount(screens),
+    setFont: screens.setFont,
+    typeInto: screens.typeInto,
     link,
     start,
     stop,

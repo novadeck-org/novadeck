@@ -1,5 +1,5 @@
 import {
-  createRenderers,
+  createRendererPool,
   createView,
   type Drawing,
   type Terminal,
@@ -8,7 +8,7 @@ import { afterEach, describe, expect, it, vi } from "vitest"
 
 import type { AttachStream } from "../contract.js"
 import {
-  closeViews,
+  closeScreens,
   emulatorPrototype,
   loading,
   openedTerminals,
@@ -21,7 +21,7 @@ import {
   starting,
   streamOf,
   themed,
-  viewsOf,
+  screensOf,
 } from "./fakes.test-support.js"
 import type { ViewEvents } from "./follow.js"
 
@@ -48,7 +48,7 @@ vi.hoisted(() => {
 
 // A screen closes once its session has stayed off screen for its retention; it closes here
 // instead, while the file's DOM is still there to take its listeners off.
-afterEach(closeViews)
+afterEach(closeScreens)
 
 describe("a terminal's screen resized out of view", () => {
   // Cells of 8 by 17, and a view of the screen that reports where the test says.
@@ -72,7 +72,7 @@ describe("a terminal's screen resized out of view", () => {
 
   it("keeps following its shell's output", async () => {
     const view = measured()
-    const screens = viewsOf(
+    const screens = screensOf(
       optionsOf({
         // With scrollback, for the viewport to follow.
         emulator: (container, open) => createView(container, { ...open, scrollback: 1000 }),
@@ -103,7 +103,7 @@ describe("a screen's renderer", () => {
   const wired = () => {
     const loaded: Terminal[] = []
     const drawings: { disposed: boolean }[] = []
-    const renderers = createRenderers<Terminal>({
+    const pool = createRendererPool<Terminal>({
       load: (xterm) => {
         loaded.push(xterm)
         const drawing = { disposed: false }
@@ -132,9 +132,9 @@ describe("a screen's renderer", () => {
     const resized = vi.fn<NonNullable<ViewEvents<string>["resized"]>>()
     const closed = new Set<string>()
     const page = themed()
-    const screens = viewsOf(
+    const screens = screensOf(
       optionsOf({
-        emulator: (container, open) => createView(container, { ...open, scrollback: 0, renderers }),
+        emulator: (container, open) => createView(container, { ...open, scrollback: 0, pool }),
         theme: page.theme,
         markup: { containerClass: "screen" },
         lifecycle: (key) => shell({ closed: closed.has(key) }),
@@ -171,7 +171,7 @@ describe("a screen's renderer", () => {
         unmount: () => holds.forEach((hold) => hold.release({ unmount: true })),
       }
     }
-    return { loaded, drawings, resized, closed, mount, page, renderers, fit, stream }
+    return { loaded, drawings, resized, closed, mount, page, pool, fit, stream }
   }
 
   it("loads WebGL for a screen that asks for it and nothing for one that doesn't", () => {
@@ -196,19 +196,19 @@ describe("a screen's renderer", () => {
   })
 
   it("counts a renderer change's resize of the pty only when the fit is another size", async () => {
-    const { renderers, mount, fit, stream } = wired()
+    const { pool, mount, fit, stream } = wired()
     const page = mount(true, "01")
     // The shell attaches, and its pty takes the size that fits.
     await vi.waitFor(() => expect(stream.resized).toEqual(["100x30"]))
-    expect(renderers.stats().resizes).toBe(0)
+    expect(pool.stats().resizes).toBe(0)
     fit.cols = 90
     page.update({ webgl: false })
     expect(stream.resized).toEqual(["100x30", "90x30"])
-    expect(renderers.stats()).toMatchObject({ swaps: 2, resizes: 1 })
+    expect(pool.stats()).toMatchObject({ swaps: 2, resizes: 1 })
     // The next change fits the same size again.
     page.update({ webgl: true })
     expect(stream.resized).toHaveLength(2)
-    expect(renderers.stats()).toMatchObject({ swaps: 3, resizes: 1 })
+    expect(pool.stats()).toMatchObject({ swaps: 3, resizes: 1 })
   })
 
   it("fits the screen again once a font it waited for arrives", async () => {
@@ -280,7 +280,7 @@ describe("a screen its emulator fails to draw", () => {
       .fn<() => Promise<AttachStream>>()
       .mockResolvedValueOnce(first.attached)
       .mockResolvedValue(second.attached)
-    const screens = viewsOf(optionsOf({ attach }))
+    const screens = screensOf(optionsOf({ attach }))
     const opened = openedTerminals()
     const hold = screens.acquire("garbled", running)
     const xterm = opened[0]!
@@ -305,7 +305,7 @@ describe("a screen its emulator fails to draw", () => {
       .fn<() => Promise<AttachStream>>()
       .mockResolvedValueOnce(first.attached)
       .mockResolvedValue(second.attached)
-    const screens = viewsOf(optionsOf({ attach, park: { afterMs: 0, keep: 16 } }))
+    const screens = screensOf(optionsOf({ attach, park: { afterMs: 0, keep: 16 } }))
     const opened = openedTerminals()
     const hold = screens.acquire("cut", running)
     const xterm = opened[0]!

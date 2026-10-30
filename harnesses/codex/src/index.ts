@@ -1,4 +1,4 @@
-import type { MessagingProfile, Harness } from "@novadeck/harness-core/harness"
+import type { Harness, LaunchProfile, MessagingProfile } from "@novadeck/harness-core/harness"
 
 import { box } from "./box.js"
 import { decode } from "./decode.js"
@@ -32,9 +32,13 @@ const messaging: MessagingProfile = {
   // A spawned agent running, the root idle, it took a typed prompt (fixture
   // `background-prompt.probe.json`, probed 2026-10-19, 0.163.0).
   promptsInBackground: true,
+}
+
+const launch: LaunchProfile = {
+  start: ["codex"],
   // It holds a command-line prompt behind its trust and startup screens.
   initialPrompt: (line) => Promise.resolve(["codex", line]),
-  start: ["codex"],
+  resume: (session, choice = {}) => ["codex", "resume", ...launch.choose(choice), session],
   // Its cache of the models it lists, in its home; the effort is a config override, left
   // bare (codex reads a value that isn't TOML as a string), so it has no quotes of its own.
   models: (install) => readModels(codexHome(install)),
@@ -114,7 +118,6 @@ export const codex = {
       "--ask-for-approval",
     ],
   },
-  resume: (session, choice = {}) => ["codex", "resume", ...messaging.choose(choice), session],
   transcripts,
   plans: rolloutPlans,
   // Its hooks and rollout; see docs/harness-coverage.md.
@@ -141,6 +144,7 @@ export const codex = {
   hooksTrusted,
   // Where it keeps its threads' locks and its configuration, and how it is found.
   environment: ["PATH", "HOME", "CODEX_HOME"],
+  launch,
   messaging,
   box,
   // The rollout records the session's tokens and the account's rate-limit windows, each

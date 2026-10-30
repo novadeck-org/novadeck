@@ -1,7 +1,7 @@
 import { afterEach, describe as context, describe, expect, it, vi } from "vitest"
 
 import {
-  closeViews,
+  closeScreens,
   emulatorPrototype,
   exited,
   inputOf,
@@ -12,7 +12,7 @@ import {
   shown,
   snapshot,
   streamOf,
-  viewsOf,
+  screensOf,
 } from "./fakes.test-support.js"
 import { ctrlVHoldMs } from "./paste.js"
 import { pasteNoticeMs } from "./screens.js"
@@ -41,7 +41,7 @@ vi.hoisted(() => {
 
 // A screen closes once its session has stayed off screen for its retention; it closes here
 // instead, while the file's DOM is still there to take its listeners off.
-afterEach(closeViews)
+afterEach(closeScreens)
 
 // An image on the clipboard.
 const clipboardImage = () => ({
@@ -53,12 +53,12 @@ describe("pasting into a terminal's screen", () => {
   context("when a pasted image can't be saved", () => {
     // Pastes an image into a screen whose upload is refused with `error`.
     const pasteRefused = (error: unknown) => {
-      const views = viewsOf(
+      const screens = screensOf(
         optionsOf({
           paste: { ...optionsOf().paste, upload: () => Promise.reject(error) },
         }),
       )
-      const { hold, element } = shown(views, "a")
+      const { hold, element } = shown(screens, "a")
       vi.spyOn(console, "error").mockImplementation(() => {})
       const event = new Event("paste", { bubbles: true, cancelable: true })
       const image = new File([new Uint8Array([1])], "", { type: "image/png" })
@@ -98,7 +98,7 @@ describe("pasting into a terminal's screen", () => {
       const file = new File(["x"], "notes.txt")
       const upload = vi.fn<() => Promise<string>>(async () => "/u/copy.txt")
       const paste = vi.spyOn(emulatorPrototype(), "paste")
-      const views = viewsOf(
+      const screens = screensOf(
         optionsOf({
           paste: {
             ...optionsOf().paste,
@@ -107,7 +107,7 @@ describe("pasting into a terminal's screen", () => {
           },
         }),
       )
-      const { element } = shown(views, "a")
+      const { element } = shown(screens, "a")
       const event = new Event("paste", { bubbles: true, cancelable: true })
       Object.defineProperty(event, "clipboardData", {
         value: { files: [file], items: [], getData: () => "" },
@@ -137,7 +137,7 @@ describe("pasting into a terminal's screen", () => {
       const opened = openedTerminals()
       const { attached, written, push } = streamOf([snapshot("$ ")])
       const entry = { closed: false }
-      const views = viewsOf(
+      const screens = screensOf(
         optionsOf({
           attach: async () => attached,
           connection,
@@ -150,7 +150,7 @@ describe("pasting into a terminal's screen", () => {
           },
         }),
       )
-      const { hold, element } = shown(views, "01")
+      const { hold, element } = shown(screens, "01")
       const xterm = () => opened[0]!
       const press = () =>
         inputOf(element).dispatchEvent(

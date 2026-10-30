@@ -156,20 +156,22 @@ describe("webglAtlasPatch", () => {
 })
 
 describe("raisedCapPatch", () => {
-  const id = "/r/frontend/terminal-views/src/renderers.ts"
+  const id = "/r/frontend/terminal-views/src/renderer-pool.ts"
   const source =
-    'import { webglRenderers } from "@novadeck/emulator/browser"\nlet page\nexport const pageRenderers = () =>\n  (page ??= webglRenderers({\n    ...(configuredCap !== undefined && { cap: configuredCap }),\n  }))\n'
+    'import { webglRendererPool } from "@novadeck/emulator/browser"\nlet page\nexport const pageRendererPool = () =>\n  (page ??= webglRendererPool({\n    ...(configuredContexts !== undefined && { contexts: configuredContexts }),\n  }))\n'
 
-  it("gives the page's pool the cap two under the contexts, moving no line", () => {
+  it("gives the page's pool the raised limit, moving no line", () => {
     const patched = raisedCapPatch(40).transform(source, id)!.code
     expect(patched.split("\n")).toHaveLength(source.split("\n").length)
-    expect(patched).toContain("(page ??= webglRenderers({ cap: 38,\n")
+    expect(patched).toContain("(page ??= webglRendererPool({ contexts: 40,\n")
   })
 
-  it("fails where the pool isn't made once by webglRenderers({, and leaves other files", () => {
-    expect(() => raisedCapPatch(40).transform("export const a = 1\n", id)).toThrow(/webglRenderers/)
-    expect(() => raisedCapPatch(40).transform(`${source}x = webglRenderers({\n`, id)).toThrow(
-      /webglRenderers/,
+  it("fails where the pool isn't made once by webglRendererPool({, and leaves other files", () => {
+    expect(() => raisedCapPatch(40).transform("export const a = 1\n", id)).toThrow(
+      /webglRendererPool/,
+    )
+    expect(() => raisedCapPatch(40).transform(`${source}x = webglRendererPool({\n`, id)).toThrow(
+      /webglRendererPool/,
     )
     expect(raisedCapPatch(40).transform(source, "/r/frontend/ui/src/App.tsx")).toBeNull()
   })
@@ -213,8 +215,8 @@ describe("the patches on the real sources", () => {
     expect(profileTextPatch.transform(read(view), idOf(view))).not.toBeNull()
     const renderer = "libraries/emulator/src/renderer.ts"
     expect(softwareWebglPatch.transform(read(renderer), idOf(renderer))).not.toBeNull()
-    const views = "frontend/terminal-views/src/renderers.ts"
-    expect(raisedCapPatch(40).transform(read(views), idOf(views))).not.toBeNull()
+    const pool = "frontend/terminal-views/src/renderer-pool.ts"
+    expect(raisedCapPatch(40).transform(read(pool), idOf(pool))).not.toBeNull()
     expect(
       webglAtlasPatch.transform(readFileSync(addon, "utf8"), addon.replaceAll("\\", "/")),
     ).not.toBeNull()

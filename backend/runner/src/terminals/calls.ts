@@ -361,15 +361,15 @@ export class Calls {
     choice: { readonly model?: string; readonly effort?: Effort },
     withTask: boolean,
   ): Promise<{ readonly command: string; readonly prompted: boolean; readonly nonce?: string }> {
-    const { messaging } = harnesses[agent]
+    const { launch } = harnesses[agent]
     const install = withTask ? await this.host.install(agent).catch(() => undefined) : undefined
     const nonce = freshNonce()
     const prompted = withTask
-      ? await messaging.initialPrompt(doorbellLine(nonce), { install, cwd }).catch(() => undefined)
+      ? await launch.initialPrompt(doorbellLine(nonce), { install, cwd }).catch(() => undefined)
       : undefined
-    const [program = "", ...rest] = prompted ?? messaging.start
+    const [program = "", ...rest] = prompted ?? launch.start
     // Right after the program, so before a flag like Antigravity's `-i` that takes the line.
-    const command = commandLine([program, ...messaging.choose(choice), ...rest])
+    const command = commandLine([program, ...launch.choose(choice), ...rest])
     return { command, prompted: prompted !== undefined, ...(withTask && { nonce }) }
   }
 
