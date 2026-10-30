@@ -3,12 +3,18 @@ import { join } from "node:path"
 
 import type { Anchor, AnchorRef, BrokenAnchor } from "../src/atlas.ts"
 
+// The 1-based line of the character at `index` in `source`.
+export const lineAt = (source: string, index: number): number =>
+  source.slice(0, index).split("\n").length
+
 export type Anchors = {
   // Resolve a curated pointer; `where` names who asked, for the broken list.
   resolve: (ref: AnchorRef, where: string) => Anchor
   // The line of the first match of `text` in `file`, or null.
   find: (file: string, text: string) => number | null
   read: (file: string) => string | null
+  // A JSON file, parsed; null when the file is missing. The caller names the shape it expects.
+  readJson: <T>(file: string) => T | null
   // The line of the first match of `marker` in `file`; when it is gone, record `where` as
   // broken (the extractor cannot find what it depends on) and return null.
   expect: (file: string, marker: string | RegExp, where: string) => number | null
@@ -38,7 +44,12 @@ export const createAnchors = (repo: string): Anchors => {
     if (source === null) return null
     const index = source.indexOf(text)
     if (index === -1) return null
-    return source.slice(0, index).split("\n").length
+    return lineAt(source, index)
+  }
+
+  const readJson = <T>(file: string): T | null => {
+    const text = read(file)
+    return text === null ? null : (JSON.parse(text) as T)
   }
 
   const resolve = (ref: AnchorRef, where: string): Anchor => {
@@ -65,8 +76,8 @@ export const createAnchors = (repo: string): Anchors => {
       report(where, file, `expected ${typeof marker === "string" ? `"${marker}"` : String(marker)}`)
       return null
     }
-    return source.slice(0, index).split("\n").length
+    return lineAt(source, index)
   }
 
-  return { resolve, find, read, expect, report, broken: () => broken }
+  return { resolve, find, read, readJson, expect, report, broken: () => broken }
 }

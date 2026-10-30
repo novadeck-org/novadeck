@@ -7,14 +7,13 @@ import type {
   Step,
   StoreMethod,
   Touch,
-} from "../src/lens-runner.ts"
-import { sourceFiles } from "./files.ts"
+} from "../src/runner-lens.ts"
+import { lineAt } from "./anchors.ts"
+import { sourceFiles, stem } from "./files.ts"
 import type { LensInput } from "./lens-input.ts"
 import { findDefinition, routerFile, runnerDir, servicesOf } from "./runner-services.ts"
 
 const storeFile = "backend/runner/src/workspaces/store.ts"
-
-const lineAt = (source: string, index: number): number => source.slice(0, index).split("\n").length
 
 // Every string and template literal in `code` that reads as a SQL statement, with its
 // offset. Interpolations become `?`; comments are skipped.
@@ -157,8 +156,6 @@ const unitsIn = (file: string, source: string): Unit[] => {
   // Methods and functions first, so a lookup by name finds them before an object's property.
   return units.toSorted((a, b) => Number(a.prop) - Number(b.prop))
 }
-
-const stem = (file: string): string => file.split("/").at(-1)!.replace(/\.ts$/, "")
 
 const builtin = new Set([
   "get",

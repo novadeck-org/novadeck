@@ -1,7 +1,7 @@
 import { z } from "zod"
 
 import type { Api, ApiError, Anchor, JsonSchema, Procedure } from "../src/atlas.ts"
-import type { Anchors } from "./anchors.ts"
+import { lineAt, type Anchors } from "./anchors.ts"
 import { frontendSources, sourceFiles } from "./files.ts"
 import { findDefinition, routerFile, servicesOf, type Service } from "./runner-services.ts"
 
@@ -23,13 +23,13 @@ const walk = (node: object, path: string[] = []): { path: string[]; definition: 
         : [],
   )
 
-const eventDetails = Object.getOwnPropertySymbols
-
 // oRPC's event iterator schema carries the yielded schema under a symbol.
 const streamed = (schema: unknown): { yields?: unknown } | null => {
   const standard = (schema as { "~standard"?: Record<symbol, unknown> } | undefined)?.["~standard"]
   if (!standard || (standard as { vendor?: string }).vendor !== "orpc") return null
-  const symbol = eventDetails(standard).find((each) => each.description?.includes("EVENT_ITERATOR"))
+  const symbol = Object.getOwnPropertySymbols(standard).find((each) =>
+    each.description?.includes("EVENT_ITERATOR"),
+  )
   return symbol ? (standard[symbol] as { yields?: unknown }) : { yields: undefined }
 }
 
@@ -56,11 +56,8 @@ const handlerOf = (
     // The wire's own procedures are answered in its sessions.
     const sessions = anchors.read(sessionsFile) ?? ""
     const own = sessions.indexOf(`.${id}.handler(`)
-    return own === -1
-      ? null
-      : { file: sessionsFile, line: sessions.slice(0, own).split("\n").length }
+    return own === -1 ? null : { file: sessionsFile, line: lineAt(sessions, own) }
   }
-  const line = router.slice(0, at).split("\n").length
   const skip = at + id.length + 20
   const next = router.slice(skip).search(/\.handler\(/)
   const body = router.slice(at, next === -1 ? undefined : skip + next)
@@ -73,7 +70,7 @@ const handlerOf = (
     const found = findDefinition(anchors, runnerFiles, service, call[2]!)
     if (found) return found
   }
-  return { file: routerFile, line }
+  return { file: routerFile, line: lineAt(router, at) }
 }
 
 // The text from `from` to the close of the first block (or call) that opens at paren depth 0.
@@ -225,7 +222,7 @@ export const extractApi = async (repo: string, anchors: Anchors): Promise<Api> =
       input: toJson(definition.inputSchema),
       output: toJson(stream ? stream.yields : definition.outputSchema),
       anchor: { file: contractFile, line: findProcedureLine(source, path) },
-      handler: handler,
+      handler,
       errors: errorsOf(anchors, router, handler, id, known, routerWide),
       callers: callersOf(anchors, callerFiles, id),
       area: null,
@@ -283,5 +280,5 @@ const findProcedureLine = (source: string, path: string[]): number | null => {
   const from =
     path.length > 1 ? source.indexOf(`  ${path[0]}: {`, source.indexOf("export const contract")) : 0
   const index = source.indexOf(`    ${path[path.length - 1]}: `, Math.max(from, 0))
-  return index === -1 ? null : source.slice(0, index).split("\n").length
+  return index === -1 ? null : lineAt(source, index)
 }

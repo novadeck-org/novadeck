@@ -5,7 +5,7 @@ import { covered, notes, roots, type Root } from "../content/areas.ts"
 import type { AgentSurface, Api, Area, BrokenAnchor, Data } from "../src/atlas.ts"
 import type { Anchors } from "./anchors.ts"
 
-export type Owned = { api: Api; data: Data; agents: AgentSurface }
+type Owned = { api: Api; data: Data; agents: AgentSurface }
 
 const sourceFile = /\.(?:ts|tsx|js|mjs|cjs|rs|css)$/
 const testFile = /\.(?:test|spec)\.tsx?$|\.e2e\.ts$/

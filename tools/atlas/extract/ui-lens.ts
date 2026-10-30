@@ -1,16 +1,17 @@
 import { dirname, posix } from "node:path"
 
-import type { Anchor, UiLens } from "../src/atlas.ts"
+import type { Anchor } from "../src/atlas.ts"
 import type {
   BoxItem,
   Dispatcher,
   Effect,
   UiAction,
   UiProcedure,
+  UiLens,
   UiStream,
   WiringBox,
-} from "../src/lens-ui.ts"
-import { sourceFiles } from "./files.ts"
+} from "../src/ui-lens.ts"
+import { sourceFiles, stem } from "./files.ts"
 import type { LensInput } from "./lens-input.ts"
 
 // The UI from the inside, read by scanning its source (no type checker): the actions the
@@ -29,8 +30,8 @@ const adapterDir = `${adapterSrc}/`
 const isBackend = (file: string) => file.startsWith(adapterDir) || file.startsWith(`${views}/`)
 const backendFile = `${adapterDir}backend.ts`
 
-const isNoise = (file: string) =>
-  /\/(demo|test|specs)\//.test(file) || /\/testing\.tsx?$/.test(file) || file.endsWith(".d.ts")
+// Tests are already left out by `sourceFiles`.
+const isNoise = (file: string) => file.includes("/demo/") || file.endsWith(".d.ts")
 
 const indentOf = (line: string) => line.length - line.trimStart().length
 const isComment = (line: string) => /^\s*(\/\/|\*|\/\*)/.test(line)
@@ -384,12 +385,8 @@ export const extractUiLens = (input: LensInput): UiLens => {
   const chainNames = (each: Reached): string[] => {
     const names: string[] = []
     for (let step: Reached | null = each; step; step = step.parent) {
-      const base = step.fn.file
-        .split("/")
-        .at(-1)!
-        .replace(/\.tsx?$/, "")
       const crossed = step.parent && step.parent.fn.file !== step.fn.file && !step.fn.member
-      names.unshift(crossed ? `${base}.${step.fn.name}` : step.fn.name)
+      names.unshift(crossed ? `${stem(step.fn.file)}.${step.fn.name}` : step.fn.name)
     }
     return names
   }
@@ -487,10 +484,6 @@ export const extractUiLens = (input: LensInput): UiLens => {
               .filter((type) => known.has(type)),
           ),
         ].toSorted()
-    const base = site.file
-      .split("/")
-      .at(-1)!
-      .replace(/\.tsx?$/, "")
     streams.push({
       procedure: site.procedure,
       site: at(site.file, site.line),
@@ -501,7 +494,7 @@ export const extractUiLens = (input: LensInput): UiLens => {
         : /\b(?:next|sink)\.open\(/.test(text)
           ? "sink.open: the app adds the terminal"
           : /\.update\(/.test(text)
-            ? `${base} store`
+            ? `${stem(site.file)} store`
             : null,
     })
   }
@@ -617,21 +610,21 @@ export const extractUiLens = (input: LensInput): UiLens => {
     }
     // Items and windows are tested by action type in the adapter; their procedures are
     // reached through the closure handed to `send`, so those are found above as guarded.
-    const fromApp = fromUi.get(type) ?? []
+    const dispatchers = fromUi.get(type) ?? []
     const adapter = fromAdapter.get(type) ?? []
     return {
       type,
       prefix: type.split("/")[0]!,
       declared: at(stateFile, line),
       reducer: caseLines.has(type) ? at(stateFile, caseLines.get(type)!) : null,
-      fromUi: fromApp,
+      fromUi: dispatchers,
       fromAdapter: adapter,
       returns: uniqueStreams
         .filter((stream) => stream.dispatches.includes(type))
         .map((s) => s.procedure),
       effects,
       untraced:
-        fromApp.length || adapter.length
+        dispatchers.length || adapter.length
           ? null
           : "no dispatch site found: built by a helper the scan does not follow, or never dispatched",
     }
