@@ -2,20 +2,12 @@ import { ArrowUpRight, X } from "lucide-react"
 import type { ReactNode } from "react"
 import { Link } from "react-router"
 
+import { procedureById } from "../../atlas-data.ts"
 import { AnchorIcon, AnchorLink } from "../../components/anchor.tsx"
-import type { SqlVerb, Statement, StoreMethod } from "../../lens-runner.ts"
 import { procedurePath, tablePath } from "../../links.ts"
+import type { SqlVerb, Statement, StoreMethod } from "../../runner-lens.ts"
 import { Tile, VerbGlyph, verbName } from "./glyphs.tsx"
-import {
-  isTraced,
-  lens,
-  methodOf,
-  namespaces,
-  procedureOf,
-  reachedBy,
-  traceOf,
-  verbs,
-} from "./model.ts"
+import { isTraced, lens, methodByName, namespaces, reachedBy, traceById, verbs } from "./model.ts"
 import type { Selection } from "./model.ts"
 import { Sql } from "./sql.tsx"
 
@@ -95,8 +87,8 @@ const Heading = ({
 )
 
 const ProcedureDetail = ({ id, onPick }: { id: string; onPick: Pick }) => {
-  const procedure = procedureOf.get(id)
-  const trace = traceOf.get(id)
+  const procedure = procedureById.get(id)
+  const trace = traceById.get(id)
   if (!procedure || !trace) return null
   const traced = isTraced(id)
   const reached = reachedBy(id)
@@ -138,7 +130,7 @@ const ProcedureDetail = ({ id, onPick }: { id: string; onPick: Pick }) => {
               {step.store.length > 0 ? (
                 <div className="mt-1 flex flex-wrap gap-1 pl-[15px]">
                   {step.store.flatMap((name) => {
-                    const method = methodOf.get(name)
+                    const method = methodByName.get(name)
                     return method
                       ? [<MethodButton key={name} method={method} onPick={onPick} />]
                       : []
@@ -186,7 +178,7 @@ const ProcedureDetail = ({ id, onPick }: { id: string; onPick: Pick }) => {
 }
 
 const MethodDetail = ({ name, onPick }: { name: string; onPick: Pick }) => {
-  const method = methodOf.get(name)
+  const method = methodByName.get(name)
   if (!method) return null
   return (
     <>
@@ -207,7 +199,7 @@ const MethodDetail = ({ name, onPick }: { name: string; onPick: Pick }) => {
             <Label>Also calls</Label>
             <div className="flex flex-wrap items-center gap-1">
               {method.calls.map((call) => {
-                const other = methodOf.get(call)
+                const other = methodByName.get(call)
                 return other ? (
                   <MethodButton key={call} method={other} onPick={onPick} />
                 ) : (
@@ -237,7 +229,7 @@ const MethodDetail = ({ name, onPick }: { name: string; onPick: Pick }) => {
                 onClick={() => onPick({ kind: "procedure", id })}
                 className="item flex items-center gap-2 px-2 py-[3px] text-left"
               >
-                <Tile traced stream={procedureOf.get(id)?.kind === "stream"} size={11} />
+                <Tile traced stream={procedureById.get(id)?.kind === "stream"} size={11} />
                 <span className="font-mono text-control">{id}</span>
               </button>
             ))}
@@ -288,7 +280,7 @@ const TableDetail = ({ name, onPick }: { name: string; onPick: Pick }) => {
 
 // What the page says before anything is picked: how to read it, and what it cannot see.
 const Overview = ({ hovered }: { hovered: string | null }) => {
-  const hover = hovered ? procedureOf.get(hovered) : undefined
+  const hover = hovered ? procedureById.get(hovered) : undefined
   const traced = lens.procedures.filter((p) => p.traced).length
   return (
     <div className="min-h-0 flex-1 overflow-auto px-4 py-4">

@@ -11,11 +11,12 @@ const newest = (dir: string): number =>
 
 // The extractor reads the contract from the built protocol package, which reads the built
 // wire and terminal libraries, and terminal the emulator; build each, the libraries first,
-// when it is missing or older than its source. It runs the package's own build (`tsc -p tsconfig.build.json`) with the TypeScript the
-// package resolves, through Node: not through pnpm, which may first run an install, and
-// which is a different executable on Windows. The build's own output goes to stderr, so a
-// failing build explains itself and stdout stays the caller's.
-export const ensureProtocol = (repo: string): void => {
+// when it is missing or older than its source. It runs the package's own build
+// (`tsc -p tsconfig.build.json`) with the TypeScript the package resolves, through Node:
+// not through pnpm, which may first run an install, and which is a different executable on
+// Windows. The build's own output goes to stderr, so a failing build explains itself and
+// stdout stays the caller's.
+export const ensureBuilt = (repo: string): void => {
   let rebuilt = false
   // Each with a file its build writes: the emulator has no index, only its subpaths.
   for (const [name, folder, output] of [

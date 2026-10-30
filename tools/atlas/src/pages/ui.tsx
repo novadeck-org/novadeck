@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react"
 
 import { StackStrip } from "../components/stack.tsx"
-import { Ground } from "../components/ui.tsx"
+import { Ground, Stat } from "../components/ui.tsx"
 import { Detail, detailTitle } from "./ui/detail.tsx"
 import { ModeSwitch, Picker, type Mode } from "./ui/lists.tsx"
 import { lens, litFor, type Selection } from "./ui/model.ts"
@@ -9,13 +9,6 @@ import { Wiring } from "./ui/wiring.tsx"
 
 import "./visual-tokens.css"
 import "./ui/ui.css"
-
-const Stat = ({ n, children }: { n: number; children: string }) => (
-  <span className="flex items-baseline gap-1">
-    <span className="font-mono text-body font-medium text-fg tabular-nums">{n}</span>
-    {children}
-  </span>
-)
 
 export const UiPage = () => {
   const [selection, setSelection] = useState<Selection>({ kind: "action", id: "terminal/add" })

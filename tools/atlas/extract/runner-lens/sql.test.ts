@@ -1,6 +1,6 @@
 import { expect, test } from "vitest"
 
-import { sqlIn, touchesOf } from "./runner-lens.ts"
+import { sqlIn, touchesOf } from "./sql.ts"
 
 const tables = new Set(["terminals", "sessions"])
 

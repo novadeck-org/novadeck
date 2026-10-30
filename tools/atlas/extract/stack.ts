@@ -1,6 +1,4 @@
 import { execFileSync } from "node:child_process"
-import { existsSync, readFileSync } from "node:fs"
-import { join } from "node:path"
 
 import { roots } from "../content/areas.ts"
 import { builtins, categories, roles } from "../content/stack.ts"
@@ -96,16 +94,16 @@ const rank = (dep: Dependency) => {
 // Each package's dependencies, from its package.json (and Cargo.toml), with roles.
 export const extractStacks = (repo: string, anchors: Anchors, areas: Area[]): PackageStack[] => {
   const known = new Set(areas.map((area) => area.id))
-  const workspace = JSON.parse(readFileSync(join(repo, "package.json"), "utf8")) as Manifest
+  const node = anchors.readJson<Manifest>("package.json")?.engines?.["node"]
   return roots.flatMap((root) => {
-    const path = join(root.dir, "package.json")
-    if (!known.has(root.token) || !existsSync(join(repo, path))) return []
-    const manifest = JSON.parse(readFileSync(join(repo, path), "utf8")) as Manifest
-    const cargo = join(root.dir, "Cargo.toml")
+    const path = `${root.dir}/package.json`
+    const manifest = anchors.readJson<Manifest>(path)
+    if (!known.has(root.token) || manifest === null) return []
+    const cargo = anchors.read(`${root.dir}/Cargo.toml`)
     const deps = [
-      ...builtinsIn(repo, root.dir, workspace.engines?.["node"]),
+      ...builtinsIn(repo, root.dir, node),
       ...fromManifest(manifest),
-      ...(existsSync(join(repo, cargo)) ? fromCargo(readFileSync(join(repo, cargo), "utf8")) : []),
+      ...(cargo === null ? [] : fromCargo(cargo)),
     ].toSorted((a, b) => rank(a) - rank(b) || a.name.localeCompare(b.name))
     return [
       {

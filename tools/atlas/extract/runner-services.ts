@@ -62,6 +62,16 @@ export const servicesOf = (anchors: Anchors, router: string): Service[] => {
   return services
 }
 
+// The router's code for a procedure's handler, from `api.<id>.handler(` to the next one,
+// and where it starts; null when the router has none.
+export const handlerBody = (router: string, id: string): { start: number; body: string } | null => {
+  const start = router.indexOf(`api.${id}.handler(`)
+  if (start === -1) return null
+  const skip = start + id.length + 20
+  const next = router.slice(skip).search(/\.handler\(/)
+  return { start, body: router.slice(start, next === -1 ? undefined : skip + next) }
+}
+
 // The line where `service` defines `method`: a method, or an arrow property or object
 // member whose line opens a body (ends in `{` or `(`), not a type field, a value or a call. The service's own file first, then its
 // folder, the manager or service file ahead of the rest.

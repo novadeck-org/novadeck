@@ -7,16 +7,16 @@ import { areaPath } from "../../links.ts"
 
 // Each colour's areas, by the token they start with: the first that matches.
 const groups = [
-  ["host", "apps/desktop"],
+  ["desktop", "apps/desktop"],
   ["ui", "frontend"],
   ["ui", "apps"],
   ["runner", "backend/runner"],
   ["protocol", "contract"],
 ] as const
-export const groupOfArea = (id: string) =>
+const groupOfArea = (id: string) =>
   groups.find(([, prefix]) => id === prefix || id.startsWith(`${prefix}/`))?.[0] ?? "other"
 
-export const groupColor = (id: string) => `var(--g-${groupOfArea(id)})`
+const groupColor = (id: string) => `var(--g-${groupOfArea(id)})`
 
 export const SidePanel = ({
   title,

@@ -1,6 +1,6 @@
 import type { Anchor } from "./atlas.ts"
 
-// The UI lens's contract: owned by extract/ui-lens.ts and pages/ui*. Everything here is
+// The UI lens's contract: owned by extract/ui-lens.ts (and its ui-lens/ folder) and pages/ui*. Everything here is
 // read from the UI's source by scanning it, one or two hops deep; what the scan could
 // not follow is said so in a field, never left looking complete.
 
