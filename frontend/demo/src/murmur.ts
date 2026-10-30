@@ -39,7 +39,7 @@ const installedState: MurmurState = {
 
 const softwareSample = {
   reason: "This computer reports only software rendering; no graphics hardware answered.",
-  source: "host",
+  source: "app",
 } as const
 
 const unsupportedSample = {
@@ -216,7 +216,7 @@ export const createDemoMurmur = (
     }
     if (state.getSnapshot().installing) return refuse("An install is already running.")
     // As the runner: the host's word is final, a check's verdict stands until a check passes.
-    if (state.getSnapshot().unsupported?.source === "host")
+    if (state.getSnapshot().unsupported?.source === "app")
       return refuse("Murmur can't run on this computer.")
     // As the runner: a first install says murmur is wanted, whatever was chosen before.
     if (!state.getSnapshot().installed) choice = undefined

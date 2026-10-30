@@ -175,7 +175,7 @@ describe("the demo's murmur", () => {
       const murmur = createDemoMurmur()
       murmur.show("unsupported-host")
       expect(murmur.state.getSnapshot()).toMatchObject({
-        unsupported: { reason: expect.stringMatching(/software rendering/), source: "host" },
+        unsupported: { reason: expect.stringMatching(/software rendering/), source: "app" },
       })
     })
 

@@ -105,15 +105,15 @@ export const murmurState = z.strictObject({
   // Null until a check passes.
   check: murmurCheck.nullable(),
   // Why this computer can't run murmur, technical and for a details view, once it is known:
-  // the desktop app saw only software rendering (`source: "host"`), or an install found no graphics
-  // device that runs the model, or the engine could not load a library it needs
+  // the desktop app saw only software rendering (`source: "app"`), or an install found no
+  // graphics device that runs the model, or the engine could not load a library it needs
   // (`source: "check"`; the engine and the downloads are then removed, but a model that was
-  // on disk before that install began stays, see `kept`). Null while nothing says it can't. It
-  // is no failure to try again. An install is refused while the app's word holds; a check's
+  // on disk before that install began stays, see `kept`). Null while nothing says it can't.
+  // It is no failure to try again. An install is refused while the app's word holds; a check's
   // verdict stands until another check passes, which installing again runs, and an engine of
   // another build forgets it.
   unsupported: z
-    .strictObject({ reason: z.string().max(1024), source: z.enum(["host", "check"]) })
+    .strictObject({ reason: z.string().max(1024), source: z.enum(["app", "check"]) })
     .nullable(),
   // In how many sessions of the app the one-time offer was shown; the app stops offering after
   // three, whether or not they answered.

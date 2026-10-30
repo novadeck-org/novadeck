@@ -432,7 +432,7 @@ describe("installing murmur", () => {
     expect(murmur.state()).toMatchObject({
       available: true,
       installed: false,
-      unsupported: { reason: expect.stringMatching(/software rendering/), source: "host" },
+      unsupported: { reason: expect.stringMatching(/software rendering/), source: "app" },
     })
     await expect(murmur.install()).rejects.toMatchObject({ code: "CONFLICT" })
     expect(await readdir(directory)).toEqual([])

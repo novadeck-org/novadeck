@@ -392,10 +392,10 @@ export class Murmur implements Describer {
     }
   }
 
-  // Why this computer can't run murmur, if the host or an install said so. An install's
+  // Why this computer can't run murmur, if the app or an install said so. An install's
   // verdict is of the engine build it ran: another build's engine gives it no weight.
   private unsupported(): MurmurState["unsupported"] {
-    if (this.options.softwareGraphics) return { reason: softwareOnly, source: "host" }
+    if (this.options.softwareGraphics) return { reason: softwareOnly, source: "app" }
     const verdict = this.settings.murmurUnsupported()
     return verdict !== null && verdict.engine === this.manifest?.sha256
       ? { reason: verdict.reason, source: "check" }

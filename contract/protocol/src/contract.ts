@@ -186,7 +186,7 @@ export const contract = {
     // Answers a request with the terminal the client opened for it, or why it didn't.
     // One the runner no longer waits for, or sent to another client, is NOT_FOUND.
     answerRequest: procedure.input(terminalRequestAnswer).output(z.void()),
-    // Agents' asks to close a terminal that runs an agent they don't lead, or to lead one,
+    // Agents' requests to close a terminal that runs an agent they don't lead, or to lead one,
     // for the client to approve with the person: each goes to the client that subscribed
     // last, and waits for its `answerApproval`, with no time limit, until the runner
     // withdraws it.

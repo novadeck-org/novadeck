@@ -154,10 +154,10 @@ const approvalAction = z.discriminatedUnion("type", [
 // `terminals.approvals` items: an agent in terminal `from` asked, through Novadeck's MCP
 // server, to do `action` to `terminalId`, a terminal of its session that runs an agent, so
 // the client asks the person first and answers with `answerApproval`. `withdrawn` takes
-// back an ask the runner no longer waits for, as either terminal closed.
+// back a request the runner no longer waits for, as either terminal closed.
 export const approval = z.discriminatedUnion("type", [
   z.strictObject({
-    type: z.literal("ask"),
+    type: z.literal("request"),
     requestId: id,
     from: id,
     terminalId: id,

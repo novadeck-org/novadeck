@@ -249,7 +249,7 @@ describe("murmur's card on a computer that can't run it", () => {
         murmur: {
           state: {
             ...unsupported,
-            unsupported: { reason: "Software rendering only.", source: "host" as const },
+            unsupported: { reason: "Software rendering only.", source: "app" as const },
           },
           actions: actions(),
         },
@@ -302,7 +302,7 @@ describe("murmur's card when a verdict stands beside files", () => {
             failure: null,
             unsupported: {
               reason: "This computer reports only software rendering.",
-              source: "host" as const,
+              source: "app" as const,
             },
           },
           actions: actions(),
@@ -328,7 +328,7 @@ describe("murmur's card when a verdict stands beside files", () => {
             failure: null,
             unsupported: {
               reason: "This computer reports only software rendering.",
-              source: "host" as const,
+              source: "app" as const,
             },
           },
           actions: actions(),
@@ -373,7 +373,7 @@ describe("murmur's card under the host's verdict", () => {
             check: { device: "Intel Arc Graphics", integrated: true, milliseconds: 900 },
             unsupported: {
               reason: "This computer reports only software rendering.",
-              source: "host" as const,
+              source: "app" as const,
             },
             failure: "Murmur stopped: its engine kept failing.",
           },

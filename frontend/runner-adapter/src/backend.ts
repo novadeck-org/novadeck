@@ -1439,7 +1439,7 @@ export const runnerBackend = (
     const onApproval = (ask: RunnerApproval): void => {
       if (!live) return
       // One still on its way as the link dropped was settled with the rest: never show it.
-      if (ask.type === "ask" && lastStatus && lastStatus.state !== "connected") return
+      if (ask.type === "request" && lastStatus && lastStatus.state !== "connected") return
       approvals.update((waiting) =>
         ask.type === "withdrawn"
           ? waiting.filter((each) => each.requestId !== ask.requestId)
