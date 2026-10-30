@@ -68,6 +68,7 @@ a rename) must leave every golden as it is.
 `src/fixtures.ts` has one small extractor per fixture shape (scenarios of records, a list of
 records, Antigravity's steps, Codex's rollout stages, Claude's flattened `transcriptTail`).
 Each fixture says how many conversations it has and which scenarios it skips (those with
-nothing to render), and the test compares both with what the extractor found. An extractor
+nothing to render, listed in `src/skipped.ts`), and the test compares both with what the
+extractor found. An extractor
 that finds no records throws; so does a fixture that renders no block, and one expected to
 call tools that renders no tool row.
