@@ -31,8 +31,7 @@ import { longHoldMs, type AgentDetail, type AskAnswer, type InboxEntry } from "@
 
 import { requestOf, rootOf } from "./conversations"
 
-// The runner's Inbox: what every agent terminal waits on the person for, one row per
-// terminal, built from what the UI already has: the terminals' statuses (a finished turn,
+// The runner's Inbox: what every agent terminal waits on the person for, as Inbox rows, built from what the UI already has: the terminals' statuses (a finished turn,
 // its error, a usage limit), the messages held for release, and the requests of the agents
 // that ask (read from `agents.detail`, opened only while one waits). Core's `inboxRows` is
 // the pure derivation; `createRunnerInbox` keeps it current and answers through the runner.

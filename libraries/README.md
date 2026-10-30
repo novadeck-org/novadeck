@@ -50,7 +50,7 @@ the build rules and the test sandbox. The app keeps the product.
   `@novadeck` package (`/pty`, `/host`, `/server`, `/electron`, `/browser/host`, `/shell`,
   `/headless`), paths into `libraries/` (a library is imported by its package name) and Node's
   built-ins, with `node:` (`node:*`) or without it (each of `module.builtinModules` by name, which
-  the fence test keeps to Node's list). Test files (`*.test.ts(x)`, `*.spec.ts(x)`, `*.e2e.ts`), `frontend/runner-adapter/src/testing.ts`
+  the fence test keeps to Node's list). Test files (`*.test.ts(x)`, `*.spec.ts(x)`, `*.e2e.ts`), `frontend/runner-adapter/src/testing/runner.ts`
   and `frontend/test-kit/src/phases.ts` run in Node: they get the first two bans but may import
   built-ins. oxlint takes `no-restricted-imports` from the last matching override alone, so
   that override repeats the browser code's other bans, and `scripts/libraries/fence.test.ts` lints

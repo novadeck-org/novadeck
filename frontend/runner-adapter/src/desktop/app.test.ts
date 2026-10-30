@@ -18,6 +18,7 @@ import {
   desktopBadge,
   desktopFeedback,
   desktopNotices,
+  desktopOptions,
   desktopPortable,
   desktopSandbox,
   desktopUninstall,
@@ -834,5 +835,51 @@ describe("desktop feedback", () => {
     expect(sent).toEqual([{ kind: "idea", text: "Hi" }])
     const failing = feedbackApp({ sendFeedback: () => Promise.reject(new Error("503")) })
     await expect(desktopFeedback(failing)!.send({ kind: null, text: "x" })).rejects.toThrow("503")
+  })
+})
+
+describe("what the desktop app gives the backend", () => {
+  it("is nothing in a browser but the pane's pages as pictures, not live", () => {
+    expect(desktopOptions(undefined)).toEqual({ livePages: false })
+  })
+
+  it("passes the app's own calls through, each with what the page hands it", async () => {
+    const calls: unknown[][] = []
+    const note =
+      (name: string, answer?: unknown) =>
+      (...input: unknown[]) => {
+        calls.push([name, ...input])
+        return answer
+      }
+    const options = desktopOptions({
+      livePages: true,
+      pickDirectory: note("pick", Promise.resolve("/work")),
+      beforeQuit: note("before quit", () => {}),
+      showAppearance: note("appearance"),
+      openLogs: note("logs"),
+      pagePicture: note("picture"),
+      lookAtPage: note("look"),
+      pagePhone: note("phone"),
+    } as unknown as DesktopApp)
+    expect(options.livePages).toBe(true)
+    expect(await options.pickDirectory!()).toBe("/work")
+    const save = async () => {}
+    options.beforeQuit!(save)
+    options.showAppearance!({ dark: true } as never)
+    options.openLogs!()
+    options.pagePicture!("page" as never, 640)
+    options.pageLook!({ url: "https://example.com", layout: "phone", before: 1 })
+    options.pagePhone!("page" as never, true as never)
+    expect(calls).toEqual([
+      ["pick"],
+      ["before quit", save],
+      ["appearance", { dark: true }],
+      ["logs"],
+      ["picture", "page", 640],
+      ["look", { url: "https://example.com", layout: "phone", before: 1 }],
+      ["phone", "page", true],
+    ])
+    // The parts the app lacks are left off, not set to undefined.
+    expect(Object.keys(options)).not.toContain("notices")
   })
 })

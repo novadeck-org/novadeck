@@ -146,7 +146,7 @@ export type RunnerBackendOptions = {
   readonly theme: ThemeSource
 }
 
-export type TerminalSize = { readonly cols: number; readonly rows: number }
+type TerminalSize = { readonly cols: number; readonly rows: number }
 
 // Where a terminal an agent asked for starts and what it runs, from `newTerminal` on, and
 // why its creation failed, once it did.
@@ -159,7 +159,7 @@ type Launch = {
 }
 
 // One terminal the workspace holds, whichever view shows it.
-export type RunnerEntry = {
+type RunnerEntry = {
   readonly key: TerminalKey
   // True once the runner has the terminal; false when it could not be created or
   // started again. Replaced whenever a fresh shell starts.
