@@ -2,8 +2,9 @@
 @import "@novadeck/emulator/browser.css" layer(base);
 
 /* The terminal views' recipe: how xterm draws inside the element a mount gives its screen,
-   for every backend. What lies over it (the lock's grey, the notice, the ending bar) is the
-   UI's (app/mounted-terminal.css).
+   for every backend. What lies over it is the UI's (the lock's grey,
+   frontend/ui/src/app/mounted-terminal.css) and the toolkit's (the notice and the ending bar,
+   frontend/toolkit/src/terminal-status.css).
 
    Parts: `.terminal-xterm` (where xterm draws). */
 
