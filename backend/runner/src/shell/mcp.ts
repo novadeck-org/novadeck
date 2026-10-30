@@ -1088,7 +1088,7 @@ const ask: Tool<{ readonly id: string; readonly withdrawn?: boolean }> = {
                   `What the user runs themselves, up to ${maxCommandLines} lines, in characters that show: ` +
                   "Novadeck refuses one holding a character that draws as nothing.",
               },
-              directory: { type: "string", maxLength: 4096 },
+              directory: { type: "string", maxLength: inboxTextLimits.directory },
               done_label: { type: "string", maxLength: inboxTextLimits.line },
             },
             required: ["type", "command", "done_label"],
