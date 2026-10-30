@@ -8,8 +8,8 @@ import tailwindcss from "@tailwindcss/vite"
 import react from "@vitejs/plugin-react"
 import { defineConfig } from "vite"
 
-// The desktop app's page, which the host packages and loads (renderer/, built to dist/), and
-// in development serves on the port the host waits for. Mode `web` is the browser app's page
+// The desktop app's page, which the app packages and loads (renderer/, built to dist/), and
+// in development serves on the port the app waits for. Mode `web` is the browser app's page
 // (renderer/web/, built to dist-web/), which `pnpm dev:web` serves beside a runner. Both
 // connect to a runner. electron.vite.config.ts builds the main process, apart.
 const ui = resolve(import.meta.dirname, "../../frontend/ui")
@@ -58,9 +58,6 @@ export default defineConfig(({ mode }) => ({
     bundleChecks({ utilities: desktopUtilities }),
   ],
   resolve: {
-    alias: [
-      { find: /^react$/, replacement: resolve(import.meta.dirname, "node_modules/react/index.js") },
-    ],
     dedupe: ["react", "react-dom"],
   },
   server: {

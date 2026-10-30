@@ -1,7 +1,7 @@
 import type { DemoFeedback } from "@novadeck/demo/feedback"
 
+import type { DemoLaunch } from "./debug-demo"
 import type { DemoActionGroup } from "./types"
-import type { DemoLaunch } from "./with-debug"
 
 // The key the footer's button keeps once the card was opened: with it
 // set the button is just its icon.

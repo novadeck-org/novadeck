@@ -67,7 +67,7 @@ describe("demo approvals", () => {
     expect(controls.approvals.pending.getSnapshot()).toEqual([])
   })
 
-  it("makes the asker the lead on a confirmed lead ask, and leaves it on a refusal", () => {
+  it("makes the asker the lead on a confirmed lead request, and leaves it on a refusal", () => {
     const { controls, dispatched, run } = setup()
     run("Ask to lead selected")
     expect(controls.approvals.pending.getSnapshot()).toMatchObject([
@@ -100,7 +100,7 @@ describe("demo approvals", () => {
     ])
   })
 
-  it("takes the asks back", () => {
+  it("takes the approvals back", () => {
     const { controls, run } = setup()
     run("Ask to close selected")
     run("Withdraw approvals")

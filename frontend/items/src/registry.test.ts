@@ -1,7 +1,7 @@
 import type { ShownKind, ItemKind } from "@novadeck/core/items"
 import { BookText, FileCode2, GitCompare, Globe, Image, type LucideIcon } from "lucide-react"
 
-import type { StackKind } from "./bar"
+import type { StackKind } from "./bar/bar"
 import { iconOf, registry, stackNames } from "./registry"
 import { context, describe, expect, it } from "./test"
 

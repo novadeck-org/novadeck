@@ -1,27 +1,27 @@
 import type { InboxRow } from "@novadeck/core/inbox"
 import type { BackendAction, TerminalKey } from "@novadeck/core/port"
 import type { AgentStatus, AgentUsage, TerminalMetadata, Workspace } from "@novadeck/core/types"
+import { sessionOf, terminalOf } from "@novadeck/demo/workspace"
 
 // The actions that put a terminal in a state, as the backend would report it. Pure, so
 // each can be tested: the panel's actions dispatch what they return.
 
-const target = ({ projectId, workspaceSessionId }: TerminalKey) => ({
+// The session a terminal's actions are addressed to.
+export const sessionTarget = ({ projectId, workspaceSessionId }: TerminalKey) => ({
   projectId,
   workspaceSessionId,
 })
 
+// Whether a terminal still runs its shell: neither ended nor failed to start.
+export const isLive = (terminal: TerminalMetadata): boolean =>
+  terminal.state !== "exited" && terminal.state !== "failed"
+
 // The other live terminals of the session, which an agent can finish in while the person
 // looks at `key`.
 export const othersOf = (workspace: Workspace | undefined, key: TerminalKey): TerminalMetadata[] =>
-  workspace?.projects
-    .find((project) => project.id === key.projectId)
-    ?.history.find((session) => session.id === key.workspaceSessionId)
-    ?.state.roster.terminals.filter(
-      (terminal) =>
-        terminal.id !== key.terminalId &&
-        terminal.state !== "exited" &&
-        terminal.state !== "failed",
-    ) ?? []
+  sessionOf(workspace, key)?.state.roster.terminals.filter(
+    (terminal) => terminal.id !== key.terminalId && isLive(terminal),
+  ) ?? []
 
 // `key`'s terminal leads every other live terminal of its session, as if its agent had
 // opened each with a brief, so its team holds them all; nothing while it has no handle to
@@ -30,14 +30,11 @@ export const leadsOthers = (
   workspace: Workspace | undefined,
   key: TerminalKey,
 ): BackendAction[] => {
-  const lead = workspace?.projects
-    .find((project) => project.id === key.projectId)
-    ?.history.find((session) => session.id === key.workspaceSessionId)
-    ?.state.roster.terminals.find((terminal) => terminal.id === key.terminalId)
+  const lead = terminalOf(workspace, key)
   if (!lead?.handle) return []
   return othersOf(workspace, key).map((terminal) => ({
     type: "terminal/update",
-    target: target(key),
+    target: sessionTarget(key),
     terminalId: terminal.id,
     ledBy: lead.handle!,
   }))
@@ -47,18 +44,19 @@ export const leadsOthers = (
 // own starts beside any other: done on two terminals, Grid and Canvas wire two teams.
 // Nothing while it has no handle to lead by or no terminal follows it.
 export const leadsNext = (workspace: Workspace | undefined, key: TerminalKey): BackendAction[] => {
-  const terminals =
-    workspace?.projects
-      .find((project) => project.id === key.projectId)
-      ?.history.find((session) => session.id === key.workspaceSessionId)?.state.roster.terminals ??
-    []
+  const terminals = sessionOf(workspace, key)?.state.roster.terminals ?? []
   const index = terminals.findIndex((terminal) => terminal.id === key.terminalId)
   const lead = terminals[index]
-  const next = terminals
-    .slice(index + 1)
-    .find((terminal) => terminal.state !== "exited" && terminal.state !== "failed")
+  const next = terminals.slice(index + 1).find(isLive)
   if (!lead?.handle || !next) return []
-  return [{ type: "terminal/update", target: target(key), terminalId: next.id, ledBy: lead.handle }]
+  return [
+    {
+      type: "terminal/update",
+      target: sessionTarget(key),
+      terminalId: next.id,
+      ledBy: lead.handle,
+    },
+  ]
 }
 
 const setStatus = (
@@ -66,14 +64,14 @@ const setStatus = (
   status: Extract<BackendAction, { type: "terminal/status" }>["status"],
 ): BackendAction => ({
   type: "terminal/status",
-  target: target(key),
+  target: sessionTarget(key),
   terminalId: key.terminalId,
   status,
 })
 
 const setProcess = (key: TerminalKey, process: string): BackendAction => ({
   type: "terminal/process",
-  target: target(key),
+  target: sessionTarget(key),
   terminalId: key.terminalId,
   process,
 })
@@ -81,7 +79,7 @@ const setProcess = (key: TerminalKey, process: string): BackendAction => ({
 // A name the person gave it.
 export const rename = (key: TerminalKey, name: string): BackendAction => ({
   type: "terminal/update",
-  target: target(key),
+  target: sessionTarget(key),
   terminalId: key.terminalId,
   name,
   titleSource: { kind: "person" },
@@ -89,7 +87,7 @@ export const rename = (key: TerminalKey, name: string): BackendAction => ({
 
 // The shell ended cleanly, so the terminal closes.
 export const cleanExit = (key: TerminalKey): BackendAction[] => [
-  { type: "terminal/close", target: target(key), terminalId: key.terminalId },
+  { type: "terminal/close", target: sessionTarget(key), terminalId: key.terminalId },
 ]
 
 export const exitedWithCode = (key: TerminalKey, exitCode: number | null): BackendAction[] => [
@@ -122,14 +120,24 @@ export const runProgram = (key: TerminalKey, program: string): BackendAction[] =
 // A shell an agent opened, here the demo's first terminal's, for a program it runs: its
 // tab keeps its handle, which the agent names it by.
 export const openedByAgent = (key: TerminalKey, program: string): BackendAction[] => [
-  { type: "terminal/update", target: target(key), terminalId: key.terminalId, openedBy: "moth" },
+  {
+    type: "terminal/update",
+    target: sessionTarget(key),
+    terminalId: key.terminalId,
+    openedBy: "moth",
+  },
   ...runProgram(key, program),
 ]
 
 // Back at a shell's prompt after an agent ran there and exited: its tab keeps its handle,
 // which what the agent left behind still names it by.
 export const agentRanHere = (key: TerminalKey): BackendAction[] => [
-  { type: "terminal/update", target: target(key), terminalId: key.terminalId, agentRan: true },
+  {
+    type: "terminal/update",
+    target: sessionTarget(key),
+    terminalId: key.terminalId,
+    agentRan: true,
+  },
   ...backToPrompt(key),
 ]
 
@@ -159,7 +167,7 @@ export const doneReport = {
 
 // What an agent asks through the MCP `ask` tool: an answer in words, or an action only the
 // person can do, as a sign-in.
-export type AskKind = "text" | "action"
+type AskKind = "text" | "action"
 
 // An MCP ask of `key`'s terminal, as the Inbox holds it, for the terminal as the workspace
 // has it now; none where the workspace lacks the terminal.
@@ -170,9 +178,7 @@ export const mcpAsk = (
   now: number,
 ): InboxRow | undefined => {
   const project = workspace?.projects.find((each) => each.id === key.projectId)
-  const terminal = project?.history
-    .find((session) => session.id === key.workspaceSessionId)
-    ?.state.roster.terminals.find((each) => each.id === key.terminalId)
+  const terminal = terminalOf(workspace, key)
   if (!project || !terminal) return undefined
   return {
     id: `demo-mcp-ask:${key.projectId}/${key.workspaceSessionId}/${key.terminalId}:${kind}`,
@@ -252,8 +258,7 @@ export const otherTerminals = (
       session.state.roster.terminals
         .filter(
           (terminal) =>
-            terminal.state !== "exited" &&
-            terminal.state !== "failed" &&
+            isLive(terminal) &&
             !(
               viewed?.projectId === project.id &&
               viewed.workspaceSessionId === session.id &&
@@ -275,8 +280,8 @@ export const otherTerminals = (
 
 // The kinds of wait and finish "Fill the Inbox" deals, most pressing first: `done` is the
 // agent's done report, `failed` a turn that stopped on an error.
-export const dealtKinds = ["question", "permission", "plan", "failed", "done"] as const
-export type DealtKind = (typeof dealtKinds)[number]
+const dealtKinds = ["question", "permission", "plan", "failed", "done"] as const
+type DealtKind = (typeof dealtKinds)[number]
 
 // The kinds dealt out to `count` terminals in turn.
 export const dealKinds = (count: number): DealtKind[] =>

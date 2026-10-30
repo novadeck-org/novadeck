@@ -21,7 +21,7 @@ pnpm dev:web
 ```
 
 Open <http://127.0.0.1:5173>. `dev:web` starts a runner with a fresh random token
-and hands the same token to the UI dev server. A browser has no desktop host, so it shows
+and hands the same token to the UI dev server. A browser has no desktop app, so it shows
 no notification when an agent finishes; its terminals are still marked done. For UI-only work, use
 `pnpm --filter @novadeck/desktop exec vite --host 127.0.0.1 --mode web` with `VITE_NOVADECK_RUNNER_URL` and
 `VITE_NOVADECK_RUNNER_TOKEN` pointing at a runner you started; the web entry reads
@@ -232,8 +232,10 @@ on a button (6c) shown in the pane, each cue selecting Order status page first a
 does, 7 every agent
 finishes (each teammate reporting to its lead, which finishes after; whoever waits on the person
 stays waiting, and a second press ends whoever is still working), and for the website's /vs pages 8a
-one agent asking another by message to review its change, which it answers, and 8b an agent showing
-its plan in the pane; `frontend/demo/src/videos/launch.ts`,
+one agent asking another by message to review its change, which it answers, 8b an agent showing
+its plan in the pane, and 8c a Codex agent asking in Codex's words to run its tests, which once
+allowed runs them and reports done (8a and 8c share Search index, so each does nothing once the
+other has run); `frontend/demo/src/videos/launch.ts`,
 sharing the desk's builders with Babcia and Chirp in `videos/desk.ts`). Every variant's Inbox
 lists what its agents wait on, built as the runner's is. In it each
 agent carries a transcript, and api-service's worker a brief from its lead, so a row's
@@ -377,7 +379,7 @@ Agents:
 
 App:
 
-- **Inbox:** each action adds one item of its kind to the Inbox, over what the agents wait on,
+- **Inbox:** each action adds one row of its kind to the Inbox, over what the agents wait on,
   waiting from now and in place of the one of its kind already there: a stuck agent, Codex's
   command permission, an unreadable dialog, a held message, a decision with options, a
   detected question, an ask while its agent keeps working, a login request, the 5-hour limit, a usage limit Novadeck can't resume (no switch), a request whose dialog never read, a
@@ -389,9 +391,9 @@ App:
   whose Deny is a plain no, messages held long behind what keeps the doorbell from an idle
   agent, a heads-up and an agent's done report. "Several asks at once" adds four asks from four
   projects together, so three toasts stack with a "+1 more" pill behind (the page needs focus
-  and the Inbox panel closed, and an item from the selected terminal never lands until you look away: with
+  and the Inbox panel closed, and a row from the selected terminal never lands until you look away: with
   storefront's terminal 4 selected you get three toasts and no pill). "Fail the next answer" makes
-  the next answer to any item fail, so its sheet shows why and keeps the item and draft for retry. Ask, Tell and Your reply
+  the next answer to any row fail, so its sheet shows why and keeps the row and draft for retry. Ask, Tell and Your reply
   also appear in the terminal's Messages pane, in the conversation You; replies show queued and delivered states.
   "Stale next answer" makes the next answer report that the ask is no longer available,
   keeping the draft. "Ask withdrawn" and "Ask session ended" remove the sample preview ask
@@ -408,12 +410,12 @@ App:
   and words: numbers and Space tick, the last row opens a box, and Enter sends the picks with
   the words. "Plan with a change field" adds Claude Code 2.1.287's plan, whose only way
   back is "Tell Claude what to change": that row opens a box that must say what. Answering any
-  item moves the sheet on to the next that needs you (updates skipped) with a one-line receipt,
+  row moves the sheet on to the next that needs you (updates skipped) with a one-line receipt,
   and closes it once nothing is left; "Decision with options" is hard to undo, so its first
-  press only arms the answer. "A new item
-  arrives" adds the next kind not there yet, and "Clear the added items" takes away the
-  hardcoded items and those added here, leaving what the agents wait on. An added item
-  is its own row; one that waits on the person for its agent (a request, an ask, trouble) takes the place of a dialog its agent's
+  press only arms the answer. "A new row
+  arrives" adds the next kind not there yet, and "Clear the added rows" takes away the
+  hardcoded rows and those added here, leaving what the agents wait on. An added row
+  stands alone; one that waits on the person for its agent (a request, an ask, trouble) takes the place of a dialog its agent's
   story shows there, as no real agent shows two; answering an added request for an
   agent that waits takes the agent past it. The group shows in every variant over the
   sample projects, so not in the content showcase.
@@ -476,7 +478,7 @@ App:
   you toggle it back; or count four crashes, which opens the dialog, puts Restart terminals
   in the footer and fails the selected terminal's session's terminals (Try again or Restart
   terminals clears the count and restarts them).
-- **Sandbox:** boot as a host running without Electron's sandbox, for the footer's No
+- **Sandbox:** boot as a desktop app running without Electron's sandbox, for the footer's No
   sandbox chip and its fix command; "No sandbox, no fix" as one with no command to offer;
   and "Sandboxed" back to normal.
 - **Guides:** "Toggle icon guides" draws a dashed box over every icon (`svg.lucide`) and a
@@ -495,14 +497,14 @@ App:
   chip's Installing…. "Newer install exists" and "Install fails" arm the other ends: a card
   saying a newer Novadeck is already installed, or one giving the reason with Try again.
   "Already installed" is a window opened again after installing: no card, the chip reads
-  Installed. "Slow host" makes the host take four seconds to say it is portable, to check
+  Installed. "Slow app" makes the app take four seconds to say it is portable, to check
   the No sandbox chip does not flash meanwhile. "Installed copy" boots as one. With "No
   sandbox" set under Sandbox, the No sandbox chip stays away on a portable and the card adds
   a line about it. For specs, `?portable=` opens any of these by key (`no-release`, `update`,
-  `never`, `newer`, `failed`, `installed`, `slow-host`, `installed-copy`); `&installMs=` sets
+  `never`, `newer`, `failed`, `installed`, `slow-app`, `installed-copy`); `&installMs=` sets
   how long an install takes (none by default), and `&update=` adds an update scenario.
-- **Uninstall:** boot as a host that offers the About row's Uninstall…, and end the run as
-  armed. "Not offered" has no row (a portable copy, or no host); "Homebrew copy" shows the
+- **Uninstall:** boot as a desktop app that offers the About row's Uninstall…, and end the run as
+  armed. "Not offered" has no row (a portable copy, or no desktop app); "Homebrew copy" shows the
   brew command with Copy and no button; "Ready, no data folder" has no Keep my projects checkbox, as when the app runs with its own data folder; "Removed" goes through Removing… to Novadeck is
   uninstalled with Quit, and "Removed, leftover" adds the command to copy (the Linux sandbox
   profile when no password prompt was available); "Removal fails" keeps the dialog open with
@@ -510,13 +512,13 @@ App:
   again, which every retry repeats, and "Trash refused" fails once on macOS' App Management and
   then succeeds; "Windows uninstaller" reads Continue and ends on Novadeck closing for its
   uninstaller, and "Windows uninstaller fails" ends on the reason. Connect agents in
-  Preferences first to see them named in the dialog; Agents' "Fail next" makes a disconnect
-  fail before the run. `?uninstall=` opens `unavailable`, `manual`, `removed`, `leftover`,
+  Preferences first to see them named in the dialog; Agent connections' "Connect fails" makes a
+  disconnect fail before the run. `?uninstall=` opens `unavailable`, `manual`, `removed`, `leftover`,
   `failed`, `stopped`, `trash`, `windows`, `windows-failed` or `no-data` for specs.
 - **Updates:** Download counts the floating progress bar above the footer's right end up in
   steps, shows it ready for a few seconds, then fades it; Download, held stops it at 40% to
   look at. Download failed holds the bar at 40% for a moment, or fails one already running, and
-  drops it with nothing in the footer, as the host tries again by itself (`retrying`). Release
+  drops it with nothing in the footer, as the app tries again by itself (`retrying`). Release
   to fetch shows the Update available chip alone, which opens the release page (nothing opens
   in a browser). Release, needs an administrator shows the Allow updates chip instead
   (Allow when narrow), which stands in for the administrator's step: pressing it starts the
@@ -527,12 +529,12 @@ App:
   chat view it holds back follow once Preferences is reopened.
   What's new, after an update shows the card of three highlights until it is dismissed; What's
   new, text with markup shows highlights holding `<b>` and `**stars**` as typed; What's new,
-  longest highlights fills four highlights to the host's limits, so the list scrolls; Updated,
-  no highlights has the host answer after 1.5 s that it has nothing, and no card appears; each
+  longest highlights fills four highlights to the app's limits, so the list scrolls; Updated,
+  no highlights has the app answer after 1.5 s that it has nothing, and no card appears; each
   reboots the demo, as the card is asked for once at launch.
   For specs, `?update=` opens any of these by key (`download`, `held`, `failed`, `available`,
-  `allow`, `ready`, `whatsNew`, `whatsNewMarkup`, `whatsNewLong`, `noHighlights`). Both panels and the spec keys come from one record, `frontend/demo-debug/src/scenarios.ts`.
-  Specs also take `?channel=experimental`, a host on the experimental channel, so IS_EXPERIMENTAL is on (the
+  `allow`, `ready`, `whatsNew`, `whatsNewMarkup`, `whatsNewLong`, `noHighlights`). Both panels and the spec keys come from one record, `frontend/demo-debug/src/desktop/scenarios.ts`.
+  Specs also take `?channel=experimental`, an app on the experimental channel, so IS_EXPERIMENTAL is on (the
   chat view still needs its own switch on); only specs read it, not `dev:web` or the try demo.
 
 ### Visitor build
@@ -629,7 +631,7 @@ holds the desk at its first frames: nothing moves on its own and the plan never 
 ## Repository map
 
 This is a TypeScript monorepo using pnpm workspaces and Turborepo. `apps/` holds what
-ships or deploys: the desktop host, the visitor build and the content preview; `frontend/`
+ships or deploys: the desktop app, the visitor build and the content preview; `frontend/`
 the UI, split into packages (the model, the two backend adapters, the terminal views, the
 specs and the test kit); `backend/` the runner and the relay; `contract/` the protocol and
 the runner client; `engines/` holds the native inference engines Novadeck downloads once
@@ -645,7 +647,7 @@ atlas.
 | `frontend/toolkit`        | The controls every feature draws with: Ark UI wrappers, shared recipes, the sidebar item.  |
 | `frontend/items`          | The items package: kinds, store, taskbar, peek, plan editor, messages, bar drag and homes. |
 | `frontend/chat`           | The chat view: transcript, requests and composer, with the chat's own store and commands.  |
-| `frontend/runner-adapter` | The UI's backend for a runner, over a WebSocket or the desktop host.                       |
+| `frontend/runner-adapter` | The UI's backend for a runner, over a WebSocket or the desktop app.                        |
 | `frontend/terminal-views` | The xterm mount both backends draw terminals with.                                         |
 | `frontend/demo`           | The demo backend: a scripted workspace and simulated terminals.                            |
 | `frontend/demo-debug`     | The demo's debug panel and rehearsals.                                                     |
@@ -736,8 +738,8 @@ folder of `frontend/ui/src/`:
 | `frontend/core/src/roster.ts`                                   | A session's terminals and undocked windows, laid out as tiles, their order and status.                                         |
 | `frontend/core/src/layout/workspace-layout.ts`                  | Where each terminal sits and how big it is in each view.                                                                       |
 | `terminals/`                                                    | Terminal frame, tabs, rename state, and the recent-terminal switcher.                                                          |
-| `frontend/items/src/`                                           | Items: the item store, `bar.ts` rules, `registry.ts`, `kinds/<kind>/` (one folder per kind), `document/` and `homes/`.         |
-| `frontend/items/src/drag-session.ts`                            | What's dragged off a taskbar, the views' drop spaces, and the windows it's over.                                               |
+| `frontend/items/src/`                                           | Items: `store/`, `bar/` (taskbar, peek, drag), `registry.ts`, `kinds/<kind>/` (one folder per kind), `document/` and `homes/`. |
+| `frontend/items/src/bar/drag-session.ts`                        | What's dragged off a taskbar, the views' drop spaces, and the windows it's over.                                               |
 | `frontend/chat/src/`                                            | The agent's chat: its blocks, tool rows, requests and the composer, and the chat's own store (`state.ts`) and commands.        |
 | `layouts/canvas/`, `grid/`, `focus/`                            | View adapters and colocated library styles.                                                                                    |
 | `layouts/` (top level)                                          | Helpers shared by views: view transitions, background gestures, visibility.                                                    |
@@ -835,15 +837,15 @@ It starts over on reload apart from preferences, the collapsed sidebar and the
 project arrangement (the switcher's order and pins, `novadeck.project-arrangement`),
 which store subscriptions persist. Another subscription saves the active session's
 windowed view from the workspace store, and a new App seeds sessions with it. The
-item store in `frontend/items/src/state.ts` holds what it loads for the items,
+item store in `frontend/items/src/store/item-store.ts` holds what it loads for the items,
 by item: each plan as the person edits it, what each item last loaded, and the secret
 files the person chose to see; it follows the backend's companions from an effect, and
 `followMessages` (`frontend/items/src/homes/terminal/messages/messages.ts`) puts messages on their
 terminal's bar from another. What an item loaded stays 30 seconds after nothing shows it, then goes, so a
 large image doesn't stay in memory. What a taskbar shows is derived from it and the workspace in
-`frontend/items/src/bar.ts`, never stored.
+`frontend/items/src/bar/bar.ts`, never stored.
 `WorkspaceProvider` creates the backend, the stores, the drag session
-(`frontend/items/src/drag-session.ts`), the navigator, and the commands once per App, in a pure
+(`frontend/items/src/bar/drag-session.ts`), the navigator, and the commands once per App, in a pure
 initializer, and shares them through context; it receives the page as children, so a URL
 change re-renders only the provider.
 

@@ -9,7 +9,7 @@
   "type": "module",
   "main": "./out/main/index.js",
   "scripts": {
-    "dev": "concurrently --kill-others-on-fail --names ui,host \"vite --host 127.0.0.1\" \"electron-vite dev\"",
+    "dev": "concurrently --kill-others-on-fail --names ui,app \"vite --host 127.0.0.1\" \"electron-vite dev\"",
     "build": "vite build && electron-vite build",
     "package": "pnpm --workspace-root exec turbo run build --filter=@novadeck/desktop && electron-builder --dir --publish never",
     "package:linux": "pnpm --workspace-root exec turbo run build --filter=@novadeck/desktop && electron-builder --linux --x64 --publish never",

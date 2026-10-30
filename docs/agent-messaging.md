@@ -1999,7 +1999,7 @@ nothing when exactly one page is on the bar. The rules:
    as `terminals.requests` and `answerRequest` do. Each look goes to the client that
    subscribed last, as `{ lookId, itemId, shown, url }`, where `shown` is the item's latest
    show (its `version`): the client doesn't picture a pane still at an earlier show, and
-   loads the page fresh instead. The desktop host takes looks one at a time and queues the
+   loads the page fresh instead. The desktop app takes looks one at a time and queues the
    rest, and gives each a deadline: a look the runner has given up on is dropped from the
    queue rather than run. A look first tries the pane: for each view of the item, one
    capture per width in `lookWidths` (1280, 960, 640), the next only when the picture came

@@ -2,6 +2,7 @@ import type { TerminalKey } from "@novadeck/core/port"
 import { isAgentProgram } from "@novadeck/core/terminals/process"
 import type { Workspace } from "@novadeck/core/types"
 import { sourcePaths, sourceThird, type DemoSource } from "@novadeck/demo/source"
+import { terminalOf } from "@novadeck/demo/workspace"
 
 import type { DemoActionGroup } from "./types"
 
@@ -12,13 +13,7 @@ const fallback = "crow"
 // The handle of the selected terminal's agent, as the Source panel names it; Crow's where
 // the selected terminal isn't an agent of the storefront project.
 const handleOf = (key: TerminalKey | undefined, workspace: Workspace | undefined): string => {
-  const terminal =
-    key?.projectId === project
-      ? workspace?.projects
-          .find((each) => each.id === key.projectId)
-          ?.history.find((each) => each.id === key.workspaceSessionId)
-          ?.state.roster.terminals.find((each) => each.id === key.terminalId)
-      : undefined
+  const terminal = key?.projectId === project ? terminalOf(workspace, key) : undefined
   return terminal?.handle && terminal.state === "running" && isAgentProgram(terminal.process)
     ? terminal.handle
     : fallback
@@ -40,7 +35,7 @@ export const sourceGroups = (source: DemoSource | undefined): readonly DemoActio
             },
             {
               label: "Agent stops writing (Source only)",
-              hint: "Open Source: the selected storefront agent's cursor goes, its changes stay; only the Source cursor changes, the agent's turn is not (use Agent states to end or rest it; Crow if none)",
+              hint: "Open Source: the selected storefront agent's cursor goes, its changes stay; only the Source cursor changes, the agent's turn is not (use the Agent group to end or rest it; Crow if none)",
               run: ({ selected, workspace }) => source.endTurn(handleOf(selected(), workspace())),
             },
             {

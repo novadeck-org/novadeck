@@ -14,7 +14,7 @@ source; builds read `dist`.
   run against its dependencies' source with nothing built first.
 - **tsc** takes it from `customConditions: ["development"]` in the `tsconfig.json` of the
   runner, the contract packages and the harnesses, so a typecheck reads the same files the
-  tests do. The host's, the root's and every frontend package's and app's add `node`, which
+  tests do. The desktop app's, the root's and every frontend package's and app's add `node`, which
   their `Bundler` resolution leaves out, so a `node`-only export such as the sandbox's, the
   terminal library's or the emulator's `/headless` resolves (the frontend packages'
   typechecks follow the runner's source, which the runner adapter's tests start, into them).
@@ -43,7 +43,7 @@ a package it imports changes, as they did when they waited for `^build`. Without
 - `typecheck` no longer waits for `^typecheck`, for the same reason, nor `^build`, as it reads
   source.
 - `test` waits for the package's own `build` only where its tests run that build:
-  - the host (`apps/desktop`: `src/build.test.ts` reads the pages' `dist`, and its main-process
+  - the desktop app (`apps/desktop`: `src/build.test.ts` reads the pages' `dist`, and its main-process
     tests load the built `out/main`);
   - the runner (its CLI smoke tests run `dist/cli.js`, and its MCP tests run the relay's
     binary, so it also waits for `@novadeck/relay#build`).
@@ -56,9 +56,9 @@ a package it imports changes, as they did when they waited for `^build`. Without
 ## `pnpm test` runs the browser-heavy packages' tests one at a time, and the rest together
 
 `pnpm test` runs the repository checks first, then every package's tests in parallel but the
-frontend packages' (`frontend/*`), the apps' (`apps/*`), the runner's and the host's, then
+frontend packages' (`frontend/*`), the apps' (`apps/*`), the runner's and the desktop app's, then
 those, one at a time (`--concurrency=1`). They are the timing-sensitive ones: the UI's browser
-specs, the runner's real-PTY tests and the host's real runner. The UI's and the runner's, run
+specs, the runner's real-PTY tests and the desktop app's real runner. The UI's and the runner's, run
 together, starved the smaller CI runners enough to time out. Every other package's tests are
 short and run beside each other, so a new package or library adds its time to the parallel
 part, not to a serial chain. A package whose tests are as timing-sensitive joins the second
@@ -66,7 +66,7 @@ list in the root `package.json`'s `test`. The shard scripts (`test:shard1`, `tes
 The first runs the repository checks, the parallel part, and half (Vitest's `--shard=1/2`)
 of the big frontend packages' tests (the UI, the specs, the core, the runner adapter, the
 demo and its debug panel); the second runs the other half, then the remaining frontend
-packages, the apps and the host; the third runs the runner.
+packages, the apps and the desktop app; the third runs the runner.
 
 The serial part is most of a cold run (here about 200 s for the runner's, 120 s for the UI's),
 so this saves little over one package at a time. Running them together too took a cold

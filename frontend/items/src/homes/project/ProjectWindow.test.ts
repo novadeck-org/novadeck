@@ -6,7 +6,7 @@ import { render } from "@novadeck/test-kit/render"
 import { act, createElement } from "react"
 import { afterEach, vi } from "vitest"
 
-import { createItemStore } from "../../state"
+import { createItemStore } from "../../store/item-store"
 import { context, describe, expect, it } from "../../test"
 import { ProjectWindow } from "./ProjectWindow"
 
@@ -61,7 +61,7 @@ describe("the project window", () => {
           truncated: false,
         },
       })
-      expect(container.querySelector("section.plan-reader[data-workspace-companion]")).toBeNull()
+      expect(container.querySelector("section.pane-reader[data-workspace-companion]")).toBeNull()
       expect(container.querySelector(".cm-content")?.getAttribute("aria-label")).toBe("README.md")
     })
   })

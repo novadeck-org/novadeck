@@ -65,7 +65,7 @@ const failures: readonly {
 ]
 
 // Wraps the demo's conversations so a failure armed from the panel meets the next send.
-export const createDebugChat = (): {
+export const createChatFailures = (): {
   readonly wrap: (conversations: Conversations) => Conversations
   readonly actions: readonly DemoAction[]
 } => {

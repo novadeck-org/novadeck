@@ -1,4 +1,4 @@
-import { AttachedHost } from "@novadeck/items/TerminalCompanion"
+import { AttachedContainer } from "@novadeck/items/TerminalCompanion"
 import { Tooltip } from "@novadeck/toolkit/Tooltip"
 import { NodeResizeControl, type NodeProps } from "@xyflow/react"
 import {
@@ -38,8 +38,8 @@ const TerminalNodeView = ({ id, data, selected }: NodeProps<TerminalNode>): Reac
   const content = useRef<HTMLDivElement>(null)
   // What the terminal's companion hangs beside it: here, outside the window's clipping and
   // the content-visibility that hides the window off screen.
-  const [host, setHost] = useState<HTMLElement | null>(null)
-  useEffect(() => setHost(content.current), [])
+  const [container, setContainer] = useState<HTMLElement | null>(null)
+  useEffect(() => setContainer(content.current), [])
   const visibility = useContext(NodeVisibilityContext)
   const reported = useSyncExternalStore(visibility.subscribe, () => visibility.onScreen(id))
   // A node the observer has not reported on has not been seen: its screen opens once it is.
@@ -94,7 +94,9 @@ const TerminalNodeView = ({ id, data, selected }: NodeProps<TerminalNode>): Reac
             <span className="terminal-resize-pattern" />
           </Tooltip>
         </NodeResizeControl>
-        <AttachedHost.Provider value={host}>{contentOf(id, onScreen)}</AttachedHost.Provider>
+        <AttachedContainer.Provider value={container}>
+          {contentOf(id, onScreen)}
+        </AttachedContainer.Provider>
       </div>
     </div>
   )

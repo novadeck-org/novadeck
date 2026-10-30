@@ -149,7 +149,7 @@ describe("The pane in Canvas", () => {
   it("belongs to its terminal's region, for assistive technology", async () => {
     await openShowcase("canvas")
     await expect.element(companionPane("Build Studio")).toBeVisible()
-    const sheet = companionPane("Build Studio").element().closest(".plan-attached")!
+    const sheet = companionPane("Build Studio").element().closest(".pane-attached")!
     expect(terminal("Build Studio").element().contains(sheet)).toBe(false)
     expect(terminal("Build Studio").element().getAttribute("aria-owns")).toBe(sheet.id)
   })
@@ -359,7 +359,7 @@ describe("A plan", () => {
     const pane = companionPane("Build Studio")
     const path = pane.getByText("plans/studio.md", { exact: true })
     await expect.element(path).toBeVisible()
-    const scroll = path.element().closest(".plan-reader")!.querySelector(".plan-document-scroll")!
+    const scroll = path.element().closest(".pane-reader")!.querySelector(".pane-document-scroll")!
     await expect.poll(() => scroll.scrollHeight).toBeGreaterThan(scroll.clientHeight)
 
     scroll.scrollTop = scroll.scrollHeight
@@ -443,7 +443,7 @@ describe("Switching terminals in Focus", () => {
     await taskbarIcon("Build Studio", "Plan: A home for Studio").click()
     const path = companionPane("Build Studio").getByText("plans/studio.md", { exact: true })
     await expect.element(path).toBeVisible()
-    const scroll = path.element().closest(".plan-reader")!.querySelector(".plan-document-scroll")!
+    const scroll = path.element().closest(".pane-reader")!.querySelector(".pane-document-scroll")!
     await expect.poll(() => scroll.querySelector(".cm-editor")).not.toBeNull()
     const editor = scroll.querySelector(".cm-editor")
     await expect.poll(() => scroll.scrollHeight).toBeGreaterThan(scroll.clientHeight + 100)
@@ -505,7 +505,7 @@ describe("Switching views", () => {
     await openShowcase("grid")
     await taskbarIcon("Build Studio", "Plan: A home for Studio").click()
     const plan = (): HTMLElement =>
-      companionPane("Build Studio").element().querySelector<HTMLElement>(".plan-document-scroll")!
+      companionPane("Build Studio").element().querySelector<HTMLElement>(".pane-document-scroll")!
     await expect.poll(() => plan()?.querySelector(".cm-content")).not.toBeNull()
     plan().dispatchEvent(new WheelEvent("wheel"))
     plan().scrollTop = 200
@@ -541,7 +541,7 @@ describe("Switching views", () => {
     await openShowcase("grid")
     await taskbarIcon("Refactor auth", "Plan: refactor-auth.md").click()
     const plan = (): HTMLElement | null | undefined =>
-      companionPane("Refactor auth").element().querySelector<HTMLElement>(".plan-document-scroll")
+      companionPane("Refactor auth").element().querySelector<HTMLElement>(".pane-document-scroll")
     await expect.poll(() => plan()?.querySelector(".cm-content")).toBeTruthy()
 
     await chooseView("Focus")
@@ -558,7 +558,7 @@ describe("Switching views", () => {
       await openShowcase("grid")
       await taskbarIcon("Build Studio", "Plan: A home for Studio").click()
       const plan = (): HTMLElement =>
-        companionPane("Build Studio").element().querySelector<HTMLElement>(".plan-document-scroll")!
+        companionPane("Build Studio").element().querySelector<HTMLElement>(".pane-document-scroll")!
       const content = (): HTMLElement => plan().querySelector<HTMLElement>(".cm-content")!
       await expect.poll(() => plan()?.querySelector(".cm-content")).not.toBeNull()
       content().focus()

@@ -15,8 +15,8 @@ import { render } from "@novadeck/test-kit/render"
 import { act, createElement, useSyncExternalStore, type ComponentProps } from "react"
 import { afterEach, vi } from "vitest"
 
-import { createDragSession, DragSessionContext } from "../../drag-session"
-import { createItemStore, type ItemStore } from "../../state"
+import { createDragSession, DragSessionContext } from "../../bar/drag-session"
+import { createItemStore, type ItemStore } from "../../store/item-store"
 import { context, describe, expect, it } from "../../test"
 import { followMessages, noLinks } from "./messages/messages"
 import { TerminalCompanion, type ItemCommands } from "./TerminalCompanion"
@@ -82,7 +82,7 @@ const Terminal = ({
     itemStore,
     messages,
     links: noLinks,
-    companionKey: key,
+    terminalKey: key,
     view: "focus",
     bar: state.bars["01"] ?? emptyBar,
     items: state.items.filter((item) => isOnBar(item, "01")),
@@ -142,9 +142,25 @@ const messagesOf = (messages: readonly AgentMessage[]): MessagesState => ({
   },
 })
 
-const taskbar = (container: HTMLElement) => container.querySelector(".plan-taskbar")
+const taskbar = (container: HTMLElement) => container.querySelector(".taskbar")
 const icon = (container: HTMLElement, name: string) =>
-  container.querySelector(`.plan-tb-item[aria-label^='${name}']`)
+  container.querySelector(`.taskbar-item[aria-label^='${name}']`)
+
+describe("a pane beside its terminal", () => {
+  it("offers its divider to a screen reader as what resizes the pane", () => {
+    const { container } = renderTerminal(
+      workspaceReducer(workspaceReducer(workspaceFixture(), shown()), {
+        type: "bar/open",
+        target,
+        terminalId: "01",
+        key: hero.id,
+      }),
+    )
+    const divider = container.querySelector(".pane-divider")
+    expect(divider?.getAttribute("role")).toBe("separator")
+    expect(divider?.getAttribute("aria-label")).toBe("Resize pane")
+  })
+})
 
 describe("a pane covering its terminal", () => {
   // jsdom has no container queries: the narrow window's rule (pane.css) is set by hand.
@@ -157,7 +173,7 @@ describe("a pane covering its terminal", () => {
         key: hero.id,
       }),
     )
-    container.querySelector<HTMLElement>(".plan-split")?.style.setProperty("--_plan-cover", "1")
+    container.querySelector<HTMLElement>(".pane-split")?.style.setProperty("--_pane-cover", "1")
     return { container, input: container.querySelector("textarea")! }
   }
   const press = async (
@@ -206,7 +222,7 @@ describe("a pane covering its terminal", () => {
     const keys = heard(container)
     const terminalInput = (): HTMLTextAreaElement => container.querySelector("textarea")!
     await press(input, "Escape")
-    await vi.waitFor(() => expect(container.querySelector(".plan-reader")).toBeNull())
+    await vi.waitFor(() => expect(container.querySelector(".pane-reader")).toBeNull())
     await press(terminalInput(), "Escape", { repeat: true })
     expect(open(container)).toBe(false)
     expect(keys).toEqual([])
@@ -241,7 +257,7 @@ describe("a pane covering its terminal", () => {
   it("leaves the keys of its own fields to them", async () => {
     const { container } = covered()
     const field = document.createElement("input")
-    container.querySelector(".plan-reader")?.append(field)
+    container.querySelector(".pane-reader")?.append(field)
     await press(field, "a")
     await press(field, "Enter")
     expect(open(container)).toBe(true)
@@ -258,7 +274,7 @@ describe("a pane covering its terminal", () => {
     async (typed, code, keyCode, shiftKey) => {
       const { container, input } = covered()
       const reader = await vi.waitFor(() => {
-        const found = container.querySelector(".plan-reader")
+        const found = container.querySelector(".pane-reader")
         if (!found) throw new Error("its viewer is still loading")
         return found
       })
@@ -281,7 +297,7 @@ describe("a pane covering its terminal", () => {
   it("minimizes on Escape from a control on its surface", async () => {
     const { container } = covered()
     const button = document.createElement("button")
-    container.querySelector(".plan-reader")?.append(button)
+    container.querySelector(".pane-reader")?.append(button)
     await press(button, "Escape")
     expect(open(container)).toBe(false)
   })
@@ -289,7 +305,7 @@ describe("a pane covering its terminal", () => {
   it("minimizes on a character typed on a control, leaving it to the app to reach the terminal", async () => {
     const { container, input } = covered()
     const button = document.createElement("button")
-    container.querySelector(".plan-reader")?.append(button)
+    container.querySelector(".pane-reader")?.append(button)
     const typed: string[] = []
     input.addEventListener("keydown", (event) => typed.push(event.key))
     expect((await press(button, "a")).defaultPrevented).toBe(false)
@@ -300,7 +316,7 @@ describe("a pane covering its terminal", () => {
   it("leaves Space on a control to it", async () => {
     const { container } = covered()
     const button = document.createElement("button")
-    container.querySelector(".plan-reader")?.append(button)
+    container.querySelector(".pane-reader")?.append(button)
     await press(button, " ")
     expect(open(container)).toBe(true)
   })
@@ -340,8 +356,8 @@ describe("a pane covering its terminal", () => {
 
   it("leaves Enter and Tab on its surface to the pane", async () => {
     const { container } = covered()
-    await press(container.querySelector(".plan-reader"), "Enter")
-    await press(container.querySelector(".plan-reader"), "Tab")
+    await press(container.querySelector(".pane-reader"), "Enter")
+    await press(container.querySelector(".pane-reader"), "Tab")
     expect(open(container)).toBe(true)
   })
 
@@ -356,7 +372,7 @@ describe("a pane covering its terminal", () => {
 
   it("does nothing where the pane shares the window", async () => {
     const { container, input } = covered()
-    container.querySelector<HTMLElement>(".plan-split")?.style.removeProperty("--_plan-cover")
+    container.querySelector<HTMLElement>(".pane-split")?.style.removeProperty("--_pane-cover")
     await press(input, "Escape")
     expect(open(container)).toBe(true)
   })
@@ -399,7 +415,7 @@ describe("a terminal's taskbar", () => {
       expect(icon(container, "notes")?.getAttribute("data-state")).toBe("open")
       expect(icon(container, "hero.png")?.getAttribute("data-state")).toBe("behind")
       expect(
-        [...container.querySelectorAll(".plan-stack-sheet")].map((each) =>
+        [...container.querySelectorAll(".pane-stack-sheet")].map((each) =>
           each.getAttribute("aria-label"),
         ),
       ).toEqual(["Bring forward hero.png"])
@@ -412,12 +428,12 @@ describe("a terminal's taskbar", () => {
       )
       expect(icon(container, "hero.png")?.getAttribute("data-state")).toBe("open")
       expect(icon(container, "notes")?.getAttribute("data-state")).toBe("seen")
-      expect(container.querySelectorAll(".plan-stack-sheet")).toHaveLength(0)
+      expect(container.querySelectorAll(".pane-stack-sheet")).toHaveLength(0)
     })
 
     it("hides the whole pane on Escape, marking everything open as waiting", async () => {
       const { container } = renderTerminal(opened())
-      const pane = container.querySelector<HTMLElement>(".plan-reader")
+      const pane = container.querySelector<HTMLElement>(".pane-reader")
       await act(async () =>
         pane?.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true })),
       )
@@ -438,16 +454,16 @@ describe("a terminal's taskbar", () => {
 
     it("hands focus to the pane when the person brings forward what peeks out behind it", async () => {
       const { container } = renderTerminal(opened())
-      const card = container.querySelector<HTMLButtonElement>(".plan-stack-sheet")
+      const card = container.querySelector<HTMLButtonElement>(".pane-stack-sheet")
       card?.focus()
       await act(async () => card?.click())
       expect(icon(container, "hero.png")?.getAttribute("data-state")).toBe("open")
-      expect(document.activeElement).toBe(container.querySelector(".plan-reader"))
+      expect(document.activeElement).toBe(container.querySelector(".pane-reader"))
     })
 
     it("hides the whole pane on Escape from a sheet peeking out behind it", async () => {
       const { container } = renderTerminal(opened())
-      const card = container.querySelector<HTMLElement>(".plan-stack-sheet")
+      const card = container.querySelector<HTMLElement>(".pane-stack-sheet")
       await act(async () =>
         card?.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true })),
       )
@@ -472,13 +488,13 @@ describe("a terminal's taskbar", () => {
     it("says nothing more while nothing waits and messaging runs", () => {
       const button = messagesWith(messagesOf([message("m1")]))
       expect(button.getAttribute("aria-label")).toBe("Messages")
-      expect(button.querySelector(".plan-tb-count")).toBeNull()
+      expect(button.querySelector(".taskbar-count")).toBeNull()
     })
 
     it("counts what waits for the agent, and says so", () => {
       const button = messagesWith(messagesOf([message("m1"), waiting]))
       expect(button.getAttribute("aria-label")).toBe("Messages, 1 message waiting")
-      const count = button.querySelector(".plan-tb-count")
+      const count = button.querySelector(".taskbar-count")
       expect(count?.getAttribute("data-messages")).toBe("waiting")
       expect(count?.textContent).toBe("1")
     })
@@ -486,7 +502,7 @@ describe("a terminal's taskbar", () => {
     it("marks messaging paused while nothing waits", () => {
       const button = messagesWith({ ...messagesOf([message("m1")]), paused: true })
       expect(button.getAttribute("aria-label")).toBe("Messages, messaging paused")
-      expect(button.querySelector(".plan-tb-count")?.getAttribute("data-messages")).toBe("paused")
+      expect(button.querySelector(".taskbar-count")?.getAttribute("data-messages")).toBe("paused")
     })
   })
 

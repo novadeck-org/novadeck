@@ -397,12 +397,12 @@
   --pane-attached-border-color: transparent;
   --pane-attached-shadow: none;
 }
-:root:is([data-theme="phosphor-green"], [data-theme="phosphor-amber"]) .plan-attached {
+:root:is([data-theme="phosphor-green"], [data-theme="phosphor-amber"]) .pane-attached {
   background-color: transparent;
 }
 :root:is([data-theme="phosphor-green"], [data-theme="phosphor-amber"])
-  .plan-attached
-  > .plan-reader {
+  .pane-attached
+  > .pane-reader {
   position: relative;
   isolation: isolate;
   clip-path: shape(
@@ -415,25 +415,25 @@
   );
 }
 :root:is([data-theme="phosphor-green"], [data-theme="phosphor-amber"])
-  .plan-attached
-  > .plan-reader::before,
+  .pane-attached
+  > .pane-reader::before,
 :root:is([data-theme="phosphor-green"], [data-theme="phosphor-amber"])
-  .plan-attached
-  > .plan-reader::after {
+  .pane-attached
+  > .pane-reader::after {
   content: "";
   position: absolute;
   inset: 0;
   pointer-events: none;
 }
 :root:is([data-theme="phosphor-green"], [data-theme="phosphor-amber"])
-  .plan-attached
-  > .plan-reader::after {
+  .pane-attached
+  > .pane-reader::after {
   z-index: 300;
   background-image: var(--window-glass-image);
 }
 :root:is([data-theme="phosphor-green"], [data-theme="phosphor-amber"])
-  .plan-attached
-  > .plan-reader::before {
+  .pane-attached
+  > .pane-reader::before {
   z-index: 301;
   background-color: var(--color-line-strong);
   clip-path: shape(
@@ -454,8 +454,8 @@
 /* It is doubled with the window when the node is selected. */
 :root:is([data-theme="phosphor-green"], [data-theme="phosphor-amber"])
   .canvas-node.selected
-  .plan-attached
-  > .plan-reader::before {
+  .pane-attached
+  > .pane-reader::before {
   background-color: var(--color-strong);
   clip-path: shape(
     evenodd from 3px 2px,

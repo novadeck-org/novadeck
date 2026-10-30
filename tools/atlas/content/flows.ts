@@ -39,7 +39,7 @@ export const flows: (Omit<Flow, "steps"> & { steps: CuratedStep[] })[] = [
         to: "renderer",
         label: "load packaged UI",
         text: "The desktop app creates the window and loads the packaged UI, or the Vite dev server in development.",
-        anchor: { file: `${desktop}/main/index.ts`, text: "void window.loadFile(" },
+        anchor: { file: `${desktop}/main/window/app-window.ts`, text: "void window.loadFile(" },
       },
       {
         from: "preload",

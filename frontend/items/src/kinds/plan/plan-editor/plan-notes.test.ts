@@ -12,9 +12,9 @@ const table = "| Page | Why |\n| --- | --- |\n| Home | Lead in |\n"
 const noted = "| Page | Why |\n| --- | --- |\n| About | Contact <!-- novadeck: Old --> |\n"
 
 const open = (text: string) => {
-  const host = document.createElement("div")
-  document.body.append(host)
-  const viewer = mountMarkdown(host, {
+  const container = document.createElement("div")
+  document.body.append(container)
+  const viewer = mountMarkdown(container, {
     content: { text },
     label: "Plan",
     editable: true,
@@ -22,10 +22,10 @@ const open = (text: string) => {
   })
   unmounts.push(() => {
     viewer.destroy()
-    host.remove()
+    container.remove()
   })
-  const view = EditorView.findFromDOM(host.querySelector<HTMLElement>(".cm-editor")!)!
-  return { host, view }
+  const view = EditorView.findFromDOM(container.querySelector<HTMLElement>(".cm-editor")!)!
+  return { container, view }
 }
 
 describe("a plan's table row notes", () => {
@@ -37,8 +37,8 @@ describe("a plan's table row notes", () => {
     })
 
     it("shows it under the row, named by the row", () => {
-      const { host } = open(noted)
-      const field = host.querySelector<HTMLTextAreaElement>(".cm-md-annotation-input")!
+      const { container } = open(noted)
+      const field = container.querySelector<HTMLTextAreaElement>(".cm-md-annotation-input")!
       expect(field.value).toBe("Old")
       expect(field.getAttribute("aria-label")).toBe("Note on row 2")
     })
@@ -46,8 +46,8 @@ describe("a plan's table row notes", () => {
 
   context("when a row gets a note", () => {
     it("offers a control on every row, named for the row or the table, in the app's button looks", () => {
-      const { host } = open(table)
-      const buttons = [...host.querySelectorAll<HTMLElement>(".cm-md-annotation-add")]
+      const { container } = open(table)
+      const buttons = [...container.querySelectorAll<HTMLElement>(".cm-md-annotation-add")]
       expect(buttons.map((button) => button.getAttribute("aria-label"))).toEqual([
         "Add a note on the table",
         "Add a note on this row",
@@ -56,12 +56,12 @@ describe("a plan's table row notes", () => {
     })
 
     it("writes it as a comment at the end of the row's last cell, escaping pipes and a closing mark", () => {
-      const { host, view } = open(table)
-      host
+      const { container, view } = open(table)
+      container
         .querySelectorAll<HTMLElement>(".cm-md-annotation-add")[1]!
         .dispatchEvent(new PointerEvent("pointerdown", { bubbles: true }))
       expect(view.state.doc.toString()).toContain("| Home | Lead in <!-- novadeck:  --> |")
-      const field = host.querySelector<HTMLTextAreaElement>(".cm-md-annotation-input")!
+      const field = container.querySelector<HTMLTextAreaElement>(".cm-md-annotation-input")!
       field.value = "email | phone --> now"
       field.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true }))
       expect(view.state.doc.toString()).toContain(

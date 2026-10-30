@@ -48,7 +48,7 @@ const CodeViewer = ({
   )
 }
 
-// A file: its markdown reads as a document, formatted as a plan is; anything else as code.
+// A file: Markdown reads as a document, formatted; anything else as code.
 export const FileViewer = ({
   item,
   content,
@@ -64,7 +64,7 @@ export const FileViewer = ({
 const pointedLines = (file: FileContent): readonly string[] =>
   file.lines.slice(file.from - file.firstLine, file.to - file.firstLine + 1)
 
-// A document in miniature, as a plan is: its title over its sections. Code: the lines the
+// A Markdown file in miniature: its title over its sections. Code: the lines the
 // agent pointed at.
 export const FileThumb = ({ content }: { content: FileContent }): React.JSX.Element =>
   isMarkdown(content.path) ? (
