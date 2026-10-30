@@ -25,7 +25,7 @@ When the demo can't produce a new state yet — a dialog, an error, a badge, a t
 window phase, a backend field it never sets — add it in the same change:
 
 - Terminal, waiting-agent and picker states go in `frontend/demo-debug/src/states.ts`,
-  with pure action builders in `debug/terminals.ts`; an Inbox item of a kind no demo agent
+  with pure action builders in `frontend/demo-debug/src/terminals.ts`; an Inbox row of a kind no demo agent
   makes goes in `frontend/demo/src/inbox-fixtures.ts`, with its action in
   `frontend/demo-debug/src/inbox.ts`. A new tab or window phase also
   joins the "Every state at once" gallery there.

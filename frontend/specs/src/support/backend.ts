@@ -38,7 +38,7 @@ const showcaseRequested = (): boolean =>
   new URLSearchParams(window.location.hash.split("?")[1] ?? "").get("demo") === "showcase"
 
 // Specs open the demo on a host that has an update with `?update=` one of the debug
-// panel's update scenarios (see backend/demo/debug/scenarios.ts), beside any other variant.
+// panel's update scenarios (see @novadeck/demo-debug/scenarios), beside any other variant.
 const requestedUpdate = (): UpdateScenario | undefined => {
   const key = new URLSearchParams(window.location.hash.split("?")[1] ?? "").get("update")
   return key && Object.hasOwn(updateScenarios, key)
