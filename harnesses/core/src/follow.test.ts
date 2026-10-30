@@ -66,6 +66,29 @@ describe("following a file's lines", () => {
     await expect.poll(() => file.lines).toEqual(["żółw"])
   })
 
+  it("says where each line ends in the file, in bytes, across writes, blank lines and a rewrite", async () => {
+    writeFileSync(file.path, "old\n")
+    const ends: [string, number][] = []
+    const controller = new AbortController()
+    void followLines(file.path, controller.signal, (line, end) => ends.push([line, end]), {
+      intervalMs: 20,
+      fromStart: true,
+    })
+    await expect.poll(() => ends).toEqual([["old", 4]])
+    appendFileSync(file.path, "żółw\n\nab")
+    await settle()
+    appendFileSync(file.path, "c\n")
+    await expect.poll(() => ends.length).toBe(3)
+    // "żółw" is 7 bytes; the blank line counts though it is never told.
+    expect(ends.slice(1)).toEqual([
+      ["żółw", 12],
+      ["abc", 17],
+    ])
+    writeFileSync(file.path, "new\n")
+    await expect.poll(() => ends.at(-1)).toEqual(["new", 4])
+    controller.abort()
+  })
+
   it("waits for a slow reader before reading more", async () => {
     writeFileSync(file.path, "a\n")
     const lines: string[] = []

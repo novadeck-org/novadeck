@@ -537,11 +537,25 @@ for (const setup of setups) {
           .map((one) => one.delivery),
       ).not.toContain("settled")
 
-      // The next prompt starts a turn that ends normally.
+      // The chat shows where the person interrupted it, in every harness: Antigravity's
+      // transcript records no interruption, so the runner tells it there.
+      await t1.poll(
+        async () => ((await t1.transcript()).some((one) => one.interrupted) ? true : undefined),
+        "the chat to show the interruption",
+        30_000,
+      )
+
+      // The next prompt starts a turn that ends normally, after the interruption in the chat.
       const next = t1.mark()
       await t1.prompt("Carry on")
       await t1.until("Carried on.")
       await through(t1, ["working", "settled"], { after: Math.max(next, ended.index) })
+      await item(t1, "user", (text) => text.includes("Carry on"))
+      const chat = await t1.transcript()
+      const noted = chat.findIndex((one) => one.interrupted)
+      const carried = chat.findIndex((one) => one.role === "user" && one.text.includes("Carry on"))
+      expect(noted).toBeGreaterThanOrEqual(0)
+      expect(noted).toBeLessThan(carried)
     })
 
     it("leaves the box as it was before the interrupted prompt, so the next prompt is sent alone", async ({

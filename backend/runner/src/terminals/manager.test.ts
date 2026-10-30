@@ -1,6 +1,14 @@
 import { execFileSync } from "node:child_process"
 import { randomUUID } from "node:crypto"
-import { existsSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "node:fs"
+import {
+  appendFileSync,
+  existsSync,
+  mkdtempSync,
+  readFileSync,
+  rmSync,
+  symlinkSync,
+  writeFileSync,
+} from "node:fs"
 import { tmpdir } from "node:os"
 import { basename, join } from "node:path"
 
@@ -19,6 +27,7 @@ import {
   started as fresh,
   type Activity,
 } from "../harnesses/activity.js"
+import { rootRef } from "../harnesses/detail.js"
 import { harnesses } from "../harnesses/registry.js"
 import { followRoot } from "../harnesses/roots.js"
 import { limitGraceMs } from "../harnesses/telemetry.js"
@@ -2005,6 +2014,110 @@ describe("a turn the person's Escape ended", () => {
       rmSync(directory, { recursive: true, force: true })
     }
   }, 60_000)
+
+  it("shows in the chat where it stood, for a harness whose transcript doesn't record it", async ({
+    terminals,
+  }) => {
+    const manager = terminals.manager(ptyOptions)
+    const terminal = await manager.create(
+      { id: randomUUID(), sessionId: "session", cwd, cols: 80, rows: 24 },
+      "creator",
+    )
+    const inside = manager as unknown as Inside
+    const record = inside.records.get(terminal.id)! as {
+      transcript: string | null
+      escape?: { offset: Promise<unknown> }
+      interruptions?: readonly unknown[]
+    } & (typeof inside.records extends Map<string, infer R> ? R : never)
+    const directory = mkdtempSync(join(tmpdir(), "novadeck-interrupted-"))
+    const step = (source: string, type: string, content: string) =>
+      `${JSON.stringify({ source, type, content })}\n`
+    // The chat's text items, an interruption as its note.
+    const chat = async (agent: "agy" | "claude", sessionId: string) => {
+      const reader = new AbortController()
+      const seen: string[] = []
+      const reading = (async () => {
+        for await (const change of manager.transcript(
+          terminal.id,
+          rootRef({ agent, sessionId, instance: null }),
+          reader.signal,
+        ))
+          if (change.type === "items")
+            seen.push(
+              ...change.items.map((each) => (each.interrupted ? "(interrupted)" : each.text)),
+            )
+      })()
+      return { seen, stop: () => (reader.abort(), reading) }
+    }
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] })
+    try {
+      for (const [agent, end, shown] of [
+        ["agy", "the window passed", true],
+        // The person's next prompt started a turn within the window, nothing said it finished.
+        ["agy", "the next turn began", true],
+        // A reply that won fired its Stop: the turn finished.
+        ["agy", "a Stop", false],
+        // Claude Code's transcript records its own interruption.
+        ["claude", "the window passed", false],
+      ] as const) {
+        const sessionId = randomUUID()
+        const binding = { agent, sessionId, instance: null } as const
+        record.transcript = join(directory, `${sessionId}.jsonl`)
+        writeFileSync(record.transcript, step("USER_EXPLICIT", "USER_INPUT", "Hold on"))
+        record.bound = { binding, activity: fresh(0, agent === "claude", false), telemetry: null }
+        inside.bindings.applyFact(record, {
+          ...binding,
+          type: "turn-started",
+          cause: "prompt",
+          startedAt: 10,
+        })
+        inside.messaging.escaped = () => ({ ...binding, type: "turn-escaped", startedAt: 20 })
+        inside.bindings.escaped(record)
+        // The transcript's length is read as the key comes; Antigravity writes the turn's
+        // cut-off words just after it (56 to 94 ms on, probed).
+        // eslint-disable-next-line no-await-in-loop -- Each case reads its own file.
+        await record.escape?.offset
+        appendFileSync(record.transcript, step("MODEL", "PLANNER_RESPONSE", "Let me look."))
+        if (end === "a Stop")
+          inside.bindings.applyFact(record, {
+            ...binding,
+            type: "turn-ended",
+            outcome: "completed",
+            startedAt: 25,
+            reply: "Let me look.",
+          })
+        if (end === "the next turn began")
+          inside.bindings.applyFact(record, {
+            ...binding,
+            type: "turn-started",
+            cause: "prompt",
+            prompt: "Go on",
+            startedAt: 30,
+          })
+        // eslint-disable-next-line no-await-in-loop -- As above.
+        await vi.advanceTimersByTimeAsync(escapeVerdictMs)
+        // The person's next prompt, written after the Escape.
+        appendFileSync(record.transcript, step("USER_EXPLICIT", "USER_INPUT", "Go on"))
+        if (agent === "claude") continue
+        // eslint-disable-next-line no-await-in-loop -- As above.
+        const opened = await chat(agent, sessionId)
+        // eslint-disable-next-line no-await-in-loop -- As above.
+        await vi.waitFor(() => expect(opened.seen).toContain("Go on"), { timeout: 5000 })
+        expect(opened.seen, `${agent}, ${end}`).toEqual(
+          shown
+            ? ["Hold on", "Let me look.", "(interrupted)", "Go on"]
+            : ["Hold on", "Let me look.", "Go on"],
+        )
+        // eslint-disable-next-line no-await-in-loop -- As above.
+        await opened.stop()
+      }
+      // The harness that records its own keeps none.
+      expect(record.interruptions ?? []).toHaveLength(2)
+    } finally {
+      vi.useRealTimers()
+      rmSync(directory, { recursive: true, force: true })
+    }
+  })
 })
 
 describe("terminal naming", () => {

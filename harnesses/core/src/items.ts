@@ -79,3 +79,21 @@ export function entry(
     interrupted: role === "user" && kind === "text" && interruption.test(cut),
   }
 }
+
+/**
+ * The item that shows where the person interrupted a turn, for a harness whose records hold
+ * no interruption of their own (Antigravity's): the runner joins it to the transcript's
+ * items, read as a harness's own record of one reads.
+ */
+export const interruptionEntry = (when: number): TranscriptEntry => ({
+  at: when,
+  role: "user",
+  kind: "text",
+  text: "Interrupted",
+  truncated: false,
+  tool: null,
+  call: null,
+  author: null,
+  run: null,
+  interrupted: true,
+})
