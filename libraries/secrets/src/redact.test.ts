@@ -2,7 +2,7 @@ import { randomBytes } from "node:crypto"
 
 import { describe, expect, it, vi } from "vitest"
 
-import { maskScreen, redact, redactAs, redactScreen, redacted } from "./redact.js"
+import { maskScreen, redact, redactAs, redactScreen, redacted } from "./index.js"
 
 describe("redacting secrets", () => {
   it("writes each secret as the placeholder it is given", () => {
