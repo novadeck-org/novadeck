@@ -1,6 +1,7 @@
 import { vi } from "vitest"
 
 import { describe, expect, it } from "../test.js"
+import { fakeClock } from "../testing/clock.js"
 import { redactionProbe } from "../testing/redaction-probe.js"
 import type { AgentDigest } from "./describer.js"
 import { Preparer } from "./prepare.js"
@@ -50,22 +51,19 @@ describe("preparing a digest in a thread", () => {
       const hanging = { ...digest("hang"), redactionProbe: probe.buffer }
       let finished = false
       // The regex deadline case below separately covers real-time termination.
-      vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] })
-      try {
-        const late = preparer.prepare(hanging).then((result) => {
-          finished = true
-          return result
-        })
-        await probe.observe()
-        expect(finished).toBe(false)
-        await vi.advanceTimersByTimeAsync(299)
-        expect(finished).toBe(false)
-        await vi.advanceTimersByTimeAsync(1)
-        expect(finished).toBe(true)
-        expect(await late).toBe("late")
-      } finally {
-        vi.useRealTimers()
-      }
+      const clock = fakeClock(resources, ["setTimeout", "clearTimeout"])
+      const late = preparer.prepare(hanging).then((result) => {
+        finished = true
+        return result
+      })
+      await probe.observe()
+      expect(finished).toBe(false)
+      await vi.advanceTimersByTimeAsync(299)
+      expect(finished).toBe(false)
+      await vi.advanceTimersByTimeAsync(1)
+      expect(finished).toBe(true)
+      expect(await late).toBe("late")
+      await clock.restore()
       expect(preparer.running).toBe(false)
       expect(await preparer.prepare(digest("again"))).toEqual([
         { role: "system", content: "system" },
