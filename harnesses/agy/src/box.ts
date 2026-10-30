@@ -94,7 +94,7 @@ const withoutPanel = (screen: ScreenText): ScreenText => {
  * and pushes the footer, whose hint a paste erases, further from the box than a paste's
  * reach (`nearRows`).
  */
-export const still = (rows: readonly string[]): readonly string[] => {
+const still = (rows: readonly string[]): readonly string[] => {
   const panel = panelOf(rows)
   return panel ? rows.filter((_, at) => at < panel.first || at > panel.last) : rows
 }
@@ -111,7 +111,7 @@ const interruption = "⎿Interrupted·WhatshouldAntigravityCLIdoinstead?"
  * either (probed 2026-10-10, 1.2.14). The word may wrap over a few rows. Undefined where
  * no box is found to read above, as mid-redraw or under a dialog: no telling then.
  */
-export const interruptedShown = (screen: ScreenText): boolean | undefined => {
+const interruptedShown = (screen: ScreenText): boolean | undefined => {
   const box = ruledBox(withoutPanel(screen), markers)
   if (!box) return undefined
   const top = screen.rows.slice(0, box.first).findLastIndex(rule)
@@ -131,7 +131,7 @@ export const interruptedShown = (screen: ScreenText): boolean | undefined => {
  * opens), each with a "Keyboard: … esc Close|Dismiss" row and its empty box above (probed
  * 1.2.14 in the e2e sandbox, 2026-10-16).
  */
-export const overlay = (screen: ScreenText): boolean =>
+const overlay = (screen: ScreenText): boolean =>
   footerRows(screen).some((row) => /^Keyboard: .*\besc (Close|Dismiss)\b/.test(row.trim()))
 
 /**

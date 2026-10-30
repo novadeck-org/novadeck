@@ -62,7 +62,7 @@ const firstLine = (value: unknown): string | undefined => {
  * wake-up, but all hold a place in that count. Told by its PreToolUse, at `at`, and over
  * when its PostToolUse comes, which for these fires when they end (probed 2026-10-24, 1.4.6).
  */
-export type Pending = {
+type Pending = {
   readonly id: string
   readonly at: number
   /** Whether it is a command that ends by itself, as a job the agent waits on. */

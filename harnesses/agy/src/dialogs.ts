@@ -447,14 +447,13 @@ const questionsRead = (rows: readonly string[], request: RequestFacts): DialogRe
   const labels = [...shown.options, writeIn].map(collapse)
   if (read.options.length !== labels.length) return undefined
   if (!read.options.every(({ label }, index) => collapse(label) === labels[index])) return undefined
-  const [first] = questions
   const start =
     read.index === 1 &&
     !read.writing &&
     read.options[0]!.marked &&
     !read.options.some(({ checked }) => checked === true)
-  if (!first) return undefined
-  const text = questions.length === 1 && !first.multi
+  // Words answer only a lone single-choice question.
+  const text = questions.length === 1 && !questions[0]!.multi
   const dialog: AnswerableDialog = {
     type: "questions",
     questions: questions.map(({ question, options, multi }, index) => ({
