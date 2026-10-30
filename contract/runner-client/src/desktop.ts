@@ -5,16 +5,16 @@ import { hostTransport, type Transport } from "@novadeck/wire/client"
 import type { RunnerErrorCode } from "./errors.js"
 
 /**
- * Reaches the runner bundled with the Novadeck desktop app. Each connection asks the
- * host for a fresh port, so reconnecting also works after the host restarts its runner.
+ * Reaches the runner bundled with the Novadeck desktop app. Each connection asks the app
+ * for a fresh port, so reconnecting also works after the app restarts its runner.
  */
 export const desktop = (): Transport =>
   hostTransport({
     request: (id) => {
-      const host = (globalThis as { novadeck?: Partial<DesktopHost> }).novadeck
-      if (!host?.requestRunner)
-        throw new WireError<RunnerErrorCode>("CLOSED", "No desktop host provides a runner.")
-      host.requestRunner(id)
+      const app = (globalThis as { novadeck?: Partial<DesktopHost> }).novadeck
+      if (!app?.requestRunner)
+        throw new WireError<RunnerErrorCode>("CLOSED", "No desktop app provides a runner.")
+      app.requestRunner(id)
     },
     message: runnerPortMessage,
     // How long a request's port may arrive after it was cancelled, so it can be closed.
