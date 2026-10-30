@@ -6,8 +6,8 @@ import { App, type WorkspacePanel } from "@novadeck/ui/app/App"
 import { start } from "@novadeck/ui/entries/start"
 import { pageTheme } from "@novadeck/ui/theme/source"
 
-// The content preview (`pnpm dev:previews`): the demo with its debug panel, both loaded with
-// the connection, so no build for a runner carries them.
+// The content preview (`pnpm dev:previews`): the demo with its debug panel, which load with
+// the connection instead of the entry point, as a runner's client does in the other apps.
 const rehearsals = createBootRehearsals()
 
 // The panel isn't part of what a backend offers, so the selection that made the backend
