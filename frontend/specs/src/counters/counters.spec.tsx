@@ -8,7 +8,7 @@ import { commands, server } from "vitest/browser"
 import { chooseView, layoutSettled } from "../support/workspace"
 import { describe, expect, it } from "../test"
 import { startClock } from "./clock"
-import { countNotifications, counts, observeMutations } from "./probes"
+import { countWakes, counts, observeMutations } from "./probes"
 import { playScript } from "./script"
 
 // React reports commits to a DevTools hook only if one is there before react-dom loads.
@@ -62,7 +62,7 @@ describe("Counter run", () => {
   it("counts what 13 busy agents cost the UI", async () => {
     await loadFonts()
     await warmUp()
-    const stopNotifications = countNotifications()
+    const stopWakes = countWakes()
     const runner = scriptedRunner({ terminals: 13 })
     const stopMutations = observeMutations()
     const clock = startClock(() => counts.commits + counts.mutations)
@@ -79,7 +79,7 @@ describe("Counter run", () => {
       // Every probe heard something in every phase: one that went dead, as when the code it
       // hooks moves, fails here rather than passing under budget.
       for (const phase of Object.values(reading)) {
-        expect(phase.tickTotals.notifications).toBeGreaterThan(0)
+        expect(phase.tickTotals.wakes).toBeGreaterThan(0)
         expect(phase.tickTotals.mutations).toBeGreaterThan(0)
         expect(phase.tickTotals.renders).toBeGreaterThan(0)
       }
@@ -90,7 +90,7 @@ describe("Counter run", () => {
       expect(reading.focus.bytes).toBeLessThan(reading.focus.written)
     } finally {
       stopMutations()
-      stopNotifications()
+      stopWakes()
       clock.stop()
       // Soft, so a run that already failed still reports its own failure.
       const closing =

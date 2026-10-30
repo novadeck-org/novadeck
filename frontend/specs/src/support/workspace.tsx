@@ -6,7 +6,7 @@ import { page, userEvent, type Locator } from "vitest/browser"
 
 import { createSpecBackend, forgetBabciaCues } from "./backend"
 
-// User-level vocabulary for behaviour specs. Specs describe what a person sees and
+// The person's vocabulary for behaviour specs. Specs describe what a person sees and
 // does; only this module knows how that maps to accessible roles and names, so a
 // reworked implementation that keeps the same UI needs changes here at most.
 //
@@ -261,11 +261,11 @@ export const expectTypingIn = async (name: string): Promise<void> => {
 export const commandInput = (name: string): Locator =>
   page.getByRole("textbox", { name: labelled("Input for ", name) })
 
-// A terminal's text is read as a person reads it, whatever draws it: the demo's output
-// as page text today, and a terminal emulator's rows (its accessibility tree, or the DOM
-// renderer's rows) once the demo draws real terminal output.
+// A terminal's text is read as a person reads it, whatever draws it: the emulator's rows
+// (its accessibility tree, or the DOM renderer's rows), or, for a terminal drawn as plain
+// page text, that text as laid out.
 
-// The rows an emulator shows, where a terminal is drawn as terminal output.
+// The rows an emulator shows, where a terminal is drawn by one.
 const emulatorRows = (region: Element): Element[] | undefined => {
   const rows =
     region.querySelector(".xterm-accessibility-tree") ?? region.querySelector(".xterm-rows")

@@ -51,7 +51,7 @@ export const playScript = async (
   clock: Clock,
   { terminalNames }: { readonly terminalNames: readonly string[] },
 ): Promise<Reading> => {
-  const tick: Counts = { notifications: 0, mutations: 0, commits: 0, renders: 0 }
+  const tick: Counts = { wakes: 0, mutations: 0, commits: 0, renders: 0 }
   let ticks = 0
   let bytesAt = runner.bytes()
   let writtenAt = runner.written()

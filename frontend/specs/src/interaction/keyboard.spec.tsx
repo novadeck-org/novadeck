@@ -615,7 +615,7 @@ describe("sidebar settings", () => {
   })
 })
 
-describe("preferences shortcut", () => {
+describe("Preferences shortcut", () => {
   context(`when pressing ${shortcut.preferences().label}`, () => {
     it("opens Preferences", async () => {
       await openWorkspace()
@@ -1070,11 +1070,23 @@ const tapDictation = (): void => {
     clock.mockRestore()
   }
 }
+/** What the dictation strip shows now, its lines joined. */
+const stripText = (): string =>
+  page
+    .getByRole("status")
+    .elements()
+    .filter((one) => one.classList.contains("dictation-strip"))
+    .map((one) => one.textContent?.trim())
+    .filter(Boolean)
+    .join(" | ")
+
 /** The dictation status line, once it says `text`. */
 const saying = (text: string | RegExp): Locator =>
   page.getByRole("status").filter({ hasText: text })
+
 /** Where an element stacks among its siblings' layer. */
 const layer = (element: Element): number => Number(getComputedStyle(element).zIndex)
+
 const wait = (milliseconds: number): Promise<void> =>
   new Promise((resolve) => setTimeout(resolve, milliseconds))
 /**
@@ -1090,13 +1102,7 @@ const saidWhile = async (
 ): Promise<void> => {
   const said: string[] = []
   const timer = setInterval(() => {
-    const text = page
-      .getByRole("status")
-      .elements()
-      .filter((one) => one.classList.contains("dictation-strip"))
-      .map((one) => one.textContent?.trim())
-      .filter(Boolean)
-      .join(" | ")
+    const text = stripText()
     if (text && said.at(-1) !== text) said.push(text)
   }, 100)
   try {
@@ -1124,13 +1130,7 @@ const watchDictation = (microphone: { readonly live: () => number }): (() => voi
   const history: string[] = []
   let last = ""
   const note = (): void => {
-    const strip = page
-      .getByRole("status")
-      .elements()
-      .filter((one) => one.classList.contains("dictation-strip"))
-      .map((one) => one.textContent?.trim())
-      .filter(Boolean)
-      .join(" | ")
+    const strip = stripText()
     const now = `${strip || "-"} | ${microphone.live()} track(s) live | focus ${document.hasFocus()} | ${document.visibilityState}`
     if (now === last) return
     last = now

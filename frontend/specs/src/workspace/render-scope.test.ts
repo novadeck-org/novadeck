@@ -194,7 +194,7 @@ const rendersDuring = (change: () => void): Record<string, number> => {
 
 const firstTarget = (services: WorkspaceServices) => {
   const { activeProjectId, projects } = services.workspace.getSnapshot()
-  const project = projects.find((item) => item.id === activeProjectId)!
+  const project = projects.find((each) => each.id === activeProjectId)!
   return { projectId: project.id, workspaceSessionId: project.activeSessionId }
 }
 
@@ -240,7 +240,7 @@ describe("workspace render scope", () => {
         .getSnapshot()
         .projects.flatMap((project) => project.history)
         .flatMap((session) => session.state.roster.terminals)
-        .find((item) => item.id === second)!
+        .find((each) => each.id === second)!
       act(() => services.commands.startRename(terminal, "sidebar"))
       const seen = rendersDuring(() => services.commands.changeRenameDraft(second, "Server"))
       expect(seen).toEqual({ [`tab ${second}`]: 2, [`frame ${second}`]: 2 })

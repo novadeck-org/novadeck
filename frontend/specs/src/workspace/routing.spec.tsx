@@ -1,5 +1,6 @@
 import { page } from "vitest/browser"
 
+import { findDialog, preferencesDialog } from "../support/keyboard"
 import {
   currentRoute,
   emptyWorkspace,
@@ -34,9 +35,6 @@ const terminalOf = (projectId: string, number: number) =>
   `${projectId}-initial-${String(number).padStart(2, "0")}`
 const home = `/projects/storefront/sessions/initial/focus?terminal=${terminalOf("storefront", 1)}`
 const apiCanvas = `/projects/api-service/sessions/initial/canvas?terminal=${terminalOf("api-service", 2)}`
-
-const preferences = () => page.getByRole("dialog", { name: "Preferences" })
-const search = () => page.getByRole("dialog", { name: "Find a terminal" })
 
 describe("deep links", () => {
   context("when opening a link to a project, session, view, and terminal", () => {
@@ -74,15 +72,15 @@ describe("deep links", () => {
     it("opens search", async () => {
       await openWorkspace(`${home}&dialog=search`)
 
-      await expect.element(search()).toBeVisible()
+      await expect.element(findDialog()).toBeVisible()
     })
 
     it("opens Preferences on the requested section", async () => {
       await openWorkspace(`${apiCanvas}&dialog=preferences&section=shortcuts`)
 
-      await expect.element(preferences()).toBeVisible()
+      await expect.element(preferencesDialog()).toBeVisible()
       await expect
-        .element(preferences().getByRole("tab", { name: "Shortcuts" }))
+        .element(preferencesDialog().getByRole("tab", { name: "Shortcuts" }))
         .toHaveAttribute("aria-selected", "true")
     })
 
@@ -91,7 +89,7 @@ describe("deep links", () => {
 
       await page.getByRole("button", { name: "Close preferences" }).click()
 
-      await expect.element(preferences()).not.toBeInTheDocument()
+      await expect.element(preferencesDialog()).not.toBeInTheDocument()
       await expect.element(view("Canvas")).toBeChecked()
       await expect.element(workspaceSwitcher()).toHaveTextContent("api-service")
       await expect.poll(currentRoute).toBe(apiCanvas)
@@ -120,9 +118,9 @@ describe("deep links", () => {
     it("falls back from a link to a disabled view", async () => {
       await openWorkspace()
       await page.getByRole("button", { name: "Workspace preferences" }).click()
-      await preferences().getByText("Canvas", { exact: true }).click()
+      await preferencesDialog().getByText("Canvas", { exact: true }).click()
       await expect
-        .element(preferences().getByRole("checkbox", { name: "Canvas" }))
+        .element(preferencesDialog().getByRole("checkbox", { name: "Canvas" }))
         .not.toBeChecked()
       await page.getByRole("button", { name: "Close preferences" }).click()
       await expect.element(view("Canvas")).not.toBeInTheDocument()
@@ -242,35 +240,35 @@ describe("browser history", () => {
     it("closes and reopens Preferences and its sections", async () => {
       await openWorkspace(home)
       await page.getByRole("button", { name: "Workspace preferences" }).click()
-      await preferences().getByRole("tab", { name: "Shortcuts" }).click()
+      await preferencesDialog().getByRole("tab", { name: "Shortcuts" }).click()
       await expect
-        .element(preferences().getByRole("tab", { name: "Shortcuts" }))
+        .element(preferencesDialog().getByRole("tab", { name: "Shortcuts" }))
         .toHaveAttribute("aria-selected", "true")
 
       history.back()
       await expect
-        .element(preferences().getByRole("tab", { name: "General" }))
+        .element(preferencesDialog().getByRole("tab", { name: "General" }))
         .toHaveAttribute("aria-selected", "true")
 
       history.back()
-      await expect.element(preferences()).not.toBeInTheDocument()
+      await expect.element(preferencesDialog()).not.toBeInTheDocument()
 
       history.forward()
-      await expect.element(preferences()).toBeVisible()
+      await expect.element(preferencesDialog()).toBeVisible()
     })
 
     it("does not reopen a dialog that was closed in the app", async () => {
       await openWorkspace(home)
       await switchProject("api-service")
       await page.getByRole("button", { name: "Workspace preferences" }).click()
-      await expect.element(preferences()).toBeVisible()
+      await expect.element(preferencesDialog()).toBeVisible()
       await page.getByRole("button", { name: "Close preferences" }).click()
-      await expect.element(preferences()).not.toBeInTheDocument()
+      await expect.element(preferencesDialog()).not.toBeInTheDocument()
 
       history.back()
 
       await expect.element(workspaceSwitcher()).toHaveTextContent("storefront")
-      await expectStaysAbsent(preferences())
+      await expectStaysAbsent(preferencesDialog())
     })
   })
 })

@@ -16,7 +16,7 @@ import {
 } from "../support/workspace"
 import { context, describe, expect, it } from "../test"
 
-// This project uses ordinary motion: the main behavior suite opts out of animations.
+// This project uses ordinary motion: the main behaviour suite opts out of animations.
 // Transitions finish; a running terminal's spinner and header sweep loop for as long as
 // it runs, so they never count.
 const animationsFinished = async (): Promise<void> => {

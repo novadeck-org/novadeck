@@ -1,13 +1,13 @@
 {
   "notes": [
-    "Budgets for the counter run (frontend/specs/src/counters/), set from its reading on main 1f9cda38, after B (telemetry out of the status key) and D (keyed telemetry) cut Grid's notifications from 11271 to 78; the first baseline was taken on a1fbfdaf. scripts/benchmark/ checks them. A count past its budget warns, and one past twice it fails the build (failsAt in scripts/benchmark/counters.ts: loose by choice while the product is early, the user's call on 2026-10-17); one under it asks for the budget to come down.",
+    "Budgets for the counter run (frontend/specs/src/counters/), set from its reading on main 1f9cda38, after B (telemetry out of the status key) and D (keyed telemetry) cut Grid's wakes from 11271 to 78; the first baseline was taken on a1fbfdaf. scripts/benchmark/ checks them. A count past its budget warns, and one past twice it fails the build (failsAt in scripts/benchmark/counters.ts: loose by choice while the product is early, the person's call on 2026-10-17); one under it asks for the budget to come down.",
     "Work that really adds cost raises a budget in the same pull request, written { \"budget\": n, \"reason\": \"why\", \"from\": \"#PR\" } naming that pull request (on main, any source but the raise it replaces); the checker shows every changed budget, old to new, and fails a raise that does not say why and where from.",
-    "notifications and mutations are totals over a phase's telemetry ticks, whose number each phase's `ticks` records: a script that plays another number fails until its budgets are set for it. bytes are what the runner's streams sent the UI in the phase; streaming counts attached streams at the phase's peak and once it settles.",
+    "wakes and mutations are totals over a phase's telemetry ticks, whose number each phase's `ticks` records: a script that plays another number fails until its budgets are set for it. bytes are what the runner's streams sent the UI in the phase; streaming counts attached streams at the phase's peak and once it settles.",
     "switches.streamingSettled is 4 on purpose: Focus keeps its last 4 shown terminals mounted, and their streams stay live (performance rule 8). A change that parks them shows as under budget."
   ],
   "grid": {
     "ticks": 39,
-    "notifications": 78,
+    "wakes": 78,
     "mutations": 117,
     "bytes": 2391,
     "streamingPeak": 13,
@@ -15,7 +15,7 @@
   },
   "focus": {
     "ticks": 39,
-    "notifications": 42,
+    "wakes": 42,
     "mutations": 9,
     "bytes": 183,
     "streamingPeak": 1,
@@ -23,7 +23,7 @@
   },
   "switches": {
     "ticks": 13,
-    "notifications": 26,
+    "wakes": 26,
     "mutations": 39,
     "bytes": 14868,
     "streamingPeak": 13,
