@@ -2,6 +2,8 @@
 // registered flake does. A run whose every failure is a known flake gets one recorded
 // rerun; anything else is left failed, for someone to triage.
 
+import { currentTest } from "./moved-specs.ts"
+
 // A flake in the register, matched against a failed job by its name and its log. A test
 // flake names its failing test; a job flake, as a timeout before any test ran, has none.
 export type Flake = {
@@ -169,9 +171,7 @@ export const judgeJob = (register: Register, job: string, log: string): JobVerdi
     const flake = register.flakes.find(
       (each) =>
         each.test !== undefined &&
-        failure.test
-          .replace(/^src\/specs\//, "src/")
-          .startsWith(each.test.replace(/^src\/specs\//, "src/")) &&
+        currentTest(failure.test).startsWith(currentTest(each.test)) &&
         named(job, each) &&
         failure.reports.length > 0 &&
         failure.reports.every((report) => new RegExp(each.signature).test(report)),
