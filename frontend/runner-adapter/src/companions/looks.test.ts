@@ -11,6 +11,7 @@ import { afterAll, vi } from "vitest"
 
 import { runnerBackend, type RunnerApi } from "../backend"
 import { context, describe, expect, it } from "../test"
+import { channel } from "../testing/channel"
 import { startTestRunner } from "../testing/runner"
 import { answerLook, lookDeadlineMs, lookWidths, noPictures, type Looks } from "./looks"
 
@@ -204,23 +205,13 @@ afterAll(() => runner.close())
 
 describe("looks through the runner backend", () => {
   it("answers each look the runner sends, with a reason where the app can't take one", async () => {
-    const queued: PageLook[] = []
-    let wake: (() => void) | undefined
-    const iterator: AsyncIterableIterator<PageLook, undefined> = {
-      [Symbol.asyncIterator]: () => iterator,
-      next: async () => {
-        // eslint-disable-next-line no-await-in-loop -- Waits for the next pushed look.
-        while (!queued.length) await new Promise<void>((resolve) => (wake = resolve))
-        return { value: queued.shift()!, done: false }
-      },
-      return: async () => ({ value: undefined, done: true }),
-    }
+    const looks = channel<PageLook>()
     const answers: PageLookAnswer[] = []
     const api: RunnerApi = {
       ...runner.client,
       companions: {
         ...runner.client.companions,
-        looks: () => iterator,
+        looks: () => looks.iterator,
         answerLook: async (answer) => {
           answers.push(answer)
         },
@@ -228,8 +219,7 @@ describe("looks through the runner backend", () => {
     }
     const { backend } = runnerBackend(api, runner.listing, { theme: noTheme, saveDelay: 10 })
     const stop = backend.start!({ dispatch: () => {}, open: () => {} })
-    queued.push(look)
-    wake?.()
+    looks.push(look)
     await vi.waitFor(() => expect(answers).toHaveLength(1))
     stop()
     expect(answers).toEqual([{ lookId: "look-1", reason: noPictures }])

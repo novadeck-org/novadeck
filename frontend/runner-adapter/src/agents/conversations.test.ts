@@ -5,6 +5,7 @@ import { WireError } from "@novadeck/wire"
 import { afterEach, beforeEach, vi } from "vitest"
 
 import { describe, expect, it } from "../test"
+import { channel } from "../testing/channel"
 import {
   createRunnerConversations,
   graceMs,
@@ -46,49 +47,17 @@ const item = (index: number, text = `text ${index}`): TranscriptItem => ({
 const batch = (...items: TranscriptItem[]): TranscriptChange => ({ type: "items", items })
 
 // A stream the test pushes into; ends with `finish` or throws with `fail`.
-const pushed = <T>() => {
-  const queued: ({ value: T } | { error: unknown } | "end")[] = []
-  let wake: (() => void) | undefined
-  const returned = vi.fn<() => void>()
-  const stream: AsyncIterableIterator<T, undefined> = {
-    [Symbol.asyncIterator]: () => stream,
-    next: async () => {
-      // eslint-disable-next-line no-await-in-loop -- Waits for the next pushed value.
-      while (!queued.length) await new Promise<void>((resolve) => (wake = resolve))
-      const next = queued.shift()!
-      if (next === "end") return { value: undefined, done: true }
-      if ("error" in next) throw next.error
-      return { value: next.value, done: false }
-    },
-    return: async () => {
-      returned()
-      return { value: undefined, done: true }
-    },
-  }
-  const send = (next: (typeof queued)[number]) => {
-    queued.push(next)
-    wake?.()
-  }
-  return {
-    stream,
-    returned,
-    push: (value: T) => send({ value }),
-    fail: (error: unknown) => send({ error }),
-    finish: () => send("end"),
-  }
-}
-
 const key = { projectId: "p", workspaceSessionId: "s", terminalId: "t" }
 
 const setup = () => {
-  const details = pushed<AgentDetail>()
-  const transcripts: Record<string, ReturnType<typeof pushed<TranscriptChange>>> = {}
+  const details = channel<AgentDetail>()
+  const transcripts: Record<string, ReturnType<typeof channel<TranscriptChange>>> = {}
   const streams = {
-    detail: vi.fn<ConversationStreams["detail"]>(() => details.stream),
+    detail: vi.fn<ConversationStreams["detail"]>(() => details.iterator),
     transcript: vi.fn<ConversationStreams["transcript"]>((_terminal, actor) => {
-      const next = pushed<TranscriptChange>()
+      const next = channel<TranscriptChange>()
       transcripts[actor] = next
-      return next.stream
+      return next.iterator
     }),
     prompt: vi.fn<ConversationStreams["prompt"]>(async () => {}),
     interrupt: vi.fn<ConversationStreams["interrupt"]>(async () => ({ returned: null })),
@@ -135,10 +104,10 @@ describe("the runner's conversations", () => {
       await settle()
       unsubscribe()
       await vi.advanceTimersByTimeAsync(graceMs - 1)
-      expect(details.returned).not.toHaveBeenCalled()
+      expect(details.returned()).toBe(0)
       await vi.advanceTimersByTimeAsync(1)
-      expect(details.returned).toHaveBeenCalledTimes(1)
-      expect(transcripts[root]!.returned).toHaveBeenCalledTimes(1)
+      expect(details.returned()).toBe(1)
+      expect(transcripts[root]!.returned()).toBe(1)
       expect(store.getSnapshot().session).toBeNull()
       store.subscribe(() => {})
       expect(streams.detail).toHaveBeenCalledTimes(2)
@@ -151,7 +120,7 @@ describe("the runner's conversations", () => {
       const again = store.subscribe(() => {})
       await vi.advanceTimersByTimeAsync(graceMs * 2)
       expect(streams.detail).toHaveBeenCalledTimes(1)
-      expect(details.returned).not.toHaveBeenCalled()
+      expect(details.returned()).toBe(0)
       again()
     })
 
@@ -161,8 +130,8 @@ describe("the runner's conversations", () => {
       details.push(detail())
       await settle()
       conversations.stop()
-      expect(details.returned).toHaveBeenCalledTimes(1)
-      expect(transcripts[root]!.returned).toHaveBeenCalledTimes(1)
+      expect(details.returned()).toBe(1)
+      expect(transcripts[root]!.returned()).toBe(1)
     })
   })
 
@@ -384,7 +353,7 @@ describe("the runner's conversations", () => {
         }),
       )
       await settle()
-      expect(transcripts[root]!.returned).toHaveBeenCalledTimes(1)
+      expect(transcripts[root]!.returned()).toBe(1)
       expect(streams.transcript).toHaveBeenLastCalledWith("t", other)
       expect(store.getSnapshot()).toMatchObject({ session: "s2", loaded: false, items: [] })
       transcripts[other]!.push(batch(item(0)))
@@ -398,7 +367,7 @@ describe("the runner's conversations", () => {
       details.push(detail())
       await settle()
       transcripts[root]!.push(batch(item(0)))
-      transcripts[root]!.finish()
+      transcripts[root]!.end()
       await settle()
       expect(store.getSnapshot().items).toHaveLength(1)
       expect(streams.transcript).toHaveBeenCalledTimes(1)
@@ -501,7 +470,7 @@ describe("the runner's conversations", () => {
       store.subscribe(() => {})
       details.push(detail())
       await settle()
-      transcripts[root]!.finish()
+      transcripts[root]!.end()
       await settle()
       expect(store.getSnapshot()).toMatchObject({ loaded: true, items: [] })
     })

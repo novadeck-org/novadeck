@@ -3,6 +3,7 @@ import { WireError } from "@novadeck/wire"
 import { vi } from "vitest"
 
 import { context, describe, expect, it } from "../test"
+import { channel } from "../testing/channel"
 import { createRunnerMurmur, noMurmur, type MurmurCalls } from "./murmur"
 
 // What the runner streams: the adapter's own `refused` is not on the wire.
@@ -17,21 +18,9 @@ const installed: MurmurState = {
 
 // The runner's murmur calls, with the snapshots the test pushes streamed by `watch`.
 const runner = (overrides: Partial<MurmurCalls> = {}) => {
-  const queued: MurmurState[] = []
-  let wake: (() => void) | undefined
+  const stream = channel<MurmurState>()
   const mocks = {
-    watch: vi.fn<MurmurCalls["watch"]>(() => {
-      const iterator: AsyncIterableIterator<MurmurState, undefined> = {
-        [Symbol.asyncIterator]: () => iterator,
-        next: async () => {
-          // eslint-disable-next-line no-await-in-loop -- Waits for the next pushed snapshot.
-          while (!queued.length) await new Promise<void>((resolve) => (wake = resolve))
-          return { value: queued.shift()!, done: false }
-        },
-        return: async () => ({ value: undefined, done: true }),
-      }
-      return iterator
-    }),
+    watch: vi.fn<MurmurCalls["watch"]>(() => stream.iterator),
     install: vi.fn<MurmurCalls["install"]>(async () => {}),
     cancel: vi.fn<MurmurCalls["cancel"]>(async () => {}),
     uninstall: vi.fn<MurmurCalls["uninstall"]>(async () => {}),
@@ -39,10 +28,7 @@ const runner = (overrides: Partial<MurmurCalls> = {}) => {
     noteOffered: vi.fn<MurmurCalls["noteOffered"]>(async () => {}),
   }
   const calls = { ...mocks, ...overrides }
-  const push = (state: MurmurState) => {
-    queued.push(state)
-    wake?.()
-  }
+  const push = stream.push
   return { calls: mocks, push, ...createRunnerMurmur(calls) }
 }
 

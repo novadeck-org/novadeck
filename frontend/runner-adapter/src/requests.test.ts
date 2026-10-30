@@ -12,6 +12,7 @@ import { afterAll, vi } from "vitest"
 
 import { runnerBackend, type RunnerApi } from "./backend"
 import { context, describe, expect, it } from "./test"
+import { channel } from "./testing/channel"
 import { startTestRunner } from "./testing/runner"
 
 vi.setConfig({ testTimeout: 20_000 })
@@ -25,32 +26,10 @@ afterAll(async () => {
   rmSync(folder, { recursive: true, force: true })
 })
 
-// Requests pushed by the test, as the runner would send them.
-const requests = () => {
-  const queued: RunnerRequest[] = []
-  let wake: (() => void) | undefined
-  const iterator: AsyncIterableIterator<RunnerRequest, undefined> = {
-    [Symbol.asyncIterator]: () => iterator,
-    next: async () => {
-      // eslint-disable-next-line no-await-in-loop -- Waits for the next pushed request.
-      while (!queued.length) await new Promise<void>((resolve) => (wake = resolve))
-      return { value: queued.shift()!, done: false }
-    },
-    return: async () => ({ value: undefined, done: true }),
-  }
-  return {
-    iterator,
-    push: (request: RunnerRequest) => {
-      queued.push(request)
-      wake?.()
-    },
-  }
-}
-
 // A backend over the runner, whose requests the test sends and whose answers it reads.
 // `app` stands in for the app: it is handed each request, with the workspace to add to.
 const open = (app: (request: TerminalRequest, add: (command?: string) => string) => void) => {
-  const asked = requests()
+  const asked = channel<RunnerRequest>()
   const answers: TerminalRequestAnswer[] = []
   // Wakes `answered` as each answer arrives.
   let heard: (() => void) | undefined

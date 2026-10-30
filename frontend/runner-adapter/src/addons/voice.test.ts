@@ -4,27 +4,16 @@ import { WireError } from "@novadeck/wire"
 import { vi } from "vitest"
 
 import { context, describe, expect, it } from "../test"
+import { channel } from "../testing/channel"
 import { createRunnerVoice, flushMs, noVoice, type VoiceCalls } from "./voice"
 
 const installed: VoiceState = { ...noVoice, installed: ["small" as const], model: "small" as const }
 
 // The runner's voice calls, with the snapshots the test pushes streamed by `watch`.
 const runner = (overrides: Partial<VoiceCalls> = {}) => {
-  const queued: VoiceState[] = []
-  let wake: (() => void) | undefined
+  const stream = channel<VoiceState>()
   const mocks = {
-    watch: vi.fn<VoiceCalls["watch"]>(() => {
-      const iterator: AsyncIterableIterator<VoiceState, undefined> = {
-        [Symbol.asyncIterator]: () => iterator,
-        next: async () => {
-          // eslint-disable-next-line no-await-in-loop -- Waits for the next pushed snapshot.
-          while (!queued.length) await new Promise<void>((resolve) => (wake = resolve))
-          return { value: queued.shift()!, done: false }
-        },
-        return: async () => ({ value: undefined, done: true }),
-      }
-      return iterator
-    }),
+    watch: vi.fn<VoiceCalls["watch"]>(() => stream.iterator),
     install: vi.fn<VoiceCalls["install"]>(async () => {}),
     cancel: vi.fn<VoiceCalls["cancel"]>(async () => {}),
     uninstall: vi.fn<VoiceCalls["uninstall"]>(async () => {}),
@@ -34,10 +23,7 @@ const runner = (overrides: Partial<VoiceCalls> = {}) => {
     discard: vi.fn<VoiceCalls["discard"]>(async () => {}),
   }
   const calls = { ...mocks, ...overrides }
-  const push = (state: VoiceState) => {
-    queued.push(state)
-    wake?.()
-  }
+  const push = stream.push
   return { calls: mocks, push, ...createRunnerVoice(calls) }
 }
 

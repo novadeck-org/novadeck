@@ -24,14 +24,7 @@ afterEach(() => vi.useRealTimers())
 const elapse = async (ms: number): Promise<void> => void (await vi.advanceTimersByTimeAsync(ms))
 
 // A terminal watch that never reports anything.
-const nothing = (): AsyncIterableIterator<never, undefined> => {
-  const iterator: AsyncIterableIterator<never, undefined> = {
-    [Symbol.asyncIterator]: () => iterator,
-    next: () => new Promise(() => {}),
-    return: async () => ({ done: true, value: undefined }),
-  }
-  return iterator
-}
+const nothing = (): AsyncIterableIterator<never, undefined> => channel<never>().iterator
 
 // A runner whose link drops right after it started a shell, before it could answer:
 // a situation a real runner cannot be put in on cue.

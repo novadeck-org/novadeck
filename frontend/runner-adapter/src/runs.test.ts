@@ -13,30 +13,9 @@ import { runnerBackend, type RunnerApi } from "./backend"
 import { startingTerminal, type RunnerListing } from "./sessions/seed"
 import { encodeSession } from "./sessions/state"
 import { context, describe, expect, it } from "./test"
+import { channel } from "./testing/channel"
 import { startTestRunner } from "./testing/runner"
 import { noCompanions } from "./testing/scripted"
-
-// Values pushed by the test, read by the adapter as a stream.
-const channel = <T>() => {
-  const queued: T[] = []
-  let wake: (() => void) | undefined
-  const iterator: AsyncIterableIterator<T, undefined> = {
-    [Symbol.asyncIterator]: () => iterator,
-    next: async () => {
-      // eslint-disable-next-line no-await-in-loop -- Waits for the next pushed value.
-      while (!queued.length) await new Promise<void>((resolve) => (wake = resolve))
-      return { value: queued.shift()!, done: false }
-    },
-    return: async () => ({ value: undefined, done: true }),
-  }
-  return {
-    iterator,
-    push: (value: T) => {
-      queued.push(value)
-      wake?.()
-    },
-  }
-}
 
 const unused = (): never => {
   throw new Error("not used here")

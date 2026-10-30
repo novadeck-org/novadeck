@@ -12,20 +12,14 @@ import { runnerBackend, type RunnerApi } from "./backend"
 import { startingTerminal, type RunnerListing } from "./sessions/seed"
 import { encodeSession } from "./sessions/state"
 import { describe, expect, it } from "./test"
+import { channel } from "./testing/channel"
 import { keptSummary, noCompanions } from "./testing/scripted"
 
 const unused = (): never => {
   throw new Error("not used here")
 }
 // A terminal watch that never reports anything.
-const nothing = (): AsyncIterableIterator<never, undefined> => {
-  const iterator: AsyncIterableIterator<never, undefined> = {
-    [Symbol.asyncIterator]: () => iterator,
-    next: () => new Promise(() => {}),
-    return: async () => ({ done: true, value: undefined }),
-  }
-  return iterator
-}
+const nothing = (): AsyncIterableIterator<never, undefined> => channel<never>().iterator
 
 // A runner that dies each time it is asked to start a shell, coming back as a new
 // process: something a real runner cannot be made to do on cue.

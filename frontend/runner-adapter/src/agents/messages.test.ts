@@ -3,6 +3,7 @@ import type { TerminalMessages } from "@novadeck/protocol"
 import { vi } from "vitest"
 
 import { context, describe, expect, it } from "../test"
+import { channel } from "../testing/channel"
 import { createRunnerMessages, messagesOf, type MessageStreams } from "./messages"
 
 const key = { projectId: "p", workspaceSessionId: "s", terminalId: "a" }
@@ -44,26 +45,15 @@ const listing = (change: Partial<TerminalMessages> = {}): TerminalMessages => ({
   ...change,
 })
 
-// Listings the test pushes, read by the adapter as `messages.watch` would stream them.
+// Listings the test pushes, read by the adapter as `messages.watch` would stream them. "end"
+// ends the stream; a watch after it gets a fresh one.
 const streamed = () => {
-  const queued: (TerminalMessages | "end")[] = []
-  let wake: (() => void) | undefined
-  const watch = vi.fn<MessageStreams["watch"]>(() => {
-    const iterator: AsyncIterableIterator<TerminalMessages, undefined> = {
-      [Symbol.asyncIterator]: () => iterator,
-      next: async () => {
-        // eslint-disable-next-line no-await-in-loop -- Waits for the next pushed listing.
-        while (!queued.length) await new Promise<void>((resolve) => (wake = resolve))
-        const next = queued.shift()!
-        return next === "end" ? { value: undefined, done: true } : { value: next, done: false }
-      },
-      return: async () => ({ value: undefined, done: true }),
-    }
-    return iterator
-  })
+  let stream = channel<TerminalMessages>()
+  const watch = vi.fn<MessageStreams["watch"]>(() => stream.iterator)
   const push = (next: TerminalMessages | "end") => {
-    queued.push(next)
-    wake?.()
+    if (next !== "end") return stream.push(next)
+    stream.end()
+    stream = channel<TerminalMessages>()
   }
   return { watch, push }
 }

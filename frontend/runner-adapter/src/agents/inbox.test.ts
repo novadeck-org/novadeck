@@ -15,6 +15,7 @@ import { longHoldMs, type AgentDetail, type InboxEntry } from "@novadeck/protoco
 import { afterEach, beforeEach, vi } from "vitest"
 
 import { describe, expect, it } from "../test"
+import { channel } from "../testing/channel"
 import { createRunnerInbox, detailGraceMs, retryMs, settleMs, type InboxStreams } from "./inbox"
 
 const agentParty = (handle: string): MessageParty => ({ kind: "agent", handle, agent: null })
@@ -147,39 +148,6 @@ const turnEntriesOf = (workspace: Workspace, marks: Marks): InboxEntry[] =>
     ),
   )
 
-// A stream the test pushes into.
-const pushed = <T>() => {
-  const queued: ({ value: T } | { error: unknown } | "end")[] = []
-  let wake: (() => void) | undefined
-  const returned = vi.fn<() => void>()
-  const stream: AsyncIterableIterator<T, undefined> = {
-    [Symbol.asyncIterator]: () => stream,
-    next: async () => {
-      // eslint-disable-next-line no-await-in-loop -- Waits for the next pushed value.
-      while (!queued.length) await new Promise<void>((resolve) => (wake = resolve))
-      const next = queued.shift()!
-      if (next === "end") return { value: undefined, done: true }
-      if ("error" in next) throw next.error
-      return { value: next.value, done: false }
-    },
-    return: async () => {
-      returned()
-      return { value: undefined, done: true }
-    },
-  }
-  const send = (next: (typeof queued)[number]) => {
-    queued.push(next)
-    wake?.()
-  }
-  return {
-    stream,
-    returned,
-    push: (value: T) => send({ value }),
-    fail: (error: unknown) => send({ error }),
-    finish: () => send("end"),
-  }
-}
-
 const detailOf = (...requests: Asked[]): AgentDetail => ({
   terminalId: "01",
   agent: "claude",
@@ -207,15 +175,15 @@ beforeEach(() => vi.useFakeTimers({ now: 10_000 }))
 afterEach(() => vi.useRealTimers())
 
 const setup = (workspace: Workspace, unread: Marks = {}, messages: MessagesState = noMessages) => {
-  const details: ReturnType<typeof pushed<AgentDetail>>[] = []
-  const feed = pushed<InboxEntry[]>()
+  const details: ReturnType<typeof channel<AgentDetail>>[] = []
+  const feed = channel<InboxEntry[]>()
   // What the runner lists: the asks and tells a test pushes, and the turn rows its marks
   // stand for, which reading removes.
   let others: InboxEntry[] = []
   let rows: InboxEntry[] = []
   const publish = () => feed.push([...others, ...rows])
   const entries = {
-    stream: feed.stream,
+    stream: feed.iterator,
     returned: feed.returned,
     push: (list: InboxEntry[]) => {
       others = list
@@ -224,7 +192,7 @@ const setup = (workspace: Workspace, unread: Marks = {}, messages: MessagesState
   }
   const streams = {
     inbox: {
-      watch: vi.fn<InboxStreams["inbox"]["watch"]>(() => feed.stream),
+      watch: vi.fn<InboxStreams["inbox"]["watch"]>(() => feed.iterator),
       answer: vi.fn<InboxStreams["inbox"]["answer"]>(async () => {}),
       dismiss: vi.fn<InboxStreams["inbox"]["dismiss"]>(async () => {}),
       clear: vi.fn<InboxStreams["inbox"]["clear"]>(async () => {}),
@@ -237,9 +205,9 @@ const setup = (workspace: Workspace, unread: Marks = {}, messages: MessagesState
       }),
     },
     detail: vi.fn<InboxStreams["detail"]>(() => {
-      const next = pushed<AgentDetail>()
+      const next = channel<AgentDetail>()
       details.push(next)
-      return next.stream
+      return next.iterator
     }),
     answer: vi.fn<InboxStreams["answer"]>(async () => {}),
     send: vi.fn<InboxStreams["send"]>(async () => {}),
@@ -404,9 +372,9 @@ describe("The runner's Inbox", () => {
       workspaceStore.update(() => rested)
 
       await vi.advanceTimersByTimeAsync(detailGraceMs - 1)
-      expect(details[0]!.returned).not.toHaveBeenCalled()
+      expect(details[0]!.returned()).toBe(0)
       await vi.advanceTimersByTimeAsync(1)
-      expect(details[0]!.returned).toHaveBeenCalledTimes(1)
+      expect(details[0]!.returned()).toBe(1)
     })
 
     it("keeps the detail open when a request comes within the grace", async () => {
@@ -417,7 +385,7 @@ describe("The runner's Inbox", () => {
       await vi.advanceTimersByTimeAsync(detailGraceMs * 2)
 
       expect(streams.detail).toHaveBeenCalledTimes(1)
-      expect(details[0]!.returned).not.toHaveBeenCalled()
+      expect(details[0]!.returned()).toBe(0)
     })
 
     it("opens a lost detail again while the agent still waits, backing off", async () => {
@@ -432,7 +400,7 @@ describe("The runner's Inbox", () => {
       await settle()
       expect(ids()).toEqual(["request:r1"])
 
-      details[1]!.finish()
+      details[1]!.end()
       await settle()
       await vi.advanceTimersByTimeAsync(retryMs)
       expect(streams.detail).toHaveBeenCalledTimes(3)
@@ -445,7 +413,7 @@ describe("The runner's Inbox", () => {
       await vi.advanceTimersByTimeAsync(detailGraceMs)
 
       expect(streams.detail).toHaveBeenCalledTimes(1)
-      expect(details[0]!.returned).toHaveBeenCalled()
+      expect(details[0]!.returned()).toBeGreaterThan(0)
     })
 
     it("stops reading once unbound", async () => {
@@ -454,7 +422,7 @@ describe("The runner's Inbox", () => {
       await settle()
       await vi.advanceTimersByTimeAsync(detailGraceMs * 3)
 
-      expect(details[0]!.returned).toHaveBeenCalledTimes(1)
+      expect(details[0]!.returned()).toBe(1)
       expect(streams.detail).toHaveBeenCalledTimes(1)
     })
 
@@ -869,7 +837,7 @@ describe("Inbox entries", () => {
       at: 4000,
     })
     stop()
-    expect(entries.returned).toHaveBeenCalledOnce()
+    expect(entries.returned()).toBe(1)
     expect(ids()).toEqual([])
     entries.push([entry()])
     await settle()
@@ -1388,16 +1356,16 @@ describe("Turn rows", () => {
   })
 
   it("is undefined again when the iterator ends on its own", async () => {
-    const feed = pushed<InboxEntry[]>()
+    const feed = channel<InboxEntry[]>()
     const streams = {
       inbox: {
-        watch: () => feed.stream,
+        watch: () => feed.iterator,
         answer: async () => {},
         read: async () => {},
         dismiss: async () => {},
         clear: async () => {},
       },
-      detail: () => pushed<AgentDetail>().stream,
+      detail: () => channel<AgentDetail>().iterator,
       answer: async () => {},
       send: async () => {},
       interrupt: async () => null,
@@ -1410,7 +1378,7 @@ describe("Turn rows", () => {
     await settle()
     expect(inbox.turns.getSnapshot()).toEqual([])
 
-    feed.finish()
+    feed.end()
     await settle()
     expect(inbox.turns.getSnapshot()).toBeUndefined()
   })
