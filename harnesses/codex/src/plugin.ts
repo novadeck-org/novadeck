@@ -7,9 +7,11 @@ import { json, manifest, marketplace, mcpVariables } from "@novadeck/harness-cor
 
 import { codexHome } from "./home.js"
 
-/** Novadeck's plugin as Codex names it, and the marketplace it comes from. */
-export const pluginId = "novadeck@novadeck"
+// The marketplace Novadeck's plugin comes from, as core's `marketplace` names it.
 const marketplaceName = "novadeck"
+
+/** Novadeck's plugin as Codex names it: `<plugin>@<marketplace>`. */
+export const pluginId = `${plugin.name}@${marketplaceName}`
 
 /** Where Codex keeps its copy of Novadeck's plugin, in its home. */
 export const pluginCache = (home: string): string =>

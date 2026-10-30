@@ -2,20 +2,15 @@ import { readFile } from "node:fs/promises"
 import { join } from "node:path"
 
 import { efforts, type Model } from "@novadeck/harness-core/harness"
-import { isFields } from "@novadeck/harness-core/tools"
+import { isFields, parseFields } from "@novadeck/harness-core/tools"
 
 /**
  * The models Codex lists in its `models_cache.json` (those with `visibility: "list"`), each
  * with the reasoning levels it supports that Novadeck names; none for text it can't read.
  */
 export const parseModels = (text: string): readonly Model[] => {
-  let cache: unknown
-  try {
-    cache = JSON.parse(text)
-  } catch {
-    return []
-  }
-  if (!isFields(cache) || !Array.isArray(cache.models)) return []
+  const cache = parseFields(text)
+  if (!cache || !Array.isArray(cache.models)) return []
   const models: Model[] = []
   for (const entry of cache.models as unknown[]) {
     if (!isFields(entry) || entry.visibility !== "list") continue

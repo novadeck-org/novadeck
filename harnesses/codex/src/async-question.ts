@@ -1,9 +1,8 @@
 import { callId } from "@novadeck/harness-core/decode"
 
 /**
- * The tool Codex offers to ask without waiting (0.162.1 on, to a model that lists it). It
- * returns `{"accepted":true}` at once and the turn runs on, so the request outlives the
- * turn, and the person's answer comes back as a prompt of Codex's own that names the call.
+ * The tool Codex offers to ask without waiting (0.162.1 on, to a model that lists it; see
+ * `decode`).
  */
 export const asyncTool = "request_user_input_async"
 

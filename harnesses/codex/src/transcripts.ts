@@ -1,7 +1,7 @@
 import { readdir } from "node:fs/promises"
 import { dirname, join } from "node:path"
 
-import { parseFields } from "@novadeck/harness-core/fields"
+import { parseFields, type Fields } from "@novadeck/harness-core/fields"
 import type { Harness } from "@novadeck/harness-core/harness"
 import { at, entry, joined, textOf } from "@novadeck/harness-core/items"
 import { shellCall } from "@novadeck/harness-core/tools"
@@ -68,7 +68,7 @@ const dayFolders = (folder: string): string[] => {
 
 // A call's tool as `mcp__<server>__<tool>`, the way Codex names it elsewhere: its rollout
 // records an MCP tool's server apart, as the call's `namespace` (`mcp__novadeck`).
-const toolName = (payload: Record<string, unknown>): unknown =>
+const toolName = (payload: Fields): unknown =>
   typeof payload.namespace === "string" && typeof payload.name === "string"
     ? `${payload.namespace.replace(/_+$/, "")}__${payload.name}`
     : payload.name
@@ -97,7 +97,7 @@ export const transcripts: NonNullable<Harness["transcripts"]> = {
   items: (line) => {
     const fields = parseFields(line)
     if (fields?.type !== "response_item") return []
-    const payload = (fields.payload ?? {}) as Record<string, unknown>
+    const payload = (fields.payload ?? {}) as Fields
     const time = at(fields.timestamp)
     switch (payload.type) {
       case "message": {

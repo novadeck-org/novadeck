@@ -12,6 +12,7 @@ import type { HarnessEvent } from "@novadeck/harness-core/events"
 import { followLines } from "@novadeck/harness-core/follow"
 import type { Harness, Run, WrittenPlan } from "@novadeck/harness-core/harness"
 import { record } from "@novadeck/harness-core/items"
+import type { Fields } from "@novadeck/harness-core/tools"
 import type { AgentTelemetry } from "@novadeck/protocol"
 
 import { callOf, type EventBase } from "./decode.js"
@@ -40,11 +41,7 @@ const number = (value: unknown): number | undefined =>
 // minutes, and when it resets in epoch seconds.
 const limit = (window: unknown): Limit | undefined => {
   if (typeof window !== "object" || window === null) return undefined
-  const {
-    used_percent: percent,
-    window_minutes: minutes,
-    resets_at: resets,
-  } = window as Record<string, unknown>
+  const { used_percent: percent, window_minutes: minutes, resets_at: resets } = window as Fields
   const used = number(percent)
   if (used === undefined) return undefined
   const length = number(minutes)
@@ -81,7 +78,7 @@ export const rolloutEvents = (
     return []
   const { type, timestamp, payload } = record(line) ?? {}
   if (typeof timestamp !== "string") return []
-  const fields = (payload ?? {}) as Record<string, unknown>
+  const fields = (payload ?? {}) as Fields
   const startedAt = Date.parse(timestamp)
   if (!Number.isFinite(startedAt)) return []
   const base: EventBase = { agent: "codex", sessionId, instance, startedAt }
@@ -135,7 +132,7 @@ export const rolloutEvents = (
         status?: unknown
         changes?: unknown
       }
-      if (kind === "McpToolCall") return mcpSettled(base, fields.item as Record<string, unknown>)
+      if (kind === "McpToolCall") return mcpSettled(base, fields.item as Fields)
       // Files a patch changed, by absolute path, however it ran: its PostToolUse comes for
       // the apply_patch tool alone, and none for a patch the model ran through its shell
       // (`apply_patch <<EOF`; probed 2026-10-15, 0.159.3, which the fake model does).
@@ -175,7 +172,7 @@ export const rolloutEvents = (
 // The request an MCP tool call's completed item settles, by the tool its hooks name.
 const mcpSettled = (
   base: EventBase,
-  { server, tool, arguments: input }: Record<string, unknown>,
+  { server, tool, arguments: input }: Fields,
 ): HarnessEvent[] => {
   if (typeof server !== "string" || !server || typeof tool !== "string" || !tool) return []
   const toolName = mcpTool(server, tool)
@@ -199,10 +196,7 @@ export const rolloutPlans = (line: string): readonly WrittenPlan[] =>
   )
 
 // A token count's usage and rate-limit windows.
-const telemetry = (
-  base: EventBase,
-  { info, rate_limits: limits }: Record<string, unknown>,
-): HarnessEvent => {
+const telemetry = (base: EventBase, { info, rate_limits: limits }: Fields): HarnessEvent => {
   const usage = (info as { last_token_usage?: { total_tokens?: unknown } } | null)?.last_token_usage
   const occupied = number(usage?.total_tokens)
   const capacity = number((info as { model_context_window?: unknown } | null)?.model_context_window)
