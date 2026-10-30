@@ -111,7 +111,7 @@ export const notes: Record<string, Note> = {
     purpose:
       "Lets agents in one project and session message each other: size and rate limits, leads and peers, held threads, and delivery through each harness's hooks and the terminal doorbell.",
     entries: [
-      { file: `${runner}/messaging/messaging.ts`, text: "export type Scope" },
+      { file: `${runner}/messaging/messaging.ts`, text: "export class Messaging" },
       { file: `${runner}/messaging/messages.ts`, text: "export const maxMessageBytes" },
       { file: `${runner}/messaging/delivery.ts` },
     ],
