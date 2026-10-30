@@ -627,7 +627,7 @@ with every safety check again at that time:
   warnings sent to `console.error` count too. Each wake loads the page afresh and tells again, which the runner keeps once per
   show. For a page on this machine the runner tells the agent at its next prompt.
 - **Saving** would be a new authorized plan-write operation with the stamp check above,
-  scoped like `present`: the caller may write only the plan the terminal's agent keeps.
+  scoped like `show`: the caller may write only the plan the terminal's agent keeps.
   The runner doesn't offer it yet.
 
 ## Presentation routing and results
