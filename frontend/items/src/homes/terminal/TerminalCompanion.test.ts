@@ -146,6 +146,22 @@ const taskbar = (container: HTMLElement) => container.querySelector(".taskbar")
 const icon = (container: HTMLElement, name: string) =>
   container.querySelector(`.taskbar-item[aria-label^='${name}']`)
 
+describe("a pane beside its terminal", () => {
+  it("offers its divider to a screen reader as what resizes the pane", () => {
+    const { container } = renderTerminal(
+      workspaceReducer(workspaceReducer(workspaceFixture(), shown()), {
+        type: "bar/open",
+        target,
+        terminalId: "01",
+        key: hero.id,
+      }),
+    )
+    const divider = container.querySelector(".pane-divider")
+    expect(divider?.getAttribute("role")).toBe("separator")
+    expect(divider?.getAttribute("aria-label")).toBe("Resize pane")
+  })
+})
+
 describe("a pane covering its terminal", () => {
   // jsdom has no container queries: the narrow window's rule (pane.css) is set by hand.
   const covered = (): { container: HTMLElement; input: HTMLTextAreaElement } => {
