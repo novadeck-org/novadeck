@@ -391,8 +391,8 @@
       "files": [
         "frontend/runner-adapter/src/testing.ts",
         "frontend/test-kit/src/phases.ts",
-        "frontend/*/src/**/*.{test,spec}.{ts,tsx}",
-        "apps/*/src/**/*.{test,spec}.{ts,tsx}",
+        "frontend/*/src/**/*.{test,spec,test-support}.{ts,tsx}",
+        "apps/*/src/**/*.{test,spec,test-support}.{ts,tsx}",
         "apps/desktop/renderer/**/*.{test,spec}.{ts,tsx}",
         "frontend/*/src/**/*.e2e.ts",
         "apps/*/src/**/*.e2e.ts"
