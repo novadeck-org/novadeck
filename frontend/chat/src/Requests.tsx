@@ -64,9 +64,9 @@ const Card = ({
   })
   const settling = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
   useEffect(() => () => clearTimeout(settling.current), [])
-  // The dialog the notice of an identical request is about.
   // Counts the times the words were handed back to the box, which empties the card's field.
   const [handedBack, setHandedBack] = useState(0)
+  // The dialog the notice of an identical request is about.
   const [again, setAgain] = useState<string | null>(null)
   // Focus goes where the person's attention follows once an answer took: the answered line,
   // then the box when the card goes.

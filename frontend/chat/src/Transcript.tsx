@@ -2,7 +2,7 @@ import { sameBlock, type ChatBlock } from "@novadeck/core/conversation/turns"
 import { Markdown } from "@novadeck/toolkit/Markdown"
 import { memo } from "react"
 
-import { ToolRun } from "./ToolRun"
+import { ToolCalls } from "./ToolCalls"
 
 const Shortened = (): React.JSX.Element => (
   <p className="chat-shortened">Shortened here; the rest isn't carried over.</p>
@@ -54,7 +54,7 @@ const BlockView = memo(
       case "note":
         return <p className="chat-note">{block.text}</p>
       case "tools":
-        return <ToolRun entries={block.entries} live={live} />
+        return <ToolCalls entries={block.entries} live={live} />
     }
   },
   // Grouping makes new blocks each time; a block drawn again only when its content changed.

@@ -27,12 +27,12 @@ import { Loader } from "lucide-react"
 import { useEffect, useId, useRef, useState } from "react"
 
 import {
-  complete as completeForm,
   enter,
   entryOf,
+  entryValid,
   formAnswer,
-  keep as keepEntries,
-  valid as validEntry,
+  formComplete,
+  keptEntries,
   type Entries,
 } from "./forms"
 import { Hint } from "./Hint"
@@ -345,8 +345,8 @@ const Form = ({
   const base = useId()
   const { fields } = dialog
   // A form read again keeps what was entered in the fields that are still there.
-  const entries = keepEntries(typed, fields)
-  const ready = completeForm(entries, fields)
+  const entries = keptEntries(typed, fields)
+  const ready = formComplete(entries, fields)
   const change = (field: ChatFormField, value: string): void => {
     setEntries(enter(entries, field, value))
     edited()
@@ -380,7 +380,7 @@ const Form = ({
               {" *"}
             </span>
           )
-          const invalid = !validEntry(entries, field)
+          const invalid = !entryValid(entries, field)
           return (
             <div key={field.id} className="chat-form-field">
               <label className="chat-form-label" htmlFor={id}>
