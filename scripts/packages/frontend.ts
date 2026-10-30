@@ -207,7 +207,7 @@ export const rules: readonly Rule[] = [
   { from: `${ui}/src/test/fixtures.ts`, to: "frontend/core/src/testing.ts" },
   { from: `${ui}/src/test/render.ts`, to: "frontend/test-kit/src/render.ts" },
   { from: `${ui}/src/test/phases.ts`, to: "frontend/test-kit/src/phases.ts" },
-  { from: `${ui}/src/test/backend-contract.tsx`, to: "frontend/test-kit/src/backend-contract.tsx" },
+  { from: `${ui}/src/test/backend-contract.tsx`, to: "frontend/test-kit/src/backend-contract.ts" },
   { from: `${ui}/src/bundle-boundary.ts`, to: "tools/build-kit/src/bundle-checks.ts" },
   { from: `${ui}/src/bundle-boundary.test.ts`, to: "tools/build-kit/src/bundle-checks.test.ts" },
   { from: `${ui}/src/deploy.ts`, to: "apps/try/src/deploy.ts" },
