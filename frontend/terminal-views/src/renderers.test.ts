@@ -1,18 +1,8 @@
 import type { Renderers } from "@novadeck/emulator/browser"
 import { vi } from "vitest"
 
-import { reportRenderers, wantsWebgl } from "./renderers"
+import { reportRenderers } from "./renderers"
 import { describe, expect, it } from "./test"
-
-describe("the views that draw with WebGL", () => {
-  it("are Grid and Focus, never Canvas, which zooms with a transform", () => {
-    expect([wantsWebgl("grid"), wantsWebgl("focus"), wantsWebgl("canvas")]).toEqual([
-      true,
-      true,
-      false,
-    ])
-  })
-})
 
 describe("reporting the pool's counts", () => {
   const page = () => {

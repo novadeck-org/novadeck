@@ -1,10 +1,4 @@
-import type { ViewMode } from "@novadeck/core/types"
 import { webglRenderers, type PoolStats, type Renderers } from "@novadeck/emulator/browser"
-
-// Whether a view's screens draw with WebGL. Canvas zooms its windows with a CSS transform,
-// which the DOM renderer's text is drawn again at but WebGL's canvas is stretched by, soft
-// above one and ragged below, so Canvas keeps the DOM renderer.
-export const wantsWebgl = (view: ViewMode): boolean => view !== "canvas"
 
 let page: Renderers | undefined
 let configuredCap: number | undefined

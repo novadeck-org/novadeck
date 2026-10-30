@@ -1,8 +1,7 @@
 import "./terminal-xterm.css"
 import type { MountTerminal, TerminalKey, TerminalMountProps, ViewState } from "@novadeck/core/port"
+import type { ViewMode } from "@novadeck/core/types"
 import type { Hold, TerminalViews, ViewPhase } from "@novadeck/terminal/view"
-
-import { wantsWebgl } from "./renderers"
 
 // The shell's stage for a terminal's status: an exited or failed one waits for Enter.
 const phaseOf = (status: TerminalMountProps["status"]): ViewPhase =>
@@ -12,10 +11,18 @@ const phaseOf = (status: TerminalMountProps["status"]): ViewPhase =>
       ? "starting"
       : "running"
 
+// Whether a view's screens draw with WebGL. Canvas zooms its windows with a CSS transform,
+// which the DOM renderer's text is drawn again at but WebGL's canvas is stretched by, soft
+// above one and ragged below, so Canvas keeps the DOM renderer.
+const wantsWebgl = (view: ViewMode): boolean => view !== "canvas"
+
+// The views a mount takes its screen from: only `acquire` is the mount's.
+type Screens = Pick<TerminalViews<TerminalKey>, "acquire">
+
 // What a mount asks of its screen: the input's accessible name in the app's words, the
 // shell's stage, and whether the view draws with WebGL.
-type ScreenOptions = Parameters<TerminalViews<TerminalKey>["acquire"]>[1]
-const screenOptions = (props: TerminalMountProps): ScreenOptions => ({
+type ShowOptions = Parameters<Screens["acquire"]>[1]
+const showOptions = (props: TerminalMountProps): ShowOptions => ({
   label: `Input for ${props.name}`,
   phase: phaseOf(props.status),
   webgl: wantsWebgl(props.view),
@@ -36,7 +43,7 @@ const opening: ViewState = { live: false, resuming: false, waits: false, lock: n
 // mounts: a view switch disposes one mount and creates the next, which takes the same
 // emulator and attachment instead of opening them again.
 export const createTerminalMount =
-  (screens: TerminalViews<TerminalKey>): MountTerminal =>
+  (screens: Screens): MountTerminal =>
   (element, key, initial) => {
     let props = initial
     let hold: Hold | undefined
@@ -64,7 +71,7 @@ export const createTerminalMount =
     // Takes the screen and places it, again after every acquire: one the cap closed opens in a
     // new container.
     const acquire = (): void => {
-      const acquired = screens.acquire(key, screenOptions(props))
+      const acquired = screens.acquire(key, showOptions(props))
       holdScreen(acquired)
       acquired.place(element)
     }
@@ -91,7 +98,7 @@ export const createTerminalMount =
           holdScreen(undefined)
           released?.release()
         } else if (!was && is) acquire()
-        else hold?.update(screenOptions(next))
+        else hold?.update(showOptions(next))
       },
       focus: () => hold?.focus() ?? false,
       restart: () => hold?.restart(),
