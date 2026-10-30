@@ -7,15 +7,15 @@ import { preferencesDialog } from "../support/keyboard"
 import { expectStaysAbsent, openWorkspace, sidebarPanel } from "../support/workspace"
 import { context, describe, expect, it } from "../test"
 
-// The Inbox's toasts: a new item that needs the person rings as a toast while the app has
-// their focus, and as the OS notification while it hasn't. The spec host (`&desktop=on`) is a
-// desktop-like one: it reports the window's focus, which the spec moves, and keeps the
+// The Inbox's toasts: a new Inbox entry that needs the person rings as a toast while the app has
+// their focus, and as the OS notification while it hasn't. The spec's app (`&desktop=on`) is
+// desktop-like: it reports the window's focus, which the spec moves, and keeps the
 // notifications it was asked to show. The person looks at storefront's first terminal, which
 // is where the preview ask (the demo's) comes from.
 const route = (extra = "") =>
   `/projects/storefront/sessions/initial/focus?terminal=storefront-initial-01&desktop=on${extra}`
 
-// The demo's items that need the person, from terminals other than the one looked at.
+// The demo's Inbox entries that need the person, from terminals other than the one looked at.
 const asks = [
   demoInboxIds.webhook,
   demoInboxIds.login,
@@ -23,7 +23,7 @@ const asks = [
   demoInboxIds.stuck,
 ]
 
-// The grace a new item waits before it rings is 2 s; a toast is waited for past it.
+// The grace a new entry waits before it rings is 2 s; a toast is waited for past it.
 const rings = { timeout: 8_000 }
 
 const toasts = (): Element[] => [...document.querySelectorAll(".toast")]
@@ -36,14 +36,14 @@ const inboxRow = (subject: RegExp | string) =>
     name: typeof subject === "string" ? new RegExp(subject) : subject,
   })
 
-const skipIntro = async (): Promise<void> => {
+const skipWelcome = async (): Promise<void> => {
   const skip = page.getByRole("button", { name: "Skip for now" })
   if (await skip.query()) await skip.click()
 }
 
 const open = async (extra?: string): Promise<void> => {
   await openWorkspace(route(extra))
-  await skipIntro()
+  await skipWelcome()
 }
 
 const nothingToasts = (): Promise<void> =>
@@ -53,7 +53,7 @@ beforeEach(forgetDesktopWindow)
 
 describe("The Inbox's toasts", () => {
   context("while the app has the person's focus", () => {
-    it("rings a new item that needs them after a grace, and sends no OS notice", async () => {
+    it("rings a new entry that needs them after a grace, and sends no OS notice", async () => {
       await open()
 
       desktopWindow.arrive(demoInboxIds.webhook)
@@ -66,7 +66,7 @@ describe("The Inbox's toasts", () => {
       expect(desktopWindow.notices()).toEqual([])
     })
 
-    it("closes at its ×, leaving the item in the Inbox", async () => {
+    it("closes at its ×, leaving the entry in the Inbox", async () => {
       await open()
       desktopWindow.arrive(demoInboxIds.webhook)
       await expect.poll(toastTexts, rings).toHaveLength(1)
@@ -81,7 +81,7 @@ describe("The Inbox's toasts", () => {
       await expect.element(inboxRow(/Webhook|retry|webhook/i).first()).toBeVisible()
     })
 
-    it("opens the item in the Inbox at a click", async () => {
+    it("opens the entry in the Inbox at a click", async () => {
       await open()
       desktopWindow.arrive(demoInboxIds.webhook)
       await expect.poll(toastTexts, rings).toHaveLength(1)
@@ -118,14 +118,14 @@ describe("The Inbox's toasts", () => {
       await expect.poll(toastTexts).toHaveLength(0)
     })
 
-    it("takes a toast away when its item is answered elsewhere", async () => {
+    it("takes a toast away when its entry is answered elsewhere", async () => {
       await open()
       desktopWindow.arrive(demoInboxIds.webhook, demoInboxIds.login)
       await expect.poll(toastTexts, rings).toHaveLength(2)
 
       desktopWindow.withdraw(demoInboxIds.login)
 
-      // After its own grace, as the item may come back.
+      // After its own grace, as the entry may come back.
       await expect.poll(toastTexts, rings).toHaveLength(1)
       expect(toastTexts()[0]).toMatch(/api-service/)
     })

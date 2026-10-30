@@ -1,5 +1,6 @@
 import { page, userEvent, type Locator } from "vitest/browser"
 
+import { windowMenu } from "../support/companions"
 import {
   bubbles,
   conversationRow,
@@ -11,7 +12,6 @@ import {
   openMessages,
   openMessagesDemo,
   pauseSwitch,
-  tabMenu,
 } from "../support/messages"
 import { confirmClose, sidebarRenameField, tabAction } from "../support/terminals"
 import {
@@ -25,25 +25,23 @@ import { context, describe, expect, it } from "../test"
 
 const textOf = (locator: Locator) => locator.element().textContent
 
-const description = tabDescription
-
 describe("Messages waiting for an agent", () => {
   it("count in its terminal's tab's description, and only those still on their way to it", async () => {
     await openMessagesDemo()
     // Codex has one message being delivered and one queued; what it sent doesn't count.
     await expect
-      .poll(() => description("Checkout review"))
+      .poll(() => tabDescription("Checkout review"))
       .toBe(
         "Needs permission: pnpm test --filter checkout, 2 messages waiting, 2 subagents: 2 explorer. Led by @moth",
       )
     // The dev server's message is gone, never waiting.
-    expect(description("Dev server")).toBeNull()
+    expect(tabDescription("Dev server")).toBeNull()
   })
 
   it("count what waits, with no release asked while no thread is held", async () => {
     await openMessagesDemo()
     await expect
-      .poll(() => description("Checkout implementation"))
+      .poll(() => tabDescription("Checkout implementation"))
       .toBe("Plan ready for review, 1 message waiting. Leads @crow")
   })
 })
@@ -145,7 +143,7 @@ describe("A terminal's messages", () => {
     })
   })
 
-  context("with the person's entries", () => {
+  context("with the person's Inbox entries", () => {
     it("labels them in plain words, quotes the question a reply answers, and offers Answer", async () => {
       await openMessagesDemo()
       const pane = await openMessages("Checkout implementation")
@@ -200,14 +198,14 @@ describe("Pausing messaging", () => {
     await expect.poll(() => bubbles(chat)[3]?.textContent).toMatch(/Waiting$/)
     await expect.poll(() => bubbles(chat)[2]?.textContent).toMatch(/Delivering$/)
     await expect
-      .poll(() => description("Checkout review"))
+      .poll(() => tabDescription("Checkout review"))
       .toBe(
         "Needs permission: pnpm test --filter checkout, 2 messages waiting, held while messaging is paused, 2 subagents: 2 explorer. Led by @moth",
       )
     await pause.click()
     await expect.element(pane.getByText(/Messaging is paused/)).not.toBeInTheDocument()
     await expect
-      .poll(() => description("Checkout review"))
+      .poll(() => tabDescription("Checkout review"))
       .toBe(
         "Needs permission: pnpm test --filter checkout, 2 messages waiting, 2 subagents: 2 explorer. Led by @moth",
       )
@@ -224,12 +222,12 @@ describe("Who named a terminal", () => {
 
   it("can be handed back to Novadeck from the tab's menu when the person named it", async () => {
     await openMessagesDemo()
-    const menu = await tabMenu("Checkout implementation")
+    const menu = await windowMenu("Checkout implementation")
     await menu.getByRole("menuitem", { name: "Reset to automatic" }).click()
     await expect.element(terminalTab("Checkout flow")).toBeVisible()
     expect(await namedBy("Checkout flow")).toBe("Named by the agent in @moth")
     // A name Novadeck gave has nothing to hand back.
-    const automatic = await tabMenu("Checkout flow")
+    const automatic = await windowMenu("Checkout flow")
     await expect.element(automatic.getByRole("menuitem", { name: "Rename" })).toBeVisible()
     await expectStaysAbsent(automatic.getByRole("menuitem", { name: "Reset to automatic" }))
   })
@@ -283,7 +281,7 @@ describe("Who named a terminal", () => {
 
   it("is the person's once they rename it", async () => {
     await openMessagesDemo()
-    const menu = await tabMenu("Checkout review")
+    const menu = await windowMenu("Checkout review")
     await expect
       .element(menu.getByRole("menuitem", { name: "Reset to automatic" }))
       .not.toBeInTheDocument()
@@ -394,9 +392,9 @@ describe("A team in the sidebar", () => {
     await openMessagesDemo()
     await terminalTab("Dev server").click()
     const worker = textOf(terminalTab("Checkout review").getByText(/^@[a-z]+$/))
-    await expect.poll(() => description("Checkout review")).toMatch(/\. Led by @moth$/)
-    expect(description("Checkout implementation")).toMatch(new RegExp(`Leads ${worker}$`))
-    expect(description("Dev server")).toBeNull()
+    await expect.poll(() => tabDescription("Checkout review")).toMatch(/\. Led by @moth$/)
+    expect(tabDescription("Checkout implementation")).toMatch(new RegExp(`Leads ${worker}$`))
+    expect(tabDescription("Dev server")).toBeNull()
   })
 
   it("ends once the lead's terminal is closed", async () => {

@@ -475,11 +475,11 @@ const frames = (count: number): Promise<void> =>
     next(count)
   })
 
+const starving = new Set<ReturnType<typeof setInterval>>()
 /**
  * Keeps the page's main thread busy for `milliseconds`, in stretches longer than a frame, as a
  * loaded CI machine does: seen to end a restored scroll too early (Windows and Linux CI).
  */
-const starving = new Set<ReturnType<typeof setInterval>>()
 const starve = (milliseconds: number): void => {
   const timer = setInterval(() => {
     const end = performance.now() + 220

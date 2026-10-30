@@ -251,7 +251,7 @@ describe("Stopping an agent from the chat", () => {
 })
 
 describe("A request that waits on the person", () => {
-  context("shown as a card", () => {
+  context("when shown as a card", () => {
     it("names what it asks and its answers, and answering in the terminal goes there", async () => {
       await openChatDemo()
       const chat = await openChat("Checkout review")
@@ -267,7 +267,7 @@ describe("A request that waits on the person", () => {
     })
   })
 
-  context("approved from the chat", () => {
+  context("when approved from the chat", () => {
     it("goes away, and the agent carries on", async () => {
       await openChatDemo()
       const chat = await openChat("Checkout review")
@@ -304,7 +304,7 @@ describe("A request that waits on the person", () => {
     })
   })
 
-  context("focus after an answer", () => {
+  context("after an answer", () => {
     it("goes to the answered line, then to the box once the card has gone", async () => {
       await openChatDemo()
       const chat = await openChat("Checkout review")
@@ -323,7 +323,7 @@ describe("A request that waits on the person", () => {
     })
   })
 
-  context("denied with words", () => {
+  context("when denied with words", () => {
     it("sends them to the agent as its next prompt", async () => {
       await openChatDemo()
       const chat = await openChat("Checkout review")
@@ -338,7 +338,7 @@ describe("A request that waits on the person", () => {
     })
   })
 
-  context("a plan", () => {
+  context("when it is a plan", () => {
     it("is rejected with feedback typed into the dialog", async () => {
       await openChatDemo()
       const chat = await openChat("Checkout implementation")
@@ -419,7 +419,7 @@ describe("A request that waits on the person", () => {
     })
   })
 
-  context("a form an MCP server asks for", () => {
+  context("when it is a form an MCP server asks for", () => {
     it("is accepted once its required fields are filled, with typed values", async () => {
       await openChatDemo()
       const chat = await openChat("Runtime")
@@ -454,7 +454,7 @@ describe("A request that waits on the person", () => {
     })
   })
 
-  context("the chat can't read", () => {
+  context("when the chat can't read it", () => {
     it("shows the dialog's text as it is and leaves the answer to the terminal", async () => {
       await openChatDemo()
       const chat = await openChat("Runtime")

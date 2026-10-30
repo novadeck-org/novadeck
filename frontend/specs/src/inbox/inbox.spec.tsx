@@ -12,15 +12,19 @@ import {
 } from "../support/workspace"
 import { context, describe, expect, it } from "../test"
 
-// The Inbox demo: the agents demo with an Inbox of hardcoded items across its projects, one
+// The Inbox demo: the agents demo with an Inbox of hardcoded entries across its projects, one
 // of each kind, waiting on the person, over what its own agents wait on: api-service's plan and
 // permission, and, a moment after it opens, infra's failed turn and design-system's done report.
 const inbox = "/?demo=inbox"
 
-const openInbox = async (route = inbox): Promise<void> => {
-  await openWorkspace(route)
+const skipWelcome = async (): Promise<void> => {
   const skip = page.getByRole("button", { name: "Skip for now" })
   if (await skip.query()) await skip.click()
+}
+
+const openInbox = async (route = inbox): Promise<void> => {
+  await openWorkspace(route)
+  await skipWelcome()
   await sidebarPanel("Inbox").click()
 }
 
@@ -56,8 +60,7 @@ afterEach(() => {
 describe("The Inbox on the rail", () => {
   it("counts what isn't an update", async () => {
     await openWorkspace(inbox)
-    const skip = page.getByRole("button", { name: "Skip for now" })
-    if (await skip.query()) await skip.click()
+    await skipWelcome()
     await terminalTab("Checkout review").click()
 
     await expect.element(sidebarPanel("Inbox")).toHaveAccessibleName("Inbox, 12 waiting")
@@ -67,8 +70,7 @@ describe("The Inbox on the rail", () => {
 describe("The agents demo's Inbox", () => {
   it("lists what its agents wait on, and an answer there moves the agent on", async () => {
     await openWorkspace("/?demo=agents")
-    const skip = page.getByRole("button", { name: "Skip for now" })
-    if (await skip.query()) await skip.click()
+    await skipWelcome()
     await expect.poll(() => tabDescription("Checkout review") ?? "").toContain("Needs permission")
     await sidebarPanel("Inbox").click()
     await expect.element(row("Approve the plan?").first()).toBeVisible()
@@ -84,7 +86,7 @@ describe("The agents demo's Inbox", () => {
 })
 
 describe("The Inbox's list", () => {
-  it("lists one row for each item, trouble that stopped an agent first", async () => {
+  it("lists one row for each entry, trouble that stopped an agent first", async () => {
     await openInbox()
     await lookAway()
 
@@ -103,7 +105,7 @@ describe("The Inbox's list", () => {
       .not.toMatchTextContent(/\d+m\b/)
   })
 
-  it("marks a long item with its reading time and a limit with when it resumes", async () => {
+  it("marks a long entry with its reading time and a limit with when it resumes", async () => {
     await openInbox()
 
     await expect.element(rows().filter({ hasText: "webhooks" })).toMatchTextContent("1 min read")
@@ -113,7 +115,7 @@ describe("The Inbox's list", () => {
   })
 })
 
-describe("An item's sheet", () => {
+describe("An Inbox entry's sheet", () => {
   context("when opening a command permission", () => {
     it("shows the command word for word, beside its row, with the row lifted", async () => {
       await openInbox()
@@ -193,7 +195,7 @@ describe("An item's sheet", () => {
       })
     })
 
-    it("moves to another item when another row is pressed, and with j and k", async () => {
+    it("moves to another entry when another row is pressed, and with j and k", async () => {
       await openInbox()
       await row("Run pnpm add").click()
       await expect.element(sheet("Checkout review")).toBeVisible()
@@ -475,7 +477,7 @@ describe("An item's sheet", () => {
   })
 
   context("when an agent hits a limit", () => {
-    it("offers only the auto-resume switch, which stays on the item", async () => {
+    it("offers only the auto-resume switch, which stays on the entry", async () => {
       await openInbox()
       await row("Hit Claude's 5-hour limit").click()
       const open = sheet("Build")

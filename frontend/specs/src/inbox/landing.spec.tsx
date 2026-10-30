@@ -7,8 +7,8 @@ import { expectStaysAbsent, openWorkspace, sidebarPanel, terminalTab } from "../
 import { context, describe, expect, it } from "../test"
 
 // The landing rule: what an agent says from the terminal the person is looking at doesn't
-// reach the Inbox, the bell or a toast until they look away. The spec host (`&desktop=on`) starts
-// with an empty Inbox the spec fills.
+// reach the Inbox, the bell or a toast until they look away. The spec's desktop-like app (`&desktop=on`)
+// starts with an empty Inbox the spec fills.
 const storefront =
   "/projects/storefront/sessions/initial/focus?terminal=storefront-initial-01&desktop=on"
 const docs = "/projects/docs-site/sessions/initial/focus?terminal=docs-site-initial-02&desktop=on"
@@ -25,7 +25,7 @@ const open = async (route: string): Promise<void> => {
   if (await skip.query()) await skip.click()
 }
 
-// The grace a new item waits before it rings is 2 s; waiting past it shows nothing rang.
+// The grace a new entry waits before it rings is 2 s; waiting past it shows nothing rang.
 const nothingLands = (): Promise<void> =>
   expectStaysAbsent(
     {
@@ -103,7 +103,7 @@ describe("The landing rule", () => {
       away.click()
 
       await expect.element(bell()).toHaveAccessibleName("Inbox, 1 waiting")
-      // Not quiet: it rings its toast after the grace a new item waits.
+      // Not quiet: it rings its toast after the grace a new entry waits.
       await expect
         .poll(() => document.querySelectorAll(".toast").length, { timeout: 8_000 })
         .toBe(1)
