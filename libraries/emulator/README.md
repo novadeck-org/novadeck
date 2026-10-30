@@ -5,20 +5,23 @@ character-width rule every emulator shares, and helpers that need only an emulat
 
 ## Subpaths
 
-- `./width`: `unicodeVersion`, `cells(text)`, the columns a string takes as every emulator here
+- `./width`: `cells(text)`, the columns a string takes as every emulator here
   draws it, and `applyWidths(terminal)`, which sets a browser or headless emulator to count them
   so. Every emulator goes through `applyWidths`: one that counts otherwise puts a screen another
   gives back on different rows.
-- `./browser`: `createView(element, options)`, xterm's browser `Terminal` opened in an element with
-  the width rule applied, the fit and web-links addons loaded, and links, theme, font and fit behind
-  a `View`, which tells of each change of renderer (`onRendererChange`) so its owner fits it again;
-  and the pool that draws views with WebGL (`webglRenderers`, `createRenderers`,
-  `ScreenRenderer`; `stats()` and `watch()` give the pool's counts: waits, steals, swaps, contexts
-  lost, loads failed, pty resizes a swap caused, and screens left on the DOM). The app resolves its theme, its link policy and which views want WebGL, and
-  passes them in. `View.setLigatures(on)` is the one mechanic for ligatures: while it is on and WebGL
+- `./browser`: `createView(element, options)` (`ViewOptions`), xterm's browser `Terminal` opened
+  in an element with the width rule applied, the fit and web-links addons loaded, and links, theme,
+  font and fit behind a `View` (links as `ViewLinks`, its place in the pool as `ViewRenderer`),
+  which tells of each change of renderer (`onRendererChange`) so its owner fits it again; and the pool that draws views with WebGL (`Renderers`, made by `webglRenderers` for a page or
+  `createRenderers` over any `Drawing`, such as `loadWebgl`'s; each screen's side is a
+  `ScreenRenderer`; `stats()` and `watch()` give the pool's counts, `PoolStats`: waits, steals,
+  swaps, contexts lost, loads failed, pty resizes a swap caused, and screens left on the DOM). The
+  app resolves its theme, its link policy and which views want WebGL, and passes them in.
+  `writeTo(terminal, data)` writes and resolves once xterm parsed it, or rejects where parsing
+  threw (see the write patch below). `View.setLigatures(on)` is the one mechanic for ligatures: while it is on and WebGL
   draws the view, runs the bundled JetBrains Mono joins (`=>`, `!=`, `<!--`) reach WebGL as one
   glyph each; the DOM renderer draws them from its text, which the page's CSS allows. Types of
-  xterm's `Terminal` and `ITheme` come from here too.
+  xterm's `Terminal`, `ITheme` and `IDisposable` come from here too.
 - `./browser.css`: xterm's stylesheet, for the browser emulator's screens.
 - `./headless` (Node only): the emulator without a view, and what needs only it.
   - `createScreen({ cols, rows, scrollback })`: a screen that counts widths as `./width` says and
@@ -32,8 +35,9 @@ character-width rule every emulator shares, and helpers that need only an emulat
   - `matchReport(data, reporting)`: the terminal's own reply at the start of data (a query's
     answer, a mouse or focus report), how long it is, and what it is to the program (`Reporting`).
   - `transcript(screen, maxChars)`: the screen and its scrollback as text that draws them again,
-    null when blank or too large to keep; `replay(screen, text, separator?)` draws it on a fresh
-    screen, then the separator on the line below the last one drawn.
+    null when blank or too large to keep; `replay(screen, text, separator?, scrolled?)` draws it on a
+    fresh screen, then the separator on the line below the last one drawn, and with `scrolled`
+    moves both up into the scrollback.
   - `IMarker`: xterm's marker type, for a line kept track of as the screen scrolls.
 
 ## Pins
@@ -81,7 +85,7 @@ release fixes what it fixes.
   and the memory is bounded at two generations. A set larger than a generation keeps measuring part of it.
   Widths and letter-spacing are what they were, apart from sharing a screen's measurements with
   the others. Like the viewport fix, this is made again on xterm 6.1: the same class, in both
-  bundles, unless 6.1 shares its widths itself. `src/widths.test.ts` pins it.
+  bundles, unless 6.1 shares its widths itself. `src/width-cache.test.ts` pins it.
 - `@xterm/xterm` 6.0.0, the same two bundles: `getCoordsRelativeToElement` (`src/browser/input/Mouse.ts`)
   and `moveTextAreaUnderMouseCursor` (`Clipboard.ts`) divide the pointer's offset in the element by
   the element's scale, `getBoundingClientRect().width / offsetWidth` on each axis, before taking the

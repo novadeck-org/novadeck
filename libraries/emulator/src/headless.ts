@@ -1,3 +1,4 @@
+// The headless emulator, as Node runs it: a screen without a view, and what needs only it.
 export { createScreen, readScreen } from "./screen.js"
 export type { Screen, ScreenText } from "./screen.js"
 export type { IMarker } from "@xterm/headless"

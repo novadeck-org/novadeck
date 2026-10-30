@@ -1,6 +1,6 @@
 import { runnerPortMessage, type DesktopApp } from "@novadeck/protocol/bridge"
 import { WireError } from "@novadeck/wire"
-import { hostTransport, type Transport } from "@novadeck/wire/client"
+import { brokeredPort, type Transport } from "@novadeck/wire/client"
 
 import type { RunnerErrorCode } from "./errors.js"
 
@@ -9,7 +9,7 @@ import type { RunnerErrorCode } from "./errors.js"
  * host for a fresh port, so reconnecting also works after the host restarts its runner.
  */
 export const desktop = (): Transport =>
-  hostTransport({
+  brokeredPort({
     request: (id) => {
       const host = (globalThis as { novadeck?: Partial<DesktopApp> }).novadeck
       if (!host?.requestRunner)

@@ -1,7 +1,8 @@
 import { redactAs } from "@novadeck/secrets"
 
-import { hashPaths } from "./paths.js"
-import { hashUrls, type UrlRule } from "./urls.js"
+import { escapeRegExp } from "./escape.js"
+import { pathHasher } from "./paths.js"
+import { urlHasher, type UrlRule } from "./urls.js"
 
 export type RedactOptions = UrlRule & {
   /**
@@ -57,8 +58,6 @@ const commonNames = new Set([
   "work",
 ])
 
-const escape = (text: string): string => text.replace(/[.*+?^${}()|[\]\\]/g, String.raw`\$&`)
-
 // Names whose value is a secret, in a query (`?token=…`), a setting (`password=…`) or JSON.
 const secretKey = String.raw`[\w.-]*?(?:token|secret|passw(?:or)?d|pass|pwd|key|auth|credentials?|signature|sig|session)`
 
@@ -99,42 +98,45 @@ const shapes: readonly (readonly [RegExp, string])[] = [
 
 // Keys and tokens by their shapes (see @novadeck/secrets), after the paths and addresses are
 // hashed: a mask inside a path, an address or an email address would end it there for
-// `hashPaths`, `hashUrls` and `email`, and leave the rest of it as it is, while a secret inside
+// `pathHasher`, `urlHasher` and `email`, and leave the rest of it as it is, while a secret inside
 // one is hashed with it. Before the account name, which would otherwise start a secret's value
 // as `<user>` and so hide it from them.
 const secrets = redactAs("<secret>")
 
-// Email addresses; not a Git remote's `git@host:`, which `hashUrls` wrote first.
+// Email addresses; not a Git remote's `git@host:`, which `urlHasher` wrote first.
 const email = /[\w.%+-]+@[A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)*\.[A-Za-z]{2,}\b(?!:[\w#~./<])/g
 
 /**
  * A redactor for this machine: what it returns of any text is what a log may keep, and what
  * a person could send in a bug report. In order: the secrets this process holds, the values of
  * the secret variables, URL credentials, credential headers, `key=value` secrets; then
- * addresses and Git remotes (see `hashUrls`); then email addresses; then the paths (see
- * `hashPaths`); then keys and tokens by their shapes; then the account name, as a word of its
+ * addresses and Git remotes (see `urlHasher`); then email addresses; then the paths (see
+ * `pathHasher`); then keys and tokens by their shapes; then the account name, as a word of its
  * own, unless it is short or an ordinary word.
  */
 export const createRedactor = (options: RedactOptions): Redactor => {
   const held = (options.secrets ?? [])
     .filter((secret): secret is string => secret !== undefined && secret.length >= 8)
     .toSorted((a, b) => b.length - a.length)
-    .map((secret) => new RegExp(escape(secret), "g"))
+    .map((secret) => new RegExp(escapeRegExp(secret), "g"))
   const named = (options.secretNames ?? []).map(
-    (name) => new RegExp(String.raw`\b(${escape(name)})(\s*[=:]\s*)(["']?)(?!<)[^\s"']+`, "g"),
+    (name) =>
+      new RegExp(String.raw`\b(${escapeRegExp(name)})(\s*[=:]\s*)(["']?)(?!<)[^\s"']+`, "g"),
   )
   const user = options.user
   const account =
     user && user.length >= 3 && !commonNames.has(user.toLowerCase())
-      ? new RegExp(String.raw`(?<![\w.-])${escape(user)}(?![\w-])`, "gi")
+      ? new RegExp(String.raw`(?<![\w.-])${escapeRegExp(user)}(?![\w-])`, "gi")
       : undefined
+  const urls = urlHasher(options)
+  const paths = pathHasher(options)
   return (text) => {
     let result = text
     for (const pattern of held) result = result.replace(pattern, "<secret>")
     for (const pattern of named) result = result.replace(pattern, "$1$2$3<redacted>")
     for (const [pattern, replacement] of shapes) result = result.replace(pattern, replacement)
-    result = hashUrls(result, options).replace(email, "<email>")
-    result = secrets(hashPaths(result, options))
+    result = urls(result).replace(email, "<email>")
+    result = secrets(paths(result))
     return account ? result.replace(account, "<user>") : result
   }
 }

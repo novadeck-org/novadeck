@@ -1,5 +1,5 @@
 import { readdirSync, readFileSync, statSync } from "node:fs"
-import { join, posix, relative } from "node:path"
+import { join, posix } from "node:path"
 
 import { describe, expect, it } from "vitest"
 
@@ -51,11 +51,9 @@ const holds = (file: string, utility: string): boolean =>
   )
 
 describe("the Tailwind guards", () => {
-  it("leave out only what the sheet leaves out: the UI's, the toolkit's and the items package's tests, as `.test.ts`", () => {
+  it("leave out only what the sheet leaves out: each scanned folder's tests, as `.test.ts`", () => {
     expect(left.length).toBeGreaterThan(0)
-    expect(
-      files.filter((file) => /^frontend\/(?:ui|toolkit|items)\/src\/.*\.test\.ts$/.test(file)),
-    ).toEqual([])
+    expect(files.filter((file) => /^frontend\/[^/]+\/src\/.*\.test\.ts$/.test(file))).toEqual([])
     // Every other kind of file, a test of another kind among them, is read as Tailwind reads it.
     expect(files.some((file) => /\.(?:tsx|mts|json|md|html)$/.test(file))).toBe(true)
   })
@@ -72,7 +70,7 @@ describe("the Tailwind guards", () => {
     "keep $folder's utility out of every scanned file outside it",
     ({ folder, utility }) => {
       const outside = files.filter((file) => !file.startsWith(folder) && holds(file, utility))
-      expect(outside.map((file) => relative(root, join(root, file)))).toEqual([])
+      expect(outside).toEqual([])
     },
   )
 

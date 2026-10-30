@@ -339,7 +339,7 @@ network:
   named by its command and pid, and marked `stopped` should job control have stopped it.
   It looks again, up to five times, until it finds no process it hasn't seen. Should the
   test end early, its teardown does the same, and fails the test for any process it had
-  to end. On Windows, which has no `/proc`, a small lister (`reap-lister.cs`) finds
+  to end. On Windows, which has no `/proc`, a small lister (`reap/lister.cs`) finds
   them: compiled once by its source into the system's temporary folder with the .NET
   Framework's `csc.exe`, and named by its own hash too, checked before it runs, so a
   program there that isn't what its name says is compiled again. It lists the processes

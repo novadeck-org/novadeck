@@ -309,7 +309,7 @@ const records: Session | undefined = primaryInstance
       marker: join(app.getPath("logs"), "session.json"),
       sid: launchId,
       log: logger.for("session"),
-      file: logPath(app.getPath("logs"), "host"),
+      logFile: logPath(app.getPath("logs"), "host"),
     })
   : undefined
 // Electron's app.exit ends the process without Node's `exit` event, which app.quit emits:
