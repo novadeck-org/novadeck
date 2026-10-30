@@ -6,6 +6,7 @@ import type {
   RequestFacts,
   ScreenRequest,
 } from "@novadeck/harness-core/dialogs"
+import { isFields, type Fields } from "@novadeck/harness-core/tools"
 import type { RequestAnswer } from "@novadeck/protocol"
 
 import { asyncTool } from "./async-question.js"
@@ -119,9 +120,6 @@ const firstOption = (lines: readonly string[], from: number): number => {
   return -1
 }
 
-const lastIndex = (lines: readonly string[], test: (line: string) => boolean): number =>
-  lines.findLastIndex(test)
-
 /** Whether `head` is `label`, alone or followed by its description's column. */
 const labelled = (head: string, label: string): boolean =>
   head === label || head.startsWith(`${label}  `)
@@ -138,16 +136,13 @@ const keyOf = (hint: string): string | undefined => {
   return hint.length === 1 && hint >= "!" && hint <= "~" ? hint : undefined
 }
 
-const object = (value: unknown): Record<string, unknown> | undefined =>
-  typeof value === "object" && value !== null && !Array.isArray(value)
-    ? (value as Record<string, unknown>)
-    : undefined
+const object = (value: unknown): Fields | undefined => (isFields(value) ? value : undefined)
 
 // What a dialog offers by its own wording: each label Codex has for it, and whether the
 // person's words go with it as a prompt after (the option that tells Codex what to do).
 type Wording = { readonly label: RegExp; readonly prompt?: true }
 
-const exec: readonly Wording[] = [
+const execWordings: readonly Wording[] = [
   { label: /^Yes, proceed$/ },
   { label: /^Yes, and don't ask again for commands that start with `.+`$/ },
   { label: /^Yes, and don't ask again for this command in this session$/ },
@@ -155,22 +150,23 @@ const exec: readonly Wording[] = [
   { label: /^No, continue without running it$/ },
   { label: /^No, and tell Codex what to do differently$/, prompt: true },
 ]
-const patch: readonly Wording[] = [
+const patchWordings: readonly Wording[] = [
   { label: /^Yes, proceed$/ },
   { label: /^Yes, and don't ask again for these files$/ },
   { label: /^No, and tell Codex what to do differently$/, prompt: true },
 ]
-const permissions: readonly Wording[] = [
+const permissionWordings: readonly Wording[] = [
   { label: /^Yes, grant these permissions for this turn$/ },
   { label: /^Yes, grant for this turn with strict auto review$/ },
   { label: /^Yes, grant these permissions for this session$/ },
   { label: /^No, continue without permissions$/ },
 ]
 
-const titles = {
-  "Would you like to run the following command?": exec,
-  "Would you like to make the following edits?": patch,
-  "Would you like to grant these permissions?": permissions,
+// Each approval by its title.
+const approvals = {
+  "Would you like to run the following command?": execWordings,
+  "Would you like to make the following edits?": patchWordings,
+  "Would you like to grant these permissions?": permissionWordings,
 } as const
 
 type Choice = {
@@ -246,9 +242,9 @@ const field = (body: readonly string[], header: string): readonly string[] | und
 
 const readApproval = (lines: readonly string[], facts: RequestFacts): Parsed | undefined => {
   if (facts.kind !== "permission") return undefined
-  const title = lastIndex(lines, (line) => line.trim() in titles)
+  const title = lines.findLastIndex((line) => line.trim() in approvals)
   if (title < 0) return undefined
-  const name = lines[title]!.trim() as keyof typeof titles
+  const name = lines[title]!.trim() as keyof typeof approvals
   const first = firstOption(lines, title + 1)
   if (first < 0) return undefined
   const body = lines.slice(title + 1, first)
@@ -296,7 +292,7 @@ const readApproval = (lines: readonly string[], facts: RequestFacts): Parsed | u
   const { rows, next } = optionsAt(lines, first)
   const footer = lines[next]
   if (rows.length === 0 || (footer !== undefined && !/^\s*Press /.test(footer))) return undefined
-  const wordings = titles[name]
+  const wordings = approvals[name]
   const picks: Choice[] = []
   for (const row of rows) {
     const hinted = /^(.*\S) \(([^()]+)\)$/.exec(row.text)
@@ -329,7 +325,7 @@ const mcpWordings = [
 
 const readMcp = (lines: readonly string[], facts: RequestFacts): Parsed | undefined => {
   if (facts.kind !== "permission" || !facts.tool.startsWith("mcp__")) return undefined
-  const form = lastIndex(lines, (line) => /^\s*Field \d+\/\d+\s*$/.test(line))
+  const form = lines.findLastIndex((line) => /^\s*Field \d+\/\d+\s*$/.test(line))
   const message = lines[form + 1]
   const asked =
     message === undefined ? null : /^\s*(Allow .+ to run tool "(.+)"\?)\s*$/.exec(message)
@@ -378,7 +374,7 @@ const planWordings: readonly Wording[] = [
 ]
 
 const readPlan = (lines: readonly string[]): Parsed | undefined => {
-  const title = lastIndex(lines, (line) => line.trim() === planTitle)
+  const title = lines.findLastIndex((line) => line.trim() === planTitle)
   if (title < 0) return undefined
   const { rows, next } = optionsAt(lines, title + 1)
   if (rows.length !== planWordings.length) return undefined
@@ -445,33 +441,43 @@ const questionHeader = /^\s*Question (\d+)\/(\d+)(?: \(\d+ unanswered\))?$/
 const headerOf = (
   lines: readonly string[],
 ): { readonly at: number; readonly k: number; readonly of: number } | undefined => {
-  const at = lastIndex(lines, (line) => questionHeader.test(line))
+  const at = lines.findLastIndex((line) => questionHeader.test(line))
   const found = at < 0 ? null : questionHeader.exec(lines[at]!)
   return found ? { at, k: Number(found[1]), of: Number(found[2]) } : undefined
 }
 
-/** Whether the screen shows question `k` (from 0) of `questions`, its text under its header. */
-const showing = (rows: readonly string[], questions: readonly Question[], k: number): boolean => {
-  const lines = clean(rows)
+/**
+ * The option rows of question `k` (from 0) of `questions` where the screen shows it as the
+ * request lists it: its header and text, its options in order and perhaps "None of the
+ * above" after them, with the notes closed, so a digit picks the row the answer means.
+ * Undefined for any other screen.
+ */
+const questionRows = (
+  lines: readonly string[],
+  questions: readonly Question[],
+  k: number,
+): readonly Row[] | undefined => {
   const header = headerOf(lines)
-  if (header?.k !== k + 1 || header.of !== questions.length) return false
+  if (header?.k !== k + 1 || header.of !== questions.length) return undefined
   const first = firstOption(lines, header.at + 1)
-  if (first < 0) return false
-  if (squash(lines.slice(header.at + 1, first).join("")) !== squash(questions[k]!.question)) {
-    return false
+  if (first < 0) return undefined
+  const question = questions[k]!
+  if (squash(lines.slice(header.at + 1, first).join("")) !== squash(question.question)) {
+    return undefined
   }
-  // Its options as the request lists them, in order, with the notes closed: a digit then
-  // picks the row the answer means.
-  const shown = optionsAt(lines, first)
-  const { next } = shown
-  const options = shown.rows
-  const count = questions[k]!.options.length
-  if (options.length !== count && options.length !== count + 1) return false
-  if (!questions[k]!.options.every((option, i) => labelled(options[i]!.head, option.label))) {
-    return false
+  const { rows, next } = optionsAt(lines, first)
+  const count = question.options.length
+  if (rows.length !== count && rows.length !== count + 1) return undefined
+  if (!question.options.every((option, i) => labelled(rows[i]!.head, option.label))) {
+    return undefined
   }
-  if (options.length > count && !labelled(options[count]!.head, otherLabel)) return false
-  return !lines.slice(next).some((line) => /^\s*›/.test(line) || /clear notes/.test(line))
+  if (rows.length > count && !labelled(rows[count]!.head, otherLabel)) return undefined
+  // Words already typed in its notes, or anything else after the options, is not a screen
+  // whose digits answer.
+  if (lines.slice(next).some((line) => /^\s*›/.test(line) || /clear notes/.test(line))) {
+    return undefined
+  }
+  return rows
 }
 
 /**
@@ -493,26 +499,9 @@ const notesStart = (rows: readonly string[], text: string): boolean => {
 const readQuestions = (lines: readonly string[], facts: RequestFacts): Parsed | undefined => {
   if (facts.kind !== "question" || facts.tool !== "request_user_input") return undefined
   const questions = questionsOf(facts.input)
-  const header = headerOf(lines)
-  if (!questions || header?.k !== 1 || header.of !== questions.length) return undefined
-  const first = firstOption(lines, header.at + 1)
-  if (first < 0) return undefined
-  const [question] = questions
-  if (squash(lines.slice(header.at + 1, first).join("")) !== squash(question!.question)) {
-    return undefined
-  }
-  const { rows, next } = optionsAt(lines, first)
-  const count = question!.options.length
-  const other = rows.length === count + 1
-  if (rows.length !== count && !other) return undefined
-  if (!question!.options.every((option, i) => labelled(rows[i]!.head, option.label)))
-    return undefined
-  if (other && !labelled(rows[count]!.head, otherLabel)) return undefined
-  // Words already typed in its notes, or anything else after the options, is not a screen
-  // whose digits answer.
-  if (lines.slice(next).some((line) => /^\s*›/.test(line) || /clear notes/.test(line))) {
-    return undefined
-  }
+  const rows = questions && questionRows(lines, questions, 0)
+  if (!questions || !rows) return undefined
+  const other = rows.length === questions[0]!.options.length + 1
   const highlighted = Math.max(
     0,
     rows.findIndex((row) => row.marked),
@@ -557,7 +546,7 @@ const readQuestions = (lines: readonly string[], facts: RequestFacts): Parsed | 
         if (picked === -1) return undefined
         if (k > 0) {
           steps.push({
-            until: (screen) => showing(screen, questions, k),
+            until: (screen) => questionRows(clean(screen), questions, k) !== undefined,
             timeoutMs: 5000,
             why: `question ${k + 1} of ${questions.length}`,
           })
@@ -606,7 +595,7 @@ type AsyncQuestion = {
   readonly options: readonly string[]
 }
 
-/** The questions an `request_user_input_async` call asks, or undefined for any shape not understood. */
+/** The questions a `request_user_input_async` call asks, or undefined for any shape not understood. */
 const asyncQuestionsOf = (input: unknown): readonly AsyncQuestion[] | undefined => {
   const list = object(input)?.questions
   if (!Array.isArray(list) || list.length === 0 || list.length > 8) return undefined
@@ -657,7 +646,7 @@ type Picker = {
  */
 const pickerOf = (lines: readonly string[]): Picker | undefined => {
   if (lines.length === 0 || !asyncFooter.test(lines.at(-1)!)) return undefined
-  const heading = lastIndex(lines, (line) => queuedHeading.test(line))
+  const heading = lines.findLastIndex((line) => queuedHeading.test(line))
   if (heading < 0) return undefined
   let at = heading + 1
   const count = /^\s*1 of (\d+)\s*$/.exec(lines[at] ?? "")
@@ -679,17 +668,21 @@ const pickerOf = (lines: readonly string[]): Picker | undefined => {
   }
 }
 
-/** Whether the picker is on `question` with its options in order and the Other row last. */
-const pickerOn = (picker: Picker | undefined, question: AsyncQuestion): boolean => {
+/** Whether the picker is on `question` with its options in order and one row after them. */
+const optionsOn = (picker: Picker | undefined, question: AsyncQuestion): picker is Picker => {
   if (!picker || picker.title !== squash(question.title)) return false
-  if (question.options.length === 0) return picker.words
   const { rows } = picker
-  if (rows.length !== question.options.length + 1) return false
   return (
-    question.options.every((option, i) => labelled(rows[i]!.head, option)) &&
-    labelled(rows.at(-1)!.head, asyncOther)
+    rows.length === question.options.length + 1 &&
+    question.options.every((option, i) => labelled(rows[i]!.head, option))
   )
 }
+
+/** Whether the picker is on `question`: its options in order and the Other row last. */
+const pickerOn = (picker: Picker | undefined, question: AsyncQuestion): boolean =>
+  question.options.length === 0
+    ? picker?.title === squash(question.title) && picker.words
+    : optionsOn(picker, question) && labelled(picker.rows.at(-1)!.head, asyncOther)
 
 /** Whether the picker is on `question` with its Other row, not any other, highlighted. */
 const otherMarked = (picker: Picker | undefined, question: AsyncQuestion): boolean =>
@@ -704,7 +697,7 @@ const wordsShown = (lines: readonly string[], question: AsyncQuestion, text: str
   if (lines.length === 0 || !asyncFooter.test(lines.at(-1)!)) return false
   const start = squash(text).slice(0, 40)
   if (question.options.length === 0) {
-    const heading = lastIndex(lines, (line) => queuedHeading.test(line))
+    const heading = lines.findLastIndex((line) => queuedHeading.test(line))
     if (heading < 0) return false
     const body = lines.slice(heading + 1, -1)
     const [counted] = body
@@ -713,20 +706,17 @@ const wordsShown = (lines: readonly string[], question: AsyncQuestion, text: str
     )
     return shown.startsWith(squash(question.title) + start)
   }
+  // The words replace the Other row's label.
   const picker = pickerOf(lines)
-  if (!picker || picker.title !== squash(question.title)) return false
-  const { rows } = picker
-  const count = question.options.length
-  if (rows.length !== count + 1) return false
-  if (!question.options.every((option, i) => labelled(rows[i]!.head, option))) return false
-  const row = rows[count]!
+  if (!optionsOn(picker, question)) return false
+  const row = picker.rows.at(-1)!
   return row.marked && squash(row.text).startsWith(start)
 }
 
 /** The `? n question(s)` panel's count at the screen's bottom, where `shift+← to answer` is under it. */
 const panelOf = (lines: readonly string[]): number | undefined => {
-  const at = lastIndex(lines, (line) => asyncPanel.test(line))
-  if (at < 0 || lastIndex(lines, (line) => queuedHeading.test(line)) !== at - 1) return undefined
+  const at = lines.findLastIndex((line) => asyncPanel.test(line))
+  if (at < 0 || lines.findLastIndex((line) => queuedHeading.test(line)) !== at - 1) return undefined
   if (!asyncOpens.test(lines[at + 1] ?? "")) return undefined
   return Number(asyncPanel.exec(lines[at]!)![1])
 }
@@ -920,9 +910,7 @@ const composerShown = (rows: readonly string[]): boolean =>
 const parse = (rows: readonly string[], facts: RequestFacts): Parsed | undefined => {
   const lines = clean(rows)
   if (facts.kind === "question") {
-    return facts.tool === asyncTool
-      ? readAsync(lines, facts)
-      : readQuestions(lines, facts)
+    return facts.tool === asyncTool ? readAsync(lines, facts) : readQuestions(lines, facts)
   }
   if (facts.kind === "plan") return readPlan(lines)
   return readMcp(lines, facts) ?? readApproval(lines, facts)

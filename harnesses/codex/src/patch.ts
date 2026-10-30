@@ -31,13 +31,15 @@ export const flavourOf = (...paths: (string | undefined)[]): typeof posix =>
 export const patched = (input: unknown, cwd: string | undefined): readonly string[] => {
   if (typeof input !== "object" || input === null) return []
   const texts = Object.values(input).filter((value): value is string => typeof value === "string")
-  return texts.flatMap(patchPaths).flatMap((path) =>
-    flavourOf(path, cwd).isAbsolute(path)
-      ? [flavourOf(path).normalize(path)]
-      : cwd !== undefined
-        ? [flavourOf(path, cwd).resolve(cwd, path)]
-        : [],
-  )
+  return texts
+    .flatMap(patchPaths)
+    .flatMap((path) =>
+      flavourOf(path, cwd).isAbsolute(path)
+        ? [flavourOf(path).normalize(path)]
+        : cwd !== undefined
+          ? [flavourOf(path, cwd).resolve(cwd, path)]
+          : [],
+    )
 }
 
 /** The files a permission request for a Codex patch asks to write, from its directory. */
