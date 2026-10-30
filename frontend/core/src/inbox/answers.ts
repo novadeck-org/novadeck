@@ -225,12 +225,13 @@ export type InboxActions = {
   readonly terminal: (key: TerminalKey) => TerminalMetadata | undefined
 }
 
-// Answers a row as its kind asks: a request through the agent's conversation, a held
-// thread released or stopped, a finish read, trouble by continuing, stopping or nudging the
-// agent (a nudge interrupts it first if it works, except on a stored failed row, which is
-// nudged only while it is the agent's current end and the agent rests, never interrupting,
-// and read once the nudge is sent; a failed row that is no longer current is only read). An answer of another kind fails; the
-// kinds a backend answers itself (an ask, a told or done update) it handles before this.
+// Answers a row as its kind asks: a request through the agent's conversation, a held thread
+// released or stopped, a finish read, trouble by continuing, stopping or nudging the agent
+// (a nudge interrupts it first if it works, except on a stored failed row, which is nudged
+// only while it is the agent's current end and the agent rests, never interrupting, and
+// read once the nudge is sent; a failed row that is no longer current is only read). An
+// answer of another kind fails; the kinds a backend answers itself (an ask, a told or done
+// update) it handles before this.
 export const answerRow = (
   tracker: InboxTracker,
   row: InboxRow,

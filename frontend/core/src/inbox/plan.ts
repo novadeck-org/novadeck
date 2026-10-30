@@ -27,7 +27,7 @@ const planLeadMs: Readonly<Record<AgentName, number>> = {
 export const planWaitMs = 5 * second
 
 // The plan item a plan approval asks about: found, still to come (until `until`), or none,
-// for an item that is no plan approval or whose plan never came.
+// for a row that is no plan approval or whose plan never came.
 export type PlanPick =
   | { readonly state: "found"; readonly item: Item }
   | { readonly state: "waiting"; readonly until: number }

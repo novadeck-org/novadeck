@@ -5,8 +5,9 @@ import type { Refusal } from "./addon"
 // machine by an engine and a model the person installs when they reach for it (or from
 // Preferences), and typed into a terminal as if pasted, for the person to read and send.
 
-// The longest clip a backend takes, in seconds. The core can't import the protocol's wire contracts,
-// so frontend/runner-adapter/src/voice.test.ts checks this against its `maxVoiceSeconds`.
+// The longest clip a backend takes, in seconds. The core can't import the protocol's wire
+// contracts, so frontend/runner-adapter/src/voice.test.ts checks this against its
+// `maxVoiceSeconds`.
 export const maxClipSeconds = 120
 
 // `turbo` is accurate in many languages but wants a GPU; `small` is quicker on a CPU. The
@@ -98,8 +99,9 @@ export type Voice = {
 }
 
 // What an install downloads: the model it aims for (turbo, or small where the computer is
-// known not to suit turbo) unless it is on disk already, and the engine unless that is. A turbo that later turns
-// out too slow for this computer costs small's download after, which isn't counted.
+// known not to suit turbo) unless it is on disk already, and the engine unless that is. A
+// turbo that later turns out too slow for this computer costs small's download after, which
+// isn't counted.
 export const installSize = (state: VoiceState): number =>
   (state.installed.includes(state.aim) ? 0 : state.sizes[state.aim]) +
   (state.engineInstalled ? 0 : state.sizes.engine)

@@ -33,16 +33,16 @@ export type { TerminalKey }
 // return. The mount owns the element's children; the UI owns the element (its classes, its
 // place) and moves it, never the children. A new key is a new mount.
 //
-// The UI draws the terminal's window and what lies over its output (the lock, the notice of a
-// failed paste, the ending bar) around the element, from `TerminalMount.state`, and relies on
-// this markup:
-// - The UI's container for the element (`MountedTerminal`) puts `data-terminal-content` on its root (view
-//   transitions morph it), `nodrag nopan` so Canvas does not drag or pan from the content, and a wheel stop without
-//   Ctrl/Meta so scrolling output does not zoom the canvas while pinch and Ctrl+wheel still
-//   do. The mount never needs to know.
-// - The mount puts exactly one `data-terminal-input` inside its element, on the element that
-//   takes typed input. Shortcuts treat it as terminal input, search returns focus to it,
-//   overlays and dictation find the terminal by it.
+// The UI draws the terminal's window and what lies over its output (the lock, the notice of
+// a failed paste, the ending bar) around the element, from `TerminalMount.state`, and
+// relies on this markup:
+// - The UI's container for the element (`MountedTerminal`) puts `data-terminal-content` on
+//   its root (view transitions morph it), `nodrag nopan` so Canvas does not drag or pan
+//   from the content, and a wheel stop without Ctrl/Meta so scrolling output does not zoom
+//   the canvas while pinch and Ctrl+wheel still do. The mount never needs to know.
+// - The mount puts exactly one `data-terminal-input` inside its element, on the element
+//   that takes typed input. Shortcuts treat it as terminal input, search returns focus to
+//   it, overlays and dictation find the terminal by it.
 // - Its own styles may key off the frame's `terminal-compact` (Grid and Canvas) and
 //   `terminal-focused` (Focus) classes; ship them with the adapter.
 export type MountTerminal = (
@@ -139,9 +139,9 @@ export type BackendAction = Extract<
   }
 >
 
-// An agent in terminal `from` asked for a new terminal beside it: in `directory`,
-// running `command` at its first prompt; `focus` when the person asked to see it. The
-// backend names it as the agent asked. The app answers once: the terminal it added, which the backend
+// An agent in terminal `from` asked for a new terminal beside it: in `directory`, running
+// `command` at its first prompt; `focus` when the person asked to see it. The backend names
+// it as the agent asked. The app answers once: the terminal it added, which the backend
 // then starts with the request's command, or why it couldn't, in a sentence for the agent.
 export type TerminalRequest = {
   readonly from: string
@@ -393,13 +393,13 @@ export type BackendFields = {
   // that does not say.
   readonly sandbox?: () => Promise<SandboxState>
   // Optional. Whether the desktop app is a portable copy, asked once at startup. A portable
-  // never updates itself; `install` asks the desktop app to put the installed app, which does
-  // update itself, in place, keeping the workspace, and answers nothing: the desktop app owns how the install goes and
-  // `onState` hears each step of it (`PortableState.install`), in every window, including
-  // an install started from another window or before this page was reloaded. Once
-  // `installed` (or `newer`) the installed copy takes effect when the person next opens
-  // Novadeck. Nothing restarts by itself. Absent in a browser and in a desktop app that is no
-  // portable copy.
+  // never updates itself; `install` asks the desktop app to put the installed app, which
+  // does update itself, in place, keeping the workspace, and answers nothing: the desktop
+  // app owns how the install goes and `onState` hears each step of it
+  // (`PortableState.install`), in every window, including an install started from another
+  // window or before this page was reloaded. Once `installed` (or `newer`) the installed
+  // copy takes effect when the person next opens Novadeck. Nothing restarts by itself.
+  // Absent in a browser and in a desktop app that is no portable copy.
   readonly portable?: {
     readonly state: () => Promise<PortableState>
     readonly onState: (listener: (state: PortableState) => void) => () => void
@@ -492,9 +492,10 @@ export type ConnectBackend = (
   progress: (stage: "loading") => void,
 ) => Promise<BackendConnection>
 
-// Why connecting failed, sorted by what the person can do about it: a transient
-// failure retries on its own, a different version or a workspace a newer Novadeck used can
-// only quit, and the rest wait for Retry. `message` is for people; `code` and `detail` are for a bug report.
+// Why connecting failed, sorted by what the person can do about it: a transient failure
+// retries on its own, a different version or a workspace a newer Novadeck used can only
+// quit, and the rest wait for Retry. `message` is for people; `code` and `detail` are for a
+// bug report.
 export type ConnectFailure = {
   readonly kind: "transient" | "incompatible" | "outdated" | "unauthorized" | "unknown"
   readonly message: string

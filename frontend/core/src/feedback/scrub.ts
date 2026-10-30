@@ -3,8 +3,8 @@
 // and email addresses. The draft is the agent's text, written from a terminal that is full
 // of such things. Pure: the Inbox draws the struck parts through and sends the text with a
 // placeholder in their place. It is conservative: it strikes what clearly points at one
-// person or machine, and leaves prose, repo-relative paths (`frontend/ui/src/Toast.tsx`), `@handle`s, scoped
-// packages (`@novadeck/core`) and `name@version` alone.
+// person or machine, and leaves prose, repo-relative paths (`frontend/ui/src/Toast.tsx`),
+// `@handle`s, scoped packages (`@novadeck/core`) and `name@version` alone.
 
 export type StrikeKind = "path" | "user" | "host" | "email"
 
@@ -172,8 +172,8 @@ const find = (text: string): Found[] => {
     found.push({ start: userStart, end: userStart + match[1]!.length, kind: "user" })
     found.push({ start: hostStart, end: hostStart + match[2]!.length, kind: "host" })
   }
-  // Earliest first, a login first and then the longer where they start together; one that overlaps an earlier is
-  // part of it (an email address inside a path is the path).
+  // Earliest first, a login first and then the longer where they start together; one that
+  // overlaps an earlier is part of it (an email address inside a path is the path).
   found.sort((a, b) => a.start - b.start || (a.rank ?? 1) - (b.rank ?? 1) || b.end - a.end)
   const kept: Found[] = []
   for (const each of found) if (each.start >= (kept.at(-1)?.end ?? 0)) kept.push(each)

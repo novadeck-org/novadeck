@@ -1,4 +1,4 @@
-// Units of time and counting the agents' text and clocks share.
+// The units of time the core's clocks count in, and how its text counts things.
 
 export const second = 1000
 export const minute = 60 * second

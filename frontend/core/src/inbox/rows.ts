@@ -22,6 +22,7 @@ import {
 } from "../messages"
 import { isAgentProgram } from "../terminals/process"
 import type { TerminalMetadata, Workspace, WorkspaceProject, WorkspaceSession } from "../types"
+import { second } from "../units"
 
 // The Inbox's rows, as a backend that builds them from the app's own state derives them:
 // what every agent terminal waits on the person for, from the terminals' statuses (a usage
@@ -31,7 +32,7 @@ import type { TerminalMetadata, Workspace, WorkspaceProject, WorkspaceSession } 
 
 // How long a request's dialog may stay unread before its row shows anyway, to be answered
 // in the terminal.
-export const dialogMs = 3000
+export const dialogMs = 3 * second
 
 // A request, with when its hook started on the backend's clock.
 export type Asked = { readonly request: ChatRequest; readonly askedAt: number }

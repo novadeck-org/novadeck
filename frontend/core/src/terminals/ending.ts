@@ -45,17 +45,18 @@ export const endingText = ({ status, reason }: TerminalEnding): string =>
 // What a terminal shows at a glance, in its tab and on its window, as the state of what it
 // does: a shell starting, idle at its prompt, running a program, waiting on something that
 // wakes it, paused at a usage limit, done, unheard, or ended. An agent that reports through
-// its hooks reads as running only while it works, its turn or what that left running.
-// An agent Novadeck hears nothing from, as its hooks aren't connected or trusted, is
-// unheard: whether it works or waits, nothing tells. A clean exit closes the terminal, so a
-// finished one reads as idle for the moment it remains.
+// its hooks reads as running only while it works, its turn or what that left running. An
+// agent Novadeck hears nothing from, as its hooks aren't connected or trusted, is unheard:
+// whether it works or waits, nothing tells. A clean exit closes the terminal, so a finished
+// one reads as idle for the moment it remains.
 //
-// `outcome` is what the caller says is unseen and final: a report the agent made itself (its
-// MCP `done` call) or a turn that stopped on an error, never a turn that merely ended. A
-// reply the person hasn't read leaves an idle agent idle, for its tab to brighten its
-// program. A dialog the agent waits on (`attention`) rests it too, but for a request it asked
-// without waiting, which it works on through. A limit pauses an agent that stopped on one until it works again. What an agent
-// needs of the person, a dialog or a question, is no phase: see `terminalNeedMark`.
+// `outcome` is what the caller says is unseen and final: a report the agent made itself
+// (its MCP `done` call) or a turn that stopped on an error, never a turn that merely ended.
+// A reply the person hasn't read leaves an idle agent idle, for its tab to brighten its
+// program. A dialog the agent waits on (`attention`) rests it too, but for a request it
+// asked without waiting, which it works on through. A limit pauses an agent that stopped on
+// one until it works again. What an agent needs of the person, a dialog or a question, is
+// no phase: see `terminalNeedMark`.
 export type TerminalPhase =
   | "starting"
   | "idle"
