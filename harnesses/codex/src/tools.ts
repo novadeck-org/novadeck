@@ -18,11 +18,24 @@ import type { ToolRun } from "@novadeck/protocol"
 const novadeck = [/^mcp__novadeck__(.+)$/, /^mcp__novadeck\.(.+)$/]
 
 /** Whether a tool is one of Novadeck's own MCP server, by the server in its name. */
-export const isNovadeckTool = (tool: string): boolean => novadeck.some((each) => each.test(tool))
+const isNovadeckTool = (tool: string): boolean => novadeck.some((each) => each.test(tool))
+
+/**
+ * An MCP tool's name as Codex's hooks give it: each character of its server and tool
+ * outside ASCII letters, digits and `_` as one `_` (`probe-srv` and `probe.srv` both
+ * `probe_srv`, `tüch` and `t😀ch` both `t_ch`; probed 0.159.3). Two servers that come out
+ * the same each gain a hash of Codex's own (`a_b_e0598e406614`): their names match nothing,
+ * so their requests settle only as before, and their dialogs read as none.
+ */
+export const mcpTool = (server: string, tool: string): string =>
+  `mcp__${mcpName(server)}__${mcpName(tool)}`
+
+/** One part of an MCP tool's name as Codex's hooks give it (see `mcpTool`). */
+export const mcpName = (name: string): string => name.replace(/\W/gu, "_")
 
 // Codex's shell tools take the command as a list, often wrapped as `bash -lc <script>`.
 // The script is kept whole here (`commandOf` shows its first line), as its newlines join sleeps.
-export const scriptOf = (fields: Fields | undefined): string => {
+const scriptOf = (fields: Fields | undefined): string => {
   const text = textField(fields, "cmd", "command", "CommandLine")
   if (text) return text
   const list = fields?.command

@@ -13,7 +13,8 @@ import { followLines } from "@novadeck/harness-core/follow"
 import type { Harness, Run, WrittenPlan } from "@novadeck/harness-core/harness"
 import type { AgentTelemetry } from "@novadeck/protocol"
 
-import { callOf, mcpTool } from "./decode.js"
+import { callOf } from "./decode.js"
+import { mcpTool } from "./tools.js"
 import { transcripts } from "./transcripts.js"
 
 // A failed turn's `task_complete` error: its message, and `codex_error_info`, which is

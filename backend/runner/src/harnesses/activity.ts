@@ -1,4 +1,4 @@
-import { flavourOf, patchRequested } from "@novadeck/harness-codex/decode"
+import { flavourOf, patchRequested } from "@novadeck/harness-codex/patch"
 import { ref } from "@novadeck/harness-core/decode"
 import type { ActivityEvent, Background, PlanSource } from "@novadeck/harness-core/events"
 import type { AgentActivity } from "@novadeck/protocol"

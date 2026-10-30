@@ -8,7 +8,9 @@ import type {
 } from "@novadeck/harness-core/dialogs"
 import type { RequestAnswer } from "@novadeck/protocol"
 
-import { mcpName, mcpTool } from "./decode.js"
+import { asyncTool } from "./async-question.js"
+import { patchPaths } from "./patch.js"
+import { mcpName, mcpTool } from "./tools.js"
 
 /**
  * How Codex's TUI asks the person, and the keys that answer it (probed 2026-10-06, 0.159.3;
@@ -202,12 +204,6 @@ const choose = (title: string, picks: readonly Choice[], detail: string | null):
   },
 })
 
-/** The files a patch writes, as its text names them. */
-const patched = (text: string): readonly string[] =>
-  [...text.matchAll(/^\*\*\* (?:Add File|Update File|Delete File|Move to): (.+)$/gm)].map(
-    ([, path]) => path!.trim(),
-  )
-
 const slashes = (path: string): string => squash(path).replace(/\\/g, "/")
 
 const sameFile = (destination: string, file: string): boolean => {
@@ -267,7 +263,7 @@ const readApproval = (lines: readonly string[], facts: RequestFacts): Parsed | u
     detail = input.command
   } else if (name === "Would you like to make the following edits?") {
     if (facts.tool !== "apply_patch" || typeof input?.command !== "string") return undefined
-    const files = patched(input.command)
+    const files = patchPaths(input.command)
     const shown = shownDestinations(body)
     if (files.length === 0 || shown.length === 0) return undefined
     if (!shown.every((each) => files.some((file) => sameFile(each, file)))) return undefined
@@ -765,7 +761,7 @@ const queuedAnswer = (lines: readonly string[], title: string): boolean => {
 }
 
 const readAsync = (lines: readonly string[], facts: RequestFacts): Parsed | undefined => {
-  if (facts.kind !== "question" || facts.tool !== "request_user_input_async") return undefined
+  if (facts.kind !== "question" || facts.tool !== asyncTool) return undefined
   const asked = asyncQuestionsOf(facts.input)
   if (!asked) return undefined
   // Codex takes each question's answer on its own: those answered already are gone from
@@ -924,7 +920,7 @@ const composerShown = (rows: readonly string[]): boolean =>
 const parse = (rows: readonly string[], facts: RequestFacts): Parsed | undefined => {
   const lines = clean(rows)
   if (facts.kind === "question") {
-    return facts.tool === "request_user_input_async"
+    return facts.tool === asyncTool
       ? readAsync(lines, facts)
       : readQuestions(lines, facts)
   }
