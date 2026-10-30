@@ -17,6 +17,7 @@ import {
 import type {
   Background,
   BackgroundJob,
+  EventBase,
   HarnessEvent,
   PlanSource,
 } from "@novadeck/harness-core/events"
@@ -48,14 +49,6 @@ import { kindOf } from "./tools.js"
 export const decode = (report: Report): readonly HarnessEvent[] =>
   withRequestCwd(withMode(decodeHook(report), report.payload), report.payload)
 
-/** What every event of one report shares: the session, its process and when it fired. */
-export type EventBase = {
-  readonly agent: "claude"
-  readonly sessionId: string
-  readonly instance: string | null
-  readonly startedAt: number
-}
-
 /** The tool name an elicitation of `server` goes by: it is no tool call, so it takes this. */
 export const elicitationTool = (server: string): string => `mcp__${server}__elicitation`
 
@@ -72,7 +65,7 @@ const atPrompt: ReadonlySet<string> = new Set(["startup", "clear", "resume", "fo
 const decodeHook = ({ event, seq, instance, env, payload }: Report): readonly HarnessEvent[] => {
   const id = sessionId(payload.session_id)
   if (!id || payload.cursor_version !== undefined || env.cursor) return []
-  const base: EventBase = { agent: "claude", sessionId: id, instance, startedAt: seq }
+  const base: EventBase<"claude"> = { agent: "claude", sessionId: id, instance, startedAt: seq }
   const tool = text(payload.tool_name) ?? ""
   const actor = text(payload.agent_id) ?? null
   switch (event) {
@@ -293,7 +286,11 @@ const firstLine = (value: unknown): string | undefined => {
  * epoch milliseconds, which Claude Code rounds to the minute; its `delaySeconds` from the
  * call's input stands in where a result has none.
  */
-const started = (base: EventBase, tool: string, payload: Report["payload"]): HarnessEvent[] => {
+const started = (
+  base: EventBase<"claude">,
+  tool: string,
+  payload: Report["payload"],
+): HarnessEvent[] => {
   const fields = isFields(payload.tool_input) ? payload.tool_input : {}
   const result = isFields(payload.tool_response) ? payload.tool_response : {}
   if (tool === "ScheduleWakeup") {
@@ -383,7 +380,7 @@ export const planFile = (value: unknown): string | undefined => {
 
 // A file a writer wrote or edited, by the absolute path its input names.
 const touched = (
-  base: EventBase,
+  base: EventBase<"claude">,
   actor: string | null,
   tool: string,
   input: unknown,
@@ -396,7 +393,7 @@ const touched = (
 
 // A plan drafted in plan mode: the file its writer wrote.
 const drafted = (
-  base: EventBase,
+  base: EventBase<"claude">,
   actor: string | null,
   tool: string,
   payload: Report["payload"],
@@ -418,7 +415,7 @@ export const presentedPlan = (tool: string, input: unknown): PlanSource | undefi
 }
 
 const presented = (
-  base: EventBase,
+  base: EventBase<"claude">,
   actor: string | null,
   tool: string,
   input: unknown,

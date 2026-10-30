@@ -1,5 +1,4 @@
 import type { AnswerableDialog, DialogRead, KeyStep } from "@novadeck/harness-core/dialogs"
-import { isFields, type Fields } from "@novadeck/harness-core/tools"
 import type { RequestAnswer } from "@novadeck/protocol"
 
 /**
@@ -20,10 +19,6 @@ export const flat = (text: string): string => text.replace(/[\s│]+/g, "")
 
 export const rule = /^─+$/
 export const dashed = /^╌+$/
-
-/** A JSON object's fields, as a request's input holds them; undefined for anything else. */
-export const fieldsOf = (value: unknown): Fields | undefined =>
-  isFields(value) ? value : undefined
 
 /** A string with something in it but blanks. */
 export const nonBlank = (value: unknown): string | undefined =>

@@ -1,8 +1,6 @@
 import { shortName } from "@novadeck/harness-core/decode"
-import type { HarnessEvent } from "@novadeck/harness-core/events"
+import type { EventBase, HarnessEvent } from "@novadeck/harness-core/events"
 import type { Report } from "@novadeck/harness-core/report"
-
-import type { EventBase } from "./decode.js"
 
 // A non-negative number the status line gives, or none.
 const count = (value: unknown): number | undefined =>
@@ -18,7 +16,10 @@ const windows = { five_hour: 300, seven_day: 10_080 } as const
  * display name with its reasoning effort level, which it leaves out for a model without
  * one.
  */
-export const statusLine = (base: EventBase, payload: Report["payload"]): HarnessEvent[] => {
+export const statusLine = (
+  base: EventBase<"claude">,
+  payload: Report["payload"],
+): HarnessEvent[] => {
   const window = (payload.context_window ?? {}) as Record<string, unknown>
   const usage = (window.current_usage ?? {}) as Record<string, unknown>
   const held = [

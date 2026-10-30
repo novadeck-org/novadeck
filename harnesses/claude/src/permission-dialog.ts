@@ -1,12 +1,12 @@
 import { posix, win32 } from "node:path"
 
 import type { DialogRead, RequestFacts } from "@novadeck/harness-core/dialogs"
+import { fieldsOf } from "@novadeck/harness-core/fields"
 
 import {
   choices,
   dashed,
   digitKeys,
-  fieldsOf,
   idle,
   nonBlank,
   numbered,

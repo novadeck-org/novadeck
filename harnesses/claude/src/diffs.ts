@@ -1,5 +1,5 @@
 import { cells } from "@novadeck/emulator/width"
-import type { Fields } from "@novadeck/harness-core/tools"
+import type { Fields } from "@novadeck/harness-core/fields"
 
 /**
  * The diff Claude Code's permission dialog draws for a Write or an Edit, checked line by

@@ -4,6 +4,7 @@ import type {
   KeyStep,
   RequestFacts,
 } from "@novadeck/harness-core/dialogs"
+import { fieldsOf } from "@novadeck/harness-core/fields"
 import type { RequestAnswer } from "@novadeck/protocol"
 
 import {
@@ -11,7 +12,6 @@ import {
   Down,
   editorHint,
   Enter,
-  fieldsOf,
   flat,
   idle,
   landed,

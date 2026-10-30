@@ -1,5 +1,5 @@
 import type { DialogRead, RequestFacts } from "@novadeck/harness-core/dialogs"
-import type { Fields } from "@novadeck/harness-core/tools"
+import { fieldsOf, type Fields } from "@novadeck/harness-core/fields"
 
 import {
   choices,
@@ -7,7 +7,6 @@ import {
   digitKeys,
   editorHintFlat,
   Enter,
-  fieldsOf,
   flat,
   idle,
   landed,

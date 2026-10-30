@@ -3,13 +3,12 @@ import { join } from "node:path"
 
 import type { Harness } from "@novadeck/harness-core/harness"
 import { hookSeconds, hookCommand, type Dialect } from "@novadeck/harness-core/hook-command"
-import { json, marketplace, plugin } from "@novadeck/harness-core/plugin"
+import { json, manifest, marketplace } from "@novadeck/harness-core/plugin"
 
 import { claudeHome } from "./home.js"
 
-/** Novadeck's plugin as Claude Code names it, and the marketplace it comes from. */
-const pluginId = "novadeck@novadeck"
-const marketplaceName = "novadeck"
+/** Novadeck's plugin as Claude Code names it: the plugin's name at its marketplace's. */
+const pluginId = `${manifest.name}@${marketplace.name}`
 
 // The hooks `decode` reads: the session, its turns, and the requests waiting on the person.
 const events = [
@@ -55,7 +54,7 @@ export const connected: Harness["connected"] = async (install) => {
 /** Adds Novadeck's marketplace from the plugin's folder and installs the plugin from it. */
 export const connect: Harness["connect"] = ({ plugin: directory }) => [
   // A marketplace left from an earlier connection is replaced, not added twice.
-  { argv: ["claude", "plugin", "marketplace", "remove", marketplaceName], optional: true },
+  { argv: ["claude", "plugin", "marketplace", "remove", marketplace.name], optional: true },
   { argv: ["claude", "plugin", "marketplace", "add", directory] },
   { argv: ["claude", "plugin", "install", pluginId] },
 ]
@@ -63,7 +62,7 @@ export const connect: Harness["connect"] = ({ plugin: directory }) => [
 /** Uninstalls the plugin and removes its marketplace, whichever of them is there. */
 export const disconnect: Harness["disconnect"] = [
   { argv: ["claude", "plugin", "uninstall", pluginId], optional: true },
-  { argv: ["claude", "plugin", "marketplace", "remove", marketplaceName], optional: true },
+  { argv: ["claude", "plugin", "marketplace", "remove", marketplace.name], optional: true },
 ]
 
 /**
@@ -71,8 +70,8 @@ export const disconnect: Harness["disconnect"] = [
  * settings Novadeck's shim adds for the status line.
  */
 export const files: Harness["files"] = (platform, launchers) => [
-  { path: join(".claude-plugin", "marketplace.json"), content: marketplace },
-  { path: join("novadeck", ".claude-plugin", "plugin.json"), content: json(plugin) },
+  { path: join(".claude-plugin", "marketplace.json"), content: json(marketplace) },
+  { path: join("novadeck", ".claude-plugin", "plugin.json"), content: json(manifest) },
   // Its MCP server, which Claude Code finds at the plugin's root and starts with the
   // terminal's environment.
   {

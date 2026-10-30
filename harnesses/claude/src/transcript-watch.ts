@@ -1,10 +1,11 @@
 import { callId } from "@novadeck/harness-core/decode"
-import type { ActivityEvent, TelemetryObserved } from "@novadeck/harness-core/events"
+import type { ActivityEvent, EventBase, TelemetryObserved } from "@novadeck/harness-core/events"
+import { parseFields } from "@novadeck/harness-core/fields"
 import { followLines } from "@novadeck/harness-core/follow"
 import type { Harness, Run, WrittenPlan } from "@novadeck/harness-core/harness"
-import { at, record } from "@novadeck/harness-core/items"
+import { at } from "@novadeck/harness-core/items"
 
-import { presentedPlan, type EventBase } from "./decode.js"
+import { presentedPlan } from "./decode.js"
 
 /**
  * What Claude Code's session transcript says beside its hooks: followed live while a
@@ -66,13 +67,13 @@ export const transcriptEvents = (
   const called = line.includes('"tool_use"')
   const result = calls.size > 0 && line.includes('"tool_result"')
   if (!interrupting && !stopped && !called && !result && !line.includes('"usage"')) return []
-  const fields = record(line)
+  const fields = parseFields(line)
   if (!fields) return []
   const { type, subtype, isSidechain, timestamp, message } = fields
   if (isSidechain === true || typeof timestamp !== "string") return []
   const startedAt = Date.parse(timestamp)
   if (!Number.isFinite(startedAt)) return []
-  const base: EventBase = { agent: "claude", sessionId, instance, startedAt }
+  const base: EventBase<"claude"> = { agent: "claude", sessionId, instance, startedAt }
   if (type === "system" && subtype === "stop_hook_summary")
     return [{ type: "turn-ended", ...base, outcome: "completed", recorded: true }]
   const { content, usage } = (message ?? {}) as { content?: unknown; usage?: unknown }
@@ -111,7 +112,7 @@ const remember = (calls: Calls, blocks: readonly Record<string, unknown>[]): voi
 const results = (
   calls: Calls,
   blocks: readonly Record<string, unknown>[],
-  base: EventBase,
+  base: EventBase<"claude">,
 ): ActivityEvent[] =>
   blocks.flatMap(({ type, tool_use_id: id }) => {
     const call = type === "tool_result" && typeof id === "string" ? calls.get(id) : undefined
@@ -148,7 +149,7 @@ export const followTranscript: NonNullable<Harness["watch"]> = (run, signal, emi
  */
 export const transcriptPlans = (line: string): readonly WrittenPlan[] => {
   if (!line.includes('"ExitPlanMode"')) return []
-  const fields = record(line)
+  const fields = parseFields(line)
   if (fields?.type !== "assistant") return []
   const time = at(fields.timestamp)
   const content = (fields.message as { content?: unknown } | undefined)?.content
