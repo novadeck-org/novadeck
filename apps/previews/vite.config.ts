@@ -44,9 +44,4 @@ export default defineConfig({
       utilities: frontendUtilities,
     }),
   ],
-  resolve: {
-    alias: [
-      { find: /^react$/, replacement: resolve(import.meta.dirname, "node_modules/react/index.js") },
-    ],
-  },
 })
