@@ -7,7 +7,7 @@ import { afterAll, vi } from "vitest"
 
 import { runnerBackend, type RunnerApi } from "./backend"
 import { context, describe, expect, it } from "./test"
-import { startTestRunner } from "./testing"
+import { startTestRunner } from "./testing/runner"
 
 vi.setConfig({ testTimeout: 20_000 })
 

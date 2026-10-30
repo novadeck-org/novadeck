@@ -24,10 +24,10 @@ import {
   desktopVersion,
   desktopWhatsNew,
   desktopWindowFocus,
-} from "./desktop-host"
-import { reportPoolTo } from "./renderer-report"
-import type { RunnerListing } from "./seed"
-import { sizePoolTo } from "./webgl-cap"
+} from "./desktop/app"
+import { reportPoolTo } from "./desktop/renderer-report"
+import { sizePoolTo } from "./desktop/webgl-cap"
+import type { RunnerListing } from "./sessions/seed"
 
 /** The desktop app's runner: the one its host starts, over a port the host hands the page. */
 export const desktopTransport = (): Transport => desktop()

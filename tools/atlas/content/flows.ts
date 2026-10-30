@@ -272,7 +272,7 @@ export const flows: (Omit<Flow, "steps"> & { steps: CuratedStep[] })[] = [
         to: "renderer",
         label: "item → companion bar",
         text: "The UI applies the change, and the item appears in the terminal's bar.",
-        anchor: { file: `${adapter}/items.ts`, text: "const changes = runner.watch()" },
+        anchor: { file: `${adapter}/companions/items.ts`, text: "const changes = runner.watch()" },
       },
       {
         from: "runner",
@@ -356,7 +356,7 @@ export const flows: (Omit<Flow, "steps"> & { steps: CuratedStep[] })[] = [
         label: "requests → chat cards",
         text: "The conversation turns the pending requests into cards in the chat view, where the person picks an answer.",
         anchor: {
-          file: `${adapter}/conversations.ts`,
+          file: `${adapter}/agents/conversations.ts`,
           text: "const requestsOf = (detail: AgentDetail, root: string | null)",
         },
       },
@@ -366,7 +366,7 @@ export const flows: (Omit<Flow, "steps"> & { steps: CuratedStep[] })[] = [
         label: "agents.answer call",
         text: "The chosen answer goes to the runner as an agents.answer call.",
         anchor: {
-          file: `${adapter}/conversations.ts`,
+          file: `${adapter}/agents/conversations.ts`,
           text: "streams.answer(terminalId, request, requestAnswerOf(answer))",
         },
       },

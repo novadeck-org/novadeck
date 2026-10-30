@@ -10,7 +10,7 @@ import { afterAll, vi } from "vitest"
 
 import { runnerBackend } from "./backend"
 import { describe, expect, it } from "./test"
-import { startTestRunner } from "./testing"
+import { startTestRunner } from "./testing/runner"
 
 vi.setConfig({ testTimeout: 20_000 })
 

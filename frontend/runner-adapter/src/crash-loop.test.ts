@@ -9,10 +9,10 @@ import type { WireStatus } from "@novadeck/wire/client"
 import { vi } from "vitest"
 
 import { runnerBackend, type RunnerApi } from "./backend"
-import { keptSummary, noCompanions } from "./scripted"
-import { startingTerminal, type RunnerListing } from "./seed"
-import { encodeSession } from "./session-state"
+import { startingTerminal, type RunnerListing } from "./sessions/seed"
+import { encodeSession } from "./sessions/state"
 import { describe, expect, it } from "./test"
+import { keptSummary, noCompanions } from "./testing/scripted"
 
 const unused = (): never => {
   throw new Error("not used here")

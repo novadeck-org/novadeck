@@ -26,11 +26,11 @@ import {
   type RunnerBackend,
   type RunnerBackendOptions,
 } from "./backend"
-import { keptSummary } from "./scripted"
-import { runnerSeed, startingTerminal, type RunnerListing } from "./seed"
-import { encodeSession } from "./session-state"
+import { runnerSeed, startingTerminal, type RunnerListing } from "./sessions/seed"
+import { encodeSession } from "./sessions/state"
 import { context, describe, expect, it } from "./test"
-import { recordingRunner, startTestRunner, typeInto } from "./testing"
+import { recordingRunner, startTestRunner, typeInto } from "./testing/runner"
+import { keptSummary } from "./testing/scripted"
 
 // The runner samples the foreground process about once a second.
 const eventually = { timeout: 5000 }

@@ -4,7 +4,7 @@ import { join } from "node:path"
 
 import { createRunnerSource } from "./source"
 import { context, describe, expect, it } from "./test"
-import { startTestRunner } from "./testing"
+import { startTestRunner } from "./testing/runner"
 
 describe("the runner's source", () => {
   it("has no changes to tell of", () => {

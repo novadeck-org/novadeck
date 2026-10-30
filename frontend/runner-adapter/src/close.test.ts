@@ -11,9 +11,9 @@ import type { WireStatus } from "@novadeck/wire/client"
 import { afterEach, beforeEach, vi } from "vitest"
 
 import { runnerBackend, type RunnerApi, type RunnerBackendOptions } from "./backend"
-import { channel, id as uuid, keptSummary, noCompanions } from "./scripted"
-import type { RunnerListing } from "./seed"
+import type { RunnerListing } from "./sessions/seed"
 import { describe, expect, it } from "./test"
+import { channel, id as uuid, keptSummary, noCompanions } from "./testing/scripted"
 
 // Every wait here runs on a fake clock, so a slow machine can't push a step past a
 // deadline it should beat, or a deadline past a step that should see it run out.

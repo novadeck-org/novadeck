@@ -3,7 +3,7 @@ import { describeBackendContract } from "@novadeck/test-kit/backend-contract"
 import { afterAll, vi } from "vitest"
 
 import { pause, runnerBackend, type RunnerBackend } from "./backend"
-import { recordingRunner, startTestRunner } from "./testing"
+import { recordingRunner, startTestRunner } from "./testing/runner"
 
 // jsdom has no layout observers, media queries or canvas; xterm falls back without them.
 vi.hoisted(() => {

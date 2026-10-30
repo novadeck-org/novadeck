@@ -39,24 +39,16 @@ import { createTerminalMount } from "@novadeck/terminal-views/mount"
 import { createTerminalViews } from "@novadeck/terminal/view"
 import type { WireStatus } from "@novadeck/wire/client"
 
-import {
-  defaultQuickExitMs,
-  exitStatus,
-  restartable,
-  sameStatus,
-  terminalActivity,
-} from "./activity"
-import { createBootProgress } from "./boot-progress"
-import { createRunnerCompanions } from "./companions"
-import { createRunnerConversations } from "./conversations"
-import { runnerFeedback } from "./feedback"
-import { createRunnerInbox } from "./inbox"
-import { createRunnerItems } from "./items"
-import { answerLook, type Looks } from "./looks"
-import { createRunnerMessages } from "./messages"
-import { createRunnerMurmur } from "./murmur"
-import { resumableProgram } from "./resumable"
-import { createSessionSaves } from "./saves"
+import { createRunnerMurmur } from "./addons/murmur"
+import { createRunnerVoice } from "./addons/voice"
+import { createRunnerConversations } from "./agents/conversations"
+import { runnerFeedback } from "./agents/feedback"
+import { createRunnerInbox } from "./agents/inbox"
+import { createRunnerMessages } from "./agents/messages"
+import { createRunnerCompanions } from "./companions/content"
+import { createRunnerItems } from "./companions/items"
+import { answerLook, type Looks } from "./companions/looks"
+import { createSessionSaves } from "./sessions/saves"
 import {
   cleanlyExited,
   lostTerminals,
@@ -66,10 +58,18 @@ import {
   startingTerminal,
   terminalRuns,
   type RunnerListing,
-} from "./seed"
+} from "./sessions/seed"
 import { createRunnerSource } from "./source"
-import { viewOptions } from "./view-options"
-import { createRunnerVoice } from "./voice"
+import {
+  defaultQuickExitMs,
+  exitStatus,
+  restartable,
+  sameStatus,
+  terminalActivity,
+} from "./terminals/activity"
+import { createBootProgress } from "./terminals/boot-progress"
+import { resumableProgram } from "./terminals/resumable"
+import { viewOptions } from "./terminals/view-options"
 
 /** Resolves after `ms` milliseconds. */
 export const pause = (ms: number): Promise<void> =>

@@ -14,8 +14,8 @@ import { createTerminalViews, type Hold, type TerminalViews } from "@novadeck/te
 import { afterEach, vi } from "vitest"
 
 import type { SurfaceRuntime } from "./backend"
+import { viewOptions } from "./terminals/view-options"
 import { context, describe, expect, it } from "./test"
-import { viewOptions } from "./view-options"
 
 // What the terminal library's own tests cover (what a screen keeps, tells and refuses) is
 // not repeated here: these are the mount's, which turns the UI's props into the library's

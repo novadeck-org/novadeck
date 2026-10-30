@@ -353,12 +353,7 @@ describe("the plan", () => {
     const adapter = JSON.parse(after.get("frontend/runner-adapter/package.json")!) as {
       exports: Record<string, unknown>
     }
-    expect(Object.keys(adapter.exports)).toEqual([
-      ".",
-      "./scripted",
-      "./scripted-server",
-      "./testing",
-    ])
+    expect(Object.keys(adapter.exports)).toEqual([".", "./conversations", "./scripted-server"])
     expect(after.get("frontend/ui/vite.config.ts")).toContain(
       "template for frontend/ui/vite.config.ts",
     )

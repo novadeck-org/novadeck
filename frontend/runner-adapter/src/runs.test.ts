@@ -10,11 +10,11 @@ import type { WireStatus } from "@novadeck/wire/client"
 import { afterAll, vi } from "vitest"
 
 import { runnerBackend, type RunnerApi } from "./backend"
-import { noCompanions } from "./scripted"
-import { startingTerminal, type RunnerListing } from "./seed"
-import { encodeSession } from "./session-state"
+import { startingTerminal, type RunnerListing } from "./sessions/seed"
+import { encodeSession } from "./sessions/state"
 import { context, describe, expect, it } from "./test"
-import { startTestRunner } from "./testing"
+import { startTestRunner } from "./testing/runner"
+import { noCompanions } from "./testing/scripted"
 
 // Values pushed by the test, read by the adapter as a stream.
 const channel = <T>() => {
