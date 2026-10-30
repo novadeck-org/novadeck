@@ -434,6 +434,22 @@ describe("Claude Code's later questions", () => {
 })
 
 describe("Claude Code's lone multi-select question", () => {
+  it("moves to a multi-select's text row from where the highlight is", () => {
+    const facts = factsOf("k-ask-multi-lone")
+    const rows = swap(
+      swap(screen("k-ask-multi-lone", "120x40"), "❯ 1.", "  1."),
+      "  2. [ ]",
+      "❯ 2. [ ]",
+    )
+    const dialog = need(dialogs.read(rows, facts))
+    const keys = dialog.keys({
+      type: "questions",
+      dialog: "d",
+      answers: [{ question: "q1", options: [], text: "words" }],
+    })
+    expect(pressed(keys)).toEqual([Down, Down, Down, "\r", "1"])
+  })
+
   const lone = (name: string) => need(readOf(name, "120x40"))
   it.each(sizes)("reads it with its Submit tab at %s", (size) => {
     const dialog = need(readOf("k-ask-multi-lone", size))

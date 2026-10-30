@@ -26,7 +26,7 @@ export const screen = (name: string, size: string): string[] => [
 ]
 export const step = (name: string, key: string): string[] => [...scenario(name).steps[key]!.rows]
 
-// What the request asks, as its PermissionRequest hook told it.
+// What the request asks, as its PermissionRequest or Elicitation hook told it.
 export const factsOf = (name: string): RequestFacts => {
   const asked = scenario(name).events.find(({ event }) => event === "Elicitation")?.payload
   if (asked) {

@@ -234,8 +234,8 @@ const editIs = (lines: readonly DiffLine[], old: unknown, fresh: unknown): boole
  * marker column. A line longer than the screen wraps onto rows without a number. An edit's
  * drawn old text with `new_string` put where `old_string` stands must be its drawn new
  * text exactly (see `editIs`); an overwrite's new text is `content`, whole; a new file's
- * lines are `content`, numbered from 1. The block's top is on screen: where a tall diff scrolls it away nothing
- * binds the file, and it is not read.
+ * lines are `content`, numbered from 1. The block's top is on screen: where a tall diff
+ * scrolls it away nothing binds the file, and it is not read.
  */
 export const diffIs = (
   body: readonly string[],

@@ -23,8 +23,12 @@ import {
 
 /**
  * Claude Code's form for an MCP server's elicitation: its message over a row per field,
- * then Accept and Decline. The form handles keys against what it drew last, so every
- * step waits for the screen to hold still showing what the next one needs.
+ * then Accept and Decline. The form handles a key against the highlight it drew before,
+ * until it redraws: Down then Space sent at once toggled the field left behind, and an
+ * Enter on Accept sent at once did nothing (probed 2026-10-06, `form-required-bool`,
+ * `form-accept-text`). A wait that only saw the highlight arrive would pass either way, so
+ * each step's wait also checks every other field and takes a moment of the screen holding
+ * still (`settled`).
  */
 
 type FormField = {
@@ -115,6 +119,7 @@ const escaped = (text: string): string => text.replace(/[.*+?^${}()|[\]\\]/g, "\
 const formButtons = /^ {2}(?:❯ | {2})Accept(?: {4}| {2}❯ )Decline$/
 const formOptionRow = /^ {8}(❯ | {2})◯ (.+)$/
 const formFooter = "  Esc to cancel · ↑/↓ to navigate"
+const formHeading = (server: string): string => `  MCP server “${server}” requests your input`
 // A form's waits take the screen holding still on top of the keys landing.
 const formTimeoutMs = 5000
 
@@ -124,9 +129,7 @@ const fieldRow = (field: FormField) =>
 
 /** The form on screen, row by row, in the order of its fields; undefined unless all of it reads. */
 const formScreen = (rows: readonly string[], form: Form): FormScreen | undefined => {
-  const heading = rows.findLastIndex(
-    (each) => each === `  MCP server “${form.server}” requests your input`,
-  )
+  const heading = rows.findLastIndex((each) => each === formHeading(form.server))
   if (heading < 0) return undefined
   const after = rows.slice(heading + 1)
   const first = after.findIndex((each) => fieldRow(form.fields[0]!).test(each))
@@ -376,8 +379,6 @@ export const forms = (rows: readonly string[], facts: RequestFacts): DialogRead 
     dialog,
     keys: (answer) => formKeys(form, answer),
     // Gone: the form's heading no longer shows, and the prompt is back.
-    answered: (later) =>
-      idle(later) &&
-      !later.some((each) => each === `  MCP server “${form.server}” requests your input`),
+    answered: (later) => idle(later) && !later.some((each) => each === formHeading(form.server)),
   }
 }

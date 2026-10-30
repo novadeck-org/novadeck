@@ -27,11 +27,11 @@ import {
 
 /**
  * Claude Code's AskUserQuestion dialog: one question at a time, each a tab once there are
- * several. A digit selects its option and moves to the next question; a multi-select's
- * digits tick and Right moves on; after the last question a review screen takes `1` to
- * submit. "Type something" is the option after the last, whose digit focuses a field that
- * takes the text and Enter once the screen shows it focused. With any option previewed,
- * digits only move the highlight: arrows and Enter.
+ * several. A digit selects its option and, with several questions, moves to the next one;
+ * a multi-select's digits tick and Right moves on; after the last question a review screen
+ * takes `1` to submit. "Type something" is the option after the last, whose digit focuses
+ * a field that takes the text and Enter once the screen shows it focused. With any option
+ * previewed, digits only move the highlight: arrows and Enter.
  */
 
 type Ask = {

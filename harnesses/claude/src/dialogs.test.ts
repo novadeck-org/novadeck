@@ -1,18 +1,7 @@
 import { describe, expect, it } from "vitest"
 
 import { dialogs } from "./dialogs.js"
-import {
-  Down,
-  factsOf,
-  need,
-  pressed,
-  probe,
-  readOf,
-  scenario,
-  screen,
-  step,
-  swap,
-} from "./dialogs.test-support.js"
+import { factsOf, probe, readOf, scenario, step } from "./dialogs.test-support.js"
 import { hook } from "./report.test-support.js"
 
 describe("Claude Code's highlighted fields", () => {
@@ -24,22 +13,6 @@ describe("Claude Code's highlighted fields", () => {
     expect(
       dialogs.read(step("k-ask-multi-lone-other", "on-other"), factsOf("k-ask-multi-lone-other")),
     ).toBeUndefined()
-  })
-
-  it("moves to a multi-select's text row from where the highlight is", () => {
-    const facts = factsOf("k-ask-multi-lone")
-    const rows = swap(
-      swap(screen("k-ask-multi-lone", "120x40"), "❯ 1.", "  1."),
-      "  2. [ ]",
-      "❯ 2. [ ]",
-    )
-    const dialog = need(dialogs.read(rows, facts))
-    const keys = dialog.keys({
-      type: "questions",
-      dialog: "d",
-      answers: [{ question: "q1", options: [], text: "words" }],
-    })
-    expect(pressed(keys)).toEqual([Down, Down, Down, "\r", "1"])
   })
 })
 

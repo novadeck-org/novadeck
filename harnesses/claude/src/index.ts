@@ -132,7 +132,5 @@ export const claude = {
   dialogs,
   messaging,
   box,
-  // The transcript records what no hook reports: an interrupted turn, and a request a
-  // timed-out prompt denied.
   watch: followTranscript,
 } satisfies Harness

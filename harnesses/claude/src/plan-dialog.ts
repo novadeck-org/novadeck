@@ -29,6 +29,7 @@ const planAsk = "Claude has written up a plan and is ready to execute. Would you
 const planQuestion = /Would you like to proceed\?$/
 const planOption = /^ {3}(❯| ) (\d+)\. (.+)$/
 const shortOption = /^ {4}(❯| ) (\d+)\. (.+)$/
+const planContinuation = /^ {9,}\S/
 const planHint = /^ {8}shift\+tab to approve with this feedback$/
 const feedback = "Tell Claude what to change"
 
@@ -47,7 +48,7 @@ const readyToCode = (
   const lines = [rows[before] ?? "", rows[at]!].map((each) => each.trim())
   const asked = flat(lines.join(" "))
   if (asked !== flat(planAsk) && flat(lines[1]!) !== flat(planAsk)) return undefined
-  const read = numbered(rows, at + 1, planOption, /^ {9,}\S/, planHint)
+  const read = numbered(rows, at + 1, planOption, planContinuation, planHint)
   if (!read || read.options.length !== 3 || read.options[2]!.label !== feedback) return undefined
   // With the highlight on the field a digit would be typed into it.
   if (read.options[2]!.marker) return undefined
@@ -94,7 +95,7 @@ const exitPlanMode = (
   if (at < 0 || file !== undefined || nonBlank(input.plan) !== undefined) return undefined
   const says = rows.findIndex((each, index) => index > at && each !== "")
   if (rows[says] !== "    Claude wants to exit plan mode") return undefined
-  const read = numbered(rows, says + 1, shortOption, /^ {9,}\S/)
+  const read = numbered(rows, says + 1, shortOption, planContinuation)
   if (!read || read.options.length !== 2 || read.rest.length > 0) return undefined
   if (read.options[1]!.label !== "No") return undefined
   return choices({

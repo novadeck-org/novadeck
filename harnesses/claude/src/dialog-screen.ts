@@ -218,12 +218,9 @@ export const ruled = (
 }
 
 /**
- * A step's wait that holds only once the screen has shown its test for `ms`. The form
- * handles a key against the highlight it drew before, until it redraws: Down then Space
- * sent at once toggled the field left behind, and an Enter on Accept sent at once did
- * nothing (probed 2026-10-06, `form-required-bool`, `form-accept-text`). A wait that
- * only saw the highlight arrive would pass either way, so each also checks every other
- * field and takes a moment of the screen holding still.
+ * A step's wait that holds only once the screen has shown its test for `ms`: for a dialog
+ * that handles a key against what it drew before, until it redraws, so a highlight that
+ * only just arrived is not yet one a key lands on (see `form-dialog.ts`).
  */
 export const settled = (test: (rows: readonly string[]) => boolean, ms = 400) => {
   let since: number | undefined
