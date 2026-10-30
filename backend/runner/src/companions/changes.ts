@@ -183,16 +183,16 @@ const git = (
     })
     const chunks: Buffer[] = []
     let size = 0
-    let cut = false
+    let capped = false
     let errors = Buffer.alloc(0)
     const timer = setTimeout(() => {
       killTree(child.pid)
       finish({ ok: false, kind: "timeout", status: 0, said: "" })
     }, timing.gitMs)
     child.stdout?.on("data", (chunk: Buffer) => {
-      if (cut) return
+      if (capped) return
       if (size + chunk.length > limit.cap) {
-        cut = true
+        capped = true
         chunks.push(chunk.subarray(0, limit.cap - size))
         killTree(child.pid)
         return
@@ -215,7 +215,7 @@ const git = (
     })
     child.on("close", (code) => {
       const out = Buffer.concat(chunks).toString("utf8")
-      if (cut)
+      if (capped)
         return finish(
           limit.truncate
             ? { ok: true, out, cut: true }
