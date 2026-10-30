@@ -52,6 +52,7 @@ export const reconcile = (picks: Picks, questions: readonly ChatQuestion[]): Pic
     }),
   )
 
+// Whether the question has an answer: an option picked, or words where it takes them.
 export const answered = (picks: Picks, question: ChatQuestion): boolean => {
   const { options, text } = of(picks, question)
   return options.length > 0 || (question.text && text.trim() !== "")

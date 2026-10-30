@@ -1,5 +1,5 @@
 // What a page an agent showed looks like in the panes right now, for the agent to look at.
-// A live page's viewer registers here while it is mounted; the backend's host asks when the
+// A live page's viewer registers here while it is mounted; the backend asks when the
 // runner passes on an agent's look, and takes a picture of the page as the person sees it,
 // or, where no pane shows it live, loads it afresh at the size the person last chose for it.
 

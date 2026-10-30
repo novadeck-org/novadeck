@@ -177,7 +177,7 @@ export const sameBlock = (a: ChatBlock, b: ChatBlock): boolean => {
     a.id === b.id &&
     a.text === b.text &&
     a.truncated === b.truncated &&
-    (a.kind === "agent" ? a.author === (b as typeof a).author : true)
+    (a.kind !== "agent" || (b.kind === "agent" && a.author === b.author))
   )
 }
 
@@ -201,7 +201,7 @@ export const turnStatus = (agent: AgentStatus | undefined): TurnStatus | null =>
     const subagents = agent.subagents?.length ?? agent.background?.agents ?? 0
     if (subagents > 0) parts.push(`${plural(subagents, "subagent")} running`)
     const tasks = agent.background?.tasks ?? 0
-    if (tasks > 0) parts.push(`${plural(tasks, "background task")}`)
+    if (tasks > 0) parts.push(plural(tasks, "background task"))
     return { working: true, text: parts.join(" · ") }
   }
   switch (agent.lastTurn?.outcome) {

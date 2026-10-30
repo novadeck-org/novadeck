@@ -64,7 +64,7 @@ export type Feedback = {
   // Asks the agent in a terminal to write feedback from what it just did, with the
   // person's hint (empty for none). Resolves once the request is on its way; the draft
   // arrives later through `drafts`. Rejects when no agent runs there. Optional: the demo
-  // and the desktop app (where the host can send feedback) have it, and the window menu
+  // and the desktop app (which send feedback themselves) have it, and the window menu
   // offers the item, for an agent of any harness, only where it exists.
   readonly ask?: (terminal: TerminalKey, hint: string) => Promise<void>
   // The agents' drafts, where the backend has them (with `ask`).

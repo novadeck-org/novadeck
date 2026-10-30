@@ -5,7 +5,7 @@ import { describe, expect, it } from "./test"
 
 // The core declares its own tool run, since it reads no more of the protocol than its data
 // entries. The two must stay the same shape: each assignable to the other.
-describe("the core's tool run", () => {
+describe("the core's ToolRun", () => {
   it("is the protocol's, in both directions", () => {
     const fromProtocol = (run: ProtocolToolRun): ToolRun => run
     const toProtocol = (run: ToolRun): ProtocolToolRun => run

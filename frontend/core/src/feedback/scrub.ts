@@ -2,8 +2,8 @@
 // path under their home directory, their user and host names as a shell prompt prints them,
 // and email addresses. The draft is the agent's text, written from a terminal that is full
 // of such things. Pure: the Inbox draws the struck parts through and sends the text with a
-// placeholder in their place. It is conservative: it strikes what clearly points at one person or machine, and
-// leaves prose, repo-relative paths (`frontend/ui/src/Toast.tsx`), `@handle`s, scoped
+// placeholder in their place. It is conservative: it strikes what clearly points at one
+// person or machine, and leaves prose, repo-relative paths (`frontend/ui/src/Toast.tsx`), `@handle`s, scoped
 // packages (`@novadeck/core`) and `name@version` alone.
 
 export type StrikeKind = "path" | "user" | "host" | "email"

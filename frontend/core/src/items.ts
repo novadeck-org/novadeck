@@ -1,7 +1,7 @@
 import { pageKey } from "./items/pages"
 import type { CompanionWindowMeta, WorkspaceTarget } from "./types"
 
-// What agents put in front of the user beside their terminals: the plans they write,
+// What agents put in front of the person beside their terminals: the plans they write,
 // and images, project files and preview-browser pages they show. A backend reports
 // them; each terminal's companion pane presents them. The content-preview demo
 // implements this with sample agents; a runner reports the same from the agents' own
@@ -85,7 +85,7 @@ export const windowOfItem = (item: Item): string | undefined =>
   "windowId" in item.holder ? item.holder.windowId : undefined
 
 // What each kind of item means as data, apart from how it looks. A new kind adds its line.
-export type KindRule = {
+type KindRule = {
   // What the kind points at, so showing the same thing again finds it: a file by its path, a
   // page by the runner's own key for its address, a change by its repository's folder. A
   // plan has none here: which agent's plan slot it fills is the backend's to know.
@@ -173,7 +173,7 @@ export type FileContent = {
   readonly clamped: boolean
 }
 
-// A web page, by its http(s) address. `live` when the backend's host can load it in the
+// A web page, by its http(s) address. `live` when the app can load it in the
 // pane, as the desktop app does; otherwise it shows as a link to open in the browser,
 // with its `snapshot` image when the backend has one. `shown` counts the agent's shows of
 // it, as its item's version: each later one loads it afresh, and brings `scroll`, a CSS
@@ -353,12 +353,12 @@ export type Companions = {
   ) => Promise<{ readonly item: Item; readonly window: CompanionWindowMeta }>
   // A picture of what a live page shows now, by its view's web contents id, no wider than
   // `width` device pixels, which the pane shows in its place while the person isn't at it;
-  // undefined when there's none to take. Absent where pages don't load live, or the host
+  // undefined when there's none to take. Absent where pages don't load live, or the app
   // can't picture them: they stay live.
   readonly picture?: (page: number, width?: number) => Promise<string | undefined>
   // Makes a live page's view act as a phone's, by its web contents id, or as itself again:
   // touched, with a phone's screen and browser; false when it can't. Absent where pages
-  // don't load live, or the host can't: a page at a phone's size is then only as narrow.
+  // don't load live, or the app can't: a page at a phone's size is then only as narrow.
   readonly phone?: (page: number, phone: boolean) => Promise<boolean>
 }
 
