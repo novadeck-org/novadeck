@@ -46,7 +46,9 @@ resolve it.
     events. `restart` starts a new run of an exited terminal in place, one restart at a time,
     after its caller's waiting.
   - Each `Terminal` the host opens runs its program in a pty with a headless screen, and keeps
-    the events that follow the screen and who reads them.
+    the events that follow the screen and who reads them. A `RunSpec` is one run of it: its
+    program, arguments, directory, environment and size. `noHold` is the hold of a terminal
+    that doesn't run, which holds nothing.
   - What the program prints is drawn on the screen in order, behind everything queued before
     it: reads that arrive while a draw waits join it, the program pauses while a
     lot waits, and an earlier run's output is dropped. Each draw is told to `drawn` listeners,
@@ -97,7 +99,9 @@ resolve it.
     parent's pid be reused, through a relay: a program the caller ships that answers `tree`
     with each root's members by pid and start, and ends members by both with `end`. Calls in
     one tick share one run of it, and `ProcessTrees` is what a pty asks of it; without one,
-    taskkill ends the tree. `anyRunning` says whether members still run.
+    taskkill ends the tree. A `Member` is one process of a tree, by pid and start;
+    `anyRunning` says whether members still run, and `relayMs` bounds a run of the relay
+    unless its caller asks for less.
 - `./shell`: what a shell reports and needs.
   - `shellScripts` writes the files bash, zsh, fish and PowerShell read after the user's own
     setup, where `shellScriptPaths` lays them out. Each reports the directory at every prompt,
@@ -119,7 +123,7 @@ resolve it.
 
 ## Packaging
 
-An app that ships `./pty` ships node-pty, a native module: it keeps it out of its bundle and
+An app that ships `./host` ships node-pty, a native module: it keeps it out of its bundle and
 out of any archive it packs (Electron's `asarUnpack`), uses the N-API prebuilds rather than
 rebuilding, and on Windows ships the prebuilds' `conpty` folder (`conpty.dll` and
 `OpenConsole.exe`), which every Windows pty runs with.
@@ -133,7 +137,7 @@ code). The tests that read trees and the registry through a real relay run in th
 ships one.
 
 `./testing` (Node only) is for tests of what hosts a pty: `ptyChild`, a program to run in one
-with Node, which answers `command`s with output, sizes, bursts, exits and children of its own,
-and `ptyTrace`, what it last received and wrote; and `nativeStandIn`, a stand-in for node-pty's
-terminal that plays a ConPTY's quirks, to give a pty (`PtyOptions`) as its `native` with
-`platform` `"win32"` on any system.
+with Node and `ptyChildEnv` in its environment, which answers `command`s with output, sizes,
+bursts, exits and children of its own, and `ptyTrace`, what it last received and wrote; and
+`nativeStandIn`, a stand-in for node-pty's terminal that plays a ConPTY's quirks, to give a
+pty (`PtyOptions`) as its `native` with `platform` `"win32"` on any system.

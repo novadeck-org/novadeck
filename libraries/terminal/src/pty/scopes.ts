@@ -58,8 +58,8 @@ const noSystemd = (error: unknown): boolean =>
  * The name's start for a program's scope: the app's own, from this process's cgroup, as
  * `app-dev.mzpk.novadeck-1234.scope` gives `app-dev.mzpk.novadeck`; `app-novadeck` where
  * it runs in no app scope. Each scope is then `<start>-term<pid>.scope`, the XDG shape
- * `app[-<launcher>]-<id>-<random>.scope`, so desktops count it the app's. An app started
- * from a Novadeck terminal names its terminals after the same app.
+ * `app[-<launcher>]-<id>-<random>.scope`, so desktops count it the app's. Novadeck started
+ * from one of its own terminals names its terminals after the same app.
  */
 export const scopePrefix = (cgroup: string): string => {
   const leaf = cgroup

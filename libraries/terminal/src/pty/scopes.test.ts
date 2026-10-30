@@ -51,7 +51,7 @@ describe("a scope's name", () => {
     )
   })
 
-  it("is the app's again for an app started from a Novadeck terminal", () => {
+  it("is the app's again for Novadeck started from one of its own terminals", () => {
     expect(scopePrefix("0::/user.slice/app.slice/app-dev.mzpk.novadeck-term4242.scope")).toBe(
       "app-dev.mzpk.novadeck",
     )
