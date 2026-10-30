@@ -44,15 +44,6 @@ export type BackendContractOptions = {
 
 const microtask = (): Promise<void> => new Promise((resolve) => queueMicrotask(resolve))
 
-// The I/O started so far, once the work a mount started has landed.
-const ioAfterMount = async (
-  probe: BackendProbe,
-  settle: () => Promise<void>,
-): Promise<readonly string[]> => {
-  await settle()
-  return [...probe.io()]
-}
-
 const seeded = (backend: Backend): Workspace =>
   workspaceFromSeed(backend.seed, { view: "grid", windowedView: "grid", now: 0 })
 
@@ -66,6 +57,11 @@ const commit = (backend: Backend, workspace: Workspace, actions: WorkspaceAction
 // adapter's colocated contract.test.ts.
 export const describeBackendContract = (name: string, options: BackendContractOptions): void => {
   const settle = options.settle ?? microtask
+  // The I/O started so far, once the work already started has landed.
+  const settledIo = async (probe: BackendProbe): Promise<readonly string[]> => {
+    await settle()
+    return [...probe.io()]
+  }
   const mountings: { readonly mount: TerminalMount; readonly element: HTMLElement }[] = []
   afterEach(() => {
     mountings.splice(0).forEach(({ mount, element }) => {
@@ -114,7 +110,8 @@ export const describeBackendContract = (name: string, options: BackendContractOp
     return { ...created, target, terminal, key, workspace, close, mountInto }
   }
 
-  // Only an adapter with `start` reports on its own, and it must bring a driver to test it.
+  // What an adapter offers beyond the port's minimum: transcripts, and `start`, with which it
+  // reports on its own and must bring a driver to test it.
   const probed = options.create().backend
   const starts = Boolean(probed.start)
 
@@ -140,10 +137,8 @@ export const describeBackendContract = (name: string, options: BackendContractOp
     })
 
     context("when it keeps transcripts", () => {
-      it("reports the setting and changes it when asked", async () => {
-        const { backend } = options.create()
-        if (!backend.transcripts) return
-        const { enabled, set } = backend.transcripts
+      it.skipIf(!probed.transcripts)("reports the setting and changes it when asked", async () => {
+        const { enabled, set } = options.create().backend.transcripts!
         const changed = vi.fn<() => void>()
         const stop = enabled.subscribe(changed)
         const before = enabled.getSnapshot()
@@ -234,8 +229,7 @@ export const describeBackendContract = (name: string, options: BackendContractOp
       it("changes nothing when it is given props equal to its own", async () => {
         const { probe, mountInto } = withTerminal()
         const { mount, element, update } = mountInto()
-        await settle()
-        const io = [...probe.io()]
+        const io = await settledIo(probe)
         const woken = vi.fn<() => void>()
         mount.state.subscribe(woken)
         const records: MutationRecord[] = []
@@ -259,7 +253,7 @@ export const describeBackendContract = (name: string, options: BackendContractOp
       it("starts no I/O when its view changes", async () => {
         const { probe, mountInto } = withTerminal()
         const { update } = mountInto()
-        const io = await ioAfterMount(probe, settle)
+        const io = await settledIo(probe)
         for (const view of ["canvas", "focus"] as const) update({ view })
         await settle()
         expect(probe.io()).toEqual(io)
@@ -268,7 +262,7 @@ export const describeBackendContract = (name: string, options: BackendContractOp
       it("hands its terminal to the next mount within the park window, with no new I/O", async () => {
         const { probe, mountInto } = withTerminal()
         const first = mountInto()
-        const io = await ioAfterMount(probe, settle)
+        const io = await settledIo(probe)
         first.mount.dispose()
         const next = document.body.appendChild(document.createElement("div"))
         const second = mountInto({}, next)
@@ -282,7 +276,7 @@ export const describeBackendContract = (name: string, options: BackendContractOp
       it("lets its screen go and takes it again within the park window, with no new I/O", async () => {
         const { probe, mountInto } = withTerminal()
         const { element, input, update } = mountInto()
-        const io = await ioAfterMount(probe, settle)
+        const io = await settledIo(probe)
         update({ onScreen: false })
         update({ onScreen: true })
         await settle()
@@ -293,7 +287,7 @@ export const describeBackendContract = (name: string, options: BackendContractOp
 
       it("takes no screen when created off screen, and releases nothing twice when disposed there", async () => {
         const { probe, mountInto } = withTerminal()
-        const io = await ioAfterMount(probe, settle)
+        const io = await settledIo(probe)
         const { mount, element, update } = mountInto({ onScreen: false })
         await settle()
         expect(probe.io()).toEqual(io)
@@ -326,7 +320,7 @@ export const describeBackendContract = (name: string, options: BackendContractOp
         expect(() => backend.setFont({ size: 15 })).not.toThrow()
         expect(probe.io()).toEqual(io)
         mountInto()
-        const mountedIo = await ioAfterMount(probe, settle)
+        const mountedIo = await settledIo(probe)
         expect(() => backend.setFont({ size: 12 })).not.toThrow()
         await settle()
         expect(probe.io()).toEqual(mountedIo)

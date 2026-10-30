@@ -57,11 +57,12 @@ export const packages: readonly Pkg[] = [
     id: "test-kit",
     dir: "frontend/test-kit",
     name: "@novadeck/test-kit",
-    description: "What the UI's tests render and drive the app with.",
+    description:
+      "The frontend's test helpers: a jsdom render, the port contract suite, test phase timing.",
     exports: {
       "./render": "./src/render.ts",
       "./phases": "./src/phases.ts",
-      "./backend-contract": "./src/backend-contract.tsx",
+      "./backend-contract": "./src/backend-contract.ts",
     },
     scripts: { typecheck: "tsc --noEmit -p tsconfig.json" },
   },
@@ -206,7 +207,7 @@ export const rules: readonly Rule[] = [
   { from: `${ui}/src/test/fixtures.ts`, to: "frontend/core/src/testing.ts" },
   { from: `${ui}/src/test/render.ts`, to: "frontend/test-kit/src/render.ts" },
   { from: `${ui}/src/test/phases.ts`, to: "frontend/test-kit/src/phases.ts" },
-  { from: `${ui}/src/test/backend-contract.tsx`, to: "frontend/test-kit/src/backend-contract.tsx" },
+  { from: `${ui}/src/test/backend-contract.tsx`, to: "frontend/test-kit/src/backend-contract.ts" },
   { from: `${ui}/src/bundle-boundary.ts`, to: "tools/build-kit/src/bundle-checks.ts" },
   { from: `${ui}/src/bundle-boundary.test.ts`, to: "tools/build-kit/src/bundle-checks.test.ts" },
   { from: `${ui}/src/deploy.ts`, to: "apps/try/src/deploy.ts" },

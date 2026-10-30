@@ -329,7 +329,10 @@ export const notes: Record<string, Note> = {
     purpose:
       "The chat's contract test: recorded harness transcripts run through every stage to the rendered chat, against goldens.",
   },
-  "frontend/test-kit": { purpose: "Fixtures and render helpers the UI's tests share." },
+  "frontend/test-kit": {
+    purpose:
+      "The frontend's test helpers: a jsdom render, the port contract suite, test phase timing.",
+  },
   "frontend/toolkit": {
     purpose:
       "Reusable controls, their recipes, class-name composition, the sidebar item and the Markdown every feature draws with.",
