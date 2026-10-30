@@ -7,8 +7,8 @@ import {
   choice,
   command,
   gone,
-  plan,
-  questions,
+  planFeedback,
+  questionsAnswer,
   read,
   same,
   sent,
@@ -18,7 +18,7 @@ import {
 
 describe("Antigravity's plan review", () => {
   const request: RequestFacts = { kind: "plan", tool: "artifact", cwd: null, input: null }
-  const written = plan.afterWrite.screen120!.rows
+  const written = planFeedback.afterWrite.screen120!.rows
 
   it("is a request the screen alone tells, by its footer over an empty idle prompt", () => {
     expect(dialogs.screenRequest!(written)).toEqual({
@@ -28,7 +28,7 @@ describe("Antigravity's plan review", () => {
       subject: "1 artifact to review",
     })
     // Not while the review itself is listed, as it is no longer the prompt.
-    expect(dialogs.screenRequest!(plan.review.screen120!.rows)).toBeUndefined()
+    expect(dialogs.screenRequest!(planFeedback.review.screen120!.rows)).toBeUndefined()
     for (const none of [
       gone.planApproved!.rows,
       gone.planRejected!.rows,
@@ -86,18 +86,18 @@ describe("Antigravity's plan review", () => {
     expect(found.keys(choice("feedback"))).toBeUndefined()
     expect(found.keys(choice("feedback", "a\nb"))).toBeUndefined()
     const [listed] = waits(approve)!
-    expect(listed!(plan.review.screen120!.rows)).toBe(true)
+    expect(listed!(planFeedback.review.screen120!.rows)).toBe(true)
     expect(listed!(written)).toBe(false)
-    expect(listed!(without(plan.review.screen120!.rows, /^Action required/))).toBe(false)
+    expect(listed!(without(planFeedback.review.screen120!.rows, /^Action required/))).toBe(false)
     expect(found.keys(choice("approve", "go"))).toBeUndefined()
     expect(found.keys(choice("later"))).toBeUndefined()
-    expect(found.keys(questions({ question: "1", options: ["1"] }))).toBeUndefined()
+    expect(found.keys(questionsAnswer({ question: "1", options: ["1"] }))).toBeUndefined()
   })
 
   it("is answered once the review is closed, as the turn it starts shows", () => {
     const found = read(written, request)
     expect(found.answered(written)).toBe(false)
-    expect(found.answered(plan.review.screen120!.rows)).toBe(false)
+    expect(found.answered(planFeedback.review.screen120!.rows)).toBe(false)
     expect(found.answered(gone.planApproved!.rows)).toBe(true)
     expect(found.answered(gone.planRejected!.rows)).toBe(true)
   })
@@ -105,7 +105,7 @@ describe("Antigravity's plan review", () => {
   it("reads as the same request with /artifact typed or its review listed, with no keys", () => {
     const found = read(written, request)
     const typed = same(written, ">", "> /artifact")
-    for (const state of [typed, plan.review.screen120!.rows]) {
+    for (const state of [typed, planFeedback.review.screen120!.rows]) {
       const now = read(state, request)
       expect(now.dialog).toEqual(found.dialog)
       expect(now.keys(choice("approve"))).toBeUndefined()

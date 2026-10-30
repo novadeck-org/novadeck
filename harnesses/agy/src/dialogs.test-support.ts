@@ -24,7 +24,12 @@ export const { scenarios } = loadProbe(import.meta.dirname, "ask.probe.json") as
     answered: { [name: string]: ScreenText }
   }
 }
-export const { command, write_to_file: write, ask_question: ask, plan_feedback: plan } = scenarios
+export const {
+  command,
+  write_to_file: write,
+  ask_question: ask,
+  plan_feedback: planFeedback,
+} = scenarios
 export const gone = scenarios.answered
 
 export const run = (text: string) => ({
@@ -37,13 +42,13 @@ export const colours = (options: string[], multi = false) => ({
   is_multi_select: multi,
 })
 export const asking = (...questions: object[]) => ({ name: "ask_question", args: { questions } })
-export const permission = (input: unknown): RequestFacts => ({
+export const permissionFacts = (input: unknown): RequestFacts => ({
   kind: "permission",
   tool: "confirmation",
   cwd: null,
   input,
 })
-export const question = (input: unknown): RequestFacts => ({
+export const questionFacts = (input: unknown): RequestFacts => ({
   kind: "question",
   tool: "ask_question",
   cwd: null,
@@ -72,8 +77,9 @@ export const sent = (steps: readonly KeyStep[] | undefined) =>
 // The screens a step list's waits ask for, in order.
 export const waits = (steps: readonly KeyStep[] | undefined) =>
   steps?.flatMap((step) => ("until" in step ? [step.until] : []))
-export const questions = (...answers: { question: string; options: string[]; text?: string }[]) =>
-  ({ type: "questions", dialog: "d", answers }) satisfies RequestAnswer
+export const questionsAnswer = (
+  ...answers: { question: string; options: string[]; text?: string }[]
+) => ({ type: "questions", dialog: "d", answers }) satisfies RequestAnswer
 export const chat = (text?: string) =>
   ({ type: "chat", dialog: "d", ...(text !== undefined && { text }) }) satisfies RequestAnswer
 export const choice = (option: string, text?: string) =>

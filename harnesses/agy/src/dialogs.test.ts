@@ -9,9 +9,9 @@ import {
   choice,
   colour,
   colours,
-  permission,
-  question,
-  questions,
+  permissionFacts,
+  questionFacts,
+  questionsAnswer,
   read,
   run,
   same,
@@ -27,7 +27,7 @@ describe("Antigravity 1.3.0's dialogs (fixtures/ask.probe.1.3.0.json)", () => {
   ).screens
 
   it("read as 1.2.14's do: the same options, keys and answered", () => {
-    const found = read(latest.command!.rows, permission(run("echo approved")))
+    const found = read(latest.command!.rows, permissionFacts(run("echo approved")))
     expect(found.dialog).toMatchObject({
       detail: "echo approved",
       options: [{}, {}, {}, { id: "4" }],
@@ -36,28 +36,34 @@ describe("Antigravity 1.3.0's dialogs (fixtures/ask.probe.1.3.0.json)", () => {
     expect(found.answered(latest.command!.rows)).toBe(false)
     expect(found.answered(latest.planApproved!.rows)).toBe(true)
     const file = { name: "write_to_file", args: { TargetFile: "/tmp/sandbox/project/probe.txt" } }
-    expect(read(latest.write!.rows, permission(file)).dialog).toMatchObject({ options: [{}, {}] })
-    const asked = read(latest.ask!.rows, question(colour))
-    expect(sent(asked.keys(questions({ question: "1", options: ["2"] })))).toEqual(["\x1b[B", "\r"])
+    expect(read(latest.write!.rows, permissionFacts(file)).dialog).toMatchObject({
+      options: [{}, {}],
+    })
+    const asked = read(latest.ask!.rows, questionFacts(colour))
+    expect(sent(asked.keys(questionsAnswer({ question: "1", options: ["2"] })))).toEqual([
+      "\x1b[B",
+      "\r",
+    ])
     expect(
-      sent(asked.keys(questions({ question: "1", options: [], text: "Purple" }))),
+      sent(asked.keys(questionsAnswer({ question: "1", options: [], text: "Purple" }))),
     ).toHaveLength(6)
     const typedIn = waits(
-      asked.keys(questions({ question: "1", options: [], text: "Purple" })),
+      asked.keys(questionsAnswer({ question: "1", options: [], text: "Purple" })),
     )![2]!
     expect(typedIn(latest.writeInTyped!.rows)).toBe(true)
     expect(typedIn(latest.writeIn!.rows)).toBe(false)
-    expect(read(latest.writeIn!.rows, question(colour)).dialog).toEqual(asked.dialog)
+    expect(read(latest.writeIn!.rows, questionFacts(colour)).dialog).toEqual(asked.dialog)
     expect(
-      read(latest.multi!.rows, question(asking(colours(["Red", "Green", "Blue"], true)))).dialog,
+      read(latest.multi!.rows, questionFacts(asking(colours(["Red", "Green", "Blue"], true))))
+        .dialog,
     ).toMatchObject({ questions: [{ multiSelect: true }] })
     const two = asking(colours(["Red", "Green"]), {
       question: "Which size?",
       options: ["Small", "Large"],
       is_multi_select: false,
     })
-    expect(read(latest.q1!.rows, question(two)).dialog).toMatchObject({ questions: [{}, {}] })
-    expect(read(latest.q2!.rows, question(two)).dialog).toMatchObject({ questions: [{}, {}] })
+    expect(read(latest.q1!.rows, questionFacts(two)).dialog).toMatchObject({ questions: [{}, {}] })
+    expect(read(latest.q2!.rows, questionFacts(two)).dialog).toMatchObject({ questions: [{}, {}] })
   })
 
   it("read the plan review as 1.2.14's", () => {
@@ -87,7 +93,7 @@ describe("Antigravity 1.4.3's dialogs", () => {
 
   it("reads write_file's confirmation, agreeing with its Path", () => {
     const screen = screens.write!.rows
-    const found = read(screen, permission(written))
+    const found = read(screen, permissionFacts(written))
     expect(found.dialog).toEqual({
       type: "choices",
       title: "Allow creation of this file?",
@@ -99,8 +105,8 @@ describe("Antigravity 1.4.3's dialogs", () => {
     })
     expect(sent(found.keys(choice("1")))).toEqual(["1"])
     const other = { name: "write_file", args: { Path: "/tmp/sandbox/project/other.txt" } }
-    expect(dialogs.read(screen, permission(other))).toBeUndefined()
-    expect(dialogs.read(screen, permission(edited))).toBeUndefined()
+    expect(dialogs.read(screen, permissionFacts(other))).toBeUndefined()
+    expect(dialogs.read(screen, permissionFacts(edited))).toBeUndefined()
   })
 
   it("agrees with a Windows Path it draws with forward slashes", () => {
@@ -114,19 +120,19 @@ describe("Antigravity 1.4.3's dialogs", () => {
       name: "write_file",
       args: { Path: "C:\\Users\\runner\\Temp\\project\\probe.txt" },
     }
-    expect(read(screen, permission(windows)).dialog).toMatchObject({
+    expect(read(screen, permissionFacts(windows)).dialog).toMatchObject({
       title: "Allow creation of this file?",
     })
     const other = {
       name: "write_file",
       args: { Path: "C:\\Users\\runner\\Temp\\project\\other.txt" },
     }
-    expect(dialogs.read(screen, permission(other))).toBeUndefined()
+    expect(dialogs.read(screen, permissionFacts(other))).toBeUndefined()
   })
 
   it("reads edit_file's confirmation, agreeing with its Path", () => {
     const screen = screens.edit!.rows
-    const found = read(screen, permission(edited))
+    const found = read(screen, permissionFacts(edited))
     expect(found.dialog).toEqual({
       type: "choices",
       title: "Accept this file edit?",
@@ -136,17 +142,17 @@ describe("Antigravity 1.4.3's dialogs", () => {
         { id: "2", label: "No, reject this change", text: "prompt" },
       ],
     })
-    expect(dialogs.read(screen, permission(written))).toBeUndefined()
+    expect(dialogs.read(screen, permissionFacts(written))).toBeUndefined()
   })
 
   it("reads a command's confirmation for a call with no Cwd, and ask_question", () => {
     const echo = { name: "run_command", args: { CommandLine: "echo approved" } }
-    expect(read(screens.command!.rows, permission(echo)).dialog).toMatchObject({
+    expect(read(screens.command!.rows, permissionFacts(echo)).dialog).toMatchObject({
       type: "choices",
       title: "Run this command?",
       detail: "echo approved",
     })
-    expect(read(screens.ask!.rows, question(colour)).dialog).toMatchObject({
+    expect(read(screens.ask!.rows, questionFacts(colour)).dialog).toMatchObject({
       type: "questions",
       questions: [{ question: "Which colour?" }],
     })

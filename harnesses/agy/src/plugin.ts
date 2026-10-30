@@ -8,11 +8,11 @@ import { json, manifest } from "@novadeck/harness-core/plugin"
 import { geminiHome } from "./home.js"
 import { writers } from "./tools.js"
 
-/** Novadeck's plugin as Antigravity names it: its folder's name, which the plugin's must match. */
+/** Novadeck's plugin as Antigravity names it, in its commands and its plugins folder. */
 export const pluginId = manifest.name
 
 /** Where Antigravity keeps the copy of Novadeck's plugin it installed. */
-export const installedPlugin = (install: Install): string =>
+const installedPlugin = (install: Install): string =>
   join(geminiHome(install), "config", "plugins", pluginId)
 
 // Antigravity reads every hook's answer as JSON, even outside Novadeck's shells. It denies

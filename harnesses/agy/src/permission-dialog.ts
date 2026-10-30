@@ -1,7 +1,7 @@
 import type { AnswerableDialog, DialogRead, RequestFacts } from "@novadeck/harness-core/dialogs"
 
 import {
-  collapse,
+  squash,
   footerAfter,
   only,
   type Option,
@@ -165,7 +165,7 @@ const matches = (read: Confirmation, input: unknown): boolean => {
   if (typeof file !== "string" || file.trim() === "" || !read.tools?.includes(call.name))
     return false
   const line = read.shown.split("\n")[0]!.replace(/\s+[+-]\d+(\s+[+-]\d+)*\s*$/, "")
-  return slashed(collapse(line)) === slashed(collapse(file))
+  return slashed(squash(line)) === slashed(squash(file))
 }
 
 const digit = (number: number): string | undefined => (number <= 9 ? String(number) : undefined)

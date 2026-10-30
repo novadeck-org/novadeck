@@ -2,7 +2,7 @@ import type { KeyStep } from "@novadeck/harness-core/dialogs"
 
 // What Antigravity's dialogs share: how its screen reads, and how a key's effect is awaited.
 
-export const collapse = (text: string): string => text.replaceAll(/\s+/g, "")
+export const squash = (text: string): string => text.replaceAll(/\s+/g, "")
 
 export const rule = (row: string): boolean => /^─+$/.test(row.trim())
 
@@ -72,9 +72,9 @@ export const shows = (
   where: (rows: readonly string[]) => string | undefined,
   why: string,
 ): KeyStep => {
-  const start = collapse(text).slice(0, shownStart)
+  const start = squash(text).slice(0, shownStart)
   return {
-    until: (rows) => start !== "" && collapse(where(rows) ?? "").startsWith(start),
+    until: (rows) => start !== "" && squash(where(rows) ?? "").startsWith(start),
     timeoutMs,
     why,
   }

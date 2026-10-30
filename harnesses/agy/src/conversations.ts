@@ -13,8 +13,8 @@ import type { ToolCall } from "./tools.js"
 /** What every event of one report shares. */
 export type Base = { agent: "agy"; sessionId: string; instance: string | null; startedAt: number }
 
-// How many conversations each memory holds, and how many awaited calls it holds of each:
-// as many as the activity takes jobs.
+// How many conversations each memory holds, and how many awaited calls each conversation
+// keeps: as many as the activity takes jobs.
 const maxConversations = 32
 const maxCalls = 16
 

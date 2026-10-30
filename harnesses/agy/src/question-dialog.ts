@@ -7,7 +7,7 @@ import type {
 import type { RequestAnswer } from "@novadeck/protocol"
 
 import {
-  collapse,
+  squash,
   footerAfter,
   only,
   type Option,
@@ -137,11 +137,11 @@ export const questions = (
   // each key; only where it stands at its start do answers have keys.
   const shown = callQuestions[read.index - 1]!
   if (callQuestions.length > 1 && callQuestions.some(({ multi }) => multi)) return undefined
-  if (read.multi !== shown.multi || collapse(read.question) !== collapse(shown.question))
+  if (read.multi !== shown.multi || squash(read.question) !== squash(shown.question))
     return undefined
-  const labels = [...shown.options, writeIn].map(collapse)
+  const labels = [...shown.options, writeIn].map(squash)
   if (read.options.length !== labels.length) return undefined
-  if (!read.options.every(({ label }, index) => collapse(label) === labels[index])) return undefined
+  if (!read.options.every(({ label }, index) => squash(label) === labels[index])) return undefined
   const start =
     read.index === 1 &&
     !read.writing &&
@@ -169,7 +169,7 @@ export const questions = (
       if (answer.type !== "chat") return keysFor(answer, callQuestions)
       // The words, said to open the talk, as the answer the agent reads.
       const words = answer.text === undefined ? undefined : `${chatPrefix}${answer.text}`
-      return text && words !== undefined && typeable(answer.text!) && collapse(answer.text!) !== ""
+      return text && words !== undefined && typeable(answer.text!) && squash(answer.text!) !== ""
         ? writeInSteps(1, callQuestions[0]!.options.length, words)
         : undefined
     },
@@ -179,7 +179,7 @@ export const questions = (
       if (later.some((row) => row.trim() === answerField)) return false
       const now = asked(later)
       if (now)
-        return !callQuestions.some(({ question }) => collapse(question) === collapse(now.question))
+        return !callQuestions.some(({ question }) => squash(question) === squash(now.question))
       return !later.some((row) => /^Question \d+\/\d+: /.test(row.trim()))
     },
   }
@@ -207,12 +207,12 @@ const writeInSteps = (index: number, options: number, words: string): KeyStep[] 
 // in order, then Write-in.
 const showsQuestion = (rows: readonly string[], index: number, question: Question): boolean => {
   const now = asked(rows)
-  if (now?.index !== index || collapse(now.question) !== collapse(question.question)) return false
-  const labels = [...question.options, writeIn].map(collapse)
+  if (now?.index !== index || squash(now.question) !== squash(question.question)) return false
+  const labels = [...question.options, writeIn].map(squash)
   // Its first option is the highlighted one, which the Downs count from.
   return (
     now.options.length === labels.length &&
-    now.options.every(({ label }, at) => collapse(label) === labels[at]) &&
+    now.options.every(({ label }, at) => squash(label) === labels[at]) &&
     now.options[0]!.marked
   )
 }
@@ -259,7 +259,7 @@ const keysFor = (
         callQuestions.length !== 1 ||
         picked.length !== 0 ||
         !typeable(given.text) ||
-        collapse(given.text) === ""
+        squash(given.text) === ""
       )
         return undefined
       steps.push(...writeInSteps(index, each.options.length, given.text))
