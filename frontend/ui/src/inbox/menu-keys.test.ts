@@ -1,9 +1,9 @@
 import { context, describe, expect, it } from "../test"
 import { answering, menuKey, startCursor, type MenuShape } from "./menu-keys"
 
-const one: MenuShape = { count: 3, multi: false, arms: () => false }
-const several: MenuShape = { count: 3, multi: true, arms: () => false }
-const hard: MenuShape = { count: 2, multi: false, arms: () => true }
+const one: MenuShape = { count: 3, multi: false, arms: () => false, leaves: () => false }
+const several: MenuShape = { count: 3, multi: true, arms: () => false, leaves: (at) => at === 2 }
+const hard: MenuShape = { count: 2, multi: false, arms: () => true, leaves: () => false }
 
 describe("A sheet's menu keys", () => {
   context("in a menu of one choice", () => {
@@ -32,6 +32,10 @@ describe("A sheet's menu keys", () => {
       expect(menuKey(several, startCursor, "3")!.press).toBe(2)
       expect(menuKey(several, { at: 1, armed: null }, " ")!.press).toBe(1)
       expect(menuKey(several, { at: 1, armed: null }, "Enter")!.press).toBe("send")
+    })
+
+    it("presses a row that leaves the menu on Enter, rather than sending", () => {
+      expect(menuKey(several, { at: 2, armed: null }, "Enter")!.press).toBe(2)
     })
   })
 

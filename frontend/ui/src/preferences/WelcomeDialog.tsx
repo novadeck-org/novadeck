@@ -8,7 +8,7 @@ import { brandName, NovaMark, NovaPattern, Wordmark } from "@novadeck/toolkit/No
 import { ArrowRight, ScrollText, type LucideIcon } from "lucide-react"
 import { useRef, useState, type ComponentType, type CSSProperties, type RefObject } from "react"
 
-import { agentLabels, agentNote, type AgentSwitch } from "./AgentSwitches"
+import { agentLabels, agentNote, type AgentSwitch } from "./agent-switches"
 import { WelcomePreview } from "./WelcomePreview"
 
 type Choices = Record<AgentSwitch["agent"], boolean>
@@ -19,7 +19,7 @@ const installed = (agents: readonly AgentSwitch[], id: AgentSwitch["agent"]): bo
 const choicesFrom = (agents: readonly AgentSwitch[]): Choices =>
   Object.fromEntries(harnesses.map(({ id }) => [id, installed(agents, id)])) as Choices
 
-export type TranscriptsSetting = {
+type TranscriptsSetting = {
   readonly enabled: boolean
   // False where nothing can keep them encrypted; the choice is left out.
   readonly available: boolean
@@ -121,10 +121,10 @@ const WelcomeForm = ({
   const offerTranscripts = transcripts?.available === true
 
   const submit = (): void => {
-    for (const item of agents) {
-      const connected = choices[item.agent]
-      if (item.available && !item.busy && connected !== item.connected) {
-        onChange(item.agent, connected)
+    for (const toggle of agents) {
+      const connected = choices[toggle.agent]
+      if (toggle.available && !toggle.busy && connected !== toggle.connected) {
+        onChange(toggle.agent, connected)
       }
     }
     if (transcripts?.available && keepTranscripts !== transcripts.enabled)
@@ -201,22 +201,22 @@ const WelcomeForm = ({
           <fieldset className="settings-fieldset welcome-enter m-0 min-w-0 p-0" style={at(750)}>
             <legend className="sr-only">Agents</legend>
             <div className="grid gap-2">
-              {agents.map((item) => {
-                const note = agentNote(item)
+              {agents.map((toggle) => {
+                const note = agentNote(toggle)
                 return (
                   <ChoiceCard
-                    key={item.agent}
-                    icon={icons[item.agent]}
-                    label={agentLabels[item.agent]}
+                    key={toggle.agent}
+                    icon={icons[toggle.agent]}
+                    label={agentLabels[toggle.agent]}
                     note={note}
-                    noteId={`welcome-${item.agent}-description`}
-                    error={Boolean(item.error)}
+                    noteId={`welcome-${toggle.agent}-description`}
+                    error={Boolean(toggle.error)}
                     name="agents"
-                    value={item.agent}
-                    checked={choices[item.agent]}
-                    disabled={!item.available || item.busy}
+                    value={toggle.agent}
+                    checked={choices[toggle.agent]}
+                    disabled={!toggle.available || toggle.busy}
                     onChange={(checked) =>
-                      setChoices((current) => ({ ...current, [item.agent]: checked }))
+                      setChoices((current) => ({ ...current, [toggle.agent]: checked }))
                     }
                   />
                 )
@@ -230,8 +230,8 @@ const WelcomeForm = ({
           >
             {pluginNote(
               agents
-                .filter((item) => item.available && choices[item.agent])
-                .map((item) => agentLabels[item.agent]),
+                .filter((toggle) => toggle.available && choices[toggle.agent])
+                .map((toggle) => agentLabels[toggle.agent]),
             )}
           </p>
 

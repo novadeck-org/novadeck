@@ -6,7 +6,7 @@ import {
   keptWorking,
   litSet,
   namedAgents,
-  stripItems,
+  stripSlots,
   toggleAgent,
   toggleSquad,
   workingAgents,
@@ -31,13 +31,13 @@ describe("The agents with work here", () => {
   })
 })
 
-describe("The strip's items", () => {
+describe("The strip's slots", () => {
   const roster = ["wren", "moth", "owl", "crow"]
 
   it("follow the roster, with handles of no terminal after them alphabetically", () => {
-    const items = stripItems(project({ writing: { kite: "c.ts", ash: "d.ts" } }), roster, [])
+    const slots = stripSlots(project({ writing: { kite: "c.ts", ash: "d.ts" } }), roster, [])
 
-    expect(items.map((item) => item.kind === "solo" && item.handle)).toEqual([
+    expect(slots.map((slot) => slot.kind === "solo" && slot.handle)).toEqual([
       "wren",
       "moth",
       "crow",
@@ -47,13 +47,13 @@ describe("The strip's items", () => {
   })
 
   it("leave out agents with no work, even when a terminal has them", () => {
-    expect(stripItems(project(), ["owl"], [])).not.toContainEqual({ kind: "solo", handle: "owl" })
+    expect(stripSlots(project(), ["owl"], [])).not.toContainEqual({ kind: "solo", handle: "owl" })
   })
 
   it("group a team's members with work in one squad, the lead first, where the first sits", () => {
-    const items = stripItems(project(), roster, [["moth", "owl", "crow"]])
+    const slots = stripSlots(project(), roster, [["moth", "owl", "crow"]])
 
-    expect(items).toEqual([
+    expect(slots).toEqual([
       { kind: "solo", handle: "wren" },
       { kind: "squad", members: ["moth", "crow"] },
       { kind: "solo", handle: "kite" },
@@ -61,7 +61,7 @@ describe("The strip's items", () => {
   })
 
   it("make no squad of a team with fewer than two members with work", () => {
-    expect(stripItems(project(), roster, [["moth", "owl"]])).toEqual([
+    expect(stripSlots(project(), roster, [["moth", "owl"]])).toEqual([
       { kind: "solo", handle: "wren" },
       { kind: "solo", handle: "moth" },
       { kind: "solo", handle: "crow" },
@@ -71,7 +71,7 @@ describe("The strip's items", () => {
 
   it("make no squad of a team whose lead has no work, its workers standing alone", () => {
     // owl leads moth and crow but did nothing here.
-    expect(stripItems(project(), roster, [["owl", "moth", "crow"]])).toEqual([
+    expect(stripSlots(project(), roster, [["owl", "moth", "crow"]])).toEqual([
       { kind: "solo", handle: "wren" },
       { kind: "solo", handle: "moth" },
       { kind: "solo", handle: "crow" },
@@ -80,23 +80,23 @@ describe("The strip's items", () => {
   })
 
   it("let a worker of a leaderless team join a later squad that stands", () => {
-    const items = stripItems(project(), roster, [
+    const slots = stripSlots(project(), roster, [
       ["owl", "crow"],
       ["moth", "crow"],
     ])
 
-    expect(items.filter((item) => item.kind === "squad")).toEqual([
+    expect(slots.filter((slot) => slot.kind === "squad")).toEqual([
       { kind: "squad", members: ["moth", "crow"] },
     ])
   })
 
   it("keep an agent in the first squad that names it", () => {
-    const items = stripItems(project(), roster, [
+    const slots = stripSlots(project(), roster, [
       ["moth", "crow"],
       ["crow", "wren"],
     ])
 
-    expect(items.filter((item) => item.kind === "squad")).toEqual([
+    expect(slots.filter((slot) => slot.kind === "squad")).toEqual([
       { kind: "squad", members: ["moth", "crow"] },
     ])
   })

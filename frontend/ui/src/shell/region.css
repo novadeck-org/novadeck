@@ -432,7 +432,7 @@
 }
 /* What's new after an update (WhatsNew.tsx), on the update card's recipe: wider for a list.
    A strip of label tape stuck across the top edge says "New in" and the version; beside the
-   × a small stamp names the version it is new since, when the host knows it. Each highlight
+   × a small stamp names the version it is new since, when the desktop app knows it. Each highlight
    is a bold title with its line under it, led by its icon on a tile. The tape and the tiles
    share one tint, so the tape reads as one more tile. Tokens, each optional (its fallback in
    brackets): --whats-new-accent-bg (the strong colour, a sixth into the paper),

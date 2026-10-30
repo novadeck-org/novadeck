@@ -5,7 +5,7 @@ import { act, createElement } from "react"
 import { afterEach } from "vitest"
 
 import { Composer } from "./Composer"
-import { composerState } from "./mode-state"
+import { composerMode } from "./composer-mode"
 import { describe, expect, it } from "./test"
 
 const unmounts: (() => void)[] = []
@@ -27,7 +27,7 @@ const show = (
       label: "Claude",
       draft,
       onDraft: () => {},
-      mode: composerState(draft, null, [], true),
+      mode: composerMode(draft, null, [], true),
       sending: false,
       replySending: false,
       working: false,

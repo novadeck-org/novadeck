@@ -7,20 +7,19 @@ import { createUiStore, initialUi } from "./ui-store"
 // A window as the watch sees it: whether its document has focus and shows, the events
 // that say either changed, and timers it runs when told.
 const page = () => {
-  const view = new EventTarget()
   const document = Object.assign(new EventTarget(), {
     focused: true,
     visibilityState: "visible" as DocumentVisibilityState,
     hasFocus: () => document.focused,
   })
   const timers: (() => void)[] = []
-  Object.assign(view, {
+  const view = Object.assign(new EventTarget(), {
     document,
     setTimeout: (run: () => void) => timers.push(run),
     clearTimeout: () => {},
   })
   return {
-    view: view as unknown as Window,
+    view,
     document,
     settle: () => timers.splice(0).forEach((run) => run()),
   }
@@ -101,9 +100,9 @@ describe("the page's focus", () => {
   })
 })
 
-describe("the page's focus where the host reports its window's", () => {
-  // A host that tells the window's focus at once and on each change.
-  const host = (initial: boolean) => {
+describe("the page's focus where the desktop app reports its window's", () => {
+  // A desktop app that tells the window's focus at once and on each change.
+  const windowApp = (initial: boolean) => {
     const listeners = new Set<(focused: boolean) => void>()
     return {
       listen: (listener: (focused: boolean) => void) => {
@@ -116,10 +115,10 @@ describe("the page's focus where the host reports its window's", () => {
     }
   }
 
-  it("follows the host, not the document", () => {
+  it("follows the desktop app, not the document", () => {
     const store = ui()
     const { view, document, settle } = page()
-    const { listen, report } = host(true)
+    const { listen, report } = windowApp(true)
     // The document loses focus to a frame of the page and never gets it back.
     document.focused = false
     const stop = watchPageFocus(store, view, listen)
@@ -133,28 +132,28 @@ describe("the page's focus where the host reports its window's", () => {
     stop()
   })
 
-  it("starts from the host's state", () => {
+  it("starts from the desktop app's state", () => {
     const store = ui()
     const { view } = page()
-    const stop = watchPageFocus(store, view, host(false).listen)
+    const stop = watchPageFocus(store, view, windowApp(false).listen)
     expect(store.getSnapshot().pageFocused).toBe(false)
     stop()
   })
 
-  it("is lost while the page doesn't show, whatever the host says", () => {
+  it("is lost while the page doesn't show, whatever the desktop app says", () => {
     const store = ui()
     const { view, document } = page()
-    const stop = watchPageFocus(store, view, host(true).listen)
+    const stop = watchPageFocus(store, view, windowApp(true).listen)
     document.visibilityState = "hidden"
     document.dispatchEvent(new Event("visibilitychange"))
     expect(store.getSnapshot().pageFocused).toBe(false)
     stop()
   })
 
-  it("stops listening to the host with the watch", () => {
+  it("stops listening to the desktop app with the watch", () => {
     const store = ui()
     const { view } = page()
-    const { listen, listeners } = host(true)
+    const { listen, listeners } = windowApp(true)
     watchPageFocus(store, view, listen)()
     expect(listeners.size).toBe(0)
   })

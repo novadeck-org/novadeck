@@ -3,7 +3,7 @@ import { describeBackendContract } from "@novadeck/test-kit/backend-contract"
 import { afterAll, vi } from "vitest"
 
 import { pause, runnerBackend, type RunnerBackend } from "./backend"
-import { recordingRunner, startTestRunner } from "./testing"
+import { recordingRunner, startTestRunner } from "./testing/runner"
 
 // jsdom has no layout observers, media queries or canvas; xterm falls back without them.
 vi.hoisted(() => {
@@ -61,7 +61,7 @@ describeBackendContract("runner", {
             await attached.write(`exit ${status.exitCode}\r`)
           } else await runner.client.terminals.close(key.terminalId).catch(() => {})
           for await (const event of attached) if (event.type === "exited") break
-          // The adapter hears of the exit on its own subscription.
+          // The adapter hears of the exit on its own stream.
           await pause(100)
         },
       },

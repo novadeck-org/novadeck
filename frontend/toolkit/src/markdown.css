@@ -11,11 +11,11 @@
    --markdown-quote-border-color (line-strong), --markdown-table-border-color (line),
    --markdown-table-head-bg (shell): quotes and tables.
    --markdown-link-fg (ink): links.
-   --_muted (set by the chat, and by the Inbox's sheet): quotes, list markers and the
-   code's label. */
+   --markdown-muted-fg (muted): quotes, list markers and the code's label. */
 
 /* The agent's formatted text */
 .markdown {
+  --_muted: var(--markdown-muted-fg, var(--color-muted));
   overflow-wrap: anywhere;
 }
 .markdown > :first-child {

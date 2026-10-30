@@ -3,10 +3,10 @@ import { render, type Rendered } from "@novadeck/test-kit/render"
 import { act, createElement } from "react"
 import { afterEach, beforeEach, vi } from "vitest"
 
+import type { DemoLaunch, DemoShell } from "./debug-demo"
 import { createDebugPanel } from "./DebugPanel"
 import { context, describe, expect, it } from "./test"
 import type { DemoActionGroup, DemoStates } from "./types"
-import type { DemoLaunch, DemoShell } from "./with-debug"
 
 // The shell's groups stand aside, so the panel shows these and the real Portable group.
 vi.mock("./shell-groups", () => ({ shellGroups: () => [] }))
@@ -188,9 +188,6 @@ describe("demo debug panel", () => {
       second.click(second.handle())
       expect(second.pressed()).toBe("Other project")
     })
-  })
-
-  context("the target switch", () => {
     it("shows with a search hit in its group, and not with one elsewhere", () => {
       const panel = mount()
       panel.click(panel.handle())

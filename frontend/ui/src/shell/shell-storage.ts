@@ -2,7 +2,7 @@ import type { SidebarPanel, WindowedView } from "@novadeck/core/types"
 
 import { railOrder } from "./rail-order"
 
-export const collapsedStorageKey = "novadeck.sidebar-collapsed"
+const collapsedStorageKey = "novadeck.sidebar-collapsed"
 export const readSidebarCollapsed = (): boolean => {
   try {
     return localStorage.getItem(collapsedStorageKey) === "true"
@@ -10,7 +10,7 @@ export const readSidebarCollapsed = (): boolean => {
     return false
   }
 }
-export const windowedStorageKey = "novadeck.windowed-view"
+const windowedStorageKey = "novadeck.windowed-view"
 export const readWindowedView = (): WindowedView => {
   try {
     return localStorage.getItem(windowedStorageKey) === "canvas" ? "canvas" : "grid"
@@ -20,7 +20,7 @@ export const readWindowedView = (): WindowedView => {
 }
 
 // The order the person left the footer's subscriptions in, by program.
-export const subscriptionOrderStorageKey = "novadeck.subscription-order"
+const subscriptionOrderStorageKey = "novadeck.subscription-order"
 export const readSubscriptionOrder = (): readonly string[] => {
   try {
     const stored: unknown = JSON.parse(localStorage.getItem(subscriptionOrderStorageKey) ?? "[]")
@@ -31,7 +31,7 @@ export const readSubscriptionOrder = (): readonly string[] => {
 }
 
 // The order the person left the rail's panels in.
-export const sidebarOrderStorageKey = "novadeck.sidebar-order"
+const sidebarOrderStorageKey = "novadeck.sidebar-order"
 export const readSidebarOrder = (): readonly SidebarPanel[] => {
   try {
     const stored: unknown = JSON.parse(localStorage.getItem(sidebarOrderStorageKey) ?? "[]")
@@ -43,7 +43,7 @@ export const readSidebarOrder = (): readonly SidebarPanel[] => {
 
 // The release whose footer update chip the person folded to its icon, by closing its card
 // or opening its page. Any other release brings the word back.
-export const foldedChipStorageKey = "novadeck.update-chip-folded"
+const foldedChipStorageKey = "novadeck.update-chip-folded"
 export const readFoldedChip = (): string | null => {
   try {
     return localStorage.getItem(foldedChipStorageKey)

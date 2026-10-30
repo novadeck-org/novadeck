@@ -274,8 +274,10 @@ export const withdrawnNotice = (subjects: readonly string[]): string => {
     "Novadeck: automatic notice, not from the user: the user wrote to you, " +
     `so Novadeck took your open ${one ? "ask" : "asks"} out of their Inbox: ` +
     `${named.join(", ")}${more > 0 ? ` and ${more} more` : ""}. ` +
-    `Read their message as their reply to ${one ? "it" : "them"}; ask again, as a new ask, ` +
-    "only what it leaves open. This notice needs no reply."
+    `${one ? "It is" : "They are"} closed and can no longer be answered in the Inbox. ` +
+    `Read their message as their reply to ${one ? "it" : "them"}; whatever it leaves open, ` +
+    "ask again with the ask tool before ending the turn, rather than saying it waits in the " +
+    "Inbox. This notice needs no reply."
   )
 }
 
@@ -716,11 +718,14 @@ export class Inbox {
 
   /**
    * The person wrote to the terminal's agent in its terminal, in a turn that started at
-   * `before`: the session's open asks made earlier are withdrawn, as the agent's own
-   * withdrawal does (tells, done rows and turn rows stay). The notice for the agent, naming
-   * them; undefined when none was open.
+   * `before`: the session's open asks made earlier, which `withdrawReplied` would take out
+   * (tells, done rows and turn rows stay), and the notice naming them for the agent. Nothing
+   * changes; undefined when none is open.
    */
-  withdrawBefore(terminalId: string, before: number): string | undefined {
+  withdrawable(
+    terminalId: string,
+    before: number,
+  ): { readonly asks: readonly string[]; readonly notice: string } | undefined {
     if (this.closed) return undefined
     const owner = this.host.owner(terminalId)
     const taken = [...(this.byTerminal.get(terminalId)?.values() ?? [])]
@@ -733,13 +738,39 @@ export class Inbox {
       )
       .toSorted((a, b) => a.at - b.at)
     if (taken.length === 0) return undefined
-    const subjects: string[] = []
-    for (const entry of taken) {
+    const subjects = taken.flatMap((entry) =>
+      entry.content.kind === "ask" ? [entry.content.ask.subject] : [],
+    )
+    return { asks: taken.map((entry) => entry.id), notice: withdrawnNotice(subjects) }
+  }
+
+  /**
+   * The agent was told (see `withdrawable`) that the person's prompt took these asks out:
+   * those still open in its session are withdrawn as replied, as the agent's own withdrawal
+   * does. Any since answered, dismissed, withdrawn or from another session stay as they are.
+   */
+  withdrawReplied(terminalId: string, ids: readonly string[]): void {
+    if (this.closed) return
+    const owner = this.host.owner(terminalId)
+    let count = 0
+    for (const id of ids) {
+      const entry = this.entries.get(id)
+      if (
+        !entry ||
+        entry.terminalId !== terminalId ||
+        entry.state !== "open" ||
+        entry.content.kind !== "ask" ||
+        !same(entry, owner)
+      )
+        continue
       this.put({ ...entry, state: "withdrawn", cause: "replied" })
-      if (entry.content.kind === "ask") subjects.push(entry.content.ask.subject)
+      count += 1
     }
+    if (count === 0) return
     this.maintain(terminalId)
-    return withdrawnNotice(subjects)
+    log.info("inbox.withdrawn", "Novadeck took asks out of the Inbox once their agent was told", {
+      data: { terminalId, count, cause: "replied" },
+    })
   }
 
   /**

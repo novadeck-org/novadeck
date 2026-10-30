@@ -4,7 +4,7 @@ import { createStore } from "@novadeck/core/store"
 import { vi } from "vitest"
 
 import { context, describe, expect, it } from "../test"
-import type { AgentSwitch } from "./AgentSwitches"
+import type { AgentSwitch } from "./agent-switches"
 import {
   agentList,
   askUninstall,
@@ -94,11 +94,13 @@ describe("disconnecting an agent", () => {
   } => {
     const state = createStore<readonly AgentSwitch[]>([switchFor("claude", connected)])
     const set = vi.fn<(agent: AgentName) => void>((agent) => {
-      state.update((list) => list.map((item) => ({ ...item, busy: true })))
+      state.update((list) => list.map((toggle) => ({ ...toggle, busy: true })))
       // The backend answers later, through its state.
       setTimeout(
         () =>
-          state.update((list) => list.map((item) => (item.agent === agent ? after(item) : item))),
+          state.update((list) =>
+            list.map((toggle) => (toggle.agent === agent ? after(toggle) : toggle)),
+          ),
         0,
       )
     })
@@ -106,18 +108,18 @@ describe("disconnecting an agent", () => {
   }
 
   it("waits for the change to settle, and says nothing once it is off", async () => {
-    const { agents, set } = setup((item) => ({ ...item, busy: false, connected: false }))
+    const { agents, set } = setup((toggle) => ({ ...toggle, busy: false, connected: false }))
     expect(await disconnectAgent(agents, "claude")).toBeUndefined()
     expect(set).toHaveBeenCalledWith("claude", false)
   })
 
   it("gives the backend's error when it stays connected", async () => {
-    const { agents } = setup((item) => ({ ...item, busy: false, error: "Permission denied." }))
+    const { agents } = setup((toggle) => ({ ...toggle, busy: false, error: "Permission denied." }))
     expect(await disconnectAgent(agents, "claude")).toBe("Permission denied.")
   })
 
   it("leaves an agent that is already off alone", async () => {
-    const { agents, set } = setup((item) => item, false)
+    const { agents, set } = setup((toggle) => toggle, false)
     expect(await disconnectAgent(agents, "claude")).toBeUndefined()
     expect(set).not.toHaveBeenCalled()
   })

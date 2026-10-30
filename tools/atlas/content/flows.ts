@@ -39,7 +39,7 @@ export const flows: (Omit<Flow, "steps"> & { steps: CuratedStep[] })[] = [
         to: "renderer",
         label: "load packaged UI",
         text: "The desktop app creates the window and loads the packaged UI, or the Vite dev server in development.",
-        anchor: { file: `${desktop}/main/index.ts`, text: "void window.loadFile(" },
+        anchor: { file: `${desktop}/main/window/app-window.ts`, text: "void window.loadFile(" },
       },
       {
         from: "preload",
@@ -272,7 +272,7 @@ export const flows: (Omit<Flow, "steps"> & { steps: CuratedStep[] })[] = [
         to: "renderer",
         label: "item → companion bar",
         text: "The UI applies the change, and the item appears in the terminal's bar.",
-        anchor: { file: `${adapter}/items.ts`, text: "const changes = runner.watch()" },
+        anchor: { file: `${adapter}/companions/items.ts`, text: "const changes = runner.watch()" },
       },
       {
         from: "runner",
@@ -356,7 +356,7 @@ export const flows: (Omit<Flow, "steps"> & { steps: CuratedStep[] })[] = [
         label: "requests → chat cards",
         text: "The conversation turns the pending requests into cards in the chat view, where the person picks an answer.",
         anchor: {
-          file: `${adapter}/conversations.ts`,
+          file: `${adapter}/agents/conversations.ts`,
           text: "const requestsOf = (detail: AgentDetail, root: string | null)",
         },
       },
@@ -366,7 +366,7 @@ export const flows: (Omit<Flow, "steps"> & { steps: CuratedStep[] })[] = [
         label: "agents.answer call",
         text: "The chosen answer goes to the runner as an agents.answer call.",
         anchor: {
-          file: `${adapter}/conversations.ts`,
+          file: `${adapter}/agents/conversations.ts`,
           text: "streams.answer(terminalId, request, requestAnswerOf(answer))",
         },
       },
@@ -440,7 +440,7 @@ export const flows: (Omit<Flow, "steps"> & { steps: CuratedStep[] })[] = [
         text: "The relay sends the hook with a deadline, so the runner treats it as an ask and answers by then.",
         anchor: {
           file: `${runnerSrc}/shell/reports.ts`,
-          text: "answer = await within(handlers.ask(report, hook.deadline), ms, unheard)",
+          text: "answer = await within(raced, ms, unheard)",
         },
       },
       {

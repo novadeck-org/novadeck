@@ -6,14 +6,8 @@
 // where the cost comes from; every changed budget shows in the summary, old to new.
 
 export const phases = ["grid", "focus", "switches"] as const
-export const gated = [
-  "notifications",
-  "mutations",
-  "bytes",
-  "streamingPeak",
-  "streamingSettled",
-] as const
-const ticked = ["notifications", "mutations", "commits", "renders"] as const
+export const gated = ["wakes", "mutations", "bytes", "streamingPeak", "streamingSettled"] as const
+const ticked = ["wakes", "mutations", "commits", "renders"] as const
 
 type Phase = (typeof phases)[number]
 type Gated = (typeof gated)[number]
@@ -90,6 +84,21 @@ export const parseBudgets = (data: unknown, name: string): Budgets => {
   return data as Budgets
 }
 
+// A base branch's budget file as it reads today: one written before `notifications` became
+// `wakes` has its counts under the old key, which would otherwise show as a budget dropped
+// and a new one added.
+export const withCurrentNames = (data: unknown): unknown => {
+  if (!isRecord(data)) return data
+  return Object.fromEntries(
+    Object.entries(data).map(([phase, counters]) => {
+      if (!isRecord(counters) || !("notifications" in counters) || "wakes" in counters)
+        return [phase, counters]
+      const { notifications, ...rest } = counters
+      return [phase, { ...rest, wakes: notifications }]
+    }),
+  )
+}
+
 // The base branch's budgets, as far as comparing with them needs: each budget it has. It
 // may be in an older form, without a phase's ticks or a counter added since, so a change
 // to the file's form can land; a budget it has must still read.
@@ -117,8 +126,8 @@ const checkEntry = (entry: unknown, label: string): void => {
 // How many times its budget a count may reach before the gate fails; past its budget but
 // no further than this, it only warns. Loose by choice: the product is early and still
 // being defined, and feature work must move without tripping hard gates, while a blow-up,
-// as the 11,271 notifications Grid once cost against a budget of 78, still fails. The
-// user's call, on 2026-10-17.
+// as the 11,271 wakes Grid once cost against a budget of 78, still fails. The
+// maintainer's call, on 2026-10-17.
 export const failsAt = 2
 
 // Past `failsAt` times its budget, past its budget, under it, or at it.
@@ -133,7 +142,7 @@ export type Row = {
 
 // The gated values of a phase: per-tick counts as totals over its fixed number of ticks.
 const gatedValues = (phase: PhaseReading): Record<Gated, number> => ({
-  notifications: phase.tickTotals.notifications,
+  wakes: phase.tickTotals.wakes,
   mutations: phase.tickTotals.mutations,
   bytes: phase.bytes,
   streamingPeak: phase.streamingPeak,
@@ -303,7 +312,7 @@ export const countersSummary = (
   } = {},
 ): string => {
   const gatedRows = rows.map(({ phase, counter, value, budget, verdict }) => {
-    const tick = counter === "notifications" || counter === "mutations"
+    const tick = counter === "wakes" || counter === "mutations"
     const ticks = reading[phase].ticks
     const shown = tick ? `${value} (${perTick(value, ticks)}/tick)` : String(value)
     return `| ${phase} | ${counter} | ${shown} | ${budget} | ${mark[verdict]} |`

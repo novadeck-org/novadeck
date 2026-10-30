@@ -2,7 +2,7 @@ import type { CanvasLayout } from "@novadeck/core/types"
 import { useReactFlow } from "@xyflow/react"
 import { useCallback, useEffect, useRef, type RefObject } from "react"
 
-import { snap } from "./geometry"
+import { minimumSize, snap } from "./geometry"
 import type { CanvasProps, CanvasViewport, TerminalNode } from "./types"
 
 export type CanvasPersistence = {
@@ -97,8 +97,12 @@ export const useCanvasPersistence = ({
         geometryRef.current[id] = {
           ...current,
           position: { x: snap(current.position.x), y: snap(current.position.y) },
-          ...(isResizing && current.width ? { width: Math.max(336, snap(current.width)) } : {}),
-          ...(isResizing && current.height ? { height: Math.max(216, snap(current.height)) } : {}),
+          ...(isResizing && current.width
+            ? { width: Math.max(minimumSize.width, snap(current.width)) }
+            : {}),
+          ...(isResizing && current.height
+            ? { height: Math.max(minimumSize.height, snap(current.height)) }
+            : {}),
         }
       }
       resizing.current.clear()

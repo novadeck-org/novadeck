@@ -5,7 +5,7 @@ import { fileURLToPath } from "node:url"
 
 import { noticeSounds } from "@novadeck/protocol/sounds"
 
-import { noticeSoundFile } from "./main/notices"
+import { noticeSoundFile } from "./main/notices/notices"
 import { describe, expect, it } from "./test"
 
 const app = fileURLToPath(new URL("..", import.meta.url))
@@ -100,7 +100,7 @@ describe("the packaged app's resources", () => {
 describe("the development run", () => {
   it("waits for its page on the port the page's dev server takes", () => {
     const origin = /developmentOrigin = "http:\/\/127\.0\.0\.1:(\d+)"/.exec(
-      readFileSync(join(app, "src/main/index.ts"), "utf8"),
+      readFileSync(join(app, "src/main/resources.ts"), "utf8"),
     )?.[1]
     const port = /server: \{\s*port: (\d+),/.exec(
       readFileSync(join(app, "vite.config.ts"), "utf8"),

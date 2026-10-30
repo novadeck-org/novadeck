@@ -2,17 +2,13 @@
   "name": "@novadeck/runner-adapter",
   "version": "0.0.0",
   "private": true,
-  "description": "The UI's backend for a Novadeck runner, over a WebSocket or the desktop host.",
+  "description": "The UI's backend for a Novadeck runner, over a WebSocket or the desktop app.",
   "license": "GPL-3.0-or-later",
   "type": "module",
   "exports": {
     ".": "./src/index.ts",
-    "./conversations": "./src/conversations.ts",
-    "./scripted": "./src/scripted.ts",
-    "./scripted-server": "./src/scripted-server.ts",
-    "./testing": {
-      "node": "./src/testing.ts"
-    }
+    "./conversations": "./src/agents/conversations.ts",
+    "./scripted-server": "./src/testing/scripted-server.ts"
   },
   "scripts": {
     "test": "vitest run",

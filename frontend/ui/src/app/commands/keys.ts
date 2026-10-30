@@ -27,7 +27,7 @@ import {
 import type { CommandContext } from "./context"
 import type { WorkspaceCommands } from "./workspace"
 
-export type KeyCommand = {
+type KeyCommand = {
   // False lets the key through unprevented and ends routing for this event.
   readonly available?: (input: KeyInput, args?: number) => boolean
   // "next" hands the key to the next matching binding; "through" ends routing and lets
@@ -67,7 +67,7 @@ export const createKeyCommands = (
   const targeted = () => {
     const snapshot = workspace.getSnapshot()
     const { roster, selected, view } = currentState(snapshot)
-    const terminal = tilesOf(roster).find((item) => item.id === selected)
+    const terminal = tilesOf(roster).find((tile) => tile.id === selected)
     if (terminal || view !== "focus") return terminal
     const { focusPreview } = ui.getSnapshot().shell
     return activeTerminal(tilesOf(roster), selected, currentContext(snapshot), focusPreview)

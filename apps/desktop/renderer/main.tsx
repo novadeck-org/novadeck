@@ -8,10 +8,10 @@ import { pageTheme } from "@novadeck/ui/theme/source"
 
 import { reportPageErrors } from "./page-errors"
 
-// The host logs the errors the page doesn't catch.
+// The main process logs the errors the page doesn't catch.
 reportPageErrors(window, (window as Window & { novadeck?: DesktopApp }).novadeck)
 
-// The desktop app: the runner the host starts, whose client and terminal emulator load with
+// The desktop app: the runner the app starts, whose client and terminal emulator load with
 // the connection instead of the entry point.
 const runner: BackendSelection = {
   connect: async (signal, progress) => {

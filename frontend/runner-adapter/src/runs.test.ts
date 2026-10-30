@@ -10,33 +10,12 @@ import type { WireStatus } from "@novadeck/wire/client"
 import { afterAll, vi } from "vitest"
 
 import { runnerBackend, type RunnerApi } from "./backend"
-import { noCompanions } from "./scripted"
-import { startingTerminal, type RunnerListing } from "./seed"
-import { encodeSession } from "./session-state"
+import { startingTerminal, type RunnerListing } from "./sessions/seed"
+import { encodeSession } from "./sessions/state"
 import { context, describe, expect, it } from "./test"
-import { startTestRunner } from "./testing"
-
-// Values pushed by the test, read by the adapter as a stream.
-const channel = <T>() => {
-  const queued: T[] = []
-  let wake: (() => void) | undefined
-  const iterator: AsyncIterableIterator<T, undefined> = {
-    [Symbol.asyncIterator]: () => iterator,
-    next: async () => {
-      // eslint-disable-next-line no-await-in-loop -- Waits for the next pushed value.
-      while (!queued.length) await new Promise<void>((resolve) => (wake = resolve))
-      return { value: queued.shift()!, done: false }
-    },
-    return: async () => ({ value: undefined, done: true }),
-  }
-  return {
-    iterator,
-    push: (value: T) => {
-      queued.push(value)
-      wake?.()
-    },
-  }
-}
+import { channel } from "./testing/channel"
+import { startTestRunner } from "./testing/runner"
+import { noCompanions } from "./testing/scripted"
 
 const unused = (): never => {
   throw new Error("not used here")

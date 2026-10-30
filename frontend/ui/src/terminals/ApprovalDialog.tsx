@@ -18,16 +18,16 @@ export type ApprovalView = {
 }
 
 // The approval with the terminals it names, found in any session of any project.
-export const approvalView = (ask: Approval, workspace: Workspace): ApprovalView => {
+export const approvalView = (approval: Approval, workspace: Workspace): ApprovalView => {
   const terminals = workspace.projects.flatMap((project) =>
     project.history.flatMap((session) => session.state.roster.terminals),
   )
   const find = (id: string) => terminals.find((terminal) => terminal.id === id)
   return {
-    requestId: ask.requestId,
-    action: ask.action,
-    asker: find(ask.from),
-    target: find(ask.terminalId),
+    requestId: approval.requestId,
+    action: approval.action,
+    asker: find(approval.from),
+    target: find(approval.terminalId),
   }
 }
 
@@ -86,9 +86,9 @@ const descriptionOf = ({ action, asker, target }: ApprovalView): React.ReactNode
   )
 }
 
-export type ApprovalDialogProps = {
+type ApprovalDialogProps = {
   // The approval waiting on the person, or null when none does.
-  readonly ask: ApprovalView | null
+  readonly approval: ApprovalView | null
   // `approved` when the person agreed; false when they declined.
   readonly onAnswer: (requestId: string, approved: boolean) => void
 }
@@ -96,24 +96,24 @@ export type ApprovalDialogProps = {
 // Asks before an agent does something the person should allow: closing a terminal that runs
 // an agent it doesn't lead, since closing ends that agent, or leading one with a brief.
 // Declining is focused first; Escape and a click outside decline too.
-export const ApprovalDialog = ({ ask, onAnswer }: ApprovalDialogProps): React.JSX.Element => {
+export const ApprovalDialog = ({ approval, onAnswer }: ApprovalDialogProps): React.JSX.Element => {
   // Each approval gets its own dialog: one answered while the next waits would otherwise
   // count the next one's Escape as a confirmation.
   const [generation, setGeneration] = useState({ id: "", count: 0 })
-  if (ask && ask.requestId !== generation.id)
-    setGeneration({ id: ask.requestId, count: generation.count + 1 })
-  const lead = ask?.action.type === "lead"
+  if (approval && approval.requestId !== generation.id)
+    setGeneration({ id: approval.requestId, count: generation.count + 1 })
+  const lead = approval?.action.type === "lead"
   return (
     <ConfirmDialog
       key={generation.count}
-      subject={ask}
+      subject={approval}
       title={titleOf}
       description={descriptionOf}
-      confirmDisabled={lead && !(ask?.asker && ask.target)}
+      confirmDisabled={lead && !(approval?.asker && approval.target)}
       confirmLabel={lead ? "Let it lead" : "Close terminal"}
       cancelLabel={lead ? "Decline" : "Keep open"}
-      onConfirm={() => ask && onAnswer(ask.requestId, true)}
-      onCancel={() => ask && onAnswer(ask.requestId, false)}
+      onConfirm={() => approval && onAnswer(approval.requestId, true)}
+      onCancel={() => approval && onAnswer(approval.requestId, false)}
       widthClassName={lead ? "w-[min(480px,calc(100vw-32px))]" : "w-[min(360px,calc(100vw-32px))]"}
     />
   )

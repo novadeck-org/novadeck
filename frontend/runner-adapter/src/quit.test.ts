@@ -10,14 +10,14 @@ import { afterAll, vi } from "vitest"
 
 import { runnerBackend } from "./backend"
 import { describe, expect, it } from "./test"
-import { startTestRunner } from "./testing"
+import { startTestRunner } from "./testing/runner"
 
 vi.setConfig({ testTimeout: 20_000 })
 
 const directory = mkdtempSync(join(tmpdir(), "novadeck-quit-"))
 afterAll(() => rmSync(directory, { recursive: true, force: true }))
 
-// One launch of the app on a database, with the host's quit: the page finishes what it
+// One launch of the app on a database, with the app's quit: the page finishes what it
 // holds, then the runner stops.
 const launch = async (database: string) => {
   const runner = await startTestRunner({ database })

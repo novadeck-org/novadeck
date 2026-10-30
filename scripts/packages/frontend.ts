@@ -78,14 +78,13 @@ export const packages: readonly Pkg[] = [
     id: "runner-adapter",
     dir: "frontend/runner-adapter",
     name: "@novadeck/runner-adapter",
-    description: "The UI's backend for a Novadeck runner, over a WebSocket or the desktop host.",
-    // `testing`, `scripted` and `scripted-server` are dev subpaths: they stay out of the build,
-    // so the runner's and the oRPC server's edges stay dev-only.
+    description: "The UI's backend for a Novadeck runner, over a WebSocket or the desktop app.",
+    // `scripted-server` is a dev subpath, for the specs: it stays out of the build, so the
+    // oRPC server's edge stays dev-only.
     exports: {
       ".": "./src/index.ts",
-      "./testing": { node: "./src/testing.ts" },
-      "./scripted": "./src/scripted.ts",
-      "./scripted-server": "./src/scripted-server.ts",
+      "./conversations": "./src/agents/conversations.ts",
+      "./scripted-server": "./src/testing/scripted-server.ts",
     },
     scripts: unitScripts,
     vitest: "unit",
@@ -111,7 +110,7 @@ export const packages: readonly Pkg[] = [
     dir: "frontend/specs",
     name: "@novadeck/specs",
     description:
-      "The UI's behaviour specs: the whole app in a real browser, over the demo backend.",
+      "The UI's behaviour specs and integration tests: the whole app over the demo backend, in a real browser or jsdom.",
     allDev: true,
     scripts: unitScripts,
     vitest: "template",
@@ -165,7 +164,7 @@ export const packages: readonly Pkg[] = [
       dev: "vite --host 127.0.0.1 --mode try",
       build: "vite build --mode try",
       preview: "vite preview --host 127.0.0.1",
-      "poster:try": "node scripts/poster.ts",
+      poster: "node scripts/poster.ts",
       test: "vitest run",
       typecheck: "tsc --noEmit -p tsconfig.json",
     },
@@ -303,10 +302,10 @@ export const samples: Kept = [
   { path: "application/ui/src/backend/demo/showcase/artifacts.ts", why: "code the demo shows" },
   { path: "application/ui/src/backend/demo/showcase/storefront.ts", why: "code the demo shows" },
   { path: "application/ui/src/backend/demo/transcripts.ts", why: "code the demo shows" },
-  { path: "frontend/demo/src/launch.ts", why: "code the demo shows" },
+  { path: "frontend/demo/src/agents/transcripts.ts", why: "code the demo shows" },
   { path: "frontend/demo/src/showcase/artifacts.ts", why: "code the demo shows" },
   { path: "frontend/demo/src/showcase/storefront.ts", why: "code the demo shows" },
-  { path: "frontend/demo/src/transcripts.ts", why: "code the demo shows" },
+  { path: "frontend/demo/src/videos/launch.ts", why: "code the demo shows" },
 ]
 
 const formsOf = (file: string): readonly RegExp[] =>
@@ -559,7 +558,7 @@ export const cycleProblem = (edges: readonly Edge[]): string[] => {
 }
 
 const testFile =
-  /\.(?:test|spec)\.[cm]?[jt]sx?$|\/src\/(?:test|testing|scripted|scripted-server)\.ts$|\/src\/test\/|\/setup\.ts$/
+  /\.(?:test|spec)\.[cm]?[jt]sx?$|\/src\/(?:test|testing|scripted|scripted-server)\.ts$|\/src\/(?:test|testing)\/|\/setup\.ts$/
 const configFile = /\/(?:vite|vitest)\.config\.[cm]?ts$|\/scripts\//
 
 /** Whether the file is test, config or tooling: what it imports is a dev dependency. */
@@ -987,8 +986,10 @@ export const edits: readonly Edit[] = [
   {
     file: "package.json",
     before: '"poster:try": "pnpm --filter @novadeck/ui poster:try",',
-    after: '"poster:try": "pnpm --filter @novadeck/try poster:try",',
+    after: '"poster:try": "pnpm --filter @novadeck/try poster",',
     why: "the posters are the visitor build's",
+    // The line before the app's script was named poster.
+    settled: ['"poster:try": "pnpm --filter @novadeck/try poster:try",'],
   },
   {
     file: "package.json",

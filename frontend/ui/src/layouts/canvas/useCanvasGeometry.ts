@@ -1,7 +1,7 @@
 import { useReactFlow, type OnNodesChange } from "@xyflow/react"
 import { useCallback, useRef } from "react"
 
-import { snap } from "./geometry"
+import { minimumSize, snap } from "./geometry"
 import type { CanvasProps, TerminalNode } from "./types"
 import type { CanvasPersistence } from "./useCanvasPersistence"
 
@@ -28,8 +28,8 @@ export const useCanvasGeometry = (
       const currentNode = getNode(id)
       if (currentNode?.width && currentNode.height)
         started.current.set(id, {
-          width: Math.max(336, snap(currentNode.width)),
-          height: Math.max(216, snap(currentNode.height)),
+          width: Math.max(minimumSize.width, snap(currentNode.width)),
+          height: Math.max(minimumSize.height, snap(currentNode.height)),
         })
       if (currentNode) {
         geometryRef.current[id] = {
@@ -55,8 +55,8 @@ export const useCanvasGeometry = (
       const next = {
         ...geometryRef.current[id],
         position: currentNode.position,
-        width: Math.max(336, snap(width)),
-        height: Math.max(216, snap(height)),
+        width: Math.max(minimumSize.width, snap(width)),
+        height: Math.max(minimumSize.height, snap(height)),
       }
       geometryRef.current[id] = next
       dirtyGeometry.current.add(id)

@@ -2,14 +2,15 @@ import { connectSources } from "@novadeck/build-kit/connect-sources"
 import type { Build } from "@novadeck/build-kit/content-security-policy"
 import type { HeaderRule } from "@novadeck/build-kit/hosting-headers"
 
-// How the app's builds are deployed, as vite.config.ts hands it to the build kit: what
-// each may connect to, which stays out of search results, and what its host serves it with.
+// How the visitor build is deployed, as vite.config.ts hands it to the build kit: what it may
+// connect to, that it stays out of search results, and what its host serves it with.
 
 /** What index.html's connect-src holds until a build fills it. */
 export const connectSourcesPlaceholder = "__NOVADECK_CONNECT_SOURCES__"
 
-// The visitor build, the website's demo, reaches nothing but the page's own origin; every
-// other build reaches what it is configured for.
+// Built, the visitor build, the website's demo, reaches nothing but the page's own origin.
+// Served for development, or built in a mode other than `try`, it reaches what it is
+// configured for.
 export const connect = (build: Pick<Build, "mode" | "command" | "env">): readonly string[] =>
   build.mode === "try" && build.command === "build"
     ? ["'self'"]

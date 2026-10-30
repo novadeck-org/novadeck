@@ -68,8 +68,8 @@ describe("backend connection", () => {
     it("commits them as one transaction", () => {
       const store = createWorkspaceStore(workspace())
       const { backend, sinks } = startable()
-      let notifications = 0
-      store.subscribe(() => notifications++)
+      let emits = 0
+      store.subscribe(() => emits++)
       connectBackend(backend, store, refuse)
       sinks[0]!.dispatch([
         { type: "terminal/status", target, terminalId: "01", status: { state: "finished" } },
@@ -81,7 +81,7 @@ describe("backend connection", () => {
         },
       ])
       expect(statuses(store.getSnapshot())).toEqual(["finished", "exited"])
-      expect(notifications).toBe(1)
+      expect(emits).toBe(1)
     })
 
     it("ignores changes for a terminal that no longer exists", () => {

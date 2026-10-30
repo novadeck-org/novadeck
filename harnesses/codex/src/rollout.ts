@@ -1,21 +1,21 @@
 import { setTimeout as sleep } from "node:timers/promises"
 
-import type { HarnessEvent } from "@novadeck/harness-core/events"
-import { followLines } from "@novadeck/harness-core/follow"
 import {
   absolute,
-  bounded,
+  planText,
   errorText,
   callId,
   shortName,
   replied,
-  type Harness,
-  type Run,
-  type WrittenPlan,
-} from "@novadeck/harness-core/harness"
+} from "@novadeck/harness-core/decode"
+import type { EventBase, HarnessEvent } from "@novadeck/harness-core/events"
+import { isFields, parseFields, type Fields } from "@novadeck/harness-core/fields"
+import { followLines } from "@novadeck/harness-core/follow"
+import type { Harness, Run, WrittenPlan } from "@novadeck/harness-core/harness"
 import type { AgentTelemetry } from "@novadeck/protocol"
 
-import { callOf, mcpTool } from "./decode.js"
+import { callOf } from "./decode.js"
+import { mcpTool } from "./tools.js"
 import { transcripts } from "./transcripts.js"
 
 // A failed turn's `task_complete` error: its message, and `codex_error_info`, which is
@@ -39,12 +39,8 @@ const number = (value: unknown): number | undefined =>
 // A rate-limit window as Codex reports it: the percentage used, the window's length in
 // minutes, and when it resets in epoch seconds.
 const limit = (window: unknown): Limit | undefined => {
-  if (typeof window !== "object" || window === null) return undefined
-  const {
-    used_percent: percent,
-    window_minutes: minutes,
-    resets_at: resets,
-  } = window as Record<string, unknown>
+  if (!isFields(window)) return undefined
+  const { used_percent: percent, window_minutes: minutes, resets_at: resets } = window
   const used = number(percent)
   if (used === undefined) return undefined
   const length = number(minutes)
@@ -79,19 +75,12 @@ export const rolloutEvents = (
     )
   )
     return []
-  let record: unknown
-  try {
-    record = JSON.parse(line)
-  } catch {
-    return []
-  }
-  if (typeof record !== "object" || record === null) return []
-  const { type, timestamp, payload } = record as Record<string, unknown>
+  const { type, timestamp, payload } = parseFields(line) ?? {}
   if (typeof timestamp !== "string") return []
-  const fields = (payload ?? {}) as Record<string, unknown>
+  const fields = (payload ?? {}) as Fields
   const startedAt = Date.parse(timestamp)
   if (!Number.isFinite(startedAt)) return []
-  const base = { agent: "codex", sessionId, instance, startedAt } as const
+  const base: EventBase<"codex"> = { agent: "codex", sessionId, instance, startedAt }
   if (type === "turn_context") {
     const { model, effort } = fields
     // A turn that names its model names its effort too, none clearing the last model's.
@@ -142,7 +131,7 @@ export const rolloutEvents = (
         status?: unknown
         changes?: unknown
       }
-      if (kind === "McpToolCall") return mcpSettled(base, fields.item as Record<string, unknown>)
+      if (kind === "McpToolCall") return mcpSettled(base, fields.item as Fields)
       // Files a patch changed, by absolute path, however it ran: its PostToolUse comes for
       // the apply_patch tool alone, and none for a patch the model ran through its shell
       // (`apply_patch <<EOF`; probed 2026-10-15, 0.159.3, which the fake model does).
@@ -164,7 +153,7 @@ export const rolloutEvents = (
             })
           : []
       if (kind !== "Plan" || typeof text !== "string" || !text) return []
-      const { text: plan, truncated } = bounded(text)
+      const { text: plan, truncated } = planText(text)
       return [
         {
           type: "plan-observed",
@@ -181,8 +170,8 @@ export const rolloutEvents = (
 
 // The request an MCP tool call's completed item settles, by the tool its hooks name.
 const mcpSettled = (
-  base: { agent: "codex"; sessionId: string; instance: string | null; startedAt: number },
-  { server, tool, arguments: input }: Record<string, unknown>,
+  base: EventBase<"codex">,
+  { server, tool, arguments: input }: Fields,
 ): HarnessEvent[] => {
   if (typeof server !== "string" || !server || typeof tool !== "string" || !tool) return []
   const toolName = mcpTool(server, tool)
@@ -207,8 +196,8 @@ export const rolloutPlans = (line: string): readonly WrittenPlan[] =>
 
 // A token count's usage and rate-limit windows.
 const telemetry = (
-  base: { agent: "codex"; sessionId: string; instance: string | null; startedAt: number },
-  { info, rate_limits: limits }: Record<string, unknown>,
+  base: EventBase<"codex">,
+  { info, rate_limits: limits }: Fields,
 ): HarnessEvent => {
   const usage = (info as { last_token_usage?: { total_tokens?: unknown } } | null)?.last_token_usage
   const occupied = number(usage?.total_tokens)
@@ -288,14 +277,7 @@ export const subagentEvents = (
   since: number,
 ): readonly HarnessEvent[] => {
   if (!line.includes('"turn_aborted"')) return []
-  let record: unknown
-  try {
-    record = JSON.parse(line)
-  } catch {
-    return []
-  }
-  if (typeof record !== "object" || record === null) return []
-  const { type, timestamp, payload } = record as Record<string, unknown>
+  const { type, timestamp, payload } = parseFields(line) ?? {}
   if (type !== "event_msg" || typeof timestamp !== "string") return []
   if ((payload as { type?: unknown } | null)?.type !== "turn_aborted") return []
   const startedAt = Date.parse(timestamp)

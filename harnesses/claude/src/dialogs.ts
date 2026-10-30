@@ -5,7 +5,7 @@ import type {
   DialogAdapter,
   DialogRead,
   KeyStep,
-  ReadDialog,
+  AnswerableDialog,
   RequestFacts,
 } from "@novadeck/harness-core/dialogs"
 import type { RequestAnswer } from "@novadeck/protocol"
@@ -156,7 +156,7 @@ const choices = (
   prompts: ReadonlySet<number> = new Set(),
   emulated: readonly { id: string; label: string; presses: number }[] = [],
 ): DialogRead => {
-  const dialog: ReadDialog = {
+  const dialog: AnswerableDialog = {
     type: "choices",
     title,
     detail,
@@ -1025,7 +1025,7 @@ const questions = (rows: readonly string[], facts: RequestFacts): DialogRead | u
   if (!entries) return undefined
 
   const marker = entries.findIndex((each) => each.marker)
-  const dialog: ReadDialog = {
+  const dialog: AnswerableDialog = {
     type: "questions",
     // The "Chat about this" row, read in full above: it rejects the questions, tells the
     // model the person wants to clarify them, and the person's words go as the next prompt.
@@ -1560,7 +1560,7 @@ const forms = (rows: readonly string[], facts: RequestFacts): DialogRead | undef
   if (!form.fields.every((field, index) => untouched(field, screen.fields[index]!, index === 0))) {
     return undefined
   }
-  const dialog: ReadDialog = {
+  const dialog: AnswerableDialog = {
     type: "form",
     message: form.message,
     fields: form.fields.map(({ id, label, description, kind, choices: listed, required }) => ({

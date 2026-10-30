@@ -83,7 +83,7 @@ describe("the ding", () => {
     expect(heard).toHaveLength(3)
   })
 
-  it("lets a host that plays the sound itself take a ring by the same rules", () => {
+  it("lets a desktop app that plays the sound itself take a ring by the same rules", () => {
     const { ding, later } = setup()
 
     expect(ding.take("t")).toBe(true)

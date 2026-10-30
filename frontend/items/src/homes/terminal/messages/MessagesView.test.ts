@@ -71,7 +71,7 @@ const mount = (
     paused,
     pending: false,
     error: null,
-    present: true,
+    hasMessages: true,
     badge: null,
     pause: () => {},
     seenAt: () => seenAt,

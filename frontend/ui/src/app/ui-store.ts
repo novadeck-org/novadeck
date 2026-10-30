@@ -60,19 +60,19 @@ export type UiState = {
   // Whether its notice is open, or waits to open once the footer shows.
   readonly portableCardOpen: boolean
   // What is new in the version the app updated to, until the person dismisses it; null
-  // while the host has none to show or has not answered yet.
+  // while it has none to show or has not answered yet.
   readonly whatsNew: WhatsNew | null
-  // Whether the desktop app runs in its security sandbox, as the host said at startup; null
-  // until then, and where it does not say.
+  // Whether the desktop app runs in its security sandbox, as it said at startup; null until
+  // then, and where it does not say.
   readonly sandbox: SandboxState | null
   // Whether its notice is open. It and the update's share a place, so one open closes the other.
   readonly sandboxOpen: boolean
-  // Whether the desktop app is a portable copy, as the host said at startup; null until it
-  // has, and where it says nothing.
+  // Whether the desktop app is a portable copy, as it said at startup; null until it has, and
+  // where it says nothing.
   readonly portable: PortableState | null
   // Whether the page has the person's focus: its window focused and showing.
   readonly pageFocused: boolean
-  // How many new items that need the person the Inbox's bell has rung for in this run
+  // How many new Inbox rows that need the person the bell has rung for in this run
   // (`watchBellRings`): its dot rings with each; never persisted.
   readonly bellRings: number
   // The terminals with finished turns the person hasn't read: the Inbox's stored rows,
@@ -82,7 +82,7 @@ export type UiState = {
   readonly projectArrangement: ProjectArrangement
   // The size the person last gave a window on Canvas, which new windows open at.
   readonly canvasWindowSize: WindowSize
-  // Which of the app's unfinished parts the person turned on; never persisted, as the host
+  // Which of the app's unfinished parts the person turned on; never persisted, as the desktop app
   // remembers them.
   readonly flags: FeatureFlags
 }
@@ -274,9 +274,9 @@ export const watchCrashLoop = (crashes: Store<number> | undefined, ui: UiStore):
 // Only a portable copy has a notice, a corner card that comes up by itself once per launch,
 // with the offer or without one, and after that only from its footer chip. It waits while
 // the footer is hidden. A copy that updates itself raises nothing, as its downloads show as
-// a bar. An offer heard before the host says whether this is a portable copy is raised once
+// a bar. An offer heard before the desktop app says whether this is a portable copy is raised once
 // it does (`watchPortable`).
-// Once per launch is what the host's run name says, kept beyond the page's life
+// Once per launch is what the desktop app's run name says, kept beyond the page's life
 // (`readPortableCardRaised`, written as the card shows), so a reload, a window opened again or a
 // new attempt at the backend does not raise it again, while a card held back does. (The
 // demo's boots stand for launches and clear it; the desktop app's retries do not.)
@@ -305,7 +305,7 @@ export const setFeatureFlag = (ui: UiStore, flag: FeatureFlag, on: boolean): voi
 }
 
 // Asks the backend once, as the workspace comes up, whether the desktop app follows experimental
-// builds, which is what turns IS_EXPERIMENTAL on, through `set`. A host that fails to say
+// builds, which is what turns IS_EXPERIMENTAL on, through `set`. A desktop app that fails to say
 // leaves it off.
 export const watchExperimental = (
   updates: Backend["updates"],
@@ -325,8 +325,8 @@ export const watchExperimental = (
 
 // Asks the backend once, as the workspace comes up, what is new in the version the app
 // updated to, and keeps the answer for the footer's card. Whether the card is due at all
-// (a version updated to, its notes read, not dismissed) is the host's to say: the page
-// keeps no memory of its own. A host that fails to answer has nothing to show, and it is
+// (a version updated to, its notes read, not dismissed) is the desktop app's to say: the page
+// keeps no memory of its own. A desktop app that fails to answer has nothing to show, and it is
 // not asked again before the next launch.
 export const watchWhatsNew = (whatsNew: Backend["whatsNew"], ui: UiStore): (() => void) => {
   let live = true
@@ -341,7 +341,7 @@ export const watchWhatsNew = (whatsNew: Backend["whatsNew"], ui: UiStore): (() =
   }
 }
 
-// The person dismissed the card: the host remembers, so no later launch offers it again,
+// The person dismissed the card: the desktop app remembers, so no later launch offers it again,
 // and the card goes.
 export const dismissWhatsNew = (whatsNew: Backend["whatsNew"], ui: UiStore): void => {
   whatsNew?.dismiss()
@@ -360,8 +360,8 @@ const raisedThisRun = (portable: PortableState): boolean =>
   portable.portable && (portable.install.phase !== "idle" || readPortableCardRaised(portable.run))
 
 // Asks the backend once whether the app is a portable copy, and keeps the answer for the
-// footer. A portable copy raises its card now, offer or not. A host that fails to say is
-// taken as not saying. A state the host pushes later (each step of an install) replaces
+// footer. A portable copy raises its card now, offer or not. A desktop app that fails to say is
+// taken as not saying. A state the desktop app pushes later (each step of an install) replaces
 // it without raising anything, and wins over an answer that comes after it.
 export const watchPortable = (portable: Backend["portable"], ui: UiStore): (() => void) => {
   let live = true
@@ -380,7 +380,7 @@ export const watchPortable = (portable: Backend["portable"], ui: UiStore): (() =
         portableCardOpen: state.portableCardOpen || raise,
       }))
     },
-    // A host that fails to say is not one, so nothing waits on its answer.
+    // A desktop app that fails to say is not one, so nothing waits on its answer.
     () => {
       if (live) ui.update((state) => ({ ...state, portable: { portable: false } }))
     },
@@ -392,7 +392,7 @@ export const watchPortable = (portable: Backend["portable"], ui: UiStore): (() =
 }
 
 // Asks the backend once whether the app runs in its security sandbox, and keeps the
-// answer for the footer. A host that fails to say is taken as not saying.
+// answer for the footer. A desktop app that fails to say is taken as not saying.
 export const watchSandbox = (sandbox: Backend["sandbox"], ui: UiStore): (() => void) => {
   let live = true
   void sandbox?.().then(

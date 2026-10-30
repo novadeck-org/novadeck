@@ -85,7 +85,7 @@ type Edge = {
 }
 
 // A team as the route sees it.
-export type Crew = { readonly lead: string; readonly workers: readonly string[] }
+type Crew = { readonly lead: string; readonly workers: readonly string[] }
 
 // The wire of one team alone: see `teamRoutes`.
 export const teamRoute = (

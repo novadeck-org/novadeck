@@ -49,7 +49,7 @@
 .workspace[data-zen="true"] .grid-stage {
   padding-bottom: 5rem;
 }
-/* The dock's surface is its own layer, so it can rest dimmed while the notification bell,
+/* The dock's surface is its own layer, so it can rest dimmed while the Inbox bell,
    which shows only when something waits, stays at full strength. */
 .zen-dock {
   isolation: isolate;

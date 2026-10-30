@@ -32,12 +32,12 @@
 # had to close a copy the person reopened after the quit began. That copy is told from the
 # quitting app by its start time: the quitting app was running before this setup was started
 # (the app starts it as it quits), a reopened copy started after. `customInstall` then
-# starts the app, which opens as the new version, since the person asked for it. The host's
+# starts the app, which opens as the new version, since the person asked for it. The app's
 # `--force-run` (a reopen while the app was still shutting down) makes builder's template
 # start the app; `customInstall` then starts nothing, so the app starts once.
 #
 # The installer also leaves a marker, `RunningCheck`, in builder's install registry key
-# (deleted with it on uninstall), by which the host tells installed copies that have this
+# (deleted with it on uninstall), by which the app tells installed copies that have this
 # check from older ones, whose uninstaller the new setup runs first.
 !ifndef BUILD_UNINSTALLER
   # 1 once a self-update has closed a copy that was started after this setup was.

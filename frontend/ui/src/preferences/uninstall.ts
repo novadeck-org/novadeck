@@ -2,7 +2,7 @@ import type { OfferedUninstall, UninstallResult } from "@novadeck/core/desktop/u
 import { harnesses, type AgentName } from "@novadeck/core/harnesses"
 import type { Store } from "@novadeck/core/store"
 
-import type { AgentSwitch } from "./AgentSwitches"
+import type { AgentSwitch } from "./agent-switches"
 
 // What the uninstall row and its dialog say and do, as plain functions of the plan and of
 // the dialog's state.
@@ -10,7 +10,7 @@ import type { AgentSwitch } from "./AgentSwitches"
 export const uninstallLabel = "Uninstall Novadeck"
 export const uninstallDescription = "Removes the app from this computer."
 
-// The dialog's state. `outcome` is set once the host answered with something that ends the
+// The dialog's state. `outcome` is set once the desktop app answered with something that ends the
 // page's part: the platform's uninstaller is taking over, or the app is gone.
 export type UninstallDialog = {
   readonly keepData: boolean
@@ -93,19 +93,19 @@ export const removalText = (connected: readonly AgentName[]): string =>
     : `Novadeck is removed from this computer and disconnected from ${agentList(connected)}.`
 
 const idle = (list: readonly AgentSwitch[], agent: AgentName): AgentSwitch | undefined => {
-  const item = list.find((each) => each.agent === agent)
-  return item?.busy
+  const toggle = list.find((each) => each.agent === agent)
+  return toggle?.busy
     ? undefined
-    : (item ?? { agent, available: false, connected: false, busy: false })
+    : (toggle ?? { agent, available: false, connected: false, busy: false })
 }
 
-// Resolves with the agent's entry once no change to it is under way.
+// Resolves with the agent's switch once no change to it is under way.
 const settled = (state: Store<readonly AgentSwitch[]>, agent: AgentName) =>
   new Promise<AgentSwitch>((resolve) => {
     const check = (): boolean => {
-      const item = idle(state.getSnapshot(), agent)
-      if (item) resolve(item)
-      return item !== undefined
+      const toggle = idle(state.getSnapshot(), agent)
+      if (toggle) resolve(toggle)
+      return toggle !== undefined
     }
     if (check()) return
     const stop = state.subscribe(() => {

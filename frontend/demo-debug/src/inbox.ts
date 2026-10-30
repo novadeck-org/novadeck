@@ -7,7 +7,7 @@ import {
   demoInboxRowsAll,
   demoLongCommand,
   demoPlanStates,
-} from "@novadeck/demo/inbox-fixtures"
+} from "@novadeck/demo/inbox/fixtures"
 
 import type { DemoActionGroup } from "./types"
 
@@ -122,25 +122,25 @@ const kinds: readonly { readonly label: string; readonly name: Named; readonly h
   },
 ]
 
-// A fixture as a fresh item, waiting from now.
+// A fixture as a fresh row, waiting from now.
 const fresh = (id: string): InboxRow | undefined => {
   const now = Date.now()
   const found = demoInboxRowsAll(now).find((each) => each.id === id)
   return found && { ...found, at: now }
 }
 
-// The asks "Several asks at once" adds together: four needs-you items from four terminals
+// The asks "Several asks at once" adds together: four needs-you rows from four terminals
 // in four projects, enough for a toast stack to fill and spill into its "+N more" pill.
 const together: readonly Named[] = ["webhook", "codexPermission", "login", "questions"]
 
-// Whether the demo's workspace has the sample projects the Inbox's items are about: the
+// Whether the demo's workspace has the sample projects the Inbox's rows are about: the
 // content showcase has its own.
 const samplesIn = (seed: WorkspaceSeed): boolean =>
-  demoInboxRowsAll(0).every((item) =>
-    seed.projects.some((project) => project.id === item.source.projectId),
+  demoInboxRowsAll(0).every((row) =>
+    seed.projects.some((project) => project.id === row.source.projectId),
   )
 
-// The Inbox's actions, for the demo's Inbox over the sample projects. Each adds a fresh item,
+// The Inbox's actions, for the demo's Inbox over the sample projects. Each adds a fresh row,
 // waiting from now, in place of the one of its kind that was there.
 export const inboxGroups = (
   inbox: DemoInbox | undefined,
@@ -158,23 +158,23 @@ export const inboxGroups = (
           label,
           hint,
           run: () => {
-            const item = fresh(demoInboxIds[name])
-            if (item) inbox.add(item)
+            const row = fresh(demoInboxIds[name])
+            if (row) inbox.add(row)
           },
         })),
         {
           label: "Command hiding lines",
           hint: "Unblock row whose command buries a line under blank lines and spaces: the card counts its lines and marks them",
           run: () => {
-            const item = fresh(demoInboxIds.plainDeny)
-            if (item?.kind !== "request" || item.request.dialog?.type !== "choices") return
+            const row = fresh(demoInboxIds.plainDeny)
+            if (row?.kind !== "request" || row.request.dialog?.type !== "choices") return
             inbox.add({
-              ...item,
+              ...row,
               request: {
-                ...item.request,
+                ...row.request,
                 subject: "gh auth status",
                 dialog: {
-                  ...item.request.dialog,
+                  ...row.request.dialog,
                   detail: demoHiddenCommand,
                 },
               },
@@ -185,14 +185,14 @@ export const inboxGroups = (
           label: "Long command",
           hint: "Unblock row whose command is a 12-line script: the sheet shows every line, scrolling in its box, and counts them",
           run: () => {
-            const item = fresh(demoInboxIds.plainDeny)
-            if (item?.kind !== "request" || item.request.dialog?.type !== "choices") return
+            const row = fresh(demoInboxIds.plainDeny)
+            if (row?.kind !== "request" || row.request.dialog?.type !== "choices") return
             inbox.add({
-              ...item,
+              ...row,
               request: {
-                ...item.request,
+                ...row.request,
                 subject: "for pkg in core ui toolkit …",
-                dialog: { ...item.request.dialog, detail: demoLongCommand },
+                dialog: { ...row.request.dialog, detail: demoLongCommand },
               },
             })
           },
@@ -201,32 +201,32 @@ export const inboxGroups = (
           label: "Pick several, with your own words",
           hint: "Ask row with Claude's question that takes several picks and the person's words: numbers and Space tick, the last row opens a box, Enter sends the picks and the words together",
           run: () => {
-            const item = fresh(demoInboxIds.questions)
-            if (item?.kind !== "request" || item.request.dialog?.type !== "questions") return
-            const several = item.request.dialog.questions.find((each) => each.multiSelect)
+            const row = fresh(demoInboxIds.questions)
+            if (row?.kind !== "request" || row.request.dialog?.type !== "questions") return
+            const several = row.request.dialog.questions.find((each) => each.multiSelect)
             if (!several) return
             inbox.add({
-              ...item,
+              ...row,
               request: {
-                ...item.request,
+                ...row.request,
                 subject: several.question,
-                dialog: { ...item.request.dialog, questions: [{ ...several, text: true }] },
+                dialog: { ...row.request.dialog, questions: [{ ...several, text: true }] },
               },
             })
           },
         },
         {
           label: "Plan with a change field",
-          hint: "Unblock row with Claude Code 2.1.287's plan: Deny opens a note that must say what to change",
+          hint: "Unblock row with Claude Code 2.1.287's plan: no plain way back, so Send it back, with your words needs words that say what to change",
           run: () => {
-            const item = fresh(demoInboxIds.plan)
-            if (item?.kind !== "request" || item.request.dialog?.type !== "choices") return
+            const row = fresh(demoInboxIds.plan)
+            if (row?.kind !== "request" || row.request.dialog?.type !== "choices") return
             inbox.add({
-              ...item,
+              ...row,
               request: {
-                ...item.request,
+                ...row.request,
                 dialog: {
-                  ...item.request.dialog,
+                  ...row.request.dialog,
                   options: [
                     { id: "1", label: "Yes, auto-accept edits", text: null },
                     { id: "2", label: "Yes, manually approve edits", text: null },
@@ -244,26 +244,26 @@ export const inboxGroups = (
               ? "Unblock row with Claude's plan whose box stays on Loading: the plan's content never comes"
               : "Unblock row with Claude's plan that was never shown: its box loads for five seconds, then the dialog's own words stand in",
           run: () => {
-            const item = fresh(demoInboxIds.plan)
-            if (item) inbox.add({ ...item, id: demoPlanStates[state] })
+            const row = fresh(demoInboxIds.plan)
+            if (row) inbox.add({ ...row, id: demoPlanStates[state] })
           },
         })),
         {
           label: "Usage limit, reset passed",
           hint: "Trouble row for a 5-hour limit that has reset and Novadeck can't resume, offering Continue now",
           run: () => {
-            const item = fresh(demoInboxIds.limit)
-            if (item?.kind !== "trouble" || item.trouble.type !== "limit") return
+            const row = fresh(demoInboxIds.limit)
+            if (row?.kind !== "trouble" || row.trouble.type !== "limit") return
             inbox.add({
-              ...item,
+              ...row,
               stopped: true,
-              trouble: { ...item.trouble, autoResume: null, resetsAt: Date.now() - 60_000 },
+              trouble: { ...row.trouble, autoResume: null, resetsAt: Date.now() - 60_000 },
             })
           },
         },
         {
           label: "Fail the next answer",
-          hint: "The next answer to any item fails and the sheet says so, leaving the item to answer again",
+          hint: "The next answer to any row fails and the sheet says so, leaving the row to answer again",
           run: () => inbox.failNext(),
         },
         {
@@ -278,20 +278,20 @@ export const inboxGroups = (
               ? "Leaves the sample preview ask as a settled row, withdrawn; its Messages record says Withdrawn. With its sheet open, the sheet stays and says it was withdrawn"
               : "Removes the sample preview ask; its Messages record says Agent session ended",
           run: () => {
-            const item = fresh(demoInboxIds.preview)
-            if (!item) return
-            inbox.add(item)
-            inbox.resolve(item.id, outcome)
+            const row = fresh(demoInboxIds.preview)
+            if (!row) return
+            inbox.add(row)
+            inbox.resolve(row.id, outcome)
           },
         })),
         {
           label: "Ask replied in terminal",
           hint: "Leaves the sample preview ask as a settled row, replied: the person wrote to its agent",
           run: () => {
-            const item = fresh(demoInboxIds.preview)
-            if (!item) return
-            inbox.add(item)
-            inbox.withdrawAsks(item.source, item.at + 1)
+            const row = fresh(demoInboxIds.preview)
+            if (!row) return
+            inbox.add(row)
+            inbox.withdrawAsks(row.source, row.at + 1)
           },
         },
         {
@@ -301,28 +301,28 @@ export const inboxGroups = (
         },
         {
           label: "Several asks at once",
-          hint: "Four asks join together, from four projects: after a moment three toasts stack over the header's right end with a +1 more pill behind (it needs the page focused and the Inbox panel closed, and the selected terminal's item doesn't toast: with storefront's terminal 4 selected, three toasts and no pill)",
+          hint: "Four asks join together, from four projects: after a moment three toasts stack over the header's right end with a +1 more pill behind (it needs the page focused and the Inbox panel closed, and the selected terminal's row doesn't toast: with storefront's terminal 4 selected, three toasts and no pill)",
           run: () => {
             for (const name of together) {
-              const item = fresh(demoInboxIds[name])
-              if (item) inbox.add(item)
+              const row = fresh(demoInboxIds[name])
+              if (row) inbox.add(row)
             }
           },
         },
         {
-          label: "A new item arrives",
+          label: "A new row arrives",
           hint: "The next of the kinds above not in the Inbox joins it, waiting from now",
           run: ({ note }) => {
             const there = present()
             const next = kinds.find(({ name }) => !there.has(demoInboxIds[name]))
-            const item = next && fresh(demoInboxIds[next.name])
-            if (!item) return note("Every kind is in the Inbox already.")
-            inbox.add(item)
+            const row = next && fresh(demoInboxIds[next.name])
+            if (!row) return note("Every kind is in the Inbox already.")
+            inbox.add(row)
           },
         },
         {
-          label: "Clear the added items",
-          hint: "The hardcoded items and those added here go; what the agents wait on stays",
+          label: "Clear the added rows",
+          hint: "The hardcoded rows and those added here go; what the agents wait on stays",
           run: () => inbox.empty(),
         },
       ],

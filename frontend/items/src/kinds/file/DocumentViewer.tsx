@@ -6,9 +6,8 @@ import { ArtifactMeta, MetaPath } from "../../ArtifactViewer"
 import type { MarkdownEditorHandle } from "../../document/editor/MarkdownEditor"
 import { MarkdownDocument } from "../../document/MarkdownDocument"
 
-// A markdown file the agent showed, as a document, read-only: formatted, with its outline,
-// as a plan reads, but it's the agent's file, not something to edit or note.
-
+// A Markdown file the agent showed, as a document, read-only: formatted, with its outline.
+// It's the agent's file, not something to edit or note.
 export const DocumentViewer = ({
   id,
   name,
@@ -17,7 +16,7 @@ export const DocumentViewer = ({
 }: {
   // The item showing it, whose editor opens again as it was left.
   id: string
-  // The item's name, which labels the document: it reads as the file, not as a plan.
+  // The item's name, which labels the document: it reads as the file.
   name: string
   content: FileContent
   actions?: ReactNode
@@ -26,19 +25,19 @@ export const DocumentViewer = ({
   const text = content.lines.join("\n")
   const headings = outline(text)
   return (
-    <div className="plan-reader artifact-document">
+    <div className="pane-reader artifact-document">
       <ArtifactMeta actions={actions}>
         <MetaPath path={content.path} />
         <span>read-only</span>
         {content.truncated && (
-          <span className="plan-meta-hint">It's long, so only its start is shown.</span>
+          <span className="pane-meta-hint">It's long, so only its start is shown.</span>
         )}
       </ArtifactMeta>
-      <div className="plan-reader-body" data-outline={headings.length > 0}>
+      <div className="pane-reader-body" data-outline={headings.length > 0}>
         {headings.length > 0 && (
-          <nav className="plan-spine" aria-label="Document outline">
-            <p className="plan-spine-label">Contents</p>
-            <ul className="plan-spine-context">
+          <nav className="spine" aria-label="Document outline">
+            <p className="spine-label">Contents</p>
+            <ul className="spine-context">
               {headings.map((heading) => (
                 <li key={heading.at}>
                   <button onClick={() => editor.current?.jumpTo(heading.at)}>
@@ -49,7 +48,7 @@ export const DocumentViewer = ({
             </ul>
           </nav>
         )}
-        <div className="plan-document-scroll">
+        <div className="pane-document-scroll">
           <MarkdownDocument
             id={id}
             readOnly

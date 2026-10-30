@@ -287,8 +287,8 @@ const preview: SampleArtifact = {
   }),
 }
 
-// Shown before the demo starts; opened for the user as the demo starts; then one at a
-// time as the user types `show` or `open`.
+// Shown before the demo starts; opened for the person as the demo starts; then one at a
+// time as the person types `show` or `open`.
 export const studioArtifacts: SampleArtifacts = {
   shown: [hero, about, voice],
   opened: [projects],

@@ -10,8 +10,8 @@ import { fileURLToPath } from "node:url"
 import * as esbuild from "esbuild"
 import { _electron } from "playwright"
 
-const host = resolve(dirname(fileURLToPath(import.meta.url)), "..")
-const release = join(host, "release")
+const packageDir = resolve(dirname(fileURLToPath(import.meta.url)), "..")
+const release = join(packageDir, "release")
 
 const fail = (message) => {
   console.error(`::error::${message}`)
@@ -102,7 +102,7 @@ console.log((status >>> 0).toString(16))
 // macOS plays the notification sound by name from the bundle's resources: every file of the
 // page's sounds folder is copied in.
 if (process.platform === "darwin")
-  for (const sound of readdirSync(join(host, "../../frontend/ui/src/sounds")))
+  for (const sound of readdirSync(join(packageDir, "../../frontend/ui/src/sounds")))
     if (sound.endsWith(".wav") && !existsSync(join(resources, sound)))
       fail(`The notification sound is missing: ${join(resources, sound)}`)
 
@@ -216,10 +216,10 @@ worker.once("message", (reply) => {
   }
 }
 
-// The client as the host depends on it: its built code, which plain node resolves to, so the
+// The client as the app depends on it: its built code, which plain node resolves to, so the
 // package can move without this changing.
 const bundle = await esbuild.build({
-  entryPoints: [createRequire(join(host, "package.json")).resolve("@novadeck/runner-client")],
+  entryPoints: [createRequire(join(packageDir, "package.json")).resolve("@novadeck/runner-client")],
   bundle: true,
   format: "iife",
   globalName: "novadeckClient",

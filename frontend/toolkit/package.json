@@ -14,6 +14,7 @@
     "./ContextMenu": "./src/ContextMenu.tsx",
     "./Dialog": "./src/Dialog.tsx",
     "./field.css": "./src/field.css",
+    "./handle-chip.css": "./src/handle-chip.css",
     "./HandleChip": "./src/HandleChip.tsx",
     "./HoverCard": "./src/HoverCard.tsx",
     "./icon-button.css": "./src/icon-button.css",
