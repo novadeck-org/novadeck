@@ -8,7 +8,7 @@ import { setTimeout as sleep } from "node:timers/promises"
 import type { Report } from "@novadeck/harness-core/report"
 
 import { logs } from "../log.js"
-import { relayHook } from "./hook.js"
+import { object, relayHook, type Fields } from "./hook.js"
 import { mcpAnswer, type McpCall } from "./mcp.js"
 
 const log = logs.for("reports")
@@ -87,13 +87,8 @@ export const unansweredCalls = {
   models: { ok: false, reason: "Novadeck couldn't list the models." },
 } as const satisfies { readonly [type in CallType]: { ok: false; reason: string } }
 
-const object = (value: unknown): value is { readonly [key: string]: unknown } =>
-  typeof value === "object" && value !== null && !Array.isArray(value)
-
 /** Who sent a message: a terminal, and a token that could be the runner's. */
-const sender = (value: {
-  readonly [key: string]: unknown
-}): { terminalId: string; token: string } | undefined => {
+const sender = (value: Fields): { terminalId: string; token: string } | undefined => {
   const { terminalId, token } = value
   if (typeof terminalId !== "string" || terminalId.length > 64) return undefined
   // The runner's tokens are 48 hex digits; anything else cannot match one.
@@ -326,11 +321,7 @@ export const listenForReports = async (
    * its deadline or as `unheard`. The relay then prints what it delivers and, holding a
    * lease, acknowledges it with one more line, `{ ack }`, on the same connection.
    */
-  const serveHook = async (
-    socket: Socket,
-    value: { readonly [key: string]: unknown },
-    rest: string,
-  ) => {
+  const serveHook = async (socket: Socket, value: Fields, rest: string) => {
     // What the relay sends after its hook, read from the start: its acknowledgement,
     // which counts once its answer named the lease it acknowledges.
     let text = rest

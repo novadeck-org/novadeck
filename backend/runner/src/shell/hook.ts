@@ -41,9 +41,10 @@ export const hookVariables = ["CLAUDE_PID", "CURSOR_VERSION", "CODEX_THREAD_ID"]
  */
 const printMs = 500
 
-type Fields = { readonly [key: string]: unknown }
+export type Fields = { readonly [key: string]: unknown }
 
-const object = (value: unknown): value is Fields =>
+/** Whether `value` is a JSON object: not null, not an array. */
+export const object = (value: unknown): value is Fields =>
   typeof value === "object" && value !== null && !Array.isArray(value)
 
 const text = (value: unknown, max: number): string | undefined =>

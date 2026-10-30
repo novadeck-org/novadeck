@@ -413,7 +413,7 @@ const keepLed = (shell: Fixture, ids: { lead: string; worker: string }, session?
 }
 
 describe.skipIf(process.platform === "win32" || !existsSync(bash))("bash shell integration", () => {
-  it("loads the user's own .bashrc and reports each prompt's directory", async ({ shell }) => {
+  it("loads the person's own .bashrc and reports each prompt's directory", async ({ shell }) => {
     const directory = join(shell.home, "my dir ż")
     mkdirSync(directory)
     writeFileSync(join(shell.home, ".bashrc"), "FROM_BASHRC=loaded\n")
@@ -433,7 +433,7 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))("bash shell i
   it("resumes the saved agent session at the first prompt, as if typed there", async ({
     shell,
   }) => {
-    // Input while .bashrc runs would be read by it instead of the prompt; the user's own
+    // Input while .bashrc runs would be read by it instead of the prompt; the person's own
     // prompt commands run first, as they would before a typed command.
     writeFileSync(
       join(shell.home, ".bashrc"),
@@ -471,7 +471,7 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))("bash shell i
         'export PATH="$HOME/bin:$PATH"',
         "PROMPT_COMMAND='export FROM_PROMPT=yes'",
         "HISTFILE=~/.bash_history",
-        // The user's own, which the command sees as typed, not shadowed by Novadeck's.
+        // The person's own, which the command sees as typed, not shadowed by Novadeck's.
         "file=USERFILE resume=USERRESUME",
       ].join("\n"),
     )
@@ -4120,7 +4120,7 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))(
       ).resolves.toMatchObject({ ok: false })
       expect(manager.get(codex.id).exit).toBeNull()
 
-      // Codex runs an agent claude doesn't lead, so the user is asked first, and no window
+      // Codex runs an agent claude doesn't lead, so the person is asked first, and no window
       // follows the asks yet.
       await expect(call(claude.id, "close", { to: "fox" })).resolves.toEqual({
         ok: false,
@@ -4132,7 +4132,7 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))(
       const person = (async () => {
         for await (const item of manager.approvals("person", asking.signal)) asked.push(item)
       })()
-      // The answer comes at once; the user's yes closes it: its shell ended, the terminal
+      // The answer comes at once; the person's yes closes it: its shell ended, the terminal
       // gone and forgotten, and what waited for it gone.
       await expect(call(claude.id, "close", { to: "fox" })).resolves.toEqual({
         ok: true,
@@ -4161,7 +4161,7 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))(
         expect.objectContaining({ code: "TERMINAL_NOT_FOUND" }),
       )
       expect(shell.store.terminal(codex.id)).toBeUndefined()
-      // Claude hears the user confirmed it, with its next prompt.
+      // Claude hears the person confirmed it, with its next prompt.
       const next = await step(claude.id, { hook: "UserPromptSubmit", payload: { prompt: "ok" } })
       expect(next).toContain("The user confirmed closing @fox")
       // What its bar held went with it.
@@ -4230,7 +4230,7 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))(
       expect(manager.get(other.id).exit).toBeNull()
     })
 
-    it("tells the agent the user kept a terminal open, or that nothing closed as their window went away", async ({
+    it("tells the agent the person kept a terminal open, or that nothing closed as their window went away", async ({
       shell,
     }) => {
       const bin = standIn(shell.home)
@@ -4251,7 +4251,7 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))(
           for await (const item of manager.approvals("person", signal)) asked.push(item)
         })()
 
-      // The user keeps it open.
+      // The person keeps it open.
       const first = new AbortController()
       const one = follow(first.signal)
       await call("close", { to: "fox" })
@@ -4272,7 +4272,7 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))(
       expect(manager.get(codex.id).exit).toBeNull()
     })
 
-    it("lets an agent lead another's agent once the user approves, and ends it when the user releases", async ({
+    it("lets an agent lead another's agent once the person approves, and ends it when the person releases", async ({
       shell,
     }) => {
       const bin = standIn(shell.home)
@@ -4312,7 +4312,7 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))(
       expect(manager.get(codex.id).ledBy).toBe(claude.handle)
       expect(await prompt()).toContain("you now lead @fox")
 
-      // Only the lead releases; the user may too.
+      // Only the lead releases; the person may too.
       manager.releaseLead(codex.id)
       expect(manager.get(codex.id).ledBy).toBeNull()
       expect(await prompt()).toContain("The user released @fox")
@@ -5437,7 +5437,7 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))(
 const zsh = "/bin/zsh"
 
 describe.skipIf(process.platform === "win32" || !existsSync(zsh))("zsh shell integration", () => {
-  it("loads the user's own .zshrc and reports each prompt's directory", async ({ shell }) => {
+  it("loads the person's own .zshrc and reports each prompt's directory", async ({ shell }) => {
     const directory = join(shell.home, "my dir ż")
     mkdirSync(directory)
     writeFileSync(join(shell.home, ".zshrc"), "FROM_ZSHRC=loaded\n")
@@ -5449,7 +5449,7 @@ describe.skipIf(process.platform === "win32" || !existsSync(zsh))("zsh shell int
       "owner",
     )
     await next((summary) => summary.cwd === directory)
-    // ZDOTDIR is the user's again once their .zshrc has loaded.
+    // ZDOTDIR is the person's again once their .zshrc has loaded.
     await shell.until(manager, terminal.id, `loaded ${shell.home}`)
   })
 

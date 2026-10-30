@@ -4,7 +4,7 @@
  * JSON-RPC message per line, to the runner of the terminal it runs in, over the endpoint
  * the agent's hooks report to, and the answers back; outside Novadeck's terminals the
  * relay answers the handshake itself, with no tools. Its tools: `show`, which puts an
- * image, a text file, a web page or the agent's changes in front of the user, beside the
+ * image, a text file, a web page or the agent's changes in front of the person, beside the
  * terminal the agent runs in (one source per call, `file`, `page` or `changes`, each with
  * its own options inside it),
  * `showing`, which lists what is there now, `look`, which pictures a page there, and `close`, which takes away what the agent
@@ -13,11 +13,11 @@
  * one running another agent, on a model and effort if asked, with a brief as its task (its
  * model choices come from the runner when the tools are listed); `close_terminal`, which
  * closes one of the project's terminals by its handle, or the agent's own; `lead`, which
- * asks the user to let it lead an agent already running in another terminal, and `release`,
+ * asks the person to let it lead an agent already running in another terminal, and `release`,
  * which ends such a lead; `send` and
  * `agents`, which message the agents in the project's other terminals and list them; `summarize`,
  * which says what the agent's own terminal works on; and `feedback`, which drafts feedback
- * about Novadeck for the user's feedback card (see docs/agent-messaging.md). Each call goes to the terminal's runner with the terminal's
+ * about Novadeck for the person's feedback card (see docs/agent-messaging.md). Each call goes to the terminal's runner with the terminal's
  * own token, as the relay named them, and the runner's answer is told back as text.
  * Only Claude Code reads a server's own instructions, so each tool's description carries
  * its rules.
@@ -28,6 +28,7 @@ import { harnessIds, harnesses } from "@novadeck/protocol"
 import { maxMessageBytes } from "../messaging/messages.js"
 import { unboundNote } from "../messaging/peers.js"
 import { mention } from "../terminals/handles.js"
+import { object } from "./hook.js"
 import type { CallType } from "./reports.js"
 
 /** The MCP versions Novadeck's server speaks, newest first; it answers others with the newest. */
@@ -102,7 +103,7 @@ type Closed = {
   readonly ran?: string
   /** The caller's own terminal, closing a moment after the answer. */
   readonly self?: true
-  /** The user was asked to confirm; the terminal is still open. */
+  /** The person was asked to confirm; the terminal is still open. */
   readonly asked?: true
   readonly gone?: readonly Gone[]
   readonly others?: number
@@ -1190,9 +1191,6 @@ type Reply = { readonly id: unknown } & Outcome
 type Outcome =
   | { readonly result: unknown }
   | { readonly error: { readonly code: number; readonly message: string } }
-
-const object = (value: unknown): value is Arguments =>
-  typeof value === "object" && value !== null && !Array.isArray(value)
 
 /**
  * One call to the terminal's runner: the call's type, with the request's arguments; it

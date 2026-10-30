@@ -20,7 +20,7 @@ describe("refreshing PATH through the relay", () => {
       const env: NodeJS.ProcessEnv = { Path: "C:\\Nowhere" }
       for (const [name, value] of Object.entries(process.env))
         if (name.toUpperCase() !== "PATH") env[name] = value
-      // The product's 5 s read limit is for a user waiting on a terminal, and a cold PowerShell
+      // The product's 5 s read limit is for a person waiting on a terminal, and a cold PowerShell
       // on a loaded runner can pass it (then the PATH rightly stays as it was); this test is
       // about what a read finds, so it waits as long as the sibling reads do.
       const refreshed = await refreshPath(env, { relay: relayPath, timeoutMs: readMs })
