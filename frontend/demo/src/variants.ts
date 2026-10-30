@@ -1,5 +1,6 @@
 import type { Backend } from "@novadeck/core/port"
 
+import { addressParams } from "./address"
 import type { DemoTurns } from "./agents/turns"
 import { plainDemo, type PlainVariant } from "./index"
 import { showcaseDemo } from "./showcase/demo"
@@ -48,7 +49,7 @@ const stored = (): string | null => {
 // last chose in this tab, else the showcase. The tab keeps the choice because the router
 // rewrites the address as soon as the app opens.
 export const requestedVariant = (): DemoVariant => {
-  const demo = new URLSearchParams(window.location.hash.split("?")[1] ?? "").get("demo")
+  const demo = addressParams().get("demo")
   return variantOf(demo) ?? variantOf(stored()) ?? "showcase"
 }
 

@@ -12,6 +12,7 @@ import {
   terminalKeyPath,
 } from "@novadeck/core/types"
 
+import { addressParams } from "../address"
 import { showcaseTranscripts } from "../agents/transcripts"
 import { demoTurns, type DemoTurns } from "../agents/turns"
 import { withFeedback } from "../feedback"
@@ -291,7 +292,7 @@ export const showcaseDemo = (
 // Specs open the showcase with `&planFault=` one of the debug panel's plan faults, its
 // terminals drawn where `terminals` says.
 export const createShowcaseDemo = (terminals?: DemoTerminalSetup): Backend => {
-  const fault = new URLSearchParams(window.location.hash.split("?")[1] ?? "").get("planFault")
+  const fault = addressParams().get("planFault")
   return showcaseDemo(
     terminals,
     undefined,

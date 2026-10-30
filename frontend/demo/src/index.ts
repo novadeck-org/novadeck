@@ -21,6 +21,7 @@ import type { TitleSource, Workspace } from "@novadeck/core/types"
 
 import { createDemoMurmur, heldMurmurTiming, requestedMurmur } from "./addons/murmur"
 import { createDemoVoice, heldVoiceTiming, requestedVoice } from "./addons/voice"
+import { addressParams } from "./address"
 import { createDemoChat } from "./agents/chat"
 import type { DemoAgentLink } from "./agents/link"
 import { agentTranscripts, type DemoTranscript } from "./agents/transcripts"
@@ -62,8 +63,7 @@ const addressOf = (projectId: string, sessionId: string) => `${projectId}/${sess
 
 // What a spec that stops an install asks for in its address's hash: `&install=held`.
 const installHeld = (): boolean =>
-  typeof window !== "undefined" &&
-  new URLSearchParams(window.location.hash.split("?")[1] ?? "").get("install") === "held"
+  typeof window !== "undefined" && addressParams().get("install") === "held"
 
 // Each demo backend's terminals by the mount they serve, which the backends wrapping it keep:
 // `withConversations` links them to its agents.
@@ -678,7 +678,7 @@ const plainBackend = (
 // the turn ends, which a busy machine may not in the usual 1.5 s. `terminals` is where
 // they draw, as specs give them the page's theme.
 export const createDemoBackend = (terminals?: DemoTerminalSetup): Backend => {
-  const params = new URLSearchParams(window.location.hash.split("?")[1])
+  const params = addressParams()
   const demo = params.get("demo")
   const turnMs = Number(params.get("turnMs"))
   const backend = plainDemo(
