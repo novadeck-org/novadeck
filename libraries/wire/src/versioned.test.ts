@@ -6,7 +6,7 @@ afterEach(() => {
   vi.useRealTimers()
 })
 
-describe("versioned state", () => {
+describe("Versioned", () => {
   it("streams the state now, then the state as it is after each change", async () => {
     let state = 1
     const versioned = new Versioned<number>({ throttleMs: 100 })
@@ -18,7 +18,7 @@ describe("versioned state", () => {
     expect((await next).value).toBe(2)
   })
 
-  it("gives a slow watcher one state for any number of changes", async () => {
+  it("gives a slow reader one state for any number of changes", async () => {
     let state = 0
     const versioned = new Versioned<number>({ throttleMs: 100 })
     const stream = versioned.stream("a", () => state)

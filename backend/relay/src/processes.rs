@@ -180,7 +180,7 @@ pub struct Root {
 /// it has ended, or its pid names another process, then only to children started before
 /// that other one. Empty where a root named by its pid alone is gone. `started` is for
 /// tests.
-pub fn tree(
+fn tree(
     root: Root,
     parents: &HashMap<u32, u32>,
     started: &impl Fn(u32) -> Option<u64>,
@@ -239,8 +239,8 @@ fn now() -> u64 {
         .map_or(0, |since| since.as_millis() as u64)
 }
 
-/// `novadeck-relay tree <pid>[:<startedAt>]...`: each root's tree, as JSON, a line for
-/// each root as it was named: `{"root":"<pid>[:<startedAt>]","processes":[{"pid":<pid>,
+/// `novadeck-relay tree <pid>[:<started-ms>]...`: each root's tree, as JSON, a line for
+/// each root as it was named: `{"root":"<pid>[:<started-ms>]","processes":[{"pid":<pid>,
 /// "startedAt":<ms>},...]}`. False where Windows refused the snapshot, which tells nothing
 /// of any tree.
 pub fn print_trees(roots: &[(String, Root)]) -> bool {
@@ -263,7 +263,7 @@ pub fn print_trees(roots: &[(String, Root)]) -> bool {
     true
 }
 
-/// `novadeck-relay end <pid>:<startedAt>...`: ends each process still running that
+/// `novadeck-relay end <pid>:<started-ms>...`: ends each process still running that
 /// started then, and no other that has its pid since.
 pub fn end(members: &[Member]) {
     for member in members {
@@ -371,7 +371,7 @@ mod tests {
         let started = |pid: u32| starts.get(&pid).copied();
         let mut found: Vec<u32> = tree(root, parents, &started, before)
             .iter()
-            .map(|m| m.pid)
+            .map(|member| member.pid)
             .collect();
         found.sort_unstable();
         found
@@ -429,10 +429,7 @@ mod tests {
 
     #[test]
     fn reads_when_this_process_started() {
-        let now = std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .unwrap()
-            .as_millis() as u64;
+        let now = now();
         let mine = started(std::process::id()).unwrap();
         assert!(mine <= now && now - mine < 600_000);
     }
@@ -449,7 +446,11 @@ mod tests {
             .map(|(pid, process)| (pid, process.parent))
             .collect();
         let mine = tree(by_pid(std::process::id()), &parents, &started, now());
-        let found = mine.iter().find(|m| m.pid == child.id()).copied().unwrap();
+        let found = mine
+            .iter()
+            .find(|member| member.pid == child.id())
+            .copied()
+            .unwrap();
         // A start that isn't its own ends nothing.
         end(&[Member {
             pid: found.pid,

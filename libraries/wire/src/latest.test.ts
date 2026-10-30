@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest"
 
 import { Latest } from "./latest.js"
 
-describe("a stream of snapshots", () => {
+describe("Latest", () => {
   it("gives a slow reader only the newest", async () => {
     const latest = new Latest<number>()
     latest.push(1)

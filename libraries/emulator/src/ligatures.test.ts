@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest"
 
-import { cutMargin, hasTable, ligatureRuns, maxRunCells, runLimit } from "./ligatures.js"
+import { cutMargin, hasLigatureTable, ligatureRuns, maxRunCells, runLimit } from "./ligatures.js"
 
 describe("ligatureRuns", () => {
   it("finds the sequences the font joins", () => {
@@ -128,10 +128,10 @@ describe("ligatureRuns", () => {
   })
 
   it("owns the table only for JetBrains Mono", () => {
-    expect(hasTable("'JetBrains Mono Variable', monospace")).toBe(true)
-    expect(hasTable('"JetBrains Mono", Menlo')).toBe(true)
-    expect(hasTable("JetBrains Mono")).toBe(true)
-    expect(hasTable("'Share Tech Mono', 'JetBrains Mono Variable', monospace")).toBe(false)
-    expect(hasTable("monospace")).toBe(false)
+    expect(hasLigatureTable("'JetBrains Mono Variable', monospace")).toBe(true)
+    expect(hasLigatureTable('"JetBrains Mono", Menlo')).toBe(true)
+    expect(hasLigatureTable("JetBrains Mono")).toBe(true)
+    expect(hasLigatureTable("'Share Tech Mono', 'JetBrains Mono Variable', monospace")).toBe(false)
+    expect(hasLigatureTable("monospace")).toBe(false)
   })
 })

@@ -112,7 +112,7 @@ runner; it can remove no other path through this channel.
 
 Pages in the companion pane load in Electron's `<webview>` with no preload, no Node and a
 sandbox, on the `persist:novadeck-pages` session, apart from the app's
-(`libraries/viewers/src/browser-host.ts`). The session is kept on disk, in `Partitions`
+(`libraries/viewers/src/browser/host.ts`). The session is kept on disk, in `Partitions`
 in the app's data folder, so a person who signs in to a site stays signed in there in
 every page and after a restart. Electron keeps its cookies without encryption (the
 cookie-encryption fuse is off), readable by anything that runs as the person, as their
@@ -145,7 +145,7 @@ passkeys don't show there; a security key or a phone still can.
 
 The desktop preload's `pathForFile` hands the page the path of a `File` it already
 holds, which only a paste gives it; it names no other file and reads nothing. The
-companion pane's pages get no preload (see `libraries/viewers/src/browser-host.ts`), so
+companion pane's pages get no preload (see `libraries/viewers/src/browser/host.ts`), so
 they have no bridge to ask through.
 
 A file copied in a file manager pastes its own path, so names chosen outside Novadeck,

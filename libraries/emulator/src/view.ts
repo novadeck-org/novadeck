@@ -2,7 +2,7 @@ import { FitAddon } from "@xterm/addon-fit"
 import { WebLinksAddon } from "@xterm/addon-web-links"
 import { Terminal, type IDisposable, type ILinkHandler, type ITheme } from "@xterm/xterm"
 
-import { hasTable, ligatureRuns, runLimit } from "./ligatures.js"
+import { hasLigatureTable, ligatureRuns, runLimit } from "./ligatures.js"
 import type { Renderers, ScreenRenderer } from "./renderer.js"
 import { applyWidths } from "./width.js"
 
@@ -99,14 +99,15 @@ export const createView = (element: HTMLElement, options: ViewOptions): View => 
     terminal.loadAddon(new WebLinksAddon(activate, hint))
   }
   terminal.open(element)
-  const changes = new Set<() => void>()
+  const listeners = new Set<() => void>()
   // Ligature runs go to the character joiner only while WebGL draws the view: the DOM renderer
   // draws ligatures from its text, and a joiner would only make it build a span per run.
   let ligatures = false
   let joiner: number | undefined
   const syncJoiner = (): void => {
     // The table is JetBrains Mono's: another face's glyphs would be squeezed into runs for nothing.
-    const wanted = ligatures && renderer.drawn() && hasTable(terminal.options.fontFamily ?? "")
+    const wanted =
+      ligatures && renderer.drawn() && hasLigatureTable(terminal.options.fontFamily ?? "")
     if (wanted === (joiner !== undefined)) return
     if (wanted)
       joiner = terminal.registerCharacterJoiner((text) =>
@@ -126,7 +127,7 @@ export const createView = (element: HTMLElement, options: ViewOptions): View => 
   const renderer =
     options.renderers?.screen(terminal, () => {
       syncJoiner()
-      changes.forEach((listener) => listener())
+      listeners.forEach((listener) => listener())
     }) ?? noRenderer
   let disposed = false
 
@@ -154,10 +155,7 @@ export const createView = (element: HTMLElement, options: ViewOptions): View => 
     }
     if (awaited === family) return false
     awaited = family
-    await fonts.load(font).then(
-      () => {},
-      () => {},
-    )
+    await fonts.load(font).catch(() => {})
     if (disposed || awaited !== family) return false
     awaited = undefined
     measure(family)
@@ -188,13 +186,13 @@ export const createView = (element: HTMLElement, options: ViewOptions): View => 
       resized: renderer.resized,
     },
     onRendererChange: (listener) => {
-      changes.add(listener)
-      return { dispose: () => void changes.delete(listener) }
+      listeners.add(listener)
+      return { dispose: () => void listeners.delete(listener) }
     },
     dispose: () => {
       disposed = true
       renderer.dispose()
-      changes.clear()
+      listeners.clear()
       terminal.dispose()
     },
   }

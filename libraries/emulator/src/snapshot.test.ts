@@ -1,11 +1,8 @@
 import { describe, expect, it } from "vitest"
 
 import { trackMouse } from "./mouse.js"
-import { createScreen, type Screen } from "./screen.js"
+import { createScreen, written, type Screen } from "./screen.js"
 import { snapshot } from "./snapshot.js"
-
-const write = (screen: Screen, data: string) =>
-  new Promise<void>((resolve) => screen.write(data, resolve))
 
 const text = (screen: Screen) =>
   Array.from({ length: screen.rows }, (_, index) =>
@@ -17,7 +14,7 @@ const lines = Array.from({ length: 100 }, (_, index) => `LINE_${index}\r\n`).joi
 describe("a snapshot", () => {
   it("keeps the most scrollback that fits, halving it, and the visible screen whole", async () => {
     const screen = createScreen({ cols: 20, rows: 4, scrollback: 1000 })
-    await write(screen, `${lines}\u001b[31mVISIBLE`)
+    await written(screen, `${lines}\u001b[31mVISIBLE`)
     const sizes: number[] = []
     const whole = snapshot(screen, { fits: () => true, mouse: "default" })!
     const limit = 400
@@ -35,7 +32,7 @@ describe("a snapshot", () => {
     expect(sizes.length).toBeGreaterThan(1)
     expect(sizes).toEqual(sizes.toSorted((a, b) => b - a))
     const restored = createScreen({ cols: 20, rows: 4, scrollback: 1000 })
-    await write(restored, bounded)
+    await written(restored, bounded)
     expect(text(restored)).toBe(text(screen))
     screen.dispose()
     restored.dispose()
@@ -43,7 +40,7 @@ describe("a snapshot", () => {
 
   it("is undefined when not even the visible screen fits, and leaves the screen as it was", async () => {
     const screen = createScreen({ cols: 20, rows: 4, scrollback: 1000 })
-    await write(screen, `${lines}\u001b[31mVISIBLE`)
+    await written(screen, `${lines}\u001b[31mVISIBLE`)
     const tried: string[] = []
     expect(
       snapshot(screen, {
@@ -62,7 +59,7 @@ describe("a snapshot", () => {
 
   it("measures what it returns, the mouse's encoding included", async () => {
     const screen = createScreen({ cols: 20, rows: 4, scrollback: 0 })
-    await write(screen, "> ")
+    await written(screen, "> ")
     const plain = snapshot(screen, { fits: () => true, mouse: "default" })!
     expect(snapshot(screen, { fits: (data) => data === plain, mouse: "default" })).toBe(plain)
     expect(snapshot(screen, { fits: (data) => data === plain, mouse: "sgr" })).toBeUndefined()
@@ -71,13 +68,13 @@ describe("a snapshot", () => {
 
   it("keeps the alternate screen showing when it trims normal scrollback", async () => {
     const screen = createScreen({ cols: 20, rows: 4, scrollback: 1000 })
-    await write(screen, `${lines}\u001b[?1049h\u001b[32mALT_VIEWPORT`)
+    await written(screen, `${lines}\u001b[?1049h\u001b[32mALT_VIEWPORT`)
     const data = snapshot(screen, {
       fits: (candidate) => candidate.length <= 600,
       mouse: "default",
     })!
     const restored = createScreen({ cols: 20, rows: 4, scrollback: 1000 })
-    await write(restored, data)
+    await written(restored, data)
     expect(restored.buffer.active.type).toBe("alternate")
     expect(text(restored)).toContain("ALT_VIEWPORT")
     screen.dispose()
@@ -89,9 +86,9 @@ describe("a snapshot", () => {
     const encoding = trackMouse(screen)
     const restored = createScreen({ cols: 20, rows: 4, scrollback: 0 })
     // A full-screen program: the alternate screen, any motion of the mouse in SGR, and focus.
-    await write(screen, "\u001b[?1049h\u001b[?1003h\u001b[?1006h\u001b[?1004h> ")
+    await written(screen, "\u001b[?1049h\u001b[?1003h\u001b[?1006h\u001b[?1004h> ")
     const data = snapshot(screen, { fits: () => true, mouse: encoding() })!
-    await write(restored, data)
+    await written(restored, data)
     const sent: string[] = []
     restored.onData((reply) => sent.push(reply))
     restored.onBinary((reply) => sent.push(reply))

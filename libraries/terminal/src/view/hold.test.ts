@@ -438,7 +438,7 @@ describe("a hold on a terminal's screen", () => {
     })
   })
 
-  context("while the runner reconnects", () => {
+  context("while the host reconnects", () => {
     it("locks its input, saying why", () => {
       const connection = createStore<ViewLink>("connected")
       const views = viewsOf(optionsOf({ lifecycle: () => starting(), connection }))
@@ -497,7 +497,7 @@ describe("a hold on a terminal's screen", () => {
     })
   })
 
-  context("once its shell ended while the runner is away", () => {
+  context("once its shell ended while the host is away", () => {
     it("locks as the link does, and takes input again when it is back", () => {
       const { hold, connection } = ended()
       connection.update(() => "unavailable")

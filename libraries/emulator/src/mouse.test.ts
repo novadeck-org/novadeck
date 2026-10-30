@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest"
 
 import { mouseReporting, trackMouse } from "./mouse.js"
-import { createScreen, type Screen } from "./screen.js"
+import { createScreen, written, type Screen } from "./screen.js"
 
 // xterm.js's own encoding, which it keeps to itself; the tracker must agree with it.
 const internal = (screen: Screen): string =>
@@ -31,7 +31,7 @@ describe("the mouse's encoding on a screen", () => {
     try {
       for (const [data, expected, xterm] of steps) {
         // eslint-disable-next-line no-await-in-loop -- Each step follows the last.
-        await new Promise<void>((resolve) => screen.write(data, resolve))
+        await written(screen, data)
         expect([encoding(), internal(screen)]).toEqual([expected, xterm])
       }
     } finally {
@@ -56,7 +56,7 @@ describe("the mouse's encoding on a screen", () => {
       try {
         for (const data of writes)
           // eslint-disable-next-line no-await-in-loop -- Each write follows the last.
-          await new Promise<void>((resolve) => screen.write(data, resolve))
+          await written(screen, data)
         expect([name, encoding(), internal(screen)]).toEqual([name, expected, xterm])
       } finally {
         screen.dispose()
@@ -79,7 +79,7 @@ describe("the mouse's encoding on a screen", () => {
     try {
       for (const [data, expected, xterm] of steps) {
         // eslint-disable-next-line no-await-in-loop -- Each step follows the last.
-        await new Promise<void>((resolve) => screen.write(data, resolve))
+        await written(screen, data)
         expect([data, encoding(), internal(screen)]).toEqual([data, expected, xterm])
       }
     } finally {

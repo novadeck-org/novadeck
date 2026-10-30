@@ -75,7 +75,7 @@ describe("a terminal's screen resized out of view", () => {
     const screens = viewsOf(
       optionsOf({
         // With scrollback, for the viewport to follow.
-        emulator: (host, open) => createView(host, { ...open, scrollback: 1000 }),
+        emulator: (container, open) => createView(container, { ...open, scrollback: 1000 }),
         lifecycle: () => starting(),
       }),
     )
@@ -118,7 +118,7 @@ describe("a screen's renderer", () => {
       supported: () => true,
       cap: 12,
     })
-    // The screens' hosts have a size, as laid out; nothing else in the page does.
+    // The screens' containers have a size, as laid out; nothing else in the page does.
     for (const [name, value] of [
       ["clientWidth", 800],
       ["clientHeight", 600],
@@ -134,9 +134,9 @@ describe("a screen's renderer", () => {
     const page = themed()
     const screens = viewsOf(
       optionsOf({
-        emulator: (host, open) => createView(host, { ...open, scrollback: 0, renderers }),
+        emulator: (container, open) => createView(container, { ...open, scrollback: 0, renderers }),
         theme: page.theme,
-        markup: { hostClass: "screen" },
+        markup: { containerClass: "screen" },
         lifecycle: (key) => shell({ closed: closed.has(key) }),
         attach: () => Promise.resolve(stream.attached),
         on: { resized },
@@ -215,7 +215,7 @@ describe("a screen's renderer", () => {
     const { resized, mount, page } = wired()
     page.apply("Bundled Mono")
     const font = loading()
-    // A resize's settling refit waits on a timer, and a placed host's second fit on the next
+    // A resize's settling refit waits on a timer, and a placed container's second fit on the next
     // frame; with both held, only the font's refit counts.
     vi.useFakeTimers({
       toFake: ["setTimeout", "clearTimeout", "requestAnimationFrame", "cancelAnimationFrame"],

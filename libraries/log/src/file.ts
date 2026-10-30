@@ -4,7 +4,7 @@ import { join } from "node:path"
 export type LogFileOptions = {
   /** The folder the files are in, made when missing. */
   readonly folder: string
-  /** The files' name: `host` writes `host.log`, then `host.1.log` and on as they rotate. */
+  /** The files' name: `runner` writes `runner.log`, then `runner.1.log` and on as they rotate. */
   readonly name: string
   /** How large a file grows before the next one starts, in bytes. */
   readonly maxBytes?: number
@@ -44,22 +44,23 @@ export const openLogFile = (options: LogFileOptions): LogFile => {
   const path = logPath(folder, name)
   let fd: number | undefined
   let size = 0
-  let failedAt: number | undefined
+  // When the file last failed to open: it is tried again only after `retryMs`.
+  let openFailedAt: number | undefined
   // When a rotation last failed, as when another program holds the file open on Windows:
   // the file is written on, and rotation tried again only after `retryMs`.
-  let stuckAt: number | undefined
+  let rotateFailedAt: number | undefined
 
   const open = (): number | undefined => {
     if (fd !== undefined) return fd
-    if (failedAt !== undefined && now() - failedAt < retryMs) return undefined
+    if (openFailedAt !== undefined && now() - openFailedAt < retryMs) return undefined
     try {
       mkdirSync(folder, { recursive: true })
       fd = openSync(path, "a")
       size = fstatSync(fd).size
-      failedAt = undefined
+      openFailedAt = undefined
       return fd
     } catch {
-      failedAt = now()
+      openFailedAt = now()
       return undefined
     }
   }
@@ -107,10 +108,10 @@ export const openLogFile = (options: LogFileOptions): LogFile => {
         const text = `${line}\n`
         let handle = open()
         if (handle === undefined) return
-        const due = size > 0 && size + Buffer.byteLength(text) > maxBytes && keep > 1
-        if (due && (stuckAt === undefined || now() - stuckAt >= retryMs)) {
+        const full = size > 0 && size + Buffer.byteLength(text) > maxBytes && keep > 1
+        if (full && (rotateFailedAt === undefined || now() - rotateFailedAt >= retryMs)) {
           const moved = rotate()
-          stuckAt = moved ? undefined : now()
+          rotateFailedAt = moved ? undefined : now()
           handle = open()
           if (handle === undefined) return
           if (moved && options.header) append(handle, `${options.header()}\n`)
@@ -118,7 +119,7 @@ export const openLogFile = (options: LogFileOptions): LogFile => {
         append(handle, text)
       } catch {
         close()
-        failedAt = now()
+        openFailedAt = now()
       }
     },
     close,

@@ -63,11 +63,11 @@ describe("silenced terminal queries", () => {
   })
 
   context("with silencing", () => {
-    it("answers none of the queries the runner answers", async () => {
+    it("answers none of the queries the host answers", async () => {
       expect(await replies(queries.join(""), true)).toEqual(["screen:"])
     })
 
-    it("still answers colour queries, which the runner leaves unanswered", async () => {
+    it("still answers colour queries, which the host leaves unanswered", async () => {
       const sent = await replies("\u001b]11;?\u0007", true)
       expect(sent.some((reply) => reply.startsWith("\u001b]11;rgb:"))).toBe(true)
     })

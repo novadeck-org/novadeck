@@ -10,7 +10,7 @@ const read = async <T>(changes: KeyedChanges<string, T>, count: number) => {
   return seen
 }
 
-describe("keyed changes", () => {
+describe("KeyedChanges", () => {
   it("reports the current state, then synced, then later changes", async () => {
     const changes = new KeyedChanges<string, string>(
       [

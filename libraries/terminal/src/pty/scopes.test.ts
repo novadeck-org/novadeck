@@ -51,13 +51,13 @@ describe("a scope's name", () => {
     )
   })
 
-  it("is the app's again for a runner started from a Novadeck terminal", () => {
+  it("is the app's again for Novadeck started from one of its own terminals", () => {
     expect(scopePrefix("0::/user.slice/app.slice/app-dev.mzpk.novadeck-term4242.scope")).toBe(
       "app-dev.mzpk.novadeck",
     )
   })
 
-  it("is Novadeck's own where the runner runs in no app scope", () => {
+  it("is Novadeck's own where the app runs in no app scope", () => {
     expect(scopePrefix("0::/user.slice/user-1000.slice/session-2.scope")).toBe("app-novadeck")
     expect(scopePrefix("0::/system.slice/novadeck.service")).toBe("app-novadeck")
     expect(scopePrefix("")).toBe("app-novadeck")
@@ -403,7 +403,7 @@ describe("a pty in a scope", () => {
     expect(stand.calls).toEqual([])
   })
 
-  it("isn't asked why once the host itself ends it", async () => {
+  it("isn't asked why once the app itself ends it", async () => {
     const { asked, scopes } = scoped("out-of-memory")
     const { pty, stand, exits } = start(scopes)
     const ended = pty.end({

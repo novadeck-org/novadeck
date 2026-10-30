@@ -5,7 +5,8 @@ import type { Duplex } from "node:stream"
 import { RPCHandler } from "@orpc/server/ws"
 import { WebSocket, WebSocketServer } from "ws"
 
-import { positive, type Sessions } from "./sessions.js"
+import { positive } from "./limits.js"
+import type { Sessions } from "./sessions.js"
 
 export type WebSocketOptions = {
   /** Where clients connect; any other path is refused. */
@@ -66,8 +67,7 @@ export const serveWebSocket = (sessions: Sessions, options: WebSocketOptions) =>
     maxPayload,
     perMessageDeflate: false,
   })
-  let stopping = false
-  let stop: Promise<void> | undefined
+  let closing: Promise<void> | undefined
 
   wss.on("connection", (socket) => {
     const timer = setTimeout(() => socket.close(1008, "Authentication required"), authMs)
@@ -130,7 +130,7 @@ export const serveWebSocket = (sessions: Sessions, options: WebSocketOptions) =>
     /** Takes an HTTP server's upgrade request: a socket on `path`, unless refused. */
     upgrade(request: IncomingMessage, socket: Duplex, head: Buffer): void {
       if (request.url !== options.path) return refuse(socket, 404, "Not Found")
-      if (stopping) return refuse(socket, 503, "Service Unavailable")
+      if (closing) return refuse(socket, 503, "Service Unavailable")
       const origin = request.headers.origin
       if (origin !== undefined && !options.origins.includes(origin)) {
         return refuse(socket, 403, "Forbidden")
@@ -140,14 +140,13 @@ export const serveWebSocket = (sessions: Sessions, options: WebSocketOptions) =>
     },
     /** Refuses new sockets and ends every open one. */
     close(): Promise<void> {
-      stop ??= (async () => {
-        stopping = true
+      closing ??= (async () => {
         for (const socket of wss.clients) socket.terminate()
         await new Promise<void>((resolve, reject) => {
           wss.close((error) => (error ? reject(error) : resolve()))
         })
       })()
-      return stop
+      return closing
     },
   }
 }

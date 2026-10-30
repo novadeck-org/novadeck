@@ -1,15 +1,15 @@
 import { describe, expect, it } from "vitest"
 
-import { runnerSize } from "./screens.js"
+import { clampSize } from "./screens.js"
 
-describe("runner terminal size", () => {
-  it("keeps a fitted size within what the runner accepts", () => {
+describe("terminal size", () => {
+  it("keeps a fitted size within what a terminal accepts", () => {
     expect(
       [
         { cols: 1, rows: 0 },
         { cols: 120.7, rows: 30.2 },
         { cols: 900, rows: 400 },
-      ].map(runnerSize),
+      ].map(clampSize),
     ).toEqual([
       { cols: 2, rows: 1 },
       { cols: 120, rows: 30 },

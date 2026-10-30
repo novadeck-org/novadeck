@@ -70,9 +70,9 @@ const open = (failAnswer = false) => {
     [],
   )
   const stop = backend.start!({ dispatch: () => {}, open: () => {} })
-  const ask = (fields: Partial<Extract<Approval, { type: "ask" }>> = {}) => {
-    const made: Extract<Approval, { type: "ask" }> = {
-      type: "ask",
+  const ask = (fields: Partial<Extract<Approval, { type: "request" }>> = {}) => {
+    const made: Extract<Approval, { type: "request" }> = {
+      type: "request",
       requestId: crypto.randomUUID(),
       from: crypto.randomUUID(),
       terminalId: crypto.randomUUID(),

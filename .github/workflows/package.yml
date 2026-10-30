@@ -362,14 +362,14 @@ jobs:
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: engines/whisper/dist
-          key: whisper-engine-${{ matrix.os }}-${{ runner.arch }}-${{ steps.signing.outputs.engine }}-${{ hashFiles('engines/ggml-build/index.ts', 'engines/ggml-build/package.json', 'engines/whisper/scripts/**', 'engines/whisper/patches/**', 'engines/whisper/package.json') }}${{ matrix.target == 'linux' && format('-{0}-{1}', env.ENGINE_BUILD_BASE, hashFiles('engines/ggml-build/Dockerfile')) || '' }}
+          key: whisper-engine-${{ matrix.os }}-${{ runner.arch }}-${{ steps.signing.outputs.engine }}-${{ hashFiles('engines/ggml-build/src/**', '!engines/ggml-build/src/**/*.test.ts', 'engines/ggml-build/package.json', 'engines/whisper/scripts/**', 'engines/whisper/patches/**', 'engines/whisper/package.json') }}${{ matrix.target == 'linux' && format('-{0}-{1}', env.ENGINE_BUILD_BASE, hashFiles('engines/ggml-build/Dockerfile')) || '' }}
 
       - name: Restore Murmur Engine
         id: murmur
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: engines/murmur/dist
-          key: murmur-engine-${{ matrix.os }}-${{ runner.arch }}-${{ steps.signing.outputs.engine }}-${{ hashFiles('engines/ggml-build/index.ts', 'engines/ggml-build/package.json', 'engines/murmur/scripts/**', 'engines/murmur/patches/**', 'engines/murmur/package.json') }}${{ matrix.target == 'linux' && format('-{0}-{1}', env.ENGINE_BUILD_BASE, hashFiles('engines/ggml-build/Dockerfile')) || '' }}
+          key: murmur-engine-${{ matrix.os }}-${{ runner.arch }}-${{ steps.signing.outputs.engine }}-${{ hashFiles('engines/ggml-build/src/**', '!engines/ggml-build/src/**/*.test.ts', 'engines/ggml-build/package.json', 'engines/murmur/scripts/**', 'engines/murmur/patches/**', 'engines/murmur/package.json') }}${{ matrix.target == 'linux' && format('-{0}-{1}', env.ENGINE_BUILD_BASE, hashFiles('engines/ggml-build/Dockerfile')) || '' }}
 
       - name: Build Engine Image (Linux)
         if: matrix.target == 'linux' && (steps.engine.outputs.cache-hit != 'true' || steps.murmur.outputs.cache-hit != 'true')

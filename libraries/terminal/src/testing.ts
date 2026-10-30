@@ -5,7 +5,7 @@ import { fileURLToPath } from "node:url"
 
 import { afterAll } from "vitest"
 
-import type { NativePty, NativeSpawn } from "./pty.js"
+import type { NativePty, NativeSpawn } from "./pty/pty.js"
 
 // A controllable program to run in a real pty, for tests of what hosts one: it answers
 // `command`s with output, sizes, bursts, exits and children of its own.
