@@ -56,19 +56,19 @@ pub fn of_this_process() -> Vec<Value> {
 pub fn of_this_process() -> Vec<Value> {
     use crate::processes;
 
-    let processes = processes::snapshot();
+    let snapshot = processes::snapshot();
     let mut found = Vec::new();
     let mut pid = std::process::id();
     let mut child_started = processes::started(pid);
     while found.len() < MOST {
-        let Some(parent) = processes.get(&pid).map(|process| process.parent) else {
+        let Some(parent) = snapshot.get(&pid).map(|process| process.parent) else {
             break;
         };
         // A pid seen before ends the walk too, as a cycle of reused pids would.
         if parent == 0 || parent == pid || found.iter().any(|each: &Value| each["pid"] == parent) {
             break;
         }
-        let Some(process) = processes.get(&parent) else {
+        let Some(process) = snapshot.get(&parent) else {
             break;
         };
         let started = processes::started(parent);
@@ -112,11 +112,7 @@ impl Clock {
     fn now() -> Option<Clock> {
         let uptime = std::fs::read_to_string("/proc/uptime").ok()?;
         let up_ms = uptime.split_whitespace().next()?.parse::<f64>().ok()? * 1000.0;
-        let now_ms = std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .ok()?
-            .as_secs_f64()
-            * 1000.0;
+        let now_ms = crate::epoch_ms()?;
         let hz = unsafe { libc::sysconf(libc::_SC_CLK_TCK) };
         (hz > 0).then(|| Clock {
             boot_ms: now_ms - up_ms,
@@ -267,14 +263,6 @@ fn process(_pid: u32, _clock: Option<&Clock>) -> Option<Process> {
 mod tests {
     use super::*;
 
-    fn now_ms() -> f64 {
-        std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .unwrap()
-            .as_secs_f64()
-            * 1000.0
-    }
-
     #[test]
     fn names_a_program_by_its_path_s_file_name() {
         assert_eq!(
@@ -321,7 +309,7 @@ mod tests {
 
     // Each ancestor started before the relay, and at most a while before.
     fn started_in_order(found: &[Value]) {
-        let now = now_ms();
+        let now = crate::epoch_ms().unwrap();
         let mut later = now + 100.0;
         for each in found {
             let started = each["startedAt"].as_f64().expect("a start");
