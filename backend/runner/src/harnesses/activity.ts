@@ -468,7 +468,7 @@ export const ordered = (pending: readonly Request[]): readonly Request[] => [
  * ended before its harness said more.
  */
 /** How many files a turn names, and how long an error is kept. */
-export const maxFiles = 16
+const maxFiles = 16
 const maxError = 2048
 
 /** The files with `path` added, once each and at most `maxFiles`; undefined where unchanged. */

@@ -32,7 +32,7 @@ import { dictationHint, type HintFacts } from "./hint.js"
 import { wav } from "./wav.js"
 
 /** Where the runner keeps voice input's settings. */
-export type VoiceSettingsStore = {
+type VoiceSettingsStore = {
   voiceSettings(): VoiceSettings
   saveVoiceSettings(settings: VoiceSettingsChange): void
   voiceEnabledChoice(): boolean | undefined
@@ -51,7 +51,7 @@ export type VoiceOptions = {
   /** The models to download; those Novadeck ships unless a test brings its own. */
   readonly catalog?: Catalog
   readonly launch?: Launch
-  /** The host saw only software rendering: turbo is not tried, small is installed directly. */
+  /** The app saw only software rendering: turbo is not tried, small is installed directly. */
   readonly softwareGraphics?: boolean
   readonly idleMs?: number
   /** How long each of the check's transcriptions may take after an install. */
@@ -113,8 +113,8 @@ export class Voice {
   private engineDir: string | undefined
   // Loading the saved state at start, which the first call to use it waits for.
   private loading: Promise<void> = Promise.resolve()
-  // An engine update that failed is not tried again by every clip; installing retries it.
-  // When the last engine update failed: another waits a minute, not for every clip.
+  // When the last engine update failed: another waits a minute, not for every clip, and
+  // installing retries it.
   private updateFailedAt: number | undefined
   private uninstalling = false
   private installing: VoiceInstall | null = null
@@ -280,12 +280,12 @@ export class Voice {
 
   /**
    * The model an install fetches first: turbo, unless this computer is known not to suit
-   * it, from the host's verdict, a check that found no GPU, or a turbo that was rejected
+   * it, from the app's verdict, a check that found no GPU, or a turbo that was rejected
    * before (small is then the model chosen).
    */
   private aim(): VoiceModel {
     // A model that passed its check stays the aim: a retry checks it again, but one slow or
-    // GPU-less result, or the host's verdict on this launch, never demotes it.
+    // GPU-less result, or the app's verdict on this launch, never demotes it.
     const kept = this.keptModel()
     if (kept !== undefined) return kept
     return this.options.softwareGraphics || this.settings.voiceSettings().model === "small"

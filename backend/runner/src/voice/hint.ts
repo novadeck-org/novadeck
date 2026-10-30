@@ -21,7 +21,7 @@ export const hintModules = 6
 /** How many file names it lists after them. */
 export const hintFiles = 8
 /** How many terminal handles it names, the first the session gave. */
-export const hintHandles = 6
+const hintHandles = 6
 /**
  * The longest hint, in characters: a sentence or two, well inside the 224 tokens Whisper
  * reads of a prompt, since a long one gets copied into the transcript, or makes it up.

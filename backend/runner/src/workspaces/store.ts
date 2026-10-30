@@ -73,7 +73,7 @@ export type MurmurSettingsChange = {
   readonly enabled?: boolean | null | undefined
 }
 
-export type SettingsChange = {
+type SettingsChange = {
   readonly [K in keyof RunnerSettings]?: RunnerSettings[K] | undefined
 }
 

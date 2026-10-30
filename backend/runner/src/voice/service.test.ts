@@ -230,7 +230,7 @@ describe("installing voice input", () => {
     })
   })
 
-  it("installs small alone where the host saw only software rendering", async ({ resources }) => {
+  it("installs small alone where the app saw only software rendering", async ({ resources }) => {
     const { voice, directory } = await setup(resources, {
       catalog: await modelCatalog(resources, { turbo: "turbo gpu" }),
       softwareGraphics: true,
@@ -524,7 +524,7 @@ describe("installing voice input", () => {
     expect(again.voice.state()).toMatchObject({ check: null, enabled: false })
   })
 
-  it("keeps a turbo that passed its check through a retry where the host now says software rendering", async ({
+  it("keeps a turbo that passed its check through a retry where the app now says software rendering", async ({
     resources,
   }) => {
     const first = await setup(resources, {
@@ -606,7 +606,7 @@ describe("installing voice input", () => {
     expect(voice.state().aim).toBe("turbo")
   })
 
-  it("aims for small after an uninstall where the host saw only software rendering", async ({
+  it("aims for small after an uninstall where the app saw only software rendering", async ({
     resources,
   }) => {
     const { voice } = await setup(resources, { softwareGraphics: true })
