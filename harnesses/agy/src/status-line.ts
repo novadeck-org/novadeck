@@ -1,8 +1,8 @@
 import { absolute, sessionId, text } from "@novadeck/harness-core/decode"
-import type { HarnessEvent, PromptShown } from "@novadeck/harness-core/events"
+import type { EventBase, HarnessEvent, PromptShown } from "@novadeck/harness-core/events"
 import type { Report } from "@novadeck/harness-core/report"
 
-import { abandoned, latestOf, type Base } from "./call-memory.js"
+import { abandoned, latestOf } from "./call-memory.js"
 
 // Statuses of a subagent that no longer runs.
 const finished = new Set(["done", "completed", "finished", "idle", "failed", "cancelled", "error"])
@@ -52,7 +52,7 @@ export const statusLine = ({
   const id = sessionId(payload.conversation_id)
   if (!id) return []
   const cwd = absolute(payload.cwd)
-  const base: Base = { agent: "agy", sessionId: id, instance, startedAt: seq }
+  const base: EventBase<"agy"> = { agent: "agy", sessionId: id, instance, startedAt: seq }
   const events: HarnessEvent[] = [
     {
       type: "session-observed",

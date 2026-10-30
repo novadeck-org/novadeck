@@ -2,10 +2,10 @@ import { createHash } from "node:crypto"
 import { extname, isAbsolute, relative } from "node:path"
 
 import { absolute, errorText, shortName, sessionId, text } from "@novadeck/harness-core/decode"
-import type { BackgroundJob, HarnessEvent } from "@novadeck/harness-core/events"
+import type { BackgroundJob, EventBase, HarnessEvent } from "@novadeck/harness-core/events"
 import type { Report } from "@novadeck/harness-core/report"
 
-import { ended, forget, pending, remember, running, type Base } from "./call-memory.js"
+import { ended, forget, pending, remember, running } from "./call-memory.js"
 import { statusLine } from "./status-line.js"
 import { kindOf, toolCall, writers, type ToolCall } from "./tools.js"
 
@@ -99,7 +99,7 @@ const decodeEvent = ({ event, seq, instance, payload }: Report): readonly Harnes
   const workspaces = Array.isArray(payload.workspacePaths) ? payload.workspacePaths : []
   const cwd = absolute(workspaces[0])
   const transcript = absolute(payload.transcriptPath)
-  const base: Base = { agent: "agy", sessionId: id, instance, startedAt: seq }
+  const base: EventBase<"agy"> = { agent: "agy", sessionId: id, instance, startedAt: seq }
   const observed: HarnessEvent = {
     type: "session-observed",
     ...base,
@@ -208,7 +208,11 @@ const questionsOf = (call: ToolCall): { question: string; options: string[] }[] 
 
 // A call about to run: remembered as the one a confirmation may be about, and, for
 // ask_question, a question the person is asked.
-const calling = (base: Base, call: ToolCall, payload: Report["payload"]): HarnessEvent[] => {
+const calling = (
+  base: EventBase<"agy">,
+  call: ToolCall,
+  payload: Report["payload"],
+): HarnessEvent[] => {
   remember(base.sessionId, call, callId(call, payload))
   if (call.name !== "ask_question") return []
   const [first] = questionsOf(call)
@@ -229,7 +233,7 @@ const calling = (base: Base, call: ToolCall, payload: Report["payload"]): Harnes
 }
 
 // Every call about to run, reported once; its kind is told by its name and arguments.
-const called = (base: Base, call: ToolCall): HarnessEvent => ({
+const called = (base: EventBase<"agy">, call: ToolCall): HarnessEvent => ({
   type: "tool-called",
   ...base,
   actor: null,
@@ -238,7 +242,11 @@ const called = (base: Base, call: ToolCall): HarnessEvent => ({
 })
 
 // An ask_question that was answered, or skipped: its PostToolUse.
-const answered = (base: Base, call: ToolCall, payload: Report["payload"]): HarnessEvent[] =>
+const answered = (
+  base: EventBase<"agy">,
+  call: ToolCall,
+  payload: Report["payload"],
+): HarnessEvent[] =>
   call.name === "ask_question"
     ? [
         {
@@ -256,7 +264,7 @@ const answered = (base: Base, call: ToolCall, payload: Report["payload"]): Harne
 // A plan: Markdown the agent writes, in the conversation's own folder, as an artifact
 // asking for the person's review; one it failed to write is none.
 const artifact = (
-  base: Base,
+  base: EventBase<"agy">,
   { name, args }: ToolCall,
   payload: Report["payload"],
 ): HarnessEvent[] => {
@@ -277,7 +285,7 @@ const artifact = (
 
 // A file it wrote, as its write or edit call names it.
 const written = (
-  base: Base,
+  base: EventBase<"agy">,
   { name, args }: ToolCall,
   payload: Report["payload"],
 ): HarnessEvent[] => {

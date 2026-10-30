@@ -1,8 +1,8 @@
 import { readFile, rename, writeFile } from "node:fs/promises"
 import { join, resolve } from "node:path"
 
+import { fieldsOf, type Fields } from "@novadeck/harness-core/fields"
 import type { Install } from "@novadeck/harness-core/harness"
-import { isFields } from "@novadeck/harness-core/fields"
 import { json } from "@novadeck/harness-core/plugin"
 
 import { antigravityHome } from "./home.js"
@@ -39,13 +39,6 @@ export const statusLineCommand = (own: string | undefined): string =>
 export const windowsStatusLine =
   "if defined NOVADECK_HOOK (%NOVADECK_HOOK% agy StatusLine >nul 2>nul)"
 
-// A JSON object, as the settings and their status line are: changed in place, then the
-// settings written whole.
-type JsonObject = Record<string, unknown>
-
-const fieldsOf = (value: unknown): JsonObject | undefined =>
-  isFields(value) ? (value as JsonObject) : undefined
-
 /**
  * The person's own command a line of Novadeck's runs: null for none, undefined when the
  * line is not Novadeck's.
@@ -62,14 +55,14 @@ const ownOf = (value: unknown): string | null | undefined => {
 }
 
 // What Novadeck's line shows without the person's own.
-const added: Record<string, unknown> = { enabled: true, stack_with_default: true }
+const added: Fields = { enabled: true, stack_with_default: true }
 
 // Antigravity's user settings, in its home.
 const settingsFile = (install: Pick<Install, "home">): string =>
   join(antigravityHome(install), "settings.json")
 
 // Settings, or undefined when the file holds something else.
-const read = async (file: string): Promise<JsonObject | undefined> => {
+const read = async (file: string): Promise<Fields | undefined> => {
   let text: string
   try {
     text = await readFile(file, "utf8")
@@ -106,13 +99,17 @@ export const statusLineSettings = {
     if (install.platform === "win32" && command) return
     // The person's display choices stay; without a status line of their own, Antigravity's
     // default keeps showing above Novadeck's, which prints nothing.
-    settings.statusLine = {
-      ...(own ?? added),
-      type: "command",
-      command:
-        install.platform === "win32" ? windowsStatusLine : statusLineCommand(command || undefined),
-    }
-    await write(file, settings)
+    await write(file, {
+      ...settings,
+      statusLine: {
+        ...(own ?? added),
+        type: "command",
+        command:
+          install.platform === "win32"
+            ? windowsStatusLine
+            : statusLineCommand(command || undefined),
+      },
+    })
   },
   // Keeps whatever the person changed of the line meanwhile, and a file it cannot read:
   // Novadeck's line still runs theirs.
@@ -121,14 +118,15 @@ export const statusLineSettings = {
     const settings = await read(file)
     const own = settings && ownOf(settings.statusLine)
     if (!settings || own === undefined) return
-    if (own === null) {
-      // Only what Novadeck added goes; a line the person switched off stays so.
-      const { command: _command, type: _type, ...rest } = fieldsOf(settings.statusLine) ?? {}
-      if (Object.entries(rest).every(([key, value]) => value === added[key]))
-        delete settings.statusLine
-      else settings.statusLine = rest
-    } else settings.statusLine = { ...fieldsOf(settings.statusLine), command: own }
-    await write(file, settings)
+    const { statusLine: line, ...others } = settings
+    if (own !== null) {
+      await write(file, { ...settings, statusLine: { ...fieldsOf(line), command: own } })
+      return
+    }
+    // Only what Novadeck added goes; a line the person switched off stays so.
+    const { command: _command, type: _type, ...rest } = fieldsOf(line) ?? {}
+    const onlyAdded = Object.entries(rest).every(([key, value]) => value === added[key])
+    await write(file, onlyAdded ? others : { ...settings, statusLine: rest })
   },
 }
 

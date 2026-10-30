@@ -1,5 +1,5 @@
 import { errorText } from "@novadeck/harness-core/decode"
-import type { HarnessEvent } from "@novadeck/harness-core/events"
+import type { EventBase, HarnessEvent } from "@novadeck/harness-core/events"
 import { oneLine } from "@novadeck/harness-core/tools"
 
 import type { ToolCall } from "./tools.js"
@@ -9,9 +9,6 @@ import type { ToolCall } from "./tools.js"
  * latest call, which a confirmation its status line shows is about, and the calls that may
  * outlive their turn, which a Stop lists and a later hook ends.
  */
-
-/** What every event of one report shares. */
-export type Base = { agent: "agy"; sessionId: string; instance: string | null; startedAt: number }
 
 // How many conversations each memory holds, and how many awaited calls each conversation
 // keeps: as many as the activity takes jobs.
@@ -84,7 +81,7 @@ const counted = new Map<string, number>()
 const maxTimerSeconds = 86_400
 
 // A call over, as the activity learns it.
-const over = (base: Base, call: Pending): HarnessEvent => ({
+const over = (base: EventBase<"agy">, call: Pending): HarnessEvent => ({
   type: "task-ended",
   ...base,
   id: call.id,
@@ -99,7 +96,7 @@ const over = (base: Base, call: Pending): HarnessEvent => ({
  * Killing a task names it by an id no hook gives, so it ends every call of the
  * conversation: a wait missed beats one that never ends.
  */
-export const pending = (base: Base, call: ToolCall, step: number): HarnessEvent[] => {
+export const pending = (base: EventBase<"agy">, call: ToolCall, step: number): HarnessEvent[] => {
   const conversation = base.sessionId
   const { name, args } = call
   if (name === "manage_task" && args.Action === "kill") {
@@ -188,7 +185,7 @@ export const forget = (conversation: string): void => {
  * A call over: its PostToolUse at step `step`, which comes at the end of a backgrounded
  * one, so a job done is no longer waited on.
  */
-export const ended = (base: Base, step: number): HarnessEvent[] => {
+export const ended = (base: EventBase<"agy">, step: number): HarnessEvent[] => {
   const calls = open.get(base.sessionId)
   const id = `${base.sessionId}:${step}`
   const call = calls?.get(id)
@@ -198,7 +195,7 @@ export const ended = (base: Base, step: number): HarnessEvent[] => {
 }
 
 /** What an idle status line counting `tasks` shows over: see `unaccounted`. */
-export const abandoned = (base: Base, tasks: number): HarnessEvent[] => {
+export const abandoned = (base: EventBase<"agy">, tasks: number): HarnessEvent[] => {
   keep(counted, base.sessionId, tasks)
   return unaccounted(base.sessionId, tasks, { before: base.startedAt, seenToo: true }).map((call) =>
     over(base, call),
