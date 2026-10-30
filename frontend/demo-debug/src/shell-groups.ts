@@ -1,10 +1,10 @@
 import type { ConnectFailure } from "@novadeck/core/port"
 
 import { bootFailures } from "./boot-failures"
+import type { DemoLaunch, DemoShell } from "./debug-demo"
+import { sampleFix } from "./desktop/sandbox"
 import { iconGuidesGroup } from "./icon-guides"
-import { sampleFix } from "./sandbox"
 import type { DemoActionGroup, DemoStates } from "./types"
-import type { DemoLaunch, DemoShell } from "./with-debug"
 
 // How each boot failure reads in the panel: a label, and what happens after it.
 const failureCopy: Record<ConnectFailure["kind"], { label: string; hint: string }> = {

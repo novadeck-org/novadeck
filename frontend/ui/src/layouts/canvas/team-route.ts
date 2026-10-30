@@ -36,7 +36,7 @@ export type Member = Rect & { readonly id: string }
 // A straight run, horizontal or vertical.
 export type Run = { readonly from: Point; readonly to: Point }
 
-export type Side = "left" | "right"
+type Side = "left" | "right"
 
 export type TeamRoute = {
   // A trunk and what leaves the lead for it: the lead's edge where the cursor sits, the run

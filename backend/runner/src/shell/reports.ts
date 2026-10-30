@@ -362,16 +362,44 @@ export const listenForReports = async (
     })
     const hook = from && relayHook(value)
     let answer = unheard
+    // A hook that heard its ask late or not at all says so once, in the runner's log: the
+    // lease of an answer nobody printed is never acknowledged, and only this line tells.
+    let said = false
+    const lost = (given: { readonly [key: string]: number | boolean }) => {
+      if (said || !from || !hook) return
+      said = true
+      log.warn("reports.hook-late", "Novadeck's answer to a hook wasn't printed", {
+        data: {
+          terminalId: from.terminalId,
+          agent: hook.report.agent,
+          event: hook.report.event,
+          ...given,
+        },
+      })
+    }
+    let asked = false
     if (from && hook) {
       const report = { ...from, ...hook.report }
       if (hook.deadline === undefined) {
         handlers.report(report)
       } else {
+        asked = true
         const ms = Math.min(answerMs, hook.deadline - Date.now())
-        answer = await within(handlers.ask(report, hook.deadline), ms, unheard)
+        const cutoff = Date.now() + Math.max(0, ms)
+        // Set once the wait is over: an answer after it is the late one the line is for.
+        let over = false
+        const raced = handlers.ask(report, hook.deadline).then((late) => {
+          if (over) lost({ lateMs: Date.now() - cutoff, leased: late.leaseId !== null })
+          return late
+        })
+        answer = await within(raced, ms, unheard)
+        over = true
       }
     }
-    if (!socket.writable) return
+    if (!socket.writable) {
+      if (asked) lost({ gone: true, leased: answer.leaseId !== null })
+      return
+    }
     socket.write(`${JSON.stringify(answer)}\n`)
     if (!from || answer.leaseId === null) {
       done = true

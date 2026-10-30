@@ -1,6 +1,6 @@
 import { setTimeout as sleep } from "node:timers/promises"
 
-import { doorbellLine } from "@novadeck/harness-core/harness"
+import { doorbellLine } from "@novadeck/harness-core/prompts"
 
 import type { Question } from "./agents/agent.js"
 import { setups } from "./agents/index.js"

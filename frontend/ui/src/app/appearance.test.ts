@@ -42,10 +42,10 @@ const resolvesPaper = (): void => {
     if ((element as HTMLElement).style?.color !== "var(--color-paper)")
       return resolve(element, pseudo)
     const color = paper[root.dataset.scheme as "light" | "dark"]
-    return {
+    return Object.assign(resolve(element, pseudo), {
       color,
       getPropertyValue: (name: string) => (name === "--color-paper" ? color : ""),
-    } as unknown as CSSStyleDeclaration
+    })
   })
 }
 
@@ -173,7 +173,7 @@ describe("watchAppearance", () => {
     })
   })
 
-  context("in a window with a host", () => {
+  context("in a window with a desktop app", () => {
     it("reports the scheme for native parts and the paper the page paints", () => {
       system(true)
       resolvesPaper()
@@ -205,7 +205,7 @@ describe("watchAppearance", () => {
     })
   })
 
-  context("in a window with a host, going back to the system from a pinned scheme", () => {
+  context("in a window with a desktop app, going back to the system from a pinned scheme", () => {
     // A pinned window makes `prefers-color-scheme` report the pin: dark here, while the
     // system itself is light.
     it("releases the window first, then shows the system's scheme as it arrives", () => {

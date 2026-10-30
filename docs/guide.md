@@ -141,7 +141,7 @@ and the terminal switcher carry on. Claude and Codex have their own icons in
 their presentation can grow. To give another program its own look, add a profile
 entry, with its own body if needed, and a launcher entry in `frontend/core/src/terminals/process.ts` if it
 runs as a Node script. Profiles are presentation only: per-program behaviour goes beside
-`programName` in `frontend/core/src/terminals/process.ts`, as `frontend/runner-adapter/src/resumable.ts` names the agents whose sessions resume.
+`programName` in `frontend/core/src/terminals/process.ts`, as `frontend/runner-adapter/src/terminals/resumable.ts` names the agents whose sessions resume.
 
 A terminal running an agent (Claude Code, Codex or Antigravity) has a **Chat** button in
 its window header wherever the backend reads the agents' transcripts

@@ -59,9 +59,6 @@ export const docOf = ({ stamp, plan }: PlanVersion): PlanDoc => ({
   stalled: false,
 })
 
-// Why the person's edits can't reach the plan's file, if they can't: its content says it
-// is gone, the backend can't write it, or a save said so. Saving can't work then until
-// something changes.
 // Whether the content says the file can't be read for now, which saves can't get past
 // either, though trying again may help.
 export const unreadableNow = (content: ItemContent | undefined): boolean =>
@@ -77,6 +74,9 @@ export const stuckEdits = (plan: PlanDoc, content: ItemContent | undefined): boo
     blockOf(plan, content) === "gone" ||
     unreadableNow(content))
 
+// Why the person's edits can't reach the plan's file, if they can't: its content says it
+// is gone, the backend can't write it, or a save said so. Saving can't work then until
+// something changes.
 export const blockOf = (
   plan: PlanDoc,
   content: ItemContent | undefined,

@@ -76,14 +76,14 @@ import {
 
 const argument = process.argv.find((value) => value.startsWith(apiUrlArgumentPrefix))
 
-if (!argument) throw new Error("Novadeck API URL was not provided by the desktop host")
+if (!argument) throw new Error("Novadeck API URL was not provided by the desktop app")
 
 const apiUrl = new URL(argument.slice(apiUrlArgumentPrefix.length))
 
-// Whether the host sends feedback notes: it says so by an argument, `1`.
+// Whether the main process sends feedback notes: it says so by an argument, `1`.
 const feedback = process.argv.includes(`${feedbackArgumentPrefix}1`)
 
-// What the host raised Chromium's WebGL context limit to, when it says so in a form the
+// What the main process raised Chromium's WebGL context limit to, when it says so in a form the
 // contract allows; the page keeps its browser default otherwise.
 const webglContexts = webglContextsOf(
   Number(
@@ -128,7 +128,7 @@ ipcRenderer.on(pageSignInChannel, (_event, contentsId: unknown, open: unknown) =
 // and paragraph separators.
 const unwanted = /[\p{Cc}\p{Cf}\p{Zl}\p{Zp}]/u
 
-// The longest fix command the page is given: one line, as the host builds it from a
+// The longest fix command the page is given: one line, as the main process builds it from a
 // repository name.
 const sandboxFixLength = 300
 
@@ -146,7 +146,7 @@ const sandboxOf = (value: unknown): SandboxState => {
 }
 
 // The portable state when it is one the contract allows. Anything else counts as an
-// installed copy, so a broken answer never offers an install the host would not do.
+// installed copy, so a broken answer never offers an install the main process would not do.
 const portableStateOf = (value: unknown): PortableState =>
   parsePortableState(value) ?? { portable: false }
 
@@ -161,7 +161,7 @@ const lineOf = (value: unknown, limit: number): value is string =>
   typeof value === "string" && value !== "" && value.length <= limit && !unwanted.test(value)
 
 // The uninstall plan when it is one the contract allows. Anything else counts as
-// unavailable, so a broken answer never offers a removal the host would not do.
+// unavailable, so a broken answer never offers a removal the main process would not do.
 const uninstallPlanOf = (value: unknown): UninstallPlan => {
   const unavailable: UninstallPlan = { kind: "unavailable" }
   if (typeof value !== "object" || value === null) return unavailable
@@ -196,7 +196,7 @@ const text = (value: unknown, limit: number): string | undefined =>
 
 // What the main process answers a look with, as the page takes it: a JPEG picture with where
 // the page was, its title, size and troubles, else a reason; anything else is a reason too.
-const hostLookOf = (look: unknown): DesktopPageLook => {
+const pageLookOf = (look: unknown): DesktopPageLook => {
   const { picture, url, title, size, troubles, reason } = (look ?? {}) as Record<string, unknown>
   const { width, height } = (size ?? {}) as Record<string, unknown>
   return typeof picture === "string" &&
@@ -265,7 +265,7 @@ const bridge = {
     const checked = desktopBadgeOf(badge)
     if (checked) ipcRenderer.send(badgeChannel, checked)
   },
-  // Only a boolean comes back; the request makes the host answer with the current one, as
+  // Only a boolean comes back; the request makes the main process answer with the current one, as
   // the page may have started listening after the window last changed, or loaded again.
   onWindowFocus: (listener) => {
     const relay = (_event: unknown, focused: unknown): void => {
@@ -287,7 +287,7 @@ const bridge = {
       ipcRenderer.removeListener(noticeClickChannel, relay)
     }
   },
-  // Only a valid offer comes back; the request makes the host answer with the last one,
+  // Only a valid offer comes back; the request makes the main process answer with the last one,
   // as the page may have started listening after it arrived.
   onUpdate: (listener) => {
     const relay = (_event: unknown, value: unknown): void => {
@@ -333,7 +333,7 @@ const bridge = {
   },
   sandbox: async () => sandboxOf(await ipcRenderer.invoke(sandboxChannel)),
   portable: async () => portableStateOf(await ipcRenderer.invoke(portableChannel)),
-  // The host answers nothing: every step comes back through `onPortableState`.
+  // The main process answers nothing: every step comes back through `onPortableState`.
   installApp: () => {
     ipcRenderer.send(installAppChannel)
   },
@@ -349,7 +349,7 @@ const bridge = {
       ipcRenderer.removeListener(portableStateChannel, relay)
     }
   },
-  // The host builds the address; the page names none.
+  // The main process builds the address; the page names none.
   openPortableDownload: () => {
     ipcRenderer.send(openPortableDownloadChannel)
   },
@@ -400,7 +400,7 @@ const bridge = {
   // Only a JPEG picture, or a reason, comes back; the main process checks the request again.
   lookAtPage: async ({ url, layout, before }) => {
     const look: unknown = await ipcRenderer.invoke(pageLookChannel, { url, layout, before })
-    return hostLookOf(look)
+    return pageLookOf(look)
   },
   // Only whether it did comes back; the main process checks the page is one of this page's.
   pagePhone: async (page, phone) =>

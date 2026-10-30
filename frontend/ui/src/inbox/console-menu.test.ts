@@ -2,7 +2,7 @@ import type { ChatDialogOption } from "@novadeck/core/conversation"
 import type { InboxRow, Trouble } from "@novadeck/core/inbox"
 
 import { context, describe, expect, it } from "../test"
-import { answerable, menuOf, standingParts, type Row } from "./console-menu"
+import { answerable, menuOf, standingParts, type MenuRow } from "./console-menu"
 
 const source: InboxRow["source"] = {
   projectId: "p",
@@ -46,8 +46,8 @@ const codex: readonly ChatDialogOption[] = [
   { id: "differently", label: "No, and tell Codex what to do differently", text: "prompt" },
 ]
 
-const labels = (rows: readonly Row[]): string[] => rows.map((row) => row.label)
-const words = (row: Row | undefined): Extract<Row, { type: "words" }> => {
+const labels = (rows: readonly MenuRow[]): string[] => rows.map((row) => row.label)
+const words = (row: MenuRow | undefined): Extract<MenuRow, { type: "words" }> => {
   if (row?.type !== "words") throw new Error("not a words row")
   return row
 }
@@ -61,7 +61,8 @@ describe("A sheet's menu", () => {
         "Allow",
         "Yes, and don't ask again",
         "Deny",
-        "No, and tell Codex what to do differently",
+        "Deny, with your words",
+        "Go to terminal",
       ])
       expect(rows[1]).toMatchObject({ effect: "for commands that start with `pnpm add`" })
       expect(rows[0]).toMatchObject({ effect: null, receipt: "Allowed @crow's command." })
@@ -83,6 +84,7 @@ describe("A sheet's menu", () => {
     it("offers no Deny where no option says no", () => {
       expect(labels(menuOf(permission([{ id: "a", label: "Yes", text: null }]), 0).rows)).toEqual([
         "Allow",
+        "Go to terminal",
       ])
     })
 
@@ -133,7 +135,12 @@ describe("A sheet's menu", () => {
         ),
         0,
       )
-      expect(labels(rows)).toEqual(["Approve", "Yes, and bypass permissions", "No, keep planning"])
+      expect(labels(rows)).toEqual([
+        "Approve",
+        "Yes, and bypass permissions",
+        "Send it back, with your words",
+        "Go to terminal",
+      ])
       expect(rows[0]).toMatchObject({
         answer: { kind: "request", answer: { option: "manual" } },
         receipt: "Approved @crow's plan.",
@@ -191,12 +198,137 @@ describe("A sheet's menu", () => {
         ),
         0,
       )
-      expect(labels(rows)).toEqual(["Approve", "Send it back", "Tell it what to change"])
+      expect(labels(rows)).toEqual([
+        "Approve",
+        "Send it back",
+        "Send it back, with your words",
+        "Go to terminal",
+      ])
       const back = words(rows[2])
       expect(back.refused("/compact")).toBe(
         "Antigravity can't take words that start with /, ? or !, or that have an @.",
       )
       expect(back.refused("Split the second step")).toBeNull()
+    })
+  })
+
+  context("on every harness", () => {
+    // Each harness's own options, as its adapter reads them.
+    const harnessPermissions: readonly [string, InboxRow["source"]["agent"], ChatDialogOption[]][] =
+      [
+        [
+          "Claude Code",
+          "claude",
+          [
+            { id: "1", label: "Yes", text: null },
+            { id: "2", label: "Yes, and don't ask again for example.com", text: null },
+            { id: "3", label: "No", text: null },
+            { id: "tell", label: "No, and tell Claude what to do", text: "prompt" },
+          ],
+        ],
+        // Codex numbers its options.
+        ["Codex", "codex", codex.map((each, at) => ({ ...each, id: String(at + 1) }))],
+        [
+          "Antigravity",
+          "agy",
+          [
+            { id: "1", label: "Yes, run command", text: null },
+            {
+              id: "2",
+              label:
+                "Yes, and always allow in this conversation for commands that start with 'echo'",
+              text: null,
+            },
+            {
+              id: "3",
+              label:
+                "Yes, and always allow for commands that start with 'echo' (Persist to settings.json)",
+              text: null,
+            },
+            { id: "4", label: "No, cancel", text: "prompt" },
+          ],
+        ],
+      ]
+    const harnessPlans: readonly [string, InboxRow["source"]["agent"], ChatDialogOption[]][] = [
+      [
+        "Claude Code",
+        "claude",
+        [
+          { id: "1", label: "Yes, auto-accept edits", text: null },
+          { id: "2", label: "Yes, manually approve edits", text: null },
+          { id: "3", label: "Tell Claude what to change", text: "field" },
+        ],
+      ],
+      [
+        "Codex",
+        "codex",
+        [
+          { id: "1", label: "Yes, implement this plan", text: null },
+          { id: "2", label: "Yes, clear context and implement", text: null },
+          { id: "3", label: "No, stay in Plan mode", text: "prompt" },
+        ],
+      ],
+      [
+        "Antigravity",
+        "agy",
+        [
+          { id: "approve", label: "Approve", text: null },
+          { id: "reject", label: "Reject", text: null },
+          { id: "feedback", label: "Tell it what to change", text: "field" },
+        ],
+      ],
+    ]
+    const wordsRow = (rows: readonly MenuRow[]) => words(rows.find((row) => row.type === "words"))
+
+    it.each(harnessPermissions)(
+      "names %s's no with words Deny, with your words, and sends its own option",
+      (_, agent, options) => {
+        const back = wordsRow(menuOf(permission(options, "permission", agent), 0).rows)
+        const note = options.find((each) => each.text !== null)!
+        expect(back.label).toBe("Deny, with your words")
+        expect(back.answer("Use npm.")).toMatchObject({
+          answer: { option: note.id, text: "Use npm." },
+        })
+      },
+    )
+
+    it.each(harnessPlans)(
+      "names %s's way back with words Send it back, with your words, and sends its own option",
+      (_, agent, options) => {
+        const back = wordsRow(menuOf(permission(options, "plan", agent), 0).rows)
+        const note = options.find((each) => each.text !== null)!
+        expect(back.label).toBe("Send it back, with your words")
+        expect(back.answer("Split it.")).toMatchObject({
+          answer: { option: note.id, text: "Split it." },
+        })
+      },
+    )
+
+    it("keeps the harness's words on a yes that sets something standing, or that isn't plain", () => {
+      const [, , claude] = harnessPlans[0]!
+      const [, , numbered] = harnessPermissions[1]!
+      const [, , agy] = harnessPermissions[2]!
+      expect(labels(menuOf(permission(claude, "plan", "claude"), 0).rows)).toEqual([
+        "Approve",
+        "Yes, auto-accept edits",
+        "Send it back, with your words",
+        "Go to terminal",
+      ])
+      expect(labels(menuOf(permission(numbered, "permission", "codex"), 0).rows)).toEqual([
+        "Allow",
+        "Yes, and don't ask again",
+        "Deny",
+        "Deny, with your words",
+        "Go to terminal",
+      ])
+      // No yes is plain here, so the run-once yes keeps its words too.
+      expect(labels(menuOf(permission(agy, "permission", "agy"), 0).rows)).toEqual([
+        "Yes, run command",
+        "Yes, and always allow in this conversation for commands that start with 'echo'",
+        "Yes, and always allow for commands that start with 'echo' (Persist to settings.json)",
+        "Deny, with your words",
+        "Go to terminal",
+      ])
     })
   })
 
@@ -220,7 +352,7 @@ describe("A sheet's menu", () => {
         }),
         0,
       )
-      expect(labels(rows)).toEqual(["Retry", "Queue", "Reply in your own words"])
+      expect(labels(rows)).toEqual(["Retry", "Queue", "Reply in your own words", "Go to terminal"])
       expect(rows[0]).toMatchObject({ effect: "Three times.", pick: false, details: null })
       expect(rows[1]).toMatchObject({ pick: true, details: { details: "- More." } })
       expect(rows[1]).toMatchObject({
@@ -247,7 +379,7 @@ describe("A sheet's menu", () => {
         }),
         0,
       )
-      expect(labels(rows)).toEqual(["I've logged in", "Reply in your own words"])
+      expect(labels(rows)).toEqual(["I've logged in", "Reply in your own words", "Go to terminal"])
       expect(rows[0]).toMatchObject({ receipt: "Told @crow it's done." })
     })
   })
@@ -262,26 +394,27 @@ describe("A sheet's menu", () => {
 
     it("asks a failed agent at rest to fix it, saying what it sends, and reads a stored one", () => {
       const { rows } = menuOf(troubled({ type: "failed", error: "x", stored: true }), 0)
-      expect(labels(rows)).toEqual(["Ask it to fix", "Mark read"])
+      expect(labels(rows)).toEqual(["Ask it to fix", "Mark read", "Go to terminal"])
       expect(rows[0]!).toMatchObject({
         effect: "Sends: “Your last turn ended in an error. Look at what went wrong and fix it.”",
       })
       expect(
         labels(menuOf(troubled({ type: "failed", error: "x", stored: true }, false), 0).rows),
-      ).toEqual(["Mark read"])
+      ).toEqual(["Mark read", "Go to terminal"])
     })
 
     it("offers Continue only once a limit has reset, and the switch only where Novadeck can resume", () => {
       const limit = (autoResume: boolean | null, resetsAt: number) =>
         troubled({ type: "limit", minutes: 300, resetsAt, autoResume, evidence: [] })
-      expect(menuOf(limit(null, 100), 50).rows).toEqual([])
-      expect(labels(menuOf(limit(null, 100), 200).rows)).toEqual(["Continue now"])
+      expect(labels(menuOf(limit(null, 100), 50).rows)).toEqual(["Go to terminal"])
+      expect(labels(menuOf(limit(null, 100), 200).rows)).toEqual(["Continue now", "Go to terminal"])
       expect(menuOf(limit(true, 100), 50).rows).toMatchObject([
         {
           type: "toggle",
           on: true,
           change: { kind: "trouble", action: { type: "auto-resume", on: false } },
         },
+        { type: "reveal", label: "Go to terminal" },
       ])
     })
 
@@ -290,7 +423,12 @@ describe("A sheet's menu", () => {
         troubled({ type: "stuck", summary: "", evidence: [], nudge: "Try another way." }),
         0,
       )
-      expect(labels(rows)).toEqual(["Nudge it", "Nudge it in your own words", "Stop it"])
+      expect(labels(rows)).toEqual([
+        "Nudge it",
+        "Nudge it in your own words",
+        "Stop it",
+        "Go to terminal",
+      ])
       expect(rows[0]).toMatchObject({
         answer: { kind: "trouble", action: { type: "nudge", text: "Try another way." } },
       })
@@ -298,6 +436,22 @@ describe("A sheet's menu", () => {
         kind: "trouble",
         action: { type: "nudge", text: "Read the log.", own: true },
       })
+    })
+  })
+
+  context("on every row", () => {
+    it("ends on the way to its terminal, and offers it only once", () => {
+      const update: InboxRow = {
+        ...base,
+        kind: "update",
+        update: { type: "done", subject: "s", body: "" },
+      }
+      const unanswerable = permission([{ id: "run", label: "Run it", text: null }])
+      for (const inboxRow of [permission(codex), update, unanswerable]) {
+        const menuRows = menuOf(inboxRow, 0).rows
+        expect(menuRows.at(-1)).toEqual({ type: "reveal", label: "Go to terminal", effect: null })
+        expect(menuRows.filter((menuRow) => menuRow.type === "reveal")).toHaveLength(1)
+      }
     })
   })
 })

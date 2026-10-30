@@ -196,6 +196,23 @@ describe("a terminal window across foreground processes", () => {
       }
     })
 
+    it("keeps the terminal's surface, not a new one, as an agent starts, switches and stops", async () => {
+      const page = await open(second)
+      try {
+        const surface = (): Element | null | undefined =>
+          visibleWindow(page.container).querySelector(".terminal-host")?.firstElementChild
+        const first = surface()
+        expect(first).toBeTruthy()
+        for (const program of ["claude", "codex", "zsh"]) {
+          page.process(program)
+          expect(surface()).toBe(first)
+        }
+        expect(page.lifecycle).toEqual({ mounted: 1, unmounted: 0 })
+      } finally {
+        page.unmount()
+      }
+    })
+
     it("keeps other programs in the plain terminal window", async () => {
       const page = await open(second)
       try {

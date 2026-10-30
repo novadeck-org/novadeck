@@ -9,8 +9,8 @@ import {
 import { useEffect, useState, type ComponentType, type ReactNode } from "react"
 
 import type { ItemProps, ViewProps } from "./registration"
-import type { ItemStore } from "./state"
-import { useContent } from "./use-item-store"
+import type { ItemStore } from "./store/item-store"
+import { useContent } from "./store/use-item-store"
 
 // What the artifact kinds share: the chrome around what an agent showed beside its terminal
 // (the states of what hasn't loaded or can't show, and why), and the two components that

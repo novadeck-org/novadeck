@@ -6,7 +6,7 @@ import { render } from "@novadeck/test-kit/render"
 import { act, createElement } from "react"
 import { afterEach, vi } from "vitest"
 
-import { createItemStore } from "../../state"
+import { createItemStore } from "../../store/item-store"
 import { context, describe, expect, it } from "../../test"
 import { PlanTab } from "./PlanTab"
 
@@ -91,7 +91,7 @@ describe("a plan whose file can't be read for now", () => {
 describe("a plan in its editor", () => {
   it("is a Markdown document with the plan's notes", async () => {
     const { container } = await shown()
-    expect(container.querySelector(".plan-editor .cm-editor")).not.toBeNull()
-    expect(container.querySelector(".plan-editor .cm-plan-note-gutter")).not.toBeNull()
+    expect(container.querySelector(".document-editor .cm-editor")).not.toBeNull()
+    expect(container.querySelector(".document-editor .cm-plan-note-gutter")).not.toBeNull()
   })
 })

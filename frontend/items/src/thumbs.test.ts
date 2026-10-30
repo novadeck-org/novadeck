@@ -7,7 +7,7 @@ import { createElement } from "react"
 import { afterEach } from "vitest"
 
 import { registrationOf } from "./registry"
-import { createItemStore } from "./state"
+import { createItemStore } from "./store/item-store"
 import { context, describe, expect, it } from "./test"
 
 const unmounts: (() => void)[] = []
@@ -81,9 +81,9 @@ describe("a peek's miniature", () => {
           truncated: false,
         }),
       )
-      expect(document.container.querySelector(".peek-plan b")?.textContent).toBe("Brand voice")
+      expect(document.container.querySelector(".peek-list b")?.textContent).toBe("Brand voice")
       expect(
-        [...document.container.querySelectorAll(".peek-plan span")].map((each) => each.textContent),
+        [...document.container.querySelectorAll(".peek-list span")].map((each) => each.textContent),
       ).toContain("Words")
 
       const page = peek(

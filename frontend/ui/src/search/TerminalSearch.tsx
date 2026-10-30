@@ -49,8 +49,8 @@ export const TerminalSearch = ({
   return (
     <Dialog
       open={open}
-      onOpenChange={(expanded) => {
-        if (!expanded) onClose()
+      onOpenChange={(isOpen) => {
+        if (!isOpen) onClose()
       }}
       label="Find a terminal"
       onExitComplete={onExitComplete}

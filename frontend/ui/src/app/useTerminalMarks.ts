@@ -4,15 +4,13 @@ import type { TerminalKey } from "@novadeck/core/types"
 import { useEffect, useState } from "react"
 
 import { useStoreSelector } from "./controller/useStoreSelector"
+import { sameItems } from "./selectors"
 
-const sameItems = (a: readonly InboxRow[], b: readonly InboxRow[]): boolean =>
-  a.length === b.length && a.every((item, index) => item === b[index])
-
-// The time the limits among `items` are judged by, moved on once the next one resets (which
+// The time the limits among `rows` are judged by, moved on once the next one resets (which
 // makes its terminal an Unblock) though nothing else changes.
-export const useLimitClock = (items: readonly InboxRow[]): number => {
+export const useLimitClock = (rows: readonly InboxRow[]): number => {
   const [now, setNow] = useState(() => Date.now())
-  const resetsAt = nextLimitReset(items, now)
+  const resetsAt = nextLimitReset(rows, now)
   useEffect(() => {
     if (resetsAt === undefined) return undefined
     const timer = setTimeout(() => setNow(Date.now()), Math.max(0, resetsAt - Date.now()) + 50)

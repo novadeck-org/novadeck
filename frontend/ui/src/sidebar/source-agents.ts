@@ -6,8 +6,9 @@ import type { SourceProject } from "@novadeck/core/source"
 // Where a lead and the terminals it leads sit, as handles: the lead first.
 export type Squad = readonly string[]
 
-// A chip of its own, or a squad's chips in one track (two or more, the lead first).
-export type StripItem =
+// A place in the strip: a chip of its own, or a squad's chips in one track (two or more, the
+// lead first).
+export type StripSlot =
   | { readonly kind: "solo"; readonly handle: string }
   | { readonly kind: "squad"; readonly members: readonly string[] }
 
@@ -20,16 +21,16 @@ export const workingAgents = (project: SourceProject): ReadonlySet<string> => {
   return agents
 }
 
-// The strip's items. Agents follow the session's roster order (`roster`, handles); those with no
+// The strip's slots. Agents follow the session's roster order (`roster`, handles); those with no
 // terminal in it come after, alphabetically. A squad sits where its first member does, holding
 // only the members with work. It is kept only while its lead (the team's first handle) has work
 // itself and at least one member does too; otherwise those with work are solo chips. An agent in
 // two teams appears in the first squad that names it, and is solo if that squad does not stand.
-export const stripItems = (
+export const stripSlots = (
   project: SourceProject,
   roster: readonly string[],
   squads: readonly Squad[],
-): readonly StripItem[] => {
+): readonly StripSlot[] => {
   const working = workingAgents(project)
   const ordered = [
     ...roster.filter((handle, index) => working.has(handle) && roster.indexOf(handle) === index),
@@ -49,20 +50,20 @@ export const stripItems = (
       squadOf.set(handle, members)
     }
   }
-  const items: StripItem[] = []
+  const slots: StripSlot[] = []
   const placed = new Set<string>()
   for (const handle of ordered) {
     if (placed.has(handle)) continue
     const members = squadOf.get(handle)
     if (members) {
       members.forEach((member) => placed.add(member))
-      items.push({ kind: "squad", members })
+      slots.push({ kind: "squad", members })
     } else {
       placed.add(handle)
-      items.push({ kind: "solo", handle })
+      slots.push({ kind: "solo", handle })
     }
   }
-  return items
+  return slots
 }
 
 // The kept set with this agent in it if it was out, else out.
@@ -124,4 +125,19 @@ export const namedAgents = (handles: Iterable<string>): string => {
   return names.length < 2
     ? (names[0] ?? "")
     : `${names.slice(0, -1).join(", ")} and ${names[names.length - 1]}`
+}
+
+// The agents a strip chip lights while pointed at: itself, or a lead's whole squad; nobody if
+// the chip is no longer in the strip.
+export const stripHoverOf = (
+  slots: readonly StripSlot[],
+  handle: string | undefined,
+): readonly string[] | undefined => {
+  if (handle === undefined) return undefined
+  for (const slot of slots) {
+    if (slot.kind === "solo" && slot.handle === handle) return [handle]
+    if (slot.kind === "squad" && slot.members.includes(handle))
+      return slot.members[0] === handle ? slot.members : [handle]
+  }
+  return undefined
 }

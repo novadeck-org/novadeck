@@ -1,7 +1,7 @@
 import type { SidebarPanel, ViewMode } from "@novadeck/core/types"
 
 export type KeyboardFocus = { readonly id: string; readonly view: ViewMode }
-export type CanvasKeyboardFocus = {
+type CanvasKeyboardFocus = {
   readonly context: string
   readonly id: string
   readonly request: number
@@ -9,8 +9,8 @@ export type CanvasKeyboardFocus = {
 // How a view brings the selection into sight: as it is, framed alone, or, on Canvas, with
 // the camera flown in to it as a header's double-click does.
 export type NavigationMove = "center" | "fit" | "fly"
-export type ShellNavigation = { readonly count: number; readonly move: NavigationMove }
-export type ZenState = {
+type ShellNavigation = { readonly count: number; readonly move: NavigationMove }
+type ZenState = {
   readonly sidebar: boolean
   readonly collapsed: boolean
   readonly panel: SidebarPanel

@@ -28,7 +28,7 @@ import { InboxSheet } from "./InboxSheet"
 
 // What the sheet records of the plan approvals it answered.
 const { planAnswered } = vi.hoisted(() => ({
-  planAnswered: vi.fn<(item: InboxRow) => void>(),
+  planAnswered: vi.fn<(row: InboxRow) => void>(),
 }))
 vi.mock("./plan-text", async (original) => ({
   ...(await original<typeof import("./plan-text")>()),
@@ -142,17 +142,17 @@ afterEach(() => {
   mounted = null
 })
 
-// The Inbox over these items with the first one's sheet open, and the answers it gives.
+// The Inbox over these rows with the first one's sheet open, and the answers it gives.
 const mount = (
-  items: readonly InboxRow[],
+  inboxRows: readonly InboxRow[],
   {
     failing = false,
     open = 0,
     conversations,
-  }: { failing?: boolean; open?: number; conversations?: Conversations } = {},
+  }: { failing?: boolean; open?: number; conversations?: Pick<Conversations, "conversation"> } = {},
 ) => {
   const revealed: string[] = []
-  const state = createStore<InboxState>({ ...emptyInbox, items })
+  const state = createStore<InboxState>({ ...emptyInbox, items: inboxRows })
   const sent: InboxAnswer[] = []
   const inbox: Inbox = {
     state,
@@ -201,7 +201,7 @@ const mount = (
       )
       field().dispatchEvent(new Event("input", { bubbles: true }))
     })
-  // The backend takes the answer: the item leaves.
+  // The backend takes the answer: the row leaves.
   const confirm = (id: string): void =>
     act(() => {
       state.update((current) => ({
@@ -255,7 +255,8 @@ describe("The Console sheet", () => {
         "Allow",
         "Yes, and don't ask again",
         "Deny",
-        "No, and tell Codex what to do differently",
+        "Deny, with your words",
+        "Go to terminal",
       ])
       expect(inbox.row("ask again").querySelector(".console-s")?.textContent).toBe(
         "for commands that start with pnpm add",
@@ -298,7 +299,7 @@ describe("The Console sheet", () => {
 
     it("turns the row for words into a box in place, and sends them with the option that takes them", async () => {
       const inbox = mount([permission(codex)])
-      inbox.press("tell Codex")
+      inbox.press("Deny, with your words")
       expect(document.activeElement).toBe(inbox.field())
       inbox.type("Use npm.")
       inbox.key("Enter", inbox.field())
@@ -314,7 +315,7 @@ describe("The Console sheet", () => {
 
     it("goes back to the rows on Esc in the box, keeping the words, and the sheet open", async () => {
       const inbox = mount([permission(codex)])
-      inbox.press("tell Codex")
+      inbox.press("Deny, with your words")
       inbox.type("Use npm.")
       inbox.key("Escape", inbox.field())
 
@@ -339,6 +340,12 @@ describe("The Console sheet", () => {
           { kind: "plan", agent: "claude" },
         ),
       ])
+      expect(inbox.rows().map((row) => row.querySelector(".console-t")?.textContent)).toEqual([
+        "Approve",
+        "Yes, and bypass permissions",
+        "Send it back, with your words",
+        "Go to terminal",
+      ])
       inbox.key("2", document.querySelector(".inbox-row-select")!)
       expect(inbox.sent).toEqual([])
       expect(inbox.row("bypass").dataset.armed).toBe("true")
@@ -360,7 +367,13 @@ describe("The Console sheet", () => {
 
       expect(text(".console-tag")).toBe("Plan")
       expect(text(".console-planbar")).toContain("plan")
-      inbox.press("Tell it what to change")
+      expect(inbox.rows().map((row) => row.querySelector(".console-t")?.textContent)).toEqual([
+        "Approve",
+        "Send it back",
+        "Send it back, with your words",
+        "Go to terminal",
+      ])
+      inbox.press("Send it back, with your words")
       inbox.type("/compact")
       expect(text(".console-own-hint")).toBe(
         "Antigravity can't take words that start with /, ? or !, or that have an @.",
@@ -389,7 +402,7 @@ describe("The Console sheet", () => {
   })
 
   context("after an answer has taken", () => {
-    it("opens the next item that needs the person, with a receipt naming the agent", async () => {
+    it("opens the next row that needs the person, with a receipt naming the agent", async () => {
       const inbox = mount([
         permission(codex, { id: "first", handle: "crow" }),
         asked({ type: "text" }, { id: "second", at: 5 }),
@@ -499,6 +512,16 @@ describe("The Console sheet", () => {
       inbox.key("2")
 
       expect(inbox.sent).toEqual([{ kind: "ask", answer: { type: "reply", option: 1, text: "" } }])
+      await inbox.done()
+    })
+
+    it("goes to the terminal on the first press, hard to undo or not, answering nothing", async () => {
+      const inbox = mount([asked(options, { hard: "It sets the schema." })])
+      const away = String(inbox.rows().length)
+      inbox.key(away, document.querySelector(".inbox-row-select")!)
+
+      expect(inbox.revealed).toEqual(["t-owl"])
+      expect(inbox.sent).toEqual([])
       await inbox.done()
     })
 
@@ -618,6 +641,28 @@ describe("The Console sheet", () => {
     const two = () =>
       questions(question("q1", ["A1", "B1", "C1"]), question("q2", ["A2", "B2", "C2"]))
 
+    it("goes to the terminal from any question, and Enter there goes even among several picks", async () => {
+      const inbox = mount([
+        questions(
+          question("q1", ["A1", "B1"]),
+          question("q2", ["A2", "B2"], { multiSelect: true }),
+        ),
+      ])
+      act(() => optionIn(0, "Go to terminal").click())
+      expect(inbox.revealed).toEqual(["t-moth"])
+
+      act(() => optionIn(1, "A2").click())
+      const away = optionIn(1, "Go to terminal")
+      expect(away.getAttribute("role")).toBe("menuitem")
+      expect(away.textContent).not.toContain("[ ]")
+      inbox.key("End", optionIn(1, "A2"))
+      expect(document.activeElement).toBe(away)
+      inbox.key("Enter")
+      expect(inbox.revealed).toEqual(["t-moth", "t-moth"])
+      expect(inbox.sent).toEqual([])
+      await inbox.done()
+    })
+
     it("sends the moment every question is answered, in whatever order, and never an unpicked row", async () => {
       const inbox = mount([two()])
       act(() => optionIn(1, "C2").click())
@@ -647,11 +692,15 @@ describe("The Console sheet", () => {
       act(() => optionIn(0, "B1").click())
 
       const rows = Array.from(menus()[0]!.querySelectorAll(".console-option"))
-      expect(rows.map((row) => row.getAttribute("role"))).toEqual(Array(3).fill("menuitemradio"))
+      expect(rows.map((row) => row.getAttribute("role"))).toEqual([
+        ...Array(3).fill("menuitemradio"),
+        "menuitem",
+      ])
       expect(rows.map((row) => row.getAttribute("aria-checked"))).toEqual([
         "false",
         "true",
         "false",
+        null,
       ])
       expect(optionIn(0, "B1").querySelector(".console-chosen")?.textContent).toContain("your pick")
       expect(optionIn(0, "A1").querySelector(".console-chosen")).toBeNull()
@@ -732,6 +781,26 @@ describe("The Console sheet", () => {
         expect(inbox.sent).toEqual([])
         await inbox.done()
       })
+
+      it("takes the person to the words that are too long, not past them to the terminal", async () => {
+        const inbox = mount([
+          questions(
+            question("q1", ["A1", "B1"], { multiSelect: true, text: true }),
+            question("q2", ["A2", "B2"]),
+          ),
+        ])
+        act(() => optionIn(0, "A1").click())
+        act(() => optionIn(0, "Reply in your own words").click())
+        inbox.type("x".repeat(5000))
+        inbox.key("Escape", inbox.field())
+        act(() => optionIn(1, "A2").click())
+
+        expect(document.activeElement?.textContent).toContain("xxx")
+        inbox.key("Enter")
+        expect(inbox.revealed).toEqual([])
+        expect(inbox.sent).toEqual([])
+        await inbox.done()
+      })
     })
   })
 
@@ -771,7 +840,7 @@ describe("The Console sheet", () => {
     })
   })
 
-  context("for an item that takes the place of one answered", () => {
+  context("for a row that takes the place of one answered", () => {
     it("shows as waiting, not as the old answer", async () => {
       const inbox = mount([
         permission(codex, { id: "a", handle: "crow", at: 0 }),
@@ -842,7 +911,7 @@ describe("The Console sheet", () => {
 
     it("is kept from the start and as the context fills in, so the menu never moves", async () => {
       const transcript = createStore<Conversation>(noConversation)
-      const conversations = { conversation: () => transcript } as unknown as Conversations
+      const conversations = { conversation: () => transcript }
       const inbox = mount([permission(codex)], { conversations })
       const kept = () => document.querySelector(".console-tail[data-reserved]") !== null
       expect(kept()).toBe(true)
@@ -927,7 +996,9 @@ describe("The Console sheet", () => {
       })
       const before = mount([limit(Date.now() + 3_600_000)])
       expect(text(".console-tag")).toBe("Limit")
-      expect(document.querySelector("[role=menu]")).toBeNull()
+      expect(before.rows().map((row) => row.querySelector(".console-t")?.textContent)).toEqual([
+        "Go to terminal",
+      ])
       expect(text(".console-body")).toContain("from here once it resets")
       await before.done()
 
@@ -1040,7 +1111,7 @@ describe("The Console sheet", () => {
     })
   })
 
-  context("for an answered item opened again", () => {
+  context("for an answered row opened again", () => {
     it("says what its answer did, stays on it, and lets j go past it", async () => {
       const inbox = mount(
         [
@@ -1159,7 +1230,7 @@ describe("The Console sheet", () => {
       await inbox.done()
     })
 
-    it("moves on from a newer item that took an answered one's id", async () => {
+    it("moves on from a newer row that took an answered one's id", async () => {
       const inbox = mount([
         permission(codex, { id: "a", handle: "crow", at: 0 }),
         permission(codex, { id: "b", handle: "fox", at: 1 }),

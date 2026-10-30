@@ -1,0 +1,24 @@
+/* The handle-chip recipe: a terminal's handle (HandleChip.tsx), in the quiet metadata voice
+   of a terminal's window on a soft chip tinted from its own ink, so it follows every skin and
+   window ground. It never wraps or shrinks: names truncate before it does. `.handle-plain`
+   drops the chip, as in a sidebar tab after its program or in its actions slot, for plain
+   muted text.
+
+   Tokens, each optional (its fallback in brackets):
+   --window-metadata-fg (muted), --window-metadata-font (glyphs): the handle's ink and font,
+   the window's own metadata voice. */
+.handle-chip {
+  flex-shrink: 0;
+  padding: 0 0.375rem;
+  border-radius: var(--radius-control, 4px);
+  background-color: color-mix(in srgb, currentColor 10%, transparent);
+  color: var(--window-metadata-fg, var(--color-muted));
+  font-family: var(--window-metadata-font, var(--font-glyphs));
+  font-size: var(--text-caption);
+  line-height: var(--text-caption--line-height);
+  white-space: nowrap;
+}
+.handle-chip.handle-plain {
+  padding: 0;
+  background: none;
+}

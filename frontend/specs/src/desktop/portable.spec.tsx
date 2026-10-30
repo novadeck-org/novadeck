@@ -317,7 +317,7 @@ describe("the sandbox chip on a portable copy", () => {
   })
 
   it("does not flash while the app has yet to say it is a portable copy", async () => {
-    await openWorkspace("/?portable=slow-host&sandbox=off")
+    await openWorkspace("/?portable=slow-app&sandbox=off")
     // Still waiting for the answer: no install chip yet, and no sandbox chip either.
     expect(install().query()).toBeNull()
     await expectStaysAbsent(sandbox(), { ms: 1000 })

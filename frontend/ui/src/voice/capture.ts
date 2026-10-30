@@ -18,7 +18,7 @@ export type CaptureHandlers = {
 }
 
 // What `startCapture` rejects with: a message for the person.
-export class CaptureError extends Error {}
+class CaptureError extends Error {}
 
 const chunkSamples = voiceSampleRate / 10
 

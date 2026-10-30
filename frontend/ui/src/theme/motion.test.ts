@@ -4,38 +4,11 @@
 // `background-position`, repaints on the main thread every frame. The check sees only a
 // literal `infinite`; a count held in a variable escapes it.
 
-import { readdirSync, readFileSync } from "node:fs"
-import { join } from "node:path"
-
 import { describe, expect, it } from "../test"
+import { read as readSource, sources } from "./sources.test-support"
 
-const src = join(process.cwd(), "src")
-// The UI's source is in several packages now: a file is named as it was below the old src/.
-const places = [
-  ["backend/demo/debug/", "demo-debug"],
-  ["backend/demo/", "demo"],
-  ["backend/terminal-views/", "terminal-views"],
-  ["backend/runner/", "runner-adapter"],
-  ["core/", "core"],
-  ["ui-toolkit/", "toolkit"],
-  ["terminals/companion/", "items"],
-  ["terminals/chat/", "chat"],
-].map(([prefix, name]) => ({ prefix: prefix!, dir: join(src, "..", "..", name!, "src") }))
-const stylesheets = [
-  ...(readdirSync(src, { recursive: true }) as string[]),
-  ...places.flatMap(({ prefix, dir }) =>
-    (readdirSync(dir, { recursive: true }) as string[]).map((file) => prefix + file),
-  ),
-]
-  .map((file) => file.split("\\").join("/"))
-  .filter((file) => file.endsWith(".css"))
-const read = (file: string): string => {
-  const place = places.find(({ prefix }) => file.startsWith(prefix))
-  return readFileSync(
-    place ? join(place.dir, file.slice(place.prefix.length)) : join(src, file),
-    "utf8",
-  ).replace(/\/\*[\s\S]*?\*\//g, "")
-}
+const stylesheets = sources.filter((file) => file.endsWith(".css"))
+const read = (file: string): string => readSource(file).replace(/\/\*[\s\S]*?\*\//g, "")
 
 const compositable = new Set(["transform", "translate", "rotate", "scale", "opacity", "filter"])
 
@@ -124,8 +97,8 @@ describe("animations that never end", () => {
       expect.arrayContaining([
         "styles.css",
         "theme/base.css",
-        "backend/terminal-views/terminal-xterm.css",
-        "backend/demo/debug/debug-panel.css",
+        "@novadeck/terminal-views/terminal-xterm.css",
+        "@novadeck/demo-debug/debug-panel.css",
       ]),
     )
   })

@@ -3,7 +3,7 @@ import { harnesses, type AgentName } from "@novadeck/core/harnesses"
 import { inboxType, type InboxRow, type InboxSource, type Trouble } from "@novadeck/core/inbox"
 import { unsaidWaits, waitsBehind } from "@novadeck/core/messages"
 
-// What the Inbox says about an item, in words: pure, so the rows and the sheet read the
+// What the Inbox says about a row, in words: pure, so the rows and the sheet read the
 // same sentences, and so their rules read apart from the markup.
 
 const minute = 60_000
@@ -100,85 +100,85 @@ const troubleSubject = (trouble: Trouble, source: InboxSource): string => {
 }
 
 // The row's subject, as the person reads it first: what is asked, or what happened.
-export const subjectOf = (item: InboxRow): string => {
-  switch (item.kind) {
+export const subjectOf = (row: InboxRow): string => {
+  switch (row.kind) {
     case "request":
-      return requestSubject(item.request)
+      return requestSubject(row.request)
     case "held":
-      return `Release a held message to ${item.held.to.title}?`
+      return `Release a held message to ${row.held.to.title}?`
     case "ask":
-      return item.ask.subject
+      return row.ask.subject
     case "trouble":
-      return troubleSubject(item.trouble, item.source)
+      return troubleSubject(row.trouble, row.source)
     case "update":
-      return item.update.subject
+      return row.update.subject
   }
 }
 
 const words = (text: string): number => text.split(/\s+/).filter(Boolean).length
 
-// What the person has to read, in words, for the "N min read" a long item carries.
-const readWords = (item: InboxRow): number => {
-  if (item.kind === "ask") {
-    const { shape } = item.ask
+// What the person has to read, in words, for the "N min read" a long row carries.
+const readWords = (row: InboxRow): number => {
+  if (row.kind === "ask") {
+    const { shape } = row.ask
     const options =
       shape.type === "options"
         ? shape.options.flatMap((option) => [option.label, option.summary ?? ""])
         : []
-    return words([item.ask.body, ...options].join(" "))
+    return words([row.ask.body, ...options].join(" "))
   }
-  if (item.kind === "update") return words(item.update.body)
+  if (row.kind === "update") return words(row.update.body)
   return 0
 }
 
-// "N min read" only where an item runs past about 120 words.
-export const readLabel = (item: InboxRow): string | null => {
-  const count = readWords(item)
+// "N min read" only where a row runs past about 120 words.
+export const readLabel = (row: InboxRow): string | null => {
+  const count = readWords(row)
   return count > 120 ? `${Math.max(1, Math.round(count / 120))} min read` : null
 }
 
 // Where an agent that Novadeck resumes picks up again.
-export const resumesLabel = (item: InboxRow): string | null =>
-  item.kind === "trouble" && item.trouble.type === "limit" && item.trouble.autoResume
-    ? `Resumes at ${clock(item.trouble.resetsAt)}`
+export const resumesLabel = (row: InboxRow): string | null =>
+  row.kind === "trouble" && row.trouble.type === "limit" && row.trouble.autoResume
+    ? `Resumes at ${clock(row.trouble.resetsAt)}`
     : null
 
 // The small line over a sheet's title: who wants what, in words a person would use.
-export const labelOf = (item: InboxRow): string => {
-  switch (item.kind) {
+export const labelOf = (row: InboxRow): string => {
+  switch (row.kind) {
     case "request": {
-      if (item.request.kind === "question") return "Asks you"
-      const action = actionOf(item.request)
+      if (row.request.kind === "question") return "Asks you"
+      const action = actionOf(row.request)
       if (action === "run") return "Wants to run a command"
       if (action === "edit") return "Wants to edit a file"
       if (action === "plan") return "Wants to go ahead with a plan"
-      return `Wants to use ${item.request.tool}`
+      return `Wants to use ${row.request.tool}`
     }
     case "held":
       return "Novadeck held a message"
     case "ask":
-      return item.ask.shape.type === "action" ? "Needs you" : "Asks you"
+      return row.ask.shape.type === "action" ? "Needs you" : "Asks you"
     case "trouble":
       return "Novadeck noticed"
     case "update":
-      return item.update.type === "done" ? "Done" : "Heads-up"
+      return row.update.type === "done" ? "Done" : "Heads-up"
   }
 }
 
 // Whether Novadeck itself speaks, which its sheets mark with its own glyph.
-export const fromNovadeck = (item: InboxRow): boolean =>
-  item.kind === "trouble" || item.kind === "held"
+export const fromNovadeck = (row: InboxRow): boolean =>
+  row.kind === "trouble" || row.kind === "held"
 
-// The tone of an item's mark, by how it asks for the person: trouble that stopped the
+// The tone of a row's mark, by how it asks for the person: trouble that stopped the
 // agent (urgent), anything that stopped it (waiting), anything else (quiet).
 export type Tone = "urgent" | "waiting" | "quiet"
-export const toneOf = (item: InboxRow): Tone => {
-  if (!item.stopped) return "quiet"
+export const toneOf = (row: InboxRow): Tone => {
+  if (!row.stopped) return "quiet"
   // A limit that waits for the person waits, as do messages held for an idle agent: neither
   // has failed.
   const waits =
-    item.kind === "trouble" && (item.trouble.type === "limit" || item.trouble.type === "waits")
-  return inboxType(item) === "trouble" && !waits ? "urgent" : "waiting"
+    row.kind === "trouble" && (row.trouble.type === "limit" || row.trouble.type === "waits")
+  return inboxType(row) === "trouble" && !waits ? "urgent" : "waiting"
 }
 
 // A permission's or plan's options, as the buttons the sheet offers. Allow is a plain yes;

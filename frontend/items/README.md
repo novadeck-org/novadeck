@@ -6,13 +6,14 @@ registry of kinds, the item view each kind draws, the store behind them (`ItemSt
 taskbar of the items on a bar, the peek over a slot, and the bar drag that carries a slot to a
 terminal, a view or out into a window.
 
-An item lives in a home, a place that shows it. There are two: the companion pane beside a
-terminal (`src/homes/terminal/`) and the window an item is undocked into
-(`src/homes/undocked/`). The kinds live in `src/kinds/<kind>/`, one folder each. The top of
-`src/` holds what more than one home will use: the kinds' registry, the item view and the
-store, the Markdown document (`src/document/`), and the bar, taskbar, peek and bar drag. Today
-only the terminal's home has a bar; they stay at the top for a home of the project's, which
-will have one too. What only the terminal's home uses is in its folder: the terminal's
+An item lives in a home, a place that shows it. There are three: the companion pane beside a
+terminal (`src/homes/terminal/`), the window an item is undocked into (`src/homes/undocked/`)
+and a session's project window, which the Source panel opens files in (`src/homes/project/`).
+The kinds live in `src/kinds/<kind>/`, one folder each. What more than one home will use sits
+outside `homes/`: the kinds' registry and the item view at the top of `src/`, the item store
+(`src/store/`), the Markdown document (`src/document/`), and the bar, taskbar, peek and bar
+drag (`src/bar/`). Today only the terminal's home has a bar; it stays outside for the project
+window, which will have one too. What only the terminal's home uses is in its folder: the terminal's
 messages (`homes/terminal/messages/`: the pane, its peek, the message hooks and `followMessages`,
 which puts messages on a terminal's bar), how the pane presents beside its terminal
 (`presentation.ts`), how it draws its bar (`drawing.tsx`) and the marks on the terminal's tab.
@@ -23,13 +24,13 @@ which puts messages on a terminal's bar), how the pane presents beside its termi
   `frontend/ui`, `frontend/runner-adapter` or any backend. Two checks in `scripts/workspace/graph.test.ts` hold this: the
   manifest edges (what it declares, and what those reach), and a source check that no relative
   import in a frontend package's `src` leaves that package's folder, so a path into the UI
-  can't bypass the manifest. The host (`frontend/ui`) composes it and passes in what it needs: the workspace's
+  can't bypass the manifest. The app (`frontend/ui`) composes it and passes in what it needs: the workspace's
   items and each terminal's bar (`TerminalCompanion`'s props), the commands that act on them,
   and the `ItemStore` it creates once, beside which it starts `followMessages`.
-- **A view reads state and never writes it.** `ItemStore` (`state.ts`) is the one place that loads
+- **A view reads state and never writes it.** `ItemStore` (`store/item-store.ts`) is the one place that loads
   content and writes plans, content and the revealed item; the views read it through
-  `use-item-store.ts`. The items and the bar are core's workspace store, and messages are core's
-  `Messages`. The host's part is `CompanionActions` (`actions.ts`): the named actions
+  `store/use-item-store.ts`. The items and the bar are core's workspace store, and messages are core's
+  `Messages`. The app's part is `CompanionActions` (`actions.ts`): the named actions
   (`undock`, `dock`, `place`, `closeItem`, `markSeen`, `openBarTab`, `closeBarPane`,
   `hideOnBar`, `moveBarSlot`) that `frontend/ui`'s `app/commands/companion.ts` implements and
   declares it `satisfies`.
@@ -39,8 +40,8 @@ which puts messages on a terminal's bar), how the pane presents beside its termi
   as it is. The chrome is the home's: in the terminal's, `CompanionPane`'s header, its
   actions, the "from another terminal" line and the states of what can't show. A registration
   never switches on another kind.
-- **A home draws its own bar.** The taskbar at the top draws what's on a bar through the
-  home's `BarDrawing` (`TaskbarSlot.tsx`): an item by its registration, and anything that is
+- **A home draws its own bar.** The taskbar (`bar/`) draws what's on a bar through the
+  home's `BarDrawing` (`bar/TaskbarSlot.tsx`): an item by its registration, and anything that is
   the home's own, as a terminal's messages, by the home (`homes/terminal/drawing.tsx`).
 - **What a kind means as data is core's** (`kindRules` in `core/src/items.ts`: what it
   points at, whether it is followed always or while shown, and whether closing hides or
@@ -49,8 +50,8 @@ which puts messages on a terminal's bar), how the pane presents beside its termi
   (`document/editor/MarkdownEditor.tsx`) loads through `lazy()`: as itself in
   `document/MarkdownDocument.tsx`, which a Markdown file's document view uses, and inside the
   plan's editor (`kinds/plan/plan-editor/PlanEditor.tsx`, from `kinds/plan/PlanTab.tsx`), which
-  adds the plan's notes to it as extensions. `state.ts` loads `@novadeck/viewers/sync` and
-  `./kinds/plan/plan-editor/notes` with `import()`. A change that imports them statically pulls
+  adds the plan's notes to it as extensions. `store/item-store.ts` loads `@novadeck/viewers/sync` and
+  `src/kinds/plan/plan-editor/notes` with `import()`. A change that imports them statically pulls
   the editor into every window and can break the try build's first-load budget; compare the
   builds' chunk lists when touching either. The graph test keeps static imports and re-exports of
   `@codemirror/*`, `@novadeck/viewers/markdown`, `@novadeck/viewers/sync` and either editor inside
@@ -60,15 +61,16 @@ which puts messages on a terminal's bar), how the pane presents beside its termi
   by item id (24 places per mount). The editor is the exception: `mountMarkdown` stays inside
   the lazily loaded `MarkdownEditor`, with its own store (12), shared by plans and by Markdown
   files' document view.
-- **The window's controls are the host's.** `TerminalCompanion` (`homes/terminal/`) declares the one callback it
+- **The window's controls are the app's.** `TerminalCompanion` (`homes/terminal/`) declares the one callback it
   gets from a window (`onReveal`) as its own type, so the package never imports `WindowShell`.
 
 ## Subpaths
 
-Only what the host imports: `./TerminalCompanion`, `./UndockedWindow` (the pane in its
-terminal, and an item in a window of its own), `./state` (`createItemStore`, `ItemStore`, the plan
-actions), `./bar` (`barMembers`, `composeBar`), `./messages` (`useHasMessages`, `useMessageBadge`,
-`followMessages`),
+Only what the app imports: `./TerminalCompanion` (and `AttachedContainer`, where Canvas hangs
+the attached pane), `./UndockedWindow`, `./ProjectWindow` (the pane in its terminal, an item in
+a window of its own, and a session's project window), `./store` (`createItemStore`, `ItemStore` and
+its plan actions), `./bar` (`barMembers`, `composeBar`), `./messages` (`useHasMessages`, `useMessageBadge`,
+`followMessages`, `MessageLinks`),
 `./TabKinds` (the kinds' marks on a terminal's tab), `./registry` (`iconOf`: whoever draws an
 item's icon), `./actions` (`CompanionActions`),
 `./drag-session` (`createDragSession`, `DragSessionContext`, `useDrag`, `useDragSession` and
@@ -134,7 +136,7 @@ export const registry = { image, file, page, changes, plan, audio } satisfies Re
 ```
 
 Something a home shows that is not an item, as a terminal's messages, has no data parts and no
-registration: it is the home's. Give it a member shape in `bar.ts` (`BarMember`, and
+registration: it is the home's. Give it a member shape in `bar/bar.ts` (`BarMember`, and
 `composeBar` and the key logic with it, plus `BarKey` in core's `items/companion-bar`), and have the
 home draw it: its `BarDrawing` for the taskbar (look, preview and badge) and its own body where
 the home shows what's on its bar, as the terminal's `drawing.tsx` does for the messages.

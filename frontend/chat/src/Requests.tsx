@@ -4,6 +4,7 @@ import { CircleHelp, ClipboardList, Loader, ShieldQuestion, type LucideIcon } fr
 import { useEffect, useRef, useState } from "react"
 
 import { RequestDialog } from "./RequestDialog"
+import { useMounted } from "./use-mounted"
 
 const kinds: Readonly<Record<ChatRequest["kind"], { title: string; Icon: LucideIcon }>> = {
   permission: { title: "Needs your permission", Icon: ShieldQuestion },
@@ -50,13 +51,7 @@ const Card = ({
   const { title, Icon } = kinds[request.kind]
   const [sending, setSending] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const mounted = useRef(true)
-  useEffect(() => {
-    mounted.current = true
-    return () => {
-      mounted.current = false
-    }
-  }, [])
+  const mounted = useMounted()
   // The request as it is now, for what happens a moment after an answer took.
   const latest = useRef(request)
   useEffect(() => {
@@ -64,9 +59,9 @@ const Card = ({
   })
   const settling = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
   useEffect(() => () => clearTimeout(settling.current), [])
-  // The dialog the notice of an identical request is about.
   // Counts the times the words were handed back to the box, which empties the card's field.
   const [handedBack, setHandedBack] = useState(0)
+  // The dialog the notice of an identical request is about.
   const [again, setAgain] = useState<string | null>(null)
   // Focus goes where the person's attention follows once an answer took: the answered line,
   // then the box when the card goes.

@@ -200,7 +200,7 @@ describe("switcher watch", () => {
   })
 })
 
-const updateHost = () => {
+const updateApp = () => {
   let report: ((offer: UpdateOffer) => void) | undefined
   const updates = {
     onOffer: (listener: (offer: UpdateOffer) => void) => {
@@ -231,7 +231,7 @@ const notes: WhatsNew = {
   highlights: [{ title: "Word handles", line: "Talk to @moth." }],
 }
 
-const whatsNewHost = (answer: Promise<WhatsNew | undefined>) => {
+const whatsNewApp = (answer: Promise<WhatsNew | undefined>) => {
   const calls = { dismissed: 0, pages: 0 }
   return {
     calls,
@@ -245,18 +245,18 @@ const whatsNewHost = (answer: Promise<WhatsNew | undefined>) => {
 
 describe("what's new", () => {
   it("is asked once and kept for the footer's card", async () => {
-    const { whatsNew } = whatsNewHost(Promise.resolve(notes))
+    const { whatsNew } = whatsNewApp(Promise.resolve(notes))
     const ui = createUiStore(initial())
     watchWhatsNew(whatsNew, ui)
     expect(ui.getSnapshot().whatsNew).toBeNull()
     await vi.waitFor(() => expect(ui.getSnapshot().whatsNew).toEqual(notes))
   })
 
-  it("stays empty when the host has nothing, fails, or is not there", async () => {
+  it("stays empty when the desktop app has nothing, fails, or is not there", async () => {
     const none = createUiStore(initial())
-    watchWhatsNew(whatsNewHost(Promise.resolve(undefined)).whatsNew, none)
+    watchWhatsNew(whatsNewApp(Promise.resolve(undefined)).whatsNew, none)
     const failing = createUiStore(initial())
-    watchWhatsNew(whatsNewHost(Promise.reject(new Error("no"))).whatsNew, failing)
+    watchWhatsNew(whatsNewApp(Promise.reject(new Error("no"))).whatsNew, failing)
     watchWhatsNew(undefined, createUiStore(initial()))()
     await Promise.resolve()
     await Promise.resolve()
@@ -266,14 +266,14 @@ describe("what's new", () => {
 
   it("ignores an answer that comes after the page stopped asking", async () => {
     const ui = createUiStore(initial())
-    watchWhatsNew(whatsNewHost(Promise.resolve(notes)).whatsNew, ui)()
+    watchWhatsNew(whatsNewApp(Promise.resolve(notes)).whatsNew, ui)()
     await Promise.resolve()
     await Promise.resolve()
     expect(ui.getSnapshot().whatsNew).toBeNull()
   })
 
-  it("is dismissed to the host once, and the card goes", () => {
-    const { whatsNew, calls } = whatsNewHost(Promise.resolve(notes))
+  it("is dismissed to the desktop app once, and the card goes", () => {
+    const { whatsNew, calls } = whatsNewApp(Promise.resolve(notes))
     const ui = createUiStore({ ...initial(), whatsNew: notes })
     dismissWhatsNew(whatsNew, ui)
     expect(ui.getSnapshot().whatsNew).toBeNull()
@@ -283,7 +283,7 @@ describe("what's new", () => {
 
 describe("a waiting update", () => {
   it("is kept as the offer the backend reports, a newer one replacing it", () => {
-    const { updates, report, listening } = updateHost()
+    const { updates, report, listening } = updateApp()
     const ui = createUiStore(initial())
     const stop = watchUpdates(updates, ui)
     expect(ui.getSnapshot().update).toBeNull()
@@ -296,7 +296,7 @@ describe("a waiting update", () => {
   })
 
   it("raises no notice on a copy that updates itself, whatever it is offered", async () => {
-    const { updates, report } = updateHost()
+    const { updates, report } = updateApp()
     const ui = createUiStore(initial())
     watchUpdates(updates, ui)
     expect(ui.getSnapshot().portable).toBeNull()
@@ -410,7 +410,7 @@ describe("a portable copy", () => {
     install: { phase: "idle" },
   } as const satisfies PortableState
   const done = { ...here, install: { phase: "installed" } } as const satisfies PortableState
-  const host = (state: PortableState = here) => ({
+  const portableApp = (state: PortableState = here) => ({
     state: () => Promise.resolve(state),
     onState: () => () => {},
     install: () => {},
@@ -422,7 +422,7 @@ describe("a portable copy", () => {
     let asked = 0
     watchPortable(
       {
-        ...host(),
+        ...portableApp(),
         state: () => {
           asked += 1
           return Promise.resolve(here)
@@ -439,30 +439,30 @@ describe("a portable copy", () => {
     const ui = createUiStore(initial())
     watchPortable(undefined, ui)()
     expect(ui.getSnapshot().portable).toBeNull()
-    watchPortable({ ...host(), state: () => Promise.reject(new Error("no")) }, ui)
+    watchPortable({ ...portableApp(), state: () => Promise.reject(new Error("no")) }, ui)
     await vi.waitFor(() => expect(ui.getSnapshot().portable).toEqual({ portable: false }))
   })
 
-  it("raises its card once the host says it is portable, with no release known", async () => {
+  it("raises its card once the desktop app says it is portable, with no release known", async () => {
     const ui = createUiStore(initial())
-    watchPortable(host(), ui)
+    watchPortable(portableApp(), ui)
     await vi.waitFor(() => expect(ui.getSnapshot().portableCardOpen).toBe(true))
   })
 
   it("raises its card for a release, whichever is heard first", async () => {
-    // The offer first: nothing opens until the host says this is a portable copy.
-    const first = updateHost()
+    // The offer first: nothing opens until the desktop app says this is a portable copy.
+    const first = updateApp()
     const early = createUiStore(initial())
     watchUpdates(first.updates, early)
     first.report(available)
     expect(early.getSnapshot().portableCardOpen).toBe(false)
-    watchPortable(host(), early)
+    watchPortable(portableApp(), early)
     await vi.waitFor(() => expect(early.getSnapshot().portableCardOpen).toBe(true))
     // The answer first, in another run.
     clearPortableCardRaised()
-    const second = updateHost()
+    const second = updateApp()
     const late = createUiStore(initial())
-    watchPortable(host(), late)
+    watchPortable(portableApp(), late)
     await vi.waitFor(() => expect(late.getSnapshot().portable).toEqual(here))
     late.update((state) => ({ ...state, portableCardOpen: false }))
     watchUpdates(second.updates, late)
@@ -472,18 +472,18 @@ describe("a portable copy", () => {
 
   it("raises nothing when this run installed the app already", async () => {
     const ui = createUiStore(initial())
-    watchPortable(host(done), ui)
+    watchPortable(portableApp(done), ui)
     await vi.waitFor(() => expect(ui.getSnapshot().portable).toEqual(done))
     expect(ui.getSnapshot().portableCardOpen).toBe(false)
   })
 
-  it("takes a state the host pushes, which wins over an answer that comes after it", async () => {
+  it("takes a state the desktop app pushes, which wins over an answer that comes after it", async () => {
     const ui = createUiStore(initial())
     let push: (state: PortableState) => void = () => {}
     let answer: (state: PortableState) => void = () => {}
     watchPortable(
       {
-        ...host(),
+        ...portableApp(),
         state: () => new Promise((resolve) => (answer = resolve)),
         onState: (listener) => {
           push = listener
@@ -500,19 +500,19 @@ describe("a portable copy", () => {
   })
 
   it("raises nothing when the answer is that it is not a portable copy", async () => {
-    const { updates, report } = updateHost()
+    const { updates, report } = updateApp()
     const ui = createUiStore(initial())
     watchUpdates(updates, ui)
     report(available)
-    watchPortable(host({ portable: false }), ui)
+    watchPortable(portableApp({ portable: false }), ui)
     await vi.waitFor(() => expect(ui.getSnapshot().portable).toEqual({ portable: false }))
     expect(ui.getSnapshot().portableCardOpen).toBe(false)
   })
 
   it("does not raise its card again for a later offer once it was shown this run", async () => {
-    const { updates, report } = updateHost()
+    const { updates, report } = updateApp()
     const ui = createUiStore(initial())
-    watchPortable(host(), ui)
+    watchPortable(portableApp(), ui)
     watchUpdates(updates, ui)
     await vi.waitFor(() => expect(ui.getSnapshot().portableCardOpen).toBe(true))
     // Shown, then dismissed.
@@ -526,10 +526,10 @@ describe("a portable copy", () => {
   context(
     "in a store made anew within the run, as a page reload or a window opened again does",
     () => {
-      // A store as a launch makes one, once the host has said.
+      // A store as a launch makes one, once the desktop app has said.
       const launch = async (run: string = here.run): Promise<boolean> => {
         const ui = createUiStore(initial())
-        watchPortable(host({ ...here, run }), ui)
+        watchPortable(portableApp({ ...here, run }), ui)
         await vi.waitFor(() => expect(ui.getSnapshot().portable).toEqual({ ...here, run }))
         return ui.getSnapshot().portableCardOpen
       }

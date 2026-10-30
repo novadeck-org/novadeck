@@ -4,7 +4,7 @@ import { workspaceFromSeed } from "@novadeck/core/seed"
 import { createWorkspaceStore } from "@novadeck/core/store"
 import { createDragSession, DragSessionContext } from "@novadeck/items/drag-session"
 import { followMessages } from "@novadeck/items/messages"
-import { createItemStore } from "@novadeck/items/state"
+import { createItemStore } from "@novadeck/items/store"
 import { createRef, useEffect, useState, type ReactNode } from "react"
 import { useLocation, useNavigate, useNavigationType, type Location } from "react-router"
 

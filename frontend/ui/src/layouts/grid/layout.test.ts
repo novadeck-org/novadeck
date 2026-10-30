@@ -1,3 +1,4 @@
+import { gridColumns } from "@novadeck/core/layout/grid-placement"
 import type { GridLayouts, TerminalMetadata } from "@novadeck/core/types"
 import { describe, expect, it } from "vitest"
 
@@ -5,7 +6,6 @@ import {
   dropLayout,
   dropPlaceholder,
   savedGridLayouts,
-  gridColumns,
   toggleGridWidth,
   visibleGridLayouts,
 } from "./layout"

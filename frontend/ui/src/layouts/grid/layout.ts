@@ -1,5 +1,5 @@
 import { gridColumns } from "@novadeck/core/layout/grid-placement"
-import { gridPresetWidth } from "@novadeck/core/layout/terminal-size"
+import { gridPresetWidth, gridTileHeight } from "@novadeck/core/layout/terminal-size"
 import type { GridCell } from "@novadeck/core/layout/window-place"
 import type {
   GridBreakpoint,
@@ -9,9 +9,15 @@ import type {
   Placed,
 } from "@novadeck/core/types"
 import { verticalCompactor } from "react-grid-layout"
-export { gridColumns } from "@novadeck/core/layout/grid-placement"
 
-const defaultHeight = (): number => Math.ceil((400 + 16) / 24)
+// The grid's rows and the space between windows, in pixels: a row is its height and the
+// margin below it.
+export const gridRowHeight = 8
+export const gridMargin = 16
+export const gridRow = gridRowHeight + gridMargin
+
+// A new tile's height in rows.
+const defaultHeight = Math.ceil((gridTileHeight + gridMargin) / gridRow)
 
 export const visibleGridLayouts = (
   // The windows it lays out, by id.
@@ -33,7 +39,7 @@ export const visibleGridLayouts = (
               x: (index % (gridColumns[breakpoint] / 4)) * 4,
               y: bottom + Math.floor(index / (gridColumns[breakpoint] / 4)) * 100,
               w: 4,
-              h: defaultHeight(),
+              h: defaultHeight,
               minW: 4,
               minH: 10,
             }

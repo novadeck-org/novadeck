@@ -51,7 +51,7 @@
   --color-selection: #ccd6d0;
   --color-shadow: rgb(24 24 22);
   /* Tones: soft tints, each with a dark text colour of the same hue (every pair meets
-     WCAG AA). Notes the user leaves for an agent are a warm tint apart from the greys
+     WCAG AA). Notes the person leaves for an agent are a warm tint apart from the greys
      and from the warning amber that marks what an agent changed. */
   --color-success: #d7e6d8;
   --color-success-fg: #24593a;

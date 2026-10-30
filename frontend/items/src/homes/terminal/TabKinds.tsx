@@ -1,4 +1,4 @@
-import { isNew, type BarSlot } from "../../bar"
+import { isNew, type BarSlot } from "../../bar/bar"
 import { slotIcon } from "./drawing"
 
 // What a terminal's companion bar holds, on its sidebar tab's name line: an icon for each

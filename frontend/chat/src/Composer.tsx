@@ -11,8 +11,10 @@ import { Tooltip } from "@novadeck/toolkit/Tooltip"
 import { ArrowUp, Square, X } from "lucide-react"
 import { useEffect, useId, useLayoutEffect, useRef, useState } from "react"
 
+import type { ComposerMode } from "./composer-mode"
 import { Hint } from "./Hint"
-import type { ComposerMode } from "./mode-state"
+import { submitOnEnter } from "./submit-on-enter"
+import { useMounted } from "./use-mounted"
 
 // The most a reply to the agent's question carries.
 const replyMax = 16_384
@@ -45,7 +47,7 @@ export const Composer = ({
   onInputFocused,
   onCancelReply,
   onOpenTerminal,
-  refused: refusedText,
+  refused: refuses,
 }: {
   // The agent it writes to, for the box's name.
   readonly label: string
@@ -73,13 +75,7 @@ export const Composer = ({
   const input = useRef<HTMLTextAreaElement>(null)
   const [stopping, setStopping] = useState(false)
   const [error, setError] = useState<Failure | null>(null)
-  const mounted = useRef(true)
-  useEffect(() => {
-    mounted.current = true
-    return () => {
-      mounted.current = false
-    }
-  }, [])
+  const mounted = useMounted()
   useEffect(() => {
     if (!focusInput || !input.current) return
     input.current.focus({ preventScroll: true })
@@ -96,15 +92,14 @@ export const Composer = ({
   // Sending answers the agent's question with the words, until the person cancels.
   const replying = mode === "reply" || mode === "waiting"
   // The question a reply was written for went: the words wait for an edit before they go.
-  const orphaned = mode === "held"
+  const held = mode === "held"
   // The agent's field takes what a prompt can't start with; only control characters stop it.
   const long = replying && oneLine(draft).trim().length > replyMax
   const refused =
-    orphaned ||
-    (replying ? hasControlCharacters(draft) || long : refusedText(draft, { shell: true }))
+    held || (replying ? hasControlCharacters(draft) || long : refuses(draft, { shell: true }))
   const command = mode === "shell" ? shellCommand(draft) : undefined
   // A `!` still waiting for its command: nothing to send yet, nothing to warn about either.
-  const waiting = command === ""
+  const awaitingCommand = command === ""
   const send = (): void => {
     const text = draft.trim()
     // The draft is judged as the hint judges it, so Enter refuses what Send does.
@@ -164,7 +159,7 @@ export const Composer = ({
           </button>
         </p>
       )}
-      {orphaned && (
+      {held && (
         <p className="chat-reply" id={note}>
           <span>
             {label}'s question went, so this is no longer a reply. Edit it to send it as a message.
@@ -180,7 +175,7 @@ export const Composer = ({
         id={hint}
         className="chat-error"
         text={
-          refused && !waiting && !orphaned
+          refused && !awaitingCommand && !held
             ? replying
               ? long
                 ? "A reply takes at most 16,384 characters."
@@ -199,7 +194,7 @@ export const Composer = ({
           rows={1}
           value={draft}
           aria-describedby={
-            replying || orphaned
+            replying || held
               ? `${note} ${hint}`
               : command !== undefined
                 ? `${shellNote} ${hint}`
@@ -212,18 +207,8 @@ export const Composer = ({
             onDraft(event.target.value)
             if (error) setError(null)
           }}
-          onKeyDown={(event) => {
-            if (event.key !== "Enter" || event.nativeEvent.isComposing) return
-            if (event.shiftKey) {
-              // The agent's field takes one line.
-              if (replying) event.preventDefault()
-              return
-            }
-            // A modified Enter belongs to the workspace's shortcuts.
-            if (event.ctrlKey || event.metaKey || event.altKey) return
-            event.preventDefault()
-            send()
-          }}
+          // The agent's field takes one line.
+          onKeyDown={submitOnEnter(send, replying)}
         />
         <div className="chat-composer-actions">
           {working && (

@@ -3,7 +3,8 @@ import { tmpdir } from "node:os"
 import { join } from "node:path"
 
 import type { HarnessEvent } from "@novadeck/harness-core/events"
-import { doorbellLine, type UserEntry } from "@novadeck/harness-core/harness"
+import type { UserEntry } from "@novadeck/harness-core/harness"
+import { doorbellLine } from "@novadeck/harness-core/prompts"
 
 import { describe, expect, it } from "../test.js"
 import { harnesses } from "./registry.js"

@@ -54,7 +54,7 @@ const clock = (seconds: number): string =>
     .join(":")
 
 // The dev server's `index`th hot update, as its log prints it.
-export const hotUpdateBlock = (index: number): Block =>
+const hotUpdateBlock = (index: number): Block =>
   lines([
     span(
       `${clock(9 * 3600 + 42 * 60 + 16 + (index < 2 ? index * 2 : 2 + (index - 1) * hotUpdateGapS))} [vite] hmr update ${hotUpdates[index % hotUpdates.length]!}`,
@@ -89,7 +89,7 @@ const waiting: Line[] = [
 
 // The watching tests' screen: the first run, or the rerun after `beats` changes, which
 // clears the screen as Vitest's watch mode does.
-export const testsBlock = (directory: string, beats: number): Block => {
+const testsBlock = (directory: string, beats: number): Block => {
   if (beats === 0)
     return lines(
       typed("pnpm test --watch"),

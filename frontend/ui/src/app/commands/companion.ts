@@ -18,7 +18,7 @@ import type { CommandContext } from "./context"
 // package declares the actions, and these commands implement them.
 export type CompanionCommands = CompanionActions
 
-export type CompanionDependencies = {
+type CompanionDependencies = {
   readonly select: (id: string) => void
   readonly setSelected: (id: string) => void
   readonly markCreated: (created: { readonly context: string; readonly id: string }) => void

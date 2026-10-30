@@ -1,3 +1,4 @@
+import type { AgentContext } from "@novadeck/core/agents/steps"
 import {
   noConversation,
   type ChatItem,
@@ -5,19 +6,14 @@ import {
   type Conversations,
 } from "@novadeck/core/conversation"
 import type { InboxRow } from "@novadeck/core/inbox"
-import {
-  noMessages,
-  type MessageParty,
-  type Messages,
-  type MessagesState,
-} from "@novadeck/core/messages"
+import { noMessages, type MessageParty, type MessagesState } from "@novadeck/core/messages"
 import { createStore, type MutableStore } from "@novadeck/core/store"
 import { terminalKeyPath } from "@novadeck/core/types"
 import { render } from "@novadeck/test-kit/render"
 import { act, createElement } from "react"
 
 import { describe, expect, it } from "../test"
-import { AgentContextProvider, useAgentContext, type AgentContext } from "./agent-context"
+import { AgentContextProvider, useAgentContext } from "./agent-context"
 
 const agent = (handle: string): MessageParty => ({ kind: "agent", handle, agent: null })
 
@@ -70,7 +66,7 @@ const transcript: readonly ChatItem[] = [
   item({ role: "tool", kind: "tool-result", call: "c", at: 12, text: "Tests  48 passed (48)" }),
 ]
 
-// A backend's conversation of the item's terminal, counting who follows it, and its messages.
+// A backend's conversation of the row's terminal, counting who follows it, and its messages.
 const backend = () => {
   const conversation = createStore<Conversation>(noConversation)
   let following = 0
@@ -86,7 +82,7 @@ const backend = () => {
         }
       },
     }),
-  } as unknown as Conversations
+  } satisfies Pick<Conversations, "conversation">
   const messages: MutableStore<MessagesState> = createStore<MessagesState>({
     ...noMessages,
     terminals: {
@@ -135,12 +131,12 @@ const backend = () => {
   return {
     conversation,
     conversations,
-    messages: { state: messages } as unknown as Messages,
+    messages: { state: messages },
     following: () => following,
   }
 }
 
-// What the hook gives for the item, each time it renders.
+// What the hook gives for the row, each time it renders.
 const mount = (sources: Omit<Parameters<typeof AgentContextProvider>[0], "children"> | null) => {
   const seen: (AgentContext | undefined)[] = []
   const Probe = () => {
@@ -154,7 +150,7 @@ const mount = (sources: Omit<Parameters<typeof AgentContextProvider>[0], "childr
   }
 }
 
-describe("an Inbox item's agent context", () => {
+describe("an Inbox row's agent context", () => {
   it("is none outside the app, with no backend to read it from", () => {
     const { seen, unmount } = mount(null)
     expect(seen.at(-1)).toBeUndefined()
@@ -181,7 +177,7 @@ describe("an Inbox item's agent context", () => {
     unmount()
   })
 
-  it("follows the conversation only while the sheet shows the item", () => {
+  it("follows the conversation only while the sheet shows the row", () => {
     const { conversations, messages, following } = backend()
     const { unmount } = mount({ conversations, messages })
     expect(following()).toBe(1)

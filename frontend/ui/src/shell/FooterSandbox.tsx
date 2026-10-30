@@ -71,7 +71,7 @@ export const FooterSandbox = ({
   sandbox,
   hidden,
 }: {
-  // Undefined while the app is sandboxed, or the host does not say.
+  // Undefined while the app is sandboxed, or the desktop app does not say.
   readonly sandbox: FooterSandboxProps | undefined
   readonly hidden: boolean
 }): React.JSX.Element | null => {

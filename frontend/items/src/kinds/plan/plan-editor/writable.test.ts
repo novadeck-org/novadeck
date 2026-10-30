@@ -7,7 +7,7 @@ import { render } from "@novadeck/test-kit/render"
 import { act, createElement } from "react"
 import { afterEach, vi } from "vitest"
 
-import { createItemStore } from "../../../state"
+import { createItemStore } from "../../../store/item-store"
 import { describe, expect, it } from "../../../test"
 import { PlanTab } from "../PlanTab"
 
@@ -27,7 +27,7 @@ const ready = (text: string, writable = true, stamp = "1"): ItemContent => ({
   content: { kind: "plan", text, truncated: false, writable, skill: true },
 })
 
-// A plan in the companion that the test gives the content of, which nothing can save.
+// A plan in the pane that the test gives the content of, which nothing can save.
 const shown = async () => {
   let emit: (content: ItemContent) => void = () => {}
   const companions: Companions = {
@@ -72,7 +72,7 @@ describe("a plan that stops being writable, and is again", () => {
 
     await emit(ready("Mine # Plan\n", false, "2"))
     expect(container.querySelector(".cm-editor")).toBe(editor)
-    expect(container.querySelector(".plan-editor")?.hasAttribute("data-readonly")).toBe(true)
+    expect(container.querySelector(".document-editor")?.hasAttribute("data-readonly")).toBe(true)
     expect(view.state.readOnly).toBe(true)
 
     await emit(ready("Mine # Plan\n", true, "3"))

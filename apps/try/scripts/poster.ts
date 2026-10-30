@@ -6,12 +6,12 @@ import { extname, join, normalize, resolve, sep } from "node:path"
 import { chromium, type Browser, type Page } from "playwright"
 
 // `pnpm poster:try [dir]`: writes `poster-<scheme>-<width>.webp` into a built visitor demo
-// (`dist` unless a directory is given), for light and dark and for 1280 and 2560
-// pixels wide: screenshots of the demo held at its first frames (`?embed&still`: Claude Code just begun reading),
-// where the live app picks up. Each width is captured at its own pixel
-// density rather than scaled down, so the text is drawn for that size. The website shows
-// them while the live demo loads, so the Try workflow makes them from the very build it
-// deploys. Needs the build and Playwright's Chromium (`playwright install chromium`).
+// (`dist` unless a directory is given), for light and dark and for 1280 and 2560 pixels wide:
+// screenshots of the demo held at its first frames (`?embed&still`: Claude Code has just begun
+// reading), where the live app picks up. Each width is captured at its own pixel density
+// rather than scaled down, so the text is drawn for that size. The website shows them while
+// the live demo loads, so the Try workflow makes them from the very build it deploys. Needs
+// the build and Playwright's Chromium (`playwright install chromium`).
 
 // Opens the demo held at its first frames, and waits until it has booted and Claude Code's
 // terminal has drawn its opening.
@@ -42,7 +42,7 @@ const quality = 0.9
 const bootTimeoutMs = 30_000
 // How long the demo may take, held still, from the address to Claude Code's terminal drawn,
 // on a CPU four times slower than the machine's: the website gives up waiting at 15 s.
-export const bootBudgetMs = 8000
+const bootBudgetMs = 8000
 const throttle = 4
 const samples = 3
 
@@ -192,7 +192,7 @@ const timeBoot = async (browser: Browser, origin: string): Promise<void> => {
     throw new Error(`The demo booted in ${median} ms, over its ${bootBudgetMs} ms budget`)
 }
 
-export const main = async (directory = "dist"): Promise<void> => {
+const main = async (directory = "dist"): Promise<void> => {
   const root = resolve(directory)
   const { origin, stop } = await serve(root)
   // The server stops on any failure, a browser that won't launch included, so the
@@ -215,11 +215,9 @@ export const main = async (directory = "dist"): Promise<void> => {
   }
 }
 
-if (import.meta.main) {
-  try {
-    await main(process.argv[2])
-  } catch (error) {
-    console.error(error)
-    process.exitCode = 1
-  }
+try {
+  await main(process.argv[2])
+} catch (error) {
+  console.error(error)
+  process.exitCode = 1
 }

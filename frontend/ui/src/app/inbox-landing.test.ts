@@ -10,7 +10,7 @@ import { appearance, workspaceFixture } from "@novadeck/core/testing"
 import { afterEach, beforeEach, vi } from "vitest"
 
 import { context, describe, expect, it } from "../test"
-import { decideItem, landInbox, readDwellMs, type ItemFacts } from "./inbox-landing"
+import { decideRow, landInbox, readDwellMs, type RowFacts } from "./inbox-landing"
 import { followNeeds } from "./inbox-pings"
 import { createUiStore, initialUi } from "./ui-store"
 
@@ -122,12 +122,12 @@ const setup = (initiallyWide = true) => {
     select: (terminalId: string) =>
       workspace.dispatch({ type: "terminal/select", target, terminalId }),
     focus: (pageFocused: boolean) => void ui.update((current) => ({ ...current, pageFocused })),
-    ids: () => inbox.state.getSnapshot().items.map((item) => item.id),
+    ids: () => inbox.state.getSnapshot().items.map((row) => row.id),
   }
 }
 
 describe("the landing rule", () => {
-  context("an item opened by its id", () => {
+  context("a row opened by its id", () => {
     it("lands even while its terminal is viewed, and stays after they look away", () => {
       const { set, select, reveal, ids, stop } = setup()
       set([ask("a", "01"), ask("b", "01")])
@@ -139,7 +139,7 @@ describe("the landing rule", () => {
       stop()
     })
 
-    it("does nothing for an item that is not there", () => {
+    it("does nothing for a row that is not there", () => {
       const { set, reveal, ids, stop } = setup()
       set([ask("a", "01")])
       reveal("gone")
@@ -148,7 +148,7 @@ describe("the landing rule", () => {
     })
   })
 
-  context("an item of the terminal being viewed", () => {
+  context("a row of the terminal being viewed", () => {
     it("doesn't land while the person looks, and lands when they select another terminal", () => {
       const { set, select, ids, stop } = setup()
       set([ask("a", "01"), ask("b", "02")])
@@ -244,7 +244,7 @@ describe("the landing rule", () => {
       stop()
     })
 
-    it("lands as any item does if it arrived while they looked elsewhere", () => {
+    it("lands as any row does if it arrived while they looked elsewhere", () => {
       const { set, ids, answers, stop } = setup()
       set([done("d", "02")])
       expect(ids()).toEqual(["d"])
@@ -264,7 +264,7 @@ describe("the landing rule", () => {
       stop()
     })
 
-    it("is landed, not read, by an item opened by its id during the dwell", () => {
+    it("is landed, not read, by a row opened by its id during the dwell", () => {
       const { set, reveal, ids, answers, stop } = setup()
       set([done("d", "01")])
       vi.advanceTimersByTime(readDwellMs / 2)
@@ -300,7 +300,7 @@ describe("the landing rule", () => {
     })
   })
 
-  context("an item that arrived while its terminal was viewed", () => {
+  context("a row that arrived while its terminal was viewed", () => {
     beforeEach(() => void vi.useFakeTimers())
     afterEach(() => void vi.useRealTimers())
 
@@ -329,7 +329,7 @@ describe("the landing rule", () => {
     })
   })
 
-  context("what rings for the items that land", () => {
+  context("what rings for the rows that land", () => {
     beforeEach(() => void vi.useFakeTimers())
     afterEach(() => void vi.useRealTimers())
 
@@ -338,7 +338,7 @@ describe("the landing rule", () => {
       const rung: string[] = []
       const unfollow = followNeeds(made.inbox, {
         graceMs: 100,
-        ring: (item) => rung.push(item.id) > 0,
+        ring: (row) => rung.push(row.id) > 0,
         leave: () => {},
       })
       return { ...made, rung, unfollow }
@@ -372,7 +372,7 @@ describe("the landing rule", () => {
   })
 
   context("a landed row", () => {
-    it("stays landed when its item is re-keyed while its terminal is viewed", () => {
+    it("stays landed when its row is re-keyed while its terminal is viewed", () => {
       const { set, select, ids, stop } = setup()
       set([ask("a", "02")])
       expect(ids()).toEqual(["a"])
@@ -413,7 +413,7 @@ describe("the landing rule", () => {
     })
   })
 
-  context("an item opened by its id while its read is in flight", () => {
+  context("a row opened by its id while its read is in flight", () => {
     beforeEach(() => void vi.useFakeTimers())
     afterEach(() => void vi.useRealTimers())
 
@@ -481,8 +481,8 @@ describe("the landing's start and stop", () => {
   })
 })
 
-describe("deciding one item", () => {
-  const facts: ItemFacts = {
+describe("deciding one row", () => {
+  const facts: RowFacts = {
     kind: "ask",
     here: true,
     landed: false,
@@ -491,29 +491,29 @@ describe("deciding one item", () => {
     ripe: false,
   }
 
-  it("holds an unlanded item of the viewed terminal while it waits out the dwell", () => {
-    expect(decideItem(facts)).toEqual({ act: "dwell", hold: true })
+  it("holds an unlanded row of the viewed terminal while it waits out the dwell", () => {
+    expect(decideRow(facts)).toEqual({ act: "dwell", hold: true })
   })
 
   it("keeps holding it once ripe, now to land quietly when they look away", () => {
-    expect(decideItem({ ...facts, ripe: true })).toEqual({ act: "quiet", hold: true })
+    expect(decideRow({ ...facts, ripe: true })).toEqual({ act: "quiet", hold: true })
   })
 
   it("reads an update seen for the dwell, landed or not", () => {
-    expect(decideItem({ ...facts, kind: "update", ripe: true }).act).toBe("read")
-    expect(decideItem({ ...facts, kind: "update", landed: true, ripe: true }).act).toBe("read")
+    expect(decideRow({ ...facts, kind: "update", ripe: true }).act).toBe("read")
+    expect(decideRow({ ...facts, kind: "update", landed: true, ripe: true }).act).toBe("read")
   })
 
-  it("lands an item of a terminal not viewed", () => {
-    expect(decideItem({ ...facts, here: false })).toEqual({ act: "none", hold: false })
+  it("lands a row of a terminal not viewed", () => {
+    expect(decideRow({ ...facts, here: false })).toEqual({ act: "none", hold: false })
   })
 
-  it("does not hold a landed item, nor one kept by the person's asking", () => {
-    expect(decideItem({ ...facts, landed: true }).hold).toBe(false)
-    expect(decideItem({ ...facts, kept: true, landed: true }).act).toBe("none")
+  it("does not hold a landed row, nor one kept by the person's asking", () => {
+    expect(decideRow({ ...facts, landed: true }).hold).toBe(false)
+    expect(decideRow({ ...facts, kept: true, landed: true }).act).toBe("none")
   })
 
   it("waits no more on one that already landed quietly", () => {
-    expect(decideItem({ ...facts, quiet: true })).toEqual({ act: "none", hold: true })
+    expect(decideRow({ ...facts, quiet: true })).toEqual({ act: "none", hold: true })
   })
 })

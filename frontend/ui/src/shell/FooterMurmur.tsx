@@ -11,7 +11,7 @@ import {
   installPercent,
   stepText,
   type FooterPhase,
-} from "./murmur-footer"
+} from "./footer-murmur"
 import { KeepFocus, useOverlayOpen } from "./notice-focus"
 
 export type FooterMurmurProps = {

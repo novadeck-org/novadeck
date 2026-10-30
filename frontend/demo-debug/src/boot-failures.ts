@@ -1,7 +1,7 @@
 import type { ConnectFailure } from "@novadeck/core/port"
 
 // What the demo fails a boot with, one for each kind of failure, in the words and codes
-// the runner adapter gives it (`connectFailure` in backend/runner).
+// the runner adapter gives it (`connectFailure` in @novadeck/runner-adapter).
 export const bootFailures: readonly ConnectFailure[] = [
   {
     kind: "transient",

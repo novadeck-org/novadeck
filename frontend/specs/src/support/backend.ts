@@ -7,23 +7,24 @@ import {
   createDemoPortable,
   type DemoPortable,
   type PortableSchedule,
-} from "@novadeck/demo-debug/portable"
-import { createDemoSandbox, sampleFix } from "@novadeck/demo-debug/sandbox"
+} from "@novadeck/demo-debug/desktop/portable"
+import { createDemoSandbox, sampleFix } from "@novadeck/demo-debug/desktop/sandbox"
 import {
   portableScenarios,
   updateScenarios,
   type PortableScenarioKey,
   type UpdateScenario,
   type UpdateScenarioKey,
-} from "@novadeck/demo-debug/scenarios"
-import { createDemoUninstall, uninstallScenarios } from "@novadeck/demo-debug/uninstall"
-import { createDemoUpdates } from "@novadeck/demo-debug/updates"
-import { babciaCuesOf, type BabciaCues } from "@novadeck/demo/babcia"
-import { createContentDemo } from "@novadeck/demo/content"
+} from "@novadeck/demo-debug/desktop/scenarios"
+import { createDemoUninstall, uninstallScenarios } from "@novadeck/demo-debug/desktop/uninstall"
+import { createDemoUpdates } from "@novadeck/demo-debug/desktop/updates"
+import { addressParams } from "@novadeck/demo/address"
+import { demoTurns } from "@novadeck/demo/agents/turns"
 import { isDemoInbox } from "@novadeck/demo/inbox"
-import { demoInboxRowsAll } from "@novadeck/demo/inbox-fixtures"
-import { demoTurns } from "@novadeck/demo/turns"
+import { demoInboxRowsAll } from "@novadeck/demo/inbox/fixtures"
+import { createShowcaseDemo } from "@novadeck/demo/showcase/demo"
 import { createDemo } from "@novadeck/demo/variants"
+import { babciaCuesOf, type BabciaCues } from "@novadeck/demo/videos/babcia"
 import { visitorDemo } from "@novadeck/demo/visitor/index"
 import { pageTheme } from "@novadeck/ui/theme/source"
 
@@ -31,18 +32,15 @@ import { pageTheme } from "@novadeck/ui/theme/source"
 // the one place specs and tests reach the demo, kept out of the file that chooses
 // the backend so the demo stays one folder.
 
-// The query after the address's hash, where a spec asks for a variant. The address is read
-// when the workspace mounts, since each spec sets its own.
-const asked = (): URLSearchParams => new URLSearchParams(window.location.hash.split("?")[1] ?? "")
-
-// Specs open the content demo, with its agents' plans and artifacts, by adding
-// `?demo=showcase` to the address's hash.
-const showcaseRequested = (): boolean => asked().get("demo") === "showcase"
+// Specs open the showcase demo, with its agents' plans and artifacts, by adding
+// `?demo=showcase` to the address's hash. The address is read when the workspace mounts,
+// since each spec sets its own.
+const showcaseRequested = (): boolean => addressParams().get("demo") === "showcase"
 
 // Specs open the demo as an app that has an update with `?update=` one of the debug
-// panel's update scenarios (see frontend/demo-debug/src/scenarios.ts), beside any other variant.
+// panel's update scenarios (see @novadeck/demo-debug/desktop/scenarios), beside any other variant.
 const requestedUpdate = (): UpdateScenario | undefined => {
-  const key = asked().get("update")
+  const key = addressParams().get("update")
   return key && Object.hasOwn(updateScenarios, key)
     ? updateScenarios[key as UpdateScenarioKey]
     : undefined
@@ -50,7 +48,7 @@ const requestedUpdate = (): UpdateScenario | undefined => {
 
 // Specs open the demo as an app that follows experimental builds, which turns IS_EXPERIMENTAL on
 // (the chat view still needs its own switch), with `?channel=experimental`, beside any other variant.
-const experimentalRequested = (): boolean => asked().get("channel") === "experimental"
+const experimentalRequested = (): boolean => addressParams().get("channel") === "experimental"
 
 // The updates a spec asks for: an explicit `?update=` wins, else the release a portable
 // scenario has waiting (as the debug panel offers it); `?channel=experimental` alone has an app
@@ -99,19 +97,19 @@ export const whatsNewCalls = (): { readonly dismissed: number } => ({
 // Specs open the demo as an app running without its security sandbox with `?sandbox=off`,
 // or `?sandbox=off-unfixed` for one with no command to offer.
 const requestedSandbox = (): SandboxState | undefined => {
-  const sandbox = asked().get("sandbox")
+  const sandbox = addressParams().get("sandbox")
   if (sandbox === "off") return { sandboxed: false, fix: sampleFix }
   if (sandbox === "off-unfixed") return { sandboxed: false, fix: "" }
   return undefined
 }
 
 // Specs open the demo on a portable copy with `?portable=` one of the debug panel's
-// portable scenarios (see frontend/demo-debug/src/scenarios.ts). Installing takes no time there,
+// portable scenarios (see @novadeck/demo-debug/desktop/scenarios). Installing takes no time there,
 // unless `&installMs=` says how long, or `&installMs=stepped` holds each step for the spec
 // to take with `portableInstall.advanceTo`, as a slow machine would otherwise pass a step
 // before the spec reads it.
 const requestedPortable = (): DemoPortable | undefined => {
-  const query = asked()
+  const query = addressParams()
   const key = query.get("portable")
   if (!key || !Object.hasOwn(portableScenarios, key)) return undefined
   const portable = portableScenarios[key as PortableScenarioKey].setup("0.0.80")
@@ -124,7 +122,7 @@ const requestedPortable = (): DemoPortable | undefined => {
 const held: { readonly at: number; readonly next: PortableInstall; readonly apply: () => void }[] =
   []
 const stepped = (): boolean => {
-  const on = asked().get("installMs") === "stepped"
+  const on = addressParams().get("installMs") === "stepped"
   // Each workspace a spec opens is a new backend, whose install starts with nothing held.
   if (on) held.length = 0
   return on
@@ -145,9 +143,9 @@ export const portableInstall = {
 }
 
 // Specs open the demo as an app that offers uninstalling with `?uninstall=` one of the
-// debug panel's scenarios (see frontend/demo-debug/src/uninstall.ts).
+// debug panel's scenarios (see @novadeck/demo-debug/desktop/uninstall).
 const requestedUninstall = (): Backend["uninstall"] => {
-  const name = asked().get("uninstall")
+  const name = addressParams().get("uninstall")
   return name && name in uninstallScenarios
     ? createDemoUninstall(uninstallScenarios[name as keyof typeof uninstallScenarios]).uninstall
     : undefined
@@ -158,7 +156,7 @@ const requestedUninstall = (): Backend["uninstall"] => {
 const requestedVersion = (
   backend: ReturnType<typeof createDemoBackend>,
 ): ReturnType<typeof createDemoBackend> => {
-  const version = asked().get("version")
+  const version = addressParams().get("version")
   if (version === "dev") return { ...backend, version: () => Promise.resolve("0.0.0") }
   if (version !== "none") return backend
   const { version: _given, openLogs: _logs, ...rest } = backend
@@ -169,7 +167,7 @@ const requestedVersion = (
 const requestedTranscripts = (
   backend: ReturnType<typeof createDemoBackend>,
 ): ReturnType<typeof createDemoBackend> => {
-  return asked().get("transcripts") === "unavailable" && backend.transcripts
+  return addressParams().get("transcripts") === "unavailable" && backend.transcripts
     ? { ...backend, transcripts: { ...backend.transcripts, available: false } }
     : backend
 }
@@ -178,7 +176,7 @@ const requestedTranscripts = (
 // `&turnMs=` and `&nudgeMs=` shorten its agents' turns and the wait before Codex asks;
 // `&readingMs=` has Claude Code read that long before its plan comes, and none without. What
 // goes on at the desk by itself stays out of specs.
-const visitorRequested = (): boolean => asked().get("visitor") === "on"
+const visitorRequested = (): boolean => addressParams().get("visitor") === "on"
 
 const visitorTimings = (): {
   turnMs?: number
@@ -186,7 +184,7 @@ const visitorTimings = (): {
   readingMs: number
   ambient: false
 } => {
-  const params = asked()
+  const params = addressParams()
   const turnMs = Number(params.get("turnMs"))
   const nudgeMs = Number(params.get("nudgeMs"))
   const readingMs = Number(params.get("readingMs"))
@@ -199,7 +197,7 @@ const visitorTimings = (): {
 }
 
 // Specs open the Babcia demo with `?demo=babcia`, and ring its cues, as the debug panel does.
-const babciaRequested = (): boolean => asked().get("demo") === "babcia"
+const babciaRequested = (): boolean => addressParams().get("demo") === "babcia"
 
 // The cues of every Babcia demo made (StrictMode makes two and keeps one; a cue acts only in
 // the one the page started).
@@ -214,7 +212,7 @@ export const agentShowsPage = (): void => babciaCues.forEach((cues) => cues.show
 // Specs open the demo as a desktop-like app with `&desktop=on`: one that reports whether its
 // window has the system's focus, which the spec moves with `desktopWindow.focus`, and keeps the
 // OS notifications it was asked to show, which the spec reads with `desktopWindow.notices`.
-const desktopRequested = (): boolean => asked().get("desktop") === "on"
+const desktopRequested = (): boolean => addressParams().get("desktop") === "on"
 
 type DesktopWindow = {
   readonly inbox: ReturnType<typeof createDemoBackend>["inbox"]
@@ -303,7 +301,7 @@ const plainSpecBackend = (): ReturnType<typeof createDemoBackend> => {
     return demo
   }
   if (visitorRequested()) return visitorDemo({ ...visitorTimings(), theme: pageTheme })
-  if (showcaseRequested()) return createContentDemo({ theme: pageTheme })
+  if (showcaseRequested()) return createShowcaseDemo({ theme: pageTheme })
   const update = requestedUpdate()
   const sandbox = requestedSandbox()
   const portable = requestedPortable()

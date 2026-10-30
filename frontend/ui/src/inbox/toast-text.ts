@@ -10,7 +10,7 @@ import {
   type Tone,
 } from "./inbox-text"
 
-// What a toast says of an Inbox item, in the Inbox's own words: pure, so the toast's
+// What a toast says of an Inbox row, in the Inbox's own words: pure, so the toast's
 // markup is only a layout of it.
 export type ToastText = {
   readonly type: InboxType
@@ -28,24 +28,24 @@ export type ToastText = {
   readonly project: string
 }
 
-export const toastText = (item: InboxRow, now: number): ToastText => {
-  const novadeck = fromNovadeck(item)
-  const label = labelOf(item)
+export const toastText = (row: InboxRow, now: number): ToastText => {
+  const novadeck = fromNovadeck(row)
+  const label = labelOf(row)
   const command =
-    item.kind === "request" && item.request.kind !== "question" && actionOf(item.request) === "run"
-      ? item.request.subject
+    row.kind === "request" && row.request.kind !== "question" && actionOf(row.request) === "run"
+      ? row.request.subject
       : null
   return {
-    type: inboxType(item),
-    tone: toneOf(item),
-    handle: novadeck ? undefined : item.source.handle || undefined,
+    type: inboxType(row),
+    tone: toneOf(row),
+    handle: novadeck ? undefined : row.source.handle || undefined,
     novadeck,
     // Novadeck's own lines name it, as its sheets' bylines do ("Novadeck noticed").
     said: novadeck ? label : label.charAt(0).toLowerCase() + label.slice(1),
     command,
-    subject: subjectOf(item).replaceAll("`", ""),
-    age: waitLabel(item.at, now),
-    title: item.source.title,
-    project: item.source.projectName,
+    subject: subjectOf(row).replaceAll("`", ""),
+    age: waitLabel(row.at, now),
+    title: row.source.title,
+    project: row.source.projectName,
   }
 }

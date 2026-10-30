@@ -1,6 +1,9 @@
 import { randomBytes } from "node:crypto"
 
-/** Messages handed to a hook that has yet to say it printed them. */
+/**
+ * Messages handed to a hook that has yet to say it printed them; none, where it carries only
+ * Novadeck's notices (see `settles`).
+ */
 export type Lease = {
   readonly id: string
   readonly terminalId: string
@@ -16,6 +19,12 @@ export type Lease = {
    * injected messages last one call (Antigravity's): this delivery, and any it joined.
    */
   readonly keeps?: string
+  /**
+   * What the hook's acknowledgement settles, kept in memory only: the asks the person's prompt
+   * took out of the Inbox, whose notice this lease printed (`asks` of them), leave it only then.
+   */
+  readonly settles?: () => void
+  readonly asks?: number
 }
 
 /**

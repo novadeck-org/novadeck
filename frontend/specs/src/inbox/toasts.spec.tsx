@@ -1,4 +1,4 @@
-import { demoInboxIds } from "@novadeck/demo/inbox-fixtures"
+import { demoInboxIds } from "@novadeck/demo/inbox/fixtures"
 import { beforeEach } from "vitest"
 import { page, userEvent } from "vitest/browser"
 

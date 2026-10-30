@@ -20,9 +20,9 @@ describe("the sounds", () => {
     for (const { sound } of themes) expect(noticeSounds.map(({ id }) => id)).toContain(sound)
   })
 
-  // The host falls back to the protocol's default for a notice without a sound, the page to
+  // The desktop app falls back to the protocol's default for a notice without a sound, the page to
   // the default theme's: they must be one sound.
-  it("falls back to the same sound as the host", () => {
+  it("falls back to the same sound as the desktop app", () => {
     expect(themes[0].sound).toBe(defaultNoticeSound)
   })
 

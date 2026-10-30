@@ -6,6 +6,8 @@ import { views as layouts, type ViewPresentation } from "@novadeck/toolkit/views
 import { Check, Plug, Terminal } from "lucide-react"
 import { useEffect, useId, useRef, useState, type CSSProperties } from "react"
 
+import { prefersReducedMotion } from "../interaction/reduced-motion"
+
 // Each layout as the app shows it, with a line on what it is for.
 const captions: Record<ViewMode, string> = {
   focus: "One terminal, full attention.",
@@ -73,15 +75,15 @@ const Status = ({ connected }: { readonly connected?: boolean }): React.JSX.Elem
   </span>
 )
 
-const reducedMotion = (): boolean => window.matchMedia("(prefers-reduced-motion: reduce)").matches
-
 export const WelcomePreview = ({
   connected,
 }: {
   readonly connected: { readonly claude: boolean; readonly codex: boolean }
 }): React.JSX.Element => {
   const [view, setView] = useState<View>(canvas)
-  const [step, setStep] = useState<number | undefined>(() => (reducedMotion() ? undefined : -1))
+  const [step, setStep] = useState<number | undefined>(() =>
+    prefersReducedMotion() ? undefined : -1,
+  )
   const [held, setHeld] = useState(false)
   const stage = useRef<HTMLDivElement>(null)
   const caption = useId()

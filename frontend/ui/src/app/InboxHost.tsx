@@ -26,18 +26,18 @@ const NoticeClicks = (): null => {
   useEffect(
     () =>
       backend.notices?.onClick((terminalId) =>
-        // The backend's items, as the terminal being viewed may hold the one the notice is
+        // The backend's rows, as the terminal being viewed may hold the one the notice is
         // about back from the Inbox: the click lands it before it opens.
         clickNotice(
           terminalId,
           backend.inbox?.state.getSnapshot().items ?? [],
           {
-            open: (id) => opener?.((items) => items.find((item) => item.id === id)),
+            open: (id) => opener?.((rows) => rows.find((row) => row.id === id)),
             showInbox,
             reveal,
             land: landing.reveal,
           },
-          noticeBoard(backend.notices, dingOf(backend, ui))?.itemOf(terminalId),
+          noticeBoard(backend.notices, dingOf(backend, ui))?.rowIdOf(terminalId),
         ),
       ),
     [backend, ui, landing, opener, showInbox, reveal],
@@ -46,7 +46,7 @@ const NoticeClicks = (): null => {
 }
 
 // Gives the app below it the backend's Inbox: its list, and the sheets that open beside
-// it, which read the context of an item's agent from the backend's conversations and
+// it, which read the context of a row's agent from the backend's conversations and
 // messages. The list is a sidebar panel (`shell/WorkspaceSidebar.tsx`); on a phone it and
 // a sheet take the screen in turn, so the sidebar's drawer is shut while a sheet is open.
 export const InboxHost = ({
@@ -67,7 +67,7 @@ export const InboxHost = ({
     () => (desktop ? undefined : { hideList: hideSidebar, showList: () => toggleSidebar("inbox") }),
     [desktop, hideSidebar, toggleSidebar],
   )
-  // Only a host that shows notices has a ping to take an item held as the person leaves.
+  // Only a backend that shows notices has a ping to take a row held as the person leaves.
   const pings = backend.notices !== undefined
   const follow = useCallback(
     (board: ToastBoard) =>
@@ -79,7 +79,7 @@ export const InboxHost = ({
     (board: ShowBoard) => watchShowToasts(workspace, ui, board),
     [workspace, ui],
   )
-  // Brings the terminal an item waits on into view, as its sidebar row does where the session
+  // Brings the terminal a row waits on into view, as its sidebar row does where the session
   // is on screen, else as a click on a notification about it does.
   const showTerminal = useCallback(
     (terminalId: string) => {
@@ -95,9 +95,20 @@ export const InboxHost = ({
     },
     [workspace, select, reveal],
   )
+  // Going to an Inbox row's terminal from the Inbox's list turns the sidebar to the terminals.
+  const revealItem = useCallback(
+    (terminalId: string) => reveal(terminalId, active ? "terminals" : undefined),
+    [reveal, active],
+  )
   return (
     <AgentContextProvider conversations={backend.conversations} messages={backend.messages}>
-      <InboxProvider inbox={inbox} reveal={reveal} phone={phone} working={working} active={active}>
+      <InboxProvider
+        inbox={inbox}
+        reveal={revealItem}
+        phone={phone}
+        working={working}
+        active={active}
+      >
         {children}
         <NoticeClicks />
         <PlanTextProvider workspace={workspace} companions={backend.companions}>

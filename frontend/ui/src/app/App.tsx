@@ -30,6 +30,7 @@ import { DictationContext, useDictationController } from "./controller/dictation
 import { useKeyboard } from "./controller/useKeyboard"
 import { useWorkspaceEffects } from "./controller/useWorkspaceEffects"
 import { announceShown, EmbeddedContext, heldInput, holdInputUntilEngaged } from "./embedded"
+import { FooterSection } from "./FooterSection"
 import { HeaderSection } from "./HeaderSection"
 import { InboxHost } from "./InboxHost"
 import { sourceShown } from "./routing"
@@ -37,7 +38,6 @@ import { currentState, currentTarget, shallowEqual } from "./selectors"
 import { SidebarSection } from "./SidebarSection"
 import { useInboxBadge } from "./useInboxBadge"
 import { VisitorBar, VisitorCover } from "./Visitor"
-import { WorkspaceFooter } from "./WorkspaceFooter"
 import { WorkspaceOverlays } from "./WorkspaceOverlays"
 import { WorkspaceProvider } from "./WorkspaceProvider"
 import { WorkspaceStage } from "./WorkspaceStage"
@@ -274,7 +274,7 @@ export const WorkspaceApp = ({ panel }: Pick<AppProps, "panel"> = {}): React.JSX
               )}
             </div>
           </TabListContext.Provider>
-          <WorkspaceFooter />
+          <FooterSection />
           <WorkspaceOverlays />
           {voice && <DictationOverlay controller={voice} keys={dictationKeys()} />}
           <PanelSection panel={panel} />

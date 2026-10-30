@@ -4,7 +4,7 @@ import type { LucideIcon } from "lucide-react"
 import type { ComponentType, ReactNode } from "react"
 
 import type { PlanDoc } from "./kinds/plan/plan-doc"
-import type { ItemStore } from "./state"
+import type { ItemStore } from "./store/item-store"
 
 // What a kind of item is to the places that show it: everything they need to draw it. The
 // kinds are core's item kinds, which stay closed (the runner produces them and the UI

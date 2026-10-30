@@ -1,6 +1,6 @@
 // What uninstalling this copy of the desktop app would do, and how it went. The core
 // can't import the protocol's wire contracts, so this mirrors its `UninstallPlan` and
-// `UninstallResult`, which frontend/runner-adapter/src/desktop-host.test.ts checks it fits.
+// `UninstallResult`, which frontend/runner-adapter/src/desktop/app.test.ts checks it fits.
 //
 // `unavailable`: nothing from here (a portable copy, a development run). `manual`: another
 // tool installed it, so the person runs `command` in a terminal. `ready`: the app can

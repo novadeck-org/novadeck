@@ -1,6 +1,5 @@
-import { describe, expect, it } from "vitest"
-
 import { inputText } from "./input-text"
+import { describe, expect, it } from "./test"
 
 describe("a tool call's input as text", () => {
   it("is the value of a call that holds one", () => {

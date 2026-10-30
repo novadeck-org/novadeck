@@ -10,7 +10,7 @@ export type ThemeEntry<Id extends string = string> = {
   readonly id: Id
   readonly name: string
   readonly schemes: readonly [Scheme, ...Scheme[]]
-  // The notification sound the theme goes with, unless the person chose another: the id of
+  // The notice sound the theme goes with, unless the person chose another: the id of
   // one of `noticeSounds` (see `sounds/`).
   readonly sound: NoticeSound
   readonly file?: string
