@@ -120,8 +120,8 @@ export const createSessions = (
     options.closed?.(own)
   }
 
-  // A client notices a dead link first; end its stale session now instead of after missed
-  // heartbeats, so its new one can reclaim what the old held.
+  // A client notices a dead connection first; end its stale session now instead of after
+  // missed heartbeats, so its new one can reclaim what the old held.
   const claim = (session: SessionRecord, clientId: string) => {
     const previous = clients.get(clientId)
     if (previous !== undefined && previous !== session) {

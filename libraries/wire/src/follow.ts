@@ -18,7 +18,7 @@ export type CursorResume<C extends AnyContractRouter, T> = {
 /** A stream that starts over each time it opens again, as one of the whole state does. */
 export type RestartResume<T> = {
   readonly restart: true
-  /** Said before the items of each stream it opens, so a reader knows what follows replaces them. */
+  /** Said before each stream's items, so a reader knows what follows replaces them. */
   readonly reset?: T
   /**
    * Holds `reset` back until a stream opened again yields something, so one that finds
@@ -47,7 +47,7 @@ export type FollowOptions<C extends AnyContractRouter, T> = {
 export type Following<C extends AnyContractRouter, T> = AsyncIterableIterator<T, undefined> & {
   /** Stops following, ending a pending read and cancelling the stream. */
   return(): Promise<IteratorResult<T, undefined>>
-  /** The session the stream is open on, until it closes; undefined while it opens again. */
+  /** The session the stream has yielded on, until it opens again; undefined until one yields. */
   readonly session: Session<C> | undefined
   /**
    * Why it's over: `ended` by its server (a cursor's stream ended, or its subject is gone),

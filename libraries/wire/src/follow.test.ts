@@ -141,18 +141,18 @@ const cursor = (acks: number[], refuse: { count: number } = { count: 0 }) => ({
 describe("follow", () => {
   context("restarting", () => {
     it("says reset before the items of each stream it opens, following each new session", async () => {
-      const link = connection()
-      link.connect()
+      const driven = connection()
+      driven.connect()
       const { opened, open, last } = streams<Item>()
-      const items = follow(link.wire, { open, resume: { restart: true, reset } })
+      const items = follow(driven.wire, { open, resume: { restart: true, reset } })
       expect(await items.next()).toEqual({ value: reset, done: false })
       last().feed.push(item(1))
       expect(await items.next()).toEqual({ value: item(1), done: false })
-      link.drop()
+      driven.drop()
       last().feed.fail(new WireError("DISCONNECTED"))
       const after = items.next()
-      await vi.waitFor(() => expect(link.wire.status.value.state).toBe("reconnecting"))
-      link.connect()
+      await vi.waitFor(() => expect(driven.wire.status.value.state).toBe("reconnecting"))
+      driven.connect()
       expect(await after).toEqual({ value: reset, done: false })
       last().feed.push(item(2))
       expect(await items.next()).toEqual({ value: item(2), done: false })
@@ -161,27 +161,27 @@ describe("follow", () => {
     })
 
     it("waits for the next session when its server ends a stream that can't lose its subject", async () => {
-      const link = connection()
-      link.connect()
+      const driven = connection()
+      driven.connect()
       const { opened, open, last } = streams<Item>()
-      const items = follow(link.wire, { open, resume: { restart: true } })
+      const items = follow(driven.wire, { open, resume: { restart: true } })
       const first = items.next()
       await vi.waitFor(() => expect(opened).toHaveLength(1))
       last().feed.end()
       await new Promise((resolve) => setTimeout(resolve, 10))
       expect(opened).toHaveLength(1)
-      link.drop()
-      link.connect()
+      driven.drop()
+      driven.connect()
       await vi.waitFor(() => expect(opened).toHaveLength(2))
       last().feed.push(item(1))
       expect(await first).toEqual({ value: item(1), done: false })
     })
 
     it("opens again at once when a stream that can lose its subject ends, and ends once it's gone", async () => {
-      const link = connection()
-      link.connect()
+      const driven = connection()
+      driven.connect()
       const { opened, refusals, open, last } = streams<Item>()
-      const items = follow(link.wire, {
+      const items = follow(driven.wire, {
         open,
         resume: { restart: true },
         gone: (error) => error.code === "NOT_FOUND",
@@ -195,10 +195,10 @@ describe("follow", () => {
     })
 
     it("holds reset back until a stream opened again yields, and says none for the first", async () => {
-      const link = connection()
-      link.connect()
+      const driven = connection()
+      driven.connect()
       const { opened, open, last } = streams<Item>()
-      const items = follow(link.wire, {
+      const items = follow(driven.wire, {
         open,
         resume: { restart: true, reset, holdReset: true },
         gone: () => false,
@@ -219,11 +219,11 @@ describe("follow", () => {
     })
 
     it("retries a refusal on a live session after a growing delay, and never throws", async () => {
-      const link = connection()
-      link.connect()
+      const driven = connection()
+      driven.connect()
       const { opened, refusals, open, last } = streams<Item>()
       refusals.push(new WireError("RESOURCE_LIMIT"), new WireError("RESOURCE_LIMIT"))
-      const items = follow(link.wire, { open, resume: { restart: true } })
+      const items = follow(driven.wire, { open, resume: { restart: true } })
       const started = Date.now()
       const first = items.next()
       await vi.waitFor(() => expect(opened).toHaveLength(1), { timeout: 2_000 })
@@ -234,27 +234,27 @@ describe("follow", () => {
     })
 
     it("follows a server that's closing to its next session", async () => {
-      const link = connection()
-      const session = link.connect()
+      const driven = connection()
+      const session = driven.connect()
       const { opened, refusals, open, last } = streams<Item>()
       refusals.push(new WireError("CLOSING"))
-      const items = follow(link.wire, { open, resume: { restart: true } })
+      const items = follow(driven.wire, { open, resume: { restart: true } })
       const first = items.next()
       // Past a refusal's first retry: a closing server isn't asked again.
       await new Promise((resolve) => setTimeout(resolve, 300))
       expect(opened).toHaveLength(0)
       session.drop()
-      link.connect()
+      driven.connect()
       await vi.waitFor(() => expect(opened).toHaveLength(1))
       last().feed.push(item(1))
       expect(await first).toEqual({ value: item(1), done: false })
     })
 
     it("ends when its reader returns it, even mid-read, cancelling its stream", async () => {
-      const link = connection()
-      link.connect()
+      const driven = connection()
+      driven.connect()
       const { opened, open } = streams<Item>()
-      const items = follow(link.wire, { open, resume: { restart: true } })
+      const items = follow(driven.wire, { open, resume: { restart: true } })
       const pending = items.next()
       await vi.waitFor(() => expect(opened).toHaveLength(1))
       await items.return()
@@ -265,11 +265,11 @@ describe("follow", () => {
     })
 
     it("ends when its connection closes", async () => {
-      const link = connection()
+      const driven = connection()
       const { open } = streams<Item>()
-      const items = follow(link.wire, { open, resume: { restart: true } })
+      const items = follow(driven.wire, { open, resume: { restart: true } })
       const pending = items.next()
-      link.wire.close()
+      driven.wire.close()
       expect(await pending).toEqual({ value: undefined, done: true })
       expect(items.finished).toBe("stopped")
     })
@@ -277,19 +277,19 @@ describe("follow", () => {
 
   context("from a cursor", () => {
     it("opens on the live session, or fails when there's none", async () => {
-      const link = connection()
+      const driven = connection()
       const { open } = streams<Event>()
-      const items = follow(link.wire, { open, resume: cursor([]) })
+      const items = follow(driven.wire, { open, resume: cursor([]) })
       await expect(items.next()).rejects.toMatchObject({ code: "DISCONNECTED" })
       expect(items.finished).toBe("failed")
     })
 
     it("acknowledges an item once the next is asked for, and markers never", async () => {
-      const link = connection()
-      const session = link.connect()
+      const driven = connection()
+      const session = driven.connect()
       const acks: number[] = []
       const { open, last } = streams<Event>()
-      const items = follow(link.wire, { open, resume: cursor(acks) })
+      const items = follow(driven.wire, { open, resume: cursor(acks) })
       const first = items.next()
       await vi.waitFor(() => expect(last()).toBeDefined())
       last().feed.push(marker, event(1), event(2))
@@ -306,12 +306,12 @@ describe("follow", () => {
     })
 
     it("retries a refused acknowledgement, keeping the latest position", async () => {
-      const link = connection()
-      link.connect()
+      const driven = connection()
+      driven.connect()
       const sent: number[] = []
       const answers: ((refused: boolean) => void)[] = []
       const { open, last } = streams<Event>()
-      const items = follow(link.wire, {
+      const items = follow(driven.wire, {
         open,
         resume: {
           cursor: (value: Event) => (value.type === "event" ? value.sequence : undefined),
@@ -337,12 +337,12 @@ describe("follow", () => {
     })
 
     it("has one acknowledgement in flight at a time", async () => {
-      const link = connection()
-      link.connect()
+      const driven = connection()
+      driven.connect()
       const sent: number[] = []
       const answers: (() => void)[] = []
       const { open, last } = streams<Event>()
-      const items = follow(link.wire, {
+      const items = follow(driven.wire, {
         open,
         resume: {
           cursor: (value: Event) => (value.type === "event" ? value.sequence : undefined),
@@ -365,21 +365,21 @@ describe("follow", () => {
     })
 
     it("has a session only once its stream yields on it", async () => {
-      const link = connection()
-      link.connect()
+      const driven = connection()
+      driven.connect()
       const { opened, open, last } = streams<Event>()
-      const items = follow(link.wire, { open, resume: cursor([]) })
+      const items = follow(driven.wire, { open, resume: cursor([]) })
       const first = items.next()
       await vi.waitFor(() => expect(opened).toHaveLength(1))
       expect(items.session).toBeUndefined()
       last().feed.push(event(1))
       await first
-      link.drop()
+      driven.drop()
       last().feed.fail(new WireError("DISCONNECTED"))
       const next = items.next()
-      const reconnected = link.connect()
+      const reconnected = driven.connect()
       await vi.waitFor(() => expect(opened).toHaveLength(2))
-      // Reopening, not yet granted anything: write and the like must wait.
+      // Opening again, nothing yielded yet: it has no session.
       expect(items.session).toBeUndefined()
       last().feed.push(event(2))
       await next
@@ -387,15 +387,15 @@ describe("follow", () => {
     })
 
     it("opens again when a generator's stream fails before its first item, once it has read", async () => {
-      const link = connection()
-      link.connect()
+      const driven = connection()
+      driven.connect()
       let opens = 0
       // Fails the stream that's open, as its lost socket does.
       let lose = (_error: unknown) => {}
-      const items = follow<Contract, Event>(link.wire, {
+      const items = follow<Contract, Event>(driven.wire, {
         async *open() {
           opens += 1
-          if (opens === 2) throw new WireError("DISCONNECTED", "Ended before granting it.")
+          if (opens === 2) throw new WireError("DISCONNECTED", "Ended before its first item.")
           yield marker
           yield event(opens)
           await new Promise<never>((_resolve, reject) => {
@@ -407,20 +407,20 @@ describe("follow", () => {
       expect(await items.next()).toEqual({ value: marker, done: false })
       expect(await items.next()).toEqual({ value: event(1), done: false })
       // Drop the first: the second fails as it opens, and the third serves.
-      link.drop()
+      driven.drop()
       const next = items.next()
       lose(new WireError("DISCONNECTED"))
-      link.connect()
+      driven.connect()
       expect(await next).toEqual({ value: marker, done: false })
       expect(await items.next()).toEqual({ value: event(3), done: false })
       await items.return()
     })
 
     it("ends a read waiting for its stream to open when returned", async () => {
-      const link = connection()
-      link.connect()
+      const driven = connection()
+      driven.connect()
       let signal: AbortSignal | undefined
-      const items = follow<Contract, Event>(link.wire, {
+      const items = follow<Contract, Event>(driven.wire, {
         open: (_client, options) => {
           signal = options.signal
           return new Promise<never>(() => {})
@@ -435,18 +435,18 @@ describe("follow", () => {
     })
 
     it("resumes after the last item read on the next session of its epoch", async () => {
-      const link = connection()
-      link.connect("e1")
+      const driven = connection()
+      driven.connect("e1")
       const { opened, open, last } = streams<Event>()
-      const items = follow(link.wire, { open, resume: cursor([]) })
+      const items = follow(driven.wire, { open, resume: cursor([]) })
       const first = items.next()
       await vi.waitFor(() => expect(opened).toHaveLength(1))
       last().feed.push(event(4))
       await first
-      link.drop()
+      driven.drop()
       last().feed.fail(new Error("socket closed"))
       const next = items.next()
-      link.connect("e1")
+      driven.connect("e1")
       await vi.waitFor(() => expect(opened).toHaveLength(2))
       expect(opened.map((each) => each.after)).toEqual([undefined, 4])
       last().feed.push(event(5))
@@ -454,18 +454,18 @@ describe("follow", () => {
     })
 
     it("starts afresh in a new epoch, and after a refusal for a slow reader", async () => {
-      const link = connection()
-      link.connect("e1")
+      const driven = connection()
+      driven.connect("e1")
       const { opened, open, last } = streams<Event>()
-      const items = follow(link.wire, { open, resume: cursor([]) })
+      const items = follow(driven.wire, { open, resume: cursor([]) })
       const first = items.next()
       await vi.waitFor(() => expect(opened).toHaveLength(1))
       last().feed.push(event(4))
       await first
-      link.drop()
+      driven.drop()
       last().feed.fail(new WireError("DISCONNECTED"))
       const next = items.next()
-      link.connect("e2")
+      driven.connect("e2")
       await vi.waitFor(() => expect(opened).toHaveLength(2))
       last().feed.push(event(1))
       expect(await next).toEqual({ value: event(1), done: false })
@@ -478,10 +478,10 @@ describe("follow", () => {
     })
 
     it("throws what it can't resume from, and ends when its server ends it", async () => {
-      const link = connection()
-      link.connect()
+      const driven = connection()
+      driven.connect()
       const { opened, open, last } = streams<Event>()
-      const failing = follow(link.wire, { open, resume: cursor([]) })
+      const failing = follow(driven.wire, { open, resume: cursor([]) })
       const first = failing.next()
       await vi.waitFor(() => expect(last()).toBeDefined())
       last().feed.push(event(1))
@@ -490,7 +490,7 @@ describe("follow", () => {
       await expect(failing.next()).rejects.toMatchObject({ code: "CONTROL_IN_USE" })
       expect(failing.finished).toBe("failed")
 
-      const ending = follow(link.wire, { open, resume: cursor([]) })
+      const ending = follow(driven.wire, { open, resume: cursor([]) })
       const count = opened.length
       const pending = ending.next()
       await vi.waitFor(() => expect(opened).toHaveLength(count + 1))
@@ -501,14 +501,14 @@ describe("follow", () => {
     })
 
     it("throws a failure before its first item, with nothing to resume", async () => {
-      const link = connection()
-      link.connect()
+      const driven = connection()
+      driven.connect()
       const { refusals, open } = streams<Event>()
       refusals.push(new WireError("TERMINAL_NOT_FOUND"), new WireError("DISCONNECTED"))
-      const items = follow(link.wire, { open, resume: cursor([]) })
+      const items = follow(driven.wire, { open, resume: cursor([]) })
       await expect(items.next()).rejects.toMatchObject({ code: "TERMINAL_NOT_FOUND" })
       // Even a lost connection: there's no position to resume from.
-      const again = follow(link.wire, { open, resume: cursor([]) })
+      const again = follow(driven.wire, { open, resume: cursor([]) })
       await expect(again.next()).rejects.toMatchObject({ code: "DISCONNECTED" })
     })
   })

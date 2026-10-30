@@ -17,10 +17,11 @@ beside the wire's own handshake.
   - `WireError`, the error a client reports, with a stable `code` (the wire's or the app's)
     and the contract's `data`; `normalize` turns an oRPC error into one, and `hasCode`
     matches one by code.
-  - `wireErrors`, the codes the wire's own server side refuses with, as an oRPC error map
-    for the app to spread into its contract's: `UNAUTHORIZED`, `INCOMPATIBLE_PROTOCOL`,
-    `RESOURCE_LIMIT`, `CLOSING` (shutting down), `SLOW_CONSUMER`, `INVALID_CURSOR`. The client
-    adds `DISCONNECTED` and `CLOSED`, and oRPC `BAD_REQUEST` and `INTERNAL_SERVER_ERROR`
+  - `wireErrors`, the codes the wire defines for both ends, as an oRPC error map for the app
+    to spread into its contract's. Its server side refuses with `UNAUTHORIZED`,
+    `INCOMPATIBLE_PROTOCOL` and `RESOURCE_LIMIT`; `CLOSING` (shutting down), `SLOW_CONSUMER`
+    and `INVALID_CURSOR` are the app's to throw, and `follow` acts on them. The client adds
+    `DISCONNECTED` and `CLOSED`, and oRPC `BAD_REQUEST` and `INTERNAL_SERVER_ERROR`
     (`WireErrorCode`).
   - `wireContract`, the wire's own procedure for the app to spread into its contract:
     `wire.handshake({ protocolVersion, token?, clientId? })`, which opens every connection
@@ -39,8 +40,9 @@ beside the wire's own handshake.
     which a stream's cursor belongs to, and a server that answers another protocol is
     `INCOMPATIBLE_PROTOCOL`. A connection that drops comes back on its own, after
     `retryDelay(attempt)` (`min(250·2ⁿ, 5000)` ms by default), until `close()` or a fatal
-    code: `UNAUTHORIZED`, `INCOMPATIBLE_PROTOCOL`, `CLOSED` and whatever `fatal(code)` adds. A connection or handshake taking longer than `timeoutMs` (10 s) fails;
-    the transport hears of it through its signal, and must give up when that aborts.
+    code: `UNAUTHORIZED`, `INCOMPATIBLE_PROTOCOL`, `CLOSED` and whatever `fatal(code)` adds.
+    A connection or handshake taking longer than `timeoutMs` (10 s) fails; the transport
+    hears of it through its signal, and must give up when that aborts.
     The `Wire` it gives has:
     - `status`, the `WireStatus` as a `Watching` value: `connected` in an epoch,
       `reconnecting` with the error that dropped it, or `closed`, with why if it wasn't
@@ -48,7 +50,8 @@ beside the wire's own handshake.
     - `session()`, the live `{ client, epoch, channel }`, for calls that must not wait: it
       throws `DISCONNECTED` while reconnecting and why it closed (or `CLOSED`) once closed,
       and never queues;
-    - `ready()`, which waits for a live session, and `close()`.
+    - `ready()`, which waits for a live session, resolving `undefined` once closed or
+      throwing why it closed, and `close()`.
   - `follow(wire, { open, resume, gone })`, a stream followed across the connection's
     sessions, which its reader sees as one. `open(client, { after, signal })` opens it on a
     session. It resumes one of two ways:
@@ -61,16 +64,16 @@ beside the wire's own handshake.
       connection closed, ends it, thrown to the reader;
     - by starting over (`{ restart: true, reset, holdReset }`): each stream it opens says
       `reset` first, so the reader replaces what it has with what follows, up to its own
-      marker (such as `synced`). With `holdReset`, `reset` waits for a stream opened again to
-      yield its first item, and the first stream has none. It never throws: a lost connection or
-      a closing server (`CLOSING`) is followed to the next session, and any other refusal is
-      retried after `min(200·2ⁿ, 3000)` ms.
+      marker (such as `synced`). With `holdReset`, `reset` waits for a stream opened again
+      to yield its first item, and the first stream has none. It never throws: a lost
+      connection or a closing server (`CLOSING`) is followed to the next session, and any
+      other refusal is retried after `min(200·2ⁿ, 3000)` ms.
 
     For a restarting stream, `gone(error)` says its subject was removed, which ends it. One
     that can lose its subject is opened again as soon as its server ends it, to learn whether
     it's still there; one that can't is opened again on the next session. The `Following` it
-    gives says which `session` its stream is open on, and why it `finished`: `ended` by the server,
-    `stopped` by `return()` or the connection's close, or `failed`.
+    gives says which `session` its stream has yielded on, and why it `finished`: `ended` by
+    the server, `stopped` by `return()` or the connection's close, or `failed`.
 
   - `Watching<T>`, a value and its changes, read-only: `value`, `next()` for the next change,
     and `watch()`, which yields the latest value after each change, coalescing quick ones,
@@ -81,8 +84,8 @@ beside the wire's own handshake.
     hands it a port. A single port connects once; pass a function that asks for a fresh port
     to reconnect. `brokeredPort({ request, message, lateAnswerMs })` is such a transport for a
     page in Electron's renderer: `request(id)` asks the main process (through what the
-    preload exposes), and the port comes back as a window message `{ type: message, id }`. A port that answers a
-    request given up on is closed, if it comes within `lateAnswerMs`.
+    preload exposes), and the port comes back as a window message `{ type: message, id }`.
+    A port that answers a request given up on is closed, if it comes within `lateAnswerMs`.
 - `./electron` (Node only: Electron's main process and preload): the other side of
   `brokeredPort`, with `electron` as an optional peer.
   - `brokerPorts({ channel, allow, deliver })`, in the main process: a page that asks on the
@@ -99,11 +102,11 @@ beside the wire's own handshake.
 - `./server` (Node only): the server's side.
   - `createSessions({ protocolVersion, router, admit, closed, error, failed, epoch })`, a
     server's sessions, and the router its transports serve: the wire's handshake beside the
-    app's `router`, whose context is `{ session }`. The handshake refuses a session whose token its
-    transport doesn't accept (`UNAUTHORIZED`) or that speaks another protocol
+    app's `router`, whose context is `{ session }`. The handshake refuses a session whose
+    token its transport doesn't accept (`UNAUTHORIZED`) or that speaks another protocol
     (`INCOMPATIBLE_PROTOCOL`), then asks `admit`, which may refuse with a code of the app's.
     A session whose client connects again is closed, and its transport ended, as the new
-    one's handshake takes over: a client notices a dead link before the server does.
+    one's handshake takes over: a client notices a dead connection before the server does.
     `closed(session)` tells the app a session ended, to release what it held, and
     `failed(path, error)` tells it, for a log, each failure of a call or a stream before
     `error` maps it, and each handshake refused, whether for its input, by the wire or by

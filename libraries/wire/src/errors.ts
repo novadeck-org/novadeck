@@ -1,8 +1,9 @@
 import { ORPCError } from "@orpc/client"
 
 /**
- * The failures the wire itself reports to a server's callers, with their HTTP statuses, as
- * an oRPC error map: an app spreads it into its own contract's errors, beside its codes.
+ * The codes the wire defines for both ends, with their HTTP statuses, as an oRPC error map:
+ * an app spreads it into its own contract's errors, beside its codes. The wire's server side
+ * refuses with the first three; the app throws the others, and `follow` acts on them.
  */
 export const wireErrors = {
   /** The handshake's token was missing or wrong, or the session never authenticated. */

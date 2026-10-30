@@ -28,7 +28,7 @@ export type Session<C extends AnyContractRouter> = {
 }
 
 // The session as the connection holds it, which may close its channel.
-type OwnSession<C extends AnyContractRouter> = Session<C> & { readonly channel: Channel }
+type HeldSession<C extends AnyContractRouter> = Session<C> & { readonly channel: Channel }
 
 export type ConnectOptions<C extends AnyContractRouter & WireContract> = {
   /** The contract the server serves, for the client's types: the app's, with the wire's. */
@@ -86,7 +86,7 @@ class Connection<C extends AnyContractRouter & WireContract> implements Wire<C> 
   private readonly stopping = new AbortController()
   // Lets the server hand this client's state over from a connection only it knows is dead.
   private readonly clientId = crypto.randomUUID()
-  private current: OwnSession<C> | undefined
+  private current: HeldSession<C> | undefined
 
   constructor(private readonly options: ConnectOptions<C>) {}
 
@@ -113,7 +113,7 @@ class Connection<C extends AnyContractRouter & WireContract> implements Wire<C> 
     })
   }
 
-  private async handshake(): Promise<OwnSession<C>> {
+  private async handshake(): Promise<HeldSession<C>> {
     const { transport, timeoutMs = 10_000 } = this.options
     const signal = AbortSignal.any([this.stopping.signal, AbortSignal.timeout(timeoutMs)])
     let channel: Channel | undefined
@@ -162,7 +162,7 @@ class Connection<C extends AnyContractRouter & WireContract> implements Wire<C> 
         return undefined
       }
       if (status.state === "connected" && this.current?.channel.open) return this.current
-      // eslint-disable-next-line no-await-in-loop -- Wait for the supervisor to replace the session.
+      // eslint-disable-next-line no-await-in-loop -- The supervisor replaces the session.
       await this.status.next()
     }
   }
