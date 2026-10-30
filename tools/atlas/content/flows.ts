@@ -221,7 +221,7 @@ export const flows: (Omit<Flow, "steps"> & { steps: CuratedStep[] })[] = [
         from: "runner",
         to: "runner",
         label: "map tool to call",
-        text: "The MCP server maps the show tool to a show call.",
+        text: "The MCP server maps the show tool to the call it makes of the runner.",
         anchor: { file: `${runnerSrc}/shell/mcp.ts`, text: "const show: Tool<Shown> = {" },
       },
       {

@@ -67,7 +67,7 @@ retain their results under their original caller identity and are not reassigned
 to the replacement session. A transport reconnect alone cannot renew revoked grants.
 
 Shared operations authorize the principal, action and target. Distinguish observe,
-send, spawn, present, interrupt and close, plus separate account-telemetry access.
+send, spawn, show, interrupt and close, plus separate account-telemetry access.
 UI control ownership and agent operations coordinate explicitly. Creator links
 record provenance but do not automatically grant permission to every descendant.
 
@@ -123,7 +123,7 @@ different request kinds and cannot resolve one another implicitly.
 ## Walkthrough: Claude presents plan.md
 
 1. Claude writes the plan through its normal filesystem tools, then explicitly
-   calls `documents.present` with kind `document`, a workspace-relative path and idempotency key.
+   calls `documents.show` with kind `document`, a workspace-relative path and idempotency key.
    A file write by itself produces no presentation request.
 2. MCP obtains the principal from its authenticated connection. The application
    operation resolves the caller's authorized project/workspace on the runner.
@@ -186,7 +186,7 @@ labeled alternative. Merely writing a file never counts as either input.
 Recommended defaults: automatic previews are enabled for verified root-plan
 associations in the user's workspace, subject to the normal eligible-viewer policy.
 Users can disable automatic previews per workspace and still use an explicit
-`present` request. Native child plans appear in the plan/attention list; they do
+`show` request. Native child plans appear in the plan/attention list; they do
 not each steal focus automatically. A child plan can be opened explicitly or under
 a deliberate user-configured child-plan policy. Observations with unresolved actor
 or file scope stay candidates and cannot trigger filesystem reads or presentation.
@@ -211,7 +211,7 @@ event for an ended generation cannot revive it. Re-entering planning without evi
 of continuing the same plan starts a new generation; never reuse an ended plan merely
 because its path matches. Session switches invalidate live associations until reverified.
 
-An explicit `documents.present` for content already associated with the current
+An explicit `documents.show` for content already associated with the current
 plan resolves through this same policy. If that plan is already open, return/update
 its existing request. If it was dismissed, return `dismissed` with the plan ID;
 it does not force another opening. User-initiated reopening in the UI is explicit.
