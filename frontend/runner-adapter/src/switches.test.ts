@@ -86,16 +86,24 @@ describe("the agent switches", () => {
 })
 
 describe("the Inbox's order and snoozes", () => {
-  it("show what the runner kept, and keep each change there, forgetting rows gone", async () => {
+  it("show what the runner kept, and keep each change there, as many as it takes", async () => {
     const app = scripted({ shown: [], inboxOrder: ["b@2", "a@1"], inboxSnoozed: ["a@1", "b@2"] })
     const inbox = app.backend.inbox!
     expect(inbox.order?.getSnapshot()).toEqual(["b@2", "a@1"])
-    // No row is listed here, so the order keeps none of them.
+    // No row is listed here: those not listed are kept while there is room, as one may be
+    // back; past it, the latest placed stay.
     inbox.arrange?.(["a@1", "b@2"])
-    expect(inbox.order?.getSnapshot()).toEqual([])
+    expect(inbox.order?.getSnapshot()).toEqual(["a@1", "b@2"])
+    const many = Array.from({ length: maxInboxOrder + 5 }, (_, index) => `r${index}@1`)
+    inbox.arrange?.(many)
+    expect(inbox.order?.getSnapshot()).toEqual(many.slice(5))
     inbox.snooze?.("a", false)
     await app.idle()
-    expect(app.of("settings")).toEqual([{ inboxOrder: [] }, { inboxSnoozed: ["b@2"] }])
+    expect(app.of("settings")).toEqual([
+      { inboxOrder: ["a@1", "b@2"] },
+      { inboxOrder: many.slice(5) },
+      { inboxSnoozed: ["b@2"] },
+    ])
     app.stop()
   })
 

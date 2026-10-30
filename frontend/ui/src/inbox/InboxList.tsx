@@ -388,7 +388,10 @@ export const InboxList = (): React.JSX.Element => {
     const at = Math.max(0, Math.min(dragged.length - 1, to))
     if (!arrange || from < 0 || from === at) return
     const order = dragged.toSpliced(from, 1).toSpliced(at, 0, id)
-    setMoved(`Moved to ${at + 1} of ${dragged.length}`)
+    const moving = shown.find((item) => item.id === id)
+    setMoved(
+      `${moving ? `${subjectOf(moving).replaceAll("`", "")}: m` : "M"}oved to ${at + 1} of ${dragged.length}`,
+    )
     // The rows that ask and are still there, one answered meanwhile among them, and one that
     // settled in place, which keeps it.
     const live = new Set(state.items.map((item) => item.id))

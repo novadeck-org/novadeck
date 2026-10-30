@@ -325,6 +325,21 @@ const revival = (): Pick<RunnerEntry, "revived" | "revive"> => {
   return { revived, revive: () => resolve?.() }
 }
 
+// The person's order as the runner keeps it: every row still listed (the landing rule's hidden
+// ones among them), and of those not listed, which may be back (a waiting agent's row while it
+// works, a request while its stream reconnects), as many as room is left for, those nearest
+// the end first, where the rows put off sit; the rest, gone for good mostly, go.
+const trimmed = (keys: readonly string[], listed: ReadonlySet<string>): string[] => {
+  let room = maxInboxOrder - keys.filter((key) => listed.has(key)).length
+  const away = new Set(
+    keys
+      .filter((key) => !listed.has(key))
+      .toReversed()
+      .filter(() => room-- > 0),
+  )
+  return keys.filter((key) => listed.has(key) || away.has(key))
+}
+
 // Inbox rows as the runner keeps them: as many as it takes, from the top (the rows below
 // keep the Inbox's own order), each of an id it can take.
 const fitted = (ids: readonly string[]): string[] =>
@@ -1564,11 +1579,8 @@ export const runnerBackend = (
         ? {
             ...inbox,
             order: inboxOrder,
-            // Only the rows still listed, the landing rule's hidden ones among them: the
-            // order forgets the gone.
             arrange: (keys) => {
-              const listed = new Set(inbox.state.getSnapshot().items.map(rowKey))
-              const kept = keys.filter((key) => listed.has(key))
+              const kept = trimmed(keys, new Set(inbox.state.getSnapshot().items.map(rowKey)))
               inboxOrder.update(() => kept)
               void track(runner.settings.set({ inboxOrder: fitted(kept) })).catch(() => {})
             },
