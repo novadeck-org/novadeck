@@ -165,7 +165,7 @@ export const packages: readonly Pkg[] = [
       dev: "vite --host 127.0.0.1 --mode try",
       build: "vite build --mode try",
       preview: "vite preview --host 127.0.0.1",
-      "poster:try": "node scripts/poster.ts",
+      poster: "node scripts/poster.ts",
       test: "vitest run",
       typecheck: "tsc --noEmit -p tsconfig.json",
     },
@@ -987,7 +987,7 @@ export const edits: readonly Edit[] = [
   {
     file: "package.json",
     before: '"poster:try": "pnpm --filter @novadeck/ui poster:try",',
-    after: '"poster:try": "pnpm --filter @novadeck/try poster:try",',
+    after: '"poster:try": "pnpm --filter @novadeck/try poster",',
     why: "the posters are the visitor build's",
   },
   {
