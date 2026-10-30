@@ -2,8 +2,8 @@ import { setTimeout as sleep } from "node:timers/promises"
 
 import type { ScreenText } from "@novadeck/emulator/headless"
 
-import { isEmpty, sameText, showsTail, type BoxProfile, type InputBox } from "./box.js"
-import { BoxNotCleared } from "./errors.js"
+import { isEmpty, showsTail, type BoxProfile, type InputBox } from "./box/box.js"
+import { sameText } from "./box/text.js"
 
 /** The waits of an interrupt, in milliseconds. */
 export type InterruptOptions = {
@@ -23,9 +23,6 @@ export type InterruptOptions = {
    */
   readonly queuedTurnMs?: number
 }
-
-// A screen as one string, to tell whether it has changed.
-const rowsOf = (screen: ScreenText | undefined): string => screen?.rows.join("\n") ?? ""
 
 /** What interrupts need of the terminal and its owner, by terminal. */
 export type InterruptHost = {
@@ -61,7 +58,24 @@ export type InterruptHost = {
 export type InterruptOutcome = { readonly returned: string | undefined }
 
 /**
- * Stops programs' turns as a user's Escape does, and leaves their boxes as they were. The
+ * An interrupt stopped the turn but left text in the box that clearing would lose or could
+ * not clear: the person's to clear.
+ */
+export class BoxNotCleared extends Error {
+  constructor() {
+    super("The turn is stopped, but the box holds text that was not cleared.")
+    this.name = "BoxNotCleared"
+  }
+}
+
+/** How often the screen is looked at while an interrupt waits on it, in milliseconds. */
+const pollMs = 50
+
+/** A screen as one string, to tell whether it has changed. */
+const rowsOf = (screen: ScreenText | undefined): string => screen?.rows.join("\n") ?? ""
+
+/**
+ * Stops programs' turns as a person's Escape does, and leaves their boxes as they were. The
  * caller runs each in the terminal's input queue. Throws a `BoxNotCleared` where text that
  * is not the turn's own stays in the box.
  */
@@ -175,7 +189,7 @@ export class Interrupts {
     while (host.alive(terminalId) && Date.now() < until) {
       if (host.working(terminalId)) return true
       // eslint-disable-next-line no-await-in-loop -- Looks again until it works.
-      await sleep(50)
+      await sleep(pollMs)
     }
     return host.working(terminalId)
   }
@@ -203,7 +217,7 @@ export class Interrupts {
       const wrote = Date.now()
       while (Date.now() < wrote + this.restoreMs) {
         // eslint-disable-next-line no-await-in-loop -- The screen is looked at in turn.
-        await sleep(50)
+        await sleep(pollMs)
         // eslint-disable-next-line no-await-in-loop -- As above.
         const after = await host.screen(terminalId)
         const read = after && profile.read(after)
@@ -233,7 +247,7 @@ export class Interrupts {
     let last: InputBox | undefined
     while (Date.now() < until) {
       // eslint-disable-next-line no-await-in-loop -- The screen is looked at in turn.
-      await sleep(50)
+      await sleep(pollMs)
       // eslint-disable-next-line no-await-in-loop -- As above.
       const after = await host.screen(terminalId)
       if (!after || !host.alive(terminalId)) return undefined

@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest"
 
-import { changedRows, checkPaste, findLine } from "./box.js"
-import { loadFixture } from "./testing/fixtures.js"
+import { loadFixture } from "../testing/fixtures.js"
+import { changedRows, checkPaste, findLine } from "./paste.js"
 
 type Pair = {
   readonly name: string

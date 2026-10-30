@@ -1,9 +1,8 @@
 import type { ScreenText } from "@novadeck/emulator/headless"
 import { describe, expect, it } from "vitest"
 
-import type { BoxProfile, InputBox } from "./box.js"
-import { BoxNotCleared } from "./errors.js"
-import { Interrupts, type InterruptHost } from "./interrupts.js"
+import type { BoxProfile, InputBox } from "./box/box.js"
+import { BoxNotCleared, Interrupts, type InterruptHost } from "./interrupts.js"
 import { screen as screenOf } from "./testing/screens.js"
 
 const ESC = "\x1b"

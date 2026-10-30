@@ -13,15 +13,16 @@ prompt and interrupting its turn.
     a paste shows as a placeholder, how much room it has, which keys clear it. Knowledge of a
     particular program comes in as a profile; the library names none.
   - `ruledBox` (a box between two horizontal rules) and `markedBox` (a box with no frame), the
-    readers a profile builds on, with `Markers`, `agreeing` and `footerRows`.
-  - `sameText`, `endsText`, `isEmpty` and `compact`, which compare a box's text with the text sent,
-    ignoring whitespace a TUI wrapped and emoji a screen drew differently; and `wrappedRows`, how
-    many rows a text takes in a box.
-  - `checkPaste`, whether a test paste landed where Enter would submit it alone: the line shows
-    exactly once, and only the rows near it changed, tolerating a box that grew a row, a block of
-    text that vanished whole, one line of history that went, and rows that tick by themselves
-    (`ticking`). `findLine` says where a line is on the rows, joined across the rows it wraps over;
-    `changedRows` says which rows differ between two reads.
+    readers a profile builds on, with `Markers`, `rule`, `agreeing` and `footerRows`.
+  - `isEmpty`, whether a box holds nothing, and `showsTail`, whether it shows the tail of a text
+    taller than its viewport.
+  - `sameText` and `compact`, which compare a box's text with the text sent, ignoring whitespace a
+    TUI wrapped and emoji a screen drew differently; and `wrappedRows`, how many rows a text takes
+    in a box.
+  - `checkPaste`, whether a test paste landed where Enter would submit it alone (`PasteCheck`): the
+    line shows exactly once, and only the rows near it changed, tolerating a box that grew a row, a
+    block of text that vanished whole, one line of history that went, and rows that tick by
+    themselves (`ticking`), read as the program's calm reads them (`still`).
 - `.` (Node only: `keysOf` reads the emulator's Node-only `matchReport`, and `freshNonce` draws on
   `node:crypto`):
   the rest of the mechanics.
@@ -31,23 +32,24 @@ prompt and interrupting its turn.
     terminal's own replies are left out (a query's answer, a focus report, a mouse report that
     only moves or scrolls), but a click the program asked for counts as `content`; and a bracketed
     paste is one key, so its carriage returns never submit.
-  - `gate`, whether to type now: allowed by the caller, the screen calm for `calmMs`, bracketed
-    paste on, the program in the foreground, its input box on screen.
   - `freshNonce` and `bracketedPaste`, the nonce a pasted line carries and the paste itself.
   - `InputQueue`, one writer per terminal at a time, in order, over a host that holds the user's
     input (`InputQueueHost`, `HoldBudget`, `InputHold`); an entry that fails wedges nothing, and
     the input it held is let go however it ends.
   - `createTypist(target, { profile, boxCheck?, timing?, trace? })`, ringing an idle program over a
     `TypingTarget` (`type`, `screen`, `resizedAt`, `holdsForeground`): `look` reads the screen and
-    measures its calm, `ready` is the gate on that look (`Readiness`), `deliver` pastes a line with a
+    measures its calm, `ready` is the gate on that look (`Readiness`: not vetoed by the caller, the
+    screen calm for `calmMs`, bracketed paste on, the program in the foreground, its input box on
+    screen), `deliver` pastes a line with a
     fresh nonce into the box and presses Enter only once it shows alone, twice running, with the hold
     still in force (`Delivered`), `submit` presses Enter alone for a line left behind, and `forget`
-    drops what it saw. It decides nothing of when to ring: that stays with the caller. `profile` is a
+    drops what it saw. It decides nothing of when to ring: that stays with the caller. `profile` is an
     optional getter, `() => BoxProfile | undefined`, asked at each look as a terminal's agent can
     change; a getter answering undefined says no box shows, and without the option the gate can't
-    tell. `Timing` holds its durations; `pasteMsOn` and `sizeCapMs` are the defaults to build on.
-  - `Prompts`, giving a program a prompt as a user would, in the terminal's turn in an
-    `InputQueue`: the text as one bracketed paste with the user's keys held, and Enter only once
+    tell. `Timing` holds its durations; `calmMs`, `inputCapMs` and `pasteMsOn` are the defaults to
+    build on.
+  - `Prompts`, giving a program a prompt as a person would, in the terminal's turn in an
+    `InputQueue`: the text as one bracketed paste with the person's keys held, and Enter only once
     the box shows exactly that text (or its placeholder) on two reads running. It pastes only into
     an empty box, never over a draft or into the box's shell mode, and presses no Enter after a
     check that failed. A text starting with `!` goes the way a user types a shell command: the `!`
@@ -61,6 +63,14 @@ prompt and interrupting its turn.
     what is not the restored prompt and gives the words back as `{ returned }`, or
     `undefined` where there were none. A box left holding text it could not clear throws
     `BoxNotCleared`. `InterruptHost` is what it needs of the terminal.
+
+## Layout
+
+`src/box/` is the `./box` subpath, browser-safe: `box.ts` (the box, its profile and its readers),
+`text.ts` (comparing a box's text with the text sent) and `paste.ts` (the paste check). The rest
+of `src/` is the Node-only `.`: `keys.ts`, `typing.ts` (the gate, the nonce and the paste),
+`queue.ts`, `typist.ts`, `prompts.ts` and `interrupts.ts`, each error class beside what throws it.
+`src/fixtures/` holds recorded screens, which the runner's own tests read too.
 
 `ScreenText` comes from `@novadeck/emulator/headless`, as a type only, and the width of a
 character from `@novadeck/emulator/width`.

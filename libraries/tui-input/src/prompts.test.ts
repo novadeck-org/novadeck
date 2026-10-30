@@ -3,9 +3,8 @@ import { setTimeout as sleep } from "node:timers/promises"
 import type { ScreenText } from "@novadeck/emulator/headless"
 import { describe, expect, it } from "vitest"
 
-import type { BoxProfile, InputBox } from "./box.js"
-import { PromptRefusal } from "./errors.js"
-import { Prompts, type PromptHost } from "./prompts.js"
+import type { BoxProfile, InputBox } from "./box/box.js"
+import { PromptRefusal, Prompts, type PromptHost } from "./prompts.js"
 import { InputQueue, type HoldBudget, type InputEntry, type InputHold } from "./queue.js"
 import { screen as screenOf } from "./testing/screens.js"
 
