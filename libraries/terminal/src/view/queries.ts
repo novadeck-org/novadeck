@@ -5,10 +5,10 @@ const windowReports = new Set([11, 13, 14, 15, 16, 18, 19, 20, 21])
 
 const swallow = (): boolean => true
 
-// The runner's own screen already answers what programs ask the terminal, such as
+// The host's own screen already answers what programs ask the terminal, such as
 // device attributes or the cursor position. A browser xterm must not answer too, or
 // programs read every reply twice, and once more for output replayed after a
-// reconnection. Colour queries (OSC 4, 10, 11…) are the exception: the runner's screen
+// reconnection. Colour queries (OSC 4, 10, 11…) are the exception: the host's screen
 // has no theme and leaves them unanswered, so the browser answers them from its own.
 export const silenceQueries = (xterm: Terminal): IDisposable => {
   const { parser } = xterm

@@ -3,7 +3,10 @@ import type { AnyContractRouter, ContractRouterClient } from "@orpc/contract"
 import type { Channel } from "./channel.js"
 import { hasCode, normalize, WireError } from "./errors.js"
 import type { WireContract } from "./handshake.js"
-import { createWireClient, type Transport } from "./transport.js"
+import { sleep } from "./sleep.js"
+import type { Transport } from "./transport.js"
+import { Watched, type Watching } from "./watched.js"
+import { createWireClient } from "./wire-client.js"
 
 /**
  * Where a connection stands. `epoch` names the server's lifetime: it changes when the server
@@ -15,8 +18,8 @@ export type WireStatus =
   | { readonly state: "closed"; readonly error?: WireError }
 
 /**
- * One live connection: a client of contract `C`, in one epoch, and whether its channel is
- * still open. Only the client speaks on the channel.
+ * One live session: a client of contract `C` on one channel, in one epoch, and whether the
+ * channel is still open. Only the client speaks on the channel.
  */
 export type Session<C extends AnyContractRouter> = {
   readonly client: ContractRouterClient<C>
@@ -24,7 +27,8 @@ export type Session<C extends AnyContractRouter> = {
   readonly channel: Pick<Channel, "open" | "closed">
 }
 
-type Link<C extends AnyContractRouter> = Session<C> & { readonly channel: Channel }
+// The session as the connection holds it, which may close its channel.
+type HeldSession<C extends AnyContractRouter> = Session<C> & { readonly channel: Channel }
 
 export type ConnectOptions<C extends AnyContractRouter & WireContract> = {
   /** The contract the server serves, for the client's types: the app's, with the wire's. */
@@ -47,9 +51,6 @@ export type ConnectOptions<C extends AnyContractRouter & WireContract> = {
   /** Cancels the first connection. Afterwards, use `close()`. */
   readonly signal?: AbortSignal
 }
-
-/** A `Watched` value as its readers see it: they can't set it. */
-export type Watching<T> = Pick<Watched<T>, "value" | "next" | "watch">
 
 /** A supervised connection: it replaces its channel after every disconnection. */
 export type Wire<C extends AnyContractRouter> = {
@@ -76,81 +77,6 @@ const asWireError = (error: unknown): WireError => {
     : new WireError("DISCONNECTED", "Could not connect.", { cause: failure })
 }
 
-const sleep = (ms: number, signal: AbortSignal) =>
-  new Promise<void>((resolve) => {
-    const wake = () => {
-      clearTimeout(timer)
-      signal.removeEventListener("abort", wake)
-      resolve()
-    }
-    const timer = setTimeout(wake, ms)
-    signal.addEventListener("abort", wake, { once: true })
-  })
-
-const done = { value: undefined, done: true } as const
-
-/** A value with an async stream of its changes. */
-export class Watched<T> {
-  private wake = () => {}
-  private changed = new Promise<void>((resolve) => {
-    this.wake = resolve
-  })
-
-  constructor(
-    private current: T,
-    private readonly final: (value: T) => boolean,
-  ) {}
-
-  get value(): T {
-    return this.current
-  }
-
-  set(value: T): void {
-    this.current = value
-    const wake = this.wake
-    this.changed = new Promise((resolve) => {
-      this.wake = resolve
-    })
-    wake()
-  }
-
-  /** Resolves on the next change; reading `value` afterwards gives the latest one. */
-  next(): Promise<void> {
-    return this.changed
-  }
-
-  /**
-   * Iterates the latest values, ending after a final one. Quick successive changes may be
-   * coalesced. Unlike a generator, `return()` also ends a pending wait.
-   */
-  watch(): AsyncIterableIterator<T, undefined> {
-    let last: { value: T } | undefined
-    let stop: (() => void) | undefined
-    const stopped = new Promise<typeof done>((resolve) => {
-      stop = () => resolve(done)
-    })
-    let active = true
-    const iterator: AsyncIterableIterator<T, undefined> = {
-      [Symbol.asyncIterator]: () => iterator,
-      next: async () => {
-        if (last && this.final(last.value)) active = false
-        if (active && last?.value === this.current) {
-          await Promise.race([this.changed, stopped])
-        }
-        if (!active) return done
-        last = { value: this.current }
-        return { value: this.current, done: false }
-      },
-      return: () => {
-        active = false
-        stop?.()
-        return Promise.resolve(done)
-      },
-    }
-    return iterator
-  }
-}
-
 class Connection<C extends AnyContractRouter & WireContract> implements Wire<C> {
   readonly status = new Watched<WireStatus>(
     { state: "reconnecting", error: new WireError("DISCONNECTED", "Not connected yet.") },
@@ -160,7 +86,7 @@ class Connection<C extends AnyContractRouter & WireContract> implements Wire<C> 
   private readonly stopping = new AbortController()
   // Lets the server hand this client's state over from a connection only it knows is dead.
   private readonly clientId = crypto.randomUUID()
-  private link: Link<C> | undefined
+  private current: HeldSession<C> | undefined
 
   constructor(private readonly options: ConnectOptions<C>) {}
 
@@ -170,24 +96,24 @@ class Connection<C extends AnyContractRouter & WireContract> implements Wire<C> 
     signal?.addEventListener("abort", cancel, { once: true })
     try {
       signal?.throwIfAborted()
-      this.link = await this.handshake()
+      this.current = await this.handshake()
       // A handshake that ignored the abort may finish after the connection was given up.
       this.stopping.signal.throwIfAborted()
     } catch (error) {
-      this.link?.channel.close()
+      this.current?.channel.close()
       this.close()
       throw signal?.aborted ? signal.reason : error
     } finally {
       signal?.removeEventListener("abort", cancel)
     }
-    this.status.set({ state: "connected", epoch: this.link.epoch })
+    this.status.set({ state: "connected", epoch: this.current.epoch })
     void this.supervise().catch((error: unknown) => {
-      this.link?.channel.close()
+      this.current?.channel.close()
       this.status.set({ state: "closed", error: asWireError(error) })
     })
   }
 
-  private async handshake(): Promise<Link<C>> {
+  private async handshake(): Promise<HeldSession<C>> {
     const { transport, timeoutMs = 10_000 } = this.options
     const signal = AbortSignal.any([this.stopping.signal, AbortSignal.timeout(timeoutMs)])
     let channel: Channel | undefined
@@ -222,10 +148,10 @@ class Connection<C extends AnyContractRouter & WireContract> implements Wire<C> 
   session(): Session<C> {
     const status = this.status.value
     if (status.state === "closed") throw status.error ?? new WireError("CLOSED")
-    if (status.state !== "connected" || !this.link?.channel.open) {
+    if (status.state !== "connected" || !this.current?.channel.open) {
       throw new WireError("DISCONNECTED", "Reconnecting.")
     }
-    return this.link
+    return this.current
   }
 
   async ready(): Promise<Session<C> | undefined> {
@@ -235,8 +161,8 @@ class Connection<C extends AnyContractRouter & WireContract> implements Wire<C> 
         if (status.error) throw status.error
         return undefined
       }
-      if (status.state === "connected" && this.link?.channel.open) return this.link
-      // eslint-disable-next-line no-await-in-loop -- Wait for the supervisor to replace the link.
+      if (status.state === "connected" && this.current?.channel.open) return this.current
+      // eslint-disable-next-line no-await-in-loop -- The supervisor replaces the session.
       await this.status.next()
     }
   }
@@ -244,16 +170,16 @@ class Connection<C extends AnyContractRouter & WireContract> implements Wire<C> 
   close(): void {
     if (this.status.value.state === "closed") return
     this.stopping.abort()
-    this.link?.channel.close()
+    this.current?.channel.close()
     this.status.set({ state: "closed" })
   }
 
   private async supervise(): Promise<void> {
     const signal = this.stopping.signal
     const retryDelay = this.options.retryDelay ?? backoff
-    while (this.link) {
+    while (this.current) {
       // eslint-disable-next-line no-await-in-loop -- One channel is live at a time.
-      await this.link.channel.closed
+      await this.current.channel.closed
       if (signal.aborted) return
       let error: WireError = new WireError("DISCONNECTED", "The connection was lost.")
       for (let attempt = 0; ; attempt += 1) {
@@ -263,7 +189,7 @@ class Connection<C extends AnyContractRouter & WireContract> implements Wire<C> 
         if (signal.aborted) return
         try {
           // eslint-disable-next-line no-await-in-loop -- Attempts are sequential.
-          this.link = await this.handshake()
+          this.current = await this.handshake()
           break
         } catch (reason) {
           if (signal.aborted) return
@@ -275,10 +201,10 @@ class Connection<C extends AnyContractRouter & WireContract> implements Wire<C> 
         }
       }
       if (signal.aborted) {
-        this.link.channel.close()
+        this.current.channel.close()
         return
       }
-      this.status.set({ state: "connected", epoch: this.link.epoch })
+      this.status.set({ state: "connected", epoch: this.current.epoch })
     }
   }
 }

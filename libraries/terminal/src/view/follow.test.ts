@@ -48,7 +48,7 @@ describe("following a terminal", () => {
   })
 
   context("parked out of sight", () => {
-    it("lets go of the stream, and draws the runner's screen as it is once shown again", async () => {
+    it("lets go of the stream, and draws the host's screen as it is once shown again", async () => {
       const first = streamOf([snapshot("$ before")])
       const second = streamOf([snapshot("$ after")])
       const attach = attaching()

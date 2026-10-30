@@ -1,5 +1,5 @@
 // Lists the processes of a sandbox on Windows, as Linux's /proc gives them (see
-// reap.ts, which compiles and runs it): those that started at or after the sandbox, other
+// windows.ts, which compiles and runs it): those that started at or after the sandbox, other
 // than the caller and this one, whose working folder is inside the sandbox or whose HOME
 // or USERPROFILE is its home, read from their parameters (the offsets are a 64-bit PEB's
 // and its RTL_USER_PROCESS_PARAMETERS'), as JSON: their pids, names and starts in

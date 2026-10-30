@@ -13,7 +13,7 @@ const launch = (
 ) => shellLaunch({ shell, scripts, ...options })
 
 describe("a shell's launch", () => {
-  it("loads each known shell's file after the user's own setup", () => {
+  it("loads each known shell's file after the person's own setup", () => {
     expect(launch("/bin/bash", { env: {} }).args).toEqual(["--init-file", scripts.bash])
     expect(launch("-zsh", { env: {} }).env.ZDOTDIR).toBe(scripts.zsh)
     expect(launch("fish", { env: {} }).args).toEqual([
@@ -29,7 +29,7 @@ describe("a shell's launch", () => {
       expect(launch(shell, { env: {} }).integrated).toBe(true)
   })
 
-  it("keeps the user's ZDOTDIR for zsh under the prefix's name", () => {
+  it("keeps the person's ZDOTDIR for zsh under the prefix's name", () => {
     expect(launch("zsh", { env: { ZDOTDIR: "/mine" } }).env).toMatchObject({
       ZDOTDIR: scripts.zsh,
       ACME_ZDOTDIR: "/mine",
@@ -75,7 +75,7 @@ describe("a shell's launch", () => {
 })
 
 describe("cmd", () => {
-  it("reports the directory ahead of the user's prompt", () => {
+  it("reports the directory ahead of the person's prompt", () => {
     expect(launch("cmd.exe", { env: { PROMPT: "$G" } }).env.PROMPT).toBe("$e]9;9;$P$e\\$G")
     expect(launch("cmd.exe", { env: {} }).env.PROMPT).toBe("$e]9;9;$P$e\\$P$G")
   })

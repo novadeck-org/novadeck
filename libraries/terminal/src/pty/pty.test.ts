@@ -50,7 +50,7 @@ describe("forcing a terminal's program to end", () => {
     expect(terminal.signals).toEqual([])
   })
 
-  it("ends nothing on Windows before node-pty knows the process, as id 0 would end the host", async () => {
+  it("ends nothing on Windows before node-pty knows the process, as id 0 would end the app", async () => {
     const ended: number[] = []
     const terminal = ptyStandIn("win32", null)
     await expect(forceKill(terminal, "win32", (pid) => void ended.push(pid))).rejects.toThrow(
@@ -181,7 +181,7 @@ describe("a pty", () => {
       const ended = pty.end({ graceMs: 1_000, treeGraceMs: 3_000, trees })
       await vi.advanceTimersByTimeAsync(1_000)
       await ended
-      // Nothing was read or ended by id 0, which would name the host.
+      // Nothing was read or ended by id 0, which would name the app.
       expect(reads).toEqual([])
       expect(exits).toEqual([{ code: null, signal: null }])
       // The queued kill runs at the first draw; its exit isn't reported again.

@@ -30,8 +30,13 @@ describe("connectSources", () => {
     expect(connectSources({ development: true })).toContain("ws://127.0.0.1:*")
   })
 
-  it("rejects an API URL of another protocol, scheme-relative or in backslash form", () => {
-    for (const url of ["ftp://api.example.com", "//api.example.com/api", "/\\api.example.com/api"])
+  it("rejects an API URL of another protocol, scheme-relative, in backslash form or unreadable", () => {
+    for (const url of [
+      "ftp://api.example.com",
+      "//api.example.com/api",
+      "/\\api.example.com/api",
+      "//[",
+    ])
       expect(() => connectSources({ api: api(url), development: false })).toThrow(
         "API_URL must be an absolute HTTP(S) URL or a relative path",
       )

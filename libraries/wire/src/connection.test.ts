@@ -4,7 +4,7 @@ import { RPCHandler } from "@orpc/server/message-port"
 import { describe, expect, it, onTestFinished, vi } from "vitest"
 
 import type { Channel, MessagePortLike } from "./channel.js"
-import { connect, Watched, type ConnectOptions } from "./connection.js"
+import { connect, type ConnectOptions } from "./connection.js"
 import { wireErrors } from "./errors.js"
 import { wireContract } from "./handshake.js"
 import { fakeChannel, memoryPorts } from "./testing.js"
@@ -297,28 +297,5 @@ describe("connect", () => {
     expect(first!.open).toBe(false)
     await until(wire, "reconnecting")
     await vi.waitFor(() => expect(connections).toBe(2))
-  })
-})
-
-describe("Watched", () => {
-  it("yields the latest value, coalescing quick changes, and ends after a final one", async () => {
-    const watched = new Watched(0, (value) => value < 0)
-    const values = watched.watch()
-    expect((await values.next()).value).toBe(0)
-    watched.set(1)
-    watched.set(2)
-    expect((await values.next()).value).toBe(2)
-    watched.set(-1)
-    expect((await values.next()).value).toBe(-1)
-    expect((await values.next()).done).toBe(true)
-  })
-
-  it("ends a pending wait on return()", async () => {
-    const watched = new Watched(0, () => false)
-    const values = watched.watch()
-    await values.next()
-    const pending = values.next()
-    await values.return?.()
-    expect(await pending).toEqual({ done: true, value: undefined })
   })
 })

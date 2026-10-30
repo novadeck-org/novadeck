@@ -1,6 +1,6 @@
 import { join } from "node:path"
 
-// The files a shell reads after its user's own setup: each reports the directory at every
+// The files a shell reads after the person's own setup: each reports the directory at every
 // prompt, keeps one folder first on PATH, and runs a startup command once, at the first
 // prompt. Their variables and functions are named after the app's prefix: with "acme",
 // ACME_BIN, ACME_RESUME and __acme_prompt.
@@ -33,7 +33,7 @@ export const shellScriptPaths = (directory: string, prefix: string): ShellScript
 })
 
 /**
- * bash, started with `--init-file`: reads the user's own ~/.bashrc as bash would, then
+ * bash, started with `--init-file`: reads the person's own ~/.bashrc as bash would, then
  * reports the directory at each prompt with OSC 7.
  */
 const bash = (p: string, v: string) => `
@@ -91,8 +91,8 @@ fi
 `
 
 // zsh reads its startup files from ZDOTDIR, which the launch points here. .zshenv reads
-// the user's own with ZDOTDIR as they had it (<PREFIX>_ZDOTDIR, or unset), and notes
-// where their .zshenv left it; later files read the user's from there. .zshrc hands
+// the person's own with ZDOTDIR as they had it (<PREFIX>_ZDOTDIR, or unset), and notes
+// where their .zshenv left it; later files read the person's from there. .zshrc hands
 // ZDOTDIR back, so .zlogin and any nested zsh read theirs.
 const zshenv = (p: string, v: string) => `
 __${p}_zdotdir=$ZDOTDIR
@@ -193,8 +193,8 @@ function __${p}_resume --on-event fish_prompt
 end
 `
 
-// PowerShell loads the user's profile before -Command runs this. The prompt reports
-// the directory with OSC 9;9, as Windows Terminal documents, around the user's own.
+// PowerShell loads the person's profile before -Command runs this. The prompt reports
+// the directory with OSC 9;9, as Windows Terminal documents, around the person's own.
 const powershell = (p: string, v: string) => `
 # Your profile may put other directories first; ${v}_BIN goes back in front.
 if ($env:${v}_BIN) {

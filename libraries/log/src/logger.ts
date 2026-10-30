@@ -28,11 +28,26 @@ export type Log = {
   readonly [L in Level]: (evt: string, msg?: string, detail?: Detail) => void
 }
 
+/** Writes one line at `level`. */
+type Write = (level: Level, ...line: Parameters<Log[Level]>) => void
+
+/** A log whose lines at every level go through `write`. */
+const logOf = (write: Write): Log => ({
+  debug: (...line) => write("debug", ...line),
+  info: (...line) => write("info", ...line),
+  warn: (...line) => write("warn", ...line),
+  error: (...line) => write("error", ...line),
+  fatal: (...line) => write("fatal", ...line),
+})
+
+/** Who writes a line: the module, and the process it is written as. */
+type Source = { readonly src: string; readonly proc: string }
+
 /** A process's log. */
 export type Logger = {
   /**
    * The log of the module `src`; of another process than the logger's, `proc`, for lines one
-   * process writes for another, as the host writes the page's errors.
+   * process writes for another, as the desktop app's main process writes the page's errors.
    */
   for(src: string, proc?: string): Log
   /** Writes what repeats held back. */
@@ -42,7 +57,7 @@ export type Logger = {
 }
 
 export type LoggerOptions = {
-  /** The process writing, such as `host` or `runner`. */
+  /** The process writing, such as `host` (the desktop app's main process) or `runner`. */
   readonly proc: string
   /** The launch's id. */
   readonly sid: string
@@ -95,7 +110,7 @@ export const createLogger = (options: LoggerOptions): Logger => {
 
   const entry = (
     level: Level,
-    from: { readonly src: string; readonly proc: string },
+    from: Source,
     evt: string,
     msg: string | undefined,
     detail: Detail | undefined,
@@ -126,9 +141,7 @@ export const createLogger = (options: LoggerOptions): Logger => {
             { src: "log", proc },
             "session.resume",
             "Continues the file before this one.",
-            {
-              ...(options.resume && { data: options.resume }),
-            },
+            options.resume && { data: options.resume },
           ),
         ),
     })
@@ -137,13 +150,7 @@ export const createLogger = (options: LoggerOptions): Logger => {
     for (const line of lines) file?.write(JSON.stringify(line))
   }
 
-  const write = (
-    level: Level,
-    from: { readonly src: string; readonly proc: string },
-    evt: string,
-    msg?: string,
-    detail?: Detail,
-  ): void => {
+  const write = (level: Level, from: Source, evt: string, msg?: string, detail?: Detail): void => {
     try {
       if (!atLeast(level, threshold)) return
       if (detail?.verbose && !verbose) return
@@ -171,36 +178,42 @@ export const createLogger = (options: LoggerOptions): Logger => {
       : undefined
   timer?.unref()
 
-  const logs = new Map<string, Log>()
+  const flush = (): void => {
+    try {
+      put(drain(repeats))
+      repeats = new Map()
+    } catch {
+      // As above.
+    }
+  }
+
+  const logFor = cachedLogs((src, from = proc) =>
+    logOf((level, evt, msg, detail) => write(level, { src, proc: from }, evt, msg, detail)),
+  )
+
   return {
-    for(src, other) {
-      const from = { src, proc: other ?? proc }
-      const key = `${from.proc} ${src}`
-      const known = logs.get(key)
-      if (known) return known
-      const log: Log = {
-        debug: (evt, msg, detail) => write("debug", from, evt, msg, detail),
-        info: (evt, msg, detail) => write("info", from, evt, msg, detail),
-        warn: (evt, msg, detail) => write("warn", from, evt, msg, detail),
-        error: (evt, msg, detail) => write("error", from, evt, msg, detail),
-        fatal: (evt, msg, detail) => write("fatal", from, evt, msg, detail),
-      }
-      logs.set(key, log)
-      return log
-    },
-    flush() {
-      try {
-        put(drain(repeats))
-        repeats = new Map()
-      } catch {
-        // As above.
-      }
-    },
+    for: (src, other) => logFor(src, other ?? proc),
+    flush,
     close() {
-      this.flush()
+      flush()
       clearInterval(timer)
       file?.close()
     },
+  }
+}
+
+/** `make`, each module's log made once and handed out again after. */
+const cachedLogs = (
+  make: (src: string, proc?: string) => Log,
+): ((src: string, proc?: string) => Log) => {
+  const logs = new Map<string, Log>()
+  return (src, proc) => {
+    const key = `${proc ?? ""} ${src}`
+    const known = logs.get(key)
+    if (known) return known
+    const log = make(src, proc)
+    logs.set(key, log)
+    return log
   }
 }
 
@@ -219,7 +232,7 @@ export const consoleLogger = (): Logger =>
     echo: consoleEcho,
   })
 
-/** Shows a line on the console the way the code it replaced did: the message, then the error. */
+/** Shows a line on the console: its message, then what was thrown, if anything. */
 export const consoleEcho = (level: Level, text: string, error?: unknown): void => {
   const show =
     level === "warn"
@@ -231,34 +244,28 @@ export const consoleEcho = (level: Level, text: string, error?: unknown): void =
   else show(`${text}:`, error)
 }
 
+/** A logger whose lines go to the logger it was given last. */
+export type SwitchableLogger = Logger & {
+  /** Sends every line, through logs taken before too, to `next` from now on. */
+  use(next: Logger): void
+  /** The logger lines go to now. */
+  current(): Logger
+}
+
 /**
  * A logger that hands each line to the one it is given last, so modules can take their log
  * when they load and still write to the file a process opens later.
  */
-export const switchableLogger = (
-  initial: Logger,
-): Logger & { use(next: Logger): void; current(): Logger } => {
+export const switchableLogger = (initial: Logger): SwitchableLogger => {
   let current = initial
-  const logs = new Map<string, Log>()
   return {
     use(next) {
       current = next
     },
     current: () => current,
-    for(src, proc) {
-      const key = `${proc ?? ""} ${src}`
-      const known = logs.get(key)
-      if (known) return known
-      const log: Log = {
-        debug: (...args) => current.for(src, proc).debug(...args),
-        info: (...args) => current.for(src, proc).info(...args),
-        warn: (...args) => current.for(src, proc).warn(...args),
-        error: (...args) => current.for(src, proc).error(...args),
-        fatal: (...args) => current.for(src, proc).fatal(...args),
-      }
-      logs.set(key, log)
-      return log
-    },
+    for: cachedLogs((src, proc) =>
+      logOf((level, ...line) => current.for(src, proc)[level](...line)),
+    ),
     flush: () => current.flush(),
     close: () => current.close(),
   }

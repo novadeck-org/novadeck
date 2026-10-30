@@ -44,7 +44,7 @@ export type NativeSpawn = (
 
 /**
  * How ptys start: node-pty's `spawn` unless a test plays one, the platform their ending
- * follows, and where each program is kept apart from the app's, as Linux's `UserScopes`.
+ * follows, and where each program is kept apart from the app's, as `userScopes()` gives on Linux.
  */
 export type PtyOptions = {
   readonly native?: NativeSpawn
@@ -79,7 +79,7 @@ export type EndOptions = {
 }
 
 export type Pty = {
-  /** Undefined until it is known: never 0, which on Windows would name the host itself. */
+  /** Undefined until it is known: never 0, which on Windows would name the app itself. */
   readonly pid: number | undefined
   /** The name node-pty gives the foreground program (see `sampleForeground`). */
   readonly process: string
@@ -128,7 +128,7 @@ const resumeGroup = (group: number): void => {
  * Ends a program its first kill left running. On Windows, which has no signals, node-pty
  * throws on one, and later still when it queued the kill until the terminal first drew:
  * its process and every program it started are ended by its id instead. Until its output
- * connects, node-pty names that id 0, which would end the host itself, so it rejects, and
+ * connects, node-pty names that id 0, which would end the app itself, so it rejects, and
  * the program is taken as ended while node-pty's queued kill closes its console later.
  */
 export const forceKill = async (
