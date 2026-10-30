@@ -10,7 +10,15 @@ import {
 import { useEffect, useRef, type RefObject } from "react"
 
 import { prefersReducedMotion } from "../../interaction/reduced-motion"
-import { centerOf, chromeScaleAt, fallbackSize, fitOptions, terminalHeaderHeight } from "./geometry"
+import {
+  centerOf,
+  chromeScaleAt,
+  fallbackSize,
+  fitOptions,
+  onScreen,
+  sizeOr,
+  terminalHeaderHeight,
+} from "./geometry"
 import type { CanvasProps, CanvasViewport, TerminalNode } from "./types"
 import type { createCanvasVisit } from "./visit"
 
@@ -106,23 +114,10 @@ export const useCanvasNavigation = ({
     if (created) {
       createdPositions.current.delete(selected)
       const viewport = getViewport()
-      const size = geometryRef.current[selected]
-      const width = size?.width ?? node.width ?? 600
-      const height = size?.height ?? node.height ?? fallbackSize.height
-      const margin = 24 / viewport.zoom
-      const left = -viewport.x / viewport.zoom
-      const top = -viewport.y / viewport.zoom
-      const { width: viewportWidth, height: viewportHeight } = viewportSize()
-      const right = (viewportWidth - viewport.x) / viewport.zoom
-      const bottom = (viewportHeight - viewport.y) / viewport.zoom
-      if (
-        created.x >= left + margin &&
-        created.y >= top + margin &&
-        created.x + width <= right - margin &&
-        created.y + height <= bottom - margin
-      )
-        return
-      void setCenter(created.x + width / 2, created.y + height / 2, {
+      const measured = geometryRef.current[selected]
+      const size = sizeOr(measured?.width ?? node.width, measured?.height ?? node.height)
+      if (onScreen(created, size, viewport, viewportSize())) return
+      void setCenter(created.x + size.width / 2, created.y + size.height / 2, {
         zoom: viewport.zoom,
         duration,
         interpolate: "linear",
