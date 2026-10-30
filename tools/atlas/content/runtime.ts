@@ -69,7 +69,7 @@ export const runtime: {
       summary:
         "Claude Code, Codex or Antigravity, running inside a Novadeck terminal. Novadeck installs a plugin into it, whose hooks and MCP server both start the relay.",
       anchor: {
-        file: "harnesses/claude/src/index.ts",
+        file: "harnesses/claude/src/plugin.ts",
         text: 'path: join("novadeck", "hooks", "hooks.json")',
       },
       position: { x: 1050, y: 460 },

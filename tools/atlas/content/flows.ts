@@ -294,7 +294,7 @@ export const flows: (Omit<Flow, "steps"> & { steps: CuratedStep[] })[] = [
         to: "relay",
         label: "PermissionRequest hook",
         text: "Claude Code reaches a permission prompt and fires its PermissionRequest hook, a command the plugin registered.",
-        anchor: { file: "harnesses/claude/src/index.ts", text: "command: hook(platform, event)," },
+        anchor: { file: "harnesses/claude/src/plugin.ts", text: "command: hook(platform, event)," },
       },
       {
         from: "relay",
