@@ -24,7 +24,7 @@ export type Table = {
   readonly annotations: readonly (RowAnnotation | null)[]
 }
 
-// An annotation inside a row, at the end of its last cell, between the host's markers.
+// An annotation inside a row, at the end of its last cell, between the app's markers.
 export type RowAnnotation = {
   // The annotation as shown, with `\|` read as a pipe.
   readonly text: string

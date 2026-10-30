@@ -1,7 +1,7 @@
 import { webAddress } from "./address.js"
 
 // What went wrong on a live page, as the browser viewer sees it: the part of its work that
-// needs no view. The page is the host's to distrust, so what it says is checked here.
+// needs no view. The page is the app's to distrust, so what it says is checked here.
 
 /**
  * An `error` the page logged or threw, with the script and line it came from (0 when

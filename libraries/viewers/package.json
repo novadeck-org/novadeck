@@ -69,11 +69,11 @@
       "default": "./dist/browser/sign-in.js"
     },
     "./browser.css": "./src/browser.css",
-    "./browser/host": {
+    "./browser/main": {
       "node": {
-        "development": "./src/browser/host.ts",
-        "types": "./dist/browser/host.d.ts",
-        "default": "./dist/browser/host.js"
+        "development": "./src/browser/main.ts",
+        "types": "./dist/browser/main.d.ts",
+        "default": "./dist/browser/main.js"
       }
     },
     "./react": {

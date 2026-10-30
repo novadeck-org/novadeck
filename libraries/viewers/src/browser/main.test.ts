@@ -23,7 +23,7 @@ import {
   signInWindow,
   watchPageRequests,
   webAddress,
-} from "./host.js"
+} from "./main.js"
 import { chromeMajorOf, phoneUserAgent } from "./phone.js"
 
 const pagesPartition = "persist:pages"
@@ -96,7 +96,7 @@ describe("a page view as it attaches", () => {
     for (const partition of ["", "persist:", "pages"]) {
       const preferences: WebPreferences = { nodeIntegration: true }
       expect(attachPage(preferences, { src: "https://example.com" }, partition)).toBe(false)
-      // Locked down all the same, whatever the host makes of the refusal.
+      // Locked down all the same, whatever the app makes of the refusal.
       expect(preferences.nodeIntegration).toBe(false)
     }
   })
@@ -442,10 +442,10 @@ describe("a page view's sign-in windows", () => {
 })
 
 describe("a picture of a page", () => {
-  const host = {} as WebContents
+  const app = {} as WebContents
   // A page view of `owner`, which draws `drawn` (nothing when empty).
   const view = ({
-    owner = host,
+    owner = app,
     type = "webview",
     drawn = "jpeg",
     destroyed = false,
@@ -484,7 +484,7 @@ describe("a picture of a page", () => {
 
   it("is the JPEG of what a page view of the asking page shows", async () => {
     const { contents, qualities } = view()
-    expect(await picturePage(host, 7, byId(contents))).toBe(
+    expect(await picturePage(app, 7, byId(contents))).toBe(
       `data:image/jpeg;base64,${Buffer.from("jpeg").toString("base64")}`,
     )
     expect(qualities).toEqual([pictureQuality])
@@ -492,13 +492,13 @@ describe("a picture of a page", () => {
 
   it("is scaled down to the width it's drawn at, where it's wider, as a page fit to its viewer", async () => {
     const { contents, resized } = view()
-    expect(await picturePage(host, 7, byId(contents), 800)).toBe(
+    expect(await picturePage(app, 7, byId(contents), 800)).toBe(
       `data:image/jpeg;base64,${Buffer.from("jpeg at 800").toString("base64")}`,
     )
     // As wide or wider, or no width a picture can be: as it is.
     const widths = [2560, 4000, 0, -5, 1.5, "800", undefined]
     expect(
-      await Promise.all(widths.map((width) => picturePage(host, 7, byId(contents), width))),
+      await Promise.all(widths.map((width) => picturePage(app, 7, byId(contents), width))),
     ).toEqual(widths.map(() => `data:image/jpeg;base64,${Buffer.from("jpeg").toString("base64")}`))
     expect(resized).toEqual([800])
   })
@@ -508,8 +508,8 @@ describe("a picture of a page", () => {
       view({ owner: {} as WebContents }).contents,
       view({ type: "window" }).contents,
       view({ destroyed: true }).contents,
-    ].map((contents) => picturePage(host, 7, byId(contents)))
-    const ids = [8, "7", 7.5, undefined].map((id) => picturePage(host, id, byId(view().contents)))
+    ].map((contents) => picturePage(app, 7, byId(contents)))
+    const ids = [8, "7", 7.5, undefined].map((id) => picturePage(app, id, byId(view().contents)))
     expect(await Promise.all([...others, ...ids])).toEqual(Array(7).fill(undefined))
   })
 
@@ -518,12 +518,12 @@ describe("a picture of a page", () => {
     try {
       const never = {
         ...view().contents,
-        hostWebContents: host,
+        hostWebContents: app,
         getType: () => "webview",
         isDestroyed: () => false,
         capturePage: () => new Promise(() => {}),
       } as unknown as WebContents
-      const picture = picturePage(host, 7, byId(never))
+      const picture = picturePage(app, 7, byId(never))
       await vi.advanceTimersByTimeAsync(pictureWaitMs)
       expect(await picture).toBeUndefined()
     } finally {
@@ -532,15 +532,15 @@ describe("a picture of a page", () => {
   })
 
   it("is nothing while the page draws nothing, or can't be taken", async () => {
-    expect(await picturePage(host, 7, byId(view({ drawn: "" }).contents))).toBeUndefined()
+    expect(await picturePage(app, 7, byId(view({ drawn: "" }).contents))).toBeUndefined()
     const failing = {
       ...view().contents,
-      hostWebContents: host,
+      hostWebContents: app,
       getType: () => "webview",
       isDestroyed: () => false,
       capturePage: () => Promise.reject(new Error("gone")),
     } as unknown as WebContents
-    expect(await picturePage(host, 7, byId(failing))).toBeUndefined()
+    expect(await picturePage(app, 7, byId(failing))).toBeUndefined()
   })
 })
 
@@ -666,10 +666,10 @@ describe("the requests of a page view that fail", () => {
 
 describe("a page view as a phone's", () => {
   const phone = phoneUserAgent(chromeMajorOf(`Chrome/${process.versions.chrome ?? "0"}`))
-  const host = {} as WebContents
+  const app = {} as WebContents
   // A page view of `owner`, its DevTools protocol recording what it's sent.
   const view = ({
-    owner = host,
+    owner = app,
     agent = "Desktop/1",
     answers = true as boolean | "rejects",
   } = {}) => {
@@ -712,7 +712,7 @@ describe("a page view as a phone's", () => {
 
   it("acts as one, touched, with a phone's screen and browser, and as itself again", async () => {
     const { contents, sent } = view()
-    expect(await phonePage(host, 7, true, byId(contents))).toBe(true)
+    expect(await phonePage(app, 7, true, byId(contents))).toBe(true)
     expect(sent).toEqual([
       "attach",
       "agent phone",
@@ -723,23 +723,23 @@ describe("a page view as a phone's", () => {
     ])
     sent.splice(0)
     // Letting the protocol go undoes all it set.
-    expect(await phonePage(host, 7, false, byId(contents))).toBe(true)
+    expect(await phonePage(app, 7, false, byId(contents))).toBe(true)
     expect(sent).toEqual(["detach", "agent Desktop/1"])
   })
 
   it("is left as itself, not half a phone, where it can't be made one", async () => {
     const { contents, sent } = view({ answers: "rejects" })
-    expect(await phonePage(host, 7, true, byId(contents))).toBe(false)
+    expect(await phonePage(app, 7, true, byId(contents))).toBe(false)
     expect(sent.slice(-2)).toEqual(["detach", "agent Desktop/1"])
     expect(contents.getUserAgent()).toBe("Desktop/1")
   })
 
   it("is nothing for another window's page, the app's own, or an id that's no view's", async () => {
     const other = view({ owner: {} as WebContents })
-    expect(await phonePage(host, 7, true, byId(other.contents))).toBe(false)
+    expect(await phonePage(app, 7, true, byId(other.contents))).toBe(false)
     const ids = [8, "7", 7.5]
     expect(
-      await Promise.all(ids.map((id) => phonePage(host, id, true, byId(view().contents)))),
+      await Promise.all(ids.map((id) => phonePage(app, id, true, byId(view().contents)))),
     ).toEqual(ids.map(() => false))
     expect(other.sent).toEqual([])
   })

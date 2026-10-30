@@ -1,7 +1,7 @@
 import { phoneScreen } from "./phone.js"
 
 // Where a live page's view goes in its viewer: the size it lays out at, scaled down to fit.
-// No view here, only the arithmetic, which the host's look shares for the sizes it loads at.
+// No view here, only the arithmetic, which the desktop app's looks share for the sizes it loads at.
 
 /**
  * What a live page lays out as: a desktop's window, at least `desktopWidth` wide and scaled

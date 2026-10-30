@@ -19,20 +19,20 @@ import { chromeMajorOf, phoneScreen, phoneUserAgent } from "./browser/phone.js"
 import { tiltMaxDeg, tiltPerPx, tiltToward } from "./browser/tilt.js"
 import type { ViewerState } from "./index.js"
 
-const hosts: HTMLElement[] = []
+const panes: HTMLElement[] = []
 afterEach(() => {
-  for (const host of hosts.splice(0)) host.remove()
+  for (const pane of panes.splice(0)) pane.remove()
 })
 
-const hostIn = (): HTMLElement => {
-  const host = document.createElement("div")
-  host.style.cssText = "display: flex; flex-direction: column; height: 300px; width: 400px"
-  document.body.append(host)
-  hosts.push(host)
-  return host
+const paneIn = (): HTMLElement => {
+  const pane = document.createElement("div")
+  pane.style.cssText = "display: flex; flex-direction: column; height: 300px; width: 400px"
+  document.body.append(pane)
+  panes.push(pane)
+  return pane
 }
 
-const pageOf = (host: HTMLElement): HTMLElement => host.querySelector("webview")!
+const pageOf = (pane: HTMLElement): HTMLElement => pane.querySelector("webview")!
 
 // A <webview> as Electron makes it once attached: its methods work, here at a place.
 const attach = (page: HTMLElement, at: Place, calls: string[] = []): void => {
@@ -50,8 +50,8 @@ const attach = (page: HTMLElement, at: Place, calls: string[] = []): void => {
 const event = (type: string, fields: Record<string, unknown> = {}): Event =>
   Object.assign(new Event(type), fields)
 
-const live = (host: HTMLElement, on: BrowserOptions["on"] = {}, url = "http://localhost:5173/") =>
-  mountBrowser(host, {
+const live = (pane: HTMLElement, on: BrowserOptions["on"] = {}, url = "http://localhost:5173/") =>
+  mountBrowser(pane, {
     content: { url },
     label: url,
     live: true,
@@ -62,9 +62,9 @@ const live = (host: HTMLElement, on: BrowserOptions["on"] = {}, url = "http://lo
 describe("the browser viewer", () => {
   context("with live pages", () => {
     it("makes its page with the pages' session and allowpopups, before it attaches", () => {
-      const host = hostIn()
-      live(host)
-      const page = pageOf(host)
+      const pane = paneIn()
+      live(pane)
+      const page = pageOf(pane)
       expect(page.getAttribute("partition")).toBe("pages")
       // Electron reads it only as an attribute, as the view attaches.
       expect(page.getAttribute("allowpopups")).toBe("")
@@ -72,10 +72,10 @@ describe("the browser viewer", () => {
     })
 
     it("reports where the page goes, once it's attached", () => {
-      const host = hostIn()
+      const pane = paneIn()
       const places: Place[] = []
-      live(host, { navigate: (place) => places.push(place) })
-      const page = pageOf(host)
+      live(pane, { navigate: (place) => places.push(place) })
+      const page = pageOf(pane)
       // Not attached yet: nothing to read.
       page.dispatchEvent(event("did-navigate"))
       expect(places).toEqual([])
@@ -85,12 +85,12 @@ describe("the browser viewer", () => {
     })
 
     it("reports its load as it starts, ends and fails, a replaced load not failing", () => {
-      const host = hostIn()
+      const pane = paneIn()
       const loads: Load[] = []
-      live(host, { load: (load) => loads.push(load) })
-      const page = pageOf(host)
+      live(pane, { load: (load) => loads.push(load) })
+      const page = pageOf(pane)
       attach(page, { url: "http://localhost:5173/", back: false, forward: false })
-      expect(host.querySelector(".browser-viewer")!.getAttribute("data-load")).toBe("loading")
+      expect(pane.querySelector(".browser-viewer")!.getAttribute("data-load")).toBe("loading")
       page.dispatchEvent(event("did-stop-loading"))
       page.dispatchEvent(event("did-start-loading"))
       page.dispatchEvent(event("did-fail-load", { errorCode: -3, isMainFrame: true }))
@@ -99,17 +99,17 @@ describe("the browser viewer", () => {
       page.dispatchEvent(event("did-fail-load", { errorCode: -105, isMainFrame: true }))
       page.dispatchEvent(event("did-stop-loading"))
       expect(loads).toEqual(["loading", "ready", "loading", "failed"])
-      expect(host.querySelector(".browser-viewer")!.getAttribute("data-load")).toBe("failed")
+      expect(pane.querySelector(".browser-viewer")!.getAttribute("data-load")).toBe("failed")
       page.dispatchEvent(event("did-start-loading"))
       page.dispatchEvent(event("render-process-gone"))
       expect(loads.at(-1)).toBe("failed")
     })
 
     it("keeps its ground under the page only until it paints, not through later loads", () => {
-      const host = hostIn()
-      host.style.setProperty("--browser-page-bg", "rgb(255, 255, 255)")
-      live(host)
-      const page = pageOf(host)
+      const pane = paneIn()
+      pane.style.setProperty("--browser-page-bg", "rgb(255, 255, 255)")
+      live(pane)
+      const page = pageOf(pane)
       attach(page, { url: "http://localhost:5173/", back: false, forward: false })
       const ground = (): string => getComputedStyle(page).backgroundColor
       page.dispatchEvent(event("did-start-loading"))
@@ -125,14 +125,14 @@ describe("the browser viewer", () => {
     })
 
     it("goes back, forward and reloads when asked, and stays quiet when told", () => {
-      const host = hostIn()
+      const pane = paneIn()
       const calls: string[] = []
-      const viewer = live(host)
+      const viewer = live(pane)
       // Before it's attached, asking does nothing, and muting waits for it.
       viewer.muted(true)
       viewer.back()
-      attach(pageOf(host), { url: "http://localhost:5173/", back: true, forward: true }, calls)
-      pageOf(host).dispatchEvent(event("dom-ready"))
+      attach(pageOf(pane), { url: "http://localhost:5173/", back: true, forward: true }, calls)
+      pageOf(pane).dispatchEvent(event("dom-ready"))
       viewer.back()
       viewer.forward()
       viewer.reload()
@@ -144,9 +144,9 @@ describe("the browser viewer", () => {
       const url = "http://localhost:5173/"
       // A page shown at `url`, attached where `at` says, recording what is asked of it.
       const shownAt = (content: BrowserContent, saved?: ViewerState) => {
-        const host = hostIn()
+        const pane = paneIn()
         const loads: Load[] = []
-        const viewer = mountBrowser(host, {
+        const viewer = mountBrowser(pane, {
           content,
           label: "page",
           live: true,
@@ -154,7 +154,7 @@ describe("the browser viewer", () => {
           on: { load: (load) => loads.push(load) },
           ...(saved && { saved }),
         })
-        const page = pageOf(host)
+        const page = pageOf(pane)
         const at = { url, back: false, forward: false }
         const calls: string[] = []
         attach(page, at, calls)
@@ -462,8 +462,8 @@ describe("the browser viewer", () => {
     })
 
     it("keeps a snapshot at the latest show, whatever arrives late", () => {
-      const host = hostIn()
-      const viewer = mountBrowser(host, {
+      const pane = paneIn()
+      const viewer = mountBrowser(pane, {
         content: { url: "http://localhost:5173/new", shown: 2 },
         label: "page",
         live: false,
@@ -476,15 +476,15 @@ describe("the browser viewer", () => {
     })
 
     it("tells the page's title", () => {
-      const host = hostIn()
+      const pane = paneIn()
       const titles: string[] = []
-      live(host, { title: (title) => titles.push(title) })
-      pageOf(host).dispatchEvent(event("page-title-updated", { title: "Studio" }))
+      live(pane, { title: (title) => titles.push(title) })
+      pageOf(pane).dispatchEvent(event("page-title-updated", { title: "Studio" }))
       expect(titles).toEqual(["Studio"])
     })
 
     it("opens where the person had taken the page, from its state", () => {
-      const first = hostIn()
+      const first = paneIn()
       const viewer = live(first)
       attach(pageOf(first), { url: "http://localhost:5173/work", back: true, forward: false })
       pageOf(first).dispatchEvent(event("did-navigate"))
@@ -492,7 +492,7 @@ describe("the browser viewer", () => {
       viewer.destroy()
       expect(first.children).toHaveLength(0)
 
-      const again = hostIn()
+      const again = paneIn()
       mountBrowser(again, {
         content: { url: "http://localhost:5173/" },
         label: "page",
@@ -502,7 +502,7 @@ describe("the browser viewer", () => {
       })
       expect(pageOf(again).getAttribute("src")).toBe("http://localhost:5173/work")
 
-      const other = hostIn()
+      const other = paneIn()
       mountBrowser(other, {
         content: { url: "https://example.com/" },
         label: "page",
@@ -514,13 +514,13 @@ describe("the browser viewer", () => {
     })
 
     it("goes to a new address it's given, and keeps it as where it is until it's there", () => {
-      const host = hostIn()
+      const pane = paneIn()
       const places: Place[] = []
-      const viewer = live(host, { navigate: (place) => places.push(place) })
+      const viewer = live(pane, { navigate: (place) => places.push(place) })
       viewer.update({ url: "https://example.com/" })
-      expect(pageOf(host).getAttribute("src")).toBe("https://example.com/")
+      expect(pageOf(pane).getAttribute("src")).toBe("https://example.com/")
       expect(places.at(-1)?.url).toBe("https://example.com/")
-      const again = hostIn()
+      const again = paneIn()
       mountBrowser(again, {
         content: { url: "https://example.com/" },
         label: "page",
@@ -532,20 +532,20 @@ describe("the browser viewer", () => {
     })
 
     it("goes to no address but an http(s) one once its page has attached", () => {
-      const host = hostIn()
-      const viewer = live(host)
+      const pane = paneIn()
+      const viewer = live(pane)
       for (const url of ["javascript:alert(1)", "data:text/html,x", "file:///etc/passwd"])
         viewer.update({ url })
-      expect(pageOf(host).getAttribute("src")).toBe("http://localhost:5173/")
+      expect(pageOf(pane).getAttribute("src")).toBe("http://localhost:5173/")
     })
 
     it("says where it's going when it opens where the person had taken the page", () => {
-      const first = hostIn()
+      const first = paneIn()
       const viewer = live(first)
       attach(pageOf(first), { url: "http://localhost:5173/work", back: true, forward: false })
       pageOf(first).dispatchEvent(event("did-navigate"))
       const places: Place[] = []
-      mountBrowser(hostIn(), {
+      mountBrowser(paneIn(), {
         content: { url: "http://localhost:5173/" },
         label: "page",
         saved: viewer.state(),
@@ -557,9 +557,9 @@ describe("the browser viewer", () => {
     })
 
     it("doesn't load its page again to restore where it already is", () => {
-      const host = hostIn()
-      const viewer = live(host)
-      const page = pageOf(host)
+      const pane = paneIn()
+      const viewer = live(pane)
+      const page = pageOf(pane)
       let set = 0
       const setAttribute = page.setAttribute.bind(page)
       page.setAttribute = (name: string, value: string) => {
@@ -573,10 +573,10 @@ describe("the browser viewer", () => {
 
   context("framing its page", () => {
     // The page's view as it lays out, and as it's drawn on screen.
-    const boxes = (host: HTMLElement) => {
-      const page = pageOf(host)
+    const boxes = (pane: HTMLElement) => {
+      const page = pageOf(pane)
       const drawn = page.getBoundingClientRect()
-      const viewer = host.querySelector(".browser-viewer")!.getBoundingClientRect()
+      const viewer = pane.querySelector(".browser-viewer")!.getBoundingClientRect()
       return {
         laid: [page.offsetWidth, page.offsetHeight],
         // To the pixel: scaled, it can fall a hair short of one.
@@ -587,69 +587,69 @@ describe("the browser viewer", () => {
     }
 
     it("lays out as a desktop's window, scaled down to fit a narrower viewer", () => {
-      const host = hostIn()
-      live(host)
-      expect(host.querySelector(".browser-viewer")!.getAttribute("data-size")).toBe("desktop")
-      expect(boxes(host)).toEqual({ laid: [desktopWidth, 960], drawn: [0, 0, 400, 300] })
+      const pane = paneIn()
+      live(pane)
+      expect(pane.querySelector(".browser-viewer")!.getAttribute("data-size")).toBe("desktop")
+      expect(boxes(pane)).toEqual({ laid: [desktopWidth, 960], drawn: [0, 0, 400, 300] })
     })
 
     it("fills a viewer as wide as a desktop's window, as it is", async () => {
-      const host = hostIn()
-      host.style.width = `${desktopWidth + 100}px`
-      live(host)
-      expect(boxes(host)).toEqual({
+      const pane = paneIn()
+      pane.style.width = `${desktopWidth + 100}px`
+      live(pane)
+      expect(boxes(pane)).toEqual({
         laid: [desktopWidth + 100, 300],
         drawn: [0, 0, desktopWidth + 100, 300],
       })
       // Narrower, it's scaled down to fit again.
-      host.style.width = "640px"
-      await expect.poll(() => boxes(host).laid).toEqual([desktopWidth, 600])
-      expect(boxes(host).drawn).toEqual([0, 0, 640, 300])
+      pane.style.width = "640px"
+      await expect.poll(() => boxes(pane).laid).toEqual([desktopWidth, 600])
+      expect(boxes(pane).drawn).toEqual([0, 0, 640, 300])
     })
 
     it("lays out as a phone's screen when told, back to a desktop's when told again", async () => {
-      const host = hostIn()
+      const pane = paneIn()
       const room = phoneBezel + phoneMargin
       // Room for half a phone's width, its frame beside it, and more than its height.
-      host.style.width = `${phoneScreen.width / 2 + 2 * room}px`
-      host.style.height = "1000px"
-      const viewer = mountBrowser(host, {
+      pane.style.width = `${phoneScreen.width / 2 + 2 * room}px`
+      pane.style.height = "1000px"
+      const viewer = mountBrowser(pane, {
         content: { url: "http://localhost:5173/" },
         label: "page",
         live: true,
         partition: "pages",
         size: "phone",
       })
-      expect(host.querySelector(".browser-viewer")!.getAttribute("data-size")).toBe("phone")
+      expect(pane.querySelector(".browser-viewer")!.getAttribute("data-size")).toBe("phone")
       // A phone's shape, scaled down whole to fit, in the middle.
       const half = [phoneScreen.width / 2, phoneScreen.height / 2]
-      expect(boxes(host).laid).toEqual([phoneScreen.width, phoneScreen.height])
-      expect(boxes(host).drawn).toEqual([room, (1000 - half[1]!) / 2, half[0], half[1]])
+      expect(boxes(pane).laid).toEqual([phoneScreen.width, phoneScreen.height])
+      expect(boxes(pane).drawn).toEqual([room, (1000 - half[1]!) / 2, half[0], half[1]])
       viewer.size("desktop")
-      expect(boxes(host).laid[0]).toBe(desktopWidth)
-      expect(boxes(host).drawn).toEqual([0, 0, phoneScreen.width / 2 + 2 * room, 1000])
+      expect(boxes(pane).laid[0]).toBe(desktopWidth)
+      expect(boxes(pane).drawn).toEqual([0, 0, phoneScreen.width / 2 + 2 * room, 1000])
       viewer.size("phone")
       // Shorter than a phone: smaller, not squatter.
-      host.style.width = "801px"
-      host.style.height = `${phoneScreen.height / 2 + 2 * room}px`
+      pane.style.width = "801px"
+      pane.style.height = `${phoneScreen.height / 2 + 2 * room}px`
       await expect
-        .poll(() => boxes(host).drawn)
+        .poll(() => boxes(pane).drawn)
         .toEqual([(801 - half[0]!) / 2, room, half[0], half[1]])
-      expect(boxes(host).laid).toEqual([phoneScreen.width, phoneScreen.height])
+      expect(boxes(pane).laid).toEqual([phoneScreen.width, phoneScreen.height])
       viewer.size("phone")
-      host.style.width = "800px"
-      host.style.height = "1000px"
+      pane.style.width = "800px"
+      pane.style.height = "1000px"
       // Room for the whole screen: as big as a phone's, centred.
       await expect
-        .poll(() => boxes(host).drawn)
+        .poll(() => boxes(pane).drawn)
         .toEqual([205, 78, phoneScreen.width, phoneScreen.height])
-      expect(boxes(host).laid).toEqual([phoneScreen.width, phoneScreen.height])
+      expect(boxes(pane).laid).toEqual([phoneScreen.width, phoneScreen.height])
     })
 
     it("hides a phone's page's own scrollbar in each document it loads, and only a phone's", async () => {
-      const host = hostIn()
-      const viewer = live(host)
-      const page = pageOf(host)
+      const pane = paneIn()
+      const viewer = live(pane)
+      const page = pageOf(pane)
       const calls: string[] = []
       attach(page, { url: "http://localhost:5173/", back: false, forward: false }, calls)
       let keys = 0
@@ -681,9 +681,9 @@ describe("the browser viewer", () => {
 
     it("tilts a phone as the person drags across its stage, flat again when let go", () => {
       // The tests' browser prefers reduced motion: the phone goes where it's pushed at once.
-      const host = hostIn()
-      const viewer = live(host)
-      const root = host.querySelector<HTMLElement>(".browser-viewer")!
+      const pane = paneIn()
+      const viewer = live(pane)
+      const root = pane.querySelector<HTMLElement>(".browser-viewer")!
       const pointer = (type: string, target: Element, x: number, y: number) =>
         target.dispatchEvent(
           new PointerEvent(type, {
@@ -704,7 +704,7 @@ describe("the browser viewer", () => {
       expect(root.hasAttribute("data-tilting")).toBe(false)
       viewer.size("phone")
       // Nor does a press on the page itself.
-      pointer("pointerdown", pageOf(host), 10, 10)
+      pointer("pointerdown", pageOf(pane), 10, 10)
       expect(root.hasAttribute("data-tilting")).toBe(false)
       pointer("pointerdown", root, 10, 10)
       expect(root.hasAttribute("data-tilting")).toBe(true)
@@ -724,15 +724,15 @@ describe("the browser viewer", () => {
     })
 
     it("doesn't tilt for a press on the phone, as where a Grid tile lets it through", () => {
-      const host = hostIn()
-      mountBrowser(host, {
+      const pane = paneIn()
+      mountBrowser(pane, {
         content: { url: "http://localhost:5173/" },
         label: "page",
         live: true,
         partition: "pages",
         size: "phone",
       })
-      const root = host.querySelector<HTMLElement>(".browser-viewer")!
+      const root = pane.querySelector<HTMLElement>(".browser-viewer")!
       const { left, top, width, height } = root.getBoundingClientRect()
       const press = (x: number, y: number) =>
         root.dispatchEvent(
@@ -758,15 +758,15 @@ describe("the browser viewer", () => {
     it("swings a phone toward where it's pushed on its spring, and back flat to rest", async () => {
       // With motion, as the person's browser has it unless they ask for less.
       vi.spyOn(window, "matchMedia").mockReturnValue({ matches: false } as MediaQueryList)
-      const host = hostIn()
-      mountBrowser(host, {
+      const pane = paneIn()
+      mountBrowser(pane, {
         content: { url: "http://localhost:5173/" },
         label: "page",
         live: true,
         partition: "pages",
         size: "phone",
       })
-      const root = host.querySelector<HTMLElement>(".browser-viewer")!
+      const root = pane.querySelector<HTMLElement>(".browser-viewer")!
       const { left, top } = root.getBoundingClientRect()
       const pointer = (type: string, x: number, buttons: number) =>
         root.dispatchEvent(
@@ -797,15 +797,15 @@ describe("the browser viewer", () => {
     })
 
     it("lets a phone go when a move comes with no button down, its release lost", () => {
-      const host = hostIn()
-      mountBrowser(host, {
+      const pane = paneIn()
+      mountBrowser(pane, {
         content: { url: "http://localhost:5173/" },
         label: "page",
         live: true,
         partition: "pages",
         size: "phone",
       })
-      const root = host.querySelector<HTMLElement>(".browser-viewer")!
+      const root = pane.querySelector<HTMLElement>(".browser-viewer")!
       const { left, top } = root.getBoundingClientRect()
       const pointer = (type: string, x: number, buttons: number) =>
         root.dispatchEvent(
@@ -835,11 +835,11 @@ describe("the browser viewer", () => {
       expect(Math.max(...pushes)).toBeLessThan(tiltMaxDeg)
     })
 
-    context("where its host can make a view a phone's", () => {
+    context("where its app can make a view a phone's", () => {
       const asPhone = (size: "desktop" | "phone", answer = true) => {
-        const host = hostIn()
+        const pane = paneIn()
         const asked: [number, boolean][] = []
-        const viewer = mountBrowser(host, {
+        const viewer = mountBrowser(pane, {
           content: { url: "http://localhost:5173/" },
           label: "page",
           live: true,
@@ -853,29 +853,29 @@ describe("the browser viewer", () => {
         const calls: string[] = []
         const attachNow = () => {
           attach(
-            pageOf(host),
+            pageOf(pane),
             { url: "http://localhost:5173/", back: false, forward: false },
             calls,
           )
-          Object.assign(pageOf(host), { getWebContentsId: () => 7 })
+          Object.assign(pageOf(pane), { getWebContentsId: () => 7 })
         }
-        return { host, viewer, asked, calls, attachNow }
+        return { pane, viewer, asked, calls, attachNow }
       }
 
       it("names a view made at a phone's size a phone's, and not once it's a desktop's", async () => {
-        const { host, viewer, asked, attachNow } = asPhone("phone")
-        expect(pageOf(host).getAttribute("useragent")).toBe(
+        const { pane, viewer, asked, attachNow } = asPhone("phone")
+        expect(pageOf(pane).getAttribute("useragent")).toBe(
           phoneUserAgent(chromeMajorOf(navigator.userAgent)),
         )
-        // The host makes it one as it loads: nothing to ask, as its document is ready too.
+        // The app makes it one as it loads: nothing to ask, as its document is ready too.
         attachNow()
-        pageOf(host).dispatchEvent(event("dom-ready"))
+        pageOf(pane).dispatchEvent(event("dom-ready"))
         await new Promise((resolve) => setTimeout(resolve, 0))
         expect(asked).toEqual([])
-        expect(pageOf(asPhone("desktop").host).hasAttribute("useragent")).toBe(false)
+        expect(pageOf(asPhone("desktop").pane).hasAttribute("useragent")).toBe(false)
         // Switched, it's named nothing, as a load from its address again would read it.
         viewer.size("desktop")
-        expect(pageOf(host).hasAttribute("useragent")).toBe(false)
+        expect(pageOf(pane).hasAttribute("useragent")).toBe(false)
         await expect.poll(() => asked).toEqual([[7, false]])
       })
 
@@ -892,7 +892,7 @@ describe("the browser viewer", () => {
         ])
       })
 
-      it("loads nothing again where the host couldn't, and catches up a view not attached yet", async () => {
+      it("loads nothing again where the app couldn't, and catches up a view not attached yet", async () => {
         const failing = asPhone("desktop", false)
         failing.attachNow()
         failing.viewer.size("phone")
@@ -903,7 +903,7 @@ describe("the browser viewer", () => {
         early.viewer.size("phone")
         expect(early.asked).toEqual([])
         early.attachNow()
-        pageOf(early.host).dispatchEvent(event("dom-ready"))
+        pageOf(early.pane).dispatchEvent(event("dom-ready"))
         await expect.poll(() => early.asked).toEqual([[7, true]])
       })
     })
@@ -919,7 +919,7 @@ describe("the browser viewer", () => {
     const shot = "data:image/jpeg;base64,c2hvdA=="
     const later = "data:image/jpeg;base64,bGF0ZXI="
     // Its picture, and its page, while there is one.
-    const pictureOf = (host: HTMLElement) => host.querySelector<HTMLElement>(".browser-picture")
+    const pictureOf = (pane: HTMLElement) => pane.querySelector<HTMLElement>(".browser-picture")
     const settled = () => new Promise((resolve) => setTimeout(resolve, 0))
     // A live page that rests as `pictures` come, each taking the next (none once they're
     // out), attached as each of its views is made, recording what is asked of it.
@@ -934,16 +934,16 @@ describe("the browser viewer", () => {
       saved?: ViewerState
       awake?: boolean
     } = {}) => {
-      const host = hostIn()
+      const pane = paneIn()
       // Clear of where the test's pointer rests, so it isn't under it.
-      host.style.marginTop = "400px"
+      pane.style.marginTop = "400px"
       const loads: Load[] = []
       const places: Place[] = []
       const calls: string[] = []
       const at = { url: content.url, back: true, forward: false }
       const taken: number[] = []
       const widths: (number | undefined)[] = []
-      const viewer = mountBrowser(host, {
+      const viewer = mountBrowser(pane, {
         content,
         label: "page",
         live: true,
@@ -959,7 +959,7 @@ describe("the browser viewer", () => {
       })
       // Each view, attached as it's made, as Electron does it.
       const ready = () => {
-        const page = pageOf(host)
+        const page = pageOf(pane)
         if (!page || "getWebContentsId" in page) return page
         attach(page, at, calls)
         Object.assign(page, {
@@ -979,7 +979,7 @@ describe("the browser viewer", () => {
       ready()
       const fire = (type: string, fields?: Record<string, unknown>) =>
         ready()!.dispatchEvent(event(type, fields))
-      return { host, viewer, at, calls, loads, places, taken, widths, fire, ready }
+      return { pane, viewer, at, calls, loads, places, taken, widths, fire, ready }
     }
 
     it("is pictured as wide as it's drawn, not as wide as it lays out", async () => {
@@ -1004,8 +1004,8 @@ describe("the browser viewer", () => {
     })
 
     it("is pictured as it is where it's drawn no width at all", async () => {
-      const { host, viewer, taken, widths, fire } = resting()
-      host.style.width = "0px"
+      const { pane, viewer, taken, widths, fire } = resting()
+      pane.style.width = "0px"
       await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)))
       fire("did-stop-loading")
       viewer.awake(false)
@@ -1016,17 +1016,17 @@ describe("the browser viewer", () => {
     it("lets a picture of the other size go at once when switched, waking", async () => {
       vi.useFakeTimers()
       try {
-        const { host, viewer, calls, fire, ready } = resting()
+        const { pane, viewer, calls, fire, ready } = resting()
         fire("did-stop-loading")
         viewer.awake(false)
         await vi.runAllTimersAsync()
-        expect(pageOf(host)).toBeNull()
+        expect(pageOf(pane)).toBeNull()
         // A press on the switch wakes it, its picture over it until it has loaded.
         viewer.awake(true)
         ready()
-        expect(pictureOf(host)).not.toBeNull()
+        expect(pictureOf(pane)).not.toBeNull()
         viewer.size("phone")
-        expect(pictureOf(host)).toBeNull()
+        expect(pictureOf(pane)).toBeNull()
         expect(viewer.pictured()).toBe(false)
         expect(viewer.state()).not.toMatchObject({ browser: { picture: {} } })
         // Loaded, it isn't scrolled to where the desktop's picture was.
@@ -1040,7 +1040,7 @@ describe("the browser viewer", () => {
     it("lets a picture under way as it's switched go, as one of the other size", async () => {
       let give: (src: string) => void = () => {}
       const pending = new Promise<string>((resolve) => (give = resolve))
-      const { host, viewer, fire } = resting({ pictures: [pending] })
+      const { pane, viewer, fire } = resting({ pictures: [pending] })
       fire("did-stop-loading")
       viewer.awake(false)
       await settled()
@@ -1049,21 +1049,21 @@ describe("the browser viewer", () => {
       await settled()
       await settled()
       // Nothing of this size to rest as: live, until one is taken.
-      expect(pageOf(host)).not.toBeNull()
+      expect(pageOf(pane)).not.toBeNull()
       expect(viewer.pictured()).toBe(false)
     })
 
     it("takes a picture of the page and where it's scrolled, and shows it in its view's place", async () => {
-      const { host, viewer, calls, places, taken, fire } = resting()
+      const { pane, viewer, calls, places, taken, fire } = resting()
       fire("did-stop-loading")
       expect(viewer.pictured()).toBe(false)
       viewer.awake(false)
       await settled()
       expect(taken).toEqual([7])
       expect(calls).toContain("run [scrollX, scrollY]")
-      expect(pageOf(host)).toBeNull()
-      expect(pictureOf(host)!.querySelector("img")!.getAttribute("src")).toBe(shot)
-      expect(pictureOf(host)!.querySelector("img")!.getAttribute("alt")).toBe("page")
+      expect(pageOf(pane)).toBeNull()
+      expect(pictureOf(pane)!.querySelector("img")!.getAttribute("src")).toBe(shot)
+      expect(pictureOf(pane)!.querySelector("img")!.getAttribute("alt")).toBe("page")
       expect(viewer.pictured()).toBe(true)
       // Its history went with its view.
       expect(places.at(-1)).toEqual({ url, back: false, forward: false })
@@ -1075,26 +1075,26 @@ describe("the browser viewer", () => {
     it("wakes under its picture, where it was scrolled, and lets the picture fade once there", async () => {
       vi.useFakeTimers()
       try {
-        const { host, viewer, calls, loads, fire, ready } = resting()
+        const { pane, viewer, calls, loads, fire, ready } = resting()
         fire("did-stop-loading")
         viewer.awake(false)
         await vi.runAllTimersAsync()
         calls.splice(0)
         viewer.awake(true)
-        expect(pageOf(host)!.getAttribute("src")).toBe(url)
+        expect(pageOf(pane)!.getAttribute("src")).toBe(url)
         expect(loads.at(-1)).toBe("loading")
         ready()
         // Loading: the picture stays over it, on the page's ground.
-        expect(pictureOf(host)).not.toBeNull()
-        expect(getComputedStyle(pictureOf(host)!).backgroundColor).toBe("rgb(255, 255, 255)")
+        expect(pictureOf(pane)).not.toBeNull()
+        expect(getComputedStyle(pictureOf(pane)!).backgroundColor).toBe("rgb(255, 255, 255)")
         fire("did-stop-loading")
         expect(calls.some((call) => call.includes("scrollTo(0, 640)"))).toBe(true)
         await vi.advanceTimersByTimeAsync(uncoverMs)
-        expect(pictureOf(host)!.hasAttribute("data-fading")).toBe(true)
+        expect(pictureOf(pane)!.hasAttribute("data-fading")).toBe(true)
         // Fading off a page that has drawn, with no ground to show at its edge.
-        expect(getComputedStyle(pictureOf(host)!).backgroundColor).toBe("rgba(0, 0, 0, 0)")
+        expect(getComputedStyle(pictureOf(pane)!).backgroundColor).toBe("rgba(0, 0, 0, 0)")
         await vi.advanceTimersByTimeAsync(fadeMs)
-        expect(pictureOf(host)).toBeNull()
+        expect(pictureOf(pane)).toBeNull()
         // Woken, it's live again: back, forward and the rest work on it.
         viewer.back()
         expect(calls).toContain("back")
@@ -1104,61 +1104,61 @@ describe("the browser viewer", () => {
     })
 
     it("stays live when it can't be pictured, until a later rest can", async () => {
-      const { host, viewer, fire } = resting({ pictures: [undefined, shot] })
+      const { pane, viewer, fire } = resting({ pictures: [undefined, shot] })
       fire("did-stop-loading")
       viewer.awake(false)
       await settled()
-      expect(pageOf(host)).not.toBeNull()
+      expect(pageOf(pane)).not.toBeNull()
       expect(viewer.pictured()).toBe(false)
       viewer.awake(true)
       viewer.awake(false)
       await settled()
-      expect(pageOf(host)).toBeNull()
+      expect(pageOf(pane)).toBeNull()
       expect(viewer.pictured()).toBe(true)
     })
 
     it("rests once a load under way is done, unless a picture it has stands in", async () => {
-      const { host, viewer, taken, fire, ready } = resting({ pictures: [shot, later] })
+      const { pane, viewer, taken, fire, ready } = resting({ pictures: [shot, later] })
       // Its first load: nothing to stand in, so it rests once loaded.
       viewer.awake(false)
       await settled()
       expect(taken).toEqual([])
-      expect(pageOf(host)).not.toBeNull()
+      expect(pageOf(pane)).not.toBeNull()
       fire("did-stop-loading")
       await settled()
-      expect(pageOf(host)).toBeNull()
+      expect(pageOf(pane)).toBeNull()
       // Woken, then told to rest again mid-load: the picture it has stands in at once.
       viewer.awake(true)
       ready()
       viewer.awake(false)
-      expect(pageOf(host)).toBeNull()
+      expect(pageOf(pane)).toBeNull()
       expect(taken).toHaveLength(1)
-      expect(pictureOf(host)!.querySelector("img")!.getAttribute("src")).toBe(shot)
+      expect(pictureOf(pane)!.querySelector("img")!.getAttribute("src")).toBe(shot)
     })
 
     it("doesn't rest as a picture taken while it's woken, or once a load began", async () => {
       // Each rest takes one: the two it drops, and the one it rests as.
-      const { host, viewer, fire, ready } = resting({ pictures: [shot, later, later] })
+      const { pane, viewer, fire, ready } = resting({ pictures: [shot, later, later] })
       fire("did-stop-loading")
       viewer.awake(false)
       viewer.awake(true)
       await settled()
-      expect(pageOf(host)).not.toBeNull()
+      expect(pageOf(pane)).not.toBeNull()
       expect(viewer.pictured()).toBe(false)
       // A show's load begins while its picture is taken: it rests once that's done.
       viewer.awake(false)
       viewer.update({ url, shown: 1 })
       await settled()
-      expect(pageOf(host)).not.toBeNull()
+      expect(pageOf(pane)).not.toBeNull()
       ready()
       fire("did-stop-loading")
       await settled()
-      expect(pageOf(host)).toBeNull()
-      expect(pictureOf(host)!.querySelector("img")!.getAttribute("src")).toBe(later)
+      expect(pageOf(pane)).toBeNull()
+      expect(pictureOf(pane)!.querySelector("img")!.getAttribute("src")).toBe(later)
     })
 
     it("loads a show that came while it rested afresh once woken, then brings it into view", async () => {
-      const { host, viewer, calls, places, fire, ready } = resting()
+      const { pane, viewer, calls, places, fire, ready } = resting()
       fire("did-stop-loading")
       viewer.awake(false)
       await settled()
@@ -1176,17 +1176,17 @@ describe("the browser viewer", () => {
       expect(calls.filter((call) => call.startsWith("run "))).toHaveLength(1)
       expect(calls.at(-1)).toContain(JSON.stringify("#plans"))
       expect(viewer.state()).toMatchObject({ browser: { shown: 1 } })
-      expect(pageOf(host)).not.toBeNull()
+      expect(pageOf(pane)).not.toBeNull()
     })
 
     it("goes to a new address it's given while it rests once woken", async () => {
-      const { host, viewer, fire } = resting()
+      const { pane, viewer, fire } = resting()
       fire("did-stop-loading")
       viewer.awake(false)
       await settled()
       viewer.update({ url: "https://example.com/" })
       viewer.awake(true)
-      expect(pageOf(host)!.getAttribute("src")).toBe("https://example.com/")
+      expect(pageOf(pane)!.getAttribute("src")).toBe("https://example.com/")
     })
 
     it("reloads afresh once woken when asked to reload at rest", async () => {
@@ -1212,27 +1212,27 @@ describe("the browser viewer", () => {
       const saved = first.viewer.state()
       first.viewer.destroy()
       const again = resting({ saved, awake: false })
-      expect(pageOf(again.host)).toBeNull()
+      expect(pageOf(again.pane)).toBeNull()
       expect(again.loads).toEqual(["loading", "ready"])
       expect(again.places).toEqual([{ url: `${url}work`, back: false, forward: false }])
-      expect(pictureOf(again.host)!.querySelector("img")!.getAttribute("src")).toBe(shot)
+      expect(pictureOf(again.pane)!.querySelector("img")!.getAttribute("src")).toBe(shot)
       again.viewer.awake(true)
-      expect(pageOf(again.host)!.getAttribute("src")).toBe(`${url}work`)
+      expect(pageOf(again.pane)!.getAttribute("src")).toBe(`${url}work`)
       // Woken from the first, it's live under its picture until it's there.
       const awake = resting({ saved })
-      expect(pageOf(awake.host)).not.toBeNull()
-      expect(pictureOf(awake.host)).not.toBeNull()
+      expect(pageOf(awake.pane)).not.toBeNull()
+      expect(pictureOf(awake.pane)).not.toBeNull()
     })
 
     it("rests out of sight only as a picture from since the person was at it, asking for none", async () => {
-      const { host, viewer, taken, fire, ready } = resting({ pictures: [shot] })
+      const { pane, viewer, taken, fire, ready } = resting({ pictures: [shot] })
       fire("did-stop-loading")
-      host.style.display = "none"
+      pane.style.display = "none"
       viewer.awake(false)
       await settled()
       expect(taken).toEqual([])
-      expect(pageOf(host)).not.toBeNull()
-      host.style.display = "flex"
+      expect(pageOf(pane)).not.toBeNull()
+      pane.style.display = "flex"
       viewer.awake(false)
       await settled()
       viewer.awake(true)
@@ -1240,20 +1240,20 @@ describe("the browser viewer", () => {
       // Mid-load out of sight, the person hasn't seen it live: its picture stands in.
       viewer.awake(false)
       expect(taken).toEqual([7])
-      expect(pageOf(host)).toBeNull()
-      expect(pictureOf(host)!.querySelector("img")!.getAttribute("src")).toBe(shot)
+      expect(pageOf(pane)).toBeNull()
+      expect(pictureOf(pane)!.querySelector("img")!.getAttribute("src")).toBe(shot)
       // Woken and loaded, the person may change it: a picture from before stands in for
       // nothing, nor is it kept, until a new one is taken.
-      host.style.display = "flex"
+      pane.style.display = "flex"
       viewer.awake(true)
       ready()
       fire("did-stop-loading")
       expect(viewer.pictured()).toBe(false)
       expect(viewer.state()).not.toHaveProperty("browser.picture")
-      host.style.display = "none"
+      pane.style.display = "none"
       viewer.awake(false)
       await settled()
-      expect(pageOf(host)).not.toBeNull()
+      expect(pageOf(pane)).not.toBeNull()
     })
 
     it("brings a show that came as it woke into view afresh, not where it was scrolled", async () => {
@@ -1298,15 +1298,15 @@ describe("the browser viewer", () => {
     it("is pictured a while after each load, so it rests out of sight as it is", async () => {
       vi.useFakeTimers()
       try {
-        const { host, viewer, taken, fire } = resting({ pictures: [later] })
+        const { pane, viewer, taken, fire } = resting({ pictures: [later] })
         fire("did-stop-loading")
         await vi.advanceTimersByTimeAsync(freshenMs)
         expect(taken).toEqual([7])
-        host.style.display = "none"
+        pane.style.display = "none"
         viewer.awake(false)
         await vi.advanceTimersByTimeAsync(0)
-        expect(pageOf(host)).toBeNull()
-        expect(pictureOf(host)!.querySelector("img")!.getAttribute("src")).toBe(later)
+        expect(pageOf(pane)).toBeNull()
+        expect(pictureOf(pane)!.querySelector("img")!.getAttribute("src")).toBe(later)
       } finally {
         vi.useRealTimers()
       }
@@ -1315,28 +1315,28 @@ describe("the browser viewer", () => {
     it("is pictured again once an app moves within the page, and while awake", async () => {
       vi.useFakeTimers()
       try {
-        const { host, viewer, at, taken, fire } = resting({ pictures: [shot, later, later] })
+        const { pane, viewer, at, taken, fire } = resting({ pictures: [shot, later, later] })
         fire("did-stop-loading")
         await vi.advanceTimersByTimeAsync(freshenMs)
         expect(taken).toHaveLength(1)
         // An app's route: the picture is of where it was, until it's pictured again.
         at.url = `${url}settings`
         fire("did-navigate-in-page", { isMainFrame: true })
-        host.style.display = "none"
+        pane.style.display = "none"
         viewer.awake(false)
         await vi.advanceTimersByTimeAsync(0)
-        expect(pageOf(host)).not.toBeNull()
-        host.style.display = "flex"
+        expect(pageOf(pane)).not.toBeNull()
+        pane.style.display = "flex"
         viewer.awake(true)
         await vi.advanceTimersByTimeAsync(freshenMs)
         expect(taken).toHaveLength(2)
         await vi.advanceTimersByTimeAsync(keepMs)
         expect(taken).toHaveLength(3)
-        host.style.display = "none"
+        pane.style.display = "none"
         viewer.awake(false)
         await vi.advanceTimersByTimeAsync(0)
-        expect(pageOf(host)).toBeNull()
-        expect(pictureOf(host)!.querySelector("img")!.getAttribute("src")).toBe(later)
+        expect(pageOf(pane)).toBeNull()
+        expect(pictureOf(pane)!.querySelector("img")!.getAttribute("src")).toBe(later)
       } finally {
         vi.useRealTimers()
       }
@@ -1361,7 +1361,7 @@ describe("the browser viewer", () => {
     })
 
     it("doesn't rest out of sight as a picture of another page", async () => {
-      const { host, viewer, at, fire, ready } = resting()
+      const { pane, viewer, at, fire, ready } = resting()
       fire("did-stop-loading")
       viewer.awake(false)
       await settled()
@@ -1369,15 +1369,15 @@ describe("the browser viewer", () => {
       ready()
       at.url = "https://example.com/"
       fire("did-navigate")
-      host.style.display = "none"
+      pane.style.display = "none"
       viewer.awake(false)
-      expect(pageOf(host)).not.toBeNull()
+      expect(pageOf(pane)).not.toBeNull()
     })
 
     it("lets its picture go over a woken page that didn't load", async () => {
       vi.useFakeTimers()
       try {
-        const { host, viewer, fire, ready } = resting()
+        const { pane, viewer, fire, ready } = resting()
         fire("did-stop-loading")
         viewer.awake(false)
         await vi.advanceTimersByTimeAsync(0)
@@ -1387,8 +1387,8 @@ describe("the browser viewer", () => {
         viewer.awake(false)
         fire("did-stop-loading")
         await vi.advanceTimersByTimeAsync(uncoverMs + fadeMs)
-        expect(pictureOf(host)).toBeNull()
-        expect(pageOf(host)).not.toBeNull()
+        expect(pictureOf(pane)).toBeNull()
+        expect(pageOf(pane)).not.toBeNull()
       } finally {
         vi.useRealTimers()
       }
@@ -1408,8 +1408,8 @@ describe("the browser viewer", () => {
       } as unknown as ViewerState
       for (const awake of [true, false]) {
         const again = resting({ saved: elsewhere, awake })
-        expect(pageOf(again.host)!.getAttribute("src")).toBe(`${url}other`)
-        expect(pictureOf(again.host)).toBeNull()
+        expect(pageOf(again.pane)!.getAttribute("src")).toBe(`${url}other`)
+        expect(pictureOf(again.pane)).toBeNull()
       }
     })
 
@@ -1422,33 +1422,33 @@ describe("the browser viewer", () => {
       first.ready()
       first.fire("did-stop-loading")
       // At it, then let go, as a view switch does, before a new picture could be taken.
-      first.host.querySelector(".browser-viewer")!.dispatchEvent(new PointerEvent("pointerenter"))
+      first.pane.querySelector(".browser-viewer")!.dispatchEvent(new PointerEvent("pointerenter"))
       const saved = first.viewer.state()
       first.viewer.destroy()
       const again = resting({ saved, awake: false })
-      expect(pageOf(again.host)).not.toBeNull()
-      expect(pictureOf(again.host)).toBeNull()
+      expect(pageOf(again.pane)).not.toBeNull()
+      expect(pictureOf(again.pane)).toBeNull()
       expect(again.viewer.pictured()).toBe(false)
     })
 
     it("takes its picture down when it's shown at another address while it rests", async () => {
-      const { host, viewer, fire } = resting()
+      const { pane, viewer, fire } = resting()
       fire("did-stop-loading")
       viewer.awake(false)
       await settled()
       viewer.update({ url: "https://example.com/", shown: 1 })
-      expect(pictureOf(host)).toBeNull()
+      expect(pictureOf(pane)).toBeNull()
     })
 
     it("rests all the same when the page doesn't say where it's scrolled", async () => {
       vi.useFakeTimers()
       try {
-        const { host, viewer, fire, ready } = resting()
+        const { pane, viewer, fire, ready } = resting()
         Object.assign(ready()!, { executeJavaScript: () => new Promise(() => {}) })
         fire("did-stop-loading")
         viewer.awake(false)
         await vi.advanceTimersByTimeAsync(1_000)
-        expect(pageOf(host)).toBeNull()
+        expect(pageOf(pane)).toBeNull()
       } finally {
         vi.useRealTimers()
       }
@@ -1460,19 +1460,19 @@ describe("the browser viewer", () => {
         .spyOn(HTMLImageElement.prototype, "decode")
         .mockImplementation(() => new Promise<void>((resolve) => (decoded = resolve)))
       try {
-        const { host, viewer, calls, loads, fire } = resting()
+        const { pane, viewer, calls, loads, fire } = resting()
         fire("did-stop-loading")
         viewer.awake(false)
         await settled()
         // Its picture is up, not yet drawn: the view is still there.
-        expect(pictureOf(host)).not.toBeNull()
-        expect(pageOf(host)).not.toBeNull()
+        expect(pictureOf(pane)).not.toBeNull()
+        expect(pageOf(pane)).not.toBeNull()
         viewer.update({ url, shown: 1 })
         expect(calls).toContain("reload fresh")
         decoded()
         await settled()
         // The show's load goes on, and it rests once that's done.
-        expect(pageOf(host)).not.toBeNull()
+        expect(pageOf(pane)).not.toBeNull()
         expect(loads.at(-1)).toBe("loading")
       } finally {
         decode.mockRestore()
@@ -1483,16 +1483,16 @@ describe("the browser viewer", () => {
       vi.useFakeTimers()
       try {
         const answers: ((src: string) => void)[] = []
-        const host = hostIn()
-        host.style.marginTop = "400px"
-        const viewer = mountBrowser(host, {
+        const pane = paneIn()
+        pane.style.marginTop = "400px"
+        const viewer = mountBrowser(pane, {
           content: { url },
           label: "page",
           live: true,
           partition: "pages",
           picture: () => new Promise((resolve) => answers.push(resolve)),
         })
-        const page = pageOf(host)
+        const page = pageOf(pane)
         attach(page, { url, back: false, forward: false })
         Object.assign(page, {
           getWebContentsId: () => 7,
@@ -1515,12 +1515,12 @@ describe("the browser viewer", () => {
     it("counts a minimized window as out of sight", async () => {
       const visibility = vi.spyOn(document, "visibilityState", "get").mockReturnValue("hidden")
       try {
-        const { host, viewer, taken, fire } = resting()
+        const { pane, viewer, taken, fire } = resting()
         fire("did-stop-loading")
         viewer.awake(false)
         await settled()
         expect(taken).toEqual([])
-        expect(pageOf(host)).not.toBeNull()
+        expect(pageOf(pane)).not.toBeNull()
       } finally {
         visibility.mockRestore()
       }
@@ -1546,12 +1546,12 @@ describe("the browser viewer", () => {
     it("counts focus in the live page as the person at it, and hands the picture's focus on", async () => {
       vi.useFakeTimers()
       try {
-        const { host, viewer, fire, ready } = resting()
+        const { pane, viewer, fire, ready } = resting()
         fire("did-stop-loading")
         viewer.awake(false)
         await vi.advanceTimersByTimeAsync(0)
         // Focused by keyboard at rest, it wakes, and focus goes on to the page.
-        pictureOf(host)!.focus()
+        pictureOf(pane)!.focus()
         viewer.awake(true)
         const page = ready()!
         page.tabIndex = 0
@@ -1565,29 +1565,29 @@ describe("the browser viewer", () => {
     })
 
     it("stays live without a way to take a picture, or when it didn't load", async () => {
-      const host = hostIn()
-      const viewer = mountBrowser(host, {
+      const pane = paneIn()
+      const viewer = mountBrowser(pane, {
         content: { url },
         label: "page",
         live: true,
         partition: "pages",
       })
-      attach(pageOf(host), { url, back: false, forward: false })
-      pageOf(host).dispatchEvent(event("did-stop-loading"))
+      attach(pageOf(pane), { url, back: false, forward: false })
+      pageOf(pane).dispatchEvent(event("did-stop-loading"))
       viewer.awake(false)
       await settled()
-      expect(pageOf(host)).not.toBeNull()
+      expect(pageOf(pane)).not.toBeNull()
       const failing = resting()
       failing.fire("did-fail-load", { errorCode: -105, isMainFrame: true })
       failing.fire("did-stop-loading")
       failing.viewer.awake(false)
       await settled()
       expect(failing.taken).toEqual([])
-      expect(pageOf(failing.host)).not.toBeNull()
+      expect(pageOf(failing.pane)).not.toBeNull()
     })
 
     context("while the page has a sign-in window open", () => {
-      // The desktop host's word, through the preload, of how many the view `contentsId` has.
+      // The desktop app's word, through the preload, of how many the view `contentsId` has.
       const signIns = (open: number, contentsId = 7, source: Window | null = window) =>
         window.dispatchEvent(
           new MessageEvent("message", {
@@ -1597,40 +1597,40 @@ describe("the browser viewer", () => {
         )
 
       it("stays live, as its view going would close it, and rests once it closes", async () => {
-        const { host, viewer, fire } = resting()
+        const { pane, viewer, fire } = resting()
         fire("did-stop-loading")
         signIns(1)
         viewer.awake(false)
         await settled()
-        expect(pageOf(host)).not.toBeNull()
+        expect(pageOf(pane)).not.toBeNull()
         signIns(2)
         signIns(1)
         await settled()
-        expect(pageOf(host)).not.toBeNull()
+        expect(pageOf(pane)).not.toBeNull()
         signIns(0)
         await settled()
-        expect(pageOf(host)).toBeNull()
-        expect(pictureOf(host)).not.toBeNull()
+        expect(pageOf(pane)).toBeNull()
+        expect(pictureOf(pane)).not.toBeNull()
       })
 
       it("stays live through a rest already under way", async () => {
-        const { host, viewer, fire } = resting()
+        const { pane, viewer, fire } = resting()
         fire("did-stop-loading")
         viewer.awake(false)
         signIns(1)
         await settled()
-        expect(pageOf(host)).not.toBeNull()
+        expect(pageOf(pane)).not.toBeNull()
       })
 
       it("heeds no word of another view, another window, or a malformed one", async () => {
-        const { host, viewer, fire } = resting()
+        const { pane, viewer, fire } = resting()
         fire("did-stop-loading")
         signIns(1, 8)
         signIns(1, 7, null)
         signIns(-1)
         viewer.awake(false)
         await settled()
-        expect(pageOf(host)).toBeNull()
+        expect(pageOf(pane)).toBeNull()
       })
 
       it("stops listening when the viewer goes", async () => {
@@ -1659,10 +1659,10 @@ describe("the browser viewer", () => {
     // A live page at the shown address, what it reports, and the ways the page and the
     // app's preload tell of what went wrong.
     const troubled = (content: BrowserContent = { url: `${origin}/`, shown: 1 }) => {
-      const host = hostIn()
+      const pane = paneIn()
       const troubles: Trouble[] = []
       const shows: number[] = []
-      const viewer = mountBrowser(host, {
+      const viewer = mountBrowser(pane, {
         content,
         label: "page",
         live: true,
@@ -1674,7 +1674,7 @@ describe("the browser viewer", () => {
           },
         },
       })
-      const page = pageOf(host)
+      const page = pageOf(pane)
       attach(page, { url: content.url, back: false, forward: false })
       Object.assign(page, { getWebContentsId: () => contentsId })
       return {
@@ -1905,11 +1905,11 @@ describe("the browser viewer", () => {
       })
 
       it("tells, after a rest, from the view its wake makes, with the show it wakes for", async () => {
-        const host = hostIn()
+        const pane = paneIn()
         // Clear of where the test's pointer rests, so it isn't under it.
-        host.style.marginTop = "400px"
+        pane.style.marginTop = "400px"
         const shows: number[] = []
-        const viewer = mountBrowser(host, {
+        const viewer = mountBrowser(pane, {
           content: { url: `${origin}/`, shown: 1 },
           label: "page",
           live: true,
@@ -1919,7 +1919,7 @@ describe("the browser viewer", () => {
         })
         // Each view, attached as it's made, as Electron does it.
         const ready = (): HTMLElement => {
-          const page = pageOf(host)
+          const page = pageOf(pane)
           attach(page, { url: `${origin}/`, back: false, forward: false })
           Object.assign(page, {
             getWebContentsId: () => contentsId,
@@ -1935,7 +1935,7 @@ describe("the browser viewer", () => {
         first.dispatchEvent(event("did-stop-loading"))
         viewer.awake(false)
         await new Promise((resolve) => setTimeout(resolve, 0))
-        expect(host.querySelector("webview")).toBeNull()
+        expect(pane.querySelector("webview")).toBeNull()
         // The old view is gone: what is said of it now reaches nothing.
         first.dispatchEvent(
           event("console-message", {
@@ -2014,26 +2014,26 @@ describe("the browser viewer", () => {
     })
 
     it("reports nothing from a snapshot", () => {
-      const host = hostIn()
+      const pane = paneIn()
       const troubles: Trouble[] = []
-      mountBrowser(host, {
+      mountBrowser(pane, {
         content: { url: "https://example.com/" },
         label: "page",
         live: false,
         partition: "pages",
         on: { trouble: (trouble) => troubles.push(trouble) },
       })
-      expect(host.querySelector("webview")).toBeNull()
+      expect(pane.querySelector("webview")).toBeNull()
       expect(troubles).toEqual([])
     })
   })
 
   context("without live pages", () => {
     it("shows a snapshot of the page, ready, at its address", () => {
-      const host = hostIn()
+      const pane = paneIn()
       const places: Place[] = []
       const loads: Load[] = []
-      mountBrowser(host, {
+      mountBrowser(pane, {
         content: { url: "https://example.com/" },
         label: "page",
         live: false,
@@ -2041,37 +2041,37 @@ describe("the browser viewer", () => {
         partition: "pages",
         on: { navigate: (place) => places.push(place), load: (load) => loads.push(load) },
       })
-      expect(host.querySelector("webview")).toBeNull()
-      expect(host.querySelector(".browser-snapshot img")!.getAttribute("alt")).toBe(
+      expect(pane.querySelector("webview")).toBeNull()
+      expect(pane.querySelector(".browser-snapshot img")!.getAttribute("alt")).toBe(
         "The page as shown",
       )
       expect(places).toEqual([{ url: "https://example.com/", back: false, forward: false }])
       expect(loads).toEqual(["ready"])
     })
 
-    it("shows nothing without a snapshot, for its host to say why", () => {
-      const host = hostIn()
-      mountBrowser(host, {
+    it("shows nothing without a snapshot, for its app to say why", () => {
+      const pane = paneIn()
+      mountBrowser(pane, {
         content: { url: "https://example.com/" },
         label: "page",
         live: false,
         partition: "pages",
       })
-      expect(host.querySelector(".browser-viewer")!.children).toHaveLength(0)
+      expect(pane.querySelector(".browser-viewer")!.children).toHaveLength(0)
     })
   })
   context("as an agent looks at it", () => {
-    const attached = (host: HTMLElement) => {
-      const page = pageOf(host)
+    const attached = (pane: HTMLElement) => {
+      const page = pageOf(pane)
       attach(page, { url: "http://localhost:5173/work", back: false, forward: false })
       Object.assign(page, { getWebContentsId: () => 7 })
       return page
     }
 
     it("is seen once loaded and drawn: its view, where it is, its title and its laid-out size", () => {
-      const host = hostIn()
-      const viewer = live(host)
-      const page = attached(host)
+      const pane = paneIn()
+      const viewer = live(pane)
+      const page = attached(pane)
       expect(viewer.seen()).toBeUndefined()
       page.dispatchEvent(event("did-stop-loading"))
       page.dispatchEvent(event("page-title-updated", { title: "Work" }))
@@ -2088,15 +2088,15 @@ describe("the browser viewer", () => {
     })
 
     it("isn't seen while it loads, has failed, rests as its picture or is kept out of sight", () => {
-      const host = hostIn()
-      const viewer = live(host)
-      const page = attached(host)
+      const pane = paneIn()
+      const viewer = live(pane)
+      const page = attached(pane)
       expect(viewer.seen()).toBeUndefined()
       page.dispatchEvent(event("did-stop-loading"))
       expect(viewer.seen()).toBeDefined()
-      host.style.display = "none"
+      pane.style.display = "none"
       expect(viewer.seen()).toBeUndefined()
-      host.style.display = ""
+      pane.style.display = ""
       page.dispatchEvent(event("did-start-loading"))
       expect(viewer.seen()).toBeUndefined()
       page.dispatchEvent(event("did-fail-load", { errorCode: -105, isMainFrame: true }))
@@ -2104,8 +2104,8 @@ describe("the browser viewer", () => {
     })
 
     it("isn't seen where nothing is live", () => {
-      const host = hostIn()
-      const viewer = mountBrowser(host, {
+      const pane = paneIn()
+      const viewer = mountBrowser(pane, {
         content: { url: "https://example.com/" },
         label: "page",
         live: false,

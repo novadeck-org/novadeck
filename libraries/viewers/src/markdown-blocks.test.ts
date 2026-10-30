@@ -128,7 +128,7 @@ describe("markdown inline", () => {
       expect(plain(`[click](${href})`)).not.toContain('"link"')
     })
 
-    it("allows web addresses, and not mail, which the desktop host won't open", () => {
+    it("allows web addresses, and not mail, which the desktop app won't open", () => {
       expect(safeHref("https://example.com")).toBe("https://example.com/")
       expect(safeHref("mailto:a@b.co")).toBeUndefined()
     })

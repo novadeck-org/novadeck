@@ -1,4 +1,4 @@
-// A live page's sign-in windows, as the desktop host tells its viewer of them: a page view
+// A live page's sign-in windows, as the desktop app tells its viewer of them: a page view
 // closing closes them, so the viewer keeps its page live, not resting, while any is open.
 
 /** The IPC channel on which the desktop's main process tells the app how many a view has open. */

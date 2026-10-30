@@ -1,4 +1,4 @@
-// What a host keeps of something it showed, to show it again at once: the few
+// What an app keeps of something it showed, to show it again at once: the few
 // used latest by key, the one used longest ago going first once there are more.
 export type Kept<Value> = {
   readonly get: (key: string) => Value | undefined

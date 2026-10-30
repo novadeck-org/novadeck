@@ -6,17 +6,17 @@ import { mountDiff, type DiffContent, type DiffFile, type DiffHunk } from "./dif
 
 const context = describe
 
-const hosts: HTMLElement[] = []
+const panes: HTMLElement[] = []
 afterEach(() => {
-  for (const host of hosts.splice(0)) host.remove()
+  for (const pane of panes.splice(0)) pane.remove()
 })
 
-const hostIn = (): HTMLElement => {
-  const host = document.createElement("div")
-  host.style.cssText = "display: flex; flex-direction: column; height: 300px; width: 600px"
-  document.body.append(host)
-  hosts.push(host)
-  return host
+const paneIn = (): HTMLElement => {
+  const pane = document.createElement("div")
+  pane.style.cssText = "display: flex; flex-direction: column; height: 300px; width: 600px"
+  document.body.append(pane)
+  panes.push(pane)
+  return pane
 }
 
 const frame = (): Promise<void> =>
@@ -91,13 +91,13 @@ const edited = file("notes.txt", {
   ],
 })
 
-const mount = (content: DiffContent, host = hostIn()) => {
-  const viewer = mountDiff(host, { content, label: "Changes" })
-  return { host, viewer, root: host.querySelector<HTMLElement>(".diff-viewer")! }
+const mount = (content: DiffContent, pane = paneIn()) => {
+  const viewer = mountDiff(pane, { content, label: "Changes" })
+  return { pane, viewer, root: pane.querySelector<HTMLElement>(".diff-viewer")! }
 }
 
-const numbers = (host: HTMLElement): string[][] =>
-  [...host.querySelectorAll(".diff-line")].map((row) =>
+const numbers = (pane: HTMLElement): string[][] =>
+  [...pane.querySelectorAll(".diff-line")].map((row) =>
     [...row.querySelectorAll(".diff-number")].map((each) => each.textContent!),
   )
 
@@ -146,10 +146,10 @@ const withoutFirst = (path: string, count: number, drop: number): DiffFile =>
 describe("the diff viewer", () => {
   context("what it shows", () => {
     it("shows each file as a section under its header, with its hunks", () => {
-      const { host, root } = mount(change([edited, file("a.txt", { status: "added", added: 1 })]))
+      const { pane, root } = mount(change([edited, file("a.txt", { status: "added", added: 1 })]))
       expect(root.getAttribute("role")).toBe("region")
       expect(root.getAttribute("aria-label")).toBe("Changes")
-      const sections = [...host.querySelectorAll(".diff-file")]
+      const sections = [...pane.querySelectorAll(".diff-file")]
       expect(sections).toHaveLength(2)
       const head = sections[0]!.querySelector(".diff-file-head")!
       expect(head.querySelector(".diff-new-path")!.textContent).toBe("notes.txt")
@@ -163,8 +163,8 @@ describe("the diff viewer", () => {
     })
 
     it("numbers the old and new lines from each hunk's start, by kind", () => {
-      const { host } = mount(change([edited]))
-      expect(numbers(host)).toEqual([
+      const { pane } = mount(change([edited]))
+      expect(numbers(pane)).toEqual([
         ["3", "3"],
         ["4", ""],
         ["", "4"],
@@ -173,9 +173,9 @@ describe("the diff viewer", () => {
         ["40", "41"],
       ])
       expect(
-        [...host.querySelectorAll(".diff-line")].map((row) => row.getAttribute("data-kind")),
+        [...pane.querySelectorAll(".diff-line")].map((row) => row.getAttribute("data-kind")),
       ).toEqual(["context", "remove", "add", "add", "context", "context"])
-      expect(host.querySelectorAll(".diff-text")[1]!.textContent).toBe("old")
+      expect(pane.querySelectorAll(".diff-text")[1]!.textContent).toBe("old")
     })
 
     it("sizes the number gutters to the largest number", () => {
@@ -186,20 +186,20 @@ describe("the diff viewer", () => {
       expect(small.root.style.getPropertyValue("--diff-digits")).toBe("2")
       expect(large.root.style.getPropertyValue("--diff-digits")).toBe("6")
       expect(
-        large.host.querySelector<HTMLElement>(".diff-number")!.getBoundingClientRect().width,
+        large.pane.querySelector<HTMLElement>(".diff-number")!.getBoundingClientRect().width,
       ).toBeGreaterThan(
-        small.host.querySelector<HTMLElement>(".diff-number")!.getBoundingClientRect().width,
+        small.pane.querySelector<HTMLElement>(".diff-number")!.getBoundingClientRect().width,
       )
     })
 
     it("says where a renamed file came from, and how each file changed", () => {
-      const { host } = mount(
+      const { pane } = mount(
         change([
           file("new.ts", { status: "renamed", oldPath: "old.ts" }),
           file("gone.ts", { status: "deleted", removed: 3 }),
         ]),
       )
-      const [renamed, deleted] = [...host.querySelectorAll(".diff-file")]
+      const [renamed, deleted] = [...pane.querySelectorAll(".diff-file")]
       expect(renamed!.querySelector(".diff-old-path")!.textContent).toBe("old.ts")
       expect(renamed!.querySelector(".diff-status")!.textContent).toBe("Renamed")
       expect(renamed!.querySelector(".diff-note")!.textContent).toBe("Renamed, no changes in it.")
@@ -208,14 +208,14 @@ describe("the diff viewer", () => {
     })
 
     it("shows only the header and a note for a binary, held or listed file", () => {
-      const { host } = mount(
+      const { pane } = mount(
         change([
           file("logo.png", { binary: true }),
           file(".env", { secret: true }),
           file("big.sql", { listed: true }),
         ]),
       )
-      const notes = [...host.querySelectorAll(".diff-file")].map(
+      const notes = [...pane.querySelectorAll(".diff-file")].map(
         (each) => each.querySelector(".diff-note")!.textContent,
       )
       expect(notes).toEqual([
@@ -223,7 +223,7 @@ describe("the diff viewer", () => {
         "May hold secrets — not shown.",
         "Past this change's size, listed by name.",
       ])
-      expect(host.querySelector(".diff-line")).toBeNull()
+      expect(pane.querySelector(".diff-line")).toBeNull()
     })
 
     it("says so when nothing changed, and when the change is larger than shown", () => {
@@ -239,24 +239,24 @@ describe("the diff viewer", () => {
     it("shows and highlights both, and keeps them apart across an update", async () => {
       const one = file("a.json", { hunks: [hunkOf(1, [{ kind: "add", text: '{ "one": 1 }' }])] })
       const two = file("a.json", { hunks: [hunkOf(1, [{ kind: "add", text: '{ "two": 2 }' }])] })
-      const { host, viewer } = mount(change([one, two]))
-      await expect.poll(() => host.querySelectorAll(".tok-propertyName").length).toBe(2)
+      const { pane, viewer } = mount(change([one, two]))
+      await expect.poll(() => pane.querySelectorAll(".tok-propertyName").length).toBe(2)
       viewer.update(change([one, two, sized("b.txt", 2)]))
       expect(
-        [...host.querySelectorAll(".tok-propertyName")].map((each) => each.textContent),
+        [...pane.querySelectorAll(".tok-propertyName")].map((each) => each.textContent),
       ).toEqual(['"one"', '"two"'])
     })
   })
 
   context("the list of files", () => {
     it("names each file with what it changed, and scrolls only the viewer to it", async () => {
-      const { host, root } = mount(change(many()))
+      const { pane, root } = mount(change(many()))
       const outer = document.createElement("div")
       outer.style.cssText = "height: 100px; overflow: auto"
-      outer.append(host)
+      outer.append(pane)
       document.body.append(outer)
-      hosts.push(outer)
-      const links = host.querySelectorAll<HTMLButtonElement>(".diff-file-link")
+      panes.push(outer)
+      const links = pane.querySelectorAll<HTMLButtonElement>(".diff-file-link")
       expect(links).toHaveLength(60)
       expect(links[3]!.getAttribute("aria-label")).toBe("f3.txt, 0 added, 0 removed")
       await frame()
@@ -271,9 +271,9 @@ describe("the diff viewer", () => {
     const json = (text: string) => file("a.json", { hunks: [hunkOf(1, [{ kind: "add", text }])] })
 
     it("colours a file by its language once the parser loads, keeping its text", async () => {
-      const { host } = mount(change([json('{ "slug": 1 }')]))
-      await expect.poll(() => host.querySelector(".tok-propertyName")?.textContent).toBe('"slug"')
-      expect(host.querySelector(".diff-text")!.textContent).toBe('{ "slug": 1 }')
+      const { pane } = mount(change([json('{ "slug": 1 }')]))
+      await expect.poll(() => pane.querySelector(".tok-propertyName")?.textContent).toBe('"slug"')
+      expect(pane.querySelector(".diff-text")!.textContent).toBe('{ "slug": 1 }')
     })
 
     it("parses the old and the new side apart", async () => {
@@ -282,35 +282,35 @@ describe("the diff viewer", () => {
         { kind: "add", text: "const a = 1" },
         { kind: "context", text: "const b = 2" },
       ]
-      const { host } = mount(
+      const { pane } = mount(
         change([
           file("a.ts", { hunks: [{ oldStart: 1, oldCount: 2, newStart: 1, newCount: 2, lines }] }),
         ]),
       )
-      await expect.poll(() => host.querySelectorAll(".tok-keyword").length).toBeGreaterThan(0)
+      await expect.poll(() => pane.querySelectorAll(".tok-keyword").length).toBeGreaterThan(0)
       // The string opened by the removed line doesn't swallow the added line's number.
       await expect
-        .poll(() => host.querySelectorAll('.diff-line[data-kind="add"] .tok-number').length)
+        .poll(() => pane.querySelectorAll('.diff-line[data-kind="add"] .tok-number').length)
         .toBe(1)
     })
 
     it("keeps the colours of the files that didn't change, as a new change arrives", async () => {
       const content = change([json('{ "slug": 1 }'), sized("plain.txt", 3)])
-      const { host, viewer } = mount(content)
-      await expect.poll(() => host.querySelector(".tok-propertyName")?.textContent).toBe('"slug"')
+      const { pane, viewer } = mount(content)
+      await expect.poll(() => pane.querySelector(".tok-propertyName")?.textContent).toBe('"slug"')
       viewer.update(change([json('{ "slug": 1 }'), sized("plain.txt", 4)]))
       // At once: its rows were kept, not drawn plain and parsed again.
-      expect(host.querySelector(".tok-propertyName")?.textContent).toBe('"slug"')
-      expect(host.querySelectorAll(".diff-file")[1]!.querySelectorAll(".diff-line")).toHaveLength(4)
+      expect(pane.querySelector(".tok-propertyName")?.textContent).toBe('"slug"')
+      expect(pane.querySelectorAll(".diff-file")[1]!.querySelectorAll(".diff-line")).toHaveLength(4)
     })
 
     it("shows a hunk highlighted at once when a new viewer has seen it", async () => {
       const content = change([json('{ "kept": 1 }')])
       const first = mount(content)
-      await expect.poll(() => first.host.querySelector(".tok-propertyName")).not.toBeNull()
+      await expect.poll(() => first.pane.querySelector(".tok-propertyName")).not.toBeNull()
       first.viewer.destroy()
       const second = mount(content)
-      await expect.poll(() => second.host.querySelector(".tok-propertyName")).not.toBeNull()
+      await expect.poll(() => second.pane.querySelector(".tok-propertyName")).not.toBeNull()
     })
   })
 
@@ -406,7 +406,7 @@ describe("the diff viewer", () => {
     const reading = async (content = change(many())) => {
       const shown = mount(content)
       await frame()
-      shown.host.querySelectorAll<HTMLButtonElement>(".diff-file-link")[16]!.click()
+      shown.pane.querySelectorAll<HTMLButtonElement>(".diff-file-link")[16]!.click()
       await expect.poll(() => topRow(shown.root)).toContain("f16.txt line 1")
       shown.root.scrollTop += 33 * rowHeight(shown.root)
       await frame()
@@ -419,9 +419,9 @@ describe("the diff viewer", () => {
       expect(first.row).toContain("f16.txt line 3")
       const state = first.viewer.state()
       first.viewer.destroy()
-      const host = hostIn()
-      mountDiff(host, { content: change(many()), label: "Changes", saved: state })
-      const root = host.querySelector<HTMLElement>(".diff-viewer")!
+      const pane = paneIn()
+      mountDiff(pane, { content: change(many()), label: "Changes", saved: state })
+      const root = pane.querySelector<HTMLElement>(".diff-viewer")!
       await expect.poll(() => topRow(root)).toBe(first.row)
     })
 
@@ -512,10 +512,10 @@ describe("the diff viewer", () => {
       const first = await reading()
       // The scroll event that records where it is comes a frame later.
       await frame()
-      first.host.style.display = "none"
+      first.pane.style.display = "none"
       first.viewer.update(change(many({ 16: sized("f16.txt", 120), 2: sized("f2.txt", 70) })))
       first.viewer.update(change(many({ 16: sized("f16.txt", 130), 2: sized("f2.txt", 70) })))
-      first.host.style.display = "flex"
+      first.pane.style.display = "flex"
       await expect.poll(() => topRow(first.root)).toBe(first.row)
       await frame()
       await frame()
@@ -541,7 +541,7 @@ describe("the diff viewer", () => {
       try {
         for (let round = 0; round < 4; round += 1) {
           const files = [big("a.txt", 0), big("b.txt", 0), big("c.txt", 0)]
-          const { host, root, viewer } = mount(change(files))
+          const { pane, root, viewer } = mount(change(files))
           // eslint-disable-next-line no-await-in-loop -- Each round is its own viewer.
           await frame()
           root.scrollTop = 1000
@@ -549,7 +549,7 @@ describe("the diff viewer", () => {
           // eslint-disable-next-line no-await-in-loop -- Each round is its own viewer.
           await new Promise((resolve) => setTimeout(resolve, 100))
           for (const changed of [false, true]) {
-            host.style.display = "none"
+            pane.style.display = "none"
             // eslint-disable-next-line no-await-in-loop -- Each step settles before the next.
             await frame()
             viewer.update(
@@ -557,7 +557,7 @@ describe("the diff viewer", () => {
             )
             // eslint-disable-next-line no-await-in-loop -- Each step settles before the next.
             await frame()
-            host.style.display = "flex"
+            pane.style.display = "flex"
             // eslint-disable-next-line no-await-in-loop -- Each step settles before the next.
             await new Promise((resolve) => setTimeout(resolve, 1200))
           }
@@ -581,10 +581,10 @@ describe("the diff viewer", () => {
       one!.scrollLeft = 200
       other!.scrollLeft = 120
       await frame()
-      first.host.style.display = "none"
+      first.pane.style.display = "none"
       first.viewer.update(change([...wide(), sized("c.txt", 3)]))
       const state = first.viewer.state()
-      first.host.style.display = "flex"
+      first.pane.style.display = "flex"
       await expect
         .poll(() =>
           [...first.root.querySelectorAll<HTMLElement>(".diff-lines")].map(
@@ -593,9 +593,9 @@ describe("the diff viewer", () => {
         )
         .toEqual([200, 0, 120, 0])
       first.viewer.destroy()
-      const host = hostIn()
-      mountDiff(host, { content: change(wide()), label: "Changes", saved: state })
-      const root = host.querySelector<HTMLElement>(".diff-viewer")!
+      const pane = paneIn()
+      mountDiff(pane, { content: change(wide()), label: "Changes", saved: state })
+      const root = pane.querySelector<HTMLElement>(".diff-viewer")!
       // A file's sideways scroll is put back as it comes into view.
       await expect.poll(() => root.querySelector<HTMLElement>(".diff-lines")!.scrollLeft).toBe(200)
       root.scrollTop = root.scrollHeight
@@ -610,12 +610,12 @@ describe("the diff viewer", () => {
   context("with many files", () => {
     it("updates and reports its place without laying out the files out of sight", async () => {
       const files = Array.from({ length: 100 }, (_, at) => sized(`f${at}.txt`, 1_000))
-      const { host, viewer } = mount(change(files))
+      const { pane, viewer } = mount(change(files))
       await expect
-        .poll(() => host.querySelectorAll(".diff-line").length, { timeout: 30_000 })
+        .poll(() => pane.querySelectorAll(".diff-line").length, { timeout: 30_000 })
         .toBe(100_000)
       await frame()
-      host.querySelector<HTMLElement>(".diff-viewer")!.scrollTop = 50_000
+      pane.querySelector<HTMLElement>(".diff-viewer")!.scrollTop = 50_000
       await frame()
       const measured = performance.now()
       viewer.state()
@@ -649,13 +649,13 @@ describe("the diff viewer", () => {
 
     it("draws a part at a time, without blocking the page", async () => {
       const started = performance.now()
-      const { host, viewer } = mount(change([long()]))
+      const { pane, viewer } = mount(change([long()]))
       expect(performance.now() - started).toBeLessThan(1000)
-      expect(host.querySelectorAll(".diff-line").length).toBeLessThan(20_000)
+      expect(pane.querySelectorAll(".diff-line").length).toBeLessThan(20_000)
       let ticks = 0
       const timer = setInterval(() => (ticks += 1), 5)
       await expect
-        .poll(() => host.querySelectorAll(".diff-line").length, { timeout: 15_000 })
+        .poll(() => pane.querySelectorAll(".diff-line").length, { timeout: 15_000 })
         .toBe(20_000)
       clearInterval(timer)
       expect(ticks).toBeGreaterThan(0)
@@ -672,10 +672,10 @@ describe("the diff viewer", () => {
     })
 
     it("carries on drawing a file it kept when the change is updated", async () => {
-      const { host, viewer } = mount(change([long()]))
+      const { pane, viewer } = mount(change([long()]))
       viewer.update(change([long(), sized("small.txt", 3)]))
       await expect
-        .poll(() => host.querySelectorAll(".diff-line").length, { timeout: 15_000 })
+        .poll(() => pane.querySelectorAll(".diff-line").length, { timeout: 15_000 })
         .toBe(20_003)
       viewer.destroy()
     })

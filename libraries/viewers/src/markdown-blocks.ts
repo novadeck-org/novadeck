@@ -50,7 +50,7 @@ export type MarkdownBlock =
 
 // ---- Inline
 
-// Only web pages leave the app (the desktop host opens nothing else), and not an address
+// Only web pages leave the app (the desktop app opens nothing else), and not an address
 // that carries a login, whose real host is named after it.
 export const safeHref = (href: string): string | undefined => {
   try {

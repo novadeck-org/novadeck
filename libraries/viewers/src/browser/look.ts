@@ -24,7 +24,7 @@ import { wait, within } from "./wait.js"
 // carries over, laid out as the pane would lay it out, and pictured. The window has the
 // pane's pages' lockdown (no Node or preload, a sandbox, http(s) only, no popups) and is
 // never shown, focused or kept: whatever happens, it is destroyed before the answer goes.
-// Only addresses the host allows (the app allows those on this machine) are looked at, and
+// Only addresses the app allows (those on this machine) are looked at, and
 // the page's navigations, redirects and frames are held to them, so no frame or page from
 // elsewhere loads in the signed-in session. Its subresources (images, scripts, fetches) from
 // other origins do load, as in the pane.
@@ -110,11 +110,11 @@ export const lookPicture = (image: NativeImage): string | undefined => {
 const busy = "Too many pictures of pages are waiting. Try again in a moment."
 
 /**
- * Makes the looker of a host. `create` makes the window, and gets the options it must be
+ * Makes the desktop app's looker. `create` makes the window, and gets the options it must be
  * made with: the lockdown above, which a caller can't loosen; `partition` is the pages'
  * session (see `pagesSession`). `allow` says which addresses may be looked at, loaded or
  * framed (the app's: those on this machine); `forget` is told of each look's view once it
- * is gone, for whatever the host kept by its id.
+ * is gone, for whatever the app kept by its id.
  */
 export const createLooker = ({
   partition,
@@ -227,7 +227,7 @@ const loadAndPicture = async (
   const id = contents.id
   const size = lookSizes[layout]
   contents.setAudioMuted(true)
-  // No popup opens, and the page, its redirects and its frames stay on addresses the host
+  // No popup opens, and the page, its redirects and its frames stay on addresses the app
   // allows: the pane's guard, with no person to click, so every window it asks for is refused,
   // and a frame from elsewhere never loads in the signed-in session.
   contents.setWindowOpenHandler(() => ({ action: "deny" }))

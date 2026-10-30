@@ -58,7 +58,7 @@ export const attachPage = (
   // A page with no background of its own gets the ground a browser gives it, white or its
   // scheme's dark, not whatever the viewer draws behind it.
   preferences.transparent = false
-  // A session that isn't the pages' own refuses the view, never throws past the host's
+  // A session that isn't the pages' own refuses the view, never throws past the app's
   // handler, which would let the view attach as it asked.
   if (!kept(partition)) return false
   preferences.partition = partition
@@ -115,18 +115,15 @@ const emulate = async (page: WebContents, phone: boolean): Promise<boolean> => {
   }
 }
 
-// The page view `id`, as `host` asks for it: one of its own, and only a page view.
+// The page view `id`, as `app` asks for it: one of its own, and only a page view.
 const pageViewOf = (
-  host: WebContents,
+  app: WebContents,
   id: unknown,
   fromId: (id: number) => WebContents | undefined,
 ): WebContents | undefined => {
   if (typeof id !== "number" || !Number.isSafeInteger(id)) return undefined
   const page = fromId(id)
-  return page &&
-    !page.isDestroyed() &&
-    page.getType() === "webview" &&
-    page.hostWebContents === host
+  return page && !page.isDestroyed() && page.getType() === "webview" && page.hostWebContents === app
     ? page
     : undefined
 }
@@ -136,16 +133,16 @@ const pageViewOf = (
  * as itself again: a phone's screen and layout, a pointer that touches, and a phone's
  * browser in its user agent and client hints. What it loads from then on is a phone's; a
  * document already loaded is told of its new screen and pointer, but not what it runs on,
- * so its viewer loads it again. False unless `id` is a page view of `host`, as for
+ * so its viewer loads it again. False unless `id` is a page view of `app`, as for
  * `picturePage`, and when it can't.
  */
 export const phonePage = async (
-  host: WebContents,
+  app: WebContents,
   id: unknown,
   phone: unknown,
   fromId: (id: number) => WebContents | undefined,
 ): Promise<boolean> => {
-  const page = pageViewOf(host, id, fromId)
+  const page = pageViewOf(app, id, fromId)
   return page ? emulate(page, phone === true) : false
 }
 
@@ -340,16 +337,16 @@ export const pictureWaitMs = 2_000
  * A picture of what the page view `id` shows now, as a JPEG `data:` address, for the
  * viewer to show in its place while the page rests, scaled down to `width` pixels where
  * it's wider, as a page laid out wider than it's drawn is. Undefined unless `id` is a page
- * view of `host`, the app's page that asks, so a page can't be asked for another window's,
+ * view of `app`, the app's page that asks, so a page can't be asked for another window's,
  * and when the page draws nothing yet. `fromId` is Electron's `webContents.fromId`.
  */
 export const picturePage = async (
-  host: WebContents,
+  app: WebContents,
   id: unknown,
   fromId: (id: number) => WebContents | undefined,
   width?: unknown,
 ): Promise<string | undefined> => {
-  const page = pageViewOf(host, id, fromId)
+  const page = pageViewOf(app, id, fromId)
   if (!page) return undefined
   const image = await within(page.capturePage(), pictureWaitMs)
   if (!image || image.isEmpty()) return undefined
@@ -363,7 +360,7 @@ export const picturePage = async (
 
 /**
  * Tells how many sign-in windows a page view has open as each opens or closes. Electron
- * closes them when the view goes, so its host keeps the view live while any is open. A
+ * closes them when the view goes, so its app keeps the view live while any is open. A
  * view gone first, its windows closing after it, has no one left to tell.
  */
 export const countSignIns = (contents: WebContents, tell: (open: number) => void): void => {

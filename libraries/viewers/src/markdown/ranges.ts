@@ -4,11 +4,11 @@ import { Decoration, EditorView, type DecorationSet } from "@codemirror/view"
 // Stretches of the text, by offset.
 export type Range = { readonly from: number; readonly to: number }
 
-// A stretch the host has set a class on: every line it touches carries the class, and
+// A stretch the app has set a class on: every line it touches carries the class, and
 // the viewer moves it along with the person's edits.
 export type ClassedRange = Range & { readonly className: string }
 
-// Replaces the classed ranges, as the host's latest content has them.
+// Replaces the classed ranges, as the app's latest content has them.
 export const setRanges = StateEffect.define<readonly ClassedRange[]>()
 
 const linesOf = (state: EditorState, ranges: readonly ClassedRange[]): DecorationSet => {

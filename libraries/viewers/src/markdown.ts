@@ -55,7 +55,7 @@ export type MarkdownOptions = {
   /**
    * More behaviour for the editor, which a restored state takes too. A saved state holds
    * the ones it was last given until the next viewer sets its own, so they shouldn't hold
-   * what the host can't let go of.
+   * what the app can't let go of.
    */
   readonly extensions?: readonly Extension[]
 }
@@ -75,11 +75,11 @@ const markdown = new LanguageSupport(
 const fromUpdate = Annotation.define<boolean>()
 
 // What changes with a mount rather than with the state: whether it takes edits, its name
-// and the host's own extensions. A saved state outlives the viewer that made it, so these
+// and the app's own extensions. A saved state outlives the viewer that made it, so these
 // are set again when it's opened.
 const live = new Compartment()
 
-// What follows an editor: its host's listener, and where its scroller is scrolled in the
+// What follows an editor: its app's listener, and where its scroller is scrolled in the
 // text, moved along with every change to it. Kept apart from the state, which outlives the
 // viewer that made it, so a saved state holds none of a viewer's closures: its extensions
 // reach these through the view showing it now.
@@ -95,7 +95,7 @@ const base: Extension = [
   keymap.of([...defaultKeymap, ...historyKeymap]),
   markdown,
   EditorView.lineWrapping,
-  // Read-only holds for every change, not only typing: a host's keys, checkboxes and the
+  // Read-only holds for every change, not only typing: an app's keys, checkboxes and the
   // table's own edits dispatch directly. Only `update()`'s changes land.
   EditorState.transactionFilter.of((transaction) =>
     transaction.docChanged && transaction.startState.readOnly && !transaction.annotation(fromUpdate)
@@ -152,7 +152,7 @@ export const mountMarkdown: Mount<MarkdownContent, MarkdownOptions, MarkdownView
   let closing = false
   let taking = editable
 
-  const hosted = (): Extension => [
+  const perMount = (): Extension => [
     EditorState.readOnly.of(!taking),
     EditorView.contentAttributes.of({ "aria-label": label }),
     ...extensions,
@@ -163,12 +163,12 @@ export const mountMarkdown: Mount<MarkdownContent, MarkdownOptions, MarkdownView
     parent: root,
     state:
       first?.state ??
-      EditorState.create({ doc: content.text, extensions: [base, live.of(hosted())] }),
+      EditorState.create({ doc: content.text, extensions: [base, live.of(perMount())] }),
   })
 
   followersOf.set(view, followers)
 
-  // The text as the host has it now, applied as an outside change: not the person's to
+  // The text as the app has it now, applied as an outside change: not the person's to
   // undo, since undoing it would only write the old text back.
   const sync = (next: MarkdownContent): void => {
     const doc = view.state.doc.toString()
@@ -187,7 +187,7 @@ export const mountMarkdown: Mount<MarkdownContent, MarkdownOptions, MarkdownView
     followers.restoring = null
     followers.scroll = from?.scroll ?? null
     // A state saved by another viewer takes this one's behaviour.
-    if (from) view.dispatch({ effects: live.reconfigure(hosted()) })
+    if (from) view.dispatch({ effects: live.reconfigure(perMount()) })
     // Where the scroller is scrolled counts once it's back where it was left.
     const follow = (): void => {
       // A restore ended by closing leaves the place it was restoring to.
@@ -217,7 +217,7 @@ export const mountMarkdown: Mount<MarkdownContent, MarkdownOptions, MarkdownView
         markdown: { state: view.state, scroll: followers.scroll },
       }) satisfies MarkdownState as unknown as ViewerState,
     // Takes the saved history, selection and place, and keeps the content the viewer has:
-    // what differs applies as an outside change, as `update()`'s does, so the host hears
+    // what differs applies as an outside change, as `update()`'s does, so the app hears
     // nothing and nothing it changed meanwhile is lost.
     restore: (state) => {
       if (!isMarkdownState(state)) return
@@ -245,7 +245,7 @@ export const mountMarkdown: Mount<MarkdownContent, MarkdownOptions, MarkdownView
     editable: (on) => {
       if (on === taking) return
       taking = on
-      view.dispatch({ effects: live.reconfigure(hosted()) })
+      view.dispatch({ effects: live.reconfigure(perMount()) })
     },
     destroy: () => {
       closing = true

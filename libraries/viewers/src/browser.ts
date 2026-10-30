@@ -23,24 +23,24 @@ import {
 import { wait } from "./browser/wait.js"
 import type { Mount, Viewer, ViewerState } from "./index.js"
 
-// A web page. Live, it loads in Electron's <webview>, which the host's lockdown
-// (./browser/host.ts) keeps to http(s), on the pages' session that keeps sign-ins, with no
+// A web page. Live, it loads in Electron's <webview>, which the desktop app's lockdown
+// (./browser/main.ts) keeps to http(s), on the pages' session that keeps sign-ins, with no
 // Node and no permissions; the viewer reports where it is and how its load went, and goes
 // back, forward or reloads when asked. Shown again, it loads afresh and brings the element
-// the show names into view. A live page can rest, as its host says while the person isn't
+// the show names into view. A live page can rest, as its app says while the person isn't
 // at it: it shows a picture of itself in its place, and its view goes, so drawing it costs
 // nothing; woken, it loads again under the picture, where the person had scrolled, and the
 // picture fades once it's there. While the page has a sign-in window open, which closes
 // with its view, it stays live instead, and rests once the last one closes. A live page lays
 // out as a desktop's window or a phone's screen, scaled down to fit where the viewer is
 // narrower (see `framingOf`). Where live pages aren't available (a plain browser, a demo),
-// it shows a snapshot of the page, or nothing, for the host to say why. Its looks are
+// it shows a snapshot of the page, or nothing, for the app to say why. Its looks are
 // browser.css's.
 
 export type { PageSize, Trouble }
 
 /**
- * A page by its address, as its host shows it. `shown` counts the host's shows of it: a
+ * A page by its address, as its app shows it. `shown` counts the app's shows of it: a
  * higher one is the page shown again, which loads afresh, back at its address if the
  * person went elsewhere, and brings `scroll`, a CSS selector, into view once it has
  * loaded. Each show scrolls once, however often a viewer mounts for it.
@@ -62,7 +62,7 @@ export type BrowserOptions = {
   readonly live: boolean
   /** A picture of the page, shown where it can't load live. */
   readonly snapshot?: { readonly src: string; readonly alt: string }
-  /** The pages' session, the one the host's lockdown names. */
+  /** The pages' session, the one the desktop app's lockdown names. */
   readonly partition: string
   /**
    * Takes a picture of what the live page shows now, by its view's web contents id, for
@@ -75,7 +75,7 @@ export type BrowserOptions = {
    * Makes the live page's view act as a phone's, by its web contents id, or as itself
    * again: touched, with a phone's screen and browser; false when it can't. With it, a
    * page at a phone's size is a phone's, not just as narrow as one, and each view made for
-   * one is named a phone's, for the host to make it one before it loads.
+   * one is named a phone's, for the app to make it one before it loads.
    */
   readonly phone?: (page: number, phone: boolean) => Promise<boolean>
   /** Whether a live page starts awake, as it does unless told; it rests only as a picture. */
@@ -88,7 +88,7 @@ export type BrowserOptions = {
     readonly title?: (title: string) => void
     /**
      * What goes wrong on the page while it is at the address it was shown at, or anywhere
-     * else on that origin: its errors, requests that failed (as the desktop host tells
+     * else on that origin: its errors, requests that failed (as the desktop app tells
      * them) and a load that failed outright, with `shown`, the show its document carries.
      * A document reports at most `maxTroubles`. Live pages only.
      */
@@ -233,7 +233,7 @@ export const scrollWaitMs = 5_000
 
 /**
  * A live page keeps a picture of itself ready, so it can rest at once, even where it can't
- * be pictured as it goes, as when its host hides it in the same moment: `freshenMs` after
+ * be pictured as it goes, as when its app hides it in the same moment: `freshenMs` after
  * a load or a move within it, `leftMs` after the pointer leaves it, and every `keepMs`
  * while it's awake, though never while the pointer is on it or it has focus, so taking one
  * never comes in the way of the person using it.
@@ -266,7 +266,7 @@ export const mountBrowser: Mount<BrowserContent, BrowserOptions, BrowserViewer> 
   },
 ) => {
   const document = element.ownerDocument
-  // The window it's drawn in: its resizes, its frames, and the desktop host's word.
+  // The window it's drawn in: its resizes, its frames, and the desktop app's word.
   const win = document.defaultView
   const root = document.createElement("div")
   root.className = "browser-viewer"
@@ -359,7 +359,7 @@ export const mountBrowser: Mount<BrowserContent, BrowserOptions, BrowserViewer> 
   }
 
   // The picture, over where the page is, or in its place while it rests. Focusable, so
-  // the person can reach it by keyboard, which wakes it where its host listens.
+  // the person can reach it by keyboard, which wakes it where its app listens.
   const still = document.createElement("div")
   still.className = "browser-picture"
   still.tabIndex = 0
@@ -462,11 +462,11 @@ export const mountBrowser: Mount<BrowserContent, BrowserOptions, BrowserViewer> 
   let woken = false
   // A picture of the live page under way, after its load, to rest as.
   let freshening: ReturnType<typeof setTimeout> | undefined
-  // Whether its host wants it live.
+  // Whether its app wants it live.
   let wanted = startAwake ?? true
   // A rest under way, waiting for its picture: a wake or a later rest drops it.
   let resting: object | undefined
-  // The sign-in windows the live page has open, as the desktop host tells: it stays live
+  // The sign-in windows the live page has open, as the desktop app tells: it stays live
   // while there are any, as its view going would close them.
   let signingIn = 0
   // Until its first load is done.
@@ -474,8 +474,8 @@ export const mountBrowser: Mount<BrowserContent, BrowserOptions, BrowserViewer> 
   // Moving to the shown fragment, whose scroll waits for the move.
   let moving = false
 
-  // What goes wrong, for the host to tell on, while the page is at the origin it was shown
-  // at: its errors, a load that failed outright, and the requests the desktop host sees
+  // What goes wrong, for the app to tell on, while the page is at the origin it was shown
+  // at: its errors, a load that failed outright, and the requests the desktop app sees
   // fail. Where the page committed is its own address, else where it is going. One count
   // per document, which the main frame's `did-navigate` starts anew, as does a load of it
   // that fails outright, which commits nothing.
@@ -518,7 +518,7 @@ export const mountBrowser: Mount<BrowserContent, BrowserOptions, BrowserViewer> 
       line: typeof line === "number" && line >= 0 ? line : 0,
     })
   }
-  // The desktop host's word of a request this page's session saw fail, through the app's
+  // The desktop app's word of a request this page's session saw fail, through the app's
   // preload: from the app's own page, naming this view.
   let committed = false
   // The document is a load that failed outright, which its own told: a later word of the page
@@ -549,7 +549,7 @@ export const mountBrowser: Mount<BrowserContent, BrowserOptions, BrowserViewer> 
     tellHeld()
   }
   if (reportTrouble) win?.addEventListener("message", requested)
-  // The desktop host's word of how many sign-in windows this page has open, through the
+  // The desktop app's word of how many sign-in windows this page has open, through the
   // app's preload: from the app's own page, naming this view.
   const signIns = (event: MessageEvent): void => {
     const { data } = event
@@ -557,7 +557,7 @@ export const mountBrowser: Mount<BrowserContent, BrowserOptions, BrowserViewer> 
     const notice = parsePageSignIn(data)
     if (!notice || notice.contentsId !== attached(() => page?.getWebContentsId())) return
     signingIn = notice.open
-    // The last one closed while its host wanted it at rest: it rests now.
+    // The last one closed while its app wanted it at rest: it rests now.
     if (signingIn === 0 && !wanted) rest()
   }
   win?.addEventListener("message", signIns)
@@ -584,7 +584,7 @@ export const mountBrowser: Mount<BrowserContent, BrowserOptions, BrowserViewer> 
         if (key !== undefined) void attached(() => was!.view.removeInsertedCSS(key))?.catch(nothing)
       })
   }
-  // Where the host can make a view a phone's, or itself again, the live view is as its size
+  // Where the app can make a view a phone's, or itself again, the live view is as its size
   // says, and the page loads again once it changes, for it to know what it now runs on. A
   // view not attached yet catches up as its document is ready.
   let phoneView: Webview | undefined
@@ -799,7 +799,7 @@ export const mountBrowser: Mount<BrowserContent, BrowserOptions, BrowserViewer> 
   ]
 
   // Made here, not by a framework that may leave `allowpopups` off: Electron reads the
-  // attributes once, as the view attaches. With it, a page's new windows reach the host's
+  // attributes once, as the view attaches. With it, a page's new windows reach the desktop app's
   // lockdown, which opens one in the browser right after the person's click or key. The
   // lockdown gives it the pages' session whatever it asks; it's named to match.
   const open = (at: string, byWake: boolean): void => {
@@ -807,7 +807,7 @@ export const mountBrowser: Mount<BrowserContent, BrowserOptions, BrowserViewer> 
     const made = document.createElement("webview") as Webview
     made.setAttribute("partition", partition)
     made.setAttribute("allowpopups", "")
-    // A phone's, named by its browser's user agent, which the host's lockdown knows and
+    // A phone's, named by its browser's user agent, which the desktop app's lockdown knows and
     // makes it one by before it loads.
     if (becomePhone && size === "phone") {
       made.setAttribute("useragent", phoneUserAgent(chromeMajorOf(navigatorAgent())))
@@ -846,7 +846,7 @@ export const mountBrowser: Mount<BrowserContent, BrowserOptions, BrowserViewer> 
     if (!view || !take || load === "failed" || signingIn > 0) return
     // Mid-load, it's pictured once loaded, unless a picture it has stands in meanwhile; a
     // load after its first, as a show's, then goes again, afresh, on waking. Out of sight, as
-    // where its host keeps it hidden, it draws nothing to picture: the one it has stands in.
+    // where its app keeps it hidden, it draws nothing to picture: the one it has stands in.
     const hidden = !shownNow()
     if (load === "loading" || hidden) {
       const standIn = (): void => {
@@ -932,7 +932,7 @@ export const mountBrowser: Mount<BrowserContent, BrowserOptions, BrowserViewer> 
         scrolled = taken.scrolled
         // At it again as it was taken: it may be out of date already.
         used = root.matches(":hover") || root.contains(document.activeElement)
-        // Its host had it rest, but it had no picture to rest as until now.
+        // Its app had it rest, but it had no picture to rest as until now.
         if (!wanted) swap(view)
       })
     }, after)
@@ -974,7 +974,7 @@ export const mountBrowser: Mount<BrowserContent, BrowserOptions, BrowserViewer> 
     // Its picture until it's there.
     cover()
   }
-  // Where it's going, as it may not be where its host showed it, until the page says.
+  // Where it's going, as it may not be where its app showed it, until the page says.
   if (resumed !== content.url || !page) on?.navigate?.(place)
 
   return {

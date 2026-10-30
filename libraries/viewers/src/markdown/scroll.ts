@@ -66,7 +66,7 @@ export const scrollLineToTop = (view: EditorView, at: number): void => {
 export type Scroll = { readonly at: number; readonly into: number }
 
 // How far the scroller's top is into the document, in the page's pixels, which CodeMirror
-// measures its lines in: scaled where a host zooms it, or while it scales in.
+// measures its lines in: scaled where an app zooms it, or while it scales in.
 const heightAtTop = (view: EditorView, scroller: HTMLElement): number =>
   scroller.getBoundingClientRect().top - view.documentTop
 
@@ -103,7 +103,7 @@ export const followScroll = (view: EditorView, on: (scroll: Scroll) => void): ((
 
 export type ScrollRestore = { readonly stop: () => void; readonly layout: () => void }
 
-// Keeps the saved line through layout changes until the person scrolls or a host jumps
+// Keeps the saved line through layout changes until the person scrolls or an app jumps
 // elsewhere. Frames settle the editor's estimated heights, then sleep; a resize or a
 // CodeMirror geometry update wakes them again, even after a late font load or Canvas fit.
 // `done` hands ownership to the scroll follower only when the restore is stopped.
@@ -148,7 +148,7 @@ export const restoreScroll = (
   }
   for (const type of ["wheel", "touchstart", "pointerdown", "keydown"])
     scroller.addEventListener(type, finish, { signal, passive: true })
-  // Scrolled by anyone else, as a host jumping somewhere or the page keeping what shows
+  // Scrolled by anyone else, as an app jumping somewhere or the page keeping what shows
   // in place, the scroller stays where they put it.
   scroller.addEventListener(
     "scroll",
