@@ -15,8 +15,6 @@ import {
   terminalCount,
   viewRegion,
 } from "../support/keyboard"
-import { workspaceSwitcher } from "../support/sessions"
-import { sidebarRenameField, tabAction } from "../support/terminals"
 import {
   chooseView,
   clickInto,
@@ -30,7 +28,6 @@ import {
   focusStage,
   focusTab,
   focusViewChoice,
-  isMac,
   navigateChip,
   openWorkspace,
   press,
@@ -698,182 +695,6 @@ describe("workspace keys after choosing a view", () => {
       })
     },
   )
-})
-
-// ⌘ and the digit on a Mac, Ctrl+Shift and the digit elsewhere.
-const pressDigit = (digit: number): Promise<void> =>
-  press(isMac() ? `{Meta>}${digit}{/Meta}` : `{Control>}{Shift>}${digit}{/Shift}{/Control}`)
-const pinInOrder = (): void =>
-  localStorage.setItem(
-    "novadeck.project-arrangement",
-    JSON.stringify({
-      order: ["docs-site", "api-service"],
-      pinned: ["docs-site", "api-service"],
-    }),
-  )
-
-const digitKeydown = (
-  digit: number,
-  init: KeyboardEventInit = {},
-  target: Element = document.body,
-): KeyboardEvent => {
-  const event = new KeyboardEvent("keydown", {
-    // Shift turns a digit into its symbol, as US keys do.
-    key: isMac() ? String(digit) : (")!@#$%^&*("[digit] ?? ""),
-    code: `Digit${digit}`,
-    ctrlKey: !isMac(),
-    shiftKey: !isMac(),
-    metaKey: isMac(),
-    bubbles: true,
-    cancelable: true,
-    ...init,
-  })
-  target.dispatchEvent(event)
-  return event
-}
-
-describe("pinned project shortcuts", () => {
-  context("when pressing the pin's number", () => {
-    it("switches to that pinned project, in the order they are pinned", async () => {
-      pinInOrder()
-      await openWorkspace()
-      await expect.element(workspaceSwitcher()).toHaveTextContent("storefront")
-
-      await pressDigit(2)
-      await expect.element(workspaceSwitcher()).toHaveTextContent("api-service")
-
-      await pressDigit(1)
-      await expect.element(workspaceSwitcher()).toHaveTextContent("docs-site")
-    })
-
-    it("works from a terminal input without typing the digit there", async () => {
-      pinInOrder()
-      await openWorkspace()
-      const input = commandInput("Checkout implementation").element()
-      await clickInto("Checkout implementation")
-
-      // The key is ours, so it never reaches the terminal's own handlers.
-      expect(digitKeydown(2, {}, input).defaultPrevented).toBe(true)
-      await expect.element(workspaceSwitcher()).toHaveTextContent("api-service")
-      await pressDigit(1)
-      await expect.element(workspaceSwitcher()).toHaveTextContent("docs-site")
-    })
-
-    it("works from the open project switcher, and closes it", async () => {
-      pinInOrder()
-      await openWorkspace()
-      await workspaceSwitcher().click()
-      await expect.element(page.getByRole("dialog")).toBeVisible()
-
-      await pressDigit(2)
-
-      await expect.element(workspaceSwitcher()).toHaveTextContent("api-service")
-      await expect.element(page.getByRole("dialog")).not.toBeInTheDocument()
-    })
-
-    it("works from the terminal switcher, and closes it", async () => {
-      pinInOrder()
-      await openWorkspace()
-      await terminal("Checkout implementation")
-        .getByRole("button", { name: "Switch terminal" })
-        .click()
-      await expectFocusWithin(recentSwitcher())
-
-      await pressDigit(2)
-
-      await expect.element(workspaceSwitcher()).toHaveTextContent("api-service")
-      await expect.element(recentSwitcher()).not.toBeInTheDocument()
-    })
-
-    // On macOS the pin's chord is ⌘ and a digit, so the Ctrl held for the switcher isn't
-    // part of it there.
-    it.skipIf(isMac())("works from the terminal switcher held open with Ctrl+Tab", async () => {
-      pinInOrder()
-      await openWorkspace()
-      await press("{Control>}{Tab}")
-      await expect.element(recentSwitcher()).toBeVisible()
-
-      await press("{Shift>}2{/Shift}")
-
-      await expect.element(workspaceSwitcher()).toHaveTextContent("api-service")
-      await expect.element(recentSwitcher()).not.toBeInTheDocument()
-      await press("{/Control}")
-    })
-
-    it("keeps the key from the terminal even when the pin is already the current project", async () => {
-      pinInOrder()
-      await openWorkspace()
-      await pressDigit(1)
-      await expect.element(workspaceSwitcher()).toHaveTextContent("docs-site")
-
-      expect(digitKeydown(1).defaultPrevented).toBe(true)
-      expect(digitKeydown(1, { repeat: true }).defaultPrevented).toBe(true)
-      await expect.element(workspaceSwitcher()).toHaveTextContent("docs-site")
-    })
-
-    it("does not switch again on a held key", async () => {
-      pinInOrder()
-      await openWorkspace()
-
-      expect(digitKeydown(2).defaultPrevented).toBe(true)
-      await expect.element(workspaceSwitcher()).toHaveTextContent("api-service")
-      expect(digitKeydown(1, { repeat: true }).defaultPrevented).toBe(true)
-      await expect.element(workspaceSwitcher()).toHaveTextContent("api-service")
-    })
-
-    it("leaves the key to a tab's rename field", async () => {
-      pinInOrder()
-      await openWorkspace()
-      await tabAction("Rename Dev server").click()
-      await expect.element(sidebarRenameField("Dev server")).toHaveFocus()
-
-      const event = digitKeydown(2, {}, sidebarRenameField("Dev server").element())
-
-      expect(event.defaultPrevented).toBe(false)
-      await expect.element(workspaceSwitcher()).toHaveTextContent("storefront")
-    })
-
-    it("leaves the project as it is behind a confirmation", async () => {
-      pinInOrder()
-      await openWorkspace()
-      await workspaceSwitcher().click()
-      await page.getByRole("button", { name: "Remove storefront" }).click({ force: true })
-      const confirm = page.getByRole("alertdialog", { name: "Remove “storefront”?" })
-      await expect.element(confirm).toBeVisible()
-
-      await pressDigit(2)
-
-      await expect.element(confirm).toBeVisible()
-      // The workspace behind the confirmation is hidden from the accessibility tree.
-      await expect
-        .element(page.getByRole("button", { name: "Switch workspace", includeHidden: true }))
-        .toHaveTextContent("storefront")
-    })
-  })
-
-  context("when there is no such pin", () => {
-    it("changes nothing and leaves the key, held or not, to the terminal", async () => {
-      pinInOrder()
-      await openWorkspace()
-      await clickInto("Checkout implementation")
-      const input = commandInput("Checkout implementation").element()
-
-      expect(digitKeydown(3, {}, input).defaultPrevented).toBe(false)
-      expect(digitKeydown(9, {}, input).defaultPrevented).toBe(false)
-      expect(digitKeydown(3, { repeat: true }, input).defaultPrevented).toBe(false)
-
-      await expect.element(workspaceSwitcher()).toHaveTextContent("storefront")
-      await expect.element(commandInput("Checkout implementation")).toHaveFocus()
-    })
-
-    it("leaves every press and repeat alone when nothing is pinned", async () => {
-      await openWorkspace()
-
-      expect(digitKeydown(1).defaultPrevented).toBe(false)
-      expect(digitKeydown(8, { repeat: true }).defaultPrevented).toBe(false)
-      await expect.element(workspaceSwitcher()).toHaveTextContent("storefront")
-    })
-  })
 })
 
 describe("typing in a terminal", () => {

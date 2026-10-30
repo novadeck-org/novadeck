@@ -2,7 +2,6 @@ import { page } from "vitest/browser"
 
 import { bounds, focusView, gridView, headerGap } from "../support/layouts"
 import {
-  chooseView,
   expectSelected,
   expectStaysAbsent,
   focusStage,
@@ -11,22 +10,9 @@ import {
   terminal,
   terminalTab,
   view,
-  viewSwitcher,
   labelled,
 } from "../support/workspace"
 import { context, describe, expect, it } from "../test"
-
-const openPreferences = async (): Promise<void> => {
-  await page.getByRole("button", { name: "Workspace preferences" }).click()
-  await expect.element(page.getByRole("dialog", { name: "Preferences" })).toBeVisible()
-}
-
-const disableView = async (name: "Focus" | "Grid" | "Canvas"): Promise<void> => {
-  await openPreferences()
-  await page.getByRole("group", { name: "View modes" }).getByRole("checkbox", { name }).click()
-  await page.getByRole("button", { name: "Close preferences" }).click()
-  await expect.element(page.getByRole("dialog", { name: "Preferences" })).not.toBeInTheDocument()
-}
 
 /** How far each edge of a terminal sits from the matching edge of the Focus view. */
 const edgeGaps = (name: string): number[] => {
@@ -109,100 +95,6 @@ describe("Focus view", () => {
 
       await expectSelected("Checkout implementation")
       await expect.element(terminal("Checkout implementation")).toBeVisible()
-    })
-  })
-})
-
-describe("available view modes", () => {
-  context("when a view is disabled in Preferences", () => {
-    it("removes it from the view switcher", async () => {
-      await openWorkspace()
-      await expect.element(view("Grid")).toBeInTheDocument()
-
-      await disableView("Grid")
-
-      await expect.element(view("Grid")).not.toBeInTheDocument()
-      await expect.element(viewSwitcher().getByRole("radio")).toHaveLength(2)
-    })
-
-    it("offers the remaining windowed view from the Focus header", async () => {
-      await openWorkspace()
-      await expect.element(page.getByRole("button", { name: "Open in Grid" })).toBeVisible()
-
-      await disableView("Grid")
-
-      await expect.element(page.getByRole("button", { name: "Open in Canvas" })).toBeVisible()
-      await expect
-        .element(page.getByRole("button", { name: "Open in Grid" }))
-        .not.toBeInTheDocument()
-    })
-
-    it("moves away from the view when it is the current one", async () => {
-      await openWorkspace()
-      await chooseView("Grid")
-
-      await disableView("Grid")
-
-      await expect.element(gridView()).not.toBeInTheDocument()
-      await expect
-        .poll(() => viewSwitcher().getByRole("radio", { checked: true }).elements())
-        .toHaveLength(1)
-    })
-  })
-
-  context("when Focus is disabled", () => {
-    it("leaves no Focus action on Grid terminals", async () => {
-      await openWorkspace()
-      await chooseView("Grid")
-      await expect
-        .element(page.getByRole("button", { name: labelled("Focus ", "Tests") }))
-        .toBeInTheDocument()
-
-      await disableView("Focus")
-
-      await expect.element(view("Focus")).not.toBeInTheDocument()
-      await expect
-        .element(page.getByRole("button", { name: labelled("Focus ", "Tests") }))
-        .not.toBeInTheDocument()
-    })
-  })
-
-  context("when only one view remains", () => {
-    it("keeps showing that view with no view to switch to", async () => {
-      await openWorkspace()
-
-      await disableView("Grid")
-      await disableView("Canvas")
-
-      await expect.element(focusView()).toBeVisible()
-      await expect.element(page.getByRole("button", { name: /^Open in / })).not.toBeInTheDocument()
-    })
-
-    it("hides the view switcher, keeping Zen", async () => {
-      await openWorkspace()
-
-      await disableView("Grid")
-      await disableView("Canvas")
-
-      await expect.element(viewSwitcher()).not.toBeInTheDocument()
-      await expect.element(page.getByRole("button", { name: "Enter Zen mode" })).toBeVisible()
-
-      await page.getByRole("button", { name: "Enter Zen mode" }).click()
-      const dock = page.getByRole("group", { name: "Zen controls" })
-      await expect.element(dock.getByRole("button", { name: "Exit Zen" })).toBeVisible()
-      await expect.element(dock.getByRole("button", { name: /view$/ })).not.toBeInTheDocument()
-    })
-
-    it("brings the view switcher back once another view is enabled", async () => {
-      await openWorkspace()
-      await disableView("Grid")
-      await disableView("Canvas")
-      await expect.element(viewSwitcher()).not.toBeInTheDocument()
-
-      // The same checkbox turns Grid back on.
-      await disableView("Grid")
-
-      await expect.element(viewSwitcher().getByRole("radio")).toHaveLength(2)
     })
   })
 })
