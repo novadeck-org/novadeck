@@ -22,7 +22,9 @@ resumable stream of it, its browser view, and shell integration.
     `Hold` to `place` the screen in an element, `update`, `focus`, `restart` and `release`; its
     `state` is a store of what the person is told (`live`, `resuming`, `waits`, `lock`, `notice`).
     A released screen parks after `park.afterMs`, closes after `retain.afterMs` away, and the
-    parked longest closes past `park.keep`.
+    parked longest closes past `park.keep`. `setFont` sets the font every screen opens in and
+    the open ones fit to, and `typeInto(key, text)` pastes text, such as dictation, into a
+    screen that is drawing its live terminal, and says whether it did.
   - The owner gives the emulator, theme, stream, wording and policies as options; the view
     knows no app, wire or protocol. `store` is optional (a plain store otherwise); an owner
     that observes its stores passes its own. Files pasted in are saved on the terminal's host
@@ -35,15 +37,17 @@ The others are Node only: each names only the `node` condition, so a browser bun
 resolve it.
 
 - `./host`: hosting terminals.
-  - `createTerminalHost(options)` keeps a host's terminals: `reserve` holds a place for one
+  - `createTerminalHost(options)` keeps a host's terminals, each found by `terminal(id)`
+    while open or still read: `reserve` holds a place for one
     starting, within `maxTerminals`, letting the oldest exited terminal no one reads go for
     room. After each exit, exited terminals past `maxRetained` go, oldest first, and
     `evicted` listeners are told. `terminate` ends a terminal's program within the kill's
     budget (shorter as the host shuts down), and `remove` keeps a closed one until its viewers
-    have read the rest (its caller refuses its id meanwhile; `draining` tells). `shutdown` ends
-    every program, then lets every terminal go. `attach` attaches a viewer once the draws
-    before it are drawn, keeping the terminal meanwhile, and yields `attached`, then the
-    events. `restart` starts a new run of an exited terminal in place, one restart at a time,
+    have read the rest (its caller refuses its id meanwhile; `draining` tells, and `closing`
+    whether a close or the shutdown is ending its program). `shutdown` ends every program,
+    then lets every terminal go. `attach` attaches a viewer once the draws before it are
+    drawn, keeping the terminal meanwhile, and yields `attached`, then the events; `release`
+    ends an owner's attachments and control on every terminal. `on` adds a listener. `restart` starts a new run of an exited terminal in place, one restart at a time,
     after its caller's waiting.
   - Each `Terminal` the host opens runs its program in a pty with a headless screen, and keeps
     the events that follow the screen and who reads them. A `RunSpec` is one run of it: its
@@ -103,9 +107,9 @@ resolve it.
     `anyRunning` says whether members still run, and `relayMs` bounds a run of the relay
     unless its caller asks for less.
 - `./shell`: what a shell reports and needs.
-  - `shellScripts` writes the files bash, zsh, fish and PowerShell read after the user's own
+  - `shellScripts` writes the files bash, zsh, fish and PowerShell read after the person's own
     setup, where `shellScriptPaths` lays them out. Each reports the directory at every prompt,
-    puts `<PREFIX>_BIN` back first on PATH after the user's startup files, and runs a startup
+    puts `<PREFIX>_BIN` back first on PATH after the person's startup files, and runs a startup
     command once from the file `<PREFIX>_RESUME` names, which removing first cancels. The app
     names them: its prefix, given to `shellScriptPaths` (`acme` gives `ACME_BIN` and
     `__acme_prompt`), and the comment each file opens with.

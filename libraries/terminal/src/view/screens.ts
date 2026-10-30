@@ -50,9 +50,9 @@ export const pasteNoticeMs = 4_000
 export type TerminalViewOptions<K> = FollowOptions<K> & {
   // The key as a string, which names its screen.
   readonly keyOf: (key: K) => string
-  // Opens an emulator in `element`. The views subscribe to its renderer changes themselves.
+  // Opens an emulator in `container`. The views subscribe to its renderer changes themselves.
   readonly emulator: (
-    element: HTMLElement,
+    container: HTMLElement,
     open: { readonly fontSize: number; readonly fontFamily: string; readonly theme: ITheme },
   ) => View
   readonly theme: {
@@ -223,9 +223,9 @@ export const createTerminalViews = <K>(o: TerminalViewOptions<K>) => {
   }
 
   const open = (key: K, entry: Entry, { label, phase }: Omit<ShowOptions, "webgl">): OpenScreen => {
-    const element = entry.container
-    const resolved = o.theme.resolve(element)
-    const view = o.emulator(element, {
+    const { container } = entry
+    const resolved = o.theme.resolve(container)
+    const view = o.emulator(container, {
       fontSize: font.size,
       fontFamily: resolved.fontFamily,
       theme: resolved.theme,
@@ -282,7 +282,7 @@ export const createTerminalViews = <K>(o: TerminalViewOptions<K>) => {
       if (followed.refit()) view.renderer.resized()
     })
     const screen: OpenScreen = {
-      container: element,
+      container,
       xterm,
       followed,
       renderer: view.renderer,
@@ -339,7 +339,7 @@ export const createTerminalViews = <K>(o: TerminalViewOptions<K>) => {
         noticed = setTimeout(() => refresh({ notice: null }), pasteNoticeMs)
       },
     }
-    const pastes = takeFilePastes(element, target)
+    const pastes = takeFilePastes(container, target)
     // Ctrl+C copies a selection on Windows, where Ctrl+V pastes; on Linux Ctrl+V pastes a
     // clipboard of images too, and what is typed while it looks waits behind it.
     takeClipboardKeys(
@@ -374,35 +374,35 @@ export const createTerminalViews = <K>(o: TerminalViewOptions<K>) => {
     // The theme's font, once it has loaded: a bundled font still on its way arrives later,
     // and the terminal keeps the font it has until then. A new font changes the cell size,
     // so the terminal fits again.
-    const takeFont = (theme = o.theme.resolve(element)): void => {
+    const takeFont = (theme = o.theme.resolve(container)): void => {
       void view.setFont(theme.fontFamily).then((measured) => {
         if (measured && !gone) followed.refit()
       })
     }
     // A theme sets the colours and the font.
     const retheme = (): void => {
-      const theme = o.theme.resolve(element)
+      const theme = o.theme.resolve(container)
       view.setTheme(theme.theme)
       takeFont(theme)
     }
     // A container opened before it had a slot took the page's colours and font; once in one,
     // it takes its region's.
-    let placed = element.isConnected
+    let placed = container.isConnected
     // Out of sight, as a view keeps a terminal it isn't showing, it has no size. Shown
     // again, it takes the size it has now at once, not after a pause.
-    let sized = Boolean(element.clientWidth && element.clientHeight)
+    let sized = Boolean(container.clientWidth && container.clientHeight)
     const resizes = new ResizeObserver(() => {
-      if (!placed && element.isConnected) {
+      if (!placed && container.isConnected) {
         placed = true
         retheme()
       }
       const was = sized
-      sized = Boolean(element.clientWidth && element.clientHeight)
+      sized = Boolean(container.clientWidth && container.clientHeight)
       clearTimeout(settling)
       if (sized && !was) followed.refit()
       else settling = setTimeout(() => followed.refit(), resizeSettleMs)
     })
-    resizes.observe(element)
+    resizes.observe(container)
     const unthemed = o.theme.changed(retheme)
     // The terminal opened in its font whether it had loaded or not; one still on its way
     // is measured again once it arrives.
@@ -421,7 +421,7 @@ export const createTerminalViews = <K>(o: TerminalViewOptions<K>) => {
       queries.dispose()
       followed.stop()
       view.dispose()
-      element.remove()
+      container.remove()
     }
     return screen
   }
@@ -530,7 +530,8 @@ export const createTerminalViews = <K>(o: TerminalViewOptions<K>) => {
       return {
         state: screen.state,
         place: (element) => {
-          // The element holds the container alone: one a screen opened again replaces the one before.
+          // The element holds the container alone: one a screen opened again replaces the one
+          // before.
           if (screen.container.parentElement !== element) element.replaceChildren(screen.container)
           screen.followed.refit()
           cancelFrame()
@@ -583,11 +584,11 @@ export const createTerminalViews = <K>(o: TerminalViewOptions<K>) => {
     // program asked for that, and never followed by Enter. Dictation targets a terminal the
     // person is looking at, so a terminal with no open screen, or one whose stream isn't
     // drawing it (parked out of sight, reconnecting, or taking up again), or whose shell
-    // exited, has nothing to type into and gets nothing: opening a second attachment to write behind a screen that
-    // is not there, for a paste with no brackets, would run the text as typed commands. Says
-    // whether it pasted. Line breaks and other control characters become spaces first:
-    // outside bracketed paste xterm turns a newline into Enter, which would submit what was
-    // said.
+    // exited, has nothing to type into and gets nothing: opening a second attachment to write
+    // behind a screen that is not there, for a paste with no brackets, would run the text as
+    // typed commands. Says whether it pasted. Line breaks and other control characters become
+    // spaces first: outside bracketed paste xterm turns a newline into Enter, which would
+    // submit what was said.
     typeInto: (key: K, text: string): boolean => {
       const screen = entries.get(id(key))?.screen
       const state = screen?.state.getSnapshot()

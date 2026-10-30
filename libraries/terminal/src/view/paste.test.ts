@@ -48,8 +48,8 @@ const onDisk = (path: string, file = new File(["x"], path.split(/[/\\]/).pop()!)
 }
 const pathOf = (file: File) => disk.get(file) ?? ""
 
-// A terminal's container with the emulator's field inside, recording uploads and pastes; the desktop
-// app's (a trusted page with file paths) when `trusted`.
+// A terminal's container with the emulator's field inside, recording uploads and pastes; the
+// desktop app's (a trusted page with file paths) when `trusted`.
 const terminal = (
   saved = (name: string) => Promise.resolve(`/data/uploads/t/${name}`),
   trusted = false,
@@ -632,7 +632,7 @@ const keyboard = (
   return { log, press, selected: () => selection }
 }
 
-describe("Ctrl+C and Ctrl+V in a terminal in a browser page on Windows", () => {
+describe("Ctrl+C and Ctrl+V in a terminal on Windows", () => {
   const c = { key: "c", code: "KeyC" }
 
   it("copies the selection with Ctrl+C, clearing it, and sends the program nothing", () => {
@@ -667,7 +667,7 @@ describe("Ctrl+C and Ctrl+V in a terminal in a browser page on Windows", () => {
   })
 })
 
-describe("Ctrl+V in a terminal in a browser page on Linux", () => {
+describe("Ctrl+V in a terminal on Linux", () => {
   context("with only an image on the clipboard", () => {
     it("pastes the image's path instead of sending Ctrl+V", async () => {
       clipboard(async () => [item("image/png")])

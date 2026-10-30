@@ -44,7 +44,7 @@ export type NativeSpawn = (
 
 /**
  * How ptys start: node-pty's `spawn` unless a test plays one, the platform their ending
- * follows, and where each program is kept apart from the app's, as Linux's `UserScopes`.
+ * follows, and where each program is kept apart from the app's, as `userScopes()` gives on Linux.
  */
 export type PtyOptions = {
   readonly native?: NativeSpawn
