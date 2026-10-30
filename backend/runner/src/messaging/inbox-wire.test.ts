@@ -1,4 +1,4 @@
-import { agentActivity, inboxEntry } from "@novadeck/protocol"
+import { agentActivity, inboxEntry, maxTurnFiles } from "@novadeck/protocol"
 import { describe, expect, it } from "vitest"
 
 const base = {
@@ -34,7 +34,7 @@ describe("the turn entry on the wire", () => {
     for (const content of [
       { ...turn, outcome: "interrupted" },
       { ...turn, extra: 1 },
-      { ...turn, files: Array.from({ length: 17 }, (_, i) => `/f${i}`) },
+      { ...turn, files: Array.from({ length: maxTurnFiles + 1 }, (_, i) => `/f${i}`) },
       { ...turn, reply: "" },
     ]) {
       expect(inboxEntry.safeParse({ ...base, content }).success).toBe(false)

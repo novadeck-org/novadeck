@@ -1,4 +1,5 @@
 import { callId } from "@novadeck/harness-core/decode"
+import { agentLimits } from "@novadeck/protocol"
 
 /**
  * The tool Codex offers to ask without waiting (0.162.1 on, to a model that lists it; see
@@ -133,10 +134,10 @@ export const asyncSubject = (
       const named = (each as { title?: unknown } | null)?.title
       return typeof named === "string" ? named.trim() : ""
     }),
-    subject: typeof title === "string" ? title.slice(0, 1024) : null,
+    subject: typeof title === "string" ? title.slice(0, agentLimits.subject) : null,
     choices: (Array.isArray(options) ? options : [])
       .filter((option): option is string => typeof option === "string" && option.length > 0)
-      .slice(0, 16)
-      .map((option) => option.slice(0, 256)),
+      .slice(0, agentLimits.choices)
+      .map((option) => option.slice(0, agentLimits.name)),
   }
 }

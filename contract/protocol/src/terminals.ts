@@ -21,12 +21,13 @@ export const foregroundProcess = z.strictObject({
   argv: z.array(z.string().max(4096)).max(64).nullable(),
 })
 
-// A command line a new shell runs at its first prompt, as if typed there: one line,
-// without control characters.
+// A command line a new shell runs at its first prompt, as if typed there: one line of at most
+// `maxStartupCommand` characters, without control characters.
+export const maxStartupCommand = 4096
 export const startupCommand = z
   .string()
   .min(1)
-  .max(4096)
+  .max(maxStartupCommand)
   // eslint-disable-next-line no-control-regex -- These are the characters it refuses.
   .regex(/^[^\x00-\x1f\x7f]*$/, "A command must be one line, without control characters.")
 

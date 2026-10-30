@@ -25,6 +25,7 @@ import { isFields } from "@novadeck/harness-core/fields"
 import { promptStart } from "@novadeck/harness-core/prompts"
 import type { Report } from "@novadeck/harness-core/report"
 import { oneLine } from "@novadeck/harness-core/tools"
+import { agentLimits } from "@novadeck/protocol"
 
 import { statusLine } from "./status-line.js"
 import { kindOf } from "./tools.js"
@@ -192,7 +193,7 @@ const decodeHook = ({ event, seq, instance, env, payload }: Report): readonly Ha
           requestId: callId(actor, name, input),
           actor,
           toolName: name,
-          subject: message?.slice(0, 1024) ?? null,
+          subject: message?.slice(0, agentLimits.subject) ?? null,
           choices: [],
           input,
           kind: "question",
@@ -269,13 +270,9 @@ const finished = (prompt: string): string[] =>
 // The most a wake-up may be set out, as ScheduleWakeup clamps it: a minute to an hour.
 const wakeDelayMs = { least: 60_000, most: 3_600_000 } as const
 
-// The longest id, and the longest description or reason, the protocol takes.
-const maxJobText = 256
-const maxDescription = 512
-
 // The first line of what the agent wrote, cut to what the protocol takes; undefined if blank.
 const firstLine = (value: unknown): string | undefined => {
-  const line = oneLine(errorText(value) ?? "").slice(0, maxDescription)
+  const line = oneLine(errorText(value) ?? "").slice(0, agentLimits.description)
   return line === "" ? undefined : line
 }
 
@@ -304,14 +301,14 @@ const started = (
           : undefined
     const reason = firstLine(fields.reason)
     // Named by its call, as a result with no id of its own is.
-    const id = shortName(payload.tool_use_id, maxJobText) ?? `${tool}:${base.startedAt}`
+    const id = shortName(payload.tool_use_id, agentLimits.name) ?? `${tool}:${base.startedAt}`
     return at === undefined
       ? []
       : [{ type: "wake-scheduled", ...base, id, at, reason: reason ?? null }]
   }
   const id =
     tool === "Bash" ? result.backgroundTaskId : tool === "Monitor" ? result.taskId : undefined
-  const named = shortName(id, maxJobText)
+  const named = shortName(id, agentLimits.name)
   if (named === undefined) return []
   const timeout = result.timeoutMs
   const persistent = result.persistent === true
@@ -347,7 +344,7 @@ const running = (tasks: unknown): Background => {
   // Each command's id, the agent's own words for it and the command, as the Stop gives them.
   const jobs = live.flatMap((task): BackgroundJob[] => {
     const { type, id, description, command } = task as Record<string, unknown>
-    const named = shortName(id, maxJobText)
+    const named = shortName(id, agentLimits.name)
     // Only a shell job carries a command; the other kinds Claude Code lists (dreaming, a
     // teammate, a workflow) have none to tell whether they end.
     if (type !== "shell" || named === undefined) return []

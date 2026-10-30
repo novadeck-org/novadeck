@@ -1,4 +1,4 @@
-import type { CompanionItem } from "@novadeck/protocol"
+import { companionLimits, type CompanionItem } from "@novadeck/protocol"
 import { z } from "zod"
 
 import { ellipsized, list } from "../text.js"
@@ -13,7 +13,10 @@ import { ellipsized, list } from "../text.js"
  * terminal's unless it gives the folder `path`.
  */
 // What every request takes: a short name to show, and whether the person asked to see it.
-const shared = { title: z.string().min(1).max(256).optional(), open: z.boolean().optional() }
+const shared = {
+  title: z.string().min(1).max(companionLimits.name).optional(),
+  open: z.boolean().optional(),
+}
 
 /** Lines of a text file to point at, from the first to the last. */
 const lineRange = z
@@ -22,17 +25,11 @@ const lineRange = z
 
 /** A file to show, by its path, and the lines to point at. */
 const fileSource = z.strictObject({
-  path: z.string().min(1).max(4096),
+  path: z.string().min(1).max(companionLimits.path),
   lines: lineRange.optional(),
 })
 
 const fileRequest = z.strictObject({ file: fileSource, ...shared })
-
-/** What the protocol takes of a page's address. */
-export const maxUrlChars = 8192
-
-/** What a page's element to bring into view, a CSS selector, may hold. */
-const maxScrollChars = 1024
 
 /**
  * A page to show, by its http(s) address, and the element to bring into view as it
@@ -40,8 +37,8 @@ const maxScrollChars = 1024
  * memory, never with the item.
  */
 const pageSource = z.strictObject({
-  url: z.string().min(1).max(maxUrlChars),
-  scroll: z.string().trim().min(1).max(maxScrollChars).optional(),
+  url: z.string().min(1).max(companionLimits.url),
+  scroll: z.string().trim().min(1).max(companionLimits.scroll).optional(),
 })
 
 const pageRequest = z.strictObject({ page: pageSource, ...shared })
@@ -51,7 +48,9 @@ const pageRequest = z.strictObject({ page: pageSource, ...shared })
  * the folder `path` is in (absolute, or from the terminal's directory), by default the
  * terminal's own folder.
  */
-const changesSource = z.strictObject({ path: z.string().min(1).max(4096).optional() })
+const changesSource = z.strictObject({
+  path: z.string().min(1).max(companionLimits.path).optional(),
+})
 
 const changesRequest = z.strictObject({ changes: changesSource, ...shared })
 

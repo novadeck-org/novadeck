@@ -1,4 +1,5 @@
 import type { ActivityEvent } from "@novadeck/harness-core/events"
+import { maxTurnError, replyPreviewLength } from "@novadeck/protocol"
 import { afterEach, beforeEach, vi } from "vitest"
 
 import { apply, escapeVerdictMs, started, summary, type Activity } from "../harnesses/activity.js"
@@ -368,6 +369,23 @@ describe("the text of a stored turn", () => {
       reply: "password *******",
       error: "login with ******* failed",
     })
+  })
+
+  it("asks the redactor for no more than the protocol takes of each", async () => {
+    const masker = redactor()
+    const run = setup({ redactor: masker })
+    run.show(
+      end(begin(run.record.bound!.activity, 1), 100, {
+        outcome: "failed",
+        reply: "All done.",
+        error: "boom",
+      }),
+    )
+    await settle()
+    expect(masker.redact.mock.calls.map(([input]) => input)).toEqual([
+      expect.objectContaining({ text: "All done.", maxChars: replyPreviewLength }),
+      expect.objectContaining({ text: "boom", maxChars: maxTurnError }),
+    ])
   })
 
   it("keeps no record of ends given up, across many quick ends", async () => {

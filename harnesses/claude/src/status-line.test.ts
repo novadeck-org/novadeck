@@ -1,6 +1,7 @@
 import type { Report } from "@novadeck/harness-core/report"
 import { loadProbe } from "@novadeck/harness-core/testing/probes"
 import { hookReport } from "@novadeck/harness-core/testing/reports"
+import { telemetryLimits } from "@novadeck/protocol"
 import { describe, expect, it } from "vitest"
 
 import { decode } from "./decode.js"
@@ -42,6 +43,20 @@ describe("Claude Code's status line, as captured", () => {
     expect(decode({ ...report, payload: effort })).toMatchObject([
       { model: payload.model.display_name, effort: "xhigh" },
     ])
+  })
+
+  it("gives no model or effort name longer than the protocol takes", () => {
+    const named = (model: string, level: string) =>
+      decode({
+        ...report,
+        payload: { ...payload, model: { display_name: model }, effort: { level } },
+      })
+    const fits = "m".repeat(telemetryLimits.model)
+    const effort = "e".repeat(telemetryLimits.effort)
+    expect(named(fits, effort)).toMatchObject([{ model: fits, effort }])
+    expect(named(fits, `${effort}e`)).toMatchObject([{ model: fits, effort: null }])
+    expect(named(`${fits}m`, `${effort}e`)[0]).not.toHaveProperty("model")
+    expect(named(`${fits}m`, `${effort}e`)[0]).not.toHaveProperty("effort")
   })
 
   it("gives the five-hour and seven-day windows as used fractions with their resets", () => {

@@ -5,7 +5,12 @@ import {
   askAnswer,
   hiddenIn,
   inboxEntry,
+  inboxTextLimits,
+  maxAskOptions,
   maxCommandLines,
+  maxTurnError,
+  maxTurnFilePath,
+  maxTurnFiles,
   replyPreviewLength,
   type AgentAsk,
   type AgentName,
@@ -101,11 +106,11 @@ const subject = z
       .string()
       .trim()
       .min(1)
-      .max(256)
+      .max(inboxTextLimits.line)
       // eslint-disable-next-line no-control-regex -- Subjects must stay one line after cleaning.
       .refine((text) => !/[\r\n\x00-\x1f]/.test(text), "Use one line for the subject"),
   )
-const markdown = z.string().max(16_384)
+const markdown = z.string().max(inboxTextLimits.markdown)
 // A command an agent asks the person to run, kept as written, with every part of it in
 // sight: refused where it holds a character that draws as nothing, which could push the
 // rest past a run of blank rows, or more lines than the person reads before running it.
@@ -117,7 +122,7 @@ const command = z
     z
       .string()
       .min(1)
-      .max(4096)
+      .max(inboxTextLimits.command)
       .superRefine((text, context) => {
         const hidden = hiddenIn(text)
         if (hidden)
@@ -134,7 +139,12 @@ const command = z
   )
 const option = z.strictObject({
   label: subject,
-  summary: z.string().transform(cleanInboxText).pipe(z.string().max(2048)).nullable().optional(),
+  summary: z
+    .string()
+    .transform(cleanInboxText)
+    .pipe(z.string().max(inboxTextLimits.summary))
+    .nullable()
+    .optional(),
   details: markdown.nullable().optional(),
   code: z.strictObject({ path: subject, text: markdown }).nullable().optional(),
 })
@@ -142,8 +152,14 @@ const requestedShape = z.discriminatedUnion("type", [
   z.strictObject({ type: z.literal("text") }),
   z.strictObject({
     type: z.literal("options"),
-    options: z.array(option).min(1).max(3),
-    recommend: z.number().int().min(0).max(2).nullable().optional(),
+    options: z.array(option).min(1).max(maxAskOptions),
+    recommend: z
+      .number()
+      .int()
+      .min(0)
+      .max(maxAskOptions - 1)
+      .nullable()
+      .optional(),
   }),
   z.strictObject({
     type: z.literal("action"),
@@ -154,7 +170,7 @@ const requestedShape = z.discriminatedUnion("type", [
       .pipe(
         z
           .string()
-          .max(1024)
+          .max(inboxTextLimits.directory)
           // One line: the rule for what draws as nothing covers every control but a line feed.
           .refine(
             (text) => !text.includes("\n") && !hiddenIn(text),
@@ -170,7 +186,7 @@ const askRequest = z.strictObject({
   subject,
   body: markdown,
   details: markdown.nullable().optional(),
-  hard_to_undo: z.string().max(2048).nullable().optional(),
+  hard_to_undo: z.string().max(inboxTextLimits.hardToUndo).nullable().optional(),
   shape: requestedShape.optional(),
 })
 const tellRequest = z.strictObject({ subject, body: markdown })
@@ -222,7 +238,6 @@ const maxOpenAsks = 50
 const maxUnreadTells = 50
 /** Unread finished turns kept per terminal: the oldest goes at the 51st. */
 export const maxUnreadTurns = 50
-const maxTurnFiles = 16
 export const maxResolvedEntries = 100
 export const askSweepMs = 60_000
 /**
@@ -246,7 +261,7 @@ const clampedTurn = (content: unknown): TurnContent | undefined => {
   const raw = content as { [key: string]: unknown }
   const files = Array.isArray(raw["files"])
     ? raw["files"].flatMap((file: unknown) => {
-        const path = clipped(file, 1024)
+        const path = clipped(file, maxTurnFilePath)
         return path ? [path] : []
       })
     : []
@@ -254,7 +269,7 @@ const clampedTurn = (content: unknown): TurnContent | undefined => {
     kind: "turn",
     outcome: raw["outcome"] === "completed" ? "completed" : "failed",
     reply: clipped(raw["reply"], replyPreviewLength),
-    error: clipped(raw["error"], 2048),
+    error: clipped(raw["error"], maxTurnError),
     files: files.slice(0, maxTurnFiles),
   })
   return parsed.success && parsed.data.kind === "turn" ? parsed.data : undefined
