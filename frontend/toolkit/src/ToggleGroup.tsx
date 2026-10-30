@@ -13,12 +13,12 @@ import {
 import { Tooltip } from "./Tooltip"
 
 export type ToggleGroupProps = {
-  value: string[]
-  onValueChange: (value: string[]) => void
-  orientation?: "horizontal" | "vertical"
-  className?: string
-  children: ReactNode
-  "aria-label"?: string
+  readonly value: string[]
+  readonly onValueChange: (value: string[]) => void
+  readonly orientation?: "horizontal" | "vertical"
+  readonly className?: string
+  readonly children: ReactNode
+  readonly "aria-label"?: string
 }
 
 const ItemId = createContext<(value: string) => string>(() => "")
@@ -56,10 +56,10 @@ export const ToggleGroup = ({
 }
 
 export type ToggleGroupItemProps = Omit<ComponentPropsWithRef<"button">, "value"> & {
-  value: string
-  tooltip?: ReactNode
+  readonly value: string
+  readonly tooltip?: ReactNode
   // Keeps the tooltip shut, as while the item is dragged.
-  tooltipDisabled?: boolean
+  readonly tooltipDisabled?: boolean
 }
 
 export const ToggleGroupItem = ({

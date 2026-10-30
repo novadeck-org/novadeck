@@ -3,23 +3,23 @@ import { Portal } from "@ark-ui/react/portal"
 import { useLayoutEffect, useMemo, useRef, type ReactNode } from "react"
 
 export type SheetProps = {
-  label: string
-  open: boolean
+  readonly label: string
+  readonly open: boolean
   // Where its anchor is now, read each time the sheet places itself.
-  anchor: () => HTMLElement | null
+  readonly anchor: () => HTMLElement | null
   // What it stays within: the area it slides along to fit.
-  boundary: () => HTMLElement | null
+  readonly boundary: () => HTMLElement | null
   // What the anchor is: the sheet starts over, and places itself anew, when it changes.
-  anchorKey: string
+  readonly anchorKey: string
   // A click or focus outside the sheet; `preventDefault()` keeps it open.
-  onInteractOutside: (event: {
+  readonly onInteractOutside: (event: {
     readonly target: EventTarget | null
     readonly preventDefault: () => void
   }) => void
   // The sheet asks to close, as a click outside it does.
-  onDismiss: () => void
-  children: ReactNode
-  className?: string
+  readonly onDismiss: () => void
+  readonly children: ReactNode
+  readonly className?: string
 }
 
 // A card that opens beside an element of the page and points at it with an arrow, as a

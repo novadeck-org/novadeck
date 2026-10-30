@@ -32,30 +32,30 @@ export const SidebarItem = ({
   className = "",
   ...attributes
 }: Omit<ComponentPropsWithoutRef<"div">, "children" | "onSelect"> & {
-  name: string
-  icon: ReactNode
-  detail: ReactNode
+  readonly name: string
+  readonly icon: ReactNode
+  readonly detail: ReactNode
   // Under the detail line, such as rows of what the item runs.
-  below?: ReactNode
-  selected: boolean
-  selectLabel: string
+  readonly below?: ReactNode
+  readonly selected: boolean
+  readonly selectLabel: string
   // On hover, where a row has more to say than it shows.
-  tooltip?: string
-  description?: string
+  readonly tooltip?: string
+  readonly description?: string
   // Before the name, such as a terminal's handle.
-  tag?: ReactNode
+  readonly tag?: ReactNode
   // Beside the name, as a count of what waits there.
-  badge?: ReactNode
+  readonly badge?: ReactNode
   // Its name in bold, as for something the person hasn't seen yet.
-  emphasized?: boolean
+  readonly emphasized?: boolean
   // What describes the row to a screen reader, by id, such as how to reorder it.
-  describedBy?: string
-  onSelect: () => void
-  actions?: ReactNode
-  editor?: ReactNode
-  editing?: boolean
-  ref?: Ref<HTMLDivElement>
-  handleRef?: Ref<HTMLButtonElement>
+  readonly describedBy?: string
+  readonly onSelect: () => void
+  readonly actions?: ReactNode
+  readonly editor?: ReactNode
+  readonly editing?: boolean
+  readonly ref?: Ref<HTMLDivElement>
+  readonly handleRef?: Ref<HTMLButtonElement>
 }): React.JSX.Element => {
   // A screen reader takes aria-describedby over aria-description, so beside what else
   // describes the row its own description is named by id too.
