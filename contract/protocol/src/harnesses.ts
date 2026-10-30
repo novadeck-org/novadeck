@@ -62,8 +62,8 @@ export const harnesses = [
 /** A harness's id, which the protocol names an agent by. */
 export type AgentName = (typeof harnesses)[number]["id"]
 
-/** The harness ids, in table order. */
-export const harnessIds = harnesses.map(({ id }) => id) as unknown as readonly [
+/** The agent names, in the harness table's order. */
+export const agentNames = harnesses.map(({ id }) => id) as unknown as readonly [
   AgentName,
   ...AgentName[],
 ]

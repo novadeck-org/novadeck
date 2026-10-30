@@ -1,6 +1,6 @@
 // harness-core's, named apart from the old function's own `parseFields` below.
 import { parseFields as parsedFields } from "@novadeck/harness-core/fields"
-import { harnessIds, type AgentName } from "@novadeck/protocol/harnesses"
+import { agentNames, type AgentName } from "@novadeck/protocol/harnesses"
 
 import { transcriptsOf } from "./pipeline"
 import { describe, expect, it } from "./test"
@@ -452,7 +452,7 @@ const codexFunction = (name: string | undefined, input: string | object, namespa
 })
 
 const variants: readonly Variant[] = [
-  ...harnessIds.map((harness) => ({
+  ...agentNames.map((harness) => ({
     label: harness,
     harness,
     records: records[harness],
@@ -788,7 +788,7 @@ add("Write", json({ file_path: `/${"a/".repeat(6000)}x.ts` }))
 add("mcp__novadeck__send", json({ to: "fox", text: big }))
 
 describe("the tool vocabulary split by harness", () => {
-  for (const harness of harnessIds) {
+  for (const harness of agentNames) {
     const mine = variants.filter((variant) => variant.harness === harness)
     describe(harness, () => {
       it("describes every call as the old flat table did, except names its decoder never emits", () => {
