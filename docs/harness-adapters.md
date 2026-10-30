@@ -109,7 +109,7 @@ harnesses/core/src/          # @novadeck/harness-core
 harnesses/<id>/src/          # @novadeck/harness-<id>, one per harness, all shaped alike:
   index.ts         # <id>: Harness, and its messaging profile
   plugin.ts        # Its plugin's id, hook events and files; connected, connect, disconnect
-  home.ts          # Its own folder (`<id>Home`), wherever its environment moves it
+  home.ts          # Its own folders (`claudeHome`…), wherever its environment moves them
   decode.ts        # Its hook reports, as normalized events
   tools.ts         # What its tool calls were, and what each counts as to messaging
   models.ts        # The models it starts with, and their efforts
@@ -143,8 +143,9 @@ Beside that common set, each keeps what only it has:
   and `shim.ts`.
 - Antigravity (`harnesses/agy`): `status-line.ts` (its status line's report, and the
   prompt it says shows), `call-memory.ts` (what its decoder holds of each conversation's
-  calls from one hook to the next) and `settings.ts` (the settings it takes only from its
-  own files, applied once connected).
+  calls from one hook to the next) and `settings.ts` (its user settings: the status line
+  it takes only from them, put in place once connected, and the folders it trusts). It
+  has no `watch`: its transcripts are read only for the chat.
 
 An adapter imports only `@novadeck/harness-core`, `@novadeck/protocol`,
 `@novadeck/emulator`, `@novadeck/tui-input`, Node and its own files, never the runner's
