@@ -11,13 +11,13 @@ import { createWorkspaceStore } from "@novadeck/core/store"
 import type { AgentTurnEnd, TerminalMetadata } from "@novadeck/core/types"
 import { afterEach, beforeEach, vi } from "vitest"
 
-import { answerMs as chatAnswerMs, answeredMs } from "./chat"
+import { answerMs as chatAnswerMs, answeredMs } from "./agents/chat"
+import { demoTurns } from "./agents/turns"
 import { answerMs, createDemoInbox, isDemoInbox } from "./inbox"
-import { demoInboxIds, demoInboxRows, demoInboxRowsAll } from "./inbox-fixtures"
+import { demoInboxIds, demoInboxRows, demoInboxRowsAll } from "./inbox/fixtures"
 import { plainDemo, type PlainVariant } from "./index"
 import { chatAgent, demoTerminalId } from "./samples"
 import { context, describe, expect, it } from "./test"
-import { demoTurns } from "./turns"
 import { createDemo, demoVariants } from "./variants"
 
 beforeEach(() => vi.useFakeTimers())

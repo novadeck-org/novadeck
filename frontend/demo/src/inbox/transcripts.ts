@@ -1,9 +1,17 @@
 import type { WorkspaceSeed } from "@novadeck/core/seed"
 
-import { demoHandle } from "./handles"
-import { partyOf, type DemoSessionMessages } from "./messages"
-import { demoTerminalId } from "./samples"
-import { got, say, use, user, written, type DemoDraft, type DemoTranscript } from "./transcripts"
+import {
+  got,
+  say,
+  use,
+  user,
+  written,
+  type DemoDraft,
+  type DemoTranscript,
+} from "../agents/transcripts"
+import { demoHandle } from "../handles"
+import { partyOf, type DemoSessionMessages } from "../messages"
+import { demoTerminalId } from "../samples"
 
 // A line of the demo agent's own code. Put together here, so the repository's import scanner
 // (scripts/packages) doesn't read the sample as this file's imports.

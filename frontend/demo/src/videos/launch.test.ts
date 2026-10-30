@@ -6,14 +6,14 @@ import { activeSession } from "@novadeck/core/state"
 import { createWorkspaceStore } from "@novadeck/core/store"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
-import { answerMs, answeredMs } from "./chat"
-import { demoHandle } from "./handles"
-import { isDemoInbox } from "./inbox"
+import { answerMs, answeredMs } from "../agents/chat"
+import { demoTurns } from "../agents/turns"
+import { demoHandle } from "../handles"
+import { isDemoInbox } from "../inbox"
+import { isDemoMessages } from "../messages"
+import { demoTerminalId } from "../samples"
+import { createDemo } from "../variants"
 import { createLaunch, launch, launchCuesOf, launchTranscripts } from "./launch"
-import { isDemoMessages } from "./messages"
-import { demoTerminalId } from "./samples"
-import { demoTurns } from "./turns"
-import { createDemo } from "./variants"
 
 const shop = { projectId: "northwind", workspaceSessionId: "initial" }
 const key = (number: number) => ({ ...shop, terminalId: demoTerminalId(shop, number) })

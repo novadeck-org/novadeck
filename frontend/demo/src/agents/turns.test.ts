@@ -3,10 +3,10 @@ import { createWorkspaceStore } from "@novadeck/core/store"
 import type { AgentStatus } from "@novadeck/core/types"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
+import { demoTerminalId } from "../samples"
+import { createDemo, type DemoVariant } from "../variants"
 import { answerMs, answeredMs } from "./chat"
-import { demoTerminalId } from "./samples"
 import { demoTurns, demoTurnMs, type TurnEvent } from "./turns"
-import { createDemo, type DemoVariant } from "./variants"
 
 // A sample terminal by its number in a project's first session.
 const key = (slot: string, projectId = "storefront", sessionId = "initial") => ({

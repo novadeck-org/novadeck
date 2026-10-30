@@ -3,12 +3,12 @@ import { activeSession } from "@novadeck/core/state"
 import { createWorkspaceStore } from "@novadeck/core/store"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
-import { answerMs, answeredMs } from "./chat"
+import { answerMs, answeredMs } from "../agents/chat"
+import { demoTurns } from "../agents/turns"
+import { isDemoInbox } from "../inbox"
+import { demoTerminalId } from "../samples"
+import { createDemo } from "../variants"
 import { chirpIntroOf, chirpWaiting } from "./chirp"
-import { isDemoInbox } from "./inbox"
-import { demoTerminalId } from "./samples"
-import { demoTurns } from "./turns"
-import { createDemo } from "./variants"
 
 const desk = { projectId: "night-shift", workspaceSessionId: "initial" }
 const key = (number: number) => ({ ...desk, terminalId: demoTerminalId(desk, number) })

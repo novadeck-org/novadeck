@@ -3,12 +3,20 @@ import type { WorkspaceSeed } from "@novadeck/core/seed"
 import { sessionName } from "@novadeck/core/session-name"
 import type { AgentStatus, CanvasLayout, Project, TerminalMetadata } from "@novadeck/core/types"
 
-import { demoHandle } from "./handles"
-import { demoTerminalId, terminalSlot } from "./samples"
-import { callBlock, requestBlock, resultBlock, textBlock } from "./screen/agent"
-import { banner } from "./screen/openings"
-import { fixedIntro, type DemoIntro } from "./screen/terminal"
-import { got, say, use, user, written, type DemoDraft, type DemoTranscript } from "./transcripts"
+import {
+  got,
+  say,
+  use,
+  user,
+  written,
+  type DemoDraft,
+  type DemoTranscript,
+} from "../agents/transcripts"
+import { demoHandle } from "../handles"
+import { demoTerminalId, terminalSlot } from "../samples"
+import { callBlock, requestBlock, resultBlock, textBlock } from "../screen/agent"
+import { banner } from "../screen/openings"
+import { fixedIntro, type DemoIntro } from "../screen/terminal"
 
 // The Chirp demo: a one-off for the runner-skits video "Chirp", where a runner hunts the one
 // agent waiting on her among the dozens she left running overnight, and finds it here. Her

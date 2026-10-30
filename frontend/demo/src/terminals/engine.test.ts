@@ -2,9 +2,9 @@ import { createTerminalState, workspaceReducer } from "@novadeck/core/state"
 import type { AgentStatus, Workspace } from "@novadeck/core/types"
 import { describe, expect, it } from "vitest"
 
+import { createMockTerminal, demoTerminalId } from "../samples"
+import { emptyLine } from "../screen/line-editor"
 import { createDemoEngine } from "./engine"
-import { emptyLine } from "./line-editor"
-import { createMockTerminal, demoTerminalId } from "./samples"
 
 const target = { projectId: "project", workspaceSessionId: "initial" }
 const first = { ...target, terminalId: demoTerminalId(target, 1) }

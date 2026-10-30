@@ -11,14 +11,14 @@ import { pageRenderers } from "@novadeck/terminal-views/renderers"
 import { noTheme, terminalTheme } from "@novadeck/terminal-views/theme"
 import { createTerminalViews, type TerminalViewOptions } from "@novadeck/terminal/view"
 
-import type { DemoAgentLink } from "./agent-link"
-import type { DemoEngine } from "./engine"
-import type { DemoTerminalRuntime } from "./runtime"
+import type { DemoAgentLink } from "../agents/link"
 import {
   createDemoTerminalScreen,
   type DemoIntro,
   type DemoTerminalScreen,
-} from "./screen/terminal"
+} from "../screen/terminal"
+import type { DemoEngine } from "./engine"
+import type { DemoTerminalRuntime } from "./runtime"
 
 // The demo's terminals, drawn as the runner's are: real terminals, through the same views and
 // mount, each fed by a screen the demo writes as terminal output (see screen/terminal.ts).

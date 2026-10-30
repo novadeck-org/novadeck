@@ -2,9 +2,9 @@ import { agentContext, answersOf } from "@novadeck/core/agents/steps"
 import type { InboxRow } from "@novadeck/core/inbox"
 import { terminalKeyPath } from "@novadeck/core/types"
 
-import { demoInboxIds } from "./inbox-fixtures"
-import { plainDemo } from "./index"
-import { describe, expect, it } from "./test"
+import { plainDemo } from "../index"
+import { describe, expect, it } from "../test"
+import { demoInboxIds } from "./fixtures"
 
 // What an Inbox item's sheet reads of its agent in the Inbox demo, as `useAgentContext`
 // does: its conversation and the messages delivered to it.

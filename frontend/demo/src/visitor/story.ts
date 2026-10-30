@@ -1,14 +1,13 @@
 import type { Backend, BackendSink, TerminalKey } from "@novadeck/core/port"
 import type { TerminalMetadata, Workspace } from "@novadeck/core/types"
 
+import type { DemoTranscript } from "../agents/transcripts"
+import type { DemoTurns, TurnEvent } from "../agents/turns"
 import { demoHandle } from "../handles"
 import { demoAgent, demoTerminalId } from "../samples"
 import { createShowcase } from "../showcase/simulation"
 import { orderSummary } from "../showcase/storefront"
-import { directoryOf, itemsOf } from "../showcase/workspace"
-import { terminalOf } from "../terminals"
-import type { DemoTranscript } from "../transcripts"
-import type { DemoTurns, TurnEvent } from "../turns"
+import { directoryOf, itemsOf, terminalOf } from "../workspace"
 
 // What happens on the visitor's desk, one step at a time, and only once the visitor has
 // dealt with what asks for them: nothing new turns up while something waits. Claude Code

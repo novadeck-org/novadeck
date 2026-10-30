@@ -1,4 +1,4 @@
-import { demoInboxIds } from "@novadeck/demo/inbox-fixtures"
+import { demoInboxIds } from "@novadeck/demo/inbox/fixtures"
 import { beforeEach, describe as context, describe, expect, it } from "vitest"
 import { page } from "vitest/browser"
 

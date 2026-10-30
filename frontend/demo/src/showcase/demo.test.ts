@@ -5,11 +5,11 @@ import { createWorkspaceStore } from "@novadeck/core/store"
 import type { AgentStatus } from "@novadeck/core/types"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
-import { answerMs, answeredMs } from "./chat"
-import { demoTerminalId } from "./samples"
-import { authAgent, studioAgent } from "./showcase/agents"
-import { demoTurns, demoTurnMs } from "./turns"
-import { createDemo } from "./variants"
+import { answerMs, answeredMs } from "../agents/chat"
+import { demoTurns, demoTurnMs } from "../agents/turns"
+import { demoTerminalId } from "../samples"
+import { createDemo } from "../variants"
+import { authAgent, studioAgent } from "./agents"
 
 const session = { projectId: "studio", workspaceSessionId: "initial" }
 const key = (slot: number) => ({ ...session, terminalId: demoTerminalId(session, slot) })
@@ -57,7 +57,7 @@ const plans = [
   ["Refactor auth", 3],
 ] as const
 
-describe("the content demo", () => {
+describe("the showcase demo", () => {
   it("is marked as the demo, though it has no Source to show", () => {
     const backend = createDemo("showcase", undefined, demoTurns())
     expect(backend.demo).toBe(true)
@@ -65,7 +65,7 @@ describe("the content demo", () => {
   })
 })
 
-describe("the content demo's plans", () => {
+describe("the showcase demo's plans", () => {
   beforeEach(() => vi.useFakeTimers())
   afterEach(() => vi.useRealTimers())
 

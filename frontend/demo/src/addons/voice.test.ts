@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, vi } from "vitest"
 
-import { describe, expect, it } from "./test"
+import { describe, expect, it } from "../test"
 import { createDemoVoice, demoTranscript, heldVoiceTiming } from "./voice"
 
 describe("the demo's voice input", () => {

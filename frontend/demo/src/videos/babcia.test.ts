@@ -6,14 +6,14 @@ import { activeSession } from "@novadeck/core/state"
 import { createWorkspaceStore } from "@novadeck/core/store"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
+import { answerMs, answeredMs } from "../agents/chat"
+import { demoTurns } from "../agents/turns"
+import { demoHandle } from "../handles"
+import { answerMs as inboxAnswerMs, isDemoInbox } from "../inbox"
+import { deliveryMs, isDemoMessages, partyOf, rungMs } from "../messages"
+import { demoTerminalId } from "../samples"
+import { createDemo } from "../variants"
 import { babcia, babciaCuesOf, babciaIntroOf, politeAfterMs } from "./babcia"
-import { answerMs, answeredMs } from "./chat"
-import { demoHandle } from "./handles"
-import { answerMs as inboxAnswerMs, isDemoInbox } from "./inbox"
-import { deliveryMs, isDemoMessages, partyOf, rungMs } from "./messages"
-import { demoTerminalId } from "./samples"
-import { demoTurns } from "./turns"
-import { createDemo } from "./variants"
 
 const bar = { projectId: "bar-mleczny", workspaceSessionId: "initial" }
 // Whether a message party is the agent at a handle.

@@ -6,6 +6,15 @@ import type { WorkspaceSeed } from "@novadeck/core/seed"
 import { sessionName } from "@novadeck/core/session-name"
 import type { CanvasLayout, TerminalMetadata, Workspace } from "@novadeck/core/types"
 
+import type { DemoTranscript } from "../agents/transcripts"
+import type { DemoTurns } from "../agents/turns"
+import { demoHandle } from "../handles"
+import { isDemoInbox } from "../inbox"
+import { createDemoMessages } from "../messages"
+import { demoTerminalId, terminalSlot, type ChatAgent } from "../samples"
+import { ready, svg, type SampleArtifact } from "../showcase/artifacts"
+import { createShowcase } from "../showcase/simulation"
+import { terminalOf } from "../workspace"
 import {
   agentTerminal,
   declined,
@@ -19,15 +28,6 @@ import {
   working,
   type Job,
 } from "./desk"
-import { demoHandle } from "./handles"
-import { isDemoInbox } from "./inbox"
-import { createDemoMessages } from "./messages"
-import { demoTerminalId, terminalSlot, type ChatAgent } from "./samples"
-import { ready, svg, type SampleArtifact } from "./showcase/artifacts"
-import { createShowcase } from "./showcase/simulation"
-import { terminalOf } from "./terminals"
-import type { DemoTranscript } from "./transcripts"
-import type { DemoTurns } from "./turns"
 
 // The Babcia demo: a one-off for the runner-skits video "Babcia", where a grandmother who ran a
 // milk bar for forty years minds her granddaughter's deck. Nyx's project, bar-mleczny (a site

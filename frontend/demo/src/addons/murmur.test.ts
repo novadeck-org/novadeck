@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, vi } from "vitest"
 
+import { context, describe, expect, it } from "../test"
 import { createDemoMurmur, heldMurmurTiming } from "./murmur"
-import { context, describe, expect, it } from "./test"
 
 describe("the demo's murmur", () => {
   beforeEach(() => vi.useFakeTimers())

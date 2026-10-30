@@ -12,21 +12,20 @@ import {
   terminalKeyPath,
 } from "@novadeck/core/types"
 
-import { createDemoEngine } from "./engine"
-import { withFeedback } from "./feedback"
-import { demoBackend, windowReset, withConversations, withInbox } from "./index"
-import { createDemoMessages, studioMessages } from "./messages"
-import { defaultName, demoTerminalId } from "./samples"
-import { fixedIntro } from "./screen/terminal"
-import { authAgent, studioAgent, type SampleAgent } from "./showcase/agents"
-import { devServerArtifacts } from "./showcase/artifacts"
-import { changesArtifacts } from "./showcase/changes"
-import { createShowcase, planFaults, type PlanFault } from "./showcase/simulation"
-import { directoryOf } from "./showcase/workspace"
-import { terminalOf } from "./terminals"
-import { showcaseTranscripts } from "./transcripts"
-import { demoTurns, type DemoTurns } from "./turns"
-import type { DemoTerminalSetup } from "./views"
+import { showcaseTranscripts } from "../agents/transcripts"
+import { demoTurns, type DemoTurns } from "../agents/turns"
+import { withFeedback } from "../feedback"
+import { demoBackend, windowReset, withConversations, withInbox } from "../index"
+import { createDemoMessages, studioMessages } from "../messages"
+import { defaultName, demoTerminalId } from "../samples"
+import { fixedIntro } from "../screen/terminal"
+import { createDemoEngine } from "../terminals/engine"
+import type { DemoTerminalSetup } from "../terminals/views"
+import { directoryOf, terminalOf } from "../workspace"
+import { authAgent, studioAgent, type SampleAgent } from "./agents"
+import { devServerArtifacts } from "./artifacts"
+import { changesArtifacts } from "./changes"
+import { createShowcase, planFaults, type PlanFault } from "./simulation"
 
 // Both sample agents wrote a plan, and wait on the person to approve it.
 const planned: AgentStatus = {
@@ -36,7 +35,7 @@ const planned: AgentStatus = {
 }
 
 // A UI-only workspace. The previews never start processes or request a runner.
-export const contentDemo = (
+export const showcaseDemo = (
   setup?: DemoTerminalSetup,
   turns: DemoTurns = demoTurns(),
   // Opens with the plan of the Build Studio agent in this fault, as the debug panel's
@@ -291,9 +290,9 @@ export const contentDemo = (
 
 // Specs open the showcase with `&planFault=` one of the debug panel's plan faults, its
 // terminals drawn where `terminals` says.
-export const createContentDemo = (terminals?: DemoTerminalSetup): Backend => {
+export const createShowcaseDemo = (terminals?: DemoTerminalSetup): Backend => {
   const fault = new URLSearchParams(window.location.hash.split("?")[1] ?? "").get("planFault")
-  return contentDemo(
+  return showcaseDemo(
     terminals,
     undefined,
     planFaults.find((each) => each === fault),

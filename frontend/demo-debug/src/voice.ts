@@ -1,4 +1,4 @@
-import type { DemoVoice } from "@novadeck/demo/voice"
+import type { DemoVoice } from "@novadeck/demo/addons/voice"
 
 import type { DemoActionGroup } from "./types"
 

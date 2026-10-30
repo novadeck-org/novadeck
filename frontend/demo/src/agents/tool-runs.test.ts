@@ -4,13 +4,13 @@ import { activeSession } from "@novadeck/core/state"
 import { createWorkspaceStore } from "@novadeck/core/store"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
-import { createDemoEngine } from "./engine"
-import { inboxTranscripts } from "./inbox-transcripts"
-import { demoBackend, withConversations } from "./index"
-import { demoSeed, demoTerminalId } from "./samples"
+import { inboxTranscripts } from "../inbox/transcripts"
+import { demoBackend, withConversations } from "../index"
+import { demoSeed, demoTerminalId } from "../samples"
+import { createDemoEngine } from "../terminals/engine"
+import { visitorStory } from "../visitor/story"
 import { agentTranscripts, showcaseTranscripts, type DemoTranscript } from "./transcripts"
 import { demoTurns, demoTurnMs } from "./turns"
-import { visitorStory } from "./visitor/story"
 
 // The demo writes the line of every tool call it scripts by hand (`run`), where a real
 // agent's decoder would say it. This holds them to what the chat's old `toolSummary` said of

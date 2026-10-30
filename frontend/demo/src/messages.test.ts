@@ -3,7 +3,7 @@ import { terminalKeyPath } from "@novadeck/core/types"
 import { afterEach, vi } from "vitest"
 
 import { createDemoInbox } from "./inbox"
-import { demoInboxIds, demoInboxRows } from "./inbox-fixtures"
+import { demoInboxIds, demoInboxRows } from "./inbox/fixtures"
 import { checkoutMessages, createDemoMessages, partyOf, rungMs } from "./messages"
 import { demoTerminalId } from "./samples"
 import { describe, expect, it } from "./test"

@@ -4,11 +4,11 @@ import { activeSession } from "@novadeck/core/state"
 import { createWorkspaceStore } from "@novadeck/core/store"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
-import type { DemoAgentLink } from "./agent-link"
+import { demoBackend, withConversations } from "../index"
+import { demoSeed, demoTerminalId } from "../samples"
+import { createDemoEngine } from "../terminals/engine"
 import { answerMs, answeredMs } from "./chat"
-import { createDemoEngine } from "./engine"
-import { demoBackend, withConversations } from "./index"
-import { demoSeed, demoTerminalId } from "./samples"
+import type { DemoAgentLink } from "./link"
 import { agentTranscripts } from "./transcripts"
 import { demoTurns, demoTurnMs } from "./turns"
 
@@ -21,8 +21,8 @@ const key = (slot: string, projectId = "storefront") => ({
 
 // What the terminals' screens read of the agents, as `withConversations` links them.
 const linked = vi.hoisted(() => ({ link: undefined as DemoAgentLink | undefined }))
-vi.mock("./views", async (original) => {
-  const views = await original<typeof import("./views")>()
+vi.mock("../terminals/views", async (original) => {
+  const views = await original<typeof import("../terminals/views")>()
   return {
     ...views,
     createDemoTerminals: (...args: Parameters<typeof views.createDemoTerminals>) => {

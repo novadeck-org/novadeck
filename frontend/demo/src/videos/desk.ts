@@ -3,14 +3,14 @@ import type { TerminalKey } from "@novadeck/core/port"
 import type { Store } from "@novadeck/core/store"
 import type { AgentStatus, Project, TerminalMetadata } from "@novadeck/core/types"
 
-import { demoHandle } from "./handles"
-import type { DemoSessionMessages } from "./messages"
-import { demoTerminalId, terminalSlot, type ChatAgent } from "./samples"
-import { callBlock, requestBlock, resultBlock } from "./screen/agent"
-import { banner } from "./screen/openings"
-import type { Block } from "./screen/screen"
-import { fixedIntro, type DemoIntro } from "./screen/terminal"
-import { got, say, use, user, written, type DemoTranscript } from "./transcripts"
+import { got, say, use, user, written, type DemoTranscript } from "../agents/transcripts"
+import { demoHandle } from "../handles"
+import type { DemoSessionMessages } from "../messages"
+import { demoTerminalId, terminalSlot, type ChatAgent } from "../samples"
+import { callBlock, requestBlock, resultBlock } from "../screen/agent"
+import { banner } from "../screen/openings"
+import type { Block } from "../screen/screen"
+import { fixedIntro, type DemoIntro } from "../screen/terminal"
 
 // What the one-off desk demos for videos (`babcia.ts`, `launch.ts`) share: a project of
 // agents each at its own job, as terminals, as a conversation's first calls, as what their

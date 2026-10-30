@@ -5,10 +5,10 @@ import { terminalKeyId } from "@novadeck/core/terminals/registry"
 import type { TerminalMetadata, Workspace } from "@novadeck/core/types"
 import type { AttachStream, TerminalEvent } from "@novadeck/terminal"
 
+import { demoSeed, demoTerminalId } from "../samples"
+import { context, describe, expect, it } from "../test"
 import { createDemoEngine } from "./engine"
 import type { DemoScreenState } from "./runtime"
-import { demoSeed, demoTerminalId } from "./samples"
-import { context, describe, expect, it } from "./test"
 import { demoViewOptions } from "./views"
 
 const session = { projectId: "storefront", workspaceSessionId: "initial" }

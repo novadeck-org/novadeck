@@ -7,6 +7,20 @@ import { sessionName } from "@novadeck/core/session-name"
 import { createStore } from "@novadeck/core/store"
 import type { CanvasLayout, TerminalMetadata, Workspace } from "@novadeck/core/types"
 
+import type { DemoTranscript } from "../agents/transcripts"
+import type { DemoTurns } from "../agents/turns"
+import { demoHandle } from "../handles"
+import { isDemoInbox } from "../inbox"
+import { createDemoMessages } from "../messages"
+import { lessMotion } from "../motion"
+import { demoTerminalId, terminalSlot, type ChatAgent } from "../samples"
+import { resultBlock } from "../screen/agent"
+import type { Block } from "../screen/screen"
+import { span, wrap } from "../screen/vt"
+import { ready, svg, type SampleArtifact } from "../showcase/artifacts"
+import { add, context, file, hunk, remove } from "../showcase/changes"
+import { createShowcase } from "../showcase/simulation"
+import { terminalOf } from "../workspace"
 import {
   agentTerminal,
   declined,
@@ -20,20 +34,6 @@ import {
   working,
   type Job,
 } from "./desk"
-import { demoHandle } from "./handles"
-import { isDemoInbox } from "./inbox"
-import { createDemoMessages } from "./messages"
-import { lessMotion } from "./motion"
-import { demoTerminalId, terminalSlot, type ChatAgent } from "./samples"
-import { resultBlock } from "./screen/agent"
-import type { Block } from "./screen/screen"
-import { span, wrap } from "./screen/vt"
-import { ready, svg, type SampleArtifact } from "./showcase/artifacts"
-import { add, context, file, hunk, remove } from "./showcase/changes"
-import { createShowcase } from "./showcase/simulation"
-import { terminalOf } from "./terminals"
-import type { DemoTranscript } from "./transcripts"
-import type { DemoTurns } from "./turns"
 
 // The launch demo: the launch walkthrough video's tour of the app, captured from
 // `?demo=launch`. A small software team's deck: project northwind, a web storefront, has eight

@@ -26,8 +26,9 @@ import { createStore, type Store } from "@novadeck/core/store"
 import { terminalKeyId } from "@novadeck/core/terminals/registry"
 import type { TerminalKey, TerminalMetadata, Workspace } from "@novadeck/core/types"
 
-import { demoInboxRows } from "./inbox-fixtures"
+import { demoInboxRows } from "./inbox/fixtures"
 import { deliveryMs } from "./messages"
+import { terminalOf } from "./workspace"
 
 // The demo's Inbox: what its agents wait on, built as the runner's is (`createDemoInbox`),
 // and the hardcoded items below on the sample terminals, which the Inbox demo shows and the
@@ -131,12 +132,6 @@ const waiting = (workspace: Workspace): { key: TerminalKey; terminal: TerminalMe
         })),
     ),
   )
-
-const terminalAt = (workspace: Workspace, key: TerminalKey): TerminalMetadata | undefined =>
-  workspace.projects
-    .find((project) => project.id === key.projectId)
-    ?.history.find((session) => session.id === key.workspaceSessionId)
-    ?.state.roster.terminals.find((terminal) => terminal.id === key.terminalId)
 
 // Every item is its own row, as in core's `inboxRows`, but for one: the demo's own items
 // that wait on the person for their agent (a request, an ask, trouble) stand in for what
@@ -342,14 +337,14 @@ export const createDemoInbox = (
       forget: readTurns,
       send: (key, text, options) => conversations.send(key, text, options),
       interrupt: (key) => conversations.interrupt(key),
-      terminal: (key) => terminalAt(workspace.getSnapshot(), key),
+      terminal: (key) => terminalOf(workspace.getSnapshot(), key),
     })
   }
   // An answered item of the demo's own for an agent that waits takes it past what it waits on.
   const release = (answered: InboxRow): void => {
     if (answered.kind !== "request" || !sources || !binding) return
     const key = keyOf(answered)
-    const terminal = terminalAt(binding.workspace.getSnapshot(), key)
+    const terminal = terminalOf(binding.workspace.getSnapshot(), key)
     if (terminal?.state === "running" && terminal.agent?.attention) sources.resume(key, terminal)
   }
 
@@ -373,7 +368,7 @@ export const createDemoInbox = (
       })
       const present = (): void => {
         const workspace = next.workspace.getSnapshot()
-        dropTurns((row) => !terminalAt(workspace, row))
+        dropTurns((row) => !terminalOf(workspace, row))
       }
       const stops = [
         ...[next.workspace, turns, ...(sources?.messages ? [sources.messages.state] : [])].map(
@@ -528,7 +523,7 @@ export const createDemoInbox = (
     done: (key, report) => {
       const workspace = binding?.workspace.getSnapshot()
       const project = workspace?.projects.find((each) => each.id === key.projectId)
-      const terminal = workspace && terminalAt(workspace, key)
+      const terminal = workspace && terminalOf(workspace, key)
       if (!project || terminal?.state !== "running") return
       const at = Date.now()
       doneCount += 1

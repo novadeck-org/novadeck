@@ -9,8 +9,8 @@ import type {
   TerminalMetadata,
 } from "@novadeck/core/types"
 
-import type { DemoAgentVerbs, DemoWaiting } from "./agent-link"
-import { chatAgent } from "./samples"
+import { chatAgent } from "../samples"
+import type { DemoAgentVerbs, DemoWaiting } from "./link"
 
 // How long a demo agent's turn works before it finishes.
 export const demoTurnMs = 1500

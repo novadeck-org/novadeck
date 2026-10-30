@@ -2,8 +2,8 @@ import type { ChatRequest } from "@novadeck/core/conversation"
 import type { AgentName } from "@novadeck/core/harnesses"
 import type { AskOption, InboxContent, InboxRow } from "@novadeck/core/inbox"
 
-import { demoHandle } from "./handles"
-import { demoTerminalId, terminals } from "./samples"
+import { demoHandle } from "../handles"
+import { demoTerminalId, terminals } from "../samples"
 
 // The hardcoded items of the demo's Inbox, on the sample terminals: the list the Inbox demo
 // starts with, and the states the debug panel adds.

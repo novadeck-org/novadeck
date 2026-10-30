@@ -3,8 +3,8 @@ import type { WorkspaceAction } from "@novadeck/core/state"
 import { createTerminalRegistry, terminalKeyId } from "@novadeck/core/terminals/registry"
 import type { TerminalMetadata, Workspace } from "@novadeck/core/types"
 
-import { emptyLine, type Line } from "./line-editor"
-import { demoAgent, mockReply, type DemoAgent } from "./samples"
+import { demoAgent, mockReply, type DemoAgent } from "../samples"
+import { emptyLine, type Line } from "../screen/line-editor"
 
 export type Entry = {
   readonly id: string

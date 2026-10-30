@@ -12,9 +12,9 @@ import { createStore, type MutableStore } from "@novadeck/core/store"
 import { terminalKeyId } from "@novadeck/core/terminals/registry"
 import type { AgentStatus, TerminalMetadata, Workspace } from "@novadeck/core/types"
 
+import { chatAgent, chatAgents, terminalSlot } from "../samples"
 import { promptRefused } from "./prompt-refusal"
 import { madeRequest, type DemoRequestOutcome } from "./requests"
-import { chatAgent, chatAgents, terminalSlot } from "./samples"
 import type { DemoDraft, DemoTranscript } from "./transcripts"
 import type { DemoTurns, TurnEvent } from "./turns"
 

@@ -19,19 +19,18 @@ import type { WorkspaceSeed } from "@novadeck/core/seed"
 import { createStore } from "@novadeck/core/store"
 import type { TitleSource, Workspace } from "@novadeck/core/types"
 
-import type { DemoAgentLink } from "./agent-link"
-import { babciaIntroOf, createBabcia } from "./babcia"
-import { createDemoChat } from "./chat"
-import { chirpIntroOf, chirpSeed, chirpTranscripts } from "./chirp"
-import { createDemoEngine, type DemoEngine } from "./engine"
+import { createDemoMurmur, heldMurmurTiming, requestedMurmur } from "./addons/murmur"
+import { createDemoVoice, heldVoiceTiming, requestedVoice } from "./addons/voice"
+import { createDemoChat } from "./agents/chat"
+import type { DemoAgentLink } from "./agents/link"
+import { agentTranscripts, type DemoTranscript } from "./agents/transcripts"
+import { demoTurns, type DemoTurns } from "./agents/turns"
 import { withFeedback } from "./feedback"
 import { demoHandle } from "./handles"
 import { createDemoInbox, isDemoInbox } from "./inbox"
-import { demoInboxRows, demoEntries, demoPlanStates } from "./inbox-fixtures"
-import { inboxLeadMessages, inboxTranscripts, withInboxLead } from "./inbox-transcripts"
-import { createLaunch } from "./launch"
+import { demoInboxRows, demoEntries, demoPlanStates } from "./inbox/fixtures"
+import { inboxLeadMessages, inboxTranscripts, withInboxLead } from "./inbox/transcripts"
 import { checkoutMessages, createDemoMessages, isDemoMessages } from "./messages"
-import { createDemoMurmur, heldMurmurTiming, requestedMurmur } from "./murmur"
 import {
   createMockTerminal,
   defaultName,
@@ -43,13 +42,13 @@ import {
 } from "./samples"
 import { createShowcase } from "./showcase/simulation"
 import { checkoutPlan, storefrontArtifacts } from "./showcase/storefront"
-import { directoryOf, itemsOf } from "./showcase/workspace"
 import { withSource } from "./source"
-import { terminalOf } from "./terminals"
-import { agentTranscripts, type DemoTranscript } from "./transcripts"
-import { demoTurns, type DemoTurns } from "./turns"
-import { createDemoTerminals, type DemoTerminals, type DemoTerminalSetup } from "./views"
-import { createDemoVoice, heldVoiceTiming, requestedVoice } from "./voice"
+import { createDemoEngine, type DemoEngine } from "./terminals/engine"
+import { createDemoTerminals, type DemoTerminals, type DemoTerminalSetup } from "./terminals/views"
+import { babciaIntroOf, createBabcia } from "./videos/babcia"
+import { chirpIntroOf, chirpSeed, chirpTranscripts } from "./videos/chirp"
+import { createLaunch } from "./videos/launch"
+import { directoryOf, itemsOf, terminalOf } from "./workspace"
 
 // Sample agents: Claude Code and Codex installed, Antigravity not.
 const sampleAgents: readonly AgentConnection[] = [
@@ -139,7 +138,7 @@ export const demoBackend = (
     telemetry: createTelemetryStore(),
     voice,
     murmur,
-    // Older than every update the demo offers (see debug/states.ts).
+    // Older than every update the demo offers (see demo-debug's `updates.ts`).
     version: () => Promise.resolve("0.0.79"),
     // The demo keeps no logs: Preferences offers the folder as the desktop app does, and
     // opening it does nothing.
@@ -545,7 +544,7 @@ const withFinishes = (backend: Backend, turns: DemoTurns): Backend => ({
 // The demos with no content showcase: the plain one, the agents', the agents' with
 // messages between them, the agents' with every kind of Inbox item, the plain one with its
 // first-run welcome dialog open, and Chirp's, Babcia's and Launch's, one-offs for videos (see
-// `chirp.ts`, `babcia.ts` and `launch.ts`). Each has
+// `videos/chirp.ts`, `videos/babcia.ts` and `videos/launch.ts`). Each has
 // the Inbox its agents make; the Inbox demo shows the hardcoded items of every kind over theirs.
 // The agents', messages' and Inbox demos have the Source of the storefront project (see
 // `source.ts`), as the try demo does: the others have no agents there to change files.
@@ -585,8 +584,7 @@ const plainBackend = (
     welcome:
       variant === "welcome" ||
       (import.meta.env.DEV && import.meta.env.VITE_WELCOME_PREVIEW === "true"),
-    // Chirp's, Babcia's and Launch's agents open on their own work (see `chirp.ts`, `babcia.ts`
-    // and `launch.ts`).
+    // Chirp's, Babcia's and Launch's agents open on their own work (see `videos/`).
     ...(variant === "chirp"
       ? { terminals: { ...terminals, introOf: chirpIntroOf } }
       : variant === "babcia"
@@ -647,7 +645,7 @@ const plainBackend = (
       turns,
     )
   // The Inbox demo's agents elsewhere have done things before their items came, and one
-  // has a lead, for the sheets to show (see `inbox-transcripts.ts`).
+  // has a lead, for the sheets to show (see `inbox/transcripts.ts`).
   const inbox = variant === "inbox"
   const seed = demoSeed(now, true)
   const conversing = withConversations(
