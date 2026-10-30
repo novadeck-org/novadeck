@@ -1,6 +1,6 @@
 // What uninstalling this copy of the desktop app would do, and how it went. The core
 // can't import the protocol's wire contracts, so this mirrors its `UninstallPlan` and
-// `UninstallResult`, which backend/runner/desktop-host.test.ts checks it fits.
+// `UninstallResult`, which frontend/runner-adapter/src/desktop-host.test.ts checks it fits.
 //
 // `unavailable`: nothing from here (a portable copy, a development run). `manual`: another
 // tool installed it, so the person runs `command` in a terminal. `ready`: the app can
@@ -29,9 +29,9 @@ export type UninstallResult =
 // The longest reason, command or folder path the page shows.
 export const maxUninstallText = 300
 
-// The longest data folder path the page takes: what the host's preload takes.
+// The longest data folder path the page takes: what the desktop app's preload takes.
 export const maxUninstallPath = 1000
 
-// The longest failure reason the page takes: what the host's preload takes, so the advice
-// the host ends a reason with is never cut.
+// The longest failure reason the page takes: what the desktop app's preload takes, so the advice
+// the desktop app ends a reason with is never cut.
 export const maxUninstallReason = 300

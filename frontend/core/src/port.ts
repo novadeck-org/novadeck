@@ -36,7 +36,7 @@ export type { TerminalKey }
 // The UI draws the terminal's window and what lies over its output (the lock, the notice of a
 // failed paste, the ending bar) around the element, from `TerminalMount.state`, and relies on
 // this markup:
-// - The UI's host puts `data-terminal-content` on its root (view transitions morph it),
+// - The UI's container for the element (`MountedTerminal`) puts `data-terminal-content` on its root (view transitions morph it),
 //   `nodrag nopan` so Canvas does not drag or pan from the content, and a wheel stop without
 //   Ctrl/Meta so scrolling output does not zoom the canvas while pinch and Ctrl+wheel still
 //   do. The mount never needs to know.
@@ -262,7 +262,7 @@ export type BackendFields = {
   }
   // Optional. Where the content of what agents put in front of the person comes from: the
   // plans they write and what they show, which the backend reports as items through the
-  // seed and `item/*` and `window/*` actions. Every terminal gets a taskbar and companion
+  // seed and `item/*` and `window/*` actions. Every terminal gets a companion bar and
   // pane. The runner reads them from the agents' files and what they present through
   // Novadeck's MCP server; the content-preview demo from its sample agents.
   readonly companions?: Companions
@@ -283,9 +283,9 @@ export type BackendFields = {
   // Absent where the backend cannot run one.
   readonly murmur?: Murmur
   // Optional. The Inbox: what the agents in every project wait on the person for, one
-  // item per agent terminal, answered in place, behind the bell. The runner's and the
+  // entry per agent terminal, answered in place, behind the bell. The runner's and the
   // demo's build it from the app's workspace (`bind`) and their own facts (see core's
-  // `inbox-rows`). Absent where the backend has none: the Inbox then lists nothing.
+  // `inbox/rows`). Absent where the backend has none: the Inbox then lists nothing.
   readonly inbox?: Inbox
   // Optional. Keeps how the person arranged the switcher: the projects' ids in their order,
   // and the pinned ones. The seed carries it back at the next load (`ProjectSeed.pinned`,
@@ -309,7 +309,7 @@ export type BackendFields = {
   readonly source?: Source
   // Optional. Feedback for the people building Novadeck (see core's `feedback`): the
   // footer's card, and an agent window's "Ask @handle to write feedback…". Absent where
-  // the backend can't send it: neither is drawn. The desktop app has it where its host sends
+  // the backend can't send it: neither is drawn. The desktop app has it where the desktop app sends
   // notes, and the demo has one that sends nothing anywhere.
   readonly feedback?: Feedback
   // Optional. Types text into a terminal as a paste, bracketed where its program asks,
@@ -338,12 +338,12 @@ export type BackendFields = {
     // Optional. Resolves true while the system holds notifications back (Do Not Disturb,
     // Focus), so the app's own sound stays silent; false when it does not or cannot tell.
     readonly quiet?: () => Promise<boolean>
-    // Optional. True where the host's own notifications play Novadeck's sound (macOS), so
+    // Optional. True where the desktop app's own notifications play Novadeck's sound (macOS), so
     // the app plays none of its own for them.
     readonly sounds?: boolean
     readonly onClick: (listener: (terminalId: string) => void) => () => void
   }
-  // Optional. Shows how many items wait in the Inbox on the app's icon (the dock or
+  // Optional. Shows how many entries wait in the Inbox on the app's icon (the dock or
   // launcher badge; on Windows the taskbar overlay, drawn from `image`, a PNG data URL, or
   // none when null); a count of 0 clears it. Absent where nothing surrounds the page, as
   // in a browser.
@@ -372,7 +372,7 @@ export type BackendFields = {
   }
   // Optional. What is new in the version the desktop app updated to. `get` is asked once,
   // after the workspace is up, and answers the release's highlights while the person has
-  // not dismissed them, else undefined (also when the notes can't be read, which the host
+  // not dismissed them, else undefined (also when the notes can't be read, which the desktop app
   // tries once more a couple of minutes later in the same launch, then on a later one); it
   // can take a couple of minutes. `dismiss` marks them seen,
   // so no later launch offers them again. Absent where
@@ -382,23 +382,23 @@ export type BackendFields = {
     readonly dismiss: () => void
   }
   // Optional. The version of the desktop app, asked once when Preferences needs it. Absent
-  // in a browser and in a host that does not say.
+  // in a browser and in a desktop app that does not say.
   readonly version?: () => Promise<string>
   // Optional. Opens the folder of the desktop app's logs in the system's file manager, for
-  // the person to read them or attach them to a bug report. Absent in a browser and in a host
+  // the person to read them or attach them to a bug report. Absent in a browser and in a desktop app
   // that keeps none.
   readonly openLogs?: () => void
   // Optional. Whether the desktop app runs in Electron's security sandbox, asked once at
-  // startup since the answer holds for the whole run. Absent in a browser and in a host
+  // startup since the answer holds for the whole run. Absent in a browser and in a desktop app
   // that does not say.
   readonly sandbox?: () => Promise<SandboxState>
   // Optional. Whether the desktop app is a portable copy, asked once at startup. A portable
-  // never updates itself; `install` asks the host to put the app that does in place,
-  // keeping the workspace, and answers nothing: the host owns how the install goes and
+  // never updates itself; `install` asks the desktop app to put the installed app, which does update itself, in place,
+  // keeping the workspace, and answers nothing: the desktop app owns how the install goes and
   // `onState` hears each step of it (`PortableState.install`), in every window, including
   // an install started from another window or before this page was reloaded. Once
   // `installed` (or `newer`) the installed copy takes effect when the person next opens
-  // Novadeck. Nothing restarts by itself. Absent in a browser and in a host that has no
+  // Novadeck. Nothing restarts by itself. Absent in a browser and in a desktop app that is no
   // portable copy.
   readonly portable?: {
     readonly state: () => Promise<PortableState>
@@ -407,7 +407,7 @@ export type BackendFields = {
     // Optional. Opens the page to download the newest portable copy in the browser;
     // `showDataFolder` shows the folder that holds the workspace in the file manager. `news`
     // is what is new in the offered version, for the card (absent or undefined: none to
-    // show). Each is absent in a host that came before it.
+    // show). Each is absent in a desktop app from before it.
     readonly openDownload?: () => void
     readonly showDataFolder?: () => void
     readonly news?: () => Promise<WhatsNew | undefined>
@@ -415,7 +415,7 @@ export type BackendFields = {
   // Optional. Removing the desktop app from this computer. `plan` says what that would do
   // here, asked each time Preferences opens; `run` removes the app, after the page has
   // disconnected the agents, and keeps the person's data folders when `keepData`; `quit`
-  // ends the app once `run` said `removed`. Absent in a browser and in a host that has no
+  // ends the app once `run` said `removed`. Absent in a browser and in a desktop app that has no
   // uninstall.
   readonly uninstall?: {
     readonly plan: () => Promise<UninstallPlan>
@@ -448,9 +448,9 @@ export type Notice = {
   readonly title: string
   readonly body: string
   // True when the notification should make no sound: the person turned Novadeck's sound off,
-  // or it sounded just now for another. Only a host that plays the sound (`sounds`) heeds it.
+  // or it sounded just now for another. Only an app that plays the sound (`sounds`) heeds it.
   readonly silent?: boolean
-  // The sound the host's notification plays, the person's choice or else the theme's.
+  // The sound the app's notification plays, the person's choice or else the theme's.
   // Absent plays the default.
   readonly sound?: NoticeSound
 }

@@ -221,18 +221,18 @@ describe("terminal need mark", () => {
     ["a question", running("question"), undefined, "ask"],
     ["a permission", running("permission"), undefined, "unblock"],
     ["a plan", running("plan"), undefined, "unblock"],
-    ["an item's ask", running(), "ask", "ask"],
-    ["an item's unblock", running(), "unblock", "unblock"],
-    ["a question over an unblock item", running("question"), "unblock", "unblock"],
-    ["a permission over an ask item", running("permission"), "ask", "unblock"],
-    ["a question over an ask item", running("question"), "ask", "ask"],
+    ["an entry's ask", running(), "ask", "ask"],
+    ["an entry's unblock", running(), "unblock", "unblock"],
+    ["a question over an unblock entry", running("question"), "unblock", "unblock"],
+    ["a permission over an ask entry", running("permission"), "ask", "unblock"],
+    ["a question over an ask entry", running("question"), "ask", "ask"],
     ["nothing", running(), undefined, undefined],
     ["a dialog of an ended terminal", { ...running("plan"), state: "idle" }, undefined, undefined],
   ] as const)("reads %s", (_, metadata, inbox, need) => {
     expect(terminalNeedMark(metadata as TerminalMetadata, inbox)).toBe(need)
   })
 
-  it("says the need in words, the kind first and the item's subject after it", () => {
+  it("says the need in words, the kind first and the entry's subject after it", () => {
     expect(needText(running(), "ask", "Where should feedback go?")).toBe(
       "Asks: Where should feedback go?",
     )
@@ -247,7 +247,7 @@ describe("terminal need mark", () => {
   it("keeps the kind of the dialog when its Inbox row arrives with a subject", () => {
     // The dialog alone, as it shows for its first moments.
     expect(needText(running("permission"), undefined)).toBe("Needs permission")
-    // The same dialog once its item exists, still a permission, now with its subject.
+    // The same dialog once its entry exists, still a permission, now with its subject.
     expect(needText(running("permission"), "unblock", "pnpm test …", "permission")).toBe(
       "Needs permission: pnpm test …",
     )
@@ -273,7 +273,7 @@ describe("terminal need mark", () => {
     expect(needText(running("question"), "unblock", "wrangler login")).toBe(
       "Needs you: wrangler login",
     )
-    // An item that is no dialog doesn't borrow the live dialog's kind either.
+    // An entry that is no dialog doesn't borrow the live dialog's kind either.
     expect(needText(running("permission"), "unblock", "wrangler login")).toBe(
       "Needs you: wrangler login",
     )

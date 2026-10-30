@@ -46,7 +46,7 @@ export type MurmurState = {
   // Whether the model is on disk though murmur isn't installed: a verdict removed the engine
   // and kept a model downloaded earlier. Uninstalling removes it.
   readonly kept: boolean
-  // Why this computer can't run murmur, technical, for a details view: the host's word
+  // Why this computer can't run murmur, technical, for a details view: the app's word
   // ("host", nothing downloads and an install is refused), or a check's, which an install runs
   // again and which is kept until another passes. Not a failure to retry, and no offer.
   readonly unsupported: { readonly reason: string; readonly source: "host" | "check" } | null

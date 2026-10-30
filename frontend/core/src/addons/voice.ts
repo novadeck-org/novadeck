@@ -6,7 +6,7 @@ import type { Refusal } from "./addon"
 // Preferences), and typed into a terminal as if pasted, for the person to read and send.
 
 // The longest clip a backend takes, in seconds. The core can't import the protocol's wire contracts,
-// so backend/runner/voice.test.ts checks this against its `maxVoiceSeconds`.
+// so frontend/runner-adapter/src/voice.test.ts checks this against its `maxVoiceSeconds`.
 export const maxClipSeconds = 120
 
 // `turbo` is accurate in many languages but wants a GPU; `small` is quicker on a CPU. The

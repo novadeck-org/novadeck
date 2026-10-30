@@ -4,14 +4,16 @@ import { join, posix } from "node:path"
 import { describe, expect, it } from "./test"
 
 // The core is a leaf: the model every other frontend package builds on, so it reaches no
-// framework and no other package but the protocol's data-only entries below. Its files import
-// one another by relative path, and are all `.ts`, which the `./*` export maps to; the other
-// packages reach them as `@novadeck/core/<file>`.
+// framework and no other package but the protocol's data-only entries below. Its modules sit
+// in domain folders (`inbox/`, `terminals/`, `layout/`, ...) with the hubs that tie them
+// together (`state.ts`, `port.ts`, `store.ts`) at the root. They import one another by
+// relative path, and are all `.ts`, which the `./*` export maps to; the other packages reach
+// them as `@novadeck/core/<file>` or `@novadeck/core/<folder>/<file>`.
 
 // The files in the core that read the protocol, each through one data-only entry: its table of
-// harnesses, the key that tells pages apart, what draws as nothing in a command, and the icons
-// a release's highlight may name, and the notification sounds. An entry is added here when the core needs one; never the
-// wire, or the runner client, which is a package of its own.
+// harnesses, the key that tells pages apart, what draws as nothing in a command, the notice
+// sounds, and the icons a release's highlight may name. An entry is added here when the core
+// needs one; never the wire, or the runner client, which is a package of its own.
 const protocolData: Record<string, string> = {
   "harnesses.ts": "@novadeck/protocol/harnesses",
   "items/pages.ts": "@novadeck/protocol/pages",

@@ -1,4 +1,4 @@
-// The run of the app a portable copy's card came up in, as the host names it
+// The run of the app a portable copy's card came up in, as the desktop app names it
 // (`PortableState.run`). It lives in local storage, which every window of the app shares
 // and a relaunch finds again, so the run it was written in tells whether it is this
 // launch's: the card comes up by itself once per launch, not once per page or per window,

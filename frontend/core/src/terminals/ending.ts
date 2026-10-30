@@ -54,7 +54,7 @@ export const endingText = ({ status, reason }: TerminalEnding): string =>
 // reply the person hasn't read leaves an idle agent idle, for its tab to brighten its
 // program. A dialog the agent waits on (`attention`) rests it too, but for a request it asked
 // without waiting, which it works on through. A limit pauses an agent that stopped on one until it works again. What an agent
-// needs of the person, a dialog or an ask, is no phase: see `terminalNeedMark`.
+// needs of the person, a dialog or a question, is no phase: see `terminalNeedMark`.
 export type TerminalPhase =
   | "starting"
   | "idle"
@@ -121,7 +121,7 @@ export const attentionNeed = (terminal: TerminalMetadata): TerminalNeed | undefi
   return attention.kind === "question" ? "ask" : "unblock"
 }
 
-// The mark: the need the Inbox's items make (`terminalNeed` in inbox.ts) and the one its
+// The mark: the need the Inbox's entries make (`terminalNeed` in inbox.ts) and the one its
 // live dialog makes, an unblock winning.
 export const terminalNeedMark = (
   terminal: TerminalMetadata,
@@ -183,7 +183,7 @@ export const attentionText = (terminal: TerminalMetadata): string | undefined =>
 }
 
 // The kind of dialog a need comes from: what the agent's harness shows, or the request an
-// Inbox item stands for.
+// Inbox entry stands for.
 export type NeedDialog = "permission" | "question" | "plan"
 
 const dialogLead: Record<NeedDialog, string> = {
@@ -195,13 +195,13 @@ const dialogLead: Record<NeedDialog, string> = {
 const dialogBare: Record<NeedDialog, string> = { ...dialogLead, question: "Asks a question" }
 
 // What a terminal needs, in words for its description, from whichever source decided its mark
-// (`terminalNeedMark`). The kind comes first and the subject of the Inbox's item after it
+// (`terminalNeedMark`). The kind comes first and the subject of the Inbox's entry after it
 // where there is one: "Needs permission: pnpm test …", "Plan ready for review: Checkout flow",
-// "Asks: Where should feedback go?", "Needs you: wrangler login" for an item that is no dialog
-// (a held message, a sign-in, a limit). The kind is the item's own (`dialog`) while the Inbox
+// "Asks: Where should feedback go?", "Needs you: wrangler login" for an entry that is no dialog
+// (a held message, a sign-in, a limit). The kind is the entry's own (`dialog`) while the Inbox
 // decided the mark, so the words keep their kind from the dialog's first moment, before the
 // Inbox's row, to the row. With no subject: what the live dialog says when it decided the mark
-// (as in "Plan ready for review"), else the item's kind, else the need alone. `inbox` is the
+// (as in "Plan ready for review"), else the entry's kind, else the need alone. `inbox` is the
 // Inbox's need, not the mark.
 export const needText = (
   terminal: TerminalMetadata,
@@ -223,7 +223,7 @@ export const needText = (
 }
 
 // What the Inbox says of one terminal, for its tab, its window and its project's status: the
-// need its items make, and the subject and the dialog kind of the item that makes the need.
+// need its entries make, and the subject and the dialog kind of the entry that makes the need.
 // Its done report is no mark of the Inbox: it stands with the agent (`AgentStatus.reported`).
 export type NoteMarks = {
   readonly need: TerminalNeed | undefined

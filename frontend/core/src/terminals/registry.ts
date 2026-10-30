@@ -59,11 +59,11 @@ export const createTerminalRegistry = <Entry>(
             entry: previous ? previous.entry : lifecycle.open(key, terminal, created.has(id)),
           })
         }
-    for (const [id, item] of registered) {
+    for (const [id, gone] of registered) {
       if (remaining.has(id)) continue
       // Forget the terminal first so the close hook and late callbacks see it as gone.
       registered.delete(id)
-      lifecycle.close(item.entry, item.key)
+      lifecycle.close(gone.entry, gone.key)
     }
   }
   return { reconcile, get: (key) => registered.get(terminalKeyId(key)) }
