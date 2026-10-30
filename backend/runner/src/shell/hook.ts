@@ -78,8 +78,9 @@ const ancestorsOf = (value: unknown): Ancestor[] =>
     .filter(
       (each): each is Ancestor =>
         object(each) &&
+        typeof each.pid === "number" &&
         Number.isSafeInteger(each.pid) &&
-        (each.pid as number) > 0 &&
+        each.pid > 0 &&
         typeof each.name === "string" &&
         (each.startedAt === undefined ||
           (typeof each.startedAt === "number" && Number.isFinite(each.startedAt))),
@@ -117,7 +118,7 @@ export const firedAtOf = (
   const index =
     instance === null ? -1 : ancestors.findIndex((each) => String(each.pid) === instance)
   if (index < 0) return undefined
-  const shell = index === 0 ? undefined : ancestors[index - 1]!
+  const shell = index === 0 ? undefined : ancestors[index - 1]
   if (shell !== undefined && !shells.includes(shell.name)) return undefined
   const fired = shell === undefined ? seq : shell.startedAt
   if (fired === undefined || fired > seq + clockSlackMs || seq - fired > maxShellMs)

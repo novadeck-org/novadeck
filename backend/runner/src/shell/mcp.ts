@@ -1,26 +1,32 @@
 /**
- * Novadeck's MCP server, as the runner serves it to a connected agent's plugin. The
- * agent starts Novadeck's relay (see backend/relay), which carries its messages, one
- * JSON-RPC message per line, to the runner of the terminal it runs in, over the endpoint
- * the agent's hooks report to, and the answers back; outside Novadeck's terminals the
- * relay answers the handshake itself, with no tools. Its tools: `show`, which puts an
- * image, a text file, a web page or the agent's changes in front of the person, beside the
- * terminal the agent runs in (one source per call, `file`, `page` or `changes`, each with
- * its own options inside it),
- * `showing`, which lists what is there now, `look`, which pictures a page there, and `close`, which takes away what the agent
- * showed, by the same source; `open_terminal`, which opens a
- * new terminal beside it, optionally starting a command there; `open_agent`, which opens
- * one running another agent, on a model and effort if asked, with a brief as its task (its
- * model choices come from the runner when the tools are listed); `close_terminal`, which
- * closes one of the project's terminals by its handle, or the agent's own; `lead`, which
- * asks the person to let it lead an agent already running in another terminal, and `release`,
- * which ends such a lead; `send` and
- * `agents`, which message the agents in the project's other terminals and list them; `summarize`,
- * which says what the agent's own terminal works on; and `feedback`, which drafts feedback
- * about Novadeck for the person's feedback card (see docs/agent-messaging.md). Each call goes to the terminal's runner with the terminal's
- * own token, as the relay named them, and the runner's answer is told back as text.
- * Only Claude Code reads a server's own instructions, so each tool's description carries
- * its rules.
+ * Novadeck's MCP server, as the runner serves it to a connected agent's plugin. The agent
+ * starts Novadeck's relay (see backend/relay), which carries its messages, one JSON-RPC
+ * message per line, to the runner of the terminal it runs in, over the endpoint the
+ * agent's hooks report to, and the answers back; outside Novadeck's terminals the relay
+ * answers the handshake itself, with no tools.
+ *
+ * Its tools:
+ * - `show` puts an image, a text file, a web page or the agent's changes in front of the
+ *   person, beside the terminal the agent runs in (one source per call, `file`, `page` or
+ *   `changes`, each with its own options inside it); `showing` lists what is there now,
+ *   `look` pictures a page there, and `close` takes away what the agent showed, by the
+ *   same source.
+ * - `open_terminal` opens a new terminal beside it, optionally starting a command there;
+ *   `open_agent` opens one running another agent, on a model and effort if asked, with a
+ *   brief as its task (its model choices come from the runner when the tools are listed);
+ *   `close_terminal` closes one of the project's terminals by its handle, or the agent's
+ *   own.
+ * - `lead` asks the person to let it lead an agent already running in another terminal,
+ *   and `release` ends such a lead; `send` and `agents` message the agents in the
+ *   project's other terminals and list them; `summarize` says what the agent's own
+ *   terminal works on.
+ * - `ask`, `tell` and `done` put a question, a milestone and a report in the person's
+ *   Inbox; `feedback` drafts feedback about Novadeck for the person's feedback card (see
+ *   docs/agent-messaging.md).
+ *
+ * Each call goes to the terminal's runner with the terminal's own token, as the relay named
+ * them, and the runner's answer is told back as text. Only Claude Code reads a server's
+ * own instructions, so each tool's description carries its rules.
  */
 import { efforts, plugin } from "@novadeck/harness-core/harness"
 import { harnessIds, harnesses } from "@novadeck/protocol"
@@ -478,11 +484,12 @@ const modelProperty = (models: Models): object => {
     "Set it only when the user asked for a model or the brief needs one; otherwise leave " +
     "it out and the agent keeps the user's own default."
   if (ids.length === 0) return noModel
-  const per = harnesses
-    .filter(({ id }) => (models[id] ?? []).length > 0)
-    .map(({ id, name }) => `${id} (${name}): ${models[id]!.map(modelChoice).join(", ")}`)
+  const offered = harnesses.map(({ id, name }) => ({ id, name, list: models[id] ?? [] }))
+  const per = offered
+    .filter(({ list }) => list.length > 0)
+    .map(({ id, name, list }) => `${id} (${name}): ${list.map(modelChoice).join(", ")}`)
     .join("; ")
-  const missing = harnesses.some(({ id }) => (models[id] ?? []).length === 0)
+  const missing = offered.some(({ list }) => list.length === 0)
     ? " An agent not named here can't take a model now: leave model out for it."
     : ""
   return {
@@ -492,28 +499,31 @@ const modelProperty = (models: Models): object => {
   }
 }
 
+// The models a harness's list names, with the efforts each takes; entries that name no id are skipped.
+const readModels = (list: unknown): Models[string] =>
+  Array.isArray(list)
+    ? list.flatMap((each) =>
+        object(each) && typeof each.id === "string"
+          ? [
+              {
+                id: each.id,
+                efforts: Array.isArray(each.efforts)
+                  ? each.efforts.filter((effort) => typeof effort === "string")
+                  : [],
+              },
+            ]
+          : [],
+      )
+    : []
+
 // The runner's list of models by harness, or none when it can't say.
 const listModels = async (call: McpCall): Promise<Models> => {
   try {
     const answer = await call("models", {})
     if (!object(answer) || answer.ok !== true || !object(answer.models)) return {}
-    const models: { [harness: string]: Models[string][number][] } = {}
-    for (const [harness, list] of Object.entries(answer.models))
-      models[harness] = Array.isArray(list)
-        ? list.flatMap((each) =>
-            object(each) && typeof each.id === "string"
-              ? [
-                  {
-                    id: each.id,
-                    efforts: Array.isArray(each.efforts)
-                      ? each.efforts.filter((effort) => typeof effort === "string")
-                      : [],
-                  },
-                ]
-              : [],
-          )
-        : []
-    return models
+    return Object.fromEntries(
+      Object.entries(answer.models).map(([harness, list]) => [harness, readModels(list)]),
+    )
   } catch {
     return {}
   }
@@ -1236,6 +1246,28 @@ const instructions =
   "user's. Its feedback drafts a note about Novadeck for the user to read and send, when " +
   "they ask for one or you hit a bug in Novadeck itself."
 
+// The answer to the handshake: the protocol version the agent asked for when it is one of
+// the server's, else the newest.
+const initialized = (params: unknown, inTerminal: boolean) => {
+  const asked = object(params) ? params.protocolVersion : undefined
+  return {
+    protocolVersion: mcpVersions.find((version) => version === asked) ?? mcpVersions[0],
+    capabilities: { tools: {} },
+    serverInfo: { name: "novadeck", version: plugin.version },
+    ...(inTerminal ? { instructions } : {}),
+  }
+}
+
+// Every tool as the agent lists it, with the schema the runner's state makes now.
+const listedTools = (call: McpCall) =>
+  Promise.all(
+    tools.map(async ({ name, description, inputSchema, schema }) => ({
+      name,
+      description,
+      inputSchema: (await schema?.(call)) ?? inputSchema,
+    })),
+  )
+
 const respond = async (line: string, call?: McpCall): Promise<Reply | undefined> => {
   if (line.trim() === "") return undefined
   let message: unknown
@@ -1250,34 +1282,9 @@ const respond = async (line: string, call?: McpCall): Promise<Reply | undefined>
   // Notifications, such as notifications/initialized, need no answer; nor do answers,
   // since this server asks nothing.
   if (id === undefined || id === null || typeof method !== "string") return undefined
-  if (method === "initialize") {
-    const asked = object(params) ? params.protocolVersion : undefined
-    return {
-      id,
-      result: {
-        protocolVersion: mcpVersions.find((version) => version === asked) ?? mcpVersions[0],
-        capabilities: { tools: {} },
-        serverInfo: { name: "novadeck", version: plugin.version },
-        ...(call ? { instructions } : {}),
-      },
-    }
-  }
+  if (method === "initialize") return { id, result: initialized(params, call !== undefined) }
   if (method === "ping") return { id, result: {} }
-  if (method === "tools/list")
-    return {
-      id,
-      result: {
-        tools: call
-          ? await Promise.all(
-              tools.map(async ({ name, description, inputSchema, schema }) => ({
-                name,
-                description,
-                inputSchema: (await schema?.(call)) ?? inputSchema,
-              })),
-            )
-          : [],
-      },
-    }
+  if (method === "tools/list") return { id, result: { tools: call ? await listedTools(call) : [] } }
   if (method === "tools/call") {
     const outcome = await toolCall(object(params) ? params : {}, call)
     return { id, ...outcome }
