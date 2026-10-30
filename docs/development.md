@@ -1055,8 +1055,6 @@ cp frontend/ui/example.env frontend/ui/.env
 cp backend/runner/example.env backend/runner/.env
 ```
 
-- UI: `VITE_API_URL` sets, at build time, the API origin that the Content Security
-  Policy permits; by default only the same origin. The UI does not call the API yet.
 - Browser UI: `VITE_NOVADECK_RUNNER_URL` (a `ws:` or `wss:` URL ending in `/api/rpc`)
   and `VITE_NOVADECK_RUNNER_TOKEN` name the runner a browser build (the web entry,
   `--mode web`) connects to; the CSP permits that origin. The desktop app ignores them and
@@ -1074,10 +1072,7 @@ cp backend/runner/example.env backend/runner/.env
   MessagePort through a sandboxed preload bridge. It also serves the status endpoint
   on a local, OS-selected port. Package `.env` files are not used.
 
-For a separately hosted frontend, set `VITE_API_URL` to the public HTTPS API URL
-before building and add the frontend origin to `CORS_ORIGINS`. The generated
-Content Security Policy permits the configured API origin. Local `.env` files
-are ignored; never commit credentials.
+Local `.env` files are ignored by git; never commit credentials.
 
 ## Validation
 

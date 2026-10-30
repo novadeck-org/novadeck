@@ -50,28 +50,17 @@ describe("frontend Content Security Policy", () => {
   })
 
   context("for a build in another mode", () => {
-    it("allows the configured API and runner, named by their variables", () => {
+    it("allows the configured runner, named by its variable", () => {
       expect(
         connect({
           mode: "production",
           command: "build",
-          env: {
-            VITE_API_URL: "https://api.example.com/v1",
-            VITE_NOVADECK_RUNNER_URL: "wss://runner.example.com/api/rpc",
-          },
+          env: { VITE_NOVADECK_RUNNER_URL: "wss://runner.example.com/api/rpc" },
         }),
-      ).toEqual([
-        "'self'",
-        "http://127.0.0.1:*",
-        "wss://runner.example.com",
-        "https://api.example.com",
-      ])
+      ).toEqual(["'self'", "http://127.0.0.1:*", "wss://runner.example.com"])
     })
 
     it("names the variable that's wrong", () => {
-      expect(() =>
-        connect({ mode: "production", command: "build", env: { VITE_API_URL: "ftp://x" } }),
-      ).toThrow("VITE_API_URL must be an absolute HTTP(S) URL or a relative path")
       expect(() =>
         connect({
           mode: "production",
@@ -88,10 +77,7 @@ describe("frontend Content Security Policy", () => {
         connect({
           mode: "try",
           command: "build",
-          env: {
-            VITE_API_URL: "https://api.example.com",
-            VITE_NOVADECK_RUNNER_URL: "wss://runner.example.com",
-          },
+          env: { VITE_NOVADECK_RUNNER_URL: "wss://runner.example.com" },
         }),
       ).toEqual(["'self'"])
     })

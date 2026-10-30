@@ -4,7 +4,11 @@ import { join } from "node:path"
 
 import { describe, expect, it, onTestFinished } from "vitest"
 
-import { contentSecurityPolicy, type Build } from "./content-security-policy.ts"
+import {
+  connectSourcesPlaceholder,
+  contentSecurityPolicy,
+  type Build,
+} from "./content-security-policy.ts"
 
 // The plugin's hooks, as Vite calls them for a build.
 const transform = (
@@ -30,24 +34,20 @@ const transform = (
 const seen = (config: Parameters<typeof transform>[2] = {}, envPrefix?: string): Build => {
   let build: Build | undefined
   const plugin = contentSecurityPolicy({
-    placeholder: "__SOURCES__",
     connect: (each) => {
       build = each
       return []
     },
     ...(envPrefix !== undefined && { envPrefix }),
   })
-  transform(plugin, "__SOURCES__", config)
+  transform(plugin, connectSourcesPlaceholder, config)
   return build!
 }
 
 describe("contentSecurityPolicy", () => {
   it("fills the placeholder with the sources the app gives for the build", () => {
-    const plugin = contentSecurityPolicy({
-      placeholder: "__SOURCES__",
-      connect: () => ["'self'", "https://api.example.com"],
-    })
-    expect(transform(plugin, "connect-src __SOURCES__;")).toBe(
+    const plugin = contentSecurityPolicy({ connect: () => ["'self'", "https://api.example.com"] })
+    expect(transform(plugin, `connect-src ${connectSourcesPlaceholder};`)).toBe(
       "connect-src 'self' https://api.example.com;",
     )
   })
@@ -81,7 +81,7 @@ describe("contentSecurityPolicy", () => {
   })
 
   it("fails a page whose policy has no placeholder", () => {
-    const plugin = contentSecurityPolicy({ placeholder: "__SOURCES__", connect: () => [] })
+    const plugin = contentSecurityPolicy({ connect: () => [] })
     expect(() => transform(plugin, "connect-src 'self';")).toThrow("placeholder is missing")
   })
 })
