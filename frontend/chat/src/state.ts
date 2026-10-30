@@ -10,12 +10,7 @@ import {
   type ChatDrafts,
   type ChatSends,
 } from "./drafts"
-import {
-  keepChatReplies,
-  noChatReplies,
-  settleChatReplies,
-  type ChatReplies,
-} from "./replies"
+import { keepChatReplies, noChatReplies, settleChatReplies, type ChatReplies } from "./replies"
 import {
   chatKept,
   keepTerminalAnswers,
@@ -77,12 +72,7 @@ const answeringReset = (state: ChatState): ChatState =>
 // The state with dictated words added to the terminal's draft, after a space, or directly
 // after trailing whitespace; they replace an empty draft. Unlike an edit, they release no
 // held reply.
-const dictatedInto = (
-  state: ChatState,
-  context: string,
-  id: string,
-  words: string,
-): ChatState => {
+const dictatedInto = (state: ChatState, context: string, id: string, words: string): ChatState => {
   const draft = chatDraftOf(state.drafts, context, id)
   const next = draft.trim() === "" ? words : /\s$/.test(draft) ? draft + words : `${draft} ${words}`
   const drafts = setChatDraft(state.drafts, context, id, next)
