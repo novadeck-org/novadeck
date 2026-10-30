@@ -35,33 +35,42 @@ const events = [
 // logo behind the warning's banner. The hook reports an Interrupt within 2 seconds.
 const interruptSeconds = 3
 
-// On Windows Codex runs a hook command in its shell there, PowerShell (7 where installed),
-// not cmd (probed 2026-10-09, 0.159.3), with -NoProfile.
+/**
+ * The shell Codex runs a hook command in: on Windows its shell there, PowerShell (7 where
+ * installed), not cmd (probed 2026-10-09, 0.159.3), with -NoProfile.
+ */
 export const hookDialect = (platform: NodeJS.Platform): Dialect =>
   platform === "win32" ? "powershell" : "sh"
 
-// Without Novadeck it needs nothing printed. Codex asks the person to review its hooks
-// again whenever this text changes, so `hooks.test.ts` pins it.
+/**
+ * The command Novadeck's plugin runs for a hook `event`; without Novadeck it needs nothing
+ * printed. Codex asks the person to review its hooks again whenever this text changes, so
+ * `hooks.test.ts` pins it.
+ */
 export const hook = (platform: NodeJS.Platform, event: string): string =>
   hookCommand(hookDialect(platform), { agent: "codex", event })
 
 // Its configuration's table for the plugin, enabled.
 const enabled = new RegExp(String.raw`\[plugins\."${pluginId}"\][^[]*?\benabled\s*=\s*true`)
 
+/** Whether Codex's configuration has Novadeck's plugin enabled. */
 export const connected: Harness["connected"] = async (install) =>
   enabled.test(await readFile(join(codexHome(install), "config.toml"), "utf8").catch(() => ""))
 
+/** Codex's commands that install Novadeck's plugin from its marketplace, afresh. */
 export const connect: Harness["connect"] = ({ plugin: directory }) => [
   { argv: ["codex", "plugin", "marketplace", "remove", marketplaceName], optional: true },
   { argv: ["codex", "plugin", "marketplace", "add", directory] },
   { argv: ["codex", "plugin", "add", pluginId] },
 ]
 
+/** Codex's commands that remove the plugin and its marketplace. */
 export const disconnect: Harness["disconnect"] = [
   { argv: ["codex", "plugin", "remove", pluginId], optional: true },
   { argv: ["codex", "plugin", "marketplace", "remove", marketplaceName], optional: true },
 ]
 
+/** The plugin's marketplace, manifest, MCP server and hooks, as Codex reads them. */
 export const files: Harness["files"] = (platform, launchers) => [
   { path: join(".claude-plugin", "marketplace.json"), content: json(marketplace) },
   {

@@ -12,6 +12,10 @@ import { startedSession, title, titleWorking } from "./title.js"
 import { transcripts } from "./transcripts.js"
 import { hooksTrusted } from "./trust.js"
 
+// What a hook prints to hand the model `delivery` as context.
+const context = (event: string, delivery: string): string =>
+  `${JSON.stringify({ hookSpecificOutput: { hookEventName: event, additionalContext: delivery } })}\n`
+
 // A Stop's reason continues the turn as a user-role hook prompt, which the delivery's
 // wrapper still attributes to its sender; a prompt's context is a developer message, and
 // so is a PostToolUse's, which the model reads on its next request.
@@ -19,12 +23,8 @@ const messaging: MessagingProfile = {
   asks: { Stop: "stop", UserPromptSubmit: "prompt", PostToolUse: "tool" },
   silent: { "*": "" },
   stop: (delivery) => `${JSON.stringify({ decision: "block", reason: delivery })}\n`,
-  prompt: (delivery) =>
-    `${JSON.stringify({
-      hookSpecificOutput: { hookEventName: "UserPromptSubmit", additionalContext: delivery },
-    })}\n`,
-  call: (delivery, event) =>
-    `${JSON.stringify({ hookSpecificOutput: { hookEventName: event, additionalContext: delivery } })}\n`,
+  prompt: (delivery) => context("UserPromptSubmit", delivery),
+  call: (delivery, event) => context(event, delivery),
   reinjectPerCall: false,
   root: "binding",
   queueKey: "\t",
