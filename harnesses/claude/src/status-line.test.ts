@@ -1,5 +1,6 @@
 import type { Report } from "@novadeck/harness-core/report"
 import { loadProbe } from "@novadeck/harness-core/testing/probes"
+import { hookReport } from "@novadeck/harness-core/testing/reports"
 import { describe, expect, it } from "vitest"
 
 import { decode } from "./decode.js"
@@ -15,16 +16,7 @@ const { payload } = loadProbe(import.meta.dirname, "statusline.probe.json") as {
     rate_limits: { five_hour: Window; seven_day: Window }
   }
 }
-const report: Report = {
-  terminalId: "t",
-  token: "0".repeat(48),
-  agent: "claude",
-  event: "StatusLine",
-  seq: 5,
-  instance: "7",
-  env: { cursor: false },
-  payload,
-}
+const report = hookReport("claude", "StatusLine", payload, { seq: 5 })
 
 describe("Claude Code's status line, as captured", () => {
   it("gives the context's size beside what it holds", () => {

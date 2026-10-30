@@ -1,6 +1,17 @@
 import { callId } from "@novadeck/harness-core/decode"
-import type { ActivityEvent, TelemetryObserved } from "@novadeck/harness-core/events"
-import type { Run } from "@novadeck/harness-core/harness"
+import type { ActivityEvent, EventBase, TelemetryObserved } from "@novadeck/harness-core/events"
+import { parseFields } from "@novadeck/harness-core/fields"
+import { followLines } from "@novadeck/harness-core/follow"
+import type { Harness, Run, WrittenPlan } from "@novadeck/harness-core/harness"
+import { at } from "@novadeck/harness-core/items"
+
+import { presentedPlan } from "./decode.js"
+
+/**
+ * What Claude Code's session transcript says beside its hooks: followed live while a
+ * session is bound (`followTranscript`, the harness's `watch`), and read back for the plans
+ * it presented (`transcriptPlans`). `transcripts.ts` reads the same files for the chat.
+ */
 
 // Claude Code's records of an interrupted turn: Esc while it works or runs a tool, and
 // "No" to a permission request, which interrupts the turn too. Only these exact texts
@@ -23,7 +34,8 @@ const remembered = 256
 // and a loose match would settle another question still asked.
 const loosely: ReadonlySet<string> = new Set(["ExitPlanMode"])
 
-const count = (value: unknown): number =>
+// A count of tokens a usage gives, or none.
+const tokens = (value: unknown): number =>
   typeof value === "number" && Number.isFinite(value) && value > 0 ? value : 0
 
 /**
@@ -55,18 +67,13 @@ export const transcriptEvents = (
   const called = line.includes('"tool_use"')
   const result = calls.size > 0 && line.includes('"tool_result"')
   if (!interrupting && !stopped && !called && !result && !line.includes('"usage"')) return []
-  let record: unknown
-  try {
-    record = JSON.parse(line)
-  } catch {
-    return []
-  }
-  if (typeof record !== "object" || record === null) return []
-  const { type, subtype, isSidechain, timestamp, message } = record as Record<string, unknown>
+  const fields = parseFields(line)
+  if (!fields) return []
+  const { type, subtype, isSidechain, timestamp, message } = fields
   if (isSidechain === true || typeof timestamp !== "string") return []
   const startedAt = Date.parse(timestamp)
   if (!Number.isFinite(startedAt)) return []
-  const base = { agent: "claude", sessionId, instance, startedAt } as const
+  const base: EventBase<"claude"> = { agent: "claude", sessionId, instance, startedAt }
   if (type === "system" && subtype === "stop_hook_summary")
     return [{ type: "turn-ended", ...base, outcome: "completed", recorded: true }]
   const { content, usage } = (message ?? {}) as { content?: unknown; usage?: unknown }
@@ -79,7 +86,7 @@ export const transcriptEvents = (
       cache_creation_input_tokens: written,
       cache_read_input_tokens: read,
     } = usage as Record<string, unknown>
-    const occupied = Math.round(count(input) + count(written) + count(read))
+    const occupied = Math.round(tokens(input) + tokens(written) + tokens(read))
     return occupied > 0
       ? [{ type: "telemetry-observed", ...base, context: { occupied, capacity: null } }]
       : []
@@ -105,7 +112,7 @@ const remember = (calls: Calls, blocks: readonly Record<string, unknown>[]): voi
 const results = (
   calls: Calls,
   blocks: readonly Record<string, unknown>[],
-  base: { agent: "claude"; sessionId: string; instance: string | null; startedAt: number },
+  base: EventBase<"claude">,
 ): ActivityEvent[] =>
   blocks.flatMap(({ type, tool_use_id: id }) => {
     const call = type === "tool_result" && typeof id === "string" ? calls.get(id) : undefined
@@ -124,3 +131,32 @@ const results = (
       },
     ]
   })
+
+/**
+ * Follows a bound session's transcript for what no hook reports: an interrupted turn, and
+ * a request a timed-out prompt denied.
+ */
+export const followTranscript: NonNullable<Harness["watch"]> = (run, signal, emit) => {
+  const calls: Calls = new Map()
+  return followLines(run.transcript, signal, (line) => {
+    for (const event of transcriptEvents(line, run, calls)) emit(event)
+  })
+}
+
+/**
+ * The plans a transcript line presents for review, as its hooks would name them: what
+ * reads back a plan presented as text, which no file holds, from its actor's transcript.
+ */
+export const transcriptPlans = (line: string): readonly WrittenPlan[] => {
+  if (!line.includes('"ExitPlanMode"')) return []
+  const fields = parseFields(line)
+  if (fields?.type !== "assistant") return []
+  const time = at(fields.timestamp)
+  const content = (fields.message as { content?: unknown } | undefined)?.content
+  return (Array.isArray(content) ? content : []).flatMap((part) => {
+    const { type, name, input } = (part ?? {}) as Record<string, unknown>
+    if (type !== "tool_use" || typeof name !== "string") return []
+    const plan = presentedPlan(name, input)
+    return plan ? [{ source: plan, at: time }] : []
+  })
+}

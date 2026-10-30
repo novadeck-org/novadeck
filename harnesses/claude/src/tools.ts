@@ -15,6 +15,9 @@ import type { ToolRun } from "@novadeck/protocol"
 // `mcp__plugin_novadeck_novadeck__send`.
 const novadeck = /^mcp__plugin_novadeck_novadeck__(.+)$/
 
+// Claude Code's own tools, by their names in lower case. Each reads every field spelling the
+// harnesses' shared table read before #351 (Antigravity's `AbsolutePath`, Codex's `cmd`), as
+// chat-contract's parity test holds each harness to that table.
 const known = (name: string, fields: Fields | undefined): ToolRun | undefined => {
   const path = (...keys: string[]): string => shortPath(textField(fields, ...keys))
   switch (name) {

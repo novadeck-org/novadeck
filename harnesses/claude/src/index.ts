@@ -1,55 +1,20 @@
-import { readFile } from "node:fs/promises"
 import { join } from "node:path"
 
-import { followLines } from "@novadeck/harness-core/follow"
-import {
-  efforts,
-  type MessagingProfile,
-  type Harness,
-  type Install,
-} from "@novadeck/harness-core/harness"
-import { hookSeconds, hookCommand, type Dialect } from "@novadeck/harness-core/hook-command"
-import { json, marketplace, manifest } from "@novadeck/harness-core/plugin"
+import type { MessagingProfile, Harness } from "@novadeck/harness-core/harness"
 
 import { box } from "./box.js"
-import { decode, transcriptPlans } from "./decode.js"
+import { decode } from "./decode.js"
 import { dialogs } from "./dialogs.js"
+import { claudeHome } from "./home.js"
+import { models } from "./models.js"
+import { connect, connected, disconnect, files, hook, hookDialect } from "./plugin.js"
 import { cmdShim, commands, posixShim } from "./shim.js"
-import { transcriptEvents, type Calls } from "./transcript.js"
+import { followTranscript, transcriptPlans } from "./transcript-watch.js"
 import { transcripts } from "./transcripts.js"
 
-const id = "novadeck@novadeck"
-
-/** Claude Code's configuration folder, which also keeps its plans in `plans`. */
-export const configFolder = ({ env, home: user }: Pick<Install, "env" | "home">): string =>
-  env.CLAUDE_CONFIG_DIR || join(user, ".claude")
-
-// The hooks `decode` reads: the session, its turns, and the requests waiting on the person.
-const events = [
-  "SessionStart",
-  "UserPromptSubmit",
-  "Stop",
-  "StopFailure",
-  "SubagentStart",
-  "SubagentStop",
-  "PermissionRequest",
-  "Elicitation",
-  "ElicitationResult",
-  "PostToolUse",
-  "PostToolUseFailure",
-]
-
-// Its hooks run in PowerShell on Windows, where its handlers say so (`shell` below). Its
-// status line takes no `shell`, and runs in Git Bash there, as `bash -c "<command>"`
-// (probed 2026-10-23, 2.1.309).
-const hookDialect = (platform: NodeJS.Platform, event?: string): Dialect =>
-  platform === "win32" && event !== "StatusLine" ? "powershell" : "sh"
-
-// Without Novadeck it needs nothing printed.
-const hook = (platform: NodeJS.Platform, event: string): string =>
-  hookCommand(hookDialect(platform, event), { agent: "claude", event })
-
-const claudeModels = ["opus", "sonnet", "haiku", "fable"].map((alias) => ({ id: alias, efforts }))
+// What a hook prints to hand the model `delivery` as context.
+const context = (event: string, delivery: string): string =>
+  `${JSON.stringify({ hookSpecificOutput: { hookEventName: event, additionalContext: delivery } })}\n`
 
 // A Stop's reason continues the turn, and reaches the model as the Stop hook's feedback;
 // a prompt's context is an attachment beside the prompt, never the prompt itself; a tool
@@ -64,12 +29,8 @@ const messaging: MessagingProfile = {
   },
   silent: { "*": "" },
   stop: (delivery) => `${JSON.stringify({ decision: "block", reason: delivery })}\n`,
-  prompt: (delivery) =>
-    `${JSON.stringify({
-      hookSpecificOutput: { hookEventName: "UserPromptSubmit", additionalContext: delivery },
-    })}\n`,
-  call: (delivery, event) =>
-    `${JSON.stringify({ hookSpecificOutput: { hookEventName: event, additionalContext: delivery } })}\n`,
+  prompt: (delivery) => context("UserPromptSubmit", delivery),
+  call: (delivery, event) => context(event, delivery),
   reinjectPerCall: false,
   root: "binding",
   silentOnFailure: false,
@@ -79,8 +40,7 @@ const messaging: MessagingProfile = {
   // It holds a command-line prompt behind its trust and startup screens.
   initialPrompt: (line) => Promise.resolve(["claude", line]),
   start: ["claude"],
-  // Its aliases, which it resolves to the latest model of each family.
-  models: () => Promise.resolve(claudeModels),
+  models: () => Promise.resolve(models),
   choose: ({ model, effort }) => [
     ...(model !== undefined ? ["--model", model] : []),
     ...(effort !== undefined ? ["--effort", effort] : []),
@@ -93,82 +53,24 @@ const sessionCommands = new Set(["attach", "ultrareview"])
 export const claude = {
   id: "claude",
   plugin: "claude",
-  // Claude Code's local install is an alias in the user's rc file, not on PATH.
-  fallback: (user) => join(user, ".claude", "local", "claude"),
-  home: configFolder,
-  connected: async (install) => {
-    try {
-      const settings = JSON.parse(
-        await readFile(join(configFolder(install), "settings.json"), "utf8"),
-      ) as {
-        enabledPlugins?: Record<string, unknown>
-      }
-      return settings.enabledPlugins?.[id] === true
-    } catch {
-      return false
-    }
-  },
-  connect: ({ plugin: directory }) => [
-    // A marketplace left from an earlier connection is replaced, not added twice.
-    { argv: ["claude", "plugin", "marketplace", "remove", "novadeck"], optional: true },
-    { argv: ["claude", "plugin", "marketplace", "add", directory] },
-    { argv: ["claude", "plugin", "install", id] },
-  ],
-  disconnect: [
-    { argv: ["claude", "plugin", "uninstall", id], optional: true },
-    { argv: ["claude", "plugin", "marketplace", "remove", "novadeck"], optional: true },
-  ],
+  // Claude Code's local install is an alias in the person's rc file, not on PATH.
+  fallback: (home) => join(home, ".claude", "local", "claude"),
+  home: claudeHome,
+  connected,
+  connect,
+  disconnect,
   hookDialect,
   hook,
-  files: (platform, launchers) => [
-    { path: join(".claude-plugin", "marketplace.json"), content: json(marketplace) },
-    { path: join("novadeck", ".claude-plugin", "plugin.json"), content: json(manifest) },
-    // Its MCP server, which Claude Code finds at the plugin's root and starts with the
-    // terminal's environment.
-    {
-      path: join("novadeck", ".mcp.json"),
-      content: json({ mcpServers: { novadeck: launchers.mcp } }),
-    },
-    {
-      path: join("novadeck", "hooks", "hooks.json"),
-      content: json({
-        hooks: Object.fromEntries(
-          events.map((event) => [
-            event,
-            [
-              {
-                hooks: [
-                  {
-                    type: "command",
-                    command: hook(platform, event),
-                    timeout: hookSeconds(platform),
-                    ...(platform === "win32" && { shell: "powershell" }),
-                  },
-                ],
-              },
-            ],
-          ]),
-        ),
-      }),
-    },
-    // The settings Novadeck's shim adds: its hook as the status line, which passes on the
-    // person's own (see the runner's shell/hook.ts).
-    {
-      path: "statusline.json",
-      content: json({
-        statusLine: { type: "command", command: hook(platform, "StatusLine"), padding: 0 },
-      }),
-    },
-  ],
-  // The status line Novadeck's shim adds, where its shells run Claude Code.
+  files,
+  // Novadeck's shim, through which its shells run Claude Code with its status line.
   shims: (platform) =>
     platform === "win32"
       ? [{ path: "claude.cmd", content: cmdShim }]
       : [{ path: "claude", content: posixShim, mode: 0o700 }],
-  // Its commands other than a session, but `attach`, which opens a background session in
-  // the terminal, and `ultrareview`, which submits a cloud review; its print mode runs it
-  // on the caller's text, so it is none. Its options
-  // that take a value, which the words after them are not commands for.
+  // Its commands other than a session: all of them but `attach`, which opens a background
+  // session in the terminal, and `ultrareview`, which submits a cloud review. Its print mode
+  // runs it on the caller's text, so that is a session's use. The options that take a
+  // value, whose next word is no command.
   nonSession: {
     commands: commands.filter((command) => !sessionCommands.has(command)),
     flags: ["-h", "--help", "-v", "--version"],
@@ -230,12 +132,5 @@ export const claude = {
   dialogs,
   messaging,
   box,
-  // The transcript records what no hook reports: an interrupted turn, and a request a
-  // timed-out prompt denied.
-  watch: (run, signal, emit) => {
-    const calls: Calls = new Map()
-    return followLines(run.transcript, signal, (line) => {
-      for (const event of transcriptEvents(line, run, calls)) emit(event)
-    })
-  },
+  watch: followTranscript,
 } satisfies Harness

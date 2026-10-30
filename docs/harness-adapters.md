@@ -30,15 +30,15 @@ transcripts and telemetry are fixed only after per-harness coverage probes
 
 ## Existing seams
 
-| Current code                                                                            | Responsibility to preserve                                                    | Destination                                                              |
-| --------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------- | ------------------------------------------------------------------------ |
-| `backend/runner/src/shell/agents.ts`                                                    | Detect config, inspect plugin connection, plan install/remove commands        | `home`, `connected`, `connect`/`disconnect`; shared inspection and setup |
-| `backend/runner/src/shell/resume.ts`                                                    | Build the exact resume command for an identified session                      | `resume` field                                                           |
-| `backend/runner/src/shell/scripts.ts`                                                   | Provider manifests, hook configuration, Codex launch shim                     | `files` and `shims`; shared artifact writer                              |
-| `backend/runner/src/shell/hook.ts`                                                      | Native payload interpretation, nested-session filtering, hook response format | Per-harness `decode.ts` in its package; one shared hook script           |
-| `backend/runner/src/shell/reports.ts`                                                   | Authenticate and accept session reports                                       | Shared ingress and binding policy                                        |
-| `backend/runner/src/terminals/manager.ts`, `resumes.ts`, `saving.ts`                    | PTY lifetime, resume claims, persistence, foreground ownership                | Terminal manager, using the harness service                              |
-| `frontend/core/src/terminals/process.ts` and `frontend/runner-adapter/src/resumable.ts` | Provider recognition and resume eligibility                                   | `programs` and shared recognition; UI keeps generic program presentation |
+| Current code                                                                                      | Responsibility to preserve                                                    | Destination                                                              |
+| ------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------- | ------------------------------------------------------------------------ |
+| `backend/runner/src/shell/agents.ts`                                                              | Detect config, inspect plugin connection, plan install/remove commands        | `home`, `connected`, `connect`/`disconnect`; shared inspection and setup |
+| `backend/runner/src/shell/resume.ts`                                                              | Build the exact resume command for an identified session                      | `resume` field                                                           |
+| `backend/runner/src/shell/scripts.ts`                                                             | Provider manifests, hook configuration, Codex launch shim                     | `files` and `shims`; shared artifact writer                              |
+| `backend/runner/src/shell/hook.ts`                                                                | Native payload interpretation, nested-session filtering, hook response format | Per-harness `decode.ts` in its package; one shared hook script           |
+| `backend/runner/src/shell/reports.ts`                                                             | Authenticate and accept session reports                                       | Shared ingress and binding policy                                        |
+| `backend/runner/src/terminals/manager.ts`, `resumes.ts`, `saving.ts`                              | PTY lifetime, resume claims, persistence, foreground ownership                | Terminal manager, using the harness service                              |
+| `frontend/core/src/terminals/process.ts` and `frontend/runner-adapter/src/terminals/resumable.ts` | Provider recognition and resume eligibility                                   | `programs` and shared recognition; UI keeps generic program presentation |
 
 `shell/agents.ts` and `shell/resume.ts` are named as this proposal found them: their work
 went into each adapter's `src/index.ts` when the adapters were extracted (#35). In particular,
@@ -106,13 +106,20 @@ harnesses/core/src/          # @novadeck/harness-core
   tools.ts         # What a tool call was, in one line, and Novadeck's own MCP tools
   report.ts, header.ts
   testing/         # Test helpers: probes.ts (`loadProbe`), screens.ts, dialogs.ts, reports.ts
-harnesses/claude/src/        # @novadeck/harness-claude
-  index.ts         # claude: Harness
+harnesses/<id>/src/          # @novadeck/harness-<id>, one per harness, all shaped alike:
+  index.ts         # <id>: Harness, and its messaging profile
+  plugin.ts        # Its plugin's id, hook events and files; connected, connect, disconnect
+  home.ts          # Its own folders (`claudeHome`…), wherever its environment moves them
   decode.ts        # Its hook reports, as normalized events
+  tools.ts         # What its tool calls were, and what each counts as to messaging
+  models.ts        # The models it starts with, and their efforts
   box.ts           # Its input box, as it reads off the screen (`box: BoxProfile`)
+  transcripts.ts   # Its transcripts, as the chat's items
+  dialogs.ts       # Its DialogAdapter, which hands each request to the dialog that reads it
+  *-dialog.ts      # One file per dialog: permission-dialog, question-dialog, plan-dialog…
+  dialog-screen.ts # What its dialogs share on screen: keys, rules, numbered options, waits
+  *.test-support.ts # Test helpers: dialogs.test-support.ts, report.test-support.ts
   fixtures/        # Its probes, read by the tests beside them
-harnesses/codex/src/         # @novadeck/harness-codex: same shape; its shim is in its `shims`
-harnesses/agy/src/           # @novadeck/harness-agy
 backend/runner/src/harnesses/
   registry.ts      # harnesses: Record<AgentName, Harness>
   eligibility.ts   # Availability of features such as resume, with typed reasons
@@ -120,6 +127,25 @@ backend/runner/src/harnesses/
   bindings.ts      # Pure ownership and observation transitions
   activity.ts      # Accepted state → agent activity
 ```
+
+Beside that common set, each keeps what only it has:
+
+- Claude Code (`harnesses/claude`): `status-line.ts` (its status line's report: context,
+  rate limits, model), `transcript-watch.ts` (what its transcript says beside its hooks,
+  followed live as its `watch`, and read back for plans), `form-dialog.ts` (an MCP
+  server's elicitation form), `diffs.ts` (the diff an Edit or Write permission draws) and
+  `shim.ts` (the program its shells run, which adds Novadeck's status line).
+- Codex (`harnesses/codex`): `rollout.ts` (its rollout, followed as its `watch` and
+  `watchActor`, and read back for plans), `async-question.ts` and
+  `async-question-dialog.ts` (the question it asks without waiting), `patch.ts` (the
+  files a patch names), `title.ts` (the terminal title its shim sets, and the thread lock
+  that confirms a new session), `trust.ts` (whether it runs Novadeck's hooks in a folder)
+  and `shim.ts`.
+- Antigravity (`harnesses/agy`): `status-line.ts` (its status line's report, and the
+  prompt it says shows), `call-memory.ts` (what its decoder holds of each conversation's
+  calls from one hook to the next) and `settings.ts` (its user settings: the status line
+  it takes only from them, put in place once connected, and the folders it trusts). It
+  has no `watch`: its transcripts are read only for the chat.
 
 An adapter imports only `@novadeck/harness-core`, `@novadeck/protocol`,
 `@novadeck/emulator`, `@novadeck/tui-input`, Node and its own files, never the runner's
@@ -129,7 +155,7 @@ runner and reads the adapter's fixtures from its package.
 
 Each of these packages builds to `dist`, which builds, packaging and `tsc` use. Their
 exports also name their sources under the `development` condition, which vitest, the
-runner's `pnpm dev` (`tsx --conditions=development`) and the host's `pnpm dev` (Vite's
+runner's `pnpm dev` (`tsx --conditions=development`) and the desktop app's `pnpm dev` (Vite's
 own `development` condition in electron-vite's dev build) resolve, so an edit to one
 reaches them without a build. `tsc` and the editor still read the built types: rebuild
 a package (`pnpm --filter @novadeck/harness-core build`) after changing its contract.
@@ -159,8 +185,9 @@ Adding a harness:
    `docs/harness-coverage.md`, and any variable of its hooks' environment the runner's
    `shell/hook.ts` tells nested agents apart by.
 
-Split a harness into more files (a transcript reader, say) only when its
-`index.ts` gets hard to read. `shell/` keeps shell-specific
+A concept every harness has goes in the common set's file of that name; one only a
+harness has gets a file of its own, named for it. Sources sit flat in `src/`
+(`.oxlintrc.json` refuses `../` imports there). `shell/` keeps shell-specific
 startup/quoting; it no longer assembles harness manifests. Public data types live in
 `contract/protocol`, with no imports back into provider implementations.
 

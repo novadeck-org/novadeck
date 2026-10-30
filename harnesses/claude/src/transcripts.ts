@@ -5,6 +5,7 @@ import type { Harness, TranscriptEntry } from "@novadeck/harness-core/harness"
 import { at, entry, joined, textOf } from "@novadeck/harness-core/items"
 import { shellCall } from "@novadeck/harness-core/tools"
 
+import { taskNotification } from "./decode.js"
 import { describe } from "./tools.js"
 
 // A subagent id Claude Code names its transcript by, as it writes them.
@@ -22,9 +23,6 @@ const safeId = /^[\w-]{1,128}$/
  * takes into that turn beside a tool's result, is no user record but an attachment of the
  * turn (see `queuedPrompt`); it reads as the person's prompt all the same.
  */
-
-// A background task's notice, in the person's place.
-const notice = /^\s*<task-notification>/
 
 // A shell-mode command, as `<bash-input>`; its output follows as stdout and stderr, which
 // hold what the command printed, however it ended (a failed one's output is in stderr).
@@ -89,7 +87,9 @@ const textItems = (
         { at: time, call: fields.parentUuid },
       ),
     ]
-  return content && !notice.test(content) ? [entry(role, "text", content, { at: time })] : []
+  return content && !taskNotification.test(content)
+    ? [entry(role, "text", content, { at: time })]
+    : []
 }
 
 export const transcripts: NonNullable<Harness["transcripts"]> = {

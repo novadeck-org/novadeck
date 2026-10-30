@@ -1,10 +1,10 @@
 import { callId } from "@novadeck/harness-core/decode"
-import type { Report } from "@novadeck/harness-core/report"
 import { loadProbe } from "@novadeck/harness-core/testing/probes"
 import { describe, expect, it } from "vitest"
 
 import { decode } from "./decode.js"
-import { transcriptEvents, type Calls } from "./transcript.js"
+import { report } from "./report.test-support.js"
+import { transcriptEvents, type Calls } from "./transcript-watch.js"
 
 type Probe = { scenarios: { [name: string]: object[] } }
 const probe = loadProbe(import.meta.dirname, "transcript.probe.json") as Probe
@@ -156,12 +156,9 @@ describe("a root tool call's result in the transcript", () => {
 
   it("settles the request its hook asked, whatever order the input's keys came in", () => {
     const [asked] = decode({
-      event: "PermissionRequest",
+      ...report("PermissionRequest", { tool_name: "Bash", tool_input: hookInput }),
       seq: Date.parse(at(1)),
-      instance: "7",
-      env: {},
-      payload: { session_id: "s", tool_name: "Bash", tool_input: hookInput },
-    } as unknown as Report)
+    })
     const reordered = { description: "Tidy", command: "rm -f $OUT/*", timeout: 300000 }
     const settled = read([use("toolu_1", "Bash", reordered), result("toolu_1")])
     expect(settled).toEqual([
