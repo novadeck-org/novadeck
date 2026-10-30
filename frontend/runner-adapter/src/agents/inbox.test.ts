@@ -829,9 +829,11 @@ describe("Inbox entries", () => {
     type Written = Omit<InboxEntry, "sessionId" | "content"> & {
       readonly content: Exclude<InboxEntry["content"], { kind: "turn" }>
     }
+    // Each kind of content with its fields, so a field added to one side's kind shows.
+    type Kinds<Content> = Content extends { kind: infer Kind } ? [Kind, keyof Content] : never
     expectTypeOf<Written>().toExtend<WrittenEntry>()
     expectTypeOf<keyof Written>().toEqualTypeOf<keyof WrittenEntry>()
-    expectTypeOf<Written["content"]["kind"]>().toEqualTypeOf<WrittenEntry["content"]["kind"]>()
+    expectTypeOf<Kinds<Written["content"]>>().toEqualTypeOf<Kinds<WrittenEntry["content"]>>()
   })
 
   it("follows one global stream while bound and closes it when unbound", async () => {
