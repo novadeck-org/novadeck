@@ -119,7 +119,7 @@ export const notes: Record<string, Note> = {
   },
   "backend/runner/harnesses": {
     purpose:
-      "The runner's side of the agent harnesses: the registry of adapters, connecting and disconnecting their plugins, binding hook reports to sessions, and deriving activity, replies, plans and typed prompts from what they report.",
+      "The runner's side of the agent harnesses: the registry of harnesses, connecting and disconnecting their plugins, binding hook reports to sessions, and deriving activity, replies, plans and typed prompts from what they report.",
     entries: [
       { file: `${runner}/harnesses/registry.ts`, text: "export const harnesses" },
       { file: `${runner}/harnesses/service.ts`, text: "export const createHarnesses" },
@@ -198,7 +198,7 @@ export const notes: Record<string, Note> = {
   },
   "harnesses/core": {
     purpose:
-      "The contract every harness adapter implements, and what they share: hook commands, events, reports, dialogs and shell quoting, and the `Harness` type whose `box` is a tui-input `BoxProfile`.",
+      "The contract every harness implements, and what they share: hook commands, events, reports, dialogs and shell quoting, and the `Harness` type whose `box` is a tui-input `BoxProfile`.",
     entries: [
       { file: "harnesses/core/src/harness.ts", text: "export type Harness = {" },
       { file: "harnesses/core/src/events.ts" },
@@ -207,17 +207,17 @@ export const notes: Record<string, Note> = {
   },
   "harnesses/claude": {
     purpose:
-      "The Claude Code adapter: its plugin and hooks, hook reports, transcripts, dialogs, input box and sessions.",
+      "The Claude Code harness: its plugin and hooks, hook reports, transcripts, dialogs, input box and sessions.",
     entries: [{ file: "harnesses/claude/src/index.ts", text: "export const claude" }],
     docs: ["docs/harness-coverage.md"],
   },
   "harnesses/codex": {
-    purpose: "The Codex adapter, the same shape as harnesses/claude.",
+    purpose: "The Codex harness, the same shape as harnesses/claude.",
     entries: [{ file: "harnesses/codex/src/index.ts", text: "export const codex" }],
     docs: ["docs/harness-coverage.md"],
   },
   "harnesses/agy": {
-    purpose: "The Antigravity adapter, the same shape as harnesses/claude.",
+    purpose: "The Antigravity harness, the same shape as harnesses/claude.",
     entries: [{ file: "harnesses/agy/src/index.ts", text: "export const agy" }],
     docs: ["docs/harness-coverage.md"],
   },

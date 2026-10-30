@@ -46,7 +46,7 @@ export const runtime: {
       title: "Runner",
       kind: "process",
       summary:
-        "An Electron utility process that owns the shells, the SQLite workspace, the harness adapters, agent messaging and the companion items, and serves the oRPC router to the UI.",
+        "An Electron utility process that owns the shells, the SQLite workspace, the harnesses, agent messaging and the companion items, and serves the oRPC router to the UI.",
       anchor: {
         file: "apps/desktop/src/runner/index.ts",
         text: "const runner = createRunner({",
