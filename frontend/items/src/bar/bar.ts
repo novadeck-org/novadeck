@@ -22,7 +22,6 @@ export type BarMember =
   | { readonly kind: "messages"; readonly key: typeof messagesKey }
 
 export type ItemMember = Extract<BarMember, { readonly kind: "item" }>
-export type MessagesMember = Extract<BarMember, { readonly kind: "messages" }>
 
 export type StackKind = ItemKind
 

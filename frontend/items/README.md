@@ -40,7 +40,7 @@ which puts messages on a terminal's bar), how the pane presents beside its termi
   as it is. The chrome is the home's: in the terminal's, `CompanionPane`'s header, its
   actions, the "from another terminal" line and the states of what can't show. A registration
   never switches on another kind.
-- **A home draws its own bar.** The taskbar at the top draws what's on a bar through the
+- **A home draws its own bar.** The taskbar (`bar/`) draws what's on a bar through the
   home's `BarDrawing` (`bar/TaskbarSlot.tsx`): an item by its registration, and anything that is
   the home's own, as a terminal's messages, by the home (`homes/terminal/drawing.tsx`).
 - **What a kind means as data is core's** (`kindRules` in `core/src/items.ts`: what it
@@ -70,7 +70,7 @@ Only what the app imports: `./TerminalCompanion` (and `AttachedContainer`, where
 the attached pane), `./UndockedWindow`, `./ProjectWindow` (the pane in its terminal, an item in
 a window of its own, and a session's project window), `./store` (`createItemStore`, `ItemStore` and
 its plan actions), `./bar` (`barMembers`, `composeBar`), `./messages` (`useHasMessages`, `useMessageBadge`,
-`followMessages`),
+`followMessages`, `MessageLinks`),
 `./TabKinds` (the kinds' marks on a terminal's tab), `./registry` (`iconOf`: whoever draws an
 item's icon), `./actions` (`CompanionActions`),
 `./drag-session` (`createDragSession`, `DragSessionContext`, `useDrag`, `useDragSession` and

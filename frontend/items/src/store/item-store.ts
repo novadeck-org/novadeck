@@ -19,7 +19,7 @@ import type { Workspace, WorkspaceTarget } from "@novadeck/core/types"
 
 import { currentMarks, docOf, lf, type Mark, type PlanDoc } from "../kinds/plan/plan-doc"
 import { rewritten } from "./plan-rewrite"
-import { itemIn, itemsOf, keep, pointedAt, pointedIn } from "./pointing"
+import { itemIn, itemsOf, pointedAt, pointedIn } from "./pointing"
 
 // What the items package holds while the app runs, apart from the items themselves and
 // how bars are arranged, which the workspace store keeps: each plan as the person edits
@@ -444,6 +444,17 @@ const forgetPlan = (session: Session, id: ItemId): void => {
   ])
     each.delete(id)
   session.backingOff.delete(id)
+}
+
+// A record without the items that are gone.
+const keep = <Value>(
+  present: ReadonlyMap<ItemId, unknown>,
+  record: Readonly<Record<ItemId, Value>>,
+): Readonly<Record<ItemId, Value>> => {
+  const kept = Object.entries(record).filter(([id]) => present.has(id as ItemId))
+  return kept.length === Object.keys(record).length
+    ? record
+    : (Object.fromEntries(kept) as Record<ItemId, Value>)
 }
 
 // Follows every plan in the workspace, stops following what's gone, and forgets it.

@@ -1,13 +1,14 @@
 /* The prose recipe: the theme's prose tokens mapped onto the markdown viewer's
-   (@novadeck/viewers/markdown.css), which draws plans and markdown documents, and what
+   (@novadeck/viewers/markdown.css), which draws plans and Markdown documents, and what
    only a plan has: its notes (`.cm-plan-note-*`, drawn by plan-editor/plan-notes.ts) and
    the lines the agent's latest revision wrote (`.cm-plan-changed`). A document's miniature in
    a peek reads the prose tokens too. The editor's icon-only actions, the margin's and a
    row's note buttons, are `.icon-button`s; its checkboxes take the toggle recipe's tokens.
 
    Hooks: data-changes="true" on the plan's scroller while the agent's changes show;
-   data-readonly on the document editor while the plan can't be written; data-heading="1" | "2"
-   | "3" on the margin's note button beside a heading.
+   data-readonly on the document editor while it can't be written (a plan that can't be
+   saved, and a Markdown file's document view); data-heading="1" | "2" | "3" on the
+   margin's note button beside a heading.
 
    Tokens, each optional (its fallback in brackets):
    --prose-fg (ink), --prose-font (sans): the text, and the editor's caret.

@@ -2,8 +2,9 @@
    behind it, each a preview (`.peek-thumb`), an icon and a name
    (`.peek-name`), the taskbar's own mark, and a close button (`.peek-close`,
    an `.icon-button.raised`) that shows on hover; and the previews in miniature. The
-   peek itself is a `.floating.peek` (see surface.css). An outline's miniature takes the
-   prose tokens.
+   peek itself is a `.floating.peek` (see surface.css). The miniatures of code, changes
+   and a list (`.peek-list`: a document's outline, or a terminal's conversations) take
+   the prose tokens.
 
    Hooks: on a card's button (`.peek-open`), aria-pressed="true" while the pane
    shows it, and data-state="new" | "open" | "behind" | "seen" for its mark.
