@@ -1,3 +1,9 @@
+import type {
+  ChatAnswer,
+  ChatDialog,
+  ChatDialogOption,
+  ChatFormField,
+} from "@novadeck/core/conversation"
 import {
   answeredCount,
   chatAnswer,
@@ -10,19 +16,13 @@ import {
   reconcile,
   write,
   type Picks,
-} from "@novadeck/core/answers"
-import type {
-  ChatAnswer,
-  ChatDialog,
-  ChatDialogOption,
-  ChatFormField,
-} from "@novadeck/core/conversation"
+} from "@novadeck/core/conversation/answers"
 import {
   controlHint,
   hasControlCharacters,
   promptHint,
   type Refused,
-} from "@novadeck/core/prompt-refusal"
+} from "@novadeck/core/conversation/prompt-refusal"
 import { Loader } from "lucide-react"
 import { useEffect, useId, useRef, useState } from "react"
 

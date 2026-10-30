@@ -3,7 +3,7 @@ import {
   answersOf,
   type AgentContext,
   type AgentStep,
-} from "@novadeck/core/agent-steps"
+} from "@novadeck/core/agents/steps"
 import type { Conversation, Conversations } from "@novadeck/core/conversation"
 import type { InboxRow } from "@novadeck/core/inbox"
 import { companionKeyId } from "@novadeck/core/items"
@@ -19,7 +19,7 @@ import {
 
 // What a sheet shows to get the person back into an agent's task: their last words to it
 // and the few steps it took since. Read from the agent's transcript (`agents.transcript`),
-// the same for Claude Code, Codex and Antigravity: see `@novadeck/core/agent-steps`.
+// the same for Claude Code, Codex and Antigravity: see `@novadeck/core/agents/steps`.
 
 // One step: a tool call that edited, ran or failed, in the harness's own words: the tool's
 // name as the harness gave it ("Edit", "Bash", "apply_patch"), its argument on one line (a

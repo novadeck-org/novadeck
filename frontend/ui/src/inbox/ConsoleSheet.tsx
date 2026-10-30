@@ -1,6 +1,12 @@
-/* oxlint-disable react/no-array-index-key -- Lines are read from text and transcripts that have no ids; they never reorder. */
-import { answered, choose, questionsAnswer, write, type Picks } from "@novadeck/core/answers"
 import type { ChatQuestion } from "@novadeck/core/conversation"
+/* oxlint-disable react/no-array-index-key -- Lines are read from text and transcripts that have no ids; they never reorder. */
+import {
+  answered,
+  choose,
+  questionsAnswer,
+  write,
+  type Picks,
+} from "@novadeck/core/conversation/answers"
 import type { HeldMessage, InboxRow, Trouble } from "@novadeck/core/inbox"
 import { unsaidWaits, waitsText } from "@novadeck/core/messages"
 import { HandleChip } from "@novadeck/toolkit/HandleChip"

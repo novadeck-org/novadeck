@@ -2,8 +2,8 @@ import { mkdtemp, writeFile } from "node:fs/promises"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 
-import { messagesKey } from "@novadeck/core/companion-bar"
 import { companionKeyId, itemIdOf } from "@novadeck/core/items"
+import { messagesKey } from "@novadeck/core/items/companion-bar"
 import type { BackendAction } from "@novadeck/core/port"
 import { workspaceFromSeed } from "@novadeck/core/seed"
 import {

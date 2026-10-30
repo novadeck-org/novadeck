@@ -1,6 +1,6 @@
+import { maxClipSeconds } from "@novadeck/core/addons/voice"
 import type { Store } from "@novadeck/core/store"
 import type { TerminalKey } from "@novadeck/core/types"
-import { maxClipSeconds } from "@novadeck/core/voice"
 import { Chord } from "@novadeck/toolkit/Chord"
 import { useShown } from "@novadeck/toolkit/shown"
 import { Check, Loader, Mic, MicOff, TriangleAlert } from "lucide-react"

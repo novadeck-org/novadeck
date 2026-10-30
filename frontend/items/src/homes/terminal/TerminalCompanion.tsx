@@ -1,5 +1,5 @@
-import { messagesKey, type Bar, type BarKey } from "@novadeck/core/companion-bar"
 import { isOnBar, type Item, type CompanionKey, type ItemId } from "@novadeck/core/items"
+import { messagesKey, type Bar, type BarKey } from "@novadeck/core/items/companion-bar"
 import type { WindowPlace } from "@novadeck/core/layout/window-place"
 import type { Messages } from "@novadeck/core/messages"
 import type { ViewMode } from "@novadeck/core/types"

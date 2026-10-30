@@ -1,6 +1,6 @@
 import type { TerminalKey } from "@novadeck/core/port"
-import { createTerminalRegistry, terminalKeyId } from "@novadeck/core/registry"
 import type { WorkspaceAction } from "@novadeck/core/state"
+import { createTerminalRegistry, terminalKeyId } from "@novadeck/core/terminals/registry"
 import type { TerminalMetadata, Workspace } from "@novadeck/core/types"
 
 import { emptyLine, type Line } from "./line-editor"

@@ -17,13 +17,13 @@ import {
   isTurnRow,
   keepInbox,
   keyOf,
-} from "@novadeck/core/inbox-answers"
+} from "@novadeck/core/inbox/answers"
 import {
   dialogMs,
   inboxRows,
   type Asked,
   type InboxEntry as AskEntry,
-} from "@novadeck/core/inbox-rows"
+} from "@novadeck/core/inbox/rows"
 import type { MessagesState } from "@novadeck/core/messages"
 import { createStore, type Store } from "@novadeck/core/store"
 import type { TerminalMetadata, Workspace } from "@novadeck/core/types"

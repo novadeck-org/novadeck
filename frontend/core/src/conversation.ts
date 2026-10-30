@@ -1,4 +1,4 @@
-import type { Refused } from "./prompt-refusal"
+import type { Refused } from "./conversation/prompt-refusal"
 import type { Store } from "./store"
 
 // The conversation of the agent a terminal runs, as the agent's own records tell it: its

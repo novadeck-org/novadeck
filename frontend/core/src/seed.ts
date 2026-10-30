@@ -1,5 +1,5 @@
-import { arrive, emptyBar, messagesKey, settle, type Bar, type BarKey } from "./companion-bar"
 import { isOnBar, type Item } from "./items"
+import { arrive, emptyBar, messagesKey, settle, type Bar, type BarKey } from "./items/companion-bar"
 import { addCompactGridTerminal, initialGridLayouts } from "./layout/grid-placement"
 import { placeTerminal, removeFromLayout } from "./layout/workspace-layout"
 import { addTerminal, addWindow, isWindow, tilesOf } from "./roster"

@@ -1,12 +1,12 @@
-import { createStore, type MutableStore } from "@novadeck/core/store"
-import type { TerminalKey } from "@novadeck/core/types"
 import {
   maxClipSeconds,
   type Voice,
   type VoiceClip,
   type VoiceState,
   type VoiceTranscript,
-} from "@novadeck/core/voice"
+} from "@novadeck/core/addons/voice"
+import { createStore, type MutableStore } from "@novadeck/core/store"
+import type { TerminalKey } from "@novadeck/core/types"
 import { vi } from "vitest"
 
 import { context, describe, expect, it } from "../test"

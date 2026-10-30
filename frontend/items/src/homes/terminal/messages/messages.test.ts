@@ -1,5 +1,5 @@
-import { messagesKey } from "@novadeck/core/companion-bar"
 import { companionKeyId } from "@novadeck/core/items"
+import { messagesKey } from "@novadeck/core/items/companion-bar"
 import { noMessages, type MessageParty, type MessagesState } from "@novadeck/core/messages"
 import { activeSession } from "@novadeck/core/state"
 import { createStore, createWorkspaceStore } from "@novadeck/core/store"

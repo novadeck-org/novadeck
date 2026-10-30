@@ -14,10 +14,10 @@ import { describe, expect, it } from "./test"
 // wire, or the runner client, which is a package of its own.
 const protocolData: Record<string, string> = {
   "harnesses.ts": "@novadeck/protocol/harnesses",
-  "pages.ts": "@novadeck/protocol/pages",
+  "items/pages.ts": "@novadeck/protocol/pages",
   "command-text.ts": "@novadeck/protocol/text",
   "sounds.ts": "@novadeck/protocol/sounds",
-  "update.ts": "@novadeck/protocol/release-notes",
+  "desktop/update.ts": "@novadeck/protocol/release-notes",
 }
 
 // The entries above that are schemas, not data, and so are read for their types alone: a value

@@ -1,4 +1,4 @@
-import type { UpdateOffer } from "@novadeck/core/update"
+import type { UpdateOffer } from "@novadeck/core/desktop/update"
 import { afterEach, vi } from "vitest"
 
 import { describe, expect, it } from "./test"

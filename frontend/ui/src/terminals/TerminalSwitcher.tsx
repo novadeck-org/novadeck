@@ -1,5 +1,5 @@
-import { terminalLabel } from "@novadeck/core/handle"
 import { isWindow } from "@novadeck/core/roster"
+import { terminalLabel } from "@novadeck/core/terminals/handle"
 import type { Tile } from "@novadeck/core/types"
 import { HandleChip } from "@novadeck/toolkit/HandleChip"
 import { searchResultClasses } from "@novadeck/toolkit/SearchCombobox"

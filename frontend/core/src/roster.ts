@@ -1,5 +1,5 @@
-import { isShellProcess } from "./process"
-import { sameTitleSource } from "./title-source"
+import { isShellProcess } from "./terminals/process"
+import { sameTitleSource } from "./terminals/title-source"
 import type {
   CompanionWindowMeta,
   TerminalMetadata,

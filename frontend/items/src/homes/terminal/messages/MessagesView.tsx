@@ -1,5 +1,5 @@
-import { handleText } from "@novadeck/core/handle"
 import { waitsText, type MessageParty, type MessagePeer } from "@novadeck/core/messages"
+import { handleText } from "@novadeck/core/terminals/handle"
 import { useShown } from "@novadeck/toolkit/shown"
 import { Switch } from "@novadeck/toolkit/Switch"
 import { ChevronLeft, ChevronRight, ExternalLink } from "lucide-react"

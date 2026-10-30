@@ -5,7 +5,7 @@ import {
   type InboxRow,
   type TerminalAt,
 } from "@novadeck/core/inbox"
-import { inboxMarks, type InboxMarks } from "@novadeck/core/inbox-marks"
+import { inboxMarks, type InboxMarks } from "@novadeck/core/inbox/marks"
 import { useEffect, useState } from "react"
 
 import { useStoreSelector } from "./controller/useStoreSelector"

@@ -1,4 +1,4 @@
-import type { HighlightIcon } from "@novadeck/core/update"
+import type { HighlightIcon } from "@novadeck/core/desktop/update"
 import {
   AppWindow,
   AudioLines,

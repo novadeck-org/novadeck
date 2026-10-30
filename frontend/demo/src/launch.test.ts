@@ -1,4 +1,4 @@
-import { agentContext } from "@novadeck/core/agent-steps"
+import { agentContext } from "@novadeck/core/agents/steps"
 import type { InboxRow } from "@novadeck/core/inbox"
 import { orderedTiles } from "@novadeck/core/roster"
 import { workspaceFromSeed } from "@novadeck/core/seed"

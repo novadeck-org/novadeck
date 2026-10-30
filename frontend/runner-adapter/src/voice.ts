@@ -1,6 +1,6 @@
-import type { Refusal } from "@novadeck/core/addon"
+import type { Refusal } from "@novadeck/core/addons/addon"
+import type { Voice, VoiceClip, VoiceState } from "@novadeck/core/addons/voice"
 import { createStore } from "@novadeck/core/store"
-import type { Voice, VoiceClip, VoiceState } from "@novadeck/core/voice"
 import {
   maxVoiceSeconds,
   voiceSampleRate,

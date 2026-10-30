@@ -1,5 +1,5 @@
-import { messagesKey } from "@novadeck/core/companion-bar"
 import { companionKeyId, companionKeyOf, type CompanionKey } from "@novadeck/core/items"
+import { messagesKey } from "@novadeck/core/items/companion-bar"
 import {
   hasMessages,
   messageBadge,

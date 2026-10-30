@@ -1,4 +1,4 @@
-import { agentContext, answersOf } from "@novadeck/core/agent-steps"
+import { agentContext, answersOf } from "@novadeck/core/agents/steps"
 import type { InboxRow } from "@novadeck/core/inbox"
 import { companionKeyId } from "@novadeck/core/items"
 

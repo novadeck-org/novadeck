@@ -1,18 +1,21 @@
+import type { Murmur } from "./addons/murmur"
+import type { Voice } from "./addons/voice"
+import type { TelemetryReader } from "./agents/telemetry"
 import type { Conversations } from "./conversation"
+import type { PortableState } from "./desktop/portable"
+import type { SandboxState } from "./desktop/sandbox"
+import type { UninstallPlan, UninstallResult } from "./desktop/uninstall"
+import type { UpdateChannel, UpdateOffer, WhatsNew } from "./desktop/update"
 import type { Feedback } from "./feedback"
 import type { AgentName } from "./harnesses"
 import type { Inbox } from "./inbox"
 import type { Companions } from "./items"
 import type { Messages } from "./messages"
-import type { Murmur } from "./murmur"
-import type { PortableState } from "./portable"
-import type { SandboxState } from "./sandbox"
 import type { WorkspaceSeed } from "./seed"
 import type { NoticeSound } from "./sounds"
 import type { Source } from "./source"
 import type { WorkspaceAction } from "./state"
 import type { Store } from "./store"
-import type { TelemetryReader } from "./telemetry"
 import type {
   TerminalKey,
   TerminalMetadata,
@@ -21,9 +24,6 @@ import type {
   Workspace,
   WorkspaceTarget,
 } from "./types"
-import type { UninstallPlan, UninstallResult } from "./uninstall"
-import type { UpdateChannel, UpdateOffer, WhatsNew } from "./update"
-import type { Voice } from "./voice"
 
 // The UI-owned contract every terminal backend implements. Only app/ talks to it.
 

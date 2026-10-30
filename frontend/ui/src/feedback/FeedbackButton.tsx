@@ -6,7 +6,7 @@ import type {
   FeedbackNote,
   FeedbackOutcome,
 } from "@novadeck/core/feedback"
-import { scrub, strikeSummary, textToSend } from "@novadeck/core/feedback-scrub"
+import { scrub, strikeSummary, textToSend } from "@novadeck/core/feedback/scrub"
 import type { AgentName } from "@novadeck/core/harnesses"
 import type { TerminalKey } from "@novadeck/core/types"
 import { HandleChip } from "@novadeck/toolkit/HandleChip"

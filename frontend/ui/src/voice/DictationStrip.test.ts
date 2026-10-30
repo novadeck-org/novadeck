@@ -1,6 +1,6 @@
+import type { VoiceState } from "@novadeck/core/addons/voice"
 import { createStore, type MutableStore } from "@novadeck/core/store"
 import type { TerminalKey } from "@novadeck/core/types"
-import type { VoiceState } from "@novadeck/core/voice"
 import { render } from "@novadeck/test-kit/render"
 import { Shown } from "@novadeck/toolkit/shown"
 import { act, createElement } from "react"

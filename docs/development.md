@@ -719,13 +719,13 @@ folder of `frontend/ui/src/`:
 | `frontend/terminal-views/src/`                                  | The xterm mount both adapters draw terminals with: theme, renderers, links, styles.                                            |
 | `frontend/core/src/`                                            | Pure domain: types, reducer, store, seed, layout rules in `layout/`, the backend port.                                         |
 | `frontend/core/src/items.ts`                                    | Items, their content, the `companions` port, and the plan note format.                                                         |
-| `frontend/core/src/companion-bar.ts`                            | A bar as the person arranged it: order, hidden plans and Messages, the open tab.                                               |
+| `frontend/core/src/items/companion-bar.ts`                      | A bar as the person arranged it: order, hidden plans and Messages, the open tab.                                               |
 | `frontend/core/src/messages.ts`                                 | The contract for agents' messages: threads, states, the pause, and a tab's count.                                              |
 | `frontend/core/src/conversation.ts`                             | The contract for an agent's conversation: transcript items, requests, the port.                                                |
 | `frontend/core/src/inbox.ts`                                    | The contract for the Inbox: items by source, their type and urgency, answers, the port.                                        |
 | `frontend/core/src/source.ts`                                   | The contract for the Source panel: a project's folders, listed one at a time, and what its agents changed.                     |
-| `frontend/core/src/answers.ts`                                  | What the person has picked and written for a dialog's questions, and the answer it makes.                                      |
-| `frontend/core/src/conversation-turns.ts`                       | A conversation grouped into blocks, the turn's status.                                                                         |
+| `frontend/core/src/conversation/answers.ts`                     | What the person has picked and written for a dialog's questions, and the answer it makes.                                      |
+| `frontend/core/src/conversation/turns.ts`                       | A conversation grouped into blocks, the turn's status.                                                                         |
 | `frontend/core/src/roster.ts`                                   | A session's terminals and undocked windows, laid out as tiles, their order and status.                                         |
 | `frontend/core/src/layout/workspace-layout.ts`                  | Where each terminal sits and how big it is in each view.                                                                       |
 | `terminals/`                                                    | Terminal frame, tabs, rename state, and the recent-terminal switcher.                                                          |
@@ -814,7 +814,7 @@ The page renders from two synchronous stores, and from a third where a backend h
 companions; the backend also keeps small stores of its own, such as `telemetry`. The
 workspace store in `frontend/core/src/store.ts` holds the model: every session's
 roster of terminals and undocked windows, layout, navigation memory, its companion items
-as the backend reports them, and how the person arranged each bar (`frontend/core/src/companion-bar.ts`),
+as the backend reports them, and how the person arranged each bar (`frontend/core/src/items/companion-bar.ts`),
 changed through one pure reducer. The UI store in `app/ui-store.ts`
 holds what the model does not own: the current route, preferences, the shell
 state from `shell/shell-state.ts`, the rename in progress, the recent-terminal
@@ -894,7 +894,7 @@ through a line editor (`frontend/demo/src/line-editor.ts`). The engine keeps eac
 command line and output with one subscription each, so output does not trigger
 workspace-wide renders. A terminal's
 presentation can unmount during view or session changes without losing that
-state; closing the terminal removes it. `frontend/core/src/registry.ts` provides this
+state; closing the terminal removes it. `frontend/core/src/terminals/registry.ts` provides this
 lifecycle for any adapter. An adapter opts into the port contract suite by
 calling `describeBackendContract` from `@novadeck/test-kit/backend-contract` in a
 colocated `contract.test.ts`, with a probe of what it holds and the I/O it

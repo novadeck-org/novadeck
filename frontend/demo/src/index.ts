@@ -1,3 +1,9 @@
+import {
+  createTelemetryStore,
+  dropProject,
+  dropTerminal,
+  noTelemetry,
+} from "@novadeck/core/agents/telemetry"
 import type { Conversations } from "@novadeck/core/conversation"
 import type { InboxRow } from "@novadeck/core/inbox"
 import { emptyCompanions, itemIdOf, type Item } from "@novadeck/core/items"
@@ -11,12 +17,6 @@ import type {
 } from "@novadeck/core/port"
 import type { WorkspaceSeed } from "@novadeck/core/seed"
 import { createStore } from "@novadeck/core/store"
-import {
-  createTelemetryStore,
-  dropProject,
-  dropTerminal,
-  noTelemetry,
-} from "@novadeck/core/telemetry"
 import type { TitleSource, Workspace } from "@novadeck/core/types"
 
 import type { DemoAgentLink } from "./agent-link"

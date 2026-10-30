@@ -1,4 +1,4 @@
-import type { Murmur, MurmurState } from "@novadeck/core/murmur"
+import type { Murmur, MurmurState } from "@novadeck/core/addons/murmur"
 import { createStore } from "@novadeck/core/store"
 import type { AgentStatus } from "@novadeck/core/types"
 import { render } from "@novadeck/test-kit/render"

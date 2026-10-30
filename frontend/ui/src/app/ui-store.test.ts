@@ -1,8 +1,8 @@
-import type { PortableState } from "@novadeck/core/portable"
-import { clearPortableCardRaised } from "@novadeck/core/portable-card-raised"
+import type { PortableState } from "@novadeck/core/desktop/portable"
+import { clearPortableCardRaised } from "@novadeck/core/desktop/portable-card-raised"
+import type { UpdateChannel, UpdateOffer, WhatsNew } from "@novadeck/core/desktop/update"
 import { createWorkspaceStore } from "@novadeck/core/store"
 import { appearance, workspaceFixture } from "@novadeck/core/testing"
-import type { UpdateChannel, UpdateOffer, WhatsNew } from "@novadeck/core/update"
 import { beforeEach, vi } from "vitest"
 
 import type { ProjectArrangement } from "../projects/project-arrangement"

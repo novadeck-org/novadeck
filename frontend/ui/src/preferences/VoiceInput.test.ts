@@ -1,4 +1,4 @@
-import type { Voice, VoiceState } from "@novadeck/core/voice"
+import type { Voice, VoiceState } from "@novadeck/core/addons/voice"
 import { render } from "@novadeck/test-kit/render"
 import { createElement, createRef } from "react"
 

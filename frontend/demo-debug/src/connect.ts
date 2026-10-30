@@ -1,6 +1,6 @@
+import { clearPortableCardRaised } from "@novadeck/core/desktop/portable-card-raised"
+import type { SandboxState } from "@novadeck/core/desktop/sandbox"
 import type { BackendConnection, ConnectBackend, ThemeSource } from "@novadeck/core/port"
-import { clearPortableCardRaised } from "@novadeck/core/portable-card-raised"
-import type { SandboxState } from "@novadeck/core/sandbox"
 import { keepVariant, rememberVariant, requestedVariant } from "@novadeck/demo/variants"
 
 import { bootFailures } from "./boot-failures"

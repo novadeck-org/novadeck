@@ -1,5 +1,5 @@
-import { formatSize, stepLabel } from "@novadeck/core/addon-format"
-import { installFailure, installSize } from "@novadeck/core/voice"
+import { formatSize, stepLabel } from "@novadeck/core/addons/format"
+import { installFailure, installSize } from "@novadeck/core/addons/voice"
 import { Chord } from "@novadeck/toolkit/Chord"
 import { Progress } from "@novadeck/toolkit/Progress"
 import { Check, Mic, TriangleAlert } from "lucide-react"

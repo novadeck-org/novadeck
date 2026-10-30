@@ -1,7 +1,7 @@
+import type { PortableInstall } from "@novadeck/core/desktop/portable"
+import type { SandboxState } from "@novadeck/core/desktop/sandbox"
 import type { InboxRow } from "@novadeck/core/inbox"
 import type { Backend, Notice } from "@novadeck/core/port"
-import type { PortableInstall } from "@novadeck/core/portable"
-import type { SandboxState } from "@novadeck/core/sandbox"
 import { createDemoBackend } from "@novadeck/demo"
 import {
   createDemoPortable,

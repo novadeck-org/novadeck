@@ -1,4 +1,4 @@
-import { sessionItems } from "@novadeck/core/inbox-plan"
+import { sessionItems } from "@novadeck/core/inbox/plan"
 import type { BackendAction } from "@novadeck/core/port"
 import { workspaceFromSeed } from "@novadeck/core/seed"
 import { activeProject, activeSession, workspaceReducer } from "@novadeck/core/state"

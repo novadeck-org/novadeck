@@ -1,4 +1,4 @@
-import { handleText } from "@novadeck/core/handle"
+import { handleText } from "@novadeck/core/terminals/handle"
 import type { TerminalMetadata } from "@novadeck/core/types"
 import { ConfirmDialog } from "@novadeck/toolkit/ConfirmDialog"
 

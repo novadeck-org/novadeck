@@ -1,4 +1,4 @@
-import type { AgentStats } from "@novadeck/core/agent-usage"
+import type { AgentStats } from "@novadeck/core/agents/usage"
 
 const radius = 5.5
 const circumference = 2 * Math.PI * radius

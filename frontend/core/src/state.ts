@@ -1,3 +1,4 @@
+import { isOnBar, ownItemWith, windowOfItem, type Item, type ItemId } from "./items"
 import {
   arrive,
   arriveLast,
@@ -13,8 +14,7 @@ import {
   topOf,
   type Bar,
   type BarKey,
-} from "./companion-bar"
-import { isOnBar, ownItemWith, windowOfItem, type Item, type ItemId } from "./items"
+} from "./items/companion-bar"
 import { addCompactGridTerminal } from "./layout/grid-placement"
 import {
   emptyLayout,

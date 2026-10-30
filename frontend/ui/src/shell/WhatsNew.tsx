@@ -1,4 +1,4 @@
-import type { WhatsNew as Notes } from "@novadeck/core/update"
+import type { WhatsNew as Notes } from "@novadeck/core/desktop/update"
 import { X } from "lucide-react"
 import { useEffect, useId, useLayoutEffect, useRef, useState } from "react"
 

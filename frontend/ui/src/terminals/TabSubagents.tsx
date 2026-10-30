@@ -1,4 +1,4 @@
-import type { SubagentMarks } from "@novadeck/core/agent-subagents"
+import type { SubagentMarks } from "@novadeck/core/agents/subagents"
 
 // How many marks a tab's line shows before it counts the rest, and how many rows its
 // branches list before they do.

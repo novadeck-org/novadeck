@@ -1,6 +1,6 @@
 import type { BackendConnectionState, TerminalKey, ThemeSource } from "@novadeck/core/port"
-import { terminalKeyId } from "@novadeck/core/registry"
 import { createStore, type Store } from "@novadeck/core/store"
+import { terminalKeyId } from "@novadeck/core/terminals/registry"
 import type { TerminalMetadata } from "@novadeck/core/types"
 import type { Renderers } from "@novadeck/emulator/browser"
 import type { AttachStream, TerminalEvent } from "@novadeck/terminal"

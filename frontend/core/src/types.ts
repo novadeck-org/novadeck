@@ -1,5 +1,5 @@
-import type { Bar } from "./companion-bar"
 import type { Item, ItemId } from "./items"
+import type { Bar } from "./items/companion-bar"
 import type { NoticeSound } from "./sounds"
 
 // What the person chose for the page: a scheme, or whatever the system uses.

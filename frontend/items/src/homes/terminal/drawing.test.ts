@@ -1,5 +1,5 @@
-import { messagesKey } from "@novadeck/core/companion-bar"
 import type { ArtifactKind, Item } from "@novadeck/core/items"
+import { messagesKey } from "@novadeck/core/items/companion-bar"
 import { itemFixture } from "@novadeck/core/testing"
 import {
   BookText,

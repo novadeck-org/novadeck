@@ -1,5 +1,5 @@
+import type { UninstallPlan, UninstallResult } from "@novadeck/core/desktop/uninstall"
 import type { Backend } from "@novadeck/core/port"
-import type { UninstallPlan, UninstallResult } from "@novadeck/core/uninstall"
 
 import type { DemoActionGroup } from "./types"
 import type { DemoLaunch } from "./with-debug"

@@ -1,5 +1,5 @@
-import type { BarKey } from "@novadeck/core/companion-bar"
 import type { ItemId } from "@novadeck/core/items"
+import type { BarKey } from "@novadeck/core/items/companion-bar"
 import type { WindowPlace } from "@novadeck/core/layout/window-place"
 
 // What the pane does with a terminal's bar and the items on it, as the host's commands do:

@@ -1,4 +1,4 @@
-import type { UpdateOffer } from "@novadeck/core/update"
+import type { UpdateOffer } from "@novadeck/core/desktop/update"
 import { RotateCcw } from "lucide-react"
 import { useState, type ReactNode } from "react"
 

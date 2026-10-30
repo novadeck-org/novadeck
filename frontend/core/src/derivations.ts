@@ -1,8 +1,8 @@
-import { handleText } from "./handle"
 import type { MessagePeer } from "./messages"
-import { isAgentProgram } from "./process"
 import { remembered } from "./roster"
 import { activeSession } from "./state"
+import { handleText } from "./terminals/handle"
+import { isAgentProgram } from "./terminals/process"
 import type { TerminalMetadata, Workspace } from "./types"
 
 // What the workspace alone says of its current session's terminals, for the views that

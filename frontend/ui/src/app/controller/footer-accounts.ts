@@ -3,9 +3,9 @@ import {
   sameAccounts,
   type AgentAccount,
   type AgentSeat,
-} from "@novadeck/core/account-usage"
+} from "@novadeck/core/agents/account-usage"
+import type { Telemetry } from "@novadeck/core/agents/telemetry"
 import type { Store } from "@novadeck/core/store"
-import type { Telemetry } from "@novadeck/core/telemetry"
 import { useCallback } from "react"
 
 import { useStoreSelector } from "./useStoreSelector"

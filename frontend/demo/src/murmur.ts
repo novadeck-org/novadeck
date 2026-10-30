@@ -1,4 +1,4 @@
-import type { Murmur, MurmurState } from "@novadeck/core/murmur"
+import type { Murmur, MurmurState } from "@novadeck/core/addons/murmur"
 import { createStore, type MutableStore } from "@novadeck/core/store"
 
 // A pretend murmur addon for the browser demo and the specs. It starts installed and on,

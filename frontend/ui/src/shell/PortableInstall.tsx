@@ -1,5 +1,5 @@
-import type { PortableInstall as InstallState } from "@novadeck/core/portable"
-import type { UpdateOffer, WhatsNew as Notes } from "@novadeck/core/update"
+import type { PortableInstall as InstallState } from "@novadeck/core/desktop/portable"
+import type { UpdateOffer, WhatsNew as Notes } from "@novadeck/core/desktop/update"
 import { Progress } from "@novadeck/toolkit/Progress"
 import { Tooltip } from "@novadeck/toolkit/Tooltip"
 import { CircleArrowUp, Download, ExternalLink, FolderOpen, X } from "lucide-react"

@@ -1,5 +1,5 @@
-import { messagesKey } from "./companion-bar"
 import { itemIdOf, type Item } from "./items"
+import { messagesKey } from "./items/companion-bar"
 import { orderedTiles } from "./roster"
 import { activeSession, workspaceReducer, type WorkspaceAction } from "./state"
 import { context, describe, expect, it } from "./test"

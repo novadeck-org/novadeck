@@ -1,7 +1,7 @@
-import { chatAnswer, oneLine } from "@novadeck/core/answers"
 import type { ChatAnswer, ChatRequest } from "@novadeck/core/conversation"
-import { isAgentProgram } from "@novadeck/core/process"
-import { shellCommand } from "@novadeck/core/prompt-refusal"
+import { chatAnswer, oneLine } from "@novadeck/core/conversation/answers"
+import { shellCommand } from "@novadeck/core/conversation/prompt-refusal"
+import { isAgentProgram } from "@novadeck/core/terminals/process"
 import type { TerminalMetadata } from "@novadeck/core/types"
 
 // A value kept for some terminals, by session context and terminal id; a terminal without

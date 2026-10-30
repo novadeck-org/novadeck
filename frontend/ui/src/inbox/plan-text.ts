@@ -1,5 +1,5 @@
 import type { InboxRow } from "@novadeck/core/inbox"
-import { planItemOf, planKey, planTextOf, sessionItems } from "@novadeck/core/inbox-plan"
+import { planItemOf, planKey, planTextOf, sessionItems } from "@novadeck/core/inbox/plan"
 import type { Companions, Item, ItemContent } from "@novadeck/core/items"
 import type { WorkspaceStore } from "@novadeck/core/store"
 import {

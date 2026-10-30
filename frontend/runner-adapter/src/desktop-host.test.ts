@@ -1,7 +1,7 @@
-import type { PortableState } from "@novadeck/core/portable"
-import type { SandboxState } from "@novadeck/core/sandbox"
-import type { UninstallPlan, UninstallResult } from "@novadeck/core/uninstall"
-import type { UpdateOffer, WhatsNew } from "@novadeck/core/update"
+import type { PortableState } from "@novadeck/core/desktop/portable"
+import type { SandboxState } from "@novadeck/core/desktop/sandbox"
+import type { UninstallPlan, UninstallResult } from "@novadeck/core/desktop/uninstall"
+import type { UpdateOffer, WhatsNew } from "@novadeck/core/desktop/update"
 import type {
   DesktopHost,
   DesktopNotice,

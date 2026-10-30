@@ -1,6 +1,6 @@
 import type { Companions, ItemContent, PageContent, PageTrouble } from "@novadeck/core/items"
-import { pageSights } from "@novadeck/core/page-sights"
-import { pagesPartition } from "@novadeck/core/pages"
+import { pageSights } from "@novadeck/core/items/page-sights"
+import { pagesPartition } from "@novadeck/core/items/pages"
 import { workspaceReducer } from "@novadeck/core/state"
 import { createWorkspaceStore } from "@novadeck/core/store"
 import { itemFixture, workspaceFixture } from "@novadeck/core/testing"

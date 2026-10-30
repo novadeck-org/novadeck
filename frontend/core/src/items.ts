@@ -1,4 +1,4 @@
-import { pageKey } from "./pages"
+import { pageKey } from "./items/pages"
 import type { CompanionWindowMeta, WorkspaceTarget } from "./types"
 
 // What agents put in front of the user beside their terminals: the plans they write,
