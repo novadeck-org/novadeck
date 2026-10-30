@@ -1,7 +1,7 @@
 import { readdirSync } from "node:fs"
 import { join } from "node:path"
 
-import { harnessIds } from "@novadeck/protocol/harnesses"
+import { agentNames } from "@novadeck/protocol/harnesses"
 
 import { fixtures, type Fixture } from "./fixtures"
 import { chatItemsOf, renderChat, type Rendered } from "./pipeline"
@@ -57,7 +57,7 @@ describe("the chat, from recorded transcripts", () => {
   })
 
   it("holds tool rows from every harness", () => {
-    for (const harness of harnessIds) {
+    for (const harness of agentNames) {
       const rows = fixtures
         .filter((fixture) => fixture.harness === harness)
         .reduce((sum, fixture) => sum + run(fixture).toolRows, 0)

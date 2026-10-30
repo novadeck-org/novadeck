@@ -10,12 +10,7 @@ import {
   type InboxState,
   type InboxTurn,
 } from "@novadeck/core/inbox"
-import {
-  dialogMs,
-  inboxRows,
-  type Asked,
-  type InboxEntry as WrittenEntry,
-} from "@novadeck/core/inbox/rows"
+import { dialogMs, inboxRows, type Asked, type WrittenEntry } from "@novadeck/core/inbox/rows"
 import {
   answerFailure,
   answerRow,

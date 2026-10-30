@@ -42,9 +42,10 @@ export const dialogMs = 3 * second
 // A request, with when its hook started on the backend's clock.
 export type Asked = { readonly request: ChatRequest; readonly askedAt: number }
 
-// What an agent wrote through Novadeck's MCP `ask`, `tell` or `done`, from its terminal: an
-// ask, something it told the person, or its report that its task is done.
-export type InboxEntry = {
+// An Inbox entry an agent wrote through Novadeck's MCP `ask`, `tell` or `done`, from its
+// terminal: an ask, something it told the person, or its report that its task is done. The
+// protocol's `InboxEntry` without its finished turns (`InboxTurn`) and its `sessionId`.
+export type WrittenEntry = {
   readonly id: string
   readonly terminalId: string
   readonly projectId: string
@@ -65,7 +66,7 @@ export type InboxInputs = {
   // The backend's stored finished turns, read ones gone.
   readonly turns: readonly InboxTurn[]
   readonly messages: MessagesState
-  readonly entries: readonly InboxEntry[]
+  readonly entries: readonly WrittenEntry[]
   // The requests of each terminal whose detail is open, by terminal id, oldest first.
   readonly requests: Readonly<Record<string, readonly Asked[]>>
   readonly now: number

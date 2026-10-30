@@ -1,5 +1,23 @@
-import { rendererPoolOf } from "@novadeck/protocol/bridge"
 import { describe, expect, it } from "vitest"
+
+import { rendererPoolOf, webglContextsOf } from "./bridge.js"
+
+describe("a WebGL context limit", () => {
+  it.each([3, 16, 64, 1024])("is %s, a whole number in range", (value) => {
+    expect(webglContextsOf(value)).toBe(value)
+  })
+
+  it.each([
+    ["too few", 2],
+    ["too many", 1025],
+    ["a fraction", 62.5],
+    ["not finite", Number.NaN],
+    ["text", "64"],
+    ["nothing", undefined],
+  ])("is nothing when %s", (_name, value) => {
+    expect(webglContextsOf(value)).toBeUndefined()
+  })
+})
 
 describe("a renderer pool report", () => {
   const counts = { waits: 2, steals: 1, swaps: 9, lost: 0, failed: 0, resizes: 3, onDom: 1 }
