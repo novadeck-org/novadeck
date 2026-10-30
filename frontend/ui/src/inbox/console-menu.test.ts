@@ -270,7 +270,7 @@ describe("A sheet's menu", () => {
         ],
       ],
     ]
-    const wordsRow = (rows: readonly Row[]) => words(rows.find((row) => row.type === "words"))
+    const wordsRow = (rows: readonly MenuRow[]) => words(rows.find((row) => row.type === "words"))
 
     it.each(harnessPermissions)(
       "names %s's no with words Deny, with your words, and sends its own option",
