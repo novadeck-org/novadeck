@@ -47,7 +47,7 @@ a package it imports changes, as they did when they waited for `^build`. Without
     tests load the built `out/main`);
   - the runner (its CLI smoke tests run `dist/cli.js`, and its MCP tests run the relay's
     binary, so it also waits for `@novadeck/relay#build`).
-- atlas's extractor reads the built protocol (`extract/protocol.ts` builds it, and the wire,
+- atlas's extractor reads the built protocol (`extract/ensure-built.ts` builds it, and the wire,
   emulator and terminal libraries it reads as built, when they are missing), so atlas's test and
   typecheck wait for `@novadeck/protocol#build`, not for a build of their own racing turbo's.
   They are never cached: the extractor reads files across the repository that turbo doesn't

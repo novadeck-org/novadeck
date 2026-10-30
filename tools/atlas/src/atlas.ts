@@ -1,5 +1,5 @@
-import type { RunnerLens } from "./lens-runner.ts"
-import type { UiLens } from "./lens-ui.ts"
+import type { RunnerLens } from "./runner-lens.ts"
+import type { UiLens } from "./ui-lens.ts"
 
 export type { RunnerLens, UiLens }
 
@@ -196,7 +196,7 @@ export type McpTool = {
 
 export type Hook = { harness: string; event: string; summary: string; anchor: Anchor }
 
-// A member of the harness adapter contract in `harnesses/core`.
+// A member of the harness contract (`type Harness` in `harnesses/core`).
 export type ContractMember = { name: string; optional: boolean; summary: string; anchor: Anchor }
 
 export type Harness = {

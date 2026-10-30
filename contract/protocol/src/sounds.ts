@@ -1,7 +1,7 @@
 /**
  * The sounds Novadeck rings with: an id, which names the file `<id>.wav` in the UI's
  * `sounds/`, and the name Preferences shows. Data only, so that the page, the core
- * and the desktop host share one list. A new sound is its file and a line here; a theme
+ * and the desktop app share one list. A new sound is its file and a line here; a theme
  * names the one it rings with by its id (`sound` in `theme/themes.ts`).
  */
 export const noticeSounds = [

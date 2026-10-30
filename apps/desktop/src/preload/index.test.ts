@@ -1,6 +1,6 @@
 import type { EventEmitter } from "node:events"
 
-import { runnerPortMessage, type DesktopHost } from "@novadeck/protocol/bridge"
+import { runnerPortMessage, type DesktopApp } from "@novadeck/protocol/bridge"
 import { pageSignInChannel, pageSignInMessage } from "@novadeck/viewers/browser/sign-in"
 import { pageRequestChannel, pageRequestMessage } from "@novadeck/viewers/browser/trouble"
 import { afterEach, beforeEach, vi } from "vitest"
@@ -48,7 +48,7 @@ import { context, describe, expect, it } from "../test"
 // Electron as the preload sees it: what it exposes to the page, and what it sends.
 const electron = vi.hoisted(() => ({
   renderer: undefined as unknown as EventEmitter,
-  exposed: undefined as unknown as DesktopHost,
+  exposed: undefined as unknown as DesktopApp,
   sent: [] as string[],
   messages: [] as [string, ...unknown[]][],
   // What the main process answers a request with.
@@ -61,7 +61,7 @@ vi.mock("electron", async () => {
   electron.renderer = renderer
   return {
     contextBridge: {
-      exposeInMainWorld: (_key: string, api: DesktopHost) => {
+      exposeInMainWorld: (_key: string, api: DesktopApp) => {
         electron.exposed = api
       },
     },
@@ -848,7 +848,7 @@ describe("uninstalling the app", () => {
 })
 
 describe("the WebGL context limit", () => {
-  const loadWith = async (value: string | undefined): Promise<DesktopHost> => {
+  const loadWith = async (value: string | undefined): Promise<DesktopApp> => {
     const given = value === undefined ? [] : [`${webglContextsArgumentPrefix}${value}`]
     process.argv.push(...given)
     vi.resetModules()
@@ -867,7 +867,7 @@ describe("the WebGL context limit", () => {
 })
 
 describe("feedback", () => {
-  const loadWith = async (given: string[]): Promise<DesktopHost> => {
+  const loadWith = async (given: string[]): Promise<DesktopApp> => {
     process.argv.push(...given)
     vi.resetModules()
     await import("./index")

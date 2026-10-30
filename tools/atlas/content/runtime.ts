@@ -13,7 +13,7 @@ export const runtime: {
       title: "Electron main",
       kind: "process",
       summary:
-        "The desktop host: owns windows, the menu, notifications and updates, and starts the runner in a utility process. It never touches a terminal itself.",
+        "The desktop app's main process (`@novadeck/desktop`): owns windows, the menu, notices and updates, and starts the runner in a utility process. It never touches a terminal itself.",
       anchor: { file: "apps/desktop/src/main/index.ts", text: "runner = startRunner({" },
       position: { x: 40, y: 300 },
     },
@@ -46,7 +46,7 @@ export const runtime: {
       title: "Runner",
       kind: "process",
       summary:
-        "An Electron utility process that owns the shells, the SQLite workspace, the harness adapters, agent messaging and the companion items, and serves the oRPC router to the UI.",
+        "An Electron utility process that owns the shells, the SQLite workspace, the harnesses, agent messaging and the companion items, and serves the oRPC router to the UI.",
       anchor: {
         file: "apps/desktop/src/runner/index.ts",
         text: "const runner = createRunner({",
@@ -112,7 +112,7 @@ export const runtime: {
       to: "runner",
       channel: "Utility process + MessagePort",
       summary:
-        "The host forks the runner as a utility process with its database, relay and engine paths as arguments, then sends it commands (connect, persist, close) and one MessagePort per renderer connection.",
+        "The desktop app forks the runner as a utility process with its database, relay and engine paths as arguments, then sends it commands (connect, persist, close) and one MessagePort per renderer connection.",
       anchor: { file: "apps/desktop/src/main/runner.ts", text: "utilityProcess.fork(" },
     },
     {
@@ -121,7 +121,7 @@ export const runtime: {
       to: "renderer",
       channel: "BrowserWindow load",
       summary:
-        "The host opens the window, loading the packaged UI from disk or the Vite dev server, and hands the page a loopback API URL for the status endpoint.",
+        "The desktop app opens the window, loading the packaged UI from disk or the Vite dev server, and hands the page a loopback API URL for the status endpoint.",
       anchor: { file: "apps/desktop/src/main/index.ts", text: "void window.loadFile(" },
     },
     {

@@ -1,4 +1,4 @@
-import type { BoxId } from "../../lens-ui.ts"
+import type { BoxId } from "../../ui-lens.ts"
 import { lens, type Lit, type Selection, untracedStreams } from "./model.ts"
 
 // The wiring diagram: where state lives and how a call goes out and comes back, drawn on

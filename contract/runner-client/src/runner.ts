@@ -13,7 +13,7 @@ import {
   type CompanionChange,
   type CompanionItem,
   type CompanionWindow,
-  type FeedbackDraftEntry,
+  type FeedbackDraft,
   type FolderListing,
   type InboxEntry,
   type InterruptResult,
@@ -441,7 +441,7 @@ export type Runner = {
   }
   readonly feedback: {
     /** The agents' feedback drafts waiting for the app, oldest first, then again on each change. */
-    watch(): AsyncIterableIterator<FeedbackDraftEntry[], undefined>
+    watch(): AsyncIterableIterator<FeedbackDraft[], undefined>
     /** Drops a draft the app sent or the person discarded; `NOT_FOUND` when none is held. */
     settle(id: string, outcome: "sent" | "discarded"): Promise<void>
     /** Asks the agent in a terminal for feedback, with the person's hint (empty for none). */

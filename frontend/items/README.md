@@ -102,7 +102,7 @@ end.
 2. **The line**, in `registry.ts`: add it to `registry`. `Registry` maps every `ItemKind`, so a
    kind that has no registration fails to compile.
 3. **For a new item kind**, the data parts that stay closed: the `companionItem.kind` enum and
-   its content schema in `contract/protocol/src/schemas.ts`, its type in core's `ItemKind` and its
+   its content schema in `contract/protocol/src/companions.ts`, its type in core's `ItemKind` and its
    line in `kindRules` in `frontend/core/src/items.ts` (what it points at, whether it is
    followed always, whether closing hides it), the SQLite `CHECK` on the kind in
    `backend/runner/src/workspaces/store.ts`, and its loaders in the runner

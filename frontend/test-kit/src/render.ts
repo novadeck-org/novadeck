@@ -9,7 +9,7 @@ export type Rendered = {
   readonly unmount: () => void
 }
 
-// Renders into a detached-from-view container in jsdom; call `unmount` when done.
+// Renders into a container appended to jsdom's body; call `unmount` when done.
 export const render = (element: ReactElement): Rendered => {
   const container = document.createElement("div")
   document.body.append(container)

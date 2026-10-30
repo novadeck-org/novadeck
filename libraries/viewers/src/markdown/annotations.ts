@@ -1,10 +1,10 @@
 import { Facet } from "@codemirror/state"
 import type { EditorView } from "@codemirror/view"
 
-// What a host writes into a table's rows beyond Markdown: a short text at the end of a
-// row's last cell, between a pair of markers the host picks, such as an HTML comment. The
+// What an app writes into a table's rows beyond Markdown: a short text at the end of a
+// row's last cell, between a pair of markers the app picks, such as an HTML comment. The
 // viewer keeps it out of the row's cells, shows it under its row, and edits it in place;
-// what it means is the host's.
+// what it means is the app's.
 export type RowAnnotations = {
   /** The text an annotation opens with, and the text it closes with, as written. */
   readonly open: string
@@ -15,7 +15,7 @@ export type RowAnnotations = {
   readonly mark: () => HTMLElement
   /** The icon of the control that adds one. */
   readonly icon: () => Element
-  /** The class the control that adds one also takes, for the host's button looks. */
+  /** The class the control that adds one also takes, for the app's button looks. */
   readonly buttonClass?: string
   /** What the control that adds one is called, on a row and on the whole table. */
   readonly addLabels: { readonly row: string; readonly table: string }

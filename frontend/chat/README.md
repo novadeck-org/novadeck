@@ -43,5 +43,5 @@ internal.
 The package's TSX uses Tailwind utilities (none that only it writes, so it has no build guard),
 and the UI's `styles.css` scans `src` with `@source` (and leaves the tests out). `chat.css` is
 imported by `styles.css` into `layer(components)` at the place it always had, right after the
-toolkit's `markdown.css`, so the Markdown rules keep winning their ties with the inbox's
-`.chat-prose` rules. A moved or new stylesheet that goes elsewhere changes the cascade.
+toolkit's `markdown.css`, so the chat's rules for the Markdown it holds come after the Markdown's own.
+A moved or new stylesheet that goes elsewhere changes the cascade.

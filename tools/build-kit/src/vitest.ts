@@ -1,8 +1,9 @@
 import type { TestProjectInlineConfiguration } from "vitest/config"
 
 /**
- * The unit project every frontend package's tests run in: jsdom, over `src/**\/*.test.ts`.
- * A package's own vitest.config.ts lists it with the browser projects it has, if any.
+ * The unit project the UI's packages' tests and the try app's run in: jsdom, over
+ * `src/**\/*.test.ts`. A package's own vitest.config.ts lists it with the browser projects
+ * it has, if any.
  */
 export const unit = (): TestProjectInlineConfiguration => ({
   extends: true,

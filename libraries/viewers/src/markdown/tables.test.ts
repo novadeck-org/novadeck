@@ -1,6 +1,6 @@
 import { describe as context, describe, expect, it } from "vitest"
 
-import planV1 from "./fixtures/plan-v1.md?raw"
+import plan from "./fixtures/plan-v1.md?raw"
 import {
   addColumn,
   addRow,
@@ -12,9 +12,7 @@ import {
   setRowAnnotation,
 } from "./tables.js"
 
-const plan = planV1
-
-// Annotations written between these, as a host would set them.
+// Annotations written between these, as an app would set them.
 const markers = {
   open: "<!-- a: ",
   close: " -->",

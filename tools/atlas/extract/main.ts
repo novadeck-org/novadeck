@@ -10,8 +10,8 @@ import { createAnchors, type Anchors } from "./anchors.ts"
 import { extractApi } from "./api.ts"
 import { areaOf, extractAreas } from "./areas.ts"
 import { extractData } from "./data.ts"
+import { ensureBuilt } from "./ensure-built.ts"
 import { extractLinks } from "./links.ts"
-import { ensureProtocol } from "./protocol.ts"
 import { extractRunnerLens } from "./runner-lens.ts"
 import { extractStacks } from "./stack.ts"
 import { extractUiLens } from "./ui-lens.ts"
@@ -49,7 +49,7 @@ const resolveFlows = (anchors: Anchors): Flow[] =>
   }))
 
 export const build = async (): Promise<Atlas> => {
-  ensureProtocol(repo)
+  ensureBuilt(repo)
   const anchors = createAnchors(repo)
   const api = await extractApi(repo, anchors)
   const data = await extractData(repo, anchors)

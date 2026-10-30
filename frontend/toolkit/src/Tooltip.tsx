@@ -6,11 +6,11 @@ import { useRestingPointer } from "./resting-pointer"
 import { useShown } from "./shown"
 
 export type TooltipProps = {
-  content: ReactNode
-  children: ReactElement<{ id?: string }>
-  disabled?: boolean
+  readonly content: ReactNode
+  readonly children: ReactElement<{ id?: string }>
+  readonly disabled?: boolean
   // Under its trigger, or beside it, as a sidebar's rows want so it covers none of them.
-  placement?: "bottom" | "right-start"
+  readonly placement?: "bottom" | "right-start"
 }
 
 // How long the pointer rests on a trigger before its tooltip opens, and how long it

@@ -2,7 +2,7 @@
   "name": "@novadeck/viewers",
   "version": "0.0.0",
   "private": true,
-  "description": "Content viewers behind one contract: code, image, markdown and web pages, each mounted into an element, keeping its scroll and place across remounts through state its host stores.",
+  "description": "Content viewers behind one contract: code, changes, image, markdown and web pages, each mounted into an element, keeping its scroll and place across remounts through state its app stores.",
   "license": "GPL-3.0-or-later",
   "type": "module",
   "sideEffects": [
@@ -59,21 +59,21 @@
       "default": "./dist/browser.js"
     },
     "./browser/trouble": {
-      "development": "./src/browser-trouble.ts",
-      "types": "./dist/browser-trouble.d.ts",
-      "default": "./dist/browser-trouble.js"
+      "development": "./src/browser/trouble.ts",
+      "types": "./dist/browser/trouble.d.ts",
+      "default": "./dist/browser/trouble.js"
     },
     "./browser/sign-in": {
-      "development": "./src/browser-sign-in.ts",
-      "types": "./dist/browser-sign-in.d.ts",
-      "default": "./dist/browser-sign-in.js"
+      "development": "./src/browser/sign-in.ts",
+      "types": "./dist/browser/sign-in.d.ts",
+      "default": "./dist/browser/sign-in.js"
     },
     "./browser.css": "./src/browser.css",
     "./browser/host": {
       "node": {
-        "development": "./src/browser-host.ts",
-        "types": "./dist/browser-host.d.ts",
-        "default": "./dist/browser-host.js"
+        "development": "./src/browser/host.ts",
+        "types": "./dist/browser/host.d.ts",
+        "default": "./dist/browser/host.js"
       }
     },
     "./react": {

@@ -6,5 +6,5 @@
     "noEmit": false,
     "outDir": "dist"
   },
-  "exclude": ["src/**/*.test.ts", "src/**/*.test-kit.ts", "src/**/*.generate.ts"]
+  "exclude": ["src/**/*.test.ts", "src/**/*.test-support.ts", "src/**/*.generate.ts"]
 }

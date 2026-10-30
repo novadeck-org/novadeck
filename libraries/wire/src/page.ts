@@ -15,13 +15,13 @@ const page = globalThis as unknown as {
 
 /**
  * The page's side of `brokerPorts` and `relayPorts`: a page in Electron's renderer that asks
- * its host for a fresh port on each connection, so reconnecting also works after the host
- * restarts its service. `request(id)` asks the host, and throws if there's no host to ask;
- * the port comes back as a window message `{ type: message, id }`. A port that answers a
- * request given up on is closed if it arrives within `lateAnswerMs`, so it holds no
- * connection open.
+ * the main process for a fresh port on each connection, so reconnecting also works after the
+ * app restarts its service. `request(id)` asks the main process, and throws if there's none
+ * to ask; the port comes back as a window message `{ type: message, id }`. A port that
+ * answers a request given up on is closed if it arrives within `lateAnswerMs`, so it holds
+ * no connection open.
  */
-export const hostTransport = (options: {
+export const brokeredPort = (options: {
   readonly request: (id: string) => void
   readonly message: string
   readonly lateAnswerMs: number

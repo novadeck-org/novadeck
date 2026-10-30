@@ -7,7 +7,11 @@ import { cn } from "./class-name"
 export const searchResultClasses =
   "item group flex min-h-15 w-full cursor-pointer items-center gap-3 px-3 py-2.5 text-left"
 
-export type SearchOption = { value: string; label: string; content: ReactNode }
+export type SearchOption = {
+  readonly value: string
+  readonly label: string
+  readonly content: ReactNode
+}
 
 export const SearchCombobox = ({
   items,
@@ -24,19 +28,19 @@ export const SearchCombobox = ({
   trailing,
   empty,
 }: {
-  items: SearchOption[]
-  label: string
-  placeholder: string
-  resultsLabel: string
-  controlClassName?: string
-  contentClassName?: string
-  query: string
-  onQueryChange: (query: string) => void
-  onSelect: (value: string) => void
-  inputRef: RefObject<HTMLInputElement | null>
-  leading: ReactNode
-  trailing: ReactNode
-  empty: ReactNode
+  readonly items: readonly SearchOption[]
+  readonly label: string
+  readonly placeholder: string
+  readonly resultsLabel: string
+  readonly controlClassName?: string
+  readonly contentClassName?: string
+  readonly query: string
+  readonly onQueryChange: (query: string) => void
+  readonly onSelect: (value: string) => void
+  readonly inputRef: RefObject<HTMLInputElement | null>
+  readonly leading: ReactNode
+  readonly trailing: ReactNode
+  readonly empty: ReactNode
 }): React.JSX.Element => {
   const collection = useMemo(() => createListCollection({ items }), [items])
   return (

@@ -2,6 +2,16 @@ import { monitorEventLoopDelay, PerformanceObserver } from "node:perf_hooks"
 
 import { onTestFailed, onTestFinished } from "vitest"
 
+// Where a test was when it reached a phase: since its start, and the worker's state then.
+type Phase = {
+  readonly phase: string
+  readonly elapsedMs: number
+  readonly cpuMs: number
+  readonly rssMb: number
+  readonly loopMaxMs: number
+  readonly gcMs: number
+}
+
 // Keep cold-render failures useful without adding success-log noise or changing their
 // deadlines. Wall time beside worker CPU and loop delay distinguishes work from waiting.
 export const testPhases = (name: string, snapshot?: () => unknown): ((phase: string) => void) => {
@@ -14,7 +24,7 @@ export const testPhases = (name: string, snapshot?: () => unknown): ((phase: str
   })
   gc.observe({ entryTypes: ["gc"] })
   loop.enable()
-  const phases: unknown[] = []
+  const phases: Phase[] = []
   const mark = (phase: string): void => {
     const used = process.cpuUsage(cpu)
     phases.push({

@@ -5,7 +5,7 @@ import { checked, type ShellScriptPaths } from "./scripts.js"
 import { pathKey } from "./windows-path.js"
 
 /**
- * How to start a shell so it loads its integration after the user's own setup;
+ * How to start a shell so it loads its integration after the person's own setup;
  * `integrated` when it will report its prompts, and `resumes` when it runs the startup
  * command. `resumeFile` is where the caller writes that command for the shell to read.
  */
@@ -36,7 +36,7 @@ export type ShellLaunchOptions = {
   /** Where `shellScripts` wrote the files, under its prefix. */
   readonly scripts: ShellScriptPaths
   readonly env: NodeJS.ProcessEnv
-  /** A folder that goes first on PATH, and back there after the user's startup files. */
+  /** A folder that goes first on PATH, and back there after the person's startup files. */
   readonly pathFirst?: string | undefined
   readonly startup?: { readonly command: string; readonly file: string } | undefined
 }
@@ -45,7 +45,7 @@ export type ShellLaunchOptions = {
  * Arguments and environment that load the integration for shells it knows, the way VS
  * Code does: bash reads it as its rc file, zsh finds it through ZDOTDIR, fish runs it as
  * an init command, PowerShell dot-sources it after the profile, and cmd reports through
- * its PROMPT. Each first loads the user's own startup files. Other shells start as they
+ * its PROMPT. Each first loads the person's own startup files. Other shells start as they
  * are, with `env` and `pathFirst`.
  *
  * A `startup` command runs once as the shell starts, as if typed at its first prompt.
@@ -83,7 +83,7 @@ export const shellLaunch = ({
         ...fromFile,
       }
     case "zsh":
-      // The user's ZDOTDIR, only when they have one: an unset one reads from home.
+      // The person's ZDOTDIR, only when they have one: an unset one reads from home.
       return {
         args: [],
         env: {

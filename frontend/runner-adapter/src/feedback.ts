@@ -1,5 +1,5 @@
 import type { AgentFeedbackDraft, Feedback, FeedbackDrafts } from "@novadeck/core/feedback"
-import type { FeedbackDraftEntry } from "@novadeck/protocol"
+import type { FeedbackDraft } from "@novadeck/protocol"
 import { hasCode, type Runner } from "@novadeck/runner-client"
 
 // The runner's side of feedback: the host's sender (the footer card's) with the runner's
@@ -7,7 +7,7 @@ import { hasCode, type Runner } from "@novadeck/runner-client"
 // follows the drafts the agents write, to be sent through the host's `send` and then settled.
 // Both exist only where the host can send, so an agent is asked only when its draft could go.
 
-const draftOf = (entry: FeedbackDraftEntry): AgentFeedbackDraft => ({
+const draftOf = (entry: FeedbackDraft): AgentFeedbackDraft => ({
   id: entry.id,
   terminal: {
     projectId: entry.projectId,
@@ -28,7 +28,7 @@ const followDrafts = (
   track: <T>(work: Promise<T>) => Promise<T>,
 ): FeedbackDrafts => {
   const listeners = new Set<(drafts: readonly AgentFeedbackDraft[]) => void>()
-  let stream: AsyncIterableIterator<FeedbackDraftEntry[], undefined> | undefined
+  let stream: AsyncIterableIterator<FeedbackDraft[], undefined> | undefined
   // What the runner last listed, once it has.
   let latest: readonly AgentFeedbackDraft[] | undefined
 

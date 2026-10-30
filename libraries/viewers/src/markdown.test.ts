@@ -7,22 +7,21 @@ import type { Viewer, ViewerState } from "./index.js"
 import { mountMarkdown, type ClassedRange, type MarkdownContent } from "./markdown.js"
 import planV1 from "./markdown/fixtures/plan-v1.md?raw"
 import planV2 from "./markdown/fixtures/plan-v2.md?raw"
-import { outline } from "./text.js"
 
-const hosts: HTMLElement[] = []
+const panes: HTMLElement[] = []
 const viewers: Viewer<MarkdownContent>[] = []
 afterEach(() => {
   for (const viewer of viewers.splice(0)) viewer.destroy()
-  for (const host of hosts.splice(0)) host.remove()
+  for (const pane of panes.splice(0)) pane.remove()
 })
 
-// A scroller to mount into, as a host's pane is: it scrolls, the viewer doesn't.
-const hostIn = (): HTMLElement => {
-  const host = document.createElement("div")
-  host.style.cssText = "height: 300px; width: 600px; overflow: auto"
-  document.body.append(host)
-  hosts.push(host)
-  return host
+// A scroller to mount into, as an app's pane is: it scrolls, the viewer doesn't.
+const paneIn = (): HTMLElement => {
+  const pane = document.createElement("div")
+  pane.style.cssText = "height: 300px; width: 600px; overflow: auto"
+  document.body.append(pane)
+  panes.push(pane)
+  return pane
 }
 
 type Edit = { text: string; ranges: readonly ClassedRange[] }
@@ -30,13 +29,13 @@ type Edit = { text: string; ranges: readonly ClassedRange[] }
 const mount = (
   content: MarkdownContent,
   {
-    host = hostIn(),
+    pane = paneIn(),
     editable = true,
     saved,
-  }: { host?: HTMLElement; editable?: boolean; saved?: ViewerState } = {},
+  }: { pane?: HTMLElement; editable?: boolean; saved?: ViewerState } = {},
 ) => {
   const edits: Edit[] = []
-  const viewer = mountMarkdown(host, {
+  const viewer = mountMarkdown(pane, {
     content,
     label: "Notes",
     editable,
@@ -44,8 +43,8 @@ const mount = (
     onEdit: (text, ranges) => edits.push({ text, ranges }),
   })
   viewers.push(viewer)
-  const view = EditorView.findFromDOM(host.querySelector<HTMLElement>(".cm-editor")!)!
-  return { viewer, host, view, edits }
+  const view = EditorView.findFromDOM(pane.querySelector<HTMLElement>(".cm-editor")!)!
+  return { viewer, pane, view, edits }
 }
 
 const type = (view: EditorView, insert: string, at = 0): void =>
@@ -53,10 +52,10 @@ const type = (view: EditorView, insert: string, at = 0): void =>
 
 describe("the markdown viewer", () => {
   it("shows the text as a document, under its name", () => {
-    const { host } = mount({ text: "# Title\n\nSome **bold** text\n" })
-    expect(host.querySelector(".cm-content")!.getAttribute("aria-label")).toBe("Notes")
-    expect(host.querySelector(".cm-md-h1")).not.toBeNull()
-    expect(host.querySelector(".cm-md-strong")!.textContent).toBe("bold")
+    const { pane } = mount({ text: "# Title\n\nSome **bold** text\n" })
+    expect(pane.querySelector(".cm-content")!.getAttribute("aria-label")).toBe("Notes")
+    expect(pane.querySelector(".cm-md-h1")).not.toBeNull()
+    expect(pane.querySelector(".cm-md-strong")!.textContent).toBe("bold")
   })
 
   it("keeps the person's place and history when the text changes outside", () => {
@@ -82,18 +81,18 @@ describe("the markdown viewer", () => {
 
   it("moves ranges along with the person's edits and reports them", () => {
     const text = "one\ntwo\nthree\n"
-    const { host, view, edits } = mount({
+    const { pane, view, edits } = mount({
       text,
       ranges: [{ from: 4, to: 7, className: "marked" }],
     })
-    expect([...host.querySelectorAll(".marked")].map((line) => line.textContent)).toEqual(["two"])
+    expect([...pane.querySelectorAll(".marked")].map((line) => line.textContent)).toEqual(["two"])
     type(view, "zero\n")
     expect(edits[0]!.ranges).toEqual([{ from: 9, to: 12, className: "marked" }])
   })
 
   it("is read-only until switched, without a remount", () => {
-    const { viewer, host, view, edits } = mount({ text: "one\n" }, { editable: false })
-    const editor = host.querySelector(".cm-editor")
+    const { viewer, pane, view, edits } = mount({ text: "one\n" }, { editable: false })
+    const editor = pane.querySelector(".cm-editor")
     type(view, "x")
     expect(view.state.doc.toString()).toBe("one\n")
     expect(edits).toEqual([])
@@ -107,15 +106,15 @@ describe("the markdown viewer", () => {
     viewer.editable(false)
     type(view, "y")
     expect(view.state.doc.toString()).toBe("xtwo\n")
-    expect(host.querySelector(".cm-editor")).toBe(editor)
+    expect(pane.querySelector(".cm-editor")).toBe(editor)
   })
 
   it("draws a table's fields to follow whether it takes edits", () => {
-    const { viewer, host } = mount(
+    const { viewer, pane } = mount(
       { text: "| a | b |\n| - | - |\n| c | d |\n" },
       { editable: false },
     )
-    const readOnly = (): boolean => host.querySelector<HTMLTextAreaElement>(".cm-md-cell")!.readOnly
+    const readOnly = (): boolean => pane.querySelector<HTMLTextAreaElement>(".cm-md-cell")!.readOnly
     expect(readOnly()).toBe(true)
     viewer.editable(true)
     expect(readOnly()).toBe(false)
@@ -148,7 +147,7 @@ describe("the markdown viewer", () => {
     first.view.dispatch({ selection: { anchor: 3 } })
     const saved = first.viewer.state()
 
-    // Meanwhile the host's text moved on: the saved edit is still in it, with more.
+    // Meanwhile the app's text moved on: the saved edit is still in it, with more.
     const live = mount({ text: "typed one\nmore\n" })
     live.viewer.restore(saved)
     expect(live.view.state.doc.toString()).toBe("typed one\nmore\n")
@@ -186,30 +185,30 @@ describe("the markdown viewer", () => {
   it("restores its scroll with its state", async () => {
     const text = Array.from({ length: 200 }, (_, at) => `Line ${at + 1}`).join("\n\n")
     const first = mount({ text })
-    await expect.poll(() => first.host.scrollHeight).toBeGreaterThan(first.host.clientHeight + 500)
-    first.host.dispatchEvent(new WheelEvent("wheel"))
-    first.host.scrollTop = 1200
-    await expect.poll(() => first.host.scrollTop).toBe(1200)
+    await expect.poll(() => first.pane.scrollHeight).toBeGreaterThan(first.pane.clientHeight + 500)
+    first.pane.dispatchEvent(new WheelEvent("wheel"))
+    first.pane.scrollTop = 1200
+    await expect.poll(() => first.pane.scrollTop).toBe(1200)
     // The viewer notes where it is as the scroller scrolls.
     await new Promise((resolve) => setTimeout(resolve, 50))
     const saved = first.viewer.state()
     first.viewer.destroy()
     viewers.splice(viewers.indexOf(first.viewer), 1)
-    first.host.remove()
+    first.pane.remove()
 
     const second = mount({ text }, { saved })
-    await expect.poll(() => Math.abs(second.host.scrollTop - 1200)).toBeLessThan(30)
+    await expect.poll(() => Math.abs(second.pane.scrollTop - 1200)).toBeLessThan(30)
   })
 
   it("jumps to an offset or a line", async () => {
     const text = Array.from({ length: 120 }, (_, at) => `Line ${at + 1}`).join("\n\n")
-    const { viewer, host } = mount({ text })
-    await expect.poll(() => host.scrollHeight).toBeGreaterThan(host.clientHeight + 500)
+    const { viewer, pane } = mount({ text })
+    await expect.poll(() => pane.scrollHeight).toBeGreaterThan(pane.clientHeight + 500)
     viewer.jumpTo({ offset: text.indexOf("Line 100") })
-    await expect.poll(() => host.scrollTop, { timeout: 4000 }).toBeGreaterThan(1000)
-    const there = host.scrollTop
+    await expect.poll(() => pane.scrollTop, { timeout: 4000 }).toBeGreaterThan(1000)
+    const there = pane.scrollTop
     viewer.jumpTo({ line: 1 })
-    await expect.poll(() => host.scrollTop, { timeout: 4000 }).toBeLessThan(there / 2)
+    await expect.poll(() => pane.scrollTop, { timeout: 4000 }).toBeLessThan(there / 2)
   })
 
   it("jumps smoothly where motion isn't reduced, landing on its line", async () => {
@@ -221,10 +220,10 @@ describe("the markdown viewer", () => {
     )
     try {
       const text = Array.from({ length: 120 }, (_, at) => `Line ${at + 1}`).join("\n\n")
-      const { viewer, host } = mount({ text })
-      await expect.poll(() => host.scrollHeight).toBeGreaterThan(host.clientHeight + 500)
+      const { viewer, pane } = mount({ text })
+      await expect.poll(() => pane.scrollHeight).toBeGreaterThan(pane.clientHeight + 500)
       viewer.jumpTo({ offset: text.indexOf("Line 100") })
-      await expect.poll(() => host.scrollTop).toBeGreaterThan(1000)
+      await expect.poll(() => pane.scrollTop).toBeGreaterThan(1000)
     } finally {
       vi.unstubAllGlobals()
     }
@@ -232,7 +231,7 @@ describe("the markdown viewer", () => {
 
   it("draws a quote's bar clear of its text, in a list too, its wrapped rows included", () => {
     const long = "words that run on ".repeat(6)
-    const { host } = mount({
+    const { pane } = mount({
       text: [
         `> On top, ${long}`,
         "",
@@ -256,7 +255,7 @@ describe("the markdown viewer", () => {
         "",
       ].join("\n"),
     })
-    const quotes = [...host.querySelectorAll<HTMLElement>(".cm-md-quote")]
+    const quotes = [...pane.querySelectorAll<HTMLElement>(".cm-md-quote")]
     expect(quotes).toHaveLength(8)
     // Where the bar is drawn: the line's border, or its own mark beside the text.
     const barEnd = (line: HTMLElement): number => {
@@ -282,7 +281,7 @@ describe("the markdown viewer", () => {
 
   it("draws a code block in a list at the item's hang, its rows and wrapped rows inside it", () => {
     const long = "words that run on ".repeat(8)
-    const { host } = mount({
+    const { pane } = mount({
       text: [
         "- [ ] A task, its prompt:",
         "",
@@ -303,7 +302,7 @@ describe("the markdown viewer", () => {
         "",
       ].join("\n"),
     })
-    const lines = [...host.querySelectorAll<HTMLElement>(".cm-md-codeblock:not(.cm-md-fence)")]
+    const lines = [...pane.querySelectorAll<HTMLElement>(".cm-md-codeblock:not(.cm-md-fence)")]
     expect(lines).toHaveLength(4)
     const rowsOf = (line: HTMLElement): DOMRect[] => {
       const text = document.createRange()
@@ -333,19 +332,9 @@ describe("the markdown viewer", () => {
   })
 
   it("takes everything it added out of its element", () => {
-    const { viewer, host } = mount({ text: "one\n" })
+    const { viewer, pane } = mount({ text: "one\n" })
     viewer.destroy()
     viewers.pop()
-    expect(host.children).toHaveLength(0)
-  })
-})
-
-describe("the outline", () => {
-  it("lists second- and third-level headings with where they start, skipping fences", () => {
-    const text = "# Title\n\n## One\n```\n## Not\n```\n### Two\n"
-    expect(outline(text)).toEqual([
-      { text: "One", at: text.indexOf("## One"), depth: 2 },
-      { text: "Two", at: text.indexOf("### Two"), depth: 3 },
-    ])
+    expect(pane.children).toHaveLength(0)
   })
 })

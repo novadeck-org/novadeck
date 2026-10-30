@@ -8,11 +8,10 @@ import {
   type Runner,
   type RunnerErrorCode,
 } from "@novadeck/runner-client"
-import { pause } from "@novadeck/terminal/view"
 import { WireError } from "@novadeck/wire"
 import { websocket, type Transport } from "@novadeck/wire/client"
 
-import { runnerBackend, type RunnerBackend } from "./backend"
+import { pause, runnerBackend, type RunnerBackend } from "./backend"
 import {
   desktopBadge,
   desktopFeedback,

@@ -2,18 +2,18 @@ import { useLayoutEffect, useRef, useState } from "react"
 
 import type { Kept, Mount, MountOptions, Viewer, ViewerState } from "./index.js"
 
-// A viewer in React: the ref to put on the element it mounts into, and the viewer once
-// it's mounted, for what its kind offers beyond the contract. It mounts once the
-// element is there, again when the thing it shows (`id`) or its name changes, and passes
-// each new content on as an update. Letting it go keeps its state in `kept` by `id`, so
-// the next viewer of the same thing, after a remount or a tab switch, picks up where it
-// was. The other options are read at mount.
+/** The ref to put on the element a viewer mounts into, and the viewer once it's mounted. */
 export type UsedViewer<Kind> = {
   readonly ref: (element: HTMLElement | null) => void
   /** Null until it mounts, and after it goes. */
   readonly viewer: Kind | null
 }
 
+// A viewer in React, and the viewer once it's mounted, for what its kind offers beyond the
+// contract. It mounts once the element is there, again when the thing it shows (`id`) or
+// its name changes, and passes each new content on as an update. Letting it go keeps its
+// state in `kept` by `id`, so the next viewer of the same thing, after a remount or a tab
+// switch, picks up where it was. The other options are read at mount.
 export const useViewer = <Content, Options, Kind extends Viewer<Content> = Viewer<Content>>(
   mount: Mount<Content, Options, Kind>,
   options: Options &

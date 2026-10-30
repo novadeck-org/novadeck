@@ -16,8 +16,9 @@ import {
   type SessionContext,
   type SessionsOptions,
 } from "./sessions.js"
-import { createWireClient, websocket } from "./transport.js"
+import { websocket } from "./transport.js"
 import { serveWebSocket, type WebSocketOptions } from "./websocket.js"
+import { createWireClient } from "./wire-client.js"
 
 const contract = {
   ...wireContract,

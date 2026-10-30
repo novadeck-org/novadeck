@@ -7,12 +7,12 @@ import { wireErrors } from "./errors.js"
  * Opens a session: the first call on every connection, before any other is served. A server
  * may refuse it with a code of its own, after authenticating, as one that can't serve yet.
  */
-export const handshake = oc
+const handshake = oc
   .errors(wireErrors)
   .input(
     z.strictObject({
       protocolVersion: z.number().int(),
-      // Trusted transports, such as a host-provided MessagePort, need no token.
+      // Trusted transports, such as a MessagePort the app hands over, need no token.
       token: z.string().min(1).max(512).optional(),
       // Stable per client across reconnections. A new connection with the same client ID
       // takes over from the old one, even if that one is still half-open.

@@ -8,9 +8,6 @@ export type Build = {
   readonly env: Readonly<Record<string, string | undefined>>
 }
 
-/** The name of the plugin, for a config that leaves it out, as a test runner's does. */
-export const contentSecurityPolicyName = "build-kit-content-security-policy"
-
 /**
  * Fills the connect-src of the page's Content Security Policy: `placeholder` in its
  * index.html becomes the sources `connect` gives for the build. A page without the
@@ -24,17 +21,17 @@ export const contentSecurityPolicy = (options: {
 }): Plugin => {
   let build: Build
   return {
-    name: contentSecurityPolicyName,
+    name: "build-kit-content-security-policy",
     configResolved(config) {
-      const prefix = options.envPrefix ?? config.envPrefix ?? "VITE_"
-      if ([prefix].flat().includes("")) {
+      const prefixes = [options.envPrefix ?? config.envPrefix ?? "VITE_"].flat()
+      if (prefixes.includes("")) {
         throw new Error("The Content Security Policy's envPrefix can't be empty")
       }
       // The env files the app's own build reads, with the process's variables before them.
       build = {
         mode: config.mode,
         command: config.command,
-        env: loadEnv(config.mode, config.envDir, [prefix].flat()),
+        env: loadEnv(config.mode, config.envDir, prefixes),
       }
     },
     transformIndexHtml(html) {

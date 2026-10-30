@@ -9,9 +9,9 @@ import {
   updateChannels,
   updateVersionPattern,
   type DesktopBridge,
-  type HostPageLook,
-  type DesktopHost,
-  type FeedbackHostAbout,
+  type DesktopPageLook,
+  type DesktopApp,
+  type DesktopFeedbackAbout,
   type PortableState,
   type SandboxState,
   type UninstallPlan,
@@ -196,7 +196,7 @@ const text = (value: unknown, limit: number): string | undefined =>
 
 // What the main process answers a look with, as the page takes it: a JPEG picture with where
 // the page was, its title, size and troubles, else a reason; anything else is a reason too.
-const hostLookOf = (look: unknown): HostPageLook => {
+const hostLookOf = (look: unknown): DesktopPageLook => {
   const { picture, url, title, size, troubles, reason } = (look ?? {}) as Record<string, unknown>
   const { width, height } = (size ?? {}) as Record<string, unknown>
   return typeof picture === "string" &&
@@ -211,7 +211,7 @@ const hostLookOf = (look: unknown): HostPageLook => {
         url,
         title,
         size: { width, height },
-        troubles: troubles as Extract<HostPageLook, { picture: string }>["troubles"],
+        troubles: troubles as Extract<DesktopPageLook, { picture: string }>["troubles"],
       }
     : { reason: text(reason, 512)?.trim() || "The page could not be pictured." }
 }
@@ -371,7 +371,8 @@ const bridge = {
     ipcRenderer.send(openLogsChannel)
   },
   // The main process checks both again; the page never reaches the network itself.
-  feedbackAbout: async () => (await ipcRenderer.invoke(feedbackAboutChannel)) as FeedbackHostAbout,
+  feedbackAbout: async () =>
+    (await ipcRenderer.invoke(feedbackAboutChannel)) as DesktopFeedbackAbout,
   sendFeedback: async (note) => {
     await ipcRenderer.invoke(feedbackSendChannel, { kind: note?.kind ?? null, text: note?.text })
   },
@@ -419,4 +420,4 @@ contextBridge.exposeInMainWorld("novadeck", {
   ...(webglContexts === undefined ? {} : { webglContexts }),
   ...(feedback ? { feedback: true as const } : {}),
   ...bridge,
-} satisfies DesktopHost)
+} satisfies DesktopApp)

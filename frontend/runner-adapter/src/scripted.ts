@@ -2,7 +2,7 @@ import type { Backend, BackendAction } from "@novadeck/core/port"
 import { workspaceFromSeed } from "@novadeck/core/seed"
 import { createTerminalState, workspaceReducer, type WorkspaceAction } from "@novadeck/core/state"
 import type { CanvasLayout, Workspace } from "@novadeck/core/types"
-import type { FeedbackDraftEntry, TerminalSummary } from "@novadeck/protocol"
+import type { FeedbackDraft, TerminalSummary } from "@novadeck/protocol"
 import type { CompanionWatchItem, Runner, TerminalWatchItem } from "@novadeck/runner-client"
 import { noTheme } from "@novadeck/terminal-views/theme"
 import type { WireStatus } from "@novadeck/wire/client"
@@ -165,7 +165,7 @@ export const scripted = ({
   const changes = channel<TerminalWatchItem>()
   const items = channel<CompanionWatchItem>()
   // Each `feedback.watch` opens its own stream, the last of which the test pushes drafts to.
-  const watches: ReturnType<typeof channel<FeedbackDraftEntry[]>>[] = []
+  const watches: ReturnType<typeof channel<FeedbackDraft[]>>[] = []
   const received: BackendAction[] = []
   const statuses = channel<WireStatus>()
   const calls: Call[] = []
@@ -213,7 +213,7 @@ export const scripted = ({
     },
     feedback: {
       watch: () => {
-        const next = channel<FeedbackDraftEntry[]>()
+        const next = channel<FeedbackDraft[]>()
         watches.push(next)
         return next.iterator
       },

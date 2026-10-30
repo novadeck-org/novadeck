@@ -1,12 +1,12 @@
 import type { Atlas } from "../src/atlas.ts"
 import {
   renderAction,
-  renderAgents,
   renderApi,
   renderArea,
   renderData,
   renderFlow,
   renderFlows,
+  renderHarnesses,
   renderIndex,
   renderProcedure,
   renderState,
@@ -19,17 +19,20 @@ import {
 
 type Subject = { kind: string; name: string; render: () => string }
 
-const subjects = (atlas: Atlas): Subject[] => [
-  ...[
-    ["api", renderApi],
-    ["data", renderData],
-    ["state", renderState],
-    ["flows", renderFlows],
-    ["harnesses", renderAgents],
-  ].map(([name, render]) => ({
+const overviews: [name: string, render: (atlas: Atlas) => string][] = [
+  ["api", renderApi],
+  ["data", renderData],
+  ["state", renderState],
+  ["flows", renderFlows],
+  ["harnesses", renderHarnesses],
+]
+
+// Every subject a brief can be asked for.
+export const subjects = (atlas: Atlas): Subject[] => [
+  ...overviews.map(([name, render]) => ({
     kind: "overview",
-    name: name as string,
-    render: () => (render as (a: Atlas) => string)(atlas),
+    name,
+    render: () => render(atlas),
   })),
   ...atlas.areas.map((area) => ({
     kind: "area",

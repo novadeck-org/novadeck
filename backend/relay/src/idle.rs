@@ -7,7 +7,7 @@ use std::io::{self, BufRead, Write};
 use serde_json::{Value, json};
 
 /// The answer to one line from the agent, or None when it needs none.
-pub fn answer(line: &str, server: &str, versions: &[String]) -> Option<String> {
+fn answer(line: &str, server: &str, versions: &[String]) -> Option<String> {
     let line = line.trim();
     if line.is_empty() {
         return None;
