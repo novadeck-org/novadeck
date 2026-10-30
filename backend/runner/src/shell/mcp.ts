@@ -30,7 +30,13 @@
  */
 import { efforts } from "@novadeck/harness-core/harness"
 import { manifest } from "@novadeck/harness-core/plugin"
-import { harnessIds, harnesses } from "@novadeck/protocol"
+import {
+  harnessIds,
+  harnesses,
+  inboxTextLimits,
+  maxAskOptions,
+  maxCommandLines,
+} from "@novadeck/protocol"
 
 import { maxMessageBytes } from "../messaging/messages.js"
 import { unboundNote } from "../messaging/peers.js"
@@ -968,11 +974,11 @@ const summarize: Tool<unknown> = {
 }
 
 const entryFields = {
-  subject: { type: "string", description: "One-line subject.", maxLength: 256 },
+  subject: { type: "string", description: "One-line subject.", maxLength: inboxTextLimits.line },
   body: {
     type: "string",
     description: "Markdown explaining what you need or want to tell the user.",
-    maxLength: 16384,
+    maxLength: inboxTextLimits.markdown,
   },
 }
 // Claude Code omits tools with a union at the schema root. The runner validates
@@ -1014,11 +1020,15 @@ const ask: Tool<{ readonly id: string; readonly withdrawn?: boolean }> = {
     type: "object",
     properties: {
       ...entryFields,
-      details: { type: "string", description: "Optional additional Markdown.", maxLength: 16384 },
+      details: {
+        type: "string",
+        description: "Optional additional Markdown.",
+        maxLength: inboxTextLimits.markdown,
+      },
       hard_to_undo: {
         type: "string",
         description: "Why the decision would be hard to undo.",
-        maxLength: 2048,
+        maxLength: inboxTextLimits.hardToUndo,
       },
       shape: {
         oneOf: [
@@ -1036,18 +1046,18 @@ const ask: Tool<{ readonly id: string; readonly withdrawn?: boolean }> = {
                 type: "array",
                 description: "One to three choices.",
                 minItems: 1,
-                maxItems: 3,
+                maxItems: maxAskOptions,
                 items: {
                   type: "object",
                   properties: {
-                    label: { type: "string", maxLength: 256 },
-                    summary: { type: "string", maxLength: 2048 },
-                    details: { type: "string", maxLength: 16384 },
+                    label: { type: "string", maxLength: inboxTextLimits.line },
+                    summary: { type: "string", maxLength: inboxTextLimits.summary },
+                    details: { type: "string", maxLength: inboxTextLimits.markdown },
                     code: {
                       type: "object",
                       properties: {
-                        path: { type: "string", maxLength: 256 },
-                        text: { type: "string", maxLength: 16384 },
+                        path: { type: "string", maxLength: inboxTextLimits.line },
+                        text: { type: "string", maxLength: inboxTextLimits.markdown },
                       },
                       required: ["path", "text"],
                       additionalProperties: false,
@@ -1060,7 +1070,7 @@ const ask: Tool<{ readonly id: string; readonly withdrawn?: boolean }> = {
               recommend: {
                 type: ["integer", "null"],
                 minimum: 0,
-                maximum: 2,
+                maximum: maxAskOptions - 1,
                 description: "Index of your pick, counted from zero, or null.",
               },
             },
@@ -1073,13 +1083,13 @@ const ask: Tool<{ readonly id: string; readonly withdrawn?: boolean }> = {
               type: { const: "action" },
               command: {
                 type: "string",
-                maxLength: 4096,
+                maxLength: inboxTextLimits.command,
                 description:
-                  "What the user runs themselves, up to 40 lines, in characters that show: " +
+                  `What the user runs themselves, up to ${maxCommandLines} lines, in characters that show: ` +
                   "Novadeck refuses one holding a character that draws as nothing.",
               },
               directory: { type: "string", maxLength: 4096 },
-              done_label: { type: "string", maxLength: 256 },
+              done_label: { type: "string", maxLength: inboxTextLimits.line },
             },
             required: ["type", "command", "done_label"],
             additionalProperties: false,
