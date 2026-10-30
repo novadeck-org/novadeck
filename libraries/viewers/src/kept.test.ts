@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest"
 
 import { createKept } from "./kept.js"
 
-describe("what a host keeps", () => {
+describe("what an app keeps", () => {
   it("gives back what was kept by its key", () => {
     const kept = createKept<string>(2)
     kept.keep("plan", "first")

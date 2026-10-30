@@ -204,7 +204,7 @@ export const demoViewOptions = (
     theme: terminalTheme(theme),
     store: createStore,
     // As far in from the window's edge as the demo's output always sat.
-    markup: { ...screenMarkup, hostClass: `${screenMarkup.hostClass} p-3` },
+    markup: { ...screenMarkup, containerClass: `${screenMarkup.containerClass} p-3` },
     attach: async (key) => {
       if (!running || !(await shown(key))) throw new Error("The terminal closed")
       return streamOf(key, screenOf(key))

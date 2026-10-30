@@ -2,7 +2,7 @@ import {
   contract,
   type WireClient,
   type AskAnswer,
-  type FeedbackDraftEntry,
+  type FeedbackDraft,
   type InboxEntry,
   maxUploadBytes,
   maxUploadPartLength,
@@ -450,7 +450,7 @@ export type Runner = {
   }
   readonly feedback: {
     /** The agents' feedback drafts waiting for the app, oldest first, then again on each change. */
-    watch(): AsyncIterableIterator<FeedbackDraftEntry[], undefined>
+    watch(): AsyncIterableIterator<FeedbackDraft[], undefined>
     /** Drops a draft the app sent or the person discarded; `NOT_FOUND` when none is held. */
     settle(id: string, outcome: "sent" | "discarded"): Promise<void>
     /** Asks the agent in a terminal for feedback, with the person's hint (empty for none). */

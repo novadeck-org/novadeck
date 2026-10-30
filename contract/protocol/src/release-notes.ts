@@ -114,24 +114,32 @@ export type HighlightIcon = z.infer<typeof highlightIcon>
 // own checks (scripts/release-notes/check.ts) hold the tighter limits its output keeps to.
 const prs = z.array(z.number().int().positive()).max(32)
 const text = (max: number) => z.string().trim().min(1).max(max)
+const version = text(64)
+const kind = z.enum(["release", "promote"])
+const highlightFields = { title: text(80), line: text(240), prs }
+const changeFields = { area: noteArea, line: text(240), prs }
+const maxHighlights = 4
+const maxChanges = 200
+const fixes = z.number().int().min(0).max(10_000)
 
-export const releaseNotes = z.strictObject({
+const releaseNotes = z.strictObject({
   /** The version, without the `v`. */
-  version: text(64),
-  /** A prerelease's own notes, or the notes of a promotion, which cover every release since the last stable one. */
-  kind: z.enum(["release", "promote"]),
+  version,
+  /**
+   * A prerelease's own notes, or the notes of a promotion, which cover every release since
+   * the last stable one.
+   */
+  kind,
   /**
    * What to lead with: up to two in a prerelease's own notes, four in a promotion's, each
    * with the icon the card shows beside it. Notes written before icons have none.
    */
   highlights: z
-    .array(
-      z.strictObject({ title: text(80), line: text(240), prs, icon: highlightIcon.optional() }),
-    )
-    .max(4),
-  changes: z.array(z.strictObject({ area: noteArea, line: text(240), prs })).max(200),
+    .array(z.strictObject({ ...highlightFields, icon: highlightIcon.optional() }))
+    .max(maxHighlights),
+  changes: z.array(z.strictObject(changeFields)).max(maxChanges),
   /** How many smaller fixes and speedups the lines above leave unnamed. */
-  fixes: z.number().int().min(0).max(10_000),
+  fixes,
 })
 export type ReleaseNotes = z.infer<typeof releaseNotes>
 
@@ -150,22 +158,23 @@ export const notesBlock = (notes: ReleaseNotes): string =>
 // app has no heading for it). What would break the writer's bounds is clamped so the value
 // returned is always a valid `ReleaseNotes`: an item with a too long title or line or bad
 // pull request numbers is dropped, extra highlights and changes are cut, a bad `fixes` is 0.
-// A highlight's icon the reader doesn't know, as a later set may add, is dropped, not the highlight.
-// A block whose shape it can't make sense of, or whose `kind` is new, reads as no block.
+// A highlight's icon the reader doesn't know, as a later set may add, is dropped, not the
+// highlight. A block whose shape it can't make sense of, or whose `kind` is new, reads as no
+// block.
 const lenient = z.object({
   version: z.unknown(),
-  kind: z.enum(["release", "promote"]),
+  kind,
   highlights: z.array(z.unknown()),
   changes: z.array(z.unknown()),
   fixes: z.unknown(),
 })
 const highlight = z
-  .object({ title: text(80), line: text(240), prs, icon: z.unknown().optional() })
+  .object({ ...highlightFields, icon: z.unknown().optional() })
   .transform(({ icon, ...rest }) => {
     const known = highlightIcon.safeParse(icon)
     return known.success ? { ...rest, icon: known.data } : rest
   })
-const change = z.object({ area: noteArea, line: text(240), prs })
+const change = z.object(changeFields)
 const keep = <T>(items: unknown[], schema: z.ZodType<T>, max: number): T[] =>
   items
     .flatMap((item) => {
@@ -183,15 +192,15 @@ export const readNotesBlock = (body: string): ReleaseNotes | undefined => {
   if (!found?.[1]) return undefined
   try {
     const parsed = lenient.safeParse(JSON.parse(found[1]))
-    const version = text(64).safeParse(parsed.data?.version)
-    if (!parsed.success || !version.success) return undefined
-    const fixes = z.number().int().min(0).max(10_000).safeParse(parsed.data.fixes)
+    const named = version.safeParse(parsed.data?.version)
+    if (!parsed.success || !named.success) return undefined
+    const counted = fixes.safeParse(parsed.data.fixes)
     return {
-      version: version.data,
+      version: named.data,
       kind: parsed.data.kind,
-      highlights: keep(parsed.data.highlights, highlight, 4),
-      changes: keep(parsed.data.changes, change, 200),
-      fixes: fixes.success ? fixes.data : 0,
+      highlights: keep(parsed.data.highlights, highlight, maxHighlights),
+      changes: keep(parsed.data.changes, change, maxChanges),
+      fixes: counted.success ? counted.data : 0,
     }
   } catch {
     return undefined

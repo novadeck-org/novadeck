@@ -52,6 +52,16 @@ const leaderArgv = (group: Group): string[] | null => {
   return parseCommandLine(readFileSync(`/proc/${group.id}/cmdline`))
 }
 
+// macOS has no /proc; ps reads a process's group field, off the event loop.
+const psGroup = async (field: "tpgid" | "pgid", pid: number): Promise<number | undefined> => {
+  const { stdout } = await promisify(execFile)("ps", ["-o", `${field}=`, "-p", String(pid)], {
+    encoding: "utf8",
+    timeout: 2_000,
+  })
+  const group = Number(stdout.trim())
+  return Number.isSafeInteger(group) && group > 0 ? group : undefined
+}
+
 /**
  * The process group holding the shell's terminal's foreground: the shell's own at its
  * prompt, a program's while it runs. Undefined where the platform does not tell, as on
@@ -66,15 +76,7 @@ export const terminalForeground = async (
       const shell = parseProcessStat(readFileSync(`/proc/${shellPid}/stat`, "utf8"))
       return shell && shell.tpgid > 0 ? shell.tpgid : undefined
     }
-    // macOS has no /proc; ps reads the same field, off the event loop.
-    if (process.platform === "darwin") {
-      const { stdout } = await promisify(execFile)("ps", ["-o", "tpgid=", "-p", String(shellPid)], {
-        encoding: "utf8",
-        timeout: 2_000,
-      })
-      const group = Number(stdout.trim())
-      return Number.isSafeInteger(group) && group > 0 ? group : undefined
-    }
+    if (process.platform === "darwin") return await psGroup("tpgid", shellPid)
   } catch {
     // The shell may be gone, or ps unavailable.
   }
@@ -92,14 +94,7 @@ export const processGroup = async (pid: number): Promise<number | undefined> => 
       const stat = parseProcessStat(readFileSync(`/proc/${pid}/stat`, "utf8"))
       return stat && stat.pgrp > 0 ? stat.pgrp : undefined
     }
-    if (process.platform === "darwin") {
-      const { stdout } = await promisify(execFile)("ps", ["-o", "pgid=", "-p", String(pid)], {
-        encoding: "utf8",
-        timeout: 2_000,
-      })
-      const group = Number(stdout.trim())
-      return Number.isSafeInteger(group) && group > 0 ? group : undefined
-    }
+    if (process.platform === "darwin") return await psGroup("pgid", pid)
   } catch {
     // Gone, or ps unavailable.
   }

@@ -1,8 +1,8 @@
 // @vitest-environment node
 import { beforeAll, describe, expect, it } from "vitest"
 
-import { loadFont, type Font } from "./ligature-font.test-kit.js"
-import { ligatureWords } from "./ligature-table.js"
+import { loadFont, type Font } from "./ligature-font.test-support.js"
+import { ligatureSequences } from "./ligature-table.js"
 import { cutMargin, ligatureRuns } from "./ligatures.js"
 
 // The ligature table against the font it was read from: the bundled JetBrains Mono's own
@@ -62,7 +62,7 @@ const check = (line: string, limits = widths): string | undefined => {
   return undefined
 }
 
-const alphabet = (): string[] => [...new Set(ligatureWords.join(""))]
+const alphabet = (): string[] => [...new Set(ligatureSequences.join(""))]
 
 // Rows the font draws with rules that reach further than a pair of glyphs.
 const rows = [
@@ -93,7 +93,8 @@ const slow = 60_000
 
 describe("the ligature table and the bundled font", () => {
   it("lists only sequences the font draws whole", () => {
-    for (const word of ligatureWords) expect(font.shape(word), word).toEqual([[0, word.length]])
+    for (const sequence of ligatureSequences)
+      expect(font.shape(sequence), sequence).toEqual([[0, sequence.length]])
   })
 
   it(
@@ -156,7 +157,7 @@ describe("the ligature table and the bundled font", () => {
         while (line.length < 60 + random() * 160) {
           const roll = random()
           if (roll < 0.45) line += pick(glyphs).repeat(1 + Math.floor(random() * 30))
-          else if (roll < 0.8) line += pick(ligatureWords)
+          else if (roll < 0.8) line += pick(ligatureSequences)
           else line += pick([..."ab 1", ...glyphs])
         }
         lines.push(line)

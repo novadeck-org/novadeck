@@ -2,9 +2,10 @@ import { setTimeout as sleep } from "node:timers/promises"
 
 import type { ScreenText } from "@novadeck/emulator/headless"
 
-import { changedRows, checkPaste, isEmpty, type BoxProfile } from "./box.js"
+import { isEmpty, type BoxProfile } from "./box/box.js"
+import { changedRows, checkPaste } from "./box/paste.js"
 import type { InputEntry } from "./queue.js"
-import { bracketedPaste, calmMs, freshNonce, gate } from "./typing.js"
+import { bracketedPaste, calmMs, freshNonce, gate, type Readiness } from "./typing.js"
 
 /** What the typist needs of one live terminal. */
 export type TypingTarget = {
@@ -51,8 +52,10 @@ export type Trace = (line: string) => void
 export const pasteMsOn = (platform: NodeJS.Platform): number =>
   platform === "win32" ? 4_000 : 1_500
 
-// How much longer than its test paste a delivery holds the person's input, in milliseconds: a
-// safety cap, with room for the last looks and the Enter.
+/**
+ * How much longer than its test paste a delivery holds the person's input, in milliseconds: a
+ * safety cap, with room for the last looks and the Enter.
+ */
 export const inputCapMs = 1_500
 
 /**
@@ -74,15 +77,6 @@ export type Look = {
   /** Whether it has lasted the calm period. */
   readonly calm: boolean
 }
-
-/** Why typing is open, or not. */
-export type Readiness =
-  | "open"
-  | "restless"
-  | "no-bracketed-paste"
-  | "not-foreground"
-  | "no-input-box"
-  | "vetoed"
 
 /** Why a delivery that was begun did not end with its Enter pressed. */
 export type DeliveryFailure =
@@ -208,31 +202,13 @@ export const createTypist = (
   }
 
   /** The rows as the calm and the paste's check read them (`BoxProfile.still`). */
-  const unticked = (rows: readonly string[]): readonly string[] =>
+  const stillRows = (rows: readonly string[]): readonly string[] =>
     options.profile?.()?.still?.(rows) ?? rows
-
-  /**
-   * `checkPaste` on the rows as `unticked` reads them, which may leave some out: rows seen
-   * ticking (by their index on the screen) are blanked on the screen's own rows first, where
-   * a row first changed elsewhere.
-   */
-  const pasteChecked = (
-    before: readonly string[],
-    after: readonly string[],
-    text: string,
-    vanish: boolean,
-    ticking: ReadonlySet<number>,
-  ) => {
-    const checked = checkPaste(unticked(before), unticked(after), text, { vanish })
-    if (checked.accepted || checked.reason !== "elsewhere" || ticking.size === 0) return checked
-    const blanked = (rows: readonly string[]) => rows.map((row, at) => (ticking.has(at) ? "" : row))
-    return checkPaste(unticked(blanked(before)), unticked(blanked(after)), text, { vanish })
-  }
 
   /** The rows of the screen as last seen, and when each row changed, lately. */
   let seen: { rows: readonly string[]; changes: Map<number, number[]> } | undefined
-  /** The screen's text as last seen, and since when. */
-  let still: { text: string; since: number } | undefined
+  /** The screen's text as last seen, and since when it has read so. */
+  let calm: { text: string; since: number } | undefined
 
   /** Notes which rows of the screen changed since it was last seen. */
   const observe = (rows: readonly string[], at: number): void => {
@@ -284,9 +260,9 @@ export const createTypist = (
     if (!screen) return undefined
     const at = now()
     observe(screen.rows, at)
-    const text = unticked(screen.rows).join("\n")
-    const calmSince = still?.text === text ? still.since : at
-    still = { text, since: calmSince }
+    const text = stillRows(screen.rows).join("\n")
+    const calmSince = calm?.text === text ? calm.since : at
+    calm = { text, since: calmSince }
     // A resize ends the calm too: the TUI may not have redrawn for it yet.
     const calmFor = at - Math.max(calmSince, target.resizedAt)
     return { screen, at, calmFor, calmSince: at - calmFor, calm: calmFor >= timing.calmMs }
@@ -298,7 +274,7 @@ export const createTypist = (
     const inputBox = boxCheck ? check(screen) : undefined
     const verdict = gate(
       {
-        ringable: !veto?.(),
+        vetoed: veto?.() ?? false,
         calmMs: looked.calmFor,
         bracketedPaste: screen.bracketedPaste,
         foreground,
@@ -309,10 +285,10 @@ export const createTypist = (
     trace(
       `gate ${verdict} (foreground ${String(foreground)}, input box ${String(inputBox)}, bracketed paste ${screen.bracketedPaste})`,
     )
-    return verdict === "not-ringable" ? "vetoed" : verdict
+    return verdict
   }
 
-  const deliver: Typist["deliver"] = async (entry, line, o) => {
+  const deliver: Typist["deliver"] = async (entry, line, delivery) => {
     // Watch the screen for rows that change by themselves, which the paste's check then
     // lets be. A change in any other row means the screen is not calm after all.
     const rows = await watch()
@@ -322,9 +298,10 @@ export const createTypist = (
     trace(`ring ${nonce} begins (ticking rows ${[...rows].join(",") || "none"})`)
     // Whether a block of text may vanish as the line lands, as a program's first screen may
     // clear its banner: the caller says when.
-    const vanish = o.vanish?.() ?? false
-    if (target.resizedAt > o.calmSince) return { entered: false, started: false, reason: "resized" }
-    if (!o.start(nonce)) return { entered: false, started: false, reason: "declined" }
+    const vanish = delivery.vanish?.() ?? false
+    if (target.resizedAt > delivery.calmSince)
+      return { entered: false, started: false, reason: "resized" }
+    if (!delivery.start(nonce)) return { entered: false, started: false, reason: "declined" }
     const hold = entry.hold({ inputMs: pasteMs + timing.inputCapMs, sizeMs: timing.sizeCapMs })
     let pressed = false
     let reason: DeliveryFailure = "gone"
@@ -346,7 +323,7 @@ export const createTypist = (
         reason = "not-landed"
         const until = now() + pasteMs
         let landed: string | undefined
-        while (o.still(nonce)) {
+        while (delivery.still(nonce)) {
           // eslint-disable-next-line no-await-in-loop -- The screen is looked at in turn.
           await sleep(pollMs)
           // eslint-disable-next-line no-await-in-loop -- As above.
@@ -356,16 +333,20 @@ export const createTypist = (
             break
           }
           // What the program counts up by itself, redrawn as the paste lands, is no change.
-          const settled = unticked(after.rows)
+          const settled = stillRows(after.rows)
           const shown = settled.join("\n")
-          const checked = pasteChecked(before.rows, after.rows, text, vanish, rows)
+          const checked = checkPaste(before.rows, after.rows, text, {
+            vanish,
+            ticking: rows,
+            still: stillRows,
+          })
           const accepted = checked.accepted
           if (!accepted && now() >= until)
             trace(`ring ${nonce}: paste not accepted: ${checked.reason}`)
           // Accepted twice running on the same screen, so it isn't caught mid-draw.
           if (accepted && landed === shown) {
             trace(`ring ${nonce}: paste accepted, Enter`)
-            pressed = hold.holding() && o.still(nonce) && target.type("\r")
+            pressed = hold.holding() && delivery.still(nonce) && target.type("\r")
             reason = "not-pressed"
             break
           }
@@ -393,11 +374,11 @@ export const createTypist = (
     return { entered: true, nonce, settle: hold.settle }
   }
 
-  const submit: Typist["submit"] = async (entry, nonce, again) => {
+  const submit: Typist["submit"] = async (entry, nonce, still) => {
     const hold = entry.hold({ inputMs: pasteMs + timing.inputCapMs, sizeMs: timing.sizeCapMs })
     let pressed = false
     try {
-      pressed = hold.holding() && again(nonce) && target.type("\r")
+      pressed = hold.holding() && still(nonce) && target.type("\r")
     } finally {
       hold.release()
     }
@@ -421,7 +402,7 @@ export const createTypist = (
     submit,
     forget: () => {
       seen = undefined
-      still = undefined
+      calm = undefined
     },
   }
 }

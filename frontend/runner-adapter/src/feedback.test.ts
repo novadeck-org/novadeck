@@ -1,6 +1,6 @@
 import type { AgentFeedbackDraft } from "@novadeck/core/feedback"
-import type { FeedbackDraftEntry } from "@novadeck/protocol"
-import type { DesktopHost } from "@novadeck/protocol/bridge"
+import type { FeedbackDraft } from "@novadeck/protocol"
+import type { DesktopApp } from "@novadeck/protocol/bridge"
 import { WireError } from "@novadeck/wire"
 import { vi } from "vitest"
 
@@ -14,9 +14,9 @@ const host = (overrides: Record<string, unknown> = {}) =>
     feedbackAbout: () => Promise.resolve({ version: "0.0.219", os: "linux", arch: "x64" }),
     sendFeedback: () => Promise.resolve(),
     ...overrides,
-  }) as unknown as DesktopHost
+  }) as unknown as DesktopApp
 
-const entry = (change: Partial<FeedbackDraftEntry> = {}): FeedbackDraftEntry => ({
+const entry = (change: Partial<FeedbackDraft> = {}): FeedbackDraft => ({
   id: id(50),
   terminalId: id(1),
   projectId: "p",

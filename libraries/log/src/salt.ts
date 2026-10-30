@@ -14,7 +14,7 @@ const read = (file: string): string | undefined => {
 }
 
 /**
- * The salt that keys this install's path hashes (see `hashPaths`), kept in `file`, which is
+ * The salt that keys this install's path hashes (see `pathHasher`), kept in `file`, which is
  * made with a fresh one the first time; another process making it at once wins, and both
  * read its salt. Where the file can't be read or made, a salt for this run alone: paths
  * still hash, though not as on another day. The salt is never logged.

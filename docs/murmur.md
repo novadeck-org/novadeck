@@ -147,10 +147,10 @@ the state (`unsupported: { reason, source: "check" }`). Preferences then says "N
 reason behind Details, and the offer never comes up. An app update with another engine sha
 forgets the verdict by itself; Check again, inside Details, installs again, which clears the
 verdict and checks anew; until that check passes the old verdict stands, through a cancel or a
-failure. The host also tells the runner at start (`--novadeck-graphics=software`, shared with
+failure. The desktop app also tells the runner at start (`--novadeck-graphics=software`, shared with
 voice input) when Electron's `app.getGPUInfo("basic")` lists only
 software adapters (SwiftShader, llvmpipe, WARP), so the same state shows before any download;
-that verdict is the host's word, is not saved, is `source: "host"` (so no Check again), and an
+that verdict is the app's word, is not saved, is `source: "app"` (so no Check again), and an
 unsure answer counts as capable. Apple silicon always does. It gates offering and installing
 only: an installed and checked murmur keeps working.
 

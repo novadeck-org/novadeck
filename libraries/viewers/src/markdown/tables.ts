@@ -3,7 +3,7 @@ import type { RowAnnotations } from "./annotations.js"
 // Markdown tables in a text, down to each cell's place in it, so a cell can be edited
 // without touching the pipes and spacing around it.
 
-export type Cell = {
+type Cell = {
   // The cell's text as shown, with `\|` read as a pipe.
   readonly text: string
   // Where its content sits in the text, trimmed of the padding around it.
@@ -11,7 +11,7 @@ export type Cell = {
   readonly to: number
 }
 
-export type Line = { readonly from: number; readonly to: number; readonly text: string }
+type Line = { readonly from: number; readonly to: number; readonly text: string }
 
 export type Table = {
   readonly from: number
@@ -24,8 +24,8 @@ export type Table = {
   readonly annotations: readonly (RowAnnotation | null)[]
 }
 
-// An annotation inside a row, at the end of its last cell, between the host's markers.
-export type RowAnnotation = {
+// An annotation inside a row, at the end of its last cell, between the app's markers.
+type RowAnnotation = {
   // The annotation as shown, with `\|` read as a pipe.
   readonly text: string
   // The whole annotation, with the space before it.
@@ -39,7 +39,7 @@ export type RowAnnotation = {
 const escaped = (text: string): string => text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")
 
 // What an annotation is written between.
-export type Markers = Pick<RowAnnotations, "open" | "close">
+type Markers = Pick<RowAnnotations, "open" | "close">
 
 // Finds an annotation in a row.
 const patternOf = ({ open, close }: Markers): RegExp =>
@@ -152,7 +152,7 @@ export const cellSource = (text: string): string =>
 
 export type Change = { readonly from: number; readonly to: number; readonly insert: string }
 
-const width = (table: Table): number => Math.max(...table.rows.map((row) => row.length))
+export const columnsOf = (table: Table): number => Math.max(...table.rows.map((row) => row.length))
 
 // A row's parts between unescaped pipes, and where its cells start among them.
 const partsOf = (text: string): { parts: string[]; first: number; count: number } => {
@@ -167,7 +167,7 @@ const edged = (table: Table): boolean => table.lines[0]!.text.trimStart().starts
 // An empty row after the given one (after the header means first in the body).
 export const addRow = (table: Table, after: number): Change => {
   const line = table.lines[after === 0 ? 1 : after + 1]!
-  const cells = Array.from({ length: width(table) }, () => " ")
+  const cells = Array.from({ length: columnsOf(table) }, () => " ")
   const row = edged(table) ? `|${cells.join("|")}|` : cells.join("|")
   return { from: line.to, to: line.to, insert: `\n${row}` }
 }
@@ -187,7 +187,7 @@ export const addColumn = (table: Table, after: number): Change[] =>
   })
 
 export const removeColumn = (table: Table, column: number): Change[] =>
-  width(table) < 2
+  columnsOf(table) < 2
     ? []
     : table.lines.flatMap((line) => {
         const { parts, first, count } = partsOf(line.text)

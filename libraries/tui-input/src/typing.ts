@@ -11,8 +11,8 @@ export const bracketedPaste = (line: string): string => `\x1b[200~${line}\x1b[20
 
 /** What the gate needs to know of a terminal before it types into it. */
 export type GateFacts = {
-  /** Whether the caller allows typing at all: its own yes or no, asked first. */
-  readonly ringable: boolean
+  /** Whether the caller forbids typing now: its own say, asked first. */
+  readonly vetoed: boolean
   /** How long its screen's text has been unchanged, in milliseconds. */
   readonly calmMs: number
   readonly bracketedPaste: boolean
@@ -32,18 +32,18 @@ export type GateFacts = {
 export const calmMs = 750
 
 /** Why the gate is shut, or `open`. */
-export const gate = (
-  facts: GateFacts,
-  still = calmMs,
-):
+export type Readiness =
   | "open"
-  | "not-ringable"
+  | "vetoed"
   | "restless"
   | "no-bracketed-paste"
   | "not-foreground"
-  | "no-input-box" => {
-  if (!facts.ringable) return "not-ringable"
-  if (facts.calmMs < still) return "restless"
+  | "no-input-box"
+
+/** Whether to type now: why not, or `open`. */
+export const gate = (facts: GateFacts, calmNeeded = calmMs): Readiness => {
+  if (facts.vetoed) return "vetoed"
+  if (facts.calmMs < calmNeeded) return "restless"
   if (!facts.bracketedPaste) return "no-bracketed-paste"
   if (facts.foreground === false) return "not-foreground"
   if (facts.inputBox === false) return "no-input-box"

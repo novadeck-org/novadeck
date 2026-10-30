@@ -213,7 +213,7 @@ export type Deck = {
 /** The asks to close a terminal or lead one that the deck answered. */
 export type Approvals = {
   /** The next ask no earlier call took, once it comes; fails after the timeout (a minute unless given). */
-  readonly next: (timeoutMs?: number) => Promise<Extract<Approval, { type: "ask" }>>
+  readonly next: (timeoutMs?: number) => Promise<Extract<Approval, { type: "request" }>>
 }
 
 /** The terminals the deck opened for agents' requests. */
@@ -857,7 +857,7 @@ export const createDeck = async (options: DeckOptions): Promise<Deck> => {
   }
 
   // The asks to close or lead a terminal, once the test asks the deck to answer them, and how.
-  let approvalAsks: ReturnType<typeof arrivals<Extract<Approval, { type: "ask" }>>> | undefined
+  let approvalAsks: ReturnType<typeof arrivals<Extract<Approval, { type: "request" }>>> | undefined
   let confirming = true
   // Follows the runner's approvals until it closes, answering each as the person would.
   const confirm = (on: Runner) => {
@@ -866,7 +866,7 @@ export const createDeck = async (options: DeckOptions): Promise<Deck> => {
     void (async () => {
       try {
         for await (const ask of on.terminals.approvals(owner, on.closing.signal)) {
-          if (ask.type !== "ask") continue
+          if (ask.type !== "request") continue
           on.terminals.answerApproval({ requestId: ask.requestId, approved: confirming }, owner)
           asks.push(ask)
         }

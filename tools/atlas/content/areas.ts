@@ -371,7 +371,7 @@ export const notes: Record<string, Note> = {
   },
   "engines/ggml-build": {
     purpose: "The shared ggml build the engines use.",
-    entries: [{ file: "engines/ggml-build/index.ts", text: "export const buildEngine" }],
+    entries: [{ file: "engines/ggml-build/src/index.ts", text: "export const buildEngine" }],
   },
   "engines/murmur": {
     purpose:

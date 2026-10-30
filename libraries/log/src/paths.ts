@@ -1,6 +1,8 @@
 import { createHmac } from "node:crypto"
 
-/** What `hashPaths` needs to know of this machine. */
+import { escapeRegExp } from "./escape.js"
+
+/** What `pathHasher` needs to know of this machine. */
 export type PathRule = {
   /** The person's home folder, written `~`. */
   readonly home?: string
@@ -30,7 +32,7 @@ export type PathRule = {
  * say which program failed and carry nothing of the person's. Code, not configuration, so a
  * change to it is reviewed as code is.
  */
-export const readableNames: readonly string[] = [
+const readableNames: readonly string[] = [
   "node",
   "git",
   "bash",
@@ -58,8 +60,12 @@ export const readableNames: readonly string[] = [
   "programs",
 ]
 
+/** The first 8 hex digits of `text`'s HMAC keyed with `salt`, as names and hosts are hashed. */
+export const digest = (salt: string, text: string): string =>
+  createHmac("sha256", salt).update(text).digest("hex").slice(0, 8)
+
 /**
- * Hashes one name, keeping its extension and a stack frame's `:line:column`, as `hashPaths`
+ * Hashes one name, keeping its extension and a stack frame's `:line:column`, as `pathHasher`
  * does each name of a path; `lower` hashes it lowercased, as Windows matches names. A name it
  * wrote, a readable one, a version number and the account's (`<user>`) are written as they are.
  */
@@ -79,10 +85,7 @@ export const nameHasher = (rule: PathRule): ((named: string, lower: boolean) => 
     const extension =
       dot > 0 && /^\.[A-Za-z0-9]{1,10}$/.test(segment.slice(dot)) ? segment.slice(dot) : ""
     const base = extension ? segment.slice(0, -extension.length) : segment
-    const digest = createHmac("sha256", rule.salt)
-      .update(lower ? base.toLowerCase() : base)
-      .digest("hex")
-    return `#${digest.slice(0, 8)}${extension}${position}`
+    return `#${digest(rule.salt, lower ? base.toLowerCase() : base)}${extension}${position}`
   }
 }
 
@@ -158,21 +161,19 @@ const windowsSystemRoots = new Set(["windows", "program files", "program files (
 const windowsSharedRoots = new Set(["users", "programdata"])
 const wslShares = new Set(["wsl$", "wsl.localhost"])
 
-const escape = (text: string): string => text.replace(/[.*+?^${}()|[\]\\]/g, String.raw`\$&`)
-
 const windowsShaped = (path: string): boolean => /^(?:[A-Za-z]:|\\\\)/.test(path)
 
 /** Finds `folder` in text, with either separator, and not as the start of a longer name. */
 const folderPattern = (folder: string): RegExp => {
   // A leading separator is one, so `file:///home/ana` keeps its address's own two.
-  const [first = "", ...rest] = folder.split(/[\\/]+/).map(escape)
+  const [first = "", ...rest] = folder.split(/[\\/]+/).map(escapeRegExp)
   const body =
     first === "" ? String.raw`[\\/]${rest.join(separator)}` : [first, ...rest].join(separator)
   return new RegExp(String.raw`(?<![\w.\-~])${body}(?![\w.\-])`, windowsShaped(folder) ? "gi" : "g")
 }
 
 /**
- * Hashes the names in paths, so a log names no project, folder or file of the person's:
+ * A hasher for the names in paths, so a log names no project, folder or file of the person's:
  * `/home/ana/acme/billing.ts` becomes `~/#1f2e3d4c/#9a8b7c6d.ts`. The same name hashes the
  * same wherever it appears on one install, as the hash is keyed with its salt, and a name
  * keeps its extension.
@@ -183,16 +184,13 @@ const folderPattern = (folder: string): RegExp => {
  * distribution; and everything inside `node_modules`. Home is written `~`, and a folder named
  * as the person's account `<user>`.
  */
-export const hashPaths = (text: string, rule: PathRule): string => {
+export const pathHasher = (rule: PathRule): ((text: string) => string) => {
   const hidden = new Set(Object.keys(rule.privatePlaces ?? {}))
   const places = Object.entries({ ...rule.places, ...rule.privatePlaces })
     .filter(([, folder]) => folder.length > 1)
     .toSorted(([, a], [, b]) => b.length - a.length)
-  // Windows' long-path prefix names the same path: `\\?\C:\x` is `C:\x`, `\\?\UNC\s\x` is `\\s\x`.
-  let result = text.replace(/\\\\\?\\UNC\\/gi, "\\\\").replace(/\\\\\?\\(?=[A-Za-z]:[\\/])/g, "")
-  for (const [placeholder, folder] of places)
-    result = result.replace(folderPattern(folder), `<${placeholder}>`)
-  if (rule.home && rule.home.length > 1) result = result.replace(folderPattern(rule.home), "~")
+    .map(([placeholder, folder]) => [folderPattern(folder), `<${placeholder}>`] as const)
+  const home = rule.home && rule.home.length > 1 ? folderPattern(rule.home) : undefined
 
   // Windows names are hashed lowercased, as Windows matches them, home's included.
   const homeLower = rule.home !== undefined && windowsShaped(rule.home)
@@ -253,5 +251,11 @@ export const hashPaths = (text: string, rule: PathRule): string => {
       file + root + named.flatMap((segment, index) => [segment, separators[index] ?? ""]).join("")
     )
   }
-  return result.replace(quotedPattern, rewrite).replace(pathPattern, rewrite)
+  return (text) => {
+    // Windows' long-path prefix names the same path: `\\?\C:\x` is `C:\x`, `\\?\UNC\s\x` is `\\s\x`.
+    let result = text.replace(/\\\\\?\\UNC\\/gi, "\\\\").replace(/\\\\\?\\(?=[A-Za-z]:[\\/])/g, "")
+    for (const [pattern, placeholder] of places) result = result.replace(pattern, placeholder)
+    if (home) result = result.replace(home, "~")
+    return result.replace(quotedPattern, rewrite).replace(pathPattern, rewrite)
+  }
 }
