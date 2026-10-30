@@ -15,7 +15,9 @@ export const asyncRequestId = (call: string): string => callId(null, asyncTool, 
 
 // The prompt Codex gives the model for the answers to its async questions (0.165.0): one
 // JSON array between the tags, an object per answered question, its `questionItemId` a
-// JSON array of the tool, the call's id and the question's place (probed 2026-10-29).
+// JSON array of the tool, the call's id and the question's place (probed 2026-10-29), with
+// the question and the person's answer as text. Each question answered comes as a reply of
+// its own (0.166.0, fixtures/ask.probe.0.166.0.json).
 const asyncReply =
   /^\s*<send_user_message_question_reply>\s*(\[[\s\S]*\])\s*<\/send_user_message_question_reply>\s*$/
 
@@ -28,6 +30,54 @@ export const quoted = (prompt: string): readonly string[] =>
     ([, question]) => question!.trim(),
   )
 
+type AsyncAnswer = {
+  readonly call: string
+  readonly part: number
+  readonly question: string
+  readonly answer: string
+}
+
+const parsed = (json: string): unknown => {
+  try {
+    return JSON.parse(json)
+  } catch {
+    return undefined
+  }
+}
+
+const trimmed = (value: unknown): string => (typeof value === "string" ? value.trim() : "")
+
+// What a prompt answers, in its order, where it is Codex's reply to async questions. None
+// for any other prompt, and for one whose JSON or items are not as probed.
+const asyncAnswers = (prompt: string): readonly AsyncAnswer[] => {
+  const body = asyncReply.exec(prompt)?.[1]
+  const items = body === undefined ? undefined : parsed(body)
+  if (!Array.isArray(items) || items.length === 0) return []
+  const answers: AsyncAnswer[] = []
+  for (const item of items) {
+    const {
+      questionItemId: raw,
+      question,
+      answer,
+    } = (item ?? {}) as {
+      questionItemId?: unknown
+      question?: unknown
+      answer?: unknown
+    }
+    const place = typeof raw === "string" ? parsed(raw) : undefined
+    if (!Array.isArray(place) || place[0] !== asyncTool) return []
+    if (typeof place[1] !== "string" || place[1] === "") return []
+    if (!Number.isInteger(place[2]) || (place[2] as number) < 0) return []
+    answers.push({
+      call: place[1],
+      part: place[2] as number,
+      question: trimmed(question),
+      answer: trimmed(answer),
+    })
+  }
+  return answers
+}
+
 /**
  * The questions a prompt answers, each once, by its call's id and its place in the call,
  * where it is Codex's reply to async questions: one reply for each question answered.
@@ -36,31 +86,29 @@ export const quoted = (prompt: string): readonly string[] =>
 export const asyncReplies = (
   prompt: string,
 ): readonly { readonly call: string; readonly part: number }[] => {
-  const body = asyncReply.exec(prompt)?.[1]
-  if (body === undefined) return []
-  let items: unknown
-  try {
-    items = JSON.parse(body)
-  } catch {
-    return []
-  }
-  if (!Array.isArray(items) || items.length === 0) return []
   const answered = new Map<string, { readonly call: string; readonly part: number }>()
-  for (const item of items) {
-    const raw = (item as { questionItemId?: unknown } | null)?.questionItemId
-    if (typeof raw !== "string") return []
-    let place: unknown
-    try {
-      place = JSON.parse(raw)
-    } catch {
-      return []
-    }
-    if (!Array.isArray(place) || place[0] !== asyncTool) return []
-    if (typeof place[1] !== "string" || place[1] === "") return []
-    if (!Number.isInteger(place[2]) || (place[2] as number) < 0) return []
-    answered.set(JSON.stringify(place.slice(1, 3)), { call: place[1], part: place[2] as number })
-  }
+  for (const { call, part } of asyncAnswers(prompt))
+    answered.set(JSON.stringify([call, part]), { call, part })
   return [...answered.values()]
+}
+
+// What the chat says of an answer that holds no text.
+const noAnswer = "(no answer)"
+
+/**
+ * Codex's reply to async questions as the person's words, the way its own history shows
+ * them: `Re: ` and the question, then the answer, for each question it answers. Undefined
+ * for any other prompt.
+ */
+export const asyncReplyText = (prompt: string): string | undefined => {
+  const answers = asyncAnswers(prompt)
+  if (answers.length === 0) return undefined
+  return answers
+    .map(({ question, answer }) => {
+      const said = answer || noAnswer
+      return question ? `Re: ${question}\n${said}` : said
+    })
+    .join("\n\n")
 }
 
 /**
