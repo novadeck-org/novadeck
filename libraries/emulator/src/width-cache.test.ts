@@ -55,6 +55,21 @@ Object.defineProperty(HTMLElement.prototype, "offsetHeight", {
   },
 })
 
+// jsdom parses every stylesheet it is given, and each screen xterm opens writes several, its
+// theme alone some 800 rules (three for each of its 256 colours), written again whenever an
+// option changes: half of what these tests took, and seconds on a slow runner. Nothing here
+// reads a stylesheet, so a style element keeps its text and jsdom never sees it.
+const styleText = new WeakMap<HTMLStyleElement, string>()
+Object.defineProperty(HTMLStyleElement.prototype, "textContent", {
+  configurable: true,
+  get(this: HTMLStyleElement) {
+    return styleText.get(this) ?? ""
+  },
+  set(this: HTMLStyleElement, text: string) {
+    styleText.set(this, text)
+  },
+})
+
 const hosts: HTMLElement[] = []
 const terminals: Terminal[] = []
 type Renderer = {
@@ -206,7 +221,8 @@ describe.each(bundles)("the DOM renderer's width measurements in lib/%s", (bundl
     pass()
     expect(reads - start).toBeGreaterThan(4000)
     expect([pass(), pass(), pass()]).toEqual([0, 0, 0])
-  })
+    // Each of the 4500 characters is measured through jsdom, which a slow runner takes seconds over.
+  }, 10_000)
 
   it("keep a string in use across the table's turning over, and stay bounded", async () => {
     const { terminal } = await open()
