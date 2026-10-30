@@ -856,22 +856,25 @@ export const createDeck = async (options: DeckOptions): Promise<Deck> => {
     })()
   }
 
-  // The asks to close or lead a terminal, once the test asks the deck to answer them, and how.
-  let approvalAsks: ReturnType<typeof arrivals<Extract<Approval, { type: "ask" }>>> | undefined
+  // The requests to close or lead a terminal, once the test asks the deck to answer them, and how.
+  let approvalRequests: ReturnType<typeof arrivals<Extract<Approval, { type: "ask" }>>> | undefined
   let confirming = true
   // Follows the runner's approvals until it closes, answering each as the person would.
   const confirm = (on: Runner) => {
-    const asks = approvalAsks
-    if (!asks) return
+    const arrived = approvalRequests
+    if (!arrived) return
     void (async () => {
       try {
-        for await (const ask of on.terminals.approvals(owner, on.closing.signal)) {
-          if (ask.type !== "ask") continue
-          on.terminals.answerApproval({ requestId: ask.requestId, approved: confirming }, owner)
-          asks.push(ask)
+        for await (const approval of on.terminals.approvals(owner, on.closing.signal)) {
+          if (approval.type !== "ask") continue
+          on.terminals.answerApproval(
+            { requestId: approval.requestId, approved: confirming },
+            owner,
+          )
+          arrived.push(approval)
         }
       } catch (error) {
-        if (!on.closing.signal.aborted) asks.fail(error as Error)
+        if (!on.closing.signal.aborted) arrived.fail(error as Error)
       }
     })()
   }
@@ -954,11 +957,11 @@ export const createDeck = async (options: DeckOptions): Promise<Deck> => {
     },
     answerApprovals: (approved) => {
       confirming = approved
-      if (!approvalAsks) {
-        approvalAsks = arrivals("an ask to close or lead a terminal")
+      if (!approvalRequests) {
+        approvalRequests = arrivals("a request to close or lead a terminal")
         confirm(runner)
       }
-      return { next: approvalAsks.next }
+      return { next: approvalRequests.next }
     },
     answerLooks: (shown, delayMs = 0) => {
       if (picture === undefined) {
