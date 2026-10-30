@@ -2,7 +2,7 @@ import { demoInboxIds } from "@novadeck/demo/inbox-fixtures"
 import { beforeEach } from "vitest"
 import { page, userEvent } from "vitest/browser"
 
-import { forgetDesktopWindow, desktopWindow } from "../support/backend"
+import { desktopWindow, forgetDesktopWindow } from "../support/backend"
 import { preferencesDialog } from "../support/keyboard"
 import { expectStaysAbsent, openWorkspace, sidebarPanel, skipWelcome } from "../support/workspace"
 import { context, describe, expect, it } from "../test"

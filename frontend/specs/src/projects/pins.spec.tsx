@@ -7,14 +7,14 @@ import { pinPointer } from "../support/pointer"
 import { workspaceSwitcher } from "../support/sessions"
 import { sidebarRenameField, tabAction } from "../support/terminals"
 import {
+  clickInto,
+  commandInput,
   expectStaysAbsent,
   isMac,
   openWorkspace,
+  press,
   skipWelcome,
   terminal,
-  clickInto,
-  commandInput,
-  press,
 } from "../support/workspace"
 import { context, describe, expect, it } from "../test"
 

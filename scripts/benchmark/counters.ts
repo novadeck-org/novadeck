@@ -127,7 +127,7 @@ const checkEntry = (entry: unknown, label: string): void => {
 // no further than this, it only warns. Loose by choice: the product is early and still
 // being defined, and feature work must move without tripping hard gates, while a blow-up,
 // as the 11,271 wakes Grid once cost against a budget of 78, still fails. The
-// person's call, on 2026-10-17.
+// maintainer's call, on 2026-10-17.
 export const failsAt = 2
 
 // Past `failsAt` times its budget, past its budget, under it, or at it.

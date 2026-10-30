@@ -304,7 +304,7 @@ describe("A request that waits on the person", () => {
     })
   })
 
-  context("after an answer", () => {
+  context("focus after an answer", () => {
     it("goes to the answered line, then to the box once the card has gone", async () => {
       await openChatDemo()
       const chat = await openChat("Checkout review")

@@ -61,7 +61,7 @@ describe("A tooltip for keyboard focus", () => {
     // a busy machine takes to show it.
     vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] })
     try {
-      // Tab through the header until the focus reaches it, as a keyboard user would.
+      // Tab through the header until the focus reaches it, as a person at the keyboard would.
       for (let presses = 0; presses < 20 && document.activeElement !== zen.element(); presses++)
         // eslint-disable-next-line no-await-in-loop -- Each Tab moves on from the last.
         await userEvent.keyboard("{Tab}")

@@ -3,20 +3,20 @@ import { page } from "vitest/browser"
 import { focusView, gridView } from "../support/layouts"
 import {
   chooseView,
+  clickInto,
+  commandInput,
   expectSelected,
   expectStaysAbsent,
   focusStage,
+  labelled,
+  navigateChip,
   openWorkspace,
   press,
+  sidebar,
   terminal,
   terminalTab,
   view,
   viewSwitcher,
-  labelled,
-  clickInto,
-  commandInput,
-  navigateChip,
-  sidebar,
 } from "../support/workspace"
 import { context, describe, expect, it } from "../test"
 
