@@ -70,6 +70,16 @@ describe("Codex's interruptions", () => {
       ],
     })
     expect(items([told])).toEqual([])
+    // Claude Code's marker is no record of Codex's.
+    expect(
+      items([
+        item({
+          type: "message",
+          role: "user",
+          content: [{ type: "input_text", text: "[Request interrupted by user]" }],
+        }),
+      ]),
+    ).toMatchObject([{ role: "user", interrupted: false }])
   })
 })
 

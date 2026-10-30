@@ -7,10 +7,6 @@ import type { TranscriptEntry } from "./harness.js"
 const maxText = 16_384
 const maxTool = 256
 
-// Claude Code records a stopped turn as a user message in brackets. Every harness's items
-// are checked for it.
-const interruption = /^\s*\[Request interrupted by user[^\]]*\]\s*$/
-
 /** When a record was written, from its ISO timestamp. */
 export const at = (value: unknown): number | null => {
   const time = typeof value === "string" ? Date.parse(value) : Number.NaN
@@ -81,7 +77,6 @@ export function entry(
     author:
       typeof fields.author === "string" && fields.author ? fields.author.slice(0, maxTool) : null,
     run: kind === "tool-call" ? (fields.describe?.(tool ?? "tool", cut) ?? null) : null,
-    interrupted:
-      role === "user" && kind === "text" && (fields.interrupted === true || interruption.test(cut)),
+    interrupted: role === "user" && kind === "text" && fields.interrupted === true,
   }
 }

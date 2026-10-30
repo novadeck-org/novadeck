@@ -43,19 +43,21 @@ describe("a tool call without a describe", () => {
 })
 
 describe("an interrupted item", () => {
-  const marker = "[Request interrupted by user for tool use]"
-
-  it("is a user text item that is Claude Code's marker, however the harness wrote it", () => {
-    expect(entry("user", "text", marker, { at: null }).interrupted).toBe(true)
-    expect(
-      entry("user", "text", `  [Request interrupted by user]\n`, { at: null }).interrupted,
-    ).toBe(true)
+  it("is a user text item its harness says records the interruption", () => {
+    expect(entry("user", "text", "Interrupted", { at: null, interrupted: true }).interrupted).toBe(
+      true,
+    )
   })
 
-  it("is nothing else", () => {
-    expect(entry("assistant", "text", marker, { at: null }).interrupted).toBe(false)
-    expect(entry("user", "text", `${marker} and more`, { at: null }).interrupted).toBe(false)
-    expect(entry("tool", "tool-result", marker, { at: null }).interrupted).toBe(false)
+  it("is nothing else, whatever its text holds", () => {
+    const marker = "[Request interrupted by user]"
+    expect(entry("user", "text", marker, { at: null }).interrupted).toBe(false)
+    expect(entry("assistant", "text", marker, { at: null, interrupted: true }).interrupted).toBe(
+      false,
+    )
+    expect(entry("tool", "tool-result", marker, { at: null, interrupted: true }).interrupted).toBe(
+      false,
+    )
   })
 })
 

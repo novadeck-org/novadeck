@@ -100,8 +100,7 @@ describe("each harness's messaging profile", () => {
 })
 
 describe("a continuation's prompt", () => {
-  it("is a Stop hook's or a delivery's, never the person's", () => {
-    expect(continuationPrompt("<hook_prompt>go on</hook_prompt>")).toBe(true)
+  it("is a delivery's, in any harness, never the person's", () => {
     expect(continuationPrompt(`text\n${delivery}`)).toBe(true)
     expect(continuationPrompt("Review the Novadeck notice")).toBe(false)
   })
@@ -132,9 +131,7 @@ describe("a doorbell prompt", () => {
       prompt: "fix the build",
     })
     expect(withoutDoorbell(`half ${bell} typed`)).toBe("half typed")
-    expect(promptStart(base, "<hook_prompt>go on</hook_prompt>")).toMatchObject({
-      cause: "harness",
-    })
+    expect(promptStart(base, `go on\n${delivery}`)).toMatchObject({ cause: "harness" })
     expect(promptStart(base, "anything", true)).toMatchObject({ cause: "harness" })
   })
 
@@ -348,21 +345,27 @@ describe("root turns, as each harness reports them", () => {
   })
 
   it("never take a Stop hook's continuation for the person's prompt", () => {
-    for (const agent of ["claude", "codex"] as const)
-      for (const prompt of [
-        "<hook_prompt>Stop hook feedback</hook_prompt>",
-        '<novadeck-messages note="…">\n<message id="m-1">hi</message>\n</novadeck-messages>',
+    const hookPrompt = "<hook_prompt>Stop hook feedback</hook_prompt>"
+    // Codex submits a Stop's reason as a prompt of its own; Claude Code takes it as the
+    // hook's feedback, never as a prompt, so its text there is the person's.
+    for (const [agent, prompt] of [
+      ["claude", delivery],
+      ["codex", delivery],
+      ["codex", hookPrompt],
+    ] as const)
+      expect(turns(decode(agent, "UserPromptSubmit", { session_id: "s", prompt }))).toEqual([
+        {
+          type: "turn-started",
+          agent,
+          sessionId: "s",
+          instance: "7",
+          startedAt: 1,
+          cause: "harness",
+        },
       ])
-        expect(turns(decode(agent, "UserPromptSubmit", { session_id: "s", prompt }))).toEqual([
-          {
-            type: "turn-started",
-            agent,
-            sessionId: "s",
-            instance: "7",
-            startedAt: 1,
-            cause: "harness",
-          },
-        ])
+    expect(
+      turns(decode("claude", "UserPromptSubmit", { session_id: "s", prompt: hookPrompt })),
+    ).toMatchObject([{ cause: "prompt", prompt: hookPrompt }])
   })
 
   it("leave a subagent's prompt out of the root's turns", () => {

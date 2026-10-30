@@ -68,8 +68,8 @@ const decodeHook = ({ event, seq, instance, env, payload }: Report): readonly Ha
     case "UserPromptSubmit": {
       // A subagent's prompt is its own work, not the root's turn.
       if (actor) return []
-      // A Stop hook's reason it submits to continue the turn is no prompt of the person's.
-      // Its turn's id is what its rollout records the turn's end by.
+      // A Stop hook's reason it submits to continue the turn (`hookPrompt`) is no prompt of
+      // the person's. Its turn's id is what its rollout records the turn's end by.
       const turn = text(payload.turn_id)
       const prompt = text(payload.prompt) ?? ""
       // Codex's own prompt: the answers the person gave its async question go in at the
@@ -92,7 +92,11 @@ const decodeHook = ({ event, seq, instance, env, payload }: Report): readonly Ha
           })),
         ]
       }
-      const started = promptStart({ ...base, ...(turn && { turn }) }, prompt)
+      const started = promptStart(
+        { ...base, ...(turn && { turn }) },
+        prompt,
+        hookPrompt.test(prompt),
+      )
       // Once its turn ended, Codex answers an async question with a prompt quoting it,
       // which the person's own may do as well: the questions it quotes are answered.
       const answers = quoted(prompt)
@@ -194,6 +198,9 @@ const decodeHook = ({ event, seq, instance, env, payload }: Report): readonly Ha
       return []
   }
 }
+
+// A Stop hook's reason Codex submits to continue the turn, as a prompt of its own.
+const hookPrompt = /^\s*<hook_prompt\b/
 
 /** A call as its request and its result both know it: a shell call by its command alone. */
 export const callOf = (input: unknown): unknown =>
