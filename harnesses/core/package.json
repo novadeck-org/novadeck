@@ -23,6 +23,11 @@
       "types": "./dist/events.d.ts",
       "default": "./dist/events.js"
     },
+    "./fields": {
+      "development": "./src/fields.ts",
+      "types": "./dist/fields.d.ts",
+      "default": "./dist/fields.js"
+    },
     "./follow": {
       "development": "./src/follow.ts",
       "types": "./dist/follow.d.ts",
@@ -72,6 +77,11 @@
       "development": "./src/testing/probes.ts",
       "types": "./dist/testing/probes.d.ts",
       "default": "./dist/testing/probes.js"
+    },
+    "./testing/reports": {
+      "development": "./src/testing/reports.ts",
+      "types": "./dist/testing/reports.d.ts",
+      "default": "./dist/testing/reports.js"
     },
     "./testing/screens": {
       "development": "./src/testing/screens.ts",

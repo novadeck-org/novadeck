@@ -4,7 +4,7 @@ import { createServer } from "node:net"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 
-import { plugin } from "@novadeck/harness-core/plugin"
+import { manifest } from "@novadeck/harness-core/plugin"
 import { relayPath } from "@novadeck/relay"
 import { afterAll, beforeAll, onTestFinished } from "vitest"
 
@@ -43,7 +43,7 @@ type Answer = {
 
 // How the server starts: the relay as the launcher starts it, or as a plugin names it.
 type Start = { readonly command: string; readonly args?: readonly string[] }
-const relay: Start = { command: relayPath, args: ["mcp", plugin.version, ...mcpVersions] }
+const relay: Start = { command: relayPath, args: ["mcp", manifest.version, ...mcpVersions] }
 
 // Runs the server as an agent would, without a shell, sends it these messages, and
 // collects its answers until it has answered every one with an id, and every batch. With
@@ -1396,7 +1396,7 @@ describe("Novadeck's MCP server", () => {
         expect(Date.now() - began).toBeLessThan(5_000)
         expect(hello?.result).toMatchObject({
           protocolVersion: "2025-06-18",
-          serverInfo: { name: "novadeck", version: plugin.version },
+          serverInfo: { name: "novadeck", version: manifest.version },
         })
         expect(tools?.result?.tools).toEqual([])
       }, 30_000)
@@ -1563,7 +1563,7 @@ describe("Novadeck's MCP server", () => {
     ])
     expect(known?.result).toMatchObject({
       protocolVersion: "2024-11-05",
-      serverInfo: { version: plugin.version },
+      serverInfo: { version: manifest.version },
     })
     const [unknown] = await session({ PATH: process.env.PATH }, [
       { id: 1, method: "initialize", params: { protocolVersion: "2099-01-01" } },
@@ -1577,7 +1577,7 @@ describe("Novadeck's MCP server", () => {
     const config = files.find((file) => file.path.endsWith(join("claude", "novadeck", ".mcp.json")))
     expect(JSON.parse(config?.content ?? "{}")).toEqual({
       mcpServers: {
-        novadeck: { command: paths.relay, args: ["mcp", plugin.version, ...mcpVersions] },
+        novadeck: { command: paths.relay, args: ["mcp", manifest.version, ...mcpVersions] },
       },
     })
   })
@@ -1587,7 +1587,7 @@ describe("Novadeck's MCP server", () => {
     const paths = shellPaths("C:\\data", "win32")
     const launcher = shellFiles(paths, "win32").find((file) => file.path === paths.mcp)
     expect(launcher?.content).toContain(
-      `${paths.relay}" mcp ${plugin.version} ${mcpVersions.join(" ")} %*`,
+      `${paths.relay}" mcp ${manifest.version} ${mcpVersions.join(" ")} %*`,
     )
     expect(launcher?.content.toLowerCase()).not.toContain("powershell")
     expect(launcher?.content).not.toContain("ELECTRON_RUN_AS_NODE")

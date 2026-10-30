@@ -15,11 +15,12 @@ import {
   shortName,
 } from "@novadeck/harness-core/decode"
 import type { Background, BackgroundJob, HarnessEvent } from "@novadeck/harness-core/events"
+import { isFields, parseFields } from "@novadeck/harness-core/fields"
 import type { WrittenPlan } from "@novadeck/harness-core/harness"
-import { at as writtenAt, record } from "@novadeck/harness-core/items"
+import { at as writtenAt } from "@novadeck/harness-core/items"
 import { promptStart } from "@novadeck/harness-core/prompts"
 import type { Report } from "@novadeck/harness-core/report"
-import { isFields, oneLine } from "@novadeck/harness-core/tools"
+import { oneLine } from "@novadeck/harness-core/tools"
 
 import { kindOf } from "./tools.js"
 
@@ -478,7 +479,7 @@ const presented = (
  */
 export const transcriptPlans = (line: string): readonly WrittenPlan[] => {
   if (!line.includes('"ExitPlanMode"')) return []
-  const fields = record(line)
+  const fields = parseFields(line)
   if (fields?.type !== "assistant") return []
   const time = writtenAt(fields.timestamp)
   const base = { agent: "claude", sessionId: "", instance: null, startedAt: time ?? 0 } as const

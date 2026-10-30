@@ -1,6 +1,4 @@
-import type { AgentName } from "@novadeck/protocol"
-
-import type { HarnessEvent } from "./events.js"
+import type { EventBase, HarnessEvent } from "./events.js"
 
 /**
  * The prompts a session sees that aren't the person's own: Novadeck's doorbell line and
@@ -50,11 +48,7 @@ export const continuationPrompt = (prompt: string): boolean =>
  * person's text, any doorbell line removed.
  */
 export const promptStart = (
-  base: {
-    readonly agent: AgentName
-    readonly sessionId: string
-    readonly instance: string | null
-    readonly startedAt: number
+  base: EventBase & {
     /** The turn's id, where the harness names one. */
     readonly turn?: string
   },

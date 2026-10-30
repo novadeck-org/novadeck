@@ -1,5 +1,7 @@
 import type { ToolRun } from "@novadeck/protocol"
 
+import { fieldsOf, parseFields, type Fields } from "./fields.js"
+
 /**
  * What a tool call was, in one line, from its name and its input as the harness wrote it
  * (JSON, or raw text for a patch). Each harness's `describe` names its own tools; what they
@@ -7,13 +9,6 @@ import type { ToolRun } from "@novadeck/protocol"
  * decoder makes up, and Novadeck's own MCP tools, which every harness reaches under its own
  * spelling of the server.
  */
-
-/** A JSON object's fields: a tool call's input, or a transcript's record. */
-export type Fields = Readonly<Record<string, unknown>>
-
-/** Whether a value is a JSON object, as a call's input is. */
-export const isFields = (value: unknown): value is Fields =>
-  typeof value === "object" && value !== null && !Array.isArray(value)
 
 /** A string value, with the JSON quoting Antigravity wraps its arguments' strings in undone. */
 export const unquote = (value: string): string => {
@@ -26,30 +21,20 @@ export const unquote = (value: string): string => {
   }
 }
 
-/** An input's fields, or null where it is not a JSON object. */
-export const parseFields = (input: string): Fields | null => {
-  try {
-    const value: unknown = JSON.parse(input)
-    return isFields(value) ? value : null
-  } catch {
-    return null
-  }
-}
-
 /** An object argument, as given or as the JSON text Antigravity may wrap it in. */
-const nested = (value: unknown): Fields | null => {
+const nested = (value: unknown): Fields | undefined => {
   if (typeof value === "string") {
     try {
       return nested(JSON.parse(value))
     } catch {
-      return null
+      return undefined
     }
   }
-  return isFields(value) ? value : null
+  return fieldsOf(value)
 }
 
 /** The first of `keys` the input holds as text. */
-export const textField = (fields: Fields | null, ...keys: string[]): string => {
+export const textField = (fields: Fields | undefined, ...keys: string[]): string => {
   if (!fields) return ""
   for (const key of keys) {
     const value = fields[key]
@@ -95,7 +80,7 @@ export const shellCall = (_tool: string, input: string): ToolRun => {
  * A tool the harness doesn't know: its name and the first thing its input says, or, for
  * input that isn't JSON, its first line.
  */
-export const otherRun = (tool: string, fields: Fields | null, input: string): ToolRun => {
+export const otherRun = (tool: string, fields: Fields | undefined, input: string): ToolRun => {
   const detail =
     textField(
       fields,
@@ -113,7 +98,7 @@ export const otherRun = (tool: string, fields: Fields | null, input: string): To
 }
 
 /** Novadeck's own MCP tools: the agent works with the person's other terminals. */
-export const novadeckTool = (tool: string, fields: Fields | null): ToolRun | undefined => {
+export const novadeckTool = (tool: string, fields: Fields | undefined): ToolRun | undefined => {
   const text = (...keys: string[]): string => oneLine(textField(fields, ...keys))
   switch (tool) {
     case "send":
@@ -164,7 +149,7 @@ export const novadeckTool = (tool: string, fields: Fields | null): ToolRun | und
       const url = page ? oneLine(textField(page, "url")) : ""
       const file = nested(fields?.file)
       const path = file ? oneLine(textField(file, "path")) : ""
-      const changes = nested(fields?.changes) !== null
+      const changes = nested(fields?.changes) !== undefined
       return {
         kind: url ? "web" : "read",
         title: tool === "show" ? "Showed" : "Closed",

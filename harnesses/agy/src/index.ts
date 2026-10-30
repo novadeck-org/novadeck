@@ -3,7 +3,7 @@ import { join } from "node:path"
 
 import type { MessagingProfile, Harness, Install } from "@novadeck/harness-core/harness"
 import { hookSeconds, hookCommand, type Dialect } from "@novadeck/harness-core/hook-command"
-import { json, plugin } from "@novadeck/harness-core/plugin"
+import { json, manifest } from "@novadeck/harness-core/plugin"
 
 import { box } from "./box.js"
 import { decode, shown } from "./decode.js"
@@ -114,7 +114,7 @@ export const agy = {
   // would run unasked, so PreToolUse goes unregistered: Antigravity's own policy asks, as
   // it does without Novadeck (probed 2026-10-11, 1.2.14, ahead of an "ask" too).
   files: (platform, launchers, machine = {}) => [
-    { path: "plugin.json", content: json({ name: plugin.name }) },
+    { path: "plugin.json", content: json({ name: manifest.name }) },
     // Its MCP server, which Antigravity takes from the plugin and starts with the
     // terminal's environment.
     {

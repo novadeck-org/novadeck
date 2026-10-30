@@ -1,15 +1,13 @@
 import type { ToolKind } from "@novadeck/harness-core/events"
+import { fieldsOf, parseFields, type Fields } from "@novadeck/harness-core/fields"
 import {
-  isFields,
   novadeckTool,
   oneLine,
   otherRun,
-  parseFields,
   shortPath,
   sleepOnly,
   textField,
   unquote,
-  type Fields,
 } from "@novadeck/harness-core/tools"
 import type { ToolRun } from "@novadeck/protocol"
 
@@ -22,12 +20,12 @@ const eager = /^mcp_novadeck_novadeck_(.+)$/
 const lazy = "call_mcp_tool"
 const novadeckServers: ReadonlySet<string> = new Set(["novadeck", "novadeck_novadeck"])
 
-const lazyRun = (fields: Fields | null): ToolRun | undefined => {
+const lazyRun = (fields: Fields | undefined): ToolRun | undefined => {
   const server = textField(fields, "ServerName")
   const tool = textField(fields, "ToolName")
   if (!server || !tool) return undefined
   const args = fields?.Arguments
-  const given = typeof args === "string" ? parseFields(unquote(args)) : isFields(args) ? args : null
+  const given = typeof args === "string" ? parseFields(unquote(args)) : fieldsOf(args)
   // Another server's tool shows its name and server.
   return (
     (novadeckServers.has(server) ? novadeckTool(tool, given) : undefined) ?? {
@@ -38,7 +36,7 @@ const lazyRun = (fields: Fields | null): ToolRun | undefined => {
   )
 }
 
-const known = (name: string, fields: Fields | null): ToolRun | undefined => {
+const known = (name: string, fields: Fields | undefined): ToolRun | undefined => {
   const path = (...keys: string[]): string => shortPath(textField(fields, ...keys))
   switch (name) {
     case "run_command":

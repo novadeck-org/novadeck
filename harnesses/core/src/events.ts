@@ -6,6 +6,17 @@ import type { AgentName, AgentTelemetry } from "@novadeck/protocol"
  */
 export type Continuity = "startup" | "native-switch" | "conversation-observed"
 
+/**
+ * What every event of one report shares: the agent (narrowed to one harness where its
+ * decoder builds events), its session and process, and when the report's hook started.
+ */
+export type EventBase<A extends AgentName = AgentName> = {
+  readonly agent: A
+  readonly sessionId: string
+  readonly instance: string | null
+  readonly startedAt: number
+}
+
 /** A fact a hook told, as every one but telemetry may be. */
 type Fired = {
   /**
@@ -23,36 +34,33 @@ type Fired = {
  * the runner's clock, so it compares with the shell's prompts. `instance` is the harness
  * process that reported it, where the platform tells.
  */
-export type SessionObserved = Fired & {
-  readonly type: "session-observed"
-  readonly agent: AgentName
-  readonly sessionId: string
-  readonly evidence: Continuity
-  readonly startedAt: number
-  readonly instance: string | null
-  /** The harness's own directory, when it is an absolute path here. */
-  readonly cwd?: string
-  /** The session's transcript, when the harness names it with an absolute path. */
-  readonly transcript?: string
-  /**
-   * Whether the harness names this its root session, as Antigravity's status line does;
-   * its hooks name subagents' conversations alike.
-   */
-  readonly root?: boolean
-  /**
-   * Whether the harness reports that it compacted the session's context, as Claude Code's
-   * and Codex's SessionStart with source `compact` do.
-   */
-  readonly compacted?: boolean
-  /**
-   * Whether the harness announced this new session as its own input prompt came up, past
-   * any trust, onboarding or login screen: Claude Code's SessionStart at a `startup`,
-   * `clear`, `resume` or `fork`, and Antigravity's status line saying idle in it. Only
-   * such a session may be rung before its first turn (see docs/agent-messaging.md,
-   * "States").
-   */
-  readonly atPrompt?: boolean
-}
+export type SessionObserved = EventBase &
+  Fired & {
+    readonly type: "session-observed"
+    readonly evidence: Continuity
+    /** The harness's own directory, when it is an absolute path here. */
+    readonly cwd?: string
+    /** The session's transcript, when the harness names it with an absolute path. */
+    readonly transcript?: string
+    /**
+     * Whether the harness names this its root session, as Antigravity's status line does;
+     * its hooks name subagents' conversations alike.
+     */
+    readonly root?: boolean
+    /**
+     * Whether the harness reports that it compacted the session's context, as Claude Code's
+     * and Codex's SessionStart with source `compact` do.
+     */
+    readonly compacted?: boolean
+    /**
+     * Whether the harness announced this new session as its own input prompt came up, past
+     * any trust, onboarding or login screen: Claude Code's SessionStart at a `startup`,
+     * `clear`, `resume` or `fork`, and Antigravity's status line saying idle in it. Only
+     * such a session may be rung before its first turn (see docs/agent-messaging.md,
+     * "States").
+     */
+    readonly atPrompt?: boolean
+  }
 
 /**
  * The harness shows its own empty input prompt, past any trust, update, login, hooks
@@ -93,12 +101,9 @@ export type PromptShown = Fired & {
  * result marked `loose` resolves the actor's oldest request of that tool when its call
  * changed on the way, as an answered question's does.
  */
-export type ActivityEvent = Fired & {
-  readonly agent: AgentName
-  readonly sessionId: string
-  readonly instance: string | null
-  readonly startedAt: number
-} & (
+export type ActivityEvent = EventBase &
+  Fired &
+  (
     | {
         readonly type: "turn-started"
         readonly cause: "prompt" | "harness" | "call" | "doorbell"
@@ -327,12 +332,8 @@ export type ActivityEvent = Fired & {
  * they named it: how full its context is, its rate-limit windows, the model's name and its
  * reasoning effort.
  */
-export type TelemetryObserved = {
+export type TelemetryObserved = EventBase & {
   readonly type: "telemetry-observed"
-  readonly agent: AgentName
-  readonly sessionId: string
-  readonly instance: string | null
-  readonly startedAt: number
   readonly context?: AgentTelemetry["context"]
   readonly limits?: AgentTelemetry["limits"]
   readonly model?: AgentTelemetry["model"]

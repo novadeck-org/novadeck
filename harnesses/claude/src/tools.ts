@@ -1,15 +1,13 @@
 import type { ToolKind } from "@novadeck/harness-core/events"
+import { isFields, parseFields, type Fields } from "@novadeck/harness-core/fields"
 import {
   count,
-  isFields,
   novadeckTool,
   oneLine,
   otherRun,
-  parseFields,
   shortPath,
   sleepOnly,
   textField,
-  type Fields,
 } from "@novadeck/harness-core/tools"
 import type { ToolRun } from "@novadeck/protocol"
 
@@ -17,7 +15,7 @@ import type { ToolRun } from "@novadeck/protocol"
 // `mcp__plugin_novadeck_novadeck__send`.
 const novadeck = /^mcp__plugin_novadeck_novadeck__(.+)$/
 
-const known = (name: string, fields: Fields | null): ToolRun | undefined => {
+const known = (name: string, fields: Fields | undefined): ToolRun | undefined => {
   const path = (...keys: string[]): string => shortPath(textField(fields, ...keys))
   switch (name) {
     case "bash":
@@ -73,7 +71,7 @@ const known = (name: string, fields: Fields | null): ToolRun | undefined => {
     case "exitplanmode":
       return { kind: "plan", title: "Proposed a plan", detail: "" }
     case "askuserquestion": {
-      const first = Array.isArray(fields?.questions) ? (fields!.questions[0] as Fields) : null
+      const first = Array.isArray(fields?.questions) ? (fields!.questions[0] as Fields) : undefined
       return {
         kind: "plan",
         title: "Asked",

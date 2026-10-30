@@ -2,7 +2,6 @@ import type { ToolRun, TranscriptItem } from "@novadeck/protocol"
 
 import { ref } from "./decode.js"
 import type { TranscriptEntry } from "./harness.js"
-import { parseFields, type Fields } from "./tools.js"
 
 // What the protocol takes of an item's text and a tool's name.
 const maxText = 16_384
@@ -11,9 +10,6 @@ const maxTool = 256
 // Claude Code records a stopped turn as a user message in brackets. Every harness's items
 // are checked for it.
 const interruption = /^\s*\[Request interrupted by user[^\]]*\]\s*$/
-
-/** A transcript line's record, or undefined for one that is not a JSON object. */
-export const record = (line: string): Fields | undefined => parseFields(line) ?? undefined
 
 /** When a record was written, from its ISO timestamp. */
 export const at = (value: unknown): number | null => {
