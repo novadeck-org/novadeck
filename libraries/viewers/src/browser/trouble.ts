@@ -1,7 +1,7 @@
 import { webAddress } from "./address.js"
 
 // What went wrong on a live page, as the browser viewer sees it: the part of its work that
-// needs no view. The page is the host's to distrust, so what it says is checked here.
+// needs no view. The page is the app's to distrust, so what it says is checked here.
 
 /**
  * An `error` the page logged or threw, with the script and line it came from (0 when
@@ -27,15 +27,12 @@ export type Trouble =
 /** How many troubles one document reports; a page logging in a loop can't flood. */
 export const maxTroubles = 20
 
+/** The load error that isn't a failure: a navigation that replaced the one loading. */
+export const abortedLoad = -3
+
 /** The origin of an http(s) address, or null for anything else. */
-export const originOf = (url: string): string | null => {
-  if (!webAddress(url)) return null
-  try {
-    return new URL(url).origin
-  } catch {
-    return null
-  }
-}
+export const originOf = (url: string): string | null =>
+  webAddress(url) ? new URL(url).origin : null
 
 /**
  * A request the pages' session saw fail: its address, the HTTP error `status` or 0 for no
@@ -63,14 +60,10 @@ export const clip = (text: string, max: number): string => {
   return text.slice(0, last >= 0xd800 && last <= 0xdbff ? max - 1 : max)
 }
 
-const record = (value: unknown): Record<string, unknown> | null =>
-  typeof value === "object" && value !== null ? (value as Record<string, unknown>) : null
-
 /** `value` as a notice if it is one: a whole status, strings, which it clips as the runner does. */
 export const parsePageRequest = (value: unknown): PageRequestNotice | null => {
-  const notice = record(value)
-  if (!notice) return null
-  const { contentsId, url, status, what } = notice
+  if (typeof value !== "object" || value === null) return null
+  const { contentsId, url, status, what } = value as Record<string, unknown>
   return typeof contentsId === "number" &&
     Number.isSafeInteger(contentsId) &&
     typeof url === "string" &&

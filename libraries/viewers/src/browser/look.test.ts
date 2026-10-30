@@ -14,7 +14,7 @@ import {
   lookWorstMs,
   maxWaitingLooks,
   maxLookPicture,
-} from "./browser-look.js"
+} from "./look.js"
 
 afterEach(() => vi.useRealTimers())
 
@@ -370,7 +370,7 @@ describe("a look at a page", () => {
     expect(created[0]?.webPreferences).toMatchObject({ disableDialogs: true })
   })
 
-  it("keeps its frames to the pages the host allows, as its navigations and redirects", async () => {
+  it("keeps its frames to the pages the app allows, as its navigations and redirects", async () => {
     const prevented: Record<string, boolean[]> = { frame: [], redirect: [], navigate: [] }
     const { looker } = setup({
       load: (each) => {

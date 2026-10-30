@@ -5,7 +5,7 @@ import { isLanguage, type Language } from "./languages.js"
 
 // Syntax highlighting with CodeMirror's parsers but no editor. A language's parser loads
 // the first time it's asked for. Each token gets `tok-*` classes, which code.css colours.
-// The code viewer loads this module only once it has something to highlight.
+// Viewers load this module through ./rows.ts, only once they have something to highlight.
 
 // A run of text, where it starts in its line, and the classes for its kind of token,
 // none for plain text.

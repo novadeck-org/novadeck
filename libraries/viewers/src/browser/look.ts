@@ -6,33 +6,38 @@ import type {
 } from "electron"
 
 import { webAddress } from "./address.js"
+import { desktopWidth, type PageSize } from "./framing.js"
+import { lockedPreferences } from "./lockdown.js"
+import { phoneScreen, phoneStyle } from "./phone.js"
 import {
+  abortedLoad,
   clip,
   maxTroubles,
   originOf,
   type PageRequestFailure,
   type Trouble,
-} from "./browser-trouble.js"
+} from "./trouble.js"
+import { wait, within } from "./wait.js"
 
 // An agent's look at a page no pane shows live, in Electron's main process: the address
 // loaded afresh in a window of its own, out of sight, in the pages' session so a sign-in
 // carries over, laid out as the pane would lay it out, and pictured. The window has the
 // pane's pages' lockdown (no Node or preload, a sandbox, http(s) only, no popups) and is
 // never shown, focused or kept: whatever happens, it is destroyed before the answer goes.
-// Only addresses the host allows (the app allows those on this machine) are looked at, and
+// Only addresses the app allows (those on this machine) are looked at, and
 // the page's navigations, redirects and frames are held to them, so no frame or page from
 // elsewhere loads in the signed-in session. Its subresources (images, scripts, fetches) from
 // other origins do load, as in the pane.
 
-/** What a look lays out as: a desktop's window or a phone's screen, as the pane's switch has it. */
-export type LookLayout = "desktop" | "phone"
-
-/** The size each layout loads at, in CSS pixels: the pane's own (see the browser viewer). */
+/**
+ * The size a look loads at for each layout, in CSS pixels: the pane's own, a desktop's
+ * window or a phone's screen, as the pane's switch has it (see `framingOf`).
+ */
 export const lookSizes: Readonly<
-  Record<LookLayout, { readonly width: number; readonly height: number }>
+  Record<PageSize, { readonly width: number; readonly height: number }>
 > = {
-  desktop: { width: 1280, height: 800 },
-  phone: { width: 390, height: 844 },
+  desktop: { width: desktopWidth, height: 800 },
+  phone: phoneScreen,
 }
 
 /** The widest a look's picture is, in device pixels. */
@@ -85,18 +90,6 @@ export type LookResult =
     }
   | { readonly reason: string }
 
-const within = <T>(promise: Promise<T>, ms: number): Promise<T | undefined> =>
-  new Promise((resolve) => {
-    const timer = setTimeout(() => resolve(undefined), ms)
-    const done = (value: T | undefined): void => {
-      clearTimeout(timer)
-      resolve(value)
-    }
-    promise.then(done, () => done(undefined))
-  })
-
-const pause = (ms: number): Promise<void> => new Promise((resolve) => setTimeout(resolve, ms))
-
 /**
  * A JPEG `data:` address of `image` no wider than `lookWidth` and within `maxLookPicture`:
  * its quality lowered, then its width halved, until it fits. Undefined for no picture.
@@ -114,17 +107,14 @@ export const lookPicture = (image: NativeImage): string | undefined => {
   return undefined
 }
 
-// A phone's page has no scrollbar taking room, as in the pane.
-const phoneLook = "html { scrollbar-width: none !important; }"
-
 const busy = "Too many pictures of pages are waiting. Try again in a moment."
 
 /**
- * Makes the looker of a host. `create` makes the window, and gets the options it must be
+ * Makes the desktop app's looker. `create` makes the window, and gets the options it must be
  * made with: the lockdown above, which a caller can't loosen; `partition` is the pages'
  * session (see `pagesSession`). `allow` says which addresses may be looked at, loaded or
  * framed (the app's: those on this machine); `forget` is told of each look's view once it
- * is gone, for whatever the host kept by its id.
+ * is gone, for whatever the app kept by its id.
  */
 export const createLooker = ({
   partition,
@@ -195,18 +185,11 @@ export const createLooker = ({
           // Drawn to memory, so a window nobody sees still paints what a picture takes.
           offscreen: true,
           backgroundThrottling: false,
-          nodeIntegration: false,
-          nodeIntegrationInSubFrames: false,
-          nodeIntegrationInWorker: false,
-          contextIsolation: true,
-          sandbox: true,
-          webSecurity: true,
-          allowRunningInsecureContent: false,
-          webviewTag: false,
+          ...lockedPreferences,
           // An alert or confirm would hold the look until it timed out.
           disableDialogs: true,
         },
-      } as BrowserWindowConstructorOptions)
+      })
       viewId = window.webContents.id
       windows.add(window)
       return await loadAndPicture(window, url, layout, hearing, allow, emulate)
@@ -235,7 +218,7 @@ export const createLooker = ({
 const loadAndPicture = async (
   window: BrowserWindow,
   url: string,
-  layout: LookLayout,
+  layout: PageSize,
   hearing: Map<number, (failure: PageRequestFailure) => void>,
   allow: (address: string) => boolean,
   emulate: (contents: WebContents) => Promise<boolean>,
@@ -244,7 +227,7 @@ const loadAndPicture = async (
   const id = contents.id
   const size = lookSizes[layout]
   contents.setAudioMuted(true)
-  // No popup opens, and the page, its redirects and its frames stay on addresses the host
+  // No popup opens, and the page, its redirects and its frames stay on addresses the app
   // allows: the pane's guard, with no person to click, so every window it asks for is refused,
   // and a frame from elsewhere never loads in the signed-in session.
   contents.setWindowOpenHandler(() => ({ action: "deny" }))
@@ -285,8 +268,7 @@ const loadAndPicture = async (
     })
   })
   contents.on("did-fail-load", (_event, code, description, validated, main) => {
-    // A navigation that replaced the one loading isn't a failure.
-    if (!main || code === -3 || originOf(validated) !== origin) return
+    if (!main || code === abortedLoad || originOf(validated) !== origin) return
     failedLoad = true
     tell({ kind: "load", text: clip(description || `Error ${code}`, 256) })
   })
@@ -299,7 +281,7 @@ const loadAndPicture = async (
         return { reason: "The page could not be set up as a phone's." }
     }
     contents.on("did-finish-load", () => {
-      if (layout === "phone") void contents.insertCSS(phoneLook).catch(() => {})
+      if (layout === "phone") void contents.insertCSS(phoneStyle).catch(() => {})
     })
     const loaded = new Promise<true>((resolve) => {
       contents.once("did-stop-loading", () => resolve(true))
@@ -309,7 +291,7 @@ const loadAndPicture = async (
     const stopped = await within(loaded, lookLoadMs)
     if (!stopped && !failedLoad)
       tell({ kind: "load", text: `Still loading after ${lookLoadMs / 1000} seconds.` })
-    await pause(lookSettleMs)
+    await wait(lookSettleMs)
     if (window.isDestroyed()) return { reason: "The page could not be pictured." }
     const image = await within(contents.capturePage(), lookPictureMs)
     const picture = image && lookPicture(image)

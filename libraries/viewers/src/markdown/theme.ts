@@ -19,7 +19,7 @@ export const theme = EditorView.theme({
     background: "var(--md-selection-bg, color-mix(in srgb, currentColor 18%, transparent))",
   },
   ".cm-cursor": { borderLeftColor: "var(--md-fg, currentColor)" },
-  // The base theme's gutter is grey on light grey, in colours of its own. A host's gutters
+  // The base theme's gutter is grey on light grey, in colours of its own. An app's gutters
   // sit flat on the page.
   ".cm-gutters": {
     border: "0",

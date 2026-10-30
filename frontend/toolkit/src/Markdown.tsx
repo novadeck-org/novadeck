@@ -1,7 +1,7 @@
 /* oxlint-disable react/no-array-index-key -- The nodes are read from text that has no ids; they never reorder. */
-import { highlightLines, languageOf, type HighlightedLine } from "@novadeck/viewers/code"
+import { highlightLines, type HighlightedLine } from "@novadeck/viewers/code"
 import {
-  fenceFile,
+  fenceLanguage,
   parseMarkdown,
   type Inline,
   type MarkdownBlock,
@@ -63,8 +63,7 @@ const useHighlighted = (lang: string, text: string): readonly HighlightedLine[] 
     readonly of: string
     readonly lines: readonly HighlightedLine[]
   } | null>(null)
-  const file = fenceFile(lang)
-  const language = file === undefined ? undefined : languageOf(file)
+  const language = fenceLanguage(lang)
   useEffect(() => {
     if (!language) return
     let current = true

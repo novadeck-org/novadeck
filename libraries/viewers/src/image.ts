@@ -73,6 +73,8 @@ export const mountImage: Mount<ImageContent, Record<never, never>, ImageViewer> 
   { content, label, saved },
 ) => {
   const document = element.ownerDocument
+  // The window it's drawn in: its styles and its resizes.
+  const win = document.defaultView ?? window
   const root = document.createElement("div")
   root.className = "image-viewer"
   root.setAttribute("role", "region")
@@ -103,7 +105,7 @@ export const mountImage: Mount<ImageContent, Record<never, never>, ImageViewer> 
     const { naturalWidth, naturalHeight } = image
     const { clientWidth, clientHeight } = root
     if (!naturalWidth || !naturalHeight || !clientWidth || !clientHeight) return undefined
-    const style = (document.defaultView ?? window).getComputedStyle(root)
+    const style = win.getComputedStyle(root)
     const across = parseFloat(style.paddingLeft) + parseFloat(style.paddingRight)
     const down = parseFloat(style.paddingTop) + parseFloat(style.paddingBottom)
     const fit = Math.min(
@@ -363,7 +365,7 @@ export const mountImage: Mount<ImageContent, Record<never, never>, ImageViewer> 
     if (!root.contains(event.relatedTarget as Node | null) && document.hasFocus()) keyed = false
   }
 
-  const observer = new (document.defaultView?.ResizeObserver ?? ResizeObserver)(draw)
+  const observer = new win.ResizeObserver(draw)
   observer.observe(root)
   image.addEventListener("load", draw)
   image.addEventListener("error", draw)

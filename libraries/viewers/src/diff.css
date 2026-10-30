@@ -1,13 +1,17 @@
 /* The diff viewer: a change (`.diff-viewer`) as a list of its files (`.diff-files`, each a
-   `.diff-file-link` that scrolls to its section) over a section per file (`.diff-file`,
-   with data-status: added, modified, deleted, renamed) under a header (`.diff-file-head`:
-   `.diff-status`, `.diff-path` with `.diff-old-path` and `.diff-new-path`, `.diff-stats`
-   with `.diff-added` and `.diff-removed`). A file's hunks (`.diff-hunk`) have a header
-   (`.diff-hunk-head`) over rows (`.diff-line`, with data-kind: context, add, remove), each
-   with two line numbers (`.diff-number`) and its text (`.diff-text`). A file's hunks are
-   in its `.diff-lines`, which scrolls sideways on its own (`.diff-lines-body` is as wide as
-   its widest line). `.diff-note` says what a file or the change itself can't show. The `.tok-*` classes of code.css colour the
-   text once highlighted.
+   `.diff-file-link`, its `.diff-file-name` and `.diff-stats`, that scrolls to its section)
+   over a section per file (`.diff-file`) under a header (`.diff-file-head`: `.diff-status`,
+   `.diff-path` with `.diff-old-path`, `.diff-arrow` and `.diff-new-path`, `.diff-stats` with
+   `.diff-added` and `.diff-removed`). A file's hunks (`.diff-hunk`) have a header
+   (`.diff-hunk-head`) over rows (`.diff-line`), each with two line numbers (`.diff-number`)
+   and its text (`.diff-text`). A file's hunks are in its `.diff-lines`, which scrolls
+   sideways on its own (`.diff-lines-body` is as wide as its widest line). `.diff-note` says
+   what a file or the change itself can't show: `.diff-empty` that nothing changed,
+   `.diff-truncated` that the change is larger than shown. The `.tok-*` classes of code.css
+   colour the text once highlighted.
+
+   Hooks: data-status on a file: added, modified, deleted, renamed. data-kind on a row:
+   context, add, remove.
 
    Tokens, each optional (its fallback in brackets):
    --code-font (monospace), --code-font-size (inherit), --code-line-height (1.6): the type.

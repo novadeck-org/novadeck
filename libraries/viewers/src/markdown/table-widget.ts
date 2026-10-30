@@ -7,6 +7,7 @@ import {
   addRow,
   addRowAnnotation,
   cellSource,
+  columnsOf,
   findTables,
   removeColumn,
   removeRow,
@@ -17,7 +18,7 @@ import {
 
 // Tables always read as tables. A cell edits in place, and leaving it writes just that
 // cell's text into the text. While a cell is being edited, a toolbar adds and removes
-// rows and columns. Where the host sets row annotations, each row takes one, kept inside
+// rows and columns. Where the app sets row annotations, each row takes one, kept inside
 // the row; the header's is on the whole table and goes after it.
 
 type Place = { readonly row: number; readonly column: number }
@@ -30,8 +31,6 @@ const texts = (table: Table): string =>
     table.rows.map((row) => row.map((cell) => cell.text)),
     table.annotations.map((annotation) => annotation?.text),
   ])
-
-const columnsOf = (table: Table): number => Math.max(...table.rows.map((row) => row.length))
 
 const placeCaret = (cell: HTMLTextAreaElement): void => {
   cell.focus()
@@ -144,14 +143,14 @@ class TableWidget extends WidgetType {
 
     // Opens a row's annotation, adding it if it has none. The header's is on the whole
     // table, and goes after it.
-    const annotate = (host: RowAnnotations, row: number): void => {
+    const annotate = (app: RowAnnotations, row: number): void => {
       const start = at()
       pending = { row, annotation: true }
       const committed = flush(start)
       if (!committed) pending = null
       if (row === 0) {
         pending = null
-        host.addBeside(view, start)
+        app.addBeside(view, start)
         return
       }
       const current = tableAt(view, start)
@@ -163,56 +162,52 @@ class TableWidget extends WidgetType {
         }
         return
       }
-      const added = addRowAnnotation(current, row, host)
+      const added = addRowAnnotation(current, row, app)
       if (!added) return
       pending = { row, annotation: true }
       dispatchReshape(added.change)
     }
 
-    const annotateButton = (host: RowAnnotations, row: number): HTMLButtonElement => {
+    const annotateButton = (app: RowAnnotations, row: number): HTMLButtonElement => {
       const button = document.createElement("button")
       button.type = "button"
-      button.className = ["cm-md-annotation-add", host.buttonClass].filter(Boolean).join(" ")
-      const label = row === 0 ? host.addLabels.table : host.addLabels.row
+      button.className = ["cm-md-annotation-add", app.buttonClass].filter(Boolean).join(" ")
+      const label = row === 0 ? app.addLabels.table : app.addLabels.row
       button.title = label
       button.setAttribute("aria-label", label)
-      button.append(host.icon())
+      button.append(app.icon())
       // Act on press, keeping the press from the workspace, as the toolbar does.
       button.addEventListener("pointerdown", (event) => {
         event.preventDefault()
         event.stopPropagation()
-        annotate(host, row)
+        annotate(app, row)
       })
       button.addEventListener("mousedown", (event) => event.preventDefault())
       button.addEventListener("click", (event) => {
-        if (event.detail === 0) annotate(host, row)
+        if (event.detail === 0) annotate(app, row)
       })
       return button
     }
 
     // A row's annotation, under the row, edited in place. Emptying it removes it.
-    const annotationRow = (
-      host: RowAnnotations,
-      row: number,
-      text: string,
-    ): HTMLTableRowElement => {
+    const annotationRow = (app: RowAnnotations, row: number, text: string): HTMLTableRowElement => {
       const line = document.createElement("tr")
       line.className = "cm-md-annotation"
       const box = document.createElement("td")
       box.colSpan = width
-      const label = host.mark()
+      const label = app.mark()
       const input = document.createElement("textarea")
       input.className = "cm-md-annotation-input"
       input.readOnly = this.readOnly
       input.rows = 1
       input.spellcheck = false
       input.value = text
-      input.setAttribute("aria-label", host.fieldLabel(row))
+      input.setAttribute("aria-label", app.fieldLabel(row))
       let left = false
       const save = (): void => {
         left = true
         const current = tableAt(view, at())
-        const change = current && setRowAnnotation(current, row, input.value, host)
+        const change = current && setRowAnnotation(current, row, input.value, app)
         if (!change) return
         if (change.insert === view.state.doc.sliceString(change.from, change.to)) return
         view.dispatch({ changes: change })
@@ -421,7 +416,7 @@ const build = (state: EditorState): DecorationSet =>
 
 export const tables = StateField.define<DecorationSet>({
   create: build,
-  // Also when the viewer starts or stops taking edits, or its host sets other annotations:
+  // Also when the viewer starts or stops taking edits, or its app sets other annotations:
   // a table's fields follow.
   update: (decorations, transaction) =>
     transaction.docChanged ||
