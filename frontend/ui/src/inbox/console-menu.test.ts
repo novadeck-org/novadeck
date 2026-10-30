@@ -2,7 +2,7 @@ import type { ChatDialogOption } from "@novadeck/core/conversation"
 import type { InboxRow, Trouble } from "@novadeck/core/inbox"
 
 import { context, describe, expect, it } from "../test"
-import { answerable, menuOf, standingParts, type Row } from "./console-menu"
+import { answerable, menuOf, standingParts, type MenuRow } from "./console-menu"
 
 const source: InboxRow["source"] = {
   projectId: "p",
@@ -46,8 +46,8 @@ const codex: readonly ChatDialogOption[] = [
   { id: "differently", label: "No, and tell Codex what to do differently", text: "prompt" },
 ]
 
-const labels = (rows: readonly Row[]): string[] => rows.map((row) => row.label)
-const words = (row: Row | undefined): Extract<Row, { type: "words" }> => {
+const labels = (rows: readonly MenuRow[]): string[] => rows.map((row) => row.label)
+const words = (row: MenuRow | undefined): Extract<MenuRow, { type: "words" }> => {
   if (row?.type !== "words") throw new Error("not a words row")
   return row
 }

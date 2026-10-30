@@ -1,4 +1,4 @@
-// Where an item's row is on the page: its sheet sits beside it, and the keyboard follows it.
+// Where an Inbox row is on the page: its sheet sits beside it, and the keyboard follows it.
 export const rowOf = (id: string | null): HTMLElement | null =>
   id === null
     ? null
@@ -35,7 +35,7 @@ export const focusSheetSoon = (frames = 12): void => {
   })
 }
 
-// The select button of the row after an item's; none where it is the last.
+// The select button of the row after a row's; none where it is the last.
 export const nextRowButton = (id: string): HTMLElement | null => {
   const rows = Array.from(document.querySelectorAll<HTMLElement>("[data-inbox-row]"))
   const at = rows.findIndex((row) => row.dataset.inboxRow === id)

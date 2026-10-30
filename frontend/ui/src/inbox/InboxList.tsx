@@ -11,13 +11,13 @@ import { readLabel, resumesLabel, subjectOf, toneOf, waitLabel } from "./inbox-t
 import { started, useInboxContext } from "./InboxProvider"
 import { Text } from "./sheet-parts"
 
-// Whether the person answered the item, here, and it has since gone: it keeps its place in
+// Whether the person answered the row, here, and it has since gone: it keeps its place in
 // the list, answered, until the sheet closes.
 const answeredIn = (
-  item: InboxRow,
+  row: InboxRow,
   state: Pick<InboxState, "answering" | "failed">,
   ghosts: Readonly<Record<string, InboxRow>>,
-): boolean => item.id in ghosts && !state.answering[item.id] && !state.failed[item.id]
+): boolean => row.id in ghosts && !state.answering[row.id] && !state.failed[row.id]
 
 // One row, for triage only: the type's icon tinted by how urgent it is, the subject, how
 // long the agent has waited if it stopped, and under it the project and what is extra. A row
@@ -26,54 +26,54 @@ const answeredIn = (
 // asks that end the list, where theirs goes. A settled ask (dismissed, withdrawn or answered in
 // its terminal) stays, struck through, and opens nothing; an open Novadeck ask can be dismissed.
 const Row = ({
-  item,
+  row,
   asks,
   first,
   settledFirst,
 }: {
-  readonly item: InboxRow
+  readonly row: InboxRow
   readonly asks: boolean
   readonly first: boolean
   readonly settledFirst: boolean
 }): React.JSX.Element => {
   const { state, view, now, drafts, ghosts, open, close, dismiss } = useInboxContext()
-  const { settled } = item
-  const type = inboxType(item)
-  const pending = Boolean(state.answering[item.id])
-  const answered = answeredIn(item, state, ghosts)
+  const { settled } = row
+  const type = inboxType(row)
+  const pending = Boolean(state.answering[row.id])
+  const answered = answeredIn(row, state, ghosts)
   const answering = pending || answered
   const Icon = pending ? LoaderCircle : answered ? CircleCheck : icons[type]
-  const current = view.open === item.id
+  const current = view.open === row.id
   const dismissable =
-    dismiss !== undefined && item.kind === "ask" && !settled && !pending && !answered
-  const subject = subjectOf(item).replaceAll("`", "")
+    dismiss !== undefined && row.kind === "ask" && !settled && !pending && !answered
+  const subject = subjectOf(row).replaceAll("`", "")
   const extras = settled
     ? [settledWords[settled.how]]
     : [
-        started(drafts[item.id]) && !answering ? "Draft" : null,
-        answering ? null : resumesLabel(item),
-        readLabel(item),
+        started(drafts[row.id]) && !answering ? "Draft" : null,
+        answering ? null : resumesLabel(row),
+        readLabel(row),
       ].filter((extra): extra is string => extra !== null)
   return (
     <div
       role="listitem"
       className="item inbox-row"
-      data-inbox-row={item.id}
+      data-inbox-row={row.id}
       data-type={type}
-      data-urgency={settled ? "quiet" : answered ? "answered" : toneOf(item)}
-      data-seen={item.seen}
+      data-urgency={settled ? "quiet" : answered ? "answered" : toneOf(row)}
+      data-seen={row.seen}
       data-needs={asks}
       data-updates-start={first}
       data-settled-start={settledFirst}
       data-settled={settled?.how}
       data-dismissable={dismissable}
-      data-arrived={view.arrived.includes(item.id)}
+      data-arrived={view.arrived.includes(row.id)}
       data-selected={current}
     >
       <button
         type="button"
         className="inbox-row-select"
-        aria-label={`${typeWords[type]}: ${subject}, ${item.source.projectName}${
+        aria-label={`${typeWords[type]}: ${subject}, ${row.source.projectName}${
           settled ? `, ${settledWords[settled.how].toLowerCase()}` : ""
         }`}
         aria-current={current ? "true" : undefined}
@@ -82,7 +82,7 @@ const Row = ({
           if (settled) return
           // Pressed again, the open row closes its sheet.
           if (current) return close()
-          open(item.id)
+          open(row.id)
           // From the keyboard, on to the sheet that opens.
           if (event.detail === 0) focusSheetSoon()
         }}
@@ -98,8 +98,8 @@ const Row = ({
             !event.altKey
           ) {
             event.preventDefault()
-            const next = nextRowButton(item.id)
-            dismiss(item.id)
+            const next = nextRowButton(row.id)
+            dismiss(row.id)
             next?.focus()
             return
           }
@@ -112,18 +112,18 @@ const Row = ({
           <Icon size={14} strokeWidth={1.6} />
         </span>
         <span className="inbox-row-subject text-body">
-          <Text text={subjectOf(item)} />
+          <Text text={subjectOf(row)} />
         </span>
         <span className="inbox-row-wait text-caption">
           {settled
             ? waitLabel(settled.at, now)
-            : item.stopped && !answering
-              ? waitLabel(item.at, now)
+            : row.stopped && !answering
+              ? waitLabel(row.at, now)
               : ""}
         </span>
         <span className="inbox-row-meta text-caption">
-          <span className="inbox-row-project" title={item.source.projectName}>
-            {item.source.projectName}
+          <span className="inbox-row-project" title={row.source.projectName}>
+            {row.source.projectName}
           </span>
           {extras.map((extra) => (
             <span
@@ -146,7 +146,7 @@ const Row = ({
               // The keyboard was on this button, which goes with the click: it stays on the row.
               const keyboard = event.detail === 0
               const select = event.currentTarget.previousElementSibling
-              dismiss(item.id)
+              dismiss(row.id)
               if (keyboard && select instanceof HTMLElement) select.focus()
             }}
           >
@@ -172,7 +172,7 @@ export const InboxCount = (): string | null => {
   return waiting === 0 ? null : `${waiting} waiting`
 }
 
-// The pill beside the title while items wait to join the list.
+// The pill beside the title while rows wait to join the list.
 export const HeldPill = (): React.JSX.Element | null => {
   const { held, showHeld } = useInboxContext()
   if (held.length === 0) return null
@@ -219,21 +219,21 @@ export const InboxClear = (): React.JSX.Element | null => {
   )
 }
 
-// Everything across the workspace that asks for the person, one row each.
 const needsBefore = (before: InboxRow | undefined): boolean => before !== undefined && needs(before)
 
+// Everything across the workspace that asks for the person, one row each.
 export const InboxList = (): React.JSX.Element => {
   const { shown, view, working, state, ghosts } = useInboxContext()
-  const rows = shown.map((item) => ({
-    item,
-    asks: needs(item) && !answeredIn(item, state, ghosts),
+  const placements = shown.map((row) => ({
+    row,
+    asks: needs(row) && !answeredIn(row, state, ghosts),
     // A row that settled in place among the asks keeps its place with them.
-    placed: item.settled !== undefined && needsBefore(view.base[item.id]),
+    placed: row.settled !== undefined && needsBefore(view.base[row.id]),
   }))
-  const settledAt = settledStart(shown.map((item) => item.settled !== undefined))
+  const settledAt = settledStart(shown.map((row) => row.settled !== undefined))
   const updates = updatesStart(
-    rows
-      .slice(0, settledAt < 0 ? rows.length : settledAt)
+    placements
+      .slice(0, settledAt < 0 ? placements.length : settledAt)
       .map(({ asks, placed }) => asks || placed),
   )
   return (
@@ -257,10 +257,10 @@ export const InboxList = (): React.JSX.Element => {
           role="list"
           aria-label="Messages from your agents"
         >
-          {rows.map(({ item, asks }, index) => (
+          {placements.map(({ row, asks }, index) => (
             <Row
-              key={item.id}
-              item={item}
+              key={row.id}
+              row={row}
               asks={asks}
               first={index === updates}
               settledFirst={index === settledAt}

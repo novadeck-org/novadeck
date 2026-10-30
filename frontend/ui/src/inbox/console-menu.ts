@@ -14,13 +14,13 @@ import {
   waitLabel,
 } from "./inbox-text"
 
-// The numbered menu a sheet answers with, by kind: each row's words, the line under it where
-// that says what the row's words don't, and what it sends with the receipt the next sheet
+// The numbered menu a sheet answers with, by kind: each menu row's words, the line under it
+// where that says what the row's words don't, and what it sends with the receipt the next sheet
 // shows for it. Pure, so the rules read apart from the markup. An agent's own questions
 // take their picks as they go and are made in `QuestionsMenu`.
 
-// A row's own text: its label as the harness or agent wrote it (`code` between backticks).
-export type Row =
+// A menu row's own text: its label as the harness or agent wrote it (`code` between backticks).
+export type MenuRow =
   | {
       readonly type: "answer"
       readonly label: string
@@ -51,7 +51,7 @@ export type Row =
     }
   // Shows the terminal: what can't be answered from here.
   | { readonly type: "reveal"; readonly label: string; readonly effect: string | null }
-  // Changes how the item is handled, without answering it: it stays.
+  // Changes how the Inbox row is handled, without answering it: it stays.
   | {
       readonly type: "toggle"
       readonly label: string
@@ -60,7 +60,7 @@ export type Row =
     }
 
 export type Menu = {
-  readonly rows: readonly Row[]
+  readonly rows: readonly MenuRow[]
   // Whether an answer is hard to take back: the first press arms it, the second sends.
   readonly hard: boolean
 }
@@ -74,10 +74,10 @@ const inTerminal: Menu = {
 }
 
 // Whether the sheet can answer a request: its dialog read, and its options ones the menu
-// can tell apart (a yes among them). Every other item it can.
-export const answerable = (item: InboxRow): boolean => {
-  if (item.kind !== "request") return true
-  const { dialog } = item.request
+// can tell apart (a yes among them). Every other row it can.
+export const answerable = (row: InboxRow): boolean => {
+  if (row.kind !== "request") return true
+  const { dialog } = row.request
   if (dialog?.type === "questions") return true
   return dialog?.type === "choices" && choicesOf(dialog.options) !== null
 }
@@ -118,19 +118,19 @@ const thing = (request: ChatRequest): string => {
   return request.tool
 }
 
-const permissionMenu = (item: InboxRow, request: ChatRequest): Menu => {
+const permissionMenu = (row: InboxRow, request: ChatRequest): Menu => {
   const dialog = request.dialog
   if (dialog?.type !== "choices") return none
   const choices = choicesOf(dialog.options)
   if (!choices) return inTerminal
-  const { agent, handle } = item.source
+  const { agent, handle } = row.source
   const who = `@${handle}'s ${thing(request)}`
   const plan = actionOf(request) === "plan"
   const answer = (option: ChatDialogOption, text?: string): InboxAnswer => ({
     kind: "request",
     answer: choiceAnswer(dialog.id, option, text),
   })
-  const rows: Row[] = []
+  const rows: MenuRow[] = []
   if (choices.allow)
     rows.push({
       type: "answer",
@@ -202,22 +202,22 @@ const permissionMenu = (item: InboxRow, request: ChatRequest): Menu => {
 }
 
 // What the person may write in place of an agent's options, or as its answer.
-const ownWords = (item: InboxRow, label = "Reply in your own words"): Row => ({
+const ownWords = (row: InboxRow, label = "Reply in your own words"): MenuRow => ({
   type: "words",
   label,
-  placeholder: `Reply to ${agentName(item.source.agent)}`,
-  field: `Reply to ${agentName(item.source.agent)}`,
+  placeholder: `Reply to ${agentName(row.source.agent)}`,
+  field: `Reply to ${agentName(row.source.agent)}`,
   required: true,
   answer: (text) => ({ kind: "ask", answer: { type: "reply", option: null, text: text.trim() } }),
-  receipt: () => `Reply queued for @${item.source.handle}.`,
+  receipt: () => `Reply queued for @${row.source.handle}.`,
   refused: () => null,
 })
 
-const askMenu = (item: Extract<InboxRow, { kind: "ask" }>): Menu => {
-  const { ask, source } = item
+const askMenu = (row: Extract<InboxRow, { kind: "ask" }>): Menu => {
+  const { ask, source } = row
   const { shape } = ask
   const hard = ask.hardToUndo !== null
-  if (shape.type === "text") return { rows: [ownWords(item, "Reply")], hard }
+  if (shape.type === "text") return { rows: [ownWords(row, "Reply")], hard }
   if (shape.type === "action")
     return {
       rows: [
@@ -230,13 +230,13 @@ const askMenu = (item: Extract<InboxRow, { kind: "ask" }>): Menu => {
           answer: { kind: "ask", answer: { type: "done" } },
           receipt: `Told @${source.handle} it's done.`,
         },
-        ownWords(item),
+        ownWords(row),
       ],
       hard,
     }
   return {
     rows: [
-      ...shape.options.map((option, index): Row => {
+      ...shape.options.map((option, index): MenuRow => {
         const { label, pick } = recommended(option.label)
         return {
           type: "answer",
@@ -248,7 +248,7 @@ const askMenu = (item: Extract<InboxRow, { kind: "ask" }>): Menu => {
           receipt: `Reply queued for @${source.handle}.`,
         }
       }),
-      ownWords(item),
+      ownWords(row),
     ],
     hard,
   }
@@ -264,7 +264,7 @@ const troubleRow = (
   action: Extract<InboxAnswer, { kind: "trouble" }>["action"],
   receipt: string,
   effect: string | null = null,
-): Row => ({
+): MenuRow => ({
   type: "answer",
   label,
   effect,
@@ -274,13 +274,13 @@ const troubleRow = (
   receipt,
 })
 
-const troubleMenu = (item: InboxRow, trouble: Trouble, now: number): Menu => {
-  const { handle } = item.source
+const troubleMenu = (row: InboxRow, trouble: Trouble, now: number): Menu => {
+  const { handle } = row.source
   switch (trouble.type) {
     case "failed":
       return {
         rows: [
-          ...(item.stopped
+          ...(row.stopped
             ? [
                 troubleRow(
                   "Ask it to fix",
@@ -309,7 +309,7 @@ const troubleMenu = (item: InboxRow, trouble: Trouble, now: number): Menu => {
             type: "words",
             label: "Nudge it in your own words",
             placeholder: "What should it try?",
-            field: `What ${agentName(item.source.agent)} should try`,
+            field: `What ${agentName(row.source.agent)} should try`,
             required: true,
             answer: (text) => ({
               kind: "trouble",
@@ -323,7 +323,7 @@ const troubleMenu = (item: InboxRow, trouble: Trouble, now: number): Menu => {
         hard: false,
       }
     case "limit": {
-      const rows: Row[] = []
+      const rows: MenuRow[] = []
       if (trouble.autoResume !== null)
         rows.push({
           type: "toggle",
@@ -350,16 +350,16 @@ const troubleMenu = (item: InboxRow, trouble: Trouble, now: number): Menu => {
   }
 }
 
-// The menu of every item but a dialog of questions, at `now`: a limit's reset is read
+// The menu of every row but a dialog of questions, at `now`: a limit's reset is read
 // against it.
-export const menuOf = (item: InboxRow, now: number): Menu => {
-  switch (item.kind) {
+export const menuOf = (row: InboxRow, now: number): Menu => {
+  switch (row.kind) {
     case "request": {
-      if (item.request.dialog?.type !== "choices") return inTerminal
-      return permissionMenu(item, item.request)
+      if (row.request.dialog?.type !== "choices") return inTerminal
+      return permissionMenu(row, row.request)
     }
     case "held": {
-      const { from, to } = item.held
+      const { from, to } = row.held
       return {
         rows: [
           {
@@ -385,9 +385,9 @@ export const menuOf = (item: InboxRow, now: number): Menu => {
       }
     }
     case "ask":
-      return askMenu(item)
+      return askMenu(row)
     case "trouble":
-      return troubleMenu(item, item.trouble, now)
+      return troubleMenu(row, row.trouble, now)
     case "update":
       return {
         rows: [
@@ -398,16 +398,16 @@ export const menuOf = (item: InboxRow, now: number): Menu => {
             pick: false,
             details: null,
             answer: { kind: "update", action: "read" },
-            receipt: `Marked @${item.source.handle}'s update read.`,
+            receipt: `Marked @${row.source.handle}'s update read.`,
           },
           {
             type: "answer",
-            label: `Give @${item.source.handle} a follow-up`,
+            label: `Give @${row.source.handle} a follow-up`,
             effect: "Marks it read and shows its terminal.",
             pick: false,
             details: null,
             answer: { kind: "update", action: "read" },
-            receipt: `Marked @${item.source.handle}'s update read.`,
+            receipt: `Marked @${row.source.handle}'s update read.`,
             reveal: true,
           },
         ],

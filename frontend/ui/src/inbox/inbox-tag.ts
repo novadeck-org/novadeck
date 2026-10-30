@@ -30,11 +30,11 @@ const settledWords = {
   replied: "Replied",
 } as const satisfies Record<NonNullable<InboxRow["settled"]>["how"], TagWord>
 
-const wordOf = (item: InboxRow): TagWord => {
-  switch (item.kind) {
+const wordOf = (row: InboxRow): TagWord => {
+  switch (row.kind) {
     case "request": {
-      if (item.request.kind === "question") return "Question"
-      const action = actionOf(item.request)
+      if (row.request.kind === "question") return "Question"
+      const action = actionOf(row.request)
       if (action === "plan") return "Plan"
       if (action === "run") return "Command"
       if (action === "edit") return "Edit"
@@ -43,11 +43,11 @@ const wordOf = (item: InboxRow): TagWord => {
     case "held":
       return "Held"
     case "ask":
-      return item.ask.shape.type === "action" ? "Your move" : "Question"
+      return row.ask.shape.type === "action" ? "Your move" : "Question"
     case "trouble":
-      if (item.trouble.type === "failed") return "Error"
-      if (item.trouble.type === "limit") return "Limit"
-      if (item.trouble.type === "stuck") return "Stuck"
+      if (row.trouble.type === "failed") return "Error"
+      if (row.trouble.type === "limit") return "Limit"
+      if (row.trouble.type === "stuck") return "Stuck"
       return "Undelivered"
     case "update":
       return "Update"
@@ -58,9 +58,9 @@ const wordOf = (item: InboxRow): TagWord => {
 // dismissed it, or wrote to its agent in the terminal. An agent's ask whose
 // answer it says is hard to take back is red; a permission carries no such flag, so none is
 // guessed at.
-export const tagOf = (item: InboxRow): Tag => {
-  const type = inboxType(item)
-  if (item.settled) return { word: settledWords[item.settled.how], type, tone: "quiet" }
-  const hard = item.kind === "ask" && item.ask.hardToUndo !== null
-  return { word: wordOf(item), type, tone: hard ? "urgent" : toneOf(item) }
+export const tagOf = (row: InboxRow): Tag => {
+  const type = inboxType(row)
+  if (row.settled) return { word: settledWords[row.settled.how], type, tone: "quiet" }
+  const hard = row.kind === "ask" && row.ask.hardToUndo !== null
+  return { word: wordOf(row), type, tone: hard ? "urgent" : toneOf(row) }
 }

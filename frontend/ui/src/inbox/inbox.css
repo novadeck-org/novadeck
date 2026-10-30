@@ -21,7 +21,7 @@
    an item, data-selected for the one whose sheet is open. A row that asks keeps its colour
    until it is answered, opened or not. While a sheet is
    open the updates step back. The header's
-   `.inbox-held` pill says items wait to join; Clear (an icon button in the panel's header) removes
+   `.inbox-held` pill says rows wait to join; Clear (an icon button in the panel's header) removes
    the settled asks; an empty panel shows `.inbox-empty`.
 
    The sheet is the sheet recipe's card holding an `.inbox-sheet` (data-type, data-tone=
@@ -53,7 +53,7 @@
    --inbox-arrived-bg (the strong colour at 14%): a row that has just joined the list.
    --inbox-draft-fg (danger-fg): the word "Draft".
    --inbox-held-fg (strong), --inbox-held-bg (the strong colour at 10%),
-   --inbox-held-border-color (the strong colour at 30%): the pill of waiting items.
+   --inbox-held-border-color (the strong colour at 30%): the pill of waiting rows.
    --inbox-card-bg (the ink at 3.5% on paper): the box that holds commands, errors and the
    prompt as the terminal shows it.
    --inbox-workspace-opacity (0.55): the workspace behind an open sheet.
@@ -860,17 +860,6 @@ pre.console-box {
   color: var(--color-danger-fg);
   font-family: var(--font-sans);
   font-size: var(--text-control);
-}
-.inbox-byline {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  color: var(--color-muted);
-  font-size: var(--text-control);
-  line-height: 18px;
-}
-.inbox-byline-sep {
-  opacity: 0.6;
 }
 
 @media (max-width: 700px) {
