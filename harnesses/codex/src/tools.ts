@@ -97,6 +97,17 @@ const known = (name: string, fields: Fields | undefined, input: string): ToolRun
     }
     case "update_plan":
       return { kind: "plan", title: "Updated plan", detail: count(fields?.plan, "step") }
+    case "request_user_input":
+    case "request_user_input_async": {
+      // As Claude Code's AskUserQuestion shows: its first question, which the async tool
+      // calls a `title`.
+      const first = Array.isArray(fields?.questions) ? fieldsOf(fields.questions[0]) : undefined
+      return {
+        kind: "plan",
+        title: "Asked",
+        detail: oneLine(textField(first, "question", "title")),
+      }
+    }
     default:
       return undefined
   }
