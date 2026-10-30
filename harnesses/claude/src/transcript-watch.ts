@@ -6,6 +6,12 @@ import { at, record } from "@novadeck/harness-core/items"
 
 import { presentedPlan, type EventBase } from "./decode.js"
 
+/**
+ * What Claude Code's session transcript says beside its hooks: followed live while a
+ * session is bound (`followTranscript`, the harness's `watch`), and read back for the plans
+ * it presented (`transcriptPlans`). `transcripts.ts` reads the same files for the chat.
+ */
+
 // Claude Code's records of an interrupted turn: Esc while it works or runs a tool, and
 // "No" to a permission request, which interrupts the turn too. Only these exact texts
 // count, so a prompt that merely starts like one does not.

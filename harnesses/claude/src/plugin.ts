@@ -26,16 +26,19 @@ const events = [
   "PostToolUseFailure",
 ]
 
-// Its hooks run in PowerShell on Windows, where its handlers say so (`shell` below). Its
-// status line takes no `shell`, and runs in Git Bash there, as `bash -c "<command>"`
-// (probed 2026-10-23, 2.1.309).
+/**
+ * Its hooks run in PowerShell on Windows, where its handlers say so (`shell` below). Its
+ * status line takes no `shell`, and runs in Git Bash there, as `bash -c "<command>"`
+ * (probed 2026-10-23, 2.1.309).
+ */
 export const hookDialect = (platform: NodeJS.Platform, event?: string): Dialect =>
   platform === "win32" && event !== "StatusLine" ? "powershell" : "sh"
 
-// Outside Novadeck's shells its hooks print nothing: Claude Code needs no fallback answer.
+/** Outside Novadeck's shells its hooks print nothing: Claude Code needs no fallback answer. */
 export const hook = (platform: NodeJS.Platform, event: string): string =>
   hookCommand(hookDialect(platform, event), { agent: "claude", event })
 
+/** Whether Claude Code's settings list Novadeck's plugin as enabled. */
 export const connected: Harness["connected"] = async (install) => {
   try {
     const settings = JSON.parse(
@@ -49,6 +52,7 @@ export const connected: Harness["connected"] = async (install) => {
   }
 }
 
+/** Adds Novadeck's marketplace from the plugin's folder and installs the plugin from it. */
 export const connect: Harness["connect"] = ({ plugin: directory }) => [
   // A marketplace left from an earlier connection is replaced, not added twice.
   { argv: ["claude", "plugin", "marketplace", "remove", marketplaceName], optional: true },
@@ -56,11 +60,16 @@ export const connect: Harness["connect"] = ({ plugin: directory }) => [
   { argv: ["claude", "plugin", "install", pluginId] },
 ]
 
+/** Uninstalls the plugin and removes its marketplace, whichever of them is there. */
 export const disconnect: Harness["disconnect"] = [
   { argv: ["claude", "plugin", "uninstall", pluginId], optional: true },
   { argv: ["claude", "plugin", "marketplace", "remove", marketplaceName], optional: true },
 ]
 
+/**
+ * The plugin's files: the marketplace and its manifest, its MCP server, its hooks, and the
+ * settings Novadeck's shim adds for the status line.
+ */
 export const files: Harness["files"] = (platform, launchers) => [
   { path: join(".claude-plugin", "marketplace.json"), content: marketplace },
   { path: join("novadeck", ".claude-plugin", "plugin.json"), content: json(plugin) },

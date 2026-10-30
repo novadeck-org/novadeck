@@ -43,7 +43,7 @@ import { kindOf } from "./tools.js"
  * answered question's call gains its answers, and a plan may be edited in review, so
  * their results match loosely. A denial or an Esc fires nothing: the next turn settles
  * them. A prompt that timed out fires nothing either, but the turn runs on: the call's
- * result in the transcript settles the root's (see `transcript.ts`).
+ * result in the transcript settles the root's (see `transcript-watch.ts`).
  */
 export const decode = (report: Report): readonly HarnessEvent[] =>
   withRequestCwd(withMode(decodeHook(report), report.payload), report.payload)

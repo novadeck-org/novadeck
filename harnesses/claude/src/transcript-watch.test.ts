@@ -4,7 +4,7 @@ import { describe, expect, it } from "vitest"
 
 import { decode } from "./decode.js"
 import { report } from "./report.test-support.js"
-import { transcriptEvents, type Calls } from "./transcript.js"
+import { transcriptEvents, type Calls } from "./transcript-watch.js"
 
 type Probe = { scenarios: { [name: string]: object[] } }
 const probe = loadProbe(import.meta.dirname, "transcript.probe.json") as Probe

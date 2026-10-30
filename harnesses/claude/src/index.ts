@@ -9,7 +9,7 @@ import { claudeHome } from "./home.js"
 import { models } from "./models.js"
 import { connect, connected, disconnect, files, hook, hookDialect } from "./plugin.js"
 import { cmdShim, commands, posixShim } from "./shim.js"
-import { followTranscript, transcriptPlans } from "./transcript.js"
+import { followTranscript, transcriptPlans } from "./transcript-watch.js"
 import { transcripts } from "./transcripts.js"
 
 // What a hook prints to hand the model `delivery` as context.
