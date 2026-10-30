@@ -2,6 +2,8 @@
 import type { Terminal as XTerminal } from "@xterm/xterm"
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest"
 
+import { leaveStylesheetsUnparsed } from "./stylesheets.test-support.js"
+
 // The app's bundler loads xterm's ES bundle and Node loads the CommonJS one; the patch is made
 // in both, so the tests run against each.
 type Terminal = XTerminal
@@ -55,20 +57,8 @@ Object.defineProperty(HTMLElement.prototype, "offsetHeight", {
   },
 })
 
-// jsdom parses every stylesheet it is given, and each screen xterm opens writes several, its
-// theme alone some 800 rules (three for each of its 256 colours), written again whenever an
-// option changes: half of what these tests took, and seconds on a slow runner. Nothing here
-// reads a stylesheet, so a style element keeps its text and jsdom never sees it.
-const styleText = new WeakMap<HTMLStyleElement, string>()
-Object.defineProperty(HTMLStyleElement.prototype, "textContent", {
-  configurable: true,
-  get(this: HTMLStyleElement) {
-    return styleText.get(this) ?? ""
-  },
-  set(this: HTMLStyleElement, text: string) {
-    styleText.set(this, text)
-  },
-})
+// Nothing here reads a stylesheet; parsing them was half of what these tests took.
+leaveStylesheetsUnparsed()
 
 const hosts: HTMLElement[] = []
 const terminals: Terminal[] = []

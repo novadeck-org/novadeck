@@ -3,6 +3,7 @@ import type { Terminal } from "@xterm/xterm"
 import { afterEach, describe, expect, it, vi } from "vitest"
 
 import { createRenderers, type Drawing } from "./renderer.js"
+import { leaveStylesheetsUnparsed } from "./stylesheets.test-support.js"
 import { createView, type View, type ViewOptions } from "./view.js"
 import { cells } from "./width.js"
 
@@ -42,6 +43,9 @@ vi.hoisted(() => {
     }),
   })
 })
+
+// Nothing here reads a stylesheet; parsing them was most of what these tests took.
+leaveStylesheetsUnparsed()
 
 const opened: (() => void)[] = []
 afterEach(() => {
