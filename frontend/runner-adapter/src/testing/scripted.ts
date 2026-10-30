@@ -10,37 +10,9 @@ import type { WireStatus } from "@novadeck/wire/client"
 import { runnerBackend, type RunnerApi } from "../backend"
 import { startingTerminal, type ListedCompanions, type RunnerListing } from "../sessions/seed"
 import { encodeSession } from "../sessions/state"
+import { channel } from "./channel"
 
 // Test support: a runner adapter over a runner the test scripts step by step.
-
-// Values pushed by the test, read by the adapter as a stream, until it ends.
-export const channel = <T>() => {
-  const queued: T[] = []
-  let ended = false
-  let wake: (() => void) | undefined
-  const waiting = (): boolean => !queued.length && !ended
-  const iterator: AsyncIterableIterator<T, undefined> = {
-    [Symbol.asyncIterator]: () => iterator,
-    next: async () => {
-      // eslint-disable-next-line no-await-in-loop -- Waits for the next pushed value.
-      while (waiting()) await new Promise<void>((resolve) => (wake = resolve))
-      if (!queued.length) return { value: undefined, done: true }
-      return { value: queued.shift()!, done: false }
-    },
-    return: async () => ({ value: undefined, done: true }),
-  }
-  return {
-    iterator,
-    push: (value: T) => {
-      queued.push(value)
-      wake?.()
-    },
-    end: () => {
-      ended = true
-      wake?.()
-    },
-  }
-}
 
 // A runner whose terminals' companions hold nothing and never change.
 export const noCompanions = {

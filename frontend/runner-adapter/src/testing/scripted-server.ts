@@ -14,7 +14,8 @@ import { RPCHandler } from "@orpc/server/message-port"
 
 import { connectRunnerBackend } from "../index"
 import { encodeSession } from "../sessions/state"
-import { channel, id, keptSummary, savedSession } from "./scripted"
+import { channel } from "./channel"
+import { id, keptSummary, savedSession } from "./scripted"
 
 // Test support: a runner the whole app boots over, at the wire, for the counter run. Browser
 // code: unlike `runner.ts`, it imports nothing Node-only.

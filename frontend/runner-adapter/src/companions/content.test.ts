@@ -18,8 +18,8 @@ import { WireError } from "@novadeck/wire"
 import { vi } from "vitest"
 
 import { context, describe, expect, it } from "../test"
+import { channel } from "../testing/channel"
 import { startTestRunner } from "../testing/runner"
-import { channel } from "../testing/scripted"
 import { createRunnerCompanions, itemOf, windowOf } from "./content"
 
 const target = { projectId: "p", workspaceSessionId: "s" }
