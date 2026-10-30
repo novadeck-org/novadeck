@@ -78,7 +78,7 @@ export type RunnerOptions = {
     readonly directory?: string
   }
   /**
-   * The host saw only software rendering: murmur is not available on this computer, and
+   * The app saw only software rendering: murmur is not available on this computer, and
    * voice input installs its small model without trying turbo.
    */
   softwareGraphics?: boolean
@@ -215,7 +215,7 @@ export const wire = (options: RunnerOptions) => {
   // On Linux each shell runs in a systemd scope of its own, so one killed for memory
   // takes down its terminal, not the app.
   const scopes = userScopes()
-  // Without a key from the host no transcript is saved or shown.
+  // Without a key from the app no transcript is saved or shown.
   const sealer = createTranscriptSealer(options.transcriptKey)
   const terminals = new Terminals({
     records: store,

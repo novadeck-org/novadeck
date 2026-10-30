@@ -1,7 +1,7 @@
 // What the model is told. It is a 2B model reading a few kilobytes: the prompt is short,
 // what to write comes last where it weighs most, and every rule is one the model was seen to
 // break without it (see docs/murmur.md).
-import type { AgentDigest, Input } from "./describer.js"
+import type { AgentDigest, Digest } from "./describer.js"
 import { exampleTitles, titleCharacters, titleWords } from "./description.js"
 
 /** What murmur writes: a terminal's title. */
@@ -104,7 +104,7 @@ const agentMessages = (digest: AgentDigest): Message[] => [
 ]
 
 /** The chat that asks the model to write about `input`; it should already be redacted. */
-export const messages = (digest: Input): Message[] => {
+export const messages = (digest: Digest): Message[] => {
   if (digest.kind === "agent") return agentMessages(digest)
   const lines: string[] = ["Terminal: a plain shell"]
   const screen = digest.screen.slice(-budget.rows).map((row) => head(row, budget.row))

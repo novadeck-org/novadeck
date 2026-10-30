@@ -69,13 +69,13 @@ export type TerminalPlace = {
 }
 
 /** Whose plan a plan item mirrors: an agent session's root, or one of its subagents. */
-export type PlanSlot = {
+type PlanSlot = {
   readonly agent: AgentName
   readonly agentSession: string
   readonly actor: string | null
 }
 
-export type CompanionOptions = {
+type CompanionOptions = {
   readonly records: ItemRecords
   /** A terminal the runner keeps, running or saved; undefined once it is closed. */
   readonly terminal: (terminalId: string) => TerminalPlace | undefined
@@ -95,7 +95,7 @@ export type CompanionOptions = {
 }
 
 /** Who hears of the troubles pages had and of the items that go: the terminals. */
-export type TroubleSink = {
+type TroubleSink = {
   /** A page an agent showed had `troubles` in the pane, in its latest show. */
   readonly troubled: (item: ItemRecord, troubles: readonly PageTrouble[]) => void
   /** An item is gone, or shown again: what was held of its earlier show goes. */
@@ -103,11 +103,11 @@ export type TroubleSink = {
 }
 
 /**
- * How long a look waits for the client's picture. The desktop host takes looks one at a
+ * How long a look waits for the client's picture. The desktop app takes looks one at a
  * time and queues the rest, and one look is at worst a pane attempt (2 s) then a fresh load
  * (about 8.3 s), about 10.5 s: 20 s fits a second look queued behind it.
  */
-export const defaultLookMs = 20_000
+const defaultLookMs = 20_000
 
 /** A client's answer to a look that has a picture. */
 export type LookPicture = Exclude<PageLookAnswer, { readonly reason: string }>
@@ -164,7 +164,7 @@ const defaultTitle = (name: string): string => {
 }
 
 /** An item as clients see it. */
-export const wireItem = (item: ItemRecord): CompanionItem => ({
+const wireItem = (item: ItemRecord): CompanionItem => ({
   id: item.id,
   sessionId: item.sessionId,
   holder: item.windowId === null ? { terminalId: item.terminalId! } : { windowId: item.windowId },
@@ -188,7 +188,7 @@ export const wireItem = (item: ItemRecord): CompanionItem => ({
 })
 
 /** A window as clients see it. */
-export const wireWindow = (window: WindowRecord): CompanionWindow => ({
+const wireWindow = (window: WindowRecord): CompanionWindow => ({
   id: window.id,
   sessionId: window.sessionId,
   home: window.home,

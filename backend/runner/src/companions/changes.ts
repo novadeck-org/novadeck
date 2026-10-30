@@ -52,7 +52,7 @@ export type Change = {
 }
 
 /** Why a change can't be read: `kind` tells the agent's remedy from the content's reasons. */
-export type ChangeFailure = {
+type ChangeFailure = {
   readonly ok: false
   readonly kind: "not-a-repository" | "no-git" | "missing" | "failed"
   readonly reason: string

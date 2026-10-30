@@ -14,50 +14,50 @@ import { z } from "zod"
 const shared = { title: z.string().min(1).max(256).optional(), open: z.boolean().optional() }
 
 /** Lines of a text file to point at, from the first to the last. */
-export const lineRange = z
+const lineRange = z
   .strictObject({ from: z.int().min(1), to: z.int().min(1) })
   .refine(({ from, to }) => to >= from)
 
 /** A file to show, by its path, and the lines to point at. */
-export const fileSource = z.strictObject({
+const fileSource = z.strictObject({
   path: z.string().min(1).max(4096),
   lines: lineRange.optional(),
 })
 
-export const fileRequest = z.strictObject({ file: fileSource, ...shared })
+const fileRequest = z.strictObject({ file: fileSource, ...shared })
 
 /** What the protocol takes of a page's address. */
 export const maxUrlChars = 8192
 
 /** What a page's element to bring into view, a CSS selector, may hold. */
-export const maxScrollChars = 1024
+const maxScrollChars = 1024
 
 /**
  * A page to show, by its http(s) address, and the element to bring into view as it
  * shows: a CSS selector, which only this show carries out, so the runner keeps it in
  * memory, never with the item.
  */
-export const pageSource = z.strictObject({
+const pageSource = z.strictObject({
   url: z.string().min(1).max(maxUrlChars),
   scroll: z.string().trim().min(1).max(maxScrollChars).optional(),
 })
 
-export const pageRequest = z.strictObject({ page: pageSource, ...shared })
+const pageRequest = z.strictObject({ page: pageSource, ...shared })
 
 /**
  * The change in a repository: its working tree against HEAD. The repository is the one
  * the folder `path` is in (absolute, or from the terminal's directory), by default the
  * terminal's own folder.
  */
-export const changesSource = z.strictObject({ path: z.string().min(1).max(4096).optional() })
+const changesSource = z.strictObject({ path: z.string().min(1).max(4096).optional() })
 
-export const changesRequest = z.strictObject({ changes: changesSource, ...shared })
+const changesRequest = z.strictObject({ changes: changesSource, ...shared })
 
 /** Each source `show` takes, by the key that names it. A new kind adds one here. */
 const sources = { file: fileRequest, page: pageRequest, changes: changesRequest } as const
 
 /** The keys that name a source, as `show` and `close` list them. */
-export const sourceNames = Object.keys(sources) as readonly (keyof typeof sources)[]
+const sourceNames = Object.keys(sources) as readonly (keyof typeof sources)[]
 
 /**
  * What `close` takes: the source alone, as `show` named it, without a file's lines or a
@@ -70,9 +70,9 @@ const dismissSources = {
   changes: z.strictObject({ changes: changesSource }),
 } as const
 
-export type FileRequest = z.infer<typeof fileRequest>
-export type PageRequest = z.infer<typeof pageRequest>
-export type ChangesRequest = z.infer<typeof changesRequest>
+type FileRequest = z.infer<typeof fileRequest>
+type PageRequest = z.infer<typeof pageRequest>
+type ChangesRequest = z.infer<typeof changesRequest>
 export type PresentRequest = FileRequest | PageRequest | ChangesRequest
 export type DismissRequest = z.infer<(typeof dismissSources)[keyof typeof dismissSources]>
 
@@ -107,7 +107,7 @@ export type DismissAnswer =
 
 export const failure = (reason: string): PresentFailure => ({ ok: false, reason })
 
-// How each source is given, for an agent that gave none, or the old flat `path`.
+// How each source is given, for an agent that gave none, or a flat `path` or `url`.
 const shapes = {
   file: "file: { path }",
   page: "page: { url }",
@@ -124,6 +124,19 @@ export const named = (key: string): string =>
 
 type Read<T> = (value: unknown) => { readonly ok: true; readonly request: T } | PresentFailure
 
+// A request by its schema, or the field it got wrong. A key no schema knows is named too,
+// as "file.open" or "lines" beside a page.
+const parse = <T>(schema: z.ZodType<T>, value: unknown): ReturnType<Read<T>> => {
+  const parsed = schema.safeParse(value)
+  if (parsed.success) return { ok: true, request: parsed.data }
+  const [issue] = parsed.error.issues
+  const path = issue?.code === "unrecognized_keys" ? [...issue.path, issue.keys[0]] : issue?.path
+  const field = path?.map(String).join(".")
+  return failure(
+    field ? `The request's ${named(field)} is not valid.` : "The request is not valid.",
+  )
+}
+
 // Reads a request that gives exactly one source, by that source's own strict schema, so
 // it names what's wrong.
 const reader =
@@ -133,15 +146,7 @@ const reader =
     const given = sourceNames.filter((name) => Object.hasOwn(value, name))
     if (given.length === 0) return failure(`Give ${oneSource}.`)
     if (given.length > 1) return failure(`Give ${oneSource}, not several.`)
-    const parsed = schemas[given[0]!].safeParse(value)
-    if (parsed.success) return { ok: true, request: parsed.data }
-    const [issue] = parsed.error.issues
-    // A key no source knows is named too, as "file.open" or "lines" beside a page.
-    const path = issue?.code === "unrecognized_keys" ? [...issue.path, issue.keys[0]] : issue?.path
-    const field = path?.map(String).join(".")
-    return failure(
-      field ? `The request's ${named(field)} is not valid.` : "The request is not valid.",
-    )
+    return parse(schemas[given[0]!], value)
   }
 
 /** A `show` request, or why it cannot be one. */
@@ -154,22 +159,11 @@ export const readDismissRequest: Read<DismissRequest> = reader<DismissRequest>(d
  * What `look` takes: the page to look at, named by the address given `show`, or nothing
  * when the terminal's bar holds a single page.
  */
-export const lookRequest = z.strictObject({
+const lookRequest = z.strictObject({
   page: z.strictObject({ url: pageSource.shape.url }).optional(),
 })
 
 export type LookRequest = z.infer<typeof lookRequest>
 
 /** A `look` request, or why it cannot be one. */
-export const readLookRequest = (
-  value: unknown,
-): { readonly ok: true; readonly request: LookRequest } | PresentFailure => {
-  const parsed = lookRequest.safeParse(value)
-  if (parsed.success) return { ok: true, request: parsed.data }
-  const [issue] = parsed.error.issues
-  const path = issue?.code === "unrecognized_keys" ? [...issue.path, issue.keys[0]] : issue?.path
-  const field = path?.map(String).join(".")
-  return failure(
-    field ? `The request's ${named(field)} is not valid.` : "The request is not valid.",
-  )
-}
+export const readLookRequest: Read<LookRequest> = (value) => parse(lookRequest, value)

@@ -49,9 +49,9 @@ describe("a show request", () => {
       ok: false,
       reason: "Give one source, file: { path }, page: { url } or changes: { path? }.",
     })
-    // The old flat address, as the old flat path, is told the shape.
-    for (const old of [{ path: "a.ts" }, { url: "http://localhost:5173/" }])
-      expect(readRequest(old)).toEqual({
+    // A flat address or path, with no source around it, is told the shape.
+    for (const flat of [{ path: "a.ts" }, { url: "http://localhost:5173/" }])
+      expect(readRequest(flat)).toEqual({
         ok: false,
         reason: "Give one source, file: { path }, page: { url } or changes: { path? }.",
       })

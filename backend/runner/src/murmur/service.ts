@@ -22,7 +22,7 @@ import { EngineError, engineFolder, exists, programFile } from "../engines/unpac
 import { DomainError } from "../errors.js"
 import { logs } from "../log.js"
 import type { MurmurSettingsChange, MurmurVerdict } from "../workspaces/store.js"
-import type { Description, Describer, Digest, Input } from "./describer.js"
+import type { Description, Describer, Digest } from "./describer.js"
 import { parseDescription } from "./description.js"
 import { candidates, parseDevices, type Device } from "./devices.js"
 import { parseVmStat } from "./memory.js"
@@ -30,7 +30,7 @@ import { Preparer } from "./prepare.js"
 import { formats, type Message, type Task } from "./prompt.js"
 
 /** Where the runner keeps murmur's settings. */
-export type MurmurSettingsStore = {
+type MurmurSettingsStore = {
   murmurSettings(): MurmurSettings
   saveMurmurSettings(settings: MurmurSettingsChange): void
   murmurEnabledChoice(): boolean | undefined
@@ -46,13 +46,13 @@ export type MurmurSettingsStore = {
 }
 
 /** The one model murmur uses, pinned by the commit of its repository. */
-export const pinnedModel: Artifact = {
+const pinnedModel: Artifact = {
   url: "https://huggingface.co/unsloth/Qwen3.5-2B-GGUF/resolve/f6d5376be1edb4d416d56da11e5397a961aca8ae/Qwen3.5-2B-Q4_K_M.gguf",
   sha256: "aaf42c8b7c3cab2bf3d69c355048d4a0ee9973d48f16c731c0520ee914699223",
   size: 1280835840,
 }
 
-export type MurmurOptions = {
+type MurmurOptions = {
   /** The engine's manifest, `engine.json`; without one murmur is unavailable. */
   readonly engine?: string | undefined
   /** Where the engine's archive is: an https URL ending in `/`, or a folder. Beside the manifest by default. */
@@ -62,7 +62,7 @@ export type MurmurOptions = {
   /** The model to download; the one Novadeck ships unless a test brings its own. */
   readonly model?: Artifact
   /**
-   * Whether the host saw only software rendering, so no graphics hardware: murmur is then
+   * Whether the app saw only software rendering, so no graphics hardware: murmur is then
    * known not to run here, and nothing is downloaded. Unset when unsure.
    */
   readonly softwareGraphics?: boolean
@@ -392,7 +392,7 @@ export class Murmur implements Describer {
     }
   }
 
-  // Why this computer can't run murmur, if the host or an install said so. An install's
+  // Why this computer can't run murmur, if the app or an install said so. An install's
   // verdict is of the engine build it ran: another build's engine gives it no weight.
   private unsupported(): MurmurState["unsupported"] {
     if (this.options.softwareGraphics) return { reason: softwareOnly, source: "host" }
@@ -794,7 +794,7 @@ export class Murmur implements Describer {
     chat: readonly Message[],
     signal: AbortSignal,
     task: T,
-    input?: Input,
+    input?: Digest,
     parse?: (raw: string) => Made[T] | undefined,
   ): Promise<Made[T] | undefined> {
     const running = await this.started(server, config, signal)
@@ -837,7 +837,7 @@ export class Murmur implements Describer {
     const content = body?.choices?.[0]?.message?.content
     // The model is held to what it was shown: a text that copies an example is refused. A
     // title also loses the project's name, which the person sits in already.
-    const project = input?.kind === "agent" || input?.kind === "shell" ? input.project : null
+    const project = input?.project ?? null
     if (typeof content === "string" && parse) return parse(content)
     return typeof content === "string"
       ? (parsers[task](
@@ -968,7 +968,7 @@ export class Murmur implements Describer {
 
   // Waits for the turn of `task` on the line, and runs the job.
   private async write<T extends Task>(
-    input: Input,
+    input: Digest,
     task: T,
     signal: AbortSignal | undefined,
     terminal: string,
@@ -1028,7 +1028,7 @@ export class Murmur implements Describer {
   }
 
   private async job<T extends Task>(
-    input: Input,
+    input: Digest,
     task: T,
     signal: AbortSignal | undefined,
     terminal: string,

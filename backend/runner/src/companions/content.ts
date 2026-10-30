@@ -51,7 +51,7 @@ const clip = (text: string, max: number): string =>
   text.length <= max ? text : `…${text.slice(text.length - max + 1)}`
 
 /** Whether a file is shown as an image, by its extension. */
-export const isImage = (path: string): boolean => images[extname(path).toLowerCase()] !== undefined
+const isImage = (path: string): boolean => images[extname(path).toLowerCase()] !== undefined
 
 /**
  * The lines of a file of `total` lines shown, from `first` to `last`, and the ones
@@ -477,7 +477,7 @@ const decodePlans = async (
 }
 
 /** A plan's text, as `content` yields it, stamped by its text. */
-export const planReady = (plan: PlanText): ItemContent => ({
+const planReady = (plan: PlanText): ItemContent => ({
   state: "ready",
   stamp: hashOf(plan.text),
   content: { kind: "plan", ...plan, writable: false, skill: false },
