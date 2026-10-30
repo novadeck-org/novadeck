@@ -217,7 +217,7 @@ export const inboxGroups = (
         },
         {
           label: "Plan with a change field",
-          hint: "Unblock row with Claude Code 2.1.287's plan: Deny opens a note that must say what to change",
+          hint: "Unblock row with Claude Code 2.1.287's plan: no plain way back, so Send it back, with your words needs words that say what to change",
           run: () => {
             const item = fresh(demoInboxIds.plan)
             if (item?.kind !== "request" || item.request.dialog?.type !== "choices") return
