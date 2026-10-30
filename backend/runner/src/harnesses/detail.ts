@@ -1,14 +1,10 @@
 import { ref } from "@novadeck/harness-core/decode"
-import type { AgentDetail, RequestDialog } from "@novadeck/protocol"
+import { agentLimits, type AgentDetail, type RequestDialog } from "@novadeck/protocol"
 
 import { ordered, subagentRef, summary, type Activity, type Request } from "./activity.js"
 import type { Binding } from "./bindings.js"
 import { harnesses } from "./registry.js"
 import { telemetrySummary, type Telemetry } from "./telemetry.js"
-
-// More requests than any agent keeps waiting at once, and more actors than it runs.
-const maxRequests = 32
-const maxActors = 33
 
 /** The reference clients know a session's root agent by. */
 export const rootRef = ({ agent, sessionId }: Binding): string => ref("root", agent, sessionId)
@@ -42,7 +38,7 @@ export const agentDetail = (
       coverage: null,
     }
   const root = rootRef(binding)
-  const pending = ordered(activity?.pending ?? []).slice(0, maxRequests)
+  const pending = ordered(activity?.pending ?? []).slice(0, agentLimits.requests)
   const subagents = activity?.subagents ?? []
   // A subagent asking before its start was seen, as one running when the session was
   // bound, is listed too, so every request names a listed actor. Those asking take
@@ -57,7 +53,7 @@ export const agentDetail = (
   const quiet = new Set(
     subagents
       .filter(({ id }) => !asking.has(id))
-      .slice(0, Math.max(0, maxActors - 1 - asking.size))
+      .slice(0, Math.max(0, agentLimits.actors - 1 - asking.size))
       .map(({ id }) => id),
   )
   const children = [...subagents.filter(({ id }) => asking.has(id) || quiet.has(id)), ...unseen]
@@ -86,7 +82,7 @@ export const agentDetail = (
           ref: at,
           actor: actor === null ? root : subagentRef(actor),
           kind,
-          tool: toolName.slice(0, 256),
+          tool: toolName.slice(0, agentLimits.name),
           subject,
           choices: [...choices],
           dialog: dialogs.get(at) ?? null,

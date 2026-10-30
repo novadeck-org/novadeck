@@ -1,5 +1,19 @@
 import { z } from "zod"
 
+// How long each string a dialog shows may run, by the name of its field (a form field's
+// `choices` are labels), and a raw dialog's text, in UTF-16 code units: what the runner
+// reads off a screen is cut to these. Ids and counts are never cut.
+export const dialogTextLimits = {
+  title: 1024,
+  detail: 4096,
+  header: 256,
+  question: 2048,
+  label: 512,
+  description: 2048,
+  message: 2048,
+} as const
+export const maxRawDialogText = 4096
+
 // What a request's dialog in the agent's TUI offers, as the harness's adapter read it from
 // the terminal's screen, so the person can answer it from the chat (`agents.answer`):
 // - `choices`: options to pick one of, as a permission or a plan approval offers. `text`
@@ -27,15 +41,15 @@ import { z } from "zod"
 // Null while the dialog isn't on screen yet, or the request asks nothing on screen.
 const dialogOption = z.strictObject({
   id: z.string().max(64),
-  label: z.string().max(512),
+  label: z.string().max(dialogTextLimits.label),
   text: z.enum(["field", "prompt"]).nullable(),
 })
 export const requestDialog = z.discriminatedUnion("type", [
   z.strictObject({
     type: z.literal("choices"),
     id: z.string().max(64),
-    title: z.string().max(1024).nullable(),
-    detail: z.string().max(4096).nullable(),
+    title: z.string().max(dialogTextLimits.title).nullable(),
+    detail: z.string().max(dialogTextLimits.detail).nullable(),
     options: z.array(dialogOption).min(1).max(16),
   }),
   z.strictObject({
@@ -46,14 +60,14 @@ export const requestDialog = z.discriminatedUnion("type", [
       .array(
         z.strictObject({
           id: z.string().max(64),
-          header: z.string().max(256).nullable(),
-          question: z.string().max(2048),
+          header: z.string().max(dialogTextLimits.header).nullable(),
+          question: z.string().max(dialogTextLimits.question),
           options: z
             .array(
               z.strictObject({
                 id: z.string().max(64),
-                label: z.string().max(512),
-                description: z.string().max(2048).nullable(),
+                label: z.string().max(dialogTextLimits.label),
+                description: z.string().max(dialogTextLimits.description).nullable(),
               }),
             )
             .max(16),
@@ -67,15 +81,15 @@ export const requestDialog = z.discriminatedUnion("type", [
   z.strictObject({
     type: z.literal("form"),
     id: z.string().max(64),
-    message: z.string().max(2048),
+    message: z.string().max(dialogTextLimits.message),
     fields: z
       .array(
         z.strictObject({
           id: z.string().max(128),
-          label: z.string().max(512),
-          description: z.string().max(2048).nullable(),
+          label: z.string().max(dialogTextLimits.label),
+          description: z.string().max(dialogTextLimits.description).nullable(),
           kind: z.enum(["text", "number", "boolean", "choice"]),
-          choices: z.array(z.string().max(512)).max(32),
+          choices: z.array(z.string().max(dialogTextLimits.label)).max(32),
           required: z.boolean(),
         }),
       )
@@ -83,7 +97,7 @@ export const requestDialog = z.discriminatedUnion("type", [
   }),
   z.strictObject({
     type: z.literal("raw"),
-    text: z.string().max(4096),
+    text: z.string().max(maxRawDialogText),
     reason: z.enum(["unrecognized", "unsupported", "failed"]),
   }),
 ])

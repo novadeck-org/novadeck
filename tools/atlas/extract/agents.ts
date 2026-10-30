@@ -18,6 +18,14 @@ const callsFile = "backend/runner/src/terminals/calls.ts"
 const leadsFile = "backend/runner/src/terminals/leads.ts"
 const feedbackFile = "backend/runner/src/messaging/feedback.ts"
 const contractFile = "harnesses/core/src/harness.ts"
+// The protocol's limits the tool literals name, by the file that exports each.
+const limitFiles: Record<string, string> = {
+  inboxTextLimits: "contract/protocol/src/inbox.ts",
+  maxAskOptions: "contract/protocol/src/inbox.ts",
+  maxCommandLines: "contract/protocol/src/text.ts",
+  maxFeedbackText: "contract/protocol/src/feedback.ts",
+  maxStartupCommand: "contract/protocol/src/terminals.ts",
+}
 
 // The method that performs each tool's call, and the runner file it is in.
 const handlers: Record<string, { readonly file: string; readonly method: string }> = {
@@ -63,6 +71,14 @@ const extractTools = (anchors: Anchors, packages: HarnessPackage[]): McpTool[] =
     anchors.read(contractFile) ?? "",
   )?.[1]
   if (!effortList) anchors.report("mcp tools", contractFile, "expected `export const efforts = [`")
+  // Each limit's value, read from its `export const <name> = <number or object literal>`.
+  const limits = Object.entries(limitFiles).map(([name, file]) => {
+    const value = new RegExp(`^export const ${name} = ([^{\\n]+|\\{[\\s\\S]*?\\n\\})`, "m").exec(
+      anchors.read(file) ?? "",
+    )?.[1]
+    if (!value) anchors.report("mcp tools", file, `expected \`export const ${name} = \``)
+    return [name, value ? (new Function(`return (${value})`)() as unknown) : undefined] as const
+  })
   const variables = listed
     .split(",")
     .map((name) => name.trim())
@@ -89,11 +105,13 @@ const extractTools = (anchors: Anchors, packages: HarnessPackage[]): McpTool[] =
         "agentNames",
         "harnesses",
         "efforts",
+        ...limits.map(([name]) => name),
         `${preamble}\nreturn ${literal}`,
       ) as (
         ids: string[],
         list: { id: string; name: string }[],
         efforts: string[],
+        ...limits: unknown[]
       ) => {
         name: string
         description: string
@@ -103,6 +121,7 @@ const extractTools = (anchors: Anchors, packages: HarnessPackage[]): McpTool[] =
         packages.map((each) => each.id),
         packages.map((each) => ({ id: each.id, name: each.title })),
         effortList ? (JSON.parse(effortList.replaceAll(/,\s*]/g, "]")) as string[]) : [],
+        ...limits.map(([, value]) => value),
       )
       const mapped = handlers[tool.name]
       const line =

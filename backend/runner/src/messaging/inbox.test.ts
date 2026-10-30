@@ -4,7 +4,15 @@ import { tmpdir } from "node:os"
 import { join } from "node:path"
 import { DatabaseSync } from "node:sqlite"
 
-import { maxCommandLines, terminalMessages } from "@novadeck/protocol"
+import {
+  inboxEntry,
+  inboxTextLimits,
+  maxCommandLines,
+  maxTurnError,
+  maxTurnFilePath,
+  maxTurnFiles,
+  terminalMessages,
+} from "@novadeck/protocol"
 import { vi } from "vitest"
 
 import { agents, harnesses } from "../harnesses/registry.js"
@@ -356,6 +364,33 @@ describe("Inbox persistence and identity", () => {
     next.inbox.reconcile(identity.terminalId)
     expect(next.inbox.list()).toEqual([])
     expect(reopened.entries()[0]?.state).toBe("gone")
+  })
+
+  it("cuts a stored turn's text and files to the protocol's limits as it reads them back", () => {
+    const records = memoryInbox()
+    records.saveEntry({
+      ...identity,
+      id: randomUUID(),
+      at: 1,
+      state: "open",
+      content: {
+        kind: "turn",
+        outcome: "failed",
+        reply: null,
+        error: "x".repeat(maxTurnError + 100),
+        files: Array.from({ length: maxTurnFiles + 4 }, (_, index) =>
+          `/${index}`.padEnd(maxTurnFilePath + 100, "x"),
+        ),
+      },
+    })
+    const { inbox, stop } = setup(records)
+    const [read] = inbox.list()
+    stop()
+    expect(inboxEntry.safeParse(read).success).toBe(true)
+    if (read?.content.kind !== "turn") throw new Error("not a turn")
+    expect(read.content.error).toHaveLength(maxTurnError)
+    expect(read.content.files).toHaveLength(maxTurnFiles)
+    expect(read.content.files.every((file) => file.length === maxTurnFilePath)).toBe(true)
   })
 
   it("retains the complete choice and action instructions in history", () => {
@@ -1242,7 +1277,11 @@ describe("Inbox history outcomes and safe instructions", () => {
 
   it("refuses a folder of more than one plain line", () => {
     const { inbox } = setup()
-    for (const directory of ["/repo\n/other", "/repo\u034f", "x".repeat(1025)])
+    for (const directory of [
+      "/repo\n/other",
+      "/repo\u034f",
+      "x".repeat(inboxTextLimits.directory + 1),
+    ])
       expect(
         inbox.call(identity.terminalId, "ask", {
           subject: "Run",
@@ -1250,6 +1289,21 @@ describe("Inbox history outcomes and safe instructions", () => {
           shape: { type: "action", command: "ls", directory, done_label: "Done" },
         }).ok,
       ).toBe(false)
+  })
+
+  it("takes a folder as long as the protocol's limit for it, past a subject's", () => {
+    const { inbox } = setup()
+    const directory = `/${"x".repeat(inboxTextLimits.directory - 1)}`
+    expect(directory.length).toBeGreaterThan(inboxTextLimits.line)
+    const asked = inbox.call(identity.terminalId, "ask", {
+      subject: "Run",
+      body: "Run it",
+      shape: { type: "action", command: "ls", directory, done_label: "Done" },
+    })
+    expect(asked.ok).toBe(true)
+    const [stored] = inbox.list()
+    expect(inboxEntry.safeParse(stored).success).toBe(true)
+    expect(stored?.content.kind === "ask" && stored.content.ask.shape).toMatchObject({ directory })
   })
 
   it("cleans option summaries and code paths before storing or displaying them", ({

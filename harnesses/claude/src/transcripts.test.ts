@@ -1,6 +1,7 @@
 import { dirname, join } from "node:path"
 
 import { loadProbe } from "@novadeck/harness-core/testing/probes"
+import { transcriptLimits } from "@novadeck/protocol"
 import { describe, expect, it } from "vitest"
 
 import { transcripts } from "./transcripts.js"
@@ -105,7 +106,7 @@ describe("Claude Code's shell-mode commands, as captured", () => {
       },
     ])
     expect(result).toMatchObject({ truncated: true })
-    expect(result?.text).toHaveLength(16_384)
+    expect(result?.text).toHaveLength(transcriptLimits.text)
   })
 
   it("leave a person's own text that merely mentions the tags", () => {
@@ -159,7 +160,7 @@ describe("Claude Code's transcript records", () => {
   it("cut long text short, and say so", () => {
     const [long] = items([{ type: "assistant", message: { content: "x".repeat(20_000) } }])
     expect(long).toMatchObject({ truncated: true })
-    expect(long?.text).toHaveLength(16_384)
+    expect(long?.text).toHaveLength(transcriptLimits.text)
   })
 })
 

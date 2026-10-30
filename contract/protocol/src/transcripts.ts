@@ -2,15 +2,19 @@ import { z } from "zod"
 
 import { agentRef } from "./agents.js"
 
+// How long an item's text runs at most, and a tool's or an author's name, in UTF-16 code
+// units, and how many items one change carries.
+export const transcriptLimits = { text: 16_384, name: 256, items: 256 } as const
+
 // What a tool call was, as its harness's decoder says: the chat's one line for it. Both
 // strings are bounded as the item's own text is, since they are derived from it.
 export const toolRun = z.strictObject({
   kind: z.enum(["run", "read", "write", "search", "web", "agent", "plan", "other"]),
   // What the tool is called to a person: "Ran", "Edited", "Messaged @fox", or an unknown
   // tool's own name.
-  title: z.string().max(16_384),
+  title: z.string().max(transcriptLimits.text),
   // What it was called on: the command, the file, the pattern. Empty where there is none.
-  detail: z.string().max(16_384),
+  detail: z.string().max(transcriptLimits.text),
 })
 // `agents.transcript` changes: items of an actor's conversation in the order its harness
 // recorded them, numbered from the start of the record (a tool's result may come before
@@ -27,11 +31,11 @@ export const transcriptItem = z
     at: z.number().nullable(),
     role: z.enum(["user", "assistant", "agent", "tool"]),
     kind: z.enum(["text", "tool-call", "tool-result"]),
-    text: z.string().max(16_384),
+    text: z.string().max(transcriptLimits.text),
     truncated: z.boolean(),
-    tool: z.string().max(256).nullable(),
+    tool: z.string().max(transcriptLimits.name).nullable(),
     call: agentRef.nullable(),
-    author: z.string().max(256).nullable(),
+    author: z.string().max(transcriptLimits.name).nullable(),
     // On a tool call, what it was; null on every other item.
     run: toolRun.nullable(),
     // A `user` item that records a stopped turn.
@@ -42,7 +46,10 @@ export const transcriptItem = z
     path: ["run"],
   })
 export const transcriptChange = z.discriminatedUnion("type", [
-  z.strictObject({ type: z.literal("items"), items: z.array(transcriptItem).min(1).max(256) }),
+  z.strictObject({
+    type: z.literal("items"),
+    items: z.array(transcriptItem).min(1).max(transcriptLimits.items),
+  }),
   z.strictObject({ type: z.literal("reset") }),
 ])
 
