@@ -241,7 +241,7 @@ export const flows: (Omit<Flow, "steps"> & { steps: CuratedStep[] })[] = [
         text: "It checks the terminal's token and reads the request.",
         anchor: {
           file: `${runnerSrc}/terminals/companion.ts`,
-          text: "async present(call: Call): Promise<PresentAnswer>",
+          text: "async show(call: Call): Promise<ShowAnswer>",
         },
       },
       {

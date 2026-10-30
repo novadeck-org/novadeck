@@ -541,13 +541,13 @@ export class Calls {
   call(call: Call): Promise<unknown> {
     switch (call.type) {
       case "present":
-        return this.host.companion().present(call)
+        return this.host.companion().show(call)
       case "showing":
         return Promise.resolve(this.host.companion().showing(call))
       case "look":
         return this.host.companion().look(call)
       case "dismiss":
-        return this.host.companion().dismiss(call)
+        return this.host.companion().closeShown(call)
       case "open":
         return this.open(call)
       case "close":

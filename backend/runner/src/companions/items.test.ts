@@ -136,13 +136,13 @@ describe("what an agent closes", () => {
       title: "Preview",
     })
     const { seen, stop } = watching(fixture.items)
-    await expect(fixture.items.dismiss(moth, { file: { path: "./a.ts" } })).resolves.toEqual({
+    await expect(fixture.items.closeShown(moth, { file: { path: "./a.ts" } })).resolves.toEqual({
       ok: true,
       name: "a.ts",
       kind: "file",
     })
     await expect(
-      fixture.items.dismiss(moth, { page: { url: "http://localhost:5173" } }),
+      fixture.items.closeShown(moth, { page: { url: "http://localhost:5173" } }),
     ).resolves.toEqual({
       ok: true,
       name: "Preview",
@@ -158,12 +158,12 @@ describe("what an agent closes", () => {
     const moth = fixture.terminal("moth")
     await fixture.items.show(moth, { file: { path: "tmp.png" } })
     rmSync(join(fixture.directory, "tmp.png"))
-    await expect(fixture.items.dismiss(moth, { file: { path: "tmp.png" } })).resolves.toMatchObject(
-      {
-        ok: true,
-        name: "tmp.png",
-      },
-    )
+    await expect(
+      fixture.items.closeShown(moth, { file: { path: "tmp.png" } }),
+    ).resolves.toMatchObject({
+      ok: true,
+      name: "tmp.png",
+    })
     expect(fixture.items.bar(moth.terminalId)).toEqual([])
   })
 
@@ -177,13 +177,13 @@ describe("what an agent closes", () => {
       join(fixture.directory, "real", "shot.png"),
     )
     rmSync(join(fixture.directory, "real", "shot.png"))
-    await expect(fixture.items.dismiss(moth, { file: { path: "link/shot.png" } })).resolves.toEqual(
-      {
-        ok: true,
-        name: "shot.png",
-        kind: "image",
-      },
-    )
+    await expect(
+      fixture.items.closeShown(moth, { file: { path: "link/shot.png" } }),
+    ).resolves.toEqual({
+      ok: true,
+      name: "shot.png",
+      kind: "image",
+    })
     expect(fixture.items.bar(moth.terminalId)).toEqual([])
   })
 
@@ -194,16 +194,20 @@ describe("what an agent closes", () => {
     const shown = await fixture.items.show(moth, { file: { path: "a.ts" } })
     const id = shown.ok ? shown.id : ""
     fixture.items.undock(id, randomUUID())
-    await expect(fixture.items.dismiss(moth, { file: { path: "a.ts" } })).resolves.toMatchObject({
-      ok: false,
-      reason: expect.stringContaining('"a.ts" was moved by the user into a window of its own'),
-    })
+    await expect(fixture.items.closeShown(moth, { file: { path: "a.ts" } })).resolves.toMatchObject(
+      {
+        ok: false,
+        reason: expect.stringContaining('"a.ts" was moved by the user into a window of its own'),
+      },
+    )
     fixture.items.move(id, fox.terminalId)
-    await expect(fixture.items.dismiss(moth, { file: { path: "a.ts" } })).resolves.toMatchObject({
-      ok: false,
-      reason: expect.stringContaining('"a.ts" was moved by the user to @fox'),
-    })
-    await expect(fixture.items.dismiss(fox, { file: { path: "a.ts" } })).resolves.toMatchObject({
+    await expect(fixture.items.closeShown(moth, { file: { path: "a.ts" } })).resolves.toMatchObject(
+      {
+        ok: false,
+        reason: expect.stringContaining('"a.ts" was moved by the user to @fox'),
+      },
+    )
+    await expect(fixture.items.closeShown(fox, { file: { path: "a.ts" } })).resolves.toMatchObject({
       ok: false,
       reason: expect.stringContaining("placed beside you from @moth"),
     })
@@ -218,24 +222,24 @@ describe("what an agent closes", () => {
     await fixture.items.attach({ terminalId: moth.terminalId, path: "a.ts" })
     const shown = await fixture.items.show(fox, { file: { path: "b.ts" } })
     fixture.items.move(shown.ok ? shown.id : "", moth.terminalId)
-    await expect(fixture.items.dismiss(moth, { file: { path: "a.ts" } })).resolves.toEqual({
+    await expect(fixture.items.closeShown(moth, { file: { path: "a.ts" } })).resolves.toEqual({
       ok: false,
       reason:
         '"a.ts" was attached by the user, so it isn\'t yours to close; tell the user if it ' +
         "should go.",
     })
-    await expect(fixture.items.dismiss(moth, { file: { path: "b.ts" } })).resolves.toEqual({
+    await expect(fixture.items.closeShown(moth, { file: { path: "b.ts" } })).resolves.toEqual({
       ok: false,
       reason:
         '"b.ts" was placed beside you from @fox, so it isn\'t yours to close; tell the user if ' +
         "it should go.",
     })
-    await expect(fixture.items.dismiss(moth, { file: { path: "c.ts" } })).resolves.toEqual({
+    await expect(fixture.items.closeShown(moth, { file: { path: "c.ts" } })).resolves.toEqual({
       ok: false,
       reason: 'Nothing is showing beside your terminal at "c.ts"; showing lists what is.',
     })
     await expect(
-      fixture.items.dismiss(moth, { page: { url: "file:///etc/passwd" } }),
+      fixture.items.closeShown(moth, { page: { url: "file:///etc/passwd" } }),
     ).resolves.toMatchObject({
       ok: false,
     })
@@ -348,7 +352,7 @@ describe("what an agent shows", () => {
       version: 6,
     })
     await expect(
-      fixture.items.dismiss(moth, { page: { url: "http://127.0.0.1:4323/elsewhere" } }),
+      fixture.items.closeShown(moth, { page: { url: "http://127.0.0.1:4323/elsewhere" } }),
     ).resolves.toMatchObject({ ok: true, kind: "page" })
     expect(fixture.items.bar(moth.terminalId).map(({ id }) => id)).not.toContain(siteId)
   })
@@ -490,9 +494,11 @@ describe("what the person attaches", () => {
     expect(fixture.items.bar(moth.terminalId)).toMatchObject([
       { by: "person", openAsked: false, version: 3 },
     ])
-    await expect(fixture.items.dismiss(moth, { file: { path: ".env" } })).resolves.toMatchObject({
-      ok: false,
-    })
+    await expect(fixture.items.closeShown(moth, { file: { path: ".env" } })).resolves.toMatchObject(
+      {
+        ok: false,
+      },
+    )
     expect(fixture.items.bar(moth.terminalId)).toHaveLength(1)
   })
 
@@ -769,12 +775,16 @@ describe("the project window", () => {
         `- file "a.ts": ${join(fixture.directory, "a.ts")} (shown by you)`,
       ].join("\n"),
     )
-    await expect(fixture.items.dismiss(moth, { file: { path: "a.ts" } })).resolves.toMatchObject({
-      ok: true,
-    })
-    await expect(fixture.items.dismiss(moth, { file: { path: "a.ts" } })).resolves.toMatchObject({
-      ok: false,
-    })
+    await expect(fixture.items.closeShown(moth, { file: { path: "a.ts" } })).resolves.toMatchObject(
+      {
+        ok: true,
+      },
+    )
+    await expect(fixture.items.closeShown(moth, { file: { path: "a.ts" } })).resolves.toMatchObject(
+      {
+        ok: false,
+      },
+    )
     fixture.close(moth.terminalId)
     expect(fixture.items.list(fixture.sessionId)).toEqual({
       items: [opened.item],
@@ -1354,12 +1364,12 @@ describe.skipIf(!gitInstalled)("the changes of a repository", () => {
     expect(folder(fixture.items.listing(place.terminalId))).toContain(
       folder(`changes "My work": ${root}`),
     )
-    await expect(fixture.items.dismiss(place, { changes: {} })).resolves.toMatchObject({
+    await expect(fixture.items.closeShown(place, { changes: {} })).resolves.toMatchObject({
       ok: true,
       kind: "changes",
     })
     expect(fixture.items.bar(place.terminalId)).toEqual([])
-    await expect(fixture.items.dismiss(place, { changes: {} })).resolves.toMatchObject({
+    await expect(fixture.items.closeShown(place, { changes: {} })).resolves.toMatchObject({
       ok: false,
     })
   })
@@ -1399,7 +1409,7 @@ describe.skipIf(!gitInstalled)("the changes of a repository", () => {
     expect(refused).toMatchObject({ ok: false })
     expect(refused.ok ? "" : refused.reason).toMatch(/git/)
     expect(fixture.items.bar(moth.terminalId)).toEqual([])
-    await expect(fixture.items.dismiss(moth, { changes: {} })).resolves.toMatchObject({
+    await expect(fixture.items.closeShown(moth, { changes: {} })).resolves.toMatchObject({
       ok: false,
     })
   })
@@ -1427,11 +1437,11 @@ describe.skipIf(!gitInstalled)("the changes of a repository", () => {
       content: { kind: "changes", files: [{ path: "b.txt", status: "added" }] },
     })
     // The same path closes it; a path in no repository names nothing.
-    await expect(fixture.items.dismiss(outside, { changes: {} })).resolves.toMatchObject({
+    await expect(fixture.items.closeShown(outside, { changes: {} })).resolves.toMatchObject({
       ok: false,
     })
     await expect(
-      fixture.items.dismiss(outside, { changes: { path: join(tree, "..", "wt") } }),
+      fixture.items.closeShown(outside, { changes: { path: join(tree, "..", "wt") } }),
     ).resolves.toMatchObject({ ok: true, kind: "changes" })
   })
 
@@ -1447,7 +1457,7 @@ describe.skipIf(!gitInstalled)("the changes of a repository", () => {
     })
     git("worktree", "remove", "--force", tree)
     await expect(
-      fixture.items.dismiss(outside, { changes: { path: "wt" } }),
+      fixture.items.closeShown(outside, { changes: { path: "wt" } }),
     ).resolves.toMatchObject({ ok: true, kind: "changes" })
     expect(fixture.items.bar(place.terminalId)).toEqual([])
   })

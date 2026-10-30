@@ -8,7 +8,7 @@ import { plugin } from "@novadeck/harness-core/harness"
 import { relayPath } from "@novadeck/relay"
 import { afterAll, beforeAll, onTestFinished } from "vitest"
 
-import { readDismissRequest, readRequest } from "../companions/request.js"
+import { readCloseShownRequest, readShowRequest } from "../companions/request.js"
 import { unboundNote } from "../messaging/peers.js"
 import { describe, expect, it } from "../test.js"
 import { installShellFiles } from "./install.js"
@@ -18,7 +18,7 @@ import { shellFiles, shellPaths, staleShellFiles } from "./scripts.js"
 
 /** The runner's own reading of a show or close request, as manager.present and dismiss do. */
 const reading = (type: string, request: object) =>
-  Promise.resolve(type === "dismiss" ? readDismissRequest(request) : readRequest(request))
+  Promise.resolve(type === "dismiss" ? readCloseShownRequest(request) : readShowRequest(request))
 
 const token = "0123456789abcdef".repeat(3)
 let folder: string

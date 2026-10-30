@@ -10,7 +10,7 @@ import type { AgentName, ItemContent, PlanSaveResult, PlanUnwritable } from "@no
 import { DomainError } from "../errors.js"
 import { harnesses } from "../harnesses/registry.js"
 import type { ItemRecord } from "./records.js"
-import { failure, maxUrlChars, type PresentFailure } from "./request.js"
+import { failure, maxUrlChars, type RequestFailure } from "./request.js"
 import { secret } from "./secrets.js"
 
 // What is shown as an image, by extension.
@@ -87,7 +87,7 @@ export type Pointed = {
  * A file a request points at, from the terminal's directory: anything but a missing
  * path, a folder, or a pipe or device. What it holds is read only as it loads.
  */
-export const pointAt = async (given: string, cwd: string): Promise<Pointed | PresentFailure> => {
+export const pointAt = async (given: string, cwd: string): Promise<Pointed | RequestFailure> => {
   const path = await realpath(resolve(cwd, given)).catch(() => undefined)
   if (!path) return failure("That file doesn't exist.")
   const stats = await stat(path).catch(() => undefined)
@@ -110,7 +110,7 @@ export const pointAt = async (given: string, cwd: string): Promise<Pointed | Pre
  */
 export const pageAt = (
   address: string,
-): { readonly ok: true; readonly url: URL } | PresentFailure => {
+): { readonly ok: true; readonly url: URL } | RequestFailure => {
   let url: URL
   try {
     url = new URL(address)

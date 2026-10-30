@@ -47,12 +47,12 @@ import type { ItemRecord, ItemRecords, WindowRecord } from "./records.js"
 import {
   failure,
   named,
-  type DismissAnswer,
-  type DismissRequest,
+  type CloseShownAnswer,
+  type CloseShownRequest,
   type LookRequest,
-  type PresentAnswer,
-  type PresentFailure,
-  type PresentRequest,
+  type ShowAnswer,
+  type RequestFailure,
+  type ShowRequest,
 } from "./request.js"
 
 const log = logs.for("companions")
@@ -258,7 +258,7 @@ export class CompanionItems {
    * version, where it is: on the bar, or in the window or on the other bar the person
    * moved it to. It opens when the agent says the person asked, unless it may hold secrets.
    */
-  async show(place: TerminalPlace, request: PresentRequest): Promise<PresentAnswer> {
+  async show(place: TerminalPlace, request: ShowRequest): Promise<ShowAnswer> {
     if (this.stopping) return failure("Novadeck is closing.")
     const pointed = await this.pointer(place, request)
     if (!pointed.ok) return pointed
@@ -300,7 +300,7 @@ export class CompanionItems {
    * this way: one the person attached, another terminal placed there, or the person moved
    * away from it stays, and the answer says so.
    */
-  async dismiss(place: TerminalPlace, request: DismissRequest): Promise<DismissAnswer> {
+  async closeShown(place: TerminalPlace, request: CloseShownRequest): Promise<CloseShownAnswer> {
     if (this.stopping) return failure("Novadeck is closing.")
     const keyed = await this.keyOf(place, request)
     if (!keyed.ok) return keyed
@@ -439,7 +439,7 @@ export class CompanionItems {
     place: TerminalPlace,
     request: LookRequest,
   ): Promise<
-    { readonly ok: true; readonly item: ItemRecord; readonly answer: LookPicture } | PresentFailure
+    { readonly ok: true; readonly item: ItemRecord; readonly answer: LookPicture } | RequestFailure
   > {
     if (this.stopping) return failure("Novadeck is closing.")
     const pages = this.visible(place.terminalId).filter((item) => item.kind === "page")
@@ -901,7 +901,7 @@ export class CompanionItems {
   /** What a request points at, or why it can't be an item. */
   private async pointer(
     place: TerminalPlace,
-    request: PresentRequest,
+    request: ShowRequest,
   ): Promise<
     | { readonly ok: true; readonly pointer: Pointer; readonly tooLarge: boolean }
     | { readonly ok: false; readonly reason: string }
@@ -997,8 +997,8 @@ export class CompanionItems {
    */
   private async keyOf(
     place: TerminalPlace,
-    request: DismissRequest,
-  ): Promise<{ readonly ok: true; readonly key: string; readonly given: string } | PresentFailure> {
+    request: CloseShownRequest,
+  ): Promise<{ readonly ok: true; readonly key: string; readonly given: string } | RequestFailure> {
     if ("page" in request) {
       const page = pageAt(request.page.url)
       return page.ok ? { ok: true, key: pageKey(page.url.href), given: page.url.href } : page

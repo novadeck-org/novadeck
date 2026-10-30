@@ -64,7 +64,7 @@ const sourceNames = Object.keys(sources) as readonly (keyof typeof sources)[]
  * page's scroll, since what is beside the terminal is known by its path or address,
  * whatever it pointed at in it.
  */
-const dismissSources = {
+const closeShownSources = {
   file: z.strictObject({ file: z.strictObject({ path: fileSource.shape.path }) }),
   page: z.strictObject({ page: z.strictObject({ url: pageSource.shape.url }) }),
   changes: z.strictObject({ changes: changesSource }),
@@ -73,11 +73,11 @@ const dismissSources = {
 type FileRequest = z.infer<typeof fileRequest>
 type PageRequest = z.infer<typeof pageRequest>
 type ChangesRequest = z.infer<typeof changesRequest>
-export type PresentRequest = FileRequest | PageRequest | ChangesRequest
-export type DismissRequest = z.infer<(typeof dismissSources)[keyof typeof dismissSources]>
+export type ShowRequest = FileRequest | PageRequest | ChangesRequest
+export type CloseShownRequest = z.infer<(typeof closeShownSources)[keyof typeof closeShownSources]>
 
 /** Why it was not shown, in a sentence the agent can act on. */
-export type PresentFailure = { readonly ok: false; readonly reason: string }
+export type RequestFailure = { readonly ok: false; readonly reason: string }
 
 /**
  * The MCP server's answer: what the person now sees beside the terminal, or why not.
@@ -85,7 +85,7 @@ export type PresentFailure = { readonly ok: false; readonly reason: string }
  * `secret` when it may hold secrets, so it waits for the person to open it; `tooLarge`
  * for an image too large to preview.
  */
-export type PresentAnswer =
+export type ShowAnswer =
   | {
       readonly ok: true
       readonly id: string
@@ -98,14 +98,14 @@ export type PresentAnswer =
       readonly secret?: true
       readonly tooLarge?: true
     }
-  | PresentFailure
+  | RequestFailure
 
 /** What `close` answers: what left the terminal's side, or why nothing did. */
-export type DismissAnswer =
+export type CloseShownAnswer =
   | { readonly ok: true; readonly name: string; readonly kind: CompanionItem["kind"] }
-  | PresentFailure
+  | RequestFailure
 
-export const failure = (reason: string): PresentFailure => ({ ok: false, reason })
+export const failure = (reason: string): RequestFailure => ({ ok: false, reason })
 
 // How each source is given, for an agent that gave none, or a flat `path` or `url`.
 const shapes = {
@@ -122,7 +122,7 @@ const oneSource = `one source, ${forms.slice(0, -1).join(", ")} or ${forms.at(-1
 export const named = (key: string): string =>
   JSON.stringify(key.length <= 64 ? key : `${key.slice(0, 63)}…`)
 
-type Read<T> = (value: unknown) => { readonly ok: true; readonly request: T } | PresentFailure
+type Read<T> = (value: unknown) => { readonly ok: true; readonly request: T } | RequestFailure
 
 // A request by its schema, or the field it got wrong. A key no schema knows is named too,
 // as "file.open" or "lines" beside a page.
@@ -150,10 +150,11 @@ const reader =
   }
 
 /** A `show` request, or why it cannot be one. */
-export const readRequest: Read<PresentRequest> = reader<PresentRequest>(sources)
+export const readShowRequest: Read<ShowRequest> = reader<ShowRequest>(sources)
 
 /** A `close` request, or why it cannot be one. */
-export const readDismissRequest: Read<DismissRequest> = reader<DismissRequest>(dismissSources)
+export const readCloseShownRequest: Read<CloseShownRequest> =
+  reader<CloseShownRequest>(closeShownSources)
 
 /**
  * What `look` takes: the page to look at, named by the address given `show`, or nothing
