@@ -54,7 +54,7 @@ import { PrivacyLine } from "./PrivacyLine"
 // draft (kind and text) lives here, so closing the card keeps it.
 //
 // An agent's draft (`Feedback.drafts`) opens the same card by itself, without taking focus,
-// its kind and text filled in (what `feedback-scrub` strikes already replaced) under a head
+// its kind and text filled in (what `feedback/scrub` strikes already replaced) under a head
 // that says who wrote it, and a Discard beside Send. Closing the card keeps the draft in it,
 // and the button says "Draft from @handle". The person's own note is never overwritten: a draft
 // waits until the card is empty. One draft shows at a time, oldest first.

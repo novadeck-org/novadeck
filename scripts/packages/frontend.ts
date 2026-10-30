@@ -48,8 +48,8 @@ export const packages: readonly Pkg[] = [
     name: "@novadeck/core",
     description:
       "The Novadeck UI's model: its state, stores and the port it talks to a backend through.",
-    // Core's deep paths are its API, as `#core/*` was; `testing` is its fixtures.
-    exports: { "./*": "./src/*.ts", "./testing": "./src/testing.ts" },
+    // Core's deep paths are its API, as `#core/*` was.
+    exports: { "./*": "./src/*.ts" },
     scripts: unitScripts,
     vitest: "unit",
   },

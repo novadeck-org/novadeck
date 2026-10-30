@@ -15,7 +15,7 @@ and the chat's own store and commands.
   (`frontend/ui`) composes it and passes in what it needs; the chat knows nothing of a
   project, a layout or the companion pane.
 - **It is a renderer over a conversation's items.** The items and their grouping into blocks
-  are core's (`conversation`, `conversation-turns`), and the rules for what an answer is are
+  are core's (`conversation`, `conversation/turns`), and the rules for what an answer is are
   core's `answers`. The package draws them, and `Markdown` is the toolkit's.
 - **State is the chat's own store** (`state.ts`): `createChat` gives the drafts, the held
   replies, the sends in flight and the terminals shown as their screen while answered there,

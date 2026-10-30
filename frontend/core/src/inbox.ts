@@ -2,7 +2,7 @@ import type { ChatAnswer, ChatRequest } from "./conversation"
 import type { AgentName } from "./harnesses"
 import type { MessageWaits } from "./messages"
 import { createStore, type Store } from "./store"
-import type { Workspace } from "./types"
+import type { TerminalKey, Workspace } from "./types"
 
 // The Inbox: everything across the workspace that an agent, or Novadeck about an agent,
 // puts in front of the person, each as its own row. The person reads and answers it
@@ -295,14 +295,7 @@ export const noInbox: Inbox = {
   readAll: () => {},
 }
 
-// The terminal a check of the rows is about: its full address.
-export type TerminalAt = {
-  readonly projectId: string
-  readonly workspaceSessionId: string
-  readonly terminalId: string
-}
-
-export const atTerminal = (row: InboxRow, at: TerminalAt): boolean =>
+export const atTerminal = (row: InboxRow, at: TerminalKey): boolean =>
   row.source.projectId === at.projectId &&
   row.source.workspaceSessionId === at.workspaceSessionId &&
   row.source.terminalId === at.terminalId
@@ -313,7 +306,7 @@ export const atTerminal = (row: InboxRow, at: TerminalAt): boolean =>
 // lists them: the landing rule hides rows from the Inbox, never from the marks.
 export const terminalNeed = (
   rows: readonly InboxRow[],
-  at: TerminalAt,
+  at: TerminalKey,
   now: number,
 ): "unblock" | "ask" | undefined => {
   const mine = rows.filter((row) => atTerminal(row, at) && !row.settled)
@@ -341,7 +334,7 @@ export const nextLimitReset = (rows: readonly InboxRow[], now: number): number |
   )
 
 // Whether the terminal has a `done` report the person hasn't seen.
-export const terminalDone = (rows: readonly InboxRow[], at: TerminalAt): boolean =>
+export const terminalDone = (rows: readonly InboxRow[], at: TerminalKey): boolean =>
   rows.some(
     (row) =>
       atTerminal(row, at) && !row.seen && row.kind === "update" && row.update.type === "done",

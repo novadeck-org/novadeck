@@ -15,7 +15,7 @@ export type PreferencesValue = {
   // The theme and the scheme chosen for it; the theme is a plain id the app may not know.
   // See docs/theming.md.
   appearance: { readonly theme: string; readonly scheme: SchemePreference }
-  // Whether the desktop app notifies the person when an agent needs them (an Inbox entry that
+  // Whether the desktop app notifies the person when an agent needs them (an Inbox row that
   // waits on them) while Novadeck is in the background.
   notifyNeeds: boolean
   // Whether it notifies them when an agent finishes while Novadeck is in the background.

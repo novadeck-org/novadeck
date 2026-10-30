@@ -135,6 +135,6 @@ export const registry = { image, file, page, changes, plan, audio } satisfies Re
 
 Something a home shows that is not an item, as a terminal's messages, has no data parts and no
 registration: it is the home's. Give it a member shape in `bar.ts` (`BarMember`, and
-`composeBar` and the key logic with it, plus `BarKey` in core's `companion-bar`), and have the
+`composeBar` and the key logic with it, plus `BarKey` in core's `items/companion-bar`), and have the
 home draw it: its `BarDrawing` for the taskbar (look, preview and badge) and its own body where
 the home shows what's on its bar, as the terminal's `drawing.tsx` does for the messages.

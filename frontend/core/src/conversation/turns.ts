@@ -1,6 +1,7 @@
 import type { ChatItem, ToolRun } from "../conversation"
 import { harnesses } from "../harnesses"
 import type { AgentStatus } from "../types"
+import { counted } from "../units"
 
 // A conversation's items as a chat shows them: the person's messages, the agent's text,
 // other agents' messages, and runs of tool calls, each call with the result its harness
@@ -189,8 +190,6 @@ export type TurnStatus = {
   readonly text: string
 }
 
-const plural = (n: number, one: string): string => `${n} ${one}${n === 1 ? "" : "s"}`
-
 // What the chat says of the agent's turn: working (planning, with the subagents or
 // background work it started running), or, once it rests, how its last turn ended where
 // that wasn't a plain finish. Null when there is nothing to add.
@@ -199,9 +198,9 @@ export const turnStatus = (agent: AgentStatus | undefined): TurnStatus | null =>
   if (agent.working) {
     const parts = [agent.planning ? "Planning" : "Working"]
     const subagents = agent.subagents?.length ?? agent.background?.agents ?? 0
-    if (subagents > 0) parts.push(`${plural(subagents, "subagent")} running`)
+    if (subagents > 0) parts.push(`${counted(subagents, "subagent")} running`)
     const tasks = agent.background?.tasks ?? 0
-    if (tasks > 0) parts.push(plural(tasks, "background task"))
+    if (tasks > 0) parts.push(counted(tasks, "background task"))
     return { working: true, text: parts.join(" · ") }
   }
   switch (agent.lastTurn?.outcome) {

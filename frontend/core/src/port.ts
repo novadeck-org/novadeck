@@ -36,8 +36,8 @@ export type { TerminalKey }
 // The UI draws the terminal's window and what lies over its output (the lock, the notice of a
 // failed paste, the ending bar) around the element, from `TerminalMount.state`, and relies on
 // this markup:
-// - The UI's container for the element (`MountedTerminal`) puts `data-terminal-content` on its root (view transitions morph it),
-//   `nodrag nopan` so Canvas does not drag or pan from the content, and a wheel stop without
+// - The UI's container for the element (`MountedTerminal`) puts `data-terminal-content` on its root (view
+//   transitions morph it), `nodrag nopan` so Canvas does not drag or pan from the content, and a wheel stop without
 //   Ctrl/Meta so scrolling output does not zoom the canvas while pinch and Ctrl+wheel still
 //   do. The mount never needs to know.
 // - The mount puts exactly one `data-terminal-input` inside its element, on the element that
@@ -283,7 +283,7 @@ export type BackendFields = {
   // Absent where the backend cannot run one.
   readonly murmur?: Murmur
   // Optional. The Inbox: what the agents in every project wait on the person for, one
-  // entry per agent terminal, answered in place, behind the bell. The runner's and the
+  // row per agent terminal, answered in place, behind the bell. The runner's and the
   // demo's build it from the app's workspace (`bind`) and their own facts (see core's
   // `inbox/rows`). Absent where the backend has none: the Inbox then lists nothing.
   readonly inbox?: Inbox
@@ -309,8 +309,8 @@ export type BackendFields = {
   readonly source?: Source
   // Optional. Feedback for the people building Novadeck (see core's `feedback`): the
   // footer's card, and an agent window's "Ask @handle to write feedback…". Absent where
-  // the backend can't send it: neither is drawn. The desktop app has it where the desktop app sends
-  // notes, and the demo has one that sends nothing anywhere.
+  // the backend can't send it: neither is drawn. The desktop app has it where it sends notes,
+  // and the demo has one that sends nothing anywhere.
   readonly feedback?: Feedback
   // Optional. Types text into a terminal as a paste, bracketed where its program asks,
   // without pressing Enter, as dictation does. Says whether it typed: false when the
@@ -343,7 +343,7 @@ export type BackendFields = {
     readonly sounds?: boolean
     readonly onClick: (listener: (terminalId: string) => void) => () => void
   }
-  // Optional. Shows how many entries wait in the Inbox on the app's icon (the dock or
+  // Optional. Shows how many rows wait in the Inbox on the app's icon (the dock or
   // launcher badge; on Windows the taskbar overlay, drawn from `image`, a PNG data URL, or
   // none when null); a count of 0 clears it. Absent where nothing surrounds the page, as
   // in a browser.
@@ -385,16 +385,16 @@ export type BackendFields = {
   // in a browser and in a desktop app that does not say.
   readonly version?: () => Promise<string>
   // Optional. Opens the folder of the desktop app's logs in the system's file manager, for
-  // the person to read them or attach them to a bug report. Absent in a browser and in a desktop app
-  // that keeps none.
+  // the person to read them or attach them to a bug report. Absent in a browser and in a
+  // desktop app that keeps none.
   readonly openLogs?: () => void
   // Optional. Whether the desktop app runs in Electron's security sandbox, asked once at
   // startup since the answer holds for the whole run. Absent in a browser and in a desktop app
   // that does not say.
   readonly sandbox?: () => Promise<SandboxState>
   // Optional. Whether the desktop app is a portable copy, asked once at startup. A portable
-  // never updates itself; `install` asks the desktop app to put the installed app, which does update itself, in place,
-  // keeping the workspace, and answers nothing: the desktop app owns how the install goes and
+  // never updates itself; `install` asks the desktop app to put the installed app, which does
+  // update itself, in place, keeping the workspace, and answers nothing: the desktop app owns how the install goes and
   // `onState` hears each step of it (`PortableState.install`), in every window, including
   // an install started from another window or before this page was reloaded. Once
   // `installed` (or `newer`) the installed copy takes effect when the person next opens

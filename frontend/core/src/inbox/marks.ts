@@ -1,5 +1,15 @@
-import { atTerminal, inboxType, terminalNeed, type InboxRow, type TerminalAt } from "../inbox"
-import type { InboxMarks } from "../terminals/ending"
+import { atTerminal, inboxType, terminalNeed, type InboxRow } from "../inbox"
+import type { NeedDialog, TerminalNeed } from "../terminals/ending"
+import type { TerminalKey } from "../types"
+
+// What the Inbox says of one terminal, for its tab, its window and its project's status: the
+// need its rows make, and the subject and the dialog kind of the row that makes the need.
+// Its done report is no mark of the Inbox: it stands with the agent (`AgentStatus.reported`).
+export type InboxMarks = {
+  readonly need: TerminalNeed | undefined
+  readonly subject?: string | undefined
+  readonly dialog?: NeedDialog | undefined
+}
 
 // The kind of dialog a row stands for, where it stands for one: a request is the dialog
 // its agent's harness shows.
@@ -15,7 +25,7 @@ const subjectOf = (row: InboxRow): string | undefined => {
 // The marks of one terminal from the Inbox's rows: raw ones, as the backend lists them, since
 // the landing rule hides rows from the Inbox, never from the marks. `now` decides whether a
 // limit has reset.
-export const inboxMarks = (rows: readonly InboxRow[], at: TerminalAt, now: number): InboxMarks => {
+export const inboxMarks = (rows: readonly InboxRow[], at: TerminalKey, now: number): InboxMarks => {
   const need = terminalNeed(rows, at, now)
   const mine = rows.filter((row) => atTerminal(row, at) && !row.settled)
   const behind = need && mine.find((row) => inboxType(row) === need)

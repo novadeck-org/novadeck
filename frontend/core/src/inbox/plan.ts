@@ -2,6 +2,7 @@ import type { AgentName } from "../harnesses"
 import type { InboxRow } from "../inbox"
 import type { Item, ItemContent } from "../items"
 import type { Workspace, WorkspaceTarget } from "../types"
+import { minute, second } from "../units"
 
 // The plan a plan approval in the Inbox asks the person to approve, for its sheet. No
 // harness puts the plan in the dialog: each shows it as the asking terminal's plan item
@@ -15,15 +16,15 @@ import type { Workspace, WorkspaceTarget } from "../types"
 // dialog takes the screen; Antigravity as it writes the artifact, which its turn may go on
 // past before the review shows. A plan item shown longer before is an earlier round's, as
 // one the person sent back, whose plan the agent is still rewriting.
-export const planLeadMs: Readonly<Record<AgentName, number>> = {
-  claude: 30_000,
-  codex: 60_000,
-  agy: 15 * 60_000,
+const planLeadMs: Readonly<Record<AgentName, number>> = {
+  claude: 30 * second,
+  codex: minute,
+  agy: 15 * minute,
 }
 
 // How long after its dialog a plan may still come: the hook or rollout line that shows it
 // can reach the UI after the dialog does.
-export const planWaitMs = 5000
+export const planWaitMs = 5 * second
 
 // The plan item a plan approval asks about: found, still to come (until `until`), or none,
 // for an item that is no plan approval or whose plan never came.

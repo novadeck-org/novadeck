@@ -1,5 +1,6 @@
 import type { Store } from "./store"
 import type { TerminalKey } from "./types"
+import { counted } from "./units"
 
 // Messages between the agents in a session's terminals, as a backend reports them: each
 // terminal's threads with the other terminals, the messages in each and where each is on
@@ -221,14 +222,12 @@ export const messageBadge = (
   return { count: waiting.length, kind }
 }
 
-const messagesWord = (count: number): string => `${count} message${count === 1 ? "" : "s"}`
-
 export const messageBadgeLabel = ({ count, kind }: MessageBadge): string =>
   kind === "held"
-    ? `${messagesWord(count)} waiting, held until you release ${count === 1 ? "it" : "them"}`
+    ? `${counted(count, "message")} waiting, held until you release ${count === 1 ? "it" : "them"}`
     : kind === "paused"
-      ? `${messagesWord(count)} waiting, held while messaging is paused`
-      : `${messagesWord(count)} waiting`
+      ? `${counted(count, "message")} waiting, held while messaging is paused`
+      : `${counted(count, "message")} waiting`
 
 // Whether a terminal has a messages view: it has had messages. An agent with none yet
 // keeps its bar clear until one comes.

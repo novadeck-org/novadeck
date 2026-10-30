@@ -1,7 +1,7 @@
 // The clocks a waiting agent's rows and window bar read, apart from what its tab needs
 // to be drawn, so the views that show them load when one does.
 
-import { hour, minute, second } from "./units"
+import { hour, minute, second } from "../units"
 
 // How long a job has run, short, for its tab: "<1m", "4m", then "2h".
 export const minutesWaited = (since: number, now = Date.now()): string => {

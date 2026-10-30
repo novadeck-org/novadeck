@@ -1,4 +1,4 @@
-// What voice input and murmur share about a call their backend refused.
+// What voice input and Murmur share about a call their backend refused.
 
 // A call the person made of an addon that its backend refused (the runner answered with an
 // error, or could not be reached), kept until the next snapshot. It is the adapter's word,

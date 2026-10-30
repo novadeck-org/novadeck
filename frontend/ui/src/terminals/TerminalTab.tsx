@@ -232,7 +232,7 @@ export const TerminalTab = ({
             )}
             {/* After the program, so the program comes first; where a pointer hovers it
                 waits in the slot Hide and Rename slide into (tabs.css). Only on a terminal
-                agents name by its handle (core/handle.ts). */}
+                agents name by its handle (core/terminals/handle.ts). */}
             <HandleChip
               handle={shell && showsHandle(shell) ? shell.handle : undefined}
               className="handle-plain terminal-tab-handle"

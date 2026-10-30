@@ -1,5 +1,5 @@
 import type { TerminalMetadata } from "../types"
-import { counted } from "./units"
+import { counted } from "../units"
 
 const agentOf = (terminal: TerminalMetadata) =>
   terminal.state === "running" ? terminal.agent : undefined

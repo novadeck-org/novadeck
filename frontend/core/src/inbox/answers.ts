@@ -1,7 +1,7 @@
 import { agentWorking } from "../agents/finish"
-import type { ChatAnswer, ConversationKey } from "../conversation"
+import type { ChatAnswer } from "../conversation"
 import type { InboxAnswer, InboxRow, InboxState } from "../inbox"
-import type { TerminalMetadata } from "../types"
+import type { TerminalKey, TerminalMetadata } from "../types"
 import { reuse } from "./rows"
 
 // What a backend that builds its Inbox from the app's state does with the person's answers,
@@ -14,7 +14,7 @@ export const answerFailure = (error: unknown): string =>
   error instanceof Error && error.message ? error.message : "That didn't take. Try again."
 
 // The terminal a row is about, by its full address.
-export const keyOf = ({ source }: InboxRow): ConversationKey => ({
+export const keyOf = ({ source }: InboxRow): TerminalKey => ({
   projectId: source.projectId,
   workspaceSessionId: source.workspaceSessionId,
   terminalId: source.terminalId,
@@ -206,7 +206,7 @@ type RequestRow = Extract<InboxRow, { kind: "request" }>
 
 // What answering a row asks of the backend; each is its own way to reach the agent.
 export type InboxActions = {
-  readonly request: (key: ConversationKey, row: RequestRow, answer: ChatAnswer) => Promise<unknown>
+  readonly request: (key: TerminalKey, row: RequestRow, answer: ChatAnswer) => Promise<unknown>
   readonly release: (thread: string) => void
   readonly stop: (thread: string) => void
   // Marks stored rows read by id, tracked: they show answering until the backend drops them.
@@ -216,13 +216,13 @@ export type InboxActions = {
   // `automatic` for the trouble row's fixed lines, not words the person wrote: the agent's
   // turn on one takes no open ask out of the Inbox.
   readonly send: (
-    key: ConversationKey,
+    key: TerminalKey,
     text: string,
     options?: { readonly automatic?: true },
   ) => Promise<unknown>
-  readonly interrupt: (key: ConversationKey) => Promise<unknown>
+  readonly interrupt: (key: TerminalKey) => Promise<unknown>
   // The row's terminal now, to see whether its agent works.
-  readonly terminal: (key: ConversationKey) => TerminalMetadata | undefined
+  readonly terminal: (key: TerminalKey) => TerminalMetadata | undefined
 }
 
 // Answers a row as its kind asks: a request through the agent's conversation, a held

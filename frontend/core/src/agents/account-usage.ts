@@ -1,12 +1,16 @@
 import { harnesses } from "../harnesses"
 import type { Workspace } from "../types"
+import { day, hour, minute } from "../units"
 import type { Telemetry } from "./telemetry"
+
+const minutesPerHour = hour / minute
+const minutesPerDay = day / minute
 
 // A window's length as people say it: "5h", "7d", or minutes when neither fits.
 const windowName = (minutes: number | null): string => {
   if (minutes === null) return "limit"
-  if (minutes % 1440 === 0) return `${minutes / 1440}d`
-  if (minutes % 60 === 0) return `${minutes / 60}h`
+  if (minutes % minutesPerDay === 0) return `${minutes / minutesPerDay}d`
+  if (minutes % minutesPerHour === 0) return `${minutes / minutesPerHour}h`
   return `${minutes}m`
 }
 
@@ -169,12 +173,13 @@ const clock = (at: number): string =>
 // When a window resets, as people say it: how long from now with the time, within a day,
 // "in 2h 14m · 16:30"; the weekday and time further off, "Thu 09:00".
 export const resetText = (at: number, now = Date.now()): string => {
-  const minutes = Math.max(0, Math.ceil((at - now) / 60_000))
+  const minutes = Math.max(0, Math.ceil((at - now) / minute))
   // Six days on, a weekday alone could be today's, so it counts the days instead.
-  if (minutes >= 6 * 24 * 60) return `in ${Math.floor(minutes / (24 * 60))}d · ${clock(at)}`
-  if (minutes >= 24 * 60)
+  if (minutes >= 6 * minutesPerDay)
+    return `in ${Math.floor(minutes / minutesPerDay)}d · ${clock(at)}`
+  if (minutes >= minutesPerDay)
     return `${new Date(at).toLocaleDateString(undefined, { weekday: "short" })} ${clock(at)}`
-  const hours = Math.floor(minutes / 60)
-  const left = hours > 0 ? `${hours}h ${minutes % 60}m` : `${minutes}m`
+  const hours = Math.floor(minutes / minutesPerHour)
+  const left = hours > 0 ? `${hours}h ${minutes % minutesPerHour}m` : `${minutes}m`
   return `in ${left} · ${clock(at)}`
 }

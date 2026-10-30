@@ -1,5 +1,5 @@
 import type { AgentWaiting, TerminalMetadata } from "../types"
-import { counted, hour, minute } from "./units"
+import { counted, hour, minute } from "../units"
 
 // How long a wake-up that has come and gone is still waited on: its agent's next turn
 // starts a moment after it, and a tab must not flicker back to idle in between.

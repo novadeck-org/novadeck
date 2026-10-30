@@ -22,7 +22,7 @@ import type {
 } from "./types"
 
 // How the UI showed a session's terminals and windows, as it saved it: only its own view
-// state, by id, never the terminals, windows or companion items themselves, which their
+// state, by id, never the terminals, windows or items themselves, which their
 // backend reports. What's new, or waiting to open, isn't kept: nothing is after a reload.
 export type RestoredView = Omit<
   WorkspaceState,
