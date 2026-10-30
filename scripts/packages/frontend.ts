@@ -989,6 +989,8 @@ export const edits: readonly Edit[] = [
     before: '"poster:try": "pnpm --filter @novadeck/ui poster:try",',
     after: '"poster:try": "pnpm --filter @novadeck/try poster",',
     why: "the posters are the visitor build's",
+    // The line before the app's script was named poster.
+    settled: ['"poster:try": "pnpm --filter @novadeck/try poster:try",'],
   },
   {
     file: "package.json",
