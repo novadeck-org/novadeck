@@ -1,10 +1,10 @@
 import type { ChatItem } from "../conversation"
 
 // Agent transcripts recorded from the real harnesses, as their decoders read them
-// (`transcripts.items`), for `agent-steps`'s tests: each harness's edits, runs and failures
+// (`transcripts.items`), for `steps.ts`'s tests: each harness's edits, runs and failures
 // in its own words. Recorded 2026-10-27.
 
-export type RecordedTranscript = {
+type RecordedTranscript = {
   readonly harness: string
   readonly version: string
   readonly how: string

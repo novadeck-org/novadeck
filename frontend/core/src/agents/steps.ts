@@ -27,7 +27,7 @@ export type AgentContext = {
   readonly steps: readonly AgentStep[]
 }
 
-export const maxSteps = 3
+const maxSteps = 3
 
 // Words shorter than this ("ok", "go on") say nothing of the task: the words before them do.
 const fillerWords = 3
@@ -189,7 +189,7 @@ const stepOf = (
   const failure = failureOf(agent, tool, output)
   if (failure !== undefined) return { kind: "fail", tool, arg, result: failure }
   if (kind === "write")
-    return { kind: "edit", tool, arg, result: counted(patch?.counts ?? editCounts(tool, input)) }
+    return { kind: "edit", tool, arg, result: editResult(patch?.counts ?? editCounts(tool, input)) }
   if (kind === "run") return { kind: "run", tool, arg, result: lastLine(output) }
   return null
 }
@@ -312,7 +312,7 @@ const lastLine = (text: string): string | null => {
 }
 
 // A line, cut short, or undefined for none.
-const said = (line: string | undefined): string | undefined =>
+const shortened = (line: string | undefined): string | undefined =>
   line === undefined ? undefined : cut(line)
 
 // Why a call failed, as its harness's result says, or undefined where it didn't (or the
@@ -332,16 +332,16 @@ export const failureOf = (agent: string | null, tool: string, text: string): str
   const exited = (code: string): string => lastLine(output) ?? `exit code ${code}`
   if (agent === "claude") {
     const error = /^<tool_use_error>([\s\S]*?)(<\/tool_use_error>|$)/.exec(output)
-    if (error) return said(lines(error[1]!)[0] ?? "failed")
-    if (output.startsWith("Command timed out after ")) return said(lines(output)[0])
+    if (error) return shortened(lines(error[1]!)[0] ?? "failed")
+    if (output.startsWith("Command timed out after ")) return shortened(lines(output)[0])
     const code = /^Exit code (-?\d+)/.exec(output)?.[1]
-    if (code && code !== "0") return said(lines(output).slice(1).at(-1)) ?? `exit code ${code}`
+    if (code && code !== "0") return shortened(lines(output).slice(1).at(-1)) ?? `exit code ${code}`
     return undefined
   }
   if (agent === "codex") {
     const scriptError = /\nScript error:\n([\s\S]*)$/.exec(output)?.[1]
     if (/^Script failed\b/.test(output))
-      return said(scriptError ? lines(scriptError)[0] : undefined) ?? exited("1")
+      return shortened(scriptError ? lines(scriptError)[0] : undefined) ?? exited("1")
     const header = head(output)
     const code =
       /^Process exited with code (-?\d+)$/m.exec(header)?.[1] ??
@@ -353,7 +353,7 @@ export const failureOf = (agent: string | null, tool: string, text: string): str
     // A run that exited 0 succeeded, whatever it printed: a log it cat'ed may hold the words.
     if (code === "0") return undefined
     const patch = /^apply_patch verification failed:?.*$/m.exec(output)?.[0]
-    if (patch) return said(patch)
+    if (patch) return shortened(patch)
     if (code) return exited(code)
     return undefined
   }
@@ -362,7 +362,7 @@ export const failureOf = (agent: string | null, tool: string, text: string): str
     // As with Codex: exited 0 is a success, even if the output prints the error's words.
     if (code === "0") return undefined
     const error = /^Encountered error in step execution: (.*)$/m.exec(output)?.[1]
-    if (error !== undefined) return said(error) ?? "failed"
+    if (error !== undefined) return shortened(error) ?? "failed"
     if (code) return exited(code)
     return undefined
   }
@@ -373,7 +373,7 @@ export const failureOf = (agent: string | null, tool: string, text: string): str
 
 type Counts = { readonly added: number; readonly removed: number }
 
-const counted = (counts: Counts | null): string | null => {
+const editResult = (counts: Counts | null): string | null => {
   if (!counts || (counts.added === 0 && counts.removed === 0)) return null
   return [counts.added > 0 && `+${counts.added}`, counts.removed > 0 && `−${counts.removed}`]
     .filter(Boolean)

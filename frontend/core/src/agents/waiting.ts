@@ -1,8 +1,5 @@
 import type { AgentWaiting, TerminalMetadata } from "../types"
-
-const second = 1000
-const minute = 60 * second
-const hour = 60 * minute
+import { counted, hour, minute } from "./units"
 
 // How long a wake-up that has come and gone is still waited on: its agent's next turn
 // starts a moment after it, and a tab must not flicker back to idle in between.
@@ -60,14 +57,20 @@ export const wakePassed = (terminal: TerminalMetadata, now = Date.now()): string
   return clockTime(wake.at)
 }
 
-// How far its wake-up has come, in quarters from 0 to 3, for its glyph to fill by: from
-// when its latest turn ended, where its harness tells it, as that is when the agent set
-// it.
+// When a wake-up at `at` was set, for its glyph to fill from: when the agent's latest turn
+// ended, where its harness tells it, as that is when the agent set it; else the horizon
+// before it.
+const wakeStart = (terminal: TerminalMetadata, at: number): number => {
+  const ended = terminal.state === "running" ? terminal.agent?.lastTurn?.at : undefined
+  return ended !== undefined && ended < at ? ended : at - wakeHorizonMs
+}
+
+// How far its wake-up has come since `wakeStart`, in quarters from 0 to 3, for its glyph to
+// fill by.
 export const wakeFill = (terminal: TerminalMetadata, now = Date.now()): number => {
   const wake = waitingIn(terminal)?.wake
   if (!wake) return 0
-  const ended = terminal.state === "running" ? terminal.agent?.lastTurn?.at : undefined
-  const start = ended !== undefined && ended < wake.at ? ended : wake.at - wakeHorizonMs
+  const start = wakeStart(terminal, wake.at)
   const fraction = (now - start) / (wake.at - start)
   return Math.min(wakeSteps - 1, Math.max(0, Math.floor(fraction * wakeSteps)))
 }
@@ -106,8 +109,6 @@ export const waitingLine = (
       }
     : undefined
 }
-
-const counted = (count: number, one: string): string => `${count} ${one}${count === 1 ? "" : "s"}`
 
 // How long a job has run in words, as `minutesWaited` counts it: "less than a minute",
 // "4 minutes", then "2 hours".
@@ -150,8 +151,7 @@ export const nextWaitingChange = (
   }
   const wake = waitingIn(terminal)?.wake
   if (wake && waiting.wake) {
-    const ended = terminal.state === "running" ? terminal.agent?.lastTurn?.at : undefined
-    const start = ended !== undefined && ended < wake.at ? ended : wake.at - wakeHorizonMs
+    const start = wakeStart(terminal, wake.at)
     const quarter = (wake.at - start) / wakeSteps
     const next = start + (Math.floor((now - start) / quarter) + 1) * quarter
     times.push(next < wake.at ? next : wake.at + wakeGraceMs)

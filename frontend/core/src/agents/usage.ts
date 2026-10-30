@@ -1,13 +1,5 @@
 import type { AgentUsage } from "../types"
 
-// A window's length as people say it: "5h", "7d", or minutes when neither fits.
-export const windowName = (minutes: number | null): string => {
-  if (minutes === null) return "limit"
-  if (minutes % 1440 === 0) return `${minutes / 1440}d`
-  if (minutes % 60 === 0) return `${minutes / 60}h`
-  return `${minutes}m`
-}
-
 const percent = (fraction: number): string => `${Math.round(fraction * 100)}%`
 
 // Thousands of tokens, the way agents themselves show them: 30k, 1.2M.

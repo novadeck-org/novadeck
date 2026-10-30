@@ -1,11 +1,10 @@
 import type { TerminalMetadata } from "../types"
+import { counted } from "./units"
 
 const agentOf = (terminal: TerminalMetadata) =>
   terminal.state === "running" ? terminal.agent : undefined
 
 const subagentsOf = (terminal: TerminalMetadata) => agentOf(terminal)?.subagents ?? []
-
-const counted = (count: number, one: string): string => `${count} ${one}${count === 1 ? "" : "s"}`
 
 // What the agent's turn left running, or while it runs what its harness counts, for its
 // tab's description: "3 agents · 1 task", or "background work" where its harness doesn't

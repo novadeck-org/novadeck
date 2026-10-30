@@ -34,8 +34,8 @@ export const sightTurnEnd = (
   const end = turnEnd(terminal)
   if (seen === undefined) return { seen: end?.at ?? null }
   if (!end || end.at === seen || agentWorking(terminal)) return { seen }
-  const waiting = heldByDialog(terminal)
-  if (waiting || (end.outcome !== "completed" && end.outcome !== "failed")) return { seen: end.at }
+  const held = heldByDialog(terminal)
+  if (held || (end.outcome !== "completed" && end.outcome !== "failed")) return { seen: end.at }
   const failed = end.outcome === "failed"
   return {
     seen: end.at,
@@ -107,8 +107,7 @@ export const followFinishes = (
 ): (() => void) => {
   let terminals = new Map<string, { context: string; terminal: TerminalMetadata }>()
   const seen = new Map<string, SeenEnd>()
-  const waiting = new Set<ReturnType<typeof setTimeout>>()
-  let previous: Workspace | undefined
+  const timers = new Set<ReturnType<typeof setTimeout>>()
   const sight = (snapshot: Workspace) => {
     const before = terminals
     terminals = new Map(
@@ -139,12 +138,11 @@ export const followFinishes = (
     for (const key of seen.keys()) if (!terminals.has(key)) seen.delete(key)
     return finished
   }
-  const first = workspace.getSnapshot()
-  previous = first
-  sight(first)
+  let previous = workspace.getSnapshot()
+  sight(previous)
   const follow = (): void => {
     const snapshot = workspace.getSnapshot()
-    if (snapshot.projects === previous?.projects) return
+    if (snapshot.projects === previous.projects) return
     previous = snapshot
     for (const each of sight(snapshot)) {
       const at = seen.get(each.key)
@@ -154,19 +152,19 @@ export const followFinishes = (
         continue
       }
       const timer = setTimeout(() => {
-        waiting.delete(timer)
+        timers.delete(timer)
         const current = terminals.get(each.key)
         const finish = current ? standingFinish(current.terminal, at) : undefined
         if (current && finish)
           onFinish({ context: current.context, terminal: current.terminal, finish, at })
       }, graceMs)
-      waiting.add(timer)
+      timers.add(timer)
     }
   }
   const stop = workspace.subscribe(follow)
   return () => {
     stop()
-    waiting.forEach(clearTimeout)
-    waiting.clear()
+    timers.forEach(clearTimeout)
+    timers.clear()
   }
 }

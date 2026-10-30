@@ -1,8 +1,5 @@
 import type { TerminalMetadata } from "../types"
-
-const minute = 60_000
-const hour = 60 * minute
-const day = 24 * hour
+import { day, hour, minute } from "./units"
 
 // When the agent's latest turn ended, where its harness tells it.
 const endedAt = (terminal: TerminalMetadata): number | undefined =>
