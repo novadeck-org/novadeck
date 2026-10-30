@@ -57,11 +57,12 @@ export const packages: readonly Pkg[] = [
     id: "test-kit",
     dir: "frontend/test-kit",
     name: "@novadeck/test-kit",
-    description: "What the UI's tests render and drive the app with.",
+    description:
+      "The frontend's test helpers: a jsdom render, the port contract suite, test phase timing.",
     exports: {
       "./render": "./src/render.ts",
       "./phases": "./src/phases.ts",
-      "./backend-contract": "./src/backend-contract.tsx",
+      "./backend-contract": "./src/backend-contract.ts",
     },
     scripts: { typecheck: "tsc --noEmit -p tsconfig.json" },
   },
