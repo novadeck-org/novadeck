@@ -23,10 +23,6 @@ import {
 
 import type { RunnerBackendOptions } from "../backend"
 
-// What the desktop app's preload script offers the page; absent in a browser.
-export const desktopApp = (): DesktopApp | undefined =>
-  (globalThis as { novadeck?: DesktopApp }).novadeck
-
 // Text a notice may show: one line, without control characters, cut to `length` with an
 // ellipsis, never inside a character.
 // eslint-disable-next-line no-control-regex -- These are the characters it replaces.

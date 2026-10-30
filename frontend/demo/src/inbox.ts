@@ -13,7 +13,7 @@ import {
   type InboxState,
   type InboxTurn,
 } from "@novadeck/core/inbox"
-import { dialogMs, inboxRows, type Asked, type InboxEntry } from "@novadeck/core/inbox/rows"
+import { dialogMs, inboxRows, type Asked, type WrittenEntry } from "@novadeck/core/inbox/rows"
 import {
   answerRow,
   createInboxTracker,
@@ -284,7 +284,7 @@ export const createDemoInbox = (
       workspace,
       turns: turns.getSnapshot() ?? [],
       messages: sources.messages?.state.getSnapshot() ?? noMessages,
-      entries: doneEntries.map(({ key, ...entry }): InboxEntry => ({
+      entries: doneEntries.map(({ key, ...entry }): WrittenEntry => ({
         id: entry.id,
         terminalId: key.terminalId,
         projectId: key.projectId,
