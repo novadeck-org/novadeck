@@ -80,13 +80,13 @@ export const portableAssets = {
 } as const
 
 /** The most bytes a portable file may be; the largest, the macOS ZIP, is a few hundred megabytes. */
-export const maxPortableBytes = 1 << 30
+const maxPortableBytes = 1 << 30
 
 /** How long a download may go without data before it is given up. */
-export const downloadStallMs = 60_000
+const downloadStallMs = 60_000
 
 /** The file a release lists its checksums in, as `sha256sum` writes them. */
-export const checksumsName = "SHA256SUMS"
+const checksumsName = "SHA256SUMS"
 
 /**
  * The SHA-256 (lowercase hex) that `sha256sum` output lists for the file `name`, or

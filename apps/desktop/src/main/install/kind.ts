@@ -1,5 +1,3 @@
-// How this copy of the app was installed.
-
 /** How this copy of the app was installed, as a log names it. */
 export type InstallKind =
   | "development"

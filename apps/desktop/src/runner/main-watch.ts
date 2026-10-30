@@ -1,7 +1,7 @@
 import type { Log } from "@novadeck/log"
 
 /** How long the runner goes without a beat before it logs the main process as stalled, in ms. */
-export const mainStallMs = 3_000
+const mainStallMs = 3_000
 
 /**
  * Watches the app's main process from the runner, which lives on when the main thread

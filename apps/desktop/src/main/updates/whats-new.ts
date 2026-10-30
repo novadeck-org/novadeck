@@ -6,7 +6,7 @@ import { dismissWhatsNewChannel, whatsNewChannel } from "../../bridge.js"
 import type { ReleaseRepository } from "../releases/repository.js"
 
 /** How long reading the release waits; the card is optional, so a slow network gives it up. */
-export const releaseReadMs = 10_000
+const releaseReadMs = 10_000
 /** How long a read that failed for a reason that may pass waits before its one more try. */
 export const readRetryMs = 2 * 60 * 1000
 /** How long a prerelease without highlights waits before its release is read again. */
@@ -137,8 +137,8 @@ const readRelease = async (
 }
 
 /** How many releases a page of the list holds, and how many pages are read at most. */
-export const releasesPerPage = 100
-export const releasePages = 3
+const releasesPerPage = 100
+const releasePages = 3
 
 // Reads the releases after `from` and before `version`, newest first, or none for now. The
 // list comes newest first, so it is read until a page reaches `from`; a person who skipped

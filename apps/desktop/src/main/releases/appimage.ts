@@ -1,4 +1,3 @@
-import { latestVersionOf } from "../install/windows.js"
 import {
   downloadChecked,
   listedChecksum,
@@ -6,6 +5,7 @@ import {
   type Download,
   type ReleaseText,
 } from "./download.js"
+import { latestVersionOf } from "./latest-yml.js"
 import { isNewerVersion } from "./versions.js"
 
 /** How getting the release's AppImage ready went: the file, or why not. */
