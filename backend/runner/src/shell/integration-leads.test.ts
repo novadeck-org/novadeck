@@ -126,7 +126,7 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))(
         id: unused,
         sessionId: shell.sessionId,
         cwd: shell.home,
-        handle: "fox",
+        handle: shell.store.giveHandle(shell.sessionId),
         naming: { person: null, opener: null, murmur: null, summary: null },
         openedBy: null,
         ledBy: null,
