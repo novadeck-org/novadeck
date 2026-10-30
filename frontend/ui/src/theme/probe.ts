@@ -1,4 +1,4 @@
-// Code that paints outside CSS, such as the xterm theme or the desktop host's window,
+// Code that paints outside CSS, such as the xterm theme or the desktop app's window,
 // needs concrete colours. A token may hold `color-mix()` or a colour that reads another
 // token, so each one is resolved by the browser: set as a hidden probe element's
 // `color` and read back with getComputedStyle. See docs/theming.md.

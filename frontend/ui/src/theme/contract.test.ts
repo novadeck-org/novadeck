@@ -46,42 +46,18 @@
 //     it wraps itself; a package's CSS imported from .ts or .tsx is charged to the
 //     importing file.
 
-import { readdirSync, readFileSync } from "node:fs"
+import { readFileSync } from "node:fs"
 import { join, posix } from "node:path"
 
 import { parseAst, transformWithEsbuild } from "vite"
 
 import { describe, expect, it } from "../test"
+import { packageOf, read, repositoryPathOf, sources } from "./sources.test-support"
 import { themes, type ThemeEntry } from "./themes"
 import { requiredTokens } from "./tokens"
 
-const src = join(process.cwd(), "src")
 const doc = readFileSync(join(process.cwd(), "..", "..", "docs", "theming.md"), "utf8")
-// The UI's source is in several packages now: a file is named as it was below the old src/.
-const places = [
-  ["backend/demo/debug/", "demo-debug"],
-  ["backend/demo/", "demo"],
-  ["backend/terminal-views/", "terminal-views"],
-  ["backend/runner/", "runner-adapter"],
-  ["core/", "core"],
-  ["ui-toolkit/", "toolkit"],
-  ["terminals/companion/", "items"],
-  ["terminals/chat/", "chat"],
-].map(([prefix, name]) => ({ prefix: prefix!, dir: join(src, "..", "..", name!, "src") }))
-const all = [
-  ...(readdirSync(src, { recursive: true }) as string[]),
-  ...places.flatMap(({ prefix, dir }) =>
-    (readdirSync(dir, { recursive: true }) as string[]).map((file) => prefix + file),
-  ),
-].map((file) => file.split("\\").join("/"))
-const read = (file: string): string => {
-  const place = places.find(({ prefix }) => file.startsWith(prefix))
-  return readFileSync(
-    place ? join(place.dir, file.slice(place.prefix.length)) : join(src, file),
-    "utf8",
-  )
-}
-const stylesheets = all.filter((file) => file.endsWith(".css"))
+const stylesheets = sources.filter((file) => file.endsWith(".css"))
 const fileOf = (theme: ThemeEntry): string => `theme/${theme.file ?? theme.id}.css`
 const themeFile = (file: string): boolean => themes.some((theme) => file === fileOf(theme))
 // The themes drawn by the file that draws this one, itself included.
@@ -100,11 +76,11 @@ const sharedScopeOf = (theme: ThemeEntry): string | undefined => {
     ? undefined
     : `:root:is(${together.map((other) => `[data-theme="${other.id}"]`).join(", ")})`
 }
-const scripts = all.filter(
+const scripts = sources.filter(
   (file) =>
     /\.tsx?$/.test(file) &&
-    !/\.(test|spec)\.tsx?$/.test(file) &&
-    !/^(specs|test|theme)\//.test(file) &&
+    !/\.(test|spec|test-support)\.tsx?$/.test(file) &&
+    !/^(test|theme)\//.test(file) &&
     file !== "test.ts",
 )
 
@@ -214,7 +190,7 @@ describe("theme contract", () => {
       expect.arrayContaining([
         "styles.css",
         "theme/base.css",
-        "backend/demo/debug/debug-panel.css",
+        "@novadeck/demo-debug/debug-panel.css",
       ]),
     )
   })
@@ -705,7 +681,7 @@ const importantExceptions: readonly {
     ],
   },
   {
-    file: "backend/terminal-views/terminal-xterm.css",
+    file: "@novadeck/terminal-views/terminal-xterm.css",
     reason: "xterm sets its scrollbar slider's position and width inline",
     declarations: [
       ".terminal-xterm .xterm .xterm-scrollable-element > .scrollbar.vertical > .slider { left }",
@@ -733,22 +709,13 @@ const imports = (css: string): { readonly target: string; readonly layered: bool
       : []
   })
 
-// A stylesheet of another package, as `@import "@novadeck/toolkit/item.css"` names it, is the
-// file it was below the old src/: the package's folder is `places`' prefix.
-const packageCss = [
-  ["@novadeck/toolkit/", "ui-toolkit/"],
-  ["@novadeck/items/", "terminals/companion/"],
-  ["@novadeck/chat/", "terminals/chat/"],
-] as const
-
-const resolveCss = (from: string, target: string): string | undefined => {
-  const named = packageCss.find(([name]) => target.startsWith(name))
-  return named
-    ? `${named[1]}${target.slice(named[0].length)}`
+// The stylesheet an `@import` names: another package's by its own name, this one's by its path.
+const resolveCss = (from: string, target: string): string | undefined =>
+  packageOf(target)
+    ? target
     : target.startsWith(".")
       ? posix.normalize(posix.join(posix.dirname(from), target))
       : undefined
-}
 
 const unlayered = (file: string): string[] => {
   const css = uncomment(read(file))
@@ -853,7 +820,7 @@ describe("theme rules", () => {
     const named = new Set([...section.matchAll(/`([^`]+)`/g)].map((match) => match[1]))
     expect(
       importantExceptions
-        .filter(({ file }) => !named.has(file))
+        .filter(({ file }) => !named.has(repositoryPathOf(file)))
         .map(({ file }) => `docs/theming.md's Exceptions does not name ${file}`),
     ).toEqual([])
   })

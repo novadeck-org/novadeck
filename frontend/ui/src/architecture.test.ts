@@ -13,17 +13,17 @@ import { describe, expect, it } from "./test"
 // composes the page; it imports nothing but itself and the core's types, for the scheme
 // preference they hold. Backends never read it: what they paint outside CSS, such as the
 // terminal emulator, takes the page's theme from the entry, as the port's `ThemeSource`.
-// ui-toolkit/ is the package `@novadeck/toolkit` (see `modules`): the controls, `class-name` and
-// the sidebar item. Its own rules are its package.json's.
-// terminals/companion/ is the package `@novadeck/items` (see `modules`): the companion pane, the
-// undocked window and the bar drag, which `layouts/` and `app/` reach as part of `terminals/`.
-// terminals/chat/ is the package `@novadeck/chat` (see `modules`): the chat view, its store and
-// its commands, which `app/` composes.
-const base = ["core/", "interaction/", "ui-toolkit/", "theme/", "sounds/"]
+// The packages that were folders of src are named as layers of their own (see `modules`):
+// toolkit/ is `@novadeck/toolkit`, the controls and the sidebar item, whose own rules are its
+// package.json's; items/ is `@novadeck/items`, the companion pane, the undocked window and the
+// bar drag; chat/ is `@novadeck/chat`, the chat view, its store and its commands. Test helpers
+// from other packages are testing/ (`@novadeck/core/testing` and `@novadeck/test-kit`).
+const base = ["core/", "interaction/", "toolkit/", "theme/", "sounds/"]
+// The workspace's frame: terminals/, and the items and the chat that live in its terminals.
+const frame = ["terminals/", "items/", "chat/"]
 // The features are the leaves that the shell and the app compose. A feature imports the base
-// and itself, never another feature: what two of them share belongs to the base. `terminals/`
-// and `layouts/` are the workspace's frame, not features. The chat and the items package
-// are packages (`terminals/chat/` and `terminals/companion/` below), denied to a feature by its
+// and itself, never another feature: what two of them share belongs to the base. The frame and
+// `layouts/` are not features. The chat and the items are packages, denied to a feature by its
 // allow-list, and no rule keys on them: a key that matches no file fails the dead-layer check.
 const features = [
   "feedback/",
@@ -36,14 +36,14 @@ const features = [
 ]
 const rules: Record<string, readonly string[]> = {
   "theme/": ["theme/", "core/types.ts", "core/sounds.ts"],
-  // The notification sounds: their files, and the registry that reads them and the theme.
+  // The notice sounds: their files, and the registry that reads them and the theme.
   "sounds/": ["sounds/", "core/", "theme/"],
   "interaction/": ["interaction/", "core/"],
   ...Object.fromEntries(features.map((layer) => [layer, [...base, layer]])),
-  "terminals/": [...base, "terminals/"],
-  "layouts/": [...base, "layouts/", "terminals/"],
-  "shell/": [...base, "shell/", "sidebar/", "terminals/", "layouts/", "projects/", "inbox/"],
-  "app/": ["app/", ...base, ...features, "terminals/", "layouts/", "shell/"],
+  "terminals/": [...base, ...frame],
+  "layouts/": [...base, "layouts/", ...frame],
+  "shell/": [...base, "shell/", "sidebar/", ...frame, "layouts/", "projects/", "inbox/"],
+  "app/": ["app/", ...base, ...features, ...frame, "layouts/", "shell/"],
   // Commands are plain functions over the stores: no React, no DOM libraries.
   "app/commands/": [
     "app/commands/",
@@ -65,12 +65,12 @@ const rules: Record<string, readonly string[]> = {
     "projects/project-arrangement.ts",
     "terminals/recent.ts",
     // The chat's store and commands, which the app composes; its pure helpers are theirs.
-    "terminals/chat/state.ts",
-    "terminals/chat/commands.ts",
+    "chat/state.ts",
+    "chat/commands.ts",
     // The item store, which commands use by its type, and the actions they
     // implement, which they declare they satisfy.
-    "terminals/companion/state.ts",
-    "terminals/companion/actions.ts",
+    "items/state.ts",
+    "items/actions.ts",
     "layouts/canvas/types.ts",
     // The dictation contract's types, which keys call.
     "voice/dictation-control.ts",
@@ -83,13 +83,14 @@ const rules: Record<string, readonly string[]> = {
   "test/": [
     "test/",
     "test.ts",
+    "testing/",
     "core/",
     "app/commands/",
     "app/routing.ts",
     "app/ui-store.ts",
     "layouts/canvas/types.ts",
     // The chat store that the helper puts in the command context.
-    "terminals/chat/state.ts",
+    "chat/state.ts",
   ],
   "test.ts": [],
 }
@@ -125,11 +126,11 @@ const vendors: Record<string, readonly string[]> = {
 
 // The packages that hold what used to be folders of src, named as the layers above know them.
 const modules: Record<string, string> = {
-  "@novadeck/toolkit/": "ui-toolkit/",
-  "@novadeck/items/": "terminals/companion/",
-  "@novadeck/chat/": "terminals/chat/",
-  "@novadeck/core/testing": "test/fixtures.ts",
-  "@novadeck/test-kit/": "test/",
+  "@novadeck/toolkit/": "toolkit/",
+  "@novadeck/items/": "items/",
+  "@novadeck/chat/": "chat/",
+  "@novadeck/core/testing": "testing/core.ts",
+  "@novadeck/test-kit/": "testing/test-kit/",
 }
 
 const src = join(import.meta.dirname)
@@ -166,7 +167,8 @@ const resolveFile = (file: string, specifier: string): string | undefined => {
   )
   return candidates.find(isFile)
 }
-const isTest = (file: string): boolean => /\.test\.tsx?$/.test(file)
+// Tests and the helpers beside them (`*.test-support.ts`).
+const isTest = (file: string): boolean => /\.test(-support)?\.tsx?$/.test(file)
 const rootTest = (file: string): boolean => isTest(file) && !file.includes("/")
 // The most specific layer wins.
 const layerOf = (file: string): string | undefined =>
@@ -177,7 +179,7 @@ const layerOf = (file: string): string | undefined =>
   )
 const allowedFor = (file: string, layer: string): readonly string[] => [
   ...rules[layer]!,
-  ...(isTest(file) ? ["test/", "test.ts"] : []),
+  ...(isTest(file) ? ["test/", "test.ts", "testing/"] : []),
 ]
 const packageName = (specifier: string): string =>
   specifier
@@ -208,7 +210,8 @@ const importViolation = (file: string, layer: string | undefined) => {
     if (!target) return [`${file} -> ${specifier} (unresolved)`]
     // Root-level tests exercise the root modules beside them.
     if (!layer)
-      return target.includes("/") && !target.startsWith("test/") && !target.startsWith("core/")
+      return target.includes("/") &&
+        !["test/", "testing/", "core/"].some((open) => target.startsWith(open))
         ? [`${file} -> ${target}`]
         : []
     const ok = allowed.some((entry) => target === entry || target.startsWith(entry))
@@ -282,9 +285,7 @@ describe("UI architecture", () => {
       ),
     ).toEqual([])
     expect(
-      Object.keys(rules).filter(
-        (layer) => layer.startsWith("terminals/chat") || layer.startsWith("terminals/companion"),
-      ),
+      Object.keys(rules).filter((layer) => layer.startsWith("chat/") || layer.startsWith("items/")),
     ).toEqual([])
   })
 
@@ -321,7 +322,7 @@ describe("the UI's exports", () => {
     "./styles.css",
     "./theme/source",
     "./entries/start",
-    // The host finds the UI's folder through its manifest.
+    // The desktop app finds the UI's folder through its manifest.
     "./package.json",
   ]
   const root = join(src, "..", "..", "..")
