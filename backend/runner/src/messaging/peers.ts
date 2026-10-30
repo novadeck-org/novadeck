@@ -390,7 +390,7 @@ export const renderAgents = (input: {
   readonly messages: readonly {
     readonly message: Message
     readonly hold: ReturnType<typeof holdOf>
-    /** Why a message held for release is (`Messaging.holdWhy`), as `send` told it. */
+    /** Why a message held for release is (`Holds.holdWhy`), as `send` told it. */
     readonly why?: string
   }[]
   readonly unbound: boolean

@@ -9,7 +9,7 @@ const listedMost = 1000
 /** What the listing reads of `Messaging`'s state beside the messages themselves. */
 type Standing = {
   readonly thread: (id: string) => Thread | undefined
-  /** How many idle messages in a row the thread has (see `Messaging.runs`). */
+  /** How many idle messages in a row the thread has (see `Holds.run`). */
   readonly idled: (id: string) => number
   readonly holdOf: (message: Message) => ReturnType<typeof holdOf>
   readonly now: number

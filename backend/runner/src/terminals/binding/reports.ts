@@ -279,7 +279,7 @@ export class Reports {
     this.host.murmur()?.reported(report.terminalId)
     // The person's own prompt starting a root turn takes the session's open asks out of the
     // Inbox, as delivery judges the prompt theirs, but only once a hook acknowledges having
-    // printed the notice of it (see `Messaging.withdrawn`).
+    // printed the notice of it (see `Withdrawals.withdrawn`).
     const person: Person = {
       counts: ({ prompt }) => !this.byCommand(record, prompt),
       withdrawable: (before) => this.host.inbox().withdrawable(record.summary.id, before),
