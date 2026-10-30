@@ -12,7 +12,8 @@ import { terminalOf } from "@novadeck/demo/terminals"
 // The actions that put a terminal in a state, as the backend would report it. Pure, so
 // each can be tested: the panel's actions dispatch what they return.
 
-const target = ({ projectId, workspaceSessionId }: TerminalKey) => ({
+// The session a terminal's actions are addressed to.
+export const sessionTarget = ({ projectId, workspaceSessionId }: TerminalKey) => ({
   projectId,
   workspaceSessionId,
 })
@@ -48,7 +49,7 @@ export const leadsOthers = (
   if (!lead?.handle) return []
   return othersOf(workspace, key).map((terminal) => ({
     type: "terminal/update",
-    target: target(key),
+    target: sessionTarget(key),
     terminalId: terminal.id,
     ledBy: lead.handle!,
   }))
@@ -63,7 +64,14 @@ export const leadsNext = (workspace: Workspace | undefined, key: TerminalKey): B
   const lead = terminals[index]
   const next = terminals.slice(index + 1).find(isLive)
   if (!lead?.handle || !next) return []
-  return [{ type: "terminal/update", target: target(key), terminalId: next.id, ledBy: lead.handle }]
+  return [
+    {
+      type: "terminal/update",
+      target: sessionTarget(key),
+      terminalId: next.id,
+      ledBy: lead.handle,
+    },
+  ]
 }
 
 const setStatus = (
@@ -71,14 +79,14 @@ const setStatus = (
   status: Extract<BackendAction, { type: "terminal/status" }>["status"],
 ): BackendAction => ({
   type: "terminal/status",
-  target: target(key),
+  target: sessionTarget(key),
   terminalId: key.terminalId,
   status,
 })
 
 const setProcess = (key: TerminalKey, process: string): BackendAction => ({
   type: "terminal/process",
-  target: target(key),
+  target: sessionTarget(key),
   terminalId: key.terminalId,
   process,
 })
@@ -86,7 +94,7 @@ const setProcess = (key: TerminalKey, process: string): BackendAction => ({
 // A name the person gave it.
 export const rename = (key: TerminalKey, name: string): BackendAction => ({
   type: "terminal/update",
-  target: target(key),
+  target: sessionTarget(key),
   terminalId: key.terminalId,
   name,
   titleSource: { kind: "person" },
@@ -94,7 +102,7 @@ export const rename = (key: TerminalKey, name: string): BackendAction => ({
 
 // The shell ended cleanly, so the terminal closes.
 export const cleanExit = (key: TerminalKey): BackendAction[] => [
-  { type: "terminal/close", target: target(key), terminalId: key.terminalId },
+  { type: "terminal/close", target: sessionTarget(key), terminalId: key.terminalId },
 ]
 
 export const exitedWithCode = (key: TerminalKey, exitCode: number | null): BackendAction[] => [
@@ -127,14 +135,24 @@ export const runProgram = (key: TerminalKey, program: string): BackendAction[] =
 // A shell an agent opened, here the demo's first terminal's, for a program it runs: its
 // tab keeps its handle, which the agent names it by.
 export const openedByAgent = (key: TerminalKey, program: string): BackendAction[] => [
-  { type: "terminal/update", target: target(key), terminalId: key.terminalId, openedBy: "moth" },
+  {
+    type: "terminal/update",
+    target: sessionTarget(key),
+    terminalId: key.terminalId,
+    openedBy: "moth",
+  },
   ...runProgram(key, program),
 ]
 
 // Back at a shell's prompt after an agent ran there and exited: its tab keeps its handle,
 // which what the agent left behind still names it by.
 export const agentRanHere = (key: TerminalKey): BackendAction[] => [
-  { type: "terminal/update", target: target(key), terminalId: key.terminalId, agentRan: true },
+  {
+    type: "terminal/update",
+    target: sessionTarget(key),
+    terminalId: key.terminalId,
+    agentRan: true,
+  },
   ...backToPrompt(key),
 ]
 

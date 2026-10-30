@@ -28,7 +28,7 @@ window phase, a backend field it never sets — add it in the same change:
   with pure action builders in `frontend/demo-debug/src/terminals.ts`; an Inbox row of a kind no demo agent
   makes goes in `frontend/demo/src/inbox-fixtures.ts`, with its action in
   `frontend/demo-debug/src/inbox.ts`. A new tab or window phase also
-  joins the "Every state at once" gallery there.
+  joins the "Every state at once" gallery in `states.ts`.
 - An agent's state is one of `demoTurns`' verbs (`work`, `ask`, `finish`, `rest`, `usage`), never a
   status the panel dispatches, so the chat, the screen and the Inbox
   follow it: add a verb or an option there, and an action that calls it: in the panel's "Agent"
@@ -36,7 +36,9 @@ window phase, a backend field it never sets — add it in the same change:
   the selected terminal. Only a display-only fixture, as an unheard agent,
   patches the terminal's metadata, and any action that sets a terminal's state other than
   through a verb calls `verbs.release(key)` first, so no timer of its agent undoes it.
-- Startup, boot-failure, runner (connection, crash loop) and sandbox states go in `frontend/demo-debug/src/shell-groups.ts`.
+- Startup, boot-failure, runner (connection, crash loop) and sandbox states go in `frontend/demo-debug/src/shell-groups.ts`;
+  the desktop app's own stand-ins (sandbox, portable copy, uninstall, updates) live in
+  `frontend/demo-debug/src/desktop/`, with their named scenarios in `desktop/scenarios.ts`.
 - Every group names its `section` (Terminals, Agents or App), and an action that boots
   the demo again sets `reboots: true` instead of saying so in its hint.
 - Give each action a hint that names what appears, and keep "Debug panel" in docs/development.md

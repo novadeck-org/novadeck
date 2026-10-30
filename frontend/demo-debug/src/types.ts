@@ -73,7 +73,7 @@ export type DemoStates = {
   readonly updates: NonNullable<Backend["updates"]>
   // What the desktop app says is new after an update, as the Updates group plays it.
   readonly whatsNew: NonNullable<Backend["whatsNew"]>
-  // Tells `updates`' listeners of a release, as the Update group's actions do.
+  // Tells `updates`' listeners of a release, as the Updates group's actions do.
   readonly offer: (offer: UpdateOffer) => void
   // What the Updates group plays an installed copy's updates with.
   readonly updateControls: DemoUpdates

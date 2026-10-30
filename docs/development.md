@@ -205,7 +205,7 @@ connection state, the crash-loop count and the terminal count, over the demo swi
 sample agents' plans and artifacts), `plain`, `agents` (its seven projects each with
 an agent in a state of its own: waiting, asking, working, and two that finish done and
 failed a moment after it opens, for the project switcher), `messages`, `inbox` (the agents
-demo with hardcoded Inbox items of every kind over those its agents make), `welcome` or
+demo with hardcoded Inbox rows of every kind over those its agents make), `welcome` or
 `chirp` (a one-off for the runner-skits video "Chirp": a desk of twelve agents at work on the
 Canvas, one waiting to run a command; `frontend/demo/src/chirp.ts`) or `babcia` (a one-off
 for the video "Babcia": project bar-mleczny's twelve Claude Code, Codex and Antigravity agents
@@ -238,7 +238,7 @@ allowed runs them and reports done (8a and 8c share Search index, so each does n
 other has run); `frontend/demo/src/launch.ts`,
 sharing the desk's builders with Babcia in `desk.ts`). Every variant's Inbox
 lists what its agents wait on, built as the runner's is. In it each
-agent carries a transcript, and api-service's worker a brief from its lead, so an item's
+agent carries a transcript, and api-service's worker a brief from its lead, so a row's
 sheet shows the context block built from its transcript: the person's last words to the agent
 (never another agent's, so the worker its lead briefed shows none), and under them up to three
 steps since that edited, ran or failed, each with what came of it (`+4 −2`, a command's last

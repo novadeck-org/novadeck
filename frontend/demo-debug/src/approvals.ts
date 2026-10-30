@@ -3,7 +3,7 @@ import { createStore } from "@novadeck/core/store"
 import type { Workspace } from "@novadeck/core/types"
 import { terminalOf } from "@novadeck/demo/terminals"
 
-import { othersOf } from "./terminals"
+import { othersOf, sessionTarget } from "./terminals"
 import type { DemoActionGroup } from "./types"
 
 // A brief as an agent would write one: long enough that the dialog has to scroll it.
@@ -17,11 +17,6 @@ const demoBrief = [
   "",
   "Ask me through the Inbox if the schema in the doc and the one in production disagree. Report with done when the PR is up.",
 ].join("\n")
-
-const target = (key: TerminalKey) => ({
-  projectId: key.projectId,
-  workspaceSessionId: key.workspaceSessionId,
-})
 
 // What agents ask the person to allow, as the runner's backend has them: confirming a close
 // closes the terminal, confirming a lead makes the asker its lead, as the runner would.
@@ -65,7 +60,7 @@ export const createDemoApprovals = (
           dispatch()?.([
             {
               type: "terminal/close",
-              target: target(found.terminal),
+              target: sessionTarget(found.terminal),
               terminalId: found.terminal.terminalId,
             },
           ])
@@ -75,7 +70,7 @@ export const createDemoApprovals = (
             dispatch()?.([
               {
                 type: "terminal/update",
-                target: target(found.terminal),
+                target: sessionTarget(found.terminal),
                 terminalId: found.terminal.terminalId,
                 ledBy: handle,
               },
@@ -89,7 +84,7 @@ export const createDemoApprovals = (
       dispatch()?.([
         {
           type: "terminal/update",
-          target: target(terminal),
+          target: sessionTarget(terminal),
           terminalId: terminal.terminalId,
           ledBy: null,
         },

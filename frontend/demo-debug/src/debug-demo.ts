@@ -37,7 +37,7 @@ import { murmurGroups } from "./murmur"
 import { planGroups } from "./plans"
 import { sourceGroups } from "./source"
 import { createDemoStates } from "./states"
-import { sessionOf } from "./terminals"
+import { sessionOf, sessionTarget } from "./terminals"
 import type { DemoActionContext } from "./types"
 import { voiceGroups } from "./voice"
 
@@ -160,7 +160,7 @@ export const createDebugDemo = (launch: DemoLaunch): Backend => {
       const key = selected()
       const session = key && sessionOf(workspace(), key)
       if (!key || !session || !dispatch) return note("Select a terminal first.")
-      const target = { projectId: key.projectId, workspaceSessionId: key.workspaceSessionId }
+      const target = sessionTarget(key)
       const terminals = session.state.roster.terminals
       for (const terminal of terminals) turns.release({ ...key, terminalId: terminal.id })
       dispatch(
@@ -252,7 +252,7 @@ export const createDebugDemo = (launch: DemoLaunch): Backend => {
       dispatch: () => sink?.dispatch,
       workspace: () => latest,
       addInBackground: (to) => {
-        const target = { projectId: to.projectId, workspaceSessionId: to.workspaceSessionId }
+        const target = sessionTarget(to)
         const directory = latest?.projects.find((each) => each.id === to.projectId)?.directory
         const terminal = inner.newTerminal({ target, directory: directory ?? "~" })
         sink?.dispatch([{ type: "terminal/add", target, terminal, select: false }])

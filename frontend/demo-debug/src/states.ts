@@ -24,6 +24,7 @@ import {
   exitedWithCode,
   failedToStart,
   isLive,
+  sessionTarget,
   killedBy,
   killedForMemory,
   mcpAsk,
@@ -291,8 +292,8 @@ const everyState = (verbs: DemoAgentVerbs, inbox: () => Inbox | undefined): Demo
     const own = inbox()
     if (!isDemoInbox(own)) return
     gallery.forEach(({ asks }, index) => {
-      const item = asks && mcpAsk(workspace(), keys[index]!, asks, Date.now())
-      if (item) own.add(item)
+      const row = asks && mcpAsk(workspace(), keys[index]!, asks, Date.now())
+      if (row) own.add(row)
     })
   },
 })
@@ -505,7 +506,7 @@ export const createDemoStates = (
           run: async ({ selected, dispatch, note, startFresh }) => {
             const key = selected()
             if (!key || !dispatch) return note("Select a terminal first.")
-            const target = { projectId: key.projectId, workspaceSessionId: key.workspaceSessionId }
+            const target = sessionTarget(key)
             verbs.release(key)
             dispatch([
               {
