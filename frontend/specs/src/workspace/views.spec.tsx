@@ -1,0 +1,76 @@
+import { page } from "vitest/browser"
+
+import {
+  chooseView,
+  clickInto,
+  commandInput,
+  expectSelected,
+  expectStaysAbsent,
+  focusStage,
+  navigateChip,
+  openWorkspace,
+  press,
+  sidebar,
+  terminal,
+  terminalTab,
+  view,
+} from "../support/workspace"
+import { context, describe, expect, it } from "../test"
+
+describe("workspace views", () => {
+  context("when the workspace opens", () => {
+    it("shows the first terminal in Focus", async () => {
+      await openWorkspace()
+
+      await expect.element(view("Focus")).toBeChecked()
+      await expect.element(terminal("Checkout implementation")).toBeVisible()
+      await expect.element(terminal("Dev server")).not.toBeInTheDocument()
+      await expectSelected("Checkout implementation")
+    })
+  })
+
+  for (const name of ["Grid", "Canvas"] as const) {
+    context(`when switching to ${name}`, () => {
+      it("shows every terminal and keeps the selection", async () => {
+        await openWorkspace()
+        await terminalTab("Dev server").click()
+
+        await chooseView(name)
+
+        await expect
+          .poll(() => page.getByRole("region", { name: / terminal$/ }).elements())
+          .toHaveLength(6)
+        await expectSelected("Dev server")
+      })
+    })
+  }
+
+  for (const name of ["Focus", "Grid", "Canvas"] as const) {
+    context(`when pressing Escape in ${name}`, () => {
+      it("does nothing outside navigate mode: it keeps the selection and the sidebar", async () => {
+        await openWorkspace()
+        await chooseView(name)
+        await terminalTab("Dev server").click()
+        await focusStage()
+
+        await press("{Escape}")
+
+        await expectSelected("Dev server")
+        await expect.element(sidebar()).toBeVisible()
+        await expectStaysAbsent(navigateChip())
+      })
+
+      it("leaves Escape to a focused terminal input", async () => {
+        await openWorkspace()
+        await chooseView(name)
+        await terminalTab("Dev server").click()
+        await clickInto("Dev server")
+
+        await press("{Escape}")
+
+        await expectSelected("Dev server")
+        await expect.element(commandInput("Dev server")).toHaveFocus()
+      })
+    })
+  }
+})

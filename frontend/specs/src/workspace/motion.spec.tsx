@@ -1,0 +1,170 @@
+import { afterEach, onTestFailed } from "vitest"
+
+import { pageScheme, saveFromAnotherWindow, systemScheme } from "../support/appearance"
+import {
+  clickInto,
+  draftOf,
+  expectSelected,
+  labelled,
+  openWorkspace,
+  press,
+  terminal,
+  terminalTab,
+  typeInto,
+  view,
+  viewSwitcher,
+} from "../support/workspace"
+import { context, describe, expect, it } from "../test"
+
+// This project uses ordinary motion: the main behavior suite opts out of animations.
+// Transitions finish; a running terminal's spinner and header sweep loop for as long as
+// it runs, so they never count.
+const animationsFinished = async (): Promise<void> => {
+  let pending: unknown[] = []
+  onTestFailed(() =>
+    console.error(
+      "UI_PENDING_ANIMATIONS",
+      JSON.stringify({
+        visibility: document.visibilityState,
+        pending,
+      }),
+    ),
+  )
+  await expect
+    .poll(() => {
+      const animations = document
+        .getAnimations()
+        .filter(
+          (animation) =>
+            animation.playState === "running" &&
+            animation.effect?.getTiming().iterations !== Infinity,
+        )
+      // Preserve the final sample even if cleanup removes its elements before the
+      // failure hook. A count alone cannot identify a stuck transition or its clock.
+      pending = animations.map((animation) => {
+        const effect = animation.effect
+        const target = effect instanceof KeyframeEffect ? effect.target : null
+        return {
+          id: animation.id,
+          name: animation instanceof CSSAnimation ? animation.animationName : null,
+          target: target instanceof Element ? target.outerHTML.slice(0, 250) : String(target),
+          pseudo: effect instanceof KeyframeEffect ? effect.pseudoElement : null,
+          currentTime: animation.currentTime,
+          playbackRate: animation.playbackRate,
+          pending: animation.pending,
+          timing: effect?.getTiming(),
+          computed: effect?.getComputedTiming(),
+        }
+      })
+      return animations.length
+    })
+    .toBe(0)
+}
+
+describe("workspace motion", () => {
+  context("when moving a terminal between views", () => {
+    it("finishes the transition with its selection and input intact", async () => {
+      expect(matchMedia("(prefers-reduced-motion: reduce)").matches).toBe(false)
+      expect(document.startViewTransition).toBeTypeOf("function")
+      await openWorkspace()
+      await terminalTab("Checkout review").click()
+      await typeInto("Checkout review", "retained draft")
+
+      await viewSwitcher().getByText("Grid", { exact: true }).click()
+      await expect.element(view("Grid")).toBeChecked()
+      await animationsFinished()
+      await expectSelected("Checkout review")
+      await expect.poll(() => draftOf("Checkout review")).toBe("retained draft")
+
+      await terminal("Checkout review")
+        .getByRole("button", { name: labelled("Focus ", "Checkout review") })
+        .click()
+      await expect.element(view("Focus")).toBeChecked()
+      await animationsFinished()
+      await expect.poll(() => draftOf("Checkout review")).toBe("retained draft")
+      await clickInto("Checkout review")
+      await press("!")
+      await expect.poll(() => draftOf("Checkout review")).toBe("retained draft!")
+    })
+  })
+
+  context("when another view is requested during a transition", () => {
+    it("settles on the last requested view and remains interactive", async () => {
+      await openWorkspace()
+      await viewSwitcher().getByText("Grid", { exact: true }).click()
+      await viewSwitcher().getByText("Canvas", { exact: true }).click()
+      await expect.element(view("Canvas")).toBeChecked()
+      await animationsFinished()
+      await expect.element(terminal("Checkout implementation")).toBeVisible()
+
+      await viewSwitcher().getByText("Focus", { exact: true }).click()
+      await expect.element(view("Focus")).toBeChecked()
+      await animationsFinished()
+      await typeInto("Checkout implementation", "still interactive")
+      await expect.poll(() => draftOf("Checkout implementation")).toBe("still interactive")
+    })
+  })
+})
+
+// Waits for the browser to draw this many frames, without reading a style on the way:
+// a read would apply pending styles early and hide whether the page stilled them.
+const frames = (count: number): Promise<void> =>
+  new Promise((resolve) => {
+    const next = (left: number): void => {
+      if (left === 0) resolve()
+      else requestAnimationFrame(() => next(left - 1))
+    }
+    next(count)
+  })
+
+// A surface that fades its ground over two seconds, as a control's hover does.
+const fadingSurface = (): HTMLElement => {
+  const surface = document.createElement("div")
+  surface.style.cssText =
+    "width: 40px; height: 40px; background-color: var(--color-paper); transition: background-color 2s linear"
+  document.body.append(surface)
+  expect(getComputedStyle(surface).transitionDuration).toBe("2s")
+  return surface
+}
+
+describe("theme motion", () => {
+  afterEach(() => systemScheme(null))
+
+  context("when the system's scheme changes", () => {
+    it("changes every colour at once instead of fading", async () => {
+      await systemScheme("light")
+      await openWorkspace()
+      const surface = fadingSurface()
+      const light = getComputedStyle(surface).backgroundColor
+
+      await systemScheme("dark")
+      await frames(3)
+
+      expect(pageScheme()).toBe("dark")
+      expect(surface.getAnimations()).toEqual([])
+      expect(getComputedStyle(surface).backgroundColor).not.toBe(light)
+      surface.remove()
+    })
+  })
+
+  context("when another window chooses a mode", () => {
+    it("changes every colour at once instead of fading", async () => {
+      await systemScheme("light")
+      await openWorkspace()
+      const surface = fadingSurface()
+      const light = getComputedStyle(surface).backgroundColor
+
+      const saved = JSON.parse(localStorage.getItem("novadeck.preferences") ?? "{}")
+      saveFromAnotherWindow("novadeck.preferences", {
+        ...saved,
+        appearance: { theme: "coolant", scheme: "dark" },
+      })
+      await frames(3)
+
+      expect(pageScheme()).toBe("dark")
+      expect(surface.getAnimations()).toEqual([])
+      expect(getComputedStyle(surface).backgroundColor).not.toBe(light)
+      surface.remove()
+    })
+  })
+})

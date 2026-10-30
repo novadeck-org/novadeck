@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
+import { afterEach, beforeEach, vi } from "vitest"
 import { page, userEvent } from "vitest/browser"
 
 import { taskbarIcon } from "./support/companions"
@@ -18,6 +18,7 @@ import {
   view,
   viewSwitcher,
 } from "./support/workspace"
+import { describe, expect, it } from "./test"
 
 // The website's demo, as far as the app's own parts of it go.
 const openVisitor = async (): Promise<void> => {

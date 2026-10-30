@@ -1,11 +1,12 @@
 import { scriptedRunner } from "@novadeck/runner-adapter/scripted-server"
 import { App } from "@novadeck/ui/app/App"
 import { pageTheme } from "@novadeck/ui/theme/source"
-import { describe, expect, it, vi } from "vitest"
+import { vi } from "vitest"
 import { cleanup, render } from "vitest-browser-react"
 import { commands, server } from "vitest/browser"
 
 import { chooseView, layoutSettled } from "../support/workspace"
+import { describe, expect, it } from "../test"
 import { startClock } from "./clock"
 import { countNotifications, counts, observeMutations } from "./probes"
 import { playScript } from "./script"

@@ -1,0 +1,842 @@
+import { page, userEvent, type Locator } from "vitest/browser"
+
+import { clickBackground } from "../support/canvas"
+import { escapeFrom, pressShortcut, newTerminalName } from "../support/keyboard"
+import { currentRoute, pressNewSession } from "../support/sessions"
+import {
+  anyRenameField,
+  closeConfirmation,
+  confirmClose,
+  headerAction,
+  headerName,
+  headerRenameField,
+  hiddenTerminalTab,
+  newTerminalButton,
+  renderedOpacity,
+  tabName,
+  sidebarRenameField,
+  tabAction,
+  visibilityToggle,
+} from "../support/terminals"
+import {
+  chooseView,
+  clickInto,
+  commandInput,
+  draftOf,
+  enterNavigateMode,
+  expectTypingIn,
+  expectNothingSelected,
+  expectSelected,
+  expectStaysAbsent,
+  focusStage,
+  focusTab,
+  labelled,
+  openWorkspace,
+  press,
+  sidebar,
+  terminal,
+  terminalTab,
+  terminalTabNames,
+  typeInto,
+  view,
+  visibleTerminalCounts,
+} from "../support/workspace"
+import { context, describe, expect, it } from "../test"
+
+const views = ["Focus", "Grid", "Canvas"] as const
+
+/** An element's own opacity. */
+const opacity = (locator: Locator): number => Number(getComputedStyle(locator.element()).opacity)
+
+/** How a button looks: its ground, its colour, and its icon's opacity. */
+const look = (button: Element): string[] => [
+  getComputedStyle(button).backgroundColor,
+  getComputedStyle(button).color,
+  getComputedStyle(button.querySelector("svg")!).opacity,
+]
+
+/** A terminal's offset and size relative to a neighbour, rounded to whole pixels. */
+const placeBeside = (subject: Locator, neighbour: Locator): number[] => {
+  const box = subject.element().getBoundingClientRect()
+  const other = neighbour.element().getBoundingClientRect()
+  return [box.left - other.left, box.top - other.top, box.width, box.height].map(Math.round)
+}
+
+/**
+ * Drags a tab by pointer onto the top quarter of another tab, clearly past the
+ * destination's leading edge. Interpolated moves let the list follow the drag.
+ */
+const dragTabOnto = async (source: string, destination: string): Promise<void> => {
+  const target = terminalTab(destination)
+  const { width, height } = target.element().getBoundingClientRect()
+  await userEvent.dragAndDrop(terminalTab(source), target, {
+    targetPosition: { x: width / 2, y: height / 4 },
+    steps: 20,
+  })
+}
+
+describe("creating terminals", () => {
+  for (const name of views) {
+    for (const trigger of ["New terminal button", "new terminal shortcut"] as const) {
+      context(`when using the ${trigger} in ${name}`, () => {
+        it("adds a selected terminal that is shown right away and counted in the footer", async () => {
+          await openWorkspace()
+          await chooseView(name)
+          await expect.poll(visibleTerminalCounts).toEqual(["6 terminals"])
+
+          if (trigger === "new terminal shortcut") {
+            await terminalTab("Dev server").click()
+            await pressShortcut("newTerminal")
+          } else await newTerminalButton().click()
+
+          await expect.element(commandInput(newTerminalName)).toHaveFocus()
+          await expect.element(anyRenameField()).not.toBeInTheDocument()
+          await expectSelected(newTerminalName)
+          await expect.element(terminal(newTerminalName)).toBeInViewport()
+          await expect.poll(() => draftOf(newTerminalName)).toBe("")
+          await expect.poll(visibleTerminalCounts).toEqual(["7 terminals"])
+        })
+      })
+    }
+  }
+
+  context("when typing right after creating a terminal", () => {
+    for (const trigger of ["New terminal button", "new terminal shortcut"] as const) {
+      it(`goes straight into the new terminal's command input after the ${trigger}`, async () => {
+        await openWorkspace()
+        if (trigger === "new terminal shortcut") {
+          await terminalTab("Dev server").click()
+          await pressShortcut("newTerminal")
+        } else await newTerminalButton().click()
+        await expect.element(commandInput(newTerminalName)).toHaveFocus()
+
+        await press("echo hi")
+
+        await expect.poll(() => draftOf(newTerminalName)).toBe("echo hi")
+        await expect.element(anyRenameField()).not.toBeInTheDocument()
+        await expectSelected(newTerminalName)
+      })
+    }
+  })
+
+  context("when renaming a terminal that was just created", () => {
+    it("selects the whole name so typing replaces it", async () => {
+      await openWorkspace()
+      await newTerminalButton().click()
+      await expect.element(commandInput(newTerminalName)).toHaveFocus()
+      await tabAction(`Rename ${newTerminalName}`).click()
+      await expect.element(sidebarRenameField(newTerminalName)).toHaveFocus()
+
+      await press("My shell{Enter}")
+
+      await expect.element(terminalTab("My shell")).toBeVisible()
+      await expect.element(headerName("My shell")).toBeVisible()
+    })
+
+    it("keeps the original name when Escape is pressed", async () => {
+      await openWorkspace()
+      await newTerminalButton().click()
+      await tabAction(`Rename ${newTerminalName}`).click()
+      await expect.element(sidebarRenameField(newTerminalName)).toHaveFocus()
+
+      await press("Discarded{Escape}")
+
+      await expect.element(anyRenameField()).not.toBeInTheDocument()
+      await expectStaysAbsent(terminalTab("Discarded"))
+      await expectSelected(newTerminalName)
+      await expect.element(headerName(newTerminalName)).toBeVisible()
+    })
+
+    it("saves the typed name when clicking away", async () => {
+      await openWorkspace()
+      await chooseView("Grid")
+      await newTerminalButton().click()
+      await tabAction(`Rename ${newTerminalName}`).click()
+      await expect.element(sidebarRenameField(newTerminalName)).toHaveFocus()
+
+      await press("Scratch")
+      await sidebar()
+        .getByRole("heading", { name: /^Terminals/ })
+        .click()
+
+      await expect.element(anyRenameField()).not.toBeInTheDocument()
+      await expect.element(terminalTab("Scratch")).toBeVisible()
+      await expect.element(terminal("Scratch")).toBeVisible()
+    })
+  })
+
+  context("when the sidebar is hidden and the new terminal shortcut is pressed", () => {
+    it("opens the Terminals sidebar and focuses the new terminal", async () => {
+      await openWorkspace()
+      await chooseView("Grid")
+      await sidebar().getByRole("button", { name: "Hide terminals" }).click()
+      await expect.element(sidebar()).not.toBeInTheDocument()
+
+      await pressShortcut("newTerminal")
+
+      await expect.element(sidebar()).toBeVisible()
+      await expect.element(commandInput(newTerminalName)).toHaveFocus()
+      await expect.element(anyRenameField()).not.toBeInTheDocument()
+      await expect.element(terminal(newTerminalName)).toBeVisible()
+    })
+  })
+
+  context("when creating a terminal in Zen, where the sidebar is not shown", () => {
+    it("focuses the new terminal without opening its name editor", async () => {
+      await openWorkspace()
+      await chooseView("Grid")
+      await page.getByRole("button", { name: "Enter Zen mode" }).click()
+      await expect.element(sidebar()).not.toBeInTheDocument()
+
+      await page.getByRole("button", { name: "New terminal" }).click()
+
+      await expect.element(commandInput(newTerminalName)).toHaveFocus()
+      await expect.element(anyRenameField()).not.toBeInTheDocument()
+      await headerName(newTerminalName).dblClick()
+      await expect.element(headerRenameField(newTerminalName)).toHaveFocus()
+      await press("Zen shell{Enter}")
+      await expect.element(headerName("Zen shell")).toBeVisible()
+    })
+  })
+})
+
+describe("clicking into a terminal", () => {
+  it("types there, however its screen changes as it is clicked", async () => {
+    await openWorkspace()
+    const screenOf = (): Element | null =>
+      terminal("Checkout implementation").element().querySelector(".xterm-screen")
+    await expect.poll(screenOf).not.toBeNull()
+    // Output arriving while the click is on its way, scrolling the top rows: what the screen
+    // shows first never holds still. The DOM renderer draws them as text; WebGL draws none,
+    // so there it goes first on the screen.
+    const top = screenOf()!.querySelector(".xterm-rows") ?? screenOf()!
+    const arriving = top.insertBefore(document.createElement("span"), top.firstChild)
+    arriving.style.cssText = "position: absolute; inset: 0 auto auto 0; pointer-events: none"
+    const writing = setInterval(() => (arriving.textContent = `${Date.now()}`), 5)
+    try {
+      await clickInto("Checkout implementation")
+    } finally {
+      clearInterval(writing)
+      arriving.remove()
+    }
+    await expectTypingIn("Checkout implementation")
+  })
+})
+
+describe("terminal handles", () => {
+  for (const name of views) {
+    context(`in ${name}`, () => {
+      it("keeps a plain shell's @handle off its tab and on its window's switcher under the pointer, through a rename", async () => {
+        await openWorkspace()
+        await chooseView(name)
+        await terminalTab("Dev server").click()
+
+        // The demo's second terminal is the second word a fresh session gives. Its tab,
+        // a shell the person opened that no agent touched, shows none; the window's
+        // header keeps it folded until the pointer reaches its switcher.
+        expect(
+          terminalTab("Dev server").getByText("@fox", { exact: true }).elements(),
+        ).toHaveLength(0)
+        const handle = terminal("Dev server").getByText("@fox", { exact: true })
+        await expect.element(handle).not.toBeVisible()
+        await headerAction("Dev server", "Switch terminal").hover()
+        await expect.element(handle).toBeVisible()
+
+        // A screen reader names the tab by its handle all the same, right after its name.
+        await expect
+          .element(page.getByRole("button", { name: "Select Dev server, @fox", exact: true }))
+          .toBeVisible()
+        await expect
+          .element(tabAction("Close Dev server"))
+          .toHaveAccessibleName("Close Dev server, @fox")
+
+        await expect
+          .element(headerAction("Dev server", "Close Dev server"))
+          .toHaveAccessibleName("Close Dev server, @fox")
+
+        await headerName("Dev server").dblClick()
+        await expect
+          .element(headerRenameField("Dev server"))
+          .toHaveAccessibleName("Rename Dev server, @fox")
+        await press("Renamed server{Enter}")
+
+        await expect.element(headerName("Renamed server")).toBeVisible()
+        await headerAction("Renamed server", "Switch terminal").hover()
+        await expect
+          .element(terminal("Renamed server").getByText("@fox", { exact: true }))
+          .toBeVisible()
+        await expect
+          .element(page.getByRole("button", { name: "Select Renamed server, @fox", exact: true }))
+          .toBeVisible()
+      })
+    })
+  }
+})
+
+describe("renaming terminals", () => {
+  for (const name of views) {
+    context(`when double-clicking the header name in ${name}`, () => {
+      it("renames the terminal in place and stays in the view", async () => {
+        await openWorkspace()
+        await chooseView(name)
+        await terminalTab("Dev server").click()
+
+        await headerName("Dev server").dblClick()
+
+        await expect.element(headerRenameField("Dev server")).toHaveFocus()
+        // Typed key by key: every keystroke must land, including while the view re-renders.
+        await press("My server typed key by key{Enter}")
+        await expect.element(headerName("My server typed key by key")).toBeVisible()
+        await expect.element(terminalTab("My server typed key by key")).toBeVisible()
+        await expect.element(view(name)).toBeChecked()
+      })
+
+      it("keeps the original name when Escape is pressed", async () => {
+        await openWorkspace()
+        await chooseView(name)
+        await terminalTab("Dev server").click()
+
+        await headerName("Dev server").dblClick()
+        await expect.element(headerRenameField("Dev server")).toHaveFocus()
+        await press("Discarded{Escape}")
+
+        await expect.element(anyRenameField()).not.toBeInTheDocument()
+        await expectStaysAbsent(terminalTab("Discarded"))
+        await expect.element(headerName("Dev server")).toBeVisible()
+        await expect.element(terminalTab("Dev server")).toBeVisible()
+      })
+    })
+  }
+
+  context("when double-clicking a tab's name in the sidebar", () => {
+    it("selects the terminal without renaming it", async () => {
+      await openWorkspace()
+
+      await terminalTab("Dev server").dblClick()
+
+      await expectSelected("Dev server")
+      await expectStaysAbsent(anyRenameField())
+      await expect.element(headerName("Dev server")).toBeVisible()
+    })
+  })
+
+  context("when using the tab's Rename button", () => {
+    it("edits the name in the sidebar and trims the saved name", async () => {
+      await openWorkspace()
+      await chooseView("Grid")
+
+      await tabAction("Rename Dev server").click()
+      await expect.element(sidebarRenameField("Dev server")).toHaveFocus()
+      await press("  Local shell  ")
+      await tabAction("Save name for Dev server").click()
+
+      await expect.element(terminalTab("Local shell")).toBeVisible()
+      await expect.element(headerName("Local shell")).toBeVisible()
+    })
+
+    it("keeps arrows and Shift+arrows in the field", async () => {
+      await openWorkspace()
+      await chooseView("Grid")
+      await tabAction("Rename Dev server").click()
+      await expect.element(sidebarRenameField("Dev server")).toHaveFocus()
+
+      await press("{ArrowDown}{Shift>}{ArrowLeft}{/Shift}")
+
+      await expect.element(sidebarRenameField("Dev server")).toHaveFocus()
+      await expect.element(view("Grid")).toBeChecked()
+      await expect.element(terminalTab("Tests")).not.toHaveAttribute("aria-current", "true")
+    })
+
+    it("discards the draft with the Cancel button", async () => {
+      await openWorkspace()
+
+      await tabAction("Rename Dev server").click()
+      await press("Discarded")
+      await tabAction("Cancel renaming Dev server").click()
+
+      await expect.element(anyRenameField()).not.toBeInTheDocument()
+      await expectStaysAbsent(terminalTab("Discarded"))
+      await expect.element(terminalTab("Dev server")).toBeVisible()
+      await expect.element(tabAction("Close Dev server")).toBeVisible()
+    })
+  })
+
+  context("when pressing F2", () => {
+    it("renames the active terminal in the sidebar", async () => {
+      await openWorkspace()
+      await chooseView("Grid")
+      await terminalTab("Tests").click()
+      await enterNavigateMode()
+
+      await press("{F2}")
+
+      await expect.element(sidebarRenameField("Tests")).toHaveFocus()
+      await press("Unit tests{Enter}")
+      await expect.element(terminalTab("Unit tests")).toBeVisible()
+    })
+
+    it("renames the active terminal in its header when the sidebar is hidden", async () => {
+      await openWorkspace()
+      await chooseView("Grid")
+      await terminalTab("Tests").click()
+      await sidebar().getByRole("button", { name: "Hide terminals" }).click()
+      await expect.element(sidebar()).not.toBeInTheDocument()
+      await enterNavigateMode()
+
+      await press("{F2}")
+
+      await expect.element(headerRenameField("Tests")).toHaveFocus()
+      await press("Unit tests{Enter}")
+      await expect.element(headerName("Unit tests")).toBeVisible()
+    })
+  })
+
+  context("when pressing F2 outside navigate mode", () => {
+    it("does not rename the terminal", async () => {
+      await openWorkspace()
+      await chooseView("Grid")
+      await terminalTab("Tests").click()
+      await focusStage()
+
+      await press("{F2}")
+
+      await expectStaysAbsent(anyRenameField())
+      await expect.element(terminalTab("Tests")).toBeVisible()
+    })
+  })
+
+  context("when the name is visible in both the header and the sidebar", () => {
+    it("shows the same draft in both fields and keeps editing when moving between them", async () => {
+      await openWorkspace()
+      await chooseView("Grid")
+      await tabAction("Rename Dev server").click()
+      await expect.element(sidebarRenameField("Dev server")).toHaveFocus()
+
+      await press("Shared")
+      await expect.element(headerRenameField("Dev server")).toHaveValue("Shared")
+
+      await headerRenameField("Dev server").click()
+      await press("{End} draft")
+      await expect.element(sidebarRenameField("Dev server")).toHaveValue("Shared draft")
+      await expect.element(headerRenameField("Dev server")).toHaveValue("Shared draft")
+    })
+
+    it("ends the edit in both places when Escape is pressed in either", async () => {
+      await openWorkspace()
+      await chooseView("Grid")
+      await tabAction("Rename Dev server").click()
+      await press("Discarded")
+      await headerRenameField("Dev server").click()
+
+      await press("{Escape}")
+
+      await expect.element(anyRenameField()).not.toBeInTheDocument()
+      await expectStaysAbsent(terminalTab("Discarded"))
+      await expect.element(headerName("Dev server")).toBeVisible()
+      await expect.element(terminalTab("Dev server")).toBeVisible()
+    })
+
+    it("saves a draft started in the header from the sidebar", async () => {
+      await openWorkspace()
+      await chooseView("Canvas")
+      await headerName("Dev server").dblClick()
+      await expect.element(headerRenameField("Dev server")).toHaveFocus()
+      await press("Shared shell")
+
+      await sidebarRenameField("Dev server").click()
+      await press("{Enter}")
+
+      await expect.element(anyRenameField()).not.toBeInTheDocument()
+      await expect.element(terminalTab("Shared shell")).toBeVisible()
+      await expect.element(headerName("Shared shell")).toBeVisible()
+    })
+  })
+})
+
+describe("closing terminals", () => {
+  context("when clicking Close in the terminal header", () => {
+    it("removes the terminal, selects its neighbour, and updates the footer", async () => {
+      await openWorkspace()
+
+      await headerAction("Checkout implementation", "Close Checkout implementation").click()
+      await confirmClose()
+
+      await expect.element(terminalTab("Checkout implementation")).not.toBeInTheDocument()
+      await expectSelected("Dev server")
+      await expect.element(terminal("Dev server")).toBeVisible()
+      await expect.poll(visibleTerminalCounts).toEqual(["5 terminals"])
+    })
+  })
+
+  context("when a program still runs in the terminal", () => {
+    it("asks first, with Cancel ready, and keeps it when the person cancels", async () => {
+      await openWorkspace()
+
+      await headerAction("Checkout implementation", "Close Checkout implementation").click()
+
+      const dialog = closeConfirmation()
+      await expect.element(dialog).toBeVisible()
+      await expect
+        .element(dialog.getByRole("heading", { name: "Close @moth · “Checkout implementation”?" }))
+        .toBeVisible()
+      await expect.element(dialog.getByText("zsh is still running in it.")).toBeVisible()
+      await expect.element(dialog.getByRole("button", { name: "Cancel" })).toHaveFocus()
+
+      await dialog.getByRole("button", { name: "Cancel" }).click()
+
+      await expect.element(dialog).not.toBeInTheDocument()
+      await expect.element(terminalTab("Checkout implementation")).toBeInTheDocument()
+      await expect.poll(visibleTerminalCounts).toEqual(["6 terminals"])
+      await expect.element(commandInput("Checkout implementation")).toHaveFocus()
+    })
+
+    it("holds app shortcuts back while it asks", async () => {
+      await openWorkspace()
+      await headerAction("Checkout implementation", "Close Checkout implementation").click()
+      await expect.element(closeConfirmation()).toBeVisible()
+      const before = currentRoute()
+
+      await pressNewSession()
+
+      await expect.element(closeConfirmation()).toBeVisible()
+      expect(currentRoute()).toBe(before)
+    })
+
+    it("keeps it when the person presses Escape", async () => {
+      await openWorkspace()
+
+      await headerAction("Checkout implementation", "Close Checkout implementation").click()
+      await escapeFrom(closeConfirmation())
+
+      await expect.element(closeConfirmation()).not.toBeInTheDocument()
+      await expect.element(terminalTab("Checkout implementation")).toBeInTheDocument()
+    })
+
+    it("closes it once the person confirms", async () => {
+      await openWorkspace()
+
+      await headerAction("Checkout implementation", "Close Checkout implementation").click()
+      await confirmClose()
+
+      await expect.element(terminalTab("Checkout implementation")).not.toBeInTheDocument()
+      await expect.poll(visibleTerminalCounts).toEqual(["5 terminals"])
+    })
+  })
+
+  context("when clicking Close on a sidebar tab", () => {
+    it("removes that terminal from the list and the view", async () => {
+      await openWorkspace()
+      await chooseView("Grid")
+      await expect.element(terminal("Tests")).toBeVisible()
+
+      await tabAction("Close Tests").click()
+      await confirmClose()
+
+      await expect.element(terminalTab("Tests")).not.toBeInTheDocument()
+      await expect.element(terminal("Tests")).not.toBeInTheDocument()
+      await expectSelected("Checkout implementation")
+      await expect.poll(visibleTerminalCounts).toEqual(["5 terminals"])
+    })
+  })
+
+  context("when every terminal is closed", () => {
+    it("shows an empty workspace that can start again", async () => {
+      await openWorkspace()
+      for (const name of terminalTabNames()) {
+        // oxlint-disable-next-line no-await-in-loop -- Each close changes the list.
+        await tabAction(`Close ${name}`).click()
+        // Every demo terminal but Build runs a program, so closing it asks first.
+        // oxlint-disable-next-line no-await-in-loop -- Answers this close before the next.
+        if (name !== "Build") await confirmClose()
+      }
+
+      await expect.element(page.getByRole("heading", { name: "No terminals open" })).toBeVisible()
+      await expect.poll(visibleTerminalCounts).toEqual(["0 terminals"])
+
+      await newTerminalButton().click()
+      await press("{Enter}")
+      await expect.element(terminal(newTerminalName)).toBeVisible()
+    })
+  })
+
+  context("when a single terminal is left", () => {
+    it("counts it in the singular", async () => {
+      await openWorkspace()
+      for (const name of terminalTabNames().slice(1)) {
+        // oxlint-disable-next-line no-await-in-loop -- Each close changes the list.
+        await tabAction(`Close ${name}`).click()
+        // Every demo terminal but Build runs a program, so closing it asks first.
+        // oxlint-disable-next-line no-await-in-loop -- Answers this close before the next.
+        if (name !== "Build") await confirmClose()
+      }
+
+      await expect.poll(visibleTerminalCounts).toEqual(["1 terminal"])
+    })
+  })
+
+  for (const name of views) {
+    context(`when pressing Delete in ${name}`, () => {
+      it("closes the active terminal", async () => {
+        await openWorkspace()
+        await chooseView(name)
+        await terminalTab("Dev server").click()
+        await enterNavigateMode()
+
+        await press("{Delete}")
+        await confirmClose()
+
+        await expect.element(terminalTab("Dev server")).not.toBeInTheDocument()
+        await expect.element(terminal("Dev server")).not.toBeInTheDocument()
+        await expect.poll(visibleTerminalCounts).toEqual(["5 terminals"])
+      })
+
+      it("does nothing outside navigate mode", async () => {
+        await openWorkspace()
+        await chooseView(name)
+        await terminalTab("Dev server").click()
+        await focusStage()
+
+        await press("{Delete}")
+
+        await expectStaysAbsent(closeConfirmation())
+        await expectSelected("Dev server")
+        await expect.poll(visibleTerminalCounts).toEqual(["6 terminals"])
+      })
+
+      it("leaves the terminal open when Delete is pressed in its command input", async () => {
+        await openWorkspace()
+        await chooseView(name)
+        await terminalTab("Checkout review").click()
+        await typeInto("Checkout review", "npm run")
+        // Home does not move the input caret to its start on macOS.
+        await press("{ArrowLeft}".repeat("npm run".length))
+
+        await press("{Delete}")
+
+        await expect.poll(() => draftOf("Checkout review")).toBe("pm run")
+        await expectStaysAbsent(page.getByText("5 terminals", { exact: true }))
+        await expectSelected("Checkout review")
+        await expect.poll(visibleTerminalCounts).toEqual(["6 terminals"])
+      })
+    })
+  }
+})
+
+describe("a tab's actions", () => {
+  it("show Hide and Rename under the pointer, and Close always", async () => {
+    await openWorkspace()
+    const hide = visibilityToggle("Dev server", "Hide")
+    const rename = sidebar().getByRole("button", { name: labelled("Rename ", "Dev server") })
+    const close = tabAction("Close Dev server")
+    await userEvent.unhover(terminalTab("Dev server"))
+    await expect.poll(() => [opacity(hide), opacity(rename)]).toEqual([0, 0])
+    expect(opacity(close)).toBe(1)
+
+    await userEvent.hover(terminalTab("Dev server"))
+
+    await expect.poll(() => [opacity(hide), opacity(rename)]).toEqual([1, 1])
+    expect(opacity(close)).toBe(1)
+  })
+})
+
+describe("hiding terminals from Grid and Canvas", () => {
+  context("when clicking the eye on a tab", () => {
+    it("draws the eye that shows it again no stronger than the tab's other actions", async () => {
+      await openWorkspace()
+      await visibilityToggle("Dev server", "Hide").click()
+      const show = visibilityToggle("Dev server", "Show")
+      await expect.element(show).toHaveAttribute("aria-pressed", "true")
+
+      await userEvent.unhover(show)
+
+      const rename = sidebar().getByRole("button", { name: labelled("Rename ", "Dev server") })
+      await expect.poll(() => look(show.element())).toEqual(look(rename.element()))
+    })
+
+    it("keeps the tab in the list with a faded label and keeps the current selection", async () => {
+      await openWorkspace()
+      await chooseView("Grid")
+
+      await visibilityToggle("Dev server", "Hide").click()
+
+      await expect.element(hiddenTerminalTab("Dev server")).toBeVisible()
+      await expect.element(visibilityToggle("Dev server", "Show")).toBeVisible()
+      await expect.poll(() => renderedOpacity(tabName("Dev server"))).toBeLessThan(0.75)
+      expect(renderedOpacity(tabName("Tests"))).toBeCloseTo(1)
+      await expectSelected("Checkout implementation")
+      // Selecting a hidden terminal would bring it back into Grid, so it must stay out.
+      await expect.element(terminal("Dev server")).not.toBeInTheDocument()
+      await expectStaysAbsent(terminal("Dev server"))
+    })
+
+    for (const name of ["Grid", "Canvas"] as const) {
+      it(`removes the terminal from ${name}`, async () => {
+        await openWorkspace()
+        await chooseView(name)
+        await expect.element(terminal("Dev server")).toBeInTheDocument()
+
+        await visibilityToggle("Dev server", "Hide").click()
+
+        await expect.element(terminal("Dev server")).not.toBeInTheDocument()
+        await expect.element(terminal("Tests")).toBeInTheDocument()
+      })
+    }
+
+    it("still shows the terminal in Focus", async () => {
+      await openWorkspace()
+      await visibilityToggle("Dev server", "Hide").click()
+
+      await hiddenTerminalTab("Dev server").click()
+
+      await expect.element(terminal("Dev server")).toBeVisible()
+    })
+  })
+
+  context("in Grid", () => {
+    it("shows every terminal at full opacity, selected or not", async () => {
+      await openWorkspace()
+      await chooseView("Grid")
+      await terminalTab("Tests").click()
+      await expectSelected("Tests")
+      await expect.poll(() => renderedOpacity(headerName("Dev server"))).toBeCloseTo(1, 1)
+      expect(renderedOpacity(headerName("Tests"))).toBeCloseTo(1, 1)
+    })
+  })
+
+  context("in Canvas", () => {
+    it("fades the terminals not selected, until nothing is", async () => {
+      await openWorkspace()
+      await chooseView("Canvas")
+      await terminalTab("Tests").click()
+      await expectSelected("Tests")
+      await expect.poll(() => renderedOpacity(headerName("Dev server"))).toBeCloseTo(0.5, 1)
+      expect(renderedOpacity(headerName("Tests"))).toBeCloseTo(1, 1)
+
+      await clickBackground({ x: 12, y: 12 })
+
+      await expectNothingSelected()
+      await expect.poll(() => renderedOpacity(headerName("Dev server"))).toBeCloseTo(1, 1)
+      expect(renderedOpacity(headerName("Tests"))).toBeCloseTo(1, 1)
+    })
+  })
+
+  for (const name of ["Grid", "Canvas"] as const) {
+    context(`when a hidden terminal is selected in ${name}`, () => {
+      it("shows it at half the opacity of a selected visible terminal", async () => {
+        await openWorkspace()
+        await chooseView(name)
+        await visibilityToggle("Dev server", "Hide").click()
+        await expect.element(terminal("Dev server")).not.toBeInTheDocument()
+
+        await hiddenTerminalTab("Dev server").click()
+
+        await expect
+          .element(hiddenTerminalTab("Dev server"))
+          .toHaveAttribute("aria-current", "true")
+        await expect.element(terminal("Dev server")).toBeVisible()
+        await expect.poll(() => renderedOpacity(headerName("Dev server"))).toBeCloseTo(0.5, 1)
+        await expect.element(visibilityToggle("Dev server", "Show")).toBeVisible()
+
+        await terminalTab("Tests").click()
+
+        await expectSelected("Tests")
+        await expect.poll(() => renderedOpacity(headerName("Tests"))).toBeCloseTo(1, 1)
+      })
+
+      it("removes it again once another terminal is selected", async () => {
+        await openWorkspace()
+        await chooseView(name)
+        await visibilityToggle("Dev server", "Hide").click()
+        await hiddenTerminalTab("Dev server").click()
+        await expect.element(terminal("Dev server")).toBeVisible()
+
+        await terminalTab("Tests").click()
+
+        await expect.element(terminal("Dev server")).not.toBeInTheDocument()
+        await expect.element(hiddenTerminalTab("Dev server")).toBeVisible()
+      })
+
+      it("keeps its content", async () => {
+        await openWorkspace()
+        await chooseView(name)
+        await typeInto("Checkout review", "unfinished command")
+        await terminalTab("Tests").click()
+        await visibilityToggle("Checkout review", "Hide").click()
+        await expect.element(terminal("Checkout review")).not.toBeInTheDocument()
+
+        await hiddenTerminalTab("Checkout review").click()
+
+        await expect.poll(() => draftOf("Checkout review")).toBe("unfinished command")
+      })
+    })
+  }
+
+  for (const name of ["Grid", "Canvas"] as const) {
+    context(`when a hidden terminal is shown again in ${name}`, () => {
+      it("returns to the same place and size beside its neighbours", async () => {
+        await openWorkspace()
+        await chooseView(name)
+        const before = placeBeside(terminal("Dev server"), terminal("Checkout implementation"))
+        await visibilityToggle("Dev server", "Hide").click()
+        await expect.element(terminal("Dev server")).not.toBeInTheDocument()
+
+        await visibilityToggle("Dev server", "Show").click()
+
+        await expect.element(terminal("Dev server")).toBeVisible()
+        await expect
+          .poll(() => placeBeside(terminal("Dev server"), terminal("Checkout implementation")))
+          .toEqual(before)
+      })
+    })
+  }
+
+  context("when clicking the eye on a hidden terminal while it is selected", () => {
+    it("shows it at full opacity and keeps it in Grid after selecting another terminal", async () => {
+      await openWorkspace()
+      await chooseView("Grid")
+      await visibilityToggle("Dev server", "Hide").click()
+      await hiddenTerminalTab("Dev server").click()
+      await expect.element(hiddenTerminalTab("Dev server")).toHaveAttribute("aria-current", "true")
+      await expect.poll(() => renderedOpacity(headerName("Dev server"))).toBeCloseTo(0.5, 1)
+
+      await visibilityToggle("Dev server", "Show").click()
+
+      await expectSelected("Dev server")
+      await expect.poll(() => renderedOpacity(headerName("Dev server"))).toBeCloseTo(1, 1)
+      await terminalTab("Tests").click()
+      await expect.element(terminal("Dev server")).toBeVisible()
+      await expect.element(terminalTab("Dev server")).toBeVisible()
+    })
+  })
+})
+
+describe("reordering terminal tabs", () => {
+  context("when dragging a tab onto another", () => {
+    it("moves it to that position", async () => {
+      await openWorkspace()
+      expect(terminalTabNames().slice(0, 3)).toEqual([
+        "Checkout implementation",
+        "Dev server",
+        "Tests",
+      ])
+
+      await dragTabOnto("Tests", "Checkout implementation")
+
+      await expect
+        .poll(() => terminalTabNames().slice(0, 3))
+        .toEqual(["Tests", "Checkout implementation", "Dev server"])
+    })
+
+    it("uses the new order when moving through terminals with Down", async () => {
+      await openWorkspace()
+      await dragTabOnto("Tests", "Checkout implementation")
+      await expect.poll(() => terminalTabNames()[0]).toBe("Tests")
+      await focusTab("Tests")
+      await expectSelected("Tests")
+
+      await press("{ArrowDown}")
+
+      await expectSelected("Checkout implementation")
+    })
+  })
+})
