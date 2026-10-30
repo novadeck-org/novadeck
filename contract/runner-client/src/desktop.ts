@@ -1,4 +1,4 @@
-import { runnerPortMessage, type DesktopApp } from "@novadeck/protocol/bridge"
+import { desktopApp, runnerPortMessage } from "@novadeck/protocol/bridge"
 import { WireError } from "@novadeck/wire"
 import { brokeredPort, type Transport } from "@novadeck/wire/client"
 
@@ -11,9 +11,8 @@ import type { RunnerErrorCode } from "./errors.js"
 export const desktop = (): Transport =>
   brokeredPort({
     request: (id) => {
-      const app = (globalThis as { novadeck?: Partial<DesktopApp> }).novadeck
-      if (!app?.requestRunner)
-        throw new WireError<RunnerErrorCode>("CLOSED", "No desktop app provides a runner.")
+      const app = desktopApp()
+      if (!app) throw new WireError<RunnerErrorCode>("CLOSED", "No desktop app provides a runner.")
       app.requestRunner(id)
     },
     message: runnerPortMessage,
