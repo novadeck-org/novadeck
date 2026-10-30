@@ -39,8 +39,8 @@ describe("theme scoping", () => {
   })
 })
 
-// A selected item on the page, highlighted too where asked.
-const selectedItem = (highlighted: boolean): HTMLElement => {
+// A selected project row on the page, highlighted too where asked.
+const selectedRow = (highlighted: boolean): HTMLElement => {
   const element = document.createElement("button")
   element.className = "item standalone"
   element.dataset.selected = "true"
@@ -51,12 +51,12 @@ const selectedItem = (highlighted: boolean): HTMLElement => {
   return element
 }
 
-describe("a selected item", () => {
+describe("a selected project row", () => {
   it("keeps its own text when it is highlighted too, in every theme", () => {
-    // Two selected items, one also highlighted, as the current project's row is under the
+    // Two selected rows, one also highlighted, as the current project's row is under the
     // pointer or the keyboard.
-    const plain = selectedItem(false)
-    const lit = selectedItem(true)
+    const plain = selectedRow(false)
+    const lit = selectedRow(true)
     try {
       for (const theme of themes)
         for (const scheme of theme.schemes) {

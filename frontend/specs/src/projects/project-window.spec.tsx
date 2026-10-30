@@ -123,10 +123,8 @@ describe("The project window", () => {
     await openSource()
     await row("package.json").dblClick()
     await expect.element(terminal("package.json")).toBeVisible()
-    const menu = await (async () => {
-      await sidebarPanel("Terminals").click()
-      return windowMenu("package.json")
-    })()
+    await sidebarPanel("Terminals").click()
+    const menu = await windowMenu("package.json")
     await menu.getByRole("menuitem", { name: "Close" }).click()
     await expect.element(terminal("package.json")).not.toBeInTheDocument()
 

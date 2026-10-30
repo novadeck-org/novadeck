@@ -37,15 +37,15 @@ const cardElement = (): Element | null => document.querySelector(".whats-new")
 describe("the what's-new card", () => {
   beforeEach(forgetUpdates)
 
-  it("is absent where the host has no word of it", async () => {
+  it("is absent where the app has no word of it", async () => {
     await openWorkspace()
     await expectStaysAbsent(card())
     expect(cardElement()).toBeNull()
   })
 
-  it("is absent when the host answers that there is nothing to show", async () => {
+  it("is absent when the app answers that there is nothing to show", async () => {
     await openWorkspace("/?update=noHighlights")
-    // The host takes 1.5 s to say so: the page has asked, and shows nothing once it has.
+    // The app takes 1.5 s to say so: the page has asked, and shows nothing once it has.
     await expect.poll(whatsNewAsked).toBeGreaterThan(0)
     await expectStaysAbsent(card(), { ms: 2_500 })
     expect(cardElement()).toBeNull()
@@ -69,7 +69,7 @@ describe("the what's-new card", () => {
         expect(svg.getAttribute("aria-hidden")).toBe("true")
     })
 
-    it("names the version it is new since beside the ×, when the host knows it", async () => {
+    it("names the version it is new since beside the ×, when the app knows it", async () => {
       await openWorkspace("/?update=whatsNew")
       await expect.element(card().getByText("From 0.0.79")).toBeVisible()
     })
@@ -78,7 +78,7 @@ describe("the what's-new card", () => {
       await openWorkspace("/?update=whatsNewMarkup")
       await expect.element(card()).toBeVisible()
       expect(iconsOf()).toEqual(["lucide-sparkles"])
-      // This host doesn't know the version updated from, so the card names none.
+      // This app doesn't know the version updated from, so the card names none.
       expect(card().element().textContent).not.toMatch(/From/)
     })
 
@@ -130,7 +130,7 @@ describe("the what's-new card", () => {
       await expect.element(card()).toBeVisible()
     })
 
-    it("is dismissed by the ×, which tells the host once", async () => {
+    it("is dismissed by the ×, which tells the app once", async () => {
       await openWorkspace("/?update=whatsNew")
       await closeButton().click()
       await expect.element(card()).not.toBeInTheDocument()
@@ -302,7 +302,7 @@ describe("the what's-new card", () => {
     })
   })
 
-  it("shows the host's text as text, never as markup", async () => {
+  it("shows the app's text as text, never as markup", async () => {
     await openWorkspace("/?update=whatsNewMarkup")
     await expect.element(card()).toBeVisible()
     await expect.element(card().getByText("Bold <b>words</b> and **stars**")).toBeVisible()

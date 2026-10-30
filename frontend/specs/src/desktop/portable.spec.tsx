@@ -32,7 +32,7 @@ const primary = (card: Locator): Locator =>
 describe("a portable copy's install card", () => {
   afterEach(() => page.viewport(1440, 900))
 
-  it("is absent where the host has no portable copy", async () => {
+  it("is absent where the app has no portable copy", async () => {
     await openWorkspace()
     await expectStaysAbsent(install())
     await expectStaysAbsent(quiet())
@@ -97,7 +97,7 @@ describe("a portable copy's install card", () => {
         .not.toBeVisible()
     })
 
-    it("says nothing of the sandbox where the host runs sandboxed", async () => {
+    it("says nothing of the sandbox where the app runs sandboxed", async () => {
       await openWorkspace("/?portable=no-release")
       await expect.element(quiet()).toBeVisible()
       await expect.element(quiet().getByText(/sandbox/)).not.toBeInTheDocument()
@@ -163,7 +163,7 @@ describe("a portable copy's install card", () => {
     })
   })
 
-  context("when the host reports a download", () => {
+  context("when the app reports a download", () => {
     it("shows the percent under Installing Novadeck, then the indeterminate bar", async () => {
       await openWorkspace("/?portable=no-release&installMs=stepped")
       await primary(quiet()).click()
@@ -271,14 +271,14 @@ describe("a portable copy with a release waiting", () => {
     expect(words.right).toBeLessThanOrEqual(button.left)
   })
 
-  it("offers Get new portable on an offer from the host's updates alone", async () => {
+  it("offers Get new portable on an offer from the app's updates alone", async () => {
     await openWorkspace("/?portable=never&update=available")
     await expect
       .element(offeredPlain().getByRole("button", { name: "Get new portable" }))
       .toBeVisible()
   })
 
-  it("falls back to the title and line when the host has no notes", async () => {
+  it("falls back to the title and line when the app has no notes", async () => {
     await openWorkspace("/?portable=update-no-news")
     await expect.element(offeredPlain()).toBeVisible()
     await expect.element(offeredPlain().getByText("This copy can't update itself.")).toBeVisible()
@@ -316,7 +316,7 @@ describe("the sandbox chip on a portable copy", () => {
       .toBeVisible()
   })
 
-  it("does not flash while the host has yet to say it is a portable copy", async () => {
+  it("does not flash while the app has yet to say it is a portable copy", async () => {
     await openWorkspace("/?portable=slow-host&sandbox=off")
     // Still waiting for the answer: no install chip yet, and no sandbox chip either.
     expect(install().query()).toBeNull()

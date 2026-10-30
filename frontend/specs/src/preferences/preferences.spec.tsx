@@ -148,7 +148,7 @@ describe("Preferences", () => {
     })
   })
 
-  context("when the host cannot keep transcripts encrypted", () => {
+  context("when the app cannot keep transcripts encrypted", () => {
     it("shows the switch off and disabled, and says why", async () => {
       await openWorkspace("/?transcripts=unavailable")
       await openPreferences()
@@ -235,7 +235,7 @@ const addons = (): Locator => preferencesDialog().getByRole("tabpanel", { name: 
 /** The Addons tab's voice input card, with its heading. */
 const voiceCard = (): Locator => addons().getByRole("region", { name: "Voice input" })
 
-/** The Addons tab's murmur card, with its heading. */
+/** The Addons tab's Murmur card, with its heading. */
 const murmurCard = (): Locator => addons().getByRole("region", { name: "Murmur" })
 
 describe("Preferences Addons", () => {
@@ -438,7 +438,7 @@ describe("Preferences Addons", () => {
   })
 })
 
-describe("shortcut list", () => {
+describe("Shortcut list", () => {
   context("on Windows and Linux", () => {
     it("groups modifier shortcuts under Anywhere with Ctrl labels", async () => {
       vi.spyOn(navigator, "platform", "get").mockReturnValue("Win32")
@@ -490,7 +490,7 @@ describe("shortcut list", () => {
 
   context("on macOS", () => {
     it("labels Command shortcuts with ⌘ and keeps Ctrl for recent terminals", async () => {
-      // Chromium reports the host platform; stand in for a Mac so the app picks its bindings.
+      // Chromium reports the real platform; stand in for a Mac so the app picks its bindings.
       vi.spyOn(navigator, "platform", "get").mockReturnValue("MacIntel")
       await openWorkspace()
 
@@ -516,7 +516,7 @@ describe("shortcut list", () => {
   })
 })
 
-describe("view mode preferences", () => {
+describe("View mode preferences", () => {
   context("when a view is turned off", () => {
     it("removes it from the view switcher and keeps that after reopening", async () => {
       await openWorkspace()
@@ -563,7 +563,7 @@ describe("view mode preferences", () => {
   })
 })
 
-describe("terminal text size preference", () => {
+describe("Terminal text size preference", () => {
   context("when a larger size is chosen", () => {
     it("enlarges terminal text and keeps it after reopening", async () => {
       await openWorkspace()
@@ -590,7 +590,7 @@ describe("terminal text size preference", () => {
   })
 })
 
-describe("appearance preference", () => {
+describe("Appearance preference", () => {
   afterEach(() => systemScheme(null))
 
   context("when Dark is chosen", () => {
@@ -751,7 +751,7 @@ describe("appearance preference", () => {
     })
   })
 
-  context("the Appearance tab", () => {
+  context("on the Appearance tab", () => {
     it("holds the theme and the mode, which General no longer does", async () => {
       await openWorkspace()
       await openAppearance()
@@ -771,7 +771,7 @@ describe("appearance preference", () => {
     })
   })
 
-  context("the notification sound", () => {
+  describe("the bell", () => {
     const sound = () => preferencesDialog().getByRole("combobox", { name: "Sound" })
     const savedChoice = () =>
       JSON.parse(localStorage.getItem("novadeck.preferences") ?? "{}").soundChoice
@@ -825,7 +825,7 @@ describe("appearance preference", () => {
 
     const soundSwitch = () => preferencesDialog().getByRole("switch", { name: "Ring the bell" })
 
-    it("is set on a host that shows desktop notifications, its sound and volume only while it rings", async () => {
+    it("is set where the app shows desktop notifications, its sound and volume only while it rings", async () => {
       await openWorkspace("/?desktop=on")
       await openAppearance()
       const volume = () => preferencesDialog().getByRole("slider", { name: "Volume" })

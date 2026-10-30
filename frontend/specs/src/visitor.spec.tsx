@@ -53,6 +53,7 @@ const framesPass = (count: number): Promise<void> =>
   count === 0
     ? Promise.resolve()
     : new Promise((resolve) => requestAnimationFrame(resolve)).then(() => framesPass(count - 1))
+
 describe("the visitor build", () => {
   afterEach(() => page.viewport(1440, 900))
 
@@ -312,7 +313,7 @@ describe("the visitor build", () => {
   })
 
   describe("on its desk", () => {
-    // The landing rule holds an item of the terminal being looked at, which takes the page to
+    // The landing rule holds an Inbox row of the terminal being looked at, which takes the page to
     // have the person's focus; a spec browser's frame has none until a click gives it, so each
     // case here gives it, whatever ran before.
     beforeEach(async () => {
@@ -336,7 +337,7 @@ describe("the visitor build", () => {
       await expect
         .poll(() => tabDescription("Checkout implementation"))
         .toBe("Plan ready for review: Checkout flow")
-      // The visitor looks at the asking terminal, so its item holds back from the bell and the
+      // The visitor looks at the asking terminal, so its Inbox row holds back from the bell and the
       // tab's mark carries it; it lands once they look away.
       await expect.element(bell()).toHaveAccessibleName("Inbox")
       await expect.element(workspaceSwitcher()).not.toHaveAttribute("data-project-status")
@@ -349,7 +350,7 @@ describe("the visitor build", () => {
       // seen by whoever looks at it.
       await openWorkspace("/?visitor=on&turnMs=200&nudgeMs=1000")
       // Codex reviews, and asks nothing while the plan waits; the visitor looks at the plan,
-      // whose item is held back from the bell, the tab carrying it.
+      // whose Inbox row is held back from the bell, the tab carrying it.
       await expect
         .poll(() => tabDescription("Checkout implementation"))
         .toBe("Plan ready for review: Checkout flow")

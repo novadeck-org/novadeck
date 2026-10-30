@@ -31,8 +31,9 @@ const chip = (): Locator => page.getByRole("button", { name: "Name it for me" })
 const popover = (): Locator =>
   page.getByRole("dialog", { name: "Name terminals from what they do" })
 // Named by what it shows: Murmur, and how far along.
-const footerItem = (): Locator => page.getByRole("button", { name: /^Murmur( \d+%)?$/ })
-const doneItem = (): Locator => page.getByRole("button", { name: "Terminals name themselves now" })
+const footerButton = (): Locator => page.getByRole("button", { name: /^Murmur( \d+%)?$/ })
+const doneButton = (): Locator =>
+  page.getByRole("button", { name: "Terminals name themselves now" })
 
 // How long past the end of a turn a chip that is going to come up has come up: the turn, and
 // the moment an Escape could still turn its finish into an interruption.
@@ -112,24 +113,24 @@ describe("Murmur's one-time offer", () => {
       await expect.element(page.getByRole("menu")).toBeVisible()
     })
 
-    it("turns on into the footer item, then says it is done, and the chip is gone", async () => {
+    it("turns on into the footer button, then says it is done, and the chip is gone", async () => {
       await promptBuild("uninstalled")
       await chip().click({ timeout: 10_000 })
       await popover().getByRole("button", { name: "Turn on" }).click()
 
       await expect.element(popover()).not.toBeInTheDocument()
       await expect.element(chip()).not.toBeInTheDocument()
-      await expect.element(footerItem()).toBeVisible()
-      await expect.element(doneItem(), { timeout: 12_000 }).toBeVisible()
-      await expect.element(doneItem(), { timeout: 10_000 }).not.toBeInTheDocument()
+      await expect.element(footerButton()).toBeVisible()
+      await expect.element(doneButton(), { timeout: 12_000 }).toBeVisible()
+      await expect.element(doneButton(), { timeout: 10_000 }).not.toBeInTheDocument()
     })
 
-    it("opens the item's sheet with the step, the bar and Cancel, and Esc closes it", async () => {
+    it("opens the button's sheet with the step, the bar and Cancel, and Esc closes it", async () => {
       // Held at its first step, so Cancel stops it there, however slow the machine.
       await promptBuild("uninstalled", { held: true })
       await chip().click({ timeout: 10_000 })
       await popover().getByRole("button", { name: "Turn on" }).click()
-      await footerItem().click()
+      await footerButton().click()
 
       const sheet = page.getByRole("region", { name: "Setting up Murmur" })
       await expect.element(sheet.getByText(/Downloading/)).toBeVisible()
@@ -137,9 +138,9 @@ describe("Murmur's one-time offer", () => {
       // Opened by a press, it holds focus, so Esc closes it.
       await userEvent.keyboard("{Escape}")
       await expect.element(sheet).not.toBeInTheDocument()
-      await footerItem().click()
+      await footerButton().click()
       await sheet.getByRole("button", { name: "Cancel" }).click()
-      await expect.element(footerItem()).not.toBeInTheDocument()
+      await expect.element(footerButton()).not.toBeInTheDocument()
     })
 
     // That No thanks turns it down for good (not wanted) is the demo's to test, in murmur.test.ts.
@@ -203,7 +204,7 @@ describe("Murmur's one-time offer", () => {
   })
 
   context("when the install fails on the network", () => {
-    it("turns the footer item to danger and opens its sheet once, with Try again", async () => {
+    it("turns the footer button to danger and opens its sheet once, with Try again", async () => {
       await promptBuild("network-down")
       await chip().click({ timeout: 10_000 })
       await popover().getByRole("button", { name: "Turn on" }).click()
@@ -218,10 +219,10 @@ describe("Murmur's one-time offer", () => {
 
       // Try again installs afresh, and the second goes through to done.
       await sheet.getByRole("button", { name: "Try again" }).click()
-      await expect.element(doneItem(), { timeout: 15_000 }).toBeVisible()
+      await expect.element(doneButton(), { timeout: 15_000 }).toBeVisible()
     })
 
-    it("hides the item on Not now, and Install waits in Preferences", async () => {
+    it("hides the button on Not now, and Install waits in Preferences", async () => {
       await promptBuild("network-down")
       await chip().click({ timeout: 10_000 })
       await popover().getByRole("button", { name: "Turn on" }).click()
@@ -236,7 +237,7 @@ describe("Murmur's one-time offer", () => {
   })
 
   context("when the computer can't run Murmur", () => {
-    it("says so in the footer's sheet when Turn on finds it can't, and the item leaves", async () => {
+    it("says so in the footer's sheet when Turn on finds it can't, and the button leaves", async () => {
       await promptBuild("no-device")
       await chip().click({ timeout: 10_000 })
       await popover().getByRole("button", { name: "Turn on" }).click()

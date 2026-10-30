@@ -31,7 +31,7 @@ const availableChip = (): Locator =>
   page.getByRole("button", { name: "Update available: Novadeck 0.0.80" })
 
 describe("the update progress bar", () => {
-  it("is absent where the host does not update", async () => {
+  it("is absent where the app does not update", async () => {
     await openWorkspace()
     await expectStaysAbsent(updating())
     expect(bar()).toBeNull()
@@ -87,7 +87,7 @@ describe("the update progress bar", () => {
     })
   })
 
-  context("for an update the host can't install itself", () => {
+  context("for an update the app can't install itself", () => {
     it("shows a quiet chip instead, with no bar, panel or dialog", async () => {
       await openWorkspace("/?update=available")
       await expect.element(availableChip()).toBeVisible()
@@ -104,7 +104,7 @@ describe("the update progress bar", () => {
       expect(page.getByRole("region", { name: /Novadeck 0\.0\.80/ }).query()).toBeNull()
     })
 
-    it("asks for an administrator as Allow updates when the host offers it, then downloads", async () => {
+    it("asks for an administrator as Allow updates when the app offers it, then downloads", async () => {
       await openWorkspace("/?update=allow")
       const allow = page.getByRole("button", { name: "Allow updates: Novadeck 0.0.80" })
       await expect.element(allow).toBeVisible()
@@ -150,8 +150,8 @@ const openPreferences = async (): Promise<void> => {
 const experimental = () => preferencesDialog().getByRole("switch", { name: "Experimental" })
 const experimentalTab = () => preferencesDialog().getByRole("tab", { name: "Experimental" })
 
-describe("Preferences' Experimental switch", () => {
-  it("is absent where the host has no updates, and so is its tab", async () => {
+describe("the Experimental switch in Preferences", () => {
+  it("is absent where the app has no updates, and so is its tab", async () => {
     await openWorkspace()
     await openPreferences()
     await expect

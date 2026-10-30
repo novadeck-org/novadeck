@@ -20,7 +20,7 @@ const dialog = (): Locator => page.getByRole("alertdialog")
 const slow = { timeout: 6000 }
 
 describe("Preferences' Uninstall Novadeck", () => {
-  context("where the host offers none or nothing", () => {
+  context("where the app offers none or nothing", () => {
     it.each([["/"], ["/?uninstall=unavailable"]])("is absent on %s", async (route) => {
       await openWorkspace(route)
       await openPreferences()
@@ -76,7 +76,7 @@ describe("Preferences' Uninstall Novadeck", () => {
       await expect.element(dialog().getByRole("button", { name: "Quit" })).toHaveFocus()
     })
 
-    it("has no data choice where the host has no data folder", async () => {
+    it("has no data choice where the app has no data folder", async () => {
       await openWorkspace("/?uninstall=no-data")
       await openPreferences()
       await row().click()

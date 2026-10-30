@@ -17,13 +17,13 @@ const notice = (): Locator =>
   page.getByRole("region", { name: "Novadeck is running without its security sandbox" })
 
 describe("the sandbox notice", () => {
-  it("is absent where the host does not say", async () => {
+  it("is absent where the app does not say", async () => {
     await openWorkspace()
     await expectStaysAbsent(chip())
     expect(chip().query()).toBeNull()
   })
 
-  context("on a host running without its sandbox", () => {
+  context("when the app runs without its sandbox", () => {
     it("waits in the footer as a chip, and opens with the command to copy", async () => {
       await openWorkspace("/?sandbox=off")
       await expect.element(chip()).toBeVisible()

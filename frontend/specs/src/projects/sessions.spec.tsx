@@ -48,7 +48,7 @@ describe("projects", () => {
 
       await workspaceSwitcher().click()
 
-      const menu = page.getByRole("dialog", { name: "Switch workspace" })
+      const menu = switchMenu()
       await expect
         .element(menu.getByRole("button", { name: /^storefront / }))
         .toHaveAttribute("aria-current", "true")
@@ -63,7 +63,7 @@ describe("projects", () => {
 
       await trigger.click()
 
-      const menu = page.getByRole("dialog", { name: "Switch workspace" })
+      const menu = switchMenu()
       await expect.element(menu).toBeVisible()
       await expect.element(trigger).toHaveAttribute("aria-expanded", "true")
       const button = trigger.element().getBoundingClientRect()
@@ -82,6 +82,8 @@ describe("projects", () => {
   context("when pinning projects", () => {
     // The demo's projects after its first two, as the switcher lists them.
     const others = ["docs-site", "mobile-app", "design-system", "infra", "dotfiles"]
+    const row = (name: string): Locator =>
+      switchMenu().getByRole("button", { name: new RegExp(`^${name} `) })
 
     it("moves a pinned project to a Pinned group at the top, and back on unpin", async () => {
       await openWorkspace()
@@ -124,7 +126,7 @@ describe("projects", () => {
       await openWorkspace()
       const scheduled: FrameRequestCallback[] = []
       const frame = window.requestAnimationFrame.bind(window)
-      // Exercise the installed Ark popover's deferred focus action after the user has
+      // Exercise the installed Ark popover's deferred focus action after the person has
       // already interacted, without delaying unrelated layout or pointer frames.
       const frames = vi.spyOn(window, "requestAnimationFrame").mockImplementation((callback) => {
         if (new Error().stack?.includes("setInitialFocus")) {
@@ -167,8 +169,6 @@ describe("projects", () => {
       await openWorkspace()
       await workspaceSwitcher().click()
       await switchMenu().getByRole("button", { name: "Pin api-service" }).click()
-      const row = (name: string): Locator =>
-        switchMenu().getByRole("button", { name: new RegExp(`^${name} `) })
       row("storefront").element().focus()
 
       await press("{Alt>}{ArrowUp}{/Alt}")
@@ -192,8 +192,6 @@ describe("projects", () => {
       await openWorkspace()
       await workspaceSwitcher().click()
       await switchMenu().getByRole("button", { name: "Pin api-service" }).click()
-      const row = (name: string): Locator =>
-        switchMenu().getByRole("button", { name: new RegExp(`^${name} `) })
       const { height } = row("api-service").element().getBoundingClientRect()
 
       await userEvent.dragAndDrop(row("storefront"), row("api-service"), {
@@ -212,8 +210,6 @@ describe("projects", () => {
       await openWorkspace()
       await workspaceSwitcher().click()
       await switchMenu().getByRole("button", { name: "Pin api-service" }).click()
-      const row = (name: string): Locator =>
-        switchMenu().getByRole("button", { name: new RegExp(`^${name} `) })
       const { height } = row("api-service").element().getBoundingClientRect()
 
       await userEvent.dragAndDrop(row("storefront"), row("api-service"), {
