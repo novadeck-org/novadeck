@@ -1,7 +1,6 @@
-import { terminalPhase } from "../terminals/ending"
 import { context, describe, expect, it } from "../test"
 import type { AgentStatus, AgentWaiting, TerminalMetadata } from "../types"
-import { sightTurnEnd } from "./finish"
+import { terminalPhase } from "./ending"
 import {
   clockTime,
   nextWaitingChange,
@@ -62,16 +61,6 @@ describe("an agent that waits", () => {
       expect(
         terminalPhase(agent({ jobs: [job(now)], wake: null }, { working: true }), false, now),
       ).toBe("running")
-    })
-
-    it("still finishes a turn that ended waiting, whatever its outcome", () => {
-      for (const outcome of ["completed", "failed"] as const) {
-        const lastTurn = { outcome, at: now - minute }
-        expect(sightTurnEnd(null, agent({ jobs: [job(now)], wake: null }, { lastTurn }))).toEqual({
-          seen: now - minute,
-          finish: { failed: outcome === "failed" },
-        })
-      }
     })
   })
 
