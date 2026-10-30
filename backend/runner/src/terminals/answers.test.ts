@@ -789,74 +789,6 @@ describe("answering a request through its dialog", () => {
     expect(calls).toContain("prompt Let us discuss")
   })
 
-  describe("a dialog answered as the agent's next prompt", () => {
-    // The answer of the question, with the words given if any.
-    const questions = (
-      read: () => { dialog: Parameters<typeof identified>[0] } | undefined,
-      text?: string,
-    ) => ({
-      dialog: identified(read()!.dialog)!.id,
-      type: "questions" as const,
-      answers: [
-        {
-          question: "q1",
-          options: text === undefined ? ["1"] : [],
-          ...(text !== undefined && { text }),
-        },
-      ],
-    })
-
-    it("sends the prompt once the person's keys are let go, pressing nothing, and marks it answered", async () => {
-      const { tui, answers, calls, read } = terminal({ byPrompt: true })
-      await answers.answer("t", "r1", questions(read))
-      expect(tui.written).toEqual([])
-      expect(calls).toEqual(["release", "prompt > Which?\n\nBlue", "done"])
-    })
-
-    it("fails as the prompt's refusal does, leaving the request open and its dialog unlocked", async () => {
-      const { tui, answers, calls, locks, read } = terminal({
-        byPrompt: true,
-        refusals: [refusal("draft")],
-      })
-      expect(await fails(answers.answer("t", "r1", questions(read, "Purple")))).toBe("CONFLICT")
-      expect(tui.written).toEqual([])
-      expect(calls).not.toContain("done")
-      expect(locks).toEqual([])
-    })
-
-    it("refuses it while the agent's turn runs, sending nothing", async () => {
-      const { answers, calls, read } = terminal({ byPrompt: true, working: true })
-      expect(await fails(answers.answer("t", "r1", questions(read)))).toBe("CONFLICT")
-      expect(calls.filter((call) => call.startsWith("prompt"))).toEqual([])
-    })
-
-    it("refuses an answer it gives no prompt for, or one a prompt can't carry", async () => {
-      const { answers, calls, read } = terminal({ byPrompt: true })
-      expect(
-        await fails(
-          answers.answer("t", "r1", {
-            dialog: identified(read()!.dialog)!.id,
-            type: "chat",
-            text: "hi",
-          }),
-        ),
-      ).toBe("CONFLICT")
-      expect(await fails(answers.answer("t", "r1", questions(read, "ask @")))).toBe(
-        "PROMPT_REFUSED",
-      )
-      expect(calls.filter((call) => call.startsWith("prompt"))).toEqual([])
-    })
-
-    it("doesn't clash with another request's dialog answered as a prompt on the same screen", async () => {
-      const { answers, calls, read } = terminal({
-        byPrompt: true,
-        others: [{ ref: "r3", facts: { ...facts, input: { command: "pwd" } } }],
-      })
-      await answers.answer("t", "r1", questions(read))
-      expect(calls).toContain("done")
-    })
-  })
-
   it("refuses to set aside what has no chat, and a field chat without words, pressing nothing", async () => {
     const none = terminal({ chat: null })
     expect(
@@ -938,62 +870,6 @@ describe("answering a request through its dialog", () => {
     expect(calls).toContain("done")
   })
 
-  describe("the words that follow an answer", () => {
-    it("are tried again while a request is still pending, which clears by itself", () =>
-      timed(async () => {
-        const { answers, calls, read } = terminal({
-          prompting: true,
-          refusals: [refusal("pending"), refusal("pending")],
-        })
-        await answers.answer("t", "r1", choose(read))
-        expect(calls.filter((call) => call.startsWith("prompt"))).toHaveLength(3)
-      }))
-
-    it.each(["draft", "no-box"] as const)(
-      "fail at once as WORDS_NOT_SENT where the refusal is %s",
-      async (reason) => {
-        const { answers, calls, read } = terminal({ prompting: true, refusals: [refusal(reason)] })
-        expect(await fails(answers.answer("t", "r1", choose(read)))).toBe("WORDS_NOT_SENT")
-        expect(calls.filter((call) => call.startsWith("prompt"))).toHaveLength(1)
-      },
-    )
-
-    it("give up on a refusal that never clears once their time is up", async () => {
-      const { answers, read } = terminal({
-        prompting: true,
-        refusals: Array.from({ length: 1_000 }, () => refusal("pending")),
-      })
-      expect(await fails(answers.answer("t", "r1", choose(read)))).toBe("WORDS_NOT_SENT")
-    })
-
-    it("are one entry of the terminal's input queue with their answer: nothing comes between", async () => {
-      const { answers, queue, calls, read } = terminal({ prompting: true })
-      const answered = answers.answer("t", "r1", choose(read))
-      // Queued behind the answer as it begins, as a doorbell ring or a prompt would be.
-      const other = queue.run("t", () => Promise.resolve(void calls.push("other entry")))
-      await Promise.all([answered, other])
-      expect(calls.indexOf("prompt do it differently")).toBeGreaterThan(-1)
-      expect(calls.indexOf("other entry")).toBeGreaterThan(
-        calls.indexOf("prompt do it differently"),
-      )
-    })
-
-    it("wait for the screen to settle before they go, longer while a turn runs", () =>
-      timed(async () => {
-        const quiet = terminal({ prompting: true })
-        const began = Date.now()
-        await quiet.answers.answer("t", "r1", choose(quiet.read))
-        const idle = Date.now() - began
-        const busy = terminal({ prompting: true, working: true })
-        const started = Date.now()
-        await busy.answers.answer("t", "r1", choose(busy.read))
-        // A still screen settles after six reads' time (30 ms here) with no turn running, and
-        // after fifteen's (75 ms) while one runs. Looks are two polls (10 ms) apart, so they
-        // land at 30 and 80 ms: everything else in the two answers is the same.
-        expect(Date.now() - started - idle).toBe(80 - 30)
-      }))
-  })
-
   it("refuses follow-up words a prompt can't carry before pressing any key", async () => {
     const { tui, answers, calls, read } = terminal({ prompting: true })
     const run = answers.answer("t", "r1", {
@@ -1019,6 +895,126 @@ describe("answering a request through its dialog", () => {
     expect(tui.written).toEqual([])
     expect(calls).not.toContain("done")
   })
+})
+
+describe("a request answered through a dialog taken as the agent's next prompt", () => {
+  // The answer of the question, with the words given if any.
+  const questions = (
+    read: () => { dialog: Parameters<typeof identified>[0] } | undefined,
+    text?: string,
+  ) => ({
+    dialog: identified(read()!.dialog)!.id,
+    type: "questions" as const,
+    answers: [
+      {
+        question: "q1",
+        options: text === undefined ? ["1"] : [],
+        ...(text !== undefined && { text }),
+      },
+    ],
+  })
+
+  it("sends the prompt once the person's keys are let go, pressing nothing, and marks it answered", async () => {
+    const { tui, answers, calls, read } = terminal({ byPrompt: true })
+    await answers.answer("t", "r1", questions(read))
+    expect(tui.written).toEqual([])
+    expect(calls).toEqual(["release", "prompt > Which?\n\nBlue", "done"])
+  })
+
+  it("fails as the prompt's refusal does, leaving the request open and its dialog unlocked", async () => {
+    const { tui, answers, calls, locks, read } = terminal({
+      byPrompt: true,
+      refusals: [refusal("draft")],
+    })
+    expect(await fails(answers.answer("t", "r1", questions(read, "Purple")))).toBe("CONFLICT")
+    expect(tui.written).toEqual([])
+    expect(calls).not.toContain("done")
+    expect(locks).toEqual([])
+  })
+
+  it("refuses it while the agent's turn runs, sending nothing", async () => {
+    const { answers, calls, read } = terminal({ byPrompt: true, working: true })
+    expect(await fails(answers.answer("t", "r1", questions(read)))).toBe("CONFLICT")
+    expect(calls.filter((call) => call.startsWith("prompt"))).toEqual([])
+  })
+
+  it("refuses an answer it gives no prompt for, or one a prompt can't carry", async () => {
+    const { answers, calls, read } = terminal({ byPrompt: true })
+    expect(
+      await fails(
+        answers.answer("t", "r1", {
+          dialog: identified(read()!.dialog)!.id,
+          type: "chat",
+          text: "hi",
+        }),
+      ),
+    ).toBe("CONFLICT")
+    expect(await fails(answers.answer("t", "r1", questions(read, "ask @")))).toBe("PROMPT_REFUSED")
+    expect(calls.filter((call) => call.startsWith("prompt"))).toEqual([])
+  })
+
+  it("doesn't clash with another request's dialog answered as a prompt on the same screen", async () => {
+    const { answers, calls, read } = terminal({
+      byPrompt: true,
+      others: [{ ref: "r3", facts: { ...facts, input: { command: "pwd" } } }],
+    })
+    await answers.answer("t", "r1", questions(read))
+    expect(calls).toContain("done")
+  })
+})
+
+describe("the words that follow a request's answer through its dialog", () => {
+  it("are tried again while a request is still pending, which clears by itself", () =>
+    timed(async () => {
+      const { answers, calls, read } = terminal({
+        prompting: true,
+        refusals: [refusal("pending"), refusal("pending")],
+      })
+      await answers.answer("t", "r1", choose(read))
+      expect(calls.filter((call) => call.startsWith("prompt"))).toHaveLength(3)
+    }))
+
+  it.each(["draft", "no-box"] as const)(
+    "fail at once as WORDS_NOT_SENT where the refusal is %s",
+    async (reason) => {
+      const { answers, calls, read } = terminal({ prompting: true, refusals: [refusal(reason)] })
+      expect(await fails(answers.answer("t", "r1", choose(read)))).toBe("WORDS_NOT_SENT")
+      expect(calls.filter((call) => call.startsWith("prompt"))).toHaveLength(1)
+    },
+  )
+
+  it("give up on a refusal that never clears once their time is up", async () => {
+    const { answers, read } = terminal({
+      prompting: true,
+      refusals: Array.from({ length: 1_000 }, () => refusal("pending")),
+    })
+    expect(await fails(answers.answer("t", "r1", choose(read)))).toBe("WORDS_NOT_SENT")
+  })
+
+  it("are one entry of the terminal's input queue with their answer: nothing comes between", async () => {
+    const { answers, queue, calls, read } = terminal({ prompting: true })
+    const answered = answers.answer("t", "r1", choose(read))
+    // Queued behind the answer as it begins, as a doorbell ring or a prompt would be.
+    const other = queue.run("t", () => Promise.resolve(void calls.push("other entry")))
+    await Promise.all([answered, other])
+    expect(calls.indexOf("prompt do it differently")).toBeGreaterThan(-1)
+    expect(calls.indexOf("other entry")).toBeGreaterThan(calls.indexOf("prompt do it differently"))
+  })
+
+  it("wait for the screen to settle before they go, longer while a turn runs", () =>
+    timed(async () => {
+      const quiet = terminal({ prompting: true })
+      const began = Date.now()
+      await quiet.answers.answer("t", "r1", choose(quiet.read))
+      const idle = Date.now() - began
+      const busy = terminal({ prompting: true, working: true })
+      const started = Date.now()
+      await busy.answers.answer("t", "r1", choose(busy.read))
+      // A still screen settles after six reads' time (30 ms here) with no turn running, and
+      // after fifteen's (75 ms) while one runs. Looks are two polls (10 ms) apart, so they
+      // land at 30 and 80 ms: everything else in the two answers is the same.
+      expect(Date.now() - started - idle).toBe(80 - 30)
+    }))
 })
 
 describe("waiting for an agent's screen to settle before words follow an answer", () => {

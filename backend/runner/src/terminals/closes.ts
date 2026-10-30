@@ -79,7 +79,7 @@ const named = (handle: string, title: string, ran: string | undefined): string =
 
 export const notice = "Novadeck: automatic notice, not from the user: "
 
-/** What the asking agent is told once the person answered, or the ask ended without them. */
+/** What the asking agent is told once the person answered, or the request ended without them. */
 export const closeNotice = {
   confirmed: (handle: string, title: string, ran: string | undefined): string =>
     notice +

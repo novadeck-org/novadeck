@@ -122,55 +122,6 @@ describe("the doorbell's host", () => {
     expect(rings.target("t")).toBeUndefined()
   })
 
-  describe("on an agent found gone", () => {
-    const gone = (binding: Binding | null, alive = false) => {
-      const { running } = record(binding)
-      const w = world(running)
-      const rings = doorbellHost({ ...w.host, alive: () => alive })
-      /** Asks, then runs what was queued. */
-      const ask = () => {
-        rings.agentGone?.("t")
-        const queued = w.tasks.length
-        for (const task of w.tasks.splice(0)) task()
-        return queued
-      }
-      return { ...w, rings, running, ask }
-    }
-
-    it("only queues the end of a bound dead instance's binding, without running it", () => {
-      const { rings, tasks, exits } = gone(bound("claude", "999999999"))
-      rings.agentGone?.("t")
-      expect(tasks).toHaveLength(1)
-      expect(exits).toEqual([])
-    })
-
-    it("ends it when the queue gets to it", () => {
-      const binding = bound("claude", "999999999")
-      const w = gone(binding)
-      expect(w.ask()).toBe(1)
-      expect(w.exits).toEqual([binding])
-    })
-
-    it("queues nothing for a live instance, no instance, a prompt only shown, or a gone terminal", () => {
-      const live = gone(bound("claude", "999999999"), true)
-      const none = gone(bound("claude"))
-      const shown = gone(null)
-      shown.state.shown = "claude"
-      const away = gone(bound("claude", "999999999"))
-      away.state.current = undefined
-      expect([live.ask(), none.ask(), shown.ask(), away.ask()]).toEqual([0, 0, 0, 0])
-      expect([live.exits, none.exits, shown.exits, away.exits]).toEqual([[], [], [], []])
-    })
-
-    it("leaves a binding replaced before the queue got to it", () => {
-      const w = gone(bound("claude", "999999999"))
-      w.rings.agentGone?.("t")
-      ;(w.running as { bound: DoorbellBound | null }).bound = boundTo(bound("codex", "888888888"))
-      for (const task of w.tasks.splice(0)) task()
-      expect(w.exits).toEqual([])
-    })
-  })
-
   it("answers the profile of the agent bound or shown now, as they change", () => {
     const { running } = record()
     const { state, host } = world(running)
@@ -213,6 +164,55 @@ describe("the doorbell's host", () => {
     expect(await typist.ready(look)).toBe("no-input-box")
     state.shown = "claude"
     expect(rings.profile("t")).toBe(harnesses.claude.box)
+  })
+})
+
+describe("the doorbell's host for an agent found gone", () => {
+  const gone = (binding: Binding | null, alive = false) => {
+    const { running } = record(binding)
+    const w = world(running)
+    const rings = doorbellHost({ ...w.host, alive: () => alive })
+    /** Asks, then runs what was queued. */
+    const ask = () => {
+      rings.agentGone?.("t")
+      const queued = w.tasks.length
+      for (const task of w.tasks.splice(0)) task()
+      return queued
+    }
+    return { ...w, rings, running, ask }
+  }
+
+  it("only queues the end of a bound dead instance's binding, without running it", () => {
+    const { rings, tasks, exits } = gone(bound("claude", "999999999"))
+    rings.agentGone?.("t")
+    expect(tasks).toHaveLength(1)
+    expect(exits).toEqual([])
+  })
+
+  it("ends it when the queue gets to it", () => {
+    const binding = bound("claude", "999999999")
+    const w = gone(binding)
+    expect(w.ask()).toBe(1)
+    expect(w.exits).toEqual([binding])
+  })
+
+  it("queues nothing for a live instance, no instance, a prompt only shown, or a gone terminal", () => {
+    const live = gone(bound("claude", "999999999"), true)
+    const none = gone(bound("claude"))
+    const shown = gone(null)
+    shown.state.shown = "claude"
+    const away = gone(bound("claude", "999999999"))
+    away.state.current = undefined
+    expect([live.ask(), none.ask(), shown.ask(), away.ask()]).toEqual([0, 0, 0, 0])
+    expect([live.exits, none.exits, shown.exits, away.exits]).toEqual([[], [], [], []])
+  })
+
+  it("leaves a binding replaced before the queue got to it", () => {
+    const w = gone(bound("claude", "999999999"))
+    w.rings.agentGone?.("t")
+    ;(w.running as { bound: DoorbellBound | null }).bound = boundTo(bound("codex", "888888888"))
+    for (const task of w.tasks.splice(0)) task()
+    expect(w.exits).toEqual([])
   })
 })
 

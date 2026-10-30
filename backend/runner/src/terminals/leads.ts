@@ -306,7 +306,7 @@ export class Leads {
     if (waiting === "nobody") return refused(nobodyToLead)
     const { id, handle, title, sessionId } = led.summary
     const ran = target.agent === null ? undefined : agentLabel(target.agent)
-    host.approvals().ask(
+    host.approvals().request(
       {
         from: caller.summary.id,
         terminalId: id,
@@ -314,14 +314,14 @@ export class Leads {
         action: { type: "lead", brief: message },
       },
       (outcome) => {
-        void this.asked(caller, led, message, seen, outcome).catch(() => undefined)
+        void this.leadRequested(caller, led, message, seen, outcome).catch(() => undefined)
       },
     )
     return { ok: true, asked: true, handle, title, ...(ran !== undefined && { ran }) }
   }
 
   /** The caller hears how its ask to lead went, and the lead forms if the person approved. */
-  private async asked(
+  private async leadRequested(
     caller: Record,
     led: Record,
     brief: string,

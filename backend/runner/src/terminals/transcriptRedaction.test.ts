@@ -219,77 +219,6 @@ describe("masking the secrets in a transcript", () => {
     expect(rows.join("")).not.toMatch(/abcdef|hunter2|SECRET|tail/)
   })
 
-  describe("on a screen with more lines than rows", () => {
-    const tall = async (extra: string, rows = 6) => {
-      const output = `${Array.from({ length: 40 }, (_, i) => `line ${i} 你好`).join("\r\n")}\r\nTOKEN=${token} ${extra}\r\n`
-      const screen = createScreen({ cols: COLS, rows, scrollback: 1000 })
-      await written(screen, output)
-      return { screen, text: transcript(screen, Number.POSITIVE_INFINITY) ?? "" }
-    }
-
-    it("keeps the text's line count, cursor and ending, even with no room to spare", async () => {
-      const { screen, text } = await tall("你好")
-      const lines = screen.buffer.normal.length
-
-      const result = await redactTranscript({
-        text,
-        cols: COLS,
-        rows: 6,
-        lines,
-        maxChars: text.length,
-      })
-
-      expect(text.endsWith("\r\n")).toBe(true)
-      expect(result?.endsWith("\r\n")).toBe(true)
-      expect(result?.length).toBeLessThanOrEqual(text.length)
-      const after = createScreen({ cols: COLS, rows: 6, scrollback: 1000 })
-      await written(after, result ?? "")
-      expect(after.buffer.normal.length).toBe(lines)
-      expect([after.buffer.normal.cursorX, after.buffer.normal.cursorY]).toEqual([
-        screen.buffer.normal.cursorX,
-        screen.buffer.normal.cursorY,
-      ])
-      expect(result).not.toContain("abcdef")
-      // The oldest lines are all there: nothing was cut.
-      expect((await textOf(result ?? "", COLS, 6))[0]).toBe("line 0 你好")
-    })
-
-    it("cuts text larger than the limit as transcript does, to the newest lines", async () => {
-      const { screen, text } = await tall("")
-      const maxChars = Math.floor(text.length / 2)
-
-      const result = await redactTranscript({
-        text,
-        cols: COLS,
-        rows: 6,
-        lines: screen.buffer.normal.length,
-        maxChars,
-      })
-
-      expect(result?.length).toBeLessThanOrEqual(maxChars)
-      expect(result).not.toContain("abcdef")
-      const rows = await textOf(result ?? "", COLS, 6)
-      expect(rows.join("\n")).toContain("TOKEN=*")
-      expect(rows[0]).not.toBe("line 0 你好")
-    })
-
-    it("cuts text with no secret in it that is larger than the limit", async () => {
-      const screen = createScreen({ cols: COLS, rows: 6, scrollback: 1000 })
-      await written(screen, Array.from({ length: 60 }, (_, i) => `line ${i}`).join("\r\n"))
-      const text = transcript(screen, Number.POSITIVE_INFINITY) ?? ""
-
-      const result = await redactTranscript({
-        text,
-        cols: COLS,
-        rows: 6,
-        lines: screen.buffer.normal.length,
-        maxChars: 200,
-      })
-
-      expect(result).toBe(transcript(screen, 200))
-    })
-  })
-
   it("masks a name and value the cut would have split, whatever the limit", async () => {
     // The name ends one row and the value starts the next, at the row the first cut keeps.
     const value = "hunter2SECRETvalue99"
@@ -342,32 +271,103 @@ describe("masking the secrets in a transcript", () => {
     await written(after, result)
     expect(after.buffer.normal.cursorX).toBe(cols)
   })
+})
 
-  describe("the time it takes", () => {
-    it.each(["eyJ", "sk-", "-hf_"])(
-      "is well under the deadline for 1000 lines of scrollback of %s on 500 columns",
-      { timeout: 60_000 },
-      async (unit) => {
-        const cols = 500
-        const rows = 100
-        const screen = createScreen({ cols, rows, scrollback: 1000 })
-        await written(screen, unit.repeat(Math.floor((cols * (1000 + rows)) / unit.length)))
-        const text = transcript(screen, Number.POSITIVE_INFINITY) ?? ""
-        const started = process.cpuUsage()
+describe("masking the secrets in a transcript of a screen with more lines than rows", () => {
+  const tall = async (extra: string, rows = 6) => {
+    const output = `${Array.from({ length: 40 }, (_, i) => `line ${i} 你好`).join("\r\n")}\r\nTOKEN=${token} ${extra}\r\n`
+    const screen = createScreen({ cols: COLS, rows, scrollback: 1000 })
+    await written(screen, output)
+    return { screen, text: transcript(screen, Number.POSITIVE_INFINITY) ?? "" }
+  }
 
-        const result = await redactTranscript({
-          text,
-          cols,
-          rows,
-          lines: screen.buffer.normal.length,
-          maxChars: 256 * 1024,
-        })
+  it("keeps the text's line count, cursor and ending, even with no room to spare", async () => {
+    const { screen, text } = await tall("你好")
+    const lines = screen.buffer.normal.length
 
-        const { user, system } = process.cpuUsage(started)
-        expect(result.length).toBeLessThanOrEqual(256 * 1024)
-        // 1.3 s here, 5.4 s when each row went over the same run again; the deadline is 6 s.
-        expect((user + system) / 1000).toBeLessThan(4000)
-      },
-    )
+    const result = await redactTranscript({
+      text,
+      cols: COLS,
+      rows: 6,
+      lines,
+      maxChars: text.length,
+    })
+
+    expect(text.endsWith("\r\n")).toBe(true)
+    expect(result?.endsWith("\r\n")).toBe(true)
+    expect(result?.length).toBeLessThanOrEqual(text.length)
+    const after = createScreen({ cols: COLS, rows: 6, scrollback: 1000 })
+    await written(after, result ?? "")
+    expect(after.buffer.normal.length).toBe(lines)
+    expect([after.buffer.normal.cursorX, after.buffer.normal.cursorY]).toEqual([
+      screen.buffer.normal.cursorX,
+      screen.buffer.normal.cursorY,
+    ])
+    expect(result).not.toContain("abcdef")
+    // The oldest lines are all there: nothing was cut.
+    expect((await textOf(result ?? "", COLS, 6))[0]).toBe("line 0 你好")
   })
+
+  it("cuts text larger than the limit as transcript does, to the newest lines", async () => {
+    const { screen, text } = await tall("")
+    const maxChars = Math.floor(text.length / 2)
+
+    const result = await redactTranscript({
+      text,
+      cols: COLS,
+      rows: 6,
+      lines: screen.buffer.normal.length,
+      maxChars,
+    })
+
+    expect(result?.length).toBeLessThanOrEqual(maxChars)
+    expect(result).not.toContain("abcdef")
+    const rows = await textOf(result ?? "", COLS, 6)
+    expect(rows.join("\n")).toContain("TOKEN=*")
+    expect(rows[0]).not.toBe("line 0 你好")
+  })
+
+  it("cuts text with no secret in it that is larger than the limit", async () => {
+    const screen = createScreen({ cols: COLS, rows: 6, scrollback: 1000 })
+    await written(screen, Array.from({ length: 60 }, (_, i) => `line ${i}`).join("\r\n"))
+    const text = transcript(screen, Number.POSITIVE_INFINITY) ?? ""
+
+    const result = await redactTranscript({
+      text,
+      cols: COLS,
+      rows: 6,
+      lines: screen.buffer.normal.length,
+      maxChars: 200,
+    })
+
+    expect(result).toBe(transcript(screen, 200))
+  })
+})
+
+describe("masking the secrets in a transcript, and the time it takes", () => {
+  it.each(["eyJ", "sk-", "-hf_"])(
+    "is well under the deadline for 1000 lines of scrollback of %s on 500 columns",
+    { timeout: 60_000 },
+    async (unit) => {
+      const cols = 500
+      const rows = 100
+      const screen = createScreen({ cols, rows, scrollback: 1000 })
+      await written(screen, unit.repeat(Math.floor((cols * (1000 + rows)) / unit.length)))
+      const text = transcript(screen, Number.POSITIVE_INFINITY) ?? ""
+      const started = process.cpuUsage()
+
+      const result = await redactTranscript({
+        text,
+        cols,
+        rows,
+        lines: screen.buffer.normal.length,
+        maxChars: 256 * 1024,
+      })
+
+      const { user, system } = process.cpuUsage(started)
+      expect(result.length).toBeLessThanOrEqual(256 * 1024)
+      // 1.3 s here, 5.4 s when each row went over the same run again; the deadline is 6 s.
+      expect((user + system) / 1000).toBeLessThan(4000)
+    },
+  )
 })

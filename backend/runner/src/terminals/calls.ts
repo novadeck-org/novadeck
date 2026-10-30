@@ -407,7 +407,7 @@ export class Calls {
    * still waiting for it are gone. The caller's own terminal closes a moment after the
    * answer. A teammate the caller leads, and a terminal that runs no agent, close at
    * once; any other terminal that runs an agent closes only if the person confirms (see
-   * `askToClose`). A handle not there is refused with every terminal there described. A
+   * `requestClose`). A handle not there is refused with every terminal there described. A
    * chain of terminals' agents close a few at most each minute, and all agents a few
    * more. A call without the shell's own token learns nothing more.
    */
@@ -448,7 +448,7 @@ export class Calls {
     this.closed.set(charged, times)
     this.allClosed = all
     const { agent } = target
-    if (way === "request") return this.askToClose(record, closing, agent)
+    if (way === "request") return this.requestClose(record, closing, agent)
     const others = this.host.messaging().waitingFor(target.terminalId, call.terminalId)
     // The runner began to stop meanwhile: the terminal is closed all the same, but the
     // caller is going too.
@@ -502,22 +502,22 @@ export class Calls {
    * terminal that runs an agent the caller doesn't lead. The call doesn't wait for them:
    * it answers `asked` at once, and the caller hears the outcome as a notice.
    */
-  private askToClose(caller: Record, closing: Record, agent: AgentName | null): CloseAnswer {
+  private requestClose(caller: Record, closing: Record, agent: AgentName | null): CloseAnswer {
     const { id, handle, title, sessionId } = closing.summary
     const ran = agent === null ? undefined : agentLabel(agent)
     this.host
       .approvals()
-      .ask(
+      .request(
         { from: caller.summary.id, terminalId: id, sessionId, action: { type: "close" } },
         (outcome) => {
-          void this.closeAsked(caller.summary.id, closing, ran, outcome).catch(() => undefined)
+          void this.closeRequested(caller.summary.id, closing, ran, outcome).catch(() => undefined)
         },
       )
     return { ok: true, asked: true, handle, title, ...(ran !== undefined && { ran }) }
   }
 
   /** The caller hears how its request to close a terminal went. */
-  private async closeAsked(
+  private async closeRequested(
     callerId: string,
     closing: Record,
     ran: string | undefined,

@@ -54,14 +54,14 @@ export class Approvals {
   >()
 
   /**
-   * The asks sent to `owner`'s client, until `signal` aborts, the owner is released, or the
+   * The requests sent to `owner`'s client, until `signal` aborts, the owner is released, or the
    * runner shuts down. Those still waiting once it ends are settled as `gone`.
    */
   follow(owner: string, signal?: AbortSignal): AsyncGenerator<Approval> {
     return this.followers.follow(owner, (each) => this.abandon(each), signal)
   }
 
-  /** Why no ask can be made for `terminalId` now; undefined when one can. */
+  /** Why no request can be made for `terminalId` now; undefined when one can. */
   refusal(terminalId: string): "nobody" | "waiting" | undefined {
     if ([...this.pending.values()].some((waiting) => waiting.terminalId === terminalId))
       return "waiting"
@@ -69,12 +69,12 @@ export class Approvals {
   }
 
   /**
-   * Sends the newest client the ask for `from` to do `action` to `terminalId`, in
+   * Sends the newest client the request for `from` to do `action` to `terminalId`, in
    * `sessionId`; `settled` hears how it went, once. Call `refusal` first: with no client, or one
    * already waiting for `terminalId`, nothing is sent and `settled` hears `gone`.
    */
-  ask(
-    ask: {
+  request(
+    item: {
       readonly from: string
       readonly terminalId: string
       readonly sessionId: string
@@ -83,12 +83,12 @@ export class Approvals {
     settled: (outcome: ApprovalOutcome) => void,
   ): void {
     const follower = this.followers.newest()
-    if (!follower || this.refusal(ask.terminalId)) return settled("gone")
+    if (!follower || this.refusal(item.terminalId)) return settled("gone")
     const requestId = randomUUID()
     this.pending.set(requestId, {
       owner: follower.owner,
-      from: ask.from,
-      terminalId: ask.terminalId,
+      from: item.from,
+      terminalId: item.terminalId,
       settle: (outcome) => {
         this.pending.delete(requestId)
         // The client may still show it: take it back.
@@ -97,7 +97,7 @@ export class Approvals {
         settled(outcome)
       },
     })
-    follower.push({ type: "ask", requestId, ...ask })
+    follower.push({ type: "ask", requestId, ...item })
   }
 
   /** The client's answer; NOT_FOUND once nothing waits for it from this client. */
@@ -107,7 +107,7 @@ export class Approvals {
     waiting.settle(answer.approved ? "confirmed" : "declined")
   }
 
-  /** Takes back the asks that name `terminalId`, as the asker or the target, as it closes. */
+  /** Takes back the requests that name `terminalId`, as the asker or the target, as it closes. */
   withdraw(terminalId: string): void {
     for (const waiting of this.pending.values())
       if (waiting.from === terminalId || waiting.terminalId === terminalId)
