@@ -1,8 +1,6 @@
-import { createHmac } from "node:crypto"
+import { digest, nameHasher, type PathRule } from "./paths.js"
 
-import { nameHasher, type PathRule } from "./paths.js"
-
-/** What `hashUrls` keeps readable, besides what `hashPaths` needs. */
+/** What `urlHasher` keeps readable, besides what `pathHasher` needs. */
 export type UrlRule = PathRule & {
   /**
    * Addresses that stay readable whole, by host (`novadeck.dev`), host and its subdomains
@@ -15,9 +13,9 @@ export type UrlRule = PathRule & {
 }
 
 /** Hosts many people use, named as they are: the forge of a failed clone says something. */
-export const publicForges: readonly string[] = ["github.com", "gitlab.com", "bitbucket.org"]
+const publicForges: readonly string[] = ["github.com", "gitlab.com", "bitbucket.org"]
 
-// An address of any kind but `file://`, which `hashPaths` takes: scheme, user, host, port,
+// An address of any kind but `file://`, which `pathHasher` takes: scheme, user, host, port,
 // path, query and fragment.
 const urlPattern =
   /\b(?<scheme>(?!file:)[a-z][a-z0-9+.-]*):\/\/(?<user>[^\s/@'"]*@)?(?<host>\[[0-9a-f:]+\]|[^\s/:?#'"<>()[\]\\]+)(?<port>:\d+)?(?<path>\/[^\s?#'"<>()[\]\\]*)?(?<query>\?[^\s#'"()[\]\\]*)?(?<fragment>#[^\s'"()[\]\\]*)?/gi
@@ -42,14 +40,14 @@ const forgePathPattern =
 const fileHostPattern = /\bfile:\/\/(?!\/)([^\s/'"<>()]+)(\/[^\s'"<>()]*)?/gi
 
 /**
- * Hashes what an address could say of the person: on hosts the app doesn't name, the host
+ * A hasher for what an address could say of the person: on hosts the app doesn't name, the host
  * (keeping its top-level domain: `git.acme.corp` becomes `#1a2b3c4d.corp`), the path's
  * names, and the query and fragment, which are dropped. Readable addresses (`readableUrls`)
  * stay whole; public forges and the loopback keep their host, their paths hashed. A
  * remote's user is kept only when it is `git`. A host Node's network errors name bare is
  * hashed as an address's is.
  */
-export const hashUrls = (text: string, rule: UrlRule): string => {
+export const urlHasher = (rule: UrlRule): ((text: string) => string) => {
   const hash = nameHasher(rule)
   const forges = new Set((rule.publicHosts ?? publicForges).map((host) => host.toLowerCase()))
   const readable = (rule.readableUrls ?? []).map((entry) => entry.toLowerCase())
@@ -71,8 +69,8 @@ export const hashUrls = (text: string, rule: UrlRule): string => {
     if (loopback.test(lower) || forges.has(lower)) return host
     const labels = lower.split(".")
     const top = labels.length > 1 && /^[a-z]{2,}$/.test(labels.at(-1) ?? "") ? labels.at(-1) : ""
-    const digest = createHmac("sha256", rule.salt).update(lower).digest("hex").slice(0, 8)
-    return top ? `#${digest}.${top}` : `#${digest}`
+    const hashed = `#${digest(rule.salt, lower)}`
+    return top ? `${hashed}.${top}` : hashed
   }
 
   const writePath = (path: string): string =>
@@ -81,43 +79,47 @@ export const hashUrls = (text: string, rule: UrlRule): string => {
       .map((segment) => (segment === "" ? segment : hash(segment, false)))
       .join("/")
 
-  const remotes = text.replace(remotePattern, (match, ...args: unknown[]) => {
-    const { user, host, path } = args.at(-1) as { user: string; host: string; path: string }
-    if (isReadable(host.toLowerCase(), `/${path}`)) return match
-    const who = user === "git" ? user : "<redacted>"
-    return `${who}@${writeHost(host)}:${writePath(path)}`
-  })
+  return (text) => {
+    const remotes = text.replace(remotePattern, (match, ...args: unknown[]) => {
+      const { user, host, path } = args.at(-1) as { user: string; host: string; path: string }
+      if (isReadable(host.toLowerCase(), `/${path}`)) return match
+      const who = user === "git" ? user : "<redacted>"
+      return `${who}@${writeHost(host)}:${writePath(path)}`
+    })
 
-  const hosts = remotes.replace(errorHostPattern, (match, code: string, host: string, port = "") =>
-    isReadable(host.toLowerCase(), "") ? match : `${code} ${writeHost(host)}${port}`,
-  )
-
-  const bare = hosts
-    .replace(forgePathPattern, (match, host: string, path: string) =>
-      isReadable(host.toLowerCase(), path) ? match : `${host}${writePath(path)}`,
-    )
-    .replace(
-      fileHostPattern,
-      (match, host: string, path = "") => `file://${writeHost(host)}${writePath(path)}`,
+    const hosts = remotes.replace(
+      errorHostPattern,
+      (match, code: string, host: string, port = "") =>
+        isReadable(host.toLowerCase(), "") ? match : `${code} ${writeHost(host)}${port}`,
     )
 
-  return bare.replace(urlPattern, (match, ...args: unknown[]) => {
-    const groups = args.at(-1) as Record<string, string | undefined>
-    const { scheme = "", user = "", host = "", port = "" } = groups
-    // Punctuation that ends a sentence ends the address.
-    const tail = /[.,;:!?]+$/.exec(match)?.[0] ?? ""
-    const strip = (part: string | undefined): string =>
-      part && tail && match.endsWith(part) ? part.slice(0, -tail.length) : (part ?? "")
-    const path = strip(groups.path)
-    const query = strip(groups.query)
-    const fragment = strip(groups.fragment)
-    // A readable address keeps its path, not what it asked or pointed at; so does the
-    // loopback's, which serves the app's own page and its scripts, as its stack frames name.
-    if (isReadable(host.toLowerCase(), path) || loopback.test(host))
-      return `${scheme}://${user}${host}${port}${path}${query ? "?…" : ""}${fragment ? "#…" : ""}${tail}`
-    return (
-      `${scheme}://${user}${writeHost(host)}${port}${writePath(path)}` +
-      `${query ? "?…" : ""}${fragment ? "#…" : ""}${tail}`
-    )
-  })
+    const bare = hosts
+      .replace(forgePathPattern, (match, host: string, path: string) =>
+        isReadable(host.toLowerCase(), path) ? match : `${host}${writePath(path)}`,
+      )
+      .replace(
+        fileHostPattern,
+        (match, host: string, path = "") => `file://${writeHost(host)}${writePath(path)}`,
+      )
+
+    return bare.replace(urlPattern, (match, ...args: unknown[]) => {
+      const groups = args.at(-1) as Record<string, string | undefined>
+      const { scheme = "", user = "", host = "", port = "" } = groups
+      // Punctuation that ends a sentence ends the address.
+      const tail = /[.,;:!?]+$/.exec(match)?.[0] ?? ""
+      const strip = (part: string | undefined): string =>
+        part && tail && match.endsWith(part) ? part.slice(0, -tail.length) : (part ?? "")
+      const path = strip(groups.path)
+      const query = strip(groups.query)
+      const fragment = strip(groups.fragment)
+      // A readable address keeps its path, not what it asked or pointed at; so does the
+      // loopback's, which serves the app's own page and its scripts, as its stack frames name.
+      if (isReadable(host.toLowerCase(), path) || loopback.test(host))
+        return `${scheme}://${user}${host}${port}${path}${query ? "?…" : ""}${fragment ? "#…" : ""}${tail}`
+      return (
+        `${scheme}://${user}${writeHost(host)}${port}${writePath(path)}` +
+        `${query ? "?…" : ""}${fragment ? "#…" : ""}${tail}`
+      )
+    })
+  }
 }
