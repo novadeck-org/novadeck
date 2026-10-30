@@ -1,4 +1,4 @@
-import { terminalKeyPath } from "@novadeck/core/items"
+import { terminalKeyPath } from "@novadeck/core/types"
 import type { TerminalMessages } from "@novadeck/protocol"
 import { vi } from "vitest"
 

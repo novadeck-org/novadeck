@@ -1,4 +1,3 @@
-import { terminalKeyPath } from "@novadeck/core/items"
 import {
   noMessages,
   type MessageParty as CoreParty,
@@ -7,7 +6,7 @@ import {
   type TerminalThreads,
 } from "@novadeck/core/messages"
 import { createStore } from "@novadeck/core/store"
-import type { TerminalKey } from "@novadeck/core/types"
+import { type TerminalKey, terminalKeyPath } from "@novadeck/core/types"
 import type { MessageParty, TerminalMessages } from "@novadeck/protocol"
 
 // The runner's messages between agents: each terminal's threads as `messages.watch`

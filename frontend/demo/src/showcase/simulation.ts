@@ -1,5 +1,4 @@
 import {
-  terminalKeyPath,
   itemIdOf,
   notesIn,
   PlanUnwritableError,
@@ -11,7 +10,12 @@ import {
   type PlanVersion,
 } from "@novadeck/core/items"
 import type { BackendAction } from "@novadeck/core/port"
-import type { CompanionWindowMeta, TerminalKey, WorkspaceTarget } from "@novadeck/core/types"
+import {
+  type CompanionWindowMeta,
+  type TerminalKey,
+  type WorkspaceTarget,
+  terminalKeyPath,
+} from "@novadeck/core/types"
 
 import type { SampleAgent } from "./agents"
 import type { SampleArtifact } from "./artifacts"

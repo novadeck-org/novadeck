@@ -1,9 +1,9 @@
-import { terminalKeyPath } from "@novadeck/core/items"
 import { messagesKey } from "@novadeck/core/items/companion-bar"
 import { noMessages, type MessageParty, type MessagesState } from "@novadeck/core/messages"
 import { activeSession } from "@novadeck/core/state"
 import { createStore, createWorkspaceStore } from "@novadeck/core/store"
 import { workspaceFixture } from "@novadeck/core/testing"
+import { terminalKeyPath } from "@novadeck/core/types"
 import { afterEach } from "vitest"
 
 import { describe, expect, it } from "../../../test"

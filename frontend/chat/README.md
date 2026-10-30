@@ -16,7 +16,7 @@ and the chat's own store and commands.
   project, a layout or the companion pane.
 - **It is a renderer over a conversation's items.** The items and their grouping into blocks
   are core's (`conversation`, `conversation/turns`), and the rules for what an answer is are
-  core's `conversation/answers`. The package draws them, and `Markdown` is the toolkit's.
+  core's `conversation/picks`. The package draws them, and `Markdown` is the toolkit's.
 - **State is the chat's own store** (`state.ts`): `createChat` gives the drafts, the held
   replies, the sends in flight and the terminals shown as their screen while answered there,
   with their pure updates and selectors (`chatShown`, `chatDraftOf`, `chatReplyOf`,

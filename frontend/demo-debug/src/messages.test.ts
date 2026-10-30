@@ -1,4 +1,4 @@
-import { terminalKeyPath } from "@novadeck/core/items"
+import { terminalKeyPath } from "@novadeck/core/types"
 import { checkoutMessages, createDemoMessages } from "@novadeck/demo/messages"
 
 import { messageGroups } from "./messages"

@@ -11,19 +11,19 @@ import {
   type InboxTurn,
 } from "@novadeck/core/inbox"
 import {
+  dialogMs,
+  inboxRows,
+  type Asked,
+  type InboxEntry as AskEntry,
+} from "@novadeck/core/inbox/rows"
+import {
   answerFailure,
   answerRow,
   createInboxTracker,
   isTurnRow,
   keepInbox,
   keyOf,
-} from "@novadeck/core/inbox/answers"
-import {
-  dialogMs,
-  inboxRows,
-  type Asked,
-  type InboxEntry as AskEntry,
-} from "@novadeck/core/inbox/rows"
+} from "@novadeck/core/inbox/tracker"
 import type { MessagesState } from "@novadeck/core/messages"
 import { createStore, type Store } from "@novadeck/core/store"
 import type { TerminalKey, TerminalMetadata, Workspace } from "@novadeck/core/types"

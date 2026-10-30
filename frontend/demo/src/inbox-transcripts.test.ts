@@ -1,6 +1,6 @@
 import { agentContext, answersOf } from "@novadeck/core/agents/steps"
 import type { InboxRow } from "@novadeck/core/inbox"
-import { terminalKeyPath } from "@novadeck/core/items"
+import { terminalKeyPath } from "@novadeck/core/types"
 
 import { demoInboxIds } from "./inbox-fixtures"
 import { plainDemo } from "./index"

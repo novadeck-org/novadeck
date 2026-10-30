@@ -1,5 +1,5 @@
-import { terminalKeyPath } from "@novadeck/core/items"
 import { messageBadge, type MessageParty } from "@novadeck/core/messages"
+import { terminalKeyPath } from "@novadeck/core/types"
 import { afterEach, vi } from "vitest"
 
 import { createDemoInbox } from "./inbox"

@@ -16,7 +16,7 @@ import {
   reconcile,
   write,
   type Picks,
-} from "@novadeck/core/conversation/answers"
+} from "@novadeck/core/conversation/picks"
 import {
   controlHint,
   hasControlCharacters,

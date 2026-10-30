@@ -1,5 +1,5 @@
-import { terminalKeyPath } from "@novadeck/core/items"
 import type { MessagesState } from "@novadeck/core/messages"
+import { terminalKeyPath } from "@novadeck/core/types"
 import { checkoutMessages, createDemoMessages } from "@novadeck/demo/messages"
 
 import { doorbellGroups } from "./doorbell"

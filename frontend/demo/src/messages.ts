@@ -1,5 +1,4 @@
 import type { AgentAsk, InboxAnswer, InboxRow } from "@novadeck/core/inbox"
-import { terminalKeyPath } from "@novadeck/core/items"
 import {
   noMessages,
   type AgentMessage,
@@ -12,7 +11,7 @@ import {
   type TerminalThreads,
 } from "@novadeck/core/messages"
 import { createStore } from "@novadeck/core/store"
-import type { WorkspaceTarget } from "@novadeck/core/types"
+import { type WorkspaceTarget, terminalKeyPath } from "@novadeck/core/types"
 
 import { demoTerminalId } from "./samples"
 

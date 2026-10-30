@@ -1,4 +1,4 @@
-import type { ArtifactKind, Item } from "@novadeck/core/items"
+import type { ShownKind, Item } from "@novadeck/core/items"
 import { itemFixture } from "@novadeck/core/testing"
 import {
   BookText,
@@ -14,7 +14,7 @@ import { context, describe, expect, it } from "../../test"
 import { windowProfile } from "./profiles"
 
 // What a window's icon was before it read the items package's registry.
-const kindIcons: Record<ArtifactKind, LucideIcon> = {
+const kindIcons: Record<ShownKind, LucideIcon> = {
   image: Image,
   file: FileCode2,
   page: Globe,

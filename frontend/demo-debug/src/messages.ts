@@ -1,5 +1,5 @@
-import { terminalKeyPath } from "@novadeck/core/items"
 import type { Backend, TerminalKey } from "@novadeck/core/port"
+import { terminalKeyPath } from "@novadeck/core/types"
 import { isDemoMessages, type DemoMessages } from "@novadeck/demo/messages"
 
 import type { DemoActionGroup } from "./types"

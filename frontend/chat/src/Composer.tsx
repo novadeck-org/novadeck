@@ -1,5 +1,5 @@
 import { SettleInTerminal } from "@novadeck/core/conversation"
-import { oneLine } from "@novadeck/core/conversation/answers"
+import { oneLine } from "@novadeck/core/conversation/picks"
 import {
   controlHint,
   hasControlCharacters,

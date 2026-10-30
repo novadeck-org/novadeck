@@ -9,7 +9,7 @@ import {
   createInboxTracker,
   keepInbox,
   type InboxActions,
-} from "./answers"
+} from "./tracker"
 
 const source = {
   projectId: "p",

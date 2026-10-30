@@ -271,3 +271,17 @@ export type WorkspaceTarget = { projectId: string; workspaceSessionId: string }
 
 // A terminal in a workspace session: what a backend and the UI name one by.
 export type TerminalKey = WorkspaceTarget & { readonly terminalId: string }
+
+// A terminal's key as one string, `project/session/terminal`: what the items and messages
+// a backend keeps by terminal are filed under.
+export const terminalKeyPath = ({
+  projectId,
+  workspaceSessionId,
+  terminalId,
+}: TerminalKey): string => `${projectId}/${workspaceSessionId}/${terminalId}`
+
+// The terminal a `terminalKeyPath` names. Its ids hold no slashes.
+export const terminalKeyOfPath = (id: string): TerminalKey => {
+  const [projectId = "", workspaceSessionId = "", terminalId = ""] = id.split("/")
+  return { projectId, workspaceSessionId, terminalId }
+}

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "../test"
 import type { AgentUsage } from "../types"
-import { agentStats } from "./window-stats"
+import { agentStats } from "./stats"
 
 const codex: AgentUsage = {
   context: { occupied: 30_000, capacity: 200_000 },

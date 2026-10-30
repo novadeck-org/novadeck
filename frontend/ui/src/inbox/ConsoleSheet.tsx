@@ -6,7 +6,7 @@ import {
   questionsAnswer,
   write,
   type Picks,
-} from "@novadeck/core/conversation/answers"
+} from "@novadeck/core/conversation/picks"
 import type { HeldMessage, InboxRow, Trouble } from "@novadeck/core/inbox"
 import { unsaidWaits, waitsText } from "@novadeck/core/messages"
 import { HandleChip } from "@novadeck/toolkit/HandleChip"

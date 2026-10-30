@@ -1,15 +1,15 @@
-import { terminalKeyPath } from "@novadeck/core/items"
 import { gridColumns } from "@novadeck/core/layout/grid-placement"
 import type { Backend, BackendSink, TerminalKey } from "@novadeck/core/port"
 import { viewOf } from "@novadeck/core/seed"
 import { createTerminalState } from "@novadeck/core/state"
-import type {
-  AgentStatus,
-  CanvasLayout,
-  GridBreakpoint,
-  GridLayouts,
-  TerminalMetadata,
-  Workspace,
+import {
+  type AgentStatus,
+  type CanvasLayout,
+  type GridBreakpoint,
+  type GridLayouts,
+  type TerminalMetadata,
+  type Workspace,
+  terminalKeyPath,
 } from "@novadeck/core/types"
 
 import { createDemoEngine } from "./engine"

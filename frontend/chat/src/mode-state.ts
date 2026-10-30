@@ -1,5 +1,5 @@
 import type { ChatAnswer, ChatRequest } from "@novadeck/core/conversation"
-import { chatAnswer, oneLine } from "@novadeck/core/conversation/answers"
+import { chatAnswer, oneLine } from "@novadeck/core/conversation/picks"
 import { shellCommand } from "@novadeck/core/conversation/prompt-refusal"
 import { isAgentProgram } from "@novadeck/core/terminals/process"
 import type { TerminalMetadata } from "@novadeck/core/types"

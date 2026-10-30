@@ -10,7 +10,6 @@ import {
   type InboxSource,
   type InboxTurn,
 } from "../inbox"
-import { terminalKeyPath } from "../items"
 import {
   waitingFor,
   type AgentMessage,
@@ -21,7 +20,13 @@ import {
   type TerminalThreads,
 } from "../messages"
 import { isAgentProgram } from "../terminals/process"
-import type { TerminalMetadata, Workspace, WorkspaceProject, WorkspaceSession } from "../types"
+import {
+  type TerminalMetadata,
+  type Workspace,
+  type WorkspaceProject,
+  type WorkspaceSession,
+  terminalKeyPath,
+} from "../types"
 import { second } from "../units"
 
 // The Inbox's rows, as a backend that builds them from the app's own state derives them:

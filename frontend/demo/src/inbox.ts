@@ -13,14 +13,14 @@ import {
   type InboxState,
   type InboxTurn,
 } from "@novadeck/core/inbox"
+import { dialogMs, inboxRows, type Asked, type InboxEntry } from "@novadeck/core/inbox/rows"
 import {
   answerRow,
   createInboxTracker,
   isTurnRow,
   keepInbox,
   keyOf,
-} from "@novadeck/core/inbox/answers"
-import { dialogMs, inboxRows, type Asked, type InboxEntry } from "@novadeck/core/inbox/rows"
+} from "@novadeck/core/inbox/tracker"
 import { noMessages, type InboxHistory, type Messages } from "@novadeck/core/messages"
 import { createStore, type Store } from "@novadeck/core/store"
 import { terminalKeyId } from "@novadeck/core/terminals/registry"

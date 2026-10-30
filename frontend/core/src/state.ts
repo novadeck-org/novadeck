@@ -25,7 +25,7 @@ import {
   upsertWindow,
   barOf,
   withBar,
-} from "./items/state"
+} from "./items/transitions"
 import {
   emptyLayout,
   placeTerminal,

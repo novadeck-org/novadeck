@@ -15,7 +15,7 @@ import {
   reconcile,
   write,
   type Picks,
-} from "./answers"
+} from "./picks"
 
 const question = (overrides: Partial<ChatQuestion> = {}): ChatQuestion => ({
   id: "q1",

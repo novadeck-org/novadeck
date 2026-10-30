@@ -1,5 +1,5 @@
 import { WordsLost, type ChatAnswer, type Conversation } from "@novadeck/core/conversation"
-import { wordsOf } from "@novadeck/core/conversation/answers"
+import { wordsOf } from "@novadeck/core/conversation/picks"
 import { shellCommand, type Refused } from "@novadeck/core/conversation/prompt-refusal"
 import { agentName, groupItems, recordsShell, turnStatus } from "@novadeck/core/conversation/turns"
 import type { Store } from "@novadeck/core/store"

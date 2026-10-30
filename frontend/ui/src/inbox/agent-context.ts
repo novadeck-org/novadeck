@@ -6,8 +6,8 @@ import {
 } from "@novadeck/core/agents/steps"
 import type { Conversation, Conversations } from "@novadeck/core/conversation"
 import type { InboxRow } from "@novadeck/core/inbox"
-import { terminalKeyPath } from "@novadeck/core/items"
 import type { Messages, TerminalThreads } from "@novadeck/core/messages"
+import { terminalKeyPath } from "@novadeck/core/types"
 import {
   createContext,
   createElement,

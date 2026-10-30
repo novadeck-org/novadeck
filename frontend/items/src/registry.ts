@@ -1,4 +1,4 @@
-import type { ArtifactKind, Item, ItemKind } from "@novadeck/core/items"
+import type { ShownKind, Item, ItemKind } from "@novadeck/core/items"
 import type { LucideIcon } from "lucide-react"
 
 import { changes } from "./kinds/changes"
@@ -17,10 +17,8 @@ export const registry = { image, file, page, changes, plan } satisfies Registry
 export const registrationOf = (item: Pick<Item, "kind">): ItemRegistration => registry[item.kind]
 
 // An artifact's icon: its kind's, or a document's for a markdown file.
-export const iconOf = (artifact: {
-  readonly kind: ArtifactKind
-  readonly name: string
-}): LucideIcon => registry[artifact.kind].icon(artifact)
+export const iconOf = (artifact: { readonly kind: ShownKind; readonly name: string }): LucideIcon =>
+  registry[artifact.kind].icon(artifact)
 
 // How an item looks: its icon, its name as a peek and a menu say it, and how its button
 // reads to assistive technology.

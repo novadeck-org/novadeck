@@ -1,4 +1,4 @@
-import type { ArtifactKind, ItemKind } from "@novadeck/core/items"
+import type { ShownKind, ItemKind } from "@novadeck/core/items"
 import { BookText, FileCode2, GitCompare, Globe, Image, type LucideIcon } from "lucide-react"
 
 import type { StackKind } from "./bar"
@@ -7,14 +7,14 @@ import { context, describe, expect, it } from "./test"
 
 // What the icons and names were before the registry, as the switches wrote them. The
 // registry must give the same.
-const oldKindIcons: Record<ArtifactKind, LucideIcon> = {
+const oldKindIcons: Record<ShownKind, LucideIcon> = {
   image: Image,
   file: FileCode2,
   page: Globe,
   changes: GitCompare,
 }
 const oldIsMarkdown = (path: string): boolean => /\.(md|markdown)$/i.test(path)
-const oldIconOf = (artifact: { kind: ArtifactKind; name: string }): LucideIcon =>
+const oldIconOf = (artifact: { kind: ShownKind; name: string }): LucideIcon =>
   artifact.kind === "file" && oldIsMarkdown(artifact.name) ? BookText : oldKindIcons[artifact.kind]
 const oldStackNames: Record<StackKind, { one: string; many: string }> = {
   plan: { one: "plan", many: "Plans" },

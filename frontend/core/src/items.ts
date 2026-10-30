@@ -1,5 +1,5 @@
 import { pageKey } from "./items/pages"
-import type { CompanionWindowMeta, TerminalKey, WorkspaceTarget } from "./types"
+import type { CompanionWindowMeta, WorkspaceTarget } from "./types"
 
 // What agents put in front of the person beside their terminals: the plans they write,
 // and images, project files and preview-browser pages they show. A backend reports
@@ -7,21 +7,9 @@ import type { CompanionWindowMeta, TerminalKey, WorkspaceTarget } from "./types"
 // implements this with sample agents; a runner reports the same from the agents' own
 // files and hooks, and from what they present through Novadeck's MCP server.
 
-// A terminal's key as one string, `project/session/terminal`: what the items and messages
-// a backend keeps by terminal are filed under.
-export const terminalKeyPath = ({
-  projectId,
-  workspaceSessionId,
-  terminalId,
-}: TerminalKey): string => `${projectId}/${workspaceSessionId}/${terminalId}`
-
-// The terminal a `terminalKeyPath` names. Its ids hold no slashes.
-export const terminalKeyOfPath = (id: string): TerminalKey => {
-  const [projectId = "", workspaceSessionId = "", terminalId = ""] = id.split("/")
-  return { projectId, workspaceSessionId, terminalId }
-}
-
-export type ArtifactKind = "image" | "file" | "page" | "changes"
+// The kinds an agent shows (with `show`) or the person attaches: each points at a file, a
+// page or a change. A plan is the one kind an agent writes rather than shows.
+export type ShownKind = "image" | "file" | "page" | "changes"
 
 // What an agent showed or the person attached, as the backend keeps it: a pointer to a
 // file or page, never a copy, held by exactly one terminal's bar or one undocked window.
@@ -35,7 +23,7 @@ export const itemIdOf = (id: string): ItemId => id as ItemId
 // Who holds the item: a terminal's bar, or a window of its own.
 export type ItemHolder = { readonly terminalId: string } | { readonly windowId: string }
 
-export type ItemKind = ArtifactKind | "plan"
+export type ItemKind = ShownKind | "plan"
 
 export type Item = {
   readonly id: ItemId

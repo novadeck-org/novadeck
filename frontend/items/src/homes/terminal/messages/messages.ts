@@ -1,4 +1,3 @@
-import { terminalKeyPath, terminalKeyOfPath } from "@novadeck/core/items"
 import { messagesKey } from "@novadeck/core/items/companion-bar"
 import {
   hasMessages,
@@ -13,7 +12,7 @@ import {
 } from "@novadeck/core/messages"
 import type { WorkspaceAction } from "@novadeck/core/state"
 import type { Store, WorkspaceStore } from "@novadeck/core/store"
-import type { TerminalKey } from "@novadeck/core/types"
+import { type TerminalKey, terminalKeyPath, terminalKeyOfPath } from "@novadeck/core/types"
 import { useSyncExternalStore } from "react"
 
 import { markSeen, seenAt, seenKey, seenStore } from "./seen"
