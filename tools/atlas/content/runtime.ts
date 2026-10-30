@@ -99,7 +99,7 @@ export const runtime: {
       summary:
         "Where updates and the engine archives come from: electron-updater checks the repository's releases, and the runner downloads the engines from the release of the running version.",
       anchor: {
-        file: "apps/desktop/src/main/update-release.ts",
+        file: "apps/desktop/src/main/release/repository.ts",
         text: "export const releaseDownloadsUrl",
       },
       position: { x: 40, y: 640 },

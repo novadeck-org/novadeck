@@ -43,37 +43,37 @@ export const saveBeforeQuitChannel = "novadeck:save-before-quit"
 
 /**
  * Renderer-to-main report of how the page looks, `{ scheme, ground }`, which the window
- * follows; see main/appearance.ts.
+ * follows; see main/window/appearance.ts.
  */
 export const appearanceChannel = "novadeck:appearance"
 
 /**
  * Renderer-to-main request to show a desktop notification about a terminal,
- * `{ id, title, body }`; see main/notices.ts.
+ * `{ id, title, body }`; see main/notices/notices.ts.
  */
 export const noticeChannel = "novadeck:notice"
 
 /**
  * Renderer-to-main request to take away the notification still showing for a terminal,
- * its id as a string; see main/notices.ts.
+ * its id as a string; see main/notices/notices.ts.
  */
 export const noticeCloseChannel = "novadeck:notice-close"
 
 /**
  * Renderer-to-main question whether the system holds notifications back (Do Not Disturb,
- * Focus), answered with a boolean; see main/quiet.ts.
+ * Focus), answered with a boolean; see main/notices/quiet.ts.
  */
 export const notificationsQuietChannel = "novadeck:notifications-quiet"
 
 /**
  * Renderer-to-main report of the Inbox count for the app icon, `{ count, image }`; see
- * main/badge.ts.
+ * main/notices/badge.ts.
  */
 export const badgeChannel = "novadeck:badge"
 
 /**
  * Main-to-renderer report of whether the app's window has the system's focus, a boolean,
- * sent on each change; see main/window-focus.ts. A page that starts listening asks for the
+ * sent on each change; see main/window/focus.ts. A page that starts listening asks for the
  * current one on `windowFocusRequestChannel`.
  */
 export const windowFocusChannel = "novadeck:window-focus"
@@ -86,7 +86,7 @@ export const noticeClickChannel = "novadeck:notice-click"
 
 /**
  * Main-to-renderer report of an update offer, `{ kind, version, notes }`; see
- * main/updater.ts. A page that starts listening later asks for it on `updateRequestChannel`.
+ * main/updates/updater.ts. A page that starts listening later asks for it on `updateRequestChannel`.
  */
 export const updateOfferChannel = "novadeck:update-offer"
 
@@ -98,7 +98,7 @@ export const openUpdatePageChannel = "novadeck:open-update-page"
 
 /**
  * Renderer-to-main request for what is new in the version the app updated to; answers a
- * `WhatsNew` or undefined. See main/whats-new.ts.
+ * `WhatsNew` or undefined. See main/updates/whats-new.ts.
  */
 export const whatsNewChannel = "novadeck:whats-new"
 
@@ -125,7 +125,7 @@ export const portableChannel = "novadeck:portable"
 
 /**
  * Renderer-to-main request to install the app from this portable copy; answers nothing,
- * as every step arrives on `portableStateChannel`. See main/portable.ts.
+ * as every step arrives on `portableStateChannel`. See main/portable/installer.ts.
  */
 export const installAppChannel = "novadeck:install-app"
 
@@ -137,19 +137,19 @@ export const showDataFolderChannel = "novadeck:show-data-folder"
 
 /**
  * Renderer-to-main request for what is new in the version a portable copy is offered;
- * answers a `WhatsNew` or undefined. See main/whats-new.ts.
+ * answers a `WhatsNew` or undefined. See main/updates/whats-new.ts.
  */
 export const updateNewsChannel = "novadeck:update-news"
 
 /**
  * Main-to-renderer report of the portable state, a `PortableState`, whenever it changes,
- * which includes each step of an install; see main/portable.ts.
+ * which includes each step of an install; see main/portable/installer.ts.
  */
 export const portableStateChannel = "novadeck:portable-state"
 
 /**
  * Renderer-to-main request for what uninstalling this copy would do; answers an
- * `UninstallPlan`. See main/uninstall.ts.
+ * `UninstallPlan`. See main/install/uninstall.ts.
  */
 export const uninstallPlanChannel = "novadeck:uninstall-plan"
 

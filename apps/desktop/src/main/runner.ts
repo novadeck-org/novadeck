@@ -15,7 +15,7 @@ import {
 } from "../bridge.js"
 import { eachLine } from "./logs.js"
 
-export type RunnerHost = {
+export type RunnerProcess = {
   /**
    * Hands the runner a fresh port to serve, starting the runner again if it stopped; false
    * once it closes, as `brokerPorts` takes it.
@@ -72,7 +72,7 @@ export const startRunner = (options: {
   /** How start `run` writes its log: the argument after `logArgumentPrefix`, if it keeps one. */
   log?: (run: number) => string
   events?: RunnerEvents
-}): RunnerHost => {
+}): RunnerProcess => {
   const { events = {} } = options
   let child: UtilityProcess | undefined
   let closing: Promise<void> | undefined

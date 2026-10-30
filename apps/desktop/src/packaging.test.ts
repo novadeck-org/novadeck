@@ -5,7 +5,7 @@ import { fileURLToPath } from "node:url"
 
 import { noticeSounds } from "@novadeck/protocol/sounds"
 
-import { noticeSoundFile } from "./main/notices"
+import { noticeSoundFile } from "./main/notices/notices"
 import { describe, expect, it } from "./test"
 
 const app = fileURLToPath(new URL("..", import.meta.url))

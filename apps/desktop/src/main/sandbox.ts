@@ -2,8 +2,8 @@ import type { SandboxState } from "@novadeck/protocol/bridge"
 import type { IpcMainInvokeEvent } from "electron"
 
 import { sandboxChannel } from "../bridge.js"
-import { isInstalledImage } from "./install-location.js"
-import type { ReleaseRepository } from "./update-release.js"
+import { isInstalledImage } from "./install/location.js"
+import type { ReleaseRepository } from "./release/repository.js"
 
 /** What choosing a fix looks at of the machine; the caller reads it. */
 export type SandboxHost = {

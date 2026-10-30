@@ -89,20 +89,10 @@ import {
   windowFocusChannel,
 } from "../bridge.js"
 import { openProcessLog, saltFileIn, type LogSetup } from "../logging.js"
-import { keepAppearance, registerAppearanceIpc } from "./appearance.js"
-import { swapAppImage } from "./appimage-swap.js"
-import {
-  bundleVersionOf,
-  findInstalledApps,
-  installBundle,
-  isNewerVersion,
-  recoverBundles,
-  relaunchIntoCopy,
-} from "./applications-folder.js"
-import { applyBadge, registerBadgeIpc } from "./badge.js"
 import { dataFolderName, logsFolder } from "./data-folder.js"
 import { feedbackAbout, feedbackOrigin, registerFeedbackIpc, sendFeedback } from "./feedback.js"
-import { detectSoftwareGraphics } from "./graphics.js"
+import { detectSoftwareGraphics } from "./graphics/software.js"
+import { raiseWebglContexts, webglContextsArgument } from "./graphics/webgl.js"
 import {
   currentOrNewerCopy,
   extractWithProcess,
@@ -110,12 +100,20 @@ import {
   findInstalled,
   installAppImage,
   installLayout,
-} from "./install-linux.js"
-import { isInstalledImage } from "./install-location.js"
+} from "./install/linux.js"
+import { isInstalledImage } from "./install/location.js"
+import {
+  bundleOf,
+  bundleVersionOf,
+  findInstalledApps,
+  installBundle,
+  recoverBundles,
+  relaunchIntoCopy,
+} from "./install/mac.js"
+import { installedEnvironment, startAppImage } from "./install/start.js"
+import { registerUninstallIpc, startRemovalAfterExit, uninstaller } from "./install/uninstall.js"
 import {
   findInstalledWindows,
-  sha512Base64,
-  type Digest,
   insideInstallFolder,
   installedAtLeast,
   installedByInstaller,
@@ -130,7 +128,7 @@ import {
   setupName,
   startDetached,
   type InstallRecord,
-} from "./install-windows.js"
+} from "./install/windows.js"
 import {
   goneBadly,
   goneData,
@@ -140,6 +138,43 @@ import {
   registerLogIpc,
   updateLogOn,
 } from "./logs.js"
+import { applyBadge, registerBadgeIpc } from "./notices/badge.js"
+import { notificationOptions, registerNoticeIpc, showNotices } from "./notices/notices.js"
+import { ntdllQuery, platformQuiet, registerQuietIpc, windowsProbe } from "./notices/quiet.js"
+import {
+  leaveForNewerPortable,
+  portableRecordName,
+  recordPortableCopy,
+} from "./portable/handoff.js"
+import {
+  portableInstaller,
+  registerPortableIpc,
+  type InstallStep,
+  type PlatformInstall,
+} from "./portable/installer.js"
+import { registerPortableLinksIpc, shownPath } from "./portable/links.js"
+import { leaveForNewerInstalled, redirectMarker } from "./portable/redirect.js"
+import { quitOnShutdown, saveBeforeClose, saveOnSessionEnd, savePages } from "./quit.js"
+import { prepareAppImage } from "./release/appimage.js"
+import {
+  portableAssets,
+  sha512Base64,
+  streamToFile,
+  type Digest,
+  type Download,
+  type Fetched,
+} from "./release/download.js"
+import {
+  releaseDownloadsUrl,
+  releaseLatestUrl,
+  releasePageUrl,
+  releaseRepositoryOf,
+} from "./release/repository.js"
+import { isNewerVersion } from "./release/versions.js"
+import { startRunner, type RunnerEvents, type RunnerProcess } from "./runner.js"
+import { registerSandboxIpc, sandboxState } from "./sandbox.js"
+import { loadTranscriptKey } from "./transcript-key.js"
+import { swapAppImage } from "./updates/appimage-swap.js"
 import {
   allowMacUpdates,
   InstallPostponed,
@@ -149,51 +184,16 @@ import {
   prepareMacUpdate,
   removeMacUpdates,
   UpdateRejected,
-} from "./mac-update.js"
-import { linuxMenu, macMenu } from "./menu.js"
-import { notificationOptions, registerNoticeIpc, showNotices } from "./notices.js"
-import { limitPermissions, ownPage } from "./permissions.js"
-import {
-  leaveForNewerPortable,
-  portableRecordName,
-  recordPortableCopy,
-} from "./portable-handoff.js"
-import { registerPortableLinksIpc, shownPath } from "./portable-links.js"
-import {
-  installedEnvironment,
-  leaveForNewerInstalled,
-  portableInstaller,
-  redirectMarker,
-  registerPortableIpc,
-  type InstallStep,
-  type PlatformInstall,
-  startAppImage,
-} from "./portable.js"
-import { ntdllQuery, platformQuiet, registerQuietIpc, windowsProbe } from "./quiet.js"
-import { opensAfterQuit, rememberReopen, swapsAtQuitStart } from "./quit-install.js"
-import { quitOnShutdown, saveBeforeClose, saveOnSessionEnd, savePages } from "./quit.js"
-import { prepareAppImage } from "./release-appimage.js"
-import { portableAssets, streamToFile, type Download, type Fetched } from "./release-download.js"
-import { startRunner, type RunnerEvents, type RunnerHost } from "./runner.js"
-import { registerSandboxIpc, sandboxState } from "./sandbox.js"
-import { keepSpellcheckOffline } from "./spellcheck.js"
-import { loadTranscriptKey } from "./transcript-key.js"
-import { registerUninstallIpc, startRemovalAfterExit, uninstaller } from "./uninstall.js"
-import {
-  releaseDownloadsUrl,
-  releaseLatestUrl,
-  releasePageUrl,
-  releaseRepositoryOf,
-} from "./update-release.js"
+} from "./updates/mac.js"
+import { opensAfterQuit, rememberReopen, swapsAtQuitStart } from "./updates/quit-install.js"
 import {
   failureOutdated,
   fileIdentity,
   installedBeforeLaunch,
   installOutcome,
   keepUpdateState,
-} from "./update-state.js"
+} from "./updates/state.js"
 import {
-  bundleOf,
   checkForUpdates,
   developerIdSigned,
   installOnlyOnOrderlyQuit,
@@ -205,10 +205,18 @@ import {
   type Updater,
   type UpdateBuild,
   type UpdaterKind,
-} from "./updater.js"
-import { raiseWebglContexts, webglContextsArgument } from "./webgl.js"
-import { keepUpdateNews, keepWhatsNew, registerWhatsNewIpc, whatsNewAtLaunch } from "./whats-new.js"
-import { registerWindowFocusIpc } from "./window-focus.js"
+} from "./updates/updater.js"
+import {
+  keepUpdateNews,
+  keepWhatsNew,
+  registerWhatsNewIpc,
+  whatsNewAtLaunch,
+} from "./updates/whats-new.js"
+import { keepAppearance, registerAppearanceIpc } from "./window/appearance.js"
+import { registerWindowFocusIpc } from "./window/focus.js"
+import { linuxMenu, macMenu } from "./window/menu.js"
+import { limitPermissions, ownPage } from "./window/permissions.js"
+import { keepSpellcheckOffline } from "./window/spellcheck.js"
 
 const appId = "dev.mzpk.novadeck"
 // The WebGL context limit, raised before the app is ready; the pages are told it.
@@ -362,7 +370,7 @@ let macUpdate: { readonly version: string; readonly prepared: string } | undefin
 const macQuitInstall = { autoInstallOnAppQuit: true }
 
 let server: HttpServer | undefined
-let runner: RunnerHost | undefined
+let runner: RunnerProcess | undefined
 let stopping = false
 // Names this run of the app; see `PortableHost.run`.
 const run = randomUUID()

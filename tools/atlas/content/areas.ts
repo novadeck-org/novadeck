@@ -230,7 +230,7 @@ export const notes: Record<string, Note> = {
       "The desktop app's main process: windows and menus, starting the runner in a utility process, permissions and sandbox choices, installation, auto-update, notices, feedback notes, logs and quitting.",
     entries: [
       { file: "apps/desktop/src/main/index.ts", text: "const createWindow" },
-      { file: "apps/desktop/src/main/updater.ts" },
+      { file: "apps/desktop/src/main/updates/updater.ts" },
     ],
     docs: ["docs/auto-update.md", "docs/release-signing.md"],
   },
