@@ -16,9 +16,9 @@ import { mcpAnswer, mcpVersions } from "./mcp.js"
 import { listenForReports, unheard, type Call, type Reports } from "./reports.js"
 import { shellFiles, shellPaths, staleShellFiles } from "./scripts.js"
 
-/** The runner's own reading of a show or close request, as manager.present and dismiss do. */
+/** The runner's own reading of a show or close request, as the companion's show and closeShown do. */
 const reading = (type: string, request: object) =>
-  Promise.resolve(type === "dismiss" ? readCloseShownRequest(request) : readShowRequest(request))
+  Promise.resolve(type === "closeShown" ? readCloseShownRequest(request) : readShowRequest(request))
 
 const token = "0123456789abcdef".repeat(3)
 let folder: string
@@ -806,7 +806,7 @@ describe("Novadeck's MCP server in a Novadeck terminal", () => {
     ])
     expect(calls).toEqual([
       {
-        type: "present",
+        type: "show",
         terminalId: "3f1c2b1e-0000-4000-8000-000000000001",
         token,
         request: { file: { path: "hero.png" }, open: true, extra: "kept for the runner" },
@@ -832,7 +832,7 @@ describe("Novadeck's MCP server in a Novadeck terminal", () => {
         },
       },
     ])
-    expect(calls.map((call) => call.type === "present" && call.request)).toEqual([
+    expect(calls.map((call) => call.type === "show" && call.request)).toEqual([
       { page: { url: "http://localhost:5173/", scroll: "#faq" }, open: true },
     ])
     expect(shown?.result).toMatchObject({ isError: false })
@@ -1432,7 +1432,7 @@ describe("Novadeck's MCP server in a Novadeck terminal", () => {
     ])
     expect(shown?.result).toMatchObject({ isError: false })
     // Listing the tools asks the runner for the models, then the show goes through.
-    expect(calls.map((each) => each.type)).toEqual(["models", "present"])
+    expect(calls.map((each) => each.type)).toEqual(["models", "show"])
   }, 30_000)
 
   // On Windows, cmd starts the launcher; its content is checked below.

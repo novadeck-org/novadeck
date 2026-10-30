@@ -41,7 +41,7 @@ const send = (endpoint: string, line: string, { end = true } = {}) =>
   })
 
 const token = "0123456789abcdef".repeat(3)
-const call = { type: "present", terminalId: "t", token, request: { file: { path: "a.md" } } }
+const call = { type: "show", terminalId: "t", token, request: { file: { path: "a.md" } } }
 
 // A relay's connection: its first line, then the lines it carries; resolves to every
 // line that came back by the time the endpoint closed it, or `waitMs` passed.
@@ -212,7 +212,7 @@ describe("relay sessions", () => {
       handlers({
         call: (asked) => {
           calls.push(asked)
-          if (asked.type === "present") return Promise.reject(new Error("broken"))
+          if (asked.type === "show") return Promise.reject(new Error("broken"))
           return asked.type === "open" && asked.request.command === "claude"
             ? Promise.resolve({ ok: true, terminalId: "u", cwd: "/work" })
             : new Promise(() => {})
@@ -235,7 +235,7 @@ describe("relay sessions", () => {
         told(1, "Opened a new terminal in /work.", false),
         told(2, unansweredCalls.open.reason + nudge, true),
         told(3, "Novadeck couldn't close the terminal." + nudge, true),
-        told(4, unansweredCalls.present.reason + nudge, true),
+        told(4, unansweredCalls.show.reason + nudge, true),
       ]),
     )
     const from = { terminalId: "t", token }

@@ -101,11 +101,11 @@ export class Companion {
    * learns nothing more.
    */
   async closeShown(call: Call): Promise<CloseShownAnswer> {
-    if (!callerOf(this.host.records(), call)) return unansweredCalls.dismiss
+    if (!callerOf(this.host.records(), call)) return unansweredCalls.closeShown
     const read = readCloseShownRequest(call.request)
     if (!read.ok) return read
     const place = this.place(call.terminalId)
-    if (!place || !this.items) return unansweredCalls.dismiss
+    if (!place || !this.items) return unansweredCalls.closeShown
     return this.items.closeShown(place, read.request)
   }
 

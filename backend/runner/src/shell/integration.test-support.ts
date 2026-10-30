@@ -269,7 +269,7 @@ export const reporter = (
 // without an answer. Then the session ends.
 export const toolCall = [
   "const toolCall = (type, args, token, done) => {",
-  '  const tools = { present: "show", open: "open_terminal", close: "close_terminal" }',
+  '  const tools = { show: "show", open: "open_terminal", close: "close_terminal" }',
   "  const socket = net.connect(process.env.NOVADECK_REPORT)",
   '  let text = ""',
   '  socket.setEncoding("utf8")',
@@ -291,13 +291,13 @@ export const toolCall = [
   "}",
 ].join("\n")
 
-// A stand-in for an agent calling Novadeck's tools: `present <name>` makes the calls in
+// A stand-in for an agent calling Novadeck's tools: `call-tools <name>` makes the calls in
 // `<name>.json`, one after another, keeps what each told the agent in
-// `<name>.answers.json`, then says so. Each call is a `present` unless it names its type.
+// `<name>.answers.json`, then says so. Each call is a `show` unless it names its type.
 export const showStandIn = (home: string): string => {
   const bin = join(home, "bin")
   mkdirSync(bin, { recursive: true })
-  const script = join(bin, "present.cjs")
+  const script = join(bin, "call-tools.cjs")
   writeFileSync(
     script,
     [
@@ -313,7 +313,7 @@ export const showStandIn = (home: string): string => {
       '    fs.writeFileSync(name + ".answers.json", JSON.stringify(answers))',
       '    return console.log("answered " + require("node:path").basename(name))',
       "  }",
-      '  const { request, token: given, type = "present" } = calls[index]',
+      '  const { request, token: given, type = "show" } = calls[index]',
       "  toolCall(type, request, given ?? token, (answer) => {",
       "    answers.push(answer)",
       "    send(index + 1)",
@@ -322,8 +322,8 @@ export const showStandIn = (home: string): string => {
       "send(0)",
     ].join("\n"),
   )
-  writeFileSync(join(bin, "present"), `#!/bin/sh\nexec "${process.execPath}" "${script}" "$@"\n`)
-  chmodSync(join(bin, "present"), 0o755)
+  writeFileSync(join(bin, "call-tools"), `#!/bin/sh\nexec "${process.execPath}" "${script}" "$@"\n`)
+  chmodSync(join(bin, "call-tools"), 0o755)
   return bin
 }
 
@@ -371,14 +371,14 @@ export const show = async (
   shell: Fixture,
   manager: Terminals,
   terminalId: string,
-  calls: { request: object; token?: string; type?: "present" | "open" | "close" }[],
+  calls: { request: object; token?: string; type?: "show" | "open" | "close" }[],
   // Who controls the terminal's input.
   owner = "owner",
 ): Promise<unknown[]> => {
   const name = `calls-${randomUUID().slice(0, 8)}`
   const path = join(shell.home, name)
   writeFileSync(`${path}.json`, JSON.stringify(calls))
-  manager.write({ terminalId, data: `present ${path}\r` }, owner)
+  manager.write({ terminalId, data: `call-tools ${path}\r` }, owner)
   await shell.until(manager, terminalId, `answered ${name}`)
   return JSON.parse(readFileSync(`${path}.answers.json`, "utf8")) as unknown[]
 }

@@ -74,7 +74,7 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))(
       mkdirSync(notes)
       writeFileSync(join(notes, "plan.txt"), "plan\n")
       await expect(
-        call(codex.id, "present", { file: { path: join(notes, "plan.txt") } }),
+        call(codex.id, "show", { file: { path: join(notes, "plan.txt") } }),
       ).resolves.toMatchObject({ ok: true })
       const items = shell.items(manager)
       expect(items.bar(codex.id)).toHaveLength(1)

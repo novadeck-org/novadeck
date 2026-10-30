@@ -535,13 +535,13 @@ export class Calls {
   /** A tool call from Novadeck's MCP server, to the operation it names. */
   call(call: Call): Promise<unknown> {
     switch (call.type) {
-      case "present":
+      case "show":
         return this.host.companion().show(call)
       case "showing":
         return Promise.resolve(this.host.companion().showing(call))
       case "look":
         return this.host.companion().look(call)
-      case "dismiss":
+      case "closeShown":
         return this.host.companion().closeShown(call)
       case "open":
         return this.open(call)

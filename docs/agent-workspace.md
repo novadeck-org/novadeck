@@ -84,7 +84,7 @@ The following signatures sketch application services, not the full wire schema:
 ```ts
 type AgentWorkspace = {
   spawn(caller: Caller, input: SpawnRequest): Promise<SpawnOperation>
-  present(caller: Caller, input: PresentRequest): Promise<PresentationOperation>
+  show(caller: Caller, input: ShowRequest): Promise<ShowOperation>
   reportPlan(caller: Caller, input: PlanReport): Promise<PlanSnapshot>
   operation(caller: Caller, id: string): Promise<OperationSnapshot>
 }
@@ -96,7 +96,7 @@ type DocumentSource =
   | { kind: "workspace-file"; path: string }
   | { kind: "artifact"; artifactId: string; revision: string }
 
-type PresentRequest = {
+type ShowRequest = {
   title?: string
   idempotencyKey: string
   interaction: { kind: "read-only" }

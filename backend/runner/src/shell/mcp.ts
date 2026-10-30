@@ -241,7 +241,7 @@ const show: Tool<Shown> = {
     },
     additionalProperties: false,
   },
-  call: "present",
+  call: "show",
   // Whole, so the runner's strict reading names a key that belongs to no source.
   request: (args) => args,
   said: (answer) =>
@@ -372,7 +372,7 @@ const close: Tool<ClosedShown> = {
     },
     additionalProperties: false,
   },
-  call: "dismiss",
+  call: "closeShown",
   // Whole, so the runner's strict reading names a key that belongs to no source.
   request: (args) => args,
   said: (answer) => "Closed " + answer.name + " beside you in Novadeck.",
