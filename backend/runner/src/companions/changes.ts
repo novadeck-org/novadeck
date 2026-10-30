@@ -11,6 +11,7 @@ import {
   type ItemContent,
 } from "@novadeck/protocol"
 
+import { cut } from "../text.js"
 import { hashOf } from "./content.js"
 import { secret } from "./secrets.js"
 
@@ -258,12 +259,8 @@ const namesIn = (rest: string): string => {
   return rest.slice(2, 2 + (rest.length - 5) / 2)
 }
 
-// Cut to what the protocol takes, never in the middle of a surrogate pair.
-const clipLine = (text: string): string => {
-  if (text.length <= maxLineChars) return text
-  const last = text.charCodeAt(maxLineChars - 1)
-  return text.slice(0, last >= 0xd800 && last <= 0xdbff ? maxLineChars - 1 : maxLineChars)
-}
+// Cut to what the protocol takes.
+const clipLine = (text: string): string => cut(text, maxLineChars)
 
 /** What is left of the diff text a change may carry, as encoded: shared by its files. */
 export type Budget = { left: number }

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest"
 
-import { firstFew, list, shorten } from "./text.js"
+import { cut, firstFew, list, shorten } from "./text.js"
 
 describe("text", () => {
   it("lists items as a sentence does", () => {
@@ -20,5 +20,13 @@ describe("text", () => {
   it("shortens text to one line", () => {
     expect(shorten("add\n  pagination   to /users", 120)).toBe("add pagination to /users")
     expect(shorten("x".repeat(130), 120)).toBe(`${"x".repeat(119)}…`)
+  })
+
+  it("cuts text to a count of UTF-16 units, never through a character", () => {
+    expect(cut("abc", 3)).toBe("abc")
+    expect(cut("abcd", 3)).toBe("abc")
+    expect(cut("ab😀", 3)).toBe("ab")
+    expect(cut("ab😀", 4)).toBe("ab😀")
+    expect(cut("a😀b", 3)).toBe("a😀")
   })
 })
