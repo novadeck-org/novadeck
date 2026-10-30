@@ -403,7 +403,7 @@ describe("a pty in a scope", () => {
     expect(stand.calls).toEqual([])
   })
 
-  it("isn't asked why once the host itself ends it", async () => {
+  it("isn't asked why once the app itself ends it", async () => {
     const { asked, scopes } = scoped("out-of-memory")
     const { pty, stand, exits } = start(scopes)
     const ended = pty.end({

@@ -80,7 +80,7 @@ resolve it.
   - A `Terminal` runs its program in a `Pty`, through node-pty (an optional peer: install it to
     use `./host`), started as `PtyOptions` say; on Windows its arguments can be one command
     line, as cmd needs. Its `pid` is undefined until it is known,
-    never 0 (on Windows, 0 names the host until the program's output connects); `drawn` says
+    never 0 (on Windows, 0 names the app itself until the program's output connects); `drawn` says
     output has arrived; it reports its exit once, its code null where the program's isn't
     known yet. `end(options)` runs the whole kill sequence: a hangup to the foreground group
     (not on Windows, which has none),
@@ -132,7 +132,7 @@ rebuilding, and on Windows ships the prebuilds' `conpty` folder (`conpty.dll` an
 
 `pnpm --filter @novadeck/terminal test`. The native tests and the macOS foreground tests run
 real ptys, so node-pty is a dev dependency, with its patch in `patches/` (three Windows fixes:
-a failed input write no longer ends the host, `kill()` is safe twice, and an exit waits for its
+a failed input write no longer ends the app, `kill()` is safe twice, and an exit waits for its
 code). The tests that read trees and the registry through a real relay run in the app that
 ships one.
 
