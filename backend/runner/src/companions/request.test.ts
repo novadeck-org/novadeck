@@ -1,5 +1,5 @@
 import { describe, expect, it } from "../test.js"
-import { readCloseShownRequest, readLookRequest, readShowRequest } from "./request.js"
+import { named, readCloseShownRequest, readLookRequest, readShowRequest } from "./request.js"
 
 describe("a show request", () => {
   it("names a file by its path, and only lines that run forward, under file", () => {
@@ -159,5 +159,13 @@ describe("a look request", () => {
       ok: false,
       reason: 'The request\'s "file" is not valid.',
     })
+  })
+})
+
+describe("text named back to an agent", () => {
+  it("is quoted, and cut short without leaving half an emoji", () => {
+    expect(named("a.ts")).toBe('"a.ts"')
+    expect(named("k".repeat(64))).toBe(JSON.stringify("k".repeat(64)))
+    expect(named(`${"k".repeat(62)}😀x`)).toBe(JSON.stringify(`${"k".repeat(62)}…`))
   })
 })

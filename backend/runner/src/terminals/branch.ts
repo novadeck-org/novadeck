@@ -2,6 +2,8 @@ import { readFile, stat } from "node:fs/promises"
 import { dirname, isAbsolute, join, resolve } from "node:path"
 import { setTimeout as sleep } from "node:timers/promises"
 
+import { cut } from "../text.js"
+
 /** How long a branch is read for before it counts as unknown, in milliseconds. */
 const readMs = 300
 
@@ -34,7 +36,7 @@ const branchOf = async (directory: string): Promise<string | null> => {
   if (!folder) return null
   const head = (await readFile(join(folder, "HEAD"), "utf8")).trim()
   const ref = /^ref:\s*refs\/heads\/(.+)$/.exec(head)?.[1]
-  if (ref) return ref.slice(0, 200)
+  if (ref) return cut(ref, 200)
   // Detached: its commit, shortened as git does.
   return /^[0-9a-f]{40,64}$/.test(head) ? head.slice(0, 7) : null
 }

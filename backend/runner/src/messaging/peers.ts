@@ -2,7 +2,7 @@ import type { AgentActivity, AgentName, TitleSource } from "@novadeck/protocol"
 
 import { mention } from "../terminals/handles.js"
 import { busiestFolders, firstFrom, type Work } from "../terminals/work.js"
-import { shorten } from "../text.js"
+import { cut, shorten } from "../text.js"
 import { agentLabel, clock, holdOf, isNotice, senderTerminal, type Message } from "./messages.js"
 
 /**
@@ -429,7 +429,7 @@ export const unknownHandle = (
   [
     to === self
       ? `${mention(self)} is this terminal.`
-      : `"${to.slice(0, 64)}" is no terminal's handle here. Send to one of these by its exact ` +
+      : `"${cut(to, 64)}" is no terminal's handle here. Send to one of these by its exact ` +
         "handle, picking by its title, folder and work; if more than one could be meant, ask " +
         "the user rather than guess.",
     ...teamLines(self, lead, peers),

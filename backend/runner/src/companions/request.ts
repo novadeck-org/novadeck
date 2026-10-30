@@ -1,7 +1,7 @@
 import type { CompanionItem } from "@novadeck/protocol"
 import { z } from "zod"
 
-import { list } from "../text.js"
+import { ellipsized, list } from "../text.js"
 
 /**
  * What an agent asks to show, through Novadeck's MCP server: one source, under the key
@@ -121,8 +121,7 @@ const forms = sourceNames.map((name) => shapes[name])
 const oneSource = `one source, ${list(forms, "or")}`
 
 /** Text named back to the agent, as a key or a path: quoted, and cut short, as it is the agent's own. */
-export const named = (key: string): string =>
-  JSON.stringify(key.length <= 64 ? key : `${key.slice(0, 63)}…`)
+export const named = (key: string): string => JSON.stringify(ellipsized(key, 64, false))
 
 type Read<T> = (value: unknown) => { readonly ok: true; readonly request: T } | RequestFailure
 

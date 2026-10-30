@@ -478,6 +478,10 @@ describe("what agents and a refused send say", () => {
     expect(unknownHandle("moth", "moth", [], now, null)).toBe(
       "@moth is this terminal.\nThere are no other terminals in this project and session.",
     )
+    // A long name is echoed cut short, never through an emoji.
+    expect(unknownHandle(`${"a".repeat(63)}😀`, "moth", [], now, null)).toMatch(
+      new RegExp(`^"${"a".repeat(63)}" is no terminal's handle here\\.`),
+    )
     // Its team first, as agents names it.
     expect(
       unknownHandle("codex", "moth", [led("fox", null, null)], now, "fox").split("\n")[1],
