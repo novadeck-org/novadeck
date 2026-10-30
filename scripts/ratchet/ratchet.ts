@@ -2,8 +2,8 @@ import { stripTypeScriptTypes } from "node:module"
 
 import { parseAst } from "vitest/node"
 
-// The ratchet on backend/runner/src/terminals/manager.ts: what it measures, and how a
-// measure stands against its budget.
+// The ratchet on the hubs (see hubs.ts): what it measures of each, and how a measure stands
+// against its budget.
 
 export const measures = ["lines", "methods"] as const
 export type Measure = (typeof measures)[number]
@@ -21,8 +21,18 @@ export type Budgets = Readonly<Record<Measure, Budget>> & {
   readonly notes?: readonly string[]
 }
 
-export const managerPath = "backend/runner/src/terminals/manager.ts"
-export const budgetsPath = "scripts/ratchet/manager.json"
+// A file that gathers a class every feature wants to grow, held to a budget that only goes down.
+export type Hub = {
+  /** The file, from the repository's root. */
+  readonly path: string
+  /** The class whose functions are counted. */
+  readonly className: string
+  /** Its budgets file, from the repository's root. */
+  readonly budgetsPath: string
+  /** Where new code goes instead, as the failure says it. */
+  readonly home: string
+}
+
 const raiseForm = '{ "budget": n, "reason": "why", "from": "#PR or commit" }'
 
 type Node = { readonly type: string; readonly [key: string]: unknown }
@@ -50,42 +60,42 @@ const isFunctionMember = (member: Node): boolean =>
 // Its code as JavaScript: types blanked out as Node strips them, keeping every position.
 // Syntax Node can't strip (an enum, a namespace, a parameter property) is refused, as no
 // parser for it is at hand here.
-const stripped = (source: string): string => {
+const stripped = (hub: Hub, source: string): string => {
   try {
     return stripTypeScriptTypes(source, { mode: "strip" })
   } catch (error) {
     throw new Error(
-      `${managerPath} uses TypeScript syntax the ratchet can't read, which Node can't strip: write it without enums, namespaces or parameter properties.`,
+      `${hub.path} uses TypeScript syntax the ratchet can't read, which Node can't strip: write it without enums, namespaces or parameter properties.`,
       { cause: error },
     )
   }
 }
 
 // Its syntax tree; code the parser can't read is refused the same way, naming the file.
-const parsed = (code: string): ReturnType<typeof parseAst> => {
+const parsed = (hub: Hub, code: string): ReturnType<typeof parseAst> => {
   try {
     return parseAst(code)
   } catch (error) {
     throw new Error(
-      `${managerPath} has syntax the ratchet's parser can't read (${error instanceof Error ? error.message : String(error)}): write it as Node runs it, plain JavaScript once its types are stripped.`,
+      `${hub.path} has syntax the ratchet's parser can't read (${error instanceof Error ? error.message : String(error)}): write it as Node runs it, plain JavaScript once its types are stripped.`,
       { cause: error },
     )
   }
 }
 
-// The file's lines, and the functions its `Terminals` class defines, read from its syntax
-// tree, so formatting never moves the count.
-export const countManager = (source: string): Counts => {
-  const tree = parsed(stripped(source))
+// The file's lines, and the functions its hub class defines, read from its syntax tree, so
+// formatting never moves the count.
+export const countHub = (hub: Hub, source: string): Counts => {
+  const tree = parsed(hub, stripped(hub, source))
   const classes = [...nodes(tree)].filter(
     (node) =>
       (node.type === "ClassDeclaration" || node.type === "ClassExpression") &&
       isNode(node.id) &&
-      node.id.name === "Terminals",
+      node.id.name === hub.className,
   )
   if (classes.length !== 1)
     throw new Error(
-      `${managerPath} should define one Terminals class; it defines ${classes.length}.`,
+      `${hub.path} should define one ${hub.className} class; it defines ${classes.length}.`,
     )
   const body = (classes[0]!.body as { readonly body: readonly Node[] }).body
   return {
@@ -103,22 +113,27 @@ const said = (text: unknown): text is string => typeof text === "string" && text
 const isCount = (value: unknown): value is number =>
   typeof value === "number" && Number.isInteger(value) && value >= 0
 
-const advice: Record<Measure, string> = {
+const advice = (hub: Hub): Record<Measure, string> => ({
   lines: "lines",
-  methods: "methods in the Terminals class",
-}
+  methods: `methods in the ${hub.className} class`,
+})
 
 // Why a raise against the base branch's value can't stand: it says neither why nor where
 // it came from, or names the earlier raise's source, as when only the number was edited.
 // `measure` names what is raised: a budget, or a slack.
-const raiseProblem = (measure: string, entry: Budget, was: Budget): string | undefined => {
+const raiseProblem = (
+  hub: Hub,
+  measure: string,
+  entry: Budget,
+  was: Budget,
+): string | undefined => {
   const from = budgetOf(was)
   const to = budgetOf(entry)
   if (!isCount(from) || !isCount(to) || to <= from) return undefined
   if (typeof entry !== "object")
-    return `${budgetsPath} raises ${measure} from ${from} to ${to} without saying why: write it ${raiseForm}.`
+    return `${hub.budgetsPath} raises ${measure} from ${from} to ${to} without saying why: write it ${raiseForm}.`
   if (typeof was === "object" && said(was.from) && entry.from.trim() === was.from.trim())
-    return `${budgetsPath} raises ${measure} from ${from} to ${to} under the earlier raise's source, ${was.from}: name this one's pull request or commit.`
+    return `${hub.budgetsPath} raises ${measure} from ${from} to ${to} under the earlier raise's source, ${was.from}: name this one's pull request or commit.`
   return undefined
 }
 
@@ -126,16 +141,21 @@ const raiseProblem = (measure: string, entry: Budget, was: Budget): string | und
 // branch's where they can be read; nothing when the ratchet holds. A count past its budget
 // asks for the code to go to a sibling module; one further under it than its slack asks for
 // the budget to come down; a raise must say why and where it came from.
-export const ratchetProblems = (counts: Counts, budgets: Budgets, base?: Budgets): string[] =>
+export const ratchetProblems = (
+  hub: Hub,
+  counts: Counts,
+  budgets: Budgets,
+  base?: Budgets,
+): string[] =>
   measures.flatMap((measure) => {
     const entry = budgets[measure]
     const budget = budgetOf(entry)
-    if (!isCount(budget)) return [`${budgetsPath} sets no budget for ${measure}.`]
+    if (!isCount(budget)) return [`${hub.budgetsPath} sets no budget for ${measure}.`]
     const slackEntry = budgets.slack?.[measure]
     const slack = budgetOf(slackEntry)
     if (!isCount(slack))
       return [
-        `${budgetsPath} sets no slack for ${measure}: write "slack": { "lines": n, "methods": n }.`,
+        `${hub.budgetsPath} sets no slack for ${measure}: write "slack": { "lines": n, "methods": n }.`,
       ]
     for (const [what, given] of [
       ["budget", entry],
@@ -143,7 +163,7 @@ export const ratchetProblems = (counts: Counts, budgets: Budgets, base?: Budgets
     ] as const)
       if (typeof given === "object" && (!said(given.reason) || !said(given.from)))
         return [
-          `A raised ${what} in ${budgetsPath} is written ${raiseForm}; the one for ${measure} isn't.`,
+          `A raised ${what} in ${hub.budgetsPath} is written ${raiseForm}; the one for ${measure} isn't.`,
         ]
     const count = counts[measure]
     const was = base ? budgetOf(base[measure]) : undefined
@@ -151,39 +171,39 @@ export const ratchetProblems = (counts: Counts, budgets: Budgets, base?: Budgets
     // at most its count, or the base's budget where the file needs no raise at all.
     const limit = isCount(was) ? Math.max(count, was) : budget
     const raised = [
-      base ? raiseProblem(measure, entry, base[measure]) : undefined,
+      base ? raiseProblem(hub, measure, entry, base[measure]) : undefined,
       base?.slack && slackEntry !== undefined
-        ? raiseProblem(`${measure} slack`, slackEntry, base.slack[measure])
+        ? raiseProblem(hub, `${measure} slack`, slackEntry, base.slack[measure])
         : undefined,
       budget > limit
         ? count > (was ?? count)
-          ? `${budgetsPath} raises ${measure} to ${budget}, past the ${count} the file has: raise it only to ${count}.`
-          : `${budgetsPath} raises ${measure} to ${budget}, though the file's ${count} needs no raise: keep it at ${limit} at most.`
+          ? `${hub.budgetsPath} raises ${measure} to ${budget}, past the ${count} the file has: raise it only to ${count}.`
+          : `${hub.budgetsPath} raises ${measure} to ${budget}, though the file's ${count} needs no raise: keep it at ${limit} at most.`
         : undefined,
     ].filter((problem): problem is string => problem !== undefined)
     if (count > budget)
       return [
         ...raised,
-        `${managerPath} has ${count} ${advice[measure]}, past its budget of ${budget}. Put new code in a sibling module under backend/runner/src/terminals/ (as closes.ts, opens.ts and naming.ts are) and call it from the class, instead of growing the Terminals class. If it really can't go there, raise the budget in ${budgetsPath} to ${count}, written ${raiseForm}. Where changes to it merged one after the other had already put the base branch past the budget, not all of the overrun is this change's: say so in the reason.`,
+        `${hub.path} has ${count} ${advice(hub)[measure]}, past its budget of ${budget}. Put new code in ${hub.home} and call it from the class, instead of growing the ${hub.className} class. If it really can't go there, raise the budget in ${hub.budgetsPath} to ${count}, written ${raiseForm}. Where changes to it merged one after the other had already put the base branch past the budget, not all of the overrun is this change's: say so in the reason.`,
       ]
     if (budget - count > slack)
       return [
         ...raised,
-        `${managerPath} has ${count} ${advice[measure]}, ${budget - count} under its budget of ${budget}, past the ${slack} it may sit under: lower the budget in ${budgetsPath} to ${count}, so the ratchet holds what was won.`,
+        `${hub.path} has ${count} ${advice(hub)[measure]}, ${budget - count} under its budget of ${budget}, past the ${slack} it may sit under: lower the budget in ${hub.budgetsPath} to ${count}, so the ratchet holds what was won.`,
       ]
     return raised
   })
 
 // The budgets that could come down, though the file sits within their slack: worth doing
 // in a change that touches the budget file anyway. Past the slack, the failure says it.
-export const ratchetNotes = (counts: Counts, budgets: Budgets): string[] =>
+export const ratchetNotes = (hub: Hub, counts: Counts, budgets: Budgets): string[] =>
   measures.flatMap((measure) => {
     const budget = budgetOf(budgets[measure])
     const slack = budgetOf(budgets.slack?.[measure])
     const count = counts[measure]
     return isCount(budget) && isCount(slack) && count < budget && budget - count <= slack
       ? [
-          `${managerPath} has ${count} ${advice[measure]}, under its budget of ${budget}: it could be lowered to ${count} in ${budgetsPath}.`,
+          `${hub.path} has ${count} ${advice(hub)[measure]}, under its budget of ${budget}: it could be lowered to ${count} in ${hub.budgetsPath}.`,
         ]
       : []
   })
