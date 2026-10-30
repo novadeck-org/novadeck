@@ -23,7 +23,7 @@ import {
   deskMessages,
   project,
   session,
-  sessionOf,
+  deskSession,
   slot,
   working,
   type Job,
@@ -283,7 +283,7 @@ export const babciaSeed = (now: number): WorkspaceSeed => ({
     {
       ...project(bar),
       sessions: [
-        sessionOf(
+        deskSession(
           now,
           jobs.map((job, index) => agentTerminal(bar, index + 1, job.name, job.agent, working)),
           deskLayout(),
@@ -293,7 +293,7 @@ export const babciaSeed = (now: number): WorkspaceSeed => ({
     {
       ...project(gig),
       sessions: [
-        sessionOf(
+        deskSession(
           now,
           elsewhere.map(([name, agent], index) =>
             agentTerminal(gig, index + 1, name, agent, working),

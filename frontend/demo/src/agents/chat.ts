@@ -13,6 +13,7 @@ import { terminalKeyId } from "@novadeck/core/terminals/registry"
 import type { AgentStatus, TerminalMetadata, Workspace } from "@novadeck/core/types"
 
 import { chatAgent, chatAgents, terminalSlot } from "../samples"
+import { sessionOf } from "../workspace"
 import { promptRefused } from "./prompt-refusal"
 import { madeRequest, type DemoRequestOutcome } from "./requests"
 import type { DemoDraft, DemoTranscript } from "./transcripts"
@@ -231,9 +232,7 @@ export const createDemoChat = (
   // The terminal at the full address, in the workspace as it stands, or in the seed.
   const locate = (key: TerminalKey): Found | undefined => {
     const terminals = latest
-      ? latest.projects
-          .find((project) => project.id === key.projectId)
-          ?.history.find((session) => session.id === key.workspaceSessionId)?.state.roster.terminals
+      ? sessionOf(latest, key)?.state.roster.terminals
       : seed.projects
           .find((project) => project.id === key.projectId)
           ?.sessions.find((session) => session.id === key.workspaceSessionId)?.terminals

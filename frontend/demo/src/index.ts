@@ -49,7 +49,7 @@ import { createDemoTerminals, type DemoTerminals, type DemoTerminalSetup } from 
 import { babciaIntroOf, createBabcia } from "./videos/babcia"
 import { chirpIntroOf, chirpSeed, chirpTranscripts } from "./videos/chirp"
 import { createLaunch } from "./videos/launch"
-import { directoryOf, itemsOf, terminalOf } from "./workspace"
+import { directoryOf, itemsOf, sessionOf, terminalOf } from "./workspace"
 
 // Sample agents: Claude Code and Codex installed, Antigravity not.
 const sampleAgents: readonly AgentConnection[] = [
@@ -106,9 +106,7 @@ export const demoBackend = (
     // Every backend built here is the demo's, which shows features still being designed.
     demo: true,
     newTerminal: ({ target, directory, title, launch }) => {
-      const session = latest?.projects
-        .find((project) => project.id === target.projectId)
-        ?.history.find((each) => each.id === target.workspaceSessionId)
+      const session = sessionOf(latest, target)
       const highest = Math.max(
         0,
         ...(session?.state.roster.terminals ?? []).map((terminal) =>
@@ -181,9 +179,7 @@ export const windowReset = (
   workspace: Workspace | undefined,
   { projectId, workspaceSessionId, terminalId }: TerminalKey,
 ): BackendAction[] => {
-  const state = workspace?.projects
-    .find((project) => project.id === projectId)
-    ?.history.find((session) => session.id === workspaceSessionId)?.state
+  const state = sessionOf(workspace, { projectId, workspaceSessionId })?.state
   const window = state?.roster.windows.find((each) => each.id === terminalId)
   const item = window && state?.items.find((each) => each.id === window.itemId)
   if (!window || !item) return []

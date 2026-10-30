@@ -22,7 +22,7 @@ import { defaultName, demoTerminalId } from "../samples"
 import { fixedIntro } from "../screen/terminal"
 import { createDemoEngine } from "../terminals/engine"
 import type { DemoTerminalSetup } from "../terminals/views"
-import { directoryOf, terminalOf } from "../workspace"
+import { directoryOf, sessionOf, terminalOf } from "../workspace"
 import { authAgent, studioAgent, type SampleAgent } from "./agents"
 import { devServerArtifacts } from "./artifacts"
 import { changesArtifacts } from "./changes"
@@ -160,10 +160,7 @@ export const showcaseDemo = (
   let reset: BackendSink["dispatch"] | undefined
   // The showcase session's items as they stand, which an agent showing something again
   // finds its own in.
-  const current = () =>
-    latest?.projects
-      .find((project) => project.id === session.projectId)
-      ?.history.find((each) => each.id === session.workspaceSessionId)?.state.items ?? []
+  const current = () => sessionOf(latest, session)?.state.items ?? []
   const content: Backend = {
     ...backend,
     // A closed terminal's agent is gone.

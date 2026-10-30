@@ -20,7 +20,7 @@ import {
   project,
   runCall,
   session,
-  sessionOf,
+  deskSession,
   slot,
   toolRejected,
   working,
@@ -213,7 +213,7 @@ export const chirpSeed = (now: number): WorkspaceSeed => ({
     {
       ...project(desk),
       sessions: [
-        sessionOf(
+        deskSession(
           now,
           jobs.map((job, index) =>
             agentTerminal(
@@ -231,7 +231,7 @@ export const chirpSeed = (now: number): WorkspaceSeed => ({
     ...Object.entries(elsewhere).map(([id, list], place) => ({
       ...project(id),
       sessions: [
-        sessionOf(
+        deskSession(
           now,
           list.map(([name, agent], index) => agentTerminal(id, index + 1, name, agent, working)),
           undefined,

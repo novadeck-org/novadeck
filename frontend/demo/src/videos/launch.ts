@@ -29,7 +29,7 @@ import {
   deskTranscripts,
   project,
   session,
-  sessionOf,
+  deskSession,
   slot,
   working,
   type Job,
@@ -366,7 +366,7 @@ export const launchSeed = (now: number): WorkspaceSeed => ({
     {
       ...project(shop),
       sessions: [
-        sessionOf(
+        deskSession(
           now,
           jobs.flatMap((job, index) =>
             onDeck(index + 1) ? [agentTerminal(shop, index + 1, job.name, job.agent, working)] : [],
@@ -378,7 +378,7 @@ export const launchSeed = (now: number): WorkspaceSeed => ({
     {
       ...project(docs),
       sessions: [
-        sessionOf(
+        deskSession(
           now,
           elsewhere.map(([name, agent], index) =>
             agentTerminal(docs, index + 1, name, agent, working),

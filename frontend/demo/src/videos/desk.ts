@@ -94,7 +94,7 @@ export const slot = (number: number): string => String(number).padStart(2, "0")
 
 // A project's one session, with its terminals and Canvas layout. The open session was visited
 // just now; the others a while before.
-export const sessionOf = (
+export const deskSession = (
   now: number,
   terminals: TerminalMetadata[],
   canvasLayout?: CanvasLayout,
