@@ -5,7 +5,7 @@ import type { ItemRegistration } from "../../registration"
 import { FileThumb, FileViewer } from "./FileViewer"
 import { isMarkdown } from "./markdown"
 
-// A text file an agent showed: as code, or a markdown file as a document. A stack of files
+// A text file an agent showed: as code, or a Markdown file as a document. A stack of files
 // takes the code's icon whatever they are.
 export const file = {
   kind: "file",

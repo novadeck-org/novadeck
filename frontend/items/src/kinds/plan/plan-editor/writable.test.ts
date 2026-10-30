@@ -27,7 +27,7 @@ const ready = (text: string, writable = true, stamp = "1"): ItemContent => ({
   content: { kind: "plan", text, truncated: false, writable, skill: true },
 })
 
-// A plan in the companion that the test gives the content of, which nothing can save.
+// A plan in the pane that the test gives the content of, which nothing can save.
 const shown = async () => {
   let emit: (content: ItemContent) => void = () => {}
   const companions: Companions = {

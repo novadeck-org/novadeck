@@ -6,9 +6,8 @@ import { ArtifactMeta, MetaPath } from "../../ArtifactViewer"
 import type { MarkdownEditorHandle } from "../../document/editor/MarkdownEditor"
 import { MarkdownDocument } from "../../document/MarkdownDocument"
 
-// A markdown file the agent showed, as a document, read-only: formatted, with its outline,
-// as a plan reads, but it's the agent's file, not something to edit or note.
-
+// A Markdown file the agent showed, as a document, read-only: formatted, with its outline.
+// It's the agent's file, not something to edit or note.
 export const DocumentViewer = ({
   id,
   name,
@@ -17,7 +16,7 @@ export const DocumentViewer = ({
 }: {
   // The item showing it, whose editor opens again as it was left.
   id: string
-  // The item's name, which labels the document: it reads as the file, not as a plan.
+  // The item's name, which labels the document: it reads as the file.
   name: string
   content: FileContent
   actions?: ReactNode

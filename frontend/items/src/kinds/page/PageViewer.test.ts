@@ -23,7 +23,7 @@ const item = itemFixture("preview", "01", { kind: "page", name: "localhost:5173"
 
 // The page's body in the pane, as the page registration draws it, loading what `content`
 // holds; `show` reports new content for the same item, as the backend does. With `awake`,
-// the pane says whether it's awake, and `pictures` are what its host takes of the page.
+// the pane says whether it's awake, and `pictures` are what the app takes of the page.
 const show = (
   content: PageContent,
   shown = true,
@@ -295,7 +295,7 @@ describe("a page beside a terminal", () => {
       expect(asked).toEqual([])
     })
 
-    it("stays live where its host takes no pictures", async () => {
+    it("stays live where the app takes no pictures", async () => {
       const at = "http://localhost:4402/"
       const rendered = show({ kind: "page", url: at, shown: 1, live: true }, true, {
         awake: { awake: false, sleeps: true, wake: () => {} },
@@ -371,7 +371,7 @@ describe("a page beside a terminal", () => {
       expect(await resting).toBeUndefined()
     })
 
-    it("has no sight where its host takes no pictures, nor where it isn't live", () => {
+    it("has no sight where the app takes no pictures, nor where it isn't live", () => {
       const rendered = show({ kind: "page", url: at, shown: 1, live: true })
       expect(pageSights.of(item.id)).toEqual([])
       rendered.unmount()

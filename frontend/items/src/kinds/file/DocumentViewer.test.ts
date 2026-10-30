@@ -22,7 +22,7 @@ const content: FileContent = {
   truncated: false,
 }
 
-describe("a markdown file's document", () => {
+describe("a Markdown file's document", () => {
   it("reads in a Markdown document, read-only, with its outline and none of a plan's notes", async () => {
     const { container, unmount } = render(
       createElement(DocumentViewer, { id: "voice", name: "brand-voice.md", content }),
@@ -40,7 +40,7 @@ describe("a markdown file's document", () => {
     ).toEqual(["Words"])
   })
 
-  it("is labelled by the file's name, not as a plan", async () => {
+  it("is labelled by the file's name", async () => {
     const { container, unmount } = render(
       createElement(DocumentViewer, { id: "voice", name: "brand-voice.md", content }),
     )
