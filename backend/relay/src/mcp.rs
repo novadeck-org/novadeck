@@ -4,17 +4,17 @@
 //! speaks another version of the protocol, leaves the relay to answer by itself, with no
 //! tools: nothing of the agent's has been read yet, so the session is whole.
 
-use std::env;
 use std::time::Duration;
 
 use serde_json::{Value, json};
 use tokio::io::{AsyncBufReadExt, AsyncReadExt, AsyncWriteExt, BufReader};
 
-use crate::{PROTOCOL, endpoint, idle};
+use crate::endpoint::{self, Terminal};
+use crate::{PROTOCOL, idle};
 
 /// What the relay sends once the agent has closed its side, as Windows' named pipes
 /// can't be half closed: the runner answers the calls under way, then closes.
-pub const END: &str = "{\"relay\":\"eof\"}\n";
+const END: &str = "{\"relay\":\"eof\"}\n";
 
 /// How long the runner has to take the session before the relay answers by itself: long,
 /// as a runner busy restoring terminals answers late, and a session given up on stays
@@ -23,7 +23,7 @@ pub const END: &str = "{\"relay\":\"eof\"}\n";
 const TAKEN_WITHIN: Duration = Duration::from_millis(8_000);
 
 /// Whether a line is the runner taking the session, in this relay's protocol.
-pub fn taken(line: &str) -> bool {
+fn taken(line: &str) -> bool {
     serde_json::from_str::<Value>(line).is_ok_and(|value| {
         value.get("relay").and_then(Value::as_u64) == Some(u64::from(PROTOCOL))
             && value.get("ok") == Some(&Value::Bool(true))
@@ -31,14 +31,8 @@ pub fn taken(line: &str) -> bool {
 }
 
 pub fn run(server: &str, versions: &[String]) {
-    let terminal = [
-        "NOVADECK_TERMINAL_ID",
-        "NOVADECK_REPORT",
-        "NOVADECK_REPORT_TOKEN",
-    ]
-    .map(|name| env::var(name).ok().filter(|value| !value.is_empty()));
     // Outside Novadeck's terminals there is nothing to say: no tools is what's meant.
-    let [Some(terminal), Some(endpoint), Some(token)] = terminal else {
+    let Some(terminal) = Terminal::from_env() else {
         return idle::serve(server, versions);
     };
     // In one, the agent's log says why Novadeck's tools are missing.
@@ -46,14 +40,11 @@ pub fn run(server: &str, versions: &[String]) {
         eprintln!("Novadeck's relay offers no tools: {why}.");
         idle::serve(server, versions);
     };
-    let runtime = tokio::runtime::Builder::new_current_thread()
-        .enable_all()
-        .build();
-    let Ok(runtime) = runtime else {
+    let Ok(runtime) = endpoint::runtime() else {
         return idle("it couldn't start");
     };
-    let hello = json!({ "relay": PROTOCOL, "kind": "mcp", "terminalId": terminal, "token": token });
-    match runtime.block_on(open(&endpoint, format!("{hello}\n"))) {
+    let hello = terminal.hello("mcp", json!({}));
+    match runtime.block_on(open(&terminal.endpoint, hello)) {
         Ok(session) => runtime.block_on(carry(session)),
         Err(why) => {
             runtime.shutdown_background();

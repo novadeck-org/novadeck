@@ -1,19 +1,7 @@
 {
+  "extends": "../../tsconfig.base.json",
   "compilerOptions": {
-    "target": "ES2023",
-    "lib": ["ES2023"],
-    "module": "NodeNext",
-    "moduleResolution": "NodeNext",
-    "allowImportingTsExtensions": true,
-    "allowJs": true,
-    "checkJs": true,
-    "strict": true,
-    "noUncheckedIndexedAccess": true,
-    "exactOptionalPropertyTypes": true,
-    "isolatedModules": true,
-    "skipLibCheck": true,
-    "noEmit": true,
-    "types": ["node"]
+    "erasableSyntaxOnly": true
   },
-  "include": ["index.ts"]
+  "include": ["src/**/*.ts", "vitest.config.ts"]
 }

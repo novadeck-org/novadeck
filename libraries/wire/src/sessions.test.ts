@@ -132,6 +132,30 @@ describe("createSessions", () => {
     ])
   })
 
+  it("tells of a handshake refused for its input or by the app", async () => {
+    const failed = vi.fn<(path: readonly string[], error: unknown) => void>()
+    const { open } = serve({
+      failed,
+      admit: () => {
+        throw new ORPCError("NOT_YET", { status: 409 })
+      },
+    })
+    const { client, handshake } = open()
+    await expect(
+      client.wire.handshake({ protocolVersion: 1.5, token: "secret" }),
+    ).rejects.toMatchObject({ code: "BAD_REQUEST" })
+    await expect(handshake()).rejects.toMatchObject({ code: "NOT_YET" })
+    expect(
+      failed.mock.calls.map(([path, error]) => [
+        path.join("."),
+        (error as ORPCError<string, unknown>).code,
+      ]),
+    ).toEqual([
+      ["wire.handshake", "BAD_REQUEST"],
+      ["wire.handshake", "NOT_YET"],
+    ])
+  })
+
   it("answers as ever when what it tells of a failure throws", async () => {
     const { open } = serve({
       failed: () => {

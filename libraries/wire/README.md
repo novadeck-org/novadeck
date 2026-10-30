@@ -17,10 +17,12 @@ beside the wire's own handshake.
   - `WireError`, the error a client reports, with a stable `code` (the wire's or the app's)
     and the contract's `data`; `normalize` turns an oRPC error into one, and `hasCode`
     matches one by code.
-  - `wireErrors`, the codes the wire's own server side refuses with, as an oRPC error map
-    for the app to spread into its contract's: `UNAUTHORIZED`, `INCOMPATIBLE_PROTOCOL`,
-    `RESOURCE_LIMIT`, `CLOSING` (shutting down), `SLOW_CONSUMER`, `INVALID_CURSOR`. The client adds `DISCONNECTED` and
-    `CLOSED`, and oRPC `BAD_REQUEST` and `INTERNAL_SERVER_ERROR` (`WireErrorCode`).
+  - `wireErrors`, the codes the wire defines for both ends, as an oRPC error map for the app
+    to spread into its contract's. Its server side refuses with `UNAUTHORIZED`,
+    `INCOMPATIBLE_PROTOCOL` and `RESOURCE_LIMIT`; `CLOSING` (shutting down), `SLOW_CONSUMER`
+    and `INVALID_CURSOR` are the app's to throw, and `follow` acts on them. The client adds
+    `DISCONNECTED` and `CLOSED`, and oRPC `BAD_REQUEST` and `INTERNAL_SERVER_ERROR`
+    (`WireErrorCode`).
   - `wireContract`, the wire's own procedure for the app to spread into its contract:
     `wire.handshake({ protocolVersion, token?, clientId? })`, which opens every connection
     and answers `{ epoch, protocolVersion }`.
@@ -36,19 +38,20 @@ beside the wire's own handshake.
     one `clientId` for every connection of the client (so a server can take over from a
     half-open one) and the transport's token; the server answers its `epoch`, its lifetime,
     which a stream's cursor belongs to, and a server that answers another protocol is
-    `INCOMPATIBLE_PROTOCOL`. A connection that drops comes
-    back on its own, after `retryDelay(attempt)` (`min(250·2ⁿ, 5000)` ms by default), until
-    `close()` or a fatal code: `UNAUTHORIZED`, `INCOMPATIBLE_PROTOCOL`, `CLOSED` and whatever
-    `fatal(code)` adds. A connection or handshake taking longer than `timeoutMs` (10 s) fails;
-    the transport hears of it through its signal, and must give up when that aborts.
+    `INCOMPATIBLE_PROTOCOL`. A connection that drops comes back on its own, after
+    `retryDelay(attempt)` (`min(250·2ⁿ, 5000)` ms by default), until `close()` or a fatal
+    code: `UNAUTHORIZED`, `INCOMPATIBLE_PROTOCOL`, `CLOSED` and whatever `fatal(code)` adds.
+    A connection or handshake taking longer than `timeoutMs` (10 s) fails; the transport
+    hears of it through its signal, and must give up when that aborts.
     The `Wire` it gives has:
-    - `status`, the `WireStatus` as a read-only `Watched` value: `connected` in an epoch,
+    - `status`, the `WireStatus` as a `Watching` value: `connected` in an epoch,
       `reconnecting` with the error that dropped it, or `closed`, with why if it wasn't
       asked to;
     - `session()`, the live `{ client, epoch, channel }`, for calls that must not wait: it
       throws `DISCONNECTED` while reconnecting and why it closed (or `CLOSED`) once closed,
       and never queues;
-    - `ready()`, which waits for a live session, and `close()`.
+    - `ready()`, which waits for a live session, resolving `undefined` once closed or
+      throwing why it closed, and `close()`.
   - `follow(wire, { open, resume, gone })`, a stream followed across the connection's
     sessions, which its reader sees as one. `open(client, { after, signal })` opens it on a
     session. It resumes one of two ways:
@@ -59,32 +62,32 @@ beside the wire's own handshake.
       refused one retried after 50 ms. Its first stream opens on the live session or fails.
       Once it has yielded, only a lost connection is resumed: any other failure, or why the
       connection closed, ends it, thrown to the reader;
-    - by starting over (`{ restart: true, reset, holdReset }`): each new subscription says
+    - by starting over (`{ restart: true, reset, holdReset }`): each stream it opens says
       `reset` first, so the reader replaces what it has with what follows, up to its own
-      marker (such as `synced`). With `holdReset`, `reset` waits for the new subscription's
-      first item, and the first subscription has none. It never throws: a lost connection or
-      a closing server (`CLOSING`) is followed to the next session, and any other refusal is
-      retried after `min(200·2ⁿ, 3000)` ms.
+      marker (such as `synced`). With `holdReset`, `reset` waits for a stream opened again
+      to yield its first item, and the first stream has none. It never throws: a lost
+      connection or a closing server (`CLOSING`) is followed to the next session, and any
+      other refusal is retried after `min(200·2ⁿ, 3000)` ms.
 
     For a restarting stream, `gone(error)` says its subject was removed, which ends it. One
     that can lose its subject is opened again as soon as its server ends it, to learn whether
-    it's still there; one that can't is opened again on the next session. The `Following` it gives says
-    which `session` its stream is open on, and why it `finished`: `ended` by the server,
-    `stopped` by `return()` or the connection's close, or `failed`.
+    it's still there; one that can't is opened again on the next session. The `Following` it
+    gives says which `session` its stream has yielded on, and why it `finished`: `ended` by
+    the server, `stopped` by `return()` or the connection's close, or `failed`.
 
-  - `Watched<T>`, a value and its changes: `value`, `next()` for the next change, and
-    `watch()`, which yields the latest value after each change, coalescing quick ones, until
-    a final one.
+  - `Watching<T>`, a value and its changes, read-only: `value`, `next()` for the next change,
+    and `watch()`, which yields the latest value after each change, coalescing quick ones,
+    until a final one.
   - `Transport`, how a client opens a channel (`connect(signal)`) and the token it sends in
     its handshake, if any. `websocket(url, { token })` reaches a server deployed on its own,
-    the token kept out of the URL; `messagePort(port)` reaches one its host hands a port to.
-    A single port connects once; pass a function that asks for a fresh port to reconnect.
-    `hostTransport({ request, message, lateAnswerMs })` is that function for a page in
-    Electron's renderer: `request(id)` asks the host (through what its preload exposes), and
-    the port comes back as a window message `{ type: message, id }`. A port that answers a
-    request given up on is closed, if it comes within `lateAnswerMs`.
-- `./electron` (Node only: Electron's main process and preload): the host's side of
-  `hostTransport`, with `electron` as an optional peer.
+    the token kept out of the URL; `messagePort(port)` reaches one bundled with the app, which
+    hands it a port. A single port connects once; pass a function that asks for a fresh port
+    to reconnect. `brokeredPort({ request, message, lateAnswerMs })` is such a transport for a
+    page in Electron's renderer: `request(id)` asks the main process (through what the
+    preload exposes), and the port comes back as a window message `{ type: message, id }`.
+    A port that answers a request given up on is closed, if it comes within `lateAnswerMs`.
+- `./electron` (Node only: Electron's main process and preload): the other side of
+  `brokeredPort`, with `electron` as an optional peer.
   - `brokerPorts({ channel, allow, deliver })`, in the main process: a page that asks on the
     IPC `channel` (and that `allow` lets ask: a port is whatever access the service gives)
     gets one end of a fresh `MessageChannelMain` under its request id; `deliver` hands the
@@ -97,14 +100,17 @@ beside the wire's own handshake.
   Forking, restarting and closing the service's process stay the app's.
 
 - `./server` (Node only): the server's side.
-  - `createSessions({ protocolVersion, router, admit, closed, error, epoch })`, a server's
-    sessions, and the router its transports serve: the wire's handshake beside the app's
-    `router`, whose context is `{ session }`. The handshake refuses a session whose token its
-    transport doesn't accept (`UNAUTHORIZED`) or that speaks another protocol
+  - `createSessions({ protocolVersion, router, admit, closed, error, failed, epoch })`, a
+    server's sessions, and the router its transports serve: the wire's handshake beside the
+    app's `router`, whose context is `{ session }`. The handshake refuses a session whose
+    token its transport doesn't accept (`UNAUTHORIZED`) or that speaks another protocol
     (`INCOMPATIBLE_PROTOCOL`), then asks `admit`, which may refuse with a code of the app's.
     A session whose client connects again is closed, and its transport ended, as the new
-    one's handshake takes over: a client notices a dead link before the server does.
-    `closed(session)` tells the app a session ended, to release what it held.
+    one's handshake takes over: a client notices a dead connection before the server does.
+    `closed(session)` tells the app a session ended, to release what it held, and
+    `failed(path, error)` tells it, for a log, each failure of a call or a stream before
+    `error` maps it, and each handshake refused, whether for its input, by the wire or by
+    `admit`.
   - The gate, in front of every procedure of the app's `router`: a session that hasn't
     authenticated, or has closed, is `UNAUTHORIZED`; one with `maxCalls` calls running is
     `RESOURCE_LIMIT`. A failure is mapped with `error`, the app's codes beside the wire's. A

@@ -175,7 +175,7 @@ describe("E2E selection", () => {
     it.each([
       ["@novadeck/terminal", "libraries/terminal/src/pty/index.ts"],
       ["@novadeck/wire", "libraries/wire/src/index.ts"],
-      ["@novadeck/sandbox", "libraries/sandbox/src/index.ts"],
+      ["@novadeck/sandbox", "libraries/sandbox/src/sandbox.ts"],
     ])("runs everything for %s", (name, file) => {
       expect(select(pullRequest([name, "@novadeck/runner"], [file]), ids)).toEqual(ids)
     })
@@ -225,7 +225,7 @@ describe("E2E systems", () => {
     ".github/workflows/e2e.yml",
     ".github/actions/e2e-harness-cache/save/action.yml",
     "libraries/sandbox/src/reap.ts",
-    "libraries/sandbox/src/reap-lister.cs",
+    "libraries/sandbox/src/reap/lister.cs",
     "libraries/terminal/patches/node-pty@1.2.0-beta.14.patch",
   ])("runs all three for %s", (file) => {
     expect(selectSystems(pullRequest([], ["README.md", file]))).toEqual(all)

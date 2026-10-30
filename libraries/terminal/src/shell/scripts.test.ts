@@ -53,7 +53,7 @@ describe.skipIf(process.platform === "win32" || !bash)("bash's file", () => {
     const cwd = join(root, "My Dir ż")
     const first = join(root, "first")
     for (const directory of [home, cwd, first]) mkdirSync(directory)
-    // The user's own startup file puts another folder first.
+    // The person's own startup file puts another folder first.
     writeFileSync(join(home, ".bashrc"), 'PATH="/elsewhere:$PATH"\n')
     const scripts = shellScriptPaths(join(root, "shell"), "acme")
     for (const file of shellScripts(scripts, header)) {
@@ -81,7 +81,7 @@ describe.skipIf(process.platform === "win32" || !bash)("bash's file", () => {
     expect(run.stdout).toContain("started 42\n")
     expect(run.stdout.match(/started/g)).toHaveLength(1)
     expect(existsSync(startup.file)).toBe(false)
-    // Back in front of what the user's file put first; the launch's own copy stays behind it.
+    // Back in front of what the person's file put first; the launch's own copy stays behind it.
     expect(run.stdout).toContain(`path=${first}:/elsewhere:${first}:/usr/bin:/bin\n`)
     expect(run.stdout).toContain("resume=unset\n")
     const reports = run.stdout

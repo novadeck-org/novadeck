@@ -1,5 +1,4 @@
 import type { AttachStream, Exit, TerminalEvent } from "../contract.js"
-import { pause } from "./pause.js"
 import type { Store, ViewLink } from "./view-state.js"
 
 // A terminal's shell as following it needs to know it: when it is ready to attach to, when
@@ -78,6 +77,9 @@ export type FollowedTerminal = {
   readonly unpark: () => void
   readonly stop: () => void
 }
+
+// Resolves after `ms` milliseconds.
+const pause = (ms: number): Promise<void> => new Promise((resolve) => setTimeout(resolve, ms))
 
 // How long a screen that failed to draw waits before it attaches again: the first, doubling
 // with each failure in a row up to the most. A failure `apart` after the one before it is the
@@ -213,6 +215,7 @@ export const followTerminal = <K>(
     if (failed) attached.close()
     return failed
   }
+  // A function, as the loop's condition changes through `stop`, out of its sight.
   const running = (): boolean => !stopped
   const run = async (): Promise<void> => {
     while (running()) {

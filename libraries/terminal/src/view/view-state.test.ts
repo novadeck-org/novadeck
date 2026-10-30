@@ -14,7 +14,7 @@ const facts = (link: ViewLink, phase: ViewPhase): ViewFacts => ({ link, phase })
 const stream = (live = false, resuming = false, waits = false) => ({ live, resuming, waits })
 
 describe("why a terminal refuses input", () => {
-  it("is offline while the runner is unreachable, whatever the shell does", () => {
+  it("is offline while the host is unreachable, whatever the shell does", () => {
     for (const phase of ["starting", "running", "ended"] as const)
       expect(lockOf(facts("unavailable", phase), stream(true))).toBe("offline")
   })

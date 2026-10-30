@@ -11,7 +11,6 @@ const jsonBytes = (event: unknown): number => Buffer.byteLength(JSON.stringify(e
  * transport wraps events in an envelope counts them in it.
  */
 export class Subscription<E extends TerminalEvent = TerminalEvent> {
-  readonly mode: "control" | "observe"
   private readonly queue: Delivery<E>[] = []
   private readonly outstanding = new Map<number, Outstanding>()
   private bytes = 0
@@ -25,15 +24,13 @@ export class Subscription<E extends TerminalEvent = TerminalEvent> {
   private wake: (() => void) | undefined
 
   constructor(
-    mode: "control" | "observe",
+    readonly mode: "control" | "observe",
     private readonly limit: number,
     private readonly window: number,
     private readonly detach: () => void,
     private readonly snapshotLimit: number = limit,
     private readonly eventBytes: (event: E) => number = jsonBytes,
-  ) {
-    this.mode = mode
-  }
+  ) {}
 
   push(event: E): void {
     if (this.finished || this.error) return

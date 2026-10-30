@@ -4,6 +4,8 @@ import { chmod, mkdir, rename, writeFile } from "node:fs/promises"
 import { join } from "node:path"
 import { fileURLToPath } from "node:url"
 
+import { relayName } from "../index.js"
+
 // The relay's build, with Rust as rust-toolchain.toml names it:
 //
 //   node scripts/build.ts                 builds dist/novadeck-relay[.exe]
@@ -15,7 +17,6 @@ import { fileURLToPath } from "node:url"
 // universal app needs.
 
 const root = fileURLToPath(new URL("..", import.meta.url))
-const binaryName = process.platform === "win32" ? "novadeck-relay.exe" : "novadeck-relay"
 
 const run = (command: string, args: readonly string[]): void => {
   const result = spawnSync(command, args, { cwd: root, stdio: "inherit" })
@@ -38,12 +39,10 @@ const pinnedRust = (): void => {
   if (has("rustup")) run("rustup", ["toolchain", "install", "--no-self-update"])
 }
 
-/**
- * On Linux, the Rust target the relay is built for: linked statically against musl, so
- * one binary runs on any distribution, however old its C library, as a server's may be.
- */
-export const linuxTriple = (arch: string = process.arch): string =>
-  `${arch === "arm64" ? "aarch64" : "x86_64"}-unknown-linux-musl`
+// On Linux, the Rust target the relay is built for: linked statically against musl, so
+// one binary runs on any distribution, however old its C library, as a server's may be.
+const linuxTriple = (): string =>
+  `${process.arch === "arm64" ? "aarch64" : "x86_64"}-unknown-linux-musl`
 
 // Apple silicon runs only signed code, and stripping or merging architectures can leave a
 // binary's own signature broken, so on macOS it is signed again, ad hoc, as the unsigned
@@ -62,28 +61,28 @@ const compile = (): Buffer => {
     const triple = linuxTriple()
     run("rustup", ["target", "add", triple])
     cargo("--target", triple)
-    return readFileSync(join(root, "target", triple, "release", binaryName))
+    return readFileSync(join(root, "target", triple, "release", relayName))
   }
   if (process.platform !== "darwin" || process.env.NOVADECK_RELAY_UNIVERSAL !== "1") {
     cargo()
-    return signed(join(root, "target", "release", binaryName))
+    return signed(join(root, "target", "release", relayName))
   }
   const triples = ["aarch64-apple-darwin", "x86_64-apple-darwin"]
   run("rustup", ["target", "add", ...triples])
   for (const triple of triples) cargo("--target", triple)
-  const merged = join(root, "target", binaryName)
+  const merged = join(root, "target", relayName)
   run("lipo", [
     "-create",
     "-output",
     merged,
-    ...triples.map((triple) => join(root, "target", triple, "release", binaryName)),
+    ...triples.map((triple) => join(root, "target", triple, "release", relayName)),
   ])
   return signed(merged)
 }
 
 // Replaced whole, so a runner reading it meanwhile sees the old binary or the new one.
 const place = async (data: Uint8Array): Promise<void> => {
-  const output = join(root, "dist", binaryName)
+  const output = join(root, "dist", relayName)
   await mkdir(join(root, "dist"), { recursive: true })
   const temporary = `${output}.${process.pid}.tmp`
   await writeFile(temporary, data, { mode: 0o755 })
@@ -91,12 +90,8 @@ const place = async (data: Uint8Array): Promise<void> => {
   await chmod(output, 0o755)
 }
 
-/** The platforms clippy checks in CI, as each compiles code of its own. */
-export const lintTriples = [
-  "x86_64-unknown-linux-gnu",
-  "aarch64-apple-darwin",
-  "x86_64-pc-windows-msvc",
-]
+// The platforms clippy checks in CI, as each compiles code of its own.
+const lintTriples = ["x86_64-unknown-linux-gnu", "aarch64-apple-darwin", "x86_64-pc-windows-msvc"]
 
 const clippy = (...triple: string[]) =>
   run("cargo", [

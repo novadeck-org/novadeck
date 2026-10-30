@@ -2,11 +2,11 @@ import { createHmac } from "node:crypto"
 
 import { describe, expect, it } from "vitest"
 
-import { hashUrls, type UrlRule } from "./urls.js"
+import { urlHasher, type UrlRule } from "./urls.js"
 
 const salt = "f3a9c1e07b2d4e6f8a0b1c2d3e4f5a6b"
 
-/** What `hashUrls` writes for a name or a host, as a test spells it out. */
+/** What `urlHasher` writes for a name or a host, as a test spells it out. */
 const h = (name: string, extension = ""): string =>
   `#${createHmac("sha256", salt).update(name).digest("hex").slice(0, 8)}${extension}`
 
@@ -15,7 +15,7 @@ const rule: UrlRule = {
   readableUrls: ["*.novadeck.dev", "github.com/novadeck-org", "huggingface.co/unsloth"],
 }
 
-describe("hashUrls", () => {
+describe("urlHasher", () => {
   const cases: readonly (readonly [string, string, string])[] = [
     [
       "a release of the app's own",
@@ -92,12 +92,12 @@ describe("hashUrls", () => {
 
   for (const [what, text, written] of cases)
     it(`writes ${what}`, () => {
-      expect(hashUrls(text, rule)).toBe(written)
+      expect(urlHasher(rule)(text)).toBe(written)
     })
 
   it("names public forges as given", () => {
     expect(
-      hashUrls("https://codeberg.org/acme/x", { ...rule, publicHosts: ["codeberg.org"] }),
+      urlHasher({ ...rule, publicHosts: ["codeberg.org"] })("https://codeberg.org/acme/x"),
     ).toBe(`https://codeberg.org/${h("acme")}/${h("x")}`)
   })
 })
