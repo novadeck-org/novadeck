@@ -4,8 +4,8 @@ import { join, relative } from "node:path"
 
 import type { Install } from "@novadeck/harness-core/harness"
 
-/** Novadeck's plugin, as Codex names the plugin a hook comes from. */
-const pluginId = "novadeck@novadeck"
+import { codexHome } from "./home.js"
+import { pluginId } from "./plugin.js"
 
 /**
  * The hooks without which nothing reaches a Codex session: SessionStart binds it, the
@@ -166,7 +166,7 @@ const asking = new Map<string, Promise<boolean | undefined>>()
  * way are shared.
  */
 export const hooksTrusted = async (where: Asking, cwd: string): Promise<boolean | undefined> => {
-  const home = where.env.CODEX_HOME || join(where.home, ".codex")
+  const home = codexHome(where)
   const key = `${where.program ?? "codex"}\0${home}\0${cwd}`
   const state = await stateOf(home)
   const kept = known.get(key)
