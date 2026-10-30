@@ -47,11 +47,11 @@ hand back as `saved` to the next viewer of the same thing.
 - `./markdown-blocks`: `parseMarkdown`, a small forgiving reader of the Markdown an agent
   writes (paragraphs, headings, lists, quotes, fenced code, tables, emphasis, inline code,
   links), returning a tree for an app to draw element by element, so nothing in the text is
-  ever read as HTML; `parseInline`, `safeHref` (only web links leave) and `fenceFile`, the
-  file name whose language a fence's info string asks for, to give `languageOf`. It imports
-  nothing and doesn't edit: `./markdown` is the editor.
+  ever read as HTML; `parseInline`, `safeHref` (only web links leave) and `fenceLanguage`, the
+  language a fence's info string asks for, to give `highlightLines`. It imports nothing
+  and doesn't edit: `./markdown` is the editor.
 - `./text`: `outline`, the headings of a Markdown text, with no editor behind it.
-- `./sync`: `lineChanges`, `distance` and `merge`, how Markdown texts differ and merge.
+- `./sync`: `distance` and `merge`, how far apart Markdown texts are and how they merge.
   Built on CodeMirror's state, so kept apart from `./text`.
 - `./browser`: `mountBrowser`, a web page: live in Electron's `<webview>`, reporting where it
   is, how its load went and what goes wrong on it, going back, forward or reloading, quiet

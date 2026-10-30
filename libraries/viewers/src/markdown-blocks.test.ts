@@ -1,6 +1,6 @@
 import { describe as context, describe, expect, it } from "vitest"
 
-import { fenceFile, parseInline, parseMarkdown, safeHref } from "./markdown-blocks.js"
+import { fenceLanguage, parseInline, parseMarkdown, safeHref } from "./markdown-blocks.js"
 
 const kinds = (text: string) => parseMarkdown(text).map((block) => block.t)
 
@@ -170,11 +170,14 @@ describe("markdown on pathological text", () => {
   })
 })
 
-describe("fence files", () => {
-  it("names the file a fence's language is highlighted as, whatever its case", () => {
-    expect(fenceFile("TypeScript")).toBe("code.ts")
-    expect(fenceFile("yml")).toBe("code.yaml")
-    expect(fenceFile("brainfuck")).toBeUndefined()
-    expect(fenceFile("")).toBeUndefined()
+describe("fence languages", () => {
+  it("names the language a fence asks for, whatever its case", () => {
+    expect(fenceLanguage("TypeScript")).toBe("typescript")
+    expect(fenceLanguage("yml")).toBe("yaml")
+    expect(fenceLanguage("h")).toBe("cpp")
+    expect(fenceLanguage("node")).toBe("javascript")
+    expect(fenceLanguage("brainfuck")).toBeUndefined()
+    expect(fenceLanguage("constructor")).toBeUndefined()
+    expect(fenceLanguage("")).toBeUndefined()
   })
 })

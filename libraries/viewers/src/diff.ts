@@ -7,9 +7,9 @@ import type { Mount, ViewerState } from "./index.js"
 // A read-only change: a repository's files against a base, each a section under a header
 // (its path, how it changed, what it added and removed) with its hunks as numbered lines
 // that were added, removed or kept for context. Plain text first, then highlighted by each
-// file's language as the code viewer does (./highlight/rows.ts), the old
-// and the new side of a hunk apart. The rows of a long change are made a few at a time, and
-// highlighted a hunk at a time, so the pane stays alive while it fills. A new change keeps
+// file's language as the code viewer does (./highlight/rows.ts), the old and the new side
+// of a hunk apart. The rows of a long change are made a few at a time, and highlighted a
+// hunk at a time, so the pane stays alive while it fills. A new change keeps
 // the rows, and their colours, of every file that didn't change, and keeps the place by
 // the file and row it was at, not by pixels. Its looks are diff.css's.
 
@@ -75,7 +75,7 @@ type Anchor = {
   // A kept line's number on the new side, which a commit of lines above leaves as it was,
   // as an edit of the working tree leaves `line`.
   readonly other?: number
-  readonly kind?: "context" | "add" | "remove" | "hunk"
+  readonly kind?: DiffLine["kind"] | "hunk"
   readonly text?: string
 }
 
@@ -107,25 +107,25 @@ const highlightedLines = 4_000
 // by a new viewer of the same change, shows highlighted at once. Kept by the size of the
 // text they were parsed from, the one used longest ago going first.
 const keptChars = 2_000_000
-const highlighted = new Map<string, { runs: readonly HighlightedLine[]; size: number }>()
-let highlightedChars = 0
+const keptRuns = new Map<string, { runs: readonly HighlightedLine[]; size: number }>()
+let keptRunsChars = 0
 
 const knownRuns = (key: string): readonly HighlightedLine[] | undefined => {
-  const known = highlighted.get(key)
+  const known = keptRuns.get(key)
   if (!known) return undefined
-  highlighted.delete(key)
-  highlighted.set(key, known)
+  keptRuns.delete(key)
+  keptRuns.set(key, known)
   return known.runs
 }
 
 const keepRuns = (key: string, runs: readonly HighlightedLine[], size: number): void => {
   if (size > keptChars / 4) return
-  highlighted.set(key, { runs, size })
-  highlightedChars += size
-  for (const [oldest, each] of highlighted) {
-    if (highlightedChars <= keptChars) break
-    highlighted.delete(oldest)
-    highlightedChars -= each.size
+  keptRuns.set(key, { runs, size })
+  keptRunsChars += size
+  for (const [oldest, each] of keptRuns) {
+    if (keptRunsChars <= keptChars) break
+    keptRuns.delete(oldest)
+    keptRunsChars -= each.size
   }
 }
 
@@ -217,13 +217,13 @@ const firstBelow = (parts: ArrayLike<Element>, base: number): number => {
   return low
 }
 
+// A hunk's old side (context and removed lines) and new side (context and added), which
+// are parsed apart, so a string or comment opened on one doesn't colour the other.
 const sidesOf = (work: Drawn) => ({
   old: work.hunk.lines.filter((line) => line.kind !== "add").map((line) => line.text),
   now: work.hunk.lines.filter((line) => line.kind !== "remove").map((line) => line.text),
 })
 
-// A hunk's old side (context and removed lines) and new side (context and added) are
-// parsed apart, so a string or comment opened on one doesn't colour the other.
 // Puts runs of the two sides on a hunk's rows: a removed line takes the old side's, any
 // other the new side's.
 const paintHunk = (
@@ -242,6 +242,7 @@ const paintHunk = (
       return found
     }),
   )
+  work.painted = true
 }
 
 const highlightHunk = async (language: string, work: Drawn): Promise<boolean> => {
@@ -249,7 +250,6 @@ const highlightHunk = async (language: string, work: Drawn): Promise<boolean> =>
   const before = await runsOf(language, old)
   const after = await runsOf(language, now)
   paintHunk(work, before.runs, after.runs)
-  work.painted = true
   return before.fresh || after.fresh
 }
 
@@ -354,6 +354,8 @@ const findStop = (entry: Entry, anchor: Anchor): Stop | undefined => {
 
 export const mountDiff: Mount<DiffContent> = (element, { content, label, saved }) => {
   const document = element.ownerDocument
+  // The window it's drawn in: its observers and its frames.
+  const win = document.defaultView
   const root = document.createElement("div")
   root.className = "diff-viewer"
   root.setAttribute("role", "region")
@@ -366,7 +368,7 @@ export const mountDiff: Mount<DiffContent> = (element, { content, label, saved }
   let alive = true
   let timer: ReturnType<typeof setTimeout> | undefined
   let rendered = false
-  // The files as drawn, by path and in order.
+  // The files as drawn, by key and in order.
   let entries = new Map<string, Entry>()
   let order: Entry[] = []
   // The files' keys as they were before the latest change.
@@ -411,9 +413,8 @@ export const mountDiff: Mount<DiffContent> = (element, { content, label, saved }
 
   // A file's lines are a tab stop only while they overflow sideways: known as their layout
   // is, so a file out of sight, with no layout, costs none.
-  const view = document.defaultView
-  const sizes = view?.ResizeObserver
-    ? new view.ResizeObserver((changes) => {
+  const sizes = win?.ResizeObserver
+    ? new win.ResizeObserver((changes) => {
         for (const { target } of changes) {
           const scroller = target.classList.contains("diff-lines") ? target : target.parentElement
           if (!scroller) continue
@@ -421,6 +422,22 @@ export const mountDiff: Mount<DiffContent> = (element, { content, label, saved }
           else scroller.removeAttribute("tabindex")
         }
       })
+    : undefined
+
+  // A file's sideways scroll is put back as it comes into view, never before: a file out of
+  // sight has no layout, and asking for one costs the layout of all of them.
+  const visible = win?.IntersectionObserver
+    ? new win.IntersectionObserver(
+        (changes) => {
+          for (const { target, isIntersecting } of changes) {
+            const entry = bySection.get(target)
+            const left = entry && lefts.get(entry.key)
+            if (isIntersecting && entry?.scroller && left && entry.scroller.scrollLeft !== left)
+              entry.scroller.scrollLeft = left
+          }
+        },
+        { root, rootMargin: "200px 0px" },
+      )
     : undefined
 
   const entryOf = (file: DiffFile, key: string): Entry => {
@@ -613,10 +630,7 @@ export const mountDiff: Mount<DiffContent> = (element, { content, label, saved }
         const { old, now } = sidesOf(work)
         const before = knownRuns(runsKey(language, old.join("\n")))
         const after = knownRuns(runsKey(language, now.join("\n")))
-        if (before && after) {
-          paintHunk(work, before, after)
-          work.painted = true
-        }
+        if (before && after) paintHunk(work, before, after)
       }
       for (const work of entry.drawn) {
         if (work.painted) continue
@@ -760,36 +774,20 @@ export const mountDiff: Mount<DiffContent> = (element, { content, label, saved }
     const entry = byScroller.get(event.target as Element)
     if (entry) lefts.set(entry.key, (event.target as HTMLElement).scrollLeft)
     if (frame !== undefined || !root.clientHeight) return
-    frame = view?.requestAnimationFrame(() => {
+    frame = win?.requestAnimationFrame(() => {
       frame = undefined
       if (alive && root.clientHeight) lastPlace = measure()
     })
   }
   root.addEventListener("scroll", scrolled, { passive: true, capture: true })
 
-  // A file's sideways scroll is put back as it comes into view, never before: a file out of
-  // sight has no layout, and asking for one costs the layout of all of them.
-  const visible = view?.IntersectionObserver
-    ? new view.IntersectionObserver(
-        (changes) => {
-          for (const { target, isIntersecting } of changes) {
-            const entry = bySection.get(target)
-            const left = entry && lefts.get(entry.key)
-            if (isIntersecting && entry?.scroller && left && entry.scroller.scrollLeft !== left)
-              entry.scroller.scrollLeft = left
-          }
-        },
-        { root, rootMargin: "200px 0px" },
-      )
-    : undefined
-
   // The place a viewer without a size was to go back to, once it has one.
   let wakeFrame: number | undefined
-  const wake = view?.ResizeObserver
-    ? new view.ResizeObserver(() => {
+  const wake = win?.ResizeObserver
+    ? new win.ResizeObserver(() => {
         if (!pending || !root.clientHeight || wakeFrame !== undefined) return
         // Not in the observer's own callback, which would resize what it watches.
-        wakeFrame = view.requestAnimationFrame(() => {
+        wakeFrame = win.requestAnimationFrame(() => {
           wakeFrame = undefined
           if (!alive || !pending || !root.clientHeight) return
           const place = pending
@@ -820,9 +818,9 @@ export const mountDiff: Mount<DiffContent> = (element, { content, label, saved }
     destroy: () => {
       alive = false
       clearTimeout(timer)
-      if (frame !== undefined) view?.cancelAnimationFrame(frame)
+      if (frame !== undefined) win?.cancelAnimationFrame(frame)
       root.removeEventListener("scroll", scrolled, { capture: true })
-      if (wakeFrame !== undefined) view?.cancelAnimationFrame(wakeFrame)
+      if (wakeFrame !== undefined) win?.cancelAnimationFrame(wakeFrame)
       visible?.disconnect()
       wake?.disconnect()
       sizes?.disconnect()

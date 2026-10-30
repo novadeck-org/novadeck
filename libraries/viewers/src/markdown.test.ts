@@ -7,7 +7,6 @@ import type { Viewer, ViewerState } from "./index.js"
 import { mountMarkdown, type ClassedRange, type MarkdownContent } from "./markdown.js"
 import planV1 from "./markdown/fixtures/plan-v1.md?raw"
 import planV2 from "./markdown/fixtures/plan-v2.md?raw"
-import { outline } from "./text.js"
 
 const panes: HTMLElement[] = []
 const viewers: Viewer<MarkdownContent>[] = []
@@ -337,15 +336,5 @@ describe("the markdown viewer", () => {
     viewer.destroy()
     viewers.pop()
     expect(pane.children).toHaveLength(0)
-  })
-})
-
-describe("the outline", () => {
-  it("lists second- and third-level headings with where they start, skipping fences", () => {
-    const text = "# Title\n\n## One\n```\n## Not\n```\n### Two\n"
-    expect(outline(text)).toEqual([
-      { text: "One", at: text.indexOf("## One"), depth: 2 },
-      { text: "Two", at: text.indexOf("### Two"), depth: 3 },
-    ])
   })
 })

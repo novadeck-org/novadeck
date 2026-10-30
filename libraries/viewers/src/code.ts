@@ -58,7 +58,7 @@ const isCodeState = (state: unknown): state is CodeState => {
 }
 
 export const mountCode: Mount<CodeContent> = (element, { content, label, saved }) => {
-  // The element may live in another window's document, as an undocked pane does.
+  // Built in the element's own document, which may not be this module's, as a frame's.
   const document = element.ownerDocument
   const root = document.createElement("div")
   root.className = "code-viewer"

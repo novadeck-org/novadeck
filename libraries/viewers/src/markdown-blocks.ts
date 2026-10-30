@@ -2,10 +2,10 @@
 // lists, quotes, fenced code, tables, emphasis, inline code and links. It returns a tree
 // the view draws element by element, so nothing the agent writes is ever read as HTML.
 // It is forgiving rather than exact: text it doesn't understand stays text, and an
-// unclosed fence (a reply still arriving) runs to the end. `fenceFile` names the file whose
+// unclosed fence (a reply still arriving) runs to the end. `fenceLanguage` names the
 // language a fence's info string asks for, for the code viewer's highlighter.
 
-export { fenceFile } from "./highlight/fence-file.js"
+export { fenceLanguage } from "./highlight/fence-language.js"
 
 export type Inline =
   | { readonly t: "text"; readonly text: string }
@@ -285,7 +285,7 @@ const heading = /^ {0,3}(#{1,6})\s+(.*?)(?:\s+#+)?\s*$/
 const rule = /^ {0,3}([-*_])(?:\s*\1){2,}\s*$/
 const quoteLine = /^ {0,3}>\s?/
 const bullet = /^( {0,3})([-*+]|\d{1,9}[.)])(\s+|$)/
-const tableDivider = /^\s*\|?\s*:?-+:?\s*(\|\s*:?-+:?\s*)*\|?\s*$/
+const delimiterRow = /^\s*\|?\s*:?-+:?\s*(?:\|\s*:?-+:?\s*)*\|?\s*$/
 
 const isBlank = (line: string): boolean => line.trim() === ""
 
@@ -326,7 +326,7 @@ const interrupts = (line: string, next: string | undefined): boolean => {
   const item = bullet.exec(line)
   if (item && !isBlank(line.slice(item[0].length)))
     return !/^\d/.test(item[2]!) || /^1[.)]$/.test(item[2]!)
-  return line.includes("|") && next !== undefined && tableDivider.test(next) && next.includes("-")
+  return line.includes("|") && next !== undefined && delimiterRow.test(next)
 }
 
 const indentOf = (line: string): number => /^ */.exec(line)![0].length
@@ -447,15 +447,10 @@ const parseBlocks = (lines: readonly string[]): readonly MarkdownBlock[] => {
       i = next
       continue
     }
-    const divider = lines[i + 1]
-    if (
-      line.includes("|") &&
-      divider !== undefined &&
-      tableDivider.test(divider) &&
-      divider.includes("-")
-    ) {
+    const delimiter = lines[i + 1]
+    if (line.includes("|") && delimiter !== undefined && delimiterRow.test(delimiter)) {
       const head = cells(line)
-      const align = cells(divider).map(alignOf)
+      const align = cells(delimiter).map(alignOf)
       if (head.length === align.length) {
         const rows: string[][] = []
         i += 2

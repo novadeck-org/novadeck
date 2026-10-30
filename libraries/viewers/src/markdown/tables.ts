@@ -3,7 +3,7 @@ import type { RowAnnotations } from "./annotations.js"
 // Markdown tables in a text, down to each cell's place in it, so a cell can be edited
 // without touching the pipes and spacing around it.
 
-export type Cell = {
+type Cell = {
   // The cell's text as shown, with `\|` read as a pipe.
   readonly text: string
   // Where its content sits in the text, trimmed of the padding around it.
@@ -11,7 +11,7 @@ export type Cell = {
   readonly to: number
 }
 
-export type Line = { readonly from: number; readonly to: number; readonly text: string }
+type Line = { readonly from: number; readonly to: number; readonly text: string }
 
 export type Table = {
   readonly from: number
@@ -25,7 +25,7 @@ export type Table = {
 }
 
 // An annotation inside a row, at the end of its last cell, between the app's markers.
-export type RowAnnotation = {
+type RowAnnotation = {
   // The annotation as shown, with `\|` read as a pipe.
   readonly text: string
   // The whole annotation, with the space before it.
@@ -39,7 +39,7 @@ export type RowAnnotation = {
 const escaped = (text: string): string => text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")
 
 // What an annotation is written between.
-export type Markers = Pick<RowAnnotations, "open" | "close">
+type Markers = Pick<RowAnnotations, "open" | "close">
 
 // Finds an annotation in a row.
 const patternOf = ({ open, close }: Markers): RegExp =>

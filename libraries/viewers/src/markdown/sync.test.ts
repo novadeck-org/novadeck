@@ -1,12 +1,10 @@
 import { EditorState, Text } from "@codemirror/state"
 import { describe as context, describe, expect, it } from "vitest"
 
-import planV1 from "./fixtures/plan-v1.md?raw"
-import planV2 from "./fixtures/plan-v2.md?raw"
+import v1 from "./fixtures/plan-v1.md?raw"
+import v2 from "./fixtures/plan-v2.md?raw"
 import { distance, lineChanges, merge } from "./sync.js"
 
-const v1 = planV1
-const v2 = planV2
 const text = (value: string): Text => Text.of(value.split("\n"))
 const withNote = v1.replace(
   "warm ivory background.\n",

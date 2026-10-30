@@ -221,14 +221,12 @@ export const mountMarkdown: Mount<MarkdownContent, MarkdownOptions, MarkdownView
     // nothing and nothing it changed meanwhile is lost.
     restore: (state) => {
       if (!isMarkdownState(state)) return
-      const current: MarkdownContent = {
-        text: view.state.doc.toString(),
-        ranges: currentRanges(view.state),
-      }
+      const text = view.state.doc.toString()
+      const ranges = currentRanges(view.state)
       view.setState(state.markdown.state)
       begin(state.markdown)
-      view.dispatch({ effects: setRanges.of(current.ranges ?? []) })
-      sync(current)
+      view.dispatch({ effects: setRanges.of(ranges) })
+      sync({ text, ranges })
     },
     // A jump wins over a restore still under way.
     jumpTo: (target: Target) => {

@@ -207,7 +207,7 @@ describe("the diff viewer", () => {
       expect(deleted!.querySelector(".diff-old-path")).toBeNull()
     })
 
-    it("shows only the header and a note for a binary, held or listed file", () => {
+    it("shows only the header and a note for a binary, secret or listed file", () => {
       const { pane } = mount(
         change([
           file("logo.png", { binary: true }),

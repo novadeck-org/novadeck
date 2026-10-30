@@ -1,5 +1,7 @@
 import type { EditorView } from "@codemirror/view"
 
+import { personInputs } from "../hold.js"
+
 // How far below the top of the scroller a line lands.
 const margin = 24
 
@@ -47,7 +49,7 @@ export const scrollLineToTop = (view: EditorView, at: number): void => {
   }
   const done = new AbortController()
   const { signal } = done
-  for (const type of ["wheel", "touchstart", "pointerdown", "keydown"])
+  for (const type of personInputs)
     scroller.addEventListener(type, () => done.abort(), { signal, passive: true })
   scroller.addEventListener(
     "scrollend",
@@ -146,7 +148,7 @@ export const restoreScroll = (
     cancelAnimationFrame(frame)
     done()
   }
-  for (const type of ["wheel", "touchstart", "pointerdown", "keydown"])
+  for (const type of personInputs)
     scroller.addEventListener(type, finish, { signal, passive: true })
   // Scrolled by anyone else, as an app jumping somewhere or the page keeping what shows
   // in place, the scroller stays where they put it.

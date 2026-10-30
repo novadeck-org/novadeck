@@ -19,10 +19,6 @@ export type Viewer<Content> = {
   readonly state: () => ViewerState
   readonly restore: (state: ViewerState) => void
   readonly jumpTo: (target: Target) => void
-  readonly find?: (
-    query: string,
-    options?: { readonly backwards?: boolean },
-  ) => { readonly matches: number; readonly current: number }
   readonly focus: () => void
   /** Takes everything the viewer added out of its element. */
   readonly destroy: () => void
