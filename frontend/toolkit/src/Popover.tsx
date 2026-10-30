@@ -51,9 +51,9 @@ export const Popover = ({
     <ArkPopover.Root
       ids={{ trigger: triggerId }}
       open={open}
-      // Unless told where, Ark asks on a later frame. A person may already have focused or
-      // reordered a row by then; keep that deliberate focus instead of starting at the first
-      // row.
+      // By default, where focus already is inside: Ark asks on a later frame, and a person may
+      // have focused or reordered a row by then; keep that deliberate focus instead of
+      // starting at the first row.
       initialFocusEl={
         initialFocus ??
         (() => {

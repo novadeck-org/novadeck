@@ -13,6 +13,7 @@ import {
 import { Tooltip } from "./Tooltip"
 
 export type ToggleGroupProps = {
+  // Mutable, as Ark's toggle group takes it.
   readonly value: string[]
   readonly onValueChange: (value: string[]) => void
   readonly orientation?: "horizontal" | "vertical"

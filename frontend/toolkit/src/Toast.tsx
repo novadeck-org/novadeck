@@ -375,7 +375,7 @@ const ToastItem = <T,>({
       data-rank={rank}
       data-beyond={rank >= shownToasts ? "" : undefined}
       data-replaced={entry.replaced ? "" : undefined}
-      style={{ "--toast-life": `${duration}ms`, "--toast-rank": rank } as React.CSSProperties}
+      style={{ "--_life": `${duration}ms`, "--_rank": rank } as React.CSSProperties}
       // A pointer press takes no focus from where the person is typing.
       onMouseDown={(event) => event.preventDefault()}
       onClickCapture={(event) => {
