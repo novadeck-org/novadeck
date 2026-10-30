@@ -1,8 +1,8 @@
-import type { PageTrouble } from "./schemas.js"
+import type { PageTrouble } from "./companions.js"
 import type { NoticeSound } from "./sounds.js"
 
 /**
- * The contract between a desktop host's preload script and the page. The page calls
+ * The contract between a desktop app's preload script and the page. The page calls
  * `window.novadeck.requestRunner(id)`; the preload answers with a window message
  * `{ type: runnerPortMessage, id }` that carries a fresh MessagePort to the runner.
  */
@@ -10,11 +10,11 @@ export const runnerPortMessage = "novadeck:runner-port"
 
 export type DesktopBridge = {
   requestRunner(id: string): void
-  /** Asks the user to choose a folder; resolves its absolute path, or null when cancelled. */
+  /** Asks the person to choose a folder; resolves its absolute path, or null when cancelled. */
   pickDirectory(): Promise<string | null>
   /**
    * Registers what the page finishes before its window closes or the app quits, such
-   * as its last saves; the host goes on only after it resolves, or after a short wait,
+   * as its last saves; the app goes on only after it resolves, or after a short wait,
    * so saves land while the runner's shells still run. Returns a function that
    * unregisters it.
    */
@@ -22,7 +22,7 @@ export type DesktopBridge = {
   /**
    * Tells the window how the page looks: the scheme for native menus, title bars and the
    * page's `prefers-color-scheme` (`system` while the page follows the system), and the
-   * ground as `#rrggbb`, which the window shows before the page paints. The host
+   * ground as `#rrggbb`, which the window shows before the page paints. The app
    * ignores anything else.
    */
   showAppearance(appearance: {
@@ -32,39 +32,39 @@ export type DesktopBridge = {
   /**
    * The path on this machine of a file the person pasted, such as one copied
    * in a file manager, or "" for one that is no file there, as a copied image's bytes.
-   * Absent from hosts that came before it.
+   * Absent from apps that came before it.
    */
   pathForFile?(file: File): string
   /**
    * Shows a desktop notification that the agent in a terminal finished: `title` and
    * `body` one line each, without control characters, at most `noticeTitleLength` and
    * `noticeBodyLength` long, and the terminal's `id`. A newer notice for the same terminal
-   * replaces the one still showing. The host drops a notice that breaks these rules.
-   * Absent from hosts that came before it.
+   * replaces the one still showing. The app drops a notice that breaks these rules.
+   * Absent from apps that came before it.
    */
   showNotice?(notice: DesktopNotice): void
   /**
    * Takes away the notice for the terminal with this `id` while it still shows, as when the
-   * person answered it in the app; nothing when none shows. The host drops an id that
-   * breaks `noticeIdPattern`. Absent from hosts that came before it.
+   * person answered it in the app; nothing when none shows. The app drops an id that
+   * breaks `noticeIdPattern`. Absent from apps that came before it.
    */
   closeNotice?(id: string): void
   /**
    * Resolves true while the system holds notifications back, as Do Not Disturb, Focus or
-   * Focus Assist does, and false when it does not or the host cannot tell. Resolves within
-   * a fraction of a second and never rejects. Absent from hosts that came before it.
+   * Focus Assist does, and false when it does not or the app cannot tell. Resolves within
+   * a fraction of a second and never rejects. Absent from apps that came before it.
    */
   notificationsQuiet?(): Promise<boolean>
   /**
-   * True where the host's own notifications play Novadeck's sound, as on macOS, whose
+   * True where the app's own notifications play Novadeck's sound, as on macOS, whose
    * system mutes it under Focus; the page then plays none of its own for them. Absent or
-   * false where the host's notifications are silent. Absent from hosts that came before it.
+   * false where the app's notifications are silent. Absent from apps that came before it.
    */
   readonly notificationsSound?: boolean
   /**
    * Shows how many items wait in the Inbox on the app's icon: the dock or launcher badge,
-   * and on Windows the taskbar overlay `image`. A `count` of 0 clears it. The host drops a
-   * badge that breaks `desktopBadgeOf`. Absent from hosts that came before it.
+   * and on Windows the taskbar overlay `image`. A `count` of 0 clears it. The app drops a
+   * badge that breaks `desktopBadgeOf`. Absent from apps that came before it.
    */
   setBadge?(badge: DesktopBadge): void
   /**
@@ -72,74 +72,74 @@ export type DesktopBridge = {
    * the current state, and again on each change. Unlike the page's own `document.hasFocus()`,
    * it stays true while focus is inside a frame of the page, as a page in the companion
    * pane, and turns false when the person switches to another app. Returns a function that
-   * stops listening. Absent from hosts that came before it.
+   * stops listening. Absent from apps that came before it.
    */
   onWindowFocus?(listener: (focused: boolean) => void): () => void
   /**
-   * Calls `listener` with the terminal id of each notice the person clicks, once the host
+   * Calls `listener` with the terminal id of each notice the person clicks, once the app
    * has brought its window to the front. Returns a function that stops listening. Absent
-   * from hosts that came before it.
+   * from apps that came before it.
    */
   onNoticeClick?(listener: (id: string) => void): () => void
   /**
-   * Calls `listener` with each update the host learns of: at once when it already knows
+   * Calls `listener` with each update the app learns of: at once when it already knows
    * of one, and again whenever a newer one comes. Returns a function that stops
-   * listening. Absent from hosts that came before it; a build that never looks for
+   * listening. Absent from apps that came before it; a build that never looks for
    * updates never calls it.
    */
   onUpdate?(listener: (update: UpdateOffer) => void): () => void
   /**
-   * Opens the release page of the last offer's version in the browser. The host builds
+   * Opens the release page of the last offer's version in the browser. The app builds
    * the address from its own release repository; the page never names one. Does
    * nothing before an offer.
    */
   openUpdatePage?(): void
   /**
-   * Asks the host to let this copy install updates itself, which takes an administrator's
-   * password. macOS only; absent elsewhere and from hosts that came before it. Does
-   * nothing unless the last offer has `allow`. Once it succeeds the host downloads the
+   * Asks the app to let this copy install updates itself, which takes an administrator's
+   * password. macOS only; absent elsewhere and from apps that came before it. Does
+   * nothing unless the last offer has `allow`. Once it succeeds the app downloads the
    * update as usual, offering `downloading` and then `ready`.
    */
   allowUpdates?(): void
   /** Which releases this build follows; see `UpdateChannel`. */
   updateChannel?(): Promise<UpdateChannel>
   /**
-   * Switches the releases this build follows, which the host remembers across launches,
-   * and looks for an update on the new channel soon after. The host ignores anything
+   * Switches the releases this build follows, which the app remembers across launches,
+   * and looks for an update on the new channel soon after. The app ignores anything
    * but an `UpdateChannel`.
    */
   setUpdateChannel?(channel: UpdateChannel): void
   /**
    * What is new in this version, once: on the launches after the app updated to a release
    * whose notes name highlights, until the person dismisses it. Undefined otherwise, and
-   * when the notes can't be read, which the host tries once more two minutes later in the
-   * same launch and then on a later launch. The host reads the release from GitHub's API,
-   * so the answer can take a couple of minutes. Absent from hosts that came before it.
+   * when the notes can't be read, which the app tries once more two minutes later in the
+   * same launch and then on a later launch. The app reads the release from GitHub's API,
+   * so the answer can take a couple of minutes. Absent from apps that came before it.
    * See `WhatsNew`.
    */
   whatsNew?(): Promise<WhatsNew | undefined>
   /** Marks this version's `whatsNew` as seen, so no later launch offers it again. */
   dismissWhatsNew?(): void
   /**
-   * The version of the app, as a release is named. Absent from hosts that came before it.
+   * The version of the app, as a release is named. Absent from apps that came before it.
    */
   version?(): Promise<string>
   /**
-   * Whether Electron's sandbox is on for this window. Absent from hosts that came
+   * Whether Electron's sandbox is on for this window. Absent from apps that came
    * before it. See `SandboxState`.
    */
   sandbox?(): Promise<SandboxState>
   /**
    * Whether this copy of the app is a portable one: it runs from wherever it was put,
-   * never installs updates itself, and can install the app that does. Absent from hosts
-   * that came before it; the page then takes the app for an installed one. Hosts that have
+   * never installs updates itself, and can install the app that does. Absent from apps
+   * that came before it; the page then takes the app for an installed one. Apps that have
    * it answer `{ portable: false }` for a copy that was installed. See
    * `PortableState`.
    */
   portable?(): Promise<PortableState>
   /**
    * Installs the app from this portable copy, keeping the person's workspace, which both
-   * share. The host answers nothing here: it pushes how the install goes in
+   * share. The app answers nothing here: it pushes how the install goes in
    * `PortableState.install` to every window, through `onPortableState`. Once `installed`
    * the installed copy is in place and this copy keeps running; the installed one takes
    * effect when the person next opens Novadeck, and nothing restarts by itself. A call
@@ -150,13 +150,13 @@ export type DesktopBridge = {
   installApp?(): void
   /**
    * Hears the portable state whenever it changes, until the returned function is called:
-   * each step of an install (`PortableInstall`) in every window. Absent from hosts that do
+   * each step of an install (`PortableInstall`) in every window. Absent from apps that do
    * not push; the page then asks `portable` again when it needs to.
    */
   onPortableState?(listener: (state: PortableState) => void): () => void
   /**
    * Opens the website's download page in the browser, on this system's portable copy, for
-   * a person who would rather fetch the newest portable than install. The host builds the
+   * a person who would rather fetch the newest portable than install. The app builds the
    * address; the page never names one. From a copy that is not portable, or a sender that
    * is not the app's own page, it does nothing.
    */
@@ -167,58 +167,62 @@ export type DesktopBridge = {
    * What is new in the last `available` offer's version, for a copy that cannot install it
    * itself: the highlights of the releases after this version up to it, newest first, as
    * `whatsNew` gathers them, with `from` this version. Undefined before such an offer, when
-   * none of them names highlights, and when the notes can't be read. Absent from hosts that
+   * none of them names highlights, and when the notes can't be read. Absent from apps that
    * came before it.
    */
   updateNews?(): Promise<WhatsNew | undefined>
   /**
    * What uninstalling this copy of the app would do, or why it can't be done from here.
-   * Absent from hosts that came before it. See `UninstallPlan`.
+   * Absent from apps that came before it. See `UninstallPlan`.
    */
   uninstallPlan?(): Promise<UninstallPlan>
   /**
    * Removes the app from this computer, after the page has disconnected the agents it
-   * connected. The host saves every page and ends the runner's shells first, as quitting
+   * connected. The app saves every page and ends the runner's shells first, as quitting
    * does, then removes the install and, unless `keepData`, the person's data folders.
    * From a copy whose plan was not `ready`, or a sender that is not the app's own page,
    * the answer is `failed` and nothing is touched. See `UninstallResult`.
    */
   uninstallApp?(options: { readonly keepData: boolean }): Promise<UninstallResult>
-  /** Quits the app after the host's shutdown; the page offers it once `uninstallApp` answered `removed`. */
+  /**
+   * Quits the app, after its shutdown; the page offers it once `uninstallApp` answered
+   * `removed`.
+   */
   quitApp?(): void
   /**
    * Opens the folder of the app's logs in the system's file manager, for a person to read
-   * them or attach them to a bug report. Absent from hosts that came before it.
+   * them or attach them to a bug report. Absent from apps that came before it.
    */
   openLogs?(): void
   /**
    * What goes along with a feedback note: the app's version, the OS and the architecture.
-   * Present with `DesktopHost.feedback`.
+   * Present with `DesktopApp.feedback`.
    */
-  feedbackAbout?(): Promise<FeedbackHostAbout>
+  feedbackAbout?(): Promise<DesktopFeedbackAbout>
   /**
-   * Sends a feedback note: the host posts it, the page never reaches the network itself.
-   * Resolves once the website took it; rejects otherwise. Present with `DesktopHost.feedback`.
+   * Sends a feedback note: the app posts it, the page never reaches the network itself.
+   * Resolves once the website took it; rejects otherwise. Present with `DesktopApp.feedback`.
    */
-  sendFeedback?(note: FeedbackHostNote): Promise<void>
+  sendFeedback?(note: DesktopFeedbackNote): Promise<void>
   /**
-   * Tells the host of an error the page didn't catch, which it logs: its name, message and
-   * stack, each cut to size; the host drops a report that is anything else. Absent from hosts
+   * Tells the app of an error the page didn't catch, which it logs: its name, message and
+   * stack, each cut to size; the app drops a report that is anything else. Absent from apps
    * that came before it.
    */
   reportError?(error: PageError): void
   /**
-   * Tells the host how the page's pool of WebGL contexts has fared, for its log: counts
-   * only, each a whole number; the host drops a report that is anything else. All but
+   * Tells the app how the page's pool of WebGL contexts has fared, for its log: counts
+   * only, each a whole number; the app drops a report that is anything else. All but
    * `onDom` are running totals since the page opened; `onDom` is the number of screens on the
-   * DOM renderer for lack of a context at the moment of the report. Absent from hosts that came before it.
+   * DOM renderer for lack of a context at the moment of the report. Absent from apps that came
+   * before it.
    */
   reportRendererPool?(stats: RendererPoolReport): void
   /**
    * A picture of what a live page shows now, as a JPEG `data:` address, for the page's
    * viewer to show in its place while it rests: the page by its view's `getWebContentsId()`,
    * scaled down to `width` pixels where it's wider. Undefined for anything but a page view
-   * of the asking page, and for one that draws nothing yet. Absent from hosts that came
+   * of the asking page, and for one that draws nothing yet. Absent from apps that came
    * before it.
    */
   pagePicture?(page: number, width?: number): Promise<string | undefined>
@@ -227,24 +231,27 @@ export type DesktopBridge = {
    * window (1280 wide) or a `phone`'s screen, and takes a JPEG picture of it, for an agent's
    * look at a page no pane shows live. Answers the picture with where the page ended up, its
    * title, the size it laid out at and what went wrong while it loaded, or why there is none.
-   * Only http(s) addresses, one look at a time. Absent from hosts that came before it.
+   * Only http(s) addresses, one look at a time. Absent from apps that came before it.
    */
   lookAtPage?(request: {
     readonly url: string
     readonly layout: "desktop" | "phone"
-    /** When the caller stops waiting, in `Date.now()` milliseconds: a look still queued by then is dropped. */
+    /**
+     * When the caller stops waiting, in `Date.now()` milliseconds: a look still queued by
+     * then is dropped.
+     */
     readonly before: number
-  }): Promise<HostPageLook>
+  }): Promise<DesktopPageLook>
   /**
    * Makes a live page's view act as a phone's, by its view's `getWebContentsId()`, or as
    * itself again: touched, with a phone's screen and browser. False for anything but a
-   * page view of the asking page, and when it can't. Absent from hosts that came before it.
+   * page view of the asking page, and when it can't. Absent from apps that came before it.
    */
   pagePhone?(page: number, phone: boolean): Promise<boolean>
 }
 
 /** What `DesktopBridge.lookAtPage` answers: a look at a page, or why there is none. */
-export type HostPageLook =
+export type DesktopPageLook =
   | {
       readonly picture: string
       readonly url: string
@@ -254,21 +261,21 @@ export type HostPageLook =
     }
   | { readonly reason: string }
 
-/** A feedback note as it crosses to the host: the kind the person picked, or none, and the text. */
-export type FeedbackHostNote = {
+/** A feedback note as it crosses to the app: the kind the person picked, or none, and the text. */
+export type DesktopFeedbackNote = {
   readonly kind: "bug" | "idea" | "other" | null
   readonly text: string
 }
 
-/** What a host says goes along with a feedback note; `os` and `arch` as the website takes them. */
-export type FeedbackHostAbout = {
+/** What the app says goes along with a feedback note; `os` and `arch` as the website takes them. */
+export type DesktopFeedbackAbout = {
   readonly version: string
   readonly os: "macos" | "windows" | "linux"
   readonly arch: string
 }
 
 /** The counts of the page's WebGL pool; see `DesktopBridge.reportRendererPool`. */
-export const rendererPoolFields = [
+const rendererPoolFields = [
   "waits",
   "steals",
   "swaps",
@@ -281,10 +288,10 @@ export type RendererPoolReport = { readonly [Field in (typeof rendererPoolFields
 
 /** A pool report when it is one, its counts whole numbers; anything else is undefined. */
 export const rendererPoolOf = (value: unknown): RendererPoolReport | undefined => {
-  if (typeof value !== "object" || value === null) return undefined
+  if (!isRecord(value)) return undefined
   const found: Record<string, number> = {}
   for (const field of rendererPoolFields) {
-    const count = (value as Record<string, unknown>)[field]
+    const count = value[field]
     if (typeof count !== "number" || !Number.isSafeInteger(count) || count < 0) return undefined
     found[field] = count
   }
@@ -306,11 +313,11 @@ export type PageError = {
  * What uninstalling this copy would do. `unavailable`: nothing from here, as for a
  * portable copy or a development run, which have no install to remove. `manual`: another
  * tool installed it, so the person runs `command` (such as `brew uninstall --cask
- * novadeck`) in a terminal. `ready`: the host can remove it; `dataFolders` are the
+ * novadeck`) in a terminal. `ready`: the app can remove it; `dataFolders` are the
  * absolute paths of the person's projects and sessions that `keepData: false` would also
  * delete (empty when the app runs with a data folder of the person's own choosing, which
  * it never deletes), and `handoff` says who removes the app: `app`, the running app itself (Linux,
- * macOS), or `uninstaller`, the platform's own uninstaller, which the host starts and
+ * macOS), or `uninstaller`, the platform's own uninstaller, which the app starts and
  * then quits for (Windows).
  */
 export type UninstallPlan =
@@ -326,7 +333,7 @@ export type UninstallPlan =
  * How `uninstallApp` went. `uninstalling`: the platform's uninstaller was started and the
  * app is quitting for it, so the page has nothing more to do. `removed`: the app's
  * files are gone and it still runs only to say so; `leftover`, when present, is a
- * one-line shell command the host could not run itself, such as removing the AppArmor
+ * one-line shell command the app could not run itself, such as removing the AppArmor
  * profile that needs a password, for the person to run in a terminal. `failed`: it
  * stopped for the short human-readable `reason`, and what it had not reached is intact
  * (the agents were disconnected before it was called).
@@ -337,14 +344,14 @@ export type UninstallResult =
   | { readonly kind: "failed"; readonly reason: string }
 
 /**
- * Whether the host runs as a portable copy. `version` is this build's, reported for
+ * Whether the app runs as a portable copy. `version` is this build's, reported for
  * display and diagnostics. `run` names this run of the app and is new at each launch of it;
  * a page tells with it a window opened again within one run from a new launch, as on
  * macOS, where closing the window leaves the app running. `install` is how installing the
- * app from this copy stands in this run; the host owns it and pushes every change.
+ * app from this copy stands in this run; the app owns it and pushes every change.
  * `dataFolder` is where the workspace is kept, as the person would find it in their file
  * manager (`~/.config/novadeck`, `C:\Users\…\AppData\Roaming\novadeck`); every copy of the
- * app, portable or installed, old or new, uses that one folder. Absent when the host can't
+ * app, portable or installed, old or new, uses that one folder. Absent when the app can't
  * say.
  */
 export type PortableState =
@@ -375,24 +382,24 @@ export type PortableInstall =
   | { readonly phase: "newer"; readonly version: string }
   | { readonly phase: "failed"; readonly reason: string }
 
-/** The longest data folder path the host shows; a longer one is no path. */
-export const portablePathLength = 1024
+/** The longest data folder path the app shows; a longer one is no path. */
+const portablePathLength = 1024
 
-/** What a run's name may be, as the host reports it: a UUID. */
-export const portableRunPattern = /^[0-9A-Fa-f-]{1,64}$/
+/** What a run's name may be, as the app reports it: a UUID. */
+const portableRunPattern = /^[0-9A-Fa-f-]{1,64}$/
 
 /** The longest reason a failed install shows; a longer one is cut short with an ellipsis. */
-export const installReasonLength = 300
+const installReasonLength = 300
 
 /** What the page shows for a failed install whose reason it cannot show. */
 export const unknownInstallReason = "Something went wrong."
 
 /**
- * Whether the host runs with Electron's sandbox. It does not when started with
+ * Whether the app runs with Electron's sandbox. It does not when started with
  * `--no-sandbox`, as the Linux AppImage launcher does on a system that restricts
  * unprivileged user namespaces, such as Ubuntu 24.04 and later. `fix` is the one-line
  * shell command that turns the sandbox on, for the person to run in a terminal; empty
- * when the host has none to offer.
+ * when the app has none to offer.
  */
 export type SandboxState =
   | { readonly sandboxed: true }
@@ -408,10 +415,10 @@ export type UpdateChannel = "stable" | "experimental"
 export const updateChannels: readonly UpdateChannel[] = ["stable", "experimental"]
 
 /**
- * An update the host tells the page of. `downloading`: a release the host is downloading,
+ * An update the app tells the page of. `downloading`: a release the app is downloading,
  * `percent` (a whole number from 0 to 100) along; it turns `ready` once downloaded, or
  * `retrying` should the download fail. `ready`: downloaded, and installed when the app
- * next quits. `retrying`: a download failed and the host will try again by itself, so the
+ * next quits. `retrying`: a download failed and the app will try again by itself, so the
  * person has nothing to do and the page shows nothing for it. `available`: a newer release
  * the person must fetch themselves, because this build cannot install it: an unsigned
  * macOS app, an AppImage in a folder it cannot write, a portable copy, or an install that
@@ -424,15 +431,19 @@ export type UpdateOffer =
   | { readonly kind: "available"; readonly version: string; readonly allow?: true }
 
 /** Whether `value` is how far along a download is: a whole percent from 0 to 100. */
-export const isUpdatePercent = (value: unknown): value is number =>
+const isUpdatePercent = (value: unknown): value is number =>
   Number.isInteger(value) && (value as number) >= 0 && (value as number) <= 100
 
-/** What an update's version may be, as the host reports it: a release's semantic version. */
+/** What an update's version may be, as the app reports it: a release's semantic version. */
 export const updateVersionPattern = /^\d{1,9}\.\d{1,9}\.\d{1,9}(?:-[0-9A-Za-z.-]{1,64})?$/
 
 // Control and format characters, which include the marks that reorder text, and the line
 // and paragraph separators.
 const unwanted = /[\p{Cc}\p{Cf}\p{Zl}\p{Zp}]/u
+
+// Text as one plain line: `unwanted` characters become spaces, and runs of space collapse.
+const plainLine = (text: string): string =>
+  text.replace(new RegExp(unwanted.source, "gu"), " ").replace(/\s+/g, " ").trim()
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === "object" && value !== null
@@ -441,9 +452,9 @@ const isVersion = (value: unknown): value is string =>
   typeof value === "string" && updateVersionPattern.test(value)
 
 /**
- * The offer when it is one the contract allows, else undefined. The host builds offers
- * that obey it; the preload and the page both hold what crosses the bridge to it, should
- * the host be wrong or tricked.
+ * The offer when it is one the contract allows, else undefined. The app's main process
+ * builds offers that obey it; the preload and the page both hold what crosses the bridge to
+ * it, should the main process be wrong or tricked.
  */
 export const parseUpdateOffer = (value: unknown): UpdateOffer | undefined => {
   if (!isRecord(value)) return undefined
@@ -457,14 +468,12 @@ export const parseUpdateOffer = (value: unknown): UpdateOffer | undefined => {
 }
 
 /**
- * A failed install's reason as one plain line the page can show: control, format and
- * separator characters become spaces, runs of space collapse, and a reason longer than
- * `installReasonLength` is cut short with an ellipsis. One left empty is
- * `unknownInstallReason`.
+ * A failed install's reason as one plain line the page can show (`plainLine`), cut short with
+ * an ellipsis past `installReasonLength`. One left empty is `unknownInstallReason`.
  */
 const reasonLine = (reason: unknown): string => {
   if (typeof reason !== "string") return unknownInstallReason
-  const line = reason.replace(new RegExp(unwanted.source, "gu"), " ").replace(/\s+/g, " ").trim()
+  const line = plainLine(reason)
   if (line === "") return unknownInstallReason
   const points = Array.from(line)
   if (points.length <= installReasonLength) return line
@@ -475,7 +484,7 @@ const reasonLine = (reason: unknown): string => {
 }
 
 /** How an install stands when it is one the contract allows, else undefined. */
-export const parsePortableInstall = (value: unknown): PortableInstall | undefined => {
+const parsePortableInstall = (value: unknown): PortableInstall | undefined => {
   if (!isRecord(value)) return undefined
   const { phase, percent, version, reason } = value
   if (phase === "idle" || phase === "installing" || phase === "installed") return { phase }
@@ -484,12 +493,12 @@ export const parsePortableInstall = (value: unknown): PortableInstall | undefine
   return phase === "failed" ? { phase, reason: reasonLine(reason) } : undefined
 }
 
-// A path the host shows as one plain line, or undefined when it is none.
+// A path the app shows as one plain line, or undefined when it is none.
 const pathLine = (value: unknown): string | undefined =>
   typeof value === "string" &&
   value.trim() !== "" &&
   value.length <= portablePathLength &&
-  !new RegExp(unwanted.source, "u").test(value)
+  !unwanted.test(value)
     ? value
     : undefined
 
@@ -519,7 +528,7 @@ export const parsePortableState = (value: unknown): PortableState | undefined =>
  * What is new in the version the app updated to: its release's highlights, each a short
  * title and one plain line, as the release notes give them (scripts/release-notes). One to
  * `whatsNewHighlights` of them; text only, never Markdown or links. `from` is the version
- * they are new since, when the host knows it: the one updated from, or the newest whose
+ * they are new since, when the app knows it: the one updated from, or the newest whose
  * notes were already seen when that is newer.
  */
 export type WhatsNew = {
@@ -531,7 +540,7 @@ export type WhatsNew = {
 /**
  * A highlight may lead with an icon, by its Lucide name from the notes' set (`highlightIcons`
  * in release-notes.ts). Only its shape is checked here, so the preload carries no schema
- * library: the host reads the notes with the set, and the page draws a name it doesn't know
+ * library: the app reads the notes with the set, and the page draws a name it doesn't know
  * as its fallback.
  */
 export type WhatsNewHighlight = {
@@ -550,11 +559,10 @@ export const whatsNewTitleLength = 80
 /** The longest highlight line the page shows. */
 export const whatsNewLineLength = 240
 
-// A highlight's text as one plain line: control, format and separator characters become
-// spaces and runs of space collapse. Empty or too long, it is no highlight.
+// A highlight's text as one plain line (`plainLine`). Empty or too long, it is no highlight.
 const highlightText = (value: unknown, length: number): string | undefined => {
   if (typeof value !== "string") return undefined
-  const text = value.replace(new RegExp(unwanted.source, "gu"), " ").replace(/\s+/g, " ").trim()
+  const text = plainLine(value)
   return text !== "" && Array.from(text).length <= length ? text : undefined
 }
 
@@ -593,22 +601,22 @@ export type DesktopNotice = {
   readonly body: string
   /**
    * True when this notification should make no sound: the person turned Novadeck's sound
-   * off, or it sounded just now for another. Absent or false leaves it to the host, which
+   * off, or it sounded just now for another. Absent or false leaves it to the app, which
    * plays one only where its notifications play Novadeck's sound (see
    * `DesktopBridge.notificationsSound`).
    */
   readonly silent?: boolean
   /**
-   * The sound to play, the person's choice or else the theme's, where the host's
-   * notifications play one. The host drops an id outside `noticeSounds`, and absent plays
+   * The sound to play, the person's choice or else the theme's, where the app's
+   * notifications play one. The app drops an id outside `noticeSounds`, and absent plays
    * `defaultNoticeSound`.
    */
   readonly sound?: NoticeSound
 }
 
-/** The longest notice title the host shows: a handle, a few words and a terminal's title. */
+/** The longest notice title the app shows: a handle, a few words and a terminal's title. */
 export const noticeTitleLength = 256
-/** The longest notice body the host shows: the start of a reply, as the runner previews it. */
+/** The longest notice body the app shows: the start of a reply, as the runner previews it. */
 export const noticeBodyLength = 120
 /** What a notice's terminal id may be: a terminal's id, as the runner and the demo name them. */
 export const noticeIdPattern = /^[A-Za-z0-9_-]{1,64}$/
@@ -624,20 +632,20 @@ export type DesktopBadge = {
 }
 
 /** The largest count a badge carries. */
-export const badgeMaxCount = 999
+const badgeMaxCount = 999
 /** The longest badge image, as a data URL: a small overlay icon. */
-export const badgeImageLength = 16384
+const badgeImageLength = 16384
 
 const badgeImagePattern = /^data:image\/png;base64,[A-Za-z0-9+/]+={0,2}$/
 
 /**
  * The badge when the value is one, or undefined: a whole `count` from 0 to
  * `badgeMaxCount` and an `image` that is null or a base64 PNG data URL within
- * `badgeImageLength`. Nothing else of the value passes. The page and the host both use it.
+ * `badgeImageLength`. Nothing else of the value passes. The page and the app both use it.
  */
 export const desktopBadgeOf = (value: unknown): DesktopBadge | undefined => {
-  if (typeof value !== "object" || value === null) return undefined
-  const { count, image } = value as Record<string, unknown>
+  if (!isRecord(value)) return undefined
+  const { count, image } = value
   if (typeof count !== "number" || !Number.isInteger(count)) return undefined
   if (count < 0 || count > badgeMaxCount) return undefined
   if (image === null) return { count, image }
@@ -645,27 +653,27 @@ export const desktopBadgeOf = (value: unknown): DesktopBadge | undefined => {
   return badgeImagePattern.test(image) ? { count, image } : undefined
 }
 
-/** `window.novadeck` in a desktop host's page. */
-export type DesktopHost = DesktopBridge & {
-  /** The host's local HTTP API. */
+/** `window.novadeck` in a desktop app's page. */
+export type DesktopApp = DesktopBridge & {
+  /** The app's local HTTP API. */
   readonly apiUrl: string
   /** Whether the page can show web pages live, in a locked-down `<webview>`. */
   readonly livePages?: true
   /**
-   * How many live WebGL contexts the host's Chromium allows this page, when the host raised
+   * How many live WebGL contexts the app's Chromium allows this page, when the app raised
    * the limit from the browser's 16; see `webglContextsOf`. Absent in a browser and from
-   * hosts that came before it.
+   * apps that came before it.
    */
   readonly webglContexts?: number
   /**
-   * True when the host sends the person's feedback notes to the Novadeck website, so the
+   * True when the app sends the person's feedback notes to the Novadeck website, so the
    * page offers the footer's card: `feedbackAbout` and `sendFeedback` work. Absent where it
-   * does not (a development run without a feedback address) and from hosts that came before it.
+   * does not (a development run without a feedback address) and from apps that came before it.
    */
   readonly feedback?: true
 }
 
-/** The fewest and most WebGL contexts a host may say its page is allowed. */
+/** The fewest and most WebGL contexts the app may say its page is allowed. */
 export const webglContextsRange = { min: 3, max: 1024 } as const
 
 /** A WebGL context limit when it is a whole number in `webglContextsRange`; otherwise undefined. */

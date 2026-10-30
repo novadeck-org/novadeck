@@ -70,8 +70,8 @@ export const murmurGroups = (murmur: DemoMurmur | undefined): readonly DemoActio
             },
             {
               label: "Not available (software rendering)",
-              hint: "As Not available, from the host: Details has the reason, no Check again",
-              run: () => murmur.show("unsupported-host"),
+              hint: "As Not available, from the app: Details has the reason, no Check again",
+              run: () => murmur.show("unsupported-app"),
             },
           ],
         },

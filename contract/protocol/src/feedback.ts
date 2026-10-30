@@ -1,6 +1,7 @@
 import { z } from "zod"
 
-import { agentName, id } from "./schemas.js"
+import { agentName } from "./agents.js"
+import { id } from "./fields.js"
 
 // An agent's feedback draft for the people building Novadeck, written with its `feedback`
 // tool: its kind and text, as the website takes a note (2,000 characters at most), and who
@@ -24,4 +25,4 @@ export const feedbackDraft = z.strictObject({
   asked: z.boolean(),
 })
 
-export type FeedbackDraftEntry = z.infer<typeof feedbackDraft>
+export type FeedbackDraft = z.infer<typeof feedbackDraft>
