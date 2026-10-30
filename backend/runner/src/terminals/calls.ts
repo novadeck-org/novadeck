@@ -250,7 +250,7 @@ export class Calls {
       )
     this.opened.set(charged, times)
     this.allOpened = all
-    const asked = await this.host.opens().ask(
+    const asked = await this.host.opens().request(
       {
         from: call.terminalId,
         sessionId: record.summary.sessionId,

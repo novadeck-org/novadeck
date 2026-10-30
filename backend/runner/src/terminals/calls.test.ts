@@ -77,7 +77,7 @@ describe("the open call", () => {
         directory: (path: string) => Promise.resolve(path),
       }),
       opens: () => ({
-        ask: (request: { command?: string }, _ms: number, opener: Opener) => {
+        request: (request: { command?: string }, _ms: number, opener: Opener) => {
           asked.push({ ...request, opener })
           records.set("t2", opened)
           return Promise.resolve({ type: "answered", answer: { requestId: "r", terminalId: "t2" } })

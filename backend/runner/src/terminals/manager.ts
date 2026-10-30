@@ -231,7 +231,7 @@ const alive = (pid: string): boolean => {
 // console closes, as they do on its CTRL_CLOSE_EVENT, saving what they were writing, in
 // milliseconds: within the five seconds Windows gives them. What is left of the terminal's
 // tree then, as a hook's shell in a console of its own, is ended. Shorter as the runner
-// shuts down, which the app gives five seconds in all (host/src/main/runner.ts).
+// shuts down, which the app gives five seconds in all (apps/desktop/src/main/runner.ts).
 const treeGraceMs = 3_000
 const shutdownTreeGraceMs = 1_000
 

@@ -226,7 +226,7 @@ export class OpenRequests {
    * Sends the request to the newest client and waits up to `ms` for its answer; the
    * `opener`, with the title it asked for, waits for the terminal the client creates for it.
    */
-  ask(request: Omit<TerminalRequest, "requestId">, ms: number, opener: Opener): Promise<Asked> {
+  request(request: Omit<TerminalRequest, "requestId">, ms: number, opener: Opener): Promise<Asked> {
     const follower = this.followers.newest()
     if (!follower) return Promise.resolve({ type: "nobody" })
     const requestId = randomUUID()
