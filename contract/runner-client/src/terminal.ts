@@ -60,8 +60,8 @@ export const attachTerminal = async (
   })
   const granted = await stream.next()
   if (granted.done) throw new WireError<RunnerErrorCode>("CLOSED", "Terminal is detached.")
-  // The session input goes over, once this attachment may send it.
-  const controlling = (): Session<typeof contract> => {
+  // The session to send input on, or why this attachment may not send any.
+  const inputSession = (): Session<typeof contract> => {
     if (stream.finished === "ended") throw new WireError<RunnerErrorCode>("TERMINAL_EXITED")
     if (stream.finished) throw new WireError<RunnerErrorCode>("CLOSED", "Terminal is detached.")
     if (mode !== "control") throw new WireError<RunnerErrorCode>("CONTROL_REQUIRED")
@@ -89,7 +89,7 @@ export const attachTerminal = async (
       return { value: undefined, done: true }
     },
     async write(data) {
-      const session = controlling()
+      const session = inputSession()
       try {
         await session.client.terminals.write({ terminalId: id, data })
       } catch (error) {
@@ -97,7 +97,7 @@ export const attachTerminal = async (
       }
     },
     async resize(size) {
-      const session = controlling()
+      const session = inputSession()
       try {
         await session.client.terminals.resize({ terminalId: id, cols: size.cols, rows: size.rows })
       } catch (error) {

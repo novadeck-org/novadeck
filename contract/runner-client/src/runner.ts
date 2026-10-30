@@ -185,10 +185,10 @@ export type Runner = {
      */
     answerRequest(answer: TerminalRequestAnswer): Promise<void>
     /**
-     * Follows agents' asks, made through Novadeck's MCP server, to close a terminal that
+     * Follows agents' requests, made through Novadeck's MCP server, to close a terminal that
      * runs an agent they don't lead, or to lead one, across reconnections. The runner
      * sends each to the client that subscribed last and waits, without a time limit, for
-     * `answerApproval` or until it withdraws the ask; iteration ends when the runner
+     * `answerApproval` or until it withdraws the request; iteration ends when the runner
      * closes or on `return()`.
      */
     approvals(): AsyncIterableIterator<Approval, undefined>
@@ -461,11 +461,16 @@ export type Runner = {
      * the runner keeps the switch.
      */
     pause(paused: boolean): Promise<void>
-    /** Releases a held thread: its hold ends and its messages go on. */
+    /**
+     * Releases a held thread, and its pair's other held threads: their holds end and their
+     * messages go on. Rejects with `NOT_FOUND` for a thread the runner doesn't keep.
+     */
     release(thread: string): Promise<void>
     /**
-     * Stops a thread: its messages not yet delivered are gone, their senders told the person
-     * stopped it, and the pair may not send to each other for a while.
+     * Stops a thread: its messages not yet delivered or leased are gone, their senders told
+     * the person stopped it, and the pair may not send to each other for a while. Rejects
+     * with `NOT_FOUND` for a thread the runner doesn't keep; stopping a stopped thread does
+     * nothing.
      */
     stop(thread: string): Promise<void>
   }
