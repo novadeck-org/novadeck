@@ -10,13 +10,14 @@ import { extractStacks } from "./stack.ts"
 const repo = resolve(import.meta.dirname, "../../..")
 
 describe("extractStacks", () => {
+  // Two nested package folders, one with a Cargo.toml: enough to show the separator, and
+  // quick, as each package costs a git grep per Node builtin.
   it("anchors each manifest at a posix path on every platform", () => {
-    const areas = roots.map((root) => ({ id: root.token }) as Area)
+    const tokens = ["backend/relay", "frontend/ui"]
+    const areas = tokens.map((token) => ({ id: token }) as Area)
     const stacks = extractStacks(repo, createAnchors(repo), areas)
-    expect(stacks.length).toBeGreaterThan(0)
-    for (const stack of stacks) {
-      const root = roots.find((each) => each.token === stack.token)!
-      expect(stack.manifest.file).toBe(`${root.dir}/package.json`)
-    }
+    expect(stacks.map((stack) => stack.manifest.file)).toEqual(
+      tokens.map((token) => `${roots.find((root) => root.token === token)!.dir}/package.json`),
+    )
   })
 })
