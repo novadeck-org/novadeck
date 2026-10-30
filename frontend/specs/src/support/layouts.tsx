@@ -14,7 +14,7 @@ export const gridView = (): Locator => page.getByRole("region", { name: "grid vi
 export const bounds = (locator: Locator): DOMRect => locator.element().getBoundingClientRect()
 
 /** Whether `inner` lies entirely inside `outer`, allowing a pixel of rounding. */
-export const isInside = (inner: DOMRect, outer: DOMRect): boolean =>
+const isInside = (inner: DOMRect, outer: DOMRect): boolean =>
   inner.top >= outer.top - 1 &&
   inner.bottom <= outer.bottom + 1 &&
   inner.left >= outer.left - 1 &&

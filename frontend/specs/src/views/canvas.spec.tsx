@@ -340,7 +340,7 @@ describe("Canvas", () => {
     })
   })
 
-  context("when going to a terminal from its Inbox item", () => {
+  context("when going to a terminal from its Inbox row", () => {
     it("flies the camera in to it, as a double-click on its header does", async () => {
       await openWorkspace("/?demo=agents")
       const skip = page.getByRole("button", { name: "Skip for now" })
@@ -362,7 +362,7 @@ describe("Canvas", () => {
       await expect.poll(() => fillsView(boxOf(terminal("Checkout review")))).toBe(false)
     })
 
-    it("flies in from the camera its session was left with, when the item is from another", async () => {
+    it("flies in from the camera its session was left with, when the row is from another", async () => {
       await openWorkspace("/projects/storefront/sessions/initial/canvas?demo=agents")
       const skip = page.getByRole("button", { name: "Skip for now" })
       if (await skip.query()) await skip.click()

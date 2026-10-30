@@ -94,9 +94,9 @@ describe("Canvas out of sight", () => {
     // before its screen opens.
     await expect.poll(() => hidden(second), parkedWithin).toBe(true)
     for (let pans = 0; pans < 6 && !hidden(first) && nodeBox(second).left > 0; pans++) {
-      // eslint-disable-next-line no-await-in-loop -- One pan after another.
+      // oxlint-disable-next-line no-await-in-loop -- One pan after another.
       await panLeft()
-      // eslint-disable-next-line no-await-in-loop -- The camera settles before the next.
+      // oxlint-disable-next-line no-await-in-loop -- The camera settles before the next.
       await settled(() => nodeBox(second))
     }
     await expect.poll(() => hidden(second)).toBe(false)
@@ -118,9 +118,9 @@ describe("Canvas out of sight", () => {
 
     // Panned back, it shows, takes its screen again, and draws what it missed.
     for (let pans = 0; pans < 6 && nodeBox(first).left < 0; pans++) {
-      // eslint-disable-next-line no-await-in-loop -- One pan after another.
+      // oxlint-disable-next-line no-await-in-loop -- One pan after another.
       await dragBackground({ x: 10, y: viewBox().height - 10 }, { x: viewBox().width - 40, y: 0 })
-      // eslint-disable-next-line no-await-in-loop -- The camera settles before the next.
+      // oxlint-disable-next-line no-await-in-loop -- The camera settles before the next.
       await settled(() => nodeBox(first))
     }
     await expect.poll(() => hidden(first)).toBe(false)
@@ -145,9 +145,9 @@ describe("Canvas out of sight", () => {
     const [first, second] = runner.terminalIds as [string, string]
     await expect.poll(() => runner.streaming()).toBe(1)
     for (let pans = 0; pans < 6 && nodeBox(second).left > 0; pans++) {
-      // eslint-disable-next-line no-await-in-loop -- One pan after another.
+      // oxlint-disable-next-line no-await-in-loop -- One pan after another.
       await panLeft()
-      // eslint-disable-next-line no-await-in-loop -- The camera settles before the next.
+      // oxlint-disable-next-line no-await-in-loop -- The camera settles before the next.
       await settled(() => nodeBox(second))
     }
     await expect.poll(() => runner.attaches()).toBe(2)

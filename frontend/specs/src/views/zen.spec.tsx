@@ -481,7 +481,7 @@ const activateWithKeyboard = async (button: Locator): Promise<void> => {
   await press("{Enter}")
 }
 
-describe("leaving Zen", () => {
+describe("Leaving Zen", () => {
   context("when choosing Exit Zen", () => {
     it("restores the sidebar panel that was open", async () => {
       await openWorkspace()

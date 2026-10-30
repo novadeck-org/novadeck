@@ -44,7 +44,7 @@ const phases = new WeakMap<HTMLElement, (phase: string) => void>()
 
 const Subject = ({ id }: { id: string }): React.JSX.Element => {
   const terminal = useWorkspaceState((workspace) =>
-    currentState(workspace).roster.terminals.find((item) => item.id === id),
+    currentState(workspace).roster.terminals.find((candidate) => candidate.id === id),
   )
   if (!terminal) throw new Error(`Missing terminal ${id}`)
   return createElement(WorkspaceTerminal, { terminal, controls: {} })
@@ -164,7 +164,7 @@ const beginHeaderRename = (container: HTMLElement): HTMLInputElement => {
   return visibleWindow(container).querySelector<HTMLInputElement>("[data-rename-terminal]")!
 }
 
-describe("process windows", () => {
+describe("a terminal window across foreground processes", () => {
   context("when the foreground process changes", () => {
     it("presents Claude and Codex in the same window and returns to the terminal without remounting the surface", async () => {
       const page = await open(second)
