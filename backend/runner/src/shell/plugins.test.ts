@@ -3,7 +3,9 @@ import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 
-import { hookSeconds, plugin, type Start } from "@novadeck/harness-core/harness"
+import type { Start } from "@novadeck/harness-core/harness"
+import { hookSeconds } from "@novadeck/harness-core/hook-command"
+import { plugin } from "@novadeck/harness-core/plugin"
 import type { AgentName } from "@novadeck/protocol"
 import { beforeAll } from "vitest"
 

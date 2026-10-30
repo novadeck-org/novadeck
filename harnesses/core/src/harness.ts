@@ -1,14 +1,4 @@
-import { createHash } from "node:crypto"
-import { isAbsolute } from "node:path"
-
-import {
-  agentSessionId,
-  replyPreviewLength,
-  type AgentCoverage,
-  type AgentIntegration,
-  type AgentName,
-  type TranscriptItem,
-} from "@novadeck/protocol"
+import type { AgentCoverage, AgentIntegration, AgentName, TranscriptItem } from "@novadeck/protocol"
 import type { BoxProfile } from "@novadeck/tui-input/box"
 
 import type { DialogAdapter } from "./dialogs.js"
@@ -40,12 +30,6 @@ export type Command = { readonly argv: readonly string[]; readonly optional?: bo
 export type File = { readonly path: string; readonly content: string; readonly mode?: number }
 
 /**
- * What a hook report says of the session it names: a fresh start, a switch the harness
- * itself announced (resume, /clear…), or only that this conversation is running.
- */
-export type Continuity = "startup" | "native-switch" | "conversation-observed"
-
-/**
  * One harness, as its own files and commands describe it. Novadeck only reads its
  * configuration; installing and removing its plugin goes through its own commands,
  * which own that configuration. A feature it lacks is a field it leaves out.
@@ -75,8 +59,8 @@ export type Harness = {
   readonly hook: (platform: NodeJS.Platform, event: string) => string
   /**
    * Its plugin's manifests, hook registrations and MCP server, relative to its plugin
-   * directory. The MCP server starts as `mcpServer` says, and the hooks as `machine` lets
-   * them.
+   * directory. The MCP server starts as `launchers.mcp` says, and the hooks as `machine`
+   * lets them.
    */
   readonly files: (
     platform: NodeJS.Platform,
@@ -334,40 +318,6 @@ export type UserEntry = {
   readonly id: number | null
 }
 
-/**
- * How much later than elsewhere a hook may reach the runner on `platform`, for the shell
- * it runs in, in milliseconds: on Windows the hook starts in PowerShell (Claude Code,
- * Codex) or cmd (Antigravity), which takes most of 15 s to start cold on a busy CI runner,
- * where a Codex hook dropped for it carried none of the messages waiting; elsewhere a
- * shell starts at once. Every wait on a hook's arrival grows by it.
- */
-export const hookShellSlackMs = (platform: NodeJS.Platform): number =>
-  platform === "win32" ? 20_000 : 0
-
-/**
- * How long a harness lets one of Novadeck's hooks run, in seconds; one slower is dropped
- * silently. Well above the hook's own limit, so the hook always ends by itself, and more by
- * the time its shell may take to start.
- */
-export const hookSeconds = (platform: NodeJS.Platform): number =>
-  10 + hookShellSlackMs(platform) / 1000
-
-/**
- * What a hook's report decoded to, each fact its hook told (started at its `seq`, not
- * read from a transcript) with when the agent fired that hook (`Report.firedAt`), where
- * the relay could tell.
- */
-export const firedFacts = <Fact extends { readonly startedAt: number }>(
-  facts: readonly Fact[],
-  { seq, firedAt }: { readonly seq: number; readonly firedAt?: number | undefined },
-): readonly Fact[] =>
-  firedAt === undefined
-    ? facts
-    : facts.map((fact) => (fact.startedAt === seq ? { ...fact, firedAt } : fact))
-
-export const json = (value: unknown): string => `${JSON.stringify(value, null, 2)}\n`
-
-/** Where the plugin's commands start from, as Novadeck wrote them for this run. */
 /** What `profile`'s hook prints for `event` with nothing to deliver. */
 export const silentFor = (profile: MessagingProfile, event: string): string =>
   profile.silent[event] ?? profile.silent["*"]
@@ -392,323 +342,16 @@ export type Machine = {
   readonly cmdPrints?: boolean
 }
 
-/** How an agent starts Novadeck's MCP server, as its plugin names it. */
-export const mcpServer = (launchers: Launchers): Start => launchers.mcp
-
-/** The terminal's variables Novadeck's MCP server is started and finds its runner by. */
-export const mcpVariables = [
-  "NOVADECK_MCP",
-  "NOVADECK_TERMINAL_ID",
-  "NOVADECK_REPORT",
-  "NOVADECK_REPORT_TOKEN",
-] as const
-
-/** Novadeck's plugin, as every harness's manifest names it. */
-export const plugin = {
-  name: "novadeck",
-  version: "1.2.0",
-  description:
-    "Tells Novadeck which session runs in its terminal, so it can resume it, lets the agent show you files beside it, and lets agents in Novadeck message each other.",
-}
-
-/** The local marketplace Claude Code and Codex both install Novadeck's plugin from. */
-export const marketplace = json({
-  name: "novadeck",
-  owner: { name: "Novadeck" },
-  plugins: [{ name: "novadeck", source: "./novadeck", description: plugin.description }],
-})
-
-/**
- * A SessionStart `source`: `startup` for a fresh session, anything else (resume, clear,
- * compact) a switch the harness made itself. Without one, only that the conversation runs.
- */
-export const sessionStart = (source: string | undefined): Continuity =>
-  source === undefined
-    ? "conversation-observed"
-    : source === "startup"
-      ? "startup"
-      : "native-switch"
-
-/** A session bound to a terminal, as a harness's `watch` follows it. */
 /** A plan a transcript or rollout line records, and when it was written where it says. */
 export type WrittenPlan = { readonly source: PlanSource; readonly at: number | null }
 
 /** An item of a transcript, before the runner numbers it. */
 export type TranscriptEntry = Omit<TranscriptItem, "index">
 
+/** A session bound to a terminal, as a harness's `watch` follows it. */
 export type Run = {
   readonly sessionId: string
   readonly instance: string | null
   /** Its transcript, as its hooks named it. */
   readonly transcript: string
-}
-
-/** A session id a shell can run as a plain word, or undefined. */
-export const sessionId = (value: unknown): string | undefined =>
-  agentSessionId.safeParse(value).success ? (value as string) : undefined
-
-/** An absolute path here, or undefined. */
-export const absolute = (value: unknown): string | undefined =>
-  typeof value === "string" && value.length <= 4096 && !value.includes("\0") && isAbsolute(value)
-    ? value
-    : undefined
-
-/**
- * Each request among `events` with the directory its hook named, where it named an
- * absolute one, so a dialog's relative paths resolve where that agent runs.
- */
-export const withRequestCwd = (
-  events: readonly HarnessEvent[],
-  payload: { readonly cwd?: unknown },
-): readonly HarnessEvent[] => {
-  const cwd = absolute(payload.cwd)
-  if (!cwd) return events
-  return events.map((event) =>
-    event.type === "attention-requested" && event.cwd === undefined ? { ...event, cwd } : event,
-  )
-}
-
-/** A value as JSON with every object's keys sorted, so the same value reads the same. */
-const canonical = (value: unknown): string =>
-  JSON.stringify(value ?? null, (_, each: unknown) =>
-    typeof each === "object" && each !== null && !Array.isArray(each)
-      ? Object.fromEntries(
-          Object.entries(each).toSorted(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0)),
-        )
-      : each,
-  )
-
-/**
- * An id for the tool call a permission request asks about, which no harness names: the
- * actor that asks (null for the root agent), the tool and a digest of its input, so the
- * call's own result can resolve it. Its keys may come in another order elsewhere, as
- * Claude Code's transcript records a call's input in the model's order, unlike its hooks.
- */
-export const callId = (actor: string | null, toolName: string, input: unknown): string => {
-  const digest = createHash("sha256").update(canonical(input)).digest("hex")
-  return `${actor ?? ""}:${toolName}:${digest.slice(0, 16)}`
-}
-
-/** The line Novadeck's doorbell types, with its nonce (see docs/agent-messaging.md). */
-export const doorbellLine = (nonce: string): string =>
-  `[Novadeck: automatic notice, agent messages waiting, ${nonce}]`
-
-/** Any doorbell line, wherever it is. */
-export const doorbell = /\[Novadeck: automatic notice, agent messages waiting, ([A-Za-z0-9]+)\]/g
-
-/** The nonce of a prompt that is exactly a doorbell line, as typed or started with; else undefined. */
-export const doorbellNonce = (prompt: string): string | undefined =>
-  /^\[Novadeck: automatic notice, agent messages waiting, ([A-Za-z0-9]+)\]$/.exec(
-    prompt.trim(),
-  )?.[1]
-
-/**
- * The person's prompt without any doorbell line left in it, as a line a failed ring left
- * in the box that they then submitted with their own text.
- */
-export const withoutDoorbell = (prompt: string): string =>
-  prompt
-    .replace(doorbell, "")
-    .replace(/[ \t]{2,}/g, " ")
-    .trim()
-
-/**
- * Whether a prompt is a hook's rather than the person's: a Stop hook's reason the harness
- * submits as a prompt (Codex wraps it in `<hook_prompt>`), or a delivery of agents'
- * messages. A doorbell prompt is told apart by `doorbellNonce`.
- */
-export const continuationPrompt = (prompt: string): boolean =>
-  /^\s*<hook_prompt\b/.test(prompt) || prompt.includes("<novadeck-messages")
-
-/**
- * The turn a root prompt starts, from its text: Novadeck's doorbell, a hook's
- * continuation (or `harness` by the harness's own reckoning), or a prompt with the
- * person's text, any doorbell line removed.
- */
-export const promptStart = (
-  base: {
-    readonly agent: AgentName
-    readonly sessionId: string
-    readonly instance: string | null
-    readonly startedAt: number
-    /** The turn's id, where the harness names one. */
-    readonly turn?: string
-  },
-  prompt: string,
-  harness = false,
-): HarnessEvent => {
-  const nonce = doorbellNonce(prompt)
-  if (nonce) return { type: "turn-started", ...base, cause: "doorbell", nonce }
-  if (harness || continuationPrompt(prompt))
-    return { type: "turn-started", ...base, cause: "harness" }
-  const own = withoutDoorbell(prompt)
-  return { type: "turn-started", ...base, cause: "prompt", ...(own && { prompt: own }) }
-}
-
-/** Quotes a doorbell line for any shell Novadeck starts: it holds no character they expand. */
-export const quotedLine = (line: string): string => `"${line}"`
-
-/** A payload's string field, or undefined. */
-export const text = (value: unknown): string | undefined =>
-  typeof value === "string" ? value : undefined
-
-// Terminal escape sequences: CSI (ESC [ … final), OSC (ESC ] … BEL or ST), and other
-// two-character escapes; then any control character left, and the bidirectional
-// overrides and isolates that could reorder what a notification shows.
-// eslint-disable-next-line no-control-regex -- These are the characters it removes.
-const escapes = /\x1b\[[0-?]*[ -/]*[@-~]|\x1b\][^\x07\x1b]*(?:\x07|\x1b\\)?|\x1b[@-_]?/g
-// eslint-disable-next-line no-control-regex -- As above.
-const controls = /[\x00-\x1f\x7f-\x9f\u061c\u200e\u200f\u202a-\u202e\u2066-\u2069]+/g
-// As above, with the invisible and line-breaking marks a name shouldn't hold either.
-// eslint-disable-next-line no-control-regex -- As above.
-const control = /[\x00-\x1f\x7f-\x9f\u061c\u200b-\u200f\u2028-\u202e\u2066-\u2069\ufeff]/
-
-/**
- * A short name a harness gives, such as its model's, which is shown as it is: not blank,
- * within `max` characters, and with no control character or reordering in it.
- */
-export const shortName = (value: unknown, max: number): string | undefined => {
-  if (typeof value !== "string") return undefined
-  const name = value.trim()
-  return name && name.length <= max && !control.test(name) ? name : undefined
-}
-// Markdown's marks that read as noise in plain text: emphasis, code, a heading's or a
-// quote's lead, a list's bullet, and a link's brackets around its text.
-const marks = /(\*\*|`+|~~)/g
-const lead = /^\s*(?:#{1,6}\s+|>\s*|[-*+]\s+(?:\[[ xX]\]\s+)?)/
-const links = /!?\[([^\]]*)\]\([^)]*\)/g
-
-/**
- * The start of an agent's reply as one line of plain text, at most
- * `replyPreviewLength` long: escapes and control characters out, Markdown's marks
- * dropped, lines joined, whitespace collapsed, and an ellipsis where it was cut, never
- * inside a character. Undefined when nothing is left.
- */
-export const replyPreview = (value: unknown): string | undefined => {
-  if (typeof value !== "string") return undefined
-  const line = value
-    // Only as much as can show: a reply may be long, and the hook already cut it.
-    .slice(0, replyPreviewLength * 8)
-    .replace(escapes, "")
-    .split(/\r\n|\r|\n/)
-    .map((part) => part.replace(lead, "").replace(links, "$1").replace(marks, ""))
-    .join(" ")
-    .replace(controls, " ")
-    .replace(/\s+/g, " ")
-    .trim()
-  if (!line) return undefined
-  if (line.length <= replyPreviewLength) return line
-  let end = replyPreviewLength - 1
-  const last = line.charCodeAt(end - 1)
-  if (last >= 0xd800 && last <= 0xdbff) end -= 1
-  return `${line.slice(0, end).trimEnd()}…`
-}
-
-/** The longest error a failed turn keeps, as the protocol takes it. */
-export const maxError = 2048
-
-/**
- * What a harness said of a failed turn, as plain text a person reads: escapes, control
- * characters and reordering marks out (a line break kept), cut to `maxError`. Undefined when
- * nothing is left.
- */
-export const errorText = (value: unknown): string | undefined => {
-  if (typeof value !== "string") return undefined
-  const plain = value
-    .slice(0, maxError * 2)
-    .replace(escapes, "")
-    // eslint-disable-next-line no-control-regex -- These are the characters it removes.
-    .replace(/[\x00-\x09\x0b-\x1f\x7f-\x9f\u061c\u200e\u200f\u202a-\u202e\u2066-\u2069]+/g, " ")
-    .trim()
-  return plain === "" ? undefined : plain.slice(0, maxError)
-}
-
-/** A turn's end's `reply`, from a field holding the agent's last reply; nothing without one. */
-export const replied = (value: unknown): { readonly reply?: string } => {
-  const reply = replyPreview(value)
-  return reply === undefined ? {} : { reply }
-}
-
-/**
- * The facts of a hook, and whether the agent plans: the root agent's turn, tool and stop
- * hooks name its permission mode, `plan` while it plans. None fires when the mode
- * changes, and Claude Code's SessionStart names none, so a session started or cleared in
- * plan mode shows it from its first prompt.
- */
-export const withMode = (
-  facts: readonly HarnessEvent[],
-  payload: Report["payload"],
-): readonly HarnessEvent[] => {
-  const mode = text(payload.permission_mode)
-  const [first] = facts
-  if (!mode || !first || text(payload.agent_id)) return facts
-  const { agent, instance, startedAt } = first
-  return [
-    ...facts,
-    {
-      type: "mode-observed",
-      agent,
-      sessionId: first.sessionId,
-      instance,
-      startedAt,
-      planning: mode === "plan",
-    },
-  ]
-}
-
-// What a request shows of its subject and choices, bounded as the protocol takes them.
-const maxSubject = 1024
-const maxChoice = 256
-const maxChoices = 16
-
-const field = (input: Record<string, unknown>, ...names: string[]): string | undefined => {
-  for (const name of names) {
-    const value = input[name]
-    if (typeof value === "string" && value.trim()) return value
-    if (Array.isArray(value) && value.length > 0 && value.every((each) => typeof each === "string"))
-      return value.join(" ")
-  }
-  return undefined
-}
-
-/**
- * What a tool call asks the person about, from its input, in the harness's own words: a
- * question and its choices, a plan's file, a command, or the path or address it touches.
- */
-export const subjectOf = (
-  input: unknown,
-): { readonly subject: string | null; readonly choices: readonly string[] } => {
-  if (typeof input !== "object" || input === null || Array.isArray(input))
-    return { subject: null, choices: [] }
-  const fields = input as Record<string, unknown>
-  const [question] = Array.isArray(fields.questions) ? fields.questions : []
-  if (typeof question === "object" && question !== null) {
-    const { question: prompt, options } = question as { question?: unknown; options?: unknown }
-    const choices = (Array.isArray(options) ? options : [])
-      .map((option) => (option as { label?: unknown } | null)?.label)
-      .filter((label): label is string => typeof label === "string" && label.length > 0)
-      .slice(0, maxChoices)
-      .map((label) => label.slice(0, maxChoice))
-    return { subject: typeof prompt === "string" ? prompt.slice(0, maxSubject) : null, choices }
-  }
-  const subject = field(fields, "planFilePath", "command", "file_path", "path", "url", "pattern")
-  return { subject: subject?.slice(0, maxSubject) ?? null, choices: [] }
-}
-
-/**
- * An opaque reference to a native identity: clients tell actors and requests apart by
- * it, never by a harness's own ids.
- */
-export const ref = (...parts: readonly string[]): string =>
-  createHash("sha256").update(parts.join("\0")).digest("base64url").slice(0, 16)
-
-/** The longest plan text kept, as the protocol takes it. */
-export const maxPlan = 256 * 1024
-
-/** A plan's text cut short to what the protocol takes, a character left whole. */
-export const bounded = (value: string): { readonly text: string; readonly truncated: boolean } => {
-  let end = Math.min(value.length, maxPlan)
-  const last = value.charCodeAt(end - 1)
-  if (end < value.length && last >= 0xd800 && last <= 0xdbff) end -= 1
-  return { text: value.slice(0, end), truncated: end < value.length }
 }

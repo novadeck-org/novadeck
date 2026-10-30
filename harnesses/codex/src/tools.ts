@@ -11,8 +11,8 @@ import {
   sleepOnly,
   textField,
   type Fields,
-  type ToolRun,
 } from "@novadeck/harness-core/tools"
+import type { ToolRun } from "@novadeck/protocol"
 
 // Novadeck's MCP tools as Codex names them: `mcp__novadeck__send` (its rollout gives the
 // namespace `mcp__novadeck` and the tool `send` apart, which the decoder joins) or

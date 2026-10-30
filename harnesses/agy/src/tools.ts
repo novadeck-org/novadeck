@@ -10,8 +10,8 @@ import {
   textField,
   unquote,
   type Fields,
-  type ToolRun,
 } from "@novadeck/harness-core/tools"
+import type { ToolRun } from "@novadeck/protocol"
 
 // Novadeck's MCP tools as Antigravity names them when it loads them eagerly:
 // `mcp_novadeck_novadeck_send`.

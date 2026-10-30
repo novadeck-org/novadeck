@@ -2,7 +2,7 @@ import type {
   DialogAdapter,
   DialogRead,
   KeyStep,
-  ReadDialog,
+  AnswerableDialog,
   RequestFacts,
   ScreenRequest,
 } from "@novadeck/harness-core/dialogs"
@@ -180,7 +180,7 @@ type Choice = {
 
 /** What a read dialog is, before it becomes the driver's `DialogRead`. */
 type Parsed = {
-  readonly dialog: ReadDialog
+  readonly dialog: AnswerableDialog
   readonly keys: (answer: RequestAnswer) => readonly KeyStep[] | undefined
   /** Its own test of an answer given, where the screen not showing it any more is not it. */
   readonly answered?: (rows: readonly string[]) => boolean

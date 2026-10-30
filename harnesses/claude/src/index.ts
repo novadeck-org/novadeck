@@ -3,17 +3,13 @@ import { join } from "node:path"
 
 import { followLines } from "@novadeck/harness-core/follow"
 import {
-  hookSeconds,
-  json,
-  marketplace,
-  mcpServer,
-  plugin,
   efforts,
   type MessagingProfile,
   type Harness,
   type Install,
 } from "@novadeck/harness-core/harness"
-import { hookCommand, type Dialect } from "@novadeck/harness-core/hook-command"
+import { hookSeconds, hookCommand, type Dialect } from "@novadeck/harness-core/hook-command"
+import { json, marketplace, plugin } from "@novadeck/harness-core/plugin"
 
 import { box } from "./box.js"
 import { decode, transcriptPlans } from "./decode.js"
@@ -131,7 +127,7 @@ export const claude = {
     // terminal's environment.
     {
       path: join("novadeck", ".mcp.json"),
-      content: json({ mcpServers: { novadeck: mcpServer(launchers) } }),
+      content: json({ mcpServers: { novadeck: launchers.mcp } }),
     },
     {
       path: join("novadeck", "hooks", "hooks.json"),

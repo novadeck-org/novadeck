@@ -10,8 +10,8 @@ import {
   sleepOnly,
   textField,
   type Fields,
-  type ToolRun,
 } from "@novadeck/harness-core/tools"
+import type { ToolRun } from "@novadeck/protocol"
 
 // Claude Code's own name for Novadeck's MCP server, as its plugin spells the tools:
 // `mcp__plugin_novadeck_novadeck__send`.

@@ -1,17 +1,17 @@
 import { posix, win32 } from "node:path"
 
-import type { HarnessEvent } from "@novadeck/harness-core/events"
 import {
   absolute,
   withRequestCwd,
   callId,
-  promptStart,
   replied,
   sessionId,
   sessionStart,
   subjectOf,
   text,
-} from "@novadeck/harness-core/harness"
+} from "@novadeck/harness-core/decode"
+import type { HarnessEvent } from "@novadeck/harness-core/events"
+import { promptStart } from "@novadeck/harness-core/prompts"
 import type { Report } from "@novadeck/harness-core/report"
 
 import { kindOf } from "./tools.js"

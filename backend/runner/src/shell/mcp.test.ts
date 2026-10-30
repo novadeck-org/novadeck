@@ -4,7 +4,7 @@ import { createServer } from "node:net"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 
-import { plugin } from "@novadeck/harness-core/harness"
+import { plugin } from "@novadeck/harness-core/plugin"
 import { relayPath } from "@novadeck/relay"
 import { afterAll, beforeAll, onTestFinished } from "vitest"
 

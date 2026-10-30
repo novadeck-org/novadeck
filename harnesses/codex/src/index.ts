@@ -1,18 +1,9 @@
 import { readFile } from "node:fs/promises"
 import { join } from "node:path"
 
-import {
-  hookSeconds,
-  json,
-  marketplace,
-  mcpServer,
-  mcpVariables,
-  plugin,
-  type MessagingProfile,
-  type Harness,
-  type Install,
-} from "@novadeck/harness-core/harness"
-import { hookCommand, type Dialect } from "@novadeck/harness-core/hook-command"
+import type { MessagingProfile, Harness, Install } from "@novadeck/harness-core/harness"
+import { hookSeconds, hookCommand, type Dialect } from "@novadeck/harness-core/hook-command"
+import { json, marketplace, mcpVariables, plugin } from "@novadeck/harness-core/plugin"
 
 import { box } from "./box.js"
 import { decode } from "./decode.js"
@@ -119,7 +110,7 @@ export const codex = {
       path: join("novadeck", ".mcp.json"),
       content: json({
         mcpServers: {
-          novadeck: { ...mcpServer(launchers), env_vars: [...mcpVariables] },
+          novadeck: { ...launchers.mcp, env_vars: [...mcpVariables] },
         },
       }),
     },

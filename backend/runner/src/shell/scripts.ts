@@ -1,7 +1,8 @@
 import { join } from "node:path"
 
-import { plugin, type Launchers, type Machine, type Start } from "@novadeck/harness-core/harness"
+import type { Launchers, Machine, Start } from "@novadeck/harness-core/harness"
 import { header } from "@novadeck/harness-core/header"
+import { plugin } from "@novadeck/harness-core/plugin"
 import type { AgentName } from "@novadeck/protocol"
 import {
   cmdQuote,

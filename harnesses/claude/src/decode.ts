@@ -1,23 +1,23 @@
 import { basename, dirname, extname } from "node:path"
 
-import type { Background, BackgroundJob, HarnessEvent } from "@novadeck/harness-core/events"
 import {
   absolute,
   withRequestCwd,
-  bounded,
+  planText,
   errorText,
   callId,
-  promptStart,
   replied,
   sessionId,
   sessionStart,
   subjectOf,
   text,
   withMode,
-  type WrittenPlan,
   shortName,
-} from "@novadeck/harness-core/harness"
+} from "@novadeck/harness-core/decode"
+import type { Background, BackgroundJob, HarnessEvent } from "@novadeck/harness-core/events"
+import type { WrittenPlan } from "@novadeck/harness-core/harness"
 import { at as writtenAt, record } from "@novadeck/harness-core/items"
+import { promptStart } from "@novadeck/harness-core/prompts"
 import type { Report } from "@novadeck/harness-core/report"
 import { isFields, oneLine } from "@novadeck/harness-core/tools"
 
@@ -469,7 +469,7 @@ const presented = (
   const path = markdown(planFilePath)
   if (path) return [{ type: "plan-observed", ...base, actor, plan: { kind: "file", path } }]
   if (typeof plan !== "string" || !plan) return []
-  return [{ type: "plan-observed", ...base, actor, plan: { kind: "text", ...bounded(plan) } }]
+  return [{ type: "plan-observed", ...base, actor, plan: { kind: "text", ...planText(plan) } }]
 }
 
 /**
@@ -492,4 +492,4 @@ export const transcriptPlans = (line: string): readonly WrittenPlan[] => {
   })
 }
 
-export { maxPlan } from "@novadeck/harness-core/harness"
+export { maxPlan } from "@novadeck/harness-core/decode"

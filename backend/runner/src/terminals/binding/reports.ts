@@ -1,5 +1,6 @@
+import { firedFacts } from "@novadeck/harness-core/decode"
 import type { HarnessEvent, SessionObserved } from "@novadeck/harness-core/events"
-import { firedFacts, silentFor } from "@novadeck/harness-core/harness"
+import { silentFor } from "@novadeck/harness-core/harness"
 import type { Report } from "@novadeck/harness-core/report"
 import type { AgentName } from "@novadeck/protocol"
 import { relayMs, shellInForeground, type ProcessTrees } from "@novadeck/terminal/pty"

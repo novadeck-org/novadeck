@@ -38,7 +38,7 @@ export type RequestFacts = {
  * is the adapter's to give: what the dialog shows of what it asks about (the command, the
  * tool's arguments, the permission), as the terminal draws it.
  */
-export type ReadDialog =
+export type AnswerableDialog =
   | Omit<Extract<RequestDialog, { type: "choices" }>, "id">
   | Omit<Extract<RequestDialog, { type: "questions" }>, "id">
   | Omit<Extract<RequestDialog, { type: "form" }>, "id">
@@ -67,7 +67,7 @@ export type KeyStep =
  * waits, which must follow each `type` step to check its words showed.
  */
 export type DialogRead = {
-  readonly dialog: ReadDialog
+  readonly dialog: AnswerableDialog
   /**
    * The steps that give `answer`, from the screen as read; undefined when this dialog
    * can't take it (an option it doesn't have, words where it takes none).

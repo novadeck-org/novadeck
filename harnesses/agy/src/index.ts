@@ -1,16 +1,9 @@
 import { access } from "node:fs/promises"
 import { join } from "node:path"
 
-import {
-  hookSeconds,
-  json,
-  mcpServer,
-  plugin,
-  type MessagingProfile,
-  type Harness,
-  type Install,
-} from "@novadeck/harness-core/harness"
-import { hookCommand, type Dialect } from "@novadeck/harness-core/hook-command"
+import type { MessagingProfile, Harness, Install } from "@novadeck/harness-core/harness"
+import { hookSeconds, hookCommand, type Dialect } from "@novadeck/harness-core/hook-command"
+import { json, plugin } from "@novadeck/harness-core/plugin"
 
 import { box } from "./box.js"
 import { decode, shown } from "./decode.js"
@@ -126,7 +119,7 @@ export const agy = {
     // terminal's environment.
     {
       path: "mcp_config.json",
-      content: json({ mcpServers: { novadeck: mcpServer(launchers) } }),
+      content: json({ mcpServers: { novadeck: launchers.mcp } }),
     },
     {
       path: "hooks.json",

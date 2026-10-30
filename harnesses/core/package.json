@@ -2,12 +2,17 @@
   "name": "@novadeck/harness-core",
   "version": "0.0.0",
   "private": true,
-  "description": "The contract every agent harness adapter fills in, and the helpers they share: hook reports, events, dialogs, transcripts and plugin files.",
+  "description": "The contract every agent harness adapter fills in, and the helpers they share: hook reports and commands, events, payload decoding, prompts, dialogs, transcripts and plugin files.",
   "license": "GPL-3.0-or-later",
   "author": "mzpkdev",
   "type": "module",
   "sideEffects": false,
   "exports": {
+    "./decode": {
+      "development": "./src/decode.ts",
+      "types": "./dist/decode.d.ts",
+      "default": "./dist/decode.js"
+    },
     "./dialogs": {
       "development": "./src/dialogs.ts",
       "types": "./dist/dialogs.d.ts",
@@ -42,6 +47,16 @@
       "development": "./src/items.ts",
       "types": "./dist/items.d.ts",
       "default": "./dist/items.js"
+    },
+    "./plugin": {
+      "development": "./src/plugin.ts",
+      "types": "./dist/plugin.d.ts",
+      "default": "./dist/plugin.js"
+    },
+    "./prompts": {
+      "development": "./src/prompts.ts",
+      "types": "./dist/prompts.d.ts",
+      "default": "./dist/prompts.js"
     },
     "./report": {
       "development": "./src/report.ts",

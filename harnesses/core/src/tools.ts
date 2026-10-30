@@ -1,7 +1,5 @@
 import type { ToolRun } from "@novadeck/protocol"
 
-export type { ToolRun }
-
 /**
  * What a tool call was, in one line, from its name and its input as the harness wrote it
  * (JSON, or raw text for a patch). Each harness's `describe` names its own tools; what they
@@ -78,23 +76,18 @@ const shortenIf = (detail: string): string =>
   detail.startsWith("/") || /^[A-Za-z]:[\\/]/.test(detail) ? shortPath(detail) : oneLine(detail)
 
 /**
- * The run of a shell command a decoder makes up itself, for the command the person typed in
- * shell mode (`!`).
- */
-const shellRun = (command: string): ToolRun => ({
-  kind: "run",
-  title: "Ran",
-  detail: oneLine(textField({ command }, "command")),
-})
-
-/**
- * The same as a `describe`, for the call a decoder makes up for a `!` command, whose input is
- * `{"command": …}`: it reads the item's own input, cut as any item's is, so a command too long
- * for an item has no detail, as a long call's input never parses.
+ * The same as a `describe`, for the call a decoder makes up for the command the person typed
+ * in shell mode (`!`), whose input is `{"command": …}`: it reads the item's own input, cut as
+ * any item's is, so a command too long for an item has no detail, as a long call's input
+ * never parses.
  */
 export const shellCall = (_tool: string, input: string): ToolRun => {
   const command = parseFields(input)?.command
-  return shellRun(typeof command === "string" ? command : "")
+  return {
+    kind: "run",
+    title: "Ran",
+    detail: oneLine(textField({ command: typeof command === "string" ? command : "" }, "command")),
+  }
 }
 
 /**
