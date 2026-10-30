@@ -1,4 +1,4 @@
-import { companionKeyId, companionKeyOf, type CompanionKey } from "@novadeck/core/items"
+import { terminalKeyPath, terminalKeyOfPath } from "@novadeck/core/items"
 import { messagesKey } from "@novadeck/core/items/companion-bar"
 import {
   hasMessages,
@@ -13,6 +13,7 @@ import {
 } from "@novadeck/core/messages"
 import type { WorkspaceAction } from "@novadeck/core/state"
 import type { Store, WorkspaceStore } from "@novadeck/core/store"
+import type { TerminalKey } from "@novadeck/core/types"
 import { useSyncExternalStore } from "react"
 
 import { markSeen, seenAt, seenKey, seenStore } from "./seen"
@@ -31,17 +32,17 @@ const useMessagesPart = <T>(
 // What a terminal's tab shows of its messages: the count waiting for its agent.
 export const useMessageBadge = (
   messages: Messages | undefined,
-  key: CompanionKey,
+  key: TerminalKey,
 ): MessageBadge | null => {
-  const id = companionKeyId(key)
+  const id = terminalKeyPath(key)
   const threads = useMessagesPart(messages, (state) => state.terminals[id])
   const paused = useMessagesPart(messages, (state) => state.paused)
   return messageBadge(threads, paused)
 }
 
 // Whether a terminal has a messages view, which puts the messages on its bar.
-export const useHasMessages = (messages: Messages | undefined, key: CompanionKey): boolean => {
-  const id = companionKeyId(key)
+export const useHasMessages = (messages: Messages | undefined, key: TerminalKey): boolean => {
+  const id = terminalKeyPath(key)
   return useMessagesPart(messages, (state) => hasMessages(state.terminals[id]))
 }
 
@@ -62,8 +63,8 @@ export type MessagesHandle = {
   readonly seen: (conversation: string, at: number) => void
 }
 
-export const useMessages = (messages: Messages | undefined, key: CompanionKey): MessagesHandle => {
-  const id = companionKeyId(key)
+export const useMessages = (messages: Messages | undefined, key: TerminalKey): MessagesHandle => {
+  const id = terminalKeyPath(key)
   const threads = useMessagesPart(messages, (state) => state.terminals[id])
   const paused = useMessagesPart(messages, (state) => state.paused)
   const pending = useMessagesPart(messages, (state) => state.pending)
@@ -124,7 +125,7 @@ export const followMessages = (workspace: WorkspaceStore, messages: Messages): (
       counts.set(id, count)
       if (!hasMessages(threads)) continue
       // A terminal closed since its messages came takes nothing: the bar's actions pass it by.
-      const { terminalId, ...target } = companionKeyOf(id)
+      const { terminalId, ...target } = terminalKeyOfPath(id)
       actions.push({ type: "bar/arrive", target, terminalId, key: messagesKey })
       if (more) actions.push({ type: "bar/reopen", target, terminalId, key: messagesKey })
     }

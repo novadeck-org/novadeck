@@ -6,7 +6,7 @@ import {
 } from "@novadeck/core/agents/steps"
 import type { Conversation, Conversations } from "@novadeck/core/conversation"
 import type { InboxRow } from "@novadeck/core/inbox"
-import { companionKeyId } from "@novadeck/core/items"
+import { terminalKeyPath } from "@novadeck/core/items"
 import type { Messages, TerminalThreads } from "@novadeck/core/messages"
 import {
   createContext,
@@ -65,7 +65,7 @@ export const useAgentContext = (item: InboxRow): AgentContext | undefined => {
     store?.subscribe ?? nothing,
     store?.getSnapshot ?? none,
   )
-  const id = companionKeyId({ projectId, workspaceSessionId, terminalId })
+  const id = terminalKeyPath({ projectId, workspaceSessionId, terminalId })
   const threads: TerminalThreads | undefined = useSyncExternalStore(
     messages?.state.subscribe ?? nothing,
     () => messages?.state.getSnapshot().terminals[id],

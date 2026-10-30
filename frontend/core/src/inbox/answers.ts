@@ -231,7 +231,7 @@ export type InboxActions = {
 // nudged only while it is the agent's current end and the agent rests, never interrupting,
 // and read once the nudge is sent; a failed row that is no longer current is only read). An answer of another kind fails; the
 // kinds a backend answers itself (an ask, a told or done update) it handles before this.
-export const answerItem = (
+export const answerRow = (
   tracker: InboxTracker,
   row: InboxRow,
   given: InboxAnswer,

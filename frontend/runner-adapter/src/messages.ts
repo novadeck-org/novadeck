@@ -1,4 +1,4 @@
-import { companionKeyId, type CompanionKey } from "@novadeck/core/items"
+import { terminalKeyPath } from "@novadeck/core/items"
 import {
   noMessages,
   type MessageParty as CoreParty,
@@ -7,6 +7,7 @@ import {
   type TerminalThreads,
 } from "@novadeck/core/messages"
 import { createStore } from "@novadeck/core/store"
+import type { TerminalKey } from "@novadeck/core/types"
 import type { MessageParty, TerminalMessages } from "@novadeck/protocol"
 
 // The runner's messages between agents: each terminal's threads as `messages.watch`
@@ -24,9 +25,9 @@ export type MessageStreams = {
 export type RunnerMessages = Messages & {
   // The runner has the terminal: follow its messages. Following that ended, as when the
   // runner lost the terminal, starts over; following that runs goes on.
-  readonly follow: (key: CompanionKey) => void
+  readonly follow: (key: TerminalKey) => void
   // The terminal is gone: stop following it, and forget its messages.
-  readonly unfollow: (key: CompanionKey) => void
+  readonly unfollow: (key: TerminalKey) => void
   // Stops following every terminal.
   readonly end: () => void
 }
@@ -115,8 +116,8 @@ export const createRunnerMessages = (
       return reconcile({ ...current, terminals }, true)
     })
 
-  const follow = (key: CompanionKey): void => {
-    const id = companionKeyId(key)
+  const follow = (key: TerminalKey): void => {
+    const id = terminalKeyPath(key)
     if (followed.has(id)) return
     let stream: AsyncIterableIterator<TerminalMessages, undefined>
     try {
@@ -148,8 +149,8 @@ export const createRunnerMessages = (
     })()
   }
 
-  const unfollow = (key: CompanionKey): void => {
-    const id = companionKeyId(key)
+  const unfollow = (key: TerminalKey): void => {
+    const id = terminalKeyPath(key)
     const stream = followed.get(id)
     followed.delete(id)
     void stream?.return?.()

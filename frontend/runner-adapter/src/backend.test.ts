@@ -2,7 +2,7 @@ import { mkdtemp, writeFile } from "node:fs/promises"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 
-import { companionKeyId, itemIdOf } from "@novadeck/core/items"
+import { terminalKeyPath, itemIdOf } from "@novadeck/core/items"
 import { messagesKey } from "@novadeck/core/items/companion-bar"
 import type { BackendAction } from "@novadeck/core/port"
 import { workspaceFromSeed } from "@novadeck/core/seed"
@@ -613,7 +613,7 @@ describe("runner backend", () => {
       const terminal = app.addTerminal()
       await app.idle()
       const messages = app.backend.messages!
-      const id = companionKeyId({ ...app.target(), terminalId: terminal.id })
+      const id = terminalKeyPath({ ...app.target(), terminalId: terminal.id })
       await vi.waitFor(() =>
         expect(messages.state.getSnapshot().terminals[id]).toEqual({
           handle: expect.stringMatching(/^[a-z]{2,12}[0-9]*$/),

@@ -14,7 +14,7 @@ import {
   type InboxTurn,
 } from "@novadeck/core/inbox"
 import {
-  answerItem,
+  answerRow,
   createInboxTracker,
   isTurnRow,
   keepInbox,
@@ -333,7 +333,7 @@ export const createDemoInbox = (
     }
     const { conversations, messages } = sources
     const { workspace } = binding
-    answerItem(tracker, target, given, {
+    answerRow(tracker, target, given, {
       request: (key, { request }, answer) =>
         conversations.answer(key, request.id.slice(scoped(key, "").length), answer),
       release: (thread) => messages?.release(thread),

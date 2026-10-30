@@ -12,7 +12,7 @@ import {
 } from "@novadeck/core/inbox"
 import {
   answerFailure,
-  answerItem,
+  answerRow,
   createInboxTracker,
   isTurnRow,
   keepInbox,
@@ -435,7 +435,7 @@ export const createRunnerInbox = (
       (item.update.type === "told" || item.update.type === "done")
     )
       return tracker.call(id, () => streams.inbox.read([id]))
-    answerItem(tracker, item, given, {
+    answerRow(tracker, item, given, {
       request: (_, { request }, chat) => streams.answer(key, request.id, chat),
       release: (thread) => streams.release(thread),
       stop: (thread) => streams.stop(thread),

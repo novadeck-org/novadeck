@@ -10,7 +10,7 @@ import {
   type InboxSource,
   type InboxTurn,
 } from "../inbox"
-import { companionKeyId } from "../items"
+import { terminalKeyPath } from "../items"
 import {
   waitingFor,
   type AgentMessage,
@@ -210,7 +210,7 @@ const candidates = (
     longHoldMs !== null &&
     heldLong(
       messages.terminals[
-        companionKeyId({
+        terminalKeyPath({
           projectId: project.id,
           workspaceSessionId: session.id,
           terminalId: terminal.id,

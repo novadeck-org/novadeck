@@ -1,4 +1,4 @@
-import { companionKeyId } from "@novadeck/core/items"
+import { terminalKeyPath } from "@novadeck/core/items"
 import { messageBadge, type MessageParty } from "@novadeck/core/messages"
 import { afterEach, vi } from "vitest"
 
@@ -12,7 +12,7 @@ const storefront = { projectId: "storefront", workspaceSessionId: "initial" }
 const elsewhere = { projectId: "api-service", workspaceSessionId: "initial" }
 // A terminal of the session by its number, as `"01"`.
 const at = (slot: string, target = storefront) =>
-  companionKeyId({ ...target, terminalId: demoTerminalId(target, Number(slot)) })
+  terminalKeyPath({ ...target, terminalId: demoTerminalId(target, Number(slot)) })
 
 const demo = () => createDemoMessages(checkoutMessages(1_000_000, [storefront, elsewhere]))
 

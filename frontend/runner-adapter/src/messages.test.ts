@@ -1,4 +1,4 @@
-import { companionKeyId } from "@novadeck/core/items"
+import { terminalKeyPath } from "@novadeck/core/items"
 import type { TerminalMessages } from "@novadeck/protocol"
 import { vi } from "vitest"
 
@@ -6,7 +6,7 @@ import { createRunnerMessages, messagesOf, type MessageStreams } from "./message
 import { context, describe, expect, it } from "./test"
 
 const key = { projectId: "p", workspaceSessionId: "s", terminalId: "a" }
-const id = companionKeyId(key)
+const id = terminalKeyPath(key)
 
 // A terminal's listing as the runner streams it: Codex in fox sent moth a message.
 const listing = (change: Partial<TerminalMessages> = {}): TerminalMessages => ({

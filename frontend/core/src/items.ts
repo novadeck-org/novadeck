@@ -1,5 +1,5 @@
 import { pageKey } from "./items/pages"
-import type { CompanionWindowMeta, WorkspaceTarget } from "./types"
+import type { CompanionWindowMeta, TerminalKey, WorkspaceTarget } from "./types"
 
 // What agents put in front of the person beside their terminals: the plans they write,
 // and images, project files and preview-browser pages they show. A backend reports
@@ -7,17 +7,16 @@ import type { CompanionWindowMeta, WorkspaceTarget } from "./types"
 // implements this with sample agents; a runner reports the same from the agents' own
 // files and hooks, and from what they present through Novadeck's MCP server.
 
-// A terminal, as the backend port knows it: a terminal is addressed by its project and session as well as its ID.
-export type CompanionKey = WorkspaceTarget & { readonly terminalId: string }
-
-export const companionKeyId = ({
+// A terminal's key as one string, `project/session/terminal`: what the items and messages
+// a backend keeps by terminal are filed under.
+export const terminalKeyPath = ({
   projectId,
   workspaceSessionId,
   terminalId,
-}: CompanionKey): string => `${projectId}/${workspaceSessionId}/${terminalId}`
+}: TerminalKey): string => `${projectId}/${workspaceSessionId}/${terminalId}`
 
-// The terminal a `companionKeyId` names. Its ids hold no slashes.
-export const companionKeyOf = (id: string): CompanionKey => {
+// The terminal a `terminalKeyPath` names. Its ids hold no slashes.
+export const terminalKeyOfPath = (id: string): TerminalKey => {
   const [projectId = "", workspaceSessionId = "", terminalId = ""] = id.split("/")
   return { projectId, workspaceSessionId, terminalId }
 }

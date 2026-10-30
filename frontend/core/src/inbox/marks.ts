@@ -1,8 +1,5 @@
 import { atTerminal, inboxType, terminalNeed, type InboxRow, type TerminalAt } from "../inbox"
-import type { NoteMarks } from "../terminals/ending"
-
-// What the Inbox says of one terminal for its tab and window (see `NoteMarks`).
-export type InboxMarks = NoteMarks
+import type { InboxMarks } from "../terminals/ending"
 
 // The kind of dialog a row stands for, where it stands for one: a request is the dialog
 // its agent's harness shows.

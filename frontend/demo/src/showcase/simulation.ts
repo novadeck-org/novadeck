@@ -1,18 +1,17 @@
 import {
-  companionKeyId,
+  terminalKeyPath,
   itemIdOf,
   notesIn,
   PlanUnwritableError,
   shownItemWith,
   type Item,
-  type CompanionKey,
   type Companions,
   type ItemContent,
   type ItemId,
   type PlanVersion,
 } from "@novadeck/core/items"
 import type { BackendAction } from "@novadeck/core/port"
-import type { CompanionWindowMeta, WorkspaceTarget } from "@novadeck/core/types"
+import type { CompanionWindowMeta, TerminalKey, WorkspaceTarget } from "@novadeck/core/types"
 
 import type { SampleAgent } from "./agents"
 import type { SampleArtifact } from "./artifacts"
@@ -51,12 +50,12 @@ export type Showcase = Companions & {
   ) => () => void
   // What the person typed in an agent's terminal. Where it has the agent revise its plan,
   // `revised` is called once the revision is written.
-  readonly told: (key: CompanionKey, input: string, revised?: () => void) => void
+  readonly told: (key: TerminalKey, input: string, revised?: () => void) => void
   // The terminal closed: its agent is gone.
-  readonly closed: (key: CompanionKey) => void
+  readonly closed: (key: TerminalKey) => void
   // Puts the plan of the agent in this terminal in a fault, or back to normal; false where
   // the terminal has no agent with a plan.
-  readonly fault: (key: CompanionKey, fault: PlanFault | undefined) => boolean
+  readonly fault: (key: TerminalKey, fault: PlanFault | undefined) => boolean
 }
 
 // Whether a backend's companions are the showcase's, which the debug panel can fault.
@@ -64,7 +63,7 @@ export const isShowcase = (companions: Companions): companions is Showcase =>
   "fault" in companions && "told" in companions
 
 // A terminal of the showcase's, by the handle its agents know it by.
-type Holder = { readonly key: CompanionKey; readonly handle: string }
+type Holder = { readonly key: TerminalKey; readonly handle: string }
 
 // Where the agent's plan prompt stands. Approval happens in the agent's own terminal;
 // Novadeck can't see it, so only the simulation keeps it.
@@ -175,7 +174,7 @@ export const createShowcase = (
 ): Showcase => {
   const running = new Map<string, Running>(
     agents.map(({ key, handle, sample }) => [
-      companionKeyId(key),
+      terminalKeyPath(key),
       {
         key,
         handle,
@@ -191,7 +190,7 @@ export const createShowcase = (
       },
     ]),
   )
-  const agentAt = (key: CompanionKey): Running | undefined => running.get(companionKeyId(key))
+  const agentAt = (key: TerminalKey): Running | undefined => running.get(terminalKeyPath(key))
   const planOf = (target: WorkspaceTarget, id: ItemId): Running | undefined =>
     [...running.values()].find((agent) => sameSession(agent.key, target) && agent.planIds.has(id))
   // What every sample item holds, by its id.
@@ -443,7 +442,7 @@ export const createShowcase = (
       })
     },
     closed: (key) => {
-      running.delete(companionKeyId(key))
+      running.delete(terminalKeyPath(key))
     },
     fault: (key, fault) => {
       const agent = agentAt(key)

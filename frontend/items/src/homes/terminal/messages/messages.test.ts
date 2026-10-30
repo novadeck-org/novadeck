@@ -1,4 +1,4 @@
-import { companionKeyId } from "@novadeck/core/items"
+import { terminalKeyPath } from "@novadeck/core/items"
 import { messagesKey } from "@novadeck/core/items/companion-bar"
 import { noMessages, type MessageParty, type MessagesState } from "@novadeck/core/messages"
 import { activeSession } from "@novadeck/core/state"
@@ -20,7 +20,7 @@ describe("a terminal's messages on its taskbar", () => {
   const messagesOf = (count: number): MessagesState => ({
     ...noMessages,
     terminals: {
-      [companionKeyId({ ...target, terminalId: "01" })]: {
+      [terminalKeyPath({ ...target, terminalId: "01" })]: {
         handle: "moth",
         agent: true,
         threads: [
@@ -69,7 +69,7 @@ describe("a terminal's messages on its taskbar", () => {
     const { state, bar } = following({
       ...noMessages,
       terminals: {
-        [companionKeyId({ ...target, terminalId: "01" })]: {
+        [terminalKeyPath({ ...target, terminalId: "01" })]: {
           handle: "moth",
           agent: false,
           threads: [],

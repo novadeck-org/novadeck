@@ -5,7 +5,7 @@ import {
   type Conversations,
 } from "@novadeck/core/conversation"
 import type { InboxRow } from "@novadeck/core/inbox"
-import { companionKeyId } from "@novadeck/core/items"
+import { terminalKeyPath } from "@novadeck/core/items"
 import {
   noMessages,
   type MessageParty,
@@ -90,7 +90,7 @@ const backend = () => {
   const messages: MutableStore<MessagesState> = createStore<MessagesState>({
     ...noMessages,
     terminals: {
-      [companionKeyId(source)]: {
+      [terminalKeyPath(source)]: {
         handle: "owl",
         agent: true,
         threads: [

@@ -225,7 +225,7 @@ export const needText = (
 // What the Inbox says of one terminal, for its tab, its window and its project's status: the
 // need its entries make, and the subject and the dialog kind of the entry that makes the need.
 // Its done report is no mark of the Inbox: it stands with the agent (`AgentStatus.reported`).
-export type NoteMarks = {
+export type InboxMarks = {
   readonly need: TerminalNeed | undefined
   readonly subject?: string | undefined
   readonly dialog?: NeedDialog | undefined
@@ -246,7 +246,7 @@ export type TerminalGlance = {
 // `unread` is how the terminal's last turn ended while the person looked away, if it did.
 export const terminalGlance = (
   terminal: TerminalMetadata,
-  marks: NoteMarks,
+  marks: InboxMarks,
   unread: "unread" | "failed" | undefined,
   now = Date.now(),
 ): TerminalGlance => {
@@ -278,7 +278,7 @@ export const idleNote: TerminalNote = {
 
 export const terminalNote = (
   terminal: TerminalMetadata,
-  marks: NoteMarks,
+  marks: InboxMarks,
   unread: "unread" | "failed" | undefined,
   now = Date.now(),
 ): TerminalNote => {
