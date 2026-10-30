@@ -7,7 +7,7 @@ import {
 } from "@dnd-kit/dom"
 import { DragDropProvider } from "@dnd-kit/react"
 import { isSortable, useSortable } from "@dnd-kit/react/sortable"
-import { resetText, type AgentAccount, type UsageWindow } from "@novadeck/core/account-usage"
+import { resetText, type AgentAccount, type UsageWindow } from "@novadeck/core/agents/account-usage"
 import { ContextMenu, type ContextMenuItem } from "@novadeck/toolkit/ContextMenu"
 import { Popover } from "@novadeck/toolkit/Popover"
 import { createElement, useEffect, useState, type ComponentProps } from "react"

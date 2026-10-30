@@ -1,4 +1,4 @@
-import { maxClipSeconds } from "@novadeck/core/voice"
+import { maxClipSeconds } from "@novadeck/core/addons/voice"
 import { maxVoiceSeconds, voiceSampleRate, type VoiceState } from "@novadeck/protocol"
 import { WireError } from "@novadeck/wire"
 import { vi } from "vitest"

@@ -1,5 +1,5 @@
 import { WordsLost, type ChatAnswer, type ChatRequest } from "@novadeck/core/conversation"
-import type { Refused } from "@novadeck/core/prompt-refusal"
+import type { Refused } from "@novadeck/core/conversation/prompt-refusal"
 import { CircleHelp, ClipboardList, Loader, ShieldQuestion, type LucideIcon } from "lucide-react"
 import { useEffect, useRef, useState } from "react"
 

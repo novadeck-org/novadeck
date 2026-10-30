@@ -1,4 +1,4 @@
-import { messagesKey } from "@novadeck/core/companion-bar"
+import { messagesKey } from "@novadeck/core/items/companion-bar"
 import { createTerminalState } from "@novadeck/core/state"
 import { itemFixture, terminalFixture } from "@novadeck/core/testing"
 import type { WorkspaceSession } from "@novadeck/core/types"

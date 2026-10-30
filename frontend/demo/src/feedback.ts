@@ -5,7 +5,7 @@ import type {
   FeedbackKind,
 } from "@novadeck/core/feedback"
 import type { Backend, TerminalKey } from "@novadeck/core/port"
-import { terminalKeyId } from "@novadeck/core/registry"
+import { terminalKeyId } from "@novadeck/core/terminals/registry"
 import type { Workspace } from "@novadeck/core/types"
 
 import { demoHandle } from "./handles"

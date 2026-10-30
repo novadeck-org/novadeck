@@ -1,4 +1,4 @@
-import type { MurmurState } from "@novadeck/core/murmur"
+import type { MurmurState } from "@novadeck/core/addons/murmur"
 import { render } from "@novadeck/test-kit/render"
 import { act, createElement } from "react"
 import { vi } from "vitest"

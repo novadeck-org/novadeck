@@ -1,7 +1,12 @@
-import { movedOrder, nextAccountReset, runningSeats, sameSeats } from "@novadeck/core/account-usage"
-import { nextWaitingChange } from "@novadeck/core/agent-waiting"
+import {
+  movedOrder,
+  nextAccountReset,
+  runningSeats,
+  sameSeats,
+} from "@novadeck/core/agents/account-usage"
+import { nextWaitingChange } from "@novadeck/core/agents/waiting"
 import type { TerminalKey } from "@novadeck/core/port"
-import { waitingAgents } from "@novadeck/core/terminal-ending"
+import { waitingAgents } from "@novadeck/core/terminals/ending"
 import { memo, useCallback, useEffect, useState, useSyncExternalStore } from "react"
 
 import { FeedbackButton } from "../feedback/FeedbackButton"

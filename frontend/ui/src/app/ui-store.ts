@@ -1,16 +1,16 @@
-import { defaultCanvasWindowSize, type WindowSize } from "@novadeck/core/layout/terminal-size"
-import type { Backend } from "@novadeck/core/port"
-import type { PortableState } from "@novadeck/core/portable"
+import type { PortableState } from "@novadeck/core/desktop/portable"
 import {
   readPortableCardRaised,
   writePortableCardRaised,
-} from "@novadeck/core/portable-card-raised"
+} from "@novadeck/core/desktop/portable-card-raised"
+import type { SandboxState } from "@novadeck/core/desktop/sandbox"
+import type { UpdateOffer, WhatsNew } from "@novadeck/core/desktop/update"
+import { defaultCanvasWindowSize, type WindowSize } from "@novadeck/core/layout/terminal-size"
+import type { Backend } from "@novadeck/core/port"
 import { orderedTiles } from "@novadeck/core/roster"
-import type { SandboxState } from "@novadeck/core/sandbox"
 import { activeProject } from "@novadeck/core/state"
 import { createStore, type MutableStore, type Store } from "@novadeck/core/store"
 import type { PreferencesValue, Workspace } from "@novadeck/core/types"
-import type { UpdateOffer, WhatsNew } from "@novadeck/core/update"
 
 import { writeCanvasWindowSize } from "../layouts/canvas/window-size-storage"
 import { writePreferences } from "../preferences/preferences-storage"

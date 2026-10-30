@@ -1,7 +1,7 @@
-import { agentWorking } from "@novadeck/core/agent-finish"
+import { agentWorking } from "@novadeck/core/agents/finish"
 import type { InboxRow } from "@novadeck/core/inbox"
-import { inboxMarks } from "@novadeck/core/inbox-marks"
-import { doneText, terminalGlance } from "@novadeck/core/terminal-ending"
+import { inboxMarks } from "@novadeck/core/inbox/marks"
+import { doneText, terminalGlance } from "@novadeck/core/terminals/ending"
 import type { WorkspaceProject } from "@novadeck/core/types"
 
 // What a project's terminals show at a glance, the most pressing of them, as the switcher

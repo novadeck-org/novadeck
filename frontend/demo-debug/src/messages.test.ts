@@ -1,4 +1,4 @@
-import { companionKeyId } from "@novadeck/core/items"
+import { terminalKeyPath } from "@novadeck/core/types"
 import { checkoutMessages, createDemoMessages } from "@novadeck/demo/messages"
 
 import { messageGroups } from "./messages"
@@ -33,7 +33,7 @@ describe("the debug panel's Messages group", () => {
     expect(run()).toEqual([])
     const latest = messages.state
       .getSnapshot()
-      .terminals[companionKeyId(key)]!.threads.flatMap((thread) => thread.messages)
+      .terminals[terminalKeyPath(key)]!.threads.flatMap((thread) => thread.messages)
       .toSorted((a, b) => b.sentAt - a.sentAt)[0]!
     expect(latest).toMatchObject({
       to: { kind: "agent", handle: "moth" },
@@ -57,7 +57,7 @@ describe("the debug panel's Messages group", () => {
     } as unknown as DemoActionContext)
     const peers = messages.state
       .getSnapshot()
-      .terminals[companionKeyId(key)]!.threads.map((thread) => thread.peer)
+      .terminals[terminalKeyPath(key)]!.threads.map((thread) => thread.peer)
     expect(peers).toContainEqual({ kind: "agent", handle: "foxz", agent: null })
   })
 })

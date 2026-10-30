@@ -1,6 +1,6 @@
 import { pageTroublesPerCall, type PageContent } from "@novadeck/core/items"
-import { pageSights } from "@novadeck/core/page-sights"
-import { pagesPartition } from "@novadeck/core/pages"
+import { pageSights } from "@novadeck/core/items/page-sights"
+import { pagesPartition } from "@novadeck/core/items/pages"
 import { useShown } from "@novadeck/toolkit/shown"
 import { Tooltip } from "@novadeck/toolkit/Tooltip"
 import { mountBrowser, type Load, type Place, type Trouble } from "@novadeck/viewers/browser"

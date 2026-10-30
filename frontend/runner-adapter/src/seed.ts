@@ -1,6 +1,6 @@
-import { isShellProcess } from "@novadeck/core/process"
+import { noTelemetry, setUsage, type Telemetry } from "@novadeck/core/agents/telemetry"
 import type { SessionSeed, WorkspaceSeed } from "@novadeck/core/seed"
-import { noTelemetry, setUsage, type Telemetry } from "@novadeck/core/telemetry"
+import { isShellProcess } from "@novadeck/core/terminals/process"
 import type { TerminalMetadata } from "@novadeck/core/types"
 import type {
   CompanionItem,

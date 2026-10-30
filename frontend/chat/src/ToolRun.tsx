@@ -1,5 +1,5 @@
 import type { ToolKind, ToolRun as Run } from "@novadeck/core/conversation"
-import type { ToolEntry } from "@novadeck/core/conversation-turns"
+import type { ToolEntry } from "@novadeck/core/conversation/turns"
 import {
   Bot,
   ChevronRight,

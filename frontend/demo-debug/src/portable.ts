@@ -1,6 +1,6 @@
+import type { PortableInstall, PortableState } from "@novadeck/core/desktop/portable"
+import type { UpdateOffer, WhatsNew } from "@novadeck/core/desktop/update"
 import type { Backend } from "@novadeck/core/port"
-import type { PortableInstall, PortableState } from "@novadeck/core/portable"
-import type { UpdateOffer, WhatsNew } from "@novadeck/core/update"
 
 import { portableScenarios } from "./scenarios"
 import type { DemoActionGroup } from "./types"

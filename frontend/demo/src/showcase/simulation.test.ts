@@ -1,11 +1,6 @@
-import {
-  itemIdOf,
-  PlanUnwritableError,
-  type Item,
-  type CompanionKey,
-  type ItemContent,
-} from "@novadeck/core/items"
+import { itemIdOf, PlanUnwritableError, type Item, type ItemContent } from "@novadeck/core/items"
 import type { BackendAction } from "@novadeck/core/port"
+import type { TerminalKey } from "@novadeck/core/types"
 
 import { context, describe, expect, it } from "../test"
 import { authAgent, studioAgent } from "./agents"
@@ -13,9 +8,9 @@ import { devServerArtifacts, studioArtifacts } from "./artifacts"
 import { createShowcase } from "./simulation"
 
 const session = { projectId: "p", workspaceSessionId: "s" }
-const studio: CompanionKey = { ...session, terminalId: "01" }
-const auth: CompanionKey = { ...session, terminalId: "03" }
-const devServer: CompanionKey = { ...session, terminalId: "02" }
+const studio: TerminalKey = { ...session, terminalId: "01" }
+const auth: TerminalKey = { ...session, terminalId: "03" }
+const devServer: TerminalKey = { ...session, terminalId: "02" }
 const note = "<!-- novadeck: Keep the serif. -->"
 const studioPlan = itemIdOf(studioAgent.plan.id)
 const authPlan = itemIdOf(authAgent.plan.id)

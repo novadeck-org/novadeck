@@ -1,4 +1,4 @@
-import type { ChatAnswer, ConversationKey } from "@novadeck/core/conversation"
+import type { ChatAnswer } from "@novadeck/core/conversation"
 import {
   emptyInbox,
   type Inbox,
@@ -11,22 +11,22 @@ import {
   type InboxTurn,
 } from "@novadeck/core/inbox"
 import {
-  answerFailure,
-  answerItem,
-  createInboxTracker,
-  isTurnRow,
-  keepInbox,
-  keyOf,
-} from "@novadeck/core/inbox-answers"
-import {
   dialogMs,
   inboxRows,
   type Asked,
   type InboxEntry as AskEntry,
-} from "@novadeck/core/inbox-rows"
+} from "@novadeck/core/inbox/rows"
+import {
+  answerFailure,
+  answerRow,
+  createInboxTracker,
+  isTurnRow,
+  keepInbox,
+  keyOf,
+} from "@novadeck/core/inbox/tracker"
 import type { MessagesState } from "@novadeck/core/messages"
 import { createStore, type Store } from "@novadeck/core/store"
-import type { TerminalMetadata, Workspace } from "@novadeck/core/types"
+import type { TerminalKey, TerminalMetadata, Workspace } from "@novadeck/core/types"
 import { longHoldMs, type AgentDetail, type AskAnswer, type InboxEntry } from "@novadeck/protocol"
 
 import { requestOf } from "./conversations"
@@ -57,13 +57,13 @@ export type InboxStreams = {
     readonly clear: (ids: readonly string[]) => Promise<void>
   }
   readonly detail: (terminalId: string) => AsyncIterableIterator<AgentDetail, undefined>
-  readonly answer: (key: ConversationKey, request: string, answer: ChatAnswer) => Promise<void>
+  readonly answer: (key: TerminalKey, request: string, answer: ChatAnswer) => Promise<void>
   readonly send: (
-    key: ConversationKey,
+    key: TerminalKey,
     text: string,
     options?: { readonly automatic?: true },
   ) => Promise<void>
-  readonly interrupt: (key: ConversationKey) => Promise<string | null>
+  readonly interrupt: (key: TerminalKey) => Promise<string | null>
   // The messages' own, which track their progress in the messages state.
   readonly release: (thread: string) => void
   readonly stop: (thread: string) => void
@@ -435,7 +435,7 @@ export const createRunnerInbox = (
       (item.update.type === "told" || item.update.type === "done")
     )
       return tracker.call(id, () => streams.inbox.read([id]))
-    answerItem(tracker, item, given, {
+    answerRow(tracker, item, given, {
       request: (_, { request }, chat) => streams.answer(key, request.id, chat),
       release: (thread) => streams.release(thread),
       stop: (thread) => streams.stop(thread),

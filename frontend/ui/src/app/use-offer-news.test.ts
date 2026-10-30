@@ -1,4 +1,4 @@
-import type { UpdateOffer, WhatsNew } from "@novadeck/core/update"
+import type { UpdateOffer, WhatsNew } from "@novadeck/core/desktop/update"
 import { render, type Rendered } from "@novadeck/test-kit/render"
 import { act, createElement, useEffect } from "react"
 import { afterEach, vi } from "vitest"

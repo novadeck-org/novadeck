@@ -1,5 +1,5 @@
-import { messagesKey, settle, type Bar, type BarKey } from "@novadeck/core/companion-bar"
 import { isOnBar } from "@novadeck/core/items"
+import { messagesKey, settle, type Bar, type BarKey } from "@novadeck/core/items/companion-bar"
 import type { RestoredView } from "@novadeck/core/seed"
 import type {
   TerminalLayout,

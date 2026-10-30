@@ -1,4 +1,4 @@
-import { titleSourceText } from "@novadeck/core/title-source"
+import { titleSourceText } from "@novadeck/core/terminals/title-source"
 import type { Tile } from "@novadeck/core/types"
 import type { ContextMenuAction } from "@novadeck/toolkit/ContextMenu"
 import { MessageSquareText } from "lucide-react"

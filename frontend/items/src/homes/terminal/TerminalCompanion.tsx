@@ -1,8 +1,8 @@
-import { messagesKey, type Bar, type BarKey } from "@novadeck/core/companion-bar"
-import { isOnBar, type Item, type CompanionKey, type ItemId } from "@novadeck/core/items"
+import { isOnBar, type Item, type ItemId } from "@novadeck/core/items"
+import { messagesKey, type Bar, type BarKey } from "@novadeck/core/items/companion-bar"
 import type { WindowPlace } from "@novadeck/core/layout/window-place"
 import type { Messages } from "@novadeck/core/messages"
-import type { ViewMode } from "@novadeck/core/types"
+import type { TerminalKey, ViewMode } from "@novadeck/core/types"
 import { ConfirmDialog } from "@novadeck/toolkit/ConfirmDialog"
 import { usePresence, type Presence } from "@novadeck/toolkit/presence"
 import {
@@ -232,7 +232,7 @@ export const TerminalCompanion = ({
   messages?: Messages | undefined
   // The session around the terminal, as its messages show it.
   links: MessageLinks
-  companionKey: CompanionKey
+  companionKey: TerminalKey
   view: ViewMode
   onReveal?: Reveal | undefined
   children: ReactNode

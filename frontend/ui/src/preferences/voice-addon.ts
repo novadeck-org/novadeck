@@ -1,4 +1,4 @@
-import type { VoiceState } from "@novadeck/core/voice"
+import type { VoiceState } from "@novadeck/core/addons/voice"
 
 // What the voice input card says, as plain functions of the addon's state.
 

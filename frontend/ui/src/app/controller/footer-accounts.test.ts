@@ -1,6 +1,6 @@
-import type { AgentAccount } from "@novadeck/core/account-usage"
+import type { AgentAccount } from "@novadeck/core/agents/account-usage"
+import { noTelemetry, setUsage, type Telemetry } from "@novadeck/core/agents/telemetry"
 import { createStore } from "@novadeck/core/store"
-import { noTelemetry, setUsage, type Telemetry } from "@novadeck/core/telemetry"
 import { render } from "@novadeck/test-kit/render"
 import { act, createElement } from "react"
 

@@ -1,4 +1,4 @@
-import { finishGraceMs } from "@novadeck/core/agent-finish"
+import { finishGraceMs } from "@novadeck/core/agents/finish"
 import {
   inboxType,
   ordered,

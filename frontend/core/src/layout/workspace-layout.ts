@@ -2,7 +2,7 @@ import type { CanvasLayout, GridLayouts, GridRestoreWidths, Placed, TerminalLayo
 import { adjacentCanvasPosition } from "./canvas-placement"
 import { defaultCanvasWindowSize } from "./terminal-size"
 
-export type CanvasGeometry = CanvasLayout["geometry"][string]
+type CanvasGeometry = CanvasLayout["geometry"][string]
 
 export const emptyLayout = (
   initial: { canvas?: CanvasLayout; grid?: GridLayouts } = {},

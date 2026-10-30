@@ -1,4 +1,4 @@
-import type { OfferedUninstall, UninstallResult } from "@novadeck/core/uninstall"
+import type { OfferedUninstall, UninstallResult } from "@novadeck/core/desktop/uninstall"
 import { render } from "@novadeck/test-kit/render"
 import { act, createElement } from "react"
 import { vi } from "vitest"

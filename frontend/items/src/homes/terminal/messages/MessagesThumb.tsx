@@ -1,4 +1,4 @@
-import { handleText } from "@novadeck/core/handle"
+import { handleText } from "@novadeck/core/terminals/handle"
 
 import { conversationsOf, listed, youKey } from "./conversations"
 import { usePeers, type MessagesHandle, type MessageLinks } from "./messages"

@@ -1,5 +1,5 @@
-import type { BarKey } from "@novadeck/core/companion-bar"
 import type { ItemId } from "@novadeck/core/items"
+import type { BarKey } from "@novadeck/core/items/companion-bar"
 import { ContextMenu, type ContextMenuItem } from "@novadeck/toolkit/ContextMenu"
 import { HoverCard } from "@novadeck/toolkit/HoverCard"
 import type { LucideIcon } from "lucide-react"

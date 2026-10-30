@@ -1,4 +1,4 @@
-import { isShellProcess, runningProgram } from "@novadeck/core/process"
+import { isShellProcess, runningProgram } from "@novadeck/core/terminals/process"
 import type { AgentStatus, AgentUsage, TerminalStatus } from "@novadeck/core/types"
 import type {
   AgentActivity,

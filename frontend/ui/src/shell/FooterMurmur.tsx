@@ -1,5 +1,5 @@
-import type { Refusal } from "@novadeck/core/addon"
-import { MURMUR_NAME, type Murmur, type MurmurState } from "@novadeck/core/murmur"
+import type { Refusal } from "@novadeck/core/addons/addon"
+import { MURMUR_NAME, type Murmur, type MurmurState } from "@novadeck/core/addons/murmur"
 import { Progress } from "@novadeck/toolkit/Progress"
 import { ProgressRing } from "@novadeck/toolkit/ProgressRing"
 import { useEffect, useId, useLayoutEffect, useRef, useState } from "react"

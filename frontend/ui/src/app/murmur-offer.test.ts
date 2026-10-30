@@ -1,4 +1,4 @@
-import type { MurmurState } from "@novadeck/core/murmur"
+import type { MurmurState } from "@novadeck/core/addons/murmur"
 import { createWorkspaceStore } from "@novadeck/core/store"
 import { workspaceFixture } from "@novadeck/core/testing"
 

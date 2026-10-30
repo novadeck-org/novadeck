@@ -1,8 +1,8 @@
-import { showsHandle } from "@novadeck/core/handle"
 import { initialGridLayouts } from "@novadeck/core/layout/grid-placement"
 import { setTerminalProcess, setTerminalStatus } from "@novadeck/core/roster"
 import { workspaceFromSeed } from "@novadeck/core/seed"
 import { createTerminalState } from "@novadeck/core/state"
+import { showsHandle } from "@novadeck/core/terminals/handle"
 import type {
   TerminalStatus,
   WorkspaceSession as Session,

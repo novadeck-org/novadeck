@@ -1,4 +1,4 @@
-import { pageSights, type PageSights } from "@novadeck/core/page-sights"
+import { pageSights, type PageSights } from "@novadeck/core/items/page-sights"
 import {
   maxLookPicture,
   maxPageTroubles,

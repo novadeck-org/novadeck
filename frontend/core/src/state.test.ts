@@ -1,10 +1,10 @@
-import { messagesKey } from "./companion-bar"
 import { itemIdOf, type Item } from "./items"
+import { messagesKey } from "./items/companion-bar"
 import { orderedTiles } from "./roster"
-import { activeSession, workspaceReducer, type WorkspaceAction } from "./state"
+import { activeSession, createTerminalState, workspaceReducer, type WorkspaceAction } from "./state"
 import { context, describe, expect, it } from "./test"
 import { itemFixture, terminalFixture, workspaceFixture } from "./testing"
-import type { CompanionWindowMeta, Workspace, WorkspaceState } from "./types"
+import type { CompanionWindowMeta, Workspace, WorkspaceProject, WorkspaceState } from "./types"
 
 const target = { projectId: "project", workspaceSessionId: "initial" }
 const hero = itemFixture("hero", "01", { kind: "image", name: "hero.png", path: "/p/hero.png" })
@@ -28,7 +28,7 @@ const shown = (...items: Item[]): Workspace =>
 const run = (from: Workspace, ...actions: WorkspaceAction[]): WorkspaceState =>
   stateOf(apply(from, ...actions))
 
-describe("companion items in the workspace", () => {
+describe("items in the workspace", () => {
   context("when the backend reports something new", () => {
     it("joins its terminal's bar, last, as new", () => {
       const state = stateOf(shown(notes, hero))
@@ -797,5 +797,65 @@ describe("terminals agents open", () => {
       "02",
       "03",
     ])
+  })
+})
+
+describe("removing a project", () => {
+  // A project with one session, last visited at `visitedAt`.
+  const project = (id: string, visitedAt: number): WorkspaceProject => ({
+    id,
+    name: id,
+    directory: `~/${id}`,
+    activeSessionId: `${id}-session`,
+    history: [
+      {
+        id: `${id}-session`,
+        name: "Main",
+        visitedAt,
+        state: createTerminalState([terminalFixture(1, `~/${id}`)], "grid", "grid"),
+      },
+    ],
+  })
+
+  const workspace = (activeProjectId: string, ...projects: WorkspaceProject[]): Workspace => ({
+    activeProjectId,
+    projects,
+  })
+
+  const remove = (from: Workspace, projectId: string): Workspace =>
+    workspaceReducer(from, { type: "project/remove", projectId, now: 100 })
+
+  it("drops a project that isn't open, leaving the open one as it was", () => {
+    const before = workspace("studio", project("studio", 5), project("website", 3))
+    const after = remove(before, "website")
+    expect(after.projects.map((each) => each.id)).toEqual(["studio"])
+    expect(after.activeProjectId).toBe("studio")
+    expect(after.projects[0]).toBe(before.projects[0])
+  })
+
+  context("when it's the open project", () => {
+    it("opens the project visited last among the others", () => {
+      const before = workspace(
+        "studio",
+        project("studio", 9),
+        project("docs", 2),
+        project("website", 7),
+      )
+      const after = remove(before, "studio")
+      expect(after.activeProjectId).toBe("website")
+      expect(after.projects.map((each) => each.id)).toEqual(["docs", "website"])
+      // Opening it is a visit, stamped past the one that closes the open session.
+      expect(after.projects[1]!.history[0]!.visitedAt).toBe(102)
+    })
+  })
+
+  it("keeps the last project, as the workspace always has one", () => {
+    const before = workspace("studio", project("studio", 1))
+    expect(remove(before, "studio")).toBe(before)
+  })
+
+  it("ignores a project it doesn't have", () => {
+    const before = workspace("studio", project("studio", 1), project("website", 1))
+    expect(remove(before, "nowhere")).toBe(before)
   })
 })

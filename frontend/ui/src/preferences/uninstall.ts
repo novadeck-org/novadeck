@@ -1,6 +1,6 @@
+import type { OfferedUninstall, UninstallResult } from "@novadeck/core/desktop/uninstall"
 import { harnesses, type AgentName } from "@novadeck/core/harnesses"
 import type { Store } from "@novadeck/core/store"
-import type { OfferedUninstall, UninstallResult } from "@novadeck/core/uninstall"
 
 import type { AgentSwitch } from "./AgentSwitches"
 

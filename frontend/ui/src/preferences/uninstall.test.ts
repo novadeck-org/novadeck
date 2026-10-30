@@ -1,6 +1,6 @@
+import type { UninstallResult } from "@novadeck/core/desktop/uninstall"
 import type { AgentName } from "@novadeck/core/harnesses"
 import { createStore } from "@novadeck/core/store"
-import type { UninstallResult } from "@novadeck/core/uninstall"
 import { vi } from "vitest"
 
 import { context, describe, expect, it } from "../test"

@@ -261,7 +261,7 @@ export const notes: Record<string, Note> = {
     entries: [
       { file: `${core}/store.ts`, text: "export const createStore" },
       { file: `${core}/types.ts` },
-      { file: `${core}/registry.ts` },
+      { file: `${core}/terminals/registry.ts` },
       { file: `${core}/port.ts`, text: "export type MountTerminal" },
     ],
   },

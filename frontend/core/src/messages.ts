@@ -1,5 +1,6 @@
-import type { CompanionKey } from "./items"
 import type { Store } from "./store"
+import type { TerminalKey } from "./types"
+import { counted } from "./units"
 
 // Messages between the agents in a session's terminals, as a backend reports them: each
 // terminal's threads with the other terminals, the messages in each and where each is on
@@ -148,7 +149,7 @@ export const samePeers = (
   )
 }
 
-// Every followed terminal's messages, by `companionKeyId`, and the one pause switch,
+// Every followed terminal's messages, by `terminalKeyPath`, and the one pause switch,
 // which holds messages between agents across every project and session. Person replies go through. `pending` while a
 // pause or resume is on its way to the backend, and `error` why the last one didn't take.
 // `releasing` the threads whose release is on its way, by whether the backend has only
@@ -183,7 +184,7 @@ export type Messages = {
   // senders are told the person stopped it.
   readonly stop: (thread: string) => void
   // Only the demo's: puts a terminal's agent in a state the doorbell can't ring, or back.
-  readonly waits?: (key: CompanionKey, waits: MessageWaits | null) => boolean
+  readonly waits?: (key: TerminalKey, waits: MessageWaits | null) => boolean
 }
 
 const waitingStates: ReadonlySet<MessageState> = new Set(["queued", "leased", "held"])
@@ -221,14 +222,12 @@ export const messageBadge = (
   return { count: waiting.length, kind }
 }
 
-const messagesWord = (count: number): string => `${count} message${count === 1 ? "" : "s"}`
-
 export const messageBadgeLabel = ({ count, kind }: MessageBadge): string =>
   kind === "held"
-    ? `${messagesWord(count)} waiting, held until you release ${count === 1 ? "it" : "them"}`
+    ? `${counted(count, "message")} waiting, held until you release ${count === 1 ? "it" : "them"}`
     : kind === "paused"
-      ? `${messagesWord(count)} waiting, held while messaging is paused`
-      : `${messagesWord(count)} waiting`
+      ? `${counted(count, "message")} waiting, held while messaging is paused`
+      : `${counted(count, "message")} waiting`
 
 // Whether a terminal has a messages view: it has had messages. An agent with none yet
 // keeps its bar clear until one comes.

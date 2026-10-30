@@ -1,5 +1,5 @@
-import { emptyBar, type Bar } from "@novadeck/core/companion-bar"
 import { isOnBar, type Item, type ItemId } from "@novadeck/core/items"
+import { emptyBar, type Bar } from "@novadeck/core/items/companion-bar"
 
 import { useWorkspaceState } from "./controller/context"
 import { currentState, sameItems, shallowEqual } from "./selectors"

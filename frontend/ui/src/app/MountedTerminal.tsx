@@ -6,7 +6,7 @@ import type {
   TerminalMount,
   ViewState,
 } from "@novadeck/core/port"
-import { endingText, terminalEnding } from "@novadeck/core/terminal-ending"
+import { endingText, terminalEnding } from "@novadeck/core/terminals/ending"
 import type { TerminalMetadata, ViewMode } from "@novadeck/core/types"
 import { TerminalEndingBar, TerminalLock, TerminalNotice } from "@novadeck/toolkit/TerminalStatus"
 import {

@@ -1,5 +1,5 @@
+import type { Refused } from "./conversation/prompt-refusal"
 import { itemIdOf, type Item } from "./items"
-import type { Refused } from "./prompt-refusal"
 import { createTerminalState, workspaceReducer, type WorkspaceAction } from "./state"
 import type { PreferencesValue, TerminalMetadata, ViewMode, Workspace } from "./types"
 

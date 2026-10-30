@@ -1,5 +1,5 @@
 import type { InboxRow } from "@novadeck/core/inbox"
-import { planItemOf, planKey, planTextOf, sessionItems } from "@novadeck/core/inbox-plan"
+import { planItemOf, planKey, planTextOf, sessionItems } from "@novadeck/core/inbox/plan"
 import type { Companions, Item, ItemContent } from "@novadeck/core/items"
 import type { WorkspaceStore } from "@novadeck/core/store"
 import {
@@ -16,7 +16,7 @@ import {
 
 // The plan an agent asks the person to approve, as the Markdown it wrote, for the plan
 // sheet's box: Claude Code's plan file, Codex's proposed plan, Antigravity's implementation
-// plan. Each is the asking terminal's plan item (`core/inbox-plan.ts` picks it), read as the
+// plan. Each is the asking terminal's plan item (`core/inbox/plan.ts` picks it), read as the
 // plan pane reads it, through the backend's companions.
 
 type PlanSource = {

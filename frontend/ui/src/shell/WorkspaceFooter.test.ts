@@ -1,5 +1,5 @@
-import type { PortableInstall } from "@novadeck/core/portable"
-import type { UpdateOffer, WhatsNew } from "@novadeck/core/update"
+import type { PortableInstall } from "@novadeck/core/desktop/portable"
+import type { UpdateOffer, WhatsNew } from "@novadeck/core/desktop/update"
 import { render, type Rendered } from "@novadeck/test-kit/render"
 import { act, createElement } from "react"
 import { afterEach, vi } from "vitest"

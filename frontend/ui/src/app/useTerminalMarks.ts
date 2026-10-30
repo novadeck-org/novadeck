@@ -1,11 +1,6 @@
-import {
-  nextLimitReset,
-  noInbox,
-  type Inbox,
-  type InboxRow,
-  type TerminalAt,
-} from "@novadeck/core/inbox"
-import { inboxMarks, type InboxMarks } from "@novadeck/core/inbox-marks"
+import { nextLimitReset, noInbox, type Inbox, type InboxRow } from "@novadeck/core/inbox"
+import { inboxMarks, type InboxMarks } from "@novadeck/core/inbox/marks"
+import type { TerminalKey } from "@novadeck/core/types"
 import { useEffect, useState } from "react"
 
 import { useStoreSelector } from "./controller/useStoreSelector"
@@ -30,7 +25,7 @@ const none: readonly InboxRow[] = []
 
 // Follows the raw Inbox for one terminal: it re-renders only when that terminal's own items
 // change, and again when one of its limits resets (which makes it an Unblock).
-export const useTerminalMarks = (inbox: Inbox | undefined, at: TerminalAt): InboxMarks => {
+export const useTerminalMarks = (inbox: Inbox | undefined, at: TerminalKey): InboxMarks => {
   const { projectId, workspaceSessionId, terminalId } = at
   const items = useStoreSelector(
     (inbox ?? noInbox).state,

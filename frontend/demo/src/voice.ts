@@ -1,5 +1,5 @@
+import type { Voice, VoiceModel, VoiceState } from "@novadeck/core/addons/voice"
 import { createStore } from "@novadeck/core/store"
-import type { Voice, VoiceModel, VoiceState } from "@novadeck/core/voice"
 
 // A pretend voice input addon for the browser demo and the specs. It starts installed and
 // on, as the try demo shows it and never offers it; started uninstalled, nothing is

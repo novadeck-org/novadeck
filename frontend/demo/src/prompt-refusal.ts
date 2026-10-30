@@ -1,4 +1,8 @@
-import { hasControlCharacters, normalised, shellCommand } from "@novadeck/core/prompt-refusal"
+import {
+  hasControlCharacters,
+  normalised,
+  shellCommand,
+} from "@novadeck/core/conversation/prompt-refusal"
 
 // The demo's copy of the rule the runner refuses a message by (the protocol's
 // `promptRefusal`), so the demo warns and refuses much as the runner would without one:

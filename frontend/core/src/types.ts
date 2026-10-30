@@ -1,5 +1,5 @@
-import type { Bar } from "./companion-bar"
 import type { Item, ItemId } from "./items"
+import type { Bar } from "./items/companion-bar"
 import type { NoticeSound } from "./sounds"
 
 // What the person chose for the page: a scheme, or whatever the system uses.
@@ -15,7 +15,7 @@ export type PreferencesValue = {
   // The theme and the scheme chosen for it; the theme is a plain id the app may not know.
   // See docs/theming.md.
   appearance: { readonly theme: string; readonly scheme: SchemePreference }
-  // Whether the desktop app notifies the person when an agent needs them (an Inbox item that
+  // Whether the desktop app notifies the person when an agent needs them (an Inbox row that
   // waits on them) while Novadeck is in the background.
   notifyNeeds: boolean
   // Whether it notifies them when an agent finishes while Novadeck is in the background.
@@ -206,7 +206,7 @@ export type GridRestoreWidths = Partial<Record<GridBreakpoint, number>>
 
 export type SizePreset = "large" | "small"
 
-// A window holding one companion item, as its backend keeps it: which item it shows, and
+// A window holding one item, as its backend keeps it: which item it shows, and
 // its name, the person's or the backend's default. It is an item undocked from a bar, or
 // the session's project window, the one the person opens files in, which never docks
 // (`home`). It sits in the session beside the terminals, so the sidebar and every view
@@ -222,7 +222,7 @@ export type CompanionWindowMeta = {
 // Anything laid out by its id.
 export type Placed = { readonly id: string }
 
-// What the sidebar and views lay out: a terminal, or a window undocked from a companion.
+// What the sidebar and views lay out: a terminal, or a window undocked from a bar.
 export type Tile = TerminalMetadata | CompanionWindowMeta
 
 // The session's terminals and windows, as the backend reports them, and their sidebar
@@ -271,3 +271,17 @@ export type WorkspaceTarget = { projectId: string; workspaceSessionId: string }
 
 // A terminal in a workspace session: what a backend and the UI name one by.
 export type TerminalKey = WorkspaceTarget & { readonly terminalId: string }
+
+// A terminal's key as one string, `project/session/terminal`: what the items and messages
+// a backend keeps by terminal are filed under.
+export const terminalKeyPath = ({
+  projectId,
+  workspaceSessionId,
+  terminalId,
+}: TerminalKey): string => `${projectId}/${workspaceSessionId}/${terminalId}`
+
+// The terminal a `terminalKeyPath` names. Its ids hold no slashes.
+export const terminalKeyOfPath = (id: string): TerminalKey => {
+  const [projectId = "", workspaceSessionId = "", terminalId = ""] = id.split("/")
+  return { projectId, workspaceSessionId, terminalId }
+}

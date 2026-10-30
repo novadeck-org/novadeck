@@ -6,8 +6,7 @@
   "license": "GPL-3.0-or-later",
   "type": "module",
   "exports": {
-    "./*": "./src/*.ts",
-    "./testing": "./src/testing.ts"
+    "./*": "./src/*.ts"
   },
   "scripts": {
     "test": "vitest run",

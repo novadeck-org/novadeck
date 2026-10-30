@@ -2,8 +2,8 @@ import { mkdtemp, writeFile } from "node:fs/promises"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 
-import { messagesKey } from "@novadeck/core/companion-bar"
-import { companionKeyId, itemIdOf } from "@novadeck/core/items"
+import { itemIdOf } from "@novadeck/core/items"
+import { messagesKey } from "@novadeck/core/items/companion-bar"
 import type { BackendAction } from "@novadeck/core/port"
 import { workspaceFromSeed } from "@novadeck/core/seed"
 import {
@@ -15,7 +15,7 @@ import {
 } from "@novadeck/core/state"
 import { createStore } from "@novadeck/core/store"
 import { workspaceFixture } from "@novadeck/core/testing"
-import type { Workspace, WorkspaceTarget } from "@novadeck/core/types"
+import { type Workspace, type WorkspaceTarget, terminalKeyPath } from "@novadeck/core/types"
 import { noTheme } from "@novadeck/terminal-views/theme"
 import { WireError } from "@novadeck/wire"
 import { afterAll, vi } from "vitest"
@@ -613,7 +613,7 @@ describe("runner backend", () => {
       const terminal = app.addTerminal()
       await app.idle()
       const messages = app.backend.messages!
-      const id = companionKeyId({ ...app.target(), terminalId: terminal.id })
+      const id = terminalKeyPath({ ...app.target(), terminalId: terminal.id })
       await vi.waitFor(() =>
         expect(messages.state.getSnapshot().terminals[id]).toEqual({
           handle: expect.stringMatching(/^[a-z]{2,12}[0-9]*$/),

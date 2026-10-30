@@ -1,5 +1,5 @@
-import { emptyBar, messagesKey, type Bar, type BarKey } from "@novadeck/core/companion-bar"
 import type { Item, ItemId } from "@novadeck/core/items"
+import { emptyBar, messagesKey, type Bar, type BarKey } from "@novadeck/core/items/companion-bar"
 import { itemFixture } from "@novadeck/core/testing"
 
 import {

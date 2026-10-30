@@ -1,5 +1,5 @@
+import type { OfferedUninstall, UninstallResult } from "@novadeck/core/desktop/uninstall"
 import type { AgentName } from "@novadeck/core/harnesses"
-import type { OfferedUninstall, UninstallResult } from "@novadeck/core/uninstall"
 import { Checkbox } from "@novadeck/toolkit/Checkbox"
 import { Dialog, DialogDescription, DialogTitle } from "@novadeck/toolkit/Dialog"
 import { useState } from "react"
