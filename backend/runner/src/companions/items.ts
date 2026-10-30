@@ -21,6 +21,7 @@ import { DomainError } from "../errors.js"
 import { logs } from "../log.js"
 import { agentLabel } from "../messaging/messages.js"
 import { mention } from "../terminals/handles.js"
+import { tail } from "../text.js"
 import {
   changesContent,
   describeChange,
@@ -31,7 +32,6 @@ import {
   waitAfter,
 } from "./changes.js"
 import {
-  clip,
   hashOf,
   loadFile,
   loadPlan,
@@ -849,8 +849,8 @@ export class CompanionItems {
       url: null,
       lines: null,
       plan: { agent: slot.agent, session: slot.agentSession, actor: slot.actor, format },
-      name: clip(title ?? `${agentLabel(slot.agent)} plan`, 256),
-      detail: clip(
+      name: tail(title ?? `${agentLabel(slot.agent)} plan`, 256),
+      detail: tail(
         format === "file" ? plan.path : `In ${agentLabel(slot.agent)}'s conversation`,
         512,
       ),
@@ -918,8 +918,8 @@ export class CompanionItems {
           url: href,
           lines: null,
           plan: null,
-          name: clip(request.title ?? host, 256),
-          detail: clip(href, 512),
+          name: tail(request.title ?? host, 256),
+          detail: tail(href, 512),
           secret: false,
         },
       }
@@ -940,8 +940,8 @@ export class CompanionItems {
           url: null,
           lines: null,
           plan: null,
-          name: clip(request.title ?? name, 256),
-          detail: clip(detail, 512),
+          name: tail(request.title ?? name, 256),
+          detail: tail(detail, 512),
           secret: false,
         },
       }
@@ -981,7 +981,7 @@ export class CompanionItems {
       url: null,
       lines: shown.lines ?? null,
       plan: null,
-      name: clip(name, 256),
+      name: tail(name, 256),
       detail: this.detail(pointed, project, given, shown.lines),
       secret: pointed.secret,
     }
@@ -1038,7 +1038,7 @@ export class CompanionItems {
     }
     const shown = project && inside(project, pointed.path) ? relative(project, pointed.path) : given
     const range = lines ? ` · lines ${lines.from}–${lines.to}` : ""
-    return `${clip(shown, 512 - range.length)}${range}`
+    return `${tail(shown, 512 - range.length)}${range}`
   }
 
   /**

@@ -6,7 +6,10 @@ import { EngineError } from "./unpack.js"
 /** How often install progress reaches watchers, at most. */
 export const progressMs = 100
 
-/** How long after a failed engine update the next look tries it again, as when the network was down: soon enough to recover by itself, not once per look. */
+/**
+ * How long after a failed engine update the next use tries it again, as when the network
+ * was down: soon enough to recover by itself, not on every use.
+ */
 export const updateRetryMs = 60_000
 
 /** Why installing `product` ("murmur", "voice input") failed, in words for the person. */

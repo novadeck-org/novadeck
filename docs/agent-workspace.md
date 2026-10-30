@@ -268,7 +268,7 @@ little there, so it goes in the agent's reply unless the user asks to see it in 
 the user and the agent work on together; the files a change touches on the way do not,
 and the user reads those in the diff. Every harness hears this two ways, as no plugin ships a skill: the `show` tool's
 own description carries the rule, which every harness reads alike from `tools/list`,
-and the runner's prompt-time hook adds Novadeck's artifacts notice, one paragraph, at
+and the runner's prompt-time hook adds Novadeck's companion notice, one paragraph, at
 the first turn the person's prompt or the doorbell begins in each root session, and after a compaction
 (`companionNotice` in `terminals/nudges.ts`; it rides with the summary nudge but a
 `summarize` never clears it; see [Agent messaging](agent-messaging.md), "Nudges"), with

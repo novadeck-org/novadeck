@@ -9,6 +9,7 @@ import type { AgentName, ItemContent, PlanSaveResult, PlanUnwritable } from "@no
 
 import { DomainError } from "../errors.js"
 import { harnesses } from "../harnesses/registry.js"
+import { tail } from "../text.js"
 import type { ItemRecord } from "./records.js"
 import { failure, maxUrlChars, type RequestFailure } from "./request.js"
 import { secret } from "./secrets.js"
@@ -46,10 +47,6 @@ const unavailable = (reason: Unavailable["reason"], size: number | null = null):
   reason,
   size,
 })
-
-/** The last `max` characters of text, led by an ellipsis when it is cut. */
-export const clip = (text: string, max: number): string =>
-  text.length <= max ? text : `…${text.slice(text.length - max + 1)}`
 
 /** Whether a file is shown as an image, by its extension. */
 const isImage = (path: string): boolean => images[extname(path).toLowerCase()] !== undefined
@@ -196,7 +193,7 @@ const readLines = async (
   const keeps = (line: number) => line <= wholeLines || (line >= start && line <= last)
   const kept = new Map<number, string>()
   // The latest lines read, which a range past the file's end is pulled back to.
-  const tail: [number, string][] = []
+  const trailing: [number, string][] = []
   const decoder = new StringDecoder("utf8")
   const breaks = /\r\n|\r|\n/g
   const buffer = Buffer.alloc(chunkBytes)
@@ -210,8 +207,8 @@ const readLines = async (
   const push = () => {
     count += 1
     if (keeps(count)) kept.set(count, line)
-    tail.push([count, line])
-    if (tail.length > contextLines + 1) tail.shift()
+    trailing.push([count, line])
+    if (trailing.length > contextLines + 1) trailing.shift()
     if (count === last) past = position
     line = ""
   }
@@ -240,7 +237,7 @@ const readLines = async (
   take(decoder.end())
   // The line a final newline ends is the last; an empty file has one empty line.
   if (line !== "" || count === 0) push()
-  for (const [number, text] of tail) kept.set(number, text)
+  for (const [number, text] of trailing) kept.set(number, text)
   return { kept, count, ended: true }
 }
 
@@ -294,7 +291,7 @@ export const loadFile = async (
       stamp,
       content: {
         kind: "file",
-        path: clip(path, 4096),
+        path: tail(path, 4096),
         firstLine: window.first,
         lines,
         from: window.from,
