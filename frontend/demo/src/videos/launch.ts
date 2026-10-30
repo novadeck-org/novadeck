@@ -3,7 +3,6 @@ import type { InboxRow } from "@novadeck/core/inbox"
 import { itemIdOf, type Item } from "@novadeck/core/items"
 import type { Backend, BackendSink, TerminalKey } from "@novadeck/core/port"
 import type { WorkspaceSeed } from "@novadeck/core/seed"
-import { sessionName } from "@novadeck/core/session-name"
 import { createStore } from "@novadeck/core/store"
 import type { CanvasLayout, TerminalMetadata, Workspace } from "@novadeck/core/types"
 
@@ -30,6 +29,7 @@ import {
   deskTranscripts,
   project,
   session,
+  sessionOf,
   slot,
   working,
   type Job,
@@ -355,22 +355,6 @@ const deskLayout = (): CanvasLayout => ({
         : [],
     ),
   ),
-})
-
-// The open session was visited just now; the others a while before.
-const sessionOf = (
-  now: number,
-  terminals: TerminalMetadata[],
-  canvasLayout?: CanvasLayout,
-  visitedAt = now,
-) => ({
-  id: session,
-  name: sessionName(now),
-  visitedAt,
-  terminals,
-  items: [],
-  windows: [],
-  ...(canvasLayout && { canvasLayout }),
 })
 
 // The storefront's project first, which the demo's transcripts and screens belong to.

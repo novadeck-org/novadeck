@@ -1,7 +1,6 @@
 import type { TerminalKey } from "@novadeck/core/port"
 import type { WorkspaceSeed } from "@novadeck/core/seed"
-import { sessionName } from "@novadeck/core/session-name"
-import type { AgentStatus, CanvasLayout, Project, TerminalMetadata } from "@novadeck/core/types"
+import type { AgentStatus, CanvasLayout, TerminalMetadata } from "@novadeck/core/types"
 
 import {
   got,
@@ -12,11 +11,20 @@ import {
   type DemoDraft,
   type DemoTranscript,
 } from "../agents/transcripts"
-import { demoHandle } from "../handles"
-import { demoTerminalId, terminalSlot } from "../samples"
+import { demoTerminalId, terminalSlot, type ChatAgent } from "../samples"
 import { callBlock, requestBlock, resultBlock, textBlock } from "../screen/agent"
 import { banner } from "../screen/openings"
 import { fixedIntro, type DemoIntro } from "../screen/terminal"
+import {
+  agentTerminal,
+  project,
+  runCall,
+  session,
+  sessionOf,
+  slot,
+  toolRejected,
+  working,
+} from "./desk"
 
 // The Chirp demo: a one-off for the runner-skits video "Chirp", where a runner hunts the one
 // agent waiting on her among the dozens she left running overnight, and finds it here. Her
@@ -24,10 +32,10 @@ import { fixedIntro, type DemoIntro } from "../screen/terminal"
 // for her to allow a command; answered from its screen, it gets back to work. It shows nothing
 // the app doesn't do.
 
-const session = "initial"
 const desk = "night-shift"
+const home = `/home/nyx/projects/${desk}`
 
-type Agent = "claude" | "codex"
+type Agent = Extract<ChatAgent, "claude" | "codex">
 
 // One of her agents: its terminal's name, the agent, what she asked it, what it said it'd do,
 // the command it's on, and what that has printed so far.
@@ -163,43 +171,7 @@ const elsewhere: Readonly<Record<string, readonly [string, Agent][]>> = {
   ],
 }
 
-const project = (id: string): Project => ({ id, name: id, directory: `~/projects/${id}` })
-
-// A terminal of a project, by its number there, with `agent` in it in the state `status`.
-const agentTerminal = (
-  projectId: string,
-  number: number,
-  name: string,
-  agent: Agent,
-  status: AgentStatus,
-): TerminalMetadata => ({
-  id: demoTerminalId({ projectId, workspaceSessionId: session }, number),
-  name,
-  directory: `~/projects/${projectId}`,
-  command: agent,
-  process: agent,
-  state: "running",
-  handle: demoHandle(number),
-  agent: status,
-})
-
 const waiting: AgentStatus = { working: true, attention: { kind: "permission", count: 1 } }
-
-// The open session was visited just now; the others a while before.
-const sessionOf = (
-  now: number,
-  terminals: TerminalMetadata[],
-  canvasLayout?: CanvasLayout,
-  visitedAt = now,
-) => ({
-  id: session,
-  name: sessionName(now),
-  visitedAt,
-  terminals,
-  items: [],
-  windows: [],
-  ...(canvasLayout && { canvasLayout }),
-})
 
 // Her desk on the canvas: four across and three down, each a little off the line, as windows end
 // up when moved by hand. The camera starts back far enough to see them all where the session opens
@@ -249,7 +221,7 @@ export const chirpSeed = (now: number): WorkspaceSeed => ({
               index + 1,
               job.name,
               job.agent,
-              index + 1 === chirpWaiting ? waiting : { working: true },
+              index + 1 === chirpWaiting ? waiting : working,
             ),
           ),
           deskLayout(),
@@ -261,9 +233,7 @@ export const chirpSeed = (now: number): WorkspaceSeed => ({
       sessions: [
         sessionOf(
           now,
-          list.map(([name, agent], index) =>
-            agentTerminal(id, index + 1, name, agent, { working: true }),
-          ),
+          list.map(([name, agent], index) => agentTerminal(id, index + 1, name, agent, working)),
           undefined,
           now - (place + 1) * 20 * 60_000,
         ),
@@ -272,28 +242,9 @@ export const chirpSeed = (now: number): WorkspaceSeed => ({
   ],
 })
 
-const slot = (number: number): string => String(number).padStart(2, "0")
-
-// The call an agent's harness names its command run with.
-const runCall = (job: Job, call: string) =>
-  job.agent === "claude"
-    ? use(
-        call,
-        "Bash",
-        { command: job.command, description: job.plan },
-        { kind: "run", title: "Ran", detail: job.command },
-      )
-    : use(
-        call,
-        "exec_command",
-        { cmd: job.command, workdir: `/home/nyx/projects/${desk}` },
-        { kind: "run", title: "Ran", detail: job.command },
-      )
-
 // What the waiting agent did before it asked, as Claude Code records it (its paths shortened as the
 // harness's decoder does), so its Inbox sheet shows its steps between her ask and the command.
 const warmerSteps = (id: string): DemoDraft[] => {
-  const home = `/home/nyx/projects/${desk}`
   const steps = [
     {
       tool: "Write",
@@ -339,7 +290,7 @@ export const chirpTranscripts = (now: number): Readonly<Record<string, DemoTrans
         user(job.ask),
         ...(asks ? warmerSteps(id) : []),
         say(job.plan),
-        runCall(job, call),
+        runCall(job, call, home),
       ])
       if (!asks) return [id, { items, requests: [] }]
       const transcript: DemoTranscript = {
@@ -366,7 +317,7 @@ export const chirpTranscripts = (now: number): Readonly<Record<string, DemoTrans
                 { id: "1", label: "Yes", text: null },
                 {
                   id: "2",
-                  label: `Yes, and always allow access to /home/nyx/projects/${desk} from this project`,
+                  label: `Yes, and always allow access to ${home} from this project`,
                   text: null,
                 },
                 { id: "3", label: "No", text: null },
@@ -379,12 +330,7 @@ export const chirpTranscripts = (now: number): Readonly<Record<string, DemoTrans
             // No stops the turn, and Claude Code waits for her to say what instead.
             answer.type === "choice" && answer.option === "3"
               ? {
-                  items: [
-                    got(
-                      call,
-                      "The user doesn't want to proceed with this tool use. The tool use was rejected (eg. if it was a file edit, the new_string was NOT written to the file). STOP what you are doing and wait for the user to tell you how to proceed.",
-                    ),
-                  ],
+                  items: [got(call, toolRejected)],
                   waits: true,
                 }
               : {

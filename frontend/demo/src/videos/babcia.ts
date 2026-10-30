@@ -3,7 +3,6 @@ import type { InboxRow } from "@novadeck/core/inbox"
 import { itemIdOf, type Item } from "@novadeck/core/items"
 import type { Backend, BackendSink, TerminalKey } from "@novadeck/core/port"
 import type { WorkspaceSeed } from "@novadeck/core/seed"
-import { sessionName } from "@novadeck/core/session-name"
 import type { CanvasLayout, TerminalMetadata, Workspace } from "@novadeck/core/types"
 
 import type { DemoTranscript } from "../agents/transcripts"
@@ -24,6 +23,7 @@ import {
   deskMessages,
   project,
   session,
+  sessionOf,
   slot,
   working,
   type Job,
@@ -275,22 +275,6 @@ const deskLayout = (): CanvasLayout => ({
       place(index),
     ]),
   ),
-})
-
-// The open session was visited just now; the others a while before.
-const sessionOf = (
-  now: number,
-  terminals: TerminalMetadata[],
-  canvasLayout?: CanvasLayout,
-  visitedAt = now,
-) => ({
-  id: session,
-  name: sessionName(now),
-  visitedAt,
-  terminals,
-  items: [],
-  windows: [],
-  ...(canvasLayout && { canvasLayout }),
 })
 
 // The milk bar's project first, which the demo's transcripts and screens belong to.
@@ -824,17 +808,19 @@ export const createBabcia = (turns: DemoTurns, now: number) => {
     // Refused, as the lead closed: nothing is on its way to wait for.
     if (!sent) exchanged = true
   }
-  const answerEntry = `answer:${helperAskId}`
-  messages.state.subscribe(() => {
-    if (answered) return
-    const entry = Object.values(messages.state.getSnapshot().terminals)
+  // The message that carries the person's answer to an Inbox ask, once one was made.
+  const answerMessage = (askId: string) =>
+    Object.values(messages.state.getSnapshot().terminals)
       .flatMap((each) => each.threads)
       .flatMap((thread) => thread.messages)
-      .find((each) => each.id === answerEntry && each.state !== "queued")
-    if (!entry) return
-    if (entry.state !== "delivered") return released()
+      .find((each) => each.id === `answer:${askId}`)
+  messages.state.subscribe(() => {
+    if (answered) return
+    const message = answerMessage(helperAskId)
+    if (!message || message.state === "queued") return
+    if (message.state !== "delivered") return released()
     answered = true
-    relay(entry.text)
+    relay(message.text)
   })
   // The Inbox clears the helper's ask with no answer made: nothing will reach the helper.
   const watchInbox = (inbox: NonNullable<ReturnType<typeof backendInbox>>): void => {
@@ -842,14 +828,11 @@ export const createBabcia = (turns: DemoTurns, now: number) => {
       if (!asked || answered || exchanged) return
       const { items, answering } = inbox.state.getSnapshot()
       if (answering[helperAskId] || items.some((item) => item.id === helperAskId)) return
-      const answerMade = Object.values(messages.state.getSnapshot().terminals)
-        .flatMap((each) => each.threads)
-        .some((thread) => thread.messages.some((each) => each.id === answerEntry))
-      if (!answerMade) released()
+      if (!answerMessage(helperAskId)) released()
     })
   }
 
-  // The agent with manners: its answer, once the mail has delivered it. Told No to the first
+  // The agent with manners: its answer, once the message has delivered it. Told No to the first
   // ask, its turn carries on (an answered ask is a tool result) and it asks again; told No to
   // the second, it waits for the person's words; anything else, it works on.
   const mannersKey = keyOf(babcia.manners)
@@ -879,11 +862,7 @@ export const createBabcia = (turns: DemoTurns, now: number) => {
       inbox.add(mannersAsk("polite", Date.now()))
     }, politeAfterMs)
   }
-  const mannersLetter = (kind: "rude" | "polite") =>
-    Object.values(messages.state.getSnapshot().terminals)
-      .flatMap((each) => each.threads)
-      .flatMap((thread) => thread.messages)
-      .find((each) => each.id === `answer:${mannersIds[kind]}`)
+  const mannersMessage = (kind: "rude" | "polite") => answerMessage(mannersIds[kind])
   // An ask whose answer will not reach the agent: it waits for the person's words, as one told
   // no does.
   const abandoned = (): void => {
@@ -893,10 +872,10 @@ export const createBabcia = (turns: DemoTurns, now: number) => {
   }
   messages.state.subscribe(() => {
     if (manners !== "rude" && manners !== "polite") return
-    const letter = mannersLetter(manners)
-    if (!letter || letter.state === "queued") return
-    if (letter.state !== "delivered") return abandoned()
-    heard(manners, letter.text)
+    const message = mannersMessage(manners)
+    if (!message || message.state === "queued") return
+    if (message.state !== "delivered") return abandoned()
+    heard(manners, message.text)
   })
   const watchManners = (inbox: NonNullable<ReturnType<typeof backendInbox>>): void => {
     inbox.state.subscribe(() => {
@@ -904,7 +883,7 @@ export const createBabcia = (turns: DemoTurns, now: number) => {
       const { items, answering } = inbox.state.getSnapshot()
       const id = mannersIds[manners]
       if (answering[id] || items.some((item) => item.id === id)) return
-      if (!mannersLetter(manners)) abandoned()
+      if (!mannersMessage(manners)) abandoned()
     })
   }
 
@@ -962,15 +941,14 @@ export const createBabcia = (turns: DemoTurns, now: number) => {
     }),
     // The cues belong to the backend returned, and add to its Inbox.
     over: (backend: Backend): Backend => {
-      const wrapped = backend
-      inboxOf = () => wrapped.inbox
+      inboxOf = () => backend.inbox
       const own = backendInbox()
       if (own) {
         watchInbox(own)
         watchManners(own)
       }
-      cuesOf.set(wrapped, cues)
-      return wrapped
+      cuesOf.set(backend, cues)
+      return backend
     },
   }
 }

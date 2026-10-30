@@ -1,7 +1,8 @@
 import type { ChatAnswer } from "@novadeck/core/conversation"
 import type { TerminalKey } from "@novadeck/core/port"
+import { sessionName } from "@novadeck/core/session-name"
 import type { Store } from "@novadeck/core/store"
-import type { AgentStatus, Project, TerminalMetadata } from "@novadeck/core/types"
+import type { AgentStatus, CanvasLayout, Project, TerminalMetadata } from "@novadeck/core/types"
 
 import { got, say, use, user, written, type DemoTranscript } from "../agents/transcripts"
 import { demoHandle } from "../handles"
@@ -88,8 +89,32 @@ export const deskKey = (projectId: string, number: number): TerminalKey => ({
 
 export const slot = (number: number): string => String(number).padStart(2, "0")
 
+// A project's one session, with its terminals and Canvas layout. The open session was visited
+// just now; the others a while before.
+export const sessionOf = (
+  now: number,
+  terminals: TerminalMetadata[],
+  canvasLayout?: CanvasLayout,
+  visitedAt = now,
+) => ({
+  id: session,
+  name: sessionName(now),
+  visitedAt,
+  terminals,
+  items: [],
+  windows: [],
+  ...(canvasLayout && { canvasLayout }),
+})
+
+// What Claude Code's harness returns for a command the person told No, which stops the turn.
+export const toolRejected = `The user doesn't want to proceed with this tool use. The tool use was rejected (eg. if it was a file edit, the new_string was NOT written to the file). STOP what you are doing and wait for the user to tell you how to proceed.`
+
 // The call an agent's harness names its command run with, in the project's folder `home`.
-export const runCall = (job: Job, call: string, home: string) =>
+export const runCall = (
+  job: Pick<Job, "agent" | "command" | "plan">,
+  call: string,
+  home: string,
+) =>
   job.agent === "claude"
     ? use(
         call,
@@ -270,12 +295,7 @@ export const deskTranscripts = (
               [request.id]: (answer) =>
                 declined(answer)
                   ? {
-                      items: [
-                        got(
-                          call,
-                          "The user doesn't want to proceed with this tool use. The tool use was rejected (eg. if it was a file edit, the new_string was NOT written to the file). STOP what you are doing and wait for the user to tell you how to proceed.",
-                        ),
-                      ],
+                      items: [got(call, toolRejected)],
                       waits: true,
                     }
                   : {
