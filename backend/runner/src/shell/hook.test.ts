@@ -17,7 +17,7 @@ import { relayPath } from "@novadeck/relay"
 
 import { agents, harnesses } from "../harnesses/registry.js"
 import { describe, expect, it as base } from "../test.js"
-import { relayHook } from "./hook.js"
+import { prune, relayHook } from "./hook.js"
 import { installShellFiles } from "./install.js"
 import { listenForReports, unanswered, unheard, type Ack, type HookAnswer } from "./reports.js"
 import { relayConfig } from "./scripts.js"
@@ -812,5 +812,13 @@ describe("reading a relay's hook", () => {
     expect(relayHook(hook({ agent: "gemini" }))).toBeUndefined()
     expect(relayHook(hook({ payload: "[1]" }))).toBeUndefined()
     expect(relayHook(hook({ seq: "soon" }))).toBeUndefined()
+  })
+})
+
+describe("a pruned copy of a hook's payload", () => {
+  it("cuts text to the limit, never through an emoji", () => {
+    expect(prune("abc😀", 0, 4)).toBe("abc")
+    expect(prune("abc😀", 0, 5)).toBe("abc😀")
+    expect(prune({ list: ["ab😀"] }, 0, 3)).toEqual({ list: ["ab"] })
   })
 })

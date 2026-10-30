@@ -1,6 +1,7 @@
 // What the model is told. It is a 2B model reading a few kilobytes: the prompt is short,
 // what to write comes last where it weighs most, and every rule is one the model was seen to
 // break without it (see docs/murmur.md).
+import { ellipsized } from "../text.js"
 import type { AgentDigest, Digest } from "./describer.js"
 import { exampleTitles, titleCharacters, titleWords } from "./description.js"
 
@@ -85,9 +86,6 @@ const budget = {
   olderRows: 6,
 }
 
-const head = (text: string, limit: number): string =>
-  text.length <= limit ? text : `${text.slice(0, limit - 1).trimEnd()}…`
-
 // The chat for an agent's title: its summary, and what to make of it last.
 const agentMessages = (digest: AgentDigest): Message[] => [
   { role: "system", content: agentSystem },
@@ -107,7 +105,7 @@ const agentMessages = (digest: AgentDigest): Message[] => [
 export const messages = (digest: Digest): Message[] => {
   if (digest.kind === "agent") return agentMessages(digest)
   const lines: string[] = ["Terminal: a plain shell"]
-  const screen = digest.screen.slice(-budget.rows).map((row) => head(row, budget.row))
+  const screen = digest.screen.slice(-budget.rows).map((row) => ellipsized(row, budget.row))
   // The runner says on which row the last command was typed (`commandAt`, from the shell
   // integration's prompt report). The rows from it lead as the last command and its output;
   // the rows above are background, as a small model otherwise names the oldest thing it reads.

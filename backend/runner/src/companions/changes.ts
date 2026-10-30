@@ -11,7 +11,7 @@ import {
   type ItemContent,
 } from "@novadeck/protocol"
 
-import { cut } from "../text.js"
+import { cut, ellipsized } from "../text.js"
 import { hashOf, maxLineChars } from "./content.js"
 import { secret } from "./secrets.js"
 
@@ -71,7 +71,7 @@ type Run =
 const hidden = new RegExp(hiddenCharacter.source, "gu")
 const oneLine = (text: string, max: number): string => {
   const line = text.replaceAll(hidden, " ").replaceAll(/\s+/g, " ").trim()
-  return line.length <= max ? line : `${line.slice(0, max - 1)}…`
+  return ellipsized(line, max, false)
 }
 /** A name for display: each invisible or control character shows as U+FFFD, the rest as it is. */
 export const displayed = (text: string): string =>

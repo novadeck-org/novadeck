@@ -4,6 +4,7 @@ import type { Report } from "@novadeck/harness-core/report"
 import { agentName } from "@novadeck/protocol"
 
 import { harnesses } from "../harnesses/registry.js"
+import { cut } from "../text.js"
 import { object, type Fields } from "./json.js"
 
 /**
@@ -47,7 +48,7 @@ const text = (value: unknown, max: number): string | undefined =>
 
 /** A copy small enough to keep: text past a path's length cut short, deep or wide values dropped. */
 export const prune = (value: unknown, depth: number, limit: number): unknown => {
-  if (typeof value === "string") return value.length > limit ? value.slice(0, limit) : value
+  if (typeof value === "string") return cut(value, limit)
   if (typeof value !== "object" || value === null) return value
   if (depth > 6) return null
   if (Array.isArray(value)) return value.slice(0, 50).map((each) => prune(each, depth + 1, limit))

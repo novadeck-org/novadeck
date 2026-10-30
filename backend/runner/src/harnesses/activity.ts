@@ -3,6 +3,7 @@ import type { ActivityEvent, Background, PlanSource } from "@novadeck/harness-co
 import { ref } from "@novadeck/harness-core/harness"
 import type { AgentActivity } from "@novadeck/protocol"
 
+import { cut } from "../text.js"
 import type { Binding } from "./bindings.js"
 import { endless } from "./waits.js"
 
@@ -439,7 +440,7 @@ const afterPrompt = (
     if (!request.detached) return [request]
     if (!answers?.length) return []
     const quoted = (request.parts ?? []).flatMap((part, index) =>
-      answers.some((answer) => answer.slice(0, maxText) === part) ? [index] : [],
+      answers.some((answer) => cut(answer, maxText) === part) ? [index] : [],
     )
     if (quoted.length === 0) return [request]
     const left = answering(request, quoted)
@@ -492,7 +493,9 @@ const turnEnded = (activity: Activity, event: TurnEnded): Activity | undefined =
   const again = activity.state === "idle" && activity.lastTurn?.recorded === true && !recorded
   const before = again && activity.lastTurn!.outcome === event.outcome ? activity.lastTurn : null
   const error =
-    event.outcome === "failed" ? event.error?.slice(0, maxError) || before?.error : undefined
+    event.outcome === "failed"
+      ? (event.error && cut(event.error, maxError)) || before?.error
+      : undefined
   const limited = event.outcome === "failed" && (event.limited || before?.limited)
   const turn = {
     state: "idle",
@@ -766,7 +769,7 @@ export const apply = (
     case "subagent-started": {
       const { actor: id, startedAt } = event
       if (!startable(activity, id, startedAt)) return undefined
-      const type = event.actorType?.slice(0, maxText) ?? null
+      const type = (event.actorType && cut(event.actorType, maxText)) ?? null
       return { ...activity, subagents: [...room(activity.subagents)!, { id, type, startedAt }] }
     }
     case "subagent-stopped": {
@@ -1056,7 +1059,7 @@ const asked = (
         ...(event.screen === true && { screen: true as const }),
         ...(event.detached === true && { detached: true as const }),
         ...(event.parts && {
-          parts: event.parts.slice(0, maxParts).map((part) => part.slice(0, maxText)),
+          parts: event.parts.slice(0, maxParts).map((part) => cut(part, maxText)),
         }),
         askedAt: startedAt,
       },

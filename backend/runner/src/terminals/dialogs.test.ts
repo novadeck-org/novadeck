@@ -219,6 +219,26 @@ describe("each request's dialog", () => {
     expect(wide.dialogs.shown("t", "r1")).toMatchObject({ type: "raw", reason: "unrecognized" })
   })
 
+  it("cuts a display string at the limit without leaving half an emoji", async () => {
+    const base = fakeAdapter()
+    const labelled: DialogAdapter = {
+      read: (rows, facts) => {
+        const read = base.read(rows, facts)
+        if (!read || read.dialog.type !== "choices") return read
+        // The limit (512) falls inside the emoji.
+        const label = `${"x".repeat(511)}😀tail`
+        return { ...read, dialog: { ...read.dialog, options: [{ id: "1", label, text: null }] } }
+      },
+    }
+    const { dialogs } = terminal({ adapter: labelled })
+    dialogs.changed("t")
+    await until(() => dialogs.shown("t", "r1") !== null)
+    expect(dialogs.shown("t", "r1")).toMatchObject({
+      type: "choices",
+      options: [{ label: "x".repeat(511) }],
+    })
+  })
+
   it("is raw and unsupported where the harness has no adapter", async () => {
     const { dialogs } = terminal({ adapter: false })
     dialogs.changed("t")

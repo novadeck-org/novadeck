@@ -25,6 +25,17 @@ export const shorten = (text: string, max: number): string => {
 }
 
 /**
+ * Text as it is within `max` UTF-16 units, as the protocol's limits count them, ending in
+ * an ellipsis where it is cut, never through a character; `trimEnd` drops the space the cut
+ * leaves before the ellipsis.
+ */
+export const ellipsized = (text: string, max: number, trimEnd = true): string => {
+  if (text.length <= max) return text
+  const head = cut(text, max - 1)
+  return `${trimEnd ? head.trimEnd() : head}…`
+}
+
+/**
  * The start of text within `max` UTF-16 units, as the protocol's limits count them: one
  * unit fewer where the cut would split a surrogate pair, so no character is left half.
  */
@@ -35,5 +46,10 @@ export const cut = (text: string, max: number): string => {
 }
 
 /** The end of text within `max` characters, led by an ellipsis when it is cut. */
-export const tail = (text: string, max: number): string =>
-  text.length <= max ? text : `…${text.slice(text.length - max + 1)}`
+export const tail = (text: string, max: number): string => {
+  if (text.length <= max) return text
+  const start = text.length - max + 1
+  const first = text.charCodeAt(start)
+  // Past the low half of a pair the cut would split: one unit fewer, not half a character.
+  return `…${text.slice(first >= 0xdc00 && first <= 0xdfff ? start + 1 : start)}`
+}

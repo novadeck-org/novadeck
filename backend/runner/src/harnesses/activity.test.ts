@@ -1944,6 +1944,44 @@ describe("what a turn wrote and how it failed", () => {
     expect(summary(stop(turn(started(0), 1), 2, { outcome: "failed" })).lastTurn?.error).toBeNull()
   })
 
+  it("keeps every character whole where text is cut to the wire's limits", () => {
+    const emoji = "😀"
+    // The limit falls inside the emoji: the cut keeps one unit fewer, never half of it.
+    const error = stop(turn(started(0), 1), 2, {
+      outcome: "failed",
+      error: `${"x".repeat(2047)}${emoji}tail`,
+    })
+    expect(summary(error).lastTurn?.error).toBe("x".repeat(2047))
+
+    const long = `${"x".repeat(255)}${emoji}tail`
+    const sub = on(turn(started(0), 1), {
+      type: "subagent-started",
+      actor: "a",
+      actorType: long,
+      startedAt: 3,
+    })
+    expect(sub.subagents[0]?.type).toBe("x".repeat(255))
+
+    const detached = on(turn(started(0), 1), {
+      type: "attention-requested",
+      requestId: "q",
+      actor: null,
+      toolName: "request_user_input_async",
+      kind: "question",
+      detached: true,
+      parts: [long],
+      startedAt: 4,
+    })
+    expect(detached.pending[0]?.parts).toEqual(["x".repeat(255)])
+    // The prompt quoting the whole text still settles the part it was cut from.
+    const quoted = apply(
+      stop(detached, 5),
+      binding,
+      fact({ type: "turn-started", cause: "prompt", answers: [long], startedAt: 6 }),
+    )!
+    expect(quoted.pending).toEqual([])
+  })
+
   it("keeps the error and the limit of an end when the hook's Stop fills it in, the records told it first", () => {
     const records = stop(turn(started(0), 1), 2, {
       outcome: "failed",
