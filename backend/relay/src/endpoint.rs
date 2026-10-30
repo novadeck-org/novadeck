@@ -1,8 +1,9 @@
-//! The runner's endpoint for its terminals, and the terminal the relay runs in: a Unix
-//! socket in a private directory, or a named pipe on Windows. Both are read and written
-//! at once, as answers come back while the agent still writes; Windows serialises
-//! blocking reads and writes on one pipe handle, so the pipe is opened for overlapped
-//! I/O, which tokio does.
+//! How the relay reaches the runner: the terminal it runs in, as its environment names
+//! it, the first line of each connection, and the runtime a connection runs on. The
+//! runner's endpoint for its terminals is a Unix socket in a private directory, or a
+//! named pipe on Windows. Both are read and written at once, as answers come back while
+//! the agent still writes; Windows serialises blocking reads and writes on one pipe
+//! handle, so the pipe is opened for overlapped I/O, which tokio does.
 
 use std::io;
 
@@ -15,9 +16,9 @@ use crate::{PROTOCOL, variable};
 /// The Novadeck terminal the relay runs in, as its shell's environment names it: the
 /// terminal, the runner's endpoint for it, and its token.
 pub struct Terminal {
-    pub id: String,
+    id: String,
     pub endpoint: String,
-    pub token: String,
+    token: String,
 }
 
 impl Terminal {
@@ -32,7 +33,7 @@ impl Terminal {
 
     /// A connection's first line: the relay's protocol first, so the runner knows the line
     /// as a relay's, then what the connection carries (`kind`), the terminal and its token,
-    /// then `fields`.
+    /// then `fields`, an object's.
     pub fn hello(&self, kind: &str, fields: Value) -> String {
         let mut hello = json!({
             "relay": PROTOCOL,

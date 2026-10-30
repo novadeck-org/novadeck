@@ -41,8 +41,8 @@ const pinnedRust = (): void => {
 
 // On Linux, the Rust target the relay is built for: linked statically against musl, so
 // one binary runs on any distribution, however old its C library, as a server's may be.
-const linuxTriple = (arch: string = process.arch): string =>
-  `${arch === "arm64" ? "aarch64" : "x86_64"}-unknown-linux-musl`
+const linuxTriple = (): string =>
+  `${process.arch === "arm64" ? "aarch64" : "x86_64"}-unknown-linux-musl`
 
 // Apple silicon runs only signed code, and stripping or merging architectures can leave a
 // binary's own signature broken, so on macOS it is signed again, ad hoc, as the unsigned

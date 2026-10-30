@@ -180,7 +180,7 @@ pub struct Root {
 /// it has ended, or its pid names another process, then only to children started before
 /// that other one. Empty where a root named by its pid alone is gone. `started` is for
 /// tests.
-pub fn tree(
+fn tree(
     root: Root,
     parents: &HashMap<u32, u32>,
     started: &impl Fn(u32) -> Option<u64>,
@@ -429,10 +429,7 @@ mod tests {
 
     #[test]
     fn reads_when_this_process_started() {
-        let now = std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .unwrap()
-            .as_millis() as u64;
+        let now = now();
         let mine = started(std::process::id()).unwrap();
         assert!(mine <= now && now - mine < 600_000);
     }

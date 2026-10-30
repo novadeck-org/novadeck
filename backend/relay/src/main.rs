@@ -122,7 +122,7 @@ fn usage() -> ExitCode {
 
 /// A process as `<pid>` or `<pid>:<started-ms>`; None where it is neither.
 #[cfg(any(windows, test))]
-fn process(arg: &str) -> Option<(u32, Option<u64>)> {
+fn pid_and_start(arg: &str) -> Option<(u32, Option<u64>)> {
     match arg.split_once(':') {
         Some((pid, started)) => Some((pid.parse().ok()?, Some(started.parse().ok()?))),
         None => Some((arg.parse().ok()?, None)),
@@ -131,7 +131,7 @@ fn process(arg: &str) -> Option<(u32, Option<u64>)> {
 
 /// Each argument as `read` reads it, one or more; None where any can't be read.
 #[cfg(any(windows, test))]
-fn each<T>(args: &[String], read: impl Fn(&str) -> Option<T>) -> Option<Vec<T>> {
+fn all<T>(args: &[String], read: impl Fn(&str) -> Option<T>) -> Option<Vec<T>> {
     let found: Option<Vec<T>> = args.iter().map(|arg| read(arg)).collect();
     found.filter(|found| !found.is_empty())
 }
@@ -139,8 +139,8 @@ fn each<T>(args: &[String], read: impl Fn(&str) -> Option<T>) -> Option<Vec<T>> 
 /// Roots as `<pid>` or `<pid>:<started-ms>`, each beside the argument that named it.
 #[cfg(windows)]
 fn roots(args: &[String]) -> Option<Vec<(String, processes::Root)>> {
-    each(args, |arg| {
-        let (pid, started) = process(arg)?;
+    all(args, |arg| {
+        let (pid, started) = pid_and_start(arg)?;
         Some((arg.to_owned(), processes::Root { pid, started }))
     })
 }
@@ -148,7 +148,7 @@ fn roots(args: &[String]) -> Option<Vec<(String, processes::Root)>> {
 /// Processes as `<pid>:<started-ms>`.
 #[cfg(windows)]
 fn members(args: &[String]) -> Option<Vec<processes::Member>> {
-    each(args, |arg| match process(arg)? {
+    all(args, |arg| match pid_and_start(arg)? {
         (pid, Some(started)) => Some(processes::Member { pid, started }),
         (_, None) => None,
     })
@@ -174,7 +174,7 @@ mod tests {
 
     #[test]
     fn reads_processes_by_pid_or_by_pid_and_start_and_refuses_anything_else() {
-        let processes = |given: &[&str]| each(&args(given), process);
+        let processes = |given: &[&str]| all(&args(given), pid_and_start);
         assert_eq!(
             processes(&["12", "34:5600"]),
             Some(vec![(12, None), (34, Some(5600))])
