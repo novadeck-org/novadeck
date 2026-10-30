@@ -14,7 +14,8 @@ const phaseOf = (status: TerminalMountProps["status"]): ViewPhase =>
 
 // What a mount asks of its screen: the input's accessible name in the app's words, the
 // shell's stage, and whether the view draws with WebGL.
-const screenOptions = (props: TerminalMountProps) => ({
+type ScreenOptions = Parameters<TerminalViews<TerminalKey>["acquire"]>[1]
+const screenOptions = (props: TerminalMountProps): ScreenOptions => ({
   label: `Input for ${props.name}`,
   phase: phaseOf(props.status),
   webgl: wantsWebgl(props.view),
