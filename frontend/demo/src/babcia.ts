@@ -327,7 +327,7 @@ export const babciaSeed = (now: number): WorkspaceSeed => ({
 // accessibility one a plan, the menu page a question with its own pick.
 export const babciaTranscripts = (now: number): Readonly<Record<string, DemoTranscript>> =>
   deskTranscripts(now, allJobs, home, {
-    permission: babcia.permission,
+    permissions: [babcia.permission],
     plan: {
       number: babcia.plan,
       subject: "Accessibility plan",

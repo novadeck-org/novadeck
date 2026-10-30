@@ -97,6 +97,11 @@ export const launchGroups = (cues: LaunchCues | undefined): readonly DemoActionG
               hint: "Order emails shows its plan, ~/.claude/plans/order-emails.md, rendered in the pane beside its window",
               run: (context) => cues.showPlan(context.select),
             },
+            {
+              label: "8c · A Codex agent asks to run a command",
+              hint: "Search index, a Codex agent, asks to run pnpm test --filter search in Codex's own words: an Unblock row. Allowed, it runs them and reports done about 2 s later: an Update row",
+              run: () => cues.command(),
+            },
           ],
         },
       ]
