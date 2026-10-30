@@ -108,7 +108,7 @@ release fixes what it fixes.
   0.8 px tighter per glyph at 13 px. The shared width cache holds glyph
   widths, not the cell, and is unaffected. Make it again on xterm 6.1 in `DomRenderer._updateDimensions`
   unless the DOM renderer rounds the same way. `src/cell.test.ts` pins it in each bundle, and
-  terminal-views' `src/grid.spec.ts` checks both renderers fit the same columns and rows in a real
+  terminal-views' `src/cell-fit.spec.ts` checks both renderers fit the same columns and rows in a real
   browser at ratios 1, 1.25, 1.5 and 2.
 - `@xterm/xterm` 6.0.0 and `@xterm/headless` 6.0.0, in each package's two bundles:
   `WriteBuffer._innerWrite` catches a chunk whose parsing throws, as one does when a buffer row the cursor or renderer expects is missing. It throws
