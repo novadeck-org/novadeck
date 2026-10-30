@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest"
 
-import { changedRows, checkPaste, findLine } from "./box.js"
-import { loadFixture } from "./testing/fixtures.js"
+import { loadFixture } from "../testing/fixtures.js"
+import { changedRows, checkPaste, findLine } from "./paste.js"
 
 type Pair = {
   readonly name: string
@@ -22,7 +22,7 @@ describe("the paste check", () => {
       it(`${pair.expected === "reject" ? "rejects" : "accepts"} ${program}: ${pair.name}`, () => {
         // As for a terminal before its session's first turn, whose first screen may lose a block of text.
         const check = checkPaste(pair.before, pair.after, line, { vanish: true })
-        // A draft only exists if the user typed, so the gate stops it before any paste;
+        // A draft only exists if the person typed, so the gate stops it before any paste;
         // alone, the check accepts it, as the line appends to the draft.
         expect(check.accepted).toBe(pair.expected !== "reject")
       })

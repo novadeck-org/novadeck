@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
-import type { BoxProfile } from "./box.js"
+import type { BoxProfile } from "./box/box.js"
 import type { InputEntry } from "./queue.js"
 import { screen } from "./testing/screens.js"
 import { createTypist, pasteMsOn, sizeCapMs, type Timing, type Typist } from "./typist.js"
@@ -585,8 +585,6 @@ describe("a look and the gate on it", () => {
     await typist.look()
     await sleep(40)
     await typist.ready((await typist.look())!, () => true)
-    expect(lines).toEqual([
-      "gate not-ringable (foreground true, input box true, bracketed paste true)",
-    ])
+    expect(lines).toEqual(["gate vetoed (foreground true, input box true, bracketed paste true)"])
   })
 })

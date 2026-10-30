@@ -4,7 +4,7 @@
  */
 export const logSchema = 1
 
-export const levels = ["debug", "info", "warn", "error", "fatal"] as const
+const levels = ["debug", "info", "warn", "error", "fatal"] as const
 
 export type Level = (typeof levels)[number]
 
@@ -19,7 +19,7 @@ export const atLeast = (level: Level, threshold: Level): boolean =>
 export type Data = Readonly<Record<string, string | number | boolean | null>>
 
 /** An error as a line keeps it. */
-export type LoggedError = {
+type LoggedError = {
   readonly name: string
   readonly message: string
   readonly stack?: string
@@ -33,7 +33,7 @@ export type Entry = {
   /** When, as an ISO time in UTC. */
   readonly t: string
   readonly level: Level
-  /** Which process wrote it, such as `host`. */
+  /** Which process wrote it, such as `host` (the desktop app's main process). */
   readonly proc: string
   /** The launch it belongs to: one random id per start of the app, never kept across launches. */
   readonly sid: string
@@ -56,7 +56,10 @@ export type Entry = {
 export const textLimit = 500
 
 /** The longest stack a line keeps, in characters. */
-export const stackLimit = 4_000
+const stackLimit = 4_000
+
+/** The longest error code a line keeps, in characters. */
+const codeLimit = 80
 
 /** `text` cut to `limit` characters, marked where it was cut. */
 export const clip = (text: string, limit = textLimit): string =>
@@ -67,7 +70,7 @@ export const clip = (text: string, limit = textLimit): string =>
  * quotes the text it was given (`Unexpected token 'h', "hello" is not valid JSON`), which may
  * be anything, such as a message's body. Everything from the first quote on is dropped.
  */
-export const withoutQuote = (message: string): string => {
+const withoutQuote = (message: string): string => {
   const quote = message.search(/["'`]/)
   if (quote === -1) return message
   const before = message.slice(0, quote).replace(/[\s,:]+$/, "")
@@ -97,6 +100,6 @@ export const loggedError = (error: unknown, redact: (text: string) => string): L
     name: clip(redact(error.name)),
     message: clip(redact(message)),
     ...(stack && { stack: clip(redact(stack), stackLimit) }),
-    ...(code !== undefined && { code: clip(redact(code), 80) }),
+    ...(code !== undefined && { code: clip(redact(code), codeLimit) }),
   }
 }

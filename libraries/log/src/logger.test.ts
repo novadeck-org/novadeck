@@ -164,7 +164,7 @@ describe("createLogger", () => {
 })
 
 describe("consoleLogger", () => {
-  it("shows warnings and errors the way console calls did", () => {
+  it("shows warnings and errors on the console, the message then the error", () => {
     const error = vi.spyOn(console, "error").mockImplementation(() => {})
     const warn = vi.spyOn(console, "warn").mockImplementation(() => {})
     try {

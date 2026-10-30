@@ -15,9 +15,9 @@
       }
     },
     "./box": {
-      "development": "./src/box.ts",
-      "types": "./dist/box.d.ts",
-      "default": "./dist/box.js"
+      "development": "./src/box/index.ts",
+      "types": "./dist/box/index.d.ts",
+      "default": "./dist/box/index.js"
     }
   },
   "scripts": {
