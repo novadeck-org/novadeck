@@ -15,12 +15,14 @@ import {
   fileIconOf,
   foldChips,
   initialOpen,
+  isNote,
   rowShowing,
   trailGone,
   trailLifeMs,
   trailOpacity,
-  visibleRows,
   writtenPaths,
+  type SourceNode,
+  type SourceRow,
 } from "./source-tree"
 
 const project = (parts: Partial<SourceProject> = {}): SourceProject => ({
@@ -29,7 +31,13 @@ const project = (parts: Partial<SourceProject> = {}): SourceProject => ({
   ...parts,
 })
 
-const paths = (rows: ReturnType<typeof visibleRows>): string[] => rows.map(({ node }) => node.path)
+// The rows on screen, without the notes between them.
+const visibleRows = (
+  tree: readonly SourceNode[],
+  open: ReadonlySet<string>,
+): readonly SourceRow[] =>
+  visibleLines(tree, open).filter((line): line is SourceRow => !isNote(line))
+const paths = (rows: readonly SourceRow[]): string[] => rows.map(({ node }) => node.path)
 
 describe("The Source tree", () => {
   context("when listings and changed paths are joined", () => {

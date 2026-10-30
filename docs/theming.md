@@ -170,6 +170,7 @@ The shared recipes, and what they cover:
 | `terminal-xterm`     | How xterm draws inside the element a mount gives it: its scroll viewport and thin scrollbar                                                          | none                                                                                                                                                                                                                                                                                                                                                                                                                 |
 | `mounted-terminal`   | A mounted terminal's content: greyed while locked, and its paste notice                                                                              | none; the notice and ending bar are `terminal-status`'s                                                                                                                                                                                                                                                                                                                                                              |
 | `terminal-status`    | Over a terminal surface: the lock notice, the ending bar and Restart                                                                                 | `--terminal-lock-bg`, `--terminal-notice-{bg,fg,border-color,shadow}`, `--terminal-ending-{bg,fg,border-color,reason-fg}`, `--terminal-restart-{hover-bg,disabled-opacity}`                                                                                                                                                                                                                                          |
+| `handle-chip`        | A terminal's `@handle` as a soft chip in the window's metadata voice; `.handle-plain` drops the chip                                                 | none; it reads `--window-metadata-{fg,font}`                                                                                                                                                                                                                                                                                                                                                                         |
 | `boot-splash`        | The boot splash, its field of slots and hairline, and a failure with its details                                                                     | `--boot-splash-{bg,fg,slot-border-color,hairline-bg,hairline-fill-bg}`, `--boot-failure-details-bg`                                                                                                                                                                                                                                                                                                                  |
 | `debug-panel`        | The demo's debug panel, a drawer below the bottom edge, and the handle that slides it up                                                             | `--debug-panel-{bg,fg,border-color,radius,shadow}`, `--debug-mark-{bg,fg}`, `--debug-{muted-fg,action-bg,action-border-color,action-hover-bg}`, `--debug-handle-{bg,fg,border-color,rest-fill,rest-opacity,active-fg}`                                                                                                                                                                                               |
 | `demo-notices`       | The demo backend's in-page notifications, the browser's stand-in for desktop ones                                                                    | `--demo-notice-{bg,fg,border-color,shadow,body-fg,hover-bg}`                                                                                                                                                                                                                                                                                                                                                         |
@@ -355,8 +356,8 @@ fails too, and fails when one is no longer needed.
 - `theme/accessibility.css` uses `!important` for reduced motion, to beat the
   transitions libraries set inline or inject with `!important`, such as dnd-kit's drag
   feedback.
-- `backend/terminal-views/terminal-xterm.css` uses `!important` to thin xterm's scrollbar slider, whose
-  position and width xterm sets inline.
+- `frontend/terminal-views/src/terminal-xterm.css` uses `!important` to thin xterm's scrollbar
+  slider, whose position and width xterm sets inline.
 - `theme/accessibility.css` may name system colours (`Canvas`, `Highlight`) for forced
   colours; no other stylesheet may.
 - CodeMirror, the markdown viewer's editor, injects its own styles as CSS-in-JS at run
@@ -439,7 +440,7 @@ needs. When many such rules pile up, the recipe is missing a token: add it to th
 recipe instead, and every theme gains it.
 
 `theme/themes.ts` lists the themes: an id, the name Preferences shows, the schemes it
-defines, the notification sound it goes with, and its file, `theme/<id>.css` unless it names a shared one. The first is the
+defines, the notice sound it goes with, and its file, `theme/<id>.css` unless it names a shared one. The first is the
 default, and the fallback for an unknown id. To add a theme:
 
 1. Copy `theme/coolant.css` to `theme/<id>.css`, rename the scope and change the

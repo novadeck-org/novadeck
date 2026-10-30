@@ -46,7 +46,7 @@ export type MenuItem = {
   // More about the row, shown under the menu while the cursor is on it.
   readonly more?: ReactNode
   readonly words?: Words
-  // A way out of the sheet, as to the item's terminal: it answers nothing, so it never arms,
+  // A way out of the sheet, as to the row's terminal: it answers nothing, so it never arms,
   // ticks, nor sends on Enter.
   readonly away?: boolean
 }

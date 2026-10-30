@@ -1,5 +1,7 @@
 import { useSyncExternalStore } from "react"
 
+// "Desktop" is the wide viewport, as the grid's `desktop` breakpoint is, against a phone's;
+// not the desktop app, which a browser window can be as wide as.
 const desktopQuery = "(min-width: 701px)"
 
 export const subscribeDesktop = (notify: () => void): (() => void) => {

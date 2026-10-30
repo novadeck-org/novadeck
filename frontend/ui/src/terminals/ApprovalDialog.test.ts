@@ -1,4 +1,5 @@
 import type { Approval } from "@novadeck/core/port"
+import { terminalFixture, workspaceFixture } from "@novadeck/core/testing"
 import type { Workspace } from "@novadeck/core/types"
 import { render, type Rendered } from "@novadeck/test-kit/render"
 import { act, createElement } from "react"
@@ -14,21 +15,21 @@ const dialog = () => document.querySelector<HTMLElement>("[role=alertdialog]")
 const settle = () => act(() => new Promise((resolve) => setTimeout(resolve, 50)))
 
 const view = (fields: Partial<ApprovalView> = {}): ApprovalView => ({
-  requestId: "ask-1",
+  requestId: "approval-1",
   action: { type: "close" },
   asker: { name: "api-server", process: "claude", handle: "moth" },
   target: { name: "web", process: "codex", handle: "fox" },
   ...fields,
 })
 
-const show = (ask: ApprovalView | null) => {
+const show = (approval: ApprovalView | null) => {
   const onAnswer = vi.fn<(requestId: string, approved: boolean) => void>()
-  const page = render(createElement(ApprovalDialog, { ask, onAnswer }))
+  const page = render(createElement(ApprovalDialog, { approval, onAnswer }))
   mounted.push(page)
   const button = (name: string) =>
     [...(dialog()?.querySelectorAll("button") ?? [])].find((item) => item.textContent === name)!
   const showNext = (next: ApprovalView | null) =>
-    page.rerender(createElement(ApprovalDialog, { ask: next, onAnswer }))
+    page.rerender(createElement(ApprovalDialog, { approval: next, onAnswer }))
   return { button, onAnswer, showNext }
 }
 
@@ -51,7 +52,7 @@ describe("approval dialog", () => {
       expect(dialog()?.textContent).toContain("“a” (Codex) asks to close it. Antigravity is")
       showNext(
         view({
-          requestId: "ask-2",
+          requestId: "approval-2",
           asker: { name: "a", process: "agy" },
           target: { name: "b", process: "claude" },
         }),
@@ -97,7 +98,7 @@ describe("approval dialog", () => {
       act(() => button("Let it lead").click())
       expect(onAnswer).not.toHaveBeenCalled()
       act(() => button("Decline").click())
-      expect(onAnswer).toHaveBeenCalledExactlyOnceWith("ask-1", false)
+      expect(onAnswer).toHaveBeenCalledExactlyOnceWith("approval-1", false)
     })
 
     it("can still close a terminal whose names are unknown", async () => {
@@ -110,11 +111,11 @@ describe("approval dialog", () => {
       const { button, onAnswer, showNext } = show(lead())
       await settle()
       act(() => button("Let it lead").click())
-      expect(onAnswer).toHaveBeenLastCalledWith("ask-1", true)
-      showNext({ ...lead(), requestId: "ask-2" })
+      expect(onAnswer).toHaveBeenLastCalledWith("approval-1", true)
+      showNext({ ...lead(), requestId: "approval-2" })
       await settle()
       act(() => button("Decline").click())
-      expect(onAnswer).toHaveBeenLastCalledWith("ask-2", false)
+      expect(onAnswer).toHaveBeenLastCalledWith("approval-2", false)
     })
   })
 
@@ -123,18 +124,18 @@ describe("approval dialog", () => {
       const { button, onAnswer } = show(view())
       await settle()
       act(() => button("Close terminal").click())
-      expect(onAnswer).toHaveBeenCalledExactlyOnceWith("ask-1", true)
+      expect(onAnswer).toHaveBeenCalledExactlyOnceWith("approval-1", true)
     })
 
     it("keeps it open on Keep open", async () => {
       const { button, onAnswer } = show(view())
       await settle()
       act(() => button("Keep open").click())
-      expect(onAnswer).toHaveBeenCalledExactlyOnceWith("ask-1", false)
+      expect(onAnswer).toHaveBeenCalledExactlyOnceWith("approval-1", false)
     })
   })
 
-  context("when the ask goes away", () => {
+  context("when the approval goes away", () => {
     it("closes without an answer", async () => {
       const { showNext, onAnswer } = show(view())
       await settle()
@@ -145,43 +146,68 @@ describe("approval dialog", () => {
     })
   })
 
-  context("when another ask waits behind it", () => {
+  context("when another approval waits behind it", () => {
     it("asks the next one once the first is answered", async () => {
       const { button, onAnswer, showNext } = show(view())
       await settle()
       act(() => button("Close terminal").click())
-      showNext(view({ requestId: "ask-2", target: { name: "docs", process: "", handle: "owl" } }))
+      showNext(
+        view({ requestId: "approval-2", target: { name: "docs", process: "", handle: "owl" } }),
+      )
       await settle()
       expect(dialog()?.textContent).toContain("Close @owl · “docs”?")
       act(() => button("Keep open").click())
-      expect(onAnswer).toHaveBeenLastCalledWith("ask-2", false)
+      expect(onAnswer).toHaveBeenLastCalledWith("approval-2", false)
     })
   })
 })
 
 describe("approval view", () => {
-  const terminal = (id: string, name: string) => ({ id, name, process: "claude", handle: name })
-  const workspace = {
+  const named = (number: number, name: string) => ({
+    ...terminalFixture(number, "~/project"),
+    name,
+    process: "claude",
+    handle: name,
+  })
+  const base = workspaceFixture({ terminals: 1, sessions: ["first", "second"] })
+  const project = base.projects[0]!
+  // The asker is in the first session and the target only in the second.
+  const workspace: Workspace = {
+    ...base,
     projects: [
       {
-        history: [
-          { state: { roster: { terminals: [terminal("t1", "moth")] } } },
-          { state: { roster: { terminals: [terminal("t2", "fox")] } } },
-        ],
+        ...project,
+        history: project.history.map((session, index) => ({
+          ...session,
+          state: {
+            ...session.state,
+            roster: {
+              ...session.state.roster,
+              terminals: [index === 0 ? named(1, "moth") : named(2, "fox")],
+            },
+          },
+        })),
       },
     ],
-  } as unknown as Workspace
-  const ask: Approval = { requestId: "r", from: "t1", terminalId: "t2", action: { type: "close" } }
+  }
+  const approval: Approval = {
+    requestId: "r",
+    from: "01",
+    terminalId: "02",
+    action: { type: "close" },
+  }
 
   it("finds the terminals in any session", () => {
-    const found = approvalView(ask, workspace)
+    const found = approvalView(approval, workspace)
     expect(found.asker?.name).toBe("moth")
     expect(found.target?.name).toBe("fox")
   })
 
   it("leaves out a terminal it doesn't know", () => {
-    const found = approvalView({ ...ask, from: "nope" }, workspace)
+    const found = approvalView({ ...approval, from: "nope" }, workspace)
     expect(found.asker).toBeUndefined()
-    expect(sameApprovalView(found, approvalView({ ...ask, from: "nope" }, workspace))).toBe(true)
+    expect(sameApprovalView(found, approvalView({ ...approval, from: "nope" }, workspace))).toBe(
+      true,
+    )
   })
 })

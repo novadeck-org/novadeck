@@ -6,7 +6,7 @@ import { routeUrl } from "../routing"
 import type { UiState } from "../ui-store"
 import { useStoreSelector } from "./useStoreSelector"
 
-export type RouterState = {
+type RouterState = {
   readonly location: Location
   readonly navigationType: NavigationType
   readonly navigate: NavigateFunction

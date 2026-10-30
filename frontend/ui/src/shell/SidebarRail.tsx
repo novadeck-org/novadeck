@@ -16,7 +16,7 @@ import { useCallback, useLayoutEffect, useRef, useState, type ComponentProps } f
 
 import { shortcutBindings } from "../interaction/shortcuts"
 import { BellDot } from "./BellDot"
-import type { BellBadge } from "./inbox-badge"
+import type { InboxBadge } from "./inbox-badge"
 import { movedPanel } from "./rail-order"
 
 const panels = {
@@ -71,8 +71,8 @@ export const SidebarRail = ({
   sidebarVisible: boolean
   sidebarPanel: SidebarPanel
   zen: boolean
-  badge: BellBadge | undefined
-  // How many new items the bell has rung for, which its dot rings with.
+  badge: InboxBadge | undefined
+  // How many new Inbox rows the bell has rung for, which its dot rings with.
   bellRings: number
   // Whether the backend has a Source panel to toggle.
   hasSource?: boolean
@@ -160,8 +160,8 @@ const RailToggle = ({
   index: number
   count: number
   // What the Inbox holds, on its toggle.
-  badge: BellBadge | undefined
-  // How many new items the bell has rung for, which its dot rings with.
+  badge: InboxBadge | undefined
+  // How many new Inbox rows the bell has rung for, which its dot rings with.
   bellRings: number
   // Some toggle is being dragged, which leaves no tooltip open.
   dragging: boolean

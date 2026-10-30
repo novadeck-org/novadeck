@@ -28,7 +28,7 @@ import { InboxSheet } from "./InboxSheet"
 
 // What the sheet records of the plan approvals it answered.
 const { planAnswered } = vi.hoisted(() => ({
-  planAnswered: vi.fn<(item: InboxRow) => void>(),
+  planAnswered: vi.fn<(row: InboxRow) => void>(),
 }))
 vi.mock("./plan-text", async (original) => ({
   ...(await original<typeof import("./plan-text")>()),
@@ -142,17 +142,17 @@ afterEach(() => {
   mounted = null
 })
 
-// The Inbox over these items with the first one's sheet open, and the answers it gives.
+// The Inbox over these rows with the first one's sheet open, and the answers it gives.
 const mount = (
-  items: readonly InboxRow[],
+  inboxRows: readonly InboxRow[],
   {
     failing = false,
     open = 0,
     conversations,
-  }: { failing?: boolean; open?: number; conversations?: Conversations } = {},
+  }: { failing?: boolean; open?: number; conversations?: Pick<Conversations, "conversation"> } = {},
 ) => {
   const revealed: string[] = []
-  const state = createStore<InboxState>({ ...emptyInbox, items })
+  const state = createStore<InboxState>({ ...emptyInbox, items: inboxRows })
   const sent: InboxAnswer[] = []
   const inbox: Inbox = {
     state,
@@ -201,7 +201,7 @@ const mount = (
       )
       field().dispatchEvent(new Event("input", { bubbles: true }))
     })
-  // The backend takes the answer: the item leaves.
+  // The backend takes the answer: the row leaves.
   const confirm = (id: string): void =>
     act(() => {
       state.update((current) => ({
@@ -402,7 +402,7 @@ describe("The Console sheet", () => {
   })
 
   context("after an answer has taken", () => {
-    it("opens the next item that needs the person, with a receipt naming the agent", async () => {
+    it("opens the next row that needs the person, with a receipt naming the agent", async () => {
       const inbox = mount([
         permission(codex, { id: "first", handle: "crow" }),
         asked({ type: "text" }, { id: "second", at: 5 }),
@@ -840,7 +840,7 @@ describe("The Console sheet", () => {
     })
   })
 
-  context("for an item that takes the place of one answered", () => {
+  context("for a row that takes the place of one answered", () => {
     it("shows as waiting, not as the old answer", async () => {
       const inbox = mount([
         permission(codex, { id: "a", handle: "crow", at: 0 }),
@@ -911,7 +911,7 @@ describe("The Console sheet", () => {
 
     it("is kept from the start and as the context fills in, so the menu never moves", async () => {
       const transcript = createStore<Conversation>(noConversation)
-      const conversations = { conversation: () => transcript } as unknown as Conversations
+      const conversations = { conversation: () => transcript }
       const inbox = mount([permission(codex)], { conversations })
       const kept = () => document.querySelector(".console-tail[data-reserved]") !== null
       expect(kept()).toBe(true)
@@ -1111,7 +1111,7 @@ describe("The Console sheet", () => {
     })
   })
 
-  context("for an answered item opened again", () => {
+  context("for an answered row opened again", () => {
     it("says what its answer did, stays on it, and lets j go past it", async () => {
       const inbox = mount(
         [
@@ -1230,7 +1230,7 @@ describe("The Console sheet", () => {
       await inbox.done()
     })
 
-    it("moves on from a newer item that took an answered one's id", async () => {
+    it("moves on from a newer row that took an answered one's id", async () => {
       const inbox = mount([
         permission(codex, { id: "a", handle: "crow", at: 0 }),
         permission(codex, { id: "b", handle: "fox", at: 1 }),

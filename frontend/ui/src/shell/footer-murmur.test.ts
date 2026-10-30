@@ -2,7 +2,7 @@ import type { Refusal } from "@novadeck/core/addons/addon"
 import type { MurmurState } from "@novadeck/core/addons/murmur"
 
 import { describe, expect, it } from "../test"
-import { footerPhase, footerText, installPercent, stepText } from "./murmur-footer"
+import { footerPhase, footerText, installPercent, stepText } from "./footer-murmur"
 
 const idle: MurmurState = {
   available: true,

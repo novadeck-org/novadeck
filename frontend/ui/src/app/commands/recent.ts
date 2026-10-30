@@ -5,7 +5,7 @@ import { currentContext, currentState } from "../selectors"
 import type { CommandContext, FocusTarget } from "./context"
 
 // The button that opened the switcher, which gets focus back when it closes.
-export type SwitcherTrigger = FocusTarget
+type SwitcherTrigger = FocusTarget
 
 export type RecentCommands = {
   // The current session's terminals, most recently selected first.

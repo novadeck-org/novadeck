@@ -12,7 +12,7 @@ import { readFoldedChip, writeFoldedChip } from "./shell-storage"
 // and asks for that (`onAllow`) in place of opening the page. Once the person opened the
 // page, the chip folds to its icon (and dot) for that release; any other brings the word
 // back.
-export type FooterAvailable = {
+export type AvailableUpdate = {
   readonly version: string
   readonly onOpenPage: () => void
   readonly onAllow?: (() => void) | undefined
@@ -23,7 +23,7 @@ const allowNote = "Asks for an administrator's password so Novadeck can install 
 export const UpdateAvailable = ({
   available,
 }: {
-  readonly available: FooterAvailable | undefined
+  readonly available: AvailableUpdate | undefined
 }): React.JSX.Element => {
   const [folded, setFolded] = useState(readFoldedChip)
   const iconOnly = available !== undefined && !available.onAllow && folded === available.version

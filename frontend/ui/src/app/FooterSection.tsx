@@ -12,9 +12,9 @@ import { memo, useCallback, useEffect, useState, useSyncExternalStore } from "re
 import { FeedbackButton } from "../feedback/FeedbackButton"
 import { readSubscriptionOrder, writeSubscriptionOrder } from "../shell/shell-storage"
 import { SubscriptionUsage } from "../shell/SubscriptionUsage"
-import { WorkspaceFooter as Footer } from "../shell/WorkspaceFooter"
+import { WorkspaceFooter } from "../shell/WorkspaceFooter"
 import { programIcon } from "../terminals/processes/profiles"
-import { useRenderAt } from "../terminals/use-render-at"
+import { useRenderAt } from "../terminals/useRenderAt"
 import { useUiState, useWorkspaceServices, useWorkspaceState } from "./controller/context"
 import { useAccounts } from "./controller/footer-accounts"
 import { crashLoopQuestion, currentState, shallowEqual } from "./selectors"
@@ -24,9 +24,9 @@ import { useOfferNews } from "./use-offer-news"
 const always = (): (() => void) => () => {}
 
 // The footer wired to the workspace's counts and the account's subscriptions.
-export const WorkspaceFooter = memo((): React.JSX.Element => {
+export const FooterSection = memo((): React.JSX.Element => {
   const { backend, commands, navigation, ui, workspace: store } = useWorkspaceServices()
-  const { updates, portable: portableHost } = backend
+  const { updates, portable: portableApp } = backend
   // The title of a terminal's window as it is now; none once it has closed.
   const titleOf = useCallback(
     (key: TerminalKey): string | undefined =>
@@ -45,14 +45,14 @@ export const WorkspaceFooter = memo((): React.JSX.Element => {
   const sandboxOpen = useUiState((state) => state.sandboxOpen)
   const portableState = useUiState((state) => state.portable)
   const portable = portableState?.portable === true
-  // A host that can say it is portable has not yet: the sandbox chip waits, so it does not
+  // A desktop app that can say it is portable has not yet: the sandbox chip waits, so it does not
   // flash on a copy whose install entry replaces it.
-  const portablePending = useUiState((state) => state.portable === null) && !!portableHost
+  const portablePending = useUiState((state) => state.portable === null) && !!portableApp
   const {
     news,
     settled: newsSettled,
     askAgain,
-  } = useOfferNews(portable ? portableHost?.news : undefined, offer)
+  } = useOfferNews(portable ? portableApp?.news : undefined, offer)
   // The card coming up asks again for notes a failure that may pass left out.
   const portableShown = useCallback(() => {
     commands.portableCardShown()
@@ -120,7 +120,7 @@ export const WorkspaceFooter = memo((): React.JSX.Element => {
     writeSubscriptionOrder(next)
   }
   return (
-    <Footer
+    <WorkspaceFooter
       hidden={zen}
       count={count}
       running={running}
@@ -158,7 +158,7 @@ export const WorkspaceFooter = memo((): React.JSX.Element => {
           : undefined
       }
       portable={
-        portable && portableHost
+        portable && portableApp
           ? {
               offer: updates ? (offer ?? undefined) : undefined,
               news,
@@ -166,12 +166,12 @@ export const WorkspaceFooter = memo((): React.JSX.Element => {
               portable: {
                 // The install entry covers the sandbox notice a portable copy would show.
                 unsandboxed: sandbox !== null && !sandbox.sandboxed,
-                onInstall: portableHost.install,
+                onInstall: portableApp.install,
                 install:
                   portableState?.portable === true ? portableState.install : { phase: "idle" },
                 dataFolder: portableState?.portable === true ? portableState.dataFolder : undefined,
-                onDownload: portableHost.openDownload,
-                onShowFolder: portableHost.showDataFolder,
+                onDownload: portableApp.openDownload,
+                onShowFolder: portableApp.showDataFolder,
               },
               open: portableCardOpen,
               blocked: asking || welcome || sandboxOpen,

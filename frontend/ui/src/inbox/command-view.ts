@@ -10,7 +10,7 @@ import { hiddenAt } from "@novadeck/core/command-text"
 export const longestSpace = 8
 export const longestIndent = 40
 // A tab draws as this many columns, the CSS default tab-size, so a run is counted in columns.
-export const tabColumns = 8
+const tabColumns = 8
 
 export type CommandPart =
   | { readonly type: "text"; readonly text: string }

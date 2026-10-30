@@ -12,22 +12,22 @@ import { readFoldedChip, writeFoldedChip } from "./shell-storage"
 import { Highlights, useOverflow } from "./WhatsNew"
 
 // A portable copy, which never updates itself and is the way to install the app that does.
-export type FooterPortable = {
+export type PortableCopy = {
   // Whether the app runs without its security sandbox: installing puts it where the sandbox
   // can be turned on, which the panel says.
   readonly unsandboxed: boolean
-  // Asks the host to install the app, keeping the workspace; it answers nothing.
+  // Asks the desktop app to install itself, keeping the workspace; it answers nothing.
   readonly onInstall: () => void
-  // Where installing stands in this run: the host owns it, so a window opened again, or
+  // Where installing stands in this run: the desktop app owns it, so a window opened again, or
   // another window's install, shows as it is.
   readonly install: InstallState
   // Where the workspace is kept, as the person finds it in their file manager; absent when
-  // the host can't say.
+  // the desktop app can't say.
   readonly dataFolder?: string | undefined
-  // Opens the page to download the newest portable in the browser; absent where the host
+  // Opens the page to download the newest portable in the browser; absent where the desktop app
   // can't.
   readonly onDownload?: (() => void) | undefined
-  // Shows the workspace's folder in the file manager; absent where the host can't.
+  // Shows the workspace's folder in the file manager; absent where the desktop app can't.
   readonly onShowFolder?: (() => void) | undefined
 }
 
@@ -37,12 +37,12 @@ export type PortableInstallProps = {
   // The release this copy is missing; absent while there is none, when the chip only
   // offers to install.
   readonly offer?: UpdateOffer | undefined
-  // What is new in that release, when the host tells: the card then lists the highlights.
+  // What is new in that release, when the desktop app tells: the card then lists the highlights.
   readonly news?: Notes | undefined
   // Whether the first answer about the notes is in, or none is coming. The automatic raise
   // waits for it, so the card comes up in its final look; the chip opens it at once.
   readonly newsSettled?: boolean | undefined
-  readonly portable: FooterPortable
+  readonly portable: PortableCopy
   // Whether the card is raised: it shows only while the footer does, and while nothing
   // else asks for the person's attention (`blocked`).
   readonly open: boolean
@@ -101,7 +101,7 @@ const cardWords = (
 // or, with a release this copy is missing, "Update available", and the card above it, the
 // same size and place as the update bar but with buttons. The card is a plain panel, not a
 // dialog or a layer: nothing about it intercepts keys, focus or clicks elsewhere, so typing
-// in a terminal goes on. It is raised once per launch, which the host of the app sees to;
+// in a terminal goes on. It is raised once per launch, which the desktop app sees to;
 // it waits while the footer is hidden or any dialog, menu or popover is open, and never
 // takes focus by itself. The chip opens it as the person's own request, with focus moving
 // to the card, so Escape there folds it back into the chip and returns to it.
@@ -128,12 +128,13 @@ export const PortableInstall = ({
   const panelId = useId()
   const offer = card?.offer
   const portable = card?.portable
-  // Where installing stands is the host's to say, and a window opened again finds it so.
-  const hosted: InstallState = portable?.install ?? { phase: "idle" }
+  // Where installing stands is the desktop app's to say, and a window opened again finds it so.
+  const reported: InstallState = portable?.install ?? { phase: "idle" }
   // Whether the person dismissed the card on a failure: the page then shows the idle card
-  // for it, until the host's phase changes again.
+  // for it, until the desktop app's phase changes again.
   const [forgotten, setForgotten] = useState(false)
-  const install: InstallState = forgotten && hosted.phase === "failed" ? { phase: "idle" } : hosted
+  const install: InstallState =
+    forgotten && reported.phase === "failed" ? { phase: "idle" } : reported
   const running = install.phase === "downloading" || install.phase === "installing"
   // Whether the person opened the card from the chip, which brings it up without waiting for
   // the notes.
@@ -180,7 +181,7 @@ export const PortableInstall = ({
     opener.current = "auto"
     setPersonOpened(false)
     setLingering(null)
-    if (hosted.phase === "failed") setForgotten(true)
+    if (reported.phase === "failed") setForgotten(true)
     card.onOpenChange(false)
     if (!inside) return
     if (back || !card.returnFocus()) chip.current?.focus()
@@ -201,9 +202,9 @@ export const PortableInstall = ({
   }
   // An install this window asked for ends: a finished one lingers as the update bar does, and
   // the card comes back with the outcome, without taking focus from where the person is.
-  const phase = hosted.phase
+  const phase = reported.phase
   const [seen, setSeen] = useState(phase)
-  // Whether the host has said yet; a failure it says first happened before this page loaded,
+  // Whether the desktop app has said yet; a failure it says first happened before this page loaded,
   // so it counts as dismissed. One this page watches happen shows.
   const [known, setKnown] = useState(false)
   // Whether the person pressed Install in this window: every window shows an install under
@@ -254,8 +255,8 @@ export const PortableInstall = ({
       : undefined
   const chipText = running ? "Installing…" : done ? "Installed" : word
   const iconOnly = offer !== undefined && folded === offer.version && !running && !done
-  // Where the workspace is, said in the phases where the person weighs installing or
-  // installing; the others have their own words about it.
+  // Where the workspace is, said in the phases where the person weighs installing; the others
+  // have their own words about it.
   const dataLine =
     portable?.dataFolder !== undefined && (install.phase === "idle" || install.phase === "failed")
       ? portable.dataFolder
@@ -434,24 +435,22 @@ export const PortableInstall = ({
                   {install.phase === "idle" && dataLine === undefined && (
                     <span>Keeps your workspace</span>
                   )}
-                  {(install.phase === "idle" || install.phase === "failed") &&
-                    offer &&
-                    portable.onDownload && (
-                      <>
-                        <button
-                          type="button"
-                          className="button quiet min-h-7 gap-1.5 px-2"
-                          aria-describedby={downloadId}
-                          onClick={portable.onDownload}
-                        >
-                          Get new portable
-                          <ExternalLink size={12} aria-hidden="true" />
-                        </button>
-                        <span id={downloadId} className="sr-only">
-                          Opens novadeck.dev in your browser
-                        </span>
-                      </>
-                    )}
+                  {offer && portable.onDownload && (
+                    <>
+                      <button
+                        type="button"
+                        className="button quiet min-h-7 gap-1.5 px-2"
+                        aria-describedby={downloadId}
+                        onClick={portable.onDownload}
+                      >
+                        Get new portable
+                        <ExternalLink size={12} aria-hidden="true" />
+                      </button>
+                      <span id={downloadId} className="sr-only">
+                        Opens novadeck.dev in your browser
+                      </span>
+                    </>
+                  )}
                   <button
                     type="button"
                     className="button primary min-h-7 px-3"

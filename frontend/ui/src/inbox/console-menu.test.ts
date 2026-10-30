@@ -2,7 +2,7 @@ import type { ChatDialogOption } from "@novadeck/core/conversation"
 import type { InboxRow, Trouble } from "@novadeck/core/inbox"
 
 import { context, describe, expect, it } from "../test"
-import { answerable, menuOf, standingParts, type Row } from "./console-menu"
+import { answerable, menuOf, standingParts, type MenuRow } from "./console-menu"
 
 const source: InboxRow["source"] = {
   projectId: "p",
@@ -46,8 +46,8 @@ const codex: readonly ChatDialogOption[] = [
   { id: "differently", label: "No, and tell Codex what to do differently", text: "prompt" },
 ]
 
-const labels = (rows: readonly Row[]): string[] => rows.map((row) => row.label)
-const words = (row: Row | undefined): Extract<Row, { type: "words" }> => {
+const labels = (rows: readonly MenuRow[]): string[] => rows.map((row) => row.label)
+const words = (row: MenuRow | undefined): Extract<MenuRow, { type: "words" }> => {
   if (row?.type !== "words") throw new Error("not a words row")
   return row
 }
@@ -278,7 +278,7 @@ describe("A sheet's menu", () => {
         ],
       ],
     ]
-    const wordsRow = (rows: readonly Row[]) => words(rows.find((row) => row.type === "words"))
+    const wordsRow = (rows: readonly MenuRow[]) => words(rows.find((row) => row.type === "words"))
 
     it.each(harnessPermissions)(
       "names %s's no with words Deny, with your words, and sends its own option",
@@ -439,7 +439,7 @@ describe("A sheet's menu", () => {
     })
   })
 
-  context("on every item", () => {
+  context("on every row", () => {
     it("ends on the way to its terminal, and offers it only once", () => {
       const update: InboxRow = {
         ...base,
@@ -447,10 +447,10 @@ describe("A sheet's menu", () => {
         update: { type: "done", subject: "s", body: "" },
       }
       const unanswerable = permission([{ id: "run", label: "Run it", text: null }])
-      for (const item of [permission(codex), update, unanswerable]) {
-        const rows = menuOf(item, 0).rows
-        expect(rows.at(-1)).toEqual({ type: "reveal", label: "Go to terminal", effect: null })
-        expect(rows.filter((row) => row.type === "reveal")).toHaveLength(1)
+      for (const inboxRow of [permission(codex), update, unanswerable]) {
+        const menuRows = menuOf(inboxRow, 0).rows
+        expect(menuRows.at(-1)).toEqual({ type: "reveal", label: "Go to terminal", effect: null })
+        expect(menuRows.filter((menuRow) => menuRow.type === "reveal")).toHaveLength(1)
       }
     })
   })

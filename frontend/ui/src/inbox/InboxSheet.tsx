@@ -5,12 +5,11 @@ import { Tooltip } from "@novadeck/toolkit/Tooltip"
 import { ArrowLeft, Check, Terminal, X } from "lucide-react"
 import { useEffect, useRef, useState } from "react"
 
-import { ConsoleSheet } from "./ConsoleSheet"
+import { ConsoleSheet, type SheetContentProps } from "./ConsoleSheet"
 import { nextRowButton, rowOf, sheetControls } from "./inbox-dom"
 import { icons } from "./inbox-icons"
 import { tagOf } from "./inbox-tag"
 import { useInboxContext, type Receipt } from "./InboxProvider"
-import type { SheetContentProps } from "./Page"
 import { Text } from "./sheet-parts"
 
 // What the sheet sits within: the whole workspace, the sidebar with it, so the sheet starts
@@ -21,8 +20,8 @@ const workspace = (): HTMLElement | null => document.querySelector<HTMLElement>(
 const behind = (): HTMLElement | null => document.querySelector<HTMLElement>(".workspace-main-pane")
 
 // The kind of message, before any of it is read: the row's icon and tone, and one word.
-const KindTag = ({ item }: { readonly item: InboxRow }): React.JSX.Element => {
-  const tag = tagOf(item)
+const KindTag = ({ row }: { readonly row: InboxRow }): React.JSX.Element => {
+  const tag = tagOf(row)
   const Icon = icons[tag.type]
   return (
     <span className="console-tag" data-tone={tag.tone}>
@@ -58,33 +57,33 @@ const ReceiptLine = ({ receipt }: { readonly receipt: Receipt }): React.JSX.Elem
   )
 }
 
-// One item's sheet: its head, then its page.
-const SheetBody = ({ item }: { readonly item: InboxRow }): React.JSX.Element => {
+// One row's sheet: its head, then its page.
+const SheetBody = ({ row }: { readonly row: InboxRow }): React.JSX.Element => {
   const { state, sent, phone, receipt, close, submit, change, reveal } = useInboxContext()
-  const answered = sent[item.id]
-  const failed = state.failed[item.id]
-  const present = state.items.some((each) => each.id === item.id)
-  const unavailable = item.kind === "ask" && failed !== undefined && !present
+  const answered = sent[row.id]
+  const failed = state.failed[row.id]
+  const present = state.items.some((each) => each.id === row.id)
+  const unavailable = row.kind === "ask" && failed !== undefined && !present
   // An answer that didn't take is no answer.
   const confirmed =
-    failed === undefined && !state.answering[item.id] && !present ? answered : undefined
+    failed === undefined && !state.answering[row.id] && !present ? answered : undefined
   const content: SheetContentProps = {
-    item,
+    row,
     sent: confirmed,
-    answering: Boolean(state.answering[item.id]) || unavailable,
+    answering: Boolean(state.answering[row.id]) || unavailable,
     failed,
-    submit: (answer, note) => submit(item, answer, note),
-    change: (answer) => change(item, answer),
-    reveal: () => reveal(item),
+    submit: (answer, note) => submit(row, answer, note),
+    change: (answer) => change(row, answer),
+    reveal: () => reveal(row),
   }
-  const { source } = item
+  const { source } = row
   const leave = phone ? "Back to the Inbox" : "Close"
   return (
     <div
       className="inbox-sheet console"
-      data-type={inboxType(item)}
-      data-tone={tagOf(item).tone}
-      data-state={item.settled ? "settled" : confirmed ? "answered" : "asking"}
+      data-type={inboxType(row)}
+      data-tone={tagOf(row).tone}
+      data-state={row.settled ? "settled" : confirmed ? "answered" : "asking"}
       // Tab leaves the sheet the way it came: back to its row from the first control, and on
       // to the row after it from the last, so keyboard focus never falls out to the workspace.
       onKeyDown={(event) => {
@@ -101,9 +100,9 @@ const SheetBody = ({ item }: { readonly item: InboxRow }): React.JSX.Element => 
           (active === order[0] || active?.classList.contains("inbox-sheet-title"))
         ) {
           event.preventDefault()
-          rowOf(item.id)?.querySelector<HTMLElement>(".inbox-row-select")?.focus()
+          rowOf(row.id)?.querySelector<HTMLElement>(".inbox-row-select")?.focus()
         } else if (!event.shiftKey && active === order.at(-1)) {
-          const following = nextRowButton(item.id)
+          const following = nextRowButton(row.id)
           // With no row after it, Tab goes on past the list and the sheet closes.
           if (following) {
             event.preventDefault()
@@ -113,7 +112,7 @@ const SheetBody = ({ item }: { readonly item: InboxRow }): React.JSX.Element => 
       }}
     >
       <header className="inbox-sheet-head console-head">
-        <KindTag item={item} />
+        <KindTag row={row} />
         <span className="console-crumb">
           <span className="console-project">{source.projectName}</span>
           <span className="console-sep" aria-hidden="true">
@@ -146,20 +145,20 @@ const SheetBody = ({ item }: { readonly item: InboxRow }): React.JSX.Element => 
           </button>
         </Tooltip>
       </header>
-      {receipt && receipt.from !== item.id && <ReceiptLine receipt={receipt} />}
+      {receipt && receipt.from !== row.id && <ReceiptLine receipt={receipt} />}
       <ConsoleSheet {...content} />
     </div>
   )
 }
 
-// The open item's sheet: beside its row over the workspace, or on a screen of its own.
+// The open row's sheet: beside its row over the workspace, or on a screen of its own.
 // `active` is whether the Inbox is the panel the sidebar shows.
 export const InboxSheet = ({ active }: { readonly active: boolean }): React.JSX.Element | null => {
   const { view, current, phone, close } = useInboxContext()
   // What it last showed, which it keeps while it closes.
   const [last, setLast] = useState(current)
   if (current && current !== last) setLast(current)
-  const item = current ?? last
+  const row = current ?? last
   const open = view.open !== null && current !== undefined && (phone || active)
   // With the list out of sight there is no row for a sheet to sit beside.
   useEffect(() => {
@@ -184,7 +183,7 @@ export const InboxSheet = ({ active }: { readonly active: boolean }): React.JSX.
       if (page) page.inert = false
     }
   }, [opened])
-  if (!item) return null
+  if (!row) return null
   if (phone)
     return open ? (
       <div
@@ -192,24 +191,24 @@ export const InboxSheet = ({ active }: { readonly active: boolean }): React.JSX.
         className="inbox-fullscreen"
         role="dialog"
         aria-modal="true"
-        aria-label={item.source.title}
+        aria-label={row.source.title}
         tabIndex={-1}
       >
-        <SheetBody key={item.id} item={item} />
+        <SheetBody key={row.id} row={row} />
       </div>
     ) : null
   return (
     <Sheet
-      label={item.source.title}
+      label={row.source.title}
       open={open}
-      anchor={() => rowOf(item.id)}
+      anchor={() => rowOf(row.id)}
       boundary={workspace}
-      anchorKey={item.id}
+      anchorKey={row.id}
       onDismiss={close}
-      // A press on one of the list's buttons is the list's own: a row opens its item, or closes
+      // A press on one of the list's buttons is the list's own: a row opens its row, or closes
       // the sheet when it is the open one. So is one on a list that scrolls, which is its
       // scrollbar being dragged. Anywhere else in the sidebar closes it, as outside does. The
-      // demo's debug drawer is where items arrive from, and is not the workspace.
+      // demo's debug drawer is where rows arrive from, and is not the workspace.
       onInteractOutside={(event) => {
         const { target } = event
         if (!(target instanceof Element)) return
@@ -219,7 +218,7 @@ export const InboxSheet = ({ active }: { readonly active: boolean }): React.JSX.
           event.preventDefault()
       }}
     >
-      <SheetBody key={item.id} item={item} />
+      <SheetBody key={row.id} row={row} />
     </Sheet>
   )
 }

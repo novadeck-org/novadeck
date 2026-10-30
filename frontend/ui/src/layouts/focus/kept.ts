@@ -1,7 +1,7 @@
 // Focus keeps the terminals it last displayed mounted, out of sight, so switching back to
 // one finds it as it was: its companion pane, a page loaded there, a plan's editor and
 // where each was scrolled. Older ones unmount, so a long session doesn't hold them all.
-export const keptLimit = 4
+const keptLimit = 4
 
 // The terminals Focus keeps, the one displayed first, then the ones displayed before it
 // that are still here. The same array when nothing changed.

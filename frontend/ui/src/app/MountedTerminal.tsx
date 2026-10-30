@@ -38,8 +38,8 @@ const ignore = (): (() => void) => () => {}
 // One terminal drawn by a backend's mount, with what lies over it. The backend draws the
 // terminal into an element this keeps for the terminal's life, and tells its state; this
 // draws the window around it and the lock, the notice of a failed paste and the ending bar
-// from that state. The element moves into the slot of whichever content a different program
-// body renders, so the terminal keeps its emulator, its output and its focus.
+// from that state. The element moves into the slot of whichever content renders it, so the
+// terminal keeps its emulator, its output and its focus.
 export const MountedTerminal = ({
   mountTerminal,
   terminalKey,
@@ -122,8 +122,8 @@ export const MountedTerminal = ({
     },
     [onWheel],
   )
-  // A different program body remounts the content: the element moves into the new slot,
-  // and takes the focus it held in the old.
+  // Where the content remounts, the element moves into the new slot, and takes the focus it
+  // held in the old.
   const onSlot = useCallback(
     (slot: HTMLDivElement | null): void => {
       if (!slot) {

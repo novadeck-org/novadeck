@@ -120,7 +120,7 @@ describe("A recommended option", () => {
   })
 })
 
-describe("An item's subject", () => {
+describe("An Inbox row's subject", () => {
   it("says what a command or an edit would do", () => {
     expect(subjectOf(permission("Bash", "pnpm test"))).toBe("Run `pnpm test`?")
     expect(subjectOf(permission("Edit", "src/a.ts"))).toBe("Edit `src/a.ts`?")
@@ -134,7 +134,7 @@ describe("An item's subject", () => {
   })
 
   it("names where a held message goes", () => {
-    const item: InboxRow = {
+    const row: InboxRow = {
       ...base,
       kind: "held",
       held: {
@@ -146,16 +146,16 @@ describe("An item's subject", () => {
         heldFor: "loop",
       },
     }
-    expect(subjectOf(item)).toBe("Release a held message to B?")
+    expect(subjectOf(row)).toBe("Release a held message to B?")
   })
 
   it("names a limit's window and whose it is", () => {
-    const item: InboxRow = {
+    const row: InboxRow = {
       ...base,
       kind: "trouble",
       trouble: { type: "limit", minutes: 300, resetsAt: 0, autoResume: true, evidence: [] },
     }
-    expect(subjectOf(item)).toBe("Hit Claude's 5-hour limit")
+    expect(subjectOf(row)).toBe("Hit Claude's 5-hour limit")
   })
 
   it("counts the messages a hold keeps from the agent, and says what holds them", () => {
@@ -187,7 +187,7 @@ describe("A sheet's label", () => {
   })
 })
 
-describe("An item's reading time", () => {
+describe("An Inbox row's reading time", () => {
   const ask = (body: string): InboxRow => ({
     ...base,
     kind: "ask",
