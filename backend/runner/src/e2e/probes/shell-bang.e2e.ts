@@ -15,10 +15,9 @@ import { setups } from "../agents/index.js"
 import { describe, e2e, supported } from "../fixture.js"
 import { asked, gate, text } from "../model/script.js"
 import { start } from "../scenarios.js"
+import { sleep, paste } from "./support.js"
 
-const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))
 const part = process.env.PROBE_PART
-const paste = (words: string) => `\x1b[200~${words.replace(/\n/g, "\r")}\x1b[201~`
 
 /** A session file's end, each line cut to 3000 characters so long output cannot crowd out the rest. */
 const capped = (content: string): string =>

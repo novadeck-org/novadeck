@@ -67,7 +67,7 @@ retain their results under their original caller identity and are not reassigned
 to the replacement session. A transport reconnect alone cannot renew revoked grants.
 
 Shared operations authorize the principal, action and target. Distinguish observe,
-send, spawn, present, interrupt and close, plus separate account-telemetry access.
+send, spawn, show, interrupt and close, plus separate account-telemetry access.
 UI control ownership and agent operations coordinate explicitly. Creator links
 record provenance but do not automatically grant permission to every descendant.
 
@@ -84,7 +84,7 @@ The following signatures sketch application services, not the full wire schema:
 ```ts
 type AgentWorkspace = {
   spawn(caller: Caller, input: SpawnRequest): Promise<SpawnOperation>
-  present(caller: Caller, input: PresentRequest): Promise<PresentationOperation>
+  show(caller: Caller, input: ShowRequest): Promise<ShowOperation>
   reportPlan(caller: Caller, input: PlanReport): Promise<PlanSnapshot>
   operation(caller: Caller, id: string): Promise<OperationSnapshot>
 }
@@ -96,7 +96,7 @@ type DocumentSource =
   | { kind: "workspace-file"; path: string }
   | { kind: "artifact"; artifactId: string; revision: string }
 
-type PresentRequest = {
+type ShowRequest = {
   title?: string
   idempotencyKey: string
   interaction: { kind: "read-only" }
@@ -123,7 +123,7 @@ different request kinds and cannot resolve one another implicitly.
 ## Walkthrough: Claude presents plan.md
 
 1. Claude writes the plan through its normal filesystem tools, then explicitly
-   calls `documents.present` with kind `document`, a workspace-relative path and idempotency key.
+   calls `documents.show` with kind `document`, a workspace-relative path and idempotency key.
    A file write by itself produces no presentation request.
 2. MCP obtains the principal from its authenticated connection. The application
    operation resolves the caller's authorized project/workspace on the runner.
@@ -186,7 +186,7 @@ labeled alternative. Merely writing a file never counts as either input.
 Recommended defaults: automatic previews are enabled for verified root-plan
 associations in the user's workspace, subject to the normal eligible-viewer policy.
 Users can disable automatic previews per workspace and still use an explicit
-`present` request. Native child plans appear in the plan/attention list; they do
+`show` request. Native child plans appear in the plan/attention list; they do
 not each steal focus automatically. A child plan can be opened explicitly or under
 a deliberate user-configured child-plan policy. Observations with unresolved actor
 or file scope stay candidates and cannot trigger filesystem reads or presentation.
@@ -211,7 +211,7 @@ event for an ended generation cannot revive it. Re-entering planning without evi
 of continuing the same plan starts a new generation; never reuse an ended plan merely
 because its path matches. Session switches invalidate live associations until reverified.
 
-An explicit `documents.present` for content already associated with the current
+An explicit `documents.show` for content already associated with the current
 plan resolves through this same policy. If that plan is already open, return/update
 its existing request. If it was dismissed, return `dismissed` with the plan ID;
 it does not force another opening. User-initiated reopening in the UI is explicit.
@@ -268,9 +268,9 @@ little there, so it goes in the agent's reply unless the user asks to see it in 
 the user and the agent work on together; the files a change touches on the way do not,
 and the user reads those in the diff. Every harness hears this two ways, as no plugin ships a skill: the `show` tool's
 own description carries the rule, which every harness reads alike from `tools/list`,
-and the runner's prompt-time hook adds Novadeck's artifacts notice, one paragraph, at
+and the runner's prompt-time hook adds Novadeck's companion notice, one paragraph, at
 the first turn the person's prompt or the doorbell begins in each root session, and after a compaction
-(`artifactsNotice` in `terminals/nudges.ts`; it rides with the summary nudge but a
+(`companionNotice` in `terminals/nudges.ts`; it rides with the summary nudge but a
 `summarize` never clears it; see [Agent messaging](agent-messaging.md), "Nudges"), with
 the Inbox notice beside it (`inboxNotice`): the person rarely watches the terminal, so
 a question the agent's turn ends waiting on goes to the Inbox: through the harness's own
@@ -627,7 +627,7 @@ with every safety check again at that time:
   warnings sent to `console.error` count too. Each wake loads the page afresh and tells again, which the runner keeps once per
   show. For a page on this machine the runner tells the agent at its next prompt.
 - **Saving** would be a new authorized plan-write operation with the stamp check above,
-  scoped like `present`: the caller may write only the plan the terminal's agent keeps.
+  scoped like `show`: the caller may write only the plan the terminal's agent keeps.
   The runner doesn't offer it yet.
 
 ## Presentation routing and results

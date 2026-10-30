@@ -226,8 +226,8 @@ export const flows: (Omit<Flow, "steps"> & { steps: CuratedStep[] })[] = [
       {
         from: "runner",
         to: "runner",
-        label: "map show to present",
-        text: "The MCP server maps the show tool to a present call.",
+        label: "map tool to call",
+        text: "The MCP server maps the show tool to the call it makes of the runner.",
         anchor: { file: `${runnerSrc}/shell/mcp.ts`, text: "const show: Tool<Shown> = {" },
       },
       {
@@ -247,7 +247,7 @@ export const flows: (Omit<Flow, "steps"> & { steps: CuratedStep[] })[] = [
         text: "It checks the terminal's token and reads the request.",
         anchor: {
           file: `${runnerSrc}/terminals/companion.ts`,
-          text: "async present(call: Call): Promise<PresentAnswer>",
+          text: "async show(call: Call): Promise<ShowAnswer>",
         },
       },
       {

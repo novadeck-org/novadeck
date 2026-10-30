@@ -11,7 +11,8 @@ import {
   type ItemContent,
 } from "@novadeck/protocol"
 
-import { hashOf } from "./content.js"
+import { cut, ellipsized } from "../text.js"
+import { hashOf, maxLineChars } from "./content.js"
 import { secret } from "./secrets.js"
 
 /** The empty tree, which a repository with no commit yet is diffed against, by object format. */
@@ -32,8 +33,7 @@ const metaBytes = 32 * 1024 * 1024
 const namesBytes = 2 * 1024 * 1024
 // The raw diff text read: what fits the budget needs hardly more than the budget itself.
 const patchBytes = 2 * maxChangesBytes
-// A line is cut to what the protocol takes; a text file has no NUL byte in this much of its start.
-const maxLineChars = 4096
+// A text file has no NUL byte in this much of its start.
 const sniffBytes = 8 * 1024
 // Untracked files: the largest one read, and how much all of them are read in one look.
 const maxUntrackedBytes = 1024 * 1024
@@ -52,7 +52,7 @@ export type Change = {
 }
 
 /** Why a change can't be read: `kind` tells the agent's remedy from the content's reasons. */
-export type ChangeFailure = {
+type ChangeFailure = {
   readonly ok: false
   readonly kind: "not-a-repository" | "no-git" | "missing" | "failed"
   readonly reason: string
@@ -71,7 +71,7 @@ type Run =
 const hidden = new RegExp(hiddenCharacter.source, "gu")
 const oneLine = (text: string, max: number): string => {
   const line = text.replaceAll(hidden, " ").replaceAll(/\s+/g, " ").trim()
-  return line.length <= max ? line : `${line.slice(0, max - 1)}…`
+  return ellipsized(line, max, false)
 }
 /** A name for display: each invisible or control character shows as U+FFFD, the rest as it is. */
 export const displayed = (text: string): string =>
@@ -182,16 +182,16 @@ const git = (
     })
     const chunks: Buffer[] = []
     let size = 0
-    let cut = false
+    let capped = false
     let errors = Buffer.alloc(0)
     const timer = setTimeout(() => {
       killTree(child.pid)
       finish({ ok: false, kind: "timeout", status: 0, said: "" })
     }, timing.gitMs)
     child.stdout?.on("data", (chunk: Buffer) => {
-      if (cut) return
+      if (capped) return
       if (size + chunk.length > limit.cap) {
-        cut = true
+        capped = true
         chunks.push(chunk.subarray(0, limit.cap - size))
         killTree(child.pid)
         return
@@ -214,7 +214,7 @@ const git = (
     })
     child.on("close", (code) => {
       const out = Buffer.concat(chunks).toString("utf8")
-      if (cut)
+      if (capped)
         return finish(
           limit.truncate
             ? { ok: true, out, cut: true }
@@ -258,12 +258,8 @@ const namesIn = (rest: string): string => {
   return rest.slice(2, 2 + (rest.length - 5) / 2)
 }
 
-// Cut to what the protocol takes, never in the middle of a surrogate pair.
-const clipLine = (text: string): string => {
-  if (text.length <= maxLineChars) return text
-  const last = text.charCodeAt(maxLineChars - 1)
-  return text.slice(0, last >= 0xd800 && last <= 0xdbff ? maxLineChars - 1 : maxLineChars)
-}
+// Cut to what the protocol takes.
+const clipLine = (text: string): string => cut(text, maxLineChars)
 
 /** What is left of the diff text a change may carry, as encoded: shared by its files. */
 export type Budget = { left: number }

@@ -228,7 +228,7 @@ export const troubleList = (
 export const quotedText = quoted
 
 /**
- * What a session is told of a page it showed that had problems in the user's pane, a
+ * What a session is told of a page it showed that had problems in the person's pane, a
  * paragraph worded as Novadeck's automatic notice. What a page supplies is its own text, so
  * the notice quotes each such string, a line at a time and bounded in bytes.
  */

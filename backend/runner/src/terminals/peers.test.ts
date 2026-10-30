@@ -5,7 +5,7 @@ import type { TerminalSummary } from "@novadeck/protocol"
 import type { Request } from "../harnesses/activity.js"
 import type { Messaging } from "../messaging/messaging.js"
 import { describe, expect, it } from "../test.js"
-import { TerminalPeers, waitingOf, type PeerTerminal } from "./peers.js"
+import { TerminalPeers, waitingOf, type PeerRecord, type PeerTerminal } from "./peers.js"
 import { freshWork } from "./work.js"
 
 const request = (fields: Partial<Request>): Request => ({
@@ -121,5 +121,36 @@ describe("what a terminal's dictation hint is made of", () => {
       folders: { "/w/repo/application/runner/src": 2, "/w/repo/docs": 1 },
     }
     expect(await loose.hint(terminal({ work }), [])).toMatchObject({ folders: ["src"] })
+  })
+})
+
+describe("where peers are, as an agent reads it", () => {
+  it("shows the end of a long path, never starting on half an emoji", async () => {
+    const record = {
+      summary: { id: "t1", cwd: "/w", sessionId: "s", title: "t", activity: null },
+      naming: { person: null, opener: null, murmur: null, summary: null },
+      work: null,
+      openedBy: null,
+      bound: null,
+    } as unknown as PeerRecord
+    let place: ((path: string) => string) | undefined
+    const peers = new TerminalPeers({
+      messaging: {
+        agents: (_terminalId: string, about: (id: string) => { place: typeof place }) => {
+          place = about("t1").place
+          return { ok: true }
+        },
+      } as unknown as Messaging,
+      caller: () => record,
+      terminal: () => undefined,
+      running: () => [record],
+      projectFolder: () => undefined,
+      reports: () => ({ tell: null, done: null }),
+      stopping: () => false,
+    })
+    await peers.agents({ type: "agents", terminalId: "t1", token: "k", request: {} })
+
+    // Outside the terminal's folder, so shown whole until cut: 111 units, its cut at a low half.
+    expect(place?.(`/elsewhere/${"😀".repeat(50)}`)).toBe(`…${"😀".repeat(39)}`)
   })
 })

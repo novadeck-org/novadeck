@@ -411,7 +411,7 @@ type Listed = {
  * MCP tools are let run, and the hooks wait for review, as a person who never trusted
  * them leaves them.
  */
-export const trustHooks = async (
+const trustHooks = async (
   sandbox: Sandbox,
   { hooks = true }: { readonly hooks?: boolean } = {},
 ): Promise<void> => {

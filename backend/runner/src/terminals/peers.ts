@@ -9,13 +9,15 @@ import type { Activity } from "../harnesses/activity.js"
 import type { AgentsAnswer, Messaging, PeerAnswer, SendAnswer } from "../messaging/messaging.js"
 import { waitsOnNote, type Reports, type Waiting, type Whereabouts } from "../messaging/peers.js"
 import { unansweredCalls, type Ack, type Call } from "../shell/reports.js"
+import { shorten } from "../text.js"
+import { tail } from "../text.js"
 import type { HintFacts } from "../voice/hint.js"
 import { gitBranch } from "./branch.js"
 import type { Naming } from "./naming.js"
 import type { Facts } from "./nudges.js"
 import type { Bound, Record } from "./record.js"
 import type { AgentSummary } from "./summary.js"
-import { busiestFolders, shorten, type Work } from "./work.js"
+import { busiestFolders, type Work } from "./work.js"
 
 /** What the terminal manager tells of a terminal, for its agent to message others. */
 export type PeerTerminal = {
@@ -221,10 +223,7 @@ export class TerminalPeers {
               ? waitsOnNote(terminal.summary.activity.waiting, Date.now())
               : null,
             reports: this.options.reports(terminal.summary.id),
-            place: (path) => {
-              const shown = place(path)
-              return shown.length > 80 ? `…${shown.slice(-79)}` : shown
-            },
+            place: (path) => tail(place(path), 80),
           }
           return [terminal.summary.id, where] as const
         }),

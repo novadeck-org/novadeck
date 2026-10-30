@@ -6,6 +6,7 @@ import type { VoiceState } from "@novadeck/protocol"
 import { maxVoiceSeconds, voiceSampleRate } from "@novadeck/protocol"
 import { vi } from "vitest"
 
+import { updateRetryMs } from "../engines/installing.js"
 import { engineInterface } from "../engines/unpack.js"
 import { logs, useLogger } from "../log.js"
 import { describe, expect, it } from "../test.js"
@@ -14,7 +15,7 @@ import { engineArchive, fakeLaunch, folder, modelCatalog } from "../testing/voic
 import { WorkspaceStore } from "../workspaces/store.js"
 import type { Catalog } from "./catalog.js"
 import type { HintFacts } from "./hint.js"
-import { updateRetryMs, Voice, type VoiceOptions } from "./service.js"
+import { Voice, type VoiceOptions } from "./service.js"
 
 // The service's sleeps, watched: a case can tell which waits it asked for and when they ended,
 // without measuring the time a real engine takes around them.
@@ -230,7 +231,7 @@ describe("installing voice input", () => {
     })
   })
 
-  it("installs small alone where the host saw only software rendering", async ({ resources }) => {
+  it("installs small alone where the app saw only software rendering", async ({ resources }) => {
     const { voice, directory } = await setup(resources, {
       catalog: await modelCatalog(resources, { turbo: "turbo gpu" }),
       softwareGraphics: true,
@@ -524,7 +525,7 @@ describe("installing voice input", () => {
     expect(again.voice.state()).toMatchObject({ check: null, enabled: false })
   })
 
-  it("keeps a turbo that passed its check through a retry where the host now says software rendering", async ({
+  it("keeps a turbo that passed its check through a retry where the app now says software rendering", async ({
     resources,
   }) => {
     const first = await setup(resources, {
@@ -606,7 +607,7 @@ describe("installing voice input", () => {
     expect(voice.state().aim).toBe("turbo")
   })
 
-  it("aims for small after an uninstall where the host saw only software rendering", async ({
+  it("aims for small after an uninstall where the app saw only software rendering", async ({
     resources,
   }) => {
     const { voice } = await setup(resources, { softwareGraphics: true })
@@ -959,6 +960,33 @@ describe("transcribing a recording", () => {
     await expect(voice.transcribe("owner", "clip")).resolves.toMatchObject({ language: "pl" })
     expect(voice.state().failure).toBeNull()
   })
+})
+
+describe("a failure cut to the limit", () => {
+  // Models whose source is a missing file named in emoji make an error that names it, longer
+  // than 1024 units, with the limit inside a pair whether `pad` makes the words before it
+  // an even or an odd number of units. Nothing is made at that path, so no system's path
+  // limit stands in the way.
+  it.for(["", "x"])(
+    "keeps whole characters in an install failure (pad %j)",
+    async (pad, { resources }) => {
+      const missing = {
+        url: join(await folder(resources), `${pad}${"😀".repeat(520)}`),
+        sha256: "0".repeat(64),
+        size: 1,
+      }
+      const catalog = { models: { turbo: missing, small: missing }, vad: missing }
+      const { voice } = await setup(resources, { catalog })
+
+      await voice.install()
+      await voice.settled()
+
+      const failure = voice.state().failure!
+      expect(failure.length).toBeGreaterThan(1000)
+      expect(failure.length).toBeLessThanOrEqual(1024)
+      expect(Buffer.from(failure).toString()).toBe(failure)
+    },
+  )
 })
 
 describe("uninstalling voice input", () => {

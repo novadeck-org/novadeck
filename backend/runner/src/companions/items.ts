@@ -21,6 +21,7 @@ import { DomainError } from "../errors.js"
 import { logs } from "../log.js"
 import { agentLabel } from "../messaging/messages.js"
 import { mention } from "../terminals/handles.js"
+import { tail } from "../text.js"
 import {
   changesContent,
   describeChange,
@@ -47,12 +48,12 @@ import type { ItemRecord, ItemRecords, WindowRecord } from "./records.js"
 import {
   failure,
   named,
-  type DismissAnswer,
-  type DismissRequest,
+  type CloseShownAnswer,
+  type CloseShownRequest,
   type LookRequest,
-  type PresentAnswer,
-  type PresentFailure,
-  type PresentRequest,
+  type ShowAnswer,
+  type RequestFailure,
+  type ShowRequest,
 } from "./request.js"
 
 const log = logs.for("companions")
@@ -69,13 +70,13 @@ export type TerminalPlace = {
 }
 
 /** Whose plan a plan item mirrors: an agent session's root, or one of its subagents. */
-export type PlanSlot = {
+type PlanSlot = {
   readonly agent: AgentName
   readonly agentSession: string
   readonly actor: string | null
 }
 
-export type CompanionOptions = {
+type CompanionOptions = {
   readonly records: ItemRecords
   /** A terminal the runner keeps, running or saved; undefined once it is closed. */
   readonly terminal: (terminalId: string) => TerminalPlace | undefined
@@ -95,7 +96,7 @@ export type CompanionOptions = {
 }
 
 /** Who hears of the troubles pages had and of the items that go: the terminals. */
-export type TroubleSink = {
+type TroubleSink = {
   /** A page an agent showed had `troubles` in the pane, in its latest show. */
   readonly troubled: (item: ItemRecord, troubles: readonly PageTrouble[]) => void
   /** An item is gone, or shown again: what was held of its earlier show goes. */
@@ -103,11 +104,11 @@ export type TroubleSink = {
 }
 
 /**
- * How long a look waits for the client's picture. The desktop host takes looks one at a
+ * How long a look waits for the client's picture. The desktop app takes looks one at a
  * time and queues the rest, and one look is at worst a pane attempt (2 s) then a fresh load
  * (about 8.3 s), about 10.5 s: 20 s fits a second look queued behind it.
  */
-export const defaultLookMs = 20_000
+const defaultLookMs = 20_000
 
 /** A client's answer to a look that has a picture. */
 export type LookPicture = Exclude<PageLookAnswer, { readonly reason: string }>
@@ -117,9 +118,6 @@ type Pointer = Pick<
   ItemRecord,
   "pointerKey" | "kind" | "path" | "url" | "lines" | "plan" | "name" | "detail" | "secret"
 >
-
-const clip = (text: string, max: number): string =>
-  text.length <= max ? text : `…${text.slice(text.length - max + 1)}`
 
 const size = (bytes: number): string => {
   if (bytes < 1024) return `${bytes} B`
@@ -164,7 +162,7 @@ const defaultTitle = (name: string): string => {
 }
 
 /** An item as clients see it. */
-export const wireItem = (item: ItemRecord): CompanionItem => ({
+const wireItem = (item: ItemRecord): CompanionItem => ({
   id: item.id,
   sessionId: item.sessionId,
   holder: item.windowId === null ? { terminalId: item.terminalId! } : { windowId: item.windowId },
@@ -188,7 +186,7 @@ export const wireItem = (item: ItemRecord): CompanionItem => ({
 })
 
 /** A window as clients see it. */
-export const wireWindow = (window: WindowRecord): CompanionWindow => ({
+const wireWindow = (window: WindowRecord): CompanionWindow => ({
   id: window.id,
   sessionId: window.sessionId,
   home: window.home,
@@ -258,7 +256,7 @@ export class CompanionItems {
    * version, where it is: on the bar, or in the window or on the other bar the person
    * moved it to. It opens when the agent says the person asked, unless it may hold secrets.
    */
-  async show(place: TerminalPlace, request: PresentRequest): Promise<PresentAnswer> {
+  async show(place: TerminalPlace, request: ShowRequest): Promise<ShowAnswer> {
     if (this.stopping) return failure("Novadeck is closing.")
     const pointed = await this.pointer(place, request)
     if (!pointed.ok) return pointed
@@ -300,7 +298,7 @@ export class CompanionItems {
    * this way: one the person attached, another terminal placed there, or the person moved
    * away from it stays, and the answer says so.
    */
-  async dismiss(place: TerminalPlace, request: DismissRequest): Promise<DismissAnswer> {
+  async closeShown(place: TerminalPlace, request: CloseShownRequest): Promise<CloseShownAnswer> {
     if (this.stopping) return failure("Novadeck is closing.")
     const keyed = await this.keyOf(place, request)
     if (!keyed.ok) return keyed
@@ -439,7 +437,7 @@ export class CompanionItems {
     place: TerminalPlace,
     request: LookRequest,
   ): Promise<
-    { readonly ok: true; readonly item: ItemRecord; readonly answer: LookPicture } | PresentFailure
+    { readonly ok: true; readonly item: ItemRecord; readonly answer: LookPicture } | RequestFailure
   > {
     if (this.stopping) return failure("Novadeck is closing.")
     const pages = this.visible(place.terminalId).filter((item) => item.kind === "page")
@@ -851,8 +849,8 @@ export class CompanionItems {
       url: null,
       lines: null,
       plan: { agent: slot.agent, session: slot.agentSession, actor: slot.actor, format },
-      name: clip(title ?? `${agentLabel(slot.agent)} plan`, 256),
-      detail: clip(
+      name: tail(title ?? `${agentLabel(slot.agent)} plan`, 256),
+      detail: tail(
         format === "file" ? plan.path : `In ${agentLabel(slot.agent)}'s conversation`,
         512,
       ),
@@ -901,7 +899,7 @@ export class CompanionItems {
   /** What a request points at, or why it can't be an item. */
   private async pointer(
     place: TerminalPlace,
-    request: PresentRequest,
+    request: ShowRequest,
   ): Promise<
     | { readonly ok: true; readonly pointer: Pointer; readonly tooLarge: boolean }
     | { readonly ok: false; readonly reason: string }
@@ -920,8 +918,8 @@ export class CompanionItems {
           url: href,
           lines: null,
           plan: null,
-          name: clip(request.title ?? host, 256),
-          detail: clip(href, 512),
+          name: tail(request.title ?? host, 256),
+          detail: tail(href, 512),
           secret: false,
         },
       }
@@ -942,8 +940,8 @@ export class CompanionItems {
           url: null,
           lines: null,
           plan: null,
-          name: clip(request.title ?? name, 256),
-          detail: clip(detail, 512),
+          name: tail(request.title ?? name, 256),
+          detail: tail(detail, 512),
           secret: false,
         },
       }
@@ -983,7 +981,7 @@ export class CompanionItems {
       url: null,
       lines: shown.lines ?? null,
       plan: null,
-      name: clip(name, 256),
+      name: tail(name, 256),
       detail: this.detail(pointed, project, given, shown.lines),
       secret: pointed.secret,
     }
@@ -997,8 +995,8 @@ export class CompanionItems {
    */
   private async keyOf(
     place: TerminalPlace,
-    request: DismissRequest,
-  ): Promise<{ readonly ok: true; readonly key: string; readonly given: string } | PresentFailure> {
+    request: CloseShownRequest,
+  ): Promise<{ readonly ok: true; readonly key: string; readonly given: string } | RequestFailure> {
     if ("page" in request) {
       const page = pageAt(request.page.url)
       return page.ok ? { ok: true, key: pageKey(page.url.href), given: page.url.href } : page
@@ -1040,7 +1038,7 @@ export class CompanionItems {
     }
     const shown = project && inside(project, pointed.path) ? relative(project, pointed.path) : given
     const range = lines ? ` · lines ${lines.from}–${lines.to}` : ""
-    return `${clip(shown, 512 - range.length)}${range}`
+    return `${tail(shown, 512 - range.length)}${range}`
   }
 
   /**

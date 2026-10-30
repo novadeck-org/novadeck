@@ -19,7 +19,7 @@ import {
  * the person, of their Inbox answers and feedback requests to an agent; or Novadeck itself,
  * of its automatic notices to an agent (see `Messaging.notice`).
  */
-export type Sender =
+type Sender =
   | {
       readonly kind: "agent"
       readonly terminalId: string
@@ -63,7 +63,7 @@ export const isNotice = (message: Pick<Message, "from">): boolean =>
  * where none had bound yet, the agent expected there, whose first session to bind takes
  * it (`sessionId` null).
  */
-export type Addressee = {
+type Addressee = {
   readonly terminalId: string
   readonly handle: string
   readonly agent: AgentName
@@ -159,7 +159,7 @@ export const heldPerPair = 10
 /** How long after its latest message a thread is continued by the next between its terminals. */
 export const threadMs = 10 * 60_000
 /** How long the same text from the same sender to the same recipient is the same message. */
-export const duplicateMs = 10_000
+const duplicateMs = 10_000
 /** How long a message stays once neither of its terminals exists, after its latest activity. */
 export const retentionMs = 24 * 60 * 60_000
 
@@ -271,6 +271,10 @@ export const duplicateOf = (
   return undefined
 }
 
+/** The send times still within the rates' window at `now`. */
+export const recentSends = (times: readonly number[], now: number): readonly number[] =>
+  times.filter((time) => now - time < rates.windowMs)
+
 /**
  * The send times kept after one more at `now`, when that stays within `limit` a minute;
  * undefined when it would not. Times past the window drop out.
@@ -280,8 +284,14 @@ export const allowSend = (
   now: number,
   limit: number,
 ): readonly number[] | undefined => {
-  const recent = times.filter((time) => now - time < rates.windowMs)
+  const recent = recentSends(times, now)
   return recent.length < limit ? [...recent, now] : undefined
+}
+
+/** Whether a message went between the terminals `a` and `b`, either way. */
+export const isBetween = (message: Message, a: string, b: string): boolean => {
+  const from = senderTerminal(message.from)
+  return (from === a && message.to.terminalId === b) || (from === b && message.to.terminalId === a)
 }
 
 const labels = Object.fromEntries(harnesses.map(({ id, name }) => [id, name])) as {
@@ -389,7 +399,7 @@ export const clock = (at: number): string => {
 
 /**
  * Messages delivered together, wrapped and attributed to their senders, so a peer's
- * words never read as the user's: each with its id, its sender's handle and harness,
+ * words never read as the person's: each with its id, its sender's handle and harness,
  * its thread and when it was sent. A message from the recipient's lead (`isFromLead`) is
  * marked `lead="<mark>"`, a `mark` made anew for each delivery, which its note names: a
  * text written beforehand can't show it, so only these markings give authority, never a

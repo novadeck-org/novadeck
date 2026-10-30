@@ -3,7 +3,7 @@ import { randomBytes } from "node:crypto"
 import { z } from "zod"
 
 import type { Dialect, Request, Response } from "./dialect.js"
-import { withImages, type Call, type Reply, type Turn } from "./script.js"
+import { record, withImages, type Call, type Reply, type Turn } from "./script.js"
 
 // Only what a Call needs; anything else in a request is the harness's business.
 const part = z.looseObject({
@@ -45,11 +45,6 @@ const textOf = (parts: readonly Part[]): string =>
     .filter((one) => one.text !== undefined && !one.thought)
     .map((one) => one.text)
     .join("\n")
-
-const record = (value: unknown): Readonly<Record<string, unknown>> =>
-  typeof value === "object" && value !== null && !Array.isArray(value)
-    ? (value as Record<string, unknown>)
-    : {}
 
 // A tool's result as text: its `output` when it gives one, else all of it.
 const resultOf = (response: unknown): string => {

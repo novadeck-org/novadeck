@@ -19,6 +19,7 @@ import { describe, expect, it as base } from "../test.js"
 import {
   changesContent,
   describeChange,
+  type Change,
   gitEnv,
   parseDiff,
   parseListing,
@@ -180,6 +181,17 @@ describe("a unified diff, parsed", () => {
       { path: "tab\tname", status: "modified", oldPath: null, binary: false },
     ])
     expect(files[2]?.hunks).toEqual([])
+  })
+})
+
+describe("a change's name", () => {
+  it("shows a folder's name on one line, cut to 200 characters without splitting an emoji", () => {
+    const root = join(tmpdir(), `${"x".repeat(198)}😀tail`)
+    const { name } = describeChange({ root, total: { files: 1, added: 0, removed: 0 } } as Change)
+    expect(name).toBe(`Changes · ${"x".repeat(198)}…`)
+    expect(
+      describeChange({ root: "/w/a  b", total: { files: 2, added: 1, removed: 1 } } as Change).name,
+    ).toBe("Changes · a b")
   })
 })
 

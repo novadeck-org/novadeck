@@ -1,6 +1,7 @@
 // Stands in for llama-server in tests: it takes the real arguments, listens on --port, and
 // behaves as the file given as its model says, so no test needs a real engine.
-//   "fail:Vulkan0"  cannot load the model onto that device, and exits
+//   "fail:Vulkan0"  cannot load the model onto that device, and exits; with "said:<text>" (no
+//                   spaces) it says that instead of why
 //   "late"          takes half a second to listen, as a model loading
 //   "crash"         exits when it is asked to complete
 //   "slow"          takes half a second to answer
@@ -45,7 +46,9 @@ if (!devices.some((candidate) => candidate.id === device)) {
   process.exit(1)
 }
 if (behaviour.includes(`fail:${device}`)) {
-  console.error(`ggml_vulkan: failed to allocate buffer on ${device}`)
+  console.error(
+    /said:(\S+)/.exec(behaviour)?.[1] ?? `ggml_vulkan: failed to allocate buffer on ${device}`,
+  )
   process.exit(1)
 }
 

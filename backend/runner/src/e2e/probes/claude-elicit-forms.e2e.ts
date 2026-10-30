@@ -9,7 +9,8 @@ import { claude } from "../agents/claude.js"
 import type { DeckTerminal } from "../deck.js"
 import { describe, e2e, supported } from "../fixture.js"
 import { answers, own, result } from "../scenarios.js"
-import { capture, install, sleep, snap, tweak } from "./claude-support.js"
+import { capture, install, snap, tweak } from "./claude-support.js"
+import { sleep } from "./support.js"
 
 const here = import.meta.dirname
 const Down = "\x1b[B"

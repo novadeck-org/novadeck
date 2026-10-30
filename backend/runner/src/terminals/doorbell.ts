@@ -16,13 +16,13 @@ import { leftoverNonce } from "./leftover.js"
 import type { Bound } from "./record.js"
 
 /** What the doorbell reads of a running terminal's record. */
-export type RingRecord = {
+export type DoorbellRecord = {
   readonly terminal: Terminal
-  readonly bound: RingBound | null
+  readonly bound: DoorbellBound | null
 }
 
 /** What the doorbell reads of the session bound to a terminal (`Record.bound`). */
-export type RingBound = Pick<Bound, "binding" | "activity">
+export type DoorbellBound = Pick<Bound, "binding" | "activity">
 
 /**
  * Whether the activity says the agent bound there works (`busy`, for its harness), where
@@ -34,7 +34,7 @@ export type RingBound = Pick<Bound, "binding" | "activity">
 export const agentWorking = (
   messaging: Pick<Messaging, "delivery" | "byScreen">,
   terminalId: string,
-  bound: RingBound | null | undefined,
+  bound: DoorbellBound | null | undefined,
 ): boolean => {
   const state = messaging.delivery(terminalId)?.state
   const known = (state === "settled" || state === "ready") && !messaging.byScreen(terminalId)
@@ -56,7 +56,7 @@ export const profileOf = (
   return agent === undefined ? undefined : harnesses[agent].box
 }
 
-export type TargetHost<R extends RingRecord> = {
+export type TypingTargetHost<R extends DoorbellRecord> = {
   /** The record of a terminal that is running, if it is. */
   readonly live: (terminalId: string) => R | undefined
   /** The screen of a running terminal once it has drawn what its shell already sent. */
@@ -71,9 +71,9 @@ export type TargetHost<R extends RingRecord> = {
  * What the typist types into: a running terminal, guarded by the manager's check that it
  * still is one, so each answers as a gone terminal does once it exits or is replaced.
  */
-export const typingTarget = <R extends RingRecord>(
+export const typingTarget = <R extends DoorbellRecord>(
   terminalId: string,
-  host: TargetHost<R>,
+  host: TypingTargetHost<R>,
 ): TypingTarget => ({
   type: (data) => {
     const record = host.live(terminalId)
@@ -104,20 +104,20 @@ export const typingTarget = <R extends RingRecord>(
   },
 })
 
-export type RingHost<R extends RingRecord> = TargetHost<R> & {
+type DoorbellTerminals<R extends DoorbellRecord> = TypingTargetHost<R> & {
   /** Runs `work` in the terminal's turn, after what is queued there. */
   readonly queued: (terminalId: string, work: () => void) => void
   /** Ends the binding of an agent known to have exited. */
   readonly endExited: (record: R) => void
   readonly messaging: Messaging
   /** Whether the activity says the agent works, where that outweighs what messaging knows. */
-  readonly working: (terminalId: string, bound: RingBound | null) => boolean
+  readonly working: (terminalId: string, bound: DoorbellBound | null) => boolean
   readonly stopping: () => boolean
 }
 
 /** What the doorbell asks of the terminals and messaging. */
-export const doorbellHost = <R extends RingRecord>(
-  host: RingHost<R>,
+export const doorbellHost = <R extends DoorbellRecord>(
+  host: DoorbellTerminals<R>,
 ): DoorbellHost & Required<Pick<DoorbellHost, "profile">> => {
   const { live, messaging, working } = host
   const profile = (terminalId: string): BoxProfile | undefined => {

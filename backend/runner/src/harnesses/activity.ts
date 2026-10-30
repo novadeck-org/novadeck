@@ -3,6 +3,7 @@ import { ref } from "@novadeck/harness-core/decode"
 import type { ActivityEvent, Background, PlanSource } from "@novadeck/harness-core/events"
 import type { AgentActivity } from "@novadeck/protocol"
 
+import { cut } from "../text.js"
 import type { Binding } from "./bindings.js"
 import { endless } from "./waits.js"
 
@@ -439,7 +440,7 @@ const afterPrompt = (
     if (!request.detached) return [request]
     if (!answers?.length) return []
     const quoted = (request.parts ?? []).flatMap((part, index) =>
-      answers.some((answer) => answer.slice(0, maxText) === part) ? [index] : [],
+      answers.some((answer) => cut(answer, maxText) === part) ? [index] : [],
     )
     if (quoted.length === 0) return [request]
     const left = answering(request, quoted)
@@ -468,7 +469,7 @@ export const ordered = (pending: readonly Request[]): readonly Request[] => [
  * ended before its harness said more.
  */
 /** How many files a turn names, and how long an error is kept. */
-export const maxFiles = 16
+const maxFiles = 16
 const maxError = 2048
 
 /** The files with `path` added, once each and at most `maxFiles`; undefined where unchanged. */
@@ -492,7 +493,9 @@ const turnEnded = (activity: Activity, event: TurnEnded): Activity | undefined =
   const again = activity.state === "idle" && activity.lastTurn?.recorded === true && !recorded
   const before = again && activity.lastTurn!.outcome === event.outcome ? activity.lastTurn : null
   const error =
-    event.outcome === "failed" ? event.error?.slice(0, maxError) || before?.error : undefined
+    event.outcome === "failed"
+      ? (event.error && cut(event.error, maxError)) || before?.error
+      : undefined
   const limited = event.outcome === "failed" && (event.limited || before?.limited)
   const turn = {
     state: "idle",
@@ -575,14 +578,13 @@ const ending = (activity: Activity, event: TurnEnded): Activity | undefined =>
  * A turn the person's Escape ended that its harness finished all the same: the end it
  * reported, kept as a correction's due should the harness yet record the interruption.
  */
-const finished = (activity: Activity, event: TurnEnded): Activity | undefined => {
-  const { escaped } = activity.lastTurn!
+const finished = (activity: Activity, escaped: Escape, event: TurnEnded): Activity | undefined => {
   const next = ending(activity, { ...event, outcome: "completed" })
-  const stop = event.recorded ? escaped!.stop : event.startedAt
+  const stop = event.recorded ? escaped.stop : event.startedAt
   return (
     next && {
       ...next,
-      lastTurn: { ...next.lastTurn!, escaped: { ...escaped!, held: null, stop, settled: true } },
+      lastTurn: { ...next.lastTurn!, escaped: { ...escaped, held: null, stop, settled: true } },
     }
   )
 }
@@ -618,7 +620,7 @@ const afterEscape = (
     // Its record names the Escape's own end; a hook's end older than the key, too.
     return event.recorded || event.startedAt < activity.turnAt ? confirmed(activity) : null
   }
-  if (event.recorded || !activity.records) return finished(activity, escaped.held ?? event)
+  if (event.recorded || !activity.records) return finished(activity, escaped, escaped.held ?? event)
   return {
     ...activity,
     lastTurn: {
@@ -767,7 +769,7 @@ export const apply = (
     case "subagent-started": {
       const { actor: id, startedAt } = event
       if (!startable(activity, id, startedAt)) return undefined
-      const type = event.actorType?.slice(0, maxText) ?? null
+      const type = (event.actorType && cut(event.actorType, maxText)) ?? null
       return { ...activity, subagents: [...room(activity.subagents)!, { id, type, startedAt }] }
     }
     case "subagent-stopped": {
@@ -991,10 +993,10 @@ export const apply = (
       )
         return undefined
       const { held } = lastTurn.escaped
-      if (held) return finished(activity, held)
+      if (held) return finished(activity, lastTurn.escaped, held)
       if (event.reply === undefined) return confirmed(activity)
       // The reply came before the key took, though no Stop said so.
-      return finished(activity, {
+      return finished(activity, lastTurn.escaped, {
         type: "turn-ended",
         agent: event.agent,
         sessionId: event.sessionId,
@@ -1057,7 +1059,7 @@ const asked = (
         ...(event.screen === true && { screen: true as const }),
         ...(event.detached === true && { detached: true as const }),
         ...(event.parts && {
-          parts: event.parts.slice(0, maxParts).map((part) => part.slice(0, maxText)),
+          parts: event.parts.slice(0, maxParts).map((part) => cut(part, maxText)),
         }),
         askedAt: startedAt,
       },

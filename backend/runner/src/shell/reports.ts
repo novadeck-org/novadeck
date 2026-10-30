@@ -9,6 +9,7 @@ import type { Report } from "@novadeck/harness-core/report"
 
 import { logs } from "../log.js"
 import { relayHook } from "./hook.js"
+import { object, type Fields } from "./json.js"
 import { mcpAnswer, type McpCall } from "./mcp.js"
 
 const log = logs.for("reports")
@@ -28,8 +29,8 @@ export type Ack = { readonly terminalId: string; readonly token: string; readonl
 
 /**
  * What Novadeck's MCP server forwards: a tool call an agent made in a terminal, which
- * waits for its answer. `present` shows something beside it, `showing` lists what is
- * there, `look` pictures a page there and `dismiss` closes what it showed (see `companions/items.ts`), `open` opens a new terminal beside it (see
+ * waits for its answer. `show` shows something beside it, `showing` lists what is
+ * there, `look` pictures a page there and `closeShown` closes what it showed (see `companions/items.ts`), `open` opens a new terminal beside it (see
  * `terminals/opens.ts`), `close` closes another terminal of its project and session (see
  * `terminals/closes.ts`), `lead` asks the person to let it lead another terminal's agent and
  * `release` ends such a lead (see `terminals/leads.ts`), and `send` and `agents` message other terminals' agents and
@@ -45,10 +46,10 @@ export type Call = {
 }
 
 const callTypes = [
-  "present",
+  "show",
   "showing",
   "look",
-  "dismiss",
+  "closeShown",
   "open",
   "close",
   "lead",
@@ -69,10 +70,10 @@ export const unanswered = { ok: false, reason: "Novadeck couldn't show it." } as
 
 /** The same, for each type of call. */
 export const unansweredCalls = {
-  present: unanswered,
+  show: unanswered,
   showing: { ok: false, reason: "Novadeck couldn't list what is showing beside you." },
   look: { ok: false, reason: "Novadeck couldn't picture the page." },
-  dismiss: { ok: false, reason: "Novadeck couldn't close it." },
+  closeShown: { ok: false, reason: "Novadeck couldn't close it." },
   open: { ok: false, reason: "Novadeck couldn't open the terminal." },
   close: { ok: false, reason: "Novadeck couldn't close the terminal." },
   lead: { ok: false, reason: "Novadeck couldn't ask the user to let you lead the terminal." },
@@ -87,13 +88,8 @@ export const unansweredCalls = {
   models: { ok: false, reason: "Novadeck couldn't list the models." },
 } as const satisfies { readonly [type in CallType]: { ok: false; reason: string } }
 
-const object = (value: unknown): value is { readonly [key: string]: unknown } =>
-  typeof value === "object" && value !== null && !Array.isArray(value)
-
 /** Who sent a message: a terminal, and a token that could be the runner's. */
-const sender = (value: {
-  readonly [key: string]: unknown
-}): { terminalId: string; token: string } | undefined => {
+const sender = (value: Fields): { terminalId: string; token: string } | undefined => {
   const { terminalId, token } = value
   if (typeof terminalId !== "string" || terminalId.length > 64) return undefined
   // The runner's tokens are 48 hex digits; anything else cannot match one.
@@ -122,7 +118,7 @@ const relayStart = '{"relay":'
  * protocol changes, the runner keeps taking the version before it for a release. A
  * relay the runner doesn't take answers by itself, with no tools.
  */
-export const relayVersions: ReadonlySet<number> = new Set([2])
+const relayVersions: ReadonlySet<number> = new Set([2])
 
 // What the endpoint turned away, said once each, so a mismatch shows in the runner's log
 // without filling it.
@@ -326,11 +322,7 @@ export const listenForReports = async (
    * its deadline or as `unheard`. The relay then prints what it delivers and, holding a
    * lease, acknowledges it with one more line, `{ ack }`, on the same connection.
    */
-  const serveHook = async (
-    socket: Socket,
-    value: { readonly [key: string]: unknown },
-    rest: string,
-  ) => {
+  const serveHook = async (socket: Socket, value: Fields, rest: string) => {
     // What the relay sends after its hook, read from the start: its acknowledgement,
     // which counts once its answer named the lease it acknowledges.
     let text = rest

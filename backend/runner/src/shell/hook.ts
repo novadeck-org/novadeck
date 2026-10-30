@@ -3,6 +3,8 @@ import type { Report } from "@novadeck/harness-core/report"
 import { agentName } from "@novadeck/protocol"
 
 import { harnesses } from "../harnesses/registry.js"
+import { cut } from "../text.js"
+import { object, type Fields } from "./json.js"
 
 /**
  * An agent hook, as the runner takes it from Novadeck's relay (see backend/relay).
@@ -16,7 +18,7 @@ import { harnesses } from "../harnesses/registry.js"
  * the hook in Novadeck's shells, which then shows the person's own, as the relay finds
  * and runs it beside the report.
  */
-export type RelayHook = {
+type RelayHook = {
   readonly report: Omit<Report, "terminalId" | "token">
   /** An ask's deadline, in epoch milliseconds; absent for a report. */
   readonly deadline?: number
@@ -40,17 +42,12 @@ export const hookVariables = ["CLAUDE_PID", "CURSOR_VERSION", "CODEX_THREAD_ID"]
  */
 const printMs = 500
 
-type Fields = { readonly [key: string]: unknown }
-
-const object = (value: unknown): value is Fields =>
-  typeof value === "object" && value !== null && !Array.isArray(value)
-
 const text = (value: unknown, max: number): string | undefined =>
   typeof value === "string" && value !== "" && value.length <= max ? value : undefined
 
 /** A copy small enough to keep: text past a path's length cut short, deep or wide values dropped. */
 export const prune = (value: unknown, depth: number, limit: number): unknown => {
-  if (typeof value === "string") return value.length > limit ? value.slice(0, limit) : value
+  if (typeof value === "string") return cut(value, limit)
   if (typeof value !== "object" || value === null) return value
   if (depth > 6) return null
   if (Array.isArray(value)) return value.slice(0, 50).map((each) => prune(each, depth + 1, limit))
@@ -76,8 +73,9 @@ const ancestorsOf = (value: unknown): Ancestor[] =>
     .filter(
       (each): each is Ancestor =>
         object(each) &&
+        typeof each.pid === "number" &&
         Number.isSafeInteger(each.pid) &&
-        (each.pid as number) > 0 &&
+        each.pid > 0 &&
         typeof each.name === "string" &&
         (each.startedAt === undefined ||
           (typeof each.startedAt === "number" && Number.isFinite(each.startedAt))),
@@ -104,7 +102,7 @@ const clockSlackMs = 50
  * isn't among them, its child's start isn't told, or the start makes no sense for a hook
  * that started at `seq`.
  */
-export const firedAtOf = (
+const firedAtOf = (
   instance: string | null,
   seq: number,
   ancestors: readonly Ancestor[],
@@ -115,7 +113,7 @@ export const firedAtOf = (
   const index =
     instance === null ? -1 : ancestors.findIndex((each) => String(each.pid) === instance)
   if (index < 0) return undefined
-  const shell = index === 0 ? undefined : ancestors[index - 1]!
+  const shell = index === 0 ? undefined : ancestors[index - 1]
   if (shell !== undefined && !shells.includes(shell.name)) return undefined
   const fired = shell === undefined ? seq : shell.startedAt
   if (fired === undefined || fired > seq + clockSlackMs || seq - fired > maxShellMs)

@@ -21,10 +21,10 @@ const contractFile = "harnesses/core/src/harness.ts"
 
 // The method that performs each tool's call, and the runner file it is in.
 const handlers: Record<string, { readonly file: string; readonly method: string }> = {
-  show: { file: companionFile, method: "present" },
+  show: { file: companionFile, method: "show" },
   showing: { file: companionFile, method: "showing" },
   look: { file: companionFile, method: "look" },
-  close: { file: companionFile, method: "dismiss" },
+  close: { file: companionFile, method: "closeShown" },
   open_terminal: { file: callsFile, method: "open" },
   open_agent: { file: callsFile, method: "open" },
   close_terminal: { file: callsFile, method: "closePeer" },

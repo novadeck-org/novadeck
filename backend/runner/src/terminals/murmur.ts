@@ -6,8 +6,8 @@ import { terminalTitle, type AgentName, type ForegroundProcess } from "@novadeck
 import { logs } from "../log.js"
 import type { Describer, Description, Digest, ShellDigest } from "../murmur/describer.js"
 import { sharesContentWord } from "../murmur/description.js"
+import { shorten } from "../text.js"
 import type { PeerTerminal } from "./peers.js"
-import { shorten } from "./work.js"
 
 const log = logs.for("murmur")
 
@@ -47,7 +47,7 @@ export type MurmurTimes = {
   readonly retryMs: number
 }
 
-export const defaultTimes: MurmurTimes = {
+const defaultTimes: MurmurTimes = {
   settleMs: 3_000,
   shellRunMs: 5_000,
   shellSettleMs: 3_000,
@@ -61,9 +61,9 @@ export const defaultTimes: MurmurTimes = {
 
 /** How many logical lines of a plain shell's screen, how long each; the lowest lines win. */
 export const screenRows = 100
-export const screenColumns = 8000
+const screenColumns = 8000
 /** The longest command line passed on. */
-export const commandChars = 2000
+const commandChars = 2000
 // Characters no reply or screen row shows to a model: C0 and C1 control characters, and DEL.
 // eslint-disable-next-line no-control-regex -- These are the characters it removes.
 const control = /[\x00-\x08\x0b-\x1f\x7f-\x9f]/g

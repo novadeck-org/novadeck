@@ -8,7 +8,7 @@ import { createRequire } from "node:module"
 import { fileURLToPath, pathToFileURL } from "node:url"
 import { Worker } from "node:worker_threads"
 
-export type ThreadOptions = {
+type ThreadOptions = {
   /** How long a job may take once the thread is up. */
   readonly deadlineMs: number
   /** How long the thread may take to come up. */
@@ -20,7 +20,7 @@ export type ThreadOptions = {
 }
 
 /** Where a thread's script is, relative to the module that runs it. */
-export type ThreadScript = {
+type ThreadScript = {
   /** The module's own URL (`import.meta.url`). */
   readonly base: string
   /** The names it has when built, or in the desktop app's bundle, first found wins. */

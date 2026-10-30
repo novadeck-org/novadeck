@@ -11,6 +11,7 @@ import type {
 import { requestDialog, type AgentName, type RequestDialog } from "@novadeck/protocol"
 
 import { logs } from "../log.js"
+import { cut } from "../text.js"
 
 const log = logs.for("dialogs")
 
@@ -101,21 +102,21 @@ const clamped = (dialog: AnswerableDialog): AnswerableDialog | undefined => {
   // What the person approves from is never cut: a detail past its limit reads as nothing.
   if (dialog.type === "choices" && (dialog.detail?.length ?? 0) > displayLimits.detail!)
     return undefined
-  const cut = (value: unknown, key?: string): unknown => {
+  const clamp = (value: unknown, key?: string): unknown => {
     if (typeof value === "string") {
       const limit = key === undefined ? undefined : displayLimits[key]
-      return limit !== undefined && value.length > limit ? value.slice(0, limit) : value
+      return limit === undefined ? value : cut(value, limit)
     }
     if (Array.isArray(value))
       // A form field's choices are display strings of their own.
-      return value.map((each) => cut(each, key === "choices" ? "label" : undefined))
+      return value.map((each) => clamp(each, key === "choices" ? "label" : undefined))
     if (typeof value === "object" && value !== null)
       return Object.fromEntries(
-        Object.entries(value).map(([name, each]) => [name, cut(each, name)]),
+        Object.entries(value).map(([name, each]) => [name, clamp(each, name)]),
       )
     return value
   }
-  return cut(dialog) as AnswerableDialog
+  return clamp(dialog) as AnswerableDialog
 }
 
 /**

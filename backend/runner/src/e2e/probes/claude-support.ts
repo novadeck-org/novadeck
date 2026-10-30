@@ -15,6 +15,7 @@ import { screenRecord, type ScreenRecord } from "@novadeck/harness-core/testing/
 
 import type { DeckTerminal } from "../deck.js"
 import type { E2E } from "../fixture.js"
+import { sleep } from "./support.js"
 
 export const events = [
   "SessionStart",
@@ -67,12 +68,12 @@ finish("immediate", cfg.now ?? {})
 `
 
 export type Out = { stdout?: unknown; stderr?: string; exit?: number }
-export type Cfg = { wait?: number; after?: Out; now?: Out }
+type Config = { wait?: number; after?: Out; now?: Out }
 
 export type Probe = {
   readonly dir: string
   /** Configure what the probe hook does for an event, before it fires. */
-  readonly config: (event: string, cfg: Cfg | null) => void
+  readonly config: (event: string, cfg: Config | null) => void
   /** Answer a waiting hook. */
   readonly reply: (event: string, out: Out) => void
   /** Every logged line. */
@@ -146,8 +147,6 @@ export const install = (run: E2E, options: { timeout?: number } = {}): Probe => 
   }
 }
 
-export const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms))
-
 /** Shortened text of a transcript item list. */
 export const brief = (items: readonly unknown[]) => JSON.parse(JSON.stringify(items))
 
@@ -185,7 +184,7 @@ export type Outcome = {
   transcript: unknown[]
 }
 
-export const rawTranscript = (probe: Probe): unknown[] => {
+const rawTranscript = (probe: Probe): unknown[] => {
   const path = (probe.payloads("PreToolUse")[0] as { transcript_path?: string } | undefined)
     ?.transcript_path
   if (!path || !existsSync(path)) return []
@@ -219,9 +218,9 @@ export { start }
 import { claude } from "../agents/claude.js"
 import { describe, e2e, supported } from "../fixture.js"
 import type { Rule } from "../model/script.js"
-export type Shot = (label: string, wait?: number) => Promise<void>
+type Shot = (label: string, wait?: number) => Promise<void>
 type Step = (t: DeckTerminal, probe: Probe, shot: Shot) => Promise<void>
-export type Spec = {
+type Spec = {
   name: string
   prompt?: string
   reply: Reply

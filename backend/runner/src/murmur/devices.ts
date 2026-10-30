@@ -1,7 +1,7 @@
 // Murmur runs on a GPU and nothing else. llama-server's `--list-devices` names the devices
 // and, in the engine we build, their kind; this reads the list and orders what to try.
 
-export type DeviceKind = "cpu" | "gpu" | "igpu" | "accel"
+type DeviceKind = "cpu" | "gpu" | "igpu" | "accel"
 
 export type Device = {
   /** What `--device` takes, such as "Vulkan0". Indexes differ between machines: never assume one. */

@@ -987,111 +987,109 @@ describe("delivery through hooks", () => {
     expect(stop("A", claude).leaseId).toEqual(expect.any(String))
   })
 
-  describe("rung while only its background work runs", () => {
-    // Stopped with a background agent running, a message waiting, and the doorbell's look
-    // at its calm screen reading the box empty: Ready, its settle window passed.
-    const emptiedInBackground = () => {
-      const setup = create()
-      const { messaging, prompt, stop, send, claude, clock: time } = setup
-      prompt("A", claude)
-      stop("A", claude, true)
-      sent(send("B", "moth", "Any news?"))
-      time.now += 1_000
-      messaging.emptied("A", messaging.delivery("A")!.epoch, time.now - 500)
-      expect(messaging.delivery("A")?.state).toBe("ready")
-      time.now += 6_000
-      expect(messaging.ringable("A")).toBe(true)
-      return setup
-    }
-    const delivered = (messaging: Messaging) =>
-      messages(messaging, "A").filter((message) => message.state === "delivered")
+  // Stopped with a background agent running, a message waiting, and the doorbell's look
+  // at its calm screen reading the box empty: Ready, its settle window passed.
+  const emptiedInBackground = () => {
+    const setup = create()
+    const { messaging, prompt, stop, send, claude, clock: time } = setup
+    prompt("A", claude)
+    stop("A", claude, true)
+    sent(send("B", "moth", "Any news?"))
+    time.now += 1_000
+    messaging.emptied("A", messaging.delivery("A")!.epoch, time.now - 500)
+    expect(messaging.delivery("A")?.state).toBe("ready")
+    time.now += 6_000
+    expect(messaging.ringable("A")).toBe(true)
+    return setup
+  }
+  const delivered = (messaging: Messaging) =>
+    messages(messaging, "A").filter((message) => message.state === "delivered")
 
-    it("is confirmed by its doorbell prompt, whose hook delivers, and waits on its work again", () => {
-      const { messaging, ask, stop, claude } = emptiedInBackground()
-      expect(messaging.ring("A", "n1")).toBe(true)
-      const answer = ask("A", claude, "UserPromptSubmit", [doorbellStarted(claude, "n1")])
-      expect(answer.stdout).toContain(">Any news?</message>")
-      messaging.acknowledge("A", answer.leaseId!)
-      expect(messaging.ringing("A")).toBeUndefined()
-      expect(messaging.delivery("A")).toMatchObject({ state: "working", phase: "turn" })
-      // The agent still waits on its background agent once that turn ends.
-      stop("A", claude, true)
-      expect(messaging.delivery("A")).toMatchObject({ state: "working", phase: "background" })
-      expect(delivered(messaging)).toHaveLength(1)
-    })
+  it("rung while only its background work runs is confirmed by its doorbell prompt, whose hook delivers, and waits on its work again", () => {
+    const { messaging, ask, stop, claude } = emptiedInBackground()
+    expect(messaging.ring("A", "n1")).toBe(true)
+    const answer = ask("A", claude, "UserPromptSubmit", [doorbellStarted(claude, "n1")])
+    expect(answer.stdout).toContain(">Any news?</message>")
+    messaging.acknowledge("A", answer.leaseId!)
+    expect(messaging.ringing("A")).toBeUndefined()
+    expect(messaging.delivery("A")).toMatchObject({ state: "working", phase: "turn" })
+    // The agent still waits on its background agent once that turn ends.
+    stop("A", claude, true)
+    expect(messaging.delivery("A")).toMatchObject({ state: "working", phase: "background" })
+    expect(delivered(messaging)).toHaveLength(1)
+  })
 
-    it("delivers once when its background agent's own turn starts mid-ring, never taking that turn for the ring's", () => {
-      const { messaging, ask, prompt, stop, claude } = emptiedInBackground()
-      expect(messaging.ring("A", "n1")).toBe(true)
-      // The agent finishes and Claude Code starts a turn with its task notification, before
-      // the doorbell's line is submitted: that turn's hook delivers, and the ring is over.
-      const woken = prompt("A", claude, "harness")
-      expect(woken.stdout).toContain(">Any news?</message>")
-      messaging.acknowledge("A", woken.leaseId!)
-      expect(messaging.ringing("A")).toBeUndefined()
-      expect(messaging.delivery("A")).toMatchObject({ state: "working", phase: "turn" })
-      stop("A", claude)
-      // The line Claude Code queued behind that turn is submitted after it: nothing waits.
-      const late = ask("A", claude, "UserPromptSubmit", [doorbellStarted(claude, "n1")])
-      expect(late.leaseId).toBeNull()
-      expect(late.stdout).toContain("no agent messages are waiting")
-      expect(delivered(messaging)).toHaveLength(1)
-    })
+  it("rung while only its background work runs delivers once when its background agent's own turn starts mid-ring, never taking that turn for the ring's", () => {
+    const { messaging, ask, prompt, stop, claude } = emptiedInBackground()
+    expect(messaging.ring("A", "n1")).toBe(true)
+    // The agent finishes and Claude Code starts a turn with its task notification, before
+    // the doorbell's line is submitted: that turn's hook delivers, and the ring is over.
+    const woken = prompt("A", claude, "harness")
+    expect(woken.stdout).toContain(">Any news?</message>")
+    messaging.acknowledge("A", woken.leaseId!)
+    expect(messaging.ringing("A")).toBeUndefined()
+    expect(messaging.delivery("A")).toMatchObject({ state: "working", phase: "turn" })
+    stop("A", claude)
+    // The line Claude Code queued behind that turn is submitted after it: nothing waits.
+    const late = ask("A", claude, "UserPromptSubmit", [doorbellStarted(claude, "n1")])
+    expect(late.leaseId).toBeNull()
+    expect(late.stdout).toContain("no agent messages are waiting")
+    expect(delivered(messaging)).toHaveLength(1)
+  })
 
-    it("delivers once when its background agent's own turn follows the ring's", () => {
-      const { messaging, ask, prompt, stop, claude } = emptiedInBackground()
-      messaging.ring("A", "n1")
-      const answer = ask("A", claude, "UserPromptSubmit", [doorbellStarted(claude, "n1")])
-      messaging.acknowledge("A", answer.leaseId!)
-      // The agent finished during the ring's turn: its notification is a turn after it.
-      expect(stop("A", claude).leaseId).toBeNull()
-      const woken = prompt("A", claude, "harness")
-      expect(woken.leaseId).toBeNull()
-      expect(woken.stdout).not.toContain("Any news?")
-      stop("A", claude)
-      expect(messaging.delivery("A")?.state).toBe("settled")
-      expect(delivered(messaging)).toHaveLength(1)
-    })
+  it("rung while only its background work runs delivers once when its background agent's own turn follows the ring's", () => {
+    const { messaging, ask, prompt, stop, claude } = emptiedInBackground()
+    messaging.ring("A", "n1")
+    const answer = ask("A", claude, "UserPromptSubmit", [doorbellStarted(claude, "n1")])
+    messaging.acknowledge("A", answer.leaseId!)
+    // The agent finished during the ring's turn: its notification is a turn after it.
+    expect(stop("A", claude).leaseId).toBeNull()
+    const woken = prompt("A", claude, "harness")
+    expect(woken.leaseId).toBeNull()
+    expect(woken.stdout).not.toContain("Any news?")
+    stop("A", claude)
+    expect(messaging.delivery("A")?.state).toBe("settled")
+    expect(delivered(messaging)).toHaveLength(1)
+  })
 
-    it("keeps why it can't ring it through a key, as for an idle one", () => {
-      const { messaging, prompt, stop, send, claude } = create()
-      prompt("A", claude)
-      stop("A", claude, true)
-      sent(send("B", "moth", "Any news?"))
-      messaging.blocked("A", "draft")
-      messaging.keys("A", ["content"], false)
-      expect(messaging.delivery("A")).toMatchObject({ state: "working", phase: "background" })
-      expect(messaging.list("A", "fox").waits).toBe("draft")
-    })
+  it("rung while only its background work runs keeps why it can't ring it through a key, as for an idle one", () => {
+    const { messaging, prompt, stop, send, claude } = create()
+    prompt("A", claude)
+    stop("A", claude, true)
+    sent(send("B", "moth", "Any news?"))
+    messaging.blocked("A", "draft")
+    messaging.keys("A", ["content"], false)
+    expect(messaging.delivery("A")).toMatchObject({ state: "working", phase: "background" })
+    expect(messaging.list("A", "fox").waits).toBe("draft")
+  })
 
-    it("forgets why it couldn't ring it once that work is over", () => {
-      const { messaging, observe, prompt, stop, send, claude } = create()
-      prompt("A", claude)
-      stop("A", claude, true)
-      sent(send("B", "moth", "Any news?"))
-      messaging.blocked("A", "draft")
-      // Its status line says the work is done, with no turn: Settled.
-      observe("A", claude, [
-        {
-          type: "turn-idle",
-          agent: claude.agent,
-          sessionId: claude.sessionId,
-          instance: claude.instance,
-          startedAt: asHeard,
-          background: { agents: 0, tasks: 0 },
-        },
-      ])
-      expect(messaging.delivery("A")?.state).toBe("settled")
-      expect(messaging.list("A", "fox").waits).toBeNull()
-    })
+  it("rung while only its background work runs forgets why it couldn't ring it once that work is over", () => {
+    const { messaging, observe, prompt, stop, send, claude } = create()
+    prompt("A", claude)
+    stop("A", claude, true)
+    sent(send("B", "moth", "Any news?"))
+    messaging.blocked("A", "draft")
+    // Its status line says the work is done, with no turn: Settled.
+    observe("A", claude, [
+      {
+        type: "turn-idle",
+        agent: claude.agent,
+        sessionId: claude.sessionId,
+        instance: claude.instance,
+        startedAt: asHeard,
+        background: { agents: 0, tasks: 0 },
+      },
+    ])
+    expect(messaging.delivery("A")?.state).toBe("settled")
+    expect(messaging.list("A", "fox").waits).toBeNull()
+  })
 
-    it("is not rung once its background agent's own turn starts before the ring", () => {
-      const { messaging, prompt, claude } = emptiedInBackground()
-      const woken = prompt("A", claude, "harness")
-      expect(woken.stdout).toContain(">Any news?</message>")
-      expect(messaging.ringable("A")).toBe(false)
-      expect(messaging.ring("A", "n1")).toBe(false)
-    })
+  it("rung while only its background work runs is not rung once its background agent's own turn starts before the ring", () => {
+    const { messaging, prompt, claude } = emptiedInBackground()
+    const woken = prompt("A", claude, "harness")
+    expect(woken.stdout).toContain(">Any news?</message>")
+    expect(messaging.ringable("A")).toBe(false)
+    expect(messaging.ring("A", "n1")).toBe(false)
   })
 
   it("leaves a turn that began since alone when an older Stop's lease lapses", () => {
@@ -3867,34 +3865,35 @@ describe("the person's prompt, told to the asks", () => {
     },
   )
 
-  describe("asks the person dismissed", () => {
-    const dismissal = "Novadeck: automatic notice, not from the user: dismissed."
-    // A person whose dismissals notice is due once, for the session `bound` only.
-    const dismissing = (run: Run) => {
-      let due: string | undefined = dismissal
-      const told = who(undefined)
-      told.dismissed.mockImplementation((agent, sessionId) => {
-        const taken = due
-        due = undefined
-        return agent === run.bound.agent && sessionId === run.bound.sessionId ? taken : undefined
-      })
-      return told
-    }
+  const dismissal = "Novadeck: automatic notice, not from the user: dismissed."
+  // A person whose dismissals notice is due once, for the session `bound` only.
+  const dismissing = (run: Run) => {
+    let due: string | undefined = dismissal
+    const told = who(undefined)
+    told.dismissed.mockImplementation((agent, sessionId) => {
+      const taken = due
+      due = undefined
+      return agent === run.bound.agent && sessionId === run.bound.sessionId ? taken : undefined
+    })
+    return told
+  }
 
-    it.each(harnessesTold)(
-      "prints it on $name's prompt hook, asking for its session",
-      async ({ agent }) => {
-        const run = setup(agent)
-        const told = dismissing(run)
-        const answer = await start(run, "harness", told.person)
-        expect(told.dismissed).toHaveBeenCalledWith(run.bound.agent, run.bound.sessionId)
-        expect(answer.stdout).toContain(dismissal)
-        // It withdraws nothing, so no lease waits on its acknowledgement.
-        expect(answer.leaseId).toBeNull()
-      },
-    )
+  it.each(harnessesTold)(
+    "a dismissal notice prints on $name's prompt hook, asking for its session",
+    async ({ agent }) => {
+      const run = setup(agent)
+      const told = dismissing(run)
+      const answer = await start(run, "harness", told.person)
+      expect(told.dismissed).toHaveBeenCalledWith(run.bound.agent, run.bound.sessionId)
+      expect(answer.stdout).toContain(dismissal)
+      // It withdraws nothing, so no lease waits on its acknowledgement.
+      expect(answer.leaseId).toBeNull()
+    },
+  )
 
-    it.each(["claude", "codex"] as const)("prints it on %s's tool hook", async (agent) => {
+  it.each(["claude", "codex"] as const)(
+    "a dismissal notice prints on %s's tool hook",
+    async (agent) => {
       const run = setup(agent)
       const told = dismissing(run)
       await start(run, "harness", who().person)
@@ -3918,43 +3917,46 @@ describe("the person's prompt, told to the asks", () => {
         told.person,
       )
       expect(next.stdout).not.toContain(dismissal)
-    })
+    },
+  )
 
-    it("prints it at Antigravity's next model call, and again on the turn's remaining calls", async () => {
-      const run = setup("agy")
+  it("a dismissal notice prints at Antigravity's next model call, and again on the turn's remaining calls", async () => {
+    const run = setup("agy")
+    const told = dismissing(run)
+    const call = () =>
+      run.ask("G", agy, "PreInvocation", [started(agy, "call")], undefined, told.person)
+    await start(run, "harness", who().person)
+    // It withdraws nothing, so it is kept at once, with no lease to wait on.
+    const first = call()
+    expect(first.stdout).toContain(dismissal)
+    expect(first.leaseId).toBeNull()
+    expect(call().stdout).toContain(dismissal)
+    expect(call().stdout).toContain(dismissal)
+    // Not in the next turn.
+    run.stop("G", agy)
+    await start(run, "harness", who().person)
+    expect(call().stdout).not.toContain(dismissal)
+  })
+
+  it.each(harnessesTold)(
+    "a dismissal notice waits for $name's next hook after a turn ends, and wakes nothing",
+    async ({ agent }) => {
+      const run = setup(agent)
       const told = dismissing(run)
-      const call = () =>
-        run.ask("G", agy, "PreInvocation", [started(agy, "call")], undefined, told.person)
       await start(run, "harness", who().person)
-      // It withdraws nothing, so it is kept at once, with no lease to wait on.
-      const first = call()
-      expect(first.stdout).toContain(dismissal)
-      expect(first.leaseId).toBeNull()
-      expect(call().stdout).toContain(dismissal)
-      expect(call().stdout).toContain(dismissal)
-      // Not in the next turn.
-      run.stop("G", agy)
-      await start(run, "harness", who().person)
-      expect(call().stdout).not.toContain(dismissal)
-    })
+      run.stop(run.terminal, run.bound, false, told.person)
+      run.clock.now += 60_000
+      // Idle: nothing is queued for the doorbell, and nothing asked yet.
+      expect(told.dismissed).not.toHaveBeenCalled()
+      expect(run.messaging.delivery(run.terminal)?.state).toBe("settled")
+      const answer = await start(run, "harness", told.person)
+      expect(answer.stdout).toContain(dismissal)
+    },
+  )
 
-    it.each(harnessesTold)(
-      "waits for $name's next hook after a turn ends, and wakes nothing",
-      async ({ agent }) => {
-        const run = setup(agent)
-        const told = dismissing(run)
-        await start(run, "harness", who().person)
-        run.stop(run.terminal, run.bound, false, told.person)
-        run.clock.now += 60_000
-        // Idle: nothing is queued for the doorbell, and nothing asked yet.
-        expect(told.dismissed).not.toHaveBeenCalled()
-        expect(run.messaging.delivery(run.terminal)?.state).toBe("settled")
-        const answer = await start(run, "harness", told.person)
-        expect(answer.stdout).toContain(dismissal)
-      },
-    )
-
-    it.each(harnessesTold)("tells $name's replaced session nothing", async ({ agent }) => {
+  it.each(harnessesTold)(
+    "a dismissal notice tells $name's replaced session nothing",
+    async ({ agent }) => {
       const run = setup(agent)
       const told = dismissing(run)
       const other = binding(run.bound.agent, "s-new", "9")
@@ -3975,8 +3977,8 @@ describe("the person's prompt, told to the asks", () => {
       )
       expect(told.dismissed).toHaveBeenCalledWith(other.agent, other.sessionId)
       expect(answer.stdout).not.toContain(dismissal)
-    })
-  })
+    },
+  )
 
   it("drops the pending withdrawal when the session ends or another binds", async () => {
     const run = setup("codex")
@@ -4195,120 +4197,116 @@ describe("a lead", () => {
     messaging.dropLeadMessages("X")
     expect(records.messages().find(({ id }) => id === waiting.id)?.state).toBe("gone")
     expect(records.messages().find(({ id }) => id === unbound.id)?.state).toBe("gone")
-    // The lead hears once that they went because the user released their recipient.
+    // The lead hears once that they went because the person released their recipient.
     expect(send("A", "owl", "Anyone?")).toMatchObject({
       ok: true,
       gone: expect.arrayContaining([{ id: waiting.id, to: "owl", released: true }]),
     })
   })
 
-  describe("a lead's message the person released", () => {
-    it("is never delivered, though the same session binds again", () => {
-      const { messaging, send, records, follow, prompt, worker } = withWorker()
-      const message = sent(send("A", "owl", "Keep going."))
-      messaging.dropLeadMessages("W")
-      messaging.endLead("W")
-      follow("W", binding("codex", "s-other", "4"))
-      follow("W", worker)
-      expect(records.messages().find(({ id }) => id === message.id)).toMatchObject({
-        state: "gone",
-        stopped: true,
-      })
-      expect(prompt("W", worker).stdout).not.toContain("Keep going.")
+  it("a lead's message the person released is never delivered, though the same session binds again", () => {
+    const { messaging, send, records, follow, prompt, worker } = withWorker()
+    const message = sent(send("A", "owl", "Keep going."))
+    messaging.dropLeadMessages("W")
+    messaging.endLead("W")
+    follow("W", binding("codex", "s-other", "4"))
+    follow("W", worker)
+    expect(records.messages().find(({ id }) => id === message.id)).toMatchObject({
+      state: "gone",
+      stopped: true,
     })
-
-    it("stays undelivered when a new runner over the same records binds the session", () => {
-      const records = memoryMessages()
-      const first = create(records)
-      const worker = binding("codex", "s-worker", "3")
-      first.messaging.register("W", here, "owl", "moth")
-      first.follow("W", worker)
-      const message = sent(first.send("A", "owl", "Keep going."))
-      first.messaging.dropLeadMessages("W")
-      first.messaging.endLead("W")
-      first.messaging.close()
-      const second = create(records)
-      second.messaging.register("W", here, "owl", null)
-      second.follow("W", worker)
-      expect(records.messages().find(({ id }) => id === message.id)?.state).toBe("gone")
-      expect(second.prompt("W", worker).stdout).not.toContain("Keep going.")
-    })
-
-    it("is gone, not leased, in a new runner when it was leased at the release", () => {
-      const records = memoryMessages()
-      const first = create(records)
-      const worker = binding("codex", "s-worker", "3")
-      first.messaging.register("W", here, "owl", "moth")
-      first.follow("W", worker)
-      const message = sent(first.send("A", "owl", "Keep going."))
-      expect(first.prompt("W", worker).leaseId).not.toBeNull()
-      first.messaging.dropLeadMessages("W")
-      first.messaging.endLead("W")
-      expect(records.messages().find(({ id }) => id === message.id)?.state).toBe("leased")
-      first.messaging.close()
-      const second = create(records)
-      second.messaging.register("W", here, "owl", null)
-      second.follow("W", worker)
-      expect(records.messages().find(({ id }) => id === message.id)?.state).toBe("gone")
-      expect(second.prompt("W", worker).stdout).not.toContain("Keep going.")
-    })
+    expect(prompt("W", worker).stdout).not.toContain("Keep going.")
   })
 
-  describe("a lead's leased message whose lease lapses", () => {
-    const lapsing = () => {
-      vi.useFakeTimers()
-      const run = withWorker()
-      const message = sent(run.send("A", "owl", "Keep going."))
-      expect(run.prompt("W", run.worker).leaseId).not.toBeNull()
-      expect(run.records.messages().find(({ id }) => id === message.id)?.state).toBe("leased")
-      const lapse = () => {
-        run.clock.now += 10_000
-        vi.advanceTimersByTime(10_000)
-      }
-      return { ...run, message, lapse }
+  it("a lead's message the person released stays undelivered when a new runner over the same records binds the session", () => {
+    const records = memoryMessages()
+    const first = create(records)
+    const worker = binding("codex", "s-worker", "3")
+    first.messaging.register("W", here, "owl", "moth")
+    first.follow("W", worker)
+    const message = sent(first.send("A", "owl", "Keep going."))
+    first.messaging.dropLeadMessages("W")
+    first.messaging.endLead("W")
+    first.messaging.close()
+    const second = create(records)
+    second.messaging.register("W", here, "owl", null)
+    second.follow("W", worker)
+    expect(records.messages().find(({ id }) => id === message.id)?.state).toBe("gone")
+    expect(second.prompt("W", worker).stdout).not.toContain("Keep going.")
+  })
+
+  it("a lead's message the person released is gone, not leased, in a new runner when it was leased at the release", () => {
+    const records = memoryMessages()
+    const first = create(records)
+    const worker = binding("codex", "s-worker", "3")
+    first.messaging.register("W", here, "owl", "moth")
+    first.follow("W", worker)
+    const message = sent(first.send("A", "owl", "Keep going."))
+    expect(first.prompt("W", worker).leaseId).not.toBeNull()
+    first.messaging.dropLeadMessages("W")
+    first.messaging.endLead("W")
+    expect(records.messages().find(({ id }) => id === message.id)?.state).toBe("leased")
+    first.messaging.close()
+    const second = create(records)
+    second.messaging.register("W", here, "owl", null)
+    second.follow("W", worker)
+    expect(records.messages().find(({ id }) => id === message.id)?.state).toBe("gone")
+    expect(second.prompt("W", worker).stdout).not.toContain("Keep going.")
+  })
+
+  const lapsing = () => {
+    vi.useFakeTimers()
+    const run = withWorker()
+    const message = sent(run.send("A", "owl", "Keep going."))
+    expect(run.prompt("W", run.worker).leaseId).not.toBeNull()
+    expect(run.records.messages().find(({ id }) => id === message.id)?.state).toBe("leased")
+    const lapse = () => {
+      run.clock.now += 10_000
+      vi.advanceTimersByTime(10_000)
     }
+    return { ...run, message, lapse }
+  }
 
-    it("waits again while its sender still leads the recipient", () => {
-      const { records, message, lapse } = lapsing()
-      lapse()
-      expect(records.messages().find(({ id }) => id === message.id)?.state).toBe("queued")
-      vi.useRealTimers()
-    })
+  it("a lead's leased message whose lease lapses waits again while its sender still leads the recipient", () => {
+    const { records, message, lapse } = lapsing()
+    lapse()
+    expect(records.messages().find(({ id }) => id === message.id)?.state).toBe("queued")
+    vi.useRealTimers()
+  })
 
-    it("is gone, as the user released the recipient, when the person released it meanwhile", () => {
-      const { messaging, records, message, lapse, send } = lapsing()
-      messaging.dropLeadMessages("W")
-      messaging.endLead("W")
-      lapse()
-      expect(records.messages().find(({ id }) => id === message.id)?.state).toBe("gone")
-      expect(send("A", "owl", "Anyone?")).toMatchObject({
-        ok: true,
-        gone: [{ id: message.id, to: "owl", released: true }],
-      })
-      vi.useRealTimers()
+  it("a lead's leased message whose lease lapses is gone, as the person released the recipient, when the person released it meanwhile", () => {
+    const { messaging, records, message, lapse, send } = lapsing()
+    messaging.dropLeadMessages("W")
+    messaging.endLead("W")
+    lapse()
+    expect(records.messages().find(({ id }) => id === message.id)?.state).toBe("gone")
+    expect(send("A", "owl", "Anyone?")).toMatchObject({
+      ok: true,
+      gone: [{ id: message.id, to: "owl", released: true }],
     })
+    vi.useRealTimers()
+  })
 
-    it("waits again, keeping its authority, when its lead ended meanwhile (release or exit)", () => {
-      const { messaging, records, message, lapse } = lapsing()
-      messaging.endLead("W")
-      lapse()
-      expect(records.messages().find(({ id }) => id === message.id)).toMatchObject({
-        state: "queued",
-        fromLead: true,
-      })
-      vi.useRealTimers()
+  it("a lead's leased message whose lease lapses waits again, keeping its authority, when its lead ended meanwhile (release or exit)", () => {
+    const { messaging, records, message, lapse } = lapsing()
+    messaging.endLead("W")
+    lapse()
+    expect(records.messages().find(({ id }) => id === message.id)).toMatchObject({
+      state: "queued",
+      fromLead: true,
     })
+    vi.useRealTimers()
+  })
 
-    it("waits again, keeping its authority, when the lead's own terminal closed meanwhile", () => {
-      const { messaging, records, message, lapse } = lapsing()
-      messaging.unregister("A")
-      lapse()
-      expect(records.messages().find(({ id }) => id === message.id)).toMatchObject({
-        state: "queued",
-        fromLead: true,
-      })
-      vi.useRealTimers()
+  it("a lead's leased message whose lease lapses waits again, keeping its authority, when the lead's own terminal closed meanwhile", () => {
+    const { messaging, records, message, lapse } = lapsing()
+    messaging.unregister("A")
+    lapse()
+    expect(records.messages().find(({ id }) => id === message.id)).toMatchObject({
+      state: "queued",
+      fromLead: true,
     })
+    vi.useRealTimers()
   })
 
   it("is no lead once the terminal's agent exits, for what is sent after", () => {

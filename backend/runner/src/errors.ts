@@ -6,7 +6,7 @@ import type { z } from "zod"
  * call-limit failures belong to the transport and router instead; `RESOURCE_LIMIT` is
  * also a domain's own, for what one connection may hold, such as recordings.
  */
-export type DomainErrorCode = Exclude<
+type DomainErrorCode = Exclude<
   ErrorCode,
   "UNAUTHORIZED" | "INCOMPATIBLE_PROTOCOL" | "WORKSPACE_TOO_NEW"
 >

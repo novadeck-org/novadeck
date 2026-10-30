@@ -132,7 +132,7 @@ const spacelessChat = new Set([
 // Scripts written without spaces: a title in one counts its characters, not its words.
 const spaceless =
   /[\p{Script=Han}\p{Script=Hiragana}\p{Script=Katakana}\p{Script=Hangul}\p{Script=Thai}]/u
-export const spacelessCharacters = { min: 2, max: 10 }
+const spacelessCharacters = { min: 2, max: 10 }
 
 const tidy = (text: string): string => text.replace(/\s+/g, " ").trim()
 

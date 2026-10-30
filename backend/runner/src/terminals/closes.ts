@@ -7,14 +7,14 @@ import { allowOpen } from "./opens.js"
  * What an agent asks to close, through Novadeck's MCP server: another terminal of its
  * project and session, by its exact handle, as `send` names its recipient.
  */
-export const closeRequest = z.strictObject({
+const closeRequest = z.strictObject({
   to: z.string().min(1).max(65).transform(bareHandle),
 })
 
-export type CloseRequest = z.infer<typeof closeRequest>
+type CloseRequest = z.infer<typeof closeRequest>
 
 /** Why no terminal closed, in a sentence the agent can act on. */
-export type CloseFailure = { readonly ok: false; readonly reason: string }
+type CloseFailure = { readonly ok: false; readonly reason: string }
 
 /**
  * The MCP server's answer: the terminal that closed, by its handle, the agent it ran, if
@@ -79,7 +79,7 @@ const named = (handle: string, title: string, ran: string | undefined): string =
 
 export const notice = "Novadeck: automatic notice, not from the user: "
 
-/** What the asking agent is told once the person answered, or the ask ended without them. */
+/** What the asking agent is told once the person answered, or the request ended without them. */
 export const closeNotice = {
   confirmed: (handle: string, title: string, ran: string | undefined): string =>
     notice +

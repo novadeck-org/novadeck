@@ -68,7 +68,7 @@ export const resumeRefusal = (agent: AgentName, reason: UnavailableReason): stri
 }
 
 /** Whether a session may resume now: its command and claim, or why not. */
-export type ResumeCheck =
+type ResumeCheck =
   | {
       readonly ok: true
       readonly argv: readonly string[]

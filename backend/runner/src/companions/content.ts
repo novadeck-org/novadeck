@@ -9,8 +9,9 @@ import type { AgentName, ItemContent, PlanSaveResult, PlanUnwritable } from "@no
 
 import { DomainError } from "../errors.js"
 import { harnesses } from "../harnesses/registry.js"
+import { cut, tail } from "../text.js"
 import type { ItemRecord } from "./records.js"
-import { failure, maxUrlChars, type PresentFailure } from "./request.js"
+import { failure, maxUrlChars, type RequestFailure } from "./request.js"
 import { secret } from "./secrets.js"
 
 // What is shown as an image, by extension.
@@ -36,7 +37,7 @@ const wholeLines = 400
 const contextLines = 40
 // What the protocol takes of a file and a plan.
 const maxLines = 2000
-const maxLineChars = 4096
+export const maxLineChars = 4096
 const maxPlanBytes = 256 * 1024
 
 /** What an item's content reads of a pointer: unavailable, with why, or ready. */
@@ -47,11 +48,8 @@ const unavailable = (reason: Unavailable["reason"], size: number | null = null):
   size,
 })
 
-const clip = (text: string, max: number): string =>
-  text.length <= max ? text : `…${text.slice(text.length - max + 1)}`
-
 /** Whether a file is shown as an image, by its extension. */
-export const isImage = (path: string): boolean => images[extname(path).toLowerCase()] !== undefined
+const isImage = (path: string): boolean => images[extname(path).toLowerCase()] !== undefined
 
 /**
  * The lines of a file of `total` lines shown, from `first` to `last`, and the ones
@@ -87,7 +85,7 @@ export type Pointed = {
  * A file a request points at, from the terminal's directory: anything but a missing
  * path, a folder, or a pipe or device. What it holds is read only as it loads.
  */
-export const pointAt = async (given: string, cwd: string): Promise<Pointed | PresentFailure> => {
+export const pointAt = async (given: string, cwd: string): Promise<Pointed | RequestFailure> => {
   const path = await realpath(resolve(cwd, given)).catch(() => undefined)
   if (!path) return failure("That file doesn't exist.")
   const stats = await stat(path).catch(() => undefined)
@@ -110,7 +108,7 @@ export const pointAt = async (given: string, cwd: string): Promise<Pointed | Pre
  */
 export const pageAt = (
   address: string,
-): { readonly ok: true; readonly url: URL } | PresentFailure => {
+): { readonly ok: true; readonly url: URL } | RequestFailure => {
   let url: URL
   try {
     url = new URL(address)
@@ -195,7 +193,7 @@ const readLines = async (
   const keeps = (line: number) => line <= wholeLines || (line >= start && line <= last)
   const kept = new Map<number, string>()
   // The latest lines read, which a range past the file's end is pulled back to.
-  const tail: [number, string][] = []
+  const trailing: [number, string][] = []
   const decoder = new StringDecoder("utf8")
   const breaks = /\r\n|\r|\n/g
   const buffer = Buffer.alloc(chunkBytes)
@@ -208,9 +206,11 @@ const readLines = async (
   let past: number | undefined
   const push = () => {
     count += 1
-    if (keeps(count)) kept.set(count, line)
-    tail.push([count, line])
-    if (tail.length > contextLines + 1) tail.shift()
+    // One unit past the limit is held, to see whether it falls inside a pair.
+    const recorded = cut(line, maxLineChars)
+    if (keeps(count)) kept.set(count, recorded)
+    trailing.push([count, recorded])
+    if (trailing.length > contextLines + 1) trailing.shift()
     if (count === last) past = position
     line = ""
   }
@@ -218,11 +218,11 @@ const readLines = async (
     let at = carriage && text.startsWith("\n") ? 1 : 0
     breaks.lastIndex = at
     for (let found = breaks.exec(text); found; found = breaks.exec(text)) {
-      line = (line + text.slice(at, found.index)).slice(0, maxLineChars)
+      line = (line + text.slice(at, found.index)).slice(0, maxLineChars + 1)
       push()
       at = breaks.lastIndex
     }
-    line = (line + text.slice(at)).slice(0, maxLineChars)
+    line = (line + text.slice(at)).slice(0, maxLineChars + 1)
     if (text.length > 0) carriage = text.endsWith("\r")
   }
   for (;;) {
@@ -239,7 +239,7 @@ const readLines = async (
   take(decoder.end())
   // The line a final newline ends is the last; an empty file has one empty line.
   if (line !== "" || count === 0) push()
-  for (const [number, text] of tail) kept.set(number, text)
+  for (const [number, text] of trailing) kept.set(number, text)
   return { kept, count, ended: true }
 }
 
@@ -293,7 +293,7 @@ export const loadFile = async (
       stamp,
       content: {
         kind: "file",
-        path: clip(path, 4096),
+        path: tail(path, 4096),
         firstLine: window.first,
         lines,
         from: window.from,
@@ -477,7 +477,7 @@ const decodePlans = async (
 }
 
 /** A plan's text, as `content` yields it, stamped by its text. */
-export const planReady = (plan: PlanText): ItemContent => ({
+const planReady = (plan: PlanText): ItemContent => ({
   state: "ready",
   stamp: hashOf(plan.text),
   content: { kind: "plan", ...plan, writable: false, skill: false },

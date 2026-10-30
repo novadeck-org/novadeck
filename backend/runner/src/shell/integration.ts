@@ -27,7 +27,7 @@ export const shellLaunch = (
   // On Linux and macOS their MCP server starts from NOVADECK_MCP, so it is this
   // runner's relay whichever build connected them; see `mcpStart`.
   // With shims, their folder goes first on PATH, and the integration puts it back
-  // there after the user's startup files. NOVADECK_SHIMS names the harnesses whose shims
+  // there after the person's startup files. NOVADECK_SHIMS names the harnesses whose shims
   // apply; any other shim there runs its program unchanged.
   launch({
     shell,

@@ -185,7 +185,7 @@ export const handleOrder = (sessionId: string): readonly string[] =>
   )
 
 /** The handles a session has given, and those of its terminals open now. */
-export type HandleSession = {
+type HandleSession = {
   /** The order the session gives words in (see `handleOrder`). */
   readonly order: readonly string[]
   /** Every handle the session has given, its closed terminals' too. */

@@ -10,9 +10,8 @@ import type { Record } from "./record.js"
 
 const token = "t".repeat(48)
 
-// A terminal as far as leading reads it: `ledBy` is what it persists, `bound` whether it
-// runs an agent.
-const terminal = (handle: string, agent: AgentName | null, ledBy: string | null): Record =>
+// A terminal as far as leading reads it: `ledBy` is what it persists.
+const terminal = (handle: string, ledBy: string | null): Record =>
   ({
     summary: { id: `id-${handle}`, handle, title: "Terminal", sessionId: "session", ledBy },
     terminal: { exiting: false },
@@ -24,9 +23,9 @@ const terminal = (handle: string, agent: AgentName | null, ledBy: string | null)
 // (`ledBy` is the lead's handle), and a record of what was sent, noticed and saved.
 const setup = (terminals: { [handle: string]: { agent: AgentName | null; ledBy?: string } }) => {
   const records = new Map(
-    Object.entries(terminals).map(([handle, { agent, ledBy }]) => [
+    Object.entries(terminals).map(([handle, { ledBy }]) => [
       `id-${handle}`,
-      terminal(handle, agent, ledBy ?? null),
+      terminal(handle, ledBy ?? null),
     ]),
   )
   const approvals = new Approvals()
@@ -187,7 +186,7 @@ afterEach(() => {
 const settle = () => vi.advanceTimersByTimeAsync(0)
 
 describe("an agent asking to lead another terminal's agent", () => {
-  it("asks the user at once, carrying the brief, and links nothing yet", async () => {
+  it("asks the person at once, carrying the brief, and links nothing yet", async () => {
     const run = setup({ moth: { agent: "claude" }, fox: { agent: "codex" } })
     const asked = person(run.approvals)
     await expect(run.lead("moth", "fox")).resolves.toEqual({
@@ -303,7 +302,7 @@ describe("an agent asking to lead another terminal's agent", () => {
     ).resolves.toMatchObject({ ok: false, reason: expect.stringMatching(/needs `to`/) })
   })
 
-  it("asks the user about the brief as it will be delivered, cleaned of invisible characters", async () => {
+  it("asks the person about the brief as it will be delivered, cleaned of invisible characters", async () => {
     const run = setup({ moth: { agent: "claude" }, fox: { agent: "codex" } })
     const asked = person(run.approvals)
     await run.lead("moth", "fox", "Fix\u202e the\u200b lint.")
@@ -314,7 +313,7 @@ describe("an agent asking to lead another terminal's agent", () => {
     expect(run.sent).toEqual([{ from: "id-moth", to: "fox", text: "Fix the lint." }])
   })
 
-  it("refuses a brief that is empty once cleaned, before asking the user", async () => {
+  it("refuses a brief that is empty once cleaned, before asking the person", async () => {
     const run = setup({ moth: { agent: "claude" }, fox: { agent: "codex" } })
     const asked = person(run.approvals)
     await expect(run.lead("moth", "fox", "\u200b \u202e")).resolves.toMatchObject({
@@ -357,7 +356,7 @@ describe("an agent asking to lead another terminal's agent", () => {
   })
 })
 
-describe("the user answering an ask to lead", () => {
+describe("the person answering a request to lead", () => {
   const asking = async () => {
     const run = setup({ moth: { agent: "claude" }, fox: { agent: "codex" } })
     const asked = person(run.approvals)
@@ -502,7 +501,7 @@ describe("the user answering an ask to lead", () => {
 
   it("links nothing when another agent came to lead it meanwhile", async () => {
     const { run, answer } = await asking()
-    run.records.set("id-owl", terminal("owl", "claude", null))
+    run.records.set("id-owl", terminal("owl", null))
     run.records.get("id-fox")!.summary = {
       ...run.records.get("id-fox")!.summary,
       ledBy: "owl",
@@ -524,7 +523,7 @@ describe("the user answering an ask to lead", () => {
     expect(run.notices.at(-1)!.text).toMatch(/leads you/)
   })
 
-  it("tells the caller when the user declines, and links nothing", async () => {
+  it("tells the caller when the person declines, and links nothing", async () => {
     const { run, answer } = await asking()
     await answer(false)
     expect(run.records.get("id-fox")!.summary.ledBy).toBeNull()
@@ -549,9 +548,9 @@ describe("the user answering an ask to lead", () => {
     expect(gone.run.records.get("id-fox")!.summary.ledBy).toBeNull()
   })
 
-  it("links nothing when the terminal was replaced before the user approved", async () => {
+  it("links nothing when the terminal was replaced before the person approved", async () => {
     const { run, answer } = await asking()
-    run.records.set("id-fox", terminal("fox", "codex", null))
+    run.records.set("id-fox", terminal("fox", null))
     await answer(true)
     expect(run.records.get("id-fox")!.summary.ledBy).toBeNull()
     expect(run.notices.at(-1)!.text).toBe(leadNotice.vanished("fox"))
@@ -653,7 +652,7 @@ describe("a lead that lasts only for its brief", () => {
 
   it("ends nothing once the lead ended or was set again, even by the same lead", async () => {
     const { run, fox } = led()
-    // The user released it and approved the same lead again: a lead of its own, no brief's.
+    // The person released it and approved the same lead again: a lead of its own, no brief's.
     run.unbrief("id-fox")
     run.moved("m1", "delivered", "id-fox")
     await settle()
@@ -682,7 +681,7 @@ describe("a lead that lasts only for its brief", () => {
   })
 })
 
-describe("the user releasing a terminal", () => {
+describe("the person releasing a terminal", () => {
   it("ends its lead and tells the terminal and its former lead", () => {
     const run = setup({ moth: { agent: "claude" }, fox: { agent: "codex", ledBy: "moth" } })
     run.leads.releaseByPerson("id-fox")
@@ -691,8 +690,8 @@ describe("the user releasing a terminal", () => {
     // Before the lead ends, so its messages are dropped as released, not as ended.
     expect(run.saved).toEqual(["dropped for id-fox", "fox unled"])
     expect(run.notices).toEqual([
-      { to: "id-fox", always: true, text: leadNotice.userReleased("moth") },
-      { to: "id-moth", always: true, text: leadNotice.userReleasedFrom("fox", "Terminal") },
+      { to: "id-fox", always: true, text: leadNotice.personReleased("moth") },
+      { to: "id-moth", always: true, text: leadNotice.personReleasedFrom("fox", "Terminal") },
     ])
   })
 
@@ -714,8 +713,8 @@ describe("a lead that lasts only for its brief, over the real messaging", () => 
     const scope = { projectId: "p", sessionId: "session" }
     messaging.register("id-moth", scope, "moth", null)
     const records = new Map<string, Record>([
-      ["id-moth", terminal("moth", "claude", null)],
-      ["id-fox", terminal("fox", "codex", "moth")],
+      ["id-moth", terminal("moth", null)],
+      ["id-fox", terminal("fox", "moth")],
     ])
     messaging.register("id-fox", scope, "fox", "moth")
     messaging.expect("id-fox", "codex")
@@ -748,7 +747,7 @@ describe("a lead that lasts only for its brief, over the real messaging", () => 
     expect(records.get("id-fox")!.summary.ledBy).toBeNull()
     expect(messaging.briefOf("id-fox")).toBeUndefined()
     // Restored as a new record, it is no one's to lead: nothing the opener sends is marked.
-    records.set("id-fox", terminal("fox", "codex", null))
+    records.set("id-fox", terminal("fox", null))
     messaging.register("id-fox", scope, "fox", null)
     messaging.expect("id-fox", "codex")
     const later = messaging.send("id-moth", { to: "fox", text: "Also this." })

@@ -15,6 +15,7 @@ import { z } from "zod"
 import { DomainError } from "../errors.js"
 import { agentLabel } from "../messaging/messages.js"
 import type { SendAnswer } from "../messaging/messaging.js"
+import { list } from "../text.js"
 import { Followers } from "./followers.js"
 
 /**
@@ -25,7 +26,7 @@ import { Followers } from "./followers.js"
  * leads it (`lead`, by default when there is a message), and a past `resume` session of
  * that agent to continue; with a name; and `focus` when the person asked to see it.
  */
-export const openRequest = z
+const openRequest = z
   .strictObject({
     command: startupCommand.optional(),
     agent: agentName.optional(),
@@ -59,7 +60,7 @@ export const openRequest = z
     path: ["command"],
   })
 
-export type OpenRequest = z.infer<typeof openRequest>
+type OpenRequest = z.infer<typeof openRequest>
 
 /** Why no terminal opened, in a sentence the agent can act on. */
 export type OpenFailure = { readonly ok: false; readonly reason: string }
@@ -131,9 +132,7 @@ export const readOpenRequest = (
         "up to 128 characters.",
     )
   if (issue?.path[0] === "effort")
-    return refused(
-      `effort is one of ${efforts.slice(0, -1).join(", ")} or ${efforts.at(-1)}; leave it out for the agent's default.`,
-    )
+    return refused(`effort is one of ${list(efforts, "or")}; leave it out for the agent's default.`)
   const field = issue?.path.join(".")
   return refused(field ? `The request's "${field}" is not valid.` : "The request is not valid.")
 }
@@ -227,7 +226,7 @@ export class OpenRequests {
    * Sends the request to the newest client and waits up to `ms` for its answer; the
    * `opener`, with the title it asked for, waits for the terminal the client creates for it.
    */
-  ask(request: Omit<TerminalRequest, "requestId">, ms: number, opener: Opener): Promise<Asked> {
+  request(request: Omit<TerminalRequest, "requestId">, ms: number, opener: Opener): Promise<Asked> {
     const follower = this.followers.newest()
     if (!follower) return Promise.resolve({ type: "nobody" })
     const requestId = randomUUID()

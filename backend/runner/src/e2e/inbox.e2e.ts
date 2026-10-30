@@ -2,13 +2,8 @@ import { join } from "node:path"
 
 import { setups } from "./agents/index.js"
 import { describe, e2e, expect, supported } from "./fixture.js"
-import { asked, tool, type Call } from "./model/script.js"
+import { asked, record, tool, type Call } from "./model/script.js"
 import { delivered, own, replies, result, start, through, turn } from "./scenarios.js"
-
-const record = (value: unknown): Readonly<Record<string, unknown>> =>
-  typeof value === "object" && value !== null && !Array.isArray(value)
-    ? (value as Record<string, unknown>)
-    : {}
 
 // The schema the model actually sees, after its harness translated the MCP declaration.
 // Antigravity loads it lazily: read_file's result is the model's copy, not the runner's.

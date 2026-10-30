@@ -26,7 +26,7 @@ export type TranscriptRedactorOptions = {
 }
 
 // Built, the worker is a file beside this one; in the desktop app's bundle it is
-// `redactionWorker.js` beside the bundle (see the host's build).
+// `redactionWorker.js` beside the bundle (see the desktop app's build).
 const where = {
   base: import.meta.url,
   built: ["./redactionWorker.js"],
@@ -40,7 +40,7 @@ const where = {
  * (docs/transcript-redaction.md has the measurements), so this leaves a machine several times
  * slower its time and still ends a thread that is stuck.
  */
-export const transcriptDeadlineMs = 6000
+const transcriptDeadlineMs = 6000
 
 /** A redactor with a thread of its own, started when first needed and ended after a while idle. */
 export const createTranscriptRedactor = (

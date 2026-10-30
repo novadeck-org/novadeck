@@ -269,6 +269,29 @@ describe("a server", () => {
     )
   })
 
+  // One of the two pads puts the cut inside an emoji's surrogate pair.
+  it.for(["", "x"])(
+    "cuts a long failure to the limit without leaving half a character (pad %j)",
+    async (pad, { resources }) => {
+      const said = `${pad}${"😀".repeat(500)}`
+      const server = new Server(spec, {
+        launch: () => ({
+          command: process.execPath,
+          args: ["-e", `console.error(${JSON.stringify(said)}); process.exit(1)`],
+        }),
+      })
+      resources.defer(() => server.close())
+      const directory = await folder(resources)
+
+      const failure = await server.start({ folder: directory, key: "a" }).catch((error) => error)
+
+      expect(failure).toBeInstanceOf(EngineError)
+      const { message } = failure as EngineError
+      expect(message.endsWith("😀...")).toBe(true)
+      expect(message.length).toBeLessThanOrEqual(900)
+    },
+  )
+
   it("words its failures with its subject", async ({ resources }) => {
     const server = new Server(spec, {
       launch: () => ({

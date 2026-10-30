@@ -73,7 +73,7 @@ export type MurmurSettingsChange = {
   readonly enabled?: boolean | null | undefined
 }
 
-export type SettingsChange = {
+type SettingsChange = {
   readonly [K in keyof RunnerSettings]?: RunnerSettings[K] | undefined
 }
 
@@ -1601,18 +1601,56 @@ export class WorkspaceStore implements TerminalRecords, MessageRecords, InboxRec
     })
   }
 
-  messagingPaused(): boolean {
-    const row = this.queries.get`SELECT value FROM settings WHERE key = 'messagingPaused'` as
+  /** The saved value of a setting; `undefined` when none is. */
+  private setting(key: string): string | undefined {
+    const row = this.queries.get`SELECT value FROM settings WHERE key = ${key}` as
       | { value: string }
       | undefined
-    return row?.value === "true"
+    return row?.value
+  }
+
+  private saveSetting(key: string, value: string): void {
+    void this.queries.run`
+      INSERT INTO settings (key, value) VALUES (${key}, ${value})
+      ON CONFLICT (key) DO UPDATE SET value = excluded.value
+    `
+  }
+
+  private forgetSetting(key: string): void {
+    void this.queries.run`DELETE FROM settings WHERE key = ${key}`
+  }
+
+  /** Saves a setting as JSON; `null` forgets it. */
+  private saveSettingJson(key: string, value: unknown): void {
+    if (value === null) this.forgetSetting(key)
+    else this.saveSetting(key, JSON.stringify(value))
+  }
+
+  /** Saves what is given under `prefix.`; `null` forgets a setting. */
+  private saveGroup(prefix: string, settings: object): void {
+    for (const [key, value] of Object.entries(settings)) {
+      if (value === null) this.forgetSetting(`${prefix}.${key}`)
+      else if (value !== undefined) this.saveSetting(`${prefix}.${key}`, String(value))
+    }
+  }
+
+  /** A setting saved as JSON, as `read` takes it; `null` when there is none or it can't be read. */
+  private settingJson<T>(key: string, read: (saved: unknown) => T | null): T | null {
+    const text = this.setting(key)
+    if (text === undefined) return null
+    try {
+      return read(JSON.parse(text))
+    } catch {
+      return null
+    }
+  }
+
+  messagingPaused(): boolean {
+    return this.setting("messagingPaused") === "true"
   }
 
   pauseMessaging(paused: boolean): void {
-    void this.queries.run`
-      INSERT INTO settings (key, value) VALUES ('messagingPaused', ${String(paused)})
-      ON CONFLICT (key) DO UPDATE SET value = excluded.value
-    `
+    this.saveSetting("messagingPaused", String(paused))
   }
 
   settings(): RunnerSettings {
@@ -1630,11 +1668,7 @@ export class WorkspaceStore implements TerminalRecords, MessageRecords, InboxRec
 
   saveSettings(settings: SettingsChange): void {
     for (const [key, value] of Object.entries(settings))
-      if (value !== undefined)
-        void this.queries.run`
-        INSERT INTO settings (key, value) VALUES (${key}, ${String(value)})
-        ON CONFLICT (key) DO UPDATE SET value = excluded.value
-      `
+      if (value !== undefined) this.saveSetting(key, String(value))
   }
 
   /** Voice input's settings: off, on the lighter model, and detecting the language, until chosen. */
@@ -1657,21 +1691,14 @@ export class WorkspaceStore implements TerminalRecords, MessageRecords, InboxRec
    * or before a later model's install, survives.
    */
   voiceEnabledChoice(): boolean | undefined {
-    const row = this.queries.get`SELECT value FROM settings WHERE key = 'voice.enabled'` as
-      | { value: string }
-      | undefined
-    return row === undefined ? undefined : row.value === "true"
+    const enabled = this.setting("voice.enabled")
+    return enabled === undefined ? undefined : enabled === "true"
   }
 
   /** The check the last install passed, as saved; `null` when there is none or it can't be read. */
   voiceCheck(): VoiceCheck | null {
-    const row = this.queries.get`SELECT value FROM settings WHERE key = 'voice.check'` as
-      | { value: string }
-      | undefined
-    if (row === undefined) return null
-    try {
+    return this.settingJson("voice.check", (saved) => {
       // Read leniently: a check an earlier build saved carries more than the wire has now.
-      const saved: unknown = JSON.parse(row.value)
       const parsed = voiceCheck.safeParse(
         typeof saved === "object" && saved !== null
           ? {
@@ -1681,19 +1708,12 @@ export class WorkspaceStore implements TerminalRecords, MessageRecords, InboxRec
           : saved,
       )
       return parsed.success ? parsed.data : null
-    } catch {
-      return null
-    }
+    })
   }
 
   /** Replaces the saved check; `null` forgets it, as when voice input is removed. */
   saveVoiceCheck(check: VoiceCheck | null): void {
-    if (check === null) void this.queries.run`DELETE FROM settings WHERE key = 'voice.check'`
-    else
-      void this.queries.run`
-        INSERT INTO settings (key, value) VALUES ('voice.check', ${JSON.stringify(check)})
-        ON CONFLICT (key) DO UPDATE SET value = excluded.value
-      `
+    this.saveSettingJson("voice.check", check)
   }
 
   /**
@@ -1711,14 +1731,7 @@ export class WorkspaceStore implements TerminalRecords, MessageRecords, InboxRec
 
   /** Saves what is given; `enabled: null` forgets the choice. */
   saveVoiceSettings(settings: VoiceSettingsChange): void {
-    for (const [key, value] of Object.entries(settings)) {
-      if (value === null) void this.queries.run`DELETE FROM settings WHERE key = ${`voice.${key}`}`
-      else if (value !== undefined)
-        void this.queries.run`
-        INSERT INTO settings (key, value) VALUES (${`voice.${key}`}, ${String(value)})
-        ON CONFLICT (key) DO UPDATE SET value = excluded.value
-      `
-    }
+    this.saveGroup("voice", settings)
   }
 
   /** Murmur's settings: off until the person turns it on. */
@@ -1728,34 +1741,21 @@ export class WorkspaceStore implements TerminalRecords, MessageRecords, InboxRec
 
   /** Whether the person chose murmur on or off: `undefined` until they, or an install, did. */
   murmurEnabledChoice(): boolean | undefined {
-    const row = this.queries.get`SELECT value FROM settings WHERE key = 'murmur.enabled'` as
-      | { value: string }
-      | undefined
-    return row === undefined ? undefined : row.value === "true"
+    const enabled = this.setting("murmur.enabled")
+    return enabled === undefined ? undefined : enabled === "true"
   }
 
   /** The check the last install passed, as saved; `null` when there is none or it can't be read. */
   murmurCheck(): MurmurCheck | null {
-    const row = this.queries.get`SELECT value FROM settings WHERE key = 'murmur.check'` as
-      | { value: string }
-      | undefined
-    if (row === undefined) return null
-    try {
-      const parsed = murmurCheck.safeParse(JSON.parse(row.value))
+    return this.settingJson("murmur.check", (saved) => {
+      const parsed = murmurCheck.safeParse(saved)
       return parsed.success ? parsed.data : null
-    } catch {
-      return null
-    }
+    })
   }
 
   /** Replaces the saved check; `null` forgets it, as when murmur is removed. */
   saveMurmurCheck(check: MurmurCheck | null): void {
-    if (check === null) void this.queries.run`DELETE FROM settings WHERE key = 'murmur.check'`
-    else
-      void this.queries.run`
-        INSERT INTO settings (key, value) VALUES ('murmur.check', ${JSON.stringify(check)})
-        ON CONFLICT (key) DO UPDATE SET value = excluded.value
-      `
+    this.saveSettingJson("murmur.check", check)
   }
 
   /**
@@ -1763,55 +1763,30 @@ export class WorkspaceStore implements TerminalRecords, MessageRecords, InboxRec
    * it ran; `null` when it never did or the value can't be read.
    */
   murmurUnsupported(): MurmurVerdict | null {
-    const row = this.queries.get`SELECT value FROM settings WHERE key = 'murmur.unsupported'` as
-      | { value: string }
-      | undefined
-    if (row === undefined) return null
-    try {
-      const { reason, engine } = JSON.parse(row.value) as Partial<MurmurVerdict>
+    return this.settingJson("murmur.unsupported", (saved) => {
+      const { reason, engine } = saved as Partial<MurmurVerdict>
       return typeof reason === "string" && typeof engine === "string" ? { reason, engine } : null
-    } catch {
-      return null
-    }
+    })
   }
 
   /** Remembers that this computer can't run murmur; `null` forgets it. */
   saveMurmurUnsupported(verdict: MurmurVerdict | null): void {
-    if (verdict === null)
-      void this.queries.run`DELETE FROM settings WHERE key = 'murmur.unsupported'`
-    else
-      void this.queries.run`
-        INSERT INTO settings (key, value) VALUES ('murmur.unsupported', ${JSON.stringify(verdict)})
-        ON CONFLICT (key) DO UPDATE SET value = excluded.value
-      `
+    this.saveSettingJson("murmur.unsupported", verdict)
   }
 
   /** In how many sessions of the app the one-time offer was shown. */
   murmurOffers(): number {
-    const row = this.queries.get`SELECT value FROM settings WHERE key = 'murmur.offers'` as
-      | { value: string }
-      | undefined
-    const offers = Number(row?.value)
+    const offers = Number(this.setting("murmur.offers"))
     return Number.isInteger(offers) && offers > 0 ? offers : 0
   }
 
   saveMurmurOffers(offers: number): void {
-    void this.queries.run`
-      INSERT INTO settings (key, value) VALUES ('murmur.offers', ${String(offers)})
-      ON CONFLICT (key) DO UPDATE SET value = excluded.value
-    `
+    this.saveSetting("murmur.offers", String(offers))
   }
 
   /** Saves what is given; `enabled: null` forgets the choice. */
   saveMurmurSettings(settings: MurmurSettingsChange): void {
-    for (const [key, value] of Object.entries(settings)) {
-      if (value === null) void this.queries.run`DELETE FROM settings WHERE key = ${`murmur.${key}`}`
-      else if (value !== undefined)
-        void this.queries.run`
-        INSERT INTO settings (key, value) VALUES (${`murmur.${key}`}, ${String(value)})
-        ON CONFLICT (key) DO UPDATE SET value = excluded.value
-      `
-    }
+    this.saveGroup("murmur", settings)
   }
 
   item(itemId: string): ItemRecord | undefined {

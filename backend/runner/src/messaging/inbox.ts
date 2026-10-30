@@ -19,12 +19,13 @@ import { z } from "zod"
 import { DomainError } from "../errors.js"
 import type { RootChange } from "../harnesses/roots.js"
 import { logs } from "../log.js"
-import { shorten } from "../terminals/work.js"
+import { cut, firstFew, shorten } from "../text.js"
 import {
   allowSend,
   byteLength,
   cleanInboxText,
   rates,
+  recentSends,
   retentionMs,
   undelivered,
   type Message,
@@ -217,8 +218,8 @@ const askText = (ask: AgentAsk): string => {
     .join("\n\n")
 }
 
-export const maxOpenAsks = 50
-export const maxUnreadTells = 50
+const maxOpenAsks = 50
+const maxUnreadTells = 50
 /** Unread finished turns kept per terminal: the oldest goes at the 51st. */
 export const maxUnreadTurns = 50
 const maxTurnFiles = 16
@@ -229,11 +230,11 @@ export const askSweepMs = 60_000
  * before it ends: a restored terminal resumes its agent and binds the session again within
  * seconds, or never. An ask it ended reopens if that session binds after all.
  */
-export const askResumeGraceMs = 120_000
+const askResumeGraceMs = 120_000
 
 const isTurn = (entry: StoredEntry): boolean => entry.content.kind === "turn"
 const clipped = (value: unknown, max: number): string | null =>
-  typeof value === "string" && value.length > 0 ? value.slice(0, max) : null
+  typeof value === "string" && value.length > 0 ? cut(value, max) : null
 
 /**
  * A stored turn entry as today's rules read it: its text cut to the limits, its files
@@ -262,18 +263,17 @@ const clampedTurn = (content: unknown): TurnContent | undefined => {
 const noticedSubjects = 5
 
 /**
- * Novadeck's notice to an agent whose open asks it took out of the user's Inbox because the
- * user wrote to it in its terminal: one paragraph, in the voice of Novadeck's other notices.
- * The subjects are the agent's own words, shortened and quoted.
+ * Novadeck's notice to an agent whose open asks it took out of the person's Inbox because
+ * the person wrote to it in its terminal: one paragraph, in the voice of Novadeck's other
+ * notices. The subjects are the agent's own words, shortened and quoted.
  */
 export const withdrawnNotice = (subjects: readonly string[]): string => {
-  const named = subjects.slice(0, noticedSubjects).map((each) => JSON.stringify(shorten(each, 80)))
-  const more = subjects.length - named.length
+  const named = subjects.map((each) => JSON.stringify(shorten(each, 80)))
   const one = subjects.length === 1
   return (
     "Novadeck: automatic notice, not from the user: the user wrote to you, " +
     `so Novadeck took your open ${one ? "ask" : "asks"} out of their Inbox: ` +
-    `${named.join(", ")}${more > 0 ? ` and ${more} more` : ""}. ` +
+    `${firstFew(named, noticedSubjects)}. ` +
     `${one ? "It is" : "They are"} closed and can no longer be answered in the Inbox. ` +
     `Read their message as their reply to ${one ? "it" : "them"}; whatever it leaves open, ` +
     "ask again with the ask tool before ending the turn, rather than saying it waits in the " +
@@ -282,17 +282,16 @@ export const withdrawnNotice = (subjects: readonly string[]): string => {
 }
 
 /**
- * Novadeck's quiet notice to an agent whose open asks the user dismissed from their Inbox
- * without answering: printed beside the agent's next hook answer, waking nothing.
+ * Novadeck's quiet notice to an agent whose open asks the person dismissed from their
+ * Inbox without answering: printed beside the agent's next hook answer, waking nothing.
  */
 export const dismissedNotice = (
   asks: readonly { readonly subject: string; readonly action: string }[],
 ): string => {
-  const named = asks
-    .slice(0, noticedSubjects)
-    .map((each) => JSON.stringify(shorten(each.subject, 80)))
-  const more = asks.length - named.length
-  const list = `${named.join(", ")}${more > 0 ? ` and ${more} more` : ""}`
+  const list = firstFew(
+    asks.map((each) => JSON.stringify(shorten(each.subject, 80))),
+    noticedSubjects,
+  )
   const one = asks.length === 1
   const head = "Novadeck: automatic notice, not from the user: the user dismissed "
   const tail = " This notice needs no reply."
@@ -719,7 +718,7 @@ export class Inbox {
   /**
    * The person wrote to the terminal's agent in its terminal, in a turn that started at
    * `before`: the session's open asks made earlier, which `withdrawReplied` would take out
-   * (tells, done rows and turn rows stay), and the notice naming them for the agent. Nothing
+   * (tells, done entries and turn entries stay), and the notice naming them for the agent. Nothing
    * changes; undefined when none is open.
    */
   withdrawable(
@@ -1019,7 +1018,7 @@ export class Inbox {
     }
     this.remove(gone)
     for (const [id, times] of this.sent) {
-      const recent = times.filter((time) => at - time < rates.windowMs)
+      const recent = recentSends(times, at)
       if (recent.length) this.sent.set(id, recent)
       else this.sent.delete(id)
     }
