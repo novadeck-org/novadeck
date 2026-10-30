@@ -8,7 +8,7 @@ import type { ToolRun } from "@novadeck/protocol"
  * spelling of the server.
  */
 
-/** A tool call's input, as the JSON object it is. */
+/** A JSON object's fields: a tool call's input, or a transcript's record. */
 export type Fields = Readonly<Record<string, unknown>>
 
 /** Whether a value is a JSON object, as a call's input is. */
@@ -88,12 +88,7 @@ const shortDetail = (detail: string): string =>
  * never parses.
  */
 export const shellCall = (_tool: string, input: string): ToolRun => {
-  const command = parseFields(input)?.command
-  return {
-    kind: "run",
-    title: "Ran",
-    detail: oneLine(textField({ command: typeof command === "string" ? command : "" }, "command")),
-  }
+  return { kind: "run", title: "Ran", detail: oneLine(textField(parseFields(input), "command")) }
 }
 
 /**

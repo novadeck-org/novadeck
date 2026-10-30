@@ -79,7 +79,7 @@ export const withMode = (
 
 // Terminal escape sequences: CSI (ESC [ … final), OSC (ESC ] … BEL or ST), and other
 // two-character escapes; then any control character left, and the bidirectional
-// overrides and isolates that could reorder what the Inbox shows.
+// overrides and isolates that could reorder what the Inbox or a notification shows.
 // eslint-disable-next-line no-control-regex -- These are the characters it removes.
 const escapes = /\x1b\[[0-?]*[ -/]*[@-~]|\x1b\][^\x07\x1b]*(?:\x07|\x1b\\)?|\x1b[@-_]?/g
 // eslint-disable-next-line no-control-regex -- As above.
