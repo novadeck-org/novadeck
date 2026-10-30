@@ -2,7 +2,7 @@ import { afterEach, describe as context, describe, expect, it, vi } from "vitest
 
 import type { AttachStream } from "../contract.js"
 import {
-  closeViews,
+  closeScreens,
   fontChanges,
   inputOf,
   loading,
@@ -18,7 +18,7 @@ import {
   starting,
   streamOf,
   themed,
-  viewsOf,
+  screensOf,
 } from "./fakes.test-support.js"
 import type { Lifecycle } from "./follow.js"
 import { createStore, type ViewLink } from "./view-state.js"
@@ -46,7 +46,7 @@ vi.hoisted(() => {
 
 // A screen closes once its session has stayed off screen for its retention; it closes here
 // instead, while the file's DOM is still there to take its listeners off.
-afterEach(closeViews)
+afterEach(closeScreens)
 
 // A screen as the one holding it sees it: what it keeps while moved, what it tells, and what
 // it refuses.
@@ -54,8 +54,8 @@ describe("a hold on a terminal's screen", () => {
   it("leaves no refocus waiting when it takes back a screen that never left its element", () => {
     vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout", "Date"] })
     try {
-      const views = viewsOf(optionsOf())
-      const { hold, element } = shown(views, "a")
+      const screens = screensOf(optionsOf())
+      const { hold, element } = shown(screens, "a")
       const input = inputOf(element)
       input.focus()
       expect(document.activeElement).toBe(input)
@@ -64,7 +64,7 @@ describe("a hold on a terminal's screen", () => {
       hold.release()
       // Focus moved on while it was out of sight.
       input.blur()
-      const back = views.acquire("a", running)
+      const back = screens.acquire("a", running)
       back.place(element)
       // Nothing waited to refocus the screen: letting go of it out of sight is not an
       // unmount, so taking it again must not steal focus.
@@ -72,7 +72,7 @@ describe("a hold on a terminal's screen", () => {
       // Only a release for an unmount leaves focus for the next hold to restore.
       input.focus()
       back.release({ unmount: true })
-      const next = views.acquire("a", running)
+      const next = screens.acquire("a", running)
       next.place(element)
       expect(document.activeElement).toBe(input)
     } finally {
@@ -83,14 +83,14 @@ describe("a hold on a terminal's screen", () => {
   it("tells its state again when it is held again in a new phase", () => {
     vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout", "Date"] })
     try {
-      const views = viewsOf(optionsOf({ lifecycle: () => starting() }))
-      const { hold } = shown(views, "a", { phase: "starting" })
+      const screens = screensOf(optionsOf({ lifecycle: () => starting() }))
+      const { hold } = shown(screens, "a", { phase: "starting" })
       const woken = vi.fn<() => void>()
       hold.state.subscribe(woken)
       expect(hold.state.getSnapshot().lock).toBe("starting")
       hold.release()
       woken.mockClear()
-      views.acquire("a", { ...running, phase: "ended" })
+      screens.acquire("a", { ...running, phase: "ended" })
       expect(hold.state.getSnapshot().lock).toBeNull()
       expect(woken).toHaveBeenCalledTimes(1)
     } finally {
@@ -103,13 +103,13 @@ describe("a hold on a terminal's screen", () => {
     // a new one, which the focus must reach.
     vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout", "Date"] })
     try {
-      const views = viewsOf(optionsOf({ park: { afterMs: 5_000, keep: 0 } }))
-      const { hold, element } = shown(views, "a")
+      const screens = screensOf(optionsOf({ park: { afterMs: 5_000, keep: 0 } }))
+      const { hold, element } = shown(screens, "a")
       const first = element.firstElementChild
       hold.release()
       vi.advanceTimersByTime(6_000)
       expect(element.firstElementChild).toBeNull()
-      const back = views.acquire("a", running)
+      const back = screens.acquire("a", running)
       back.place(element)
       expect(element.firstElementChild).not.toBe(first)
       expect(back.focus()).toBe(true)
@@ -124,10 +124,10 @@ describe("a hold on a terminal's screen", () => {
     const { attached } = streamOf([snapshot("hello from the same shell\r\n")])
     const attach = vi.fn<() => Promise<AttachStream>>(async () => attached)
     const stages: string[] = []
-    const views = viewsOf(
+    const screens = screensOf(
       optionsOf({ attach, on: { stage: (_key, stage) => void stages.push(stage) } }),
     )
-    const { element } = shown(views, "01")
+    const { element } = shown(screens, "01")
     await vi.waitFor(() =>
       expect(opened[0]?.buffer.active.getLine(0)?.translateToString()).toContain(
         "hello from the same shell",
@@ -164,7 +164,7 @@ describe("a hold on a terminal's screen", () => {
       const stages: string[] = []
       let wanted = onScreen
       let terminalEnd: "open" | "closed" | "removed" = "open"
-      const views = viewsOf(
+      const screens = screensOf(
         optionsOf({
           attach,
           lifecycle: () =>
@@ -177,7 +177,7 @@ describe("a hold on a terminal's screen", () => {
       const inView = (view: string) => {
         const element = slot()
         element.dataset.view = view
-        const hold = views.acquire("01", running)
+        const hold = screens.acquire("01", running)
         hold.place(element)
         return { element, unmount: () => hold.release({ unmount: true }) }
       }
@@ -315,8 +315,8 @@ describe("a hold on a terminal's screen", () => {
 
   context("while its shell has no stream yet", () => {
     it("refuses input where the person can see it", () => {
-      const views = viewsOf(optionsOf({ lifecycle: () => starting() }))
-      const { hold, element } = shown(views, "a", { phase: "starting" })
+      const screens = screensOf(optionsOf({ lifecycle: () => starting() }))
+      const { hold, element } = shown(screens, "a", { phase: "starting" })
       expect(inputOf(element).getAttribute("aria-disabled")).toBe("true")
       expect(hold.state.getSnapshot().lock).toBe("starting")
     })
@@ -324,8 +324,8 @@ describe("a hold on a terminal's screen", () => {
 
   context("while a running shell's screen has not arrived", () => {
     it("says its output is loading, not that the shell is starting", () => {
-      const views = viewsOf(optionsOf({ lifecycle: () => starting() }))
-      const { hold } = shown(views, "a")
+      const screens = screensOf(optionsOf({ lifecycle: () => starting() }))
+      const { hold } = shown(screens, "a")
       expect(hold.state.getSnapshot().lock).toBe("loading")
     })
   })
@@ -335,8 +335,8 @@ describe("a hold on a terminal's screen", () => {
       const opened = openedTerminals()
       const page = themed()
       page.apply("Old Mono")
-      const views = viewsOf(optionsOf({ theme: page.theme }))
-      shown(views, "a")
+      const screens = screensOf(optionsOf({ theme: page.theme }))
+      shown(screens, "a")
       expect(opened[0]?.options.fontFamily).toBe("Old Mono")
 
       page.apply("New Mono")
@@ -352,7 +352,7 @@ describe("a hold on a terminal's screen", () => {
       const page = themed()
       page.apply("Bundled Mono")
       try {
-        shown(viewsOf(optionsOf({ theme: page.theme })), "a")
+        shown(screensOf(optionsOf({ theme: page.theme })), "a")
         const before = changes.length
 
         font.arrive()
@@ -373,7 +373,7 @@ describe("a hold on a terminal's screen", () => {
       const changes = fontChanges((terminal) => opened.includes(terminal))
       let font: ReturnType<typeof loading> | undefined
       try {
-        shown(viewsOf(optionsOf({ theme: page.theme })), "a")
+        shown(screensOf(optionsOf({ theme: page.theme })), "a")
         font = loading()
         const before = changes.length
 
@@ -397,7 +397,7 @@ describe("a hold on a terminal's screen", () => {
       const changes = fontChanges((terminal) => opened.includes(terminal))
       let font: ReturnType<typeof loading> | undefined
       try {
-        shown(viewsOf(optionsOf({ theme: page.theme })), "a")
+        shown(screensOf(optionsOf({ theme: page.theme })), "a")
         font = loading()
         const before = changes.length
 
@@ -417,7 +417,7 @@ describe("a hold on a terminal's screen", () => {
       const page = themed()
       page.apply("Bundled Mono")
       try {
-        const { hold } = shown(viewsOf(optionsOf({ theme: page.theme })), "a")
+        const { hold } = shown(screensOf(optionsOf({ theme: page.theme })), "a")
         // A screen closes once its session has stayed off screen for its retention.
         vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout", "Date"] })
         try {
@@ -441,8 +441,8 @@ describe("a hold on a terminal's screen", () => {
   context("while the host reconnects", () => {
     it("locks its input, saying why", () => {
       const connection = createStore<ViewLink>("connected")
-      const views = viewsOf(optionsOf({ lifecycle: () => starting(), connection }))
-      const { hold, element } = shown(views, "a", { phase: "starting" })
+      const screens = screensOf(optionsOf({ lifecycle: () => starting(), connection }))
+      const { hold, element } = shown(screens, "a", { phase: "starting" })
       connection.update(() => "reconnecting")
       expect(hold.state.getSnapshot().lock).toBe("reconnecting")
       connection.update(() => "unavailable")
@@ -455,14 +455,14 @@ describe("a hold on a terminal's screen", () => {
   const ended = (lifecycle: () => Lifecycle = starting) => {
     const connection = createStore<ViewLink>("connected")
     const restarts: string[] = []
-    const views = viewsOf(
+    const screens = screensOf(
       optionsOf({
         lifecycle,
         connection,
         restart: (key) => void restarts.push(key),
       }),
     )
-    return { ...shown(views, "01", { phase: "ended" }), restarts, connection }
+    return { ...shown(screens, "01", { phase: "ended" }), restarts, connection }
   }
 
   context("once its shell ended", () => {

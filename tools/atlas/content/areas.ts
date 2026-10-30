@@ -270,7 +270,7 @@ export const notes: Record<string, Note> = {
       "The backend port against the runner: connection and reconnects, seeding, saves, conversations, companions, messages and its terminals' streams.",
     entries: [
       { file: `${adapter}/backend.ts`, text: "export type RunnerBackendOptions" },
-      { file: `${adapter}/terminals/view-options.ts`, text: "export const viewOptions" },
+      { file: `${adapter}/terminals/screens-options.ts`, text: "export const screensOptions" },
     ],
     docs: ["docs/backend-api.md"],
   },

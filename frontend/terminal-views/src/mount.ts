@@ -1,7 +1,7 @@
 import "./terminal-xterm.css"
 import type { MountTerminal, TerminalKey, TerminalMountProps, ViewState } from "@novadeck/core/port"
 import type { ViewMode } from "@novadeck/core/types"
-import type { Hold, TerminalViews, ViewPhase } from "@novadeck/terminal/view"
+import type { Hold, ShowOptions, TerminalScreens, ViewPhase } from "@novadeck/terminal/view"
 
 // The shell's stage for a terminal's status: an exited or failed one waits for Enter.
 const phaseOf = (status: TerminalMountProps["status"]): ViewPhase =>
@@ -16,12 +16,11 @@ const phaseOf = (status: TerminalMountProps["status"]): ViewPhase =>
 // above one and ragged below, so Canvas keeps the DOM renderer.
 const wantsWebgl = (view: ViewMode): boolean => view !== "canvas"
 
-// The views a mount takes its screen from: only `acquire` is the mount's.
-type Screens = Pick<TerminalViews<TerminalKey>, "acquire">
+// The screens a mount takes its screen from: only `acquire` is the mount's.
+type Screens = Pick<TerminalScreens<TerminalKey>, "acquire">
 
 // What a mount asks of its screen: the input's accessible name in the app's words, the
 // shell's stage, and whether the view draws with WebGL.
-type ShowOptions = Parameters<Screens["acquire"]>[1]
 const showOptions = (props: TerminalMountProps): ShowOptions => ({
   label: `Input for ${props.name}`,
   phase: phaseOf(props.status),

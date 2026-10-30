@@ -35,6 +35,54 @@ const shell = loadProbe(import.meta.dirname, "shell.probe.json") as {
   scenarios: { [name: string]: object[] }
 }
 
+describe("Codex's interruptions", () => {
+  const { scenarios } = loadProbe(import.meta.dirname, "ask.probe.json") as {
+    scenarios: { [name: string]: { [key: string]: object[] } }
+  }
+  const aborted = (reason: string) => ({
+    timestamp: "2026-10-20T10:00:00.000Z",
+    type: "event_msg",
+    payload: { type: "turn_aborted", turn_id: "t1", reason },
+  })
+
+  it("read as the person's interruption, where the turn ended, as captured", () => {
+    const [interrupted, ...rest] = items(scenarios["rui-esc-then-prompt"]!.rolloutFinal!).filter(
+      (each) => each.interrupted,
+    )
+    expect(rest).toEqual([])
+    expect(interrupted).toMatchObject({ role: "user", kind: "text", interrupted: true })
+  })
+
+  it("are only an abort the person made, and nothing else Codex tells of it", () => {
+    expect(items([aborted("interrupted")])).toMatchObject([
+      { at: Date.parse("2026-10-20T10:00:00.000Z"), role: "user", interrupted: true },
+    ])
+    expect(items([aborted("replaced")])).toEqual([])
+    // The message it tells the model of the abort with is a developer's, which stays out.
+    const told = item({
+      type: "message",
+      role: "developer",
+      content: [
+        {
+          type: "input_text",
+          text: "<turn_aborted>\nThe previous turn was interrupted on purpose.\n</turn_aborted>",
+        },
+      ],
+    })
+    expect(items([told])).toEqual([])
+    // Claude Code's marker is no record of Codex's.
+    expect(
+      items([
+        item({
+          type: "message",
+          role: "user",
+          content: [{ type: "input_text", text: "[Request interrupted by user]" }],
+        }),
+      ]),
+    ).toMatchObject([{ role: "user", interrupted: false }])
+  })
+})
+
 describe("Codex's shell-mode commands, as captured", () => {
   const ran = (name: string) => items(shell.scenarios[name]!)
 

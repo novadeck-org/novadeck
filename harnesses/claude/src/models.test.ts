@@ -6,14 +6,14 @@ const install = { env: {}, home: "/home/user", platform: "linux", plugin: "" } a
 
 describe("Claude Code's models", () => {
   it("are its aliases, each with every effort", async () => {
-    const models = await claude.messaging.models(install)
+    const models = await claude.launch.models(install)
     expect(models.map(({ id }) => id)).toEqual(["opus", "sonnet", "haiku", "fable"])
     for (const model of models)
       expect(model.efforts).toEqual(["low", "medium", "high", "xhigh", "max"])
   })
 
   it("start with the model and the effort as flags", () => {
-    const { choose } = claude.messaging
+    const { choose } = claude.launch
     expect(choose({})).toEqual([])
     expect(choose({ model: "opus", effort: "xhigh" })).toEqual([
       "--model",

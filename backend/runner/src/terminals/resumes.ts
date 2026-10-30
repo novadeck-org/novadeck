@@ -122,7 +122,7 @@ export class Claims {
     connected: boolean,
     choice?: Choice,
   ): ResumeCheck {
-    const { resume } = harnesses[agent]
+    const { resume } = harnesses[agent].launch
     const key = `${agent}:${session}`
     const claimant = this.claims.get(key)
     const bound = this.host.boundElsewhere(terminalId, agent, session)

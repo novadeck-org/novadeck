@@ -2,7 +2,7 @@ import { readdir } from "node:fs/promises"
 import { dirname, join } from "node:path"
 
 import { parseFields, type Fields } from "@novadeck/harness-core/fields"
-import type { Harness } from "@novadeck/harness-core/harness"
+import type { Harness, TranscriptEntry } from "@novadeck/harness-core/harness"
 import { at, entry, joined, textOf } from "@novadeck/harness-core/items"
 import { shellCall } from "@novadeck/harness-core/tools"
 
@@ -74,6 +74,17 @@ const toolName = (payload: Fields): unknown =>
     ? `${payload.namespace.replace(/_+$/, "")}__${payload.name}`
     : payload.name
 
+// The person's Esc, as Codex records it: the turn's abort, an event (the developer message
+// it tells the model with stays out with the rest), read as the chat's note that they
+// interrupted it (probed 2026-10, 0.162.1 and 0.165.0). Another reason, as a turn another
+// replaced, is no interruption of theirs.
+const interruption = (fields: Fields): readonly TranscriptEntry[] => {
+  const payload = (fields.payload ?? {}) as Fields
+  return payload.type === "turn_aborted" && payload.reason === "interrupted"
+    ? [entry("user", "text", "Interrupted", { at: at(fields.timestamp), interrupted: true })]
+    : []
+}
+
 /**
  * Codex's transcripts are its rollouts: the session's, and one per subagent, named for
  * its thread and kept under the day it started, its parent's or a later one. Each response
@@ -82,7 +93,8 @@ const toolName = (payload: Fields): unknown =>
  * as the person's. A command the person ran in shell mode is one user message, which reads
  * as the person's `!command` and a Bash run with its output, and its exit code when not
  * zero. The person's answer to an async question is a user message of Codex's own, which
- * reads as its history shows it: `Re: ` and the question, then the answer.
+ * reads as its history shows it: `Re: ` and the question, then the answer. A turn the person
+ * interrupted reads as their interruption, where it ended.
  */
 export const transcripts: NonNullable<Harness["transcripts"]> = {
   locate: async (root, _sessionId, subagent) => {
@@ -98,6 +110,7 @@ export const transcripts: NonNullable<Harness["transcripts"]> = {
   },
   items: (line) => {
     const fields = parseFields(line)
+    if (fields?.type === "event_msg") return interruption(fields)
     if (fields?.type !== "response_item") return []
     const payload = (fields.payload ?? {}) as Fields
     const time = at(fields.timestamp)

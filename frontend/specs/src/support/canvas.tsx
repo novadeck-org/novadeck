@@ -20,7 +20,7 @@ export type Box = {
 export const canvasView = (): Locator => page.getByRole("region", { name: "canvas view" })
 
 /** The Canvas surface behind the terminals, which receives background gestures. */
-const canvasBackground = (): Locator => page.getByLabelText("Terminal canvas")
+export const canvasBackground = (): Locator => page.getByLabelText("Terminal canvas")
 
 export const canvasMenu = (): Locator => page.getByRole("menu", { name: "Canvas actions" })
 
