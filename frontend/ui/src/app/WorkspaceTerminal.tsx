@@ -1,7 +1,7 @@
 import { ChatView } from "@novadeck/chat/ChatView"
 import { chatDraftOf, chatReplyOf, chatSendOf, chatShown } from "@novadeck/chat/state"
 import { useChat } from "@novadeck/chat/use-chat"
-import { agentStats } from "@novadeck/core/agents/usage"
+import { agentStats } from "@novadeck/core/agents/window-stats"
 import { ledTerminals, runningLeads, terminalOrigins } from "@novadeck/core/derivations"
 import { isWindow } from "@novadeck/core/roster"
 import type { CompanionWindowMeta, TerminalMetadata, Tile } from "@novadeck/core/types"

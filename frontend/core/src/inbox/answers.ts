@@ -5,37 +5,37 @@ import type { TerminalMetadata } from "../types"
 import { reuse } from "./rows"
 
 // What a backend that builds its Inbox from the app's state does with the person's answers,
-// the same for the runner and the demo: which items were seen, which answers are on their
+// the same for the runner and the demo: which rows were seen, which answers are on their
 // way, took, or failed, and what each kind of answer asks of the backend. The adapters keep
-// only where their items and answers come from.
+// only where their rows and answers come from.
 
 // Why an answer didn't take, as the person reads it.
 export const answerFailure = (error: unknown): string =>
   error instanceof Error && error.message ? error.message : "That didn't take. Try again."
 
-// The terminal an item is about, by its full address.
+// The terminal a row is about, by its full address.
 export const keyOf = ({ source }: InboxRow): ConversationKey => ({
   projectId: source.projectId,
   workspaceSessionId: source.workspaceSessionId,
   terminalId: source.terminalId,
 })
 
-// Whether an item is a stored turn row (read by id), as its `stored` mark says, not the failed
+// Whether a row is a stored turn row (read by id), as its `stored` mark says, not the failed
 // row derived from a limited end, which no read touches.
-export const isTurnRow = (item: InboxRow): boolean =>
-  item.kind === "trouble" && item.trouble.type === "failed" && item.trouble.stored === true
+export const isTurnRow = (row: InboxRow): boolean =>
+  row.kind === "trouble" && row.trouble.type === "failed" && row.trouble.stored === true
 
 // The state as it was when nothing changed in it, so what subscribes to it stays quiet.
 export const keepInbox = (current: InboxState, next: InboxState): InboxState => {
-  const items = reuse(current.items, next.items)
-  return items === current.items &&
+  const rows = reuse(current.items, next.items)
+  return rows === current.items &&
     JSON.stringify(next.answering) === JSON.stringify(current.answering) &&
     JSON.stringify(next.failed) === JSON.stringify(current.failed)
     ? current
-    : { items, answering: next.answering, failed: next.failed }
+    : { items: rows, answering: next.answering, failed: next.failed }
 }
 
-// What the tracker shows of the items a backend found: the `seen` ones marked, and which
+// What the tracker shows of the rows a backend found: the `seen` ones marked, and which
 // are answering or have failed. A backend adds what it tracks itself before it publishes.
 export type InboxView = {
   readonly items: readonly InboxRow[]
@@ -44,7 +44,7 @@ export type InboxView = {
 }
 
 export type InboxTrackerOptions = {
-  // How long an answer to trouble may leave its item standing before it can be answered
+  // How long an answer to trouble may leave its row standing before it can be answered
   // again.
   readonly settleMs: number
   // The tracker changed what the Inbox shows: the backend recomputes it.
@@ -56,10 +56,10 @@ export type InboxTrackerOptions = {
 export type InboxTracker = {
   readonly view: (found: readonly InboxRow[]) => InboxView
   readonly see: (id: string) => void
-  // Runs an answer: its item shows answering until the backend drops it or the answer fails.
-  // With `settles`, an answer that took but left its item standing (a prompt that started no
+  // Runs an answer: its row shows answering until the backend drops it or the answer fails.
+  // With `settles`, an answer that took but left its row standing (a prompt that started no
   // turn) gives the buttons back after `settleMs`. `onError` runs when the answer fails;
-  // with `silent`, a failure leaves no error behind: the item just stands as it was.
+  // with `silent`, a failure leaves no error behind: the row just stands as it was.
   readonly call: (
     id: string,
     work: () => Promise<unknown>,
@@ -94,11 +94,11 @@ export const createInboxTracker = ({
   track = (work) => work,
 }: InboxTrackerOptions): InboxTracker => {
   const seen = new Set<string>()
-  // What the person answered, until the item goes; and why an answer didn't take.
+  // What the person answered, until the row goes; and why an answer didn't take.
   const submitted = new Set<string>()
   const inFlight = new Set<string>()
   const failed = new Map<string, string>()
-  // Per item, when its answer is given up on if the item still stands.
+  // Per row, when its answer is given up on if the row still stands.
   const settling = new Map<string, ReturnType<typeof setTimeout>>()
   let due: ReturnType<typeof setTimeout> | undefined
   let round = 0
@@ -118,20 +118,19 @@ export const createInboxTracker = ({
 
   return {
     view: (found) => {
-      const ids = new Set(found.map((item) => item.id))
+      const ids = new Set(found.map((row) => row.id))
       for (const id of seen) if (!ids.has(id)) seen.delete(id)
       for (const id of submitted) if (!ids.has(id) && !inFlight.has(id)) submitted.delete(id)
       // A dismissed ask that the backend now lists settled has taken: it no longer answers.
-      for (const item of found)
-        if (item.settled && !inFlight.has(item.id)) submitted.delete(item.id)
-      const items = found.map((item) => (seen.has(item.id) ? { ...item, seen: true } : item))
+      for (const row of found) if (row.settled && !inFlight.has(row.id)) submitted.delete(row.id)
+      const rows = found.map((row) => (seen.has(row.id) ? { ...row, seen: true } : row))
       const answering: Record<string, true> = Object.fromEntries(
         [...inFlight].map((id) => [id, true]),
       )
-      for (const item of items)
-        if (submitted.has(item.id) || (item.kind === "request" && item.request.answered))
-          answering[item.id] = true
-      return { items, answering, failed: Object.fromEntries(failed) }
+      for (const row of rows)
+        if (submitted.has(row.id) || (row.kind === "request" && row.request.answered))
+          answering[row.id] = true
+      return { items: rows, answering, failed: Object.fromEntries(failed) }
     },
     see: (id) => {
       if (seen.has(id)) return
@@ -203,15 +202,11 @@ export const createInboxTracker = ({
   }
 }
 
-type RequestItem = Extract<InboxRow, { kind: "request" }>
+type RequestRow = Extract<InboxRow, { kind: "request" }>
 
-// What answering an item asks of the backend; each is its own way to reach the agent.
+// What answering a row asks of the backend; each is its own way to reach the agent.
 export type InboxActions = {
-  readonly request: (
-    key: ConversationKey,
-    item: RequestItem,
-    answer: ChatAnswer,
-  ) => Promise<unknown>
+  readonly request: (key: ConversationKey, row: RequestRow, answer: ChatAnswer) => Promise<unknown>
   readonly release: (thread: string) => void
   readonly stop: (thread: string) => void
   // Marks stored rows read by id, tracked: they show answering until the backend drops them.
@@ -226,11 +221,11 @@ export type InboxActions = {
     options?: { readonly automatic?: true },
   ) => Promise<unknown>
   readonly interrupt: (key: ConversationKey) => Promise<unknown>
-  // The item's terminal now, to see whether its agent works.
+  // The row's terminal now, to see whether its agent works.
   readonly terminal: (key: ConversationKey) => TerminalMetadata | undefined
 }
 
-// Answers an item as its kind asks: a request through the agent's conversation, a held
+// Answers a row as its kind asks: a request through the agent's conversation, a held
 // thread released or stopped, a finish read, trouble by continuing, stopping or nudging the
 // agent (a nudge interrupts it first if it works, except on a stored failed row, which is
 // nudged only while it is the agent's current end and the agent rests, never interrupting,
@@ -238,31 +233,31 @@ export type InboxActions = {
 // kinds a backend answers itself (an ask, a told or done update) it handles before this.
 export const answerItem = (
   tracker: InboxTracker,
-  item: InboxRow,
+  row: InboxRow,
   given: InboxAnswer,
   actions: InboxActions,
 ): void => {
-  const { id } = item
-  if (item.kind !== given.kind) return tracker.fail(id, "That answer isn't for this item.")
-  const key = keyOf(item)
-  if (item.kind === "request" && given.kind === "request")
-    return tracker.call(id, () => actions.request(key, item, given.answer))
-  if (item.kind === "held" && given.kind === "held") {
+  const { id } = row
+  if (row.kind !== given.kind) return tracker.fail(id, "That answer isn't for this item.")
+  const key = keyOf(row)
+  if (row.kind === "request" && given.kind === "request")
+    return tracker.call(id, () => actions.request(key, row, given.answer))
+  if (row.kind === "held" && given.kind === "held") {
     tracker.forgive(id)
-    const { threadId } = item.held
+    const { threadId } = row.held
     if (given.action === "release") actions.release(threadId)
     else actions.stop(threadId)
     return
   }
-  if (item.kind === "update" && given.kind === "update") {
+  if (row.kind === "update" && given.kind === "update") {
     tracker.forgive(id)
     return actions.read([id])
   }
-  if (item.kind === "trouble" && given.kind === "trouble") {
+  if (row.kind === "trouble" && given.kind === "trouble") {
     const { action } = given
     const settles = { settles: true }
     if (action.type === "read") {
-      if (!isTurnRow(item)) return tracker.fail(id, "That answer isn't for this item.")
+      if (!isTurnRow(row)) return tracker.fail(id, "That answer isn't for this item.")
       tracker.forgive(id)
       return actions.read([id])
     }
@@ -272,8 +267,8 @@ export const answerItem = (
     if (action.type === "nudge") {
       const terminal = actions.terminal(key)
       const sent = action.own ? undefined : { automatic: true as const }
-      if (isTurnRow(item)) {
-        if (!item.stopped || !terminal || agentWorking(terminal))
+      if (isTurnRow(row)) {
+        if (!row.stopped || !terminal || agentWorking(terminal))
           return tracker.fail(id, "That agent has moved on. Mark it read.")
         return tracker.call(
           id,

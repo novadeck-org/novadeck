@@ -36,7 +36,7 @@ const none: PlanPick = { state: "none" }
 
 const noItems: readonly Item[] = []
 
-// The items of the session an Inbox item's terminal is in: the session's own list, the same
+// The items of the session an Inbox row's terminal is in: the session's own list, the same
 // while it doesn't change, so a component can subscribe to it.
 export const sessionItems = (workspace: Workspace, target: WorkspaceTarget): readonly Item[] =>
   workspace.projects

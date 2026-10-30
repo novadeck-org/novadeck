@@ -57,7 +57,7 @@ const limit: InboxContent = {
 const failed: InboxContent = { kind: "trouble", trouble: { type: "failed", error: null } }
 const told: InboxContent = { kind: "update", update: { type: "told", subject: "s", body: "b" } }
 
-const item = (id: string, content: InboxContent, stopped: boolean, at = 0): InboxRow => ({
+const row = (id: string, content: InboxContent, stopped: boolean, at = 0): InboxRow => ({
   ...content,
   id,
   source,
@@ -102,11 +102,11 @@ describe("what a terminal needs and has done", () => {
   const at = { projectId: "p", workspaceSessionId: "s", terminalId: "t" }
   const elsewhere = { ...source, terminalId: "other" }
   const there = (id: string, content: InboxContent, seen = false): InboxRow => ({
-    ...item(id, content, true),
+    ...row(id, content, true),
     seen,
   })
   const away = (id: string, content: InboxContent): InboxRow => ({
-    ...item(id, content, true),
+    ...row(id, content, true),
     source: elsewhere,
   })
   const limitAt = (resetsAt: number, autoResume: boolean | null): InboxContent => ({
@@ -125,7 +125,7 @@ describe("what a terminal needs and has done", () => {
     expect(terminalNeed([there("a", ask), there("b", held)], at, 0)).toBe("unblock")
   })
 
-  it("needs nothing for trouble or updates, nor for another terminal's items", () => {
+  it("needs nothing for trouble or updates, nor for another terminal's rows", () => {
     expect(terminalNeed([there("a", failed), there("b", told)], at, 0)).toBe(undefined)
     expect(terminalNeed([away("a", held)], at, 0)).toBe(undefined)
   })
@@ -138,10 +138,10 @@ describe("what a terminal needs and has done", () => {
   })
 
   it("finds the next limit still to reset, for the marks that change then", () => {
-    const items = [there("a", limitAt(300, false)), there("b", limitAt(100, false))]
-    expect(nextLimitReset(items, 50)).toBe(100)
-    expect(nextLimitReset(items, 100)).toBe(300)
-    expect(nextLimitReset(items, 300)).toBeUndefined()
+    const rows = [there("a", limitAt(300, false)), there("b", limitAt(100, false))]
+    expect(nextLimitReset(rows, 50)).toBe(100)
+    expect(nextLimitReset(rows, 100)).toBe(300)
+    expect(nextLimitReset(rows, 300)).toBeUndefined()
     expect(nextLimitReset([there("c", done)], 0)).toBeUndefined()
   })
 
@@ -155,63 +155,63 @@ describe("what a terminal needs and has done", () => {
 
 describe("urgency", () => {
   it("ranks stopping trouble, other stops, asks that go on, handled trouble, then updates and failed turns that only inform", () => {
-    expect(urgency(item("a", failed, true))).toBe(0)
-    expect(urgency(item("b", held, true))).toBe(1)
-    expect(urgency(item("c", ask, true))).toBe(1)
-    expect(urgency(item("d", ask, false))).toBe(2)
-    expect(urgency(item("e", failed, false))).toBe(4)
-    expect(urgency(item("g", limit, true))).toBe(1)
-    expect(urgency(item("h", limit, false))).toBe(3)
-    expect(urgency(item("f", told, false))).toBe(4)
+    expect(urgency(row("a", failed, true))).toBe(0)
+    expect(urgency(row("b", held, true))).toBe(1)
+    expect(urgency(row("c", ask, true))).toBe(1)
+    expect(urgency(row("d", ask, false))).toBe(2)
+    expect(urgency(row("e", failed, false))).toBe(4)
+    expect(urgency(row("g", limit, true))).toBe(1)
+    expect(urgency(row("h", limit, false))).toBe(3)
+    expect(urgency(row("f", told, false))).toBe(4)
   })
 
   it("keeps an update last even when the agent is stopped", () => {
-    expect(urgency(item("f", told, true))).toBe(4)
+    expect(urgency(row("f", told, true))).toBe(4)
   })
 })
 
 describe("ordered", () => {
   it("sorts by urgency, then the longest waiting first", () => {
-    const items = [
-      item("update", told, false, 1),
-      item("late", held, true, 20),
-      item("trouble", failed, true, 30),
-      item("early", ask, true, 10),
+    const rows = [
+      row("update", told, false, 1),
+      row("late", held, true, 20),
+      row("trouble", failed, true, 30),
+      row("early", ask, true, 10),
     ]
-    expect(ordered(items).map((each) => each.id)).toEqual(["trouble", "early", "late", "update"])
+    expect(ordered(rows).map((each) => each.id)).toEqual(["trouble", "early", "late", "update"])
   })
 
   it("puts settled asks after everything, the latest settled first", () => {
     const settled = (id: string, at: number) => ({
-      ...item(id, ask, true, 1),
+      ...row(id, ask, true, 1),
       settled: { how: "dismissed" as const, at },
     })
-    const items = [
+    const rows = [
       settled("s1", 100),
-      item("update", told, false, 1),
+      row("update", told, false, 1),
       settled("s2", 200),
-      item("trouble", failed, true, 30),
+      row("trouble", failed, true, 30),
     ]
-    expect(ordered(items).map((each) => each.id)).toEqual(["trouble", "update", "s2", "s1"])
+    expect(ordered(rows).map((each) => each.id)).toEqual(["trouble", "update", "s2", "s1"])
   })
 
   it("leaves its input as it was", () => {
-    const items = [item("b", told, false, 2), item("a", failed, true, 1)]
-    ordered(items)
-    expect(items.map((each) => each.id)).toEqual(["b", "a"])
+    const rows = [row("b", told, false, 2), row("a", failed, true, 1)]
+    ordered(rows)
+    expect(rows.map((each) => each.id)).toEqual(["b", "a"])
   })
 })
 
 describe("entryRow", () => {
   const entry = "8f1c2a3b-0d4e-4f5a-9b6c-7d8e9f0a1b2c"
 
-  it("finds the item an entry came from, as the runner names the entry", () => {
-    const items = [item("other", told, false), item(entry, ask, true)]
-    expect(entryRow(items, { id: `m-${entry.replaceAll("-", "")}` })?.id).toBe(entry)
-    expect(entryRow(items, { id: entry })?.id).toBe(entry)
+  it("finds the row an entry came from, as the runner names the entry", () => {
+    const rows = [row("other", told, false), row(entry, ask, true)]
+    expect(entryRow(rows, { id: `m-${entry.replaceAll("-", "")}` })?.id).toBe(entry)
+    expect(entryRow(rows, { id: entry })?.id).toBe(entry)
   })
 
-  it("finds nothing for an entry with no item, not another item of its terminal", () => {
-    expect(entryRow([item("other", held, true)], { id: "m-gone" })).toBeUndefined()
+  it("finds nothing for an entry with no row, not another row of its terminal", () => {
+    expect(entryRow([row("other", held, true)], { id: "m-gone" })).toBeUndefined()
   })
 })

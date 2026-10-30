@@ -1,32 +1,27 @@
-import { inboxType, terminalNeed, type InboxRow, type TerminalAt } from "../inbox"
+import { atTerminal, inboxType, terminalNeed, type InboxRow, type TerminalAt } from "../inbox"
 import type { NoteMarks } from "../terminals/ending"
 
 // What the Inbox says of one terminal for its tab and window (see `NoteMarks`).
 export type InboxMarks = NoteMarks
 
-const here = (item: InboxRow, at: TerminalAt): boolean =>
-  item.source.projectId === at.projectId &&
-  item.source.workspaceSessionId === at.workspaceSessionId &&
-  item.source.terminalId === at.terminalId
-
-// The kind of dialog an item stands for, where it stands for one: a request is the dialog
+// The kind of dialog a row stands for, where it stands for one: a request is the dialog
 // its agent's harness shows.
-const dialogOf = (item: InboxRow): InboxMarks["dialog"] =>
-  item.kind === "request" ? item.request.kind : undefined
+const dialogOf = (row: InboxRow): InboxMarks["dialog"] =>
+  row.kind === "request" ? row.request.kind : undefined
 
-const subjectOf = (item: InboxRow): string | undefined => {
-  if (item.kind === "ask") return item.ask.subject
-  if (item.kind === "request") return item.request.subject ?? undefined
+const subjectOf = (row: InboxRow): string | undefined => {
+  if (row.kind === "ask") return row.ask.subject
+  if (row.kind === "request") return row.request.subject ?? undefined
   return undefined
 }
 
-// The marks of one terminal from the Inbox's items: raw ones, as the backend lists them, since
+// The marks of one terminal from the Inbox's rows: raw ones, as the backend lists them, since
 // the landing rule hides rows from the Inbox, never from the marks. `now` decides whether a
 // limit has reset.
-export const inboxMarks = (items: readonly InboxRow[], at: TerminalAt, now: number): InboxMarks => {
-  const need = terminalNeed(items, at, now)
-  const mine = items.filter((item) => here(item, at) && !item.settled)
-  const behind = need && mine.find((item) => inboxType(item) === need)
+export const inboxMarks = (rows: readonly InboxRow[], at: TerminalAt, now: number): InboxMarks => {
+  const need = terminalNeed(rows, at, now)
+  const mine = rows.filter((row) => atTerminal(row, at) && !row.settled)
+  const behind = need && mine.find((row) => inboxType(row) === need)
   return {
     need,
     subject: behind ? subjectOf(behind) : undefined,

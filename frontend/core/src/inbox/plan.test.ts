@@ -140,7 +140,7 @@ describe("the plan a plan approval asks about", () => {
     expect(planItemOf([earlier], approval("codex"), asked + planWaitMs)).toEqual({ state: "none" })
   })
 
-  it("is none for an item that is no plan approval", () => {
+  it("is none for a row that is no plan approval", () => {
     const row = approval("claude")
     const permission: InboxRow = {
       ...row,
@@ -211,7 +211,7 @@ describe("the plan a plan approval asks about", () => {
   })
 })
 
-describe("the items of an Inbox item's session", () => {
+describe("the items of an Inbox row's session", () => {
   it("are those its terminal's session holds", () => {
     const workspace = workspaceFixture()
     const project = workspace.projects[0]!

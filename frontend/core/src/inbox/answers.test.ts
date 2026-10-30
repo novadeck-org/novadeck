@@ -109,7 +109,7 @@ afterEach(() => {
 
 describe("The Inbox's answer tracker", () => {
   describe("what it shows", () => {
-    it("marks the items the person saw, until they go", () => {
+    it("marks the rows the person saw, until they go", () => {
       const { tracker, changed } = setup()
       tracker.see(trouble.id)
       tracker.see(trouble.id)
@@ -129,7 +129,7 @@ describe("The Inbox's answer tracker", () => {
   })
 
   describe("an answer", () => {
-    it("shows answering from the call until its item goes", async () => {
+    it("shows answering from the call until its row goes", async () => {
       const { tracker, changed } = setup()
       const answer = pending()
       tracker.call(trouble.id, answer.work)
@@ -143,7 +143,7 @@ describe("The Inbox's answer tracker", () => {
       expect(tracker.view([trouble]).answering).toEqual({})
     })
 
-    it("fails with the reason, and gives the item back to be answered again", async () => {
+    it("fails with the reason, and gives the row back to be answered again", async () => {
       const { tracker } = setup()
       const onError = vi.fn<() => void>()
       const answer = pending()
@@ -160,7 +160,7 @@ describe("The Inbox's answer tracker", () => {
       expect(tracker.view([trouble]).failed).toEqual({})
     })
 
-    it("keeps a failure after its item has gone, until the item is answered again", async () => {
+    it("keeps a failure after its row has gone, until the row is answered again", async () => {
       const { tracker } = setup()
       tracker.fail(trouble.id, "No.")
 
@@ -168,7 +168,7 @@ describe("The Inbox's answer tracker", () => {
       expect(tracker.view([trouble]).failed).toEqual({ [trouble.id]: "No." })
     })
 
-    it("gives the buttons back after the settle time when it settles and the item stands", async () => {
+    it("gives the buttons back after the settle time when it settles and the row stands", async () => {
       const { tracker, changed } = setup()
       const answer = pending()
       tracker.call(trouble.id, answer.work, { settles: true })
@@ -225,7 +225,7 @@ describe("The Inbox's answer tracker", () => {
   })
 
   describe("a failure", () => {
-    it("takes the item out of answering", () => {
+    it("takes the row out of answering", () => {
       const { tracker, changed } = setup()
       tracker.submit([trouble.id])
       expect(tracker.view([trouble]).answering).toEqual({ [trouble.id]: true })
@@ -321,7 +321,7 @@ describe("The Inbox's answer tracker", () => {
   })
 })
 
-describe("Answering an item", () => {
+describe("Answering a row", () => {
   const actions = (terminal?: TerminalMetadata) =>
     ({
       request: vi.fn<InboxActions["request"]>(() => Promise.resolve()),
@@ -477,7 +477,7 @@ describe("Answering an item", () => {
         expect(done.forget).not.toHaveBeenCalled()
       })
 
-      it("is marked read by its id, current or not, but a derived failed item is not", () => {
+      it("is marked read by its id, current or not, but a derived failed row is not", () => {
         const { tracker } = setup()
         const done = actions()
         answerItem(tracker, row(false), { kind: "trouble", action: { type: "read" } }, done)
@@ -491,7 +491,7 @@ describe("Answering an item", () => {
       })
     })
 
-    it("gives the buttons back after the settle time if the item stands", async () => {
+    it("gives the buttons back after the settle time if the row stands", async () => {
       const { tracker } = setup()
       answerItem(tracker, trouble, { kind: "trouble", action: { type: "stop" } }, actions())
       await vi.advanceTimersByTimeAsync(settleMs)
@@ -513,7 +513,7 @@ describe("Answering an item", () => {
     })
   })
 
-  it("fails an answer meant for another kind of item", () => {
+  it("fails an answer meant for another kind of row", () => {
     const { tracker } = setup()
     const done = actions()
     answerItem(tracker, trouble, { kind: "update", action: "read" }, done)

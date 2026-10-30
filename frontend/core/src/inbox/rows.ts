@@ -23,13 +23,13 @@ import {
 import { isAgentProgram } from "../terminals/process"
 import type { TerminalMetadata, Workspace, WorkspaceProject, WorkspaceSession } from "../types"
 
-// The Inbox's items, as a backend that builds them from the app's own state derives them:
-// what every agent terminal waits on the person for, every item its own row, from the
-// terminals' statuses (a usage limit), the stored failed turns (their error), the messages
-// held for release, the requests of the agents that ask, and what agents wrote through
-// Novadeck's MCP `ask`, `tell` and `done`. A completed turn makes no item. The runner's Inbox and the demo's keep it current.
+// The Inbox's rows, as a backend that builds them from the app's own state derives them:
+// what every agent terminal waits on the person for, from the terminals' statuses (a usage
+// limit), the stored failed turns (their error), the messages held for release, the requests
+// of the agents that ask, and what agents wrote through Novadeck's MCP `ask`, `tell` and
+// `done`. A completed turn makes no row. The runner's Inbox and the demo's keep it current.
 
-// How long a request's dialog may stay unread before its item shows anyway, to be answered
+// How long a request's dialog may stay unread before its row shows anyway, to be answered
 // in the terminal.
 export const dialogMs = 3000
 
@@ -134,7 +134,7 @@ const heldOf = (
 
 // The messages for a terminal's idle agent, the longest of which has waited at least
 // `longHoldMs`: why the doorbell can't wake it (null where it hasn't said), since when, and
-// how many (none held for the person's release or a pause, which have items and switches of
+// how many (none held for the person's release or a pause, which have rows and switches of
 // their own).
 const heldLong = (
   messages: TerminalThreads | undefined,
@@ -175,7 +175,7 @@ export const leadHearsOf = (workspace: Workspace, context: string, terminalId: s
   return !!here && reportsToLead(here, where)
 }
 
-// Each terminal's items, each its own row.
+// Each terminal's rows.
 const candidates = (
   { messages, requests, now, longHoldMs }: InboxInputs,
   here: Where,
@@ -250,8 +250,8 @@ const candidates = (
   return found
 }
 
-// Every item the Inbox now holds, the longest waiting among the most urgent first: each of a
-// terminal's items, and each thread held for release.
+// Every row the Inbox now holds, the longest waiting among the most urgent first: each of a
+// terminal's rows, and each thread held for release.
 export const inboxRows = (inputs: InboxInputs): InboxRow[] => {
   const where = whereOf(inputs.workspace)
   const all = where.flatMap((here) => candidates(inputs, here))
@@ -290,7 +290,7 @@ export const inboxRows = (inputs: InboxInputs): InboxRow[] => {
 
   // A stored failed turn shows while its terminal exists with the same handle, whatever runs
   // in it: trouble that stops the agent only while it is the terminal's current end and the
-  // agent rests, and informs otherwise. A completed one makes no item: it marks its tab unread.
+  // agent rests, and informs otherwise. A completed one makes no row: it marks its tab unread.
   for (const row of inputs.turns) {
     if (row.outcome !== "failed") continue
     const here = where.find(
@@ -325,25 +325,25 @@ export const inboxRows = (inputs: InboxInputs): InboxRow[] => {
     for (const thread of messages.threads) {
       if (!thread.held || threads.has(thread.id)) continue
       const message = thread.messages.find((each) => each.held === "release")
-      const item = message && heldOf(thread, message, where)
-      if (item) threads.set(thread.id, item)
+      const row = message && heldOf(thread, message, where)
+      if (row) threads.set(thread.id, row)
     }
 
-  // A terminal's items all show: nothing replaces or hides another.
+  // A terminal's rows all show: nothing replaces or hides another.
   return ordered([...all, ...threads.values()])
 }
 
-// Items that read the same keep their old objects, so what shows them stays as it is.
+// Rows that read the same keep their old objects, so what shows them stays as it is.
 export const reuse = (
   before: readonly InboxRow[],
   next: readonly InboxRow[],
 ): readonly InboxRow[] => {
-  const old = new Map(before.map((item) => [item.id, item]))
-  const items = next.map((item) => {
-    const known = old.get(item.id)
-    return known && JSON.stringify(known) === JSON.stringify(item) ? known : item
+  const old = new Map(before.map((row) => [row.id, row]))
+  const rows = next.map((row) => {
+    const known = old.get(row.id)
+    return known && JSON.stringify(known) === JSON.stringify(row) ? known : row
   })
-  return items.length === before.length && items.every((item, index) => item === before[index])
+  return rows.length === before.length && rows.every((row, index) => row === before[index])
     ? before
-    : items
+    : rows
 }

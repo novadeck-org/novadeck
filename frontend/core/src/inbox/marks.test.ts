@@ -5,7 +5,7 @@ import { inboxMarks } from "./marks"
 const at = { projectId: "p", workspaceSessionId: "initial", terminalId: "01" }
 const now = 1_000_000
 
-const item = (content: Record<string, unknown>, extra: Partial<InboxRow> = {}): InboxRow =>
+const row = (content: Record<string, unknown>, extra: Partial<InboxRow> = {}): InboxRow =>
   ({
     id: `i${Math.random()}`,
     source: { ...at, handle: "fox", agent: "claude", title: "T", projectName: "P" },
@@ -17,35 +17,35 @@ const item = (content: Record<string, unknown>, extra: Partial<InboxRow> = {}): 
   }) as InboxRow
 
 const ask = (shape: unknown, subject = "Which?"): InboxRow =>
-  item({
+  row({
     kind: "ask",
     ask: { subject, body: "", details: null, hardToUndo: null, shape },
   })
 const limit = (resetsAt: number, autoResume: boolean | null): InboxRow =>
-  item({
+  row({
     kind: "trouble",
     trouble: { type: "limit", minutes: 300, resetsAt, autoResume, evidence: [] },
   })
 const done = (seen = false): InboxRow =>
-  item({ kind: "update", update: { type: "done", subject: "Done", body: "" } }, { seen })
+  row({ kind: "update", update: { type: "done", subject: "Done", body: "" } }, { seen })
 
 describe("the marks the raw Inbox makes", () => {
-  it("is a need with its item's subject, an unblock before an ask", () => {
+  it("is a need with its row's subject, an unblock before an ask", () => {
     expect(inboxMarks([ask({ type: "text" })], at, now)).toEqual({
       need: "ask",
       subject: "Which?",
       dialog: undefined,
     })
-    const items = [
+    const rows = [
       ask({ type: "text" }),
       ask({ type: "action", command: "x", directory: null, doneLabel: "ok" }, "Log in"),
     ]
-    expect(inboxMarks(items, at, now)).toMatchObject({ need: "unblock", subject: "Log in" })
+    expect(inboxMarks(rows, at, now)).toMatchObject({ need: "unblock", subject: "Log in" })
   })
 
-  it("names the dialog a request stands for, with its subject, and none for an item that is no dialog", () => {
+  it("names the dialog a request stands for, with its subject, and none for a row that is no dialog", () => {
     const request = (kind: "permission" | "plan" | "question", subject: string | null) =>
-      item({
+      row({
         kind: "request",
         request: {
           id: "r",
@@ -77,7 +77,7 @@ describe("the marks the raw Inbox makes", () => {
   })
 
   it("reads a settled ask as nothing, beside an open one it is not the subject", () => {
-    const settled = item(
+    const settled = row(
       { kind: "ask", ask: { subject: "Old", shape: { type: "text" } } },
       { settled: { how: "dismissed", at: now } },
     )
@@ -92,8 +92,8 @@ describe("the marks the raw Inbox makes", () => {
     })
   })
 
-  it("reads another terminal's items as nothing", () => {
-    const mine = item({ kind: "ask", ask: { subject: "S", shape: { type: "text" } } })
+  it("reads another terminal's rows as nothing", () => {
+    const mine = row({ kind: "ask", ask: { subject: "S", shape: { type: "text" } } })
     const other = { ...mine, source: { ...mine.source, terminalId: "02" } }
     expect(inboxMarks([other], at, now)).toEqual({
       need: undefined,
