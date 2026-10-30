@@ -379,6 +379,8 @@ type Harness = {
   readonly files: (platform: NodeJS.Platform) => readonly File[]
   /** Programs Novadeck's shells put first on PATH while it is connected, as Codex's shim. */
   readonly shims?: (platform: NodeJS.Platform) => readonly File[]
+  /** The hook environment variable naming its own process, as Claude Code's `CLAUDE_PID`. */
+  readonly pidVariable?: string
   /** What a hook report's native `source` says of the session it names. */
   readonly continuity: (source: string | undefined) => Continuity
   /** The launch that starts a fresh session with a task. */
@@ -541,6 +543,12 @@ Besides the facts shared with the agent model, decoders give
   quotas (`telemetry.ts`).
 - `file-touched` names a file an actor wrote or edited, from its write and edit tools,
   for the folders a session works in.
+- `attention-requested` has `writes` where its harness can tell from the call which files
+  a permission asks to write: Codex's `apply_patch`, its patch's files from the directory
+  it asked in. A `file-touched` that `settles` (Codex's rollout) settles the latest
+  permission asked before it whose `writes` name the file, as no hook does for a patch
+  Codex ran through its shell. The runner's reducer compares the paths and never reads a
+  call's input itself.
 - `session-observed` has `compacted` when the harness says it compacted the session's
   context: Claude Code's and Codex's `SessionStart` with source `compact`. Antigravity
   reports no compaction. It nudges the agent to summarize its terminal again (see
@@ -1126,7 +1134,7 @@ never breaks activity or resume.
 There are three different questions:
 
 1. Does this harness implement the feature? Derive it from the field
-   (`harness.resume`), never from a separate flag.
+   (`harness.launch.resume`), never from a separate flag.
 2. Can that implementation work with this installation? Inspect platform,
    executable/version evidence, plugin connection and known restrictions. Report
    unknown when evidence is absent; do not invent a version matrix.
