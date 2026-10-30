@@ -289,6 +289,16 @@ describe("the runner's terminal views over a runtime", () => {
     }
   })
 
+  it("gives a screen reader the terminal in focus", () => {
+    // jsdom's window never has focus; a page a person types in does.
+    vi.spyOn(document, "hasFocus").mockReturnValue(true)
+    const { runtime } = recording()
+    const { element } = open(runtime)
+    expect(element.querySelector("[aria-live]")).toBeNull()
+    element.querySelector("textarea")!.focus()
+    expect(element.querySelector("[aria-live]")).not.toBeNull()
+  })
+
   it("locks as the runtime's connection does", () => {
     const { runtime, connection } = recording()
     const { hold } = open(runtime)

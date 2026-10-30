@@ -53,7 +53,8 @@ export const pasteNotice = (failure: PasteFailure): string =>
   )
 
 // The runner backend's terminal views: its runtime, the emulator drawn with the page's
-// WebGL pool and theme, and the app's words and policies.
+// WebGL pool and theme, a screen reader's tree for the terminal in focus, and the app's
+// words and policies.
 export const viewOptions = (
   runtime: SurfaceRuntime,
   {
@@ -64,7 +65,7 @@ export const viewOptions = (
 ): TerminalViewOptions<TerminalKey> => ({
   keyOf: ({ projectId, workspaceSessionId, terminalId }) =>
     `${projectId}\u0000${workspaceSessionId}\u0000${terminalId}`,
-  emulator: openEmulator({ renderers }),
+  emulator: openEmulator({ renderers, screenReader: true }),
   theme: terminalTheme(theme),
   store: createStore,
   markup: screenMarkup,
