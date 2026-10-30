@@ -1,6 +1,5 @@
 import { describe, expect, it } from "vitest"
 
-import { decode } from "./decode.js"
 import { dialogs } from "./dialogs.js"
 import {
   Down,
@@ -14,6 +13,7 @@ import {
   step,
   swap,
 } from "./dialogs.test-support.js"
+import { hook } from "./report.test-support.js"
 
 describe("Claude Code's highlighted fields", () => {
   it("refuses to read where a digit would be typed into a focused field", () => {
@@ -61,16 +61,7 @@ describe("Claude Code's unrecognised dialogs", () => {
 describe("Claude Code's attention requests", () => {
   it("carry the tool's input, for the adapter to check the screen against", () => {
     const input = { command: "touch approved.txt", description: "Make a file" }
-    const events = decode({
-      terminalId: "t",
-      token: "k",
-      agent: "claude",
-      event: "PermissionRequest",
-      seq: 1,
-      instance: "7",
-      env: { cursor: false },
-      payload: { session_id: "s", tool_name: "Bash", tool_input: input },
-    })
+    const events = hook("PermissionRequest", { tool_name: "Bash", tool_input: input })
     expect(events).toMatchObject([{ type: "attention-requested", kind: "permission", input }])
   })
 })

@@ -2,7 +2,6 @@ import type { RequestFacts } from "@novadeck/harness-core/dialogs"
 import type { RequestAnswer } from "@novadeck/protocol"
 import { describe, expect, it } from "vitest"
 
-import { decode } from "./decode.js"
 import { dialogs } from "./dialogs.js"
 import {
   choice,
@@ -21,6 +20,7 @@ import {
   waits,
 } from "./dialogs.test-support.js"
 import { claude } from "./index.js"
+import { hook } from "./report.test-support.js"
 
 const fill = (values: object, action: "accept" | "decline" = "accept"): RequestAnswer =>
   ({ type: "form", dialog: "d", action, values }) as RequestAnswer
@@ -273,17 +273,6 @@ describe("Claude Code's MCP elicitation forms", () => {
   })
 })
 
-const report = (event: string, payload: object) => ({
-  terminalId: "t",
-  token: "k",
-  agent: "claude" as const,
-  event,
-  seq: 1,
-  instance: "7",
-  env: { cursor: false },
-  payload: { session_id: "s", ...payload },
-})
-
 describe("Claude Code's elicitation hooks", () => {
   it("raise a question named for the server, with the form as input, and settle it", () => {
     const asked = {
@@ -292,7 +281,7 @@ describe("Claude Code's elicitation hooks", () => {
       mode: "form",
       requested_schema: { type: "object", properties: { name: { type: "string", title: "Name" } } },
     }
-    const [requested] = decode(report("Elicitation", asked))
+    const [requested] = hook("Elicitation", asked)
     expect(requested).toMatchObject({
       type: "attention-requested",
       kind: "question",
@@ -300,15 +289,17 @@ describe("Claude Code's elicitation hooks", () => {
       subject: "What is your name?",
       input: asked,
     })
-    const [resolved] = decode(
-      report("ElicitationResult", { mcp_server_name: "probe", mode: "form", action: "decline" }),
-    )
+    const [resolved] = hook("ElicitationResult", {
+      mcp_server_name: "probe",
+      mode: "form",
+      action: "decline",
+    })
     expect(resolved).toMatchObject({
       type: "attention-resolved",
       toolName: "mcp__probe__elicitation",
       loose: true,
     })
-    expect(decode(report("Elicitation", { message: "x" }))).toEqual([])
+    expect(hook("Elicitation", { message: "x" })).toEqual([])
   })
 
   it("are registered, and answer nothing", () => {

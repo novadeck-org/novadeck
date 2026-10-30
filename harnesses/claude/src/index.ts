@@ -1,50 +1,16 @@
-import { readFile } from "node:fs/promises"
 import { join } from "node:path"
 
-import type { MessagingProfile, Harness, Install } from "@novadeck/harness-core/harness"
-import { hookSeconds, hookCommand, type Dialect } from "@novadeck/harness-core/hook-command"
-import { json, marketplace, manifest } from "@novadeck/harness-core/plugin"
+import type { MessagingProfile, Harness } from "@novadeck/harness-core/harness"
 
 import { box } from "./box.js"
 import { decode } from "./decode.js"
 import { dialogs } from "./dialogs.js"
+import { claudeHome } from "./home.js"
 import { models } from "./models.js"
+import { connect, connected, disconnect, files, hook, hookDialect } from "./plugin.js"
 import { cmdShim, commands, posixShim } from "./shim.js"
 import { followTranscript, transcriptPlans } from "./transcript.js"
 import { transcripts } from "./transcripts.js"
-
-// Novadeck's plugin, as Claude Code installs it from Novadeck's marketplace.
-const marketplaceName = "novadeck"
-const pluginId = "novadeck@novadeck"
-
-/** Claude Code's configuration folder, which also keeps its plans in `plans`. */
-const configFolder = ({ env, home }: Pick<Install, "env" | "home">): string =>
-  env.CLAUDE_CONFIG_DIR || join(home, ".claude")
-
-// The hooks `decode` reads: the session, its turns, and the requests waiting on the person.
-const events = [
-  "SessionStart",
-  "UserPromptSubmit",
-  "Stop",
-  "StopFailure",
-  "SubagentStart",
-  "SubagentStop",
-  "PermissionRequest",
-  "Elicitation",
-  "ElicitationResult",
-  "PostToolUse",
-  "PostToolUseFailure",
-]
-
-// Its hooks run in PowerShell on Windows, where its handlers say so (`shell` below). Its
-// status line takes no `shell`, and runs in Git Bash there, as `bash -c "<command>"`
-// (probed 2026-10-23, 2.1.309).
-const hookDialect = (platform: NodeJS.Platform, event?: string): Dialect =>
-  platform === "win32" && event !== "StatusLine" ? "powershell" : "sh"
-
-// Outside Novadeck's shells its hooks print nothing: Claude Code needs no fallback answer.
-const hook = (platform: NodeJS.Platform, event: string): string =>
-  hookCommand(hookDialect(platform, event), { agent: "claude", event })
 
 // What a hook prints to hand the model `delivery` as context.
 const context = (event: string, delivery: string): string =>
@@ -89,71 +55,13 @@ export const claude = {
   plugin: "claude",
   // Claude Code's local install is an alias in the person's rc file, not on PATH.
   fallback: (home) => join(home, ".claude", "local", "claude"),
-  home: configFolder,
-  connected: async (install) => {
-    try {
-      const settings = JSON.parse(
-        await readFile(join(configFolder(install), "settings.json"), "utf8"),
-      ) as {
-        enabledPlugins?: Record<string, unknown>
-      }
-      return settings.enabledPlugins?.[pluginId] === true
-    } catch {
-      return false
-    }
-  },
-  connect: ({ plugin: directory }) => [
-    // A marketplace left from an earlier connection is replaced, not added twice.
-    { argv: ["claude", "plugin", "marketplace", "remove", marketplaceName], optional: true },
-    { argv: ["claude", "plugin", "marketplace", "add", directory] },
-    { argv: ["claude", "plugin", "install", pluginId] },
-  ],
-  disconnect: [
-    { argv: ["claude", "plugin", "uninstall", pluginId], optional: true },
-    { argv: ["claude", "plugin", "marketplace", "remove", marketplaceName], optional: true },
-  ],
+  home: claudeHome,
+  connected,
+  connect,
+  disconnect,
   hookDialect,
   hook,
-  files: (platform, launchers) => [
-    { path: join(".claude-plugin", "marketplace.json"), content: json(marketplace) },
-    { path: join("novadeck", ".claude-plugin", "plugin.json"), content: json(manifest) },
-    // Its MCP server, which Claude Code finds at the plugin's root and starts with the
-    // terminal's environment.
-    {
-      path: join("novadeck", ".mcp.json"),
-      content: json({ mcpServers: { novadeck: launchers.mcp } }),
-    },
-    {
-      path: join("novadeck", "hooks", "hooks.json"),
-      content: json({
-        hooks: Object.fromEntries(
-          events.map((event) => [
-            event,
-            [
-              {
-                hooks: [
-                  {
-                    type: "command",
-                    command: hook(platform, event),
-                    timeout: hookSeconds(platform),
-                    ...(platform === "win32" && { shell: "powershell" }),
-                  },
-                ],
-              },
-            ],
-          ]),
-        ),
-      }),
-    },
-    // The settings Novadeck's shim adds: its hook as the status line, which passes on the
-    // person's own (see the runner's shell/hook.ts).
-    {
-      path: "statusline.json",
-      content: json({
-        statusLine: { type: "command", command: hook(platform, "StatusLine"), padding: 0 },
-      }),
-    },
-  ],
+  files,
   // Novadeck's shim, through which its shells run Claude Code with its status line.
   shims: (platform) =>
     platform === "win32"
