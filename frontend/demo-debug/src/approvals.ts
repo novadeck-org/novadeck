@@ -1,7 +1,7 @@
 import type { Approval, Approvals, BackendSink, TerminalKey } from "@novadeck/core/port"
 import { createStore } from "@novadeck/core/store"
 import type { Workspace } from "@novadeck/core/types"
-import { terminalOf } from "@novadeck/demo/terminals"
+import { terminalOf } from "@novadeck/demo/workspace"
 
 import { othersOf } from "./terminals"
 import type { DemoActionGroup } from "./types"

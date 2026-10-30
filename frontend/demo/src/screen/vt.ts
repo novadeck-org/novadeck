@@ -82,7 +82,7 @@ const tokensOf = (line: Line): Token[] => {
 }
 
 // What a paragraph's rows start with: the first row's, and every later row's.
-export type Indent = { readonly first?: Line; readonly rest?: Line }
+type Indent = { readonly first?: Line; readonly rest?: Line }
 
 // A paragraph laid out in rows of `width` columns, breaking between words as a TUI does,
 // and inside a word only when it is wider than a row. A line break in the text starts a
@@ -168,7 +168,7 @@ export const wrap = (text: Line, width: number, indent: Indent = {}): Line[] => 
 }
 
 // A row filled with spaces to `width` columns.
-export const pad = (line: Line, width: number): Line => {
+const pad = (line: Line, width: number): Line => {
   const missing = width - widthOf(line)
   return missing > 0 ? [...line, span(" ".repeat(missing))] : line
 }
