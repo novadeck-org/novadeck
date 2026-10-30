@@ -30,7 +30,7 @@
  */
 import { efforts } from "@novadeck/harness-core/harness"
 import { manifest } from "@novadeck/harness-core/plugin"
-import { harnessIds, harnesses } from "@novadeck/protocol"
+import { agentNames, harnesses } from "@novadeck/protocol"
 
 import { maxMessageBytes } from "../messaging/messages.js"
 import { unboundNote } from "../messaging/peers.js"
@@ -557,7 +557,7 @@ const openAgent: Tool<Opened> = {
     properties: {
       agent: {
         type: "string",
-        enum: harnessIds,
+        enum: agentNames,
         description: `The agent to start there: ${agentChoices}.`,
       },
       message: {
