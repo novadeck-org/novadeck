@@ -223,7 +223,7 @@ export const notes: Record<string, Note> = {
   },
   "apps/desktop": {
     purpose:
-      "The desktop package's build, packaging scripts, the launch arguments and channels it shares with the runner and the page, and the runner's log setup.",
+      "The desktop package's build and packaging scripts, the page entry that reports uncaught page errors, the launch arguments and channels its processes share, and how each of them writes its log.",
   },
   "apps/desktop/main": {
     purpose:

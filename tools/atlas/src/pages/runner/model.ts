@@ -4,12 +4,12 @@ import type { ProcedureTrace, SqlVerb, StoreMethod } from "../../runner-lens.ts"
 
 export const lens = atlas.runner
 
-export const procedures = atlas.api.procedures
+const procedures = atlas.api.procedures
 export const traceById = new Map<string, ProcedureTrace>(lens.procedures.map((t) => [t.id, t]))
 export const methodByName = new Map<string, StoreMethod>(lens.methods.map((m) => [m.name, m]))
 
 export const verbs: SqlVerb[] = ["read", "write", "delete"]
-export type Verbs = Set<SqlVerb>
+type Verbs = Set<SqlVerb>
 
 export type Selection = { kind: "procedure" | "method" | "table"; id: string } | null
 
@@ -70,7 +70,7 @@ export const methodGroups: [string, StoreMethod[]][] = lens.tables.flatMap((tabl
   return list.length > 0 ? [[table, list] as [string, StoreMethod[]]] : []
 })
 
-export type Lit = { procs: Set<string>; methods: Set<string>; tables: Set<string> } | null
+type Lit = { procs: Set<string>; methods: Set<string>; tables: Set<string> } | null
 
 // What a selection lights up on the other layers.
 export const litBy = (sel: Selection): Lit => {

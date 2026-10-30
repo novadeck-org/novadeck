@@ -6,7 +6,7 @@ import type { Anchor } from "../../atlas.ts"
 import { AnchorIcon, AnchorLink } from "../../components/anchor.tsx"
 import { Token } from "../../components/viz.tsx"
 import { areaPath, procedurePath } from "../../links.ts"
-import type { Effect, UiAction } from "../../ui-lens.ts"
+import type { BoxId, Effect, UiAction } from "../../ui-lens.ts"
 import {
   actionByType,
   boxById,
@@ -277,8 +277,8 @@ const ProcedureDetail = ({
   )
 }
 
-const BoxDetail = ({ id }: { id: string }) => {
-  const box = boxById.get(id as never)
+const BoxDetail = ({ id }: { id: BoxId }) => {
+  const box = boxById.get(id)
   if (!box) return null
   return (
     <div>
@@ -317,7 +317,7 @@ const BoxDetail = ({ id }: { id: string }) => {
 
 export const detailTitle = (selection: Selection): string => {
   if (!selection) return "Path"
-  if (selection.kind === "box") return boxById.get(selection.id as never)?.title ?? "Path"
+  if (selection.kind === "box") return boxById.get(selection.id)?.title ?? "Path"
   return selection.id
 }
 

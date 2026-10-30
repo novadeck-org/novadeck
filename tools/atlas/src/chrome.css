@@ -2,7 +2,8 @@
    footer, the sidebar, windows, and the segmented, icon-button, badge, label, item and
    Nova mark recipes, copied from frontend/ui/src/shell/region.css,
    frontend/ui/src/terminals/window.css and frontend/toolkit/src/*.css with only what the
-   atlas uses. Copy again when those change. Imported into the components layer, so utilities still win. */
+   atlas uses. Copy again when those change. Imported into the components layer, so
+   utilities still win. */
 
 /* Regions: each a ground under the grain, with an edge toward the workspace. */
 .app-header,

@@ -13,7 +13,7 @@ export const runtime: {
       title: "Electron main",
       kind: "process",
       summary:
-        "The desktop app's main process (`@novadeck/desktop`): owns windows, the menu, notifications and updates, and starts the runner in a utility process. It never touches a terminal itself.",
+        "The desktop app's main process (`@novadeck/desktop`): owns windows, the menu, notices and updates, and starts the runner in a utility process. It never touches a terminal itself.",
       anchor: { file: "apps/desktop/src/main/index.ts", text: "runner = startRunner({" },
       position: { x: 40, y: 300 },
     },
