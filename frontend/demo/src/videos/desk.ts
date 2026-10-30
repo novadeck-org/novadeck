@@ -54,6 +54,9 @@ export type Job = {
   readonly progress: string
   readonly done: string
   readonly before?: readonly DeskStep[]
+  // What its command prints once the person allows it, where it asks to run it: a test run's
+  // summary, unless said.
+  readonly ran?: string
 }
 
 export const project = (id: string): Project => ({ id, name: id, directory: directory(id) })
@@ -209,11 +212,12 @@ export const deskMessages = (projectId: string, count: number): DemoSessionMessa
   }
 }
 
-// The three agents that hold a request for the cues to raise: the number of the one that asks to
-// run its command, the one with a plan to approve (its subject and numbered steps), and the one
-// with a question, its options the first of which carries "(Recommended)" as its own pick.
+// The agents that hold a request for the cues to raise: the numbers of the ones that ask to run
+// their command, each in its own harness's words, the one with a plan to approve (its subject
+// and numbered steps), and the one with a question, its options the first of which carries
+// "(Recommended)" as its own pick.
 export type DeskAsks = {
-  readonly permission: number
+  readonly permissions: readonly number[]
   readonly plan: { readonly number: number; readonly subject: string; readonly steps: string }
   readonly question: {
     readonly number: number
@@ -228,7 +232,9 @@ export type DeskAsks = {
   }
 }
 
-// Claude Code's dialog for a command, as harnesses/claude's probes (2.1.287) show it.
+// The dialog for a command: Claude Code's, as harnesses/claude's probes (2.1.287) show it, or
+// Codex's, as harnesses/codex's adapter reads it (its probe, 0.159.3). Either way its third
+// option declines; Codex's takes the person's words as the next prompt.
 const permission = (id: string, job: Job, home: string): DemoTranscript["requests"][number] => ({
   id: `${id}:permission`,
   kind: "permission",
@@ -237,25 +243,46 @@ const permission = (id: string, job: Job, home: string): DemoTranscript["request
   choices: [],
   subagent: false,
   answered: false,
-  dialog: {
-    type: "choices",
-    id: `${id}:d`,
-    detail: job.command,
-    title: "Do you want to proceed?",
-    options: [
-      { id: "1", label: "Yes", text: null },
-      {
-        id: "2",
-        label: `Yes, and always allow access to ${home} from this project`,
-        text: null,
-      },
-      { id: "3", label: "No", text: null },
-    ],
-  },
+  dialog:
+    job.agent === "codex"
+      ? {
+          type: "choices",
+          id: `${id}:d`,
+          detail: job.command,
+          title: "Would you like to run the following command?",
+          options: [
+            { id: "1", label: "Yes, proceed", text: null },
+            {
+              id: "2",
+              label: `Yes, and don't ask again for commands that start with \`${job.command}\``,
+              text: null,
+            },
+            { id: "3", label: "No, and tell Codex what to do differently", text: "prompt" },
+          ],
+        }
+      : {
+          type: "choices",
+          id: `${id}:d`,
+          detail: job.command,
+          title: "Do you want to proceed?",
+          options: [
+            { id: "1", label: "Yes", text: null },
+            {
+              id: "2",
+              label: `Yes, and always allow access to ${home} from this project`,
+              text: null,
+            },
+            { id: "3", label: "No", text: null },
+          ],
+        },
 })
 
+// What a command an agent was allowed prints, as its harness records the result.
+const ranOf = (job: Job): string =>
+  job.ran ?? " Test Files  6 passed (6)\n      Tests  41 passed (41)\n   Duration  2.94s"
+
 /** What each conversation holds so far: the person's ask, the agent's plan, and the command it's
- * on. Three agents also hold what they'll ask when the cues come: a permission, a plan, a
+ * on. Some agents also hold what they'll ask when the cues come: a permission, a plan, a
  * question with its own pick. */
 export const deskTranscripts = (
   now: number,
@@ -284,7 +311,7 @@ export const deskTranscripts = (
         runCall(job, call, home),
       ])
       const plain: DemoTranscript = { items, requests: [] }
-      if (number === asks.permission) {
+      if (asks.permissions.includes(number)) {
         const request = permission(id, job, home)
         return [
           id,
@@ -293,20 +320,14 @@ export const deskTranscripts = (
             requests: [request],
             outcomes: {
               [request.id]: (answer) =>
-                declined(answer)
-                  ? {
-                      items: [got(call, toolRejected)],
-                      waits: true,
-                    }
-                  : {
-                      items: [
-                        got(
-                          call,
-                          " Test Files  6 passed (6)\n      Tests  41 passed (41)\n   Duration  2.94s",
-                        ),
-                      ],
-                      reply: job.done,
-                    },
+                answer.type === "choice" && answer.option === "3" && answer.text
+                  ? { items: [], prompt: answer.text }
+                  : declined(answer)
+                    ? // Codex aborts the turn and records no result; Claude Code records its refusal.
+                      job.agent === "codex"
+                      ? { items: [], waits: true }
+                      : { items: [got(call, toolRejected)], waits: true }
+                    : { items: [got(call, ranOf(job))], reply: job.done },
             },
           },
         ]

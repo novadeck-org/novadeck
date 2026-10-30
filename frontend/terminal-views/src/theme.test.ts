@@ -50,10 +50,16 @@ describe("a terminal's theme", () => {
     const element = region.appendChild(document.createElement("div"))
     const { source } = sourceOf({
       "--terminal-bg": "#101010",
+      "--terminal-ansi-red": "#c00",
       "--terminal-ansi-red-bright": "#f00",
     })
     const { theme } = terminalTheme(source).resolve(element)
-    expect(theme).toEqual({ background: "#101010", cursorAccent: "#101010", brightRed: "#f00" })
+    expect(theme).toEqual({
+      background: "#101010",
+      cursorAccent: "#101010",
+      red: "#c00",
+      brightRed: "#f00",
+    })
     expect(source.tokens).toHaveBeenCalledOnce()
     expect(source.tokens.mock.calls[0]![0]).toBe(element)
   })
