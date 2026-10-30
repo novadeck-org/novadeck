@@ -575,14 +575,13 @@ const ending = (activity: Activity, event: TurnEnded): Activity | undefined =>
  * A turn the person's Escape ended that its harness finished all the same: the end it
  * reported, kept as a correction's due should the harness yet record the interruption.
  */
-const finished = (activity: Activity, event: TurnEnded): Activity | undefined => {
-  const { escaped } = activity.lastTurn!
+const finished = (activity: Activity, escaped: Escape, event: TurnEnded): Activity | undefined => {
   const next = ending(activity, { ...event, outcome: "completed" })
-  const stop = event.recorded ? escaped!.stop : event.startedAt
+  const stop = event.recorded ? escaped.stop : event.startedAt
   return (
     next && {
       ...next,
-      lastTurn: { ...next.lastTurn!, escaped: { ...escaped!, held: null, stop, settled: true } },
+      lastTurn: { ...next.lastTurn!, escaped: { ...escaped, held: null, stop, settled: true } },
     }
   )
 }
@@ -618,7 +617,7 @@ const afterEscape = (
     // Its record names the Escape's own end; a hook's end older than the key, too.
     return event.recorded || event.startedAt < activity.turnAt ? confirmed(activity) : null
   }
-  if (event.recorded || !activity.records) return finished(activity, escaped.held ?? event)
+  if (event.recorded || !activity.records) return finished(activity, escaped, escaped.held ?? event)
   return {
     ...activity,
     lastTurn: {
@@ -991,10 +990,10 @@ export const apply = (
       )
         return undefined
       const { held } = lastTurn.escaped
-      if (held) return finished(activity, held)
+      if (held) return finished(activity, lastTurn.escaped, held)
       if (event.reply === undefined) return confirmed(activity)
       // The reply came before the key took, though no Stop said so.
-      return finished(activity, {
+      return finished(activity, lastTurn.escaped, {
         type: "turn-ended",
         agent: event.agent,
         sessionId: event.sessionId,
