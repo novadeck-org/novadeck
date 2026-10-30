@@ -3,7 +3,7 @@ import type { Backend } from "@novadeck/core/port"
 import type { WorkspaceStore } from "@novadeck/core/store"
 import type { Workspace } from "@novadeck/core/types"
 import type { DragSession } from "@novadeck/items/drag-session"
-import type { ItemStore } from "@novadeck/items/state"
+import type { ItemStore } from "@novadeck/items/store"
 import { createContext, useContext, type RefObject } from "react"
 
 import type { CanvasHandle } from "../../layouts/canvas/types"

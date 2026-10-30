@@ -13,8 +13,8 @@ import { createWorkspaceStore, type WorkspaceStore } from "@novadeck/core/store"
 import { itemFixture, workspaceFixture } from "@novadeck/core/testing"
 import { afterEach, beforeEach, vi } from "vitest"
 
-import { createItemStore, type PlanActions } from "./state"
-import { context, describe, expect, it } from "./test"
+import { context, describe, expect, it } from "../test"
+import { createItemStore, type PlanActions } from "./item-store"
 
 const target = { projectId: "project", workspaceSessionId: "initial" }
 const planItem = itemFixture("plan", "01", {

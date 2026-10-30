@@ -11,8 +11,8 @@ import { lazy, Suspense, useRef, type ReactNode } from "react"
 
 import { ArtifactMeta, CopyText, MetaPath, Unavailable } from "../../ArtifactViewer"
 import type { MarkdownEditorHandle } from "../../document/editor/MarkdownEditor"
-import type { PlanActions, ItemStore } from "../../state"
-import { useContent, usePlan } from "../../use-item-store"
+import type { PlanActions, ItemStore } from "../../store/item-store"
+import { useContent, usePlan } from "../../store/use-item-store"
 import { blockOf, currentMarks, unreadableNow, type PlanDoc } from "./plan-doc"
 
 // The editor loads when a plan first opens, so the workspace never pays for it: a

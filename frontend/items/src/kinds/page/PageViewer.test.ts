@@ -10,7 +10,7 @@ import { act, createElement } from "react"
 import { afterEach, beforeEach, vi } from "vitest"
 
 import { AwakeContext, type Awake } from "../../awake"
-import { createItemStore } from "../../state"
+import { createItemStore } from "../../store/item-store"
 import { context, describe, expect, it } from "../../test"
 import { page as registration } from "./index"
 

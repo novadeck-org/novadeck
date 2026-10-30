@@ -1,5 +1,5 @@
+import { describe, expect, it } from "../test"
 import { createDragSession, pageHitTest, type HitTest } from "./drag-session"
-import { describe, expect, it } from "./test"
 
 const canvas = { canvas: { x: 120, y: 48 } }
 

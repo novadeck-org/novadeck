@@ -26,14 +26,14 @@ import {
   shownTab,
   slotKeys,
   type BarMember,
-} from "../../bar"
-import { useDrag, type BarDrag } from "../../drag-session"
+} from "../../bar/bar"
+import { useDrag, type BarDrag } from "../../bar/drag-session"
+import { Taskbar } from "../../bar/Taskbar"
+import type { SlotActions } from "../../bar/TaskbarSlot"
+import type { Dragged } from "../../bar/use-bar-drag"
 import { stuckEdits } from "../../kinds/plan/plan-doc"
-import type { ItemStore } from "../../state"
-import { Taskbar } from "../../Taskbar"
-import type { SlotActions } from "../../TaskbarSlot"
-import type { Dragged } from "../../use-bar-drag"
-import { usePlans } from "../../use-item-store"
+import type { ItemStore } from "../../store/item-store"
+import { usePlans } from "../../store/use-item-store"
 import { CompanionPane } from "./CompanionPane"
 import { coverKey } from "./cover-keys"
 import { terminalDrawing } from "./drawing"

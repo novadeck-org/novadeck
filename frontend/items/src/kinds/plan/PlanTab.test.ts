@@ -6,7 +6,7 @@ import { render } from "@novadeck/test-kit/render"
 import { act, createElement } from "react"
 import { afterEach, vi } from "vitest"
 
-import { createItemStore } from "../../state"
+import { createItemStore } from "../../store/item-store"
 import { context, describe, expect, it } from "../../test"
 import { PlanTab } from "./PlanTab"
 

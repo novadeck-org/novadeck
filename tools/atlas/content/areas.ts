@@ -354,7 +354,7 @@ export const notes: Record<string, Note> = {
         file: "frontend/items/src/homes/terminal/TerminalCompanion.tsx",
         text: "export const TerminalCompanion",
       },
-      { file: "frontend/items/src/drag-session.ts" },
+      { file: "frontend/items/src/bar/drag-session.ts" },
     ],
   },
   "frontend/chat": {

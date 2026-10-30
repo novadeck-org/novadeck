@@ -13,9 +13,9 @@ import {
   type LucideIcon,
 } from "lucide-react"
 
-import type { BarMember, BarSlot, StackKind } from "../../bar"
-import type { ItemStore } from "../../state"
-import { lookOf, type SlotActions } from "../../TaskbarSlot"
+import type { BarMember, BarSlot, StackKind } from "../../bar/bar"
+import { lookOf, type SlotActions } from "../../bar/TaskbarSlot"
+import type { ItemStore } from "../../store/item-store"
 import { context, describe, expect, it } from "../../test"
 import { slotIcon, terminalDrawing } from "./drawing"
 import { noLinks, type MessagesHandle } from "./messages/messages"

@@ -6,9 +6,9 @@ import { render } from "@novadeck/test-kit/render"
 import { createElement } from "react"
 import { afterEach } from "vitest"
 
-import { registrationOf } from "./registry"
-import { createItemStore } from "./state"
-import { context, describe, expect, it } from "./test"
+import { registrationOf } from "../registry"
+import { createItemStore } from "../store/item-store"
+import { context, describe, expect, it } from "../test"
 
 const unmounts: (() => void)[] = []
 afterEach(() => unmounts.splice(0).forEach((unmount) => unmount()))

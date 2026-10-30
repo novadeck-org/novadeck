@@ -2,7 +2,7 @@ import type { Item } from "@novadeck/core/items"
 import type { WorkspaceTarget } from "@novadeck/core/types"
 
 import { registrationOf } from "../../registry"
-import type { ItemStore } from "../../state"
+import type { ItemStore } from "../../store/item-store"
 
 // An item undocked into a window of its own: its registration's body, as in the pane, a
 // plan editable, or something an agent showed loading from where it points now. The

@@ -19,7 +19,7 @@ import {
 } from "@novadeck/core/store"
 import type { Workspace, WorkspaceTarget } from "@novadeck/core/types"
 
-import { currentMarks, docOf, eolOf, lf, type Mark, type PlanDoc } from "./kinds/plan/plan-doc"
+import { currentMarks, docOf, eolOf, lf, type Mark, type PlanDoc } from "../kinds/plan/plan-doc"
 
 // What the items package holds while the app runs, apart from the items themselves and
 // how bars are arranged, which the workspace store keeps: each plan as the person edits
@@ -646,7 +646,7 @@ export const createItemStore = ({
     },
     closeEditor: () => {
       // The note code is already loaded: the editor that closed shares it.
-      void import("./kinds/plan/plan-editor/notes").then(({ withoutEmptyNotes }) => {
+      void import("../kinds/plan/plan-editor/notes").then(({ withoutEmptyNotes }) => {
         withPlan(session, id, (current) => {
           if (!current.writable) return current
           const kept = withoutEmptyNotes(current.text, currentMarks(current))
