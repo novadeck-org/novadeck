@@ -7,7 +7,7 @@ import { type Rule, rules, valueCap } from "./rules.js"
 const lastGroup = (found: readonly (string | undefined)[]): string =>
   found.findLast((group) => group !== undefined) ?? ""
 
-const scan = (text: string, rule: Extract<Rule, { scan: unknown }>): string => {
+const scan = (text: string, rule: Extract<Rule, { judge: unknown }>): string => {
   const { pattern, field } = rule
   let result = ""
   let last = 0
@@ -22,7 +22,7 @@ const scan = (text: string, rule: Extract<Rule, { scan: unknown }>): string => {
       found.push(value)
       pattern.lastIndex += value.length
     }
-    const replaced = rule.scan({ offset: found.index, text }, ...found)
+    const replaced = rule.judge({ offset: found.index, text }, ...found)
     const value = lastGroup(found)
     if (replaced === found[0]) {
       // Look again from the match's value, the last thing in it: past the name, so that a
@@ -53,7 +53,7 @@ const scan = (text: string, rule: Extract<Rule, { scan: unknown }>): string => {
 export const mark = (text: string): string =>
   rules.reduce(
     (marked, rule) =>
-      "scan" in rule ? scan(marked, rule) : marked.replace(rule.pattern, rule.replace),
+      "judge" in rule ? scan(marked, rule) : marked.replace(rule.pattern, rule.replace),
     unmarked(text),
   )
 
@@ -71,6 +71,6 @@ export const redact = redactAs(redacted)
 
 /** The pieces of `text` that `redact` masks, for a check on what was masked. */
 export const maskedSpans = (text: string): string[] =>
-  [...mark(text).matchAll(masks)].map((match) =>
+  [...mark(text).matchAll(masks())].map((match) =>
     text.slice(match.index, match.index + match[0].length),
   )

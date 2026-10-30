@@ -58,7 +58,7 @@ const tokenStart = new RegExp(
 const longToken = readWindow / 2
 
 // Which characters of a marked text are marks.
-const flagged = (marked: string): boolean[] =>
+const markFlags = (marked: string): boolean[] =>
   Array.from({ length: marked.length }, (_, i) => marked[i] === sentinel)
 
 // Which characters of a group's text (`text`, its rows joined) are a token with a prefix, longer
@@ -140,7 +140,7 @@ const maskedRows = (
   groups(rows.length, continues).flatMap(([first, last]) => {
     const group = rows.slice(first, last + 1)
     if (skip[first]) return group.map((row) => Array.from({ length: row.length }, () => false))
-    const masked = group.length === 1 ? flagged(mark(group[0] ?? "")) : maskedGroup(group)
+    const masked = group.length === 1 ? markFlags(mark(group[0] ?? "")) : maskedGroup(group)
     let offset = 0
     return group.map((row) => {
       const flags = masked.slice(offset, offset + row.length)

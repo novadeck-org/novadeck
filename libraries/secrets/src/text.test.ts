@@ -457,7 +457,7 @@ describe("code words as values", () => {
 
 describe("the sentinel character in the input", () => {
   it("becomes a question mark", () => {
-    expect(redact("ab TOKEN=abcdefgh")).toBe("a?b TOKEN=[redacted]")
+    expect(redact("a\uE000b TOKEN=abcdefgh")).toBe("a?b TOKEN=[redacted]")
   })
 })
 

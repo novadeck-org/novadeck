@@ -8,17 +8,17 @@ import { closesLiteral, keyLikeRun, worthHiding } from "./values.js"
 type Replacer = (...match: string[]) => string
 // Where a match was found, for a rule that reads what is before it.
 type Where = { readonly offset: number; readonly text: string }
-type Scanner = (where: Where, ...match: string[]) => string
+type Judge = (where: Where, ...match: string[]) => string
 
 export type Rule =
   // Every match replaced at once.
   | { readonly pattern: RegExp; readonly replace: Replacer }
-  // Matches read one at a time, and read inside again where a match is kept (see `scan`). A
+  // Matches judged one at a time, and read inside again where one is kept (see `scan`). A
   // `field`'s value is read only after a match whose `name` group sounds secret; ordinary
   // fields can contain nested secrets, but need no repeated parsing of their overlapping values.
   | {
       readonly pattern: RegExp
-      readonly scan: Scanner
+      readonly judge: Judge
       readonly field?: { readonly name: number; readonly value: RegExp }
     }
 
@@ -66,7 +66,10 @@ export const rules: readonly Rule[] = [
   token("pypi-", "A-Za-z0-9_=-", 20),
   token("ya29\\.(?=[A-Za-z0-9_.-]*[A-Z0-9])", `${urlSafe}.`, 20),
   token("AIza", urlSafe, 30),
-  token(`SG\\.${atLeast(urlSafe, 16)}\\.`, urlSafe, 16),
+  {
+    pattern: new RegExp(`(?<![\\w])SG\\.${atLeast(urlSafe, 16)}\\.${atLeast(urlSafe, 16)}`, "g"),
+    replace: hide,
+  },
   // A Discord bot token: three parts, the first the user id's digits in base64.
   {
     pattern: /(?<![\w.-])([A-Za-z0-9_-]{18,32})\.[A-Za-z0-9_-]{6}\.[A-Za-z0-9_-]{25,}/g,
@@ -106,7 +109,7 @@ export const rules: readonly Rule[] = [
   },
   // Whole headers: the credential is everything after the name.
   {
-    pattern: /\b(Authorization\s*[:=]\s*(?:(?:Bearer|Basic|Token|Digest)\s+)?)(?!)(\S+)/gi,
+    pattern: /\b(Authorization\s*[:=]\s*(?:(?:Bearer|Basic|Token|Digest)\s+)?)(?!\uE000)(\S+)/gi,
     replace: keepHead,
   },
   { pattern: /\b((?:Set-)?Cookie\s*:[ \t]*)([^\n]+)/gi, replace: keepHead },
@@ -136,7 +139,7 @@ export const rules: readonly Rule[] = [
       `(--(?:password|passwd|pass|pwd|token|auth-token|access-token|api-key|apikey|secret|client-secret|auth|bearer|credentials?|passphrase)(?:=|[ \\t]+))(?!-)(${quoted}|\\S+)`,
       "gi",
     ),
-    scan: ({ offset, text }, all, head, value) =>
+    judge: ({ offset, text }, all, head, value) =>
       worthHiding(value) && !closesLiteral(value, offset, text)
         ? `${head}${hideValue(value)}`
         : all,
@@ -147,7 +150,7 @@ export const rules: readonly Rule[] = [
       `(?<![\\p{L}\\p{N}_.-])([\\p{L}_][\\p{L}\\p{N}_.-]*)([ \\t]*=[ \\t]*)`,
       "gu",
     ),
-    scan: ({ offset, text }, all, name, joint, value) =>
+    judge: ({ offset, text }, all, name, joint, value) =>
       worthHiding(value, true) && !closesLiteral(value, offset, text)
         ? `${name}${joint}${hideValue(value)}`
         : all,
@@ -159,7 +162,7 @@ export const rules: readonly Rule[] = [
       `(?<![\\p{L}])(has[lł]o|has[lł]a)([ \\t]*[:=][ \\t]*)(${quoted}|\\S+)`,
       "giu",
     ),
-    scan: ({ offset, text }, all, name, joint, value) =>
+    judge: ({ offset, text }, all, name, joint, value) =>
       worthHiding(value) && !closesLiteral(value, offset, text)
         ? `${name}${joint}${hideValue(value)}`
         : all,
@@ -167,14 +170,14 @@ export const rules: readonly Rule[] = [
   // fish: set -x NAME value
   {
     pattern: /(\bset[ \t]+(?:-\w+[ \t]+)*)([A-Za-z_]\w*)([ \t]+)(?!-)(\S+)/g,
-    scan: (_where, all, head, name, gap, value) =>
+    judge: (_where, all, head, name, gap, value) =>
       soundsSecret(name) && worthHiding(value) ? `${head}${name}${gap}${hide(value)}` : all,
   },
   // "name": "value", as JSON has it, and 'name': 'value'; in a string of a log line the
   // quotes are escaped: {\"name\":\"value\"}.
   {
     pattern: new RegExp(`(\\\\?)(["'])([\\p{L}_][\\p{L}\\p{N}_.-]*)\\1\\2([ \\t]*:[ \\t]*)`, "gu"),
-    scan: ({ offset, text }, all, slash, quote, name, joint, value) =>
+    judge: ({ offset, text }, all, slash, quote, name, joint, value) =>
       worthHiding(value) && !closesLiteral(value, offset, text)
         ? `${slash}${quote}${name}${slash}${quote}${joint}${hideValue(value)}`
         : all,
@@ -186,7 +189,7 @@ export const rules: readonly Rule[] = [
       `(?<![\\p{L}\\p{N}_.-])([\\p{L}_][\\p{L}\\p{N}_.-]*)([ \\t]*:[ \\t]+)`,
       "gu",
     ),
-    scan: ({ offset, text }, all, name, joint, value) =>
+    judge: ({ offset, text }, all, name, joint, value) =>
       worthHiding(value, true) && !closesLiteral(value, offset, text)
         ? `${name}${joint}${hideValue(value)}`
         : all,

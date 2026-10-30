@@ -9,7 +9,7 @@ export const redacted = "[redacted]"
 
 // Stands for a secret's character. A private-use character is no letter, digit or space, so
 // patterns treat it as the boundary it is.
-export const sentinel = ""
+export const sentinel = "\uE000"
 
 // A text that holds the sentinel itself could not be told from a mark.
 export const unmarked = (text: string): string => text.replaceAll(sentinel, "?")
@@ -35,9 +35,10 @@ export const hideValue = (value: string): string => {
   )
 }
 
-// A run of marks, with the newlines between marks it spans: one mask.
-export const masks = new RegExp(`${sentinel}(?:\\n*${sentinel})*`, "g")
+// A run of marks, with the newlines between marks it spans: one mask. A new pattern for each
+// use, so no use leaves its `lastIndex` to another.
+export const masks = (): RegExp => new RegExp(`${sentinel}(?:\\n*${sentinel})*`, "g")
 
 // Each mask written as `placeholder`.
 export const render = (marked: string, placeholder = redacted): string =>
-  marked.replaceAll(masks, placeholder)
+  marked.replaceAll(masks(), placeholder)

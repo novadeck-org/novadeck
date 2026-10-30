@@ -275,8 +275,8 @@ describe("redacting a screen with characters outside the basic plane", () => {
 
 describe("the sentinel character in a screen", () => {
   it("becomes a question mark, in a row and in a group", () => {
-    const one = redactScreen([" ~/proj main", "$ ls"], [])
-    const group = redactScreen(["TOKEN=abcdefgh", "ij ok"], [true, false])
+    const one = redactScreen(["\uE000 ~/proj main", "$ ls"], [])
+    const group = redactScreen(["TOKEN=abcdefgh", "ij\uE000 ok"], [true, false])
 
     expect(one).toEqual(["? ~/proj main", "$ ls"])
     expect(group).toEqual(["TOKEN=[redacted]", "[redacted] ok"])
