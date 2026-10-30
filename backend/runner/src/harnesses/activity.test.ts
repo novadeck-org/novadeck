@@ -1719,12 +1719,10 @@ describe("what a turn wrote and how it failed", () => {
     expect(summary(stop(activity, 5)).lastTurn?.files).toEqual(["/w/a.ts", "/w/b.ts"])
   })
 
-  const patch = (...files: string[]) =>
-    `*** Begin Patch\n${files.map((file) => `*** Add File: ${file}\n+x`).join("\n")}\n*** End Patch`
   const asked = (
     activity: Activity,
     requestId: string,
-    input: unknown,
+    writes: readonly string[] | undefined,
     startedAt: number,
     extra: object = {},
   ) =>
@@ -1736,12 +1734,10 @@ describe("what a turn wrote and how it failed", () => {
       kind: "permission",
       subject: null,
       choices: [],
-      input,
-      cwd: "/w",
+      ...(writes && { writes }),
       startedAt,
       ...extra,
     })
-  const patching = (...files: string[]) => ({ command: patch(...files) })
   const settled = (activity: Activity, path: string, startedAt: number, settles = true) =>
     on(activity, {
       type: "file-touched",
@@ -1752,9 +1748,9 @@ describe("what a turn wrote and how it failed", () => {
     })
   const waiting = (activity: Activity) => activity.pending.map(({ requestId }) => requestId)
 
-  it("a patch's permission: settles the request that asked for the file, and only that one", () => {
+  it("a write's permission: settles the request that asked for the file, and only that one", () => {
     let activity = turn(started(0), 1)
-    activity = asked(asked(activity, "a", patching("a.ts"), 2), "b", patching("/w/b.ts"), 3)
+    activity = asked(asked(activity, "a", ["/w/a.ts"], 2), "b", ["/w/b.ts"], 3)
     activity = settled(activity, "/w/a.ts", 4)
     expect(waiting(activity)).toEqual(["b"])
     // A file nobody asked about settles nothing, and is still named.
@@ -1763,27 +1759,28 @@ describe("what a turn wrote and how it failed", () => {
     expect(activity.files).toEqual(["/w/a.ts", "/w/c.ts"])
   })
 
-  it("a patch's permission: compares whole paths, never a part of one", () => {
+  it("a write's permission: compares whole paths, never a part of one", () => {
     let activity = turn(started(0), 1)
-    activity = asked(activity, "a", patching("a.ts"), 2)
+    activity = asked(activity, "a", ["/w/a.ts"], 2)
     for (const path of ["/w/data.ts", "/w/a.tsx", "/w/x/a.ts", "/w/..a.ts"])
       activity = settled(activity, path, 3)
     expect(waiting(activity)).toEqual(["a"])
     // A directory named `..foo` is a directory, not a way out of one.
-    const dotted = asked(turn(started(0), 1), "d", patching("..foo/a.ts"), 2)
+    const dotted = asked(turn(started(0), 1), "d", ["/w/..foo/a.ts"], 2)
     expect(waiting(settled(dotted, "/w/..foo/a.ts", 3))).toEqual([])
     expect(waiting(settled(dotted, "/foo/a.ts", 3))).toEqual(["d"])
   })
 
-  it("a patch's permission: settles no command's permission, whatever its text holds", () => {
-    const activity = asked(turn(started(0), 1), "c", { command: "cat /w/a.ts" }, 2, {
+  it("a write's permission: settles no permission that names no file, whatever its call holds", () => {
+    const activity = asked(turn(started(0), 1), "c", undefined, 2, {
       toolName: "Bash",
+      input: { command: "cat /w/a.ts" },
     })
     expect(waiting(settled(activity, "/w/a.ts", 3))).toEqual(["c"])
   })
 
-  it("a patch's permission: settles on a rollout's word alone, never on a hook's", () => {
-    const activity = asked(turn(started(0), 1), "a", patching("a.ts"), 2)
+  it("a write's permission: settles on a rollout's word alone, never on a hook's", () => {
+    const activity = asked(turn(started(0), 1), "a", ["/w/a.ts"], 2)
     expect(
       apply(
         activity,
@@ -1793,53 +1790,92 @@ describe("what a turn wrote and how it failed", () => {
     ).toEqual(activity.pending)
   })
 
-  it("a patch's permission: settles no request asked after the write", () => {
+  it("a write's permission: settles no request asked after the write", () => {
     let activity = turn(started(0), 1)
-    activity = asked(activity, "late", patching("a.ts"), 9)
+    activity = asked(activity, "late", ["/w/a.ts"], 9)
     expect(waiting(settled(activity, "/w/a.ts", 4))).toEqual(["late"])
   })
 
-  it("a patch's permission: takes every file of a patch, and the latest of two asking for the same one", () => {
+  it("a write's permission: takes every file it names, and the latest of two asking for the same one", () => {
     let activity = turn(started(0), 1)
-    activity = asked(activity, "old", patching("a.ts"), 2)
-    activity = asked(activity, "multi", patching("m.ts", "a.ts"), 3)
+    activity = asked(activity, "old", ["/w/a.ts"], 2)
+    activity = asked(activity, "multi", ["/w/m.ts", "/w/a.ts"], 3)
     activity = settled(activity, "/w/a.ts", 4)
     expect(waiting(activity)).toEqual(["old"])
     const several = settled(
-      asked(turn(started(0), 1), "m", patching("m.ts", "n.ts"), 2),
+      asked(turn(started(0), 1), "m", ["/w/m.ts", "/w/n.ts"], 2),
       "/w/n.ts",
       3,
     )
     expect(waiting(several)).toEqual([])
   })
 
-  it("a patch's permission: compares Windows paths across separators and case, on any host", () => {
-    const input = { command: patch("C:\\Work\\a.ts", "src\\b.ts") }
-    const activity = asked(turn(started(0), 1), "w", input, 2, { cwd: "C:\\Work" })
+  it("a write's permission: compares Windows paths across separators and case, on any host", () => {
+    const activity = asked(turn(started(0), 1), "w", ["C:\\Work\\a.ts", "C:\\Work\\src\\b.ts"], 2)
     expect(waiting(settled(activity, "c:/work/A.ts", 3))).toEqual([])
-    // A relative file is from the request's directory, its separators either way.
     expect(waiting(settled(activity, "C:/WORK/src/b.ts", 3))).toEqual([])
     expect(waiting(settled(activity, "C:\\Work\\src\\c.ts", 3))).toEqual(["w"])
     // A UNC share is a Windows path too.
-    const unc = asked(turn(started(0), 1), "u", { command: patch("\\\\host\\share\\a.ts") }, 2)
+    const unc = asked(turn(started(0), 1), "u", ["\\\\host\\share\\a.ts"], 2)
     expect(waiting(settled(unc, "\\\\host\\share\\a.ts", 3))).toEqual([])
   })
 
-  it("a patch's permission: compares POSIX paths as they are, on any host", () => {
+  it("a write's permission: compares POSIX paths as they are, on any host", () => {
     // Case matters, and a backslash-less path is not resolved against a drive.
-    const activity = asked(turn(started(0), 1), "p", patching("src/a.ts"), 2)
+    const activity = asked(turn(started(0), 1), "p", ["/w/src/a.ts"], 2)
     expect(waiting(settled(activity, "/w/SRC/a.ts", 3))).toEqual(["p"])
     expect(waiting(settled(activity, "/w/src/../src/a.ts", 3))).toEqual([])
   })
 
-  it("a patch's permission: leaves a Claude write's PostToolUse to settle only its own request", () => {
+  it("a write's permission: is as Codex's decoder tells a patch's files, from the directory it asked in", () => {
+    const patch = [
+      "*** Begin Patch",
+      "*** Add File: a.ts",
+      "+x",
+      "*** Add File: /abs/b.ts",
+      "+y",
+      "*** End Patch",
+    ]
+    const report: Report = {
+      terminalId: "t",
+      token: "0".repeat(48),
+      agent: "codex",
+      event: "PermissionRequest",
+      seq: 2,
+      instance: null,
+      env: { cursor: false },
+      payload: {
+        session_id: "s",
+        cwd: "/w",
+        tool_name: "apply_patch",
+        tool_input: { command: patch.join("\n") },
+      },
+    }
+    const codex: Binding = { agent: "codex", sessionId: "s", instance: null }
+    const [request] = harnesses.codex.decode(report)
+    const activity = apply(turn(started(0), 1), codex, request as ActivityEvent)!
+    expect(activity.pending).toMatchObject([{ writes: ["/w/a.ts", "/abs/b.ts"] }])
+    const write = fact({
+      type: "file-touched",
+      agent: "codex",
+      instance: null,
+      actor: null,
+      path: "/abs/b.ts",
+      startedAt: 3,
+      settles: true,
+    } as Fields)
+    expect(waiting(apply(activity, codex, write)!)).toEqual([])
+  })
+
+  it("a write's permission: leaves a Claude write's PostToolUse to settle only its own request", () => {
     let activity = turn(started(0), 1)
     for (const [id, startedAt] of [
       ["a", 2],
       ["b", 3],
     ] as const)
-      activity = asked(activity, id, { file_path: `/w/${id}.ts` }, startedAt, {
+      activity = asked(activity, id, undefined, startedAt, {
         toolName: "Write",
+        input: { file_path: `/w/${id}.ts` },
       })
     activity = on(activity, {
       type: "attention-resolved",

@@ -4,7 +4,7 @@ import { withWords } from "./agent-input"
 // for the person's keys, read as the line a shell's readline keeps. Pure, so the terminal
 // only routes what comes of it. Enter submits a line with
 // something in it, and Escape is left to the terminal, which interrupts a working agent. A
-// locked or ended terminal is the views' to hold: their emulator sends no keys while locked,
+// locked or ended terminal is the terminal screens' to hold: their emulator sends no keys while locked,
 // and takes Enter itself once ended.
 
 export type Line = {

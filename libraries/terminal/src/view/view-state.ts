@@ -11,7 +11,7 @@ export type Store<S> = {
 // value notifies nobody.
 export type MutableStore<S> = Store<S> & { readonly update: (change: (state: S) => S) => S }
 
-// The views' own store, for an owner with none to inject: a change that returns the same
+// The screens' own store, for an owner with none to inject: a change that returns the same
 // value notifies nobody.
 export const createStore = <S>(initial: S): MutableStore<S> => {
   let snapshot = initial

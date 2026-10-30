@@ -1,17 +1,17 @@
 import type { TerminalKey, ThemeSource } from "@novadeck/core/port"
 import { createStore } from "@novadeck/core/store"
 import { terminalKeyId } from "@novadeck/core/terminals/registry"
-import type { Renderers } from "@novadeck/emulator/browser"
+import type { RendererPool } from "@novadeck/emulator/browser"
 import { maxUploadBytes } from "@novadeck/protocol"
 import { hasCode, type AttachedTerminal } from "@novadeck/runner-client"
 import type { AttachStream, Exit } from "@novadeck/terminal"
 import { openEmulator } from "@novadeck/terminal-views/emulator"
 import { screenMarkup } from "@novadeck/terminal-views/mount"
 import { pasteNotice as sharedNotice } from "@novadeck/terminal-views/paste-notice"
-import { pageRenderers } from "@novadeck/terminal-views/renderers"
+import { pageRendererPool } from "@novadeck/terminal-views/renderer-pool"
 import { terminalTheme } from "@novadeck/terminal-views/theme"
 import type { PasteFailure } from "@novadeck/terminal/view"
-import { parkedCap, parkMs, type TerminalViewOptions } from "@novadeck/terminal/view"
+import { parkedCap, parkMs, type TerminalScreensOptions } from "@novadeck/terminal/view"
 
 import type { SurfaceRuntime } from "../backend"
 import { desktopApp } from "../desktop/app"
@@ -21,7 +21,7 @@ import { exitStatus, restartable } from "./activity"
 // a project within a working break finds its output in place instead of a screen to reopen.
 export const retainMs = 30 * 60 * 1000
 
-// The runner's attachment, which the views follow as the terminal library's stream. The
+// The runner's attachment, which the screens follow as the terminal library's stream. The
 // runtime notes the attachment itself, so the stream is mapped back to it.
 const attachments = new WeakMap<AttachStream, AttachedTerminal>()
 const streamOf = (attached: AttachedTerminal): AttachStream => {
@@ -53,19 +53,19 @@ export const pasteNotice = (failure: PasteFailure): string =>
       : failure,
   )
 
-// The runner backend's terminal views: its runtime, the emulator drawn with the page's
+// The runner backend's terminal screens: its runtime, the emulator drawn with the page's
 // WebGL pool and theme, a screen reader's tree for the terminal in focus, and the app's
 // words and policies.
-export const viewOptions = (
+export const screensOptions = (
   runtime: SurfaceRuntime,
   {
-    renderers = pageRenderers(),
+    pool = pageRendererPool(),
     cap = parkedCap,
     theme,
-  }: { renderers?: Renderers; cap?: number; theme: ThemeSource },
-): TerminalViewOptions<TerminalKey> => ({
+  }: { pool?: RendererPool; cap?: number; theme: ThemeSource },
+): TerminalScreensOptions<TerminalKey> => ({
   keyOf: terminalKeyId,
-  emulator: openEmulator({ renderers, screenReader: true }),
+  emulator: openEmulator({ pool, screenReader: true }),
   theme: terminalTheme(theme),
   store: createStore,
   markup: screenMarkup,

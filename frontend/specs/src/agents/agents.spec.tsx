@@ -1,7 +1,7 @@
 import { onTestFinished } from "vitest"
 import { page, userEvent, type Locator } from "vitest/browser"
 
-import { escapeFrom, expectFocusWithin, preferencesDialog } from "../support/keyboard"
+import { escapeFrom, openPreferences, preferencesDialog } from "../support/keyboard"
 import { workspaceSwitcher } from "../support/sessions"
 import {
   chooseView,
@@ -23,11 +23,6 @@ const agentChoice = (scope: Locator, name: "Claude Code" | "Codex" | "Antigravit
   scope.getByRole("checkbox", { name })
 
 const welcome = (): Locator => page.getByRole("dialog", { name: "Welcome to Novadeck" })
-
-const openPreferences = async (): Promise<void> => {
-  await page.getByRole("button", { name: "Workspace preferences" }).click()
-  await expectFocusWithin(preferencesDialog())
-}
 
 describe("An agent waiting on the person", () => {
   it("says so on its terminal's tab and window", async () => {

@@ -102,6 +102,11 @@ export const launchGroups = (cues: LaunchCues | undefined): readonly DemoActionG
               hint: "Search index, a Codex agent, asks to run pnpm test --filter search in Codex's own words: an Unblock row. Allowed, it runs them and reports done about 2 s later: an Update row",
               run: () => cues.command(),
             },
+            {
+              label: "8d · An Antigravity agent asks to approve its plan",
+              hint: "Inventory sync, the deck's Antigravity agent, shows its implementation plan (Stock sync) beside its window, without opening it, and asks to approve it in Antigravity's words (1 artifact to review: Approve, Reject, Tell it what to change): an Unblock row whose sheet shows the plan. Answered, it goes on working",
+              run: () => cues.agyPlan(),
+            },
           ],
         },
       ]

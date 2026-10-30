@@ -1,6 +1,6 @@
-import { flavourOf, patchRequested } from "@novadeck/harness-codex/patch"
 import { ref } from "@novadeck/harness-core/decode"
 import type { ActivityEvent, Background, PlanSource } from "@novadeck/harness-core/events"
+import { samePath } from "@novadeck/harness-core/paths"
 import {
   agentLimits,
   maxTurnError,
@@ -28,6 +28,8 @@ export type Request = {
   readonly input?: unknown
   /** The directory its hook said the agent ran in, where it said one. */
   readonly cwd?: string
+  /** The files it asks to write, where its harness told them (see the event's `writes`). */
+  readonly writes?: readonly string[]
   /** Whether only the screen told it (see `DialogAdapter.screenRequest`), no hook. */
   readonly screen?: true
   /** Whether it asks without waiting (see the `attention-requested` event's `detached`). */
@@ -40,22 +42,9 @@ export type Request = {
   readonly askedAt: number
 }
 
-// A path as a comparison reads it: separators alike, and case folded where it is a Windows
-// drive's.
-const comparable = (path: string): string => {
-  const slashed = flavourOf(path).normalize(path).replace(/\\/g, "/")
-  return /^[A-Za-z]:\//.test(slashed) ? slashed.toLowerCase() : slashed
-}
-
-/**
- * Whether a permission request is Codex's to apply a patch that writes `path`: the files
- * its patch names, each from the directory it asked in, whole paths compared.
- */
+/** Whether a permission request asks to write `path`, whole paths compared. */
 const asksToWrite = (request: Request, path: string): boolean =>
-  request.kind === "permission" &&
-  patchRequested(request.toolName, request.input, request.cwd).some(
-    (file) => comparable(file) === comparable(path),
-  )
+  request.kind === "permission" && (request.writes ?? []).some((file) => samePath(file, path))
 
 /** An actor's latest plan, as the hook that named it started. */
 type Plan = { readonly actor: string | null; readonly source: PlanSource; readonly at: number }
@@ -695,11 +684,11 @@ export const apply = (
       }
       // Older than the running turn's start, it is some other turn's.
       if (activity.state !== "working" || event.startedAt < activity.turnAt) return undefined
-      // A write that landed settles the permission asked for it where no hook does:
-      // Codex fires no PostToolUse for a patch it ran through its shell, and its rollout
-      // names the file (probed 2026-10-15, 0.159.3). Left pending, that request would sit
-      // ahead of the next, the one on screen. Only a request already asked qualifies, the
-      // latest of them: the write follows the approval just before it.
+      // A write that landed settles the permission that asked to write it (its `writes`)
+      // where no hook does, as Codex fires no PostToolUse for a patch it ran through its
+      // shell, and its rollout names the file (probed 2026-10-15, 0.159.3). Left pending,
+      // that request would sit ahead of the next, the one on screen. Only a request already
+      // asked qualifies, the latest of them: the write follows the approval just before it.
       const asked = event.settles
         ? activity.pending.reduce(
             (found, each, index) =>
@@ -1057,6 +1046,7 @@ const asked = (
         choices,
         ...(event.input !== undefined && { input: event.input }),
         ...(event.cwd !== undefined && { cwd: event.cwd }),
+        ...(event.writes !== undefined && { writes: event.writes }),
         ...(event.screen === true && { screen: true as const }),
         ...(event.detached === true && { detached: true as const }),
         ...(event.parts && {

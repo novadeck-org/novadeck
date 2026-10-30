@@ -1,9 +1,9 @@
 import { darwin } from "./reap/darwin.js"
 import { linux } from "./reap/linux.js"
 import { waitWhile, type Process, type Scope, type Table } from "./reap/process.js"
-import { windows, type Trees } from "./reap/windows.js"
+import { windows, type ProcessTrees } from "./reap/windows.js"
 
-export type { Trees } from "./reap/windows.js"
+export type { ProcessTrees } from "./reap/windows.js"
 
 export type ReapOptions = {
   /**
@@ -12,7 +12,7 @@ export type ReapOptions = {
    * only where it can't read it. Without one, a forcible end takes the process alone, and the
    * next round finds what it started.
    */
-  readonly trees?: Trees
+  readonly trees?: ProcessTrees
 }
 
 const tableFor = (options: ReapOptions = {}): Table =>

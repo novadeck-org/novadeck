@@ -9,12 +9,14 @@ tools: Ran [run] · echo approved > probe-out.txt | Call: exec_command: 3 lines:
 
 # exec-cancel
 tools: Ran [run] · echo approved > probe-out.txt | Call: exec_command: 3 lines: cmd: echo approved > probe-out.txt → 2 lines: Wall time: <n> seconds
+note: Interrupted
 
 # exec-decline-key-not-offered
 tools: Ran [run] · echo approved > probe-out.txt | Call: exec_command: 3 lines: cmd: echo approved > probe-out.txt → no result recorded.
 
 # exec-long-command
 tools: Ran [run] · echo xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx && echo yyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy\ | Call: exec_command: 5 lines: cmd: → 2 lines: Wall time: <n> seconds
+note: Interrupted
 
 # exec-two-queued
 tools: Ran [run] · echo first > probe-first.txt | Call: exec_command: 3 lines: cmd: echo first > probe-first.txt → 5 lines: Chunk ID: <id>; Ran [run] · echo second > probe-second.txt | Call: exec_command: 3 lines: cmd: echo second > probe-second.txt → 5 lines: Chunk ID: <id>
@@ -42,6 +44,7 @@ tools: Ran [run] · echo approved > probe-out.txt | Call: exec_command: 3 lines:
 
 # hook-person-presses-esc
 tools: Ran [run] · echo approved > probe-out.txt | Call: exec_command: 3 lines: cmd: echo approved > probe-out.txt → 2 lines: Wall time: <n> seconds
+note: Interrupted
 
 # hook-person-presses-y
 tools: Ran [run] · echo approved > probe-out.txt | Call: exec_command: 3 lines: cmd: echo approved > probe-out.txt → 5 lines: Chunk ID: <id>
@@ -69,6 +72,7 @@ tools: Ran [run] · apply_patch <<'EOF' | Call: exec_command: 6 lines: apply_pat
 
 # patch-cancel
 tools: Ran [run] · apply_patch <<'EOF' | Call: exec_command: 6 lines: apply_patch <<'EOF' → 2 lines: Wall time: <n> seconds
+note: Interrupted
 
 # plan-prompt
 
@@ -108,6 +112,7 @@ tools: Asked [plan] · Which color should the button be? | Call: request_user_in
 
 # rui-esc-then-prompt
 tools: Asked [plan] · Which color should the button be? | Call: request_user_input: 1 line: [{"id":"color","header":"Color","question":"Whi… → 1 line: aborted by user after <n>s
+note: Interrupted
 
 # rui-none-of-the-above-notes
 tools: Asked [plan] · Which color should the button be? | Call: request_user_input: 1 line: [{"id":"color","header":"Color","question":"Whi… → 1 line: {"answers":{"color":{"answers":["None of the ab…
@@ -120,6 +125,7 @@ tools: Asked [plan] · Which color should the button be? | Call: request_user_in
 
 # rui-plan-esc
 tools: Asked [plan] · Which color should the button be? | Call: request_user_input: 1 line: [{"id":"color","header":"Color","question":"Whi… → 1 line: aborted by user after <n>s
+note: Interrupted
 
 # rui-plan-wrong-key-y
 tools: Asked [plan] · Which color should the button be? | Call: request_user_input: 1 line: [{"id":"color","header":"Color","question":"Whi… → no result recorded.

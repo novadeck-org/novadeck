@@ -1,7 +1,7 @@
-import type { Renderers } from "@novadeck/emulator/browser"
+import type { RendererPool } from "@novadeck/emulator/browser"
 import { vi } from "vitest"
 
-import { reportRenderers } from "./renderers"
+import { reportRendererPool } from "./renderer-pool"
 import { describe, expect, it } from "./test"
 
 describe("reporting the pool's counts", () => {
@@ -21,7 +21,7 @@ describe("reporting the pool's counts", () => {
         heard = listener
         return () => {}
       },
-    } as unknown as Renderers
+    } as unknown as RendererPool
     return {
       pool,
       swap: () => {
@@ -36,7 +36,7 @@ describe("reporting the pool's counts", () => {
     try {
       const { pool, swap } = pooled()
       const report = vi.fn<(stats: unknown) => void>()
-      reportRenderers(pool, report, 1_000, page())
+      reportRendererPool(pool, report, 1_000, page())
       swap()
       vi.advanceTimersByTime(600)
       swap()
@@ -56,7 +56,7 @@ describe("reporting the pool's counts", () => {
     const { pool, swap } = pooled()
     const hide = page()
     const report = vi.fn<(stats: unknown) => void>()
-    reportRenderers(pool, report, 1_000, hide)
+    reportRendererPool(pool, report, 1_000, hide)
     swap()
     hide.fire()
     expect(report).toHaveBeenCalledExactlyOnceWith({ swaps: 1 })
@@ -69,8 +69,8 @@ describe("reporting the pool's counts", () => {
     try {
       const { pool, swap } = pooled()
       const report = vi.fn<(stats: unknown) => void>()
-      reportRenderers(pool, report, 1_000, page())
-      reportRenderers(pool, report, 1_000, page())
+      reportRendererPool(pool, report, 1_000, page())
+      reportRendererPool(pool, report, 1_000, page())
       swap()
       vi.advanceTimersByTime(1_000)
       expect(report).toHaveBeenCalledTimes(1)

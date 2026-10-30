@@ -7,14 +7,14 @@ import type {
 import { createStore } from "@novadeck/core/store"
 import { terminalFixture } from "@novadeck/core/testing"
 import type { TerminalMetadata, ViewMode } from "@novadeck/core/types"
-import { createRenderers, type Drawing, type Terminal } from "@novadeck/emulator/browser"
+import { createRendererPool, type Drawing, type Terminal } from "@novadeck/emulator/browser"
 import { createTerminalMount } from "@novadeck/terminal-views/mount"
 import { noTheme } from "@novadeck/terminal-views/theme"
-import { createTerminalViews, type Hold, type TerminalViews } from "@novadeck/terminal/view"
+import { createTerminalScreens, type Hold, type TerminalScreens } from "@novadeck/terminal/view"
 import { afterEach, vi } from "vitest"
 
 import type { SurfaceRuntime } from "./backend"
-import { viewOptions } from "./terminals/view-options"
+import { screensOptions } from "./terminals/screens-options"
 import { context, describe, expect, it } from "./test"
 
 // What the terminal library's own tests cover (what a screen keeps, tells and refuses) is
@@ -104,7 +104,7 @@ const propsOf = (terminal: TerminalMetadata, view: ViewMode = "focus"): Terminal
 
 // Mounts a terminal in an element in the page, over `screens`.
 const mountOver = (
-  screens: TerminalViews<TerminalKey>,
+  screens: TerminalScreens<TerminalKey>,
   props: TerminalMountProps,
   terminalKey = key,
   mountTerminal = createTerminalMount(screens),
@@ -127,7 +127,7 @@ const mountOver = (
 }
 
 const show = (runtime: SurfaceRuntime, terminal: TerminalMetadata = startingTerminal()) =>
-  mountOver(createTerminalViews(viewOptions(runtime, { theme: noTheme })), propsOf(terminal))
+  mountOver(createTerminalScreens(screensOptions(runtime, { theme: noTheme })), propsOf(terminal))
 
 const input = (page: Mounted) =>
   page.container.querySelector<HTMLTextAreaElement>("[data-terminal-input]")!
@@ -147,9 +147,9 @@ describe("runner terminal mount", () => {
     }
     const surfaces = () => {
       const { runtime } = starting()
-      const screens = createTerminalViews(viewOptions(runtime, { theme: noTheme }))
+      const screens = createTerminalScreens(screensOptions(runtime, { theme: noTheme }))
       const calls: string[] = []
-      const watching: TerminalViews<TerminalKey> = {
+      const watching: TerminalScreens<TerminalKey> = {
         ...screens,
         acquire: (...args) => {
           calls.push("acquire")
@@ -272,7 +272,7 @@ describe("runner terminal mount", () => {
     try {
       const { runtime } = starting()
       const page = mountOver(
-        createTerminalViews(viewOptions(runtime, { theme: noTheme, cap: 0 })),
+        createTerminalScreens(screensOptions(runtime, { theme: noTheme, cap: 0 })),
         {
           ...propsOf(startingTerminal(), "canvas"),
           onScreen: true,
@@ -345,7 +345,7 @@ describe("a surface's renderer", () => {
   it("loads WebGL for Focus and nothing for Canvas", () => {
     const loaded: Terminal[] = []
     const drawings: { disposed: boolean }[] = []
-    const renderers = createRenderers<Terminal>({
+    const pool = createRendererPool<Terminal>({
       load: (xterm) => {
         loaded.push(xterm)
         const drawing = { disposed: false }
@@ -361,7 +361,7 @@ describe("a surface's renderer", () => {
       cap: 12,
     })
     const page = mountOver(
-      createTerminalViews(viewOptions(starting().runtime, { theme: noTheme, renderers })),
+      createTerminalScreens(screensOptions(starting().runtime, { theme: noTheme, pool })),
       propsOf(startingTerminal(), "canvas"),
     )
     expect(loaded).toHaveLength(0)

@@ -3,10 +3,6 @@ import { transcriptLimits, type ToolRun, type TranscriptItem } from "@novadeck/p
 import { ref } from "./decode.js"
 import type { TranscriptEntry } from "./harness.js"
 
-// Claude Code records a stopped turn as a user message in brackets. Every harness's items
-// are checked for it.
-const interruption = /^\s*\[Request interrupted by user[^\]]*\]\s*$/
-
 /** When a record was written, from its ISO timestamp. */
 export const at = (value: unknown): number | null => {
   const time = typeof value === "string" ? Date.parse(value) : Number.NaN
@@ -32,6 +28,11 @@ type EntryFields = {
   readonly tool?: unknown
   readonly call?: unknown
   readonly author?: unknown
+  /**
+   * Whether a user's text records that the person interrupted the turn, as its harness
+   * tells by its own record of it; the chat shows it as a note.
+   */
+  readonly interrupted?: boolean
 }
 
 /**
@@ -74,6 +75,6 @@ export function entry(
         ? fields.author.slice(0, transcriptLimits.name)
         : null,
     run: kind === "tool-call" ? (fields.describe?.(tool ?? "tool", cut) ?? null) : null,
-    interrupted: role === "user" && kind === "text" && interruption.test(cut),
+    interrupted: role === "user" && kind === "text" && fields.interrupted === true,
   }
 }

@@ -28,11 +28,6 @@
       "types": "./dist/index.d.ts",
       "default": "./dist/index.js"
     },
-    "./patch": {
-      "development": "./src/patch.ts",
-      "types": "./dist/patch.d.ts",
-      "default": "./dist/patch.js"
-    },
     "./rollout": {
       "development": "./src/rollout.ts",
       "types": "./dist/rollout.d.ts",

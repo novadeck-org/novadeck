@@ -75,7 +75,7 @@ describe("a terminal's view state", () => {
   })
 })
 
-describe("the views' own store", () => {
+describe("the screens' own store", () => {
   it("notifies its listeners of a change, in the order they subscribed", () => {
     const store = createStore({ count: 0 })
     const heard: string[] = []

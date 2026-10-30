@@ -8,6 +8,7 @@ import {
   chooseView,
   expectStaysAbsent,
   labelled,
+  nextFrames,
   openWorkspace,
   press,
   sidebar,
@@ -48,11 +49,6 @@ const preferringMotion = () => {
     }
   })
 }
-
-const framesPass = (count: number): Promise<void> =>
-  count === 0
-    ? Promise.resolve()
-    : new Promise((resolve) => requestAnimationFrame(resolve)).then(() => framesPass(count - 1))
 
 describe("the visitor build", () => {
   afterEach(() => page.viewport(1440, 900))
@@ -161,7 +157,7 @@ describe("the visitor build", () => {
       })
       await page.viewport(1440, 900)
       const element = await taken
-      await framesPass(10)
+      await nextFrames(10)
       expect(document.activeElement).toBe(element)
     })
   })
@@ -170,7 +166,7 @@ describe("the visitor build", () => {
     const post = vi.spyOn(window.parent, "postMessage")
     try {
       await openVisitor()
-      await framesPass(5)
+      await nextFrames(5)
       expect(post.mock.calls.filter(([message]) => message?.type === "novadeck:ready")).toEqual([])
     } finally {
       post.mockRestore()
@@ -211,7 +207,7 @@ describe("the visitor build", () => {
       const post = vi.spyOn(window.parent, "postMessage")
       try {
         await openEmbedded()
-        await framesPass(5)
+        await nextFrames(5)
         expect(post.mock.calls.filter(([message]) => message?.type === "novadeck:ready")).toEqual([
           [{ type: "novadeck:ready" }, "*"],
         ])
@@ -288,7 +284,7 @@ describe("the visitor build", () => {
         await expect
           .poll(() => tabDescription("Checkout implementation"))
           .toBe("Plan ready for review: Checkout flow")
-        await framesPass(10)
+        await nextFrames(10)
         expect(document.activeElement).toBe(document.body)
       } finally {
         motion.mockRestore()
@@ -307,7 +303,7 @@ describe("the visitor build", () => {
     // True of the app anywhere; framed, it leaves the page around it its focus.
     it("takes no focus until the person uses it", async () => {
       await openEmbedded()
-      await framesPass(10)
+      await nextFrames(10)
       expect(document.activeElement).toBe(document.body)
     })
   })

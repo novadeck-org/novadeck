@@ -19,6 +19,19 @@ import { createSpecBackend, forgetBabciaCues } from "./backend"
 export const nextFrame = (): Promise<number> => new Promise(requestAnimationFrame)
 
 /**
+ * Resolves once the browser has drawn `count` frames, reading nothing on the way: a read of a
+ * style or a box would apply pending styles early and hide whether the page held them back.
+ */
+export const nextFrames = (count: number): Promise<void> =>
+  new Promise((resolve) => {
+    const next = (left: number): void => {
+      if (left === 0) resolve()
+      else requestAnimationFrame(() => next(left - 1))
+    }
+    next(count)
+  })
+
+/**
  * Opens the app, optionally at a deep link such as `/projects/storefront/sessions/initial/grid`,
  * and `embedded` as another page frames it.
  */
