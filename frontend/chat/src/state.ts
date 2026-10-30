@@ -3,38 +3,32 @@ import type { TerminalMetadata, Workspace } from "@novadeck/core/types"
 
 import {
   chatDraftOf,
-  chatKept,
   keepChatDrafts,
-  keepChatReplies,
-  keepTerminalAnswers,
   noChatDrafts,
-  noChatReplies,
   noChatSends,
+  setChatDraft,
+  type ChatDrafts,
+  type ChatSends,
+} from "./drafts"
+import {
+  keepChatReplies,
+  noChatReplies,
+  settleChatReplies,
+  type ChatReplies,
+} from "./replies"
+import {
+  chatKept,
+  keepTerminalAnswers,
   noTerminalAnswers,
   setAnsweringInTerminal,
-  setChatDraft,
-  settleChatReplies,
-  type ChatDrafts,
-  type ChatReplies,
-  type ChatSends,
   type TerminalAnswers,
-} from "./mode-state"
+} from "./shown"
 
-// The selectors that read the state, and the types it holds, from the package's one door.
-export {
-  chatDraftOf,
-  chatReplyOf,
-  chatSendOf,
-  chatShown,
-  setChatDraft,
-  type ChatDrafts,
-  type ChatReplies,
-  type ChatReply,
-  type ChatReplyTo,
-  type ChatSend,
-  type ChatSends,
-  type TerminalAnswers,
-} from "./mode-state"
+// What the app reads of the state, from the package's one door: the selectors, and the
+// pure update its tests set a draft with.
+export { chatDraftOf, chatSendOf, setChatDraft } from "./drafts"
+export { chatReplyOf } from "./replies"
+export { chatShown } from "./shown"
 
 // What the chat keeps for the app, a store of its own that the app composes. It starts over
 // on reload.
@@ -50,7 +44,7 @@ export type ChatState = {
   readonly answering: TerminalAnswers
 }
 
-export const initialChat: ChatState = {
+const initialChat: ChatState = {
   drafts: noChatDrafts,
   replies: noChatReplies,
   sends: noChatSends,
@@ -70,20 +64,20 @@ export const createChat = (): Chat => {
 }
 
 // The state with the terminal shown as its screen, or the same state where it already is.
-export const answeringIn = (state: ChatState, context: string, id: string): ChatState => {
+const answeringIn = (state: ChatState, context: string, id: string): ChatState => {
   const answering = setAnsweringInTerminal(state.answering, context, id, true)
   return answering === state.answering ? state : { ...state, answering }
 }
 
 // The state with every terminal showing its chat again, or the same state where none was
 // shown as its screen.
-export const answeringReset = (state: ChatState): ChatState =>
+const answeringReset = (state: ChatState): ChatState =>
   state.answering === noTerminalAnswers ? state : { ...state, answering: noTerminalAnswers }
 
 // The state with dictated words added to the terminal's draft, after a space, or directly
 // after trailing whitespace; they replace an empty draft. Unlike an edit, they release no
 // held reply.
-export const dictatedInto = (
+const dictatedInto = (
   state: ChatState,
   context: string,
   id: string,

@@ -12,7 +12,7 @@ import { ArrowUp, Square, X } from "lucide-react"
 import { useEffect, useId, useLayoutEffect, useRef, useState } from "react"
 
 import { Hint } from "./Hint"
-import type { ComposerMode } from "./mode-state"
+import type { ComposerMode } from "./composer-mode"
 
 // The most a reply to the agent's question carries.
 const replyMax = 16_384

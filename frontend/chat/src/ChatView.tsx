@@ -16,13 +16,9 @@ import {
 } from "react"
 
 import { Composer } from "./Composer"
-import {
-  composerState,
-  sameReply,
-  type ChatReply,
-  type ChatReplyTo,
-  type ChatSend,
-} from "./mode-state"
+import { composerMode } from "./composer-mode"
+import type { ChatSend } from "./drafts"
+import { sameReply, type ChatReply, type ChatReplyTo } from "./replies"
 import { Requests } from "./Requests"
 import { Transcript } from "./Transcript"
 
@@ -154,7 +150,7 @@ export const ChatView = ({
   )
 
   // What the box does with its words. Its agent's requests are known once its agent is.
-  const mode = composerState(draft, replyTo, requests, harness !== null)
+  const mode = composerMode(draft, replyTo, requests, harness !== null)
   const reply = mode === "reply" && replyTo !== null && replyTo !== "held" ? replyTo : null
   // A reply ends with its dialog, for good: the same dialog read again doesn't bring it
   // back. Words still in the box are held, as a reply whose question went, until the

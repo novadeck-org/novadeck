@@ -13,8 +13,7 @@ import { afterEach, vi } from "vitest"
 
 import { ChatView } from "./ChatView"
 import { createChatCommands } from "./commands"
-import { chatDraftOf, chatReplyOf, chatSendOf } from "./mode-state"
-import { createChat } from "./state"
+import { chatDraftOf, chatReplyOf, chatSendOf, createChat } from "./state"
 import { describe, expect, it } from "./test"
 import { useChat } from "./use-chat"
 
