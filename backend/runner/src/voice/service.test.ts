@@ -963,20 +963,20 @@ describe("transcribing a recording", () => {
 })
 
 describe("a failure cut to the limit", () => {
-  // A directory name of emoji makes the error of a model that cannot be fetched there longer
+  // Models whose source is a missing file named in emoji make an error that names it, longer
   // than 1024 units, with the limit inside a pair whether `pad` makes the words before it
-  // an even or an odd number of units.
+  // an even or an odd number of units. Nothing is made at that path, so no system's path
+  // limit stands in the way.
   it.for(["", "x"])(
     "keeps whole characters in an install failure (pad %j)",
     async (pad, { resources }) => {
-      const long = join(
-        await folder(resources),
-        `${pad}${"😀".repeat(60)}`,
-        ...Array.from({ length: 8 }, () => "😀".repeat(60)),
-      )
-      await mkdir(long, { recursive: true })
-      await writeFile(join(long, "models"), "not a folder")
-      const { voice } = await setup(resources, { directory: long })
+      const missing = {
+        url: join(await folder(resources), `${pad}${"😀".repeat(520)}`),
+        sha256: "0".repeat(64),
+        size: 1,
+      }
+      const catalog = { models: { turbo: missing, small: missing }, vad: missing }
+      const { voice } = await setup(resources, { catalog })
 
       await voice.install()
       await voice.settled()

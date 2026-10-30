@@ -6,7 +6,7 @@ import type { MurmurState } from "@novadeck/protocol"
 import { vi } from "vitest"
 
 import { ActivityTracker } from "../engines/activity.js"
-import { readManifest } from "../engines/manifest.js"
+import { readManifest, type Artifact } from "../engines/manifest.js"
 import type { Launch } from "../engines/server.js"
 import { logs, useLogger } from "../log.js"
 import { describe, expect, it } from "../test.js"
@@ -37,6 +37,8 @@ const setup = async (
   options: {
     devices?: FakeDevice[]
     behaviour?: string
+    // The model to install, in place of one made with `behaviour`.
+    model?: Artifact
     engine?: false | string | undefined
     source?: string
     store?: WorkspaceStore
@@ -62,7 +64,7 @@ const setup = async (
     engine: manifest,
     ...(options.source !== undefined && { source: options.source }),
     directory,
-    model: await modelFile(resources, options.behaviour),
+    model: options.model ?? (await modelFile(resources, options.behaviour)),
     launch: fakeLaunch(options.devices ?? [arc, nvidia, processor]),
     retryMs: 20,
     backoffMs: 60,
@@ -2005,16 +2007,15 @@ describe("a failure cut to the limit", () => {
   it.for(pads)(
     "keeps whole characters in an install failure (pad %j)",
     async (pad, { resources }) => {
-      // A directory of emoji names makes the error of a model that cannot be fetched there
-      // longer than the 1024 units a failure may hold.
-      const long = join(
-        await folder(resources),
-        `${pad}${emoji(60)}`,
-        ...Array.from({ length: 8 }, () => emoji(60)),
-      )
-      await mkdir(long, { recursive: true })
-      await writeFile(join(long, "models"), "not a folder")
-      const { murmur } = await setup(resources, { directory: long })
+      // A model whose source is a missing file named in emoji makes an error that names it,
+      // longer than the 1024 units a failure may hold. Nothing is made at that path, so no
+      // system's path limit stands in the way.
+      const model = {
+        url: join(await folder(resources), `${pad}${emoji(520)}`),
+        sha256: "0".repeat(64),
+        size: 1,
+      }
+      const { murmur } = await setup(resources, { model })
 
       await murmur.install()
       await murmur.settled()
