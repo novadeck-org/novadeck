@@ -410,7 +410,7 @@ const knownTool = (name: string, fields: Fields | null, input: string): ToolSumm
 
 // Each harness's records for a tool call of this name and input (text).
 const records: Readonly<
-  Record<AgentName, (tool: string | undefined, input: string) => readonly object[]>
+  Record<AgentName, (name: string | undefined, input: string) => readonly object[]>
 > = {
   claude: (name, input) => [
     {
@@ -434,13 +434,11 @@ const records: Readonly<
   ],
 }
 
-// Codex writes a call as a function call (arguments as JSON text) or a custom tool call (raw
-// input); a function call's arguments may be an object, and an MCP tool's server goes in a
-// namespace of its own, which the decoder joins to the name.
+// A way a harness writes a call: each harness's own above, and Codex's others below.
 type Variant = {
   readonly label: string
   readonly harness: AgentName
-  readonly records: (tool: string | undefined, input: string) => readonly object[] | null
+  readonly records: (name: string | undefined, input: string) => readonly object[] | null
 }
 
 const asObject = (input: string): object | null => {
@@ -452,6 +450,9 @@ const asObject = (input: string): object | null => {
   }
 }
 
+// Codex writes a call as a function call (arguments as JSON text) or a custom tool call (raw
+// input); a function call's arguments may be an object, and an MCP tool's server goes in a
+// namespace of its own, which the decoder joins to the name.
 const codexFunction = (name: string | undefined, input: string | object, namespace?: string) => ({
   type: "response_item",
   payload: { type: "function_call", name, namespace, arguments: input, call_id: "call_1" },

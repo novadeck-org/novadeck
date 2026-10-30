@@ -11,7 +11,7 @@ import { codexVocabulary } from "./vocabulary/codex"
 // one conversation or several (a scenario each); every one is a list of the record lines
 // the harness's decoder reads.
 
-export type Conversation = { readonly name: string; readonly lines: readonly string[] }
+type Conversation = { readonly name: string; readonly lines: readonly string[] }
 
 // A hand-written conversation: its records, as the harness would write them.
 export type Written = { readonly name: string; readonly records: readonly object[] }
@@ -36,7 +36,7 @@ type Json = { readonly [key: string]: unknown }
 const folderOf = (harness: AgentName): string =>
   `${import.meta.dirname}/../../../harnesses/${harness}/src`
 
-// A fixture as the shape the extractor reads it in; the extractor checks the records it finds.
+// A fixture, typed as the shape its extractor expects; nothing checks it is that shape.
 const load = <T>(harness: AgentName, file: string): T => loadProbe<T>(folderOf(harness), file)
 
 const isRecords = (value: unknown): value is readonly object[] =>
@@ -88,18 +88,21 @@ const claudeAsk = (file: string): Extracted => {
   const { scenarios } = load<{
     scenarios: { [name: string]: { transcriptTail?: { type: string; content: unknown }[] } }
   }>("claude", file)
-  const entries = Object.entries(scenarios)
-  return found(file, {
-    conversations: entries
-      .filter(([, { transcriptTail }]) => transcriptTail?.length)
-      .map(([name, { transcriptTail }]) => ({
-        name,
-        lines: transcriptTail!.map(({ type, content }) =>
-          JSON.stringify({ type, message: { content } }),
-        ),
-      })),
-    skipped: entries.filter(([, { transcriptTail }]) => !transcriptTail?.length).map(([n]) => n),
-  })
+  const conversations: Conversation[] = []
+  const skipped: string[] = []
+  for (const [name, { transcriptTail }] of Object.entries(scenarios)) {
+    if (!transcriptTail?.length) {
+      skipped.push(name)
+      continue
+    }
+    conversations.push({
+      name,
+      lines: transcriptTail.map(({ type, content }) =>
+        JSON.stringify({ type, message: { content } }),
+      ),
+    })
+  }
+  return found(file, { conversations, skipped })
 }
 
 // Codex's ask fixture keeps a scenario's rollout as it was at stages of the run (every key

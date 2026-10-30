@@ -13,7 +13,7 @@ import { act, createElement } from "react"
 
 // The stages between a harness's record and the rendered chat, run as the app runs them.
 
-export type Transcripts = NonNullable<Harness["transcripts"]>
+type Transcripts = NonNullable<Harness["transcripts"]>
 
 // Each harness's transcripts, whose decoder reads its records.
 export const transcriptsOf: Readonly<Record<AgentName, Transcripts>> = { claude, codex, agy }
@@ -23,8 +23,8 @@ const session = "contract"
 // The chat items of a conversation: each record line through its harness's decoder, the
 // entries given the index the runner gives them and parsed by the protocol's strict schema,
 // and mapped by the runner adapter.
-export const chatItemsOf = (agent: AgentName, lines: readonly string[]): readonly ChatItem[] => {
-  const entries = lines.flatMap((line) => transcriptsOf[agent].items(line))
+export const chatItemsOf = (harness: AgentName, lines: readonly string[]): readonly ChatItem[] => {
+  const entries = lines.flatMap((line) => transcriptsOf[harness].items(line))
   const batch = entries.map((entry, index) => transcriptItem.parse({ ...entry, index }))
   return withBatch([], session, batch)
 }
@@ -127,11 +127,11 @@ export type Rendered = {
 
 // The conversation as the UI draws it: core's blocks through the real Transcript in jsdom,
 // with the agent named as the chat names it.
-export const renderChat = (items: readonly ChatItem[], agent: AgentName): Rendered => {
+export const renderChat = (items: readonly ChatItem[], harness: AgentName): Rendered => {
   const view = render(
     createElement(Transcript, {
       blocks: groupItems(items),
-      agent: agentName(agent),
+      agent: agentName(harness),
       working: false,
     }),
   )
