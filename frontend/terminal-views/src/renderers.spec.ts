@@ -6,7 +6,9 @@ import {
   type ScreenRenderer,
   type Terminal,
 } from "@novadeck/emulator/browser"
-import { afterEach, describe as context, describe, expect, it, vi } from "vitest"
+import { afterEach, vi } from "vitest"
+
+import { context, describe, expect, it } from "./test"
 
 // xterm's WebGL addon in a real browser: what it holds of the page's WebGL contexts, which
 // Chromium caps. Headless Chromium draws WebGL in software, enough to hold a context.
