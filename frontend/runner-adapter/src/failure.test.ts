@@ -55,7 +55,7 @@ describe("connection failure", () => {
 
   it("keeps the transport's own reason as the detail", () => {
     expect(
-      connectFailure(new WireError("CLOSED", "No desktop host provides a runner.")).detail,
-    ).toBe("No desktop host provides a runner.")
+      connectFailure(new WireError("CLOSED", "No desktop app provides a runner.")).detail,
+    ).toBe("No desktop app provides a runner.")
   })
 })

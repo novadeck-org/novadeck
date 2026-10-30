@@ -1,18 +1,9 @@
 import { readFile } from "node:fs/promises"
 import { join } from "node:path"
 
-import {
-  hookSeconds,
-  json,
-  marketplace,
-  mcpServer,
-  mcpVariables,
-  plugin,
-  type MessagingProfile,
-  type Harness,
-  type Install,
-} from "@novadeck/harness-core/harness"
-import { hookCommand, type Dialect } from "@novadeck/harness-core/hook-command"
+import type { MessagingProfile, Harness, Install } from "@novadeck/harness-core/harness"
+import { hookSeconds, hookCommand, type Dialect } from "@novadeck/harness-core/hook-command"
+import { json, marketplace, mcpVariables, manifest } from "@novadeck/harness-core/plugin"
 
 import { box } from "./box.js"
 import { decode } from "./decode.js"
@@ -108,10 +99,10 @@ export const codex = {
   hookDialect,
   hook,
   files: (platform, launchers) => [
-    { path: join(".claude-plugin", "marketplace.json"), content: marketplace },
+    { path: join(".claude-plugin", "marketplace.json"), content: json(marketplace) },
     {
       path: join("novadeck", ".codex-plugin", "plugin.json"),
-      content: json({ ...plugin, hooks: "./hooks/hooks.json", mcpServers: "./.mcp.json" }),
+      content: json({ ...manifest, hooks: "./hooks/hooks.json", mcpServers: "./.mcp.json" }),
     },
     // Its MCP server. Codex starts MCP servers without the terminal's environment, so
     // the variables that name the terminal are passed on by name.
@@ -119,7 +110,7 @@ export const codex = {
       path: join("novadeck", ".mcp.json"),
       content: json({
         mcpServers: {
-          novadeck: { ...mcpServer(launchers), env_vars: [...mcpVariables] },
+          novadeck: { ...launchers.mcp, env_vars: [...mcpVariables] },
         },
       }),
     },

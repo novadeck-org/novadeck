@@ -2,13 +2,13 @@ import type { Backend, TerminalKey } from "@novadeck/core/port"
 import { createStore, type Store } from "@novadeck/core/store"
 import type { TerminalMetadata, Workspace } from "@novadeck/core/types"
 
+import type { DemoTurns } from "../agents/turns"
 import { lessMotion } from "../motion"
 import { demoTerminalId, sampleOutput } from "../samples"
 import { sampleBlocks } from "../screen/samples"
 import type { Block } from "../screen/screen"
 import type { DemoIntro } from "../screen/terminal"
-import { terminalOf } from "../terminals"
-import type { DemoTurns } from "../turns"
+import { terminalOf } from "../workspace"
 import { reviewing } from "./story"
 
 // What goes on at the visitor's desk by itself, slowly, so it reads as a place where work

@@ -255,7 +255,7 @@ describe("The Console sheet", () => {
         "Allow",
         "Yes, and don't ask again",
         "Deny",
-        "No, and tell Codex what to do differently",
+        "Deny, with your words",
       ])
       expect(inbox.row("ask again").querySelector(".console-s")?.textContent).toBe(
         "for commands that start with pnpm add",
@@ -298,7 +298,7 @@ describe("The Console sheet", () => {
 
     it("turns the row for words into a box in place, and sends them with the option that takes them", async () => {
       const inbox = mount([permission(codex)])
-      inbox.press("tell Codex")
+      inbox.press("Deny, with your words")
       expect(document.activeElement).toBe(inbox.field())
       inbox.type("Use npm.")
       inbox.key("Enter", inbox.field())
@@ -314,7 +314,7 @@ describe("The Console sheet", () => {
 
     it("goes back to the rows on Esc in the box, keeping the words, and the sheet open", async () => {
       const inbox = mount([permission(codex)])
-      inbox.press("tell Codex")
+      inbox.press("Deny, with your words")
       inbox.type("Use npm.")
       inbox.key("Escape", inbox.field())
 
@@ -339,6 +339,11 @@ describe("The Console sheet", () => {
           { kind: "plan", agent: "claude" },
         ),
       ])
+      expect(inbox.rows().map((row) => row.querySelector(".console-t")?.textContent)).toEqual([
+        "Approve",
+        "Yes, and bypass permissions",
+        "Send it back, with your words",
+      ])
       inbox.key("2", document.querySelector(".inbox-row-select")!)
       expect(inbox.sent).toEqual([])
       expect(inbox.row("bypass").dataset.armed).toBe("true")
@@ -360,7 +365,12 @@ describe("The Console sheet", () => {
 
       expect(text(".console-tag")).toBe("Plan")
       expect(text(".console-planbar")).toContain("plan")
-      inbox.press("Tell it what to change")
+      expect(inbox.rows().map((row) => row.querySelector(".console-t")?.textContent)).toEqual([
+        "Approve",
+        "Send it back",
+        "Send it back, with your words",
+      ])
+      inbox.press("Send it back, with your words")
       inbox.type("/compact")
       expect(text(".console-own-hint")).toBe(
         "Antigravity can't take words that start with /, ? or !, or that have an @.",

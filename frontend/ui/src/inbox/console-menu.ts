@@ -180,12 +180,13 @@ const permissionMenu = (row: InboxRow, request: ChatRequest): Menu => {
   const note = choices.note
   if (note) {
     // Where the only way back is the person's words (Claude's plan's "Tell Claude what to
-    // change"), it needs them; else an empty box is the plain no.
+    // change"), it needs them; else an empty box is the plain no. It says no in Novadeck's
+    // words, as the plain no does, whatever the harness calls it.
     const required = choices.plain === null && needsWords(note)
     const name = agentName(agent)
     rows.push({
       type: "words",
-      label: note.label,
+      label: plan ? "Send it back, with your words" : "Deny, with your words",
       placeholder: required ? `Tell ${name} what to change` : `Tell ${name} what to do instead`,
       field: required ? `What ${name} should change` : `What ${name} should do instead`,
       required,

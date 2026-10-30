@@ -1,4 +1,4 @@
-import type { LaunchCues } from "@novadeck/demo/launch"
+import type { LaunchCues } from "@novadeck/demo/videos/launch"
 
 import type { DemoActionGroup } from "./types"
 

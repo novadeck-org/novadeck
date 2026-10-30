@@ -5,14 +5,14 @@ import { activeProject, activeSession, workspaceReducer } from "@novadeck/core/s
 import { createWorkspaceStore } from "@novadeck/core/store"
 import { itemFixture } from "@novadeck/core/testing"
 
-import { createDemoEngine } from "./engine"
+import { demoTurns } from "./agents/turns"
 import { demoHandle } from "./handles"
 import { isDemoInbox } from "./inbox"
-import { demoInboxIds, demoInboxRowsAll, demoPlanStates } from "./inbox-fixtures"
+import { demoInboxIds, demoInboxRowsAll, demoPlanStates } from "./inbox/fixtures"
 import { demoBackend, withMessages } from "./index"
 import { createMockTerminal, defaultName } from "./samples"
+import { createDemoEngine } from "./terminals/engine"
 import { context, describe, expect, it } from "./test"
-import { demoTurns } from "./turns"
 import { createDemo, demoVariants } from "./variants"
 
 describe("demo backend", () => {

@@ -1,8 +1,7 @@
-import { transcriptItem } from "@novadeck/protocol"
+import { transcriptItem, type ToolRun } from "@novadeck/protocol"
 import { describe, expect, it } from "vitest"
 
 import { entry } from "./items.js"
-import type { ToolRun } from "./tools.js"
 
 // A describe that shows what it was given.
 const seen = (tool: string, input: string): ToolRun => ({

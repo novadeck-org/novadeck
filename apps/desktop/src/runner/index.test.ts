@@ -71,7 +71,7 @@ const start = (database: string, extra: readonly string[] = []) => {
     const { port1, port2 } = new MessageChannel()
     // eslint-disable-next-line unicorn/require-post-message-target-origin -- A Node worker, not a window.
     worker.postMessage({ data: { type: "connect" }, ports: [port1] }, [port1])
-    return connectRunner(messagePort(port2), { timeout: 10_000 })
+    return connectRunner(messagePort(port2), { timeoutMs: 10_000 })
   }
   const persist = () =>
     // eslint-disable-next-line unicorn/require-post-message-target-origin -- A Node worker, not a window.

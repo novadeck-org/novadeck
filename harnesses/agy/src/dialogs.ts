@@ -2,7 +2,7 @@ import type {
   DialogAdapter,
   DialogRead,
   KeyStep,
-  ReadDialog,
+  AnswerableDialog,
   RequestFacts,
   ScreenRequest,
 } from "@novadeck/harness-core/dialogs"
@@ -287,7 +287,7 @@ const confirmationRead = (
   if (!read || !matches(read, request.input)) return undefined
   const keyed = read.options.map(({ number }) => digit(number))
   if (keyed.includes(undefined)) return undefined
-  const dialog: ReadDialog = {
+  const dialog: AnswerableDialog = {
     type: "choices",
     title: read.question,
     // A command shows as the call runs it, not as the screen drew and wrapped it.
@@ -462,7 +462,7 @@ const questionsRead = (rows: readonly string[], request: RequestFacts): DialogRe
     !read.options.some(({ checked }) => checked === true)
   if (!first) return undefined
   const text = questions.length === 1 && !first.multi
-  const dialog: ReadDialog = {
+  const dialog: AnswerableDialog = {
     type: "questions",
     questions: questions.map(({ question, options, multi }, index) => ({
       id: String(index + 1),
@@ -628,7 +628,7 @@ const reviewRead = (rows: readonly string[], request: RequestFacts): DialogRead 
     { press: "\r" },
     { until: review, timeoutMs: settle, why: "the artifact review listed" },
   ]
-  const dialog: ReadDialog = {
+  const dialog: AnswerableDialog = {
     type: "choices",
     title: "1 artifact to review",
     detail: null,

@@ -4,7 +4,7 @@ import {
   demoLongCommand,
   demoInboxIds,
   demoPlanStates,
-} from "@novadeck/demo/inbox-fixtures"
+} from "@novadeck/demo/inbox/fixtures"
 import { demoSeed } from "@novadeck/demo/samples"
 import { vi } from "vitest"
 

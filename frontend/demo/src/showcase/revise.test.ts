@@ -12,8 +12,8 @@ describe("sample agents revising their plans", () => {
     expect(applyEdits(authV1, authAgent.revisions[0]!)).toBe(authV2)
   })
 
-  context("over the user's edits", () => {
-    it("keep the user's other lines, and the notes on the lines they rewrite", () => {
+  context("over the person's edits", () => {
+    it("keep the person's other lines, and the notes on the lines they rewrite", () => {
       const edited = studioV1
         .replace("and deployment.", "and deployment. No blog.")
         .replace("warm ivory background.", "warm ivory background. <!-- novadeck: Keep serif? -->")
@@ -35,7 +35,7 @@ describe("sample agents revising their plans", () => {
     })
   })
 
-  context("applying the user's notes", () => {
+  context("applying the person's notes", () => {
     it("remove each, with its line when it had one to itself", () => {
       expect(
         removeNotes("A <!-- novadeck: x -->\n<!-- novadeck: y -->\n  <!-- novadeck: z -->\nB"),

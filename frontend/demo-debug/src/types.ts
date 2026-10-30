@@ -1,7 +1,7 @@
 import type { UpdateOffer } from "@novadeck/core/desktop/update"
 import type { Backend, BackendSink, TerminalKey } from "@novadeck/core/port"
 import type { Workspace } from "@novadeck/core/types"
-import type { DemoScreenStates } from "@novadeck/demo/runtime"
+import type { DemoScreenStates } from "@novadeck/demo/terminals/runtime"
 import type { ComponentType } from "react"
 
 import type { DemoUpdates } from "./updates"
