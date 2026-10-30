@@ -3,6 +3,7 @@ import { connect } from "node:net"
 import { type Report } from "@novadeck/harness-core/report"
 import { vi } from "vitest"
 
+import { logs, useLogger } from "../log.js"
 import { describe, expect, it } from "../test.js"
 import { askMs } from "./hook.js"
 import {
@@ -537,6 +538,61 @@ describe("relay hooks", () => {
     // hook began, and the runner leaves it half a second to print the answer.
     expect(asked[0]!.deadline).toBe(seq + askMs - 500)
     expect(asked[1]!.deadline).toBe(late + askMs - 500)
+  })
+
+  it("logs an answer that came after the wait, and never acknowledges it", async ({
+    resources,
+  }) => {
+    const lines: { evt: string; data?: unknown }[] = []
+    const before = logs.current()
+    const note = (evt: string, _msg?: string, detail?: { data?: unknown }) => {
+      lines.push({ evt, data: detail?.data })
+    }
+    useLogger({
+      for: () => ({ debug: note, info: note, warn: note, error: note, fatal: note }),
+      flush: () => {},
+      close: () => {},
+    })
+    resources.defer(() => useLogger(before))
+    const acked: Ack[] = []
+    const answer = { leaseId: lease, stdout: "a notice\n" }
+    const reports = await listenForReports(
+      handlers({
+        ask: () => new Promise((resolve) => setTimeout(() => resolve(answer), 300)),
+        ack: (ack) => acked.push(ack),
+      }),
+      { answerMs: 100 },
+    )
+    resources.defer(() => reports.close())
+    // The relay's acknowledgement of a lease it never heard is ignored.
+    await expect(
+      relay(reports.endpoint, [hook({ seq: Date.now() }), JSON.stringify({ ack: lease })]),
+    ).resolves.toEqual([unheard])
+    await vi.waitFor(() => expect(lines.map(({ evt }) => evt)).toEqual(["reports.hook-late"]))
+    expect(lines[0]!.data).toEqual({
+      terminalId: "t",
+      agent: "claude",
+      event: "Stop",
+      lateMs: expect.any(Number),
+      leased: true,
+    })
+    expect(acked).toEqual([])
+  })
+
+  it("keeps the connection for the acknowledgement of a lease that holds only a notice", async ({
+    resources,
+  }) => {
+    const acked: Ack[] = []
+    // A lease with no messages in it: its notice alone is what the hook prints.
+    const notice = { leaseId: lease, stdout: '{"additionalContext":"a notice"}\n' }
+    const reports = await listenForReports(
+      handlers({ ask: () => Promise.resolve(notice), ack: (ack) => acked.push(ack) }),
+    )
+    resources.defer(() => reports.close())
+    await expect(
+      relay(reports.endpoint, [hook({ seq: Date.now() }), JSON.stringify({ ack: lease })]),
+    ).resolves.toEqual([notice])
+    expect(acked).toEqual([{ terminalId: "t", token, leaseId: lease }])
   })
 })
 

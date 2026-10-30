@@ -275,11 +275,12 @@ export class Reports {
       record.nudges = fired(record.nudges, "compaction")
     this.host.murmur()?.reported(report.terminalId)
     // The person's own prompt starting a root turn takes the session's open asks out of the
-    // Inbox, as delivery judges the prompt theirs, but only with the notice in an answer of
-    // the hook that can still print it (see `Messaging.withdrawn`).
+    // Inbox, as delivery judges the prompt theirs, but only once a hook acknowledges having
+    // printed the notice of it (see `Messaging.withdrawn`).
     const person: Person = {
       counts: ({ prompt }) => !this.byCommand(record, prompt),
-      withdraw: (before) => this.host.inbox().withdrawBefore(record.summary.id, before),
+      withdrawable: (before) => this.host.inbox().withdrawable(record.summary.id, before),
+      withdraw: (asks) => this.host.inbox().withdrawReplied(record.summary.id, asks),
       dismissed: (agent, sessionId) =>
         this.host.inbox().dismissed(record.summary.id, agent, sessionId),
       // Kept with its work, so a restart still knows the agent's done was before it.

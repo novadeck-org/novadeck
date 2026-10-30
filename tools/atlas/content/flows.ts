@@ -440,7 +440,7 @@ export const flows: (Omit<Flow, "steps"> & { steps: CuratedStep[] })[] = [
         text: "The relay sends the hook with a deadline, so the runner treats it as an ask and answers by then.",
         anchor: {
           file: `${runnerSrc}/shell/reports.ts`,
-          text: "answer = await within(handlers.ask(report, hook.deadline), ms, unheard)",
+          text: "answer = await within(raced, ms, unheard)",
         },
       },
       {

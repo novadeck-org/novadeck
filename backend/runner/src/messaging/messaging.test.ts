@@ -3250,18 +3250,23 @@ describe("the person's prompt, told to the asks", () => {
     { name: "Codex", event: "UserPromptSubmit", terminal: "B", agent: "codex" },
     { name: "Antigravity", event: "PreInvocation", terminal: "G", agent: "agy" },
   ] as const
-  // A person whose prompts count, and the asks it withdraws, answering `note` when it does.
-  const who = (note: string | undefined = notice) => {
+  // A person whose prompts count, and the asks it would withdraw (`asks`, with the notice
+  // `note`) once the agent is told.
+  const who = (note: string | undefined = notice, asks: readonly string[] = ["ask-1"]) => {
     const counts = vi.fn<Person["counts"]>(() => true)
-    const withdraw = vi.fn<Person["withdraw"]>(() => note)
+    const withdrawable = vi.fn<Person["withdrawable"]>(() =>
+      note === undefined ? undefined : { asks, notice: note },
+    )
+    const withdraw = vi.fn<Person["withdraw"]>()
     const prompted = vi.fn<Person["prompted"]>()
     const dismissed = vi.fn<Person["dismissed"]>(() => undefined)
     return {
       counts,
+      withdrawable,
       withdraw,
       prompted,
       dismissed,
-      person: { counts, withdraw, prompted, dismissed } satisfies Person,
+      person: { counts, withdrawable, withdraw, prompted, dismissed } satisfies Person,
     }
   }
   type Run = ReturnType<typeof create> & {
@@ -3269,8 +3274,8 @@ describe("the person's prompt, told to the asks", () => {
     readonly terminal: string
     readonly event: string
   }
-  const setup = (agent: "claude" | "codex" | "agy"): Run => {
-    const run = create()
+  const setup = (agent: "claude" | "codex" | "agy", options?: MessagingOptions): Run => {
+    const run = create(undefined, undefined, options)
     const found = harnessesTold.find((each) => each.agent === agent)!
     if (agent === "agy") {
       run.messaging.register("G", here, "owl", null)
@@ -3332,8 +3337,168 @@ describe("the person's prompt, told to the asks", () => {
         submittedAt: run.clock.now,
         prompt: "let's talk it over",
       })
-      expect(told.withdraw).toHaveBeenCalledWith(run.clock.now)
+      expect(told.withdrawable).toHaveBeenCalledWith(run.clock.now)
       expect(answer.stdout).toContain(notice)
+      // Only once the hook printed it: the notice's lease is acknowledged.
+      expect(answer.leaseId).not.toBeNull()
+      expect(told.withdraw).not.toHaveBeenCalled()
+      run.messaging.acknowledge(run.terminal, answer.leaseId!)
+      expect(told.withdraw).toHaveBeenCalledExactlyOnceWith(["ask-1"])
+      // Nothing more is owed: the debt is paid, and a lease acknowledged twice withdraws once.
+      run.messaging.acknowledge(run.terminal, answer.leaseId!)
+      expect(told.withdraw).toHaveBeenCalledTimes(1)
+      nextHook(run, told)
+      expect(told.withdrawable).toHaveBeenCalledTimes(1)
+    },
+  )
+
+  // The turn's next hook after its start: a tool call's for Claude Code and Codex, a later
+  // model call's for Antigravity.
+  const nextHook = (run: Run, told: ReturnType<typeof who>) =>
+    run.bound.agent === "agy"
+      ? run.ask("G", agy, "PreInvocation", [started(agy, "call")], undefined, told.person)
+      : run.ask(
+          run.terminal,
+          run.bound,
+          "PostToolUse",
+          [toolCalled(run.bound)],
+          undefined,
+          told.person,
+        )
+  const lapses = () => new Promise((resolve) => setTimeout(resolve, 60))
+
+  it.each(harnessesTold)(
+    "offers $name's notice again with a new lease when its first lapsed, withdrawing on that one's ack",
+    async ({ agent }) => {
+      const run = setup(agent, { leaseMs: 30 })
+      run.messaging.keys(run.terminal, ["enter"], false)
+      const told = who()
+      const first = await start(run, "prompt", told.person)
+      expect(first.leaseId).not.toBeNull()
+      await lapses()
+      // A late acknowledgement of the lapsed lease is ignored.
+      run.messaging.acknowledge(run.terminal, first.leaseId!)
+      expect(told.withdraw).not.toHaveBeenCalled()
+      const again = nextHook(run, told)
+      expect(again.stdout).toContain(notice)
+      expect(again.leaseId).not.toBeNull()
+      expect(again.leaseId).not.toBe(first.leaseId)
+      run.messaging.acknowledge(run.terminal, again.leaseId!)
+      expect(told.withdraw).toHaveBeenCalledExactlyOnceWith(["ask-1"])
+    },
+  )
+
+  it.each(harnessesTold)(
+    "never withdraws when $name's turn ends with its notice unacknowledged, nor tells the next turn",
+    async ({ agent }) => {
+      const run = setup(agent, { leaseMs: 30 })
+      run.messaging.keys(run.terminal, ["enter"], false)
+      const told = who()
+      await start(run, "prompt", told.person)
+      await lapses()
+      run.stop(run.terminal, run.bound)
+      run.messaging.keys(run.terminal, ["enter"], false)
+      const later = await start(run, "doorbell", told.person)
+      expect(later.stdout ?? "").not.toContain(notice)
+      expect(nextHook(run, told).stdout ?? "").not.toContain(notice)
+      expect(told.withdraw).not.toHaveBeenCalled()
+    },
+  )
+
+  it.each(harnessesTold)(
+    "withdraws what $name's first prompt named on its late ack, without paying a second prompt's debt",
+    async ({ agent }) => {
+      const run = setup(agent)
+      run.messaging.keys(run.terminal, ["enter"], false)
+      const first = who(notice, ["ask-1"])
+      const old = await start(run, "prompt", first.person)
+      run.stop(run.terminal, run.bound)
+      run.clock.now += 1_000
+      run.messaging.keys(run.terminal, ["enter"], false)
+      const second = who(notice, ["ask-2"])
+      const fresh = await start(run, "prompt", second.person)
+      expect(fresh.stdout).toContain(notice)
+      run.messaging.acknowledge(run.terminal, old.leaseId!)
+      expect(first.withdraw).toHaveBeenCalledExactlyOnceWith(["ask-1"])
+      expect(second.withdraw).not.toHaveBeenCalled()
+      // The second prompt's debt stands: its notice rides the next hook until acknowledged.
+      const again = nextHook(run, second)
+      expect(again.stdout).toContain(notice)
+      run.messaging.acknowledge(run.terminal, again.leaseId!)
+      expect(second.withdraw).toHaveBeenCalledExactlyOnceWith(["ask-2"])
+    },
+  )
+
+  // A message for the agent of `run`, sent from another terminal.
+  const toAgent = (run: Run) => {
+    run.messaging.register("Z", here, "owl2", null)
+    run.follow("Z", binding("claude", "s-z", "9"))
+    const to = run.bound.agent === "claude" ? "moth" : run.bound.agent === "codex" ? "fox" : "owl"
+    const message = sent(run.send("Z", to, "hello"))
+    return () => messages(run.messaging, run.terminal).find(({ id }) => id === message.id)?.state
+  }
+
+  it.each(harnessesTold)(
+    "delivers $name's messages and withdraws the asks together, on one ack",
+    async ({ agent }) => {
+      const run = setup(agent)
+      const state = toAgent(run)
+      run.messaging.keys(run.terminal, ["enter"], false)
+      const told = who()
+      const answer = await start(run, "prompt", told.person)
+      expect(answer.stdout).toContain(">hello</message>")
+      expect(answer.stdout).toContain(notice)
+      expect(state()).toBe("leased")
+      expect(told.withdraw).not.toHaveBeenCalled()
+      run.messaging.acknowledge(run.terminal, answer.leaseId!)
+      expect(state()).toBe("delivered")
+      expect(told.withdraw).toHaveBeenCalledExactlyOnceWith(["ask-1"])
+    },
+  )
+
+  it.each(harnessesTold)(
+    "requeues $name's messages and keeps the asks open when their lease lapses",
+    async ({ agent }) => {
+      const run = setup(agent, { leaseMs: 30 })
+      const state = toAgent(run)
+      run.messaging.keys(run.terminal, ["enter"], false)
+      const told = who()
+      await start(run, "prompt", told.person)
+      await lapses()
+      expect(state()).toBe("queued")
+      expect(told.withdraw).not.toHaveBeenCalled()
+    },
+  )
+
+  it("keeps Antigravity's reinjected text of the turn when a stale lease of an earlier turn is acknowledged", async () => {
+    const run = setup("agy")
+    run.messaging.register("Z", here, "owl2", null)
+    run.follow("Z", binding("claude", "s-z", "9"))
+    run.messaging.keys("G", ["enter"], false)
+    const stale = await start(run, "prompt", who().person)
+    run.stop("G", agy)
+    sent(run.send("Z", "owl", "hello"))
+    run.messaging.keys("G", ["enter"], false)
+    run.clock.now += 1_000
+    const current = await start(run, "prompt", { ...who().person, withdrawable: () => undefined })
+    run.messaging.acknowledge("G", current.leaseId!)
+    run.messaging.acknowledge("G", stale.leaseId!)
+    const later = run.ask("G", agy, "PreInvocation", [started(agy, "call")])
+    expect(later.stdout).toContain(">hello</message>")
+    expect(later.stdout).not.toContain(notice)
+  })
+
+  it.each(harnessesTold)(
+    "gives $name no notice nor lease once the runner is closed",
+    async ({ agent }) => {
+      const run = setup(agent)
+      run.messaging.keys(run.terminal, ["enter"], false)
+      const told = who()
+      run.messaging.close()
+      const answer = await start(run, "prompt", told.person)
+      expect(answer.leaseId).toBeNull()
+      expect(answer.stdout ?? "").not.toContain(notice)
+      expect(told.withdraw).not.toHaveBeenCalled()
     },
   )
 
@@ -3389,7 +3554,7 @@ describe("the person's prompt, told to the asks", () => {
       run.clock.now += 60_000
       expect((await start(run, "prompt", told.person)).stdout).not.toContain(notice)
       expect(told.counts).not.toHaveBeenCalled()
-      expect(told.withdraw).not.toHaveBeenCalled()
+      expect(told.withdrawable).not.toHaveBeenCalled()
     },
   )
 
@@ -3401,7 +3566,7 @@ describe("the person's prompt, told to the asks", () => {
       told.counts.mockReturnValue(false)
       run.messaging.keys(run.terminal, ["enter"], false)
       expect((await start(run, "prompt", told.person)).stdout).not.toContain(notice)
-      expect(told.withdraw).not.toHaveBeenCalled()
+      expect(told.withdrawable).not.toHaveBeenCalled()
       // Nor later: the turn owes nothing.
       run.stop(run.terminal, run.bound)
       expect((await start(run, "harness", told.person)).stdout).not.toContain(notice)
@@ -3427,7 +3592,7 @@ describe("the person's prompt, told to the asks", () => {
         submittedAt: queuedAt,
         prompt: "let's talk it over",
       })
-      expect(told.withdraw).toHaveBeenCalledWith(queuedAt)
+      expect(told.withdrawable).toHaveBeenCalledWith(queuedAt)
     },
   )
 
@@ -3439,18 +3604,18 @@ describe("the person's prompt, told to the asks", () => {
       run.messaging.keys(run.terminal, ["enter"], false)
       run.messaging.automatic(run.terminal, "let's talk it over")
       expect((await start(run, "prompt", told.person)).stdout).not.toContain(notice)
-      expect(told.withdraw).not.toHaveBeenCalled()
+      expect(told.withdrawable).not.toHaveBeenCalled()
       run.stop(run.terminal, run.bound)
       // The mark was spent by that turn: the same words, typed now, are the person's.
       run.messaging.keys(run.terminal, ["enter"], false)
       expect((await start(run, "prompt", told.person)).stdout).toContain(notice)
-      expect(told.withdraw).toHaveBeenCalledTimes(1)
+      expect(told.withdrawable).toHaveBeenCalledTimes(1)
       run.stop(run.terminal, run.bound)
       // A mark for another line leaves the person's own words theirs.
       run.messaging.keys(run.terminal, ["enter"], false)
       run.messaging.automatic(run.terminal, "continue")
       await start(run, "prompt", told.person)
-      expect(told.withdraw).toHaveBeenCalledTimes(2)
+      expect(told.withdrawable).toHaveBeenCalledTimes(2)
     },
   )
 
@@ -3461,14 +3626,14 @@ describe("the person's prompt, told to the asks", () => {
       const told = who()
       run.messaging.keys(run.terminal, ["enter"], false)
       await start(run, "prompt", told.person)
-      told.withdraw.mockClear()
+      told.withdrawable.mockClear()
       // Continue is sent while the turn works and goes in when it ends, minutes later.
       run.messaging.automatic(run.terminal, "let's talk it over\r\n")
       run.clock.now += 10 * 60_000
       run.stop(run.terminal, run.bound)
       run.messaging.keys(run.terminal, ["enter"], false)
       expect((await start(run, "prompt", told.person)).stdout).not.toContain(notice)
-      expect(told.withdraw).not.toHaveBeenCalled()
+      expect(told.withdrawable).not.toHaveBeenCalled()
     },
   )
 
@@ -3575,7 +3740,7 @@ describe("the person's prompt, told to the asks", () => {
         } as never,
       ])
       run.messaging.keys(run.terminal, ["enter"], false)
-      told.withdraw.mockClear()
+      told.withdrawable.mockClear()
       expect((await start(run, "prompt", told.person)).stdout).toContain(notice)
     },
   )
@@ -3590,18 +3755,18 @@ describe("the person's prompt, told to the asks", () => {
       const late = await start(run, "prompt", told.person, undefined, run.clock.now + 50)
       expect(late.stdout).not.toContain(notice)
       expect(told.counts).toHaveBeenCalledTimes(1)
-      expect(told.withdraw).not.toHaveBeenCalled()
+      expect(told.withdrawable).not.toHaveBeenCalled()
       // The turn ends unpaid: the debt is dropped, and the asks stay open for good.
       run.clock.now += 4_000
       run.stop(run.terminal, run.bound)
       run.clock.now += 1_000
       const next = await start(run, "harness", told.person)
       expect(next.stdout).not.toContain(notice)
-      expect(told.withdraw).not.toHaveBeenCalled()
+      expect(told.withdrawable).not.toHaveBeenCalled()
       // Nor does a later turn of the person's own owe it: it owes its own.
       run.stop(run.terminal, run.bound)
       expect((await start(run, "harness", told.person)).stdout).not.toContain(notice)
-      expect(told.withdraw).not.toHaveBeenCalled()
+      expect(told.withdrawable).not.toHaveBeenCalled()
     },
   )
 
@@ -3615,15 +3780,17 @@ describe("the person's prompt, told to the asks", () => {
       run.ask("G", agy, "PreInvocation", [started(agy, "call")], undefined, told.person)
     const paid = call()
     expect(paid.stdout).toContain(notice)
-    expect(told.withdraw).toHaveBeenCalledTimes(1)
+    expect(told.withdrawable).toHaveBeenCalledTimes(1)
+    run.messaging.acknowledge("G", paid.leaseId!)
+    expect(told.withdraw).toHaveBeenCalledExactlyOnceWith(["ask-1"])
     expect(call().stdout).toContain(notice)
     expect(call().stdout).toContain(notice)
-    expect(told.withdraw).toHaveBeenCalledTimes(1)
+    expect(told.withdrawable).toHaveBeenCalledTimes(1)
     // Not in the next turn.
     run.stop("G", agy)
     run.messaging.keys("G", ["enter"], false)
     run.clock.now += 1_000
-    await start(run, "prompt", { ...told.person, withdraw: () => undefined })
+    await start(run, "prompt", { ...told.person, withdrawable: () => undefined })
     expect(call().stdout).not.toContain(notice)
   })
 
@@ -3661,7 +3828,7 @@ describe("the person's prompt, told to the asks", () => {
       )
       run.follow(run.terminal, run.bound, heard)
       run.messaging.observe(run.terminal, heard, told.person)
-      expect(told.withdraw).not.toHaveBeenCalled()
+      expect(told.withdrawable).not.toHaveBeenCalled()
       run.clock.now += 1_000
       const answer =
         agent === "agy"
@@ -3675,7 +3842,7 @@ describe("the person's prompt, told to the asks", () => {
               told.person,
             )
       expect(answer.stdout).toContain(notice)
-      expect(told.withdraw).toHaveBeenCalledExactlyOnceWith(submitted)
+      expect(told.withdrawable).toHaveBeenCalledExactlyOnceWith(submitted)
     },
   )
 
@@ -3686,7 +3853,7 @@ describe("the person's prompt, told to the asks", () => {
       run.messaging.keys(run.terminal, ["enter"], false)
       const told = who()
       await start(run, "prompt", told.person, undefined, run.clock.now + 50)
-      expect(told.withdraw).not.toHaveBeenCalled()
+      expect(told.withdrawable).not.toHaveBeenCalled()
       const answer = run.ask(
         run.terminal,
         run.bound,
@@ -3696,7 +3863,7 @@ describe("the person's prompt, told to the asks", () => {
         told.person,
       )
       expect(answer.stdout).toContain(notice)
-      expect(told.withdraw).toHaveBeenCalledTimes(1)
+      expect(told.withdrawable).toHaveBeenCalledTimes(1)
     },
   )
 
@@ -3722,6 +3889,7 @@ describe("the person's prompt, told to the asks", () => {
         const answer = await start(run, "harness", told.person)
         expect(told.dismissed).toHaveBeenCalledWith(run.bound.agent, run.bound.sessionId)
         expect(answer.stdout).toContain(dismissal)
+        // It withdraws nothing, so no lease waits on its acknowledgement.
         expect(answer.leaseId).toBeNull()
       },
     )
@@ -3758,6 +3926,10 @@ describe("the person's prompt, told to the asks", () => {
       const call = () =>
         run.ask("G", agy, "PreInvocation", [started(agy, "call")], undefined, told.person)
       await start(run, "harness", who().person)
+      // It withdraws nothing, so it is kept at once, with no lease to wait on.
+      const first = call()
+      expect(first.stdout).toContain(dismissal)
+      expect(first.leaseId).toBeNull()
       expect(call().stdout).toContain(dismissal)
       expect(call().stdout).toContain(dismissal)
       // Not in the next turn.
@@ -3824,7 +3996,7 @@ describe("the person's prompt, told to the asks", () => {
       told.person,
     )
     expect(answer.stdout).not.toContain(notice)
-    expect(told.withdraw).not.toHaveBeenCalled()
+    expect(told.withdrawable).not.toHaveBeenCalled()
   })
 
   it("takes a prompt the person steers into Codex's running turn as theirs when delivery does", async () => {
@@ -3837,18 +4009,19 @@ describe("the person's prompt, told to the asks", () => {
     run.clock.now += 200
     const told = who()
     await start(run, "prompt", told.person)
-    expect(told.withdraw).toHaveBeenCalledTimes(1)
+    expect(told.withdrawable).toHaveBeenCalledTimes(1)
   })
 
   it("does not withdraw for a later model call of the person's turn", async () => {
     const run = setup("agy")
     run.messaging.keys("G", ["enter"], false)
     const told = who()
-    await start(run, "prompt", told.person)
+    const first = await start(run, "prompt", told.person)
     expect(told.counts).toHaveBeenCalledTimes(1)
+    run.messaging.acknowledge("G", first.leaseId!)
     run.ask("G", agy, "PreInvocation", [started(agy, "call")], undefined, told.person)
     expect(told.counts).toHaveBeenCalledTimes(1)
-    expect(told.withdraw).toHaveBeenCalledTimes(1)
+    expect(told.withdrawable).toHaveBeenCalledTimes(1)
   })
 
   it("gives Antigravity's notice again on each later call of the turn, and not in the next turn", async () => {
@@ -3857,14 +4030,17 @@ describe("the person's prompt, told to the asks", () => {
     const told = who()
     const first = await start(run, "prompt", told.person)
     expect(first.stdout).toContain(notice)
+    run.messaging.acknowledge("G", first.leaseId!)
     const call = () =>
       run.ask("G", agy, "PreInvocation", [started(agy, "call")], undefined, told.person)
     expect(call().stdout).toContain(notice)
     expect(call().stdout).toContain(notice)
+    // Paid at its first call: the later ones give it again from what was kept, not anew.
+    expect(told.withdrawable).toHaveBeenCalledTimes(1)
     run.stop("G", agy)
     run.messaging.keys("G", ["enter"], false)
     run.clock.now += 1_000
-    await start(run, "prompt", { ...told.person, withdraw: () => undefined })
+    await start(run, "prompt", { ...told.person, withdrawable: () => undefined })
     expect(call().stdout).not.toContain(notice)
   })
 

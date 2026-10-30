@@ -344,8 +344,15 @@ export type Person = {
     readonly submittedAt: number
     readonly prompt: string | undefined
   }) => boolean
-  /** Withdraws the session's open asks made before `before`; the notice for the agent, if any. */
-  readonly withdraw: (before: number) => string | undefined
+  /**
+   * The session's open asks made before `before`, which the person's prompt would take out
+   * (their entry ids), and the notice for the agent, if any; nothing changes yet.
+   */
+  readonly withdrawable: (
+    before: number,
+  ) => { readonly asks: readonly string[]; readonly notice: string } | undefined
+  /** Withdraws those of `asks` still open, once the agent was told. */
+  readonly withdraw: (asks: readonly string[]) => void
   /**
    * The notice of the asks the person dismissed from the Inbox since the agent's last hook,
    * for the session bound as `agent`'s `sessionId`; none for another session. It only rides
@@ -355,6 +362,16 @@ export type Person = {
   /** Notes that the person's own prompt started a root turn at `at`, whether it counts or not. */
   readonly prompted: (at: number) => void
 }
+
+/** The asks a prompt of the person takes out of the Inbox, and the notice of it (`withdrawn`). */
+type Withdrawal = {
+  readonly notice: string
+  readonly asks: number
+  readonly settle: () => void
+}
+
+/** The notices an answer carries (`notices`). */
+type Notices = { readonly texts: readonly string[]; readonly withdrawal?: Withdrawal }
 
 /** What `personTurn` reads from before a report's turn events apply (see `beforeTurns`). */
 type Before = { readonly epoch: number; readonly queuedAt: number | null | undefined }
@@ -1149,35 +1166,87 @@ export class Messaging {
   }
 
   /**
-   * The notice of the asks the person's prompt took out of the Inbox, when an answer that
-   * can print it is due: they are withdrawn only then, those still open and made before
-   * their submission, so the agent never loses an ask unheard. Only within the turn the
-   * prompt started: once it ended unpaid the debt is dropped and the asks stay open. None
-   * when no prompt owes it.
+   * The notice of the asks the person's prompt takes out of the Inbox, when an answer that
+   * can print it is due, those still open and made before their submission. They leave only
+   * once the hook acknowledges having printed it (`settle`, run by the lease), so the agent
+   * never loses an ask unheard; until then the prompt's debt stands, and a hook answering
+   * before the acknowledgement may offer the notice again. Only within the turn the prompt
+   * started: once it ended unpaid the debt is dropped and the asks stay open. None when no
+   * prompt owes it.
    */
-  private withdrawn(live: Live, person: Person | undefined): string | undefined {
+  private withdrawn(live: Live, person: Person | undefined): Withdrawal | undefined {
     const debt = live.withdrawing
     if (debt === null) return undefined
-    if (debt.epoch !== live.delivery.epoch || !running(live.delivery)) {
+    const moved = debt.epoch !== live.delivery.epoch
+    if (moved || !running(live.delivery)) {
+      live.withdrawing = null
+      log.info("messaging.withdrawal-dropped", "A prompt's withdrawal of asks was dropped.", {
+        data: { terminalId: live.terminalId, reason: moved ? "turn-moved" : "turn-not-running" },
+      })
+      return undefined
+    }
+    // Once closed, no lease could carry the acknowledgement that withdraws them.
+    if (!person || this.closed) return undefined
+    const found = person.withdrawable(debt.submittedAt)
+    if (!found) {
       live.withdrawing = null
       return undefined
     }
-    if (!person) return undefined
-    live.withdrawing = null
-    return person.withdraw(debt.submittedAt)
+    return {
+      notice: found.notice,
+      asks: found.asks.length,
+      // A newer prompt's debt survives this one's late acknowledgement.
+      settle: () => {
+        if (live.withdrawing === debt) live.withdrawing = null
+        person.withdraw(found.asks)
+      },
+    }
   }
 
   /**
-   * The notices an answer that can print them carries: the asks the person's prompt took out
-   * of the Inbox, then those they dismissed there (see `Person.dismissed`).
+   * The notices an answer that can print them carries: the asks the person's prompt takes out
+   * of the Inbox, then those they dismissed there (see `Person.dismissed`). `withdrawal` is
+   * set when the first is among them.
    */
-  private notices(live: Live, root: Root, person: Person | undefined): string[] {
-    const withdrawn = this.withdrawn(live, person)
+  private notices(live: Live, root: Root, person: Person | undefined): Notices {
+    const withdrawal = this.withdrawn(live, person)
     const dismissed = person?.dismissed(root.agent, root.sessionId)
-    return [
-      ...(withdrawn === undefined ? [] : [withdrawn]),
-      ...(dismissed === undefined ? [] : [dismissed]),
-    ]
+    return {
+      texts: [
+        ...(withdrawal === undefined ? [] : [withdrawal.notice]),
+        ...(dismissed === undefined ? [] : [dismissed]),
+      ],
+      ...(withdrawal && { withdrawal }),
+    }
+  }
+
+  /**
+   * A lease that carries only Novadeck's notices, for an answer whose messages are none (or
+   * too many to fit beside them), when it settles the withdrawal, which then also keeps what
+   * the turn is given again on each later call (`keeps`). Notices that withdraw nothing need
+   * no lease: what they keep is kept at once, as they are spent at once.
+   */
+  private noticed(
+    live: Live,
+    kind: Lease["kind"],
+    { withdrawal }: Notices,
+    keeps: string | undefined,
+  ): Lease | undefined {
+    if (this.closed) return undefined
+    if (!withdrawal) {
+      if (keeps !== undefined) this.leases.remember(live.terminalId, live.delivery.epoch, keeps)
+      return undefined
+    }
+    return this.leases.grant({
+      terminalId: live.terminalId,
+      messages: [],
+      kind,
+      epoch: live.delivery.epoch,
+      background: false,
+      text: "",
+      ...(keeps !== undefined && { keeps }),
+      ...(withdrawal && { settles: withdrawal.settle, asks: withdrawal.asks }),
+    })
   }
 
   /**
@@ -1289,14 +1358,19 @@ export class Messaging {
       ? this.leases.recall(live.terminalId, live.delivery.epoch)
       : undefined
     // What this terminal sent that waits long goes with whatever the hook prints, once.
-    // The asks the person's prompt took out go with their notice, while the hook has time to
-    // print it; else they stay, and the next answer that can does both.
-    const notes = time ? this.notices(live, root, person) : []
+    // The asks the person's prompt takes out go with their notice, while the hook has time to
+    // print it, and leave only when it acknowledges having; else they stay, and the next
+    // answer that can does both.
+    const noticed = time ? this.notices(live, root, person) : { texts: [] }
+    const notes = noticed.texts
+    // What a harness whose injected messages last one call gives again on each later call.
+    const noting = profile.reinjectPerCall && notes.length > 0
     const holds = [...notes, ...(time ? this.heldFrom(live.terminalId) : [])]
     if (start.cause === "call") {
       // A notice paid at a later call is given again on the turn's remaining ones, as one
       // paid at its first is.
       const carried = notes.length > 0 ? joined(kept, noted("", notes)) : kept
+      const settles = noticed.withdrawal
       const print = (text: string) => profile.prompt(noted(joined(kept, text), holds))
       const added =
         time && running(live.delivery)
@@ -1305,12 +1379,13 @@ export class Messaging {
               print,
               only: isFromLead,
               keeps: (text) => joined(carried, text),
+              settles,
             })
           : undefined
       if (added) return { leaseId: added.id, stdout: print(added.text) }
-      if (profile.reinjectPerCall && carried !== undefined && notes.length > 0)
-        this.leases.remember(live.terminalId, live.delivery.epoch, carried)
+      const only = this.noticed(live, "midturn", noticed, noting ? carried : undefined)
       const rest = noted(kept, holds)
+      if (only) return { leaseId: only.id, stdout: profile.prompt(rest) }
       return rest ? { leaseId: null, stdout: profile.prompt(rest) } : silent
     }
     const print = (text: string) => profile.prompt(noted(text, holds))
@@ -1328,13 +1403,19 @@ export class Messaging {
         kind: "prompt",
         print,
         ...(profile.reinjectPerCall && { keeps: (text: string) => noted(text, notes) }),
+        settles: noticed.withdrawal,
       })
     if (lease) return answered(lease.id, lease.text)
-    if (kept !== undefined) return answered(null, kept)
-    // A harness whose injected messages last one call gives the notice on each later call.
-    if (profile.reinjectPerCall && notes.length > 0)
-      this.leases.remember(live.terminalId, live.delivery.epoch, noted("", notes))
-    if (start.cause !== "doorbell") return answered(null, "")
+    // Else a lease of the notices alone, whose acknowledgement withdraws the asks and, for a
+    // harness whose injected messages last one call, keeps the notice for each later call.
+    const only = this.noticed(
+      live,
+      "prompt",
+      noticed,
+      noting ? joined(kept, noted("", notes)) : undefined,
+    )
+    if (kept !== undefined) return answered(only?.id ?? null, kept)
+    if (start.cause !== "doorbell") return answered(only?.id ?? null, "")
     // A doorbell whose messages couldn't be leased now, as too late or while paused, says
     // they still wait; one with none left, as when they went another way, that none do.
     const waits = [...this.messages.values()].some(
@@ -1343,7 +1424,7 @@ export class Messaging {
         undelivered(message) &&
         this.addressed(message, root),
     )
-    return answered(null, waits ? stillWaiting : nothingWaiting)
+    return answered(only?.id ?? null, waits ? stillWaiting : nothingWaiting)
   }
 
   /**
@@ -1363,10 +1444,18 @@ export class Messaging {
     )
     if (!call || !called || !time || !running(live.delivery)) return silent
     // What this terminal sent that waits long goes beside the result too, once.
-    const holds = [...this.notices(live, root, person), ...this.heldFrom(live.terminalId)]
+    const noticed = this.notices(live, root, person)
+    const holds = [...noticed.texts, ...this.heldFrom(live.terminalId)]
     const print = (text: string) => call(noted(text, holds), event)
-    const lease = this.lease(live, root, { kind: "midturn", print, only: isFromLead })
+    const lease = this.lease(live, root, {
+      kind: "midturn",
+      print,
+      only: isFromLead,
+      settles: noticed.withdrawal,
+    })
     if (lease) return { leaseId: lease.id, stdout: print(lease.text) }
+    const only = this.noticed(live, "midturn", noticed, undefined)
+    if (only) return { leaseId: only.id, stdout: print("") }
     return holds.length > 0 ? { leaseId: null, stdout: print("") } : silent
   }
 
@@ -1382,7 +1471,10 @@ export class Messaging {
       const message = this.messages.get(id)
       if (message?.state === "leased") this.put({ ...message, state: "delivered", deliveredAt: at })
     }
-    if (lease.keeps !== undefined) this.leases.remember(terminalId, lease.epoch, lease.keeps)
+    // What a stale lease keeps would overwrite the text the turn now in progress is given.
+    if (lease.keeps !== undefined && this.live.get(terminalId)?.delivery.epoch === lease.epoch)
+      this.leases.remember(terminalId, lease.epoch, lease.keeps)
+    lease.settles?.()
   }
 
   /**
@@ -2498,7 +2590,8 @@ export class Messaging {
    * Leases the messages waiting for the root session (those `only` takes, where it is
    * given), as many as one delivery carries once `print` prints it as its harness reads it,
    * until the hook acknowledges them; none when none wait. `keeps` is what the turn is given
-   * again on each later call once printed, where its harness's injected messages last one.
+   * again on each later call once printed, where its harness's injected messages last one;
+   * `settles` is the withdrawal its notices tell of, made once it is acknowledged.
    */
   private lease(
     live: Live,
@@ -2509,12 +2602,14 @@ export class Messaging {
       readonly print: (text: string) => string
       readonly only?: (message: Message) => boolean
       readonly keeps?: (text: string) => string
+      /** Run when the hook acknowledges the lease: the withdrawal its notices tell of. */
+      readonly settles?: Withdrawal | undefined
     },
   ): Lease | undefined {
     // Once closed, nothing is saved, so no ack could record a delivery: the next runner
     // would deliver again what a hook printed now. Its messages wait for that runner.
     if (this.closed) return undefined
-    const { kind, background = false, print, only = () => true, keeps } = options
+    const { kind, background = false, print, only = () => true, keeps, settles } = options
     const queued = [...this.messages.values()]
       .filter(({ state, ...message }) => state === "queued" && this.addressed(message, root))
       .filter((message) => message.to.terminalId === live.terminalId && only(message))
@@ -2537,6 +2632,7 @@ export class Messaging {
       background,
       text,
       ...(keeps && { keeps: keeps(text) }),
+      ...(settles && { settles: settles.settle, asks: settles.asks }),
     })
   }
 
@@ -2546,6 +2642,16 @@ export class Messaging {
    * since, as when the hook printed it and only its acknowledgement was lost.
    */
   private lapse(lease: Lease): void {
+    // Nothing to restore: the asks were never withdrawn, and the prompt's debt stands. Told
+    // only while it does: another hook's acknowledgement of the same notice may have paid it.
+    if (lease.settles && this.live.get(lease.terminalId)?.withdrawing)
+      log.info(
+        "messaging.notice-lapsed",
+        "A hook never acknowledged the notice of asks to withdraw.",
+        {
+          data: { terminalId: lease.terminalId, kind: lease.kind, asks: lease.asks ?? 0 },
+        },
+      )
     for (const id of lease.messages) {
       const message = this.messages.get(id)
       if (message?.state !== "leased") continue
