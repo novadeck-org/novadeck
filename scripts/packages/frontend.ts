@@ -32,6 +32,9 @@ export type Pkg = {
   readonly tooling?: readonly string[]
   /** The `include` of its tsconfig besides src. */
   readonly include?: readonly string[]
+  /** Why its typecheck adds the `node` condition, as its tsconfig's comment's lines say it.
+   * Every app adds it (docs/build-graph.md). */
+  readonly node?: readonly string[]
   readonly author?: string
 }
 
@@ -88,6 +91,11 @@ export const packages: readonly Pkg[] = [
     },
     scripts: unitScripts,
     vitest: "unit",
+    node: [
+      "its tests start the runner, whose",
+      "source and the harnesses' import Node-only subpaths. The lint keeps the adapter's browser",
+      "code off them.",
+    ],
   },
   {
     id: "demo",
@@ -170,6 +178,10 @@ export const packages: readonly Pkg[] = [
     },
     vitest: "unit",
     include: ["scripts/**/*.ts"],
+    node: [
+      "its Vite config and scripts run in Node,",
+      "so it resolves workspace packages as Node does.",
+    ],
   },
   {
     id: "previews",
@@ -183,6 +195,7 @@ export const packages: readonly Pkg[] = [
       preview: "vite preview --host 127.0.0.1",
       typecheck: "tsc --noEmit -p tsconfig.json",
     },
+    node: ["its Vite config runs in Node, so it", "resolves workspace packages as Node does."],
   },
 ]
 
@@ -720,11 +733,11 @@ export const manifestOf = (
     devDependencies: deps.devDependencies,
   })
 
-/** A package's tsconfig.json. */
-export const tsconfigOf = (pkg: Pkg, types: readonly string[]): string => {
+/** A package's tsconfig.json: JSX only where it has .tsx files. */
+export const tsconfigOf = (pkg: Pkg, types: readonly string[], tsx: boolean): string => {
   const include = [
     "src/**/*.ts",
-    "src/**/*.tsx",
+    ...(tsx ? ["src/**/*.tsx"] : []),
     ...(pkg.include ?? []),
     ...(pkg.app || pkg.id === "ui" ? ["vite.config.ts"] : []),
     ...(pkg.vitest ? ["vitest.config.ts"] : []),
@@ -732,15 +745,11 @@ export const tsconfigOf = (pkg: Pkg, types: readonly string[]): string => {
   return `{
   "compilerOptions": {
     // Workspace packages' source, as Vitest reads it: no build first (see docs/build-graph.md).
-    // \`node\` too, which \`Bundler\` resolution leaves out: the runner's and the harnesses' source,
-    // which the adapter's test runner reaches, imports Node-only subpaths. The lint keeps the
-    // UI's own code off them.
-    "customConditions": ["node", "development"],
+${conditions(pkg.node)}
     "target": "ES2022",
     "lib": ["ES2023", "DOM", "DOM.Iterable"],
     "module": "ESNext",
-    "moduleResolution": "Bundler",
-    "jsx": "react-jsx",
+    "moduleResolution": "Bundler",${tsx ? '\n    "jsx": "react-jsx",' : ""}
     "strict": true,
     "noUncheckedIndexedAccess": true,
     "exactOptionalPropertyTypes": true,
@@ -753,6 +762,18 @@ export const tsconfigOf = (pkg: Pkg, types: readonly string[]): string => {
 }
 `
 }
+
+// A tsconfig's conditions, with the comment on why `node` is one, if it is.
+const conditions = (node: readonly string[] | undefined): string =>
+  node === undefined
+    ? `    "customConditions": ["development"],`
+    : [
+        ...node.map(
+          (line, at) =>
+            `    // ${at === 0 ? `\`node\` too, which \`Bundler\` resolution leaves out: ` : ""}${line}`,
+        ),
+        `    "customConditions": ["node", "development"],`,
+      ].join("\n")
 
 const emulatorEntries = [
   "@novadeck/emulator > @xterm/addon-fit",
@@ -1833,7 +1854,14 @@ export const plan = (input: PlanInput): Planned => {
       ...(deps.devDependencies["@types/node"] ? ["node"] : []),
     ]
     const file = `${pkg.dir}/tsconfig.json`
-    make(file, tsconfigOf(pkg, types), generatedWas[file], "the package's compiler options", true)
+    const tsx = [...all.keys()].some((f) => f.startsWith(`${pkg.dir}/`) && f.endsWith(".tsx"))
+    make(
+      file,
+      tsconfigOf(pkg, types, tsx),
+      generatedWas[file],
+      "the package's compiler options",
+      true,
+    )
     const manifest = `${pkg.dir}/package.json`
     const text = manifestOf(pkg, deps, mine.exports)
     const existing = originOf.has(manifest) ? undefined : originals.get(manifest)

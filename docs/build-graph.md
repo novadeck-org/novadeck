@@ -13,12 +13,13 @@ source; builds read `dist`.
 - **Vitest** takes `development` itself (it runs Vite outside production), so a package's tests
   run against its dependencies' source with nothing built first.
 - **tsc** takes it from `customConditions: ["development"]` in the `tsconfig.json` of the
-  runner, the contract packages and the harnesses, so a typecheck reads the same files the
-  tests do. The desktop app's, the root's and every frontend package's and app's add `node`, which
-  their `Bundler` resolution leaves out, so a `node`-only export such as the sandbox's, the
-  terminal library's or the emulator's `/headless` resolves (the frontend packages'
-  typechecks follow the runner's source, which the runner adapter's tests start, into them).
-  The lint keeps the browser code off those subpaths.
+  runner, the contract packages, the harnesses and the frontend packages, so a typecheck reads
+  the same files the tests do. The root's, every app's, the runner adapter's and the chat
+  contract's add `node`, which their `Bundler` resolution leaves out, so a `node`-only export
+  such as the sandbox's, the terminal library's or the emulator's `/headless` resolves (the
+  adapter's typecheck follows the runner's source, which its tests start, into them, and the
+  chat contract's the harnesses'). The other frontend packages leave it out, so a `node`-only
+  export fails their typecheck, and the lint keeps the browser code off those subpaths.
 - **Builds** reset it (`customConditions: []` in `tsconfig.build.json`) and read their
   dependencies' built types, as a published consumer would. So `build` keeps `^build`.
   A script that builds one package outside turbo names it with pnpm's `...`

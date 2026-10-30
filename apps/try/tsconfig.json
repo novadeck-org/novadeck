@@ -1,9 +1,8 @@
 {
   "compilerOptions": {
     // Workspace packages' source, as Vitest reads it: no build first (see docs/build-graph.md).
-    // `node` too, which `Bundler` resolution leaves out: the runner's and the harnesses' source,
-    // which the adapter's test runner reaches, imports Node-only subpaths. The lint keeps the
-    // UI's own code off them.
+    // `node` too, which `Bundler` resolution leaves out: its Vite config and scripts run in Node,
+    // so it resolves workspace packages as Node does.
     "customConditions": ["node", "development"],
     "target": "ES2022",
     "lib": ["ES2023", "DOM", "DOM.Iterable"],
