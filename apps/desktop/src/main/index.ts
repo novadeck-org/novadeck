@@ -284,13 +284,13 @@ const updates = updating({
   build,
   quitting,
   startBundle: copies.startBundle,
-  startAppImage: copies.startInstalled,
+  startInstalledImage: copies.startInstalledImage,
 })
 // What is new after an update, and in the version a portable copy is offered.
 const news = updateNewsOf({
   state: updateState,
   ranBefore,
-  offered,
+  offeredVersion: offered,
   warn: (message, error) => updatesLog.warn(message, error),
 })
 // A portable launch giving way to a newer copy.
@@ -535,13 +535,10 @@ const launch = async (): Promise<void> => {
     },
     allow: () => void updates.allow(),
     channel: updates.channel,
-    setChannel: (next) => {
-      try {
-        updates.setChannel(next)
-      } catch (error) {
-        log.warn("update.channel-not-kept", "The update channel was not kept.", { err: error })
-      }
-    },
+    setChannel: (next) =>
+      updates.setChannel(next, (error) =>
+        log.warn("update.channel-not-kept", "The update channel was not kept.", { err: error }),
+      ),
   })
   // The page learns what is new after an update, once.
   registerWhatsNewIpc(ipcMain, {
@@ -597,7 +594,7 @@ const launch = async (): Promise<void> => {
         if (problem !== "") warnings("portable")("The data folder did not open.", problem)
       })
     },
-    news: news.offered,
+    news: news.offeredNews,
     log: warnings("portable"),
   })
   // The page learns what removing this copy would do, removes it, and quits afterwards.

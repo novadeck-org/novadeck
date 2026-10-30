@@ -61,7 +61,7 @@ export type UpdatingHost = {
   /** Starts the macOS app bundle at the path in this one's place, as the process ends. */
   readonly startBundle: (bundle: string) => Promise<boolean>
   /** Starts the AppImage at the path once the process `after` names has gone. */
-  readonly startAppImage: (image: string, after?: number) => Promise<boolean>
+  readonly startInstalledImage: (image: string, after?: number) => Promise<boolean>
 }
 
 /** The app's updates over one run; see ./updater.ts. */
@@ -72,7 +72,7 @@ export const updating = ({
   build,
   quitting,
   startBundle,
-  startAppImage,
+  startInstalledImage,
 }: UpdatingHost) => {
   // The macOS update made ready to put in place on quitting, and whether quitting puts it
   // there: a quit as the session ends, or the uninstall, switches that off. See ./mac.ts.
@@ -322,7 +322,7 @@ export const updating = ({
       )
       try {
         state.recordReopened(kept.installing)
-        if (await startAppImage(file)) return true
+        if (await startInstalledImage(file)) return true
       } catch (error) {
         warn("The newer AppImage was not started.", error)
       }
@@ -337,14 +337,18 @@ export const updating = ({
     channel: (): UpdateChannel => channel,
 
     /**
-     * Switches the releases the build follows, then keeps the choice, throwing when it
-     * could not be kept.
+     * Switches the releases the build follows, and keeps the choice; `notKept` hears why
+     * it could not be kept.
      */
-    setChannel: (next: UpdateChannel): void => {
+    setChannel: (next: UpdateChannel, notKept: (error: unknown) => void): void => {
       if (next === channel) return
       channel = next
       updates?.setChannel(next)
-      state.setChannel(next)
+      try {
+        state.setChannel(next)
+      } catch (error) {
+        notKept(error)
+      }
     },
 
     /**
@@ -493,7 +497,7 @@ export const updating = ({
       )
       // Started only once this process has gone: its windows and their storage are still
       // open while it shuts down, and the data folder's lock is released with it.
-      await startAppImage(image, process.pid)
+      await startInstalledImage(image, process.pid)
     },
   }
 }

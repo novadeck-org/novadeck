@@ -315,7 +315,7 @@ export const machineCopies = ({ appId, exitApp, offered, log }: CopiesHost) => {
 
   // Starts the AppImage at `image` in place of this process, once the process `after`
   // names has gone; see `startAppImage`.
-  const startInstalled = (image: string, after?: number): Promise<boolean> =>
+  const startInstalledImage = (image: string, after?: number): Promise<boolean> =>
     startAppImage({
       image,
       after,
@@ -492,7 +492,7 @@ export const machineCopies = ({ appId, exitApp, offered, log }: CopiesHost) => {
   return {
     windowsInstalled,
     installedCopies,
-    startInstalled,
+    startInstalledImage,
 
     /**
      * Tidies what an install interrupted on macOS may have left: the only installed copy
@@ -507,7 +507,7 @@ export const machineCopies = ({ appId, exitApp, offered, log }: CopiesHost) => {
         ? startBundle(image)
         : process.platform === "win32"
           ? startWindowsCopy(image)
-          : startInstalled(image),
+          : startInstalledImage(image),
 
     startBundle,
 

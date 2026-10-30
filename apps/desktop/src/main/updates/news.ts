@@ -17,12 +17,12 @@ export type NewsHost = {
    */
   readonly ranBefore: boolean
   /** The version the app's last update offer named as available, if it did. */
-  readonly offered: () => string | undefined
+  readonly offeredVersion: () => string | undefined
   readonly warn: (message: string, error: unknown) => void
 }
 
 /** What is new after an update and in an offered one; see ./whats-new.ts. */
-export const updateNewsOf = ({ state, ranBefore, offered, warn }: NewsHost) => {
+export const updateNewsOf = ({ state, ranBefore, offeredVersion, warn }: NewsHost) => {
   // The launch is settled first, once, and the page's request waits for it.
   let launch: Promise<void> | undefined
   const settleLaunch = (): Promise<void> =>
@@ -69,9 +69,9 @@ export const updateNewsOf = ({ state, ranBefore, offered, warn }: NewsHost) => {
     }),
 
     /** What is new in the version a portable copy is offered, which it cannot install itself. */
-    offered: keepUpdateNews({
+    offeredNews: keepUpdateNews({
       version: app.getVersion(),
-      offered,
+      offered: offeredVersion,
       repository: releaseRepository,
       fetch: (url, init) => net.fetch(url, init),
       newer: isNewerVersion,
