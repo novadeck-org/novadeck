@@ -12,8 +12,9 @@ export type ActionTypes = {
   reducerText: (type: string) => string
 }
 
-export const readActionTypes = ({ anchors, source }: UiScan): ActionTypes => {
-  const stateLines = source(stateFile)?.lines ?? []
+export const readActionTypes = (scan: UiScan): ActionTypes => {
+  const { anchors } = scan
+  const stateLines = scan.source(stateFile)?.lines ?? []
   const unionStart = stateLines.findIndex((line) =>
     line.startsWith("export type WorkspaceAction ="),
   )

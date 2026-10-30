@@ -19,7 +19,7 @@ export type Site = { procedure: string; file: string; line: number }
 export const actionLiteral = /\btype\s*(?::|===)\s*"([a-z]+\/[a-z-]+)"/g
 const caseLiteral = /\bcase\s+"([a-z]+\/[a-z-]+)"/g
 
-export const literalsIn = (text: string, known: Set<string>): string[] =>
+const literalsIn = (text: string, known: Set<string>): string[] =>
   [...text.matchAll(actionLiteral), ...text.matchAll(caseLiteral)]
     .map((match) => match[1]!)
     .filter((type) => known.has(type))
@@ -73,8 +73,6 @@ export const findSites = (scan: UiScan, backend: Source | null): Site[] => {
     )
   return sites
 }
-
-// ---- reachability ------------------------------------------------------------------
 
 export type Reached = { fn: Fn; parent: Reached | null; refLine: number | null }
 
@@ -170,8 +168,6 @@ export const reach = (scan: UiScan, roots: Fn[], depth: number): Reached[] => {
   }
   return [...seen.values()]
 }
-
-// ---- the commit path ---------------------------------------------------------------
 
 // The action types that gate `line`: tested on the lines it is nested under, or on the
 // variable (`removed`) one of those lines or the call itself reads.

@@ -1,6 +1,6 @@
 import type { Anchor } from "./atlas.ts"
 
-// The runner lens's contract: owned by extract/runner-lens.ts and pages/runner*.
+// The runner lens's contract: owned by extract/runner-lens.ts (and its runner-lens/ folder) and pages/runner*.
 // The runner from the inside: each procedure's path to the SQL it runs, and the store's
 // statements by method. Found by reading the source, so it follows only what reads plainly.
 

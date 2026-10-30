@@ -1,9 +1,8 @@
 import type { Statement, StoreMethod, Touch } from "../../src/runner-lens.ts"
-import { lineAt, type Anchors } from "../anchors.ts"
+import { lineAt } from "../anchors.ts"
+import { storeFile, type RunnerScan } from "./scan.ts"
 import { sqlIn, statementKind, touchesOf } from "./sql.ts"
 import { unitsIn } from "./units.ts"
-
-export const storeFile = "backend/runner/src/workspaces/store.ts"
 
 export type Store = {
   source: string
@@ -12,7 +11,7 @@ export type Store = {
 }
 
 // The workspace store: its methods, their statements, and the store methods they call.
-export const readStore = (anchors: Anchors, tables: Set<string>): Store => {
+export const readStore = ({ anchors }: RunnerScan, tables: Set<string>): Store => {
   const source = anchors.read(storeFile) ?? ""
   const classAt = source.indexOf("export class WorkspaceStore")
   if (classAt === -1)

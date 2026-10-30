@@ -1,4 +1,4 @@
-import { dirname, posix } from "node:path"
+import { posix } from "node:path"
 
 import type { Anchor, Api } from "../../src/atlas.ts"
 import type { Anchors } from "../anchors.ts"
@@ -11,7 +11,7 @@ import type { LensInput } from "../lens-input.ts"
 
 export const ui = "frontend/ui/src"
 export const core = "frontend/core/src"
-export const adapterSrc = "frontend/runner-adapter/src"
+const adapterSrc = "frontend/runner-adapter/src"
 const views = "frontend/terminal-views/src"
 export const stateFile = `${core}/state.ts`
 export const portFile = `${core}/port.ts`
@@ -145,7 +145,7 @@ export const scanUi = (input: LensInput): UiScan => {
     const map = new Map<string, string>()
     const text = anchors.read(file) ?? ""
     for (const match of text.matchAll(/import\s+(?:type\s+)?\{([^}]*)\}\s+from\s+"(\.[^"]*)"/g)) {
-      const base = posix.normalize(posix.join(dirname(file), match[2]!))
+      const base = posix.normalize(posix.join(posix.dirname(file), match[2]!))
       const target = [`${base}.ts`, `${base}.tsx`, `${base}/index.ts`].find((each) =>
         sources.has(each),
       )

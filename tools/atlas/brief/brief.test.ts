@@ -9,7 +9,9 @@ describe("brief", () => {
   it("renders every subject within budget", async () => {
     const atlas = await build()
     expect(brief(atlas, undefined).text.length).toBeLessThan(8000)
-    const asked = subjects(atlas).map(({ kind, name }) => `${kind}:${name}`)
+    // The overviews are also asked for by their bare names, as AGENTS.md tells people to.
+    const bare = ["api", "data", "state", "flows", "harnesses"]
+    const asked = [...bare, ...subjects(atlas).map(({ kind, name }) => `${kind}:${name}`)]
     const over = asked
       .map((subject) => ({ subject, ...brief(atlas, subject) }))
       .filter(({ found, text }) => !found || text.length > 6000)

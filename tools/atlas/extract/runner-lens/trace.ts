@@ -1,34 +1,54 @@
 import type { Anchor, Procedure } from "../../src/atlas.ts"
 import type { ProcedureTrace, Step } from "../../src/runner-lens.ts"
-import { lineAt, type Anchors } from "../anchors.ts"
+import { lineAt } from "../anchors.ts"
 import { stem } from "../files.ts"
-import { findDefinition, routerFile, type Service } from "../runner-services.ts"
+import { findDefinition, handlerBody, routerFile } from "../runner-services.ts"
 import type { StoreReferences } from "./references.ts"
+import type { RunnerScan } from "./scan.ts"
 import type { Store } from "./store.ts"
-import { builtin, type Unit } from "./units.ts"
+import type { Unit } from "./units.ts"
 
 // A procedure's path down to the store: the router handler, the service methods it calls,
 // what they call a hop or two further, and the store methods those reach.
 
-export type Tracer = {
-  anchors: Anchors
-  router: string
-  services: Service[]
-  // The runner's source files, the store's apart.
-  files: string[]
-  unitsByFile: Map<string, Unit[]>
-  store: Store
-  references: StoreReferences
-}
+type Tracer = RunnerScan & { store: Store; references: StoreReferences }
 
-// The router's code for a procedure's handler, from `api.<id>.handler(` to the next one.
-const handlerBody = (router: string, id: string): { start: number; body: string } | null => {
-  const start = router.indexOf(`api.${id}.handler(`)
-  if (start === -1) return null
-  const skip = start + id.length + 20
-  const next = router.slice(skip).search(/\.handler\(/)
-  return { start, body: router.slice(start, next === -1 ? undefined : skip + next) }
-}
+// Method names too common to follow from a receiver: collections, promises, emitters.
+const builtin = new Set([
+  "get",
+  "set",
+  "has",
+  "delete",
+  "map",
+  "filter",
+  "push",
+  "add",
+  "clear",
+  "values",
+  "keys",
+  "find",
+  "some",
+  "every",
+  "forEach",
+  "includes",
+  "slice",
+  "join",
+  "then",
+  "catch",
+  "close",
+  "on",
+  "off",
+  "emit",
+  "send",
+  "write",
+  "read",
+  "start",
+  "stop",
+  "run",
+  "all",
+  "next",
+  "reduce",
+])
 
 // `unit` and what it calls, as a flat list in call order. A branch that reaches no store
 // method is dropped, except the first hop, which shows where the trail ends.
@@ -107,7 +127,13 @@ const reachedMethods = (store: Store, steps: Step[]): ProcedureTrace["reached"] 
   return reached
 }
 
-export const traceProcedure = (tracer: Tracer, procedure: Procedure): ProcedureTrace => {
+export const traceProcedure = (
+  scan: RunnerScan,
+  store: Store,
+  references: StoreReferences,
+  procedure: Procedure,
+): ProcedureTrace => {
+  const tracer: Tracer = { ...scan, store, references }
   const id = procedure.id
   const handler = handlerBody(tracer.router, id)
   if (handler === null) return { id, steps: [], reached: [], traced: false }

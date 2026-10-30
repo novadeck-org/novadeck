@@ -3,7 +3,13 @@ import { z } from "zod"
 import type { Api, ApiError, Anchor, JsonSchema, Procedure } from "../src/atlas.ts"
 import { lineAt, type Anchors } from "./anchors.ts"
 import { frontendSources, sourceFiles } from "./files.ts"
-import { findDefinition, routerFile, servicesOf, type Service } from "./runner-services.ts"
+import {
+  findDefinition,
+  handlerBody,
+  routerFile,
+  servicesOf,
+  type Service,
+} from "./runner-services.ts"
 
 const contractFile = "contract/protocol/src/contract.ts"
 // The wire's sessions: the gate in front of every router procedure, and the handshake.
@@ -51,26 +57,25 @@ const handlerOf = (
   known: Service[],
   id: string,
 ): Anchor | null => {
-  const at = router.indexOf(`api.${id}.handler(`)
-  if (at === -1) {
+  const handler = handlerBody(router, id)
+  if (handler === null) {
     // The wire's own procedures are answered in its sessions.
     const sessions = anchors.read(sessionsFile) ?? ""
     const own = sessions.indexOf(`.${id}.handler(`)
     return own === -1 ? null : { file: sessionsFile, line: lineAt(sessions, own) }
   }
-  const skip = at + id.length + 20
-  const next = router.slice(skip).search(/\.handler\(/)
-  const body = router.slice(at, next === -1 ? undefined : skip + next)
   const rank = (call: RegExpMatchArray): number =>
     (call[2] === id.split(".").at(-1) ? 0 : 2) + (call[1] === "store" ? 1 : 0)
-  const calls = [...body.matchAll(/\b(\w+)\.(\w+)\(/g)].toSorted((a, b) => rank(a) - rank(b))
+  const calls = [...handler.body.matchAll(/\b(\w+)\.(\w+)\(/g)].toSorted(
+    (a, b) => rank(a) - rank(b),
+  )
   for (const call of calls) {
     const service = known.find((each) => each.field === call[1])
     if (!service) continue
     const found = findDefinition(anchors, runnerFiles, service, call[2]!)
     if (found) return found
   }
-  return { file: routerFile, line: lineAt(router, at) }
+  return { file: routerFile, line: lineAt(router, handler.start) }
 }
 
 // The text from `from` to the close of the first block (or call) that opens at paren depth 0.

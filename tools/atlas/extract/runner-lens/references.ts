@@ -1,4 +1,4 @@
-import type { Anchors } from "../anchors.ts"
+import type { RunnerScan } from "./scan.ts"
 import type { Store } from "./store.ts"
 
 // How runner code refers to the store: the receivers that are one, and the store methods a
@@ -16,7 +16,7 @@ export type StoreReferences = {
 // types in the runner made only of store methods, at least three of them
 // (`VoiceSettingsStore`). An unrelated `FooStore` with its own methods, or a one-method
 // lookup that happens to be called `project`, never counts as the store.
-const storeTypes = (anchors: Anchors, files: string[], store: Store): Set<string> => {
+const storeTypes = ({ anchors, files }: RunnerScan, store: Store): Set<string> => {
   const names = new Set(store.byName.keys())
   const types = new Set([
     "WorkspaceStore",
@@ -37,12 +37,9 @@ const storeTypes = (anchors: Anchors, files: string[], store: Store): Set<string
   return types
 }
 
-export const storeReferences = (
-  anchors: Anchors,
-  files: string[],
-  store: Store,
-): StoreReferences => {
-  const typeAlternatives = [...storeTypes(anchors, files, store)].join("|")
+export const storeReferences = (scan: RunnerScan, store: Store): StoreReferences => {
+  const { anchors } = scan
+  const typeAlternatives = [...storeTypes(scan, store)].join("|")
 
   // What a file calls the store: identifiers it declares with one of the store's types
   // (`store: WorkspaceStore`, `records?: TerminalRecords`) or assigns `new WorkspaceStore(`.

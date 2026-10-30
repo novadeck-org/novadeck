@@ -43,7 +43,7 @@ export const readDispatchers = (scan: UiScan, known: Set<string>): Dispatchers =
   const fromUi = new Map<string, Dispatcher[]>()
   const fromAdapter = new Map<string, { anchor: Anchor; fn: string | null }[]>()
   for (const src of scan.allSources) {
-    if (src.file === stateFile || src.file.endsWith(".d.ts")) continue
+    if (src.file === stateFile) continue
     src.lines.forEach((line, i) => {
       if (isComment(line)) return
       for (const match of line.matchAll(/\btype:\s*"([a-z]+\/[a-z-]+)"/g)) {
