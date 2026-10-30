@@ -789,8 +789,9 @@ const agyPlanArtifact = (): SampleArtifact => ({
       "3. Test it against a sample feed",
     ].join("\n"),
     truncated: false,
-    // Shown, not watched: there's no file to save an edit to, as storefront's shown plan.
-    writable: false,
+    // A file the runner reads whole, so writable, as companions/content.ts has it: its pane says
+    // nothing of being read-only, as the real one doesn't.
+    writable: true,
     skill: false,
   }),
 })
