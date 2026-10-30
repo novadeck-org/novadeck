@@ -104,9 +104,9 @@ const CodeBlock = ({
       .catch(() => {})
   }
   return (
-    <div className="chat-code">
-      <div className="chat-code-bar">
-        <span className="chat-code-lang">{lang || "text"}</span>
+    <div className="markdown-code">
+      <div className="markdown-code-bar">
+        <span className="markdown-code-lang">{lang || "text"}</span>
         <Tooltip content={copied ? "Copied" : "Copy"}>
           <button
             type="button"
@@ -195,7 +195,7 @@ const Block = ({ block }: { readonly block: MarkdownBlock }): React.JSX.Element 
     case "table":
       return (
         <div
-          className="chat-table nodrag nopan nowheel"
+          className="markdown-table nodrag nopan nowheel"
           tabIndex={0}
           role="region"
           aria-label="Table"
@@ -244,7 +244,7 @@ const Blocks = ({ blocks }: { readonly blocks: readonly MarkdownBlock[] }): Reac
 export const Markdown = ({ text }: { readonly text: string }): React.JSX.Element => {
   const blocks = useMemo(() => parseMarkdown(text), [text])
   return (
-    <div className="chat-prose">
+    <div className="markdown">
       <Blocks blocks={blocks} />
     </div>
   )
