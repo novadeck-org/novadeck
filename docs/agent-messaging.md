@@ -1904,7 +1904,7 @@ whole printed answer stays within the 8 KB delivery budget (see "Hook output has
 in turn the summary's request (short, and it asks for something), the bar's and the
 Inbox's, then pages' troubles. What doesn't fit waits for the next turn the person or the
 doorbell begins (messaging hands the terminals side the answer to add to as `adding`, in
-`messaging.ts`; `take` in `terminals/nudges.ts` decides). Drift's facts are read only for
+`messaging/hook-answers.ts`; `take` in `terminals/nudges.ts` decides). Drift's facts are read only for
 an answer that delivers no messages, so a delivery never waits on them. On Antigravity the
 notices last one model call, as before: they are never kept with a delivery it is given
 again on each call.
@@ -2287,7 +2287,7 @@ again.
    the layers in `backend/runner/src/terminals/titles.ts`, the summary tool in
    `terminals/summarize-request.ts`, its nudges in `terminals/nudges.ts`, murmur's triggers and
    digests in `terminals/descriptions.ts`, their wiring in `terminals/murmur-host.ts`, the person's turn
-   (`byPerson`) in `messaging/delivery.ts` and their prompt in `messaging/messaging.ts`,
+   (`byPerson`) in `messaging/delivery.ts` and their prompt in `messaging/deliveries.ts`,
    and the runner API as `titleSource`, `terminals.resetTitle` and `create`'s
    `requestId`.
 

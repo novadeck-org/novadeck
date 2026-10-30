@@ -415,7 +415,7 @@ export const flows: (Omit<Flow, "steps"> & { steps: CuratedStep[] })[] = [
         label: "store waiting message",
         text: "Messaging checks the text and recipient, finds or starts a thread, applies the limits and stores the message as waiting.",
         anchor: {
-          file: `${runnerSrc}/messaging/messaging.ts`,
+          file: `${runnerSrc}/messaging/sending.ts`,
           text: "private sendFrom(live: Live, request: unknown, about: About): SendAnswer",
         },
       },
@@ -449,7 +449,7 @@ export const flows: (Omit<Flow, "steps"> & { steps: CuratedStep[] })[] = [
         label: "lease as context",
         text: "Messaging leases the waiting message and wraps it as the agent's attributed context, never as the person's prompt.",
         anchor: {
-          file: `${runnerSrc}/messaging/messaging.ts`,
+          file: `${runnerSrc}/messaging/hook-answers.ts`,
           text: "private askPrompt({ live, root, profile, silent, events, time, person }: Asked): Answer",
         },
       },

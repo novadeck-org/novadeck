@@ -2,13 +2,13 @@ import { readScreen, type ScreenText } from "@novadeck/emulator/headless"
 
 import type { MurmurHost, MurmurSubject } from "./descriptions.js"
 import type { Names } from "./names.js"
-import { murmured } from "./titles.js"
 import { peerOf } from "./peers-host.js"
 import type { Record } from "./record.js"
 import { shellAtPrompt } from "./sampling.js"
 import type { Saves } from "./saving.js"
 import type { Streams } from "./streams.js"
 import { savedSummaryOf } from "./summary.js"
+import { murmured } from "./titles.js"
 
 /** What murmur reads of a running terminal's record. */
 const murmurSubject = (record: Record): MurmurSubject => ({

@@ -14,7 +14,7 @@ import { z } from "zod"
 
 import { DomainError } from "../errors.js"
 import { agentLabel } from "../messaging/messages.js"
-import type { SendAnswer } from "../messaging/messaging.js"
+import type { SendAnswer } from "../messaging/sending.js"
 import { list } from "../text.js"
 import { Followers } from "./followers.js"
 

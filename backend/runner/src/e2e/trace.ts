@@ -12,9 +12,9 @@ import { Interrupts, Prompts } from "@novadeck/tui-input"
 import { isEmpty, sameText, type BoxProfile, type InputBox } from "@novadeck/tui-input/box"
 
 import { agents, harnesses } from "../harnesses/registry.js"
-import type { DeliveryEvent } from "../messaging/delivery.js"
+import { Deliveries } from "../messaging/deliveries.js"
 import { tracer } from "../messaging/doorbell.js"
-import { Messaging } from "../messaging/messaging.js"
+import { HookAnswers } from "../messaging/hook-answers.js"
 import { Bindings } from "../terminals/binding/facts.js"
 import { Reports } from "../terminals/binding/reports.js"
 import { Shown } from "../terminals/binding/shown.js"
@@ -56,16 +56,6 @@ const methods = <T extends object>(owner: T, label: string, names: readonly stri
   return owner
 }
 
-type Live = {
-  readonly terminalId: string
-  readonly handle: string
-  delivery: { readonly state: string; readonly byPerson: boolean }
-}
-type Inside = {
-  step: (live: Live, event: DeliveryEvent) => void
-  keys: Messaging["keys"]
-  ask: Messaging["ask"]
-}
 // What the trace reads of a terminal's record: its agent's activity as clients see it.
 type Traced = {
   readonly summary: { readonly id: string }
@@ -346,13 +336,12 @@ export const startTrace = (name: string, model: FakeModel) => {
     }
   }
 
-  const inside = methods(Messaging.prototype as unknown as Inside, "Messaging", [
-    "step",
-    "keys",
-    "ask",
-  ])
-  const { step, keys, ask } = inside
-  inside.step = function (live, event) {
+  // Each terminal's delivery as it moves, the person's keys, and what each hook prints.
+  const delivering = methods(Deliveries.prototype, "Deliveries", ["step", "keys"])
+  const { step, keys } = delivering
+  const answering = methods(HookAnswers.prototype, "HookAnswers", ["ask"])
+  const { ask } = answering
+  delivering.step = function (live, event) {
     handles.set(live.terminalId, live.handle)
     const before = live.delivery.state
     step.call(this, live, event)
@@ -362,11 +351,11 @@ export const startTrace = (name: string, model: FakeModel) => {
         `delivery ${live.handle} ${brief(event, 200)}: ${before} → ${after.state}${after.byPerson ? " (by the person)" : ""}`,
       )
   }
-  inside.keys = function (terminalId, kinds, asked) {
+  delivering.keys = function (terminalId, kinds, asked) {
     add(`keys ${named(terminalId)} ${kinds.join(",")}${asked ? " (asked)" : ""}`)
     keys.call(this, terminalId, kinds, asked)
   }
-  inside.ask = function (terminalId, report) {
+  answering.ask = function (terminalId, report) {
     const answer = ask.call(this, terminalId, report)
     add(
       `answer ${named(terminalId)} ${report.agent} ${report.event}: ${
@@ -779,7 +768,8 @@ export const startTrace = (name: string, model: FakeModel) => {
             decode: Harness["decode"]
           }
         ).decode = decode
-      Object.assign(inside, { step, keys, ask })
+      Object.assign(delivering, { step, keys })
+      Object.assign(answering, { ask })
     },
     /** Writes the trace, with what else is given, where failed tests' traces go. */
     write: () => {

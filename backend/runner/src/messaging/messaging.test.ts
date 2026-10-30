@@ -24,18 +24,15 @@ import { handleWords } from "../terminals/handles.js"
 import { bareHandle } from "../terminals/handles.js"
 import { describe, expect, it } from "../test.js"
 import { running, submitWindowMs } from "./delivery.js"
+import { holdNotice } from "./holds.js"
 import type { Loops } from "./loops.js"
+import type { MessagingChange } from "./message-store.js"
 import { clock, retentionMs, threadMs } from "./messages.js"
-import {
-  holdNotice,
-  Messaging,
-  type MessagingChange,
-  type MessagingOptions,
-  type Person,
-  type SendAnswer,
-} from "./messaging.js"
+import { Messaging, type MessagingOptions } from "./messaging.js"
 import type { Whereabouts } from "./peers.js"
 import { memoryMessages, type MessageRecords } from "./records.js"
+import type { SendAnswer } from "./sending.js"
+import type { Person } from "./withdrawals.js"
 
 const binding = (agent: AgentName, sessionId: string, instance: string | null = "10"): Binding => ({
   agent,
