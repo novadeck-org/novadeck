@@ -8,7 +8,8 @@ import { setTimeout as sleep } from "node:timers/promises"
 import type { Report } from "@novadeck/harness-core/report"
 
 import { logs } from "../log.js"
-import { object, relayHook, type Fields } from "./hook.js"
+import { relayHook } from "./hook.js"
+import { object, type Fields } from "./json.js"
 import { mcpAnswer, type McpCall } from "./mcp.js"
 
 const log = logs.for("reports")

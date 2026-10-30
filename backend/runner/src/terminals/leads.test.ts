@@ -357,7 +357,7 @@ describe("an agent asking to lead another terminal's agent", () => {
   })
 })
 
-describe("the person answering an ask to lead", () => {
+describe("the person answering a request to lead", () => {
   const asking = async () => {
     const run = setup({ moth: { agent: "claude" }, fox: { agent: "codex" } })
     const asked = person(run.approvals)

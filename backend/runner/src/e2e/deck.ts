@@ -210,9 +210,9 @@ export type Deck = {
   readonly close: () => Promise<void>
 }
 
-/** The asks to close a terminal or lead one that the deck answered. */
+/** The requests to close a terminal or lead one that the deck answered. */
 export type Approvals = {
-  /** The next ask no earlier call took, once it comes; fails after the timeout (a minute unless given). */
+  /** The next request no earlier call took, once it comes; fails after the timeout (a minute unless given). */
   readonly next: (timeoutMs?: number) => Promise<Extract<Approval, { type: "ask" }>>
 }
 

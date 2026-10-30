@@ -34,7 +34,7 @@ import { harnessIds, harnesses } from "@novadeck/protocol"
 import { maxMessageBytes } from "../messaging/messages.js"
 import { unboundNote } from "../messaging/peers.js"
 import { mention } from "../terminals/handles.js"
-import { object } from "./hook.js"
+import { object } from "./json.js"
 import type { CallType } from "./reports.js"
 
 /** The MCP versions Novadeck's server speaks, newest first; it answers others with the newest. */

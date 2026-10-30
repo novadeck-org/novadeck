@@ -12,9 +12,9 @@ import {
   type Fixture,
   it,
   create,
-  presenter,
+  showStandIn,
   fakeAgent,
-  present,
+  show,
   open,
 } from "./integration.test-support.js"
 import { unansweredCalls } from "./reports.js"
@@ -26,7 +26,7 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))(
     it("asks the client for a new terminal, which starts the command where the agent said", async ({
       shell,
     }) => {
-      const bin = presenter(shell.home)
+      const bin = showStandIn(shell.home)
       fakeAgent(shell.home, "claude")
       const manager = shell.manager({
         env: {
@@ -39,7 +39,7 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))(
       mkdirSync(project)
       const terminal = await create(manager, shell)
       // Without a client to lay it out, nothing opens.
-      await expect(present(shell, manager, terminal.id, [open({})])).resolves.toEqual([
+      await expect(show(shell, manager, terminal.id, [open({})])).resolves.toEqual([
         { ok: false, reason: "Novadeck isn't open to show a new terminal." },
       ])
       // A client opens what it is asked to, as its "+" would, or says why not.
@@ -75,7 +75,7 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))(
         }
       })()
       try {
-        const answers = await present(shell, manager, terminal.id, [
+        const answers = await show(shell, manager, terminal.id, [
           open({ command: "claude --version", cwd: "project", title: "Agent", focus: true }),
           open({ title: "Refused" }),
           open({ cwd: "nowhere" }),
@@ -134,7 +134,7 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))(
         await shell.until(manager, opened!, "claude args: --version")
         // Five a minute, counting each request that was asked, opened or not: two more,
         // and the next waits.
-        const more = await present(
+        const more = await show(
           shell,
           manager,
           terminal.id,
@@ -153,7 +153,7 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))(
         // Enter ends the stand-in agent; what's typed next goes to the shell.
         manager.write({ terminalId: opened!, data: "\r" }, "client")
         await expect(
-          present(shell, manager, opened!, [open({ title: "Refused" })], "client"),
+          show(shell, manager, opened!, [open({ title: "Refused" })], "client"),
         ).resolves.toEqual([spent])
       } finally {
         controller.abort()
@@ -169,7 +169,7 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))(
     it("starts each agent with the doorbell as its prompt, Antigravity only where trusted", async ({
       shell,
     }) => {
-      const bin = presenter(shell.home)
+      const bin = showStandIn(shell.home)
       for (const agent of ["claude", "codex", "agy"] as const) fakeAgent(shell.home, agent)
       const trusted = join(shell.home, "trusted")
       mkdirSync(trusted)
@@ -221,7 +221,7 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))(
       })()
       try {
         const task = { message: "Review a.ts, please." }
-        const answers = (await present(shell, manager, terminal.id, [
+        const answers = (await show(shell, manager, terminal.id, [
           openAgent({ agent: "claude", ...task }),
           openAgent({ agent: "codex", ...task }),
           openAgent({ agent: "agy", cwd: "trusted", ...task }),
@@ -263,7 +263,7 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))(
         const shown = await shell.until(manager, created[2]!, "agy args: -i [Novadeck")
         expect(shown.split("agy args: -i ")[1]?.split(" prompt=")[0]).toMatch(line)
         // The opener's peers say who opened it, with a task, before its agent starts.
-        const [listed] = (await present(shell, manager, terminal.id, [
+        const [listed] = (await show(shell, manager, terminal.id, [
           { type: "agents" as "open", request: {} },
         ])) as { ok: true; text: string }[]
         expect(listed!.text).toContain(
@@ -296,7 +296,7 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))(
     it("starts each harness with them right after its program, and refuses what it doesn't list", async ({
       shell,
     }) => {
-      const bin = presenter(shell.home)
+      const bin = showStandIn(shell.home)
       for (const agent of ["claude", "codex", "agy"] as const) fakeAgent(shell.home, agent)
       const trusted = join(shell.home, "trusted")
       mkdirSync(trusted)
@@ -359,7 +359,7 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))(
       })()
       try {
         const task = { message: "Review a.ts, please." }
-        const answers = (await present(shell, manager, terminal.id, [
+        const answers = (await show(shell, manager, terminal.id, [
           openAgent({ agent: "claude", model: "opus", effort: "max", ...task }),
           openAgent({ agent: "codex", model: "gpt-a", effort: "high", ...task }),
           openAgent({ agent: "agy", cwd: "trusted", model: "flash-high", effort: "high", ...task }),
@@ -409,7 +409,7 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))(
     it("starts each harness at its prompt, led or not, and resumes a session in one terminal only", async ({
       shell,
     }) => {
-      const bin = presenter(shell.home)
+      const bin = showStandIn(shell.home)
       for (const agent of ["claude", "codex", "agy"] as const) fakeAgent(shell.home, agent)
       const lists = {
         claude: [{ id: "opus", efforts: ["low", "max"] }],
@@ -458,7 +458,7 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))(
         }
       })()
       try {
-        const answers = (await present(shell, manager, terminal.id, [
+        const answers = (await show(shell, manager, terminal.id, [
           openAgent({ agent: "claude" }),
           openAgent({ agent: "codex", model: "gpt-a", lead: true }),
           openAgent({ agent: "agy", model: "flash-high", effort: "high", lead: true }),
@@ -511,7 +511,7 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))(
       request: object,
       run: (opened: Opened) => Promise<void>,
     ) => {
-      const bin = presenter(shell.home)
+      const bin = showStandIn(shell.home)
       const stand = standIn(shell.home)
       writeFileSync(
         join(stand, agent),
@@ -563,7 +563,7 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))(
         }
       })()
       try {
-        const [answer] = (await present(shell, manager, terminal.id, [
+        const [answer] = (await show(shell, manager, terminal.id, [
           { ...open({ agent, ...request }), type: "open_agent" as "open" },
         ])) as { ok: boolean; text: string }[]
         expect(answer!.ok).toBe(true)
@@ -579,7 +579,7 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))(
           started: () => readFileSync(join(shell.home, `steps-${worker}.start`), "utf8"),
           // The opener sends the agent a message of its own.
           sends: async (text) =>
-            present(shell, manager, terminal.id, [
+            show(shell, manager, terminal.id, [
               { type: "send" as "open", request: { to: "fox", text } },
             ]),
           prompt: async (text, ends = false) => {

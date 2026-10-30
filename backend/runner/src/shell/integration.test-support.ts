@@ -294,7 +294,7 @@ export const toolCall = [
 // A stand-in for an agent calling Novadeck's tools: `present <name>` makes the calls in
 // `<name>.json`, one after another, keeps what each told the agent in
 // `<name>.answers.json`, then says so. Each call is a `present` unless it names its type.
-export const presenter = (home: string): string => {
+export const showStandIn = (home: string): string => {
   const bin = join(home, "bin")
   mkdirSync(bin, { recursive: true })
   const script = join(bin, "present.cjs")
@@ -367,7 +367,7 @@ export const fakeClaude = (home: string, plugins: string, session: string): stri
  * Makes the calls from the terminal, as an agent calls Novadeck's tools, and reads what
  * each told it.
  */
-export const present = async (
+export const show = async (
   shell: Fixture,
   manager: Terminals,
   terminalId: string,

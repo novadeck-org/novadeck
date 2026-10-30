@@ -6,7 +6,7 @@ import type { Approval, TerminalChange, TerminalSummary } from "@novadeck/protoc
 
 import { handleWords } from "../terminals/handles.js"
 import { describe, expect } from "../test.js"
-import { bash, it, create, presenter, present, open } from "./integration.test-support.js"
+import { bash, it, create, showStandIn, show, open } from "./integration.test-support.js"
 import { unansweredCalls } from "./reports.js"
 import { standIn, driver, type Told, messageId, close, closed } from "./stand-ins.test-support.js"
 
@@ -370,7 +370,7 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))(
     it("lets a chain of terminals' agents close five a minute, and all agents twenty", async ({
       shell,
     }) => {
-      const bin = presenter(shell.home)
+      const bin = showStandIn(shell.home)
       const manager = shell.manager({
         env: { HOME: shell.home, PS1: "$ ", PATH: `${bin}:${process.env.PATH}` },
       })
@@ -380,7 +380,7 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))(
         // eslint-disable-next-line no-await-in-loop -- Created in turn, so handles follow the list.
         terminals.push(await create(manager, shell))
       const closes = (from: number, to: readonly number[]) =>
-        present(
+        show(
           shell,
           manager,
           terminals[from - 1]!.id,
@@ -418,11 +418,11 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))(
         }
       })()
       try {
-        await expect(present(shell, manager, terminals[0]!.id, [open({})])).resolves.toMatchObject([
+        await expect(show(shell, manager, terminals[0]!.id, [open({})])).resolves.toMatchObject([
           { ok: true },
         ])
         const chained = (calls: { request: object; type: "open" | "close" }[]) =>
-          present(shell, manager, opened!, calls, "client")
+          show(shell, manager, opened!, calls, "client")
         await expect(chained([close("moth"), close("raven")])).resolves.toEqual([closed(1), spent])
         await expect(chained(Array.from({ length: 5 }, () => open({})))).resolves.toEqual([
           ...Array.from({ length: 4 }, () => ({ ok: false, reason: "Not now." })),

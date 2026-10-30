@@ -176,7 +176,7 @@ describe("an agent closing a teammate it leads, or a terminal with no agent", ()
     expect(run.steps).toContain("removed fox")
   })
 
-  it("closes a terminal that runs no agent at once, though no client could be requested", async () => {
+  it("closes a terminal that runs no agent at once, though no client could be asked", async () => {
     const run = setup({ moth: "claude", fox: null })
     const answer = await run.close("moth", "fox")
     expect(answer).toMatchObject({ ok: true, handle: "fox" })
@@ -210,7 +210,7 @@ describe("an agent closing another agent's terminal", () => {
     expect(run.steps).toEqual([])
   })
 
-  it("closes it once the person confirms, and tells the agent that requested", async () => {
+  it("closes it once the person confirms, and tells the agent that asked", async () => {
     const run = setup({ moth: "claude", fox: "codex" })
     const requested = person(run.approvals)
     await run.close("moth", "fox")
@@ -223,7 +223,7 @@ describe("an agent closing another agent's terminal", () => {
     ])
   })
 
-  it("keeps it open when the person declines, and tells the agent that requested", async () => {
+  it("keeps it open when the person declines, and tells the agent that asked", async () => {
     const run = setup({ moth: "claude", fox: "codex" })
     const requested = person(run.approvals)
     await run.close("moth", "fox")
@@ -236,7 +236,7 @@ describe("an agent closing another agent's terminal", () => {
     ])
   })
 
-  it("takes the ask back when the target closes meanwhile, and tells the agent", async () => {
+  it("takes the request back when the target closes meanwhile, and tells the agent", async () => {
     const run = setup({ moth: "claude", fox: "codex" })
     const requested = person(run.approvals)
     await run.close("moth", "fox")
@@ -269,7 +269,7 @@ describe("an agent closing another agent's terminal", () => {
     ])
   })
 
-  it("takes the ask back when the agent that requested closes, and says nothing to it", async () => {
+  it("takes the request back when the agent that asked closes, and says nothing to it", async () => {
     const run = setup({ moth: "claude", fox: "codex" })
     const requested = person(run.approvals)
     await run.close("moth", "fox")

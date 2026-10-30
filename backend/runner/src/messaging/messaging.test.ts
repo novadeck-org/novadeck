@@ -3767,7 +3767,7 @@ describe("the person's prompt, told to the asks", () => {
   })
 
   it.each(harnessesTold)(
-    "waits for $name's next hook after a turn ends, and wakes nothing",
+    "a dismissal notice waits for $name's next hook after a turn ends, and wakes nothing",
     async ({ agent }) => {
       const run = setup(agent)
       const told = dismissing(run)
@@ -3782,28 +3782,31 @@ describe("the person's prompt, told to the asks", () => {
     },
   )
 
-  it.each(harnessesTold)("tells $name's replaced session nothing", async ({ agent }) => {
-    const run = setup(agent)
-    const told = dismissing(run)
-    const other = binding(run.bound.agent, "s-new", "9")
-    run.follow(run.terminal, other)
-    run.messaging.rooted(run.terminal, [
-      { type: "ended", root: { ...run.bound, source: "binding" } } as never,
-    ])
-    run.messaging.rooted(run.terminal, [
-      { type: "new", root: { ...other, source: "binding" }, guess: false, ready: true } as never,
-    ])
-    const answer = run.ask(
-      run.terminal,
-      other,
-      run.event,
-      [started(other, "harness")],
-      undefined,
-      told.person,
-    )
-    expect(told.dismissed).toHaveBeenCalledWith(other.agent, other.sessionId)
-    expect(answer.stdout).not.toContain(dismissal)
-  })
+  it.each(harnessesTold)(
+    "a dismissal notice tells $name's replaced session nothing",
+    async ({ agent }) => {
+      const run = setup(agent)
+      const told = dismissing(run)
+      const other = binding(run.bound.agent, "s-new", "9")
+      run.follow(run.terminal, other)
+      run.messaging.rooted(run.terminal, [
+        { type: "ended", root: { ...run.bound, source: "binding" } } as never,
+      ])
+      run.messaging.rooted(run.terminal, [
+        { type: "new", root: { ...other, source: "binding" }, guess: false, ready: true } as never,
+      ])
+      const answer = run.ask(
+        run.terminal,
+        other,
+        run.event,
+        [started(other, "harness")],
+        undefined,
+        told.person,
+      )
+      expect(told.dismissed).toHaveBeenCalledWith(other.agent, other.sessionId)
+      expect(answer.stdout).not.toContain(dismissal)
+    },
+  )
 
   it("drops the pending withdrawal when the session ends or another binds", async () => {
     const run = setup("codex")

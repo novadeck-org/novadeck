@@ -26,7 +26,7 @@ export type TranscriptRedactorOptions = {
 }
 
 // Built, the worker is a file beside this one; in the desktop app's bundle it is
-// `redactionWorker.js` beside the bundle (see the host's build).
+// `redactionWorker.js` beside the bundle (see the desktop app's build).
 const where = {
   base: import.meta.url,
   built: ["./redactionWorker.js"],

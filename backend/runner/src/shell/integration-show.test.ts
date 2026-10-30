@@ -2,7 +2,7 @@ import { existsSync, mkdirSync, writeFileSync } from "node:fs"
 import { join } from "node:path"
 
 import { describe, expect } from "../test.js"
-import { bash, it, create, presenter, present } from "./integration.test-support.js"
+import { bash, it, create, showStandIn, show } from "./integration.test-support.js"
 
 // What showing `name` tells the agent, when it waits for the person.
 const awaits = (name: string) => ({
@@ -25,7 +25,7 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))(
       writeFileSync(join(plans, "p.md"), "# Plan\n")
       writeFileSync(join(shell.home, "elsewhere.txt"), "elsewhere\n")
       writeFileSync(join(work, ".env"), "TOKEN=x\n")
-      const bin = presenter(shell.home)
+      const bin = showStandIn(shell.home)
       const manager = shell.manager({
         env: {
           HOME: shell.home,
@@ -38,7 +38,7 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))(
       const terminal = await create(manager, shell, { cwd: work })
       const items = shell.items(manager)
       const bar = () => items.bar(terminal.id)
-      const answers = await present(shell, manager, terminal.id, [
+      const answers = await show(shell, manager, terminal.id, [
         { request: { file: { path: join(project, "a.ts") } } },
         { request: { file: { path: "w.txt" }, open: true } },
         { request: { file: { path: join(plans, "p.md") }, title: "The plan" } },
@@ -128,7 +128,7 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))(
       await moved((summary) => summary.id === terminal.id && summary.cwd === project)
       writeFileSync(join(project, "a.ts"), "const a = 2\n")
       expect(
-        await present(shell, manager, terminal.id, [{ request: { file: { path: "a.ts" } } }]),
+        await show(shell, manager, terminal.id, [{ request: { file: { path: "a.ts" } } }]),
       ).toEqual([
         { ok: true, text: "a.ts is updated and waiting for the user in Novadeck, marked new." },
       ])
@@ -154,7 +154,7 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))(
     })
 
     it("keeps everything shown, with no cap", async ({ shell }) => {
-      const bin = presenter(shell.home)
+      const bin = showStandIn(shell.home)
       const manager = shell.manager({
         env: { HOME: shell.home, PS1: "$ ", PATH: `${bin}:${process.env.PATH}` },
       })
@@ -164,7 +164,7 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))(
       const terminal = await create(manager, shell, { cwd: project })
       const names = Array.from({ length: 65 }, (_, index) => `f${index}.txt`)
       for (const name of names) writeFileSync(join(project, name), `${name}\n`)
-      const answers = (await present(
+      const answers = (await show(
         shell,
         manager,
         terminal.id,

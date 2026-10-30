@@ -4,6 +4,7 @@ import type { Report } from "@novadeck/harness-core/report"
 import { agentName } from "@novadeck/protocol"
 
 import { harnesses } from "../harnesses/registry.js"
+import { object, type Fields } from "./json.js"
 
 /**
  * An agent hook, as the runner takes it from Novadeck's relay (see backend/relay).
@@ -40,12 +41,6 @@ export const hookVariables = ["CLAUDE_PID", "CURSOR_VERSION", "CODEX_THREAD_ID"]
  * delivers and acknowledge it.
  */
 const printMs = 500
-
-export type Fields = { readonly [key: string]: unknown }
-
-/** Whether `value` is a JSON object: not null, not an array. */
-export const object = (value: unknown): value is Fields =>
-  typeof value === "object" && value !== null && !Array.isArray(value)
 
 const text = (value: unknown, max: number): string | undefined =>
   typeof value === "string" && value !== "" && value.length <= max ? value : undefined

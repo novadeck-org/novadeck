@@ -214,7 +214,7 @@ describe("a peer as agents read it", () => {
     expect(read(led("owl", "crow", "crow"))[1]).toBe("  led by @crow")
   })
 
-  it("names the lead of the reader, and what a peer waits on the user for", () => {
+  it("names the lead of the reader, and what a peer waits on the person for", () => {
     expect(listed(null, "owl")).toEqual(["- @owl: Claude Code, busy", "  led by @haze"])
     const waits = (waiting: Waiting) => listed(waiting)[0]
     expect(
@@ -375,7 +375,7 @@ describe("a peer as agents read it", () => {
     ).toMatchObject({ from: "you" })
   })
 
-  it("says a terminal another agent opened started with its command, unless the user prompted it", () => {
+  it("says a terminal another agent opened started with its command, unless the person prompted it", () => {
     expect(read(opened(false))).toContain("  started with (@moth's command): fix the build")
     expect(read(opened(true))).toContain("  started with: fix the build")
     // Only its first root session after the open: a later one is the person's.
