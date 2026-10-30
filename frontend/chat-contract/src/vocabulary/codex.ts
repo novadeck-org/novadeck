@@ -1,6 +1,7 @@
 import type { Written } from "../fixtures"
 
-// Synthetic Codex rollout records (see README.md): the response items of a rollout.
+// Synthetic Codex rollout records (see README.md): the response items of a rollout, and
+// the turn_aborted event its chat reads as an interruption.
 
 const stamp = "2026-10-01T12:00:00.000Z"
 
@@ -168,7 +169,12 @@ export const codexVocabulary: readonly Written[] = [
         content: text("Found two problems."),
       }),
       item({ type: "agent_message", content: text("From a subagent that gave no name.") }),
-      said("[Request interrupted by user]"),
+      // The person's Esc: Codex records the turn's abort as an event.
+      {
+        timestamp: stamp,
+        type: "event_msg",
+        payload: { type: "turn_aborted", turn_id: "turn_1", reason: "interrupted" },
+      },
     ],
   },
 ]

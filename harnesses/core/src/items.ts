@@ -36,6 +36,11 @@ type EntryFields = {
   readonly tool?: unknown
   readonly call?: unknown
   readonly author?: unknown
+  /**
+   * Whether a user's text records that the person interrupted the turn, as its harness
+   * tells by its own record of it; the chat shows it as a note.
+   */
+  readonly interrupted?: boolean
 }
 
 /**
@@ -76,6 +81,7 @@ export function entry(
     author:
       typeof fields.author === "string" && fields.author ? fields.author.slice(0, maxTool) : null,
     run: kind === "tool-call" ? (fields.describe?.(tool ?? "tool", cut) ?? null) : null,
-    interrupted: role === "user" && kind === "text" && interruption.test(cut),
+    interrupted:
+      role === "user" && kind === "text" && (fields.interrupted === true || interruption.test(cut)),
   }
 }
