@@ -1,40 +1,24 @@
 import { createStore, type Store } from "@novadeck/core/store"
 import type { TerminalMetadata, Workspace } from "@novadeck/core/types"
 
+import { keepTerminals } from "./by-terminal"
+import { chatDraftOf, noChatDrafts, setChatDraft, type ChatDrafts } from "./drafts"
+import { noChatReplies, settleChatReplies, type ChatReplies } from "./replies"
+import { noChatSends, type ChatSends } from "./sends"
 import {
-  chatDraftOf,
   chatKept,
-  keepChatDrafts,
-  keepChatReplies,
   keepTerminalAnswers,
-  noChatDrafts,
-  noChatReplies,
-  noChatSends,
   noTerminalAnswers,
   setAnsweringInTerminal,
-  setChatDraft,
-  settleChatReplies,
-  type ChatDrafts,
-  type ChatReplies,
-  type ChatSends,
   type TerminalAnswers,
-} from "./mode-state"
+} from "./shown"
 
-// The selectors that read the state, and the types it holds, from the package's one door.
-export {
-  chatDraftOf,
-  chatReplyOf,
-  chatSendOf,
-  chatShown,
-  setChatDraft,
-  type ChatDrafts,
-  type ChatReplies,
-  type ChatReply,
-  type ChatReplyTo,
-  type ChatSend,
-  type ChatSends,
-  type TerminalAnswers,
-} from "./mode-state"
+// What the app reads of the state, from the package's one door: the selectors, and the
+// pure update its tests set a draft with.
+export { chatDraftOf, setChatDraft } from "./drafts"
+export { chatReplyOf } from "./replies"
+export { chatSendOf } from "./sends"
+export { chatShown } from "./shown"
 
 // What the chat keeps for the app, a store of its own that the app composes. It starts over
 // on reload.
@@ -50,7 +34,7 @@ export type ChatState = {
   readonly answering: TerminalAnswers
 }
 
-export const initialChat: ChatState = {
+const initialChat: ChatState = {
   drafts: noChatDrafts,
   replies: noChatReplies,
   sends: noChatSends,
@@ -70,25 +54,20 @@ export const createChat = (): Chat => {
 }
 
 // The state with the terminal shown as its screen, or the same state where it already is.
-export const answeringIn = (state: ChatState, context: string, id: string): ChatState => {
+const answeringIn = (state: ChatState, context: string, id: string): ChatState => {
   const answering = setAnsweringInTerminal(state.answering, context, id, true)
   return answering === state.answering ? state : { ...state, answering }
 }
 
 // The state with every terminal showing its chat again, or the same state where none was
 // shown as its screen.
-export const answeringReset = (state: ChatState): ChatState =>
+const answeringReset = (state: ChatState): ChatState =>
   state.answering === noTerminalAnswers ? state : { ...state, answering: noTerminalAnswers }
 
 // The state with dictated words added to the terminal's draft, after a space, or directly
 // after trailing whitespace; they replace an empty draft. Unlike an edit, they release no
 // held reply.
-export const dictatedInto = (
-  state: ChatState,
-  context: string,
-  id: string,
-  words: string,
-): ChatState => {
+const dictatedInto = (state: ChatState, context: string, id: string, words: string): ChatState => {
   const draft = chatDraftOf(state.drafts, context, id)
   const next = draft.trim() === "" ? words : /\s$/.test(draft) ? draft + words : `${draft} ${words}`
   const drafts = setChatDraft(state.drafts, context, id, next)
@@ -163,12 +142,12 @@ export const watchChat = (chat: Chat, workspace: Store<Workspace>): (() => void)
         state.answering,
         (context, id) => keep(context, id) && !answered(context, id),
       )
-      const drafts = keepChatDrafts(state.drafts, open)
+      const drafts = keepTerminals(state.drafts, open)
       // What a draft replies to, or that it is held, stays as long as the draft: a reply
       // whose question went with its agent comes back held, never as a message, and never
       // replies to a later agent's question.
       const replies = settleChatReplies(
-        keepChatReplies(state.replies, open),
+        keepTerminals(state.replies, open),
         drafts,
         (context, id) => open(context, id) && !keep(context, id),
       )

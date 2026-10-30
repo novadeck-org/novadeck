@@ -13,8 +13,7 @@ import { afterEach, vi } from "vitest"
 
 import { ChatView } from "./ChatView"
 import { createChatCommands } from "./commands"
-import { chatDraftOf, chatReplyOf, chatSendOf } from "./mode-state"
-import { createChat } from "./state"
+import { chatDraftOf, chatReplyOf, chatSendOf, createChat } from "./state"
 import { describe, expect, it } from "./test"
 import { useChat } from "./use-chat"
 
@@ -27,7 +26,7 @@ const context = "project/initial"
 // The chat as the app holds it: its draft, what the draft replies to and the words on their
 // way kept in the chat's own store by its real commands, which send to `send` and `answer` as
 // the backend would, so they outlive the chat leaving the screen (`show(false)`).
-const host = (
+const inApp = (
   conversation: Store<Conversation>,
   {
     draft = "",
@@ -58,7 +57,7 @@ const host = (
     context: () => context,
   })
   commands.setChatDraft("01", draft)
-  const Hosted = ({ mounted }: { readonly mounted: boolean }): React.JSX.Element | null => {
+  const App = ({ mounted }: { readonly mounted: boolean }): React.JSX.Element | null => {
     const state = useChat(chat, (each) => each)
     return mounted
       ? createElement(ChatView, {
@@ -83,13 +82,13 @@ const host = (
         })
       : null
   }
-  const { container, unmount, rerender } = render(createElement(Hosted, { mounted: true }))
+  const { container, unmount, rerender } = render(createElement(App, { mounted: true }))
   unmounts.push(unmount)
   return {
     container,
     sent,
     answered,
-    show: (mounted: boolean) => rerender(createElement(Hosted, { mounted })),
+    show: (mounted: boolean) => rerender(createElement(App, { mounted })),
     draft: () => chatDraftOf(chat.store.getSnapshot().drafts, context, "01"),
     replyTo: () => chatReplyOf(chat.store.getSnapshot().replies, context, "01"),
   }
@@ -149,7 +148,7 @@ describe("a chat whose answer's words didn't reach the agent", () => {
   it("hands the words back and says so, though the card went before the failure came", async () => {
     const store = createStore<Conversation>(asking)
     const failures: ((failure: unknown) => void)[] = []
-    const chat = host(store, {
+    const chat = inApp(store, {
       answer: () => new Promise<void>((_resolve, reject) => failures.push(reject)),
     })
     const { container } = chat
@@ -172,7 +171,7 @@ describe("a chat whose answer's words didn't reach the agent", () => {
     const store = createStore<Conversation>(asking)
     const failures: ((failure: unknown) => void)[] = []
     const sends: (() => void)[] = []
-    const { container } = host(store, {
+    const { container } = inApp(store, {
       draft: "first",
       send: () => new Promise<void>((resolve) => sends.push(resolve)),
       answer: () => new Promise<void>((_resolve, reject) => failures.push(reject)),
@@ -198,7 +197,7 @@ describe("a chat whose answer's words didn't reach the agent", () => {
 describe("a chat sending a message", () => {
   it("takes it out of the box as it goes, the box free for the next one, which waits to be sent", async () => {
     const sends: (() => void)[] = []
-    const chat = host(createStore<Conversation>({ ...asking, requests: [] }), {
+    const chat = inApp(createStore<Conversation>({ ...asking, requests: [] }), {
       draft: "first",
       send: () => new Promise<void>((resolve) => sends.push(resolve)),
     })
@@ -217,7 +216,7 @@ describe("a chat sending a message", () => {
 
   it("puts it back before what was typed meanwhile when it doesn't go, saying why", async () => {
     const failures: ((failure: unknown) => void)[] = []
-    const chat = host(createStore<Conversation>({ ...asking, requests: [] }), {
+    const chat = inApp(createStore<Conversation>({ ...asking, requests: [] }), {
       draft: "first",
       send: () => new Promise<void>((_resolve, reject) => failures.push(reject)),
     })
@@ -231,7 +230,7 @@ describe("a chat sending a message", () => {
 
   it("leaves the box empty when it went from a chat no longer on screen", async () => {
     const sends: (() => void)[] = []
-    const chat = host(createStore<Conversation>({ ...asking, requests: [] }), {
+    const chat = inApp(createStore<Conversation>({ ...asking, requests: [] }), {
       draft: "go",
       send: () => new Promise<void>((resolve) => sends.push(resolve)),
     })
@@ -279,7 +278,7 @@ const questioning: Conversation = {
 
 describe("a chat about the agent's question, where its own field takes the words", () => {
   it("turns the box into the reply, whose send answers with its words on one line", async () => {
-    const chat = host(createStore<Conversation>(questioning), {
+    const chat = inApp(createStore<Conversation>(questioning), {
       draft: "/why\nthis one",
       program: "agy",
     })
@@ -307,7 +306,7 @@ describe("a chat about the agent's question, where its own field takes the words
 
   it("goes back to a plain message once cancelled, or once the dialog goes", () => {
     const store = createStore<Conversation>(questioning)
-    const { container } = host(store, { draft: "hi", program: "agy" })
+    const { container } = inApp(store, { draft: "hi", program: "agy" })
     press(container, "Chat about this")
     press(container, "Cancel")
     expect(container.querySelector(".chat-reply")).toBeNull()
@@ -333,7 +332,7 @@ describe("a chat about the agent's question, where its words go on as a prompt",
           : request,
       ),
     })
-    const chat = host(store, {
+    const chat = inApp(store, {
       answer: () => new Promise<void>((resolve) => finishers.push(resolve)),
     })
     const { container } = chat
@@ -349,7 +348,7 @@ describe("a chat about the agent's question, where its words go on as a prompt",
 
 describe("a shell command sent to an agent that keeps no record of it", () => {
   it("says its output shows only in the terminal, until the person types again", async () => {
-    const chat = host(createStore<Conversation>({ ...questioning, requests: [] }), {
+    const chat = inApp(createStore<Conversation>({ ...questioning, requests: [] }), {
       draft: "!ls",
       program: "agy",
     })
@@ -367,7 +366,7 @@ describe("a shell command sent to an agent that keeps no record of it", () => {
       draft: string,
       program = "claude",
     ): Promise<void> => {
-      const { container } = host(createStore<Conversation>(conversation), { draft, program })
+      const { container } = inApp(createStore<Conversation>(conversation), { draft, program })
       await send(container)
       expect(container.querySelector(".chat-unrecorded")).toBeNull()
     }
@@ -392,7 +391,7 @@ describe("a reply to the agent's question, as its dialog changes", () => {
   })
   it("ends for good once the dialog changes, though it reads as before again", () => {
     const store = createStore<Conversation>(withDialog("q1"))
-    const { container } = host(store, { program: "agy" })
+    const { container } = inApp(store, { program: "agy" })
     press(container, "Chat about this")
     expect(container.querySelector(".chat-reply")?.textContent).toContain("Replying to")
     act(() => store.update(() => withDialog("q2")))
@@ -403,7 +402,7 @@ describe("a reply to the agent's question, as its dialog changes", () => {
 
   it("holds words written as a reply once the question goes, until the person edits them", async () => {
     const store = createStore<Conversation>(withDialog("q1"))
-    const chat = host(store, { draft: "!important: pick X", program: "agy" })
+    const chat = inApp(store, { draft: "!important: pick X", program: "agy" })
     const { container } = chat
     press(container, "Chat about this")
     act(() => store.update(() => withDialog(null)))
@@ -427,7 +426,7 @@ describe("a reply to the agent's question, as its dialog changes", () => {
   it("lets an edit release words held while an unrelated message is on its way", async () => {
     const store = createStore<Conversation>(withDialog("q1"))
     const sends: (() => void)[] = []
-    const chat = host(store, {
+    const chat = inApp(store, {
       draft: "first",
       program: "agy",
       send: () => new Promise<void>((resolve) => sends.push(resolve)),
@@ -450,7 +449,7 @@ describe("a reply to the agent's question, as its dialog changes", () => {
   it("brings back held the words of a reply that failed after its question went, though more were typed", async () => {
     const store = createStore<Conversation>(withDialog("q1"))
     const failures: ((failure: unknown) => void)[] = []
-    const chat = host(store, {
+    const chat = inApp(store, {
       draft: "pick X",
       program: "agy",
       answer: () => new Promise<void>((_resolve, reject) => failures.push(reject)),
@@ -468,7 +467,7 @@ describe("a reply to the agent's question, as its dialog changes", () => {
   })
 
   it("refuses a reply past what the agent's field takes, saying so", () => {
-    const { container } = host(createStore<Conversation>(withDialog("q1")), {
+    const { container } = inApp(createStore<Conversation>(withDialog("q1")), {
       draft: "x".repeat(16_385),
       program: "agy",
     })
@@ -478,7 +477,7 @@ describe("a reply to the agent's question, as its dialog changes", () => {
   })
 
   it("stays a reply after one that failed, its words back and its card free again, the failure said", async () => {
-    const chat = host(createStore<Conversation>(withDialog("q1")), {
+    const chat = inApp(createStore<Conversation>(withDialog("q1")), {
       draft: "why",
       program: "agy",
       answer: async () => {
@@ -495,7 +494,7 @@ describe("a reply to the agent's question, as its dialog changes", () => {
   })
 
   it("announces the note of an unrecorded shell command from a status already in the page", async () => {
-    const { container } = host(createStore<Conversation>(withDialog(null)), {
+    const { container } = inApp(createStore<Conversation>(withDialog(null)), {
       draft: "!ls",
       program: "agy",
     })
@@ -509,7 +508,7 @@ describe("a reply to the agent's question, as its dialog changes", () => {
 
   it("takes words held from a reply whose question went as a new reply's own", () => {
     const store = createStore<Conversation>(withDialog("q1"))
-    const { container } = host(store, { draft: "pick X", program: "agy" })
+    const { container } = inApp(store, { draft: "pick X", program: "agy" })
     press(container, "Chat about this")
     act(() => store.update(() => withDialog(null)))
     expect(container.querySelector(".chat-reply")?.textContent).toContain("no longer a reply")
@@ -523,7 +522,7 @@ describe("a reply to the agent's question, as its dialog changes", () => {
 
   it("keeps a reply, or the hold on its words, when the chat leaves the screen and comes back", () => {
     const store = createStore<Conversation>(withDialog("q1"))
-    const chat = host(store, { draft: "!important: pick X", program: "agy" })
+    const chat = inApp(store, { draft: "!important: pick X", program: "agy" })
     const { container } = chat
     press(container, "Chat about this")
     // "Answer in terminal": the chat goes, and comes back with the question still asked.
@@ -545,7 +544,7 @@ describe("a reply to the agent's question, as its dialog changes", () => {
 
   it("resumes a reply on a chat back on screen before its conversation was read again", async () => {
     const store = createStore<Conversation>(withDialog("q1"))
-    const chat = host(store, { draft: "the second one", program: "agy" })
+    const chat = inApp(store, { draft: "the second one", program: "agy" })
     const { container } = chat
     press(container, "Chat about this")
     chat.show(false)
