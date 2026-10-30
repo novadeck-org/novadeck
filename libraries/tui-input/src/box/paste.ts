@@ -1,7 +1,7 @@
 import { compact } from "./text.js"
 
 /** How far from the line's rows a row may change as it lands: footer hints, a placeholder. */
-export const nearRows = 3
+const nearRows = 3
 
 /**
  * Where the line is on the screen, joined across the rows it wraps over, whitespace

@@ -202,7 +202,7 @@ export const createTypist = (
   }
 
   /** The rows as the calm and the paste's check read them (`BoxProfile.still`). */
-  const unticked = (rows: readonly string[]): readonly string[] =>
+  const stillRows = (rows: readonly string[]): readonly string[] =>
     options.profile?.()?.still?.(rows) ?? rows
 
   /** The rows of the screen as last seen, and when each row changed, lately. */
@@ -260,7 +260,7 @@ export const createTypist = (
     if (!screen) return undefined
     const at = now()
     observe(screen.rows, at)
-    const text = unticked(screen.rows).join("\n")
+    const text = stillRows(screen.rows).join("\n")
     const calmSince = calm?.text === text ? calm.since : at
     calm = { text, since: calmSince }
     // A resize ends the calm too: the TUI may not have redrawn for it yet.
@@ -333,12 +333,12 @@ export const createTypist = (
             break
           }
           // What the program counts up by itself, redrawn as the paste lands, is no change.
-          const settled = unticked(after.rows)
+          const settled = stillRows(after.rows)
           const shown = settled.join("\n")
           const checked = checkPaste(before.rows, after.rows, text, {
             vanish,
             ticking: rows,
-            still: unticked,
+            still: stillRows,
           })
           const accepted = checked.accepted
           if (!accepted && now() >= until)

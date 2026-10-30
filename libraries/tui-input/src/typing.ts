@@ -41,9 +41,9 @@ export type Readiness =
   | "no-input-box"
 
 /** Whether to type now: why not, or `open`. */
-export const gate = (facts: GateFacts, still = calmMs): Readiness => {
+export const gate = (facts: GateFacts, calmNeeded = calmMs): Readiness => {
   if (facts.vetoed) return "vetoed"
-  if (facts.calmMs < still) return "restless"
+  if (facts.calmMs < calmNeeded) return "restless"
   if (!facts.bracketedPaste) return "no-bracketed-paste"
   if (facts.foreground === false) return "not-foreground"
   if (facts.inputBox === false) return "no-input-box"
