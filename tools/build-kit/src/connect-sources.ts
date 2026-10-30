@@ -23,7 +23,7 @@ const webSocketOrigin = ({ url, name }: SetUrl): string => {
 const relativeBase = new URL("https://build-kit.invalid")
 const isRelativePath = (url: string): boolean =>
   (url.startsWith("/") || url.startsWith("./")) &&
-  new URL(url, relativeBase).origin === relativeBase.origin
+  URL.parse(url, relativeBase)?.origin === relativeBase.origin
 
 // The origin of an API a build talks to over HTTP(S); none for one on loopback, which every
 // app allows already, or at a relative path, which is the page's own origin.
