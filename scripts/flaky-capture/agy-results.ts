@@ -1,6 +1,8 @@
 // Vitest's JSON report, for what the probe's own summary can't say: why it never began.
 export type AgyReport = {
+  success?: boolean
   testResults?: {
+    status?: string
     message?: string
     assertionResults?: { status?: string; failureMessages?: string[] }[]
   }[]
@@ -27,9 +29,12 @@ export const agyOutcome = (
     .split("\n")[0]
   const named = (outcome: string): AgyOutcome => (error ? { outcome, error } : { outcome })
   if (summary) return named(summary.outcome)
-  // The wrapper, the install or Vitest itself stopped before any test ran.
+  // The wrapper or Vitest itself stopped before it could report.
   if (!report) return { outcome: "no-test-report" }
-  if (error) return named("failed-before-scenario")
+  // A describe's failed hook, such as the install, leaves no message in the report: its
+  // test only reads as skipped, in a failed file.
+  if (error || !report.success || files.some((file) => file.status === "failed"))
+    return named("failed-before-scenario")
   if (assertions.every((test) => test.status !== "passed")) return { outcome: "skipped" }
   return { outcome: "no-scenario-summary" }
 }

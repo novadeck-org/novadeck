@@ -90,8 +90,10 @@ The probe redacts the fixture credentials and reports bounded-buffer overflow. I
 summary distinguishes a submitted follow-up that never reached the model from other
 scenario failures; either result still needs investigation before choosing a repair.
 When the probe stops before writing its summary, `capture.json` takes the cause from
-Vitest's JSON report (`tests.json`): `failed-before-scenario` with the first error line,
-`skipped`, or `no-test-report` when Vitest never reported (see `vitest.log`).
+Vitest's JSON report (`tests.json`): `failed-before-scenario`, with the first error line
+when the report has one (a failed install hook's is only in `vitest.log`); `skipped` when
+the probe didn't run; `no-scenario-summary` when it passed without one; or
+`no-test-report` when Vitest never reported (see `vitest.log`).
 
 Artifacts remain for seven days. Keep successful controls and the first failure together
 when archiving them, with the actual checked-out SHA rather than only the PR merge ref.
