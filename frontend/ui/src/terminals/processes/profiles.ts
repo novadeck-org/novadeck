@@ -5,27 +5,21 @@ import { AntigravityIcon } from "@novadeck/toolkit/icons/AntigravityIcon"
 import { ClaudeIcon } from "@novadeck/toolkit/icons/ClaudeIcon"
 import { CodexIcon } from "@novadeck/toolkit/icons/CodexIcon"
 import { FileText, Terminal, type LucideIcon } from "lucide-react"
-import type { ComponentType, ReactNode } from "react"
 
-import { ClaudeBody } from "./ClaudeBody"
-import { CodexBody } from "./CodexBody"
-
-// How the UI presents a program: its icon in the tab and window header, and a body
-// around its terminal content inside the shared window. The window itself never
-// changes, so a program starting or ending keeps the header, a rename in progress, and
+// How the UI presents a program: its icon in the tab and window header. The window itself
+// never changes, so a program starting or ending keeps the header, a rename in progress, and
 // focus. Profiles are presentation only; per-program behaviour, such as resuming a
 // restored program, goes beside `programName` in `core/`.
 type ProcessProfile = {
   readonly icon: LucideIcon
-  readonly Body?: ComponentType<{ readonly children: ReactNode }>
 }
 
 const fallback: ProcessProfile = { icon: Terminal }
 
 // Keyed by `programName`; programs not listed present as a plain terminal.
 const profiles: ReadonlyMap<string, ProcessProfile> = new Map([
-  ["claude", { icon: ClaudeIcon, Body: ClaudeBody }],
-  ["codex", { icon: CodexIcon, Body: CodexBody }],
+  ["claude", { icon: ClaudeIcon }],
+  ["codex", { icon: CodexIcon }],
   ["agy", { icon: AntigravityIcon }],
 ])
 

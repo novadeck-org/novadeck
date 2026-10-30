@@ -6,8 +6,6 @@ import { CodexIcon } from "@novadeck/toolkit/icons/CodexIcon"
 import { BookText, FileCode2, FileText, Globe, Image, Terminal } from "lucide-react"
 
 import { context, describe, expect, it } from "../../test"
-import { ClaudeBody } from "./ClaudeBody"
-import { CodexBody } from "./CodexBody"
 import { terminalProfile, windowProfile } from "./profiles"
 
 describe("a window undocked from a terminal's companion", () => {
@@ -54,9 +52,9 @@ const terminal = (process: string, status: Partial<TerminalMetadata> = {}) =>
 
 describe("terminal profile", () => {
   context("while a program holds the foreground", () => {
-    it("presents Claude Code and Codex with their own bodies and icons, Antigravity with its icon", () => {
-      expect(terminalProfile(terminal("claude"))).toEqual({ icon: ClaudeIcon, Body: ClaudeBody })
-      expect(terminalProfile(terminal("codex"))).toEqual({ icon: CodexIcon, Body: CodexBody })
+    it("presents Claude Code, Codex and Antigravity with their own icons", () => {
+      expect(terminalProfile(terminal("claude"))).toEqual({ icon: ClaudeIcon })
+      expect(terminalProfile(terminal("codex"))).toEqual({ icon: CodexIcon })
       expect(terminalProfile(terminal("agy"))).toEqual({ icon: AntigravityIcon })
     })
 
