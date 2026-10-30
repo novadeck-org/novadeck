@@ -1,6 +1,6 @@
 import { join } from "node:path"
 
-import type { MessagingProfile, Harness } from "@novadeck/harness-core/harness"
+import type { Harness, LaunchProfile, MessagingProfile } from "@novadeck/harness-core/harness"
 
 import { box } from "./box.js"
 import { decode } from "./decode.js"
@@ -37,9 +37,13 @@ const messaging: MessagingProfile = {
   // A background agent and shell running, it took a typed prompt (fixture
   // `background-prompt.probe.json`, probed 2026-10-19, 2.1.287).
   promptsInBackground: true,
+}
+
+const launch: LaunchProfile = {
+  start: ["claude"],
   // It holds a command-line prompt behind its trust and startup screens.
   initialPrompt: (line) => Promise.resolve(["claude", line]),
-  start: ["claude"],
+  resume: (session, choice = {}) => ["claude", ...launch.choose(choice), "--resume", session],
   models: () => Promise.resolve(models),
   choose: ({ model, effort }) => [
     ...(model !== undefined ? ["--model", model] : []),
@@ -110,7 +114,6 @@ export const claude = {
       "--tools",
     ],
   },
-  resume: (session, choice = {}) => ["claude", ...messaging.choose(choice), "--resume", session],
   transcripts,
   plans: transcriptPlans,
   // Its hooks, transcript and status line; see docs/harness-coverage.md.
@@ -128,8 +131,11 @@ export const claude = {
     limits: "partial",
     context: "partial",
   },
+  // Its hooks run with its own process's id in their environment.
+  pidVariable: "CLAUDE_PID",
   decode,
   dialogs,
+  launch,
   messaging,
   box,
   watch: followTranscript,

@@ -17,7 +17,7 @@ import { relayPath } from "@novadeck/relay"
 
 import { agents, harnesses } from "../harnesses/registry.js"
 import { describe, expect, it as base } from "../test.js"
-import { prune, relayHook } from "./hook.js"
+import { hookVariables, prune, relayHook } from "./hook.js"
 import { installShellFiles } from "./install.js"
 import { listenForReports, unanswered, unheard, type Ack, type HookAnswer } from "./reports.js"
 import { relayConfig } from "./scripts.js"
@@ -691,6 +691,20 @@ describe("reading a relay's hook", () => {
       env: { CLAUDE_PID: "4242" },
     })
     expect(relayHook(claude)?.report.instance).toBe("4242")
+  })
+
+  it("names an agent by its own pid only where its harness's pidVariable says so", () => {
+    const ancestors = [{ pid: 20, name: "codex" }]
+    // Codex sets none: a CLAUDE_PID it inherited from a Claude Code above it names not it.
+    expect(relayHook(hook({ ancestors, env: { CLAUDE_PID: "4242" } }))?.report.instance).toBe("20")
+    // Claude Code without one falls back to its nearest ancestor too.
+    const claude = hook({ agent: "claude", ancestors: [{ pid: 30, name: "claude" }] })
+    expect(relayHook(claude)?.report.instance).toBe("30")
+  })
+
+  it("is forwarded every harness's pidVariable by the relay", () => {
+    for (const { pidVariable } of Object.values(harnesses))
+      if (pidVariable !== undefined) expect(hookVariables).toContain(pidVariable)
   })
 
   it("tells when the agent fired it: when the shell it started the hook in started", () => {

@@ -142,16 +142,16 @@ describe("a doorbell prompt", () => {
     resources,
   }) => {
     const place = { install: undefined, cwd: "/work" }
-    await expect(harnesses.claude.messaging.initialPrompt(bell, place)).resolves.toEqual([
+    await expect(harnesses.claude.launch.initialPrompt(bell, place)).resolves.toEqual([
       "claude",
       bell,
     ])
-    await expect(harnesses.codex.messaging.initialPrompt(bell, place)).resolves.toEqual([
+    await expect(harnesses.codex.launch.initialPrompt(bell, place)).resolves.toEqual([
       "codex",
       bell,
     ])
     // Without its settings, Antigravity trusts nothing.
-    await expect(harnesses.agy.messaging.initialPrompt(bell, place)).resolves.toBeUndefined()
+    await expect(harnesses.agy.launch.initialPrompt(bell, place)).resolves.toBeUndefined()
     const home = mkdtempSync(join(tmpdir(), "novadeck-agy-"))
     resources.defer(() => rmSync(home, { recursive: true, force: true }))
     const trusted = join(home, "trusted")
@@ -163,20 +163,20 @@ describe("a doorbell prompt", () => {
     )
     const install = { env: {}, home, platform: process.platform, plugin: join(home, "plugin") }
     await expect(
-      harnesses.agy.messaging.initialPrompt(bell, { install, cwd: trusted }),
+      harnesses.agy.launch.initialPrompt(bell, { install, cwd: trusted }),
     ).resolves.toEqual(["agy", "-i", bell])
     await expect(
-      harnesses.agy.messaging.initialPrompt(bell, { install, cwd: home }),
+      harnesses.agy.launch.initialPrompt(bell, { install, cwd: home }),
     ).resolves.toBeUndefined()
     // The same path, written another way, is trusted; a link to it isn't, failing safe.
     await expect(
-      harnesses.agy.messaging.initialPrompt(bell, { install, cwd: `${trusted}/./` }),
+      harnesses.agy.launch.initialPrompt(bell, { install, cwd: `${trusted}/./` }),
     ).resolves.toEqual(["agy", "-i", bell])
     symlinkSync(trusted, join(home, "linked"))
     await expect(
-      harnesses.agy.messaging.initialPrompt(bell, { install, cwd: join(home, "linked") }),
+      harnesses.agy.launch.initialPrompt(bell, { install, cwd: join(home, "linked") }),
     ).resolves.toBeUndefined()
-    expect(harnesses.agy.messaging.start).toEqual(["agy"])
+    expect(harnesses.agy.launch.start).toEqual(["agy"])
   })
 })
 

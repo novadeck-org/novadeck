@@ -104,12 +104,6 @@ export type Harness = {
     readonly takesValue: readonly string[]
     readonly print: readonly string[]
   }
-  /**
-   * The words that continue its session by id, which a shell runs as they are, with the
-   * model and effort `choose` puts, where each is given: after its program, or where its
-   * resume command takes its options.
-   */
-  readonly resume?: (session: string, choice?: Choice) => readonly string[]
   /** Where its actors' transcripts are, and what each of their records says. */
   readonly transcripts?: {
     /**
@@ -147,10 +141,19 @@ export type Harness = {
    * a reply on its way").
    */
   readonly records: boolean
+  /** How it starts: plain, on a first prompt, or continuing a session, on a model of its own. */
+  readonly launch: LaunchProfile
   /** How it takes part in agents' messaging: what its hooks print, and how it behaves. */
   readonly messaging: MessagingProfile
   /** How its input box reads off its screen, which a prompt checks before and after it pastes. */
   readonly box: BoxProfile
+  /**
+   * The variable of its hooks' environment that names its own process, as Claude Code's
+   * `CLAUDE_PID`, where it sets one: the hook names the agent that ran it by that, and
+   * otherwise by the nearest ancestor process of its name. The relay forwards it (the
+   * runner's `hookVariables`).
+   */
+  readonly pidVariable?: string
   /** The normalized facts in one of its hooks' reports; none for one it ignores. */
   readonly decode: (report: Report) => readonly HarnessEvent[]
   /**
@@ -275,6 +278,22 @@ export type MessagingProfile = {
    */
   readonly promptsInBackground: boolean
   /**
+   * Where its hooks name no prompt (as Antigravity's, whose every turn decodes as
+   * harness-started), what one line of its transcript records as typed into its box, if
+   * that is what it records: from it the runner's `typed-prompts.ts` tells a root turn's
+   * prompt.
+   */
+  readonly typedEntry?: (line: string) => UserEntry | undefined
+}
+
+/**
+ * How a harness starts in a terminal, as the words a shell runs: the program first, then the
+ * model and effort `choose` puts right after it.
+ */
+export type LaunchProfile = {
+  /** How it starts without a prompt. */
+  readonly start: readonly string[]
+  /**
    * How it starts with `line` as its first prompt, which it submits only once past its
    * startup screens; undefined where it may not here, as Antigravity in a folder it
    * doesn't trust yet, whose trust dialog its prompt doesn't wait for.
@@ -283,8 +302,11 @@ export type MessagingProfile = {
     line: string,
     place: { readonly install: Install | undefined; readonly cwd: string },
   ) => Promise<readonly string[] | undefined>
-  /** How it starts without a prompt. */
-  readonly start: readonly string[]
+  /**
+   * The words that continue its session by id, with the model and effort `choose` puts,
+   * where each is given: after its program, or where its resume command takes its options.
+   */
+  readonly resume?: (session: string, choice?: Choice) => readonly string[]
   /**
    * The models it can start with on this machine, each with the reasoning efforts it takes;
    * none where that can't be told. It runs no command.
@@ -292,13 +314,6 @@ export type MessagingProfile = {
   readonly models: (install: Install) => Promise<readonly Model[]>
   /** The words that go right after its program to start it with this model and effort. */
   readonly choose: (choice: Choice) => readonly string[]
-  /**
-   * Where its hooks name no prompt (as Antigravity's, whose every turn decodes as
-   * harness-started), what one line of its transcript records as typed into its box, if
-   * that is what it records: from it the runner's `typed-prompts.ts` tells a root turn's
-   * prompt.
-   */
-  readonly typedEntry?: (line: string) => UserEntry | undefined
 }
 
 /** The model and reasoning effort an agent starts with; none leaves its own. */
