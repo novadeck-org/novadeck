@@ -1,5 +1,4 @@
 import { execFileSync } from "node:child_process"
-import { join } from "node:path"
 
 import { roots } from "../content/areas.ts"
 import { builtins, categories, roles } from "../content/stack.ts"
@@ -97,10 +96,10 @@ export const extractStacks = (repo: string, anchors: Anchors, areas: Area[]): Pa
   const known = new Set(areas.map((area) => area.id))
   const node = anchors.readJson<Manifest>("package.json")?.engines?.["node"]
   return roots.flatMap((root) => {
-    const path = join(root.dir, "package.json")
+    const path = `${root.dir}/package.json`
     const manifest = anchors.readJson<Manifest>(path)
     if (!known.has(root.token) || manifest === null) return []
-    const cargo = anchors.read(join(root.dir, "Cargo.toml"))
+    const cargo = anchors.read(`${root.dir}/Cargo.toml`)
     const deps = [
       ...builtinsIn(repo, root.dir, node),
       ...fromManifest(manifest),
