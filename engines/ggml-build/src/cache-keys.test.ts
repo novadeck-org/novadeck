@@ -26,10 +26,12 @@ const filesUnder = (folder: string): string[] =>
   )
 const engineFiles = filesUnder("engines")
 
-// The files a `hashFiles(...)` call hashes: each pattern in order, a `!` one taking back what
-// those before it matched.
-const hashed = (call: string): string[] => {
-  const patterns = [...call.matchAll(/'([^']+)'/g)].map((match) => match[1]!)
+// The files the `hashFiles(...)` calls in a part of a key hash: each call's patterns in order,
+// a `!` one taking back what those before it matched.
+const hashed = (part: string): string[] => {
+  const patterns = [...part.matchAll(/hashFiles\(([^)]*)\)/g)].flatMap(([, call]) =>
+    [...call!.matchAll(/'([^']+)'/g)].map((match) => match[1]!),
+  )
   return engineFiles.filter((file) =>
     patterns.reduce(
       (taken, pattern) =>
@@ -46,8 +48,11 @@ const keyOf = (engine: string): { everywhere: string; linux: string; windows: st
   const key = new RegExp(`^\\s+key: ${engine}-engine-(.*)$`, "m").exec(workflow)?.[1]
   if (!key) throw new Error(`The Package workflow has no cache key for the ${engine} engine`)
   const [everywhere, platforms] = key.split("${{ matrix.target == 'linux' &&")
-  const [linux, windows] = platforms!.split("|| matrix.target == 'win' &&")
-  return { everywhere: everywhere!, linux: linux!, windows: windows! }
+  const [linux, windows] = platforms?.split("|| matrix.target == 'win' &&") ?? []
+  if (!everywhere || !linux || !windows) {
+    throw new Error(`The ${engine} engine's cache key has no part for Linux's or Windows' builds`)
+  }
+  return { everywhere, linux, windows }
 }
 
 // The repository's files a script runs: it and every module it imports, in this repository,
@@ -82,6 +87,16 @@ describe.each(["whisper", "murmur"])("the %s engine's cache key", (engine) => {
     expect(read(`engines/${engine}/scripts/build.ts`)).toMatch(/sourceSha256: "[0-9a-f]{64}"/)
     expect(inputs).toContain("engines/ggml-build/src/cmake.ts")
     expect(hashed(key.everywhere).toSorted()).toEqual(inputs.toSorted())
+  })
+
+  it("runs the script it hashes as it is, the way Linux's container runs it", () => {
+    const manifest = JSON.parse(read(`engines/${engine}/package.json`)) as {
+      scripts: Record<string, string>
+    }
+    expect(manifest.scripts["build:engine"]).toBe("node scripts/build.ts")
+    expect(workflow).toContain(
+      `--workdir "$PWD/engines/${engine}" novadeck-engine-build node scripts/build.ts`,
+    )
   })
 
   it("leaves out the packages' manifests and tests", () => {

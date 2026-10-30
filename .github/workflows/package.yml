@@ -358,9 +358,9 @@ jobs:
           install_runtime: false
           cache: true
 
-      # Keyed on what makes an engine's bytes, and nothing else: the shared build's code, the
-      # engine's script (which pins the upstream source) and patches, the runner's label and
-      # signing identity, and the toolchain, on Linux the build image and on Windows the Vulkan
+      # Keyed on what makes an engine's bytes: the shared build's code, the engine's script
+      # (which pins the upstream source) and patches, the runner's label (and so its image's
+      # compilers) and signing identity, on Linux the build image and on Windows the Vulkan
       # SDK. Not the packages' package.json: Node runs the build's scripts as they are, so
       # Dependabot's monthly devDependency bumps would only rebuild and re-sign the same engine
       # and have every user download it again. engines/ggml-build/src/cache-keys.test.ts holds
