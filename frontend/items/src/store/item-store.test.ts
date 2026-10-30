@@ -128,10 +128,10 @@ afterEach(() => {
 
 describe("the item store", () => {
   context("when an agent's rewrite arrives while a save is under way", () => {
-    it("waits for the save's answer and merges over it, so the user's edit stays once", async () => {
+    it("waits for the save's answer and merges over it, so the person's edit stays once", async () => {
       const { companions, saves, emit } = backend()
       const { actions, plan } = connected(companions)
-      const edited = first.replace("beta\n", "beta\nUSER LINE\n")
+      const edited = first.replace("beta\n", "beta\nPERSON LINE\n")
       actions.edit(edited, [])
       actions.flush()
       expect(saves).toHaveLength(1)
@@ -140,12 +140,12 @@ describe("the item store", () => {
       await settle()
       saves[0]!.answer({ saved: true, stamp: "2" })
       await settle()
-      expect(plan().text).toBe("# Plan\n\nalpha\nbeta\nUSER LINE\nGAMMA (agent)\n")
+      expect(plan().text).toBe("# Plan\n\nalpha\nbeta\nPERSON LINE\nGAMMA (agent)\n")
       expect(plan()).toMatchObject({ revision: "3", showChanges: true })
       expect(saves).toHaveLength(1)
     })
 
-    it("takes the save coming back as the user's own, not a rewrite", async () => {
+    it("takes the save coming back as the person's own, not a rewrite", async () => {
       const { companions, saves, emit } = backend()
       const { actions, plan } = connected(companions)
       const edited = `${first}No blog.\n`
@@ -452,34 +452,34 @@ describe("the item store", () => {
   })
 
   context("when a save timed out but was written", () => {
-    it("merges a rewrite over it, so the user's edit stays once", async () => {
+    it("merges a rewrite over it, so the person's edit stays once", async () => {
       const { companions, saves, emit } = backend()
       const { actions, plan } = connected(companions)
-      const edited = first.replace("beta\n", "beta\nUSER LINE\n")
+      const edited = first.replace("beta\n", "beta\nPERSON LINE\n")
       actions.edit(edited, [])
       actions.flush()
       emit(snapshot(edited.replace("gamma", "GAMMA (agent)"), "3"))
       await vi.advanceTimersByTimeAsync(20_000)
       await settle()
-      expect(plan().text).toBe("# Plan\n\nalpha\nbeta\nUSER LINE\nGAMMA (agent)\n")
+      expect(plan().text).toBe("# Plan\n\nalpha\nbeta\nPERSON LINE\nGAMMA (agent)\n")
       saves[0]!.answer({ saved: true, stamp: "2" })
       await settle()
-      expect(plan().text.split("USER LINE")).toHaveLength(2)
+      expect(plan().text.split("PERSON LINE")).toHaveLength(2)
     })
 
-    it("keeps the user's edit when the save never reached the file", async () => {
+    it("keeps the person's edit when the save never reached the file", async () => {
       const { companions, saves, emit } = backend()
       const { actions, plan } = connected(companions)
-      actions.edit(first.replace("beta\n", "beta\nUSER LINE\n"), [])
+      actions.edit(first.replace("beta\n", "beta\nPERSON LINE\n"), [])
       actions.flush()
       saves[0]!.fail()
       await settle()
       emit(snapshot(first.replace("gamma", "GAMMA"), "3"))
       await settle()
-      expect(plan().text).toBe("# Plan\n\nalpha\nbeta\nUSER LINE\nGAMMA\n")
+      expect(plan().text).toBe("# Plan\n\nalpha\nbeta\nPERSON LINE\nGAMMA\n")
     })
 
-    it("takes the file refusing a retry with that save's text as the user's own", async () => {
+    it("takes the file refusing a retry with that save's text as the person's own", async () => {
       const { companions, saves } = backend()
       const { actions, plan } = connected(companions)
       actions.edit(`${first}ONE\n`, [])
