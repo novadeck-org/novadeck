@@ -1,3 +1,4 @@
+import type { Fields } from "@novadeck/harness-core/fields"
 import { loadProbe } from "@novadeck/harness-core/testing/probes"
 import type { AgentName } from "@novadeck/protocol/harnesses"
 
@@ -30,8 +31,6 @@ export type Fixture = {
   readonly skipped: readonly string[]
   readonly extract: () => Extracted
 }
-
-type Json = { readonly [key: string]: unknown }
 
 const folderOf = (harness: AgentName): string =>
   `${import.meta.dirname}/../../../harnesses/${harness}/src`
@@ -108,7 +107,7 @@ const claudeAsk = (file: string): Extracted => {
 // Codex's ask fixture keeps a scenario's rollout as it was at stages of the run (every key
 // that starts with `rollout`), each holding the stages before it: the longest is the whole.
 const codexAsk = (file: string): Extracted => {
-  const { scenarios } = load<{ scenarios: { [name: string]: Json } }>("codex", file)
+  const { scenarios } = load<{ scenarios: { [name: string]: Fields } }>("codex", file)
   const conversations: Conversation[] = []
   const skipped: string[] = []
   for (const [name, scenario] of Object.entries(scenarios)) {

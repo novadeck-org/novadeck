@@ -1,3 +1,5 @@
+// harness-core's, named apart from the old function's own `parseFields` below.
+import { parseFields as parsedFields } from "@novadeck/harness-core/fields"
 import { harnessIds, type AgentName } from "@novadeck/protocol/harnesses"
 
 import { transcriptsOf } from "./pipeline"
@@ -441,15 +443,6 @@ type Variant = {
   readonly records: (name: string | undefined, input: string) => readonly object[] | null
 }
 
-const asObject = (input: string): object | null => {
-  try {
-    const value: unknown = JSON.parse(input)
-    return typeof value === "object" && value !== null && !Array.isArray(value) ? value : null
-  } catch {
-    return null
-  }
-}
-
 // Codex writes a call as a function call (arguments as JSON text) or a custom tool call (raw
 // input); a function call's arguments may be an object, and an MCP tool's server goes in a
 // namespace of its own, which the decoder joins to the name.
@@ -473,7 +466,7 @@ const variants: readonly Variant[] = [
     label: "codex function_call, arguments as an object",
     harness: "codex",
     records: (name, input) => {
-      const object = asObject(input)
+      const object = parsedFields(input)
       return object ? [codexFunction(name, object)] : null
     },
   },
