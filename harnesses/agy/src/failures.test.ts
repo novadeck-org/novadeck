@@ -1,19 +1,7 @@
 import type { Report } from "@novadeck/harness-core/report"
 import { describe, expect, it } from "vitest"
 
-import { decode } from "./decode.js"
-
-const hook = (event: string, payload: Report["payload"]) =>
-  decode({
-    terminalId: "t",
-    token: "0".repeat(48),
-    agent: "agy",
-    event,
-    seq: 1,
-    instance: "7",
-    env: { cursor: false },
-    payload: { conversationId: "c", ...payload },
-  })
+import { hook } from "./report.test-support.js"
 
 const ended = (payload: Report["payload"]) =>
   hook("Stop", { fullyIdle: true, ...payload }).find(({ type }) => type === "turn-ended")
