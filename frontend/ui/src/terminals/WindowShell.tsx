@@ -1,4 +1,3 @@
-import { clockTime, nextWaitingChange } from "@novadeck/core/agents/waiting"
 import { isWindow } from "@novadeck/core/roster"
 import {
   idleNote,
@@ -7,6 +6,7 @@ import {
   type NeedDialog,
 } from "@novadeck/core/terminals/ending"
 import { handleText, terminalLabel } from "@novadeck/core/terminals/handle"
+import { clockTime, nextWaitingChange } from "@novadeck/core/terminals/waiting"
 import type { Tile } from "@novadeck/core/types"
 import { ContextMenu, type ContextMenuItem } from "@novadeck/toolkit/ContextMenu"
 import { HandleChip } from "@novadeck/toolkit/HandleChip"

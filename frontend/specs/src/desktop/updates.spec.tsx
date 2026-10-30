@@ -1,6 +1,6 @@
 import { page, type Locator } from "vitest/browser"
 
-import { preferencesDialog } from "../support/keyboard"
+import { closePreferences, openPreferencesOn, preferencesDialog } from "../support/keyboard"
 import {
   commandInput,
   draftOf,
@@ -141,19 +141,14 @@ describe("the update progress bar", () => {
   })
 })
 
-// Opens Preferences on its About tab, where the Experimental switch is.
-const openPreferences = async (): Promise<void> => {
-  await page.getByRole("button", { name: "Workspace preferences" }).click()
-  await expect.element(preferencesDialog()).toBeVisible()
-  await preferencesDialog().getByRole("tab", { name: "About" }).click()
-}
+// The About tab holds the Experimental switch.
 const experimental = () => preferencesDialog().getByRole("switch", { name: "Experimental" })
 const experimentalTab = () => preferencesDialog().getByRole("tab", { name: "Experimental" })
 
 describe("the Experimental switch in Preferences", () => {
   it("is absent where the app has no updates, and so is its tab", async () => {
     await openWorkspace()
-    await openPreferences()
+    await openPreferencesOn("About")
     await expect
       .element(preferencesDialog().getByRole("heading", { name: "Updates" }))
       .not.toBeInTheDocument()
@@ -163,14 +158,13 @@ describe("the Experimental switch in Preferences", () => {
 
   it("starts off, and stays on once turned on, also when Preferences opens again", async () => {
     await openWorkspace("/?update=ready")
-    await openPreferences()
+    await openPreferencesOn("About")
     await expect.element(experimental()).toBeEnabled()
     await expect.element(experimental()).toHaveAttribute("aria-checked", "false")
     await experimental().click()
     await expect.element(experimental()).toHaveAttribute("aria-checked", "true")
-    await preferencesDialog().getByRole("button", { name: "Close preferences" }).click()
-    await expect.element(preferencesDialog()).not.toBeInTheDocument()
-    await openPreferences()
+    await closePreferences()
+    await openPreferencesOn("About")
     await expect.element(experimental()).toHaveAttribute("aria-checked", "true")
     await experimental().click()
     await expect.element(experimental()).toHaveAttribute("aria-checked", "false")
@@ -178,7 +172,7 @@ describe("the Experimental switch in Preferences", () => {
 
   it("shows the Experimental tab, with the chat view, while it is on", async () => {
     await openWorkspace("/?update=ready")
-    await openPreferences()
+    await openPreferencesOn("About")
     expect(experimentalTab().query()).toBeNull()
     await experimental().click()
     await experimentalTab().click()
