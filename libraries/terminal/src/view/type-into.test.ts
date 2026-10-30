@@ -2,13 +2,13 @@ import { afterEach, describe, expect, it, vi } from "vitest"
 
 import type { Exit } from "../contract.js"
 import {
-  closeViews,
+  closeScreens,
   optionsOf,
   shell,
   shown,
   snapshot,
   streamOf,
-  viewsOf,
+  screensOf,
 } from "./fakes.test-support.js"
 import { createStore, type ViewLink } from "./view-state.js"
 
@@ -35,7 +35,7 @@ vi.hoisted(() => {
 
 // A screen closes once its session has stayed off screen for its retention; it closes here
 // instead, while the file's DOM is still there to take its listeners off.
-afterEach(closeViews)
+afterEach(closeScreens)
 
 const key = "01"
 
@@ -47,7 +47,7 @@ describe("typing into a terminal's screen", () => {
     const connection = createStore<ViewLink>("connected")
     const written: string[] = []
     const attachments: ReturnType<typeof streamOf>[] = []
-    const screens = viewsOf(
+    const screens = screensOf(
       optionsOf({
         connection,
         lifecycle: () => shell(),

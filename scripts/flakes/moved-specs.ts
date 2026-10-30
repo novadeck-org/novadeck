@@ -10,6 +10,11 @@ const moved: readonly (readonly [string, string])[] = [
     "src/projects/pins.spec.tsx > pinned project shortcuts",
   ],
   ["src/keyboard.spec.tsx > dictation", "src/interaction/dictation.spec.tsx > dictation"],
+  ["src/keyboard.spec.tsx > sidebar settings", "src/workspace/sidebar.spec.tsx > sidebar settings"],
+  [
+    "src/interaction/keyboard.spec.tsx > sidebar settings",
+    "src/workspace/sidebar.spec.tsx > sidebar settings",
+  ],
   [
     "src/focus.spec.tsx > available view modes",
     "src/workspace/views.spec.tsx > available view modes",

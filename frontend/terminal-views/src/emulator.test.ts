@@ -1,4 +1,4 @@
-import { createRenderers, type Terminal } from "@novadeck/emulator/browser"
+import { createRendererPool, type Terminal } from "@novadeck/emulator/browser"
 import { afterEach, beforeEach, vi } from "vitest"
 
 import { openEmulator } from "./emulator"
@@ -26,7 +26,7 @@ vi.hoisted(() => {
 })
 
 // A pool that never hands out WebGL, so every screen draws with the DOM.
-const noWebgl = createRenderers<Terminal>({
+const noWebgl = createRendererPool<Terminal>({
   load: () => {
     throw new Error("No WebGL here")
   },
@@ -36,7 +36,7 @@ const noWebgl = createRenderers<Terminal>({
 
 const open = (screenReader: boolean) => {
   const element = document.body.appendChild(document.createElement("div"))
-  const view = openEmulator({ renderers: noWebgl, screenReader })(element, {
+  const view = openEmulator({ pool: noWebgl, screenReader })(element, {
     fontSize: 13,
     fontFamily: "monospace",
     theme: {},

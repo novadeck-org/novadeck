@@ -9,7 +9,7 @@ import { demoSeed, demoTerminalId } from "../samples"
 import { context, describe, expect, it } from "../test"
 import { createDemoEngine } from "./engine"
 import type { DemoScreenState } from "./runtime"
-import { demoViewOptions } from "./views"
+import { demoScreensOptions } from "./screens"
 
 const session = { projectId: "storefront", workspaceSessionId: "initial" }
 const shell: TerminalKey = { ...session, terminalId: demoTerminalId(session, 1) }
@@ -46,7 +46,7 @@ const open = (change?: Partial<TerminalMetadata>) => {
   const screens = createStore<ReadonlyMap<string, DemoScreenState>>(new Map())
   const fails = new Set<string>()
   const restarted: TerminalKey[] = []
-  const { options, start, stop } = demoViewOptions(engine, {
+  const { options, start, stop } = demoScreensOptions(engine, {
     runtime: {
       connection: createStore<BackendConnectionState>("connected"),
       screens,
@@ -76,7 +76,7 @@ const ends = async (next: ReturnType<typeof reader>): Promise<boolean> => {
   return false
 }
 
-describe("the demo's terminal views", () => {
+describe("the demo's terminal screens", () => {
   context("attaching to a terminal", () => {
     it("opens with its whole screen, bracketed paste on, then what changes", async () => {
       const { options, engine } = open()
@@ -133,7 +133,7 @@ describe("the demo's terminal views", () => {
   })
 
   context("while its shell is starting", () => {
-    it("is not ready, so the views lock, and ends a stream a restart catches", async () => {
+    it("is not ready, so the screens lock, and ends a stream a restart catches", async () => {
       const { options, engine } = open()
       const next = reader(await options.attach(shell))
       await next()
@@ -196,7 +196,7 @@ describe("the demo's terminal views", () => {
   })
 
   context("once its backend stops, as a reboot leaves it", () => {
-    it("ends its streams and reads its terminals as closed, so the views let them go", async () => {
+    it("ends its streams and reads its terminals as closed, so the screens let them go", async () => {
       const { options, stop, screens } = open()
       const next = reader(await options.attach(shell))
       await next()
