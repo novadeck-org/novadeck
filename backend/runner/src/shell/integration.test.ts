@@ -5570,7 +5570,9 @@ describe.runIf(process.platform === "win32")("Windows shell integration", () => 
  * `askpaste` asks one as a paste comes after it, drawing the paste once told to; `asking`
  * puts a question in the Inbox after its first turn's Stop, `askbox` too, with Codex's own box
  * marker, so a prompt the runner gives it finds its box. `donecall` reports its task done after
- * its first turn's Stop.
+ * its first turn's Stop. `askinglost` asks as `asking` does, and loses the answer of its second
+ * turn's prompt hook (its output pipe closed before the relay prints), then makes a call of the
+ * turn, whose hook's output goes to `<raw>.later`, unless `<raw>.nolater` exists.
  */
 const standInTui = (home: string): string => {
   const bin = join(home, "bin")
@@ -5602,11 +5604,13 @@ const held = []
 fs.writeFileSync(raw + ".pid", String(process.pid))
 // Claude Code names itself to its hooks, whatever an outer one left in the environment.
 if (agent === "claude") process.env.CLAUDE_PID = String(process.pid)
-const hook = (event, payload, done) => {
+const hook = (event, payload, done, lost = false) => {
   const child = spawn(process.env.NOVADECK_HOOK, [agent, event], { stdio: ["pipe", "pipe", "inherit"] })
   let printed = ""
   child.stdout.on("data", (chunk) => (printed += chunk))
   child.on("close", () => done(printed))
+  // The answer lost: the relay finds nowhere to print it, so it never acknowledges it.
+  if (lost) child.stdout.destroy()
   child.stdin.end(JSON.stringify({ hook_event_name: event, session_id: current, cwd: process.cwd(), ...rollout, ...payload }))
 }
 // Asks a permission whose dialog Enter allows from the moment it is asked, as a TUI shows
@@ -5646,6 +5650,7 @@ const agy = { transcriptPath: transcript, workspacePaths: [process.cwd()] }
 const showing = mode === "shown" || mode === "shownbusy" || mode === "resumed"
 let announced = !showing || agent === "claude"
 const started = (prompt, typed, done) => {
+  const lost = mode === "askinglost" && turns === 2
   if (agent !== "agy" && !announced) {
     announced = true
     const source = current !== session ? "clear" : mode === "resumed" ? "resume" : "startup"
@@ -5653,10 +5658,10 @@ const started = (prompt, typed, done) => {
       hook("UserPromptSubmit", { prompt }, done),
     )
   }
-  if (agent !== "agy") return hook("UserPromptSubmit", { prompt }, done)
+  if (agent !== "agy") return hook("UserPromptSubmit", { prompt }, done, lost)
   if (typed) step({ source: "USER_EXPLICIT", type: "USER_INPUT", content: "<USER_REQUEST>\n" + prompt + "\n</USER_REQUEST>" })
   else step({ source: "SYSTEM", type: "SYSTEM_MESSAGE", content: prompt })
-  hook("PreInvocation", { ...agy, conversationId: current, invocationNum: 0 }, done)
+  hook("PreInvocation", { ...agy, conversationId: current, invocationNum: 0 }, done, lost)
 }
 const turn = (prompt, typed = true) => {
   dialog = null
@@ -5686,7 +5691,7 @@ const turn = (prompt, typed = true) => {
         fs.writeFileSync(raw + ".finished", String(turns))
         // With "asking", its agent puts a question in the person's Inbox after its first
         // turn's Stop, and writes what Novadeck answered to <raw>.asked.
-        if ((mode === "asking" || mode === "askbox") && turns === 1) {
+        if ((mode === "asking" || mode === "askbox" || mode === "askinglost") && turns === 1) {
           const request = { subject: "Which colour?", body: "Blue or green for the heading." }
           toolCall("ask", request, process.env.NOVADECK_REPORT_TOKEN, (answer) =>
             fs.writeFileSync(raw + ".asked", JSON.stringify(answer)),
@@ -5741,6 +5746,16 @@ const turn = (prompt, typed = true) => {
           }),
         1200)
       })
+    }
+    if (mode === "askinglost" && turns === 2 && !fs.existsSync(raw + ".nolater")) {
+      // A call of the turn, after the lost answer: a tool's result, or Antigravity's next model call.
+      const call = agent === "agy"
+        ? ["PreInvocation", { ...agy, conversationId: current, invocationNum: 1 }]
+        : ["PostToolUse", { tool_name: "Bash", tool_input: { command: "ls" }, tool_response: {} }]
+      return setTimeout(() => hook(call[0], call[1], (printed) => {
+        fs.writeFileSync(raw + ".later", printed)
+        finish()
+      }), 300)
     }
     if (!perm) return finish()
     const input = { command: "npm test" }
@@ -7116,12 +7131,60 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))(
         await shell.until(tui.manager, tui.idle.id, "> blue, please")
         tui.type("\r")
         await vi.waitFor(() => expect(tui.received()).toHaveLength(turns + 2), { timeout: 10_000 })
-        expect(asking().filter(({ settled }) => !settled)).toEqual([])
-        expect(asking().map(({ settled }) => settled?.how)).toEqual(["replied"])
+        // Out of the Inbox once the relay acknowledged printing the notice.
+        await expect.poll(() => asking().map(({ settled }) => settled?.how)).toEqual(["replied"])
         const printed = tui.received().at(-1)!.printed
         expect(printed).toContain("took your open ask out of their Inbox")
         expect(printed).toContain("Which colour?")
       })
+
+    for (const agent of ["codex", "claude", "agy"] as const) {
+      // The agent asks, the person writes to it, and the answer to its prompt hook is lost:
+      // the relay never prints it, so it never acknowledges it.
+      const lost = async (shell: Fixture, later: boolean) => {
+        const tui = await ringing(shell, "askinglost", "tui", agent)
+        if (agent === "agy") await agyStarted(tui)
+        else await tui.first()
+        const asking = () =>
+          tui.manager.inboxEntries().filter(({ content }) => content.kind === "ask")
+        await expect.poll(asking, { timeout: 10_000 }).toHaveLength(1)
+        const call = join(shell.home, "raw.jsonl.later")
+        if (!later) writeFileSync(join(shell.home, "raw.jsonl.nolater"), "")
+        tui.type("blue, please")
+        await shell.until(tui.manager, tui.idle.id, "> blue, please")
+        tui.type("\r")
+        await vi.waitFor(() => expect(tui.received()).toHaveLength(2), { timeout: 10_000 })
+        await tui.back(2)
+        expect(tui.received()[1]!.printed).not.toContain("took your open ask")
+        return { tui, asking, call }
+      }
+
+      it(`keeps ${agent}'s ask open when the answer telling it is lost, and withdraws it once a later hook of the turn prints the notice`, async ({
+        shell,
+      }) => {
+        const { asking, call } = await lost(shell, true)
+        await vi.waitFor(() => expect(existsSync(call)).toBe(true), { timeout: 10_000 })
+        const printed = readFileSync(call, "utf8")
+        expect(printed).toContain("took your open ask out of their Inbox")
+        expect(printed).toContain("Which colour?")
+        await expect.poll(() => asking().map(({ settled }) => settled?.how)).toEqual(["replied"])
+      })
+
+      it(`leaves ${agent}'s ask open when its turn ends with the notice never printed`, async ({
+        shell,
+      }) => {
+        const { tui, asking } = await lost(shell, false)
+        expect(asking().filter(({ settled }) => !settled)).toHaveLength(1)
+        // Nor does a later turn the agent's harness starts tell it of the ask the person's
+        // prompt of that turn was to take.
+        const turns = tui.received().length
+        tui.kick()
+        await vi.waitFor(() => expect(tui.received()).toHaveLength(turns + 1), { timeout: 10_000 })
+        await tui.back(3)
+        expect(tui.received().at(-1)!.printed).not.toContain("took your open ask")
+        expect(asking().filter(({ settled }) => !settled)).toHaveLength(1)
+      })
+    }
 
     for (const agent of ["codex", "claude", "agy"] as const)
       it(`shows ${agent}'s standing done in its summary until the person's prompt or a message gives it more`, async ({
@@ -7186,8 +7249,7 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))(
       await shell.until(tui.manager, tui.idle.id, "\u203a blue, please")
       tui.type("\r")
       await vi.waitFor(() => expect(tui.received()).toHaveLength(3), { timeout: 10_000 })
-      expect(asking().filter(({ settled }) => !settled)).toEqual([])
-      expect(asking().map(({ settled }) => settled?.how)).toEqual(["replied"])
+      await expect.poll(() => asking().map(({ settled }) => settled?.how)).toEqual(["replied"])
       expect(tui.received()[2]!.printed).toContain("took your open ask out of their Inbox")
     })
 
