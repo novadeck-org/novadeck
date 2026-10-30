@@ -1,4 +1,4 @@
-import type { Conversation } from "../fixtures"
+import type { Written } from "../fixtures"
 
 // Synthetic Antigravity steps (see README.md): the JSONL of a conversation's steps.
 
@@ -43,7 +43,7 @@ const q = (value: string): string => JSON.stringify(value)
 
 const novadeck = "mcp_novadeck_novadeck_"
 
-export const agy: readonly { name: string; records: readonly object[] }[] = [
+export const agyVocabulary: readonly Written[] = [
   {
     name: "files-and-shell",
     records: turn(
@@ -203,9 +203,3 @@ export const agy: readonly { name: string; records: readonly object[] }[] = [
     ),
   },
 ]
-
-export const agyVocabulary = (): Conversation[] =>
-  agy.map(({ name, records }) => ({
-    name,
-    lines: records.map((record) => JSON.stringify(record)),
-  }))

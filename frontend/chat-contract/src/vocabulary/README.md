@@ -12,5 +12,5 @@ result over 16 KiB, a tool name over 256 characters, a result with no call, a ru
 to fold, the plain interruption and another agent's message (Codex).
 
 Their goldens pin today's rendering. They were written from the code before the vocabulary
-moved (2b), and a move must leave them as they are. Changing a record here changes a golden;
-review both together.
+moved into each harness's `describe`, and a move must leave them as they are. Changing a
+record here changes a golden; review both together.

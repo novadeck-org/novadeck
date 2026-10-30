@@ -1,4 +1,4 @@
-import type { Conversation } from "../fixtures"
+import type { Written } from "../fixtures"
 
 // Synthetic Codex rollout records (see README.md): the response items of a rollout.
 
@@ -61,7 +61,7 @@ const patch = (files: readonly string[]): string =>
 
 const text = (value: string) => [{ type: "input_text" as const, text: value }]
 
-export const codex: readonly { name: string; records: readonly object[] }[] = [
+export const codexVocabulary: readonly Written[] = [
   {
     name: "shell-tools",
     records: [
@@ -172,9 +172,3 @@ export const codex: readonly { name: string; records: readonly object[] }[] = [
     ],
   },
 ]
-
-export const codexVocabulary = (): Conversation[] =>
-  codex.map(({ name, records }) => ({
-    name,
-    lines: records.map((record) => JSON.stringify(record)),
-  }))
