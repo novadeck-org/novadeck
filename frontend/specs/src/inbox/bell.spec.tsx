@@ -1,6 +1,6 @@
 import { page } from "vitest/browser"
 
-import { openWorkspace, sidebar, sidebarPanel } from "../support/workspace"
+import { openWorkspace, sidebar, sidebarPanel, skipWelcome } from "../support/workspace"
 import { context, describe, expect, it } from "../test"
 
 // The agents demo: its agents wait on plans, permissions and a question in several projects,
@@ -12,11 +12,6 @@ const zenBell = () =>
   page
     .getByRole("group", { name: "Zen controls" })
     .getByRole("button", { name: /^Inbox, \d+ waiting$/ })
-
-const skipWelcome = async (): Promise<void> => {
-  const skip = page.getByRole("button", { name: "Skip for now" })
-  if (await skip.query()) await skip.click()
-}
 
 describe("The Inbox bell", () => {
   context("when something waits on the person", () => {

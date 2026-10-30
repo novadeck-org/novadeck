@@ -1,7 +1,7 @@
 import { expect } from "vitest"
-import { page, type Locator } from "vitest/browser"
+import type { Locator } from "vitest/browser"
 
-import { openWorkspace, terminal, terminalTab } from "./workspace"
+import { openWorkspace, skipWelcome, terminal, terminalTab } from "./workspace"
 
 // Vocabulary for a terminal's chat view: the conversation, the composer and the cards for
 // what waits on the person.
@@ -18,8 +18,7 @@ export const openChatDemo = async (
 ): Promise<void> => {
   localStorage.setItem("novadeck.preferences", JSON.stringify({ chatView }))
   await openWorkspace(`${route}?demo=agents${experimental ? "&channel=experimental" : ""}`)
-  const skip = page.getByRole("button", { name: "Skip for now" })
-  if (await skip.query()) await skip.click()
+  await skipWelcome()
 }
 
 /** A terminal's chat, where it shows. */

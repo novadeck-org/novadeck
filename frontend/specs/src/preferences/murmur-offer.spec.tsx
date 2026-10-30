@@ -5,6 +5,7 @@ import {
   chooseView,
   expectStaysAbsent,
   openWorkspace,
+  skipWelcome,
   terminal,
   terminalTab,
   typeInto,
@@ -17,8 +18,7 @@ import { context, describe, expect, it } from "../test"
 // `held`: an install it starts holds at its first step (see the demo's `&install=held`).
 const promptBuild = async (murmur: string, { away = false, held = false } = {}): Promise<void> => {
   await openWorkspace(`/?demo=agents&murmur=${murmur}&turnMs=2000${held ? "&install=held" : ""}`)
-  const skip = page.getByRole("button", { name: "Skip for now" })
-  if (await skip.query()) await skip.click()
+  await skipWelcome()
   await terminalTab("Build").click()
   await typeInto("Build", "Ship the docs")
   await userEvent.keyboard("{Enter}")
@@ -159,8 +159,7 @@ describe("Murmur's one-time offer", () => {
 
     it("shrinks to its icon in a narrow Grid tile, and the name stays", async () => {
       await openWorkspace("/?demo=agents&murmur=uninstalled&turnMs=2000")
-      const skip = page.getByRole("button", { name: "Skip for now" })
-      if (await skip.query()) await skip.click()
+      await skipWelcome()
       await chooseView("Grid")
       await terminalTab("Build").click()
       await typeInto("Build", "Ship the docs")

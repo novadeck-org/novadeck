@@ -1,7 +1,13 @@
 import { page, userEvent } from "vitest/browser"
 
 import { windowMenu } from "../support/companions"
-import { openWorkspace, sidebarPanel, terminal, terminalTab } from "../support/workspace"
+import {
+  openWorkspace,
+  sidebarPanel,
+  skipWelcome,
+  terminal,
+  terminalTab,
+} from "../support/workspace"
 import { context, describe, expect, it } from "../test"
 
 // The agents demo has the storefront's files in a Source panel. A file opened there lands in
@@ -9,18 +15,13 @@ import { context, describe, expect, it } from "../test"
 const storefront = (view: "focus" | "grid" | "canvas"): string =>
   `/projects/storefront/sessions/initial/${view}?demo=agents`
 
-const skipIntro = async (): Promise<void> => {
-  const skip = page.getByRole("button", { name: "Skip for now" })
-  if (await skip.query()) await skip.click()
-}
-
 // A row's name is the file's, then who changed it when someone did.
 const row = (name: string) =>
   page.getByRole("treeitem", { name: new RegExp(`^${name.replace(".", "\\.")}(,|$)`) })
 
 const openSource = async (view: "focus" | "grid" | "canvas" = "grid"): Promise<void> => {
   await openWorkspace(storefront(view))
-  await skipIntro()
+  await skipWelcome()
   await sidebarPanel("Source").click()
   await expect.element(page.getByRole("tree", { name: "Project files" })).toBeVisible()
 }

@@ -11,6 +11,7 @@ import {
   isMac,
   openWorkspace,
   sidebarPanel,
+  skipWelcome,
   tabDescription,
   terminal,
   terminalTab,
@@ -25,12 +26,6 @@ const agentChoice = (scope: Locator, name: "Claude Code" | "Codex" | "Antigravit
   scope.getByRole("checkbox", { name })
 
 const welcome = (): Locator => page.getByRole("dialog", { name: "Welcome to Novadeck" })
-
-// Closes the first-run welcome when the demo opens with it.
-const skipWelcome = async (): Promise<void> => {
-  const skip = page.getByRole("button", { name: "Skip for now" })
-  if (await skip.query()) await skip.click()
-}
 
 const openPreferences = async (): Promise<void> => {
   await page.getByRole("button", { name: "Workspace preferences" }).click()

@@ -6,6 +6,7 @@ import {
   expectStaysAbsent,
   openWorkspace,
   sidebarPanel,
+  skipWelcome,
   tabDescription,
   terminal,
   terminalTab,
@@ -16,11 +17,6 @@ import { context, describe, expect, it } from "../test"
 // of each kind, waiting on the person, over what its own agents wait on: api-service's plan and
 // permission, and, a moment after it opens, infra's failed turn and design-system's done report.
 const inbox = "/?demo=inbox"
-
-const skipWelcome = async (): Promise<void> => {
-  const skip = page.getByRole("button", { name: "Skip for now" })
-  if (await skip.query()) await skip.click()
-}
 
 const openInbox = async (route = inbox): Promise<void> => {
   await openWorkspace(route)

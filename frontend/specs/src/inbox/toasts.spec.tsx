@@ -4,7 +4,7 @@ import { page, userEvent } from "vitest/browser"
 
 import { forgetDesktopWindow, desktopWindow } from "../support/backend"
 import { preferencesDialog } from "../support/keyboard"
-import { expectStaysAbsent, openWorkspace, sidebarPanel } from "../support/workspace"
+import { expectStaysAbsent, openWorkspace, sidebarPanel, skipWelcome } from "../support/workspace"
 import { context, describe, expect, it } from "../test"
 
 // The Inbox's toasts: a new Inbox entry that needs the person rings as a toast while the app has
@@ -35,11 +35,6 @@ const inboxRow = (subject: RegExp | string) =>
   page.getByRole("list", { name: "Messages from your agents" }).getByRole("button", {
     name: typeof subject === "string" ? new RegExp(subject) : subject,
   })
-
-const skipWelcome = async (): Promise<void> => {
-  const skip = page.getByRole("button", { name: "Skip for now" })
-  if (await skip.query()) await skip.click()
-}
 
 const open = async (extra?: string): Promise<void> => {
   await openWorkspace(route(extra))
