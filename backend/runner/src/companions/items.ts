@@ -31,6 +31,7 @@ import {
   waitAfter,
 } from "./changes.js"
 import {
+  clip,
   hashOf,
   loadFile,
   loadPlan,
@@ -117,9 +118,6 @@ type Pointer = Pick<
   ItemRecord,
   "pointerKey" | "kind" | "path" | "url" | "lines" | "plan" | "name" | "detail" | "secret"
 >
-
-const clip = (text: string, max: number): string =>
-  text.length <= max ? text : `…${text.slice(text.length - max + 1)}`
 
 const size = (bytes: number): string => {
   if (bytes < 1024) return `${bytes} B`

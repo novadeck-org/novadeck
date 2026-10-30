@@ -75,7 +75,7 @@ type Shown = {
   readonly tooLarge?: boolean
 }
 type Listing = { readonly text: string }
-type Dismissed = { readonly name: string }
+type ClosedShown = { readonly name: string }
 type Opened = {
   readonly handle?: string
   readonly title?: string
@@ -323,7 +323,7 @@ const look: Tool<Listing & { readonly picture: Picture }> = {
   failed: "Novadeck couldn't picture the page.",
 }
 
-const close: Tool<Dismissed> = {
+const close: Tool<ClosedShown> = {
   name: "close",
   description:
     "Close something you showed beside your terminal in Novadeck, by the same file, page " +

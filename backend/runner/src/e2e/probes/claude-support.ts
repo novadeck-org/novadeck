@@ -68,12 +68,12 @@ finish("immediate", cfg.now ?? {})
 `
 
 export type Out = { stdout?: unknown; stderr?: string; exit?: number }
-export type Cfg = { wait?: number; after?: Out; now?: Out }
+type Config = { wait?: number; after?: Out; now?: Out }
 
 export type Probe = {
   readonly dir: string
   /** Configure what the probe hook does for an event, before it fires. */
-  readonly config: (event: string, cfg: Cfg | null) => void
+  readonly config: (event: string, cfg: Config | null) => void
   /** Answer a waiting hook. */
   readonly reply: (event: string, out: Out) => void
   /** Every logged line. */
@@ -218,9 +218,9 @@ export { start }
 import { claude } from "../agents/claude.js"
 import { describe, e2e, supported } from "../fixture.js"
 import type { Rule } from "../model/script.js"
-export type Shot = (label: string, wait?: number) => Promise<void>
+type Shot = (label: string, wait?: number) => Promise<void>
 type Step = (t: DeckTerminal, probe: Probe, shot: Shot) => Promise<void>
-export type Spec = {
+type Spec = {
   name: string
   prompt?: string
   reply: Reply

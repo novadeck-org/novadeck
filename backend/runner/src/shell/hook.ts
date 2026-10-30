@@ -18,7 +18,7 @@ import { object, type Fields } from "./json.js"
  * the hook in Novadeck's shells, which then shows the person's own, as the relay finds
  * and runs it beside the report.
  */
-export type RelayHook = {
+type RelayHook = {
   readonly report: Omit<Report, "terminalId" | "token">
   /** An ask's deadline, in epoch milliseconds; absent for a report. */
   readonly deadline?: number
@@ -102,7 +102,7 @@ const clockSlackMs = 50
  * isn't among them, its child's start isn't told, or the start makes no sense for a hook
  * that started at `seq`.
  */
-export const firedAtOf = (
+const firedAtOf = (
   instance: string | null,
   seq: number,
   ancestors: readonly Ancestor[],

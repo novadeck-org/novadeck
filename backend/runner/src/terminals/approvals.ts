@@ -17,7 +17,7 @@ export type ApprovalOutcome =
   | "withdrawn"
 
 /** How a close of another terminal goes: at once, or once the person confirms. */
-export type CloseWay = "now" | "request"
+type CloseWay = "now" | "request"
 
 /**
  * How an agent's close of another terminal goes: a teammate it leads, or a terminal that

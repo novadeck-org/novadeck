@@ -118,7 +118,7 @@ const relayStart = '{"relay":'
  * protocol changes, the runner keeps taking the version before it for a release. A
  * relay the runner doesn't take answers by itself, with no tools.
  */
-export const relayVersions: ReadonlySet<number> = new Set([2])
+const relayVersions: ReadonlySet<number> = new Set([2])
 
 // What the endpoint turned away, said once each, so a mismatch shows in the runner's log
 // without filling it.

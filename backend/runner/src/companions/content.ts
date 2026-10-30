@@ -47,7 +47,8 @@ const unavailable = (reason: Unavailable["reason"], size: number | null = null):
   size,
 })
 
-const clip = (text: string, max: number): string =>
+/** The last `max` characters of text, led by an ellipsis when it is cut. */
+export const clip = (text: string, max: number): string =>
   text.length <= max ? text : `…${text.slice(text.length - max + 1)}`
 
 /** Whether a file is shown as an image, by its extension. */

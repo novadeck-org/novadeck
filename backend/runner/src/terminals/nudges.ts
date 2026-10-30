@@ -1,5 +1,5 @@
+import { shorten } from "../text.js"
 import { due, noTroubles, pageNotice, spend, type PageEntry, type Troubles } from "./troubles.js"
-import { shorten } from "./work.js"
 
 /**
  * When Novadeck nudges a terminal's agent to summarize its work (see
@@ -27,18 +27,18 @@ export type Facts = {
  * A terminal's nudges: the triggers that fired since the last `summarize` or nudge, the
  * person's prompts counted toward the backstop, the facts at the last `summarize` (null
  * before any), and those drift last fired for; and, apart from all of these, whether
- * the session has yet to hear of the bar beside its terminal (`artifactsNotice`) and of
- * the Inbox (`inboxNotice`), which only their delivery clears, never a `summarize`; and
- * the troubles the pane told of pages
- * the session showed (`troubles.ts`), which a new root session drops and only their
- * delivery otherwise clears.
+ * the session has yet to hear of the companion bar beside its terminal
+ * (`companionNotice`) and of the Inbox (`inboxNotice`), which only their delivery
+ * clears, never a `summarize`; and the troubles the pane told of pages the session
+ * showed (`troubles.ts`), which a new root session drops and only their delivery
+ * otherwise clears.
  */
 export type Nudges = {
   readonly pending: readonly Trigger[]
   readonly prompts: number
   readonly baseline: Facts | null
   readonly driftedTo: Facts | null
-  readonly artifacts: boolean
+  readonly companion: boolean
   readonly troubles: Troubles
   /** When the current root session began, in milliseconds; only later shows are told of. */
   readonly since: number
@@ -52,7 +52,7 @@ export const noNudges: Nudges = {
   prompts: 0,
   baseline: null,
   driftedTo: null,
-  artifacts: false,
+  companion: false,
   troubles: noTroubles,
   since: 0,
 }
@@ -61,12 +61,12 @@ export const noNudges: Nudges = {
  * The triggers at which a session hears of its bar: when it begins, and when it lost its
  * context.
  */
-const artifactsTriggers: ReadonlySet<Trigger> = new Set(["session", "compaction"])
+const companionTriggers: ReadonlySet<Trigger> = new Set(["session", "compaction"])
 
 const raised = (nudges: Nudges, trigger: Trigger): Nudges => ({
   ...nudges,
   pending: nudges.pending.includes(trigger) ? nudges.pending : [...nudges.pending, trigger],
-  artifacts: nudges.artifacts || artifactsTriggers.has(trigger),
+  companion: nudges.companion || companionTriggers.has(trigger),
 })
 
 /**
@@ -121,7 +121,7 @@ export const afterSummary = (nudges: Nudges, facts: Facts): Nudges => ({
   prompts: 0,
   baseline: facts,
   driftedTo: null,
-  artifacts: nudges.artifacts,
+  companion: nudges.companion,
   troubles: nudges.troubles,
   since: nudges.since,
 })
@@ -129,7 +129,7 @@ export const afterSummary = (nudges: Nudges, facts: Facts): Nudges => ({
 /** What a turn's answer says, if anything: of the bar and Inbox, of the description, of pages, or all. */
 export type Taken = {
   readonly nudge: boolean
-  readonly artifacts: boolean
+  readonly companion: boolean
   readonly summarize: boolean
   /** The pages it tells of, each once for its show. */
   readonly pages: readonly PageEntry[]
@@ -137,7 +137,7 @@ export type Taken = {
 }
 
 /** Whether an answer with the notices of a `Taken` stays within what a hook may print. */
-export type Fits = (took: Pick<Taken, "artifacts" | "summarize" | "pages">) => boolean
+export type Fits = (took: Pick<Taken, "companion" | "summarize" | "pages">) => boolean
 
 /**
  * Whether a turn's answer nudges, and with what, and the nudges after it: only when a
@@ -155,26 +155,26 @@ export const take = (
   fitsAlone: Fits = fits,
 ): Taken => {
   const owed = nudges.pending.length > 0
-  const silent = { nudge: false, artifacts: false, summarize: false, pages: [], nudges }
-  if (!inTime || !(owed || nudges.artifacts || due(nudges.troubles))) return silent
-  const summarize = owed && fits({ artifacts: false, summarize: true, pages: [] })
-  const artifacts = nudges.artifacts && fits({ artifacts: true, summarize, pages: [] })
+  const silent = { nudge: false, companion: false, summarize: false, pages: [], nudges }
+  if (!inTime || !(owed || nudges.companion || due(nudges.troubles))) return silent
+  const summarize = owed && fits({ companion: false, summarize: true, pages: [] })
+  const companion = nudges.companion && fits({ companion: true, summarize, pages: [] })
   const { pages, troubles } = spend(
     nudges.troubles,
-    (each) => fits({ artifacts, summarize, pages: each }),
-    (page) => fitsAlone({ artifacts: false, summarize: false, pages: [page] }),
+    (each) => fits({ companion, summarize, pages: each }),
+    (page) => fitsAlone({ companion: false, summarize: false, pages: [page] }),
   )
-  if (!summarize && !artifacts && pages.length === 0)
+  if (!summarize && !companion && pages.length === 0)
     return { ...silent, nudges: { ...nudges, troubles } }
   return {
     nudge: true,
-    artifacts,
+    companion,
     summarize,
     pages,
     nudges: {
       ...nudges,
       pending: summarize ? [] : nudges.pending,
-      artifacts: artifacts ? false : nudges.artifacts,
+      companion: companion ? false : nudges.companion,
       troubles,
     },
   }
@@ -237,7 +237,7 @@ export const nudgeText = (current: { readonly summary: string | null }) =>
  * shows nothing until asked, or every file it touches once asked. Worded as Novadeck's
  * automatic notice, one paragraph; independent of `summarize`.
  */
-export const artifactsNotice =
+export const companionNotice =
   "Novadeck: automatic notice, not from the user: beside this terminal is a bar where you " +
   "show the user what you make, with Novadeck's show tool. Show a deliverable when it is " +
   "done, not each file you touch: an image or screenshot, a rendered page or a dev " +
@@ -294,11 +294,11 @@ export const inboxNotice =
  * page that had problems, each a paragraph of its own.
  */
 export const noticesAt = (
-  took: Pick<Taken, "artifacts" | "summarize" | "pages">,
+  took: Pick<Taken, "companion" | "summarize" | "pages">,
   current: { readonly summary: string | null },
 ): string =>
   [
-    ...(took.artifacts ? [artifactsNotice, inboxNotice] : []),
+    ...(took.companion ? [companionNotice, inboxNotice] : []),
     ...(took.summarize ? [nudgeText(current)] : []),
     ...took.pages.map(pageNotice),
   ].join("\n\n")

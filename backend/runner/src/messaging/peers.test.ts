@@ -454,7 +454,7 @@ describe("what agents and a refused send say", () => {
     expect(text).toContain(": held until the user releases its thread")
   })
 
-  it("say why a message of the caller's will not arrive: its session ended, or the user stopped its thread", () => {
+  it("say why a message of the caller's will not arrive: its session ended, or the person stopped its thread", () => {
     const told = (fields: Partial<Message>) =>
       renderAgents({
         handle: "moth",

@@ -1,6 +1,8 @@
 import type { CompanionItem } from "@novadeck/protocol"
 import { z } from "zod"
 
+import { list } from "../text.js"
+
 /**
  * What an agent asks to show, through Novadeck's MCP server: one source, under the key
  * that names it, with that source's own options inside it, and the options every source
@@ -116,7 +118,7 @@ const shapes = {
   readonly [name in (typeof sourceNames)[number]]: string
 }
 const forms = sourceNames.map((name) => shapes[name])
-const oneSource = `one source, ${forms.slice(0, -1).join(", ")} or ${forms.at(-1)}`
+const oneSource = `one source, ${list(forms, "or")}`
 
 /** Text named back to the agent, as a key or a path: quoted, and cut short, as it is the agent's own. */
 export const named = (key: string): string =>

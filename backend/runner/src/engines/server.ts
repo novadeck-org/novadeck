@@ -3,6 +3,7 @@ import { randomUUID } from "node:crypto"
 import { createServer } from "node:net"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
+import { setTimeout as sleep } from "node:timers/promises"
 
 import { EngineError } from "./unpack.js"
 
@@ -166,7 +167,7 @@ export type Running<Facts> = {
   stopped: boolean
 }
 
-export const freePort = (): Promise<number> =>
+const freePort = (): Promise<number> =>
   new Promise((resolve, reject) => {
     const server = createServer()
     server.once("error", reject)
@@ -178,8 +179,6 @@ export const freePort = (): Promise<number> =>
       })
     })
   })
-
-export const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))
 
 /**
  * An engine's server on a loopback port: started when first needed, kept warm for a

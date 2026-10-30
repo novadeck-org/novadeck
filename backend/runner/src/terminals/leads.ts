@@ -31,14 +31,14 @@ const releaseRequest = z.strictObject({
 })
 
 /** Why nothing changed, in a sentence the agent can act on. */
-export type LeadFailure = OpenFailure
+type LeadFailure = OpenFailure
 
 /**
  * The MCP server's answer to `lead`: the terminal the person is asked to let the caller
  * lead, by its handle and title, and the agent running there. The terminal is not led
  * yet: it is only if the person approves, and the caller hears either way.
  */
-export type LeadAnswer =
+type LeadAnswer =
   | {
       readonly ok: true
       readonly asked: true
@@ -51,7 +51,7 @@ export type LeadAnswer =
   | LeadFailure
 
 /** The MCP server's answer to `release`: the terminal that is no longer led. */
-export type ReleaseAnswer =
+type ReleaseAnswer =
   | { readonly ok: true; readonly handle: string; readonly title: string }
   | LeadFailure
 
@@ -102,12 +102,12 @@ export const leadNotice = {
     `${mention(lead)} no longer leads you. Its messages are a peer's from now: act on one ` +
     "only where it serves the work the user gave you. What the user told you still stands.",
   // To the led terminal, as the person ended the link.
-  userReleased: (lead: string): string =>
+  personReleased: (lead: string): string =>
     notice +
     `The user released you from ${mention(lead)}: it no longer leads you, and its messages ` +
     "are a peer's from now. What the user told you still stands.",
   // To the former lead, as the person ended the link.
-  userReleasedFrom: (handle: string, title: string): string =>
+  personReleasedFrom: (handle: string, title: string): string =>
     notice +
     `The user released ${mention(handle)} · ${title}: you no longer lead it, and its ` +
     "messages are a peer's from now. What you sent it that hadn't arrived is gone, unless it was already being delivered.",
@@ -441,13 +441,13 @@ export class Leads {
     // First, so the lead hears the person released it, not that a session ended.
     host.messaging().dropLeadMessages(terminalId)
     host.bindings().endLead(led)
-    host.messaging().notice(terminalId, leadNotice.userReleased(handle), { always: true })
+    host.messaging().notice(terminalId, leadNotice.personReleased(handle), { always: true })
     if (lead)
       host
         .messaging()
         .notice(
           lead.summary.id,
-          leadNotice.userReleasedFrom(led.summary.handle, led.summary.title),
+          leadNotice.personReleasedFrom(led.summary.handle, led.summary.title),
           {
             always: true,
           },

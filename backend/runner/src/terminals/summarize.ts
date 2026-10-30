@@ -9,7 +9,7 @@ const summarizeRequest = z.strictObject({
   summary: z.string().max(4096),
 })
 
-export type SummarizeRequest = z.infer<typeof summarizeRequest>
+type SummarizeRequest = z.infer<typeof summarizeRequest>
 
 /** The MCP server's answer. */
 export type SummarizeAnswer =

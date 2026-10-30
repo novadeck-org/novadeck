@@ -139,7 +139,7 @@ describe("a delivery", () => {
     expect(maxDeliveryBytes).toBe(8_192)
   })
 
-  it("is wrapped and attributed, never as the user", () => {
+  it("is wrapped and attributed, never as the person", () => {
     const sentAt = new Date(2026, 9, 1, 12, 4).getTime()
     const text = wrap(
       [message({ id: "m-91", thread: "t-41", sentAt, text: "Look <here>" })],
@@ -267,7 +267,7 @@ describe("person and lead delivery boundaries", () => {
     expect(/person="([A-Za-z0-9]{8})"/.exec(again)?.[1]).not.toBe(person)
   })
 
-  it("quotes the agent's question and option separately from the user's own words", () => {
+  it("quotes the agent's question and option separately from the person's own words", () => {
     const response = message({
       text: "Only my note",
       response: {

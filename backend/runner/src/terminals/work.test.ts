@@ -12,7 +12,6 @@ import {
   lastFiles,
   personPrompted,
   promptChars,
-  shorten,
   tallied,
   workAfter,
   type Work,
@@ -132,11 +131,6 @@ describe("what a root session worked on", () => {
       { folder: "/a", edits: 2 },
       { folder: "/b", edits: 2 },
     ])
-  })
-
-  it("shortens text to one line", () => {
-    expect(shorten("add\n  pagination   to /users", 120)).toBe("add pagination to /users")
-    expect(shorten("x".repeat(130), 120)).toBe(`${"x".repeat(119)}…`)
   })
 })
 

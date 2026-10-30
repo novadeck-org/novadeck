@@ -6,8 +6,8 @@ import { terminalTitle, type AgentName, type ForegroundProcess } from "@novadeck
 import { logs } from "../log.js"
 import type { Describer, Description, Digest, ShellDigest } from "../murmur/describer.js"
 import { sharesContentWord } from "../murmur/description.js"
+import { shorten } from "../text.js"
 import type { PeerTerminal } from "./peers.js"
-import { shorten } from "./work.js"
 
 const log = logs.for("murmur")
 

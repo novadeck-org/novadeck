@@ -270,7 +270,7 @@ and the user reads those in the diff. Every harness hears this two ways, as no p
 own description carries the rule, which every harness reads alike from `tools/list`,
 and the runner's prompt-time hook adds Novadeck's artifacts notice, one paragraph, at
 the first turn the person's prompt or the doorbell begins in each root session, and after a compaction
-(`artifactsNotice` in `terminals/nudges.ts`; it rides with the summary nudge but a
+(`companionNotice` in `terminals/nudges.ts`; it rides with the summary nudge but a
 `summarize` never clears it; see [Agent messaging](agent-messaging.md), "Nudges"), with
 the Inbox notice beside it (`inboxNotice`): the person rarely watches the terminal, so
 a question the agent's turn ends waiting on goes to the Inbox: through the harness's own

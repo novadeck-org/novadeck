@@ -6,8 +6,9 @@ import type { MurmurCheck, MurmurInstall, MurmurSettings, MurmurState } from "@n
 import { Versioned } from "@novadeck/wire/server"
 
 import type { Activity } from "../engines/activity.js"
-import { DownloadError, download } from "../engines/download.js"
+import { download } from "../engines/download.js"
 import { aborted, engineStatus, fetchEngine, removeContents } from "../engines/install.js"
+import { explainInstall, progressMs, updateRetryMs } from "../engines/installing.js"
 import { readManifest, type Artifact, type Manifest } from "../engines/manifest.js"
 import { modelFile as modelPathOf, pruneModels } from "../engines/models.js"
 import {
@@ -18,8 +19,9 @@ import {
   type Running,
   type ServerSpec,
 } from "../engines/server.js"
-import { EngineError, engineFolder, exists, programFile } from "../engines/unpack.js"
+import { EngineError, engineFolder, programFile } from "../engines/unpack.js"
 import { DomainError } from "../errors.js"
+import { exists } from "../files.js"
 import { logs } from "../log.js"
 import type { MurmurSettingsChange, MurmurVerdict } from "../workspaces/store.js"
 import type { Description, Describer, Digest } from "./describer.js"
@@ -122,13 +124,6 @@ const log = logs.for("murmur")
 
 const unavailable = (message: string): DomainError => new DomainError("CONFLICT", message)
 
-const explain = (error: unknown): string => {
-  if (error instanceof DownloadError || error instanceof EngineError) return error.message
-  if (error instanceof Error && "code" in error && error.code === "ENOSPC")
-    return "There is not enough disk space to install murmur."
-  return `Murmur could not be installed: ${error instanceof Error ? error.message : String(error)}`
-}
-
 // Why the worker thread gave no chat for the install check's test terminal.
 const workerFailure = {
   unavailable: "Murmur's worker could not start.",
@@ -136,9 +131,6 @@ const workerFailure = {
   failed: "Murmur's worker failed on the test terminal.",
   stopped: "Murmur's worker was stopped.",
 } as const
-
-// How long after a failed engine update the next look tries it again.
-export const updateRetryMs = 60_000
 
 // What the install check asks: a small, fixed session, the same on every machine.
 const checkDigest: Digest = {
@@ -226,9 +218,6 @@ const readVmStat = (signal: AbortSignal | undefined): Promise<number> =>
 
 // How long the model stays loaded once nothing needs it.
 const defaultIdleMs = 2 * 60 * 1000
-
-// How often install progress reaches watchers, at most.
-const progressMs = 100
 
 /**
  * Murmur: the engine and model people install, the settings, and the describing of
@@ -703,7 +692,7 @@ export class Murmur implements Describer {
         await this.giveUp(error.message, hadModel)
       // Cancelling is the person's choice, not a failure.
       else if (!signal.aborted && !aborted(error)) {
-        this.failure = explain(error).slice(0, 1024)
+        this.failure = explainInstall(error, "murmur").slice(0, 1024)
         this.updateFailedAt = engineOnly ? this.clock() : undefined
         // The card shows it until the next try; the log keeps it after that.
         log.warn("murmur.install-failed", "Murmur's install failed.", {

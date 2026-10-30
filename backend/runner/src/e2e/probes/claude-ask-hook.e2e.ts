@@ -229,7 +229,7 @@ surface({
       }),
     )(run, probe)
   },
-  drive: async (t, _p, shot) => {
+  drive: async (_t, _p, shot) => {
     await shot("after")
   },
 })
@@ -271,7 +271,7 @@ surface({
   reply: { calls: [bash("touch waited.txt")] },
   hookStart: "PermissionRequest",
   setup: waits(60_000),
-  drive: async (t, probe, shot) => {
+  drive: async (_t, probe, shot) => {
     await shot("during-wait", 1000)
     probe.reply("PermissionRequest", allow())
     await shot("after-reply", 2500)
@@ -281,11 +281,11 @@ surface({
   name: "h-wait-timeout",
   reply: { calls: [bash("touch waited.txt")] },
   hookStart: "PermissionRequest",
-  setup: (run, probe) => {
+  setup: (_run, probe) => {
     probe.config("PermissionRequest", { wait: 60_000 })
   },
   hookTimeout: 4,
-  drive: async (t, probe, shot) => {
+  drive: async (t, _probe, shot) => {
     await shot("during-wait", 1500)
     await shot("after-timeout-window", 6000)
     t.press("3")
@@ -317,7 +317,7 @@ surface({
   reply: { calls: [askCall] },
   hookStart: "PermissionRequest",
   setup: waits(5000),
-  drive: async (t, probe, shot) => {
+  drive: async (_t, probe, shot) => {
     await shot("during-wait", 1000)
     await probe.waitLog("PermissionRequest", "end", 20_000)
     await shot("after-hook-ended", 1500)

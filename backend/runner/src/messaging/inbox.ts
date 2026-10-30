@@ -19,7 +19,7 @@ import { z } from "zod"
 import { DomainError } from "../errors.js"
 import type { RootChange } from "../harnesses/roots.js"
 import { logs } from "../log.js"
-import { shorten } from "../terminals/work.js"
+import { firstFew, shorten } from "../text.js"
 import {
   allowSend,
   byteLength,
@@ -263,35 +263,33 @@ const clampedTurn = (content: unknown): TurnContent | undefined => {
 const noticedSubjects = 5
 
 /**
- * Novadeck's notice to an agent whose open asks it took out of the person's Inbox because the
- * person wrote to it in its terminal: one paragraph, in the voice of Novadeck's other notices.
- * The subjects are the agent's own words, shortened and quoted.
+ * Novadeck's notice to an agent whose open asks it took out of the person's Inbox because
+ * the person wrote to it in its terminal: one paragraph, in the voice of Novadeck's other
+ * notices. The subjects are the agent's own words, shortened and quoted.
  */
 export const withdrawnNotice = (subjects: readonly string[]): string => {
-  const named = subjects.slice(0, noticedSubjects).map((each) => JSON.stringify(shorten(each, 80)))
-  const more = subjects.length - named.length
+  const named = subjects.map((each) => JSON.stringify(shorten(each, 80)))
   const one = subjects.length === 1
   return (
     "Novadeck: automatic notice, not from the user: the user wrote to you, " +
     `so Novadeck took your open ${one ? "ask" : "asks"} out of their Inbox: ` +
-    `${named.join(", ")}${more > 0 ? ` and ${more} more` : ""}. ` +
+    `${firstFew(named, noticedSubjects)}. ` +
     `Read their message as their reply to ${one ? "it" : "them"}; ask again, as a new ask, ` +
     "only what it leaves open. This notice needs no reply."
   )
 }
 
 /**
- * Novadeck's quiet notice to an agent whose open asks the person dismissed from their Inbox
- * without answering: printed beside the agent's next hook answer, waking nothing.
+ * Novadeck's quiet notice to an agent whose open asks the person dismissed from their
+ * Inbox without answering: printed beside the agent's next hook answer, waking nothing.
  */
 export const dismissedNotice = (
   asks: readonly { readonly subject: string; readonly action: string }[],
 ): string => {
-  const named = asks
-    .slice(0, noticedSubjects)
-    .map((each) => JSON.stringify(shorten(each.subject, 80)))
-  const more = asks.length - named.length
-  const list = `${named.join(", ")}${more > 0 ? ` and ${more} more` : ""}`
+  const list = firstFew(
+    asks.map((each) => JSON.stringify(shorten(each.subject, 80))),
+    noticedSubjects,
+  )
   const one = asks.length === 1
   const head = "Novadeck: automatic notice, not from the user: the user dismissed "
   const tail = " This notice needs no reply."
@@ -718,8 +716,8 @@ export class Inbox {
   /**
    * The person wrote to the terminal's agent in its terminal, in a turn that started at
    * `before`: the session's open asks made earlier are withdrawn, as the agent's own
-   * withdrawal does (tells, done rows and turn rows stay). The notice for the agent, naming
-   * them; undefined when none was open.
+   * withdrawal does (tells, done entries and turn entries stay). The notice for the agent,
+   * naming them; undefined when none was open.
    */
   withdrawBefore(terminalId: string, before: number): string | undefined {
     if (this.closed) return undefined

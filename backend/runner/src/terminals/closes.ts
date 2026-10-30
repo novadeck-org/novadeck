@@ -11,10 +11,10 @@ const closeRequest = z.strictObject({
   to: z.string().min(1).max(65).transform(bareHandle),
 })
 
-export type CloseRequest = z.infer<typeof closeRequest>
+type CloseRequest = z.infer<typeof closeRequest>
 
 /** Why no terminal closed, in a sentence the agent can act on. */
-export type CloseFailure = { readonly ok: false; readonly reason: string }
+type CloseFailure = { readonly ok: false; readonly reason: string }
 
 /**
  * The MCP server's answer: the terminal that closed, by its handle, the agent it ran, if

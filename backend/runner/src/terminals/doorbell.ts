@@ -104,7 +104,7 @@ export const typingTarget = <R extends DoorbellRecord>(
   },
 })
 
-export type DoorbellTerminals<R extends DoorbellRecord> = TypingTargetHost<R> & {
+type DoorbellTerminals<R extends DoorbellRecord> = TypingTargetHost<R> & {
   /** Runs `work` in the terminal's turn, after what is queued there. */
   readonly queued: (terminalId: string, work: () => void) => void
   /** Ends the binding of an agent known to have exited. */

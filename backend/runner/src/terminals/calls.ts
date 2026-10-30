@@ -16,6 +16,7 @@ import type { Inbox } from "../messaging/inbox.js"
 import { agentLabel } from "../messaging/messages.js"
 import type { AgentsAnswer, SendAnswer } from "../messaging/messaging.js"
 import { unansweredCalls, type Call } from "../shell/reports.js"
+import { list } from "../text.js"
 import { closeWay, type ApprovalOutcome } from "./approvals.js"
 import { callerOf } from "./callers.js"
 import {
@@ -53,12 +54,6 @@ import { peerOf } from "./peers.js"
 import type { Record } from "./record.js"
 import { resumeRefusal, type Claims } from "./resumes.js"
 import { readSummarizeRequest, type SummarizeAnswer } from "./summarize.js"
-
-// "a, b and c".
-const list = (items: readonly string[], conjunction = "and"): string =>
-  items.length < 2
-    ? items.join("")
-    : `${items.slice(0, -1).join(", ")} ${conjunction} ${items.at(-1)}`
 
 // A command line for the words: every word but a quoted line is a plain word, and a line
 // holds nothing a shell expands.

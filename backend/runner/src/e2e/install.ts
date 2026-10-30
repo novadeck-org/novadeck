@@ -9,9 +9,6 @@ import { promisify } from "node:util"
 import { agentName, type AgentName } from "@novadeck/protocol"
 import { z } from "zod"
 
-/** The harnesses an end-to-end test can run: those `harnesses.json` pins. */
-export type HarnessName = AgentName
-
 // A version as it may appear in a folder's name: no path separator in it.
 const versionPattern = /^[\w.+-]+$/
 
@@ -59,7 +56,7 @@ export const pins = z
   .parse(JSON.parse(readFileSync(new URL("harnesses.json", import.meta.url), "utf8")))
 
 // A harness's pin, or why it has none.
-const pinOf = (name: HarnessName): z.infer<typeof pin> => {
+const pinOf = (name: AgentName): z.infer<typeof pin> => {
   const found = pins[name]
   if (!found) throw new Error(`harnesses.json pins no ${name}`)
   return found
@@ -180,7 +177,7 @@ export const latestRelease = async <T extends { readonly version: string }>(
 
 // Where the newest release of a harness looked up is remembered: beside its installs,
 // though not among the folders a cache of them keeps.
-const latestFile = (name: HarnessName): string => join(cacheFolder(), `${name}.latest`)
+const latestFile = (name: AgentName): string => join(cacheFolder(), `${name}.latest`)
 
 /**
  * The version to install: the pinned one, or with `NOVADECK_E2E_HARNESS=latest`, as a
@@ -188,7 +185,7 @@ const latestFile = (name: HarnessName): string => join(cacheFolder(), `${name}.l
  * the hour (`latestRelease`).
  */
 const npmVersion = async (
-  name: HarnessName,
+  name: AgentName,
   found: z.infer<typeof npmPin>,
   cache: string,
 ): Promise<string> => {
@@ -216,7 +213,7 @@ const installs = new Map<string, Promise<Installed>>()
  * holding its program and the version installed, the newest one with
  * `NOVADECK_E2E_HARNESS=latest`. It never uses a copy installed elsewhere on the machine.
  */
-export const installHarness = (name: HarnessName): Promise<Installed> => {
+export const installHarness = (name: AgentName): Promise<Installed> => {
   const key = `${name}:${process.env.NOVADECK_E2E_HARNESS === "latest" ? "latest" : "pinned"}`
   const known = installs.get(key)
   if (known) return known
@@ -249,7 +246,7 @@ const settle = async (staging: string, folder: string, program: string): Promise
 }
 
 const installPackage = async (
-  name: HarnessName,
+  name: AgentName,
   found: z.infer<typeof npmPin>,
 ): Promise<Installed> => {
   const cache = cacheFolder()
@@ -299,7 +296,7 @@ const release = z.strictObject({ version: z.string(), url: z.url(), sha512: z.st
  * every run within the hour (`latestRelease`).
  */
 const archiveRelease = async (
-  name: HarnessName,
+  name: AgentName,
   found: z.infer<typeof archivePin>,
   platform: z.infer<typeof platformRelease>,
 ): Promise<Release> => {
@@ -320,7 +317,7 @@ const archiveRelease = async (
  * download itself when it is the program.
  */
 const installArchive = async (
-  name: HarnessName,
+  name: AgentName,
   found: z.infer<typeof archivePin>,
 ): Promise<Installed> => {
   const key = `${process.platform}-${process.arch}`

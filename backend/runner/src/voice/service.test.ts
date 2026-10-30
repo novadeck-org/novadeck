@@ -6,6 +6,7 @@ import type { VoiceState } from "@novadeck/protocol"
 import { maxVoiceSeconds, voiceSampleRate } from "@novadeck/protocol"
 import { vi } from "vitest"
 
+import { updateRetryMs } from "../engines/installing.js"
 import { engineInterface } from "../engines/unpack.js"
 import { logs, useLogger } from "../log.js"
 import { describe, expect, it } from "../test.js"
@@ -14,7 +15,7 @@ import { engineArchive, fakeLaunch, folder, modelCatalog } from "../testing/voic
 import { WorkspaceStore } from "../workspaces/store.js"
 import type { Catalog } from "./catalog.js"
 import type { HintFacts } from "./hint.js"
-import { updateRetryMs, Voice, type VoiceOptions } from "./service.js"
+import { Voice, type VoiceOptions } from "./service.js"
 
 // The service's sleeps, watched: a case can tell which waits it asked for and when they ended,
 // without measuring the time a real engine takes around them.

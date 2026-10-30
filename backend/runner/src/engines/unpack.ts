@@ -1,7 +1,9 @@
 import { spawn } from "node:child_process"
 import { randomUUID } from "node:crypto"
-import { access, chmod, mkdir, readdir, readFile, rename, rm, writeFile } from "node:fs/promises"
+import { chmod, mkdir, readdir, readFile, rename, rm, writeFile } from "node:fs/promises"
 import { join } from "node:path"
+
+import { exists } from "../files.js"
 
 /** Raised when an engine cannot be unpacked, started or used, in words for a person. */
 export class EngineError extends Error {
@@ -17,16 +19,10 @@ export const programFile = (name: string): string =>
 
 // On Windows the system's own tar: a GNU tar from Git or MSYS that comes first on the
 // PATH reads `C:\\...` as a host name and fails.
-export const tarProgram =
+const tarProgram =
   process.platform === "win32"
     ? `${process.env.SystemRoot ?? "C:\\Windows"}\\System32\\tar.exe`
     : "tar"
-
-export const exists = (path: string): Promise<boolean> =>
-  access(path).then(
-    () => true,
-    () => false,
-  )
 
 /** Where engines unpacked from archives live, one folder per archive, under `directory`. */
 export const enginesIn = (directory: string): string => join(directory, "engine")

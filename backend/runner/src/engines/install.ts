@@ -1,9 +1,10 @@
 import { readdir, rm } from "node:fs/promises"
 import { join } from "node:path"
 
+import { exists } from "../files.js"
 import { download, DownloadError, locate } from "./download.js"
 import type { Manifest } from "./manifest.js"
-import { engineFolder, exists, olderEngine, unpack } from "./unpack.js"
+import { engineFolder, olderEngine, unpack } from "./unpack.js"
 
 /** Whether `error` is an abort: cancelling is the person's choice, not a failure. */
 export const aborted = (error: unknown): boolean =>

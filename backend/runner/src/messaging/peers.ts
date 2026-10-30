@@ -1,7 +1,8 @@
 import type { AgentActivity, AgentName, TitleSource } from "@novadeck/protocol"
 
 import { mention } from "../terminals/handles.js"
-import { busiestFolders, firstFrom, shorten, type Work } from "../terminals/work.js"
+import { busiestFolders, firstFrom, type Work } from "../terminals/work.js"
+import { shorten } from "../text.js"
 import { agentLabel, clock, holdOf, isNotice, senderTerminal, type Message } from "./messages.js"
 
 /**

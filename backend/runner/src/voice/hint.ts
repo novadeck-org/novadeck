@@ -1,3 +1,5 @@
+import { list } from "../text.js"
+
 /**
  * What a terminal knows of the words likely said into it, as `Terminals.hintFacts` reads
  * them: its project's name, its folder, its git branch, the folders its agent writes in
@@ -79,9 +81,6 @@ const noise = (name: string): boolean => {
   return /[@:]/.test(name) || generic.has(name.toLowerCase())
 }
 
-const listed = (names: readonly string[]): string =>
-  names.length > 1 ? `${names.slice(0, -1).join(", ")} and ${names.at(-1)}` : names.join(", ")
-
 /**
  * The prompt that helps the engine spell what is said in a terminal: its project, branch
  * and folder, then the modules and files it works on, each once, without noise, cut to
@@ -138,10 +137,8 @@ export const dictationHint = (facts: HintFacts, language: string): string => {
       project && `Working on ${project}`,
       branch && `on the ${branch} branch`,
       folder && `in the ${folder} folder`,
-      names.length ? `with ${listed(names)}` : null,
-      terminals.length
-        ? `${names.length ? "and" : "with"} the terminals ${listed(terminals)}`
-        : null,
+      names.length ? `with ${list(names)}` : null,
+      terminals.length ? `${names.length ? "and" : "with"} the terminals ${list(terminals)}` : null,
     ].filter((clause) => clause !== null)
     // Without a project, the sentence starts at its next clause.
     const text = clauses.join(", ")
