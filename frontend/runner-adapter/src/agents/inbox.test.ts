@@ -1,6 +1,6 @@
 import type { ChatDialog } from "@novadeck/core/conversation"
 import type { InboxBinding } from "@novadeck/core/inbox"
-import { dialogMs, type Asked } from "@novadeck/core/inbox/rows"
+import { dialogMs, type Asked, type WrittenEntry } from "@novadeck/core/inbox/rows"
 import {
   noMessages,
   type AgentMessage,
@@ -12,7 +12,7 @@ import { createTerminalState } from "@novadeck/core/state"
 import { createStore } from "@novadeck/core/store"
 import type { AgentStatus, AgentTurnEnd, TerminalMetadata, Workspace } from "@novadeck/core/types"
 import { longHoldMs, type AgentDetail, type InboxEntry } from "@novadeck/protocol"
-import { afterEach, beforeEach, vi } from "vitest"
+import { afterEach, beforeEach, expectTypeOf, vi } from "vitest"
 
 import { describe, expect, it } from "../test"
 import { channel } from "../testing/channel"
@@ -825,6 +825,15 @@ const told = (id = "told-1"): InboxEntry =>
   entry({ id, content: { kind: "tell", subject: "Preview ready", body: "Open the preview." } })
 
 describe("Inbox entries", () => {
+  it("are core's written entries once their finished turns and session id are left out", () => {
+    type Written = Omit<InboxEntry, "sessionId" | "content"> & {
+      readonly content: Exclude<InboxEntry["content"], { kind: "turn" }>
+    }
+    expectTypeOf<Written>().toExtend<WrittenEntry>()
+    expectTypeOf<keyof Written>().toEqualTypeOf<keyof WrittenEntry>()
+    expectTypeOf<Written["content"]["kind"]>().toEqualTypeOf<WrittenEntry["content"]["kind"]>()
+  })
+
   it("follows one global stream while bound and closes it when unbound", async () => {
     const { inbox, streams, entries, stop, ids } = setup(workspaceOf(agentTerminal(1)))
     expect(streams.inbox.watch).toHaveBeenCalledOnce()
