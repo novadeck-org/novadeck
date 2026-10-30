@@ -53,6 +53,11 @@
       "types": "./dist/items.d.ts",
       "default": "./dist/items.js"
     },
+    "./paths": {
+      "development": "./src/paths.ts",
+      "types": "./dist/paths.d.ts",
+      "default": "./dist/paths.js"
+    },
     "./plugin": {
       "development": "./src/plugin.ts",
       "types": "./dist/plugin.d.ts",

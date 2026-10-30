@@ -130,8 +130,22 @@ const decodeHook = ({ event, seq, instance, env, payload }: Report): readonly Ha
         : []
     case "SubagentStop":
       return actor ? [{ type: "subagent-stopped", ...base, actor }] : []
-    case "PermissionRequest":
-      return [asked(base, actor, tool, input, call, "permission")]
+    case "PermissionRequest": {
+      // A patch's permission names the files it writes, from the directory it asked in: a
+      // patch run through its shell fires no PostToolUse, so its write settles it.
+      const writes = tool === "apply_patch" ? patched(input, absolute(payload.cwd)) : []
+      return [
+        asked(
+          base,
+          actor,
+          tool,
+          input,
+          call,
+          "permission",
+          writes.length > 0 ? { writes } : undefined,
+        ),
+      ]
+    }
     case "PreToolUse":
       // Two tools ask the person with no PermissionRequest: their dialog is up from the
       // call on, and its PostToolUse says it was answered. A third, the async question,
@@ -187,7 +201,10 @@ export const callOf = (input: unknown): unknown =>
     ? { command: (input as { command: unknown }).command }
     : input
 
-/** A request waiting on the person for a tool call, named by its call unless `own` names it. */
+/**
+ * A request waiting on the person for a tool call, named by its call unless `own` names it,
+ * with the files it asks to write where it names them.
+ */
 const asked = (
   base: EventBase<"codex">,
   actor: string | null,
@@ -195,13 +212,15 @@ const asked = (
   input: unknown,
   call: unknown,
   kind: "permission" | "question",
-  own?: {
-    readonly requestId: string
-    readonly subject: string | null
-    readonly choices: readonly string[]
-    readonly parts: readonly string[]
-    readonly detached: true
-  },
+  own?:
+    | {
+        readonly requestId: string
+        readonly subject: string | null
+        readonly choices: readonly string[]
+        readonly parts: readonly string[]
+        readonly detached: true
+      }
+    | { readonly writes: readonly string[] },
 ): HarnessEvent => ({
   type: "attention-requested",
   ...base,
