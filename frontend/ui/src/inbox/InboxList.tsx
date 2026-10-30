@@ -67,69 +67,36 @@ type Drag = { readonly index: number; readonly onStep: (by: -1 | 1) => void }
 // be snoozed (S): it keeps its place, marked, its bell-off where its wait shows.
 const Row = ({
   item,
+  place,
   asks,
   first,
   settledFirst,
   drag,
 }: {
   readonly item: InboxRow
+  // Its place in the list, which keeps a row that doesn't drag where it is.
+  readonly place: number
   readonly asks: boolean
   readonly first: boolean
   readonly settledFirst: boolean
   readonly drag?: Drag | undefined
-}): React.JSX.Element =>
-  drag ? (
-    <DraggedRow item={item} asks={asks} first={first} settledFirst={settledFirst} drag={drag} />
-  ) : (
-    <RowBody item={item} asks={asks} first={first} settledFirst={settledFirst} />
-  )
-
-const DraggedRow = ({
-  drag,
-  ...row
-}: {
-  readonly item: InboxRow
-  readonly asks: boolean
-  readonly first: boolean
-  readonly settledFirst: boolean
-  readonly drag: Drag
 }): React.JSX.Element => {
-  // The row's button is what drags: dnd-kit starts no drag from a button that isn't its handle.
-  const { ref, handleRef, isDragSource } = useSortable({
-    id: row.item.id,
-    index: drag.index,
+  // One component whether it drags or not, so a row that starts or stops dragging (an answer
+  // sent, an ask settled) keeps its element and the focus on it. The row's button is what
+  // drags: dnd-kit starts no drag from a button that isn't its handle. A row that doesn't
+  // drag is in a group of its own, which a drag never sorts.
+  const {
+    ref: rowRef,
+    handleRef,
+    isDragSource: dragging,
+  } = useSortable({
+    id: item.id,
+    index: drag ? drag.index : place,
+    group: drag ? "asks" : "still",
+    disabled: !drag,
     transition: { duration: 180, easing: "cubic-bezier(0.16, 1, 0.3, 1)" },
   })
-  return (
-    <RowBody
-      {...row}
-      rowRef={ref}
-      handleRef={handleRef}
-      dragging={isDragSource}
-      onStep={drag.onStep}
-    />
-  )
-}
-
-const RowBody = ({
-  item,
-  asks,
-  first,
-  settledFirst,
-  rowRef,
-  handleRef,
-  dragging = false,
-  onStep,
-}: {
-  readonly item: InboxRow
-  readonly asks: boolean
-  readonly first: boolean
-  readonly settledFirst: boolean
-  readonly rowRef?: (element: Element | null) => void
-  readonly handleRef?: (element: Element | null) => void
-  readonly dragging?: boolean
-  readonly onStep?: ((by: -1 | 1) => void) | undefined
-}): React.JSX.Element => {
+  const onStep = drag?.onStep
   const { state, view, now, drafts, ghosts, open, close, dismiss, snooze } = useInboxContext()
   const { settled } = item
   const type = inboxType(item)
@@ -421,6 +388,7 @@ export const InboxList = (): React.JSX.Element => {
     const at = Math.max(0, Math.min(dragged.length - 1, to))
     if (!arrange || from < 0 || from === at) return
     const order = dragged.toSpliced(from, 1).toSpliced(at, 0, id)
+    setMoved(`Moved to ${at + 1} of ${dragged.length}`)
     // The rows that ask and are still there, one answered meanwhile among them, and one that
     // settled in place, which keeps it.
     const live = new Set(state.items.map((item) => item.id))
@@ -429,13 +397,14 @@ export const InboxList = (): React.JSX.Element => {
         .filter(({ item, placed }) => live.has(item.id) && (asking(item) || placed))
         .map(({ item }) => item.id),
     )
+    const byId = new Map(shown.map((item) => [item.id, item]))
     arrange(
       arrangedIds(
         shown.map((item) => item.id),
         kept,
         dragged,
         order,
-      ),
+      ).flatMap((each) => byId.get(each) ?? []),
     )
   }
   // The element that holds the rows, which a drag stays within.
@@ -446,6 +415,8 @@ export const InboxList = (): React.JSX.Element => {
   // the order, which drops the focus with the dragged row, so it goes back to it
   // (`focusRow`).
   const [drags, setDrags] = useState(0)
+  // Where a row went, for assistive technology, which dnd-kit's own markup would have said.
+  const [moved, setMoved] = useState("")
   const settledAt = settledStart(shown.map((item) => item.settled !== undefined))
   const updates = updatesStart(
     rows
@@ -499,6 +470,7 @@ export const InboxList = (): React.JSX.Element => {
                 <Row
                   key={item.id}
                   item={item}
+                  place={index}
                   asks={asks}
                   first={index === updates}
                   settledFirst={index === settledAt}
@@ -519,6 +491,9 @@ export const InboxList = (): React.JSX.Element => {
           </DragDropProvider>
         </div>
       )}
+      <span className="sr-only" aria-live="polite">
+        {moved}
+      </span>
     </div>
   )
 }

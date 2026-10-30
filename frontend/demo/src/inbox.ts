@@ -3,6 +3,7 @@ import type { Conversation, Conversations } from "@novadeck/core/conversation"
 import type { AgentName } from "@novadeck/core/harnesses"
 import {
   emptyInbox,
+  rowKey,
   ordered,
   type Inbox,
   type InboxAnswer,
@@ -504,7 +505,11 @@ export const createDemoInbox = (
       settle(id, "dismissed")
     },
     order,
-    arrange: (ids) => void order.update(() => ids),
+    // Only the rows still listed: the order forgets the gone.
+    arrange: (keys) => {
+      const listed = new Set(state.getSnapshot().items.map(rowKey))
+      order.update(() => keys.filter((key) => listed.has(key)))
+    },
     clear: (ids) => {
       const gone = new Set(ids)
       change((current) => ({

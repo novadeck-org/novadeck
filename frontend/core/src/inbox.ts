@@ -245,11 +245,11 @@ export type Inbox = {
   readonly dismiss?: (id: string) => void
   // Optional. Removes these settled asks.
   readonly clear?: (ids: readonly string[]) => void
-  // Optional. The rows that ask, by id, in the order the person dragged them into, and how
-  // that order is kept; empty until they do. Absent where the backend keeps none, and the
-  // rows keep the Inbox's own order.
+  // Optional. The rows that ask, by `rowKey`, in the order the person dragged them into, and
+  // how that order is kept, which forgets rows no longer listed; empty until they drag one.
+  // Absent where the backend keeps none, and the rows keep the Inbox's own order.
   readonly order?: Store<readonly string[]>
-  readonly arrange?: (ids: readonly string[]) => void
+  readonly arrange?: (keys: readonly string[]) => void
   // Optional. Snoozes a row, or brings it back (`on` false); its row then carries `snoozed`.
   // Absent where the backend keeps no snoozes.
   readonly snooze?: (id: string, on: boolean) => void
@@ -302,9 +302,9 @@ export const entryRow = (
 // the runner adapter's tests hold it to).
 export const maxSnoozes = 200
 
-// A row by its id and when it began: a newer row under the same id, as a thread held again,
-// is another, and isn't snoozed.
-const snoozeKey = (item: InboxRow): string => `${item.id}@${item.at}`
+// A row by its id and when it began, as the person's order and snoozes keep it: a newer row
+// under the same id, as a thread held again or a harness asking the same again, is another.
+export const rowKey = (item: InboxRow): string => `${item.id}@${item.at}`
 
 // `inbox` with snoozes: its rows that the person snoozed, and that haven't settled, carry
 // `snoozed`. `initial` the snoozes kept before, and `save` keeps them each time one is
@@ -321,7 +321,7 @@ export const withSnoozes = <I extends Inbox>(
   // Each row's snoozed copy, while the backend keeps the row itself, so it stays the same.
   let copies = new WeakMap<InboxRow, InboxRow>()
   const listeners = new Set<() => void>()
-  const asleep = (item: InboxRow): boolean => !item.settled && keys.has(snoozeKey(item))
+  const asleep = (item: InboxRow): boolean => !item.settled && keys.has(rowKey(item))
   const copy = (item: InboxRow): InboxRow => {
     const made = copies.get(item) ?? { ...item, snoozed: true as const }
     copies.set(item, made)
@@ -358,7 +358,7 @@ export const withSnoozes = <I extends Inbox>(
       const item = inbox.state.getSnapshot().items.find((each) => each.id === id)
       if (on && !item) return
       const kept = snoozed.filter((key) => !key.startsWith(`${id}@`))
-      snoozed = (on && item ? [...kept, snoozeKey(item)] : kept).slice(-maxSnoozes)
+      snoozed = (on && item ? [...kept, rowKey(item)] : kept).slice(-maxSnoozes)
       keys = new Set(snoozed)
       from = undefined
       copies = new WeakMap()

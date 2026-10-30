@@ -1,4 +1,11 @@
-import { inboxType, ordered, urgency, type InboxRow, type InboxState } from "@novadeck/core/inbox"
+import {
+  inboxType,
+  ordered,
+  rowKey,
+  urgency,
+  type InboxRow,
+  type InboxState,
+} from "@novadeck/core/inbox"
 
 // Which item the person has open, and what the list shows meanwhile. While a sheet is
 // open the list neither reorders nor grows: items that arrive are held, counted by the
@@ -29,20 +36,21 @@ const idsOf = (items: readonly InboxRow[]): string[] => items.map(({ id }) => id
 const same = (a: readonly string[], b: readonly string[]): boolean =>
   a.length === b.length && a.every((id, index) => id === b[index])
 
-// The rows that ask, in the order the person dragged them into (`arranged`, their ids): each
+// The rows that ask, in the order the person dragged them into (`arranged`, their keys): each
 // they placed keeps its place among the others they placed, and one that came since goes
 // ahead of the first placed row as urgent as it or less, so what is new is seen before what
 // they put off. Every other row keeps its place in `list`, the Inbox's order.
 export const arrange = (list: readonly InboxRow[], arranged: readonly string[]): InboxRow[] => {
   if (arranged.length === 0) return [...list]
-  const rank = new Map(arranged.map((id, index) => [id, index]))
+  const rank = new Map(arranged.map((key, index) => [key, index]))
+  const placed = (item: InboxRow): boolean => rank.has(rowKey(item))
   const asking = list.filter(asks)
   const result = asking
-    .filter(({ id }) => rank.has(id))
-    .toSorted((a, b) => rank.get(a.id)! - rank.get(b.id)!)
+    .filter(placed)
+    .toSorted((a, b) => rank.get(rowKey(a))! - rank.get(rowKey(b))!)
   for (const item of asking) {
-    if (rank.has(item.id)) continue
-    const at = result.findIndex((other) => rank.has(other.id) && urgency(other) >= urgency(item))
+    if (placed(item)) continue
+    const at = result.findIndex((other) => placed(other) && urgency(other) >= urgency(item))
     result.splice(at < 0 ? result.length : at, 0, item)
   }
   let next = 0
@@ -158,10 +166,10 @@ export const release = (
   arrived: held(view, items).map(({ id }) => id),
 })
 
-// The person's order after a drag: `dragged`, the rows the list showed in their new order,
-// with every row of the order `before` that the list didn't show (as one the landing rule
-// hides while the person looks at its terminal) kept after the rows it followed, wherever
-// the drag put them: one put last stays last.
+// The person's order after a drag, by key: `dragged`, the rows the list showed in their new
+// order, with every row of the order `before` that the list didn't show (as one the landing
+// rule hides while the person looks at its terminal) kept after the rows it followed,
+// wherever the drag put them: one put last stays last. The backend forgets the rows gone.
 export const keptOrder = (before: readonly string[], dragged: readonly string[]): string[] => {
   const shown = new Set(dragged)
   const order = [...dragged]

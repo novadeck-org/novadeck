@@ -372,6 +372,10 @@ describe("a terminal's note", () => {
     expect(
       terminalNote(asking, { ...snoozedRequest, snoozedRequests: 0 }, undefined, now),
     ).toMatchObject({ need: "unblock", snoozed: false })
+    // Beside an ask it hasn't snoozed, the snoozed request's dialog makes no mark: the ask's.
+    expect(
+      terminalNote(asking, { need: "ask", subject: "Which?", snoozedRequests: 1 }, undefined, now),
+    ).toMatchObject({ need: "ask", snoozed: false, text: "Asks: Which?" })
     // What it needs and hasn't snoozed is marked as ever.
     expect(
       terminalNote(asking, { need: "ask", subject: "Which?", snoozed: true }, undefined, now),

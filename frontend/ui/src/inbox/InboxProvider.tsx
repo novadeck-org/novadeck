@@ -1,5 +1,11 @@
 import type { Picks } from "@novadeck/core/answers"
-import type { Inbox, InboxAnswer, InboxRow, InboxState } from "@novadeck/core/inbox"
+import {
+  rowKey,
+  type Inbox,
+  type InboxAnswer,
+  type InboxRow,
+  type InboxState,
+} from "@novadeck/core/inbox"
 import {
   createContext,
   useCallback,
@@ -92,9 +98,9 @@ export type InboxContextValue = {
   // Dismisses an open ask, and clears the settled ones; absent where the backend has no such.
   readonly dismiss: ((id: string) => void) | undefined
   readonly clear: (() => void) | undefined
-  // Keeps the rows that ask in the order the person dragged them into, by id; absent where
-  // the backend keeps no order, and the rows can't be dragged.
-  readonly arrange: ((ids: readonly string[]) => void) | undefined
+  // Keeps the rows that ask in the order the person dragged them into; absent where the
+  // backend keeps no order, and the rows can't be dragged.
+  readonly arrange: ((rows: readonly InboxRow[]) => void) | undefined
   // Snoozes a row (`on`) or brings it back; snoozed from its open sheet, the next that asks
   // opens, as after an answer. Absent where the backend keeps no snoozes.
   readonly snooze: ((item: InboxRow, on: boolean) => void) | undefined
@@ -346,9 +352,14 @@ export const InboxProvider = ({
   const arrange = useMemo(
     () =>
       inbox.arrange
-        ? (ids: readonly string[]): void => {
-            inbox.arrange?.(keptOrder(latest.current.arranged, ids))
-            setView((before) => rearranged(before, ids))
+        ? (rows: readonly InboxRow[]): void => {
+            inbox.arrange?.(keptOrder(latest.current.arranged, rows.map(rowKey)))
+            setView((before) =>
+              rearranged(
+                before,
+                rows.map(({ id }) => id),
+              ),
+            )
           }
         : undefined,
     [inbox],
@@ -363,7 +374,14 @@ export const InboxProvider = ({
             if (!on || before.open !== item.id) return
             const snapshot = inbox.state.getSnapshot()
             const target = nextItem(snapshot.items, item.id, snapshot, order)
-            if (!target) return close()
+            // With nothing left, the keyboard goes back to the snoozed row.
+            if (!target) {
+              close()
+              requestAnimationFrame(() =>
+                rowOf(item.id)?.querySelector<HTMLElement>(".inbox-row-select")?.focus(),
+              )
+              return
+            }
             setReceipt(null)
             const kept = before.order.includes(target.id)
               ? before
@@ -371,6 +389,8 @@ export const InboxProvider = ({
             setView(openItem(kept, target.id, snapshot.items, order))
             if (!target.seen) inbox.see(target.id)
             requestAnimationFrame(() => rowOf(target.id)?.scrollIntoView?.({ block: "nearest" }))
+            // The keyboard goes on to the next sheet, as from its row.
+            focusSheetSoon()
           }
         : undefined,
     [inbox, close],
@@ -440,7 +460,6 @@ export const InboxProvider = ({
         if (!latest.current.snoozing) return
         event.preventDefault()
         latest.current.snoozing(item, !item.snoozed)
-        if (!item.snoozed) focusSheetSoon()
         return
       }
       const to = stepFrom(

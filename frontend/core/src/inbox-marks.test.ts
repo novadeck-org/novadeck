@@ -128,5 +128,24 @@ describe("the marks the raw Inbox makes", () => {
       subject: "Which?",
       dialog: undefined,
     })
+    // A snoozed request beside it is counted, so its dialog makes no mark.
+    const request = item({
+      kind: "request",
+      request: {
+        id: "r",
+        kind: "permission",
+        tool: "Bash",
+        subject: "ls",
+        choices: [],
+        subagent: false,
+        dialog: null,
+        answered: false,
+      },
+      snoozed: true,
+    })
+    expect(inboxMarks([request, ask({ type: "text" })], at, now)).toMatchObject({
+      need: "ask",
+      snoozedRequests: 1,
+    })
   })
 })

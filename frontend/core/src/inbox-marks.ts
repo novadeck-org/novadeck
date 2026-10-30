@@ -28,13 +28,16 @@ export const inboxMarks = (items: readonly InboxRow[], at: TerminalAt, now: numb
   const need = terminalNeed(items, at, now)
   const mine = items.filter((item) => here(item, at) && !item.settled && !item.snoozed)
   const behind = need && mine.find((item) => inboxType(item) === need)
+  const asleep = items.filter((item) => here(item, at) && !item.settled && item.snoozed)
+  // Its snoozed requests, whose live dialogs then make no mark.
+  const requests = asleep.filter((item) => item.kind === "request").length
   if (need)
     return {
       need,
       subject: behind ? subjectOf(behind) : undefined,
       dialog: behind ? dialogOf(behind) : undefined,
+      ...(requests > 0 ? { snoozedRequests: requests } : {}),
     }
-  const asleep = items.filter((item) => here(item, at) && !item.settled && item.snoozed)
   const would = terminalNeed(
     asleep.map(({ snoozed: _snoozed, ...item }) => item as InboxRow),
     at,
@@ -46,7 +49,7 @@ export const inboxMarks = (items: readonly InboxRow[], at: TerminalAt, now: numb
         need: undefined,
         subject: first ? subjectOf(first) : undefined,
         snoozed: true,
-        snoozedRequests: asleep.filter((item) => item.kind === "request").length,
+        snoozedRequests: requests,
       }
     : { need: undefined, subject: undefined, dialog: undefined }
 }

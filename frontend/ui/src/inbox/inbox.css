@@ -244,6 +244,14 @@
 .inbox-row[data-snoozable="true"] .inbox-row-meta {
   padding-right: 24px;
 }
+/* With both (an open Novadeck ask), each sits nearer its edge, so a one-line row (about 70 px)
+   holds both apart. */
+.inbox-row[data-dismissable="true"][data-snoozable="true"] .inbox-row-dismiss {
+  top: 5px;
+}
+.inbox-row[data-dismissable="true"][data-snoozable="true"] .inbox-row-snooze {
+  bottom: 5px;
+}
 @media (hover: none) {
   .inbox-row[data-snoozable="true"] .inbox-row-snooze {
     display: inline-flex;

@@ -830,3 +830,13 @@ describe("an agent that calls done", () => {
     expect(updateOn(found)).toMatchObject({ update: { type: "done", ...report } })
   })
 })
+
+describe("The demo Inbox's order", () => {
+  it("keeps the rows still listed, by key, and forgets the rest", () => {
+    const inbox = createDemoInbox(Date.now())
+    const [first, second] = inbox.state.getSnapshot().items
+    const key = (row: typeof first) => `${row!.id}@${row!.at}`
+    inbox.arrange?.([key(second), "gone@1", key(first)])
+    expect(inbox.order?.getSnapshot()).toEqual([key(second), key(first)])
+  })
+})

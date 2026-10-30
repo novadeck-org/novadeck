@@ -1,5 +1,5 @@
 import { handleText } from "@novadeck/core/handle"
-import { withSnoozes, type Inbox } from "@novadeck/core/inbox"
+import { rowKey, withSnoozes, type Inbox } from "@novadeck/core/inbox"
 import type {
   AgentConnection,
   Backend,
@@ -1564,9 +1564,13 @@ export const runnerBackend = (
         ? {
             ...inbox,
             order: inboxOrder,
-            arrange: (ids) => {
-              inboxOrder.update(() => ids)
-              void track(runner.settings.set({ inboxOrder: fitted(ids) })).catch(() => {})
+            // Only the rows still listed, the landing rule's hidden ones among them: the
+            // order forgets the gone.
+            arrange: (keys) => {
+              const listed = new Set(inbox.state.getSnapshot().items.map(rowKey))
+              const kept = keys.filter((key) => listed.has(key))
+              inboxOrder.update(() => kept)
+              void track(runner.settings.set({ inboxOrder: fitted(kept) })).catch(() => {})
             },
           }
         : inbox,

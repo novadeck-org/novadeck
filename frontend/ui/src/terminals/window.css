@@ -502,8 +502,13 @@
   align-self: center;
   color: var(--window-snoozed-fg, var(--color-muted));
 }
-.terminal-window[data-terminal-snoozed="true"] .terminal-heading {
-  background-color: var(--window-snoozed-bg, color-mix(in srgb, var(--color-ink) 6%, transparent));
+/* Laid over the header's own ground, whichever it is (selected or not), which hides the
+   heading behind it. */
+.terminal-window[data-terminal-snoozed="true"] .terminal-header {
+  background-image: linear-gradient(
+    var(--window-snoozed-bg, color-mix(in srgb, var(--color-ink) 6%, transparent)),
+    var(--window-snoozed-bg, color-mix(in srgb, var(--color-ink) 6%, transparent))
+  );
 }
 .terminal-paused {
   flex: none;

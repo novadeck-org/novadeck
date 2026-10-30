@@ -82,8 +82,8 @@ export type WindowShellProps = {
   need?: "unblock" | "ask" | undefined
   needSubject?: string | undefined
   needDialog?: NeedDialog | undefined
-  // What it needs the person for is snoozed in the Inbox, and how many of its snoozed rows
-  // are requests (its live dialogs): a bell-off takes the need's mark.
+  // What it needs the person for is snoozed in the Inbox (a bell-off takes the need's mark),
+  // and how many of its snoozed rows are requests, whose live dialogs make no mark.
   needSnoozed?: boolean | undefined
   needSnoozedRequests?: number | undefined
   // The terminal that directs this one's work while it runs, by its handle and name.
@@ -172,9 +172,8 @@ export const WindowShell = ({
           need: inboxNeed,
           subject: needSubject,
           dialog: needDialog,
-          ...(needSnoozed
-            ? { snoozed: true as const, snoozedRequests: needSnoozedRequests ?? 0 }
-            : {}),
+          ...(needSnoozed ? { snoozed: true as const } : {}),
+          ...(needSnoozedRequests ? { snoozedRequests: needSnoozedRequests } : {}),
         },
         unread,
       )

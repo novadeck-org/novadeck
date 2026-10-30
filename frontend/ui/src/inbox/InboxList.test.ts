@@ -476,11 +476,11 @@ describe("The Inbox's list", () => {
       )
       inbox.step("a", "ArrowDown")
 
-      expect(inbox.order.getSnapshot()).toEqual(["b", "a"])
+      expect(inbox.order.getSnapshot()).toEqual(["b@2", "a@1"])
       expect(inbox.subjects()).toEqual(["Run b?", "Run a?", "u"])
       // The last row that asks goes no further: the updates below it never move.
       inbox.step("a", "ArrowDown")
-      expect(inbox.order.getSnapshot()).toEqual(["b", "a"])
+      expect(inbox.order.getSnapshot()).toEqual(["b@2", "a@1"])
       expect(inbox.row("u").querySelector(".inbox-row-select")?.ariaKeyShortcuts).toBeNull()
       await nextFrame()
       inbox.view.unmount()

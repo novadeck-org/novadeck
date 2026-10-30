@@ -86,15 +86,16 @@ describe("the agent switches", () => {
 })
 
 describe("the Inbox's order and snoozes", () => {
-  it("show what the runner kept, and keep each change there, in ids it takes", async () => {
-    const app = scripted({ shown: [], inboxOrder: ["b", "a"], inboxSnoozed: ["a@1", "b@2"] })
+  it("show what the runner kept, and keep each change there, forgetting rows gone", async () => {
+    const app = scripted({ shown: [], inboxOrder: ["b@2", "a@1"], inboxSnoozed: ["a@1", "b@2"] })
     const inbox = app.backend.inbox!
-    expect(inbox.order?.getSnapshot()).toEqual(["b", "a"])
-    inbox.arrange?.(["a", "x".repeat(201), "b"])
-    expect(inbox.order?.getSnapshot()).toEqual(["a", "x".repeat(201), "b"])
+    expect(inbox.order?.getSnapshot()).toEqual(["b@2", "a@1"])
+    // No row is listed here, so the order keeps none of them.
+    inbox.arrange?.(["a@1", "b@2"])
+    expect(inbox.order?.getSnapshot()).toEqual([])
     inbox.snooze?.("a", false)
     await app.idle()
-    expect(app.of("settings")).toEqual([{ inboxOrder: ["a", "b"] }, { inboxSnoozed: ["b@2"] }])
+    expect(app.of("settings")).toEqual([{ inboxOrder: [] }, { inboxSnoozed: ["b@2"] }])
     app.stop()
   })
 

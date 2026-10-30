@@ -63,6 +63,11 @@ const update = (id: string, at: number): InboxRow => ({
 
 const ids = (items: readonly InboxRow[]): string[] => items.map(({ id }) => id)
 
+// The person's order keeps rows by their key, an id and when it began: the rows below began
+// at 1, 2 and 3 (a, b, c).
+const keyed = (...names: string[]): string[] =>
+  names.map((name) => ({ a: "a@1", b: "b@2", c: "c@3" })[name] ?? name)
+
 describe("What the Inbox starts with", () => {
   it("is on the list at once, and none of it counts as having just arrived", () => {
     const items = [approve("a", 1), approve("b", 2)]
@@ -335,20 +340,26 @@ describe("The rows that ask, in the person's order", () => {
   })
 
   it("follow it, the updates still below them", () => {
-    expect(ids(visible(initialView, items, {}, ["c", "a", "b"]))).toEqual(["c", "a", "b", "u"])
+    expect(ids(visible(initialView, items, {}, keyed("c", "a", "b")))).toEqual(["c", "a", "b", "u"])
   })
 
   it("keep an ask put off below one that comes after, as urgent", () => {
     const later = [...items, approve("d", 9)]
 
-    expect(ids(visible(initialView, later, {}, ["b", "c", "a"]))).toEqual(["d", "b", "c", "a", "u"])
+    expect(ids(visible(initialView, later, {}, keyed("b", "c", "a")))).toEqual([
+      "d",
+      "b",
+      "c",
+      "a",
+      "u",
+    ])
   })
 
   it("let one that comes after go below the placed rows more urgent than it", () => {
     // "w" waits while its agent works on: less urgent than any that stopped it.
     const later = [...items, approve("w", 0, false)]
 
-    expect(ids(arrange(visible(initialView, later), ["c", "a", "b"]))).toEqual([
+    expect(ids(arrange(visible(initialView, later), keyed("c", "a", "b")))).toEqual([
       "c",
       "a",
       "b",
@@ -357,12 +368,23 @@ describe("The rows that ask, in the person's order", () => {
     ])
   })
 
+  it("take a row asked again under the same id as new, not where the old one was put", () => {
+    // "a" was put last and answered; the harness asks the same again, a row under its id.
+    const again = [approve("a", 7), approve("b", 2), approve("c", 3)]
+    expect(ids(visible(initialView, again, {}, keyed("b", "c", "a")))).toEqual(["a", "b", "c"])
+  })
+
   it("forget the rows that have gone", () => {
-    expect(ids(visible(initialView, items, {}, ["gone", "b", "a"]))).toEqual(["c", "b", "a", "u"])
+    expect(ids(visible(initialView, items, {}, keyed("gone", "b", "a")))).toEqual([
+      "c",
+      "b",
+      "a",
+      "u",
+    ])
   })
 
   it("set what asks next", () => {
-    expect(nextItem(items, "c", { answering: {} }, ["c", "b", "a"])?.id).toBe("b")
+    expect(nextItem(items, "c", { answering: {} }, keyed("c", "b", "a"))?.id).toBe("b")
   })
 
   it("leave a settled ask below them, and one that settled in place where it was", () => {
@@ -370,12 +392,12 @@ describe("The rows that ask, in the person's order", () => {
     const view = settle(initialView, open, true)
     const after = [open[0]!, ask("b", 2, { how: "dismissed", at: 9 }), open[2]!]
 
-    expect(ids(visible(settle(view, after, true), after, {}, ["c", "b", "a"]))).toEqual([
+    expect(ids(visible(settle(view, after, true), after, {}, keyed("c", "b", "a")))).toEqual([
       "c",
       "b",
       "a",
     ])
-    expect(ids(visible(settle(view, after, false), after, {}, ["c", "b", "a"]))).toEqual([
+    expect(ids(visible(settle(view, after, false), after, {}, keyed("c", "b", "a")))).toEqual([
       "c",
       "a",
       "b",
@@ -409,7 +431,7 @@ describe("A snoozed row", () => {
 
   it("keeps its place, and the person's order moves it like any row that asks", () => {
     expect(ids(visible(initialView, items))).toEqual(["a", "b", "c", "u"])
-    expect(ids(visible(initialView, items, {}, ["b", "c", "a"]))).toEqual(["b", "c", "a", "u"])
+    expect(ids(visible(initialView, items, {}, keyed("b", "c", "a")))).toEqual(["b", "c", "a", "u"])
   })
 })
 
