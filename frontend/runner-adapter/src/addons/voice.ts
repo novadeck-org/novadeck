@@ -59,7 +59,7 @@ const unavailable: Record<VoiceUnavailable["reason"], string> = {
 }
 
 // What a failed clip call means for the person.
-export const clipFailure = (error: unknown): Error => {
+const clipFailure = (error: unknown): Error => {
   if (hasCode(error, "UPLOAD_TOO_LARGE"))
     return new Error(`That was too long to transcribe. Dictate up to ${maxVoiceSeconds} seconds.`)
   if (hasCode(error, "VOICE_UNAVAILABLE")) {

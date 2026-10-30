@@ -9,7 +9,7 @@ import {
 // and reported to the app's log.
 
 // Chromium's limit less the two contexts the pool keeps free, as its default does of 16.
-export const contextMargin = 2
+const contextMargin = 2
 
 // Sizes the page's WebGL pool to the limit the app raised, where it says it did. A browser,
 // and an app that came before it, keep the pool's default.

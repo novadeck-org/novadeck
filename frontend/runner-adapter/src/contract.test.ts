@@ -61,7 +61,7 @@ describeBackendContract("runner", {
             await attached.write(`exit ${status.exitCode}\r`)
           } else await runner.client.terminals.close(key.terminalId).catch(() => {})
           for await (const event of attached) if (event.type === "exited") break
-          // The adapter hears of the exit on its own subscription.
+          // The adapter hears of the exit on its own stream.
           await pause(100)
         },
       },

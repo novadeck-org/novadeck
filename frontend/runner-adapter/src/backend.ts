@@ -1,6 +1,5 @@
 import { createTelemetryStore, dropTerminal, setUsage } from "@novadeck/core/agents/telemetry"
 import type {
-  AgentConnection,
   Backend,
   BackendAction,
   BackendConnectionState,
@@ -60,6 +59,7 @@ import {
   type RunnerListing,
 } from "./sessions/seed"
 import { createRunnerSource } from "./source"
+import { runnerSwitches } from "./switches"
 import {
   defaultQuickExitMs,
   exitStatus,
@@ -68,6 +68,8 @@ import {
   terminalActivity,
 } from "./terminals/activity"
 import { createBootProgress } from "./terminals/boot-progress"
+import { failedToCreate, launchFailure, lostStatus } from "./terminals/failures"
+import { crashLoop, restartingTooOften, restartWindowMs } from "./terminals/restarts"
 import { resumableProgram } from "./terminals/resumable"
 import { viewOptions } from "./terminals/view-options"
 
@@ -156,15 +158,6 @@ type Launch = {
   failure?: unknown
 }
 
-// What the agent hears when the terminal it asked for couldn't start.
-const launchFailure = (launch: Launch | undefined): string => {
-  const { failure } = launch ?? {}
-  const why = failure instanceof Error && failure.message ? ` ${failure.message}` : ""
-  return launch?.command === undefined
-    ? `Novadeck couldn't open the terminal.${why}`
-    : `Novadeck couldn't start the command in a new terminal.${why}`
-}
-
 // One terminal the workspace holds, whichever view shows it.
 export type RunnerEntry = {
   readonly key: TerminalKey
@@ -251,25 +244,6 @@ const connectionState = (status: WireStatus): BackendConnectionState => {
   return status.state === "reconnecting" ? "reconnecting" : "unavailable"
 }
 
-// Failures of the whole link, which the footer reports; they say nothing about a terminal.
-const linkFailures = ["DISCONNECTED", "CLOSED", "UNAUTHORIZED", "INCOMPATIBLE_PROTOCOL"] as const
-
-// Why a terminal could not start, short enough for its end-of-session bar; an error
-// the adapter does not know keeps the runner's own words.
-const reasons = {
-  TERMINAL_LIMIT: "Terminal limit reached",
-  CONTROL_IN_USE: "Another window controls it",
-  INVALID_DIRECTORY: "Folder not found",
-  SPAWN_FAILED: "Shell could not start",
-} as const
-
-const lostStatus = (error: unknown): TerminalStatus | undefined => {
-  if (hasCode(error, ...linkFailures)) return undefined
-  for (const [code, message] of Object.entries(reasons))
-    if (hasCode(error, code as keyof typeof reasons)) return { state: "failed", message }
-  return { state: "failed", message: error instanceof Error ? error.message : String(error) }
-}
-
 const consume = async <T>(
   changes: AsyncIterable<T>,
   handle: (change: T) => void,
@@ -290,20 +264,9 @@ const defaultSaveDelay = 800
 // A runner that takes a close answers within this, but for a shell slow to end; one that
 // stays silent this long is taken not to have it.
 const defaultCloseAnswerMs = 15_000
-const failedToCreate: TerminalStatus = { state: "failed", message: "Could not create the terminal" }
 const defaultSize: TerminalSize = { cols: 80, rows: 24 }
-// More runner restarts than this within the window stop fresh shells from starting on
-// their own; each terminal then waits for Enter.
-const restartLimit = 3
-const restartWindowMs = 60_000
-// Whether the runner restarted too often lately to keep starting shells on its own.
-export const restartingTooOften = (restarts: readonly number[], now: number): boolean =>
-  restarts.filter((time) => now - time < restartWindowMs).length > restartLimit
-const crashLoop: TerminalStatus = {
-  state: "failed",
-  message: "Runner keeps crashing",
-}
 
+// The runner keeps dying while the work waits on it.
 class CrashLoop extends Error {}
 // The work is no longer wanted: its terminal closed or the backend stopped.
 class Cancelled extends Error {}
@@ -337,48 +300,6 @@ export const runnerBackend = (
   const seed = runnerSeed(listing, quickExitMs)
   const telemetry = createTelemetryStore(runnerTelemetry(listing, quickExitMs))
   const connection = createStore<BackendConnectionState>("connected")
-  const transcripts = createStore(options.transcripts ?? true)
-  const agents = createStore<readonly AgentConnection[]>(
-    (options.agents ?? []).map((agent) => ({ ...agent, busy: false })),
-  )
-  const welcome = createStore(options.welcomed === false)
-  // Replaces one agent's entry, keeping the others.
-  const updateAgent = (
-    agent: AgentConnection["agent"],
-    next: (current: AgentConnection) => AgentConnection,
-  ) => agents.update((list) => list.map((item) => (item.agent === agent ? next(item) : item)))
-  const connectAgent = (agent: AgentConnection["agent"], connected: boolean): void => {
-    updateAgent(agent, ({ available, connected: was }) => ({
-      agent,
-      available,
-      connected: was,
-      busy: true,
-    }))
-    void track(runner.agents.set(agent, connected)).then(
-      (result) => updateAgent(agent, () => ({ ...result, busy: false })),
-      (error: unknown) =>
-        updateAgent(agent, ({ available, connected: was }) => ({
-          agent,
-          available,
-          connected: was,
-          busy: false,
-          error: error instanceof Error ? error.message : String(error),
-        })),
-    )
-  }
-  const refreshAgents = (): void => {
-    void track(runner.agents.list()).then(
-      (list) =>
-        agents.update((current) =>
-          list.map((found) => {
-            const shown = current.find((item) => item.agent === found.agent)
-            // A change under way reports its own result.
-            return shown?.busy ? shown : { ...found, busy: false }
-          }),
-        ),
-      () => {},
-    )
-  }
   // Created before anything can settle a terminal, since settling checks it.
   const boot = createBootProgress({ entry: (id) => entries.get(id), now })
   const checkBoot = boot.check
@@ -894,6 +815,12 @@ export const runnerBackend = (
     return true
   }
 
+  // A runner that keeps dying while a shell starts is a crash loop; stop creating
+  // into it.
+  const stillWanted = (): void => {
+    if (restartingOften()) throw new CrashLoop()
+  }
+
   // Starts the shell once its session exists; a failure shows on the terminal's tab.
   const createTerminal = (entry: RunnerEntry): Promise<boolean> => {
     const { terminalId, workspaceSessionId } = entry.key
@@ -923,10 +850,7 @@ export const runnerBackend = (
           },
           {
             done: ["CONFLICT"],
-            // A runner that keeps dying is a crash loop; stop creating into it.
-            stillWanted: () => {
-              if (restartingOften()) throw new CrashLoop()
-            },
+            stillWanted,
             cancelled: () => entry.closed,
           },
         )
@@ -966,11 +890,6 @@ export const runnerBackend = (
     if (entry && !entry.closed)
       dispatch([{ type: "terminal/close", target: target(entry.key), terminalId }])
     return reply({ requestId, reason: launchFailure(launch) })
-  }
-
-  // A runner that keeps dying while a shell starts is a crash loop; stop waiting.
-  const stillWanted = (): void => {
-    if (restartingOften()) throw new CrashLoop()
   }
 
   // Starts a fresh shell for the terminal, keeping its id: a restart when the runner
@@ -1082,11 +1001,7 @@ export const runnerBackend = (
     )
   }
   // The program the terminal waits to restore, as the workspace last committed it.
-  const restoredOf = ({ key }: RunnerEntry): string | undefined =>
-    latest?.projects
-      .find((project) => project.id === key.projectId)
-      ?.history.find((session) => session.id === key.workspaceSessionId)
-      ?.state.roster.terminals.find((terminal) => terminal.id === key.terminalId)?.restoredProcess
+  const restoredOf = ({ key }: RunnerEntry): string | undefined => terminalOf(key)?.restoredProcess
   // A lost terminal gets its fresh shell once its session shows, but one whose program
   // resumes starts at once, in any session and hidden or not, so the agent is back
   // when the person looks; the runner spaces their launches out.
@@ -1393,8 +1308,8 @@ export const runnerBackend = (
     const onStatus = (status: WireStatus): void => {
       if (!live) return
       lastStatus = status
-      // The runner settles a client's asks once its link drops and sends none again, so
-      // none of them can still be answered.
+      // The runner settles a client's approval requests once its link drops and sends none
+      // again, so none of them can still be answered.
       if (status.state !== "connected")
         approvals.update((waiting) => (waiting.length ? [] : waiting))
       showConnection()
@@ -1404,7 +1319,7 @@ export const runnerBackend = (
     const changes = runner.terminals.watch()
     const statuses = runner.watch()
     const requests = runner.terminals.requests()
-    const asked = runner.terminals.approvals()
+    const approvalChanges = runner.terminals.approvals()
     const looks = runner.companions.looks()
     // Each request goes to the app, which adds the terminal and answers once.
     const onRequest = (request: TerminalRequest): void => {
@@ -1472,7 +1387,7 @@ export const runnerBackend = (
     const stopItems = items.watch()
     void consume(statuses, onStatus)
     void consume(requests, onRequest)
-    void consume(asked, onApproval)
+    void consume(approvalChanges, onApproval)
     void consume(looks, onLook)
     following = true
     for (const entry of entries.values()) if (!entry.closed) followWhenReady(entry)
@@ -1488,7 +1403,7 @@ export const runnerBackend = (
       void changes.return?.()
       void statuses.return?.()
       void requests.return?.()
-      void asked.return?.()
+      void approvalChanges.return?.()
       void looks.return?.()
       approvals.update(() => [])
       window.removeEventListener("pagehide", flush)
@@ -1578,36 +1493,7 @@ export const runnerBackend = (
     connection,
     crashLoop: { crashes: crashLooping, retry: retryAfterCrashLoop },
     boot: boot.store,
-    ...(options.transcripts !== undefined
-      ? {
-          transcripts: {
-            enabled: transcripts,
-            available: options.transcriptsAvailable ?? true,
-            set: (enabled) => {
-              const before = transcripts.getSnapshot()
-              transcripts.update(() => enabled)
-              // Unsaved, the switch shows what the runner still does.
-              void track(runner.settings.set({ transcripts: enabled })).catch(() =>
-                transcripts.update(() => before),
-              )
-            },
-          },
-        }
-      : {}),
-    ...(options.agents !== undefined
-      ? {
-          agents: {
-            state: agents,
-            set: connectAgent,
-            refresh: refreshAgents,
-            welcome,
-            finishWelcome: () => {
-              welcome.update(() => false)
-              void track(runner.settings.set({ welcomed: true })).catch(() => {})
-            },
-          },
-        }
-      : {}),
+    ...runnerSwitches(runner, options, track),
     ...(options.pickDirectory ? { pickDirectory: options.pickDirectory } : {}),
     ...(options.showAppearance ? { showAppearance: options.showAppearance } : {}),
     ...(options.notices ? { notices: options.notices } : {}),

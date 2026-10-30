@@ -123,8 +123,6 @@ const sessionSeed = (
 const later = (a: Visited | undefined, b: Visited | undefined): number =>
   (a?.visitedAt ?? -1) - (b?.visitedAt ?? -1)
 
-// The workspace as the runner left it: sessions most recently visited first, and the
-// project visited last opens. Sessions never visited follow in the runner's order.
 // Terminals whose shells exited cleanly while the app was away: the seed leaves them
 // out, and the adapter closes what the runner still keeps of them.
 export const cleanlyExited = (listing: RunnerListing): readonly string[] =>
@@ -174,6 +172,8 @@ export const runnerTelemetry = (
     noTelemetry,
   )
 
+// The workspace as the runner left it: sessions most recently visited first, and the
+// project visited last opens. Sessions never visited follow in the runner's order.
 export const runnerSeed = (
   listing: RunnerListing,
   quickExitMs = defaultQuickExitMs,

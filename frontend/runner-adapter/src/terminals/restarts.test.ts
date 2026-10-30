@@ -1,5 +1,5 @@
-import { restartingTooOften } from "../backend"
 import { describe, expect, it } from "../test"
+import { restartingTooOften } from "./restarts"
 
 describe("runner crash loop", () => {
   it("allows three restarts within a minute", () => {

@@ -10,13 +10,13 @@ import {
 import type { CompanionWindowMeta, WorkspaceTarget } from "@novadeck/core/types"
 import {
   harnesses,
+  planUnwritable,
   type AgentName,
   type CompanionItem as RunnerItem,
   type CompanionWindow as RunnerWindow,
   type ItemContent as RunnerContent,
   type PageTrouble as RunnerTrouble,
 } from "@novadeck/protocol"
-import { planUnwritable } from "@novadeck/protocol"
 import { hasCode, type Runner } from "@novadeck/runner-client"
 
 // The runner's companion items as the UI holds them: what agents show and the person
@@ -25,7 +25,7 @@ import { hasCode, type Runner } from "@novadeck/runner-client"
 // runner; one in an agent's messages stays read-only.
 
 // Agents by the names the person knows them by.
-export const agentNames = Object.fromEntries(harnesses.map(({ id, name }) => [id, name])) as Record<
+const displayNames = Object.fromEntries(harnesses.map(({ id, name }) => [id, name])) as Record<
   AgentName,
   string
 >
@@ -34,7 +34,7 @@ export const agentNames = Object.fromEntries(harnesses.map(({ id, name }) => [id
 export const itemOf = ({ sessionId: _session, plan, id, ...item }: RunnerItem): Item => ({
   ...item,
   id: itemIdOf(id),
-  plan: plan && { agent: agentNames[plan.agent], role: plan.role, source: plan.source },
+  plan: plan && { agent: displayNames[plan.agent], role: plan.role, source: plan.source },
 })
 
 export const windowOf = ({
@@ -53,7 +53,7 @@ export const windowOf = ({
 
 // What an item holds, as the pane shows it. A page loads live where the app can load
 // it; a plan says itself whether it can be written and whether its agent has the skill.
-export const contentOf = (content: RunnerContent, livePages: boolean): ItemContent => {
+const contentOf = (content: RunnerContent, livePages: boolean): ItemContent => {
   if (content.state === "unavailable") return content
   const { stamp } = content
   const shown = content.content

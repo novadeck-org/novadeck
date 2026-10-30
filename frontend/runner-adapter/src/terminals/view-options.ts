@@ -1,5 +1,6 @@
 import type { TerminalKey, ThemeSource } from "@novadeck/core/port"
 import { createStore } from "@novadeck/core/store"
+import { terminalKeyId } from "@novadeck/core/terminals/registry"
 import type { Renderers } from "@novadeck/emulator/browser"
 import { maxUploadBytes } from "@novadeck/protocol"
 import { hasCode, type AttachedTerminal } from "@novadeck/runner-client"
@@ -63,8 +64,7 @@ export const viewOptions = (
     theme,
   }: { renderers?: Renderers; cap?: number; theme: ThemeSource },
 ): TerminalViewOptions<TerminalKey> => ({
-  keyOf: ({ projectId, workspaceSessionId, terminalId }) =>
-    `${projectId}\u0000${workspaceSessionId}\u0000${terminalId}`,
+  keyOf: terminalKeyId,
   emulator: openEmulator({ renderers, screenReader: true }),
   theme: terminalTheme(theme),
   store: createStore,

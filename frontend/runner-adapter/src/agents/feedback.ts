@@ -47,7 +47,8 @@ const followDrafts = (
           publish(entries.map(draftOf))
         }
       } catch {
-        // The client reconnects the subscription; one closed for good just ends.
+        // The client opens the stream again after a reconnection; one closed for good just
+        // ends.
       }
       if (stream !== next) return
       stream = undefined

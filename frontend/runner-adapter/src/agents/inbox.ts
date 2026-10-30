@@ -14,7 +14,7 @@ import {
   dialogMs,
   inboxRows,
   type Asked,
-  type InboxEntry as AskEntry,
+  type InboxEntry as WrittenEntry,
 } from "@novadeck/core/inbox/rows"
 import {
   answerFailure,
@@ -31,7 +31,7 @@ import { longHoldMs, type AgentDetail, type AskAnswer, type InboxEntry } from "@
 
 import { requestOf } from "./conversations"
 
-// The runner's Inbox: what every agent terminal waits on the person for, one item per
+// The runner's Inbox: what every agent terminal waits on the person for, one row per
 // terminal, built from what the UI already has: the terminals' statuses (a finished turn,
 // its error, a usage limit), the messages held for release, and the requests of the agents
 // that ask (read from `agents.detail`, opened only while one waits). Core's `inboxRows` is
@@ -87,7 +87,7 @@ type Reading = {
 }
 
 // The entries that are an ask, a tell or a done; a finished turn is `turnOf`.
-type NotATurn = InboxEntry & { readonly content: AskEntry["content"] }
+type NotATurn = InboxEntry & { readonly content: WrittenEntry["content"] }
 const notATurn = (entry: InboxEntry): entry is NotATurn => entry.content.kind !== "turn"
 
 const turnOf = (entry: InboxEntry): InboxTurn | undefined => {
@@ -534,7 +534,8 @@ export const createRunnerInbox = (
             retryReads()
           }
         } catch {
-          // The client reconnects subscriptions; a permanently closed stream drops its entries.
+          // The client opens the stream again after a reconnection; one closed for good drops
+          // its entries.
         }
         if (entriesStream !== stream) return
         entriesStream = undefined
