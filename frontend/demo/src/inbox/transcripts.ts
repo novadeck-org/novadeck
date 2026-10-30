@@ -17,8 +17,8 @@ import { demoTerminalId } from "../samples"
 // (scripts/packages) doesn't read the sample as this file's imports.
 const sampleImport = (names: string, from: string): string => `import ${names} from "${from}"`
 
-// What the Inbox demo's agents outside the storefront did before their item came, by
-// `projectId/slot`, so each item's sheet has the person's words and the steps since, as
+// What the Inbox demo's agents outside the storefront did before their row came, by
+// `projectId/slot`, so each row's sheet has the person's words and the steps since, as
 // each harness records them: Claude Code's Edit, Write and Bash with its `Exit code` on a
 // failure, Codex's exec_command with its `Process exited with code` header, and
 // Antigravity's edit_file and run_command, which says `The command exited with code`. The

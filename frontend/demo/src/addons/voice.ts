@@ -1,6 +1,8 @@
 import type { Voice, VoiceModel, VoiceState } from "@novadeck/core/addons/voice"
 import { createStore } from "@novadeck/core/store"
 
+import { addressParams } from "../address"
+
 // A pretend voice input addon for the browser demo and the specs. It starts installed and
 // on, as the try demo shows it and never offers it; started uninstalled, nothing is
 // installed until the person installs it, and the install walks through downloading the
@@ -42,10 +44,7 @@ export type DemoVoiceStart = "installed" | "uninstalled" | "failing"
 // What a spec asks for in its address's hash: `&voice=uninstalled`, or `&voice=failing`, not
 // installed with an install that fails.
 export const requestedVoice = (): DemoVoiceStart => {
-  const asked =
-    typeof window === "undefined"
-      ? null
-      : new URLSearchParams(window.location.hash.split("?")[1] ?? "").get("voice")
+  const asked = typeof window === "undefined" ? null : addressParams().get("voice")
   return asked === "uninstalled" || asked === "failing" ? asked : "installed"
 }
 
@@ -155,7 +154,7 @@ export const createDemoVoice = (
   // Whether the next install finds turbo too slow, as the runner's does on a computer
   // without a GPU: it goes on to small, and turbo goes.
   let slowTurbo = false
-  // Whether the host saw only software rendering, which keeps the aim at small, as the runner's.
+  // Whether the app saw only software rendering, which keeps the aim at small, as the runner's.
   let software = false
   // How the next install ends instead of finishing: held at the model, half there, until
   // cancelled, or failing as a connection that drops.
@@ -257,7 +256,7 @@ export const createDemoVoice = (
         installed: ["turbo"],
       }))
     else if (scenario === "software-graphics") {
-      // As the runner where the host saw only software rendering: small is what installs,
+      // As the runner where the app saw only software rendering: small is what installs,
       // and what the offer quotes.
       software = true
       state.update(() => ({ ...demoVoiceState, aim: "small" }))

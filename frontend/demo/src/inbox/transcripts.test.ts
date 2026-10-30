@@ -6,24 +6,24 @@ import { plainDemo } from "../index"
 import { describe, expect, it } from "../test"
 import { demoInboxIds } from "./fixtures"
 
-// What an Inbox item's sheet reads of its agent in the Inbox demo, as `useAgentContext`
+// What an Inbox row's sheet reads of its agent in the Inbox demo, as `useAgentContext`
 // does: its conversation and the messages delivered to it.
-const contextOf = (item: InboxRow) => {
+const contextOf = (row: InboxRow) => {
   const backend = plainDemo("inbox")
-  const store = backend.conversations!.conversation(item.source)
+  const store = backend.conversations!.conversation(row.source)
   const stop = store.subscribe(() => {})
   const conversation = store.getSnapshot()
   stop()
-  const threads = backend.messages!.state.getSnapshot().terminals[terminalKeyPath(item.source)]
+  const threads = backend.messages!.state.getSnapshot().terminals[terminalKeyPath(row.source)]
   return agentContext(conversation.agent, conversation.items, answersOf(threads))
 }
 
-const items = (): readonly InboxRow[] => plainDemo("inbox").inbox!.state.getSnapshot().items
-const item = (id: string): InboxRow => items().find((each) => each.id === id)!
+const rows = (): readonly InboxRow[] => plainDemo("inbox").inbox!.state.getSnapshot().items
+const rowWith = (id: string): InboxRow => rows().find((each) => each.id === id)!
 
 describe("the Inbox demo's agents' context", () => {
   it("gives an agent the person's words and its steps since, a failure among them", () => {
-    expect(contextOf(item(demoInboxIds.login))).toMatchObject({
+    expect(contextOf(rowWith(demoInboxIds.login))).toMatchObject({
       said: {
         text: "deploy a preview of the docs site, then port the API reference to MDX",
       },
@@ -41,7 +41,7 @@ describe("the Inbox demo's agents' context", () => {
   })
 
   it("quotes nothing for an agent its lead briefed, as the brief isn't the person's", () => {
-    expect(contextOf(item(demoInboxIds.limit))).toMatchObject({
+    expect(contextOf(rowWith(demoInboxIds.limit))).toMatchObject({
       said: null,
       steps: [
         { kind: "run", tool: "Bash", result: "40 runs" },
@@ -51,7 +51,7 @@ describe("the Inbox demo's agents' context", () => {
   })
 
   it("reads Antigravity's edits and failed runs in its own words", () => {
-    expect(contextOf(item(demoInboxIds.stuck)).steps).toEqual([
+    expect(contextOf(rowWith(demoInboxIds.stuck)).steps).toEqual([
       {
         kind: "fail",
         tool: "run_command",
@@ -68,9 +68,9 @@ describe("the Inbox demo's agents' context", () => {
     ])
   })
 
-  it("gives every item on a terminal whose agent the person spoke to the words they gave", () => {
+  it("gives every row on a terminal whose agent the person spoke to the words they gave", () => {
     const backend = plainDemo("inbox")
-    const conversing = items().filter((each) => {
+    const conversing = rows().filter((each) => {
       const store = backend.conversations!.conversation(each.source)
       const stop = store.subscribe(() => {})
       const { agent } = store.getSnapshot()

@@ -1,6 +1,8 @@
 import type { Murmur, MurmurState } from "@novadeck/core/addons/murmur"
 import { createStore, type MutableStore } from "@novadeck/core/store"
 
+import { addressParams } from "../address"
+
 // A pretend murmur addon for the browser demo and the specs. It starts installed and on,
 // as the try demo shows it and never offers it; started uninstalled, nothing is installed
 // until the person installs it, and the install walks through downloading the engine, then
@@ -62,10 +64,7 @@ export type DemoMurmurStart =
 // `no-device`, `network-down` (the first install fails on the network, the second works) or
 // `offered-out` (not installed, the offer already shown in three sessions).
 export const requestedMurmur = (): DemoMurmurStart => {
-  const asked =
-    typeof window === "undefined"
-      ? null
-      : new URLSearchParams(window.location.hash.split("?")[1] ?? "").get("murmur")
+  const asked = typeof window === "undefined" ? null : addressParams().get("murmur")
   return asked === "uninstalled" ||
     asked === "unsupported" ||
     asked === "no-device" ||

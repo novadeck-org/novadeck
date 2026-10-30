@@ -5,12 +5,12 @@ import type { AskOption, InboxContent, InboxRow } from "@novadeck/core/inbox"
 import { demoHandle } from "../handles"
 import { demoTerminalId, terminals } from "../samples"
 
-// The hardcoded items of the demo's Inbox, on the sample terminals: the list the Inbox demo
+// The hardcoded rows of the demo's Inbox, on the sample terminals: the list the Inbox demo
 // starts with, and the states the debug panel adds.
 
 const minute = 60_000
 
-// Where an item comes from: a sample terminal of a sample project, by its number, running
+// Where a row comes from: a sample terminal of a sample project, by its number, running
 // `agent`. The terminal's title is the sample's own, as the sidebar shows it.
 const sourceOf = (projectId: string, number: number, agent: AgentName) => ({
   projectId,
@@ -32,7 +32,7 @@ type Fixture = {
   readonly content: InboxContent
 }
 
-const item = ({ id, project, terminal, agent, minutes, stopped, content }: Fixture, now: number) =>
+const rowOf = ({ id, project, terminal, agent, minutes, stopped, content }: Fixture, now: number) =>
   ({
     ...content,
     id,
@@ -432,7 +432,7 @@ const extraFixtures: readonly Fixture[] = [
       kind: "held",
       held: {
         threadId: "demo-thread-gone",
-        // The sender's terminal has closed: it shows by its handle, and the item is the
+        // The sender's terminal has closed: it shows by its handle, and the row is the
         // recipient's.
         from: { handle: "kestrel", title: "kestrel" },
         to: { handle: demoHandle(4), title: "Release notes" },
@@ -671,9 +671,9 @@ const fixtures: readonly Fixture[] = [
   },
 ]
 
-// The hardcoded items, as they stand at `now`: each waited as long as the sample says, and
+// The hardcoded rows, as they stand at `now`: each waited as long as the sample says, and
 // the limit resets in 1 h 12 min.
-export const demoInboxRows = (now: number): InboxRow[] => itemsOf(fixtures, now)
+export const demoInboxRows = (now: number): InboxRow[] => rowsOf(fixtures, now)
 
 // The messages demo's entries from the checkout's Claude Code (moth): a tell the person
 // hasn't read and a question still open, which its Messages pane lists with the one it
@@ -715,15 +715,15 @@ const entries: readonly Fixture[] = [
   },
 ]
 
-export const demoEntries = (now: number): InboxRow[] => itemsOf(entries, now)
+export const demoEntries = (now: number): InboxRow[] => rowsOf(entries, now)
 
 // Those, and the states the debug panel adds.
 export const demoInboxRowsAll = (now: number): InboxRow[] =>
-  itemsOf([...fixtures, ...extraFixtures], now)
+  rowsOf([...fixtures, ...extraFixtures], now)
 
-const itemsOf = (all: readonly Fixture[], now: number): InboxRow[] =>
+const rowsOf = (all: readonly Fixture[], now: number): InboxRow[] =>
   all.map((fixture) =>
-    item(
+    rowOf(
       fixture.content.kind === "trouble" && fixture.content.trouble.type === "limit"
         ? {
             ...fixture,
