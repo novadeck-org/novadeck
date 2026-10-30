@@ -1,6 +1,6 @@
 import { hookShellSlackMs, dialectPrograms } from "@novadeck/harness-core/hook-command"
 import type { Report } from "@novadeck/harness-core/report"
-import { agentName } from "@novadeck/protocol"
+import { agentName, type AgentName } from "@novadeck/protocol"
 
 import { harnesses } from "../harnesses/registry.js"
 import { cut } from "../text.js"
@@ -122,11 +122,14 @@ const firedAtOf = (
 }
 
 /**
- * The agent process that ran the hook: Claude Code names itself; the others are the
- * nearest ancestor with the agent's own name. Unknown where the platform hides it.
+ * The agent process that ran the hook: the one its harness's `pidVariable` names, where it
+ * sets one, as Claude Code does; else the nearest ancestor with the agent's own name.
+ * Unknown where the platform hides it.
  */
-const instanceOf = (agent: string, claudePid: string | undefined, ancestors: Ancestor[]) => {
-  if (agent === "claude" && claudePid !== undefined) return claudePid
+const instanceOf = (agent: AgentName, env: Fields, ancestors: Ancestor[]): string | null => {
+  const { pidVariable } = harnesses[agent]
+  const own = pidVariable === undefined ? undefined : text(env[pidVariable], 10)
+  if (own !== undefined) return own
   const found = ancestors.find((each) => each.name === agent)
   return found ? String(found.pid) : null
 }
@@ -157,9 +160,8 @@ export const relayHook = (
     (typeof payload.hook_event_name === "string" && payload.hook_event_name.length <= 64
       ? payload.hook_event_name
       : "")
-  const claudePid = text(env.CLAUDE_PID, 10)
   const ancestors = ancestorsOf(value.ancestors)
-  const named = instanceOf(agent.data, claudePid, ancestors)
+  const named = instanceOf(agent.data, env, ancestors)
   const instance = named !== null && /^\d{1,10}$/.test(named) ? named : null
   const codexThread = text(env.CODEX_THREAD_ID, 128)
   const shells = dialectPrograms[harnesses[agent.data].hookDialect(platform, event)]

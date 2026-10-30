@@ -21,12 +21,12 @@ const key = (slot: string, projectId = "storefront") => ({
 
 // What the terminals' screens read of the agents, as `withConversations` links them.
 const linked = vi.hoisted(() => ({ link: undefined as DemoAgentLink | undefined }))
-vi.mock("../terminals/views", async (original) => {
-  const views = await original<typeof import("../terminals/views")>()
+vi.mock("../terminals/screens", async (original) => {
+  const screens = await original<typeof import("../terminals/screens")>()
   return {
-    ...views,
-    createDemoTerminals: (...args: Parameters<typeof views.createDemoTerminals>) => {
-      const terminals = views.createDemoTerminals(...args)
+    ...screens,
+    createDemoTerminals: (...args: Parameters<typeof screens.createDemoTerminals>) => {
+      const terminals = screens.createDemoTerminals(...args)
       return {
         ...terminals,
         link: (next: DemoAgentLink) => {

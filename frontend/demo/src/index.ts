@@ -45,7 +45,11 @@ import { createShowcase } from "./showcase/simulation"
 import { checkoutPlan, storefrontArtifacts } from "./showcase/storefront"
 import { withSource } from "./source"
 import { createDemoEngine, type DemoEngine } from "./terminals/engine"
-import { createDemoTerminals, type DemoTerminals, type DemoTerminalSetup } from "./terminals/views"
+import {
+  createDemoTerminals,
+  type DemoTerminals,
+  type DemoTerminalSetup,
+} from "./terminals/screens"
 import { babciaIntroOf, createBabcia } from "./videos/babcia"
 import { chirpIntroOf, chirpSeed, chirpTranscripts } from "./videos/chirp"
 import { createLaunch } from "./videos/launch"

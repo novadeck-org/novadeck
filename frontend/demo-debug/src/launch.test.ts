@@ -14,6 +14,7 @@ const cues = (): { [Name in keyof LaunchCues]: ReturnType<typeof fire> } => ({
   plan: fire(),
   question: fire(),
   command: fire(),
+  agyPlan: fire(),
   fail: fire(),
   finishOne: fire(),
   teammates: fire(),
@@ -55,6 +56,7 @@ describe("the debug panel's Launch group", () => {
       ["8a ·", "askReview"],
       ["8b ·", "showPlan"],
       ["8c ·", "command"],
+      ["8d ·", "agyPlan"],
     ] as const
     expect(group!.actions).toHaveLength(order.length)
     const context = {} as DemoActionContext

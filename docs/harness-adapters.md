@@ -379,8 +379,8 @@ type Harness = {
   readonly files: (platform: NodeJS.Platform) => readonly File[]
   /** Programs Novadeck's shells put first on PATH while it is connected, as Codex's shim. */
   readonly shims?: (platform: NodeJS.Platform) => readonly File[]
-  /** The words that continue a session by its id. */
-  readonly resume?: (session: string) => readonly string[]
+  /** The hook environment variable naming its own process, as Claude Code's `CLAUDE_PID`. */
+  readonly pidVariable?: string
   /** What a hook report's native `source` says of the session it names. */
   readonly continuity: (source: string | undefined) => Continuity
   /** The launch that starts a fresh session with a task. */
@@ -408,6 +408,8 @@ type Harness = {
   }
   /** What it observes on this installation, feature by feature. */
   readonly coverage: (found: Found) => FeatureCoverage
+  /** How it starts: plain, on a first prompt, or continuing a session (see below). */
+  readonly launch: LaunchProfile
   /** How its hooks take agents' messages (see below). */
   readonly messaging: MessagingProfile
   /** How its input box reads off its screen (see "Screen readers"). */
@@ -501,9 +503,9 @@ hook process. The payload travels only over Novadeck's local report socket to
 the runner, which already sees the terminal's output. `decode` performs no I/O,
 and ignores events it does not use by returning none.
 
-The hook names the harness process through `CLAUDE_PID` for Claude Code, and
-otherwise through the nearest ancestor process with the harness's own name
-(`/proc` on Linux, `ps` on macOS). It reports `null` where the platform hides it.
+The hook names the harness process through the variable its adapter's `pidVariable`
+names, where it sets one (`CLAUDE_PID` for Claude Code), and otherwise through the
+nearest ancestor process with the harness's own name (`/proc` on Linux, `ps` on macOS). It reports `null` where the platform hides it.
 
 The hook answers each harness the way it needs. It prints nothing for Claude
 Code and Codex. For Antigravity it prints `{}`, or `{"decision": "ask"}` for
@@ -541,6 +543,12 @@ Besides the facts shared with the agent model, decoders give
   quotas (`telemetry.ts`).
 - `file-touched` names a file an actor wrote or edited, from its write and edit tools,
   for the folders a session works in.
+- `attention-requested` has `writes` where its harness can tell from the call which files
+  a permission asks to write: Codex's `apply_patch`, its patch's files from the directory
+  it asked in. A `file-touched` that `settles` (Codex's rollout) settles the latest
+  permission asked before it whose `writes` name the file, as no hook does for a patch
+  Codex ran through its shell. The runner's reducer compares the paths and never reads a
+  call's input itself.
 - `session-observed` has `compacted` when the harness says it compacted the session's
   context: Claude Code's and Codex's `SessionStart` with source `compact`. Antigravity
   reports no compaction. It nudges the agent to summarize its terminal again (see
@@ -610,13 +618,6 @@ type MessagingProfile = {
    * doorbell may ring it then, once its screen shows the box empty.
    */
   readonly promptsInBackground: boolean
-  /** How it starts with `line` as its first prompt; undefined where it may not here. */
-  readonly initialPrompt: (
-    line: string,
-    place: { readonly install: Install | undefined; readonly cwd: string },
-  ) => Promise<readonly string[] | undefined>
-  /** How it starts without a prompt. */
-  readonly start: readonly string[]
   /**
    * Where its hooks name no prompt (Antigravity's), what a line of its transcript
    * records as typed into its box, with its time and step: from it `typed-prompts.ts`
@@ -626,11 +627,11 @@ type MessagingProfile = {
 }
 ```
 
-| Harness     | `asks`                                                                                    | `call` | `reinjectPerCall` | `root`        | `queueKey` | `silentOnFailure` | `promptsInBackground` | `typedEntry`             | `initialPrompt`                        |
-| ----------- | ----------------------------------------------------------------------------------------- | ------ | ----------------- | ------------- | ---------- | ----------------- | --------------------- | ------------------------ | -------------------------------------- |
-| Claude Code | `Stop` (stop), `UserPromptSubmit` (prompt), `PostToolUse` and `PostToolUseFailure` (tool) | yes    | no                | `binding`     | none       | no                | yes                   | none: hooks name prompts | `claude "<line>"`                      |
-| Codex       | `Stop` (stop), `UserPromptSubmit` (prompt), `PostToolUse` (tool)                          | yes    | no                | `binding`     | Tab        | yes               | yes                   | none: hooks name prompts | `codex "<line>"`                       |
-| Antigravity | `Stop` (stop), `PreInvocation` (prompt)                                                   | none   | yes               | `status-line` | none       | no                | yes                   | `USER_INPUT` steps       | `agy -i "<line>"`, in a trusted folder |
+| Harness     | `asks`                                                                                    | `call` | `reinjectPerCall` | `root`        | `queueKey` | `silentOnFailure` | `promptsInBackground` | `typedEntry`             |
+| ----------- | ----------------------------------------------------------------------------------------- | ------ | ----------------- | ------------- | ---------- | ----------------- | --------------------- | ------------------------ |
+| Claude Code | `Stop` (stop), `UserPromptSubmit` (prompt), `PostToolUse` and `PostToolUseFailure` (tool) | yes    | no                | `binding`     | none       | no                | yes                   | none: hooks name prompts |
+| Codex       | `Stop` (stop), `UserPromptSubmit` (prompt), `PostToolUse` (tool)                          | yes    | no                | `binding`     | Tab        | yes               | yes                   | none: hooks name prompts |
+| Antigravity | `Stop` (stop), `PreInvocation` (prompt)                                                   | none   | yes               | `status-line` | none       | no                | yes                   | `USER_INPUT` steps       |
 
 `call` exists exactly when `asks` has a `tool` entry. A `tool` event fires as a root tool
 call finishes, and delivers only the lead's messages, beside the tool's result (see
@@ -647,9 +648,38 @@ says (`backend/runner/src/harnesses/roots.ts`): the bound session; or, for `stat
 session that bound, then that of the first model call after it bound, or of one
 messages wait for) until the status line names the root conversation, which alone
 names another. Messaging reads the root from there. The doorbell knows nothing of how a
-harness draws its screen, so the profile holds no screen pattern; it adds only how the
-harness starts with a first prompt (`initialPrompt`) and whether its hooks see a
-prompt's text (see [Agent messaging](agent-messaging.md#the-doorbell)).
+harness draws its screen, so the profile holds no screen pattern; it adds only whether its
+hooks see a prompt's text (see [Agent messaging](agent-messaging.md#the-doorbell)).
+
+### Launch profile
+
+Each harness's `launch` profile is how a terminal starts it, as the words a shell runs:
+the program first, then the model and effort `choose` puts right after it. A task's first
+prompt and a resumed session start the same way, so no shared code names a program:
+
+```ts
+type LaunchProfile = {
+  /** How it starts without a prompt. */
+  readonly start: readonly string[]
+  /** How it starts with `line` as its first prompt; undefined where it may not here. */
+  readonly initialPrompt: (
+    line: string,
+    place: { readonly install: Install | undefined; readonly cwd: string },
+  ) => Promise<readonly string[] | undefined>
+  /** The words that continue its session by id, with the model and effort chosen. */
+  readonly resume?: (session: string, choice?: Choice) => readonly string[]
+  /** The models it can start with on this machine, each with the efforts it takes. */
+  readonly models: (install: Install) => Promise<readonly Model[]>
+  /** The words that go right after its program to start it with this model and effort. */
+  readonly choose: (choice: Choice) => readonly string[]
+}
+```
+
+| Harness     | `start`  | `initialPrompt`                        | `resume`                  | `choose`                                    |
+| ----------- | -------- | -------------------------------------- | ------------------------- | ------------------------------------------- |
+| Claude Code | `claude` | `claude "<line>"`                      | `claude --resume <id>`    | `--model <m> --effort <e>`                  |
+| Codex       | `codex`  | `codex "<line>"`                       | `codex resume <id>`       | `--model <m> -c model_reasoning_effort=<e>` |
+| Antigravity | `agy`    | `agy -i "<line>"`, in a trusted folder | `agy --conversation <id>` | `--model <m> --effort <e>`                  |
 
 ## Screen readers
 
@@ -1104,7 +1134,7 @@ never breaks activity or resume.
 There are three different questions:
 
 1. Does this harness implement the feature? Derive it from the field
-   (`harness.resume`), never from a separate flag.
+   (`harness.launch.resume`), never from a separate flag.
 2. Can that implementation work with this installation? Inspect platform,
    executable/version evidence, plugin connection and known restrictions. Report
    unknown when evidence is absent; do not invent a version matrix.

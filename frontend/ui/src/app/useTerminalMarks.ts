@@ -1,5 +1,6 @@
 import { nextLimitReset, noInbox, type Inbox, type InboxRow } from "@novadeck/core/inbox"
-import { inboxMarks, type InboxMarks } from "@novadeck/core/inbox/marks"
+import { inboxMarks } from "@novadeck/core/inbox/marks"
+import type { InboxMarks } from "@novadeck/core/terminals/ending"
 import type { TerminalKey } from "@novadeck/core/types"
 import { useEffect, useState } from "react"
 

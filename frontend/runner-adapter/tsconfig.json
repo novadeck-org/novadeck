@@ -1,15 +1,14 @@
 {
   "compilerOptions": {
     // Workspace packages' source, as Vitest reads it: no build first (see docs/build-graph.md).
-    // `node` too, which `Bundler` resolution leaves out: the runner's and the harnesses' source,
-    // which the adapter's test runner reaches, imports Node-only subpaths. The lint keeps the
-    // UI's own code off them.
+    // `node` too, which `Bundler` resolution leaves out: its tests start the runner, whose
+    // source and the harnesses' import Node-only subpaths. The lint keeps the adapter's browser
+    // code off them.
     "customConditions": ["node", "development"],
     "target": "ES2022",
     "lib": ["ES2023", "DOM", "DOM.Iterable"],
     "module": "ESNext",
     "moduleResolution": "Bundler",
-    "jsx": "react-jsx",
     "strict": true,
     "noUncheckedIndexedAccess": true,
     "exactOptionalPropertyTypes": true,
@@ -18,5 +17,5 @@
     "noEmit": true,
     "types": ["vite/client", "node"]
   },
-  "include": ["src/**/*.ts", "src/**/*.tsx", "vitest.config.ts"]
+  "include": ["src/**/*.ts", "vitest.config.ts"]
 }

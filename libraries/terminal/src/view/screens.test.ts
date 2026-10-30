@@ -2,7 +2,7 @@ import type { Terminal } from "@novadeck/emulator/browser"
 import { describe, expect, it, vi } from "vitest"
 
 import {
-  closeViews,
+  closeScreens,
   emulatorPrototype,
   inputOf,
   openedTerminals,
@@ -11,7 +11,7 @@ import {
   running,
   slot,
   themed,
-  viewsOf,
+  screensOf,
 } from "./fakes.test-support.js"
 import type { ViewEvents } from "./follow.js"
 import { parkMs, type Hold } from "./screens.js"
@@ -49,7 +49,7 @@ const capped = (cap: number) => {
   const elements = new Map<string, HTMLElement>()
   const connection = createStore<ViewLink>("connected")
   const resized = vi.fn<NonNullable<ViewEvents<string>["resized"]>>()
-  const screens = viewsOf(
+  const screens = screensOf(
     optionsOf({
       attach: (key) => {
         attached.push(key)
@@ -102,7 +102,7 @@ describe("the cap on parked screens", () => {
       expect(present("b")).toBe(true)
       expect(present("c")).toBe(true)
     } finally {
-      closeViews()
+      closeScreens()
       vi.useRealTimers()
     }
   })
@@ -126,7 +126,7 @@ describe("the cap on parked screens", () => {
       vi.advanceTimersByTime(1)
       expect(told.filter((entry) => entry.endsWith("gone"))).toEqual(["a gone", "b gone"])
     } finally {
-      closeViews()
+      closeScreens()
       vi.useRealTimers()
     }
   })
@@ -149,7 +149,7 @@ describe("the cap on parked screens", () => {
       vi.advanceTimersByTime(parkMs)
       expect(told.filter((entry) => entry.endsWith("gone"))).toEqual(["b gone"])
     } finally {
-      closeViews()
+      closeScreens()
       vi.useRealTimers()
     }
   })
@@ -174,7 +174,7 @@ describe("the cap on parked screens", () => {
       expect(told.filter((entry) => entry === "a mounted")).toHaveLength(2)
       expect(attached.filter((id) => id === "a").length).toBeGreaterThan(before)
     } finally {
-      closeViews()
+      closeScreens()
       vi.useRealTimers()
     }
   })
@@ -191,7 +191,7 @@ describe("the cap on parked screens", () => {
       vi.advanceTimersByTime(retainMs + 60_000)
       expect(told.filter((entry) => entry === "a gone")).toHaveLength(1)
     } finally {
-      closeViews()
+      closeScreens()
       vi.useRealTimers()
     }
   })
@@ -215,7 +215,7 @@ describe("a mount's hold on a screen", () => {
       vi.advanceTimersByTime(parkMs)
       expect(told).toContain("a gone")
     } finally {
-      closeViews()
+      closeScreens()
       vi.useRealTimers()
     }
   })
@@ -236,7 +236,7 @@ describe("a mount's hold on a screen", () => {
       // Input is refused where the person can see it.
       expect(inputOf(elementOf("a")).getAttribute("aria-disabled")).toBe("true")
     } finally {
-      closeViews()
+      closeScreens()
       vi.useRealTimers()
     }
   })
@@ -254,7 +254,7 @@ describe("a mount's hold on a screen", () => {
       // Held again, it reads the connection as it is.
       expect(show("a").state.getSnapshot().lock).toBe("offline")
     } finally {
-      closeViews()
+      closeScreens()
       vi.useRealTimers()
     }
   })
@@ -270,7 +270,7 @@ describe("a mount's hold on a screen", () => {
       screens.setFont({ size: 12 })
       expect(opened[0]?.options.fontSize).toBe(12)
     } finally {
-      closeViews()
+      closeScreens()
       vi.useRealTimers()
     }
   })
@@ -291,7 +291,7 @@ describe("a mount's hold on a screen", () => {
       vi.advanceTimersByTime(parkMs)
       expect(told).toContain("a gone")
     } finally {
-      closeViews()
+      closeScreens()
       vi.useRealTimers()
     }
   })
@@ -305,7 +305,7 @@ describe("a mount's hold on a screen", () => {
       expect(show("a").focus()).toBe(true)
       unplaced.release()
     } finally {
-      closeViews()
+      closeScreens()
       vi.useRealTimers()
     }
   })
@@ -328,7 +328,7 @@ describe("a mount's hold on a screen", () => {
       connection.update(() => "connected")
       expect(written.mock.calls).toEqual([["aria-disabled", "false"]])
     } finally {
-      closeViews()
+      closeScreens()
       vi.useRealTimers()
     }
   })
@@ -370,21 +370,21 @@ describe("a mount's hold on a screen", () => {
       await vi.advanceTimersByTimeAsync(0)
       expect(resized).toHaveBeenCalledTimes(1)
     } finally {
-      closeViews()
+      closeScreens()
       vi.useRealTimers()
     }
   })
 })
 
-describe("the views over options of their own", () => {
-  // Views of string-keyed terminals that never get a stream, over a theme, stores and
+describe("the screens over options of their own", () => {
+  // Screens of string-keyed terminals that never get a stream, over a theme, stores and
   // timings the test chooses: nothing of the app's.
   const standalone = (marked: { markup?: boolean } = {}) => {
     const told: string[] = []
     const stores: unknown[] = []
     const { theme, listeners } = themed()
     const element = slot()
-    const views = viewsOf(
+    const screens = screensOf(
       optionsOf({
         theme,
         store: <S>(initial: S) => {
@@ -400,14 +400,14 @@ describe("the views over options of their own", () => {
         on: { stage: (key, stage) => void told.push(`${key} ${stage}`) },
       }),
     )
-    return { views, told, stores, listeners, element }
+    return { screens, told, stores, listeners, element }
   }
 
   it("makes each screen's state with the store it is given, and marks the screen as asked", () => {
     vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout", "Date"] })
     try {
-      const { views, stores, element } = standalone({ markup: true })
-      const hold = views.acquire("a", { label: "Input for a", phase: "running", webgl: false })
+      const { screens, stores, element } = standalone({ markup: true })
+      const hold = screens.acquire("a", { label: "Input for a", phase: "running", webgl: false })
       hold.place(element)
       expect(stores).toHaveLength(1)
       expect(hold.state).toBe(stores[0])
@@ -418,7 +418,7 @@ describe("the views over options of their own", () => {
       expect(field.getAttribute("aria-label")).toBe("Input for a")
       hold.release()
     } finally {
-      closeViews()
+      closeScreens()
       vi.useRealTimers()
     }
   })
@@ -426,15 +426,15 @@ describe("the views over options of their own", () => {
   it("marks nothing the options do not ask for", () => {
     vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout", "Date"] })
     try {
-      const { views, element } = standalone()
-      const hold = views.acquire("a", { label: "Input for a", phase: "running", webgl: false })
+      const { screens, element } = standalone()
+      const hold = screens.acquire("a", { label: "Input for a", phase: "running", webgl: false })
       hold.place(element)
       const container = element.firstElementChild!
       expect(container.hasAttribute("class")).toBe(false)
       expect(container.querySelector("textarea")!.hasAttribute("data-terminal-input")).toBe(false)
       hold.release()
     } finally {
-      closeViews()
+      closeScreens()
       vi.useRealTimers()
     }
   })
@@ -442,9 +442,9 @@ describe("the views over options of their own", () => {
   it("parks and closes on the options' timings, and stops listening for the theme once closed", () => {
     vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout", "Date"] })
     try {
-      const { views, told, listeners, element } = standalone()
+      const { screens, told, listeners, element } = standalone()
       for (const key of ["a", "b"]) {
-        const hold = views.acquire(key, { label: key, phase: "running", webgl: false })
+        const hold = screens.acquire(key, { label: key, phase: "running", webgl: false })
         hold.place(element)
         expect(listeners.size).toBe(key === "a" ? 1 : 2)
         hold.release()
@@ -456,7 +456,7 @@ describe("the views over options of their own", () => {
       expect(told).toEqual(["a mounted", "b mounted", "a gone"])
       expect(listeners.size).toBe(1)
     } finally {
-      closeViews()
+      closeScreens()
       vi.useRealTimers()
     }
   })

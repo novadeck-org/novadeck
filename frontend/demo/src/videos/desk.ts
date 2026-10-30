@@ -220,12 +220,16 @@ export const deskMessages = (projectId: string, count: number): DemoSessionMessa
 }
 
 // The agents that hold a request for the cues to raise: the numbers of the ones that ask to run
-// their command, each in its own harness's words, the one with a plan to approve (its subject
-// and numbered steps), and the one with a question, its options the first of which carries
+// their command, each in its own harness's words, the ones with a plan to approve (its subject
+// and numbered steps; an Antigravity agent's is an artifact it wrote, so its dialog holds neither), and the one with a question, its options the first of which carries
 // "(Recommended)" as its own pick.
 export type DeskAsks = {
   readonly permissions: readonly number[]
-  readonly plan: { readonly number: number; readonly subject: string; readonly steps: string }
+  readonly plans: readonly {
+    readonly number: number
+    readonly subject: string
+    readonly steps: string
+  }[]
   readonly question: {
     readonly number: number
     readonly id: string
@@ -339,12 +343,55 @@ export const deskTranscripts = (
           },
         ]
       }
-      if (number === asks.plan.number) {
+      const plan = asks.plans.find((each) => each.number === number)
+      if (plan && job.agent === "agy") {
+        // Antigravity's plan review, as harnesses/agy's plan-dialog (probed on 1.2.14) reads it:
+        // the plan is an artifact it wrote, which the dialog only counts. Approved or rejected,
+        // the person's choice reaches the model as its next request, "[Approved]" or "[Rejected]"
+        // and the file's name, and the third option's words as they are.
+        const request = {
+          id: `${id}:plan`,
+          kind: "plan" as const,
+          tool: "artifact",
+          subject: "1 artifact to review",
+          choices: [],
+          subagent: false,
+          answered: false,
+          dialog: {
+            type: "choices" as const,
+            id: `${id}:d`,
+            title: "1 artifact to review",
+            detail: null,
+            options: [
+              { id: "approve", label: "Approve", text: null },
+              { id: "reject", label: "Reject", text: null },
+              { id: "feedback", label: "Tell it what to change", text: "field" as const },
+            ],
+          },
+        }
+        return [
+          id,
+          {
+            items,
+            requests: [request],
+            outcomes: {
+              [request.id]: (answer) => ({
+                items: [],
+                prompt:
+                  answer.type === "choice" && answer.option === "feedback" && answer.text
+                    ? answer.text
+                    : `[${answer.type === "choice" && answer.option === "reject" ? "Rejected" : "Approved"}] implementation_plan.md`,
+              }),
+            },
+          },
+        ]
+      }
+      if (plan) {
         const request = {
           id: `${id}:plan`,
           kind: "plan" as const,
           tool: "ExitPlanMode",
-          subject: asks.plan.subject,
+          subject: plan.subject,
           choices: [],
           subagent: false,
           answered: false,
@@ -354,7 +401,7 @@ export const deskTranscripts = (
             type: "choices" as const,
             id: `${id}:d`,
             title: "Ready to code?",
-            detail: asks.plan.steps,
+            detail: plan.steps,
             options: [
               { id: "1", label: "Yes, auto-accept edits", text: null },
               { id: "2", label: "Yes, manually approve edits", text: null },

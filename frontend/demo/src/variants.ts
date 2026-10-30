@@ -4,7 +4,7 @@ import { addressParams } from "./address"
 import type { DemoTurns } from "./agents/turns"
 import { plainDemo, type PlainVariant } from "./index"
 import { showcaseDemo } from "./showcase/demo"
-import type { DemoTerminalSetup } from "./terminals/views"
+import type { DemoTerminalSetup } from "./terminals/screens"
 
 // The demos the content preview can run: the showcase, and the plain ones.
 export type DemoVariant = "showcase" | PlainVariant

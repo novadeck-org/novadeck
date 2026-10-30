@@ -313,12 +313,14 @@ const babciaSeed = (now: number): WorkspaceSeed => ({
 const babciaTranscripts = (now: number): Readonly<Record<string, DemoTranscript>> =>
   deskTranscripts(now, allJobs, home, {
     permissions: [babcia.permission],
-    plan: {
-      number: babcia.plan,
-      subject: "Accessibility plan",
-      steps:
-        "1. Lift the contrast on the menu headings\n2. Add skip links and focus rings\n3. Label every field of the order form",
-    },
+    plans: [
+      {
+        number: babcia.plan,
+        subject: "Accessibility plan",
+        steps:
+          "1. Lift the contrast on the menu headings\n2. Add skip links and focus rings\n3. Label every field of the order form",
+      },
+    ],
     question: {
       number: babcia.question,
       id: "soups",

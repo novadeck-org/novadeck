@@ -6,18 +6,13 @@ import type { Harness, Run, WrittenPlan } from "@novadeck/harness-core/harness"
 import { at } from "@novadeck/harness-core/items"
 
 import { presentedPlan } from "./decode.js"
+import { interruptions, mentionsInterruption } from "./interruption.js"
 
 /**
  * What Claude Code's session transcript says beside its hooks: followed live while a
  * session is bound (`followTranscript`, the harness's `watch`), and read back for the plans
  * it presented (`transcriptPlans`). `transcripts.ts` reads the same files for the chat.
  */
-
-// Claude Code's records of an interrupted turn: Esc while it works or runs a tool, and
-// "No" to a permission request, which interrupts the turn too. Only these exact texts
-// count, so a prompt that merely starts like one does not.
-const marker = "[Request interrupted by user"
-const interruptions = new Set([`${marker}]`, `${marker} for tool use]`])
 
 /**
  * The root's tool calls whose results the transcript has yet to record, by their
@@ -62,7 +57,7 @@ export const transcriptEvents = (
   calls: Calls = new Map(),
 ): readonly (ActivityEvent | TelemetryObserved)[] => {
   // Most lines are long tool results; only these kinds need parsing.
-  const interrupting = line.includes(marker)
+  const interrupting = mentionsInterruption(line)
   const stopped = line.includes('"stop_hook_summary"')
   const called = line.includes('"tool_use"')
   const result = calls.size > 0 && line.includes('"tool_result"')

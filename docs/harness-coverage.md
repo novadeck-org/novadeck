@@ -194,6 +194,7 @@ In the probe, a background subagent's result began a second turn with its own `U
 
 - Records are `session_meta`, `turn_context`, `event_msg` (`task_started`, `item_completed`, `token_count`, `task_complete`, `turn_aborted`, `context_compacted`, …), `response_item`, `token_usage_record`, `world_state` and `compacted`.
 - Items appear only once completed (probed), so a running command is visible only through `PreToolUse`.
+- An Esc interruption is a `turn_aborted` event with `reason: "interrupted"`, which the chat shows as the person's interruption, and a developer message `<turn_aborted>` for the model, which it leaves out (probed 2026-10, 0.162.1 and 0.165.0). It records no `[Request interrupted by user]`: that is Claude Code's.
 - The format is undocumented and changed recently (`history_mode`, `migrate-rollouts`).
 
 **Planning.** Plan Mode is a collaboration mode, entered with `/plan` in the TUI. Hooks keep `permission_mode: default` in it (probed, 0.159.2). The rollout says it: each turn's `task_started` names `collaboration_mode_kind: plan` (written before the SessionStart hook that binds a session, so Novadeck reads the rollout's latest mode and plan when it starts following it), `turn_context.collaboration_mode.mode` is `plan`, and the proposed plan is an `item_completed` event whose item is `{type: "Plan", text}` (Markdown), also wrapped in `<proposed_plan>` in the assistant's message. The `update_plan` checklist tool the binary still documents was offered to the model in neither mode.

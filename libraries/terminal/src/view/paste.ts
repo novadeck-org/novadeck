@@ -1,7 +1,7 @@
 import type { Terminal } from "@novadeck/emulator/browser"
 
 // Apple platforms, Windows or the others, which differ in their modifier keys and in what
-// Ctrl+C and Ctrl+V do in a terminal. The views read it for those keys, as a library
+// Ctrl+C and Ctrl+V do in a terminal. The screens read it for those keys, as a library
 // cannot reach the owner's own.
 export type Platform = "mac" | "windows" | "other"
 

@@ -12,10 +12,12 @@ character-width rule every emulator shares, and helpers that need only an emulat
 - `./browser`: `createView(element, options)` (`ViewOptions`), xterm's browser `Terminal` opened
   in an element with the width rule applied, the fit and web-links addons loaded, and links, theme,
   font and fit behind a `View` (links as `ViewLinks`, its place in the pool as `ViewRenderer`),
-  which tells of each change of renderer (`onRendererChange`) so its owner fits it again; and the pool that draws views with WebGL (`Renderers`, made by `webglRenderers` for a page or
-  `createRenderers` over any `Drawing`, such as `loadWebgl`'s; each screen's side is a
-  `ScreenRenderer`; `stats()` and `watch()` give the pool's counts, `PoolStats`: waits, steals,
-  swaps, contexts lost, loads failed, pty resizes a swap caused, and screens left on the DOM). The
+  which tells of each change of renderer (`onRendererChange`) so its owner fits it again; and the
+  pool that draws views with WebGL (`RendererPool`, made by `webglRendererPool` for a page, from
+  its context limit less the two `rendererPoolCap` keeps free, or `createRendererPool` over any
+  `Drawing`, such as `loadWebgl`'s; each screen's side is a `ScreenRenderer`, and a view joins the
+  pool given as `ViewOptions.pool`; `stats()` and `watch()` give the pool's counts,
+  `RendererPoolStats`: waits, steals, swaps, contexts lost, loads failed, pty resizes a swap caused, and screens left on the DOM). The
   app resolves its theme, its link policy and which views want WebGL, and passes them in.
   `writeTo(terminal, data)` writes and resolves once xterm parsed it, or rejects where parsing
   threw (see the write patch below). `View.setLigatures(on)` is the one mechanic for ligatures: while it is on and WebGL

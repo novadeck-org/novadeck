@@ -1,7 +1,13 @@
 // @vitest-environment jsdom
 import { describe, expect, it, vi } from "vitest"
 
-import { contextCap, createRenderers, probeWebgl, type Drawing } from "./renderer.js"
+import {
+  browserContexts,
+  createRendererPool,
+  probeWebgl,
+  rendererPoolCap,
+  type Drawing,
+} from "./renderer.js"
 
 const setup = ({ cap = 2, supported = true, failing = false } = {}) => {
   const state = { failing, loads: 0 }
@@ -27,7 +33,7 @@ const setup = ({ cap = 2, supported = true, failing = false } = {}) => {
       log.push(`drop ${this.name}`)
     }
   }
-  const pool = createRenderers<string>({
+  const pool = createRendererPool<string>({
     load: (name) => {
       state.loads += 1
       log.push(`load ${name}`)
@@ -57,8 +63,17 @@ const setup = ({ cap = 2, supported = true, failing = false } = {}) => {
 
 describe("the WebGL pool", () => {
   it("fits a page of 13 terminals, two contexts short of Chromium's 16", () => {
-    expect(contextCap).toBeGreaterThanOrEqual(13)
-    expect(contextCap).toBeLessThanOrEqual(16 - 2)
+    expect(browserContexts).toBe(16)
+    expect(rendererPoolCap(browserContexts)).toBeGreaterThanOrEqual(13)
+    expect(rendererPoolCap(browserContexts)).toBeLessThanOrEqual(16 - 2)
+  })
+
+  it("takes all but two of a limit an app raised", () => {
+    expect(rendererPoolCap(64)).toBe(62)
+  })
+
+  it.each([0, 2, -1, 1.5, Number.NaN])("refuses a limit of %s", (contexts) => {
+    expect(() => rendererPoolCap(contexts)).toThrow(RangeError)
   })
 
   it("gives shown screens a context up to the cap and leaves the rest on the DOM", () => {

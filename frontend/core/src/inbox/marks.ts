@@ -1,15 +1,6 @@
 import { atTerminal, inboxType, terminalNeed, type InboxRow } from "../inbox"
-import type { NeedDialog, TerminalNeed } from "../terminals/ending"
+import type { InboxMarks } from "../terminals/ending"
 import type { TerminalKey } from "../types"
-
-// What the Inbox says of one terminal, for its tab, its window and its project's status: the
-// need its rows make, and the subject and the dialog kind of the row that makes the need.
-// Its done report is no mark of the Inbox: it stands with the agent (`AgentStatus.reported`).
-export type InboxMarks = {
-  readonly need: TerminalNeed | undefined
-  readonly subject?: string | undefined
-  readonly dialog?: NeedDialog | undefined
-}
 
 // The kind of dialog a row stands for, where it stands for one: a request is the dialog
 // its agent's harness shows.

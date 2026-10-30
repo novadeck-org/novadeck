@@ -8,15 +8,29 @@ import type { IEvent, Terminal } from "@xterm/xterm"
 /**
  * Chromium keeps 16 live WebGL contexts per renderer process on desktop, and loses the
  * oldest when more are asked for (it warns on the console and fires webglcontextlost), which
- * would blank a terminal that is still shown. The default pool takes all but two, kept for a
- * canvas the page doesn't own and as a margin while a context the GPU lost waits to be freed.
- * That is a page of 13 or 14 terminals all on WebGL, where one busy terminal left on the DOM
- * costs about as much as the other twelve; a shown screen past the cap draws with the DOM
- * renderer until a slot frees. That is the default, for a browser, where a larger pool would
- * make Chromium drop live contexts; an app that raises Chromium's limit (the desktop app does,
- * to 64) passes `cap` to `webglRenderers`, the limit less two.
+ * would blank a terminal that is still shown. That is the limit a page has in a browser, where a
+ * larger pool would make Chromium drop live contexts; an app that raises Chromium's limit (the
+ * desktop app does, to 256) passes its own to `webglRendererPool`.
  */
-export const contextCap = 14
+export const browserContexts = 16
+// The contexts a page's pool leaves free of the limit: for a canvas the page doesn't own, and as
+// a margin while a context the GPU lost waits to be freed.
+const contextMargin = 2
+
+/**
+ * How many screens a page's pool lets hold a context where the page may have `contexts`: all
+ * but two. In a browser that is a page of 13 or 14 terminals all on WebGL, where one busy
+ * terminal left on the DOM costs about as much as the other twelve; a shown screen past the cap
+ * draws with the DOM renderer until a slot frees. A limit that is no whole number, or leaves no
+ * context to take, throws a RangeError.
+ */
+export const rendererPoolCap = (contexts: number): number => {
+  if (!Number.isSafeInteger(contexts) || contexts <= contextMargin)
+    throw new RangeError(
+      `The WebGL context limit is a whole number, ${contextMargin + 1} or more: ${contexts}`,
+    )
+  return contexts - contextMargin
+}
 // How many times a screen may lose its context, or fail to load one; it tries again when
 // it is shown again, once, and stays on the DOM renderer after that.
 const lossesAllowed = 2
@@ -34,7 +48,7 @@ export type Drawing = {
 }
 
 /** What the pool is built on: how it loads WebGL into a screen, and how many may hold it. */
-export type PoolDeps<Target> = {
+export type RendererPoolDeps<Target> = {
   /** Loads the addon into a target, or throws, leaving the target on the DOM renderer. */
   readonly load: (target: Target) => Drawing
   /** Whether a real GPU context can be had; asked once. */
@@ -45,7 +59,7 @@ export type PoolDeps<Target> = {
 }
 
 /** What the pool has counted since the page opened, for the bench and the app's logs. */
-export type PoolStats = {
+export type RendererPoolStats = {
   /** Shown screens that found the pool full and had to wait for a context. */
   readonly waits: number
   /** Contexts taken from idle screens for waiting ones. */
@@ -94,9 +108,9 @@ export type ScreenRenderer = {
 }
 
 /** A page's pool of WebGL contexts, shared by its screens: the renderers they draw with. */
-export type Renderers<Target = Terminal> = {
+export type RendererPool<Target = Terminal> = {
   /** What the pool has counted so far. */
-  readonly stats: () => PoolStats
+  readonly stats: () => RendererPoolStats
   /** Tells `listener` after each count changes, until the returned function is called. */
   readonly watch: (listener: () => void) => () => void
   /** Enters a screen in the pool; `switched` is told each time it changes renderer. */
@@ -126,7 +140,9 @@ type Member<Target> = {
 }
 
 /** The pool of WebGL contexts for a page's screens, built on `deps`. */
-export const createRenderers = <Target>(deps: PoolDeps<Target>): Renderers<Target> => {
+export const createRendererPool = <Target>(
+  deps: RendererPoolDeps<Target>,
+): RendererPool<Target> => {
   const members = new Set<Member<Target>>()
   let held = 0
   let clock = 0
@@ -455,11 +471,11 @@ export const loadWebgl = (xterm: Terminal): Drawing => {
 
 /**
  * The pool for a page of xterm terminals, loading xterm's WebGL addon where the page has a
- * hardware context to spare.
+ * hardware context to spare; `contexts` is the page's limit, a browser's by default.
  */
-export const webglRenderers = (options: { readonly cap?: number }): Renderers =>
-  createRenderers<Terminal>({
+export const webglRendererPool = (options: { readonly contexts?: number }): RendererPool =>
+  createRendererPool<Terminal>({
     load: loadWebgl,
     supported: probeWebgl,
-    cap: options.cap ?? contextCap,
+    cap: rendererPoolCap(options.contexts ?? browserContexts),
   })

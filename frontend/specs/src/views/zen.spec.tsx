@@ -1,5 +1,6 @@
 import { page, type Locator } from "vitest/browser"
 
+import { canvasBackground, clickBackground, settled } from "../support/canvas"
 import { findDialog, pressShortcut, shortcut, newTerminalName } from "../support/keyboard"
 import { emptyWorkspace, pressNewSession } from "../support/sessions"
 import { anyRenameField } from "../support/terminals"
@@ -54,7 +55,6 @@ const expectOutOfZen = async (): Promise<void> => {
 const buildWidth = (): number => terminal("Build").element().getBoundingClientRect().width
 const focusedBox = (): DOMRect =>
   terminal("Checkout implementation").element().getBoundingClientRect()
-const canvasArea = () => page.getByLabelText("Terminal canvas")
 const viewArea = (name: "Focus" | "Grid" | "Canvas") =>
   page.getByRole("region", { name: `${name.toLowerCase()} view` })
 const sampleTerminals = [
@@ -66,41 +66,13 @@ const sampleTerminals = [
   "Build",
 ]
 
-/** Polls a measurement until it holds still for a rendered frame, then returns it. */
-const settled = async (measure: () => number): Promise<number> => {
-  let previous = Number.NaN
-  await expect
-    .poll(async () => {
-      await new Promise(requestAnimationFrame)
-      const next = measure()
-      const still = next === previous
-      previous = next
-      return still
-    })
-    .toBe(true)
-  return previous
-}
-
 /**
- * Clicks the Canvas background near its top-left corner, after checking that no
- * terminal covers that spot, and confirms the click landed there: it clears the selection.
+ * Clicks bare Canvas near its top-left corner, and confirms the click landed there: the
+ * background takes the keyboard focus, for the Canvas keys.
  */
-const clickCanvasBackground = async (): Promise<void> => {
-  const area = canvasArea().element().getBoundingClientRect()
-  const spot = { x: 12, y: 12 }
-  const covered = sampleTerminals.some((name) => {
-    const box = terminal(name).query()?.getBoundingClientRect()
-    return (
-      box !== undefined &&
-      area.left + spot.x >= box.left &&
-      area.left + spot.x <= box.right &&
-      area.top + spot.y >= box.top &&
-      area.top + spot.y <= box.bottom
-    )
-  })
-  expect(covered, "a terminal covers the background spot").toBe(false)
-  await canvasArea().click({ position: spot })
-  await expect.element(canvasArea()).toHaveFocus()
+const focusCanvasBackground = async (): Promise<void> => {
+  await clickBackground({ x: 12, y: 12 })
+  await expect.element(canvasBackground()).toHaveFocus()
 }
 
 describe("Zen mode", () => {
@@ -160,7 +132,7 @@ describe("Zen mode", () => {
       await openWorkspace()
       await chooseView("Canvas")
       const initial = await settled(buildWidth)
-      await clickCanvasBackground()
+      await focusCanvasBackground()
       await expectNothingSelected()
       await press("+")
       await expect.poll(buildWidth).toBeGreaterThan(initial * 1.1)
@@ -210,7 +182,7 @@ describe("Zen mode", () => {
       await enterZen().click()
       await expectInZen()
       const initial = await settled(buildWidth)
-      await clickCanvasBackground()
+      await focusCanvasBackground()
 
       await press("+")
       await expect.poll(buildWidth).toBeGreaterThan(initial * 1.1)
@@ -226,9 +198,9 @@ describe("Zen mode", () => {
       await chooseView("Canvas")
       await enterZen().click()
       await expectInZen()
-      await clickCanvasBackground()
+      await focusCanvasBackground()
       await press("+++")
-      const area = canvasArea().element().getBoundingClientRect()
+      const area = canvasBackground().element().getBoundingClientRect()
       const inside = (name: string): boolean => {
         const box = terminal(name).element().getBoundingClientRect()
         return (

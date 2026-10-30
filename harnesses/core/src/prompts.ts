@@ -35,17 +35,16 @@ export const withoutDoorbell = (prompt: string): string =>
 export const quotedLine = (line: string): string => `"${line}"`
 
 /**
- * Whether a prompt is a hook's rather than the person's: a Stop hook's reason the harness
- * submits as a prompt (Codex wraps it in `<hook_prompt>`), or a delivery of agents'
- * messages. A doorbell prompt is told apart by `doorbellNonce`.
+ * Whether a prompt is a delivery of agents' messages rather than the person's, in any
+ * harness. A harness's own continuations it tells itself (see `promptStart`), and a doorbell
+ * prompt is told apart by `doorbellNonce`.
  */
-export const continuationPrompt = (prompt: string): boolean =>
-  /^\s*<hook_prompt\b/.test(prompt) || prompt.includes("<novadeck-messages")
+export const continuationPrompt = (prompt: string): boolean => prompt.includes("<novadeck-messages")
 
 /**
- * The turn a root prompt starts, from its text: Novadeck's doorbell, a hook's
- * continuation (or `harness` by the harness's own reckoning), or a prompt with the
- * person's text, any doorbell line removed.
+ * The turn a root prompt starts, from its text: Novadeck's doorbell, a delivery (or
+ * `harness` by the harness's own reckoning, as a Stop hook's reason it submits as a prompt),
+ * or a prompt with the person's text, any doorbell line removed.
  */
 export const promptStart = (
   base: EventBase & {

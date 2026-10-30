@@ -68,8 +68,8 @@ const decodeHook = ({ event, seq, instance, env, payload }: Report): readonly Ha
     case "UserPromptSubmit": {
       // A subagent's prompt is its own work, not the root's turn.
       if (actor) return []
-      // A Stop hook's reason it submits to continue the turn is no prompt of the person's.
-      // Its turn's id is what its rollout records the turn's end by.
+      // A Stop hook's reason it submits to continue the turn (`hookPrompt`) is no prompt of
+      // the person's. Its turn's id is what its rollout records the turn's end by.
       const turn = text(payload.turn_id)
       const prompt = text(payload.prompt) ?? ""
       // Codex's own prompt: the answers the person gave its async question go in at the
@@ -92,7 +92,11 @@ const decodeHook = ({ event, seq, instance, env, payload }: Report): readonly Ha
           })),
         ]
       }
-      const started = promptStart({ ...base, ...(turn && { turn }) }, prompt)
+      const started = promptStart(
+        { ...base, ...(turn && { turn }) },
+        prompt,
+        hookPrompt.test(prompt),
+      )
       // Once its turn ended, Codex answers an async question with a prompt quoting it,
       // which the person's own may do as well: the questions it quotes are answered.
       const answers = quoted(prompt)
@@ -130,8 +134,22 @@ const decodeHook = ({ event, seq, instance, env, payload }: Report): readonly Ha
         : []
     case "SubagentStop":
       return actor ? [{ type: "subagent-stopped", ...base, actor }] : []
-    case "PermissionRequest":
-      return [asked(base, actor, tool, input, call, "permission")]
+    case "PermissionRequest": {
+      // A patch's permission names the files it writes, from the directory it asked in: a
+      // patch run through its shell fires no PostToolUse, so its write settles it.
+      const writes = tool === "apply_patch" ? patched(input, absolute(payload.cwd)) : []
+      return [
+        asked(
+          base,
+          actor,
+          tool,
+          input,
+          call,
+          "permission",
+          writes.length > 0 ? { writes } : undefined,
+        ),
+      ]
+    }
     case "PreToolUse":
       // Two tools ask the person with no PermissionRequest: their dialog is up from the
       // call on, and its PostToolUse says it was answered. A third, the async question,
@@ -181,13 +199,19 @@ const decodeHook = ({ event, seq, instance, env, payload }: Report): readonly Ha
   }
 }
 
+// A Stop hook's reason Codex submits to continue the turn, as a prompt of its own.
+const hookPrompt = /^\s*<hook_prompt\b/
+
 /** A call as its request and its result both know it: a shell call by its command alone. */
 export const callOf = (input: unknown): unknown =>
   typeof input === "object" && input !== null && "command" in input
     ? { command: (input as { command: unknown }).command }
     : input
 
-/** A request waiting on the person for a tool call, named by its call unless `own` names it. */
+/**
+ * A request waiting on the person for a tool call, named by its call unless `own` names it,
+ * with the files it asks to write where it names them.
+ */
 const asked = (
   base: EventBase<"codex">,
   actor: string | null,
@@ -195,13 +219,15 @@ const asked = (
   input: unknown,
   call: unknown,
   kind: "permission" | "question",
-  own?: {
-    readonly requestId: string
-    readonly subject: string | null
-    readonly choices: readonly string[]
-    readonly parts: readonly string[]
-    readonly detached: true
-  },
+  own?:
+    | {
+        readonly requestId: string
+        readonly subject: string | null
+        readonly choices: readonly string[]
+        readonly parts: readonly string[]
+        readonly detached: true
+      }
+    | { readonly writes: readonly string[] },
 ): HarnessEvent => ({
   type: "attention-requested",
   ...base,
