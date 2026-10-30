@@ -252,7 +252,7 @@
 /* A snoozed row keeps its place and height, its words as bright as any that asks: a gray
    wash and a dashed bar where the open row's bar goes, its icons gray, a bell-off where its
    wait shows. Open, it takes the open row's look. */
-.item.inbox-row[data-snoozed="true"]:not([data-selected="true"]) {
+.item.inbox-row[data-snoozed="true"]:not([data-selected="true"], :hover, :focus-within) {
   --_bg: var(--inbox-snoozed-bg, color-mix(in srgb, var(--color-ink) 6%, transparent));
 }
 .item.inbox-row[data-snoozed="true"]:not([data-selected="true"])::before {

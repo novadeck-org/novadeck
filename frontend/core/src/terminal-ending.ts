@@ -230,8 +230,10 @@ export type NoteMarks = {
   readonly subject?: string | undefined
   readonly dialog?: NeedDialog | undefined
   // What it would need the person for, all snoozed: it shows it set aside, and its live
-  // dialog, the same ask, makes no mark either.
+  // dialogs make no mark either while they are no more than its snoozed requests
+  // (`snoozedRequests`); one more, as a new prompt, is marked as ever.
   readonly snoozed?: true | undefined
+  readonly snoozedRequests?: number | undefined
 }
 
 // How a terminal reads at a glance, once, for its tab, its window and its project's status, so
@@ -258,7 +260,12 @@ export const terminalGlance = (
   const failed = unread === "failed"
   const reported = terminal.state === "running" && terminal.agent?.reported === true
   const phase = terminalPhase(terminal, reported || failed, now)
-  const snoozed = phase !== "ended" && marks.snoozed === true && marks.need === undefined
+  const dialogs = terminal.state === "running" ? (terminal.agent?.attention?.count ?? 0) : 0
+  const snoozed =
+    phase !== "ended" &&
+    marks.snoozed === true &&
+    marks.need === undefined &&
+    dialogs <= (marks.snoozedRequests ?? 0)
   return {
     phase,
     need: phase === "ended" || snoozed ? undefined : terminalNeedMark(terminal, marks.need),

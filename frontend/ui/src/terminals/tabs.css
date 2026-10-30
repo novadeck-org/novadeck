@@ -276,7 +276,12 @@
   align-self: center;
   color: var(--tab-snoozed-fg, var(--color-muted));
 }
-.terminal-tab[data-terminal-snoozed="true"]:not([data-selected="true"]) {
+.terminal-tab[data-terminal-snoozed="true"]:not(
+    [data-selected="true"],
+    .dragging,
+    :focus-within,
+    :hover
+  ) {
   --_bg: var(--tab-snoozed-bg, color-mix(in srgb, var(--color-ink) 6%, transparent));
 }
 .terminal-tab[data-terminal-snoozed="true"]:not([data-selected="true"])::before {

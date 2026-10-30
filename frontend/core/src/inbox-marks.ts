@@ -42,6 +42,11 @@ export const inboxMarks = (items: readonly InboxRow[], at: TerminalAt, now: numb
   )
   const first = would && asleep.find((item) => inboxType(item) === would)
   return would
-    ? { need: undefined, subject: first ? subjectOf(first) : undefined, snoozed: true }
+    ? {
+        need: undefined,
+        subject: first ? subjectOf(first) : undefined,
+        snoozed: true,
+        snoozedRequests: asleep.filter((item) => item.kind === "request").length,
+      }
     : { need: undefined, subject: undefined, dialog: undefined }
 }

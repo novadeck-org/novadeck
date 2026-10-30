@@ -120,6 +120,7 @@ describe("the marks the raw Inbox makes", () => {
       need: undefined,
       subject: "Which way?",
       snoozed: true,
+      snoozedRequests: 0,
     })
     // What isn't snoozed comes first.
     expect(inboxMarks([snoozed, ask({ type: "text" })], at, now)).toEqual({
