@@ -32,7 +32,14 @@ import { workspaceOverlayOpen, workspaceShortcutTarget } from "../../interaction
 import { backgroundPointerHandlers } from "../background"
 import { useTerminalVisibility } from "../useTerminalVisibility"
 import { CanvasTeamWire } from "./CanvasTeamWire"
-import { fitOptions, canvasStep, terminalHeaderHeight, chromeScaleAt } from "./geometry"
+import {
+  canvasStep,
+  chromeScaleAt,
+  fallbackPosition,
+  fallbackSize,
+  fitOptions,
+  terminalHeaderHeight,
+} from "./geometry"
 import { createNodeVisibility } from "./nodeVisibility"
 import { NodeVisibilityContext, TerminalContent, nodeTypes } from "./TerminalNode"
 import type {
@@ -140,7 +147,9 @@ const TerminalCanvas = ({
         const scale = chromeScaleAt(state.transform[2])
         return terminals
           .map((terminal) =>
-            (geometryRef.current[terminal.id]?.width ?? 550) / scale < 240 ? "1" : "0",
+            (geometryRef.current[terminal.id]?.width ?? fallbackSize.width) / scale < 240
+              ? "1"
+              : "0",
           )
           .join("")
       },
@@ -232,8 +241,8 @@ const TerminalCanvas = ({
       return getViewportForBounds(
         {
           ...node.position,
-          width: node.width ?? 550,
-          height: node.height ?? 400,
+          width: node.width ?? fallbackSize.width,
+          height: node.height ?? fallbackSize.height,
         },
         size.width,
         size.height,
@@ -310,14 +319,17 @@ const TerminalCanvas = ({
 
   const nodeFrom = useCallback(
     (terminal: Tile, source: CanvasLayout["geometry"][string] | undefined): TerminalNode => {
-      const width = source?.width ?? 550
+      const width = source?.width ?? fallbackSize.width
       return {
         id: terminal.id,
         type: "terminal",
         hidden: removed[terminal.id] ?? false,
-        position: source?.position ?? { x: 80, y: 80 },
+        position: source?.position ?? fallbackPosition,
         width,
-        height: Math.max(source?.height ?? 400, (terminalHeaderHeight + 4) * chromeScale),
+        height: Math.max(
+          source?.height ?? fallbackSize.height,
+          (terminalHeaderHeight + 4) * chromeScale,
+        ),
         dragHandle: ".terminal-header",
         draggable: selected === terminal.id && !hidden[terminal.id],
         selectable: !hidden[terminal.id],
@@ -417,7 +429,7 @@ const TerminalCanvas = ({
     for (const terminal of terminals) {
       if (!dirtyGeometry.current.has(terminal.id))
         geometryRef.current[terminal.id] = geometry[terminal.id] ?? {
-          position: { x: 80, y: 80 },
+          position: fallbackPosition,
         }
     }
     const created = terminals.filter((terminal) => !knownTerminals.current.has(terminal.id))
@@ -430,9 +442,9 @@ const TerminalCanvas = ({
           const saved = geometryRef.current[terminal.id]
           const live = getNode(terminal.id)
           return {
-            position: live?.position ?? saved?.position ?? { x: 80, y: 80 },
-            width: live?.width ?? saved?.width ?? 550,
-            height: saved?.height ?? 400,
+            position: live?.position ?? saved?.position ?? fallbackPosition,
+            width: live?.width ?? saved?.width ?? fallbackSize.width,
+            height: saved?.height ?? fallbackSize.height,
           }
         })
       for (const terminal of created) {
@@ -529,8 +541,8 @@ const TerminalCanvas = ({
         const retained = {
           ...next,
           position: current.position,
-          width: current.width ?? next.width ?? 550,
-          height: current.height ?? next.height ?? 400,
+          width: current.width ?? next.width ?? fallbackSize.width,
+          height: current.height ?? next.height ?? fallbackSize.height,
         }
         return current.className ? { ...retained, className: current.className } : retained
       })
@@ -708,10 +720,8 @@ const TerminalCanvas = ({
   )
 }
 
-export const Canvas = forwardRef<CanvasHandle, CanvasProps>((props, ref) => {
-  return (
-    <ReactFlowProvider>
-      <TerminalCanvas {...props} handleRef={ref} />
-    </ReactFlowProvider>
-  )
-})
+export const Canvas = forwardRef<CanvasHandle, CanvasProps>((props, ref) => (
+  <ReactFlowProvider>
+    <TerminalCanvas {...props} handleRef={ref} />
+  </ReactFlowProvider>
+))

@@ -9,7 +9,8 @@ import {
 } from "@xyflow/react"
 import { useEffect, useRef, type RefObject } from "react"
 
-import { centerOf, chromeScaleAt, fitOptions, terminalHeaderHeight } from "./geometry"
+import { prefersReducedMotion } from "../../interaction/reduced-motion"
+import { centerOf, chromeScaleAt, fallbackSize, fitOptions, terminalHeaderHeight } from "./geometry"
 import type { CanvasProps, CanvasViewport, TerminalNode } from "./types"
 import type { createCanvasVisit } from "./visit"
 
@@ -46,7 +47,7 @@ const focusButtonInView = (
   viewport: CanvasViewport,
   container: HTMLElement,
 ): boolean => {
-  const right = (node.position.x + (node.width ?? 550)) * viewport.zoom + viewport.x
+  const right = (node.position.x + (node.width ?? fallbackSize.width)) * viewport.zoom + viewport.x
   const top = node.position.y * viewport.zoom + viewport.y
   const header = terminalHeaderHeight * chromeScaleAt(viewport.zoom) * viewport.zoom
   return (
@@ -99,7 +100,7 @@ export const useCanvasNavigation = ({
       return flyIn(selected)
     }
     visit.clear()
-    const duration = matchMedia("(prefers-reduced-motion: reduce)").matches ? 0 : 180
+    const duration = prefersReducedMotion() ? 0 : 180
     if (pointerCreated.current.delete(selected)) return
     const created = createdPositions.current.get(selected)
     if (created) {
@@ -107,7 +108,7 @@ export const useCanvasNavigation = ({
       const viewport = getViewport()
       const size = geometryRef.current[selected]
       const width = size?.width ?? node.width ?? 600
-      const height = size?.height ?? node.height ?? 400
+      const height = size?.height ?? node.height ?? fallbackSize.height
       const margin = 24 / viewport.zoom
       const left = -viewport.x / viewport.zoom
       const top = -viewport.y / viewport.zoom

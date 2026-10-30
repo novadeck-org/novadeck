@@ -49,23 +49,23 @@ export const blockingOverlayOpen = (): boolean =>
 
 const within = (target: EventTarget | null, selector: string): boolean =>
   target instanceof Element && Boolean(target.closest(selector))
-export const insideOpenZenDock = (target: EventTarget | null): boolean =>
+const insideOpenZenDock = (target: EventTarget | null): boolean =>
   within(target, '[data-workspace-zen-dock][data-open="true"]')
 // The footer's notices, a portable copy's install, Murmur's and the sandbox's, which close
 // themselves on Escape.
-export const insideNotice = (target: EventTarget | null): boolean =>
+const insideNotice = (target: EventTarget | null): boolean =>
   within(target, "[data-workspace-notice]")
-export const insideViewSwitch = (target: EventTarget | null): boolean =>
+const insideViewSwitch = (target: EventTarget | null): boolean =>
   within(target, "[data-workspace-view-switch]")
-export const insideNavigationControl = (target: EventTarget | null): boolean =>
+const insideNavigationControl = (target: EventTarget | null): boolean =>
   within(target, '[role="separator"], [role="radiogroup"]')
-export const insideCanvasNode = (target: EventTarget | null): boolean =>
+const insideCanvasNode = (target: EventTarget | null): boolean =>
   within(target, "[data-workspace-canvas-node], .react-flow__node")
-export const insideTerminalTab = (target: EventTarget | null): boolean =>
+const insideTerminalTab = (target: EventTarget | null): boolean =>
   within(target, "[data-terminal-tab-id]")
-export const insideTerminalRename = (target: EventTarget | null): boolean =>
+const insideTerminalRename = (target: EventTarget | null): boolean =>
   within(target, 'input[aria-label^="Rename "]')
-export const insideSwitcherClose = (target: EventTarget | null): boolean =>
+const insideSwitcherClose = (target: EventTarget | null): boolean =>
   within(target, '[aria-label="Close terminal switcher"]')
 // Where keys move around the workspace while navigating: a view itself, or a Canvas node.
 export const navigateHome = (target: EventTarget | null): boolean =>
@@ -75,13 +75,12 @@ export const navigateHome = (target: EventTarget | null): boolean =>
 export const insideOwnKeys = (target: EventTarget | null): boolean =>
   within(target, "[data-own-keys]")
 // A terminal's companion pane and its taskbar close themselves on Escape.
-export const insideCompanion = (target: EventTarget | null): boolean =>
+const insideCompanion = (target: EventTarget | null): boolean =>
   within(target, "[data-workspace-companion]")
 // A terminal's chat, which holds text the person selects and a box they type in.
-export const insideChat = (target: EventTarget | null): boolean =>
-  within(target, "[data-workspace-chat]")
+const insideChat = (target: EventTarget | null): boolean => within(target, "[data-workspace-chat]")
 // Terminal surfaces mark the element that receives typed input.
-export const insideTerminalInput = (target: EventTarget | null): boolean =>
+const insideTerminalInput = (target: EventTarget | null): boolean =>
   within(target, "[data-terminal-input]")
 // Where a key was pressed, as far as keyboard routing cares.
 export type KeyTarget = {

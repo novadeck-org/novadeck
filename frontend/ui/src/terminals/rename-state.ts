@@ -16,7 +16,7 @@ export type RenameSession = {
   readonly request: number
 }
 
-export type RenameScope = Pick<RenameSession, "context" | "view" | "target" | "request">
+type RenameScope = Pick<RenameSession, "context" | "view" | "target" | "request">
 
 export const beginRename = (
   terminal: Pick<Tile, "id" | "name">,

@@ -51,7 +51,7 @@ const browserYield: Yield = {
 
 // Which of the nodes in sight may take their screen. The selected node is admitted at once;
 // the others wait their turn, a batch at a time, nearest the middle of the view first.
-export type Admission = {
+type Admission = {
   // Whether the node has been admitted; false for one waiting or unknown.
   readonly admitted: (id: string) => boolean
   // A node came into sight, `distance` from the middle of the view.

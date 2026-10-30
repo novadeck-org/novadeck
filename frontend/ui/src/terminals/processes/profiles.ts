@@ -15,7 +15,7 @@ import { CodexBody } from "./CodexBody"
 // changes, so a program starting or ending keeps the header, a rename in progress, and
 // focus. Profiles are presentation only; per-program behaviour, such as resuming a
 // restored program, goes beside `programName` in `core/`.
-export type ProcessProfile = {
+type ProcessProfile = {
   readonly icon: LucideIcon
   readonly Body?: ComponentType<{ readonly children: ReactNode }>
 }

@@ -5,7 +5,7 @@ import type { InboxTurn } from "@novadeck/core/inbox"
 // turn ended: `unread` on its own (the tab brightens its program), or `failed` on an error.
 // Neither is a done report, which comes from the Inbox. The backend stores the rows; this is
 // their mirror for the marks (see `watchUnreadTurns`).
-export type UnreadEnd = "unread" | "failed"
+type UnreadEnd = "unread" | "failed"
 export type Unread = Readonly<Record<string, Readonly<Record<string, UnreadEnd>>>>
 
 // The terminal the person is looking at: the selected one of the session on screen while
