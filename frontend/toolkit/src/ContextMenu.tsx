@@ -4,22 +4,22 @@ import { ChevronRight } from "lucide-react"
 import { useId, useRef, useState, type ReactElement, type ReactNode, type RefObject } from "react"
 
 export type ContextMenuAction = {
-  value: string
-  label: string
-  icon?: ReactNode
+  readonly value: string
+  readonly label: string
+  readonly icon?: ReactNode
   // Shown but not chosen, for an action that can't happen now.
-  disabled?: boolean
+  readonly disabled?: boolean
   // Runs once the menu has closed and focus has settled, so an item that moves focus,
   // as into a field, keeps it.
-  onSelect: () => void
+  readonly onSelect: () => void
 }
 
 // An entry that opens a menu of its own beside it, as a list to pick one from.
 export type ContextMenuSubmenu = {
-  value: string
-  label: string
-  icon?: ReactNode
-  items: ContextMenuAction[]
+  readonly value: string
+  readonly label: string
+  readonly icon?: ReactNode
+  readonly items: readonly ContextMenuAction[]
 }
 
 export type ContextMenuItem = ContextMenuAction | ContextMenuSubmenu
@@ -35,9 +35,9 @@ const MenuEntries = ({
   choose,
   chooseNested,
 }: {
-  items: readonly ContextMenuItem[]
-  choose: (run: () => void) => void
-  chooseNested: (run: () => void) => void
+  readonly items: readonly ContextMenuItem[]
+  readonly choose: (run: () => void) => void
+  readonly chooseNested: (run: () => void) => void
 }): React.JSX.Element => (
   <>
     {items.map((item) =>
@@ -54,7 +54,7 @@ const MenuEntries = ({
             <ChevronRight size={12} strokeWidth={1.5} aria-hidden />
           </ArkMenu.TriggerItem>
           <Portal>
-            <ArkMenu.Positioner className="context-menu-positioner z-50!">
+            <ArkMenu.Positioner className="z-50!">
               <ArkMenu.Content className={contentClasses}>
                 <MenuEntries items={item.items} choose={chooseNested} chooseNested={chooseNested} />
               </ArkMenu.Content>
@@ -97,9 +97,9 @@ const restore = (
 }
 
 export type ContextMenuProps = {
-  label: string
-  trigger: ReactElement
-  items: ContextMenuItem[]
+  readonly label: string
+  readonly trigger: ReactElement
+  readonly items: readonly ContextMenuItem[]
 }
 
 export const ContextMenu = ({ label, trigger, items }: ContextMenuProps): React.JSX.Element => {
@@ -135,7 +135,7 @@ export const ContextMenu = ({ label, trigger, items }: ContextMenuProps): React.
         {trigger}
       </ArkMenu.ContextTrigger>
       <Portal>
-        <ArkMenu.Positioner className="context-menu-positioner z-50!">
+        <ArkMenu.Positioner className="z-50!">
           <ArkMenu.Content aria-labelledby={labelId} className={contentClasses}>
             <span id={labelId} className="sr-only">
               {label}

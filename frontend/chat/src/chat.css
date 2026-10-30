@@ -1,7 +1,7 @@
 /* The chat recipe: a terminal's agent as a conversation, drawn over its screen
    (`.chat`, which fills the window's body). The transcript (`.chat-scroll`, a log) holds
    the person's messages as bubbles (`.chat-message[data-role="user"]`), the agent's text
-   as plain formatted prose (`.chat-prose`, drawn by the toolkit's Markdown, whose recipe is
+   as plain formatted prose (`.markdown`, drawn by the toolkit's Markdown, whose recipe is
    its `markdown.css`),
    other agents' messages (`data-role="agent"`), runs of tool calls (`.chat-tools`, a row
    `.chat-tool` each, opening to `.chat-tool-body`), notes (`.chat-note`) and the agent's
@@ -27,9 +27,8 @@
    (radius-panel), --chat-tool-hover-bg (soft): a run of tool calls and its rows.
    --chat-tool-icon-fg (muted), --chat-tool-running-fg (ink): a row's icon, and the
    spinner of a call still running.
-   --chat-code-bg (paper here; the Markdown's shell), --chat-code-border-color (line): a
-   tool call's text. The Markdown's own tokens (code, quotes, tables, links) are listed in
-   `markdown.css`.
+   --chat-code-bg (paper), --chat-code-border-color (line): a tool call's text. The
+   Markdown's own tokens (code, quotes, tables, links) are listed in `markdown.css`.
    --chat-request-bg (warning), --chat-request-fg (warning-fg),
    --chat-request-border-color (the fg at 35%): a request that waits on the person.
    --chat-request-field-bg (paper), --chat-request-field-border-color (line-strong),
@@ -162,7 +161,7 @@
 
 /* The agent's formatted text, in a Grid or Canvas window (the rest of it is the toolkit's
    `markdown.css`) */
-.chat[data-compact] .chat-prose :is(h3, h4) {
+.chat[data-compact] .markdown :is(h3, h4) {
   font-size: 12.5px;
 }
 

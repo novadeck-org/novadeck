@@ -3,22 +3,22 @@ import { Portal } from "@ark-ui/react/portal"
 import type { ReactNode, RefObject } from "react"
 
 export type DialogProps = {
-  open: boolean
-  onOpenChange: (open: boolean) => void
-  onExitComplete?: (() => void) | undefined
-  label: string
-  children: ReactNode
-  className?: string
-  backdropClassName?: string
-  positionerClassName?: string
-  initialFocusEl?: () => HTMLElement | null
-  finalFocusEl?: () => HTMLElement | null
-  contentRef?: RefObject<HTMLDivElement | null>
-  modal?: boolean
+  readonly open: boolean
+  readonly onOpenChange: (open: boolean) => void
+  readonly onExitComplete?: (() => void) | undefined
+  readonly label: string
+  readonly children: ReactNode
+  readonly className?: string
+  readonly backdropClassName?: string
+  readonly positionerClassName?: string
+  readonly initialFocusEl?: () => HTMLElement | null
+  readonly finalFocusEl?: () => HTMLElement | null
+  readonly contentRef?: RefObject<HTMLDivElement | null>
+  readonly modal?: boolean
   // "alertdialog" for a confirmation: outside clicks do not dismiss it unless
   // allowed here. Set the first focus with initialFocusEl.
-  role?: "dialog" | "alertdialog"
-  closeOnInteractOutside?: boolean
+  readonly role?: "dialog" | "alertdialog"
+  readonly closeOnInteractOutside?: boolean
 }
 
 // Parts that name and describe a dialog; Ark wires their ids.

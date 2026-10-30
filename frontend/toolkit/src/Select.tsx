@@ -5,21 +5,25 @@ import { useMemo, type RefObject } from "react"
 
 import { cn } from "./class-name"
 
-export type SelectOption = { label: string; value: string; description?: string }
+export type SelectOption = {
+  readonly label: string
+  readonly value: string
+  readonly description?: string
+}
 
 export type SelectProps = {
-  label: string
-  variant?: "field" | "icon"
-  items: SelectOption[]
-  value: string
+  readonly label: string
+  readonly variant?: "field" | "icon"
+  readonly items: readonly SelectOption[]
+  readonly value: string
   // Shown while no item is the value.
-  placeholder?: string
-  onValueChange?: (value: string) => void
-  disabled?: boolean
-  open?: boolean
-  onOpenChange?: (open: boolean) => void
-  portalContainer?: RefObject<HTMLElement | null>
-  className?: string
+  readonly placeholder?: string
+  readonly onValueChange?: (value: string) => void
+  readonly disabled?: boolean
+  readonly open?: boolean
+  readonly onOpenChange?: (open: boolean) => void
+  readonly portalContainer?: RefObject<HTMLElement | null>
+  readonly className?: string
 }
 
 export const Select = ({

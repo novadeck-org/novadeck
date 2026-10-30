@@ -3,14 +3,17 @@ import type { ReactNode } from "react"
 
 import { cn } from "./class-name"
 
-type PartProps = { children: ReactNode; className?: string }
+type PartProps = { readonly children: ReactNode; readonly className?: string }
 
 export const Tabs = ({
   value,
   onValueChange,
   children,
   className,
-}: PartProps & { value: string; onValueChange: (value: string) => void }): React.JSX.Element => (
+}: PartProps & {
+  readonly value: string
+  readonly onValueChange: (value: string) => void
+}): React.JSX.Element => (
   <ArkTabs.Root
     value={value}
     onValueChange={(details) => onValueChange(details.value)}
@@ -27,7 +30,10 @@ export const TabList = ({
   children,
   className,
   indicatorClassName,
-}: PartProps & { label: string; indicatorClassName?: string }): React.JSX.Element => (
+}: PartProps & {
+  readonly label: string
+  readonly indicatorClassName?: string
+}): React.JSX.Element => (
   <ArkTabs.List aria-label={label} className={cn("relative", className)}>
     {children}
     {indicatorClassName && (
@@ -38,7 +44,10 @@ export const TabList = ({
   </ArkTabs.List>
 )
 
-export const Tab = ({ className, ...props }: PartProps & { value: string }): React.JSX.Element => (
+export const Tab = ({
+  className,
+  ...props
+}: PartProps & { readonly value: string }): React.JSX.Element => (
   <ArkTabs.Trigger {...props} className={cn("tab", className)} />
 )
 
@@ -47,7 +56,10 @@ export const TabPanel = ({
   preserveHeight = false,
   className,
   ...props
-}: PartProps & { value: string; preserveHeight?: boolean }): React.JSX.Element => (
+}: PartProps & {
+  readonly value: string
+  readonly preserveHeight?: boolean
+}): React.JSX.Element => (
   <ArkTabs.Context>
     {(tabs) => (
       <ArkTabs.Content

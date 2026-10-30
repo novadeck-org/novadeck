@@ -5,8 +5,8 @@ import { cn } from "./class-name"
 // The Nova mark: four chevrons, < > ^ v, firing outward from a block cursor. It is a
 // shape, not a style: the chevrons take the mark colour and the cursor the core colour,
 // so each theme restyles it through tokens alone. The website's NovaMark.astro and the
-// host's icons draw the same geometry; change them together. `size` is the whole square
-// in pixels.
+// desktop app's icons (apps/desktop/resources) draw the same geometry; change them
+// together. `size` is the whole square in pixels.
 const chevrons = [
   { name: "right", points: "46,22 56,32 46,42" },
   { name: "left", points: "18,22 8,32 18,42" },
