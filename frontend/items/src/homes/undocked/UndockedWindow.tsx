@@ -26,7 +26,7 @@ export const UndockedWindow = ({
     <div className="artifact-window">
       {!registration ? null : registration.windowLabel ? (
         <section
-          className="plan-reader"
+          className="pane-reader"
           data-workspace-companion
           aria-label={registration.windowLabel}
         >

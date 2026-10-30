@@ -72,7 +72,7 @@ describe("a plan that stops being writable, and is again", () => {
 
     await emit(ready("Mine # Plan\n", false, "2"))
     expect(container.querySelector(".cm-editor")).toBe(editor)
-    expect(container.querySelector(".plan-editor")?.hasAttribute("data-readonly")).toBe(true)
+    expect(container.querySelector(".document-editor")?.hasAttribute("data-readonly")).toBe(true)
     expect(view.state.readOnly).toBe(true)
 
     await emit(ready("Mine # Plan\n", true, "3"))

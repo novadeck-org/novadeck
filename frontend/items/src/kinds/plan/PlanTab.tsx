@@ -41,9 +41,9 @@ const PlanOutline = ({
     end: headings[index + 1]?.at ?? plan.text.length,
   }))
   return (
-    <nav className="plan-spine" aria-label="Plan outline">
-      <p className="plan-spine-label">Contents</p>
-      <ul className="plan-spine-context">
+    <nav className="spine" aria-label="Plan outline">
+      <p className="spine-label">Contents</p>
+      <ul className="spine-context">
         {sections.map((section) => {
           const count = notes.filter((at) => at >= section.at && at < section.end).length
           const changed = marks.some((mark) => mark.from < section.end && mark.to > section.at)
@@ -153,7 +153,7 @@ const PlanBody = ({
           </button>
         )}
         {plan.unsaved && !plan.stalled && !block && !unreadable && (
-          <span className="plan-meta-hint">Not saved yet. Trying again.</span>
+          <span className="pane-meta-hint">Not saved yet. Trying again.</span>
         )}
         {plan.resolved > 0 && plan.marked === plan.text && (
           <span>
@@ -161,18 +161,18 @@ const PlanBody = ({
           </span>
         )}
         {readOnly && (
-          <span className="plan-meta-hint">
+          <span className="pane-meta-hint">
             {!plan.writable && plan.truncated && item.plan?.source === "file"
               ? "Read-only: it's too long to edit here."
               : readOnlyText(agent)}
           </span>
         )}
         {plan.truncated && (
-          <span className="plan-meta-hint">It's long, so only its start is shown.</span>
+          <span className="pane-meta-hint">It's long, so only its start is shown.</span>
         )}
         {/* Without Novadeck's skill, notes wait for the person to point the agent at them. */}
         {plan.writable && !plan.skill && notesIn(plan.text) > 0 && (
-          <span className="plan-meta-hint">
+          <span className="pane-meta-hint">
             {agent} doesn't have Novadeck's skill. Ask it to re-read the plan.
           </span>
         )}
@@ -201,9 +201,9 @@ const PlanBody = ({
           retryLabel="Retry"
         />
       )}
-      <div className="plan-reader-body" data-outline={outline(plan.text).length > 0}>
+      <div className="pane-reader-body" data-outline={outline(plan.text).length > 0}>
         <PlanOutline plan={plan} jump={(at) => editor.current?.jumpTo(at)} />
-        <div className="plan-document-scroll" data-changes={plan.showChanges}>
+        <div className="pane-document-scroll" data-changes={plan.showChanges}>
           <Suspense fallback={null}>
             <PlanEditor
               id={item.id}

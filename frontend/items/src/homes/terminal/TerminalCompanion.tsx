@@ -81,12 +81,12 @@ const SplitPane = ({
   // and before the terminal's input.
   useEffect(() => {
     const element = frame.current
-    const terminal = element?.querySelector(".plan-split-terminal")
-    const pane = element?.querySelector(".plan-split-reader")
+    const terminal = element?.querySelector(".pane-split-terminal")
+    const pane = element?.querySelector(".pane-split-reader")
     if (leaving || !element || !terminal || !pane) return
     const heard = (event: KeyboardEvent): void =>
       coverKey(event, {
-        covering: () => getComputedStyle(element).getPropertyValue("--_plan-cover").trim() === "1",
+        covering: () => getComputedStyle(element).getPropertyValue("--_pane-cover").trim() === "1",
         terminal,
         pane,
         uncover: () => hide.current(),
@@ -117,12 +117,12 @@ const SplitPane = ({
   return (
     <div
       ref={frame}
-      className="plan-split"
-      style={{ "--_plan-terminal": `${ratio * 100}%` } as React.CSSProperties}
+      className="pane-split"
+      style={{ "--_pane-terminal": `${ratio * 100}%` } as React.CSSProperties}
     >
-      <div className="plan-split-terminal">{children}</div>
+      <div className="pane-split-terminal">{children}</div>
       <div
-        className="plan-divider nodrag nopan"
+        className="pane-divider nodrag nopan"
         role="separator"
         aria-orientation="vertical"
         aria-label="Resize plan"
@@ -151,7 +151,7 @@ const SplitPane = ({
       />
       <div
         {...presence.props}
-        className="plan-split-reader nodrag nopan nowheel"
+        className="pane-split-reader nodrag nopan nowheel"
         data-companion-of={owner}
       >
         <CompanionPane {...shown} presentation="split" />
@@ -160,7 +160,7 @@ const SplitPane = ({
   )
 }
 
-// Canvas units, matching .plan-attached.
+// Canvas units, matching .pane-attached.
 const attachedExtent = { right: 20 + 720, height: 560 }
 
 // Where an attached sheet hangs: the canvas node around the window, which the window's
@@ -200,7 +200,7 @@ const AttachedPane = ({
     <div
       {...presence.props}
       id={id}
-      className="plan-attached nodrag nopan nowheel"
+      className="pane-attached nodrag nopan nowheel"
       data-companion-of={owner}
     >
       <CompanionPane {...shown} presentation="attached" />
@@ -394,7 +394,7 @@ export const TerminalCompanion = ({
     onRaise: (each) => openPicked(each.key),
   }
   return (
-    <div ref={within} className="terminal-plan" data-plan-open={open}>
+    <div ref={within} className="terminal-companion">
       {shown.mounted && presentation === "split" ? (
         <SplitPane view={paneView} owner={terminal} terminalView={view} presence={shown}>
           {children}
@@ -423,11 +423,11 @@ export const TerminalCompanion = ({
       {emptyBar.mounted && !taskbar.mounted && (
         <div
           {...emptyBar.props}
-          className="plan-taskbar plan-taskbar-empty nodrag nopan"
+          className="taskbar taskbar-empty nodrag nopan"
           data-taskbar=""
           data-drop-target={overBar || undefined}
         >
-          <span className="plan-tb-empty-hint">Drop here to show it on this terminal</span>
+          <span className="taskbar-empty-hint">Drop here to show it on this terminal</span>
         </div>
       )}
       <ConfirmDialog
@@ -457,7 +457,7 @@ export const TerminalCompanion = ({
               if (focused && focused !== document.body) return
               document
                 .querySelector<HTMLElement>(
-                  `[data-companion-of="${CSS.escape(terminal)}"] .plan-reader`,
+                  `[data-companion-of="${CSS.escape(terminal)}"] .pane-reader`,
                 )
                 ?.focus({ preventScroll: true })
             })

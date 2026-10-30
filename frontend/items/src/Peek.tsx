@@ -22,15 +22,15 @@ export type PeekEntry = {
 // close button that shows on hover.
 export const Peek = ({ entries }: { entries: readonly PeekEntry[] }): React.JSX.Element => (
   <div
-    className="plan-peek"
+    className="peek"
     // Escape here closes the peek, not whatever the workspace would do with it.
     data-workspace-companion
     style={{ "--_peek-columns": Math.min(entries.length, 3) } as React.CSSProperties}
   >
     {entries.map((entry) => (
-      <div key={entry.id} className="plan-peek-card">
+      <div key={entry.id} className="peek-card">
         <button
-          className="plan-peek-open"
+          className="peek-open"
           data-state={entry.state}
           aria-label={`${entry.name}${entry.state === "new" ? ", new" : entry.state === "behind" ? ", in the pane" : ""}`}
           aria-pressed={entry.state === "open"}
@@ -39,16 +39,16 @@ export const Peek = ({ entries }: { entries: readonly PeekEntry[] }): React.JSX.
           // An image in it would start the browser's own drag instead.
           onDragStart={entry.onGrab && ((event) => event.preventDefault())}
         >
-          <span className="plan-peek-thumb" aria-hidden="true">
+          <span className="peek-thumb" aria-hidden="true">
             {entry.preview}
           </span>
-          <span className="plan-peek-name">
+          <span className="peek-name">
             {entry.icon}
             <span>{entry.name}</span>
           </span>
         </button>
         <button
-          className="plan-peek-close icon-button raised"
+          className="peek-close icon-button raised"
           aria-label={`Close ${entry.name}`}
           onClick={entry.onClose}
         >

@@ -204,7 +204,7 @@ export const useBarDrag = ({
     if (start.button !== 0 || start.ctrlKey) return
     const touch = start.pointerType === "touch"
     const from = { x: start.clientX, y: start.clientY }
-    const home = bar.current?.querySelector(`[data-slot="${CSS.escape(slot)}"] .plan-tb-item`)
+    const home = bar.current?.querySelector(`[data-slot="${CSS.escape(slot)}"] .taskbar-item`)
     let armed = !touch
     let dragging = false
     const press = touch ? setTimeout(() => (armed = true), 250) : undefined

@@ -45,11 +45,11 @@ const MessagesCount = ({
   messagesHandle: MessagesHandle
 }): React.JSX.Element | null =>
   messagesHandle.badge ? (
-    <b className="plan-tb-count" data-messages={messagesHandle.badge.kind} aria-hidden="true">
+    <b className="taskbar-count" data-messages={messagesHandle.badge.kind} aria-hidden="true">
       {messagesHandle.badge.count}
     </b>
   ) : messagesHandle.paused ? (
-    <b className="plan-tb-count" data-messages="paused" aria-hidden="true">
+    <b className="taskbar-count" data-messages="paused" aria-hidden="true">
       <Pause size={8} strokeWidth={2.5} />
     </b>
   ) : null

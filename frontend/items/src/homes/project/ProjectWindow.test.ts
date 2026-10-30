@@ -61,7 +61,7 @@ describe("the project window", () => {
           truncated: false,
         },
       })
-      expect(container.querySelector("section.plan-reader[data-workspace-companion]")).toBeNull()
+      expect(container.querySelector("section.pane-reader[data-workspace-companion]")).toBeNull()
       expect(container.querySelector(".cm-content")?.getAttribute("aria-label")).toBe("README.md")
     })
   })

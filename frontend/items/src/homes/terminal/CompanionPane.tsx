@@ -9,7 +9,7 @@ import type { LookContext } from "../../registration"
 import type { ItemStore } from "../../state"
 import { memberLook, MemberView } from "./drawing"
 import type { MessagesHandle, MessageLinks } from "./messages/messages"
-import type { PlanPresentation } from "./presentation"
+import type { PanePresentation } from "./presentation"
 
 // Windows' restore glyph, drawn as lucide draws: a window lifting off the one it was
 // maximized in, as an item docked in the pane lifts into a window of its own.
@@ -86,7 +86,7 @@ const Sheet = ({
   const { awake, ref, on } = useWakeful()
   return (
     <div
-      className="plan-sheet"
+      className="pane-sheet"
       data-entry={entry}
       {...on}
       onAnimationEnd={(event) => {
@@ -147,7 +147,7 @@ const BehindStack = ({
   onHide: () => void
 }): React.JSX.Element => (
   <div
-    className="plan-stack nodrag nopan"
+    className="pane-stack nodrag nopan"
     data-workspace-companion
     onKeyDown={(event) => {
       if (event.key === "Escape") {
@@ -165,7 +165,7 @@ const BehindStack = ({
           <Tooltip key={each.key} content={name}>
             <button
               type="button"
-              className="plan-stack-sheet"
+              className="pane-stack-sheet"
               data-entry={each.key === tucked ? "tuck" : undefined}
               aria-label={`Bring forward ${name}`}
               onClick={() => onRaise(each)}
@@ -224,7 +224,7 @@ export const CompanionPane = ({
   agent: string
   messagesHandle: MessagesHandle
   links: MessageLinks
-  presentation: PlanPresentation
+  presentation: PanePresentation
   // The bar's plans, as the taskbar names them.
   plans: LookContext["plans"]
   originOf: (member: BarMember) => string | undefined
@@ -330,7 +330,7 @@ export const CompanionPane = ({
       <section
         ref={section}
         tabIndex={-1}
-        className="plan-reader"
+        className="pane-reader"
         data-workspace-companion
         data-presentation={presentation}
         aria-label={messages ? "Messages" : `What ${agent} showed you`}

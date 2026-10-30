@@ -31,12 +31,12 @@ describe("a markdown file's document", () => {
     await act(async () => {
       await vi.dynamicImportSettled()
     })
-    const editor = container.querySelector(".plan-editor")
+    const editor = container.querySelector(".document-editor")
     expect(editor?.hasAttribute("data-readonly")).toBe(true)
     expect(editor?.querySelector(".cm-editor")).not.toBeNull()
     expect(editor?.querySelector(".cm-plan-note-gutter")).toBeNull()
     expect(
-      [...container.querySelectorAll(".plan-spine button")].map((each) => each.textContent),
+      [...container.querySelectorAll(".spine button")].map((each) => each.textContent),
     ).toEqual(["Words"])
   })
 
