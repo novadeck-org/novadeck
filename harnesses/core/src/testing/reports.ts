@@ -4,7 +4,7 @@ import type { Report } from "../report.js"
 
 /**
  * A report of `agent`'s hook `event`, as the relay forwards one: from terminal `t`, by
- * process 7, fired at 1, with `payload` as given (each harness names its session there
+ * process 7, started at 1, with `payload` as given (each harness names its session there
  * in its own key) and the rest of a report's fields as `overrides` set them.
  */
 export const hookReport = (

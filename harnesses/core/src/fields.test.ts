@@ -20,6 +20,7 @@ describe("a JSON object's fields", () => {
     expect(parseFields('{"type":"user","n":1}')).toEqual({ type: "user", n: 1 })
     expect(parseFields("[1,2]")).toBeUndefined()
     expect(parseFields('"text"')).toBeUndefined()
+    expect(parseFields("null")).toBeUndefined()
     expect(parseFields("{not json")).toBeUndefined()
     expect(parseFields("")).toBeUndefined()
   })

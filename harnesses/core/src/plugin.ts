@@ -7,7 +7,7 @@ export const manifest = {
   version: "1.2.0",
   description:
     "Tells Novadeck which session runs in its terminal, so it can resume it, lets the agent show you files beside it, and lets agents in Novadeck message each other.",
-}
+} as const
 
 /**
  * The local marketplace Claude Code and Codex both install Novadeck's plugin from, as its
@@ -17,7 +17,7 @@ export const marketplace = {
   name: "novadeck",
   owner: { name: "Novadeck" },
   plugins: [{ name: manifest.name, source: "./novadeck", description: manifest.description }],
-}
+} as const
 
 /** The terminal's variables Novadeck's MCP server is started and finds its runner by. */
 export const mcpVariables = [
