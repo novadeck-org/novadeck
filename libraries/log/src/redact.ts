@@ -128,15 +128,15 @@ export const createRedactor = (options: RedactOptions): Redactor => {
     user && user.length >= 3 && !commonNames.has(user.toLowerCase())
       ? new RegExp(String.raw`(?<![\w.-])${escapeRegExp(user)}(?![\w-])`, "gi")
       : undefined
-  const hashUrls = urlHasher(options)
-  const hashPaths = pathHasher(options)
+  const urls = urlHasher(options)
+  const paths = pathHasher(options)
   return (text) => {
     let result = text
     for (const pattern of held) result = result.replace(pattern, "<secret>")
     for (const pattern of named) result = result.replace(pattern, "$1$2$3<redacted>")
     for (const [pattern, replacement] of shapes) result = result.replace(pattern, replacement)
-    result = hashUrls(result).replace(email, "<email>")
-    result = secrets(hashPaths(result))
+    result = urls(result).replace(email, "<email>")
+    result = secrets(paths(result))
     return account ? result.replace(account, "<user>") : result
   }
 }

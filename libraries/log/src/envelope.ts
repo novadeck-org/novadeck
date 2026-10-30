@@ -19,7 +19,7 @@ export const atLeast = (level: Level, threshold: Level): boolean =>
 export type Data = Readonly<Record<string, string | number | boolean | null>>
 
 /** An error as a line keeps it. */
-export type LoggedError = {
+type LoggedError = {
   readonly name: string
   readonly message: string
   readonly stack?: string

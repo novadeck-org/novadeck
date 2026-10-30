@@ -12,7 +12,7 @@ type Held = {
 export type Repeats = ReadonlyMap<string, Held>
 
 /** The repeats to remember next, and the lines to write now. */
-export type Collapsed = { readonly repeats: Repeats; readonly write: readonly Entry[] }
+type Collapsed = { readonly repeats: Repeats; readonly write: readonly Entry[] }
 
 /** How many different lines are remembered at once; the oldest is let go past it. */
 const maxRemembered = 256

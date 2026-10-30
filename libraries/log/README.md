@@ -8,7 +8,10 @@ as it is written, not when it is read.
 
 ## Subpaths
 
-- `.` (Node): the exports named below, and the line's types (`Entry`, `Data`, `Level`).
+- `.` (Node): `createLogger`, `switchableLogger`, `consoleLogger`, `consoleEcho`, `atLeast`,
+  `logPath`, `createRedactor`, `loadSalt` and `openSession`, the types their signatures name,
+  and the line's (`Entry`, `Data`, `Level`). The rest below (the file writer, `urlHasher`,
+  `pathHasher`, `logSchema`) is the package's own.
 
 ## The line
 

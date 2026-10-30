@@ -187,11 +187,12 @@ export const createLogger = (options: LoggerOptions): Logger => {
     }
   }
 
+  const logFor = cachedLogs((src, from = proc) =>
+    logOf((level, evt, msg, detail) => write(level, { src, proc: from }, evt, msg, detail)),
+  )
+
   return {
-    for: cachedLogs((src, other) => {
-      const from = { src, proc: other ?? proc }
-      return logOf((level, evt, msg, detail) => write(level, from, evt, msg, detail))
-    }),
+    for: (src, other) => logFor(src, other ?? proc),
     flush,
     close() {
       flush()
