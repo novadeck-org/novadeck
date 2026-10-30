@@ -140,7 +140,7 @@ const cursor = (acks: number[], refuse: { count: number } = { count: 0 }) => ({
 
 describe("follow", () => {
   context("restarting", () => {
-    it("says reset before each subscription's items, following each new session", async () => {
+    it("says reset before the items of each stream it opens, following each new session", async () => {
       const link = connection()
       link.connect()
       const { opened, open, last } = streams<Item>()
@@ -194,7 +194,7 @@ describe("follow", () => {
       expect(items.finished).toBe("ended")
     })
 
-    it("holds reset back until a new subscription yields, and says none for the first", async () => {
+    it("holds reset back until a stream opened again yields, and says none for the first", async () => {
       const link = connection()
       link.connect()
       const { opened, open, last } = streams<Item>()
@@ -207,7 +207,7 @@ describe("follow", () => {
       await vi.waitFor(() => expect(opened).toHaveLength(1))
       last().feed.push(item(1))
       expect(await first).toEqual({ value: item(1), done: false })
-      // A subscription that ends finding nothing says nothing.
+      // A stream that ends finding nothing says nothing.
       last().feed.end()
       const next = items.next()
       await vi.waitFor(() => expect(opened).toHaveLength(2))

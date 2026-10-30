@@ -1,5 +1,10 @@
 type Reader = { readonly owner: string; finished: boolean; wake: (() => void) | undefined }
 
+const end = (reader: Reader): void => {
+  reader.finished = true
+  reader.wake?.()
+}
+
 /**
  * Whole state, streamed to any number of readers: each reads it now and again after every
  * change. A change is a counter and a wake-up, so any number of changes between two looks is
@@ -35,10 +40,7 @@ export class Versioned<State> {
   async *stream(owner: string, state: () => State, signal?: AbortSignal): AsyncGenerator<State> {
     const reader: Reader = { owner, finished: false, wake: undefined }
     this.readers.add(reader)
-    const stop = () => {
-      reader.finished = true
-      reader.wake?.()
-    }
+    const stop = () => end(reader)
     signal?.addEventListener("abort", stop, { once: true })
     if (signal?.aborted) stop()
     try {
@@ -62,18 +64,11 @@ export class Versioned<State> {
 
   /** Ends an owner's streams, as its connection goes. */
   release(owner: string): void {
-    for (const reader of this.readers)
-      if (reader.owner === owner) {
-        reader.finished = true
-        reader.wake?.()
-      }
+    for (const reader of this.readers) if (reader.owner === owner) end(reader)
   }
 
   /** Ends every stream, as the service closes. */
   finish(): void {
-    for (const reader of this.readers) {
-      reader.finished = true
-      reader.wake?.()
-    }
+    for (const reader of this.readers) end(reader)
   }
 }

@@ -59,9 +59,9 @@ export type SessionsOptions = {
   /** Maps an app's failure to the oRPC error its client sees; others pass through as they are. */
   readonly error?: (error: unknown) => unknown
   /**
-   * Told of each failure a client is answered with, by the procedure's path, before it is
-   * mapped: a call's, a stream's, and a handshake refused. For a log; what it throws is
-   * ignored.
+   * Told of each failure of a call or a stream, by the procedure's path, before it is mapped,
+   * and of each handshake the wire refuses (`UNAUTHORIZED`, `INCOMPATIBLE_PROTOCOL`), not one
+   * `admit` refuses. For a log; what it throws is ignored.
    */
   readonly failed?: (path: readonly string[], error: unknown) => void
 }

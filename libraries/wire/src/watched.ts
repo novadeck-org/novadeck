@@ -62,5 +62,5 @@ export class Watched<T> {
   }
 }
 
-/** A `Watched` value as its readers see it: they can't set it. */
+/** A value and its changes, read-only: `value`, `next()` for the next change, and `watch()`. */
 export type Watching<T> = Pick<Watched<T>, "value" | "next" | "watch">
