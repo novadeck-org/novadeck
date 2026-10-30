@@ -13,8 +13,7 @@ hand back as `saved` to the next viewer of the same thing.
   small least-recently-used store an app can keep viewer states in.
 - `./code`: `mountCode`, a read-only listing with line numbers from any first line, an
   emphasized range it first scrolls into view, and highlighting that loads each language's
-  parser the first time it's needed; `highlightLines` and `languageOf` for code highlighted
-  elsewhere.
+  parser the first time it's needed; `highlightLines` for code highlighted elsewhere.
 - `./code.css`: the code viewer's looks and the `.tok-*` highlighting classes. Its header
   lists the tokens an app sets to theme it (`--code-*`, `--syntax-*`).
 - `./diff`: `mountDiff`, a read-only change: a repository's files against a base, each
@@ -60,7 +59,7 @@ hand back as `saved` to the next viewer of the same thing.
   where live pages aren't available, a snapshot of it. It opens where the person had taken
   the page.
 - `./browser.css`: the browser viewer's looks, themed through `--browser-*`.
-- `./browser/main` (Node only): the pages' lockdown for Electron's main process:
+- `./browser/host` (Node only): the pages' lockdown for Electron's main process:
   `attachPage` settles a page view's settings as it attaches (no preload, no Node, a
   sandbox, the pages' session, kept on disk so sign-ins last, http(s) only), `guardPage`
   keeps it to http(s) and lets a window it opens through only right after the person's
@@ -81,7 +80,7 @@ hand back as `saved` to the next viewer of the same thing.
 - `./react`: `useViewer`, a ref that mounts a viewer into its element and keeps its state by
   id, and the viewer once mounted. React is an optional peer dependency, needed only here.
 
-Electron is an optional peer dependency too, needed only by `./browser/main`.
+Electron is an optional peer dependency too, needed only by `./browser/host`.
 
 ## Tests
 

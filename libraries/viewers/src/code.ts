@@ -4,7 +4,7 @@ import { createHold } from "./hold.js"
 import type { Mount, ViewerState } from "./index.js"
 import { createKept } from "./kept.js"
 
-export { languageOf, type Language } from "./highlight/languages.js"
+export type { Language } from "./highlight/languages.js"
 export { highlightLines, type HighlightedLine, type Run } from "./highlight/rows.js"
 
 // A read-only listing of code: numbered lines from any first line, plain text at once,

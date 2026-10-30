@@ -49,7 +49,7 @@ import {
   holdPhoneLoads,
   watchPageRequests,
   webAddress,
-} from "@novadeck/viewers/browser/main"
+} from "@novadeck/viewers/browser/host"
 import { pageSignInChannel } from "@novadeck/viewers/browser/sign-in"
 import { pageRequestChannel } from "@novadeck/viewers/browser/trouble"
 import { brokerPorts } from "@novadeck/wire/electron"
@@ -1018,7 +1018,7 @@ const createWindow = (origin: string): BrowserWindow => {
       nodeIntegration: false,
       preload: join(currentDirectory, "../preload/index.cjs"),
       sandbox: true,
-      // Live pages in the companion pane; see @novadeck/viewers/browser/main.
+      // Live pages in the companion pane; see @novadeck/viewers/browser/host.
       webviewTag: true,
     },
   })

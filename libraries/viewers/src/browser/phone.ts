@@ -1,8 +1,8 @@
 // What a live page shown at a phone's size is told it runs on, where its app can tell it:
 // a phone's screen, `phoneScreen`, touched rather than pointed at, in a phone's browser. The
-// viewer names its view a phone's by `phoneUserAgent` (../browser.ts), and the desktop app's lockdown
-// makes it act as one by `phoneEmulation` (./main.ts); both are made of one Chromium,
-// so they agree on its version.
+// viewer names its view a phone's by `phoneUserAgent` (../browser.ts), and the desktop app's
+// lockdown makes it act as one by `phoneEmulation` (./host.ts); both are made of one
+// Chromium, so they agree on its version.
 
 /** A phone's screen, in CSS pixels. */
 export const phoneScreen = { width: 390, height: 844 } as const
