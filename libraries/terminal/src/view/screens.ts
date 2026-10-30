@@ -6,6 +6,7 @@ import {
   type ViewRenderer,
 } from "@novadeck/emulator/browser"
 
+import { sizeBounds } from "../size.js"
 import { followTerminal, type FollowedTerminal, type FollowOptions, type Screen } from "./follow.js"
 import {
   clipboardAccess,
@@ -26,15 +27,15 @@ import {
   type ViewState,
 } from "./view-state.js"
 
-const clamp = (value: number, min: number, max: number): number =>
-  Math.min(max, Math.max(min, Math.floor(value)))
-// The size, held to the sizes a terminal accepts.
+const clamp = (value: number, bounds: { readonly min: number; readonly max: number }): number =>
+  Math.min(bounds.max, Math.max(bounds.min, Math.floor(value)))
+// The size, held to the sizes a terminal takes.
 export const clampSize = (size: {
   readonly cols: number
   readonly rows: number
 }): { readonly cols: number; readonly rows: number } => ({
-  cols: clamp(size.cols, 2, 500),
-  rows: clamp(size.rows, 1, 200),
+  cols: clamp(size.cols, sizeBounds.cols),
+  rows: clamp(size.rows, sizeBounds.rows),
 })
 
 // How long a terminal's size stays still before it refits after a resize. Each refit

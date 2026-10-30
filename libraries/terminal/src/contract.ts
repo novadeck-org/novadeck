@@ -1,12 +1,14 @@
 import { z } from "zod"
 
+import { sizeBounds } from "./size.js"
+
 // The attach stream both sides speak: what a terminal's viewer receives, and why an attach
 // or a call on it fails. A consumer wraps these schemas in its own envelope (an event
 // gains the terminal it is of) rather than restating them.
 
 /** A terminal's size, and an event's place in its stream. */
-export const columns = z.number().int().min(2).max(500)
-export const rows = z.number().int().min(1).max(200)
+export const columns = z.number().int().min(sizeBounds.cols.min).max(sizeBounds.cols.max)
+export const rows = z.number().int().min(sizeBounds.rows.min).max(sizeBounds.rows.max)
 export const sequence = z.number().int().nonnegative().max(Number.MAX_SAFE_INTEGER)
 
 // How a shell ended: its exit code, or the signal that killed it (null on Windows),
@@ -36,38 +38,28 @@ export const terminalEvents = {
   exited: z.strictObject({ sequence, type: z.literal("exited"), exit }),
 }
 
-const terminalEvent = z.discriminatedUnion("type", [
-  terminalEvents.snapshot,
-  terminalEvents.output,
-  terminalEvents.resized,
-  terminalEvents.exited,
-])
-
 export type Exit = z.infer<typeof exit>
-export type TerminalEvent = z.infer<typeof terminalEvent>
+export type TerminalEvent = z.infer<(typeof terminalEvents)[keyof typeof terminalEvents]>
 
 /**
  * Why a terminal call fails. `SLOW_CONSUMER` and `INVALID_CURSOR` are a stream's, and
  * name the same failures a transport's resumable streams do.
  */
-const terminalErrorCodes = [
-  "TERMINAL_LIMIT",
-  "SPAWN_FAILED",
-  "INVALID_DIRECTORY",
-  "TERMINAL_NOT_FOUND",
-  "CLOSING",
-  "CONTROL_IN_USE",
-  "CONTROL_REQUIRED",
-  "ALREADY_ATTACHED",
-  "SNAPSHOT_TOO_LARGE",
-  "TERMINAL_EXITED",
+type TerminalErrorCode =
+  | "TERMINAL_LIMIT"
+  | "SPAWN_FAILED"
+  | "INVALID_DIRECTORY"
+  | "TERMINAL_NOT_FOUND"
+  | "CLOSING"
+  | "CONTROL_IN_USE"
+  | "CONTROL_REQUIRED"
+  | "ALREADY_ATTACHED"
+  | "SNAPSHOT_TOO_LARGE"
+  | "TERMINAL_EXITED"
   // A terminal's state forbids the call now, as a restart while another is under way.
-  "CONFLICT",
-  "INVALID_CURSOR",
-  "SLOW_CONSUMER",
-] as const
-
-type TerminalErrorCode = (typeof terminalErrorCodes)[number]
+  | "CONFLICT"
+  | "INVALID_CURSOR"
+  | "SLOW_CONSUMER"
 
 /** A terminal call's failure, by its code; its consumer maps the code to its own errors. */
 export class TerminalError extends Error {
