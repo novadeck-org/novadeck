@@ -1,8 +1,8 @@
 {
   "compilerOptions": {
     // Workspace packages' source, as Vitest reads it: no build first (see docs/build-graph.md).
-    // `node` too, which `Bundler` resolution leaves out: its Vite config runs in Node, so it
-    // resolves workspace packages as Node does.
+    // `node` too, which `Bundler` resolution leaves out, as every app's does (docs/build-graph.md):
+    // its Vite config runs in Node.
     "customConditions": ["node", "development"],
     "target": "ES2022",
     "lib": ["ES2023", "DOM", "DOM.Iterable"],

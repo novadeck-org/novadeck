@@ -18,8 +18,9 @@ source; builds read `dist`.
   contract's add `node`, which their `Bundler` resolution leaves out, so a `node`-only export
   such as the sandbox's, the terminal library's or the emulator's `/headless` resolves (the
   adapter's typecheck follows the runner's source, which its tests start, into them, and the
-  chat contract's the harnesses'). The other frontend packages leave it out, so a `node`-only
-  export fails their typecheck, and the lint keeps the browser code off those subpaths.
+  chat contract's the harnesses'). An app adds it as its Vite config runs in Node, though no app's
+  typecheck reaches such an export yet. The other frontend packages leave it out, so a
+  `node`-only export fails their typecheck, and the lint keeps the browser code off those subpaths.
 - **Builds** reset it (`customConditions: []` in `tsconfig.build.json`) and read their
   dependencies' built types, as a published consumer would. So `build` keeps `^build`.
   A script that builds one package outside turbo names it with pnpm's `...`

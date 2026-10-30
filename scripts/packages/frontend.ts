@@ -32,8 +32,8 @@ export type Pkg = {
   readonly tooling?: readonly string[]
   /** The `include` of its tsconfig besides src. */
   readonly include?: readonly string[]
-  /** Why its typecheck adds the `node` condition, as its tsconfig's comment's lines say it.
-   * Every app adds it (docs/build-graph.md). */
+  /** Why its typecheck adds the `node` condition, as its tsconfig's comment's lines say it, the
+   * first going on from "leaves out". Every app adds it (docs/build-graph.md). */
   readonly node?: readonly string[]
   readonly author?: string
 }
@@ -92,7 +92,7 @@ export const packages: readonly Pkg[] = [
     scripts: unitScripts,
     vitest: "unit",
     node: [
-      "its tests start the runner, whose",
+      ": its tests start the runner, whose",
       "source and the harnesses' import Node-only subpaths. The lint keeps the adapter's browser",
       "code off them.",
     ],
@@ -179,8 +179,8 @@ export const packages: readonly Pkg[] = [
     vitest: "unit",
     include: ["scripts/**/*.ts"],
     node: [
-      "its Vite config and scripts run in Node,",
-      "so it resolves workspace packages as Node does.",
+      ", as every app's does (docs/build-graph.md):",
+      "its Vite config and scripts run in Node.",
     ],
   },
   {
@@ -195,7 +195,7 @@ export const packages: readonly Pkg[] = [
       preview: "vite preview --host 127.0.0.1",
       typecheck: "tsc --noEmit -p tsconfig.json",
     },
-    node: ["its Vite config runs in Node, so it", "resolves workspace packages as Node does."],
+    node: [", as every app's does (docs/build-graph.md):", "its Vite config runs in Node."],
   },
 ]
 
@@ -770,7 +770,7 @@ const conditions = (node: readonly string[] | undefined): string =>
     : [
         ...node.map(
           (line, at) =>
-            `    // ${at === 0 ? `\`node\` too, which \`Bundler\` resolution leaves out: ` : ""}${line}`,
+            `    // ${at === 0 ? "`node` too, which `Bundler` resolution leaves out" : ""}${line}`,
         ),
         `    "customConditions": ["node", "development"],`,
       ].join("\n")
