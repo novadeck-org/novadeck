@@ -86,7 +86,7 @@ const extractTools = (anchors: Anchors, packages: HarnessPackage[]): McpTool[] =
     try {
       // The literals name these as mcp.ts imports them from @novadeck/protocol.
       const evaluate = new Function(
-        "harnessIds",
+        "agentNames",
         "harnesses",
         "efforts",
         `${preamble}\nreturn ${literal}`,

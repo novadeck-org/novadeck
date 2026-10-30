@@ -673,6 +673,10 @@ export type DesktopApp = DesktopBridge & {
   readonly feedback?: true
 }
 
+/** `window.novadeck` where the page runs in a desktop app; undefined where it runs without one. */
+export const desktopApp = (): DesktopApp | undefined =>
+  (globalThis as { novadeck?: DesktopApp }).novadeck
+
 /** The fewest and most WebGL contexts the app may say its page is allowed. */
 export const webglContextsRange = { min: 3, max: 1024 } as const
 

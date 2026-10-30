@@ -55,9 +55,11 @@ const languages = new Set<string>(Object.values(extensions))
 
 export const isLanguage = (language: string): language is Language => languages.has(language)
 
-// The language of a file by its name, if it's one the viewer highlights.
+// The language of a file by its name, if it's one the viewer highlights. Only the table's own
+// keys: `x.constructor` names no language.
 export const languageOf = (path: string): Language | undefined => {
   const name = path.slice(path.lastIndexOf("/") + 1).toLowerCase()
   const dot = name.lastIndexOf(".")
-  return dot > 0 ? extensions[name.slice(dot + 1)] : undefined
+  const extension = name.slice(dot + 1)
+  return dot > 0 && Object.hasOwn(extensions, extension) ? extensions[extension] : undefined
 }
