@@ -48,7 +48,7 @@ describe.skipIf(!engine || !model)("murmur with the real engine", () => {
       )
       const data = await readFile(model ?? "")
       const store = new WorkspaceStore()
-      const murmur = new Murmur(store, {
+      const murmur = new Murmur(store.settings, {
         engine: manifest,
         directory: await folder(resources),
         model: { url: model ?? "", sha256: sha256(data), size: data.length },

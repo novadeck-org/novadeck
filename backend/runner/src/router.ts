@@ -303,12 +303,12 @@ export const createRouter = (options: {
     // The store keeps the settings; the terminals apply the transcript switch.
     settings: {
       get: api.settings.get.handler(async () => ({
-        ...store.settings(),
+        ...store.settings.runner(),
         transcriptsAvailable: await options.transcriptsAvailable(),
       })),
       set: api.settings.set.handler(({ input }) => {
         if (options.closing()) throw new DomainError("CLOSING")
-        store.saveSettings(input)
+        store.settings.saveRunner(input)
         if (input.transcripts !== undefined) terminals.keepTranscripts(input.transcripts)
       }),
     },

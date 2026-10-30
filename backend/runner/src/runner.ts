@@ -173,7 +173,7 @@ export const wire = (options: RunnerOptions) => {
     },
     livePlan: (item) => terminals.livePlan(item),
   })
-  const voice = new Voice(store, {
+  const voice = new Voice(store.settings, {
     ...(options.softwareGraphics !== undefined && { softwareGraphics: options.softwareGraphics }),
     engine: options.voice?.engine,
     source: options.voice?.source,
@@ -199,7 +199,7 @@ export const wire = (options: RunnerOptions) => {
   })
   // Not awaited: the runner starts at once, and the first voice call waits for the load.
   voice.start()
-  const murmur = new Murmur(store, {
+  const murmur = new Murmur(store.settings, {
     engine: options.murmur?.engine,
     source: options.murmur?.source,
     directory:
@@ -228,7 +228,7 @@ export const wire = (options: RunnerOptions) => {
     // Where each harness lives, which says how it may start with a task.
     install: (agent) => agents.install(agent),
     models: (agent) => agents.models(agent),
-    transcripts: store.settings().transcripts,
+    transcripts: store.settings.runner().transcripts,
     projectFolder: (sessionId) => store.project(store.session(sessionId).projectId).cwd,
     // Agents message each other within a project, and their messages are kept with it.
     messages: store,
