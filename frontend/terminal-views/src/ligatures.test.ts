@@ -1,6 +1,7 @@
-import { afterEach, describe, expect, it, vi } from "vitest"
+import { afterEach, vi } from "vitest"
 
 import { ligaturesOn, watchLigatures } from "./ligatures"
+import { describe, expect, it } from "./test"
 
 const root = document.documentElement
 afterEach(() => root.removeAttribute("data-ligatures"))

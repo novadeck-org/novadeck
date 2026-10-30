@@ -1,7 +1,9 @@
 import "@novadeck/emulator/browser.css"
 import { createView, loadWebgl, type Terminal } from "@novadeck/emulator/browser"
-import { afterEach, describe, expect, it } from "vitest"
+import { afterEach } from "vitest"
 import { cdp } from "vitest/browser"
+
+import { describe, expect, it } from "./test"
 
 // A screen that changes renderer fits its slot again, so the two renderers must measure the same
 // cell, or the pty resizes (and an agent's TUI redraws) on every swap. WebGL's cell is whole

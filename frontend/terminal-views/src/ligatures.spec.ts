@@ -1,8 +1,10 @@
 import "@novadeck/emulator/browser.css"
 import fontUrl from "@fontsource-variable/jetbrains-mono/files/jetbrains-mono-latin-wght-normal.woff2?url"
 import { createRenderers, createView, loadWebgl, type View } from "@novadeck/emulator/browser"
-import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest"
+import { afterAll, afterEach, beforeAll } from "vitest"
 import { page } from "vitest/browser"
+
+import { describe, expect, it } from "./test"
 
 // Ligatures drawn by WebGL, in a real browser: one glyph per run of cells the font joins, held
 // to the grid, and left alone where the cells differ. A screen is read as pixels (a screenshot

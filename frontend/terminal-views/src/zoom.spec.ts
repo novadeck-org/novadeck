@@ -1,6 +1,8 @@
 import "@novadeck/emulator/browser.css"
 import { createView, loadWebgl, type Terminal } from "@novadeck/emulator/browser"
-import { afterEach, describe, expect, it } from "vitest"
+import { afterEach } from "vitest"
+
+import { describe, expect, it } from "./test"
 
 // A terminal inside a CSS-scaled container, as the Canvas view puts it at any zoom: a click or
 // a drag must land on the cell under the pointer. xterm maps the pointer in client pixels,
