@@ -1,16 +1,18 @@
 import type { Item } from "@novadeck/core/items"
 import type { TerminalKey } from "@novadeck/core/port"
-import type { TerminalMetadata, Workspace, WorkspaceSession } from "@novadeck/core/types"
+import type {
+  TerminalMetadata,
+  Workspace,
+  WorkspaceSession,
+  WorkspaceTarget,
+} from "@novadeck/core/types"
 
 // What the demo reads of the workspace it last saw.
 
 // A session as the workspace last held it.
 export const sessionOf = (
   workspace: Workspace | undefined,
-  {
-    projectId,
-    workspaceSessionId,
-  }: { readonly projectId: string; readonly workspaceSessionId: string },
+  { projectId, workspaceSessionId }: WorkspaceTarget,
 ): WorkspaceSession | undefined =>
   workspace?.projects
     .find((project) => project.id === projectId)

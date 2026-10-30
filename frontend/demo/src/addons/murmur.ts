@@ -14,7 +14,7 @@ const megabyte = 1024 * 1024
 const downloadSizes = { engine: 34 * megabyte, model: 1222 * megabyte }
 
 // Murmur not on the computer, wanted until the person says otherwise.
-export const demoMurmurState: MurmurState = {
+const demoMurmurState: MurmurState = {
   available: true,
   installed: false,
   enabled: false,

@@ -22,17 +22,18 @@ import { createShowcase } from "../showcase/simulation"
 import { terminalOf } from "../workspace"
 import {
   agentTerminal,
+  answerMessage,
   declined,
   deskIntroOf,
   deskKey,
   deskMessages,
+  deskSession,
   deskTranscripts,
+  type Job,
   project,
   session,
-  deskSession,
   slot,
   working,
-  type Job,
 } from "./desk"
 
 // The launch demo: the launch walkthrough video's tour of the app, captured from
@@ -361,7 +362,7 @@ const deskLayout = (): CanvasLayout => ({
 })
 
 // The storefront's project first, which the demo's transcripts and screens belong to.
-export const launchSeed = (now: number): WorkspaceSeed => ({
+const launchSeed = (now: number): WorkspaceSeed => ({
   projects: [
     {
       ...project(shop),
@@ -1262,14 +1263,9 @@ export const createLaunch = (turns: DemoTurns, now: number) => {
 
   // The person answers the teammate's ask from the Inbox before its lead does: the answer
   // reaches the teammate, which goes on with it, and the lead's later answer withdraws nothing.
-  const answerEntry = `answer:${teammateAskId}`
   messages.state.subscribe(() => {
     if (exchanged) return
-    const entry = Object.values(messages.state.getSnapshot().terminals)
-      .flatMap((each) => each.threads)
-      .flatMap((thread) => thread.messages)
-      .find((each) => each.id === answerEntry && each.state === "delivered")
-    if (!entry) return
+    if (answerMessage(messages, teammateAskId)?.state !== "delivered") return
     work(keyOf(launch.asking))
     settle()
   })

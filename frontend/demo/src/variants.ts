@@ -6,7 +6,7 @@ import { plainDemo, type PlainVariant } from "./index"
 import { showcaseDemo } from "./showcase/demo"
 import type { DemoTerminalSetup } from "./terminals/views"
 
-// The demos the content preview can run: the content showcase, and the plain ones.
+// The demos the content preview can run: the showcase, and the plain ones.
 export type DemoVariant = "showcase" | PlainVariant
 
 export const demoVariants: readonly DemoVariant[] = [

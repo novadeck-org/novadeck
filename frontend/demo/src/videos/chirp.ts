@@ -17,10 +17,10 @@ import { banner } from "../screen/openings"
 import { fixedIntro, type DemoIntro } from "../screen/terminal"
 import {
   agentTerminal,
+  deskSession,
   project,
   runCall,
   session,
-  deskSession,
   slot,
   toolRejected,
   working,

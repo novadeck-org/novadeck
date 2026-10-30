@@ -38,8 +38,8 @@ const open = () => {
     const found = terminals().find((each) => each.id === key(number).terminalId)
     return found?.state === "running" ? found.agent : undefined
   }
-  const items = (): readonly InboxRow[] => inbox.state.getSnapshot().items
-  return { backend, store, inbox, cues, terminals, agent, items, turns }
+  const rows = (): readonly InboxRow[] => inbox.state.getSnapshot().items
+  return { backend, store, inbox, cues, terminals, agent, rows, turns }
 }
 
 describe("the launch demo", () => {
@@ -161,7 +161,7 @@ describe("the launch demo", () => {
   })
 
   it("shows a spread of states: one agent asking, one failed, one done, the rest working", async () => {
-    const { cues, agent, items } = open()
+    const { cues, agent, rows } = open()
     cues.states()
     await vi.advanceTimersByTimeAsync(500)
     expect(agent(launch.permission)?.attention).toMatchObject({ kind: "permission" })
@@ -175,17 +175,17 @@ describe("the launch demo", () => {
       lastTurn: { outcome: "completed" },
     })
     expect(agent(1)).toMatchObject({ working: true })
-    expect(items().map((item) => item.kind)).toEqual(expect.arrayContaining(["request", "trouble"]))
+    expect(rows().map((row) => row.kind)).toEqual(expect.arrayContaining(["request", "trouble"]))
   })
 
   it("raises three asks one at a time, and all at once, so the Inbox waits on three", () => {
-    const { cues, items } = open()
-    expect(items()).toEqual([])
+    const { cues, rows } = open()
+    expect(rows()).toEqual([])
     cues.permission()
-    expect(items()).toHaveLength(1)
+    expect(rows()).toHaveLength(1)
     cues.plan()
     cues.question()
-    const byTitle = Object.fromEntries(items().map((item) => [item.source.title, item]))
+    const byTitle = Object.fromEntries(rows().map((row) => [row.source.title, row]))
     expect(byTitle["Checkout tests"]).toMatchObject({
       request: { kind: "permission", subject: "pnpm test:e2e --filter checkout" },
     })
@@ -196,17 +196,17 @@ describe("the launch demo", () => {
     expect(question.request.dialog.questions[0]!.options[0]!.label).toMatch(/\(Recommended\)$/)
     // Ringing them again asks nothing more.
     cues.asks()
-    expect(items()).toHaveLength(3)
-    expect(items().filter((item) => !("settled" in item && item.settled))).toHaveLength(3)
+    expect(rows()).toHaveLength(3)
+    expect(rows().filter((row) => !("settled" in row && row.settled))).toHaveLength(3)
   })
 
   it("sends each agent back to work when its ask is answered", async () => {
-    const { cues, inbox, items, agent } = open()
+    const { cues, inbox, rows, agent } = open()
     cues.asks()
-    for (const item of items()) {
-      if (item.kind !== "request" || !item.request.dialog || item.request.dialog.type === "raw")
+    for (const row of rows()) {
+      if (row.kind !== "request" || !row.request.dialog || row.request.dialog.type === "raw")
         throw new Error("a request")
-      const { dialog } = item.request
+      const { dialog } = row.request
       const answer =
         dialog.type === "questions"
           ? {
@@ -215,22 +215,22 @@ describe("the launch demo", () => {
               answers: [{ question: dialog.questions[0]!.question, options: ["account"] }],
             }
           : { type: "choice" as const, dialog: dialog.id, option: "1" }
-      inbox.answer(item.id, { kind: "request", answer })
+      inbox.answer(row.id, { kind: "request", answer })
       // eslint-disable-next-line no-await-in-loop -- Each answer waits for the one before.
       await vi.advanceTimersByTimeAsync(answerMs + answeredMs + 1500)
     }
     await vi.advanceTimersByTimeAsync(10_000)
-    expect(items()).toEqual([])
+    expect(rows()).toEqual([])
     for (const number of [launch.permission, launch.plan, launch.question])
       expect(agent(number)).toMatchObject({ working: true })
   })
 
   it("has a Codex agent ask in Codex's words, and report done once its tests are allowed", async () => {
-    const { cues, inbox, items, agent } = open()
+    const { cues, inbox, rows, agent } = open()
     cues.command()
     cues.command()
-    expect(items()).toHaveLength(1)
-    const [row] = items()
+    expect(rows()).toHaveLength(1)
+    const [row] = rows()
     if (row?.kind !== "request" || row.request.dialog?.type !== "choices")
       throw new Error("a command to allow")
     expect(row.source.title).toBe("Search index")
@@ -254,14 +254,14 @@ describe("the launch demo", () => {
     expect(agent(launch.command)).toMatchObject({ working: true })
     await vi.advanceTimersByTimeAsync(2000)
     expect(agent(launch.command)).toMatchObject({ working: false, reported: true })
-    expect(items()).toMatchObject([{ kind: "update", source: { title: "Search index" } }])
+    expect(rows()).toMatchObject([{ kind: "update", source: { title: "Search index" } }])
   })
 
   it("leaves the Codex agent waiting when told no, and at work when told what to do instead", async () => {
     for (const text of [undefined, "Run only the tag filter tests."]) {
-      const { cues, inbox, items, agent } = open()
+      const { cues, inbox, rows, agent } = open()
       cues.command()
-      const [row] = items()
+      const [row] = rows()
       if (row?.kind !== "request" || row.request.dialog?.type !== "choices")
         throw new Error("a command to allow")
       inbox.answer(row.id, {
@@ -277,7 +277,7 @@ describe("the launch demo", () => {
       await vi.advanceTimersByTimeAsync(answerMs + answeredMs + 5000)
       expect(agent(launch.command)).toMatchObject({ working: text !== undefined })
       expect(agent(launch.command)?.reported).toBeUndefined()
-      expect(items().filter((item) => item.kind === "update")).toEqual([])
+      expect(rows().filter((each) => each.kind === "update")).toEqual([])
     }
   })
 
@@ -285,12 +285,12 @@ describe("the launch demo", () => {
     const first = open()
     first.cues.command()
     first.cues.askReview()
-    expect(first.items()).toHaveLength(1)
+    expect(first.rows()).toHaveLength(1)
     expect(first.agent(launch.reviews)).toMatchObject({ working: true })
     const second = open()
     second.cues.askReview()
     second.cues.command()
-    expect(second.items()).toEqual([])
+    expect(second.rows()).toEqual([])
   })
 
   it("has the lead open three teammates its team wire draws to, and rest", () => {
@@ -314,19 +314,19 @@ describe("the launch demo", () => {
   })
 
   it("has a teammate ask what only its lead knows, and ask nothing before the teammates open", () => {
-    const { cues, items, terminals } = open()
+    const { cues, rows, terminals } = open()
     cues.teammateAsks()
-    expect(items()).toEqual([])
+    expect(rows()).toEqual([])
     cues.teammates()
     cues.teammateAsks()
-    expect(items()).toMatchObject([
+    expect(rows()).toMatchObject([
       {
         kind: "ask",
         source: { title: "Cart endpoint" },
         ask: { shape: { type: "text" } },
       },
     ])
-    expect(items()[0]!.source.agent).toBe(
+    expect(rows()[0]!.source.agent).toBe(
       terminals().find((each) => each.id === key(launch.asking).terminalId)?.process,
     )
   })
@@ -392,13 +392,13 @@ describe("the launch demo", () => {
   })
 
   it("has a teammate ask the person and its lead at once; the lead answers first and the ask is withdrawn", async () => {
-    const { backend, cues, items, agent } = open()
+    const { backend, cues, rows, agent } = open()
     cues.teammates()
     cues.teammateAsks()
-    expect(items()).toMatchObject([
+    expect(rows()).toMatchObject([
       { kind: "ask", source: { title: "Cart endpoint" }, ask: { shape: { type: "text" } } },
     ])
-    expect(items()[0]).not.toHaveProperty("settled")
+    expect(rows()[0]).not.toHaveProperty("settled")
     // The question reached the lead as a message too; the person types nothing.
     await vi.advanceTimersByTimeAsync(3000)
     expect(
@@ -407,9 +407,9 @@ describe("the launch demo", () => {
     expect(agent(launch.lead)).toMatchObject({ working: true })
     // Still open while the lead has not answered, which the video holds on for a while: no answer
     // before about 8 s.
-    expect(items()[0]).not.toHaveProperty("settled")
+    expect(rows()[0]).not.toHaveProperty("settled")
     await vi.advanceTimersByTimeAsync(4600)
-    expect(items()[0]).not.toHaveProperty("settled")
+    expect(rows()[0]).not.toHaveProperty("settled")
     expect(
       exchange(backend).filter(
         (each) =>
@@ -427,12 +427,12 @@ describe("the launch demo", () => {
     ).toEqual([
       { state: "delivered", text: "The storefront calls v2, on port 8787. v1 is retired." },
     ])
-    expect(items()).toMatchObject([{ kind: "ask", settled: { how: "withdrawn" } }])
+    expect(rows()).toMatchObject([{ kind: "ask", settled: { how: "withdrawn" } }])
     expect(agent(launch.asking)).toMatchObject({ working: true })
   })
 
   it("holds the teammate and its lead through finishAll, and ends both once the exchange settles", async () => {
-    const { backend, cues, agent, items } = open()
+    const { backend, cues, agent, rows } = open()
     cues.teammates()
     cues.teammateAsks()
     cues.finishAll()
@@ -443,7 +443,7 @@ describe("the launch demo", () => {
     expect(agent(1)).toMatchObject({ lastTurn: { outcome: "completed" } })
     // The lead answers, the ask is withdrawn, and both end.
     await vi.advanceTimersByTimeAsync(8000)
-    expect(items().find((item) => item.kind === "ask")).toMatchObject({
+    expect(rows().find((row) => row.kind === "ask")).toMatchObject({
       settled: { how: "withdrawn" },
     })
     for (const number of [launch.asking, launch.lead])
@@ -480,7 +480,7 @@ describe("the launch demo", () => {
   })
 
   it("has a teammate report done to the person and to its lead as a message, which rings the lead", async () => {
-    const { backend, cues, agent, items } = open()
+    const { backend, cues, agent, rows } = open()
     cues.teammateDone()
     expect(agent(launch.reports)).toBeUndefined()
     cues.teammates()
@@ -502,22 +502,22 @@ describe("the launch demo", () => {
     expect(agent(launch.lead)).toMatchObject({ working: true })
     // And the report is its `done` too: a done mark and an Update row.
     expect(agent(launch.reports)).toMatchObject({ reported: true })
-    expect(items()).toMatchObject([{ kind: "update", source: { title: "Pricing endpoint" } }])
+    expect(rows()).toMatchObject([{ kind: "update", source: { title: "Pricing endpoint" } }])
   })
 
   it("does nothing twice, nor before it can, nor after everyone finished", async () => {
-    const { cues, items, terminals, store } = open()
+    const { cues, rows, terminals, store } = open()
     // Before the teammates are open.
     cues.teammateAsks()
     cues.teammateDone()
-    expect(items()).toEqual([])
+    expect(rows()).toEqual([])
     expect(terminals()).toHaveLength(8)
     cues.teammates()
     cues.teammates()
     expect(terminals()).toHaveLength(11)
     cues.teammateAsks()
     cues.teammateAsks()
-    expect(items()).toHaveLength(1)
+    expect(rows()).toHaveLength(1)
     cues.show()
     cues.show()
     cues.showChanges()
@@ -535,7 +535,7 @@ describe("the launch demo", () => {
     cues.finishAll()
     await vi.advanceTimersByTimeAsync(3000)
     // Cues after everyone finished start nobody's turn again.
-    const before = items().length
+    const before = rows().length
     cues.permission()
     cues.plan()
     cues.question()
@@ -543,7 +543,7 @@ describe("the launch demo", () => {
     cues.finishOne()
     cues.teammateDone()
     await vi.advanceTimersByTimeAsync(3000)
-    expect(items()).toHaveLength(before)
+    expect(rows()).toHaveLength(before)
     for (const each of terminals())
       expect(each).toMatchObject({ agent: { working: false, lastTurn: expect.anything() } })
   })
@@ -669,10 +669,10 @@ describe("the launch demo", () => {
   })
 
   it("ends with the Inbox empty of asks once everything is answered or finished", async () => {
-    const { cues, items } = open()
+    const { cues, rows } = open()
     cues.finishAll()
     await vi.advanceTimersByTimeAsync(3000)
-    expect(items().every((item) => item.kind === "update")).toBe(true)
+    expect(rows().every((row) => row.kind === "update")).toBe(true)
   })
 })
 
@@ -757,11 +757,11 @@ describe("the launch demo's finishing", () => {
   })
 
   it("does not take a finished teammate back to work with the lead's late answer", async () => {
-    const { backend, cues, inbox, items, agent } = open()
+    const { backend, cues, inbox, rows, agent } = open()
     cues.teammates()
     await vi.advanceTimersByTimeAsync(4000)
     cues.teammateAsks()
-    inbox.answer(items()[0]!.id, {
+    inbox.answer(rows()[0]!.id, {
       kind: "ask",
       answer: { type: "reply", option: null, text: "v2" },
     })

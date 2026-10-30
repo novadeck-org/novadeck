@@ -338,19 +338,19 @@ export const withConversations = (
 }
 
 // A backend with the demo's Inbox (see `createDemoInbox`): what its agents wait on, from the
-// conversations and messages `backend` has, which `withConversations` gave it, and `items`
+// conversations and messages `backend` has, which `withConversations` gave it, and `rows`
 // over them, the demo's own. Answering one of those for an agent that waits takes the agent
 // past it, to wait for the person's next words. Its messages keep a record of what the
 // person answered, where they are the demo's.
 export const withInbox = (
   backend: Backend,
   turns: DemoTurns,
-  items: readonly InboxRow[] = [],
+  rows: readonly InboxRow[] = [],
 ): Backend => {
   const { conversations, messages } = backend
   if (!conversations) throw new Error("withInbox wraps a backend withConversations made")
   const record = isDemoMessages(messages) ? messages.record : undefined
-  const inbox = createDemoInbox(Date.now(), items, record, {
+  const inbox = createDemoInbox(Date.now(), rows, record, {
     conversations,
     messages,
     resume: (key, terminal) => turns.resume(key, terminal, { waits: true }),
@@ -369,7 +369,7 @@ export const withInbox = (
 
 // The agents demo's storefront terminals hold what their agents showed, on their bars,
 // to open, peek at and move. What the person opens from the Source panel joins them.
-export const withStorefrontArtifacts = (backend: Backend): Backend => {
+const withStorefrontArtifacts = (backend: Backend): Backend => {
   let latest: Workspace | undefined
   const session = { projectId: "storefront", workspaceSessionId: "initial" }
   const showcase = createShowcase({
@@ -537,11 +537,11 @@ const withFinishes = (backend: Backend, turns: DemoTurns): Backend => ({
   },
 })
 
-// The demos with no content showcase: the plain one, the agents', the agents' with
-// messages between them, the agents' with every kind of Inbox item, the plain one with its
+// The demos with no showcase: the plain one, the agents', the agents' with
+// messages between them, the agents' with every kind of Inbox row, the plain one with its
 // first-run welcome dialog open, and Chirp's, Babcia's and Launch's, one-offs for videos (see
 // `videos/chirp.ts`, `videos/babcia.ts` and `videos/launch.ts`). Each has
-// the Inbox its agents make; the Inbox demo shows the hardcoded items of every kind over theirs.
+// the Inbox its agents make; the Inbox demo shows the hardcoded rows of every kind over theirs.
 // The agents', messages' and Inbox demos have the Source of the storefront project (see
 // `source.ts`), as the try demo does: the others have no agents there to change files.
 export type PlainVariant =
@@ -640,7 +640,7 @@ const plainBackend = (
       ),
       turns,
     )
-  // The Inbox demo's agents elsewhere have done things before their items came, and one
+  // The Inbox demo's agents elsewhere have done things before their rows came, and one
   // has a lead, for the sheets to show (see `inbox/transcripts.ts`).
   const inbox = variant === "inbox"
   const seed = demoSeed(now, true)

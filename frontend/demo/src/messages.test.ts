@@ -121,8 +121,8 @@ it("records asks, tells and accepted person replies in the demo's You threads", 
 it("keeps options, recommendations, code and action labels in separate Inbox history threads", () => {
   const messages = createDemoMessages([])
   const samples = demoInboxRows(Date.now())
-  const options = samples.find((item) => item.id === demoInboxIds.webhook)!
-  const action = samples.find((item) => item.id === demoInboxIds.login)!
+  const options = samples.find((row) => row.id === demoInboxIds.webhook)!
+  const action = samples.find((row) => row.id === demoInboxIds.login)!
   messages.record(options)
   messages.record(action)
   const threads = Object.values(messages.state.getSnapshot().terminals).flatMap(
@@ -151,7 +151,7 @@ it("delivers the person's reply while messages between agents are paused", () =>
   vi.useFakeTimers()
   try {
     const messages = createDemoMessages([], true)
-    const ask = demoInboxRows(Date.now()).find((item) => item.id === demoInboxIds.preview)!
+    const ask = demoInboxRows(Date.now()).find((row) => row.id === demoInboxIds.preview)!
     messages.record(ask)
     messages.record(ask, { kind: "ask", answer: { type: "reply", option: null, text: "Samples" } })
     const thread = () => Object.values(messages.state.getSnapshot().terminals)[0]!.threads[0]!

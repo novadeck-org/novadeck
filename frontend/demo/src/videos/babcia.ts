@@ -16,17 +16,18 @@ import { createShowcase } from "../showcase/simulation"
 import { terminalOf } from "../workspace"
 import {
   agentTerminal,
+  answerMessage,
   declined,
   deskIntroOf,
   deskKey,
-  deskTranscripts,
   deskMessages,
+  deskSession,
+  deskTranscripts,
+  type Job,
   project,
   session,
-  deskSession,
   slot,
   working,
-  type Job,
 } from "./desk"
 
 // The Babcia demo: a one-off for the runner-skits video "Babcia", where a grandmother who ran a
@@ -278,7 +279,7 @@ const deskLayout = (): CanvasLayout => ({
 })
 
 // The milk bar's project first, which the demo's transcripts and screens belong to.
-export const babciaSeed = (now: number): WorkspaceSeed => ({
+const babciaSeed = (now: number): WorkspaceSeed => ({
   projects: [
     {
       ...project(bar),
@@ -309,7 +310,7 @@ export const babciaSeed = (now: number): WorkspaceSeed => ({
 // What each conversation holds so far: Nyx's ask, the agent's plan, and the command it's on.
 // Three agents also hold what they'll ask when the cues come: the order form a permission, the
 // accessibility one a plan, the menu page a question with its own pick.
-export const babciaTranscripts = (now: number): Readonly<Record<string, DemoTranscript>> =>
+const babciaTranscripts = (now: number): Readonly<Record<string, DemoTranscript>> =>
   deskTranscripts(now, allJobs, home, {
     permissions: [babcia.permission],
     plan: {
@@ -808,15 +809,9 @@ export const createBabcia = (turns: DemoTurns, now: number) => {
     // Refused, as the lead closed: nothing is on its way to wait for.
     if (!sent) exchanged = true
   }
-  // The message that carries the person's answer to an Inbox ask, once one was made.
-  const answerMessage = (askId: string) =>
-    Object.values(messages.state.getSnapshot().terminals)
-      .flatMap((each) => each.threads)
-      .flatMap((thread) => thread.messages)
-      .find((each) => each.id === `answer:${askId}`)
   messages.state.subscribe(() => {
     if (answered) return
-    const message = answerMessage(helperAskId)
+    const message = answerMessage(messages, helperAskId)
     if (!message || message.state === "queued") return
     if (message.state !== "delivered") return released()
     answered = true
@@ -828,7 +823,7 @@ export const createBabcia = (turns: DemoTurns, now: number) => {
       if (!asked || answered || exchanged) return
       const { items, answering } = inbox.state.getSnapshot()
       if (answering[helperAskId] || items.some((item) => item.id === helperAskId)) return
-      if (!answerMessage(helperAskId)) released()
+      if (!answerMessage(messages, helperAskId)) released()
     })
   }
 
@@ -862,7 +857,7 @@ export const createBabcia = (turns: DemoTurns, now: number) => {
       inbox.add(mannersAsk("polite", Date.now()))
     }, politeAfterMs)
   }
-  const mannersMessage = (kind: "rude" | "polite") => answerMessage(mannersIds[kind])
+  const mannersMessage = (kind: "rude" | "polite") => answerMessage(messages, mannersIds[kind])
   // An ask whose answer will not reach the agent: it waits for the person's words, as one told
   // no does.
   const abandoned = (): void => {

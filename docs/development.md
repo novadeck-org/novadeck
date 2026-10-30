@@ -205,7 +205,7 @@ connection state, the crash-loop count and the terminal count, over the demo swi
 sample agents' plans and artifacts), `plain`, `agents` (its seven projects each with
 an agent in a state of its own: waiting, asking, working, and two that finish done and
 failed a moment after it opens, for the project switcher), `messages`, `inbox` (the agents
-demo with hardcoded Inbox items of every kind over those its agents make), `welcome` or
+demo with hardcoded Inbox rows of every kind over those its agents make), `welcome` or
 `chirp` (a one-off for the runner-skits video "Chirp": a desk of twelve agents at work on the
 Canvas, one waiting to run a command; `frontend/demo/src/videos/chirp.ts`) or `babcia` (a one-off
 for the video "Babcia": project bar-mleczny's twelve Claude Code, Codex and Antigravity agents
@@ -717,7 +717,7 @@ folder of `frontend/ui/src/`:
 | `frontend/demo/src/agents/`                                     | Its agents: turns, conversations, the requests they make, and their transcripts.                                               |
 | `frontend/demo/src/terminals/`                                  | Its simulated terminals: the engine and the views they draw through.                                                           |
 | `frontend/demo/src/screen/`                                     | What a terminal's screen writes as terminal output, and the keys read back from it.                                            |
-| `frontend/demo/src/inbox/`                                      | The Inbox's hardcoded items and the transcripts behind the Inbox demo's sheets.                                                |
+| `frontend/demo/src/inbox/`                                      | The Inbox's hardcoded rows and the transcripts behind the Inbox demo's sheets.                                                 |
 | `frontend/demo/src/addons/`                                     | Pretend voice input and murmur addons.                                                                                         |
 | `frontend/demo/src/showcase/`                                   | The showcase demo the content preview opens: sample agents' plans, artifacts, and their simulated work.                        |
 | `frontend/demo/src/videos/`                                     | One-off demos for videos: Chirp, Babcia and Launch.                                                                            |

@@ -13,7 +13,7 @@ import { addressParams } from "../address"
 const megabyte = 1024 * 1024
 
 // Voice input not on the computer, wanted until the person says otherwise.
-export const demoVoiceState: VoiceState = {
+const demoVoiceState: VoiceState = {
   available: true,
   installed: [],
   enabled: false,

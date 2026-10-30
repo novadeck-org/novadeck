@@ -161,7 +161,7 @@ export const showcaseDemo = (
   // The showcase session's items as they stand, which an agent showing something again
   // finds its own in.
   const current = () => sessionOf(latest, session)?.state.items ?? []
-  const content: Backend = {
+  const showcased: Backend = {
     ...backend,
     // A closed terminal's agent is gone.
     commit: (workspace, actions) => {
@@ -245,7 +245,7 @@ export const showcaseDemo = (
     },
   }
   const conversing = withConversations(
-    content,
+    showcased,
     showcaseTranscripts(Date.now()),
     turns,
     (conversations) => ({

@@ -6,14 +6,14 @@ import type { AgentStatus, CanvasLayout, Project, TerminalMetadata } from "@nova
 
 import { got, say, use, user, written, type DemoTranscript } from "../agents/transcripts"
 import { demoHandle } from "../handles"
-import type { DemoSessionMessages } from "../messages"
+import type { DemoMessages, DemoSessionMessages } from "../messages"
 import { demoTerminalId, terminalSlot, type ChatAgent } from "../samples"
 import { callBlock, requestBlock, resultBlock } from "../screen/agent"
 import { banner } from "../screen/openings"
 import type { Block } from "../screen/screen"
 import { fixedIntro, type DemoIntro } from "../screen/terminal"
 
-// What the one-off desk demos for videos (`babcia.ts`, `launch.ts`) share: a project of
+// What the one-off desk demos for videos (`chirp.ts`, `babcia.ts`, `launch.ts`) share: a project of
 // agents each at its own job, as terminals, as a conversation's first calls, as what their
 // screens open on, and as the messages between them.
 
@@ -111,6 +111,13 @@ export const deskSession = (
 
 // What Claude Code's harness returns for a command the person told No, which stops the turn.
 export const toolRejected = `The user doesn't want to proceed with this tool use. The tool use was rejected (eg. if it was a file edit, the new_string was NOT written to the file). STOP what you are doing and wait for the user to tell you how to proceed.`
+
+// The message that carries the person's answer to Inbox ask `askId`, once one was made.
+export const answerMessage = (messages: DemoMessages, askId: string) =>
+  Object.values(messages.state.getSnapshot().terminals)
+    .flatMap((each) => each.threads)
+    .flatMap((thread) => thread.messages)
+    .find((each) => each.id === `answer:${askId}`)
 
 // The call an agent's harness names its command run with, in the project's folder `home`.
 export const runCall = (
