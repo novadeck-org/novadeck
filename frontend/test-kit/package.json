@@ -2,11 +2,11 @@
   "name": "@novadeck/test-kit",
   "version": "0.0.0",
   "private": true,
-  "description": "What the UI's tests render and drive the app with.",
+  "description": "The frontend's test helpers: a jsdom render, the port contract suite, test phase timing.",
   "license": "GPL-3.0-or-later",
   "type": "module",
   "exports": {
-    "./backend-contract": "./src/backend-contract.tsx",
+    "./backend-contract": "./src/backend-contract.ts",
     "./phases": "./src/phases.ts",
     "./render": "./src/render.ts"
   },
