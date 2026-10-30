@@ -9,7 +9,7 @@ import {
 import { ChevronRight, X } from "lucide-react"
 import { useEffect, useLayoutEffect, useSyncExternalStore, type ReactNode } from "react"
 
-import { createArrival, ignoresClick, moreOf } from "./toast-rules"
+import { createArrival, ignoresClick, moreOf, type Arrival } from "./toast-rules"
 
 // A stack of toasts in the manner of Sonner, on Ark's Toast (Zag's toast machine): the newest
 // in front, at rest the older ones peeking out behind it, spread into a list while the
@@ -57,7 +57,7 @@ export type Toasts<T> = {
     readonly duration: number
     readonly subscribe: (listener: () => void) => () => void
     readonly snapshot: () => Snapshot<T>
-    readonly arrival: ReturnType<typeof createArrival>
+    readonly arrival: Arrival
     // The element holding the stack, to ask whether the pointer or focus is on it.
     readonly region: { current: HTMLElement | null }
     readonly attach: (element: HTMLElement | null) => void
@@ -177,14 +177,15 @@ export const createToasts = <T,>({ duration = 8000 }: { duration?: number } = {}
     if (order.length <= shownToasts) overPill = false
     listeners.forEach((listener) => listener())
   }
-  const standing = (id: string): void => {
+  // Takes a toast out of the standing order, keeping where it stood while it leaves.
+  const retire = (id: string): void => {
     const rank = order.indexOf(id)
     if (rank >= 0) left = new Map(left).set(id, rank)
     order = order.filter((each) => each !== id)
     for (const [key, standingId] of current) if (standingId === id) current.delete(key)
   }
   const forget = (id: string): void => {
-    standing(id)
+    retire(id)
     const next = new Map(entries)
     next.delete(id)
     entries = next
@@ -247,7 +248,7 @@ export const createToasts = <T,>({ duration = 8000 }: { duration?: number } = {}
       if (previous !== undefined) {
         // It leaves as the new one lands. (`remove` would skip Ark's cleanup of its height.)
         store.dismiss(previous)
-        standing(previous)
+        retire(previous)
       }
       const id = `${key}#${++serial}`
       arrival.reset()
@@ -264,7 +265,7 @@ export const createToasts = <T,>({ duration = 8000 }: { duration?: number } = {}
         id,
         onStatusChange: ({ status }: ToastStatusChangeDetails) => {
           if (status === "visible") return
-          standing(id)
+          retire(id)
           if (status === "unmounted") forget(id)
           emit()
         },
@@ -320,7 +321,7 @@ const unrelated = (event: FocusEvent): void => {
 }
 
 const defaultMore = (count: number): string => `+${count} more`
-const defaultFanned = (count: number): string => `${count} more`
+const defaultSpread = (count: number): string => `${count} more`
 
 type ItemProps<T> = {
   readonly entry: Entry<T>
@@ -333,7 +334,7 @@ type ItemProps<T> = {
   readonly onSelect: (data: T, via: { readonly keyboard: boolean }) => void
   readonly onMore: () => void
   readonly moreLabel: (count: number) => string
-  readonly fannedLabel: (count: number) => string
+  readonly spreadLabel: (count: number) => string
 }
 
 // One toast: Ark's root with the caller's content, its close button, countdown and pills.
@@ -347,7 +348,7 @@ const ToastItem = <T,>({
   onSelect,
   onMore,
   moreLabel,
-  fannedLabel,
+  spreadLabel,
 }: ItemProps<T>): React.JSX.Element => {
   const { duration, focus, pill, region } = toasts.view
   // A toast that goes with focus on it gives it back, once it is gone.
@@ -418,7 +419,7 @@ const ToastItem = <T,>({
         <button
           type="button"
           className="toast-more"
-          data-fan="rest"
+          data-pose="rest"
           onPointerEnter={pill.enter}
           onPointerLeave={pill.leave}
           onClick={pressed}
@@ -427,8 +428,8 @@ const ToastItem = <T,>({
         </button>
       ) : null}
       {more > 0 && rank === shownToasts - 1 ? (
-        <button type="button" className="toast-more" data-fan="fanned" onClick={pressed}>
-          {fannedLabel(more)}
+        <button type="button" className="toast-more" data-pose="spread" onClick={pressed}>
+          {spreadLabel(more)}
           <ChevronRight size={11} strokeWidth={2} />
         </button>
       ) : null}
@@ -446,7 +447,7 @@ export const ToastRegion = <T,>({
   onSelect,
   onMore,
   moreLabel = defaultMore,
-  fannedLabel = defaultFanned,
+  spreadLabel = defaultSpread,
 }: {
   readonly toasts: Toasts<T>
   // What a screen reader calls the region.
@@ -456,7 +457,7 @@ export const ToastRegion = <T,>({
   readonly onSelect: (data: T, via: { readonly keyboard: boolean }) => void
   readonly onMore: () => void
   readonly moreLabel?: (count: number) => string
-  readonly fannedLabel?: (count: number) => string
+  readonly spreadLabel?: (count: number) => string
 }): React.JSX.Element => {
   const { toaster, subscribe, snapshot, arrival, hold, attach, focus } = toasts.view
   const { order, entries, left, moved } = useSyncExternalStore(subscribe, snapshot)
@@ -513,7 +514,7 @@ export const ToastRegion = <T,>({
               onSelect={onSelect}
               onMore={onMore}
               moreLabel={moreLabel}
-              fannedLabel={fannedLabel}
+              spreadLabel={spreadLabel}
             >
               {children}
             </ToastItem>
