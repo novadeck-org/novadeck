@@ -23,48 +23,50 @@ import { noLinks, type MessagesHandle } from "./messages/messages"
 // What the icons, names and labels were before the registry, as the switches wrote them. A
 // terminal's drawing of its bar, from the registry and its own messages, must give the same
 // for every shape of member.
-const oldKindIcons: Record<ShownKind, LucideIcon> = {
+const expectedKindIcons: Record<ShownKind, LucideIcon> = {
   image: Image,
   file: FileCode2,
   page: Globe,
   changes: GitCompare,
 }
-const oldIsMarkdown = (path: string): boolean => /\.(md|markdown)$/i.test(path)
-const oldIconOf = (artifact: { kind: ShownKind; name: string }): LucideIcon =>
-  artifact.kind === "file" && oldIsMarkdown(artifact.name) ? BookText : oldKindIcons[artifact.kind]
-const oldMemberIcon = (member: BarMember): LucideIcon =>
+const expectedIsMarkdown = (path: string): boolean => /\.(md|markdown)$/i.test(path)
+const expectedIconOf = (artifact: { kind: ShownKind; name: string }): LucideIcon =>
+  artifact.kind === "file" && expectedIsMarkdown(artifact.name)
+    ? BookText
+    : expectedKindIcons[artifact.kind]
+const expectedMemberIcon = (member: BarMember): LucideIcon =>
   member.kind === "messages"
     ? MessagesSquare
     : member.item.kind === "plan"
       ? member.item.plan?.role === "subagent"
         ? FileStack
         : FileText
-      : oldIconOf({ kind: member.item.kind, name: member.item.name })
-const oldSlotIcon = (slot: BarSlot): LucideIcon =>
+      : expectedIconOf({ kind: member.item.kind, name: member.item.name })
+const expectedSlotIcon = (slot: BarSlot): LucideIcon =>
   slot.stack === "plan"
     ? FileText
     : slot.stack
-      ? oldKindIcons[slot.stack]
-      : oldMemberIcon(slot.members[0]!)
-const oldTitleOf = (path: string, text: string): string =>
+      ? expectedKindIcons[slot.stack]
+      : expectedMemberIcon(slot.members[0]!)
+const expectedTitleOf = (path: string, text: string): string =>
   /^# (.+)$/m.exec(text)?.[1]?.trim() ?? path.split("/").at(-1) ?? path
-const oldLookOf = (
+const expectedLookOf = (
   member: BarMember,
   plans: Record<string, { text: string }>,
   origin: string | undefined,
 ) => {
   if (member.kind === "messages")
-    return { icon: oldMemberIcon(member), name: "Messages", label: "Messages" }
+    return { icon: expectedMemberIcon(member), name: "Messages", label: "Messages" }
   const { item } = member
-  const title = oldTitleOf(item.name, plans[item.id]?.text ?? "")
+  const title = expectedTitleOf(item.name, plans[item.id]?.text ?? "")
   const look =
     item.kind === "plan"
       ? {
-          icon: oldMemberIcon(member),
+          icon: expectedMemberIcon(member),
           name: title,
           label: `${item.plan?.role === "subagent" ? "Subagent plan" : "Plan"}: ${title}`,
         }
-      : { icon: oldMemberIcon(member), name: item.name, label: item.name }
+      : { icon: expectedMemberIcon(member), name: item.name, label: item.name }
   if (!member.placed) return look
   const from = origin ?? "another terminal"
   return { ...look, name: `${look.name} · from ${from}`, label: `${look.label}, from ${from}` }
@@ -116,7 +118,7 @@ describe("a terminal's drawing of its bar", () => {
       const icon = (member: BarMember) =>
         slotIcon({ key: member.key, stack: null, members: [member] })
       for (const [shape, member] of Object.entries(shapes))
-        expect(icon(member), shape).toBe(oldMemberIcon(member))
+        expect(icon(member), shape).toBe(expectedMemberIcon(member))
       expect(icon(shapes["subagent plan"]!)).toBe(FileStack)
       expect(icon(shapes["markdown file"]!)).toBe(BookText)
     })
@@ -131,7 +133,7 @@ describe("a terminal's drawing of its bar", () => {
       }
       for (const [stack, members] of Object.entries(stacks) as [StackKind, BarMember[]][]) {
         const slot: BarSlot = { key: `stack-${stack}`, stack, members }
-        expect(slotIcon(slot), stack).toBe(oldSlotIcon(slot))
+        expect(slotIcon(slot), stack).toBe(expectedSlotIcon(slot))
       }
       // A stack of markdown files shows code's icon, and a stack of plans a plan's, not a
       // subagent's.
@@ -139,7 +141,7 @@ describe("a terminal's drawing of its bar", () => {
       expect(slotIcon({ key: "s", stack: "plan", members: stacks.plan })).toBe(FileText)
       for (const [shape, member] of Object.entries(shapes)) {
         const slot: BarSlot = { key: member.key, stack: null, members: [member] }
-        expect(slotIcon(slot), shape).toBe(oldSlotIcon(slot))
+        expect(slotIcon(slot), shape).toBe(expectedSlotIcon(slot))
       }
     })
   })
@@ -163,12 +165,12 @@ describe("a terminal's drawing of its bar", () => {
         }) as unknown as SlotActions
       const actions = actionsOf(plans, "Dev server")
       for (const [shape, member] of Object.entries(shapes))
-        expect(lookOf(member, actions), shape).toEqual(oldLookOf(member, plans, "Dev server"))
+        expect(lookOf(member, actions), shape).toEqual(expectedLookOf(member, plans, "Dev server"))
       // A plan before it loads is named by its file; one placed from a terminal that's gone
       // says so in general words.
       const unloaded = actionsOf({}, undefined)
       for (const [shape, member] of Object.entries(shapes))
-        expect(lookOf(member, unloaded), shape).toEqual(oldLookOf(member, {}, undefined))
+        expect(lookOf(member, unloaded), shape).toEqual(expectedLookOf(member, {}, undefined))
     })
   })
 })

@@ -1,4 +1,4 @@
-/* The pane recipe: where a terminal shows its plan, what its agent showed, and its
+/* The pane recipe: where a terminal shows its items (a plan, what its agent showed) and its
    messages. Split (`.pane-split`), it shares the terminal's window across a divider
    (`.pane-divider`), or, in a window too narrow for that, covers the terminal; attached (`.pane-attached`), it hangs off the canvas node; undocked,
    it fills a window of its own (`.artifact-window`, see artifact.css). In each, the
@@ -34,12 +34,12 @@
    --spine-fg (muted), --spine-hover-bg (soft), --spine-hover-fg (ink): an entry.
    --spine-count-bg (strong), --spine-count-fg (on-strong): an entry's count of notes.
    --spine-changed-bg (warning-fg): the dot by a changed entry.
-   --pane-meta-hint-fg (warning-fg): what keeps a plan from saving, or reading whole.
+   --pane-meta-hint-fg (warning-fg): what keeps an item from saving, or reading whole.
    --plan-changes-action-bg (paper): the changes toggle's Show or Hide.
    --placed-from-bg (shell), --placed-from-fg (muted), --placed-from-border-color (line):
    whose a placed item is. */
 
-/* Split: the plan shares the terminal's window. */
+/* Split: the pane shares the terminal's window. */
 .pane-split {
   display: grid;
   grid-template-columns: var(--_pane-terminal) 0 minmax(0, 1fr);
@@ -329,7 +329,7 @@
   }
 }
 
-/* Reader: the plan, wherever it is presented. */
+/* Reader: the item, wherever it is presented. */
 .pane-reader {
   display: flex;
   flex: 1;
@@ -445,7 +445,7 @@
   }
 }
 
-/* What keeps a plan from saving, or reading whole, in the reader's header. */
+/* What keeps an item from saving, or reading whole, in the reader's header. */
 .pane-meta-hint {
   color: var(--pane-meta-hint-fg, var(--color-warning-fg));
 }

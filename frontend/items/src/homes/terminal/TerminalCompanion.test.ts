@@ -82,7 +82,7 @@ const Terminal = ({
     itemStore,
     messages,
     links: noLinks,
-    companionKey: key,
+    terminalKey: key,
     view: "focus",
     bar: state.bars["01"] ?? emptyBar,
     items: state.items.filter((item) => isOnBar(item, "01")),

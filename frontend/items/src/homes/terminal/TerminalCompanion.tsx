@@ -166,7 +166,7 @@ const attachedExtent = { right: 20 + 720, height: 560 }
 // Where an attached sheet hangs: the canvas node around the window, which the window's
 // clipping (its overflow and paint containment) doesn't reach. Null until the node has
 // mounted; left unset, as outside a canvas node, the sheet stays where it's rendered.
-export const AttachedHost = createContext<HTMLElement | null | undefined>(undefined)
+export const AttachedContainer = createContext<HTMLElement | null | undefined>(undefined)
 
 // A sheet hanging off the canvas node's right edge, so it pans and zooms with it. It is
 // positioned against the node, outside the window's clipping. Hung there, outside its
@@ -188,14 +188,14 @@ const AttachedPane = ({
   // Frame once as the sheet opens, not whenever the canvas hands over a new callback.
   const reveal = useRef(onReveal)
   useEffect(() => reveal.current?.(attachedExtent), [])
-  const host = useContext(AttachedHost)
+  const container = useContext(AttachedContainer)
   const id = useId()
   useEffect(() => {
-    const region = host ? within.current?.closest("[data-terminal]") : undefined
+    const region = container ? within.current?.closest("[data-terminal]") : undefined
     if (!region) return
     region.setAttribute("aria-owns", id)
     return () => region.removeAttribute("aria-owns")
-  }, [host, within, id])
+  }, [container, within, id])
   const sheet = (
     <div
       {...presence.props}
@@ -206,8 +206,8 @@ const AttachedPane = ({
       <CompanionPane {...shown} presentation="attached" />
     </div>
   )
-  if (host === undefined) return sheet
-  return host ? createPortal(sheet, host) : null
+  if (container === undefined) return sheet
+  return container ? createPortal(sheet, container) : null
 }
 
 // A terminal's companion: its taskbar, and the pane it opens in the terminal's own
@@ -218,7 +218,7 @@ export const TerminalCompanion = ({
   itemStore,
   messages,
   links,
-  companionKey,
+  terminalKey,
   view,
   onReveal,
   children,
@@ -232,7 +232,7 @@ export const TerminalCompanion = ({
   messages?: Messages | undefined
   // The session around the terminal, as its messages show it.
   links: MessageLinks
-  companionKey: TerminalKey
+  terminalKey: TerminalKey
   view: ViewMode
   onReveal?: Reveal | undefined
   children: ReactNode
@@ -244,12 +244,13 @@ export const TerminalCompanion = ({
   terminalName?: ((terminalId: string) => string | undefined) | undefined
   commands: ItemCommands
 }): React.JSX.Element => {
-  const { terminalId: terminal, projectId, workspaceSessionId } = companionKey
+  const { terminalId: terminal, projectId, workspaceSessionId } = terminalKey
   const target = useMemo(() => ({ projectId, workspaceSessionId }), [projectId, workspaceSessionId])
-  const messagesHandle = useMessages(messages, companionKey)
+  const messagesHandle = useMessages(messages, terminalKey)
   const members = useMemo(
-    () => barMembers({ terminalId: terminal, bar, items, fresh, messages: messagesHandle.present }),
-    [terminal, bar, items, fresh, messagesHandle.present],
+    () =>
+      barMembers({ terminalId: terminal, bar, items, fresh, messages: messagesHandle.hasMessages }),
+    [terminal, bar, items, fresh, messagesHandle.hasMessages],
   )
   const slots = useMemo(() => composeBar(bar, members), [bar, members])
   const planIds = useMemo(

@@ -5,7 +5,7 @@ import type { Sprite } from "./critters"
 // left over as bezel. Fractional cells would smear the gaps to blur on a 1× screen; below
 // three pixels a cell, the cells are solid.
 
-export const screenCells = 8
+const screenCells = 8
 
 export type LedGrid = {
   // The screen's side, in device pixels, which the drawing's view box spans.
