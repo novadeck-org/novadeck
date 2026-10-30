@@ -34,7 +34,7 @@ export const transcriptItem = z
     author: z.string().max(256).nullable(),
     // On a tool call, what it was; null on every other item.
     run: toolRun.nullable(),
-    // A user item that records a stopped turn.
+    // A `user` item that records a stopped turn.
     interrupted: z.boolean(),
   })
   .refine((item) => (item.run !== null) === (item.kind === "tool-call"), {

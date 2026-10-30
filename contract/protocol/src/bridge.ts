@@ -10,7 +10,7 @@ export const runnerPortMessage = "novadeck:runner-port"
 
 export type DesktopBridge = {
   requestRunner(id: string): void
-  /** Asks the user to choose a folder; resolves its absolute path, or null when cancelled. */
+  /** Asks the person to choose a folder; resolves its absolute path, or null when cancelled. */
   pickDirectory(): Promise<string | null>
   /**
    * Registers what the page finishes before its window closes or the app quits, such
