@@ -245,20 +245,28 @@ const extractHarnesses = (
       implements: [...new Set(members)],
       anchor: { file, line: anchors.find(file, `export const ${id} = {`) },
     })
-    const { events, from } = hookEvents(source, id)
+    // Its hook events are in its plugin.ts where it has one, else in its index.ts.
+    const pluginFile = `harnesses/${id}/src/plugin.ts`
+    const pluginSource = anchors.read(pluginFile)
+    const hooksFile = pluginSource === null ? file : pluginFile
+    const { events, from } = hookEvents(pluginSource ?? source, id)
     if (events.length === 0)
-      anchors.report("harnesses", file, "found 0 hook events (`const events = [` or hooks.json)")
+      anchors.report(
+        "harnesses",
+        hooksFile,
+        "found 0 hook events (`const events = [` or hooks.json)",
+      )
     for (const event of events) {
       hooks.push({
         harness: id,
         event,
         summary: hookSummaries[event] ?? "A hook Novadeck registers.",
         anchor: {
-          file,
+          file: hooksFile,
           line:
-            lineFrom(source, `"${event}"`, from) ??
-            lineFrom(source, `${event}:`, from) ??
-            anchors.find(file, event),
+            lineFrom(pluginSource ?? source, `"${event}"`, from) ??
+            lineFrom(pluginSource ?? source, `${event}:`, from) ??
+            anchors.find(hooksFile, event),
         },
       })
     }
