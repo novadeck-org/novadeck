@@ -19,7 +19,8 @@
    Tokens, each optional (its fallback in brackets):
    --chat-bg (the window's bg, then paper), --chat-fg (ink): the ground and its text.
    --chat-font (sans): the transcript's face. --chat-muted-fg (muted): times, notes, the
-   status, a tool's detail and the labels.
+   status, a tool's detail, the labels, and the Markdown's quotes and markers (its
+   --markdown-muted-fg).
    --chat-user-bg (soft), --chat-user-fg (the text's), --chat-user-border-color
    (transparent), --chat-user-radius (radius-panel): the person's bubble.
    --chat-agent-bg (shell), --chat-agent-border-color (line): another agent's message.
@@ -46,6 +47,7 @@
 .chat {
   --_font: var(--chat-font, var(--font-sans));
   --_muted: var(--chat-muted-fg, var(--color-muted));
+  --markdown-muted-fg: var(--_muted);
   display: flex;
   flex-direction: column;
   width: 100%;
