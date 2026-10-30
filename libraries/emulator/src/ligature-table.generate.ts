@@ -1,6 +1,6 @@
 import { writeFileSync } from "node:fs"
 
-import { loadShaper, type Shaper } from "./ligature-font.test-kit.ts"
+import { loadShaper, type Shaper } from "./ligature-font.test-support.ts"
 
 // Writes `ligature-table.ts` from the bundled JetBrains Mono: `node src/ligature-table.generate.ts`
 // (about three minutes). Every string up to four glyphs over the glyphs that take part in any

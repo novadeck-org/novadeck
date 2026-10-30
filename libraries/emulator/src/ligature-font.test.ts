@@ -1,7 +1,7 @@
 // @vitest-environment node
 import { beforeAll, describe, expect, it } from "vitest"
 
-import { loadFont, type Font } from "./ligature-font.test-kit.js"
+import { loadFont, type Font } from "./ligature-font.test-support.js"
 import { ligatureSequences } from "./ligature-table.js"
 import { cutMargin, ligatureRuns } from "./ligatures.js"
 
