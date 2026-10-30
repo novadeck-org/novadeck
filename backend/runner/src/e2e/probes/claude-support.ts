@@ -15,6 +15,7 @@ import { screenRecord, type ScreenRecord } from "@novadeck/harness-core/testing/
 
 import type { DeckTerminal } from "../deck.js"
 import type { E2E } from "../fixture.js"
+import { sleep } from "./support.js"
 
 export const events = [
   "SessionStart",
@@ -146,8 +147,6 @@ export const install = (run: E2E, options: { timeout?: number } = {}): Probe => 
   }
 }
 
-export const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms))
-
 /** Shortened text of a transcript item list. */
 export const brief = (items: readonly unknown[]) => JSON.parse(JSON.stringify(items))
 
@@ -185,7 +184,7 @@ export type Outcome = {
   transcript: unknown[]
 }
 
-export const rawTranscript = (probe: Probe): unknown[] => {
+const rawTranscript = (probe: Probe): unknown[] => {
   const path = (probe.payloads("PreToolUse")[0] as { transcript_path?: string } | undefined)
     ?.transcript_path
   if (!path || !existsSync(path)) return []

@@ -69,7 +69,7 @@ const pinOf = (name: HarnessName): z.infer<typeof pin> => {
  * Where installed harnesses are kept between runs: `NOVADECK_E2E_CACHE`, or a folder in
  * the user's cache.
  */
-export const cacheFolder = (env: NodeJS.ProcessEnv = process.env): string =>
+const cacheFolder = (env: NodeJS.ProcessEnv = process.env): string =>
   env.NOVADECK_E2E_CACHE || join(env.XDG_CACHE_HOME || join(homedir(), ".cache"), "novadeck", "e2e")
 
 // npm beside the node running the tests, so whatever else is on PATH plays no part, or

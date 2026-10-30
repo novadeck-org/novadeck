@@ -8,7 +8,6 @@ import {
   writeFileSync,
 } from "node:fs"
 import { join } from "node:path"
-import { setTimeout as sleep } from "node:timers/promises"
 
 import { screenRecord, type ScreenRecord } from "@novadeck/harness-core/testing/probes"
 import { afterAll } from "vitest"
@@ -21,6 +20,7 @@ import { describe, e2e, supported, type E2E } from "../fixture.js"
 import { installHarness, pins } from "../install.js"
 import { asked, type Call, type Rule } from "../model/script.js"
 import { prompted } from "../scenarios.js"
+import { sleep } from "./support.js"
 
 // PROBE, not a test of Novadeck: how Codex (the pin, or the newest with NOVADECK_E2E_HARNESS=latest) asks the person for things in its
 // interactive TUI, which hooks fire, what its rollout records and which keys answer, for

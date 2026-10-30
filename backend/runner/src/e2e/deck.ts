@@ -262,7 +262,7 @@ export type DeckOptions = {
  * (probed in the sandbox). That also covers the far shorter wait a TUI gives a lone ESC
  * byte before taking it as Escape rather than the start of a sequence.
  */
-export const escapeWindowMs = 1200
+const escapeWindowMs = 1200
 
 // Enter's keys, as `press` and `escape` refuse them: a carriage return or line feed, the
 // keypad's Enter or the kitty keyboard protocol's.

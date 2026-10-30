@@ -2,7 +2,8 @@
 // the hook waits.
 import { text, type Rule } from "../model/script.js"
 import { own, result } from "../scenarios.js"
-import { sleep, surface, tweak, type Out } from "./claude-support.js"
+import { surface, tweak, type Out } from "./claude-support.js"
+import { sleep } from "./support.js"
 
 const decide = (decision: Record<string, unknown>): Out => ({
   stdout: {

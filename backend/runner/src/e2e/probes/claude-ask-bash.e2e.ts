@@ -1,7 +1,8 @@
 import { claude } from "../agents/claude.js"
 import { describe, e2e, supported } from "../fixture.js"
 import { answers, result, own, start } from "../scenarios.js"
-import { capture, install, sleep, snap } from "./claude-support.js"
+import { capture, install, snap } from "./claude-support.js"
+import { sleep } from "./support.js"
 
 describe.skipIf(!supported)("claude ask probe: Bash permission", () => {
   const it = e2e(claude)
