@@ -255,6 +255,14 @@ export const fixtures: readonly Fixture[] = [
     extract: () => codexAsk("ask.probe.0.165.0.json"),
   },
   {
+    golden: "codex/ask.0.166.0",
+    harness: "codex",
+    tools: true,
+    count: 17,
+    skipped: [],
+    extract: () => codexAsk("ask.probe.0.166.0.json"),
+  },
+  {
     golden: "agy/transcript",
     harness: "agy",
     tools: true,
