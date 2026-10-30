@@ -6,7 +6,7 @@ import { FooterMurmur, type FooterMurmurProps } from "./FooterMurmur"
 import { FooterSandbox, type FooterSandboxProps } from "./FooterSandbox"
 import { useOverlayOpen } from "./notice-focus"
 import { PortableInstall, type PortableInstallProps } from "./PortableInstall"
-import { UpdateAvailable, type FooterAvailable } from "./UpdateAvailable"
+import { UpdateAvailable, type AvailableUpdate } from "./UpdateAvailable"
 import { UpdateProgress } from "./UpdateProgress"
 import { WhatsNew, type WhatsNewProps } from "./WhatsNew"
 
@@ -51,7 +51,7 @@ export const WorkspaceFooter = ({
   // The update the app updates itself to, whose download the floating bar follows.
   readonly progress?: UpdateOffer | null
   // A release an installed copy can't install itself: a chip that opens its release page.
-  readonly available?: FooterAvailable | undefined
+  readonly available?: AvailableUpdate | undefined
   // What is new in the version the app updated to, as the card above the right end.
   readonly whatsNew?: WhatsNewProps | undefined
   // Whether a notice is open above the footer's right end, where the bar would cover it.

@@ -1,4 +1,5 @@
 import type { SourceChange, SourceListing, SourceProject } from "@novadeck/core/source"
+import { handleText } from "@novadeck/core/terminals/handle"
 
 // The Source panel's rules, apart from how it draws: the tree the project's folders and an
 // agent's work grow in, which agents a row names, which row a write lights up, and how long a
@@ -11,9 +12,9 @@ export type FolderRead = SourceListing | "failed"
 export type Listings = ReadonlyMap<string, FolderRead>
 
 // What the demo's agents changed, laid over the listings; a runner has none.
-export type Overlay = Pick<SourceProject, "changes" | "writing">
+type Overlay = Pick<SourceProject, "changes" | "writing">
 
-export const noOverlay: Overlay = { changes: {}, writing: {} }
+const noOverlay: Overlay = { changes: {}, writing: {} }
 
 export type SourceNode = {
   // Slash-separated from the project root, with no trailing slash.
@@ -52,7 +53,7 @@ export type SourceNote = {
   readonly depth: number
 }
 
-export type SourceLine = SourceRow | SourceNote
+type SourceLine = SourceRow | SourceNote
 
 export const isNote = (line: SourceLine): line is SourceNote => "note" in line
 
@@ -175,7 +176,7 @@ export const sameRead = (a: FolderRead | undefined, b: FolderRead | undefined): 
 }
 
 // The paths of every folder in the tree.
-export const folderPaths = (tree: readonly SourceNode[]): ReadonlySet<string> => {
+const folderPaths = (tree: readonly SourceNode[]): ReadonlySet<string> => {
   const paths = new Set<string>()
   const visit = (node: SourceNode): void => {
     if (!node.folder) return
@@ -229,13 +230,6 @@ export const visibleLines = (
   return lines
 }
 
-// The rows on screen, without the notes between them.
-export const visibleRows = (
-  tree: readonly SourceNode[],
-  open: ReadonlySet<string>,
-): readonly SourceRow[] =>
-  visibleLines(tree, open).filter((line): line is SourceRow => !isNote(line))
-
 // Whether a row opens: every folder does, an empty one onto a note saying so, which keeps it read
 // again with the rest, so what is written there later shows.
 export const expandable = (node: SourceNode): boolean => node.folder
@@ -253,7 +247,7 @@ export const fileIconOf = (name: string): FileIcon => {
   return "file"
 }
 
-export const chipLimit = 2
+const chipLimit = 2
 
 export type Chips = {
   // The handles to name on the row, at most two.
@@ -328,8 +322,7 @@ export const noteIndent = (depth: number): number =>
 export const estimateChipWidth = (text: string): number => text.length * chipGlyph
 
 // A chip's text: `@handle`, and `+N` for the count.
-export const handleText = (handle: string): string => `@${handle}`
-export const moreText = (more: number): string => `+${more}`
+const moreText = (more: number): string => `+${more}`
 
 // The chip area for these handles and a `+N` of `more`, each text's width from `widthOf`.
 export const chipsWidth = (
@@ -344,7 +337,7 @@ export const chipsWidth = (
   )
 }
 
-export type RowFit = {
+type RowFit = {
   // The tree's width, or undefined while it isn't measured (nothing is folded then).
   readonly width: number | undefined
   readonly depth: number
@@ -391,8 +384,8 @@ export const rowShowing = (path: string, open: ReadonlySet<string>): string => {
 
 // How a file's trail fades: from this opacity, by this much every `trailTimeMs`, gone below
 // `trailGone`. The panel's CSS keyframes (source.css) follow the same curve.
-export const trailStart = 0.7
-export const trailTimeMs = 150_000
+const trailStart = 0.7
+const trailTimeMs = 150_000
 export const trailGone = 0.04
 export const trailLifeMs = trailTimeMs * Math.log(trailStart / trailGone)
 

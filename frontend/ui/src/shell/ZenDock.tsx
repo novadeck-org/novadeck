@@ -7,7 +7,7 @@ import { useEffect, useId, useRef, useState } from "react"
 
 import { shortcutBindings } from "../interaction/shortcuts"
 import { BellDot } from "./BellDot"
-import type { BellBadge } from "./inbox-badge"
+import type { InboxBadge } from "./inbox-badge"
 
 export const ZenDock = ({
   view,
@@ -21,8 +21,8 @@ export const ZenDock = ({
 }: {
   view: ViewMode
   enabledViews: ViewMode[]
-  badge: BellBadge | undefined
-  // How many new items the bell has rung for, which its dot rings with.
+  badge: InboxBadge | undefined
+  // How many new Inbox rows the bell has rung for, which its dot rings with.
   bellRings: number
   onCreate: () => void
   onViewChange: (view: ViewMode) => void

@@ -86,14 +86,14 @@ export const WorkspaceSidebar = ({
     >
       <SessionsPanel
         key={projectId}
-        items={workspaceSessions.map((item) => {
-          const itemTerminals = item.state.roster.terminals
+        sessions={workspaceSessions.map((session) => {
+          const { terminals } = session.state.roster
           return {
-            id: item.id,
-            name: item.name,
-            visitedAt: item.visitedAt,
-            terminalNames: itemTerminals.map((entry) => entry.name),
-            running: itemTerminals.filter((entry) => entry.state === "running").length,
+            id: session.id,
+            name: session.name,
+            visitedAt: session.visitedAt,
+            terminalNames: terminals.map((terminal) => terminal.name),
+            running: terminals.filter((terminal) => terminal.state === "running").length,
           }
         })}
         activeId={workspaceSessionId}
