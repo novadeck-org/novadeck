@@ -2,6 +2,7 @@ import type { AnyContractRouter, ContractRouterClient } from "@orpc/contract"
 
 import type { Session, Wire } from "./connection.js"
 import { hasCode, normalize, WireError } from "./errors.js"
+import { sleep } from "./sleep.js"
 
 /**
  * A stream that resumes from a cursor: each item may carry its position, a reconnection asks
@@ -14,14 +15,14 @@ export type CursorResume<C extends AnyContractRouter, T> = {
   readonly ack: (client: ContractRouterClient<C>, position: number) => Promise<unknown>
 }
 
-/** A stream that starts over on each new subscription, as one of the whole state does. */
+/** A stream that starts over each time it opens again, as one of the whole state does. */
 export type RestartResume<T> = {
   readonly restart: true
-  /** Said before each new subscription's items, so a reader knows what follows replaces them. */
+  /** Said before each stream's items, so a reader knows what follows replaces them. */
   readonly reset?: T
   /**
-   * Holds `reset` back until the new subscription yields something, so one that finds nothing
-   * doesn't wipe what came before; the first subscription, with nothing before it, has none.
+   * Holds `reset` back until a stream opened again yields something, so one that finds
+   * nothing doesn't wipe what came before; the first stream, with nothing before it, has none.
    */
   readonly holdReset?: boolean
 }
@@ -34,9 +35,10 @@ export type FollowOptions<C extends AnyContractRouter, T> = {
   ) => Promise<AsyncIterable<T>> | AsyncIterable<T>
   readonly resume: CursorResume<C, T> | RestartResume<T>
   /**
-   * For a restarting stream: whether a failure says its subject is gone, which ends it. A stream that
-   * can lose its subject is opened again as soon as it ends, to learn whether it's still there;
-   * one that can't ends only as its server goes, and is opened again on the next connection.
+   * For a restarting stream: whether a failure says its subject is gone, which ends it. A
+   * stream that can lose its subject is opened again as soon as it ends, to learn whether it's
+   * still there; one that can't ends only as its server goes, and is opened again on the next
+   * session.
    */
   readonly gone?: (error: WireError) => boolean
 }
@@ -45,7 +47,7 @@ export type FollowOptions<C extends AnyContractRouter, T> = {
 export type Following<C extends AnyContractRouter, T> = AsyncIterableIterator<T, undefined> & {
   /** Stops following, ending a pending read and cancelling the stream. */
   return(): Promise<IteratorResult<T, undefined>>
-  /** The session the stream is open on, until it closes; undefined while it opens again. */
+  /** The session the stream has yielded on, until it opens again; undefined until one yields. */
   readonly session: Session<C> | undefined
   /**
    * Why it's over: `ended` by its server (a cursor's stream ended, or its subject is gone),
@@ -63,17 +65,6 @@ type Open<C extends AnyContractRouter, T> = {
 const done = { value: undefined, done: true } as const
 
 const noop = (): void => {}
-
-const sleep = (ms: number, signal: AbortSignal) =>
-  new Promise<void>((resolve) => {
-    const wake = () => {
-      clearTimeout(timer)
-      signal.removeEventListener("abort", wake)
-      resolve()
-    }
-    const timer = setTimeout(wake, ms)
-    signal.addEventListener("abort", wake, { once: true })
-  })
 
 /** Reports a failure on a closed channel as `DISCONNECTED`, whatever oRPC raised. */
 const lost = <C extends AnyContractRouter>(error: unknown, session: Session<C>): unknown => {
@@ -97,7 +88,7 @@ class Follower<C extends AnyContractRouter, T> implements Following<C, T> {
   private spent: Session<C> | undefined
   // Consecutive refusals on a live session, which set the next retry's delay.
   private refusals = 0
-  private subscribed = false
+  private opened = false
   private resetDue = false
   private held: { readonly value: T } | undefined
 
@@ -248,9 +239,9 @@ class Follower<C extends AnyContractRouter, T> implements Following<C, T> {
       this.stream = { items: items[Symbol.asyncIterator](), session, cancel }
       this.live = false
       if (!cursor && resume.reset !== undefined) {
-        this.resetDue = !resume.holdReset || this.subscribed
+        this.resetDue = !resume.holdReset || this.opened
       }
-      this.subscribed = true
+      this.opened = true
     } catch (error) {
       cancel.abort()
       if (this.finished) return
@@ -265,7 +256,7 @@ class Follower<C extends AnyContractRouter, T> implements Following<C, T> {
       return
     }
     this.drop()
-    // One that can't lose its subject ends as its server goes: wait for the next connection.
+    // One that can't lose its subject ends as its server goes: wait for the next session.
     if (!this.options.gone) this.spent = stream.session
   }
 
