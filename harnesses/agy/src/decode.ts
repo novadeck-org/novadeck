@@ -29,11 +29,11 @@ import { kindOf, toolCall, writers, type ToolCall } from "./tools.js"
  * ask_question is a request of its own, as no status line tells that dialog, resolved by
  * its PostToolUse. Any other call may or may not ask the person, as their policy says, so
  * it asks nothing here; the latest of each conversation is only remembered, as the call a
- * confirmation the status line shows is about (see `confirmation`).
+ * confirmation the status line shows is about (see status-line.ts).
  * What outlives a turn it starts and then wakes the agent with a turn of its own: a
  * `run_command` it backgrounds, and a `schedule` timer. Their PostToolUse fires when they
  * end, not when the turn does, so a call whose PreToolUse has had none by a Stop runs on
- * (see `pending`).
+ * (see `pending` in conversations.ts).
  */
 export const decode = (report: Report): readonly HarnessEvent[] => {
   const events = decodeEvent(report)

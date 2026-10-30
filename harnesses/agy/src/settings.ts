@@ -36,18 +36,19 @@ export const statusLineCommand = (own: string | undefined): string =>
 export const windowsStatusLine =
   "if defined NOVADECK_HOOK (%NOVADECK_HOOK% agy StatusLine >nul 2>nul)"
 
-// A JSON object, as the settings and their status line are: changed in place, then written whole.
-type Settings = Record<string, unknown>
+// A JSON object, as the settings and their status line are: changed in place, then the
+// settings written whole.
+type Fields = Record<string, unknown>
 
-const settingsOf = (value: unknown): Settings | undefined =>
-  isFields(value) ? (value as Settings) : undefined
+const objectOf = (value: unknown): Fields | undefined =>
+  isFields(value) ? (value as Fields) : undefined
 
 /**
  * The person's own command a line of Novadeck's runs: null for none, undefined when the
  * line is not Novadeck's.
  */
 const ownOf = (value: unknown): string | null | undefined => {
-  const command = settingsOf(value)?.command
+  const command = objectOf(value)?.command
   if (command === windowsStatusLine) return null
   if (typeof command !== "string" || !command.startsWith(start)) return undefined
   if (command === start) return null
@@ -63,7 +64,7 @@ const added: Record<string, unknown> = { enabled: true, stack_with_default: true
 const settingsFile = (home: string): string => join(home, "settings.json")
 
 // Settings, or undefined when the file holds something else.
-const read = async (file: string): Promise<Settings | undefined> => {
+const read = async (file: string): Promise<Fields | undefined> => {
   let text: string
   try {
     text = await readFile(file, "utf8")
@@ -73,7 +74,7 @@ const read = async (file: string): Promise<Settings | undefined> => {
   }
   try {
     const settings = JSON.parse(text) as unknown
-    return settingsOf(settings)
+    return objectOf(settings)
   } catch {
     return undefined
   }
@@ -93,7 +94,7 @@ export const statusLineSettings = (home: (install: Install) => string) => ({
     if (!settings)
       throw new Error(`${file} is not valid settings. Repair it, then connect Antigravity again.`)
     if (ownOf(settings.statusLine) !== undefined) return
-    const own = settingsOf(settings.statusLine)
+    const own = objectOf(settings.statusLine)
     // Antigravity runs a command whatever its type names, or none.
     const command = typeof own?.command === "string" ? own.command : ""
     // On Windows the person's own line stays as it is: cmd can't run it after Novadeck's.
@@ -117,11 +118,11 @@ export const statusLineSettings = (home: (install: Install) => string) => ({
     if (!settings || own === undefined) return
     if (own === null) {
       // Only what Novadeck added goes; a line the person switched off stays so.
-      const { command: _command, type: _type, ...rest } = settingsOf(settings.statusLine) ?? {}
+      const { command: _command, type: _type, ...rest } = objectOf(settings.statusLine) ?? {}
       if (Object.entries(rest).every(([key, value]) => value === added[key]))
         delete settings.statusLine
       else settings.statusLine = rest
-    } else settings.statusLine = { ...settingsOf(settings.statusLine), command: own }
+    } else settings.statusLine = { ...objectOf(settings.statusLine), command: own }
     await write(file, settings)
   },
 })
@@ -140,7 +141,7 @@ export const statusLineLimit =
     if (install.platform !== "win32") return undefined
     const settings = await read(settingsFile(home(install))).catch(() => undefined)
     if (!settings || ownOf(settings.statusLine) !== undefined) return undefined
-    const command = settingsOf(settings.statusLine)?.command
+    const command = objectOf(settings.statusLine)?.command
     return typeof command === "string" && command ? "own-status-line" : undefined
   }
 

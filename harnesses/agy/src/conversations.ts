@@ -13,7 +13,7 @@ import type { ToolCall } from "./tools.js"
 /** What every event of one report shares. */
 export type Base = { agent: "agy"; sessionId: string; instance: string | null; startedAt: number }
 
-// How many conversations each memory holds, and how many awaited calls each conversation,
+// How many conversations each memory holds, and how many awaited calls it holds of each:
 // as many as the activity takes jobs.
 const maxConversations = 32
 const maxCalls = 16
@@ -23,7 +23,7 @@ const trim = <K, V>(map: Map<K, V>, limit: number): void => {
   for (const [oldest] of map) if (map.size > limit) map.delete(oldest)
 }
 
-// Puts `value` in `map` as its newest.
+// Puts `value` in `map` as its newest, keeping the newest `maxConversations`.
 const keep = <K, V>(map: Map<K, V>, key: K, value: V): V => {
   map.delete(key)
   map.set(key, value)
@@ -42,7 +42,7 @@ export const remember = (conversation: string, call: ToolCall, id: string): void
 }
 
 /** The latest call of a conversation, as the one a confirmation is about. */
-export const latestCall = (conversation: string): { call: ToolCall; id: string } | undefined =>
+export const latestOf = (conversation: string): { call: ToolCall; id: string } | undefined =>
   latest.get(conversation)
 
 // How much of a job's description the protocol takes.
@@ -192,8 +192,8 @@ export const ended = (base: Base, step: number): HarnessEvent[] => {
   const calls = open.get(base.sessionId)
   const id = `${base.sessionId}:${step}`
   const call = calls?.get(id)
-  if (!call) return []
-  calls!.delete(id)
+  if (!calls || !call) return []
+  calls.delete(id)
   return [over(base, call)]
 }
 

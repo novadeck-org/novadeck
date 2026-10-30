@@ -2,7 +2,7 @@ import { absolute, sessionId, text } from "@novadeck/harness-core/decode"
 import type { HarnessEvent } from "@novadeck/harness-core/events"
 import type { Report } from "@novadeck/harness-core/report"
 
-import { abandoned, latestCall } from "./conversations.js"
+import { abandoned, latestOf, type Base } from "./conversations.js"
 
 // Statuses of a subagent that no longer runs.
 const finished = new Set(["done", "completed", "finished", "idle", "failed", "cancelled", "error"])
@@ -52,7 +52,7 @@ export const statusLine = ({
   const id = sessionId(payload.conversation_id)
   if (!id) return []
   const cwd = absolute(payload.cwd)
-  const base = { agent: "agy", sessionId: id, instance, startedAt: seq } as const
+  const base: Base = { agent: "agy", sessionId: id, instance, startedAt: seq }
   const events: HarnessEvent[] = [
     {
       type: "session-observed",
@@ -79,7 +79,7 @@ export const statusLine = ({
   // run, by status and not position, as the list's order flips (probed 2026-10-07, 1.2.16).
   if (working)
     events.push({ type: "turn-working", ...base, running: subagentsRunning(payload.subagents) })
-  const latest = latestCall(id)
+  const latest = latestOf(id)
   if (payload.agent_state === "idle")
     events.push({
       type: "turn-idle",
