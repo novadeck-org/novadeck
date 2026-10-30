@@ -1,6 +1,6 @@
-import { describe, expect, it } from "vitest"
+import { afterEach, describe, expect, it, vi } from "vitest"
 
-import { parseTrees, Trees, type RunRelay } from "./trees.js"
+import { anyRunning, parseTrees, Trees, type RunRelay } from "./trees.js"
 
 // A relay that answers from a table of trees and records how it was run.
 const fake = (known: Record<string, { pid: number; startedAt: number }[]>) => {
@@ -77,5 +77,29 @@ describe("Windows process trees", () => {
       "",
     ].join("\r\n")
     expect([...parseTrees(output)]).toEqual([["10", [{ pid: 10, startedAt: 1 }]]])
+  })
+})
+
+describe("whether a tree's members still run", () => {
+  afterEach(() => vi.restoreAllMocks())
+
+  const killFails = (code: string) =>
+    vi.spyOn(process, "kill").mockImplementation(() => {
+      throw Object.assign(new Error(code), { code })
+    })
+
+  it("is true while a member's pid can be signalled", () => {
+    vi.spyOn(process, "kill").mockReturnValue(true)
+    expect(anyRunning([{ pid: 10, startedAt: 1 }])).toBe(true)
+  })
+
+  it("is false once every member's pid is gone", () => {
+    killFails("ESRCH")
+    expect(anyRunning([{ pid: 10, startedAt: 1 }])).toBe(false)
+  })
+
+  it("is true where a member's pid may not be signalled, as an elevated process's", () => {
+    killFails("EPERM")
+    expect(anyRunning([{ pid: 10, startedAt: 1 }])).toBe(true)
   })
 })

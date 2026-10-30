@@ -163,7 +163,12 @@ export const taskkillTree = async (pid: number, timeoutMs = 5_000): Promise<void
   )
 }
 
-/** Whether any of `members` may still run, by its pid alone: a check made again and again. */
+/**
+ * Whether any of `members` may still run, by its pid alone: a check made again and again.
+ * A pid that may not be signalled (EPERM) counts as running: on Windows that is also the
+ * user's own process running elevated, as under sudo, which a close must still try to end
+ * and say still answers.
+ */
 export const anyRunning = (members: readonly Member[]): boolean =>
   members.some(({ pid }) => {
     try {
