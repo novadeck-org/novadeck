@@ -8,15 +8,18 @@ import type {
 } from "@novadeck/harness-core/dialogs"
 import type { RequestAnswer } from "@novadeck/protocol"
 
+import { toolCall } from "./tools.js"
+
 /**
  * Antigravity's dialogs, as its TUI draws them and takes keys (probed 2026-10-06, 1.2.14;
  * fixtures/ask.probe.json):
  *
  * - A command's confirmation, "Run this command?", a file write's, "Allow creation of
- *   this file?", and a file edit's, "Accept this file edit?": numbered options, one marked with `>`, which a digit takes at once, with
- *   no Enter. The options are read from the screen, never assumed: they differ by tool.
- *   The request's call (its PreToolUse, which decode keeps for the confirmation) must
- *   agree with what the screen shows: the command, or the file.
+ *   this file?", and a file edit's, "Accept this file edit?": numbered options, one
+ *   marked with `>`, which a digit takes at once, with no Enter. The options are read
+ *   from the screen, never assumed: they differ by tool. The request's call (its
+ *   PreToolUse, which the decoder keeps for the confirmation) must agree with what the
+ *   screen shows: the command, or the file.
  * - ask_question: `Question i/n: <question>`, its options, then `Write-in...`. Down and
  *   Enter pick one (a digit selects at once too, but it is Down and Enter that were probed
  *   through every question of several); in a multi-select a digit toggles and Enter
@@ -52,6 +55,9 @@ const down = "\x1b[B"
 // How long each wait for the screen to follow a key lasts.
 const settle = 3000
 
+// The row over ask_question's open write-in field.
+const answerField = "Your answer:"
+
 type Option = {
   readonly number: number
   readonly label: string
@@ -63,12 +69,7 @@ type Option = {
 // with its `[ ]` or `[x]`), the label's wrapped rest on rows of their own, until a blank
 // row. They must run from 1 without a gap, and exactly one is marked.
 const optionsFrom = (rows: readonly string[], from: number): Option[] | undefined => {
-  const options: {
-    number: number
-    label: string
-    marked: boolean
-    checked: boolean | undefined
-  }[] = []
+  const options: { -readonly [Key in keyof Option]: Option[Key] }[] = []
   for (let index = from; index < rows.length; index += 1) {
     const row = rows[index]!.trimEnd()
     if (row.trim() === "") break
@@ -104,14 +105,6 @@ const only = <T>(found: readonly T[]): T | undefined => (found.length === 1 ? fo
 
 const rowsLike = (rows: readonly string[], pattern: RegExp): number[] =>
   rows.flatMap((row, index) => (pattern.test(row.trim()) ? [index] : []))
-
-// The call a request's input holds: `{name, args}`, as its PreToolUse gave it.
-const callOf = (input: unknown): { name: string; args: Record<string, unknown> } | undefined => {
-  if (typeof input !== "object" || input === null) return undefined
-  const { name, args } = input as { name?: unknown; args?: unknown }
-  if (typeof name !== "string" || typeof args !== "object" || args === null) return undefined
-  return { name, args: args as Record<string, unknown> }
-}
 
 // ---- Confirmations
 
@@ -167,7 +160,7 @@ const confirmation = (rows: readonly string[]): Confirmation | undefined => {
   // A file's: its header over a rule, then what it shows, down to the question.
   const ruleAt = lines.findLastIndex((row, index) => index < ask && rule(row))
   const header = ruleAt > 0 ? lines[ruleAt - 1]!.trim() : ""
-  const tools = files[header]
+  const tools = toolsByHeader[header]
   if (tools === undefined) return undefined
   // Its edit's hint about auto-approval is no part of what it asks.
   const shown = lines
@@ -180,7 +173,7 @@ const confirmation = (rows: readonly string[]): Confirmation | undefined => {
 
 // The tools each file confirmation's header means (only what was probed): 1.4's, which
 // name the file as Path, and the earlier ones, which name it as TargetFile.
-const files: { readonly [header: string]: readonly string[] } = {
+const toolsByHeader: { readonly [header: string]: readonly string[] } = {
   // "Allow creation of this file?" (probed 2026-10-20, 1.2.14 and 1.4.3).
   "Create file": ["write_file", "write_to_file"],
   // A line replaced in a file (probed 2026-10-15, 1.2.14 and 1.3.5): "Accept this file edit?".
@@ -236,7 +229,7 @@ const drawnAs = ({ rows, width }: NonNullable<Confirmation["drawn"]>, command: s
 
 // Whether the screen's confirmation is about the call the request names.
 const matches = (read: Confirmation, input: unknown): boolean => {
-  const call = callOf(input)
+  const call = toolCall(input)
   if (!call) return false
   if (read.command)
     return call.name === "run_command" && sameCommand(read.shown, call.args.CommandLine)
@@ -273,7 +266,7 @@ const progressed = (before: string | undefined, now: string | undefined): boolea
 }
 
 const ownCommand = (read: Confirmation, input: unknown): string | undefined => {
-  const command = callOf(input)?.args.CommandLine
+  const command = toolCall(input)?.args.CommandLine
   return read.command && read.drawn && typeof command === "string" && drawnAs(read.drawn, command)
     ? command
     : undefined
@@ -356,7 +349,7 @@ const asked = (rows: readonly string[]): Asked | undefined => {
     .find((row) => row.trim() !== "")
     ?.trim()
   const writing =
-    field?.startsWith("Your answer:") === true &&
+    field?.startsWith(answerField) === true &&
     lines.some((row) => row.trim().startsWith("enter Submit · esc Back"))
   const footer = writing ? "" : footerAfter(lines, end + 1)
   if (footer === undefined) return undefined
@@ -374,7 +367,7 @@ type Question = { question: string; options: string[]; multi: boolean }
 
 // The questions of an ask_question call, each whole, or none.
 const questionsOf = (input: unknown): Question[] | undefined => {
-  const call = callOf(input)
+  const call = toolCall(input)
   if (call?.name !== "ask_question" || !Array.isArray(call.args.questions)) return undefined
   const questions: Question[] = []
   for (const each of call.args.questions as unknown[]) {
@@ -437,7 +430,7 @@ const shows = (
 
 // The row after `Your answer:`, where a write-in's words appear.
 const fieldRow = (rows: readonly string[]): string | undefined => {
-  const at = rows.findLastIndex((row) => row.trim() === "Your answer:")
+  const at = rows.findLastIndex((row) => row.trim() === answerField)
   return at < 0 ? undefined : rows.slice(at + 1).find((row) => row.trim() !== "")
 }
 
@@ -489,7 +482,7 @@ const questionsRead = (rows: readonly string[], request: RequestFacts): DialogRe
     answered: (later) => {
       // Its write-in field is still it; any other question of the call, or a later one
       // with the same words, is the same dialog, and any other is none of this.
-      if (later.some((row) => row.trim() === "Your answer:")) return false
+      if (later.some((row) => row.trim() === answerField)) return false
       const now = asked(later)
       if (now)
         return !questions.some(({ question }) => collapse(question) === collapse(now.question))
@@ -507,7 +500,7 @@ const writeInSteps = (index: number, options: number, words: string): KeyStep[] 
   ...moveTo(index, options + 1),
   { press: "\r" },
   {
-    until: (rows) => rows.some((row) => row.trim() === "Your answer:"),
+    until: (rows) => rows.some((row) => row.trim() === answerField),
     timeoutMs: settle,
     why: "the write-in field open",
   },
@@ -595,9 +588,11 @@ const keysFor = (
 // its start with the box empty (a draft there would take `/artifact` into itself) and
 // the prompt idle (its bottom row offering shortcuts, not "esc to cancel"); the driver
 // reads it again between keys, so it also reads with `/artifact` typed, or listed.
+const reviewFooter = /^\d+ artifacts? · \/artifact to review$/
+
 const reviewing = (rows: readonly string[]): { readonly start: boolean } | undefined => {
   const lines = rows.map((row) => row.trimEnd())
-  const at = only(rowsLike(lines, /^\d+ artifacts? · \/artifact to review$/))
+  const at = only(rowsLike(lines, reviewFooter))
   if (at === undefined || !lines[at]!.trim().startsWith("1 artifact · ")) return undefined
   if (!rule(lines[at + 1] ?? "") || !rule(lines[at + 3] ?? "")) return undefined
   const composer = lines[at + 2]?.trim()
@@ -614,7 +609,7 @@ const review = (rows: readonly string[]): boolean =>
 
 // The prompt box's row, below the footer.
 const composerRow = (rows: readonly string[]): string | undefined => {
-  const at = rows.findIndex((row) => /^\d+ artifacts? · \/artifact to review$/.test(row.trim()))
+  const at = rows.findIndex((row) => reviewFooter.test(row.trim()))
   const row = at < 0 ? undefined : rows[at + 2]?.trim()
   return row?.startsWith(">") ? row.slice(1) : undefined
 }
@@ -647,7 +642,8 @@ const reviewRead = (rows: readonly string[], request: RequestFacts): DialogRead 
       // A plain prompt while the review waits is its feedback (probed: the model gets it
       // as the person's request, and the review is gone): typed into the empty box, with
       // neither y nor n, which would start a "[Rejected]" turn of their own first.
-      // Not words that would run a command (/), open help (?), a shell (!) or a file picker (@, anywhere: its Enter would pick a file) from an empty box.
+      // Not words that would run a command (/), open help (?), a shell (!) or a file
+      // picker (@, anywhere: its Enter would pick a file) from an empty box.
       if (
         answer.option === "feedback" &&
         answer.text !== undefined &&
@@ -663,7 +659,7 @@ const reviewRead = (rows: readonly string[], request: RequestFacts): DialogRead 
     },
     answered: (later) =>
       !later.some((row) => /^Action required \(\d+ left\)$/.test(row.trim())) &&
-      !later.some((row) => /^\d+ artifacts? · \/artifact to review$/.test(row.trim())),
+      !later.some((row) => reviewFooter.test(row.trim())),
   }
 }
 

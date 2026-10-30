@@ -2,6 +2,7 @@ import { readFile, rename, writeFile } from "node:fs/promises"
 import { join, resolve } from "node:path"
 
 import type { Install } from "@novadeck/harness-core/harness"
+import { isFields } from "@novadeck/harness-core/fields"
 
 /**
  * Antigravity takes its status line only from its user settings, so connecting it puts
@@ -35,18 +36,18 @@ export const statusLineCommand = (own: string | undefined): string =>
 export const windowsStatusLine =
   "if defined NOVADECK_HOOK (%NOVADECK_HOOK% agy StatusLine >nul 2>nul)"
 
-type Settings = { [key: string]: unknown; statusLine?: unknown }
-type Line = { [key: string]: unknown; type?: unknown; command?: unknown }
+// A JSON object, as the settings and their status line are: changed in place, then written whole.
+type Settings = Record<string, unknown>
 
-const line = (value: unknown): Line | undefined =>
-  typeof value === "object" && value !== null && !Array.isArray(value) ? (value as Line) : undefined
+const settingsOf = (value: unknown): Settings | undefined =>
+  isFields(value) ? (value as Settings) : undefined
 
 /**
  * The person's own command a line of Novadeck's runs: null for none, undefined when the
  * line is not Novadeck's.
  */
 const ownOf = (value: unknown): string | null | undefined => {
-  const command = line(value)?.command
+  const command = settingsOf(value)?.command
   if (command === windowsStatusLine) return null
   if (typeof command !== "string" || !command.startsWith(start)) return undefined
   if (command === start) return null
@@ -72,7 +73,7 @@ const read = async (file: string): Promise<Settings | undefined> => {
   }
   try {
     const settings = JSON.parse(text) as unknown
-    return line(settings)
+    return settingsOf(settings)
   } catch {
     return undefined
   }
@@ -92,7 +93,7 @@ export const statusLineSettings = (home: (install: Install) => string) => ({
     if (!settings)
       throw new Error(`${file} is not valid settings. Repair it, then connect Antigravity again.`)
     if (ownOf(settings.statusLine) !== undefined) return
-    const own = line(settings.statusLine)
+    const own = settingsOf(settings.statusLine)
     // Antigravity runs a command whatever its type names, or none.
     const command = typeof own?.command === "string" ? own.command : ""
     // On Windows the person's own line stays as it is: cmd can't run it after Novadeck's.
@@ -116,11 +117,11 @@ export const statusLineSettings = (home: (install: Install) => string) => ({
     if (!settings || own === undefined) return
     if (own === null) {
       // Only what Novadeck added goes; a line the person switched off stays so.
-      const { command: _command, type: _type, ...rest } = line(settings.statusLine) ?? {}
+      const { command: _command, type: _type, ...rest } = settingsOf(settings.statusLine) ?? {}
       if (Object.entries(rest).every(([key, value]) => value === added[key]))
         delete settings.statusLine
       else settings.statusLine = rest
-    } else settings.statusLine = { ...line(settings.statusLine), command: own }
+    } else settings.statusLine = { ...settingsOf(settings.statusLine), command: own }
     await write(file, settings)
   },
 })
@@ -139,7 +140,7 @@ export const statusLineLimit =
     if (install.platform !== "win32") return undefined
     const settings = await read(settingsFile(home(install))).catch(() => undefined)
     if (!settings || ownOf(settings.statusLine) !== undefined) return undefined
-    const command = line(settings.statusLine)?.command
+    const command = settingsOf(settings.statusLine)?.command
     return typeof command === "string" && command ? "own-status-line" : undefined
   }
 
@@ -149,8 +150,8 @@ export const statusLineLimit =
  * taken as trusted and the agent starts plain. A folder inside a trusted one isn't taken
  * as trusted either, which no probe showed. Unreadable settings trust nothing.
  */
-export const trustsFolder = async (antigravityHome: string, cwd: string): Promise<boolean> => {
-  const settings = await read(settingsFile(antigravityHome)).catch(() => undefined)
+export const trustsFolder = async (home: string, cwd: string): Promise<boolean> => {
+  const settings = await read(settingsFile(home)).catch(() => undefined)
   const listed = settings?.trustedWorkspaces
   if (!Array.isArray(listed)) return false
   const here = resolve(cwd)

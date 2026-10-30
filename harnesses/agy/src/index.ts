@@ -10,13 +10,14 @@ import { decode, shown } from "./decode.js"
 import { dialogs } from "./dialogs.js"
 import { models } from "./models.js"
 import { statusLineLimit, statusLineSettings, trustsFolder } from "./settings.js"
+import { writers } from "./tools.js"
 import { transcripts, typedEntry } from "./transcripts.js"
 
 // Antigravity keeps its own state beside other Google tools in ~/.gemini.
-const gemini = (home: string) => join(home, ".gemini")
-const cli = ({ home: user }: Install) => join(gemini(user), "antigravity-cli")
+const gemini = ({ home }: Install) => join(home, ".gemini")
+const antigravityHome = (install: Install) => join(gemini(install), "antigravity-cli")
 // Where it keeps the copy of Novadeck's plugin it installed.
-const installedPlugin = ({ home }: Install) => join(gemini(home), "config", "plugins", "novadeck")
+const installedPlugin = (install: Install) => join(gemini(install), "config", "plugins", "novadeck")
 
 // Antigravity reads every hook's answer as JSON, even outside Novadeck's shells. It denies
 // a tool whose PreToolUse answer gives no decision, `{}` included (probed 2026-10-06 on
@@ -52,7 +53,7 @@ const hook = (platform: NodeJS.Platform, event: string): string =>
 // of its later calls. Every other answer is an empty object.
 const messaging: MessagingProfile = {
   asks: { Stop: "stop", PreInvocation: "prompt" },
-  silent: { PreToolUse: '{"decision":"ask"}\n', "*": "{}\n" },
+  silent: { PreToolUse: `${ask}\n`, "*": "{}\n" },
   stop: (delivery) => `${JSON.stringify({ decision: "continue", reason: delivery })}\n`,
   prompt: (delivery) => `${JSON.stringify({ injectSteps: [{ ephemeralMessage: delivery }] })}\n`,
   reinjectPerCall: true,
@@ -64,7 +65,9 @@ const messaging: MessagingProfile = {
   // `-i` submits its prompt about 0.9 s after it starts, even while its "Do you trust
   // this folder?" dialog is up, so only in a folder it already trusts.
   initialPrompt: async (line, { install, cwd }) =>
-    install && (await trustsFolder(cli(install), cwd)) ? ["agy", "-i", line] : undefined,
+    install && (await trustsFolder(antigravityHome(install), cwd))
+      ? ["agy", "-i", line]
+      : undefined,
   start: ["agy"],
   models: () => Promise.resolve(models),
   choose: ({ model, effort }) => [
@@ -88,7 +91,7 @@ export const agy = {
   id: "agy",
   // Antigravity installs a plugin folder, which its name must match.
   plugin: join("agy", "novadeck"),
-  home: cli,
+  home: antigravityHome,
   connected: (install) =>
     access(join(installedPlugin(install), "plugin.json")).then(
       () => true,
@@ -127,27 +130,24 @@ export const agy = {
         novadeck: {
           PreInvocation: [handler(platform, "PreInvocation")],
           Stop: [handler(platform, "Stop")],
-          // Tool events take matcher groups: after a tool, the ones that write files (one
-          // writes artifacts, which names a plan), and the one that asks the person; before every tool.
+          // Tool events take matcher groups: before every tool; after a tool, the ones
+          // that write files (one writes artifacts, which names a plan), and the one that
+          // asks the person.
           ...(!(platform === "win32" && machine.cmdPrints) && {
             PreToolUse: [{ matcher: "*", hooks: [handler(platform, "PreToolUse")] }],
           }),
-          // write_file and edit_file from 1.4, write_to_file and replace_file_content before.
-          PostToolUse: [
-            { matcher: "write_file", hooks: [handler(platform, "PostToolUse")] },
-            { matcher: "edit_file", hooks: [handler(platform, "PostToolUse")] },
-            { matcher: "write_to_file", hooks: [handler(platform, "PostToolUse")] },
-            { matcher: "replace_file_content", hooks: [handler(platform, "PostToolUse")] },
-            { matcher: "ask_question", hooks: [handler(platform, "PostToolUse")] },
-          ],
+          PostToolUse: [...writers, "ask_question"].map((matcher) => ({
+            matcher,
+            hooks: [handler(platform, "PostToolUse")],
+          })),
         },
       }),
     },
   ],
   // Its status line tells what no hook does: working or idle, a confirmation waiting on
   // the person, and its context and quotas.
-  settings: statusLineSettings(cli),
-  limited: statusLineLimit(cli),
+  settings: statusLineSettings(antigravityHome),
+  limited: statusLineLimit(antigravityHome),
   // Its subcommands (`agy --help`, 1.4.8), with help and version (`-v` is no version flag
   // there: it takes an argument, as `agy -v` says). Its print mode, `--print`, `-p` and
   // `--prompt`, runs it on the caller's text, so it is a session's use.

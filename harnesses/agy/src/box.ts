@@ -13,7 +13,8 @@ const markers: Markers = { prompt: ">", shell: "!" }
 
 /**
  * Whether its footer says the box is in its shell mode (`!`), where Enter runs what it
- * holds as a command: its last row says so, "activated bash mode · esc to cancel" (probed 1.2.14 and 1.3.0, fixtures/shell-mode.probe.json).
+ * holds as a command: its last row says so, "activated bash mode · esc to cancel" (probed
+ * 1.2.14 and 1.3.0, fixtures/shell-mode.probe.json).
  */
 export const shellFooter = (rows: readonly string[]): boolean => {
   const last = rows.findLast((row) => row.trim() !== "")
