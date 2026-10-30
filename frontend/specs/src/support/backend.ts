@@ -18,12 +18,12 @@ import {
 } from "@novadeck/demo-debug/scenarios"
 import { createDemoUninstall, uninstallScenarios } from "@novadeck/demo-debug/uninstall"
 import { createDemoUpdates } from "@novadeck/demo-debug/updates"
-import { babciaCuesOf, type BabciaCues } from "@novadeck/demo/babcia"
-import { createContentDemo } from "@novadeck/demo/content"
+import { demoTurns } from "@novadeck/demo/agents/turns"
 import { isDemoInbox } from "@novadeck/demo/inbox"
-import { demoInboxRowsAll } from "@novadeck/demo/inbox-fixtures"
-import { demoTurns } from "@novadeck/demo/turns"
+import { demoInboxRowsAll } from "@novadeck/demo/inbox/fixtures"
+import { createShowcaseDemo } from "@novadeck/demo/showcase/demo"
 import { createDemo } from "@novadeck/demo/variants"
+import { babciaCuesOf, type BabciaCues } from "@novadeck/demo/videos/babcia"
 import { visitorDemo } from "@novadeck/demo/visitor/index"
 import { pageTheme } from "@novadeck/ui/theme/source"
 
@@ -31,7 +31,7 @@ import { pageTheme } from "@novadeck/ui/theme/source"
 // the one place specs and tests reach the demo, kept out of the file that chooses
 // the backend so the demo stays one folder.
 
-// Specs open the content demo, with its agents' plans and artifacts, by adding
+// Specs open the showcase demo, with its agents' plans and artifacts, by adding
 // `?demo=showcase` to the address's hash. The address is read when the workspace
 // mounts, since each spec sets its own.
 const showcaseRequested = (): boolean =>
@@ -306,7 +306,7 @@ const plainSpecBackend = (): ReturnType<typeof createDemoBackend> => {
     return demo
   }
   if (visitorRequested()) return visitorDemo({ ...visitorTimings(), theme: pageTheme })
-  if (showcaseRequested()) return createContentDemo({ theme: pageTheme })
+  if (showcaseRequested()) return createShowcaseDemo({ theme: pageTheme })
   const update = requestedUpdate()
   const sandbox = requestedSandbox()
   const portable = requestedPortable()

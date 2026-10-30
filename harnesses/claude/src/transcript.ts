@@ -1,5 +1,6 @@
+import { callId } from "@novadeck/harness-core/decode"
 import type { ActivityEvent, TelemetryObserved } from "@novadeck/harness-core/events"
-import { callId, type Run } from "@novadeck/harness-core/harness"
+import type { Run } from "@novadeck/harness-core/harness"
 
 // Claude Code's records of an interrupted turn: Esc while it works or runs a tool, and
 // "No" to a permission request, which interrupts the turn too. Only these exact texts

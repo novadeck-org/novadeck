@@ -5,6 +5,7 @@ import { createWorkspaceStore } from "@novadeck/core/store"
 import type { TerminalMetadata } from "@novadeck/core/types"
 import { afterEach, beforeEach, vi } from "vitest"
 
+import { demoTurns } from "./agents/turns"
 import {
   demoFeedbackVersion,
   describeOs,
@@ -16,7 +17,6 @@ import {
 import { plainDemo } from "./index"
 import { chatAgent } from "./samples"
 import { context, describe, expect, it } from "./test"
-import { demoTurns } from "./turns"
 import { visitorDemo } from "./visitor"
 
 beforeEach(() => vi.useFakeTimers())

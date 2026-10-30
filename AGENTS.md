@@ -26,7 +26,7 @@ window phase, a backend field it never sets — add it in the same change:
 
 - Terminal, waiting-agent and picker states go in `frontend/demo-debug/src/states.ts`,
   with pure action builders in `debug/terminals.ts`; an Inbox item of a kind no demo agent
-  makes goes in `frontend/demo/src/inbox-fixtures.ts`, with its action in
+  makes goes in `frontend/demo/src/inbox/fixtures.ts`, with its action in
   `frontend/demo-debug/src/inbox.ts`. A new tab or window phase also
   joins the "Every state at once" gallery there.
 - An agent's state is one of `demoTurns`' verbs (`work`, `ask`, `finish`, `rest`, `usage`), never a

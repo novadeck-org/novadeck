@@ -1,5 +1,5 @@
+import { subjectOf } from "@novadeck/harness-core/decode"
 import type { ActivityEvent } from "@novadeck/harness-core/events"
-import { subjectOf } from "@novadeck/harness-core/harness"
 import type { Report } from "@novadeck/harness-core/report"
 import { loadProbe } from "@novadeck/harness-core/testing/probes"
 import { agentDetail as schema } from "@novadeck/protocol"

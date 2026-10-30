@@ -1,25 +1,26 @@
 import { basename, dirname, extname } from "node:path"
 
-import type { Background, BackgroundJob, HarnessEvent } from "@novadeck/harness-core/events"
 import {
   absolute,
   withRequestCwd,
-  bounded,
+  planText,
   errorText,
   callId,
-  promptStart,
   replied,
   sessionId,
   sessionStart,
   subjectOf,
   text,
   withMode,
-  type WrittenPlan,
   shortName,
-} from "@novadeck/harness-core/harness"
-import { at as writtenAt, record } from "@novadeck/harness-core/items"
+} from "@novadeck/harness-core/decode"
+import type { Background, BackgroundJob, HarnessEvent } from "@novadeck/harness-core/events"
+import { isFields, parseFields } from "@novadeck/harness-core/fields"
+import type { WrittenPlan } from "@novadeck/harness-core/harness"
+import { at as writtenAt } from "@novadeck/harness-core/items"
+import { promptStart } from "@novadeck/harness-core/prompts"
 import type { Report } from "@novadeck/harness-core/report"
-import { isFields, oneLine } from "@novadeck/harness-core/tools"
+import { oneLine } from "@novadeck/harness-core/tools"
 
 import { kindOf } from "./tools.js"
 
@@ -469,7 +470,7 @@ const presented = (
   const path = markdown(planFilePath)
   if (path) return [{ type: "plan-observed", ...base, actor, plan: { kind: "file", path } }]
   if (typeof plan !== "string" || !plan) return []
-  return [{ type: "plan-observed", ...base, actor, plan: { kind: "text", ...bounded(plan) } }]
+  return [{ type: "plan-observed", ...base, actor, plan: { kind: "text", ...planText(plan) } }]
 }
 
 /**
@@ -478,7 +479,7 @@ const presented = (
  */
 export const transcriptPlans = (line: string): readonly WrittenPlan[] => {
   if (!line.includes('"ExitPlanMode"')) return []
-  const fields = record(line)
+  const fields = parseFields(line)
   if (fields?.type !== "assistant") return []
   const time = writtenAt(fields.timestamp)
   const base = { agent: "claude", sessionId: "", instance: null, startedAt: time ?? 0 } as const
@@ -492,4 +493,4 @@ export const transcriptPlans = (line: string): readonly WrittenPlan[] => {
   })
 }
 
-export { maxPlan } from "@novadeck/harness-core/harness"
+export { maxPlan } from "@novadeck/harness-core/decode"

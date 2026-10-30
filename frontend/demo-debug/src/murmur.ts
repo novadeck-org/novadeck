@@ -1,4 +1,4 @@
-import type { DemoMurmur } from "@novadeck/demo/murmur"
+import type { DemoMurmur } from "@novadeck/demo/addons/murmur"
 
 import type { DemoActionGroup } from "./types"
 

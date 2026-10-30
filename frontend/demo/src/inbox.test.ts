@@ -11,13 +11,13 @@ import { createWorkspaceStore } from "@novadeck/core/store"
 import type { AgentTurnEnd, TerminalMetadata } from "@novadeck/core/types"
 import { afterEach, beforeEach, vi } from "vitest"
 
-import { answerMs as chatAnswerMs, answeredMs } from "./chat"
+import { answerMs as chatAnswerMs, answeredMs } from "./agents/chat"
+import { demoTurns } from "./agents/turns"
 import { answerMs, createDemoInbox, isDemoInbox } from "./inbox"
-import { demoInboxIds, demoInboxRows, demoInboxRowsAll } from "./inbox-fixtures"
+import { demoInboxIds, demoInboxRows, demoInboxRowsAll } from "./inbox/fixtures"
 import { plainDemo, type PlainVariant } from "./index"
 import { chatAgent, demoTerminalId } from "./samples"
 import { context, describe, expect, it } from "./test"
-import { demoTurns } from "./turns"
 import { createDemo, demoVariants } from "./variants"
 
 beforeEach(() => vi.useFakeTimers())
@@ -28,42 +28,42 @@ const now = 1_000_000_000_000
 const ids = (inbox: ReturnType<typeof createDemoInbox>): string[] =>
   inbox.state.getSnapshot().items.map((each) => each.id)
 
-describe("the demo Inbox's items", () => {
+describe("the demo Inbox's rows", () => {
   it("covers every type, each kind and every ask shape", () => {
     // The list starts with most of them; the debug panel adds the rest.
-    const items = demoInboxRowsAll(now)
-    expect(new Set(items.map(inboxType))).toEqual(new Set(["unblock", "ask", "trouble", "update"]))
-    expect(new Set(items.map((each) => each.kind))).toEqual(
+    const rows = demoInboxRowsAll(now)
+    expect(new Set(rows.map(inboxType))).toEqual(new Set(["unblock", "ask", "trouble", "update"]))
+    expect(new Set(rows.map((each) => each.kind))).toEqual(
       new Set(["request", "held", "ask", "trouble", "update"]),
     )
-    const shapes = items.flatMap((each) => (each.kind === "ask" ? [each.ask.shape.type] : []))
+    const shapes = rows.flatMap((each) => (each.kind === "ask" ? [each.ask.shape.type] : []))
     expect(new Set(shapes)).toEqual(new Set(["options", "action", "text"]))
-    const troubles = items.flatMap((each) => (each.kind === "trouble" ? [each.trouble.type] : []))
+    const troubles = rows.flatMap((each) => (each.kind === "trouble" ? [each.trouble.type] : []))
     expect(new Set(troubles)).toEqual(new Set(["stuck", "limit", "failed", "waits"]))
-    const requests = items.flatMap((each) => (each.kind === "request" ? [each.request.kind] : []))
+    const requests = rows.flatMap((each) => (each.kind === "request" ? [each.request.kind] : []))
     expect(new Set(requests)).toEqual(new Set(["permission", "question", "plan"]))
-    const updates = items.flatMap((each) => (each.kind === "update" ? [each.update.type] : []))
+    const updates = rows.flatMap((each) => (each.kind === "update" ? [each.update.type] : []))
     expect(new Set(updates)).toEqual(new Set(["done", "told"]))
   })
 
   it("presents an ask whose answer is an action as an unblock, and a question as an ask", () => {
-    const items = demoInboxRowsAll(now)
-    const typeOf = (id: string) => inboxType(items.find((each) => each.id === id)!)
+    const rows = demoInboxRowsAll(now)
+    const typeOf = (id: string) => inboxType(rows.find((each) => each.id === id)!)
     expect(typeOf(demoInboxIds.login)).toBe("unblock")
     expect(typeOf(demoInboxIds.question)).toBe("ask")
     expect(typeOf(demoInboxIds.done)).toBe("update")
   })
 
-  it("puts one item on each sample terminal, none seen, none from the future", () => {
+  it("puts one row on each sample terminal, none seen, none from the future", () => {
     // The states the debug panel adds too: each on a terminal of its own, but for a held
     // message, which is its thread's, and messages held long, which are the terminal's
     // alongside whatever else it shows.
-    const items = demoInboxRowsAll(now).filter(
+    const rows = demoInboxRowsAll(now).filter(
       (each) => each.kind !== "held" && !(each.kind === "trouble" && each.trouble.type === "waits"),
     )
-    const terminals = items.map((each) => each.source.terminalId)
+    const terminals = rows.map((each) => each.source.terminalId)
     expect(new Set(terminals).size).toBe(terminals.length)
-    expect(items.every((each) => !each.seen && each.at <= now)).toBe(true)
+    expect(rows.every((each) => !each.seen && each.at <= now)).toBe(true)
   })
 
   it("gives the Codex permission Codex's own options", () => {
@@ -80,7 +80,7 @@ describe("the demo Inbox's items", () => {
 
 describe("the demo Inbox", () => {
   context("when the next answer is made to fail", () => {
-    it("keeps the item and says why, then answers normally", () => {
+    it("keeps the row and says why, then answers normally", () => {
       const inbox = createDemoInbox(now)
       inbox.failNext()
       inbox.answer(demoInboxIds.held, { kind: "held", action: "release" })
@@ -95,7 +95,7 @@ describe("the demo Inbox", () => {
   })
 
   context("when an answer is sent", () => {
-    it("marks the item answering, then removes it", () => {
+    it("marks the row answering, then removes it", () => {
       const inbox = createDemoInbox(now)
       inbox.answer(demoInboxIds.held, { kind: "held", action: "release" })
       expect(inbox.state.getSnapshot().answering).toEqual({ [demoInboxIds.held]: true })
@@ -105,14 +105,14 @@ describe("the demo Inbox", () => {
       expect(ids(inbox)).not.toContain(demoInboxIds.held)
     })
 
-    it("ignores an item that is not there", () => {
+    it("ignores a row that is not there", () => {
       const inbox = createDemoInbox(now)
       const before = inbox.state.getSnapshot()
       inbox.answer("nothing", { kind: "held", action: "stop" })
       expect(inbox.state.getSnapshot()).toBe(before)
     })
 
-    it("fails an answer meant for another kind of item, leaving the item", () => {
+    it("fails an answer meant for another kind of row, leaving the row", () => {
       const inbox = createDemoInbox(now)
       inbox.answer(demoInboxIds.held, { kind: "update", action: "read" })
       vi.advanceTimersByTime(answerMs)
@@ -122,7 +122,7 @@ describe("the demo Inbox", () => {
   })
 
   context("when auto-resume is turned off at a limit", () => {
-    it("keeps the item, now waiting on the person", () => {
+    it("keeps the row, now waiting on the person", () => {
       const inbox = createDemoInbox(now)
       inbox.answer(demoInboxIds.limit, {
         kind: "trouble",
@@ -157,8 +157,8 @@ describe("the demo Inbox", () => {
     })
   })
 
-  context("when an item is seen", () => {
-    it("marks only that item", () => {
+  context("when a row is seen", () => {
+    it("marks only that row", () => {
       const inbox = createDemoInbox(now)
       inbox.see(demoInboxIds.stuck)
       const seen = inbox.state.getSnapshot().items.filter((each) => each.seen)
@@ -175,7 +175,7 @@ describe("the demo Inbox", () => {
     })
   })
 
-  context("when an item arrives", () => {
+  context("when a row arrives", () => {
     it("joins the Inbox, replacing one with its ID, until it is cleared", () => {
       const inbox = createDemoInbox(now, [])
       const [first] = demoInboxRows(now) as [InboxRow]
@@ -215,10 +215,10 @@ const boot = (variant: PlainVariant = "agents") => {
         (terminal) =>
           terminal.id === demoTerminalId({ projectId, workspaceSessionId: "initial" }, slot),
       )
-  const itemOn = (projectId: string, slot: number): InboxRow | undefined =>
+  const rowOn = (projectId: string, slot: number): InboxRow | undefined =>
     inbox.state
       .getSnapshot()
-      .items.find((item) => item.source.terminalId === terminalOf(projectId, slot)?.id)
+      .items.find((row) => row.source.terminalId === terminalOf(projectId, slot)?.id)
   // An agent's turn ends as the terminal's status says, a completed one standing past the
   // grace that tells it a finish.
   let ends = 0
@@ -256,21 +256,21 @@ const boot = (variant: PlainVariant = "agents") => {
     await vi.advanceTimersByTimeAsync(finishGraceMs + 1)
     return (inbox.turns?.getSnapshot() ?? []).filter((row) => !before.has(row.id))
   }
-  return { backend, inbox, store, unbind, terminalOf, itemOn, finish, turns }
+  return { backend, inbox, store, unbind, terminalOf, rowOn, finish, turns }
 }
 
-// The item of this id the Inbox shows.
-const itemWith = (inbox: ReturnType<typeof createDemoInbox>, id: string): InboxRow | undefined =>
+// The row of this id the Inbox shows.
+const rowWith = (inbox: ReturnType<typeof createDemoInbox>, id: string): InboxRow | undefined =>
   inbox.state.getSnapshot().items.find((each) => each.id === id)
 
 const waitsOn = (terminal: TerminalMetadata | undefined) =>
   terminal?.state === "running" ? terminal.agent?.attention?.kind : undefined
 
 // The first option of a request's dialog, as the person would pick it.
-const firstChoice = (item: InboxRow | undefined): InboxAnswer => {
-  if (item?.kind !== "request" || item.request.dialog?.type !== "choices")
+const firstChoice = (row: InboxRow | undefined): InboxAnswer => {
+  if (row?.kind !== "request" || row.request.dialog?.type !== "choices")
     throw new Error("not a dialog of choices")
-  const { dialog } = item.request
+  const { dialog } = row.request
   return {
     kind: "request",
     answer: { type: "choice", dialog: dialog.id, option: dialog.options[0]!.id },
@@ -346,7 +346,7 @@ describe("the agents demo's Inbox", () => {
     expect(ids(inbox)).toContain("ask-here")
   })
 
-  it("settles an agent's open asks as replied when the person writes to it, and no other item", async () => {
+  it("settles an agent's open asks as replied when the person writes to it, and no other row", async () => {
     const { inbox, turns, store } = boot()
     const found = store
       .getSnapshot()
@@ -436,7 +436,7 @@ describe("the agents demo's Inbox", () => {
   })
 
   it("makes no row of the draft an Ask made, nor of the agent's finish, beside a held thread", async () => {
-    const { backend, inbox, itemOn, store, finish } = boot()
+    const { backend, inbox, rowOn, store, finish } = boot()
     const found = store
       .getSnapshot()
       .projects.flatMap((project) =>
@@ -462,7 +462,7 @@ describe("the agents demo's Inbox", () => {
     await backend.feedback!.ask!(key, "")
     await vi.advanceTimersByTimeAsync(3 * 1500 + 100)
     // The writing turn ended unseen: the agent finished while the person looked elsewhere, and
-    // the demo stored its finish as a row, which is no Inbox item.
+    // the demo stored its finish as a row, which is no Inbox row.
     await finish(found.project, Number(found.terminal.id.slice(-2)))
     const held = demoInboxRowsAll(now).find((each) => each.id === demoInboxIds.held)!
     inbox.add({
@@ -476,11 +476,11 @@ describe("the agents demo's Inbox", () => {
       .map((each) => each.kind)
     expect(kinds).toEqual(["held", ...kinds.filter((kind) => kind !== "held")])
     expect(kinds).not.toContain("update")
-    expect(itemOn(found.project, Number(found.terminal.id.slice(-2)))).toBeDefined()
+    expect(rowOn(found.project, Number(found.terminal.id.slice(-2)))).toBeDefined()
   })
 
   it("lists what each of its agents waits on, as their terminals say", () => {
-    const { itemOn, inbox } = boot()
+    const { rowOn, inbox } = boot()
     for (const [project, slot, kind] of [
       ["storefront", 1, "plan"],
       ["storefront", 4, "permission"],
@@ -488,16 +488,16 @@ describe("the agents demo's Inbox", () => {
       ["api-service", 4, "permission"],
       ["docs-site", 1, "question"],
     ] as const) {
-      const item = itemOn(project, slot)
-      expect(item?.kind === "request" && item.request.kind, `${project} ${slot}`).toBe(kind)
+      const row = rowOn(project, slot)
+      expect(row?.kind === "request" && row.request.kind, `${project} ${slot}`).toBe(kind)
     }
-    expect(inbox.state.getSnapshot().items.every((item) => item.kind === "request")).toBe(true)
+    expect(inbox.state.getSnapshot().items.every((row) => row.kind === "request")).toBe(true)
   })
 
   context("when a request is answered", () => {
-    it("moves its agent on, as an answer on its screen does, and the item goes", async () => {
-      const { inbox, itemOn, terminalOf } = boot()
-      const codex = itemOn("storefront", 4)
+    it("moves its agent on, as an answer on its screen does, and the row goes", async () => {
+      const { inbox, rowOn, terminalOf } = boot()
+      const codex = rowOn("storefront", 4)
       expect(waitsOn(terminalOf("storefront", 4))).toBe("permission")
 
       inbox.answer(codex!.id, firstChoice(codex))
@@ -505,27 +505,27 @@ describe("the agents demo's Inbox", () => {
       await vi.advanceTimersByTimeAsync(chatAnswerMs + answeredMs)
 
       expect(waitsOn(terminalOf("storefront", 4))).toBeUndefined()
-      expect(itemOn("storefront", 4)).toBeUndefined()
+      expect(rowOn("storefront", 4)).toBeUndefined()
     })
 
-    it("says why where the answer didn't take, and keeps the item", async () => {
-      const { inbox, itemOn } = boot()
-      const codex = itemOn("storefront", 4)!
+    it("says why where the answer didn't take, and keeps the row", async () => {
+      const { inbox, rowOn } = boot()
+      const codex = rowOn("storefront", 4)!
       inbox.failNext()
       inbox.answer(codex.id, firstChoice(codex))
       await vi.advanceTimersByTimeAsync(0)
       expect(inbox.state.getSnapshot().failed[codex.id]).toMatch(/Try again/)
-      expect(itemOn("storefront", 4)?.id).toBe(codex.id)
+      expect(rowOn("storefront", 4)?.id).toBe(codex.id)
     })
   })
 
   context("when an agent finished while the person looked elsewhere", () => {
-    it("stores its reply as a row that marks its tab, and lists no item", async () => {
+    it("stores its reply as a finished turn that marks its tab, and lists no row", async () => {
       const { inbox, finish } = boot()
       await vi.advanceTimersByTimeAsync(10_000)
       const [row] = await finish("design-system", 1)
       expect(row).toMatchObject({ projectId: "design-system", outcome: "completed" })
-      expect(itemWith(inbox, row!.id)).toBeUndefined()
+      expect(rowWith(inbox, row!.id)).toBeUndefined()
 
       inbox.readFinishes?.([{ context: "design-system/initial", terminalId: row!.terminalId }])
       expect(inbox.turns?.getSnapshot()?.some((each) => each.id === row!.id)).toBe(false)
@@ -605,27 +605,27 @@ describe("the agents demo's Inbox", () => {
     })
   })
 
-  context("when trouble is answered and its item stays", () => {
+  context("when trouble is answered and its row stays", () => {
     it("holds its buttons a moment, then gives them back", async () => {
       const { inbox, finish } = boot()
       await vi.advanceTimersByTimeAsync(10_000)
       const [made] = await finish("infra", 1, "failed")
-      const trouble = itemWith(inbox, made!.id)!
+      const trouble = rowWith(inbox, made!.id)!
       expect(trouble).toMatchObject({ kind: "trouble", trouble: { type: "failed" } })
 
       inbox.answer(trouble.id, { kind: "trouble", action: { type: "stop" } })
       await vi.advanceTimersByTimeAsync(0)
-      expect(itemWith(inbox, trouble.id)).toBeDefined()
+      expect(rowWith(inbox, trouble.id)).toBeDefined()
       expect(inbox.state.getSnapshot().answering[trouble.id]).toBe(true)
       await vi.advanceTimersByTimeAsync(3000)
       expect(inbox.state.getSnapshot().answering[trouble.id]).toBeUndefined()
     })
   })
 
-  context("when an item is seen", () => {
-    it("marks only that item", () => {
-      const { inbox, itemOn } = boot()
-      const codex = itemOn("storefront", 4)!
+  context("when a row is seen", () => {
+    it("marks only that row", () => {
+      const { inbox, rowOn } = boot()
+      const codex = rowOn("storefront", 4)!
       inbox.see(codex.id)
       const seen = inbox.state.getSnapshot().items.filter((each) => each.seen)
       expect(seen.map((each) => each.id)).toEqual([codex.id])
@@ -642,9 +642,9 @@ describe("the agents demo's Inbox", () => {
       expect(inbox.turns?.getSnapshot()).toBeUndefined()
     })
 
-    it("forgets what it knew of their items, once bound again", async () => {
-      const { inbox, itemOn, unbind, store } = boot()
-      const codex = itemOn("storefront", 4)!
+    it("forgets what it knew of their rows, once bound again", async () => {
+      const { inbox, rowOn, unbind, store } = boot()
+      const codex = rowOn("storefront", 4)!
       inbox.see(codex.id)
       inbox.failNext()
       inbox.answer(codex.id, firstChoice(codex))
@@ -652,13 +652,13 @@ describe("the agents demo's Inbox", () => {
       unbind()
 
       inbox.bind!({ workspace: store })
-      const again = itemOn("storefront", 4)
+      const again = rowOn("storefront", 4)
       expect(again).toMatchObject({ id: codex.id, seen: false })
       expect(inbox.state.getSnapshot().failed).toEqual({})
     })
   })
 
-  context("when the workspace changes in a way no item shows", () => {
+  context("when the workspace changes in a way no row shows", () => {
     it("keeps the Inbox as it was", () => {
       const { inbox, store, terminalOf } = boot()
       const before = inbox.state.getSnapshot()
@@ -674,18 +674,18 @@ describe("the agents demo's Inbox", () => {
     })
   })
 
-  it("names each request by its terminal, so the same sample in two sessions is two items", () => {
-    const { itemOn, terminalOf } = boot()
-    const codex = itemOn("storefront", 4)
+  it("names each request by its terminal, so the same sample in two sessions is two rows", () => {
+    const { rowOn, terminalOf } = boot()
+    const codex = rowOn("storefront", 4)
     expect(codex?.id).toContain(terminalOf("storefront", 4)!.id)
   })
 })
 
-describe("the Inbox demo's own items", () => {
+describe("the Inbox demo's own rows", () => {
   it("take the place of a dialog their terminal's agent shows, and only that", () => {
     const { inbox, terminalOf } = boot("inbox")
-    const items = inbox.state.getSnapshot().items
-    const on = (terminalId: string) => items.filter((each) => each.source.terminalId === terminalId)
+    const rows = inbox.state.getSnapshot().items
+    const on = (terminalId: string) => rows.filter((each) => each.source.terminalId === terminalId)
     const codex = terminalOf("storefront", 4)!.id
     expect(
       on(codex)
@@ -693,7 +693,7 @@ describe("the Inbox demo's own items", () => {
         .map((each) => each.id),
     ).toEqual([demoInboxIds.codexPermission])
     const standing = new Set(
-      items
+      rows
         .filter((each) => !each.id.startsWith("request:") && each.kind !== "held")
         .filter((each) => each.kind !== "update")
         .map((each) => each.source.terminalId),
@@ -715,11 +715,11 @@ describe("the Inbox demo's own items", () => {
     const { inbox, finish } = boot("inbox")
     await vi.advanceTimersByTimeAsync(10_000)
     const [made] = await finish("infra", 1, "failed")
-    const trouble = itemWith(inbox, made!.id)!
+    const trouble = rowWith(inbox, made!.id)!
     expect(trouble).toMatchObject({ id: made!.id, kind: "trouble", stopped: true })
     inbox.readAll()
     expect(inbox.turns?.getSnapshot()?.some((each) => each.id === made!.id)).toBe(true)
-    expect(itemWith(inbox, trouble.id)).toBeDefined()
+    expect(rowWith(inbox, trouble.id)).toBeDefined()
   })
 
   it("take the agent past what it waited on once answered", async () => {
@@ -771,7 +771,7 @@ describe("an agent that calls done", () => {
     })
   })
 
-  it("makes no Inbox item when it finishes without calling done", async () => {
+  it("makes no Inbox row when it finishes without calling done", async () => {
     const found = boot()
     await vi.advanceTimersByTimeAsync(10_000)
     await call(found, "mobile-app", 1, null)
@@ -787,10 +787,10 @@ describe("an agent that calls done", () => {
     const found = boot()
     await vi.advanceTimersByTimeAsync(10_000)
     await call(found)
-    const item = updateOn(found)!
+    const row = updateOn(found)!
 
-    found.inbox.answer(item.id, { kind: "update", action: "read" })
-    expect(itemWith(found.inbox, item.id)).toBeUndefined()
+    found.inbox.answer(row.id, { kind: "update", action: "read" })
+    expect(rowWith(found.inbox, row.id)).toBeUndefined()
   })
 
   it("is read with every update, leaving what waits on the person", async () => {

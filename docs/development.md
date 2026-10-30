@@ -184,11 +184,11 @@ each sits.
 Items and windows reach the workspace the way terminals do, through the backend's seed
 and its changes. The pane loads what an item points at through the backend's optional
 `companions` capability (`frontend/core/src/items.ts`): its content as it changes, and a save
-that writes the user's edits and notes into the plan file unless it changed since, in
+that writes the person's edits and notes into the plan file unless it changed since, in
 which case the pane merges and saves again. Edits save once typing pauses and when focus
 leaves the plan. The runner reads content from disk and can't write plans yet, so its
 plans are read-only; the content-preview demo writes them, with sample agents in
-`frontend/demo/src/showcase/` that revise their plans over the file as the user left it and
+`frontend/demo/src/showcase/` that revise their plans over the file as the person left it and
 remove the notes they apply. `docs/agent-workspace.md` ("Companion pane") describes the
 runner's side. The editor and its merge code load when a plan first opens.
 Normal development and packaged builds keep their runner behavior.
@@ -205,9 +205,9 @@ connection state, the crash-loop count and the terminal count, over the demo swi
 sample agents' plans and artifacts), `plain`, `agents` (its seven projects each with
 an agent in a state of its own: waiting, asking, working, and two that finish done and
 failed a moment after it opens, for the project switcher), `messages`, `inbox` (the agents
-demo with hardcoded Inbox items of every kind over those its agents make), `welcome` or
+demo with hardcoded Inbox rows of every kind over those its agents make), `welcome` or
 `chirp` (a one-off for the runner-skits video "Chirp": a desk of twelve agents at work on the
-Canvas, one waiting to run a command; `frontend/demo/src/chirp.ts`) or `babcia` (a one-off
+Canvas, one waiting to run a command; `frontend/demo/src/videos/chirp.ts`) or `babcia` (a one-off
 for the video "Babcia": project bar-mleczny's twelve Claude Code, Codex and Antigravity agents
 on the Canvas, all working, beside a second project, setlist; its beats are the debug panel's
 "Babcia" group, one cue each, fired by a capture plan: 1 three asks (a permission to run
@@ -218,7 +218,7 @@ and the doorbell, 5 a page shown in the pane (the cue selects its agent's window
 open waits for a terminal you're not on), 6 every agent finishes but those waiting on the
 person (an open ask, one told No, a failed turn until prompted again, and the helper and its lead
 while the helper's answer is on its way); a second press ends whoever works by then. Answered or
-told, an agent works until cue 6; `frontend/demo/src/babcia.ts`) or `launch` (a one-off for the
+told, an agent works until cue 6; `frontend/demo/src/videos/babcia.ts`) or `launch` (a one-off for the
 launch walkthrough video: project northwind's ten Claude Code, Codex and Antigravity agents on the
 Canvas, all working, beside a second project, northwind-docs; its beats are the debug panel's
 "Launch" group, numbered by the video's beat: 3 a spread of states (an agent asking, one failed, one
@@ -233,10 +233,10 @@ does, 7 every agent
 finishes (each teammate reporting to its lead, which finishes after; whoever waits on the person
 stays waiting, and a second press ends whoever is still working), and for the website's /vs pages 8a
 one agent asking another by message to review its change, which it answers, and 8b an agent showing
-its plan in the pane; `frontend/demo/src/launch.ts`,
-sharing the desk's builders with Babcia in `desk.ts`). Every variant's Inbox
+its plan in the pane; `frontend/demo/src/videos/launch.ts`,
+sharing the desk's builders with Babcia and Chirp in `videos/desk.ts`). Every variant's Inbox
 lists what its agents wait on, built as the runner's is. In it each
-agent carries a transcript, and api-service's worker a brief from its lead, so an item's
+agent carries a transcript, and api-service's worker a brief from its lead, so a row's
 sheet shows the context block built from its transcript: the person's last words to the agent
 (never another agent's, so the worker its lead briefed shows none), and under them up to three
 steps since that edited, ran or failed, each with what came of it (`+4 −2`, a command's last
@@ -713,8 +713,15 @@ folder of `frontend/ui/src/`:
 | `app/selectors.ts`                                              | Pure reads over the stores that sections, commands, and keys share.                                                            |
 | `app/commands/`                                                 | Commands, key commands, and the navigator: plain functions over both stores.                                                   |
 | `app/controller/`                                               | React glue: context, selector hook, route sync, keyboard dispatcher, effects.                                                  |
-| `frontend/demo/src/`                                            | The demo adapter for the website, tests and specs: sample projects and simulated terminals.                                    |
-| `frontend/demo/src/showcase/`                                   | The content preview's sample agents: plans, artifacts, and their simulated work.                                               |
+| `frontend/demo/src/`                                            | The demo adapter for the website, tests and specs: sample projects, the backend and its variants.                              |
+| `frontend/demo/src/agents/`                                     | Its agents: turns, conversations, the requests they make, and their transcripts.                                               |
+| `frontend/demo/src/terminals/`                                  | Its simulated terminals: the engine and the views they draw through.                                                           |
+| `frontend/demo/src/screen/`                                     | What a terminal's screen writes as terminal output, and the keys read back from it.                                            |
+| `frontend/demo/src/inbox/`                                      | The Inbox's hardcoded rows and the transcripts behind the Inbox demo's sheets.                                                 |
+| `frontend/demo/src/addons/`                                     | Pretend voice input and murmur addons.                                                                                         |
+| `frontend/demo/src/showcase/`                                   | The showcase demo the content preview opens: sample agents' plans, artifacts, and their simulated work.                        |
+| `frontend/demo/src/videos/`                                     | One-off demos for videos: Chirp, Babcia and Launch.                                                                            |
+| `frontend/demo/src/visitor/`                                    | The try demo a visitor plays with on the website.                                                                              |
 | `frontend/runner-adapter/src/`                                  | The runner adapter: connection, seed from the runner, saves, and its terminals.                                                |
 | `frontend/terminal-views/src/`                                  | The xterm mount both adapters draw terminals with: theme, renderers, links, styles.                                            |
 | `frontend/core/src/`                                            | Pure domain: types, reducer, store, seed and the backend port, then its domain folders (below).                                |
@@ -783,7 +790,7 @@ in `layouts/grid/`, Allotment in `shell/`, dnd kit in `terminals/`, Ark UI in
 `frontend/toolkit`, React Router in `app/` and `shell/`, and React DOM in
 `layouts/transition.ts` and `entries/start.tsx`; and the runner client and
 the emulator's view in `frontend/runner-adapter/`, the demo's terminals
-(`frontend/demo/src/views.ts`, `frontend/demo/src/screen/`) and `frontend/terminal-views/`,
+(`frontend/demo/src/terminals/`, `frontend/demo/src/screen/`) and `frontend/terminal-views/`,
 which both adapters draw their
 terminals with and which imports only the core and libraries; no
 backend reads `theme/`, as the entries hand it the page's theme. Other packages are denied
@@ -888,12 +895,12 @@ element its frame gives it. A terminal's mount marks the element that takes type
 shortcuts run in capture, ahead of the terminal's emulator, which takes the keys it reads
 before they bubble. The demo adapter draws its terminals as the runner's are drawn, through
 `frontend/terminal-views/` and `@novadeck/terminal/view`: each is a real xterm fed by a
-stream the demo writes as terminal output (`frontend/demo/src/views.ts`). Its screen
+stream the demo writes as terminal output (`frontend/demo/src/terminals/views.ts`). Its screen
 (`frontend/demo/src/screen/`) keeps an append-only transcript (the program's sample output or
 the agent's opening, the commands typed and their replies, the agent's conversation) and
 redraws a live tail in place (the dialog an agent waits on, its status, the prompt), as Claude
 Code and Codex redraw their bottom; a resize draws it whole at the new width. Keys come back
-through a line editor (`frontend/demo/src/line-editor.ts`). The engine keeps each terminal's
+through a line editor (`frontend/demo/src/screen/line-editor.ts`). The engine keeps each terminal's
 command line and output with one subscription each, so output does not trigger
 workspace-wide renders. A terminal's
 presentation can unmount during view or session changes without losing that

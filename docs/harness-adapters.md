@@ -93,13 +93,19 @@ beside it; the registry and the services that use them live in
 
 ```text
 harnesses/core/src/          # @novadeck/harness-core
-  harness.ts       # The Harness type and shared plugin helpers
+  harness.ts       # The Harness type, its messaging profile and what they take
   events.ts        # Dependency-light normalized facts
+  decode.ts        # What every decoder shares: payload checks, plain text, derived ids
+  fields.ts        # A JSON object's fields, whatever holds them
+  prompts.ts       # The doorbell line, hook continuations, and the turn a prompt starts
+  plugin.ts        # Novadeck's plugin manifest and its marketplace
   dialogs.ts       # DialogAdapter, for answering a harness's dialogs
-  hook-command.ts  # The hook command line, per shell dialect
+  hook-command.ts  # The hook command line, per shell dialect, and how long a hook may take
   follow.ts        # The shared JSONL follower
-  items.ts, report.ts, header.ts
-  testing/         # Test helpers: probes.ts (`loadProbe`), screens.ts, dialogs.ts
+  items.ts         # Transcript items, bounded as the protocol takes them
+  tools.ts         # What a tool call was, in one line, and Novadeck's own MCP tools
+  report.ts, header.ts
+  testing/         # Test helpers: probes.ts (`loadProbe`), screens.ts, dialogs.ts, reports.ts
 harnesses/claude/src/        # @novadeck/harness-claude
   index.ts         # claude: Harness
   decode.ts        # Its hook reports, as normalized events

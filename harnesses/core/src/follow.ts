@@ -37,8 +37,9 @@ export const tailLines = async (
  * written from now on counts, unless `fromStart` reads it whole first. One that does not
  * exist yet is read from its start once it appears, as an agent may create its
  * transcript after its first hook. A file that shrinks, or another put in its place,
- * was rewritten: `onReset` is told, and it is read again from its start. `onIdle` is told whenever it has read all there
- * is for now, and each read waits for `pace`, so a slow reader holds it back.
+ * was rewritten: `onReset` is told, and it is read again from its start. `onIdle` is told
+ * whenever it has read all there is for now, and each read waits for `pace`, so a slow
+ * reader holds it back.
  */
 export const followLines = async (
   path: string,
