@@ -8,8 +8,10 @@ import type { ToolRun } from "@novadeck/protocol"
  * spelling of the server.
  */
 
+/** A tool call's input, as the JSON object it is. */
 export type Fields = Readonly<Record<string, unknown>>
 
+/** Whether a value is a JSON object, as a call's input is. */
 export const isFields = (value: unknown): value is Fields =>
   typeof value === "object" && value !== null && !Array.isArray(value)
 
@@ -56,23 +58,27 @@ export const textField = (fields: Fields | null, ...keys: string[]): string => {
   return ""
 }
 
+/** A text's first line, trimmed. */
 export const oneLine = (text: string): string => text.trim().split("\n", 1)[0]!.trim()
 
-/** A path's last segments, as long as it is. */
+/** A path by its last three segments, or whole where it has no more. */
 export const shortPath = (path: string): string => {
   const parts = path.split(/[\\/]+/).filter(Boolean)
   return parts.length > 3 ? `…/${parts.slice(-3).join("/")}` : path
 }
 
+/** Files a call touched, by their short paths: the first two, and how many more. */
 export const fileList = (files: readonly string[]): string =>
   files.length <= 2
     ? files.map(shortPath).join(", ")
     : `${files.slice(0, 2).map(shortPath).join(", ")} +${files.length - 2}`
 
+/** How many items a list holds, in words (`3 todos`); nothing where it is no list. */
 export const count = (value: unknown, one: string, many = `${one}s`): string =>
   Array.isArray(value) ? `${value.length} ${value.length === 1 ? one : many}` : ""
 
-const shortenIf = (detail: string): string =>
+// A detail as a line shows it: a path by its last segments, anything else by its first line.
+const shortDetail = (detail: string): string =>
   detail.startsWith("/") || /^[A-Za-z]:[\\/]/.test(detail) ? shortPath(detail) : oneLine(detail)
 
 /**
@@ -108,7 +114,7 @@ export const otherRun = (tool: string, fields: Fields | null, input: string): To
       "description",
       "toolSummary",
     ) || (fields ? "" : oneLine(input))
-  return { kind: "other", title: tool, detail: detail ? shortenIf(detail) : "" }
+  return { kind: "other", title: tool, detail: detail ? shortDetail(detail) : "" }
 }
 
 /** Novadeck's own MCP tools: the agent works with the person's other terminals. */

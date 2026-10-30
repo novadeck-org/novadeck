@@ -334,10 +334,11 @@ export type Launchers = { readonly mcp: Start }
 /** What the machine does to a hook before the hook's own command runs. */
 export type Machine = {
   /**
-   * Whether cmd prints something of its own before any command it runs, as an AutoRun (the
-   * machine's or the user's, `HKLM` or `HKCU\Software\Microsoft\Command Processor\AutoRun`)
-   * of `chcp 65001` without `>nul` does, for a harness that runs its hooks in cmd without
-   * `/d`: ahead of the hook's answer, which a harness that reads it as JSON then can't.
+   * Whether cmd prints something of its own before any command it runs, as an AutoRun
+   * (the machine's or the person's account's, `HKLM` or
+   * `HKCU\Software\Microsoft\Command Processor\AutoRun`) of `chcp 65001` without `>nul`
+   * does, for a harness that runs its hooks in cmd without `/d`: ahead of the hook's
+   * answer, which a harness that reads it as JSON then can't.
    */
   readonly cmdPrints?: boolean
 }

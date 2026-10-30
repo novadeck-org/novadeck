@@ -95,6 +95,7 @@ export type ScreenRequest = Omit<RequestFacts, "cwd"> & {
   readonly subject: string | null
 }
 
+/** How one harness's dialogs read on screen and take an answer (see above). */
 export type DialogAdapter = {
   /**
    * The dialog on screen for this request, recognised in full and agreeing with what the
