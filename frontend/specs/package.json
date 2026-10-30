@@ -2,7 +2,7 @@
   "name": "@novadeck/specs",
   "version": "0.0.0",
   "private": true,
-  "description": "The UI's behaviour specs: the whole app in a real browser, over the demo backend.",
+  "description": "The UI's behaviour specs and integration tests: the whole app over the demo backend, in a real browser or jsdom.",
   "license": "GPL-3.0-or-later",
   "type": "module",
   "scripts": {
