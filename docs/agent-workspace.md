@@ -588,7 +588,7 @@ with every safety check again at that time:
   else opens in the person's browser. A frame from another site in the page can take
   that one window, as Electron doesn't say which frame opened it. A passkey sign-in
   that names no passkey asks the person which, when more than one fits
-  (`libraries/viewers/src/browser-host.ts`). Where the host can't, as the web version, a
+  (`libraries/viewers/src/browser/main.ts`). Where the host can't, as the web version, a
   page is a link to open in the browser. Each show of a page loads it afresh: the
   page's content carries `shown`, its item's version, and a later one reloads it, past
   the cache so changed styles and scripts show too, or loads the address it was shown at
