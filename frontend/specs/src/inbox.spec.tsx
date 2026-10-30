@@ -268,13 +268,14 @@ describe("An item's sheet", () => {
       await expect.element(sheet("Checkout review")).toBeVisible()
     })
 
-    it("shows the terminal it is about", async () => {
+    it("shows the terminal it is about, with the terminals in the sidebar", async () => {
       await openInbox()
       await row("Run pnpm add").click()
       await sheet("Checkout review").getByRole("button", { name: "Show terminal" }).click()
 
       await expect.element(sheet("Checkout review")).not.toBeInTheDocument()
       await expect.element(terminal("Checkout review")).toBeVisible()
+      await expect.element(sidebarPanel("Terminals")).toBeChecked()
     })
   })
 
@@ -307,7 +308,7 @@ describe("An item's sheet", () => {
       await openInbox()
       await row("Run pnpm add").click()
       const open = sheet("Checkout review")
-      await answer(open, /tell Codex what to do differently/).click()
+      await answer(open, "Deny, with your words").click()
       await userEvent.type(
         open.getByRole("textbox", { name: /what Codex should do instead/i }),
         "Use npm.",
@@ -317,6 +318,26 @@ describe("An item's sheet", () => {
       await expect
         .element(confirmation())
         .toMatchTextContent("Denied @crow's command, with your words.")
+    })
+  })
+
+  context("when sending a plan back", () => {
+    it("takes the person's words in place of its row, named as Novadeck names it", async () => {
+      await openInbox("/?demo=agents")
+      // storefront's plan waits on the terminal the demo opens on, which may hold it back.
+      await lookAway()
+      await row(/Approve the plan\?.*storefront/).click()
+      const open = page.getByRole("dialog")
+      await answer(open, "Send it back, with your words").click()
+      await userEvent.type(
+        open.getByRole("textbox", { name: /what Claude should do instead/i }),
+        "Add a rollback step.",
+      )
+      await userEvent.keyboard("{Enter}")
+
+      await expect
+        .element(confirmation())
+        .toMatchTextContent(/Sent back @\w+'s plan, with your words\./)
     })
   })
 
@@ -335,7 +356,11 @@ describe("An item's sheet", () => {
           "Novadeck can't answer this prompt from here. Answer it in the terminal.",
         )
       await expect.element(answer(open, "Allow")).not.toBeInTheDocument()
-      await expect.element(answer(open, "Go to terminal")).toBeVisible()
+      await answer(open, "Go to terminal").click()
+
+      await expect.element(open).not.toBeInTheDocument()
+      await expect.element(terminal("Runtime")).toBeVisible()
+      await expect.element(sidebarPanel("Terminals")).toBeChecked()
     })
   })
 

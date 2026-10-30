@@ -1,0 +1,221 @@
+import type { DemoPortable } from "./portable"
+import type { DemoUpdates } from "./updates"
+
+// The named update and portable scenarios the demo can play, each defined once: the
+// debug panel lists every one (App › Updates, App › Portable) and a spec asks for one by
+// its key in the address (`?update=ready`, `?portable=failed`). A new state is one entry.
+
+// Versions for releases the panel offers, each newer than the last; a module-level one keeps
+// counting across boots.
+export const releaseVersions = (): (() => string) => {
+  let patch = 79
+  return () => `0.0.${(patch += 1)}`
+}
+
+export type UpdateScenario = {
+  readonly label: string
+  readonly hint: string
+  // Plays the scenario on an installed copy's updates, offering `version`.
+  readonly play: (updates: DemoUpdates, version: string) => void
+  // The page asks for it once, as the workspace comes up, so the panel plays it by booting
+  // again rather than in place.
+  readonly reboots?: true
+}
+
+// The release before `version`, as the one an update came from: its last number one less,
+// or none when that number is 0.
+const earlier = (version: string): string | undefined => {
+  const last = /(\d+)$/.exec(version)?.[1]
+  return last && Number(last) > 0
+    ? version.slice(0, -last.length) + String(Number(last) - 1)
+    : undefined
+}
+
+const fromEarlier = (version: string): { readonly from?: string } => {
+  const from = earlier(version)
+  return from === undefined ? {} : { from }
+}
+
+export const updateScenarios = {
+  download: {
+    label: "Download",
+    hint: "Bar counts up, says ready, then fades",
+    play: ({ download }, version) => download(version),
+  },
+  held: {
+    label: "Download, held",
+    hint: "Bar stays at 40% to look at",
+    play: ({ offer }, version) => offer({ kind: "downloading", version, percent: 40 }),
+  },
+  failed: {
+    label: "Download failed",
+    hint: "Bar stands at 40% for a moment, then drops and nothing shows; the app retries later",
+    play: ({ failDownload }, version) => failDownload(version),
+  },
+  available: {
+    label: "Release to fetch",
+    hint: "Footer chip, Update available; opens the release page",
+    play: ({ offer }, version) => offer({ kind: "available", version }),
+  },
+  allow: {
+    label: "Release, needs an administrator",
+    hint: "Footer chip, Allow updates; pressing it starts the download",
+    play: ({ offer }, version) => offer({ kind: "available", version, allow: true }),
+  },
+  ready: {
+    label: "Ready at launch",
+    hint: "No bar: downloaded before this run",
+    play: ({ offer }, version) => offer({ kind: "ready", version }),
+  },
+  whatsNew: {
+    label: "What's new, after an update",
+    hint: "Card in the corner with three highlights and the version updated from, until dismissed; reboots, as it is asked once at launch",
+    play: ({ showWhatsNew }, version) => showWhatsNew(version, fromEarlier(version)),
+    reboots: true,
+  },
+  whatsNewMarkup: {
+    label: "What's new, text with markup",
+    hint: "Card whose highlights hold <b> and **stars**: shown as typed, never rendered; no version updated from, as from an install that never noted it; reboots",
+    play: ({ showWhatsNew }, version) =>
+      showWhatsNew(version, {
+        highlights: [
+          {
+            title: "Bold <b>words</b> and **stars**",
+            line: "A [link](https://example.com) and <i>tags</i>.",
+          },
+        ],
+      }),
+    reboots: true,
+  },
+  whatsNewLong: {
+    label: "What's new, longest highlights",
+    hint: "Four highlights at the longest the app allows: the list scrolls in a short window; reboots",
+    play: ({ showWhatsNew }, version) =>
+      showWhatsNew(version, {
+        ...fromEarlier(version),
+        highlights: ["First", "Second", "Third", "Fourth"].map((word) => ({
+          title: `${word} highlight with a title that runs to the longest allowed`.padEnd(80, "."),
+          line: `${word}: a line that runs on to the longest the app allows, `.padEnd(
+            240,
+            "and on ",
+          ),
+        })),
+      }),
+    reboots: true,
+  },
+  noHighlights: {
+    label: "Updated, no highlights",
+    hint: "The app takes 1.5 s to answer it has nothing to show: no card appears; reboots",
+    play: ({ delayWhatsNew }) => delayWhatsNew(1500),
+    reboots: true,
+  },
+} as const satisfies Record<string, UpdateScenario>
+
+export type UpdateScenarioKey = keyof typeof updateScenarios
+
+type PortableScenario = {
+  readonly label: string
+  readonly hint: string
+  // The portable copy the desktop app plays, given the version of the release waiting where the
+  // scenario has one; undefined for an installed copy.
+  readonly setup: (version: string) => DemoPortable | undefined
+}
+
+// How long the desktop app takes to install, so Installing is there to look at.
+const installTakes = 4000
+
+const installs: DemoPortable = {
+  ends: { phase: "installed" },
+  installAfterMs: installTakes,
+  progress: true,
+}
+
+// What the release a portable copy is offered names, as its notes would.
+const news = (version: string): NonNullable<DemoPortable["news"]> => ({
+  version,
+  highlights: [
+    {
+      title: "Word handles for terminals",
+      line: 'Talk to @moth instead of "terminal 3".',
+      icon: "users",
+    },
+    {
+      title: "Inbox keeps what you dismissed",
+      line: "Settled asks stay struck for a day.",
+      icon: "inbox",
+    },
+    {
+      title: "Quieter bells",
+      line: "Each theme has its own gentle sound.",
+      icon: "bell",
+    },
+  ],
+})
+
+// A portable copy with a release waiting and, unless `notes` is off, its notes known.
+const offered = (version: string, notes = true): DemoPortable => ({
+  ...installs,
+  offer: { kind: "available", version },
+  ...(notes ? { news: news(version) } : {}),
+})
+
+export const portableScenarios = {
+  "no-release": {
+    label: "No release known",
+    hint: "Card comes up once, then the Install Novadeck chip; Install takes 4 s",
+    setup: () => installs,
+  },
+  update: {
+    label: "Update available",
+    hint: "Changelog card for a new release, Update available chip; Install takes 4 s",
+    setup: offered,
+  },
+  "update-no-news": {
+    label: "Update, no highlights",
+    hint: "The app has no notes to show: the card says the release is out",
+    setup: (version) => offered(version, false),
+  },
+  "update-long-path": {
+    label: "Update, long data folder",
+    hint: "A Windows-length data folder: the path wraps and Show folder stays inside the card",
+    setup: (version) => ({
+      ...offered(version),
+      dataFolder: "C:\\Users\\Mateusz.Kowalczyk\\AppData\\Roaming\\novadeck",
+    }),
+  },
+  never: {
+    label: "Install never finishes",
+    hint: "Install holds the Installing card and chip",
+    setup: () => ({ ends: "never" }),
+  },
+  newer: {
+    label: "Newer install exists",
+    hint: "Install ends saying that Novadeck 0.0.99 is already installed",
+    setup: () => ({ ends: { phase: "newer", version: "0.0.99" }, installAfterMs: installTakes }),
+  },
+  failed: {
+    label: "Install fails",
+    hint: "Says why; Try again stays",
+    setup: () => ({
+      ends: { phase: "failed", reason: "There is no space left on the disk." },
+      installAfterMs: installTakes,
+    }),
+  },
+  installed: {
+    label: "Already installed",
+    hint: "A window opened again after installing: no card, chip reads Installed",
+    setup: () => ({ ends: { phase: "installed" }, opens: { phase: "installed" } }),
+  },
+  "slow-app": {
+    label: "Slow app",
+    hint: "Chip comes after 4 s",
+    setup: () => ({ ...installs, answerAfterMs: 4000 }),
+  },
+  "installed-copy": {
+    label: "Installed copy",
+    hint: "No install chip",
+    setup: () => undefined,
+  },
+} as const satisfies Record<string, PortableScenario>
+
+export type PortableScenarioKey = keyof typeof portableScenarios

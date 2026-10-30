@@ -1,7 +1,7 @@
 import { noConversation, SettleInTerminal, type Conversations } from "@novadeck/core/conversation"
 import { describe, expect, it } from "vitest"
 
-import { createDebugChat } from "./chat"
+import { createChatFailures } from "./chat"
 
 const key = { projectId: "p", workspaceSessionId: "s", terminalId: "01" }
 
@@ -16,7 +16,7 @@ const inner = (sent: string[] = []): Conversations => ({
 describe("the debug panel's chat failures", () => {
   it("fail the next send once, as the runner would, then let sends through", async () => {
     const sent: string[] = []
-    const chat = createDebugChat()
+    const chat = createChatFailures()
     const conversations = chat.wrap(inner(sent))
     const draft = chat.actions.find((action) => action.label.includes("Draft"))!
     await draft.run({} as never)
@@ -29,7 +29,7 @@ describe("the debug panel's chat failures", () => {
   })
 
   it("arm each other way a send is turned away, with the terminal offered only where it settles there", async () => {
-    const chat = createDebugChat()
+    const chat = createChatFailures()
     const conversations = chat.wrap(inner())
     const armed = async (label: string) => {
       await chat.actions.find((action) => action.label === label)!.run({} as never)
@@ -52,7 +52,7 @@ describe("the debug panel's chat failures", () => {
   })
 
   it("arm the next Stop to leave the queued words in the box, once", async () => {
-    const chat = createDebugChat()
+    const chat = createChatFailures()
     const conversations = chat.wrap(inner())
     await chat.actions.find((action) => action.label.includes("Stop"))!.run({} as never)
     const failure = await conversations.interrupt(key).catch((error: unknown) => error)
@@ -62,7 +62,7 @@ describe("the debug panel's chat failures", () => {
   })
 
   it("arm the next Stop to meet a request waiting, saying to answer it first", async () => {
-    const chat = createDebugChat()
+    const chat = createChatFailures()
     const conversations = chat.wrap(inner())
     await chat.actions.find((action) => action.label === "Stop: request waiting")!.run({} as never)
     const failure = await conversations.interrupt(key).catch((error: unknown) => error)

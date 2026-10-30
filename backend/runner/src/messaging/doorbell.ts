@@ -1,5 +1,6 @@
 import type { ScreenText } from "@novadeck/emulator/headless"
-import { doorbellLine, hookShellSlackMs } from "@novadeck/harness-core/harness"
+import { hookShellSlackMs } from "@novadeck/harness-core/hook-command"
+import { doorbellLine } from "@novadeck/harness-core/prompts"
 import {
   calmMs,
   createTypist,

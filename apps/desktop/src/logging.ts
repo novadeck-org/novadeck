@@ -13,7 +13,7 @@ import {
 } from "@novadeck/log"
 
 /**
- * What a process of the app needs to write its log, as the host hands it to the runner in
+ * What a process of the app needs to write its log, as the main process hands it to the runner in
  * `logArgumentPrefix`'s argument: the logs folder, the launch, which start of the runner
  * this is, and the app's folders the redactor writes as placeholders.
  */
@@ -31,7 +31,7 @@ export type LogSetup = {
   readonly resume?: Data
 }
 
-/** Reads a `LogSetup` the host wrote; undefined for anything else. */
+/** Reads a `LogSetup` the main process wrote; undefined for anything else. */
 export const parseLogSetup = (text: string | undefined): LogSetup | undefined => {
   if (text === undefined) return undefined
   try {
@@ -66,7 +66,7 @@ export const parseLogSetup = (text: string | undefined): LogSetup | undefined =>
  * Names that stay readable in any path the app logs, besides the library's well-known ones:
  * the agents and engines the app runs, and the folders they keep.
  */
-export const appReadableNames: readonly string[] = [
+const appReadableNames: readonly string[] = [
   "claude",
   "codex",
   "agy",
@@ -86,9 +86,9 @@ export const appReadableNames: readonly string[] = [
 
 /**
  * The addresses that stay readable whole: the app's own, its releases, and the services its
- * agents and engines talk to. Any other host is hashed.
+ * agents and engines talk to. Any other host name is hashed.
  */
-export const appReadableUrls: readonly string[] = [
+const appReadableUrls: readonly string[] = [
   "novadeck.dev",
   "*.novadeck.dev",
   "github.com/novadeck-org",
@@ -114,7 +114,7 @@ const accountName = (): string | undefined => {
 }
 
 /** The app's redactor: what any of its log lines keep of any text. */
-export const appRedactor = (setup: Pick<LogSetup, "places" | "saltFile">): Redactor => {
+const appRedactor = (setup: Pick<LogSetup, "places" | "saltFile">): Redactor => {
   const user = accountName()
   return createRedactor({
     home: homedir(),

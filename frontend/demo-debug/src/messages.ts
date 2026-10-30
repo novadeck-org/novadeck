@@ -2,6 +2,7 @@ import type { Backend, TerminalKey } from "@novadeck/core/port"
 import { terminalKeyPath } from "@novadeck/core/types"
 import { isDemoMessages, type DemoMessages } from "@novadeck/demo/messages"
 
+import { sessionTarget } from "./terminals"
 import type { DemoActionGroup } from "./types"
 
 // Has `from` write to the selected terminal, by handle; false where it has no messages, or
@@ -18,15 +19,7 @@ const writeTo = (
     thread.peer.kind === "person" ? [] : [thread.peer.handle],
   )
   const sender = from(terminalMessages.handle, peers)
-  return Boolean(
-    sender &&
-    messages.send(
-      { projectId: key.projectId, workspaceSessionId: key.workspaceSessionId },
-      sender,
-      terminalMessages.handle,
-      text,
-    ),
-  )
+  return Boolean(sender && messages.send(sessionTarget(key), sender, terminalMessages.handle, text))
 }
 
 // The panel's group for what a terminal's Messages pane shows that the demo's agents don't

@@ -1,19 +1,16 @@
 import type { Conversations } from "@novadeck/core/conversation"
-import type { TerminalKey } from "@novadeck/core/port"
+import type { TerminalKey } from "@novadeck/core/types"
 
+import { chatDraftOf, joinDraft, setChatDraft } from "./drafts"
 import {
-  chatDraftOf,
   chatReplyOf,
-  chatSendOf,
-  joinDraft,
   replyAnswer,
   sameReply,
-  setChatDraft,
   setChatReply,
-  setChatSend,
   type ChatReply,
   type ChatReplyTo,
-} from "./mode-state"
+} from "./replies"
+import { chatSendOf, setChatSend } from "./sends"
 import type { Chat } from "./state"
 
 // What the chat does with its words, over the chat's own store.

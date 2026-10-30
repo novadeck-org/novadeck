@@ -1,13 +1,13 @@
 import type { Approval, Approvals, BackendSink, TerminalKey } from "@novadeck/core/port"
 import { createStore } from "@novadeck/core/store"
 import type { Workspace } from "@novadeck/core/types"
-import { terminalOf } from "@novadeck/demo/terminals"
+import { terminalOf } from "@novadeck/demo/workspace"
 
-import { othersOf } from "./terminals"
+import { othersOf, sessionTarget } from "./terminals"
 import type { DemoActionGroup } from "./types"
 
 // A brief as an agent would write one: long enough that the dialog has to scroll it.
-export const demoBrief = [
+const demoBrief = [
   "You are joining the migration of the billing service to the new events table.",
   "",
   "1. Read docs/billing-events.md and the two open PRs that touch it.",
@@ -18,11 +18,6 @@ export const demoBrief = [
   "Ask me through the Inbox if the schema in the doc and the one in production disagree. Report with done when the PR is up.",
 ].join("\n")
 
-const target = (key: TerminalKey) => ({
-  projectId: key.projectId,
-  workspaceSessionId: key.workspaceSessionId,
-})
-
 // What agents ask the person to allow, as the runner's backend has them: confirming a close
 // closes the terminal, confirming a lead makes the asker its lead, as the runner would.
 export const createDemoApprovals = (
@@ -31,7 +26,7 @@ export const createDemoApprovals = (
 ): {
   readonly approvals: Approvals
   // Makes `from` ask to close `terminal`, queued behind the approvals already waiting.
-  readonly ask: (from: TerminalKey, terminal: TerminalKey) => void
+  readonly askToClose: (from: TerminalKey, terminal: TerminalKey) => void
   // Makes `from` ask to lead `terminal` with a brief.
   readonly askToLead: (from: TerminalKey, terminal: TerminalKey, brief: string) => void
   // The person ends `terminal`'s lead.
@@ -47,8 +42,8 @@ export const createDemoApprovals = (
     count += 1
     const requestId = `approval-${count}`
     targets.set(requestId, { terminal, from })
-    pending.update((asks) => [
-      ...asks,
+    pending.update((waiting) => [
+      ...waiting,
       { requestId, from: from.terminalId, terminalId: terminal.terminalId, action },
     ])
   }
@@ -59,13 +54,13 @@ export const createDemoApprovals = (
         const found = targets.get(requestId)
         const action = pending.getSnapshot().find((each) => each.requestId === requestId)?.action
         targets.delete(requestId)
-        pending.update((asks) => asks.filter((each) => each.requestId !== requestId))
+        pending.update((waiting) => waiting.filter((each) => each.requestId !== requestId))
         if (!approved || !found || !action) return
         if (action.type === "close")
           dispatch()?.([
             {
               type: "terminal/close",
-              target: target(found.terminal),
+              target: sessionTarget(found.terminal),
               terminalId: found.terminal.terminalId,
             },
           ])
@@ -75,7 +70,7 @@ export const createDemoApprovals = (
             dispatch()?.([
               {
                 type: "terminal/update",
-                target: target(found.terminal),
+                target: sessionTarget(found.terminal),
                 terminalId: found.terminal.terminalId,
                 ledBy: handle,
               },
@@ -83,13 +78,13 @@ export const createDemoApprovals = (
         }
       },
     },
-    ask: (from, terminal) => queue(from, terminal, { type: "close" }),
+    askToClose: (from, terminal) => queue(from, terminal, { type: "close" }),
     askToLead: (from, terminal, brief) => queue(from, terminal, { type: "lead", brief }),
     release: (terminal) =>
       dispatch()?.([
         {
           type: "terminal/update",
-          target: target(terminal),
+          target: sessionTarget(terminal),
           terminalId: terminal.terminalId,
           ledBy: null,
         },
@@ -119,7 +114,7 @@ export const approvalGroups = (
           if (!key) return note("Select a terminal first.")
           const [asker] = othersOf(workspace(), key)
           if (!asker) return note("Add a second terminal first.")
-          controls.ask({ ...key, terminalId: asker.id }, key)
+          controls.askToClose({ ...key, terminalId: asker.id }, key)
         },
       },
       {

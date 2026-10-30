@@ -1,18 +1,16 @@
 import { setTimeout as sleep } from "node:timers/promises"
 
-import type { HarnessEvent } from "@novadeck/harness-core/events"
-import { followLines } from "@novadeck/harness-core/follow"
 import {
   absolute,
-  bounded,
+  planText,
   errorText,
   callId,
   shortName,
   replied,
-  type Harness,
-  type Run,
-  type WrittenPlan,
-} from "@novadeck/harness-core/harness"
+} from "@novadeck/harness-core/decode"
+import type { HarnessEvent } from "@novadeck/harness-core/events"
+import { followLines } from "@novadeck/harness-core/follow"
+import type { Harness, Run, WrittenPlan } from "@novadeck/harness-core/harness"
 import type { AgentTelemetry } from "@novadeck/protocol"
 
 import { callOf, mcpTool } from "./decode.js"
@@ -164,7 +162,7 @@ export const rolloutEvents = (
             })
           : []
       if (kind !== "Plan" || typeof text !== "string" || !text) return []
-      const { text: plan, truncated } = bounded(text)
+      const { text: plan, truncated } = planText(text)
       return [
         {
           type: "plan-observed",

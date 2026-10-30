@@ -530,24 +530,29 @@ So does the person writing to the agent in its terminal. When a root turn starts
 person's own submission, as delivery judges it (see [What counts](#what-counts):
 a doorbell ring, a turn the harness or the agent started, and the first prompt an
 agent's command line gave never count), Novadeck withdraws that agent session's open asks
-made before the person submitted it, in every harness: the same `withdrawn` state as the
-agent's own withdrawal, so the row leaves the Inbox, and its toast or OS notification
-clears with it, and Messages shows it withdrawn. Tells, done rows and turn rows stay, and
+made before the person submitted it, in every harness, once the agent has been told (below):
+the same `withdrawn` state as the agent's own withdrawal, so the row leaves the Inbox, and its
+toast or OS notification clears with it, and Messages shows it withdrawn. Tells, done rows and turn rows stay, and
 so does an ask the agent makes during the new turn. The same prompt's hook answer carries a
 short automatic notice that names the withdrawn asks' subjects (shortened and quoted) and
-says to read the person's message as their reply and to ask again, as a new ask, only what
-it leaves open. It rides with any messages or hold notices the answer carries, and the asks are
-withdrawn only as it goes into an answer the hook still has time to print (the same
-`leaseMargin` rule messages use). A turn start whose answer comes too late, or is heard
-with no answer to print in, leaves the asks open and owes the withdrawal, but only within the turn
-the person's prompt started: the next tool-call hook of that turn (or Antigravity's next
-model call of it) that has time withdraws those still open and made before the person's
-submission, and tells the agent then. If the turn ends unpaid the debt is dropped and the
-asks stay open (the agent's notice already says to withdraw an ask itself if the user
-answered it in the terminal and no notice came). A Stop is never used, as printing there
-would continue the turn. The debt is also dropped when the session ends or another binds.
-A notice paid at a later model call of Antigravity's turn is given again on the turn's
-remaining calls, as one paid at its first. A message that then no longer fits the delivery budget (`maxDeliveryBytes`)
+says they are closed and can no longer be answered in the Inbox, to read the person's message
+as their reply, and to ask again with the ask tool, before ending the turn, whatever it leaves
+open, rather than saying it waits in the Inbox. It rides with any messages or hold notices the answer carries, in the same
+lease, or in a lease of its own that covers only the notice (no messages in it). The asks are
+withdrawn only when that lease is acknowledged, that is, once the hook has printed the notice:
+an answer too late to print, lost, or whose lease lapses unacknowledged withdraws nothing, and
+the asks stay open. The person's prompt leaves a debt, and the debt stays until then. A turn
+start whose answer comes too late, or is heard with no answer to print in, leaves the debt
+unpaid, and so does one whose notice was never acknowledged, but only within the turn the
+person's prompt started: the next tool-call hook of that turn (or Antigravity's next model call
+of it) that has time offers the notice again, with a new lease, for the asks still open and
+made before the person's submission, and its acknowledgement withdraws them. If the turn ends
+unpaid the debt is dropped and the asks stay open (the agent's notice already says to withdraw
+an ask itself if the user answered it in the terminal and no notice came). A Stop is never
+used, as printing there would continue the turn. The debt is also dropped when the session ends
+or another binds. A notice acknowledged at a later model call of Antigravity's turn is given
+again on the turn's remaining calls, as one acknowledged at its first; one not acknowledged is
+not kept. A message that then no longer fits the delivery budget (`maxDeliveryBytes`)
 waits for the next hook, and the notice goes alone. A
 prompt the person steers into a running turn counts when delivery takes it as theirs by the
 same Enter. A prompt they queued during the previous turn (Claude Code's and Codex's queues,
@@ -1211,6 +1216,9 @@ the runner, over the same endpoint and token `show` uses, and print what it retu
    turn ended, and the usual rules give Settled or Drafting; unless the turn has
    moved on since (the hook printed it and only its acknowledgement was lost), when the
    lapse leaves the delivery state alone.
+   A lease may cover only a notice, with no messages: its acknowledgement then settles
+   what the notice stands for (the person's prompt withdrawing the agent's asks), and
+   a lapse leaves that undone, to be offered again at the turn's next hook.
 
 ### A turn the runner's stop cut short
 
@@ -1991,7 +1999,7 @@ nothing when exactly one page is on the bar. The rules:
    as `terminals.requests` and `answerRequest` do. Each look goes to the client that
    subscribed last, as `{ lookId, itemId, shown, url }`, where `shown` is the item's latest
    show (its `version`): the client doesn't picture a pane still at an earlier show, and
-   loads the page fresh instead. The desktop host takes looks one at a time and queues the
+   loads the page fresh instead. The desktop app takes looks one at a time and queues the
    rest, and gives each a deadline: a look the runner has given up on is dropped from the
    queue rather than run. A look first tries the pane: for each view of the item, one
    capture per width in `lookWidths` (1280, 960, 640), the next only when the picture came

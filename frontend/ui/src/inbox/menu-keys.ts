@@ -1,6 +1,7 @@
 // How a sheet's numbered menu takes its keys: 1–n go to that row and press it, ↑↓ move,
 // Home and End go to its ends, Enter (and Space, in a menu of one choice) presses the row
-// the cursor is on. In a menu of several picks a press ticks the row, and Enter sends.
+// the cursor is on. In a menu of several picks a press ticks the row, and Enter sends,
+// but on a row that leaves the menu, as the way to the terminal, which it presses.
 // Where an answer is hard to take back the first press only arms it; pressing it again
 // sends, and moving away disarms it. Pure, so the menu's rules read apart from its markup.
 
@@ -14,6 +15,8 @@ export type MenuShape = {
   readonly multi: boolean
   // Whether a press of this row must be armed first.
   readonly arms: (at: number) => boolean
+  // Whether a row leaves the menu rather than answering, as the way to the terminal.
+  readonly leaves: (at: number) => boolean
 }
 
 // What a key did: where the cursor is now, and the row pressed ("send" for Enter in a
@@ -45,7 +48,7 @@ export const menuKey = (shape: MenuShape, cursor: Cursor, key: string): KeyResul
     case "End":
       return move(last)
     case "Enter":
-      return shape.multi
+      return shape.multi && !shape.leaves(cursor.at)
         ? { cursor: { ...cursor, armed: null }, press: "send" }
         : press(shape, cursor, cursor.at)
     case " ":

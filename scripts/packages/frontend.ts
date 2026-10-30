@@ -164,7 +164,7 @@ export const packages: readonly Pkg[] = [
       dev: "vite --host 127.0.0.1 --mode try",
       build: "vite build --mode try",
       preview: "vite preview --host 127.0.0.1",
-      "poster:try": "node scripts/poster.ts",
+      poster: "node scripts/poster.ts",
       test: "vitest run",
       typecheck: "tsc --noEmit -p tsconfig.json",
     },
@@ -302,10 +302,10 @@ export const samples: Kept = [
   { path: "application/ui/src/backend/demo/showcase/artifacts.ts", why: "code the demo shows" },
   { path: "application/ui/src/backend/demo/showcase/storefront.ts", why: "code the demo shows" },
   { path: "application/ui/src/backend/demo/transcripts.ts", why: "code the demo shows" },
-  { path: "frontend/demo/src/launch.ts", why: "code the demo shows" },
+  { path: "frontend/demo/src/agents/transcripts.ts", why: "code the demo shows" },
   { path: "frontend/demo/src/showcase/artifacts.ts", why: "code the demo shows" },
   { path: "frontend/demo/src/showcase/storefront.ts", why: "code the demo shows" },
-  { path: "frontend/demo/src/transcripts.ts", why: "code the demo shows" },
+  { path: "frontend/demo/src/videos/launch.ts", why: "code the demo shows" },
 ]
 
 const formsOf = (file: string): readonly RegExp[] =>
@@ -986,8 +986,10 @@ export const edits: readonly Edit[] = [
   {
     file: "package.json",
     before: '"poster:try": "pnpm --filter @novadeck/ui poster:try",',
-    after: '"poster:try": "pnpm --filter @novadeck/try poster:try",',
+    after: '"poster:try": "pnpm --filter @novadeck/try poster",',
     why: "the posters are the visitor build's",
+    // The line before the app's script was named poster.
+    settled: ['"poster:try": "pnpm --filter @novadeck/try poster:try",'],
   },
   {
     file: "package.json",

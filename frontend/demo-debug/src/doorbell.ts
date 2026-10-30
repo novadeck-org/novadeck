@@ -34,7 +34,7 @@ const states: readonly {
     hint: "Messages pane says a dialog or picker is open, so its messages wait",
   },
   {
-    label: "Asking the user",
+    label: "Asking the person",
     waits: "asking",
     hint: "Messages pane says the agent is asking you a question, so its messages wait",
   },

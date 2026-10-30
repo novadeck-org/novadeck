@@ -8,7 +8,7 @@ import { screen } from "./screens.js"
  * harness: a permission dialog for a command, with `1. Yes`, `2. No` and `3. Tell it what
  * to do`, which opens a text field. `fakeAdapter` reads it as a harness's adapter would.
  */
-export type FakeState = "ask" | "field" | "gone" | "other"
+type FakeState = "ask" | "field" | "gone" | "other"
 
 export class FakeTui {
   state: FakeState = "ask"

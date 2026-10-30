@@ -84,7 +84,7 @@ export const MarkdownEditor = ({
   return (
     <div
       ref={ref}
-      className="plan-editor nodrag nopan nowheel"
+      className="document-editor nodrag nopan nowheel"
       data-readonly={readOnly || undefined}
     />
   )

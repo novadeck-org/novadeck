@@ -6,6 +6,7 @@ import { activeProject, type WorkspaceAction } from "@novadeck/core/state"
 import type {
   PreferencesValue,
   Project,
+  SidebarPanel,
   ViewMode,
   Workspace,
   WorkspaceProject,
@@ -89,8 +90,8 @@ export type WorkspaceCommands = ShellCommands &
     readonly openRequested: (request: TerminalRequest) => void
     // Brings a terminal into view wherever it is, as a click on a notification about it
     // asks: its project and session to the front, the terminal selected, and on Canvas the
-    // camera flown in to it.
-    readonly reveal: (terminalId: string) => void
+    // camera flown in to it. A panel given turns the sidebar to it in the same step.
+    readonly reveal: (terminalId: string, panel?: SidebarPanel) => void
     // Closes the terminal, or asks first while a program runs in it.
     readonly close: (terminalId: string) => void
     // Answers the pending close confirmation.
@@ -461,7 +462,7 @@ export const createWorkspaceCommands = (ctx: CommandContext): WorkspaceCommands 
         markCreated({ context: `${project.id}/${session.id}`, id: terminal.id })
       request.answer({ terminalId: terminal.id })
     },
-    reveal: (terminalId) => {
+    reveal: (terminalId, panel) => {
       const snapshot = workspace.getSnapshot()
       const found = holding(snapshot, terminalId)
       if (!found) return
@@ -470,7 +471,7 @@ export const createWorkspaceCommands = (ctx: CommandContext): WorkspaceCommands 
       recent.setSwitcher(null)
       // Out from behind any dialog, as the session's front comes from another one.
       if (sameTarget(target, currentTarget(snapshot))) {
-        go({ terminal: terminalId, dialog: null })
+        go({ terminal: terminalId, dialog: null, ...(panel && { panel }) })
         pulse("fly")
         set("sidebar", false)
         return
@@ -490,7 +491,7 @@ export const createWorkspaceCommands = (ctx: CommandContext): WorkspaceCommands 
             ? []
             : [{ type: "project/select" as const, projectId: project.id, now, enabledViews }]),
         ],
-        { terminal: terminalId, dialog: null },
+        { terminal: terminalId, dialog: null, ...(panel && { panel }) },
       )
       pulse("fly")
       set("sidebar", false)

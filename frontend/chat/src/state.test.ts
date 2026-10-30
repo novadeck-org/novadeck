@@ -2,7 +2,7 @@ import { createWorkspaceStore } from "@novadeck/core/store"
 import { workspaceFixture } from "@novadeck/core/testing"
 import type { AgentStatus } from "@novadeck/core/types"
 
-import { setChatDraft, setChatReply } from "./mode-state"
+import { setChatReply } from "./replies"
 import {
   answerInTerminal,
   createChat,
@@ -11,6 +11,7 @@ import {
   watchChat,
   chatDraftOf,
   chatReplyOf,
+  setChatDraft,
 } from "./state"
 import { describe, expect, it } from "./test"
 

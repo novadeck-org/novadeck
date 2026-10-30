@@ -43,6 +43,6 @@ describe("the debug panel's Doorbell group", () => {
     expect(waits()).toBe("dialog")
     run("Doorbell can ring")
     expect(waits()).toBeNull()
-    expect(run("Asking the user", { ...key, terminalId: "nope" })).toHaveLength(1)
+    expect(run("Asking the person", { ...key, terminalId: "nope" })).toHaveLength(1)
   })
 })

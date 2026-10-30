@@ -6,7 +6,7 @@ import { context, describe, expect, it } from "../test"
 const output = join(process.cwd(), "out")
 const read = (path: string): Promise<string> => readFile(join(output, path), "utf8")
 
-describe("compiled desktop host", () => {
+describe("the compiled desktop app", () => {
   context("after the production build", () => {
     it("keeps the application identity and starts the embedded HTTP server", async () => {
       const main = await read("main/index.js")
@@ -21,7 +21,7 @@ describe("compiled desktop host", () => {
       expect(main).toContain('app.commandLine.getSwitchValue("user-data-dir")')
       expect(main).toContain("startHttpServer")
       // Chromium's WebGL context limit is raised before the app is ready, and the window's
-      // preload is told it; the switch itself is covered in ../webgl-contexts.test.ts.
+      // preload is told it; the switch itself is covered in ./graphics/webgl.test.ts.
       expect(main).toMatch(/raiseWebglContexts\(\s*app\.commandLine\s*\)/)
       expect(main).toContain("webglContextsArgument(")
       expect(main).toContain("port: 0")
@@ -87,7 +87,7 @@ describe("compiled desktop host", () => {
       const main = await read("main/index.js")
       const preload = await read("preload/index.cjs")
 
-      // The decision itself is covered in ./updater.test.ts.
+      // The decision itself is covered in ./updates/updater.test.ts.
       expect(main).toContain("updatePlan(")
       expect(main).toContain('await import("electron-updater")')
       expect(preload).toContain("novadeck:update-offer")
@@ -115,7 +115,8 @@ describe("compiled desktop host", () => {
 
       expect(main).toContain("releaseLock: () => app.releaseSingleInstanceLock()")
       // Exits through the helper that logs the launch's end first.
-      expect(main).toContain("exit: () => exitApp(0)")
+      // The bundler may rename `exitApp` where a module is handed it.
+      expect(main).toMatch(/exit: \(\) => exitApp\d*\(0\)/u)
       expect(main).toContain('import { execFile, spawn } from "node:child_process"')
       // The lock goes first so the child can take it; the child is let go of before this one
       // exits. The bundler may rename `spawn`.
@@ -133,7 +134,7 @@ describe("compiled desktop host", () => {
       const handler = main.slice(main.indexOf('app.on("second-instance"'))
 
       expect(handler.slice(0, handler.indexOf("\n});"))).toMatch(
-        /bringForward\(window\);\s*else if \(server && !stopping\) createWindow\(server\.origin\);\s*if \(process\.platform === "darwin"\) app\.focus\(\{ steal: true \}\)/u,
+        /bringForward\(window\);\s*else if \(server && !quitting\.stopping\) createWindow\(server\.origin\);\s*if \(process\.platform === "darwin"\) app\.focus\(\{ steal: true \}\)/u,
       )
     })
 
@@ -160,13 +161,15 @@ describe("compiled desktop host", () => {
       const main = await read("main/index.js")
       const preload = await read("preload/index.cjs")
 
-      expect(main.indexOf("await leaveForNewerInstalled(")).toBeGreaterThan(-1)
-      expect(main.indexOf("await leaveForNewerInstalled(")).toBeLessThan(
-        main.indexOf("runner = startRunner("),
-      )
+      expect(main).toContain("await leaveForNewerInstalled(")
+      const leaves = main.indexOf("await portableCopies.leaveForNewer(portable)")
+      expect(leaves).toBeGreaterThan(-1)
+      expect(leaves).toBeLessThan(main.indexOf("runner = startRunner("))
       // The signature is left out, so macOS never waits for codesign to open its window.
-      expect(main).toMatch(/portableOf\(\{ \.\.\.\(?await baseBuild\(\)\)?/u)
-      expect(main).not.toMatch(/portableOf\(await updateBuild\(\)\)/u)
+      expect(main).toMatch(
+        /known = await build\.unsignedBuild\(\);\s*const portable = portableOf\(\{ \.\.\.known/u,
+      )
+      expect(main).not.toMatch(/portableOf\(await (?:build\.)?updateBuild\(\)\)/u)
       expect(main).toContain("registerPortableIpc(")
       expect(preload).toContain("novadeck:portable")
       expect(preload).toContain("novadeck:install-app")
@@ -213,7 +216,7 @@ describe("compiled desktop host", () => {
       const preload = await read("preload/index.cjs")
 
       expect(main).toContain("appearance.json")
-      // How launch restores the kept scheme is covered in ./appearance.test.ts.
+      // How launch restores the kept scheme is covered in ./window/appearance.test.ts.
       expect(main).toContain("restore(nativeTheme)")
       expect(main).toContain("nativeTheme.themeSource")
       expect(main).toContain("setBackgroundColor")
@@ -238,7 +241,7 @@ describe("compiled desktop host", () => {
       expect(main).toContain('webContents.on("will-navigate"')
       expect(main).toContain("setPermissionCheckHandler")
       expect(main).toContain("setPermissionRequestHandler")
-      // Which frames get the clipboard and the microphone is covered in ./permissions.test.ts.
+      // Which frames get the clipboard and the microphone is covered in ./window/permissions.test.ts.
       expect(main).toContain("limitPermissions(")
       expect(main).toContain("session.defaultSession")
       expect(main).toContain('askForMediaAccess("microphone")')
