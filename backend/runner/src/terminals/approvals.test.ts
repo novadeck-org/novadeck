@@ -30,15 +30,15 @@ describe("how a close of another terminal goes", () => {
     expect(closeWay({ leads: false, agent: null })).toBe("now")
   })
 
-  it("asks the user first for any other terminal that runs an agent", () => {
-    expect(closeWay({ leads: false, agent: "codex" })).toBe("ask")
-    expect(closeWay({ leads: false, agent: "agy" })).toBe("ask")
-    expect(closeWay({ leads: false, agent: "claude" })).toBe("ask")
+  it("asks the person first for any other terminal that runs an agent", () => {
+    expect(closeWay({ leads: false, agent: "codex" })).toBe("request")
+    expect(closeWay({ leads: false, agent: "agy" })).toBe("request")
+    expect(closeWay({ leads: false, agent: "claude" })).toBe("request")
   })
 })
 
 describe("asks to close a terminal, on their way to the client", () => {
-  it("sends the ask to the client that subscribed last, and settles it with the user's answer", async () => {
+  it("sends the ask to the client that subscribed last, and settles it with the person's answer", async () => {
     const asks = new Approvals()
     const first = collect(asks.follow("old"))
     const second = collect(asks.follow("new"))

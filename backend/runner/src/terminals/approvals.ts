@@ -17,7 +17,7 @@ export type ApprovalOutcome =
   | "withdrawn"
 
 /** How a close of another terminal goes: at once, or once the person confirms. */
-export type CloseWay = "now" | "ask"
+export type CloseWay = "now" | "request"
 
 /**
  * How an agent's close of another terminal goes: a teammate it leads, or a terminal that
@@ -30,11 +30,11 @@ export const closeWay = (input: {
   /** The agent running in the target, if any. */
   readonly agent: AgentName | null
 }): CloseWay => {
-  return input.leads || input.agent === null ? "now" : "ask"
+  return input.leads || input.agent === null ? "now" : "request"
 }
 
 /**
- * Agents' asks to close a terminal that runs an agent they don't lead, or to lead one, on
+ * Agents' requests to close a terminal that runs an agent they don't lead, or to lead one, on
  * their way to a client that approves them with the person. Each goes to the client that subscribed last
  * and waits, with no time limit, for the person's answer, until either terminal closes or
  * that client goes away. One waits at most for each terminal.
@@ -42,7 +42,7 @@ export const closeWay = (input: {
 export class Approvals {
   /** Each client's stream, oldest first. */
   private readonly followers = new Followers<Approval>()
-  /** Asks waiting for the person, by id, with the client each went to. */
+  /** Requests waiting for the person, by id, with the client each went to. */
   private readonly pending = new Map<
     string,
     {

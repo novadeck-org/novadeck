@@ -7,7 +7,7 @@ import { allowOpen } from "./opens.js"
  * What an agent asks to close, through Novadeck's MCP server: another terminal of its
  * project and session, by its exact handle, as `send` names its recipient.
  */
-export const closeRequest = z.strictObject({
+const closeRequest = z.strictObject({
   to: z.string().min(1).max(65).transform(bareHandle),
 })
 

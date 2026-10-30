@@ -25,7 +25,7 @@ import { Followers } from "./followers.js"
  * leads it (`lead`, by default when there is a message), and a past `resume` session of
  * that agent to continue; with a name; and `focus` when the person asked to see it.
  */
-export const openRequest = z
+const openRequest = z
   .strictObject({
     command: startupCommand.optional(),
     agent: agentName.optional(),

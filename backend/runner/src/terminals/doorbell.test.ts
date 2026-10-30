@@ -21,15 +21,15 @@ import {
   doorbellHost,
   profileOf,
   typingTarget,
-  type RingBound,
-  type RingRecord,
-} from "./ringing.js"
+  type DoorbellBound,
+  type DoorbellRecord,
+} from "./doorbell.js"
 
 const bound = (agent: AgentName, instance?: string) =>
   ({ agent, ...(instance && { instance }) }) as unknown as Binding
 
 /** A session bound with its fresh activity, as its first report binds it. */
-const boundTo = (binding: Binding): RingBound => ({ binding, activity: startedActivity(0) })
+const boundTo = (binding: Binding): DoorbellBound => ({ binding, activity: startedActivity(0) })
 
 /** A running terminal as the manager keeps it, as far as the doorbell reads it. */
 const record = (binding: Binding | null = null) => {
@@ -39,15 +39,15 @@ const record = (binding: Binding | null = null) => {
     resizedAt: 42,
     pty: { pid: 1 },
   }
-  const running: RingRecord = {
-    terminal: terminal as unknown as RingRecord["terminal"],
+  const running: DoorbellRecord = {
+    terminal: terminal as unknown as DoorbellRecord["terminal"],
     bound: binding && boundTo(binding),
   }
   return { running, written, terminal }
 }
 
 /** A manager's view of one terminal "t": live while `current` is set. */
-const world = (initial: RingRecord | undefined) => {
+const world = (initial: DoorbellRecord | undefined) => {
   const state = { current: initial, shown: undefined as "claude" | "codex" | undefined }
   const exits: Binding[] = []
   const tasks: (() => void)[] = []
@@ -57,7 +57,7 @@ const world = (initial: RingRecord | undefined) => {
     shownAgent: () => state.shown,
     alive: () => true,
     queued: (_: string, work: () => void) => void tasks.push(work),
-    endExited: (found: RingRecord) => void exits.push(found.bound!.binding),
+    endExited: (found: DoorbellRecord) => void exits.push(found.bound!.binding),
     messaging: { shownAgent: () => state.shown } as unknown as Messaging,
     working: () => false,
     stopping: () => false,
@@ -165,7 +165,7 @@ describe("the doorbell's host", () => {
     it("leaves a binding replaced before the queue got to it", () => {
       const w = gone(bound("claude", "999999999"))
       w.rings.agentGone?.("t")
-      ;(w.running as { bound: RingBound | null }).bound = boundTo(bound("codex", "888888888"))
+      ;(w.running as { bound: DoorbellBound | null }).bound = boundTo(bound("codex", "888888888"))
       for (const task of w.tasks.splice(0)) task()
       expect(w.exits).toEqual([])
     })
@@ -385,7 +385,7 @@ describe("a session stopped with background work running", () => {
       return messaging.ask("t", { agent, event, events: timed, deadline: clock.now + 3_000 })
     }
     const { running } = record(binding)
-    const terminal: { -readonly [K in keyof RingRecord]: RingRecord[K] } = { ...running }
+    const terminal: { -readonly [K in keyof DoorbellRecord]: DoorbellRecord[K] } = { ...running }
     /** What its activity says now. */
     const doing = (activity: Activity) => {
       terminal.bound = { binding, activity }

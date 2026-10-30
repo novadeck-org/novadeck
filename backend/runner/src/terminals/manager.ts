@@ -41,7 +41,7 @@ import { inherited } from "../shell/inherited.js"
 import type { InstalledShell } from "../shell/install.js"
 import { type Ack, type Call } from "../shell/reports.js"
 import type { HintFacts } from "../voice/hint.js"
-import { type AnswerOptions } from "./answers.js"
+import { type AnswersOptions } from "./answers.js"
 import { Approvals } from "./approvals.js"
 import { Bindings } from "./binding/facts.js"
 import { Reports } from "./binding/reports.js"
@@ -55,6 +55,7 @@ import { expectedAgent } from "./commands.js"
 import { Companion } from "./companion.js"
 import { forgetPrompts, markPrompt, murmurHost } from "./describing.js"
 import { type DialogsOptions } from "./dialogs.js"
+import { agentWorking } from "./doorbell.js"
 import { restored } from "./interrupted.js"
 import { Launcher, startedIn, startFailed } from "./launching.js"
 import { Murmur, type MurmurTimes } from "./murmur.js"
@@ -68,7 +69,6 @@ import { hasRun, type TerminalRecords } from "./records.js"
 import { createTranscriptRedactor, type TranscriptRedactor } from "./redaction.js"
 import { restoredSeparator } from "./restored.js"
 import { cancelResume, Claims, restartedTask } from "./resumes.js"
-import { agentWorking } from "./ringing.js"
 import { Sampler, shellProcess } from "./sampling.js"
 import { Saves } from "./saving.js"
 import type { TranscriptSealer } from "./sealing.js"
@@ -162,7 +162,7 @@ export type TerminalOptions = {
   /** How interrupts wait, as in some tests. */
   interrupts?: InterruptOptions
   /** How answers the chat gives agents' dialogs are pressed, and how dialogs are read, with their waits, as in some tests. */
-  answers?: AnswerOptions & DialogsOptions
+  answers?: AnswersOptions & DialogsOptions
   /**
    * Where a harness lives on this machine, which says how it may start with a task; a
    * harness counts as having none when omitted.
@@ -257,7 +257,7 @@ export class Terminals {
   private readonly pendingOwners = new Map<string, Set<{ released: boolean }>>()
   /** Agents' requests for a new terminal, on their way to the client. */
   private readonly opens = new OpenRequests()
-  /** Agents' asks to close a terminal, on their way to the client that asks the person. */
+  /** Agents' requests to close a terminal, on their way to the client that asks the person. */
   private readonly confirms = new Approvals()
   /** Samples running terminals' foreground processes. */
   private readonly sampler: Sampler<Record>
@@ -1446,7 +1446,7 @@ export class Terminals {
     this.opens.answer(answer, ownerId)
   }
 
-  /** Agents' asks to close a terminal or lead one, for the client to approve with the person. */
+  /** Agents' requests to close a terminal or lead one, for the client to approve with the person. */
   approvals(ownerId: string, signal?: AbortSignal): AsyncGenerator<Approval> {
     if (this.stopping) throw new DomainError("CLOSING")
     return this.confirms.follow(ownerId, signal)

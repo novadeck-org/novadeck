@@ -127,7 +127,7 @@ flowchart LR
 | Messages     | Runner, stored with the workspace (`WorkspaceStore`)                                                                    | Messages, threads, guards, pause, retention                                         |
 | Delivery     | Runner, one state machine per recipient terminal                                                                        | When and how a recipient notices: leases to hooks and the doorbell                  |
 | Hook answers | `shell/hook.ts` asks the runner; the runner returns stdout                                                              | Each harness's output encoding, in its adapter beside its decoder                   |
-| Doorbell     | `messaging/doorbell.ts`, behind `DoorbellHost` (built in `terminals/ringing.ts`); the manager owns every PTY and screen | The settle window, the calm check, the test paste, Enter, holding input and resizes |
+| Doorbell     | `messaging/doorbell.ts`, behind `DoorbellHost` (built in `terminals/doorbell.ts`); the manager owns every PTY and screen | The settle window, the calm check, the test paste, Enter, holding input and resizes |
 | Runner API   | Protocol and router                                                                                                     | Listing messages, pause and release, for the UI to come                             |
 
 Messaging is an application operation like `present`, `open_terminal` and `open_agent`: the MCP

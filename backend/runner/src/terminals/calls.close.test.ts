@@ -186,7 +186,7 @@ describe("an agent closing a teammate it leads, or a terminal with no agent", ()
 })
 
 describe("an agent closing another agent's terminal", () => {
-  it("asks the user and answers at once, closing nothing yet", async () => {
+  it("asks the person and answers at once, closing nothing yet", async () => {
     const run = setup({ moth: "claude", fox: "codex" })
     const asked = person(run.asks)
     await expect(run.close("moth", "fox")).resolves.toEqual({
@@ -210,7 +210,7 @@ describe("an agent closing another agent's terminal", () => {
     expect(run.steps).toEqual([])
   })
 
-  it("closes it once the user confirms, and tells the agent that asked", async () => {
+  it("closes it once the person confirms, and tells the agent that asked", async () => {
     const run = setup({ moth: "claude", fox: "codex" })
     const asked = person(run.asks)
     await run.close("moth", "fox")
@@ -223,7 +223,7 @@ describe("an agent closing another agent's terminal", () => {
     ])
   })
 
-  it("keeps it open when the user declines, and tells the agent that asked", async () => {
+  it("keeps it open when the person declines, and tells the agent that asked", async () => {
     const run = setup({ moth: "claude", fox: "codex" })
     const asked = person(run.asks)
     await run.close("moth", "fox")
@@ -254,7 +254,7 @@ describe("an agent closing another agent's terminal", () => {
     expect(run.steps).toEqual([])
   })
 
-  it("closes nothing when the user confirms after the target closed some other way", async () => {
+  it("closes nothing when the person confirms after the target closed some other way", async () => {
     const run = setup({ moth: "claude", fox: "codex" })
     const asked = person(run.asks)
     await run.close("moth", "fox")
@@ -281,7 +281,7 @@ describe("an agent closing another agent's terminal", () => {
     expect(run.steps).toEqual([])
   })
 
-  it("tells the agent nothing closed when the client goes away before the user answers", async () => {
+  it("tells the agent nothing closed when the client goes away before the person answers", async () => {
     const run = setup({ moth: "claude", fox: "codex" })
     person(run.asks)
     await run.close("moth", "fox")
@@ -301,7 +301,7 @@ describe("an agent closing another agent's terminal", () => {
     expect(run.steps).toEqual([])
   })
 
-  it("refuses a second ask for a terminal already waiting for the user", async () => {
+  it("refuses a second ask for a terminal already waiting for the person", async () => {
     const run = setup({ moth: "claude", fox: "codex", owl: "claude" })
     person(run.asks)
     await expect(run.close("moth", "fox")).resolves.toMatchObject({ ok: true, asked: true })
@@ -311,7 +311,7 @@ describe("an agent closing another agent's terminal", () => {
     })
   })
 
-  it("charges the close budget at ask time, so agents can't spam the user", async () => {
+  it("charges the close budget at ask time, so agents can't spam the person", async () => {
     const targets = ["a0", "a1", "a2", "a3", "a4", "a5"]
     const run = setup({
       moth: "claude",

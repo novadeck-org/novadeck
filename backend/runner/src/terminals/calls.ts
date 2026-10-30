@@ -160,7 +160,7 @@ export class Calls {
 
   /**
    * Which chain the terminal belongs to goes, as it closes or is let go; the chain's times
-   * stay. Asks to close it, or by it, are taken back: there is nothing left to confirm.
+   * stay. Requests to close it, or by it, are taken back: there is nothing left to confirm.
    */
   forgetOpener(terminalId: string): void {
     this.openers.delete(terminalId)
@@ -434,7 +434,7 @@ export class Calls {
       leads: this.host.messaging().leadOf(target.terminalId) === record.summary.handle,
       agent: target.agent,
     })
-    if (way === "ask") {
+    if (way === "request") {
       const waiting = this.host.approvals().refusal(target.terminalId)
       if (waiting)
         return refused(waiting === "nobody" ? nobodyRefusal : waitingRefusal(target.handle))
@@ -448,7 +448,7 @@ export class Calls {
     this.closed.set(charged, times)
     this.allClosed = all
     const { agent } = target
-    if (way === "ask") return this.askToClose(record, closing, agent)
+    if (way === "request") return this.askToClose(record, closing, agent)
     const others = this.host.messaging().waitingFor(target.terminalId, call.terminalId)
     // The runner began to stop meanwhile: the terminal is closed all the same, but the
     // caller is going too.
@@ -516,7 +516,7 @@ export class Calls {
     return { ok: true, asked: true, handle, title, ...(ran !== undefined && { ran }) }
   }
 
-  /** The caller hears how its ask to close a terminal went. */
+  /** The caller hears how its request to close a terminal went. */
   private async closeAsked(
     callerId: string,
     closing: Record,

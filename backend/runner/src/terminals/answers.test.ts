@@ -7,7 +7,7 @@ import { afterEach, vi } from "vitest"
 
 import { DomainError } from "../errors.js"
 import { describe, expect, it } from "../test.js"
-import { Answers, type AnswerHost } from "./answers.js"
+import { Answers, type AnswersHost } from "./answers.js"
 import { identified } from "./dialogs.js"
 
 // The answer driver's sleeps go through the global setTimeout, so a case that times them runs
@@ -230,7 +230,7 @@ const terminal = (
       },
     }
   }
-  const host: AnswerHost = {
+  const host: AnswersHost = {
     request: (_terminal, ref) =>
       ref === "r2"
         ? options.twinWaits?.() === false

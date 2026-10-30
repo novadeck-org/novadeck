@@ -16,11 +16,11 @@ import { requestRef } from "../harnesses/detail.js"
 import { harnesses } from "../harnesses/registry.js"
 import { Doorbell, type DoorbellOptions } from "../messaging/doorbell.js"
 import type { Messaging } from "../messaging/messaging.js"
-import { Answers, type AnswerOptions } from "./answers.js"
+import { Answers, type AnswersOptions } from "./answers.js"
 import { Dialogs, type DialogsOptions } from "./dialogs.js"
+import { agentWorking, doorbellHost, profileOf } from "./doorbell.js"
 import { Interrupts, Prompts } from "./prompting.js"
 import type { Record } from "./record.js"
-import { agentWorking, doorbellHost, profileOf } from "./ringing.js"
 
 /** How long `settleBox` looks at a screen for an empty box, in milliseconds. */
 const boxSettleMs = 5_000
@@ -32,7 +32,7 @@ export type TypingOptions = {
   readonly prompts?: PromptOptions | undefined
   /** How interrupts wait; the queued turn's wait defaults from the platform. */
   readonly interrupts: InterruptOptions
-  readonly answers?: (AnswerOptions & DialogsOptions) | undefined
+  readonly answers?: (AnswersOptions & DialogsOptions) | undefined
 }
 
 export type TypingHost = {

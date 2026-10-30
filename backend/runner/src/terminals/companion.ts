@@ -123,7 +123,7 @@ export class Companion {
    * Pictures a page on the caller's own terminal's bar for its agent, through Novadeck's
    * MCP server (see `CompanionItems.look`): the picture as an MCP image, and in words the
    * page's name, address, title, how it was taken and its troubles, those the runner holds
-   * of the user's pane too, which this look then spends, so the next prompt's notice does
+   * of the person's pane too, which this look then spends, so the next prompt's notice does
    * not repeat them. A page that moved off this machine since is
    * not pictured. A call without the shell's own token learns nothing more.
    */

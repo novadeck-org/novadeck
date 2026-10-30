@@ -17,7 +17,7 @@ import type { Typing } from "../typing.js"
 import type { Bindings } from "./facts.js"
 
 /** How long after the person's last key an untrusted agent's hooks are asked about again. */
-export const trustRecheckMs = 1000
+const trustRecheckMs = 1000
 
 export type ShownHost = {
   readonly messaging: () => Messaging

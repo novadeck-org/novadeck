@@ -26,7 +26,7 @@ export const unnamed: Naming = { person: null, opener: null, murmur: null, summa
 
 /** The most a summary holds, in characters (code points), over at most `summaryLines` lines. */
 export const summaryChars = 200
-export const summaryLines = 2
+const summaryLines = 2
 
 const separators = new Set(["&&", ";"])
 
