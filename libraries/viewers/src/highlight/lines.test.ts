@@ -22,6 +22,12 @@ describe("code highlighting", () => {
       expect(languageOf("config/.env")).toBeUndefined()
       expect(languageOf("archive.tar.gz/README")).toBeUndefined()
     })
+
+    it("knows none for an extension named like what every object has", () => {
+      expect(languageOf("x.constructor")).toBeUndefined()
+      expect(languageOf("x.__proto__")).toBeUndefined()
+      expect(languageOf("x.Constructor")).toBeUndefined()
+    })
   })
 
   it("leaves a language it doesn't know as plain text", async () => {
