@@ -235,6 +235,15 @@ describe("Codex's reply to async questions", () => {
     expect(items([reply([{ answer: "Blue", questionItemId: place(0) }])])[0]?.text).toBe("Blue")
   })
 
+  it("says so where an answer holds no text, rather than showing the reply as written", () => {
+    expect(
+      items([
+        reply([{ answer: "", question: "Which color?", questionItemId: place(0) }]),
+        reply([{ questionItemId: place(0) }]),
+      ]).map(({ text }) => text),
+    ).toEqual(["Re: Which color?\n(no answer)", "(no answer)"])
+  })
+
   it("stays as written where its items are not as probed", () => {
     const [entry] = items([reply([{ answer: "Blue" }])])
     expect(entry?.text).toMatch(/^<send_user_message_question_reply>/)

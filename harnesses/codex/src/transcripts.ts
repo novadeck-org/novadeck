@@ -107,7 +107,7 @@ export const transcripts: NonNullable<Harness["transcripts"]> = {
         if (role !== "user" && role !== "assistant") return []
         const text = joined(withoutImageTags(payload.content), ["input_text", "output_text"])
         const reply = role === "user" ? asyncReplyText(text) : undefined
-        if (reply) return [entry("user", "text", reply, { at: time })]
+        if (reply !== undefined) return [entry("user", "text", reply, { at: time })]
         const ran = role === "user" ? shell.exec(text) : null
         if (ran) {
           const [, command = "", code = "", printed = ""] = ran

@@ -45,7 +45,7 @@ const parsed = (json: string): unknown => {
   }
 }
 
-const textOf = (value: unknown): string => (typeof value === "string" ? value.trim() : "")
+const trimmed = (value: unknown): string => (typeof value === "string" ? value.trim() : "")
 
 // What a prompt answers, in its order, where it is Codex's reply to async questions. None
 // for any other prompt, and for one whose JSON or items are not as probed.
@@ -71,8 +71,8 @@ const asyncAnswers = (prompt: string): readonly AsyncAnswer[] => {
     answers.push({
       call: place[1],
       part: place[2] as number,
-      question: textOf(question),
-      answer: textOf(answer),
+      question: trimmed(question),
+      answer: trimmed(answer),
     })
   }
   return answers
@@ -92,6 +92,9 @@ export const asyncReplies = (
   return [...answered.values()]
 }
 
+// What the chat says of an answer that holds no text.
+const noAnswer = "(no answer)"
+
 /**
  * Codex's reply to async questions as the person's words, the way its own history shows
  * them: `Re: ` and the question, then the answer, for each question it answers. Undefined
@@ -101,7 +104,10 @@ export const asyncReplyText = (prompt: string): string | undefined => {
   const answers = asyncAnswers(prompt)
   if (answers.length === 0) return undefined
   return answers
-    .map(({ question, answer }) => (question ? `Re: ${question}\n${answer}` : answer).trim())
+    .map(({ question, answer }) => {
+      const said = answer || noAnswer
+      return question ? `Re: ${question}\n${said}` : said
+    })
     .join("\n\n")
 }
 
