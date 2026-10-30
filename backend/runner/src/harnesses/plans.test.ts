@@ -1,6 +1,7 @@
 import { resolve } from "node:path"
 
-import { maxPlan, planFile } from "@novadeck/harness-claude/decode"
+import { planFile } from "@novadeck/harness-claude/decode"
+import { maxPlan } from "@novadeck/harness-core/decode"
 import type { ActivityEvent, HarnessEvent } from "@novadeck/harness-core/events"
 import type { Report } from "@novadeck/harness-core/report"
 

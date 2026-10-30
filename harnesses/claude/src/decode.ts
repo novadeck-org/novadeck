@@ -14,10 +14,13 @@ import {
   withMode,
   shortName,
 } from "@novadeck/harness-core/decode"
-import type { Background, BackgroundJob, HarnessEvent } from "@novadeck/harness-core/events"
-import { isFields, parseFields } from "@novadeck/harness-core/fields"
-import type { WrittenPlan } from "@novadeck/harness-core/harness"
-import { at as writtenAt } from "@novadeck/harness-core/items"
+import type {
+  Background,
+  BackgroundJob,
+  HarnessEvent,
+  PlanSource,
+} from "@novadeck/harness-core/events"
+import { isFields } from "@novadeck/harness-core/fields"
 import { promptStart } from "@novadeck/harness-core/prompts"
 import type { Report } from "@novadeck/harness-core/report"
 import { oneLine } from "@novadeck/harness-core/tools"
@@ -33,17 +36,24 @@ import { kindOf } from "./tools.js"
  * Cursor. A turn starts with UserPromptSubmit, which Claude Code also sends with a task
  * notification as it starts a turn by itself, and ends with Stop, which lists background
  * tasks still running, or StopFailure on an API error; a subagent's stop ends only its
- * own work. PermissionRequest asks the person
- * about a tool call, AskUserQuestion's as a question and ExitPlanMode's as a plan to
- * review, for the root agent or a subagent;
- * the call's PostToolUse or PostToolUseFailure from that actor means it was allowed. An
+ * own work. PermissionRequest asks the person about a tool call, AskUserQuestion's as a
+ * question and ExitPlanMode's as a plan to review, for the root agent or a subagent; the
+ * call's PostToolUse or PostToolUseFailure from that actor means it was allowed. An
  * answered question's call gains its answers, and a plan may be edited in review, so
- * their results match loosely. A denial or
- * an Esc fires nothing: the next turn settles them. A prompt that timed out fires nothing
- * either, but the turn runs on: the call's result in the transcript settles the root's.
+ * their results match loosely. A denial or an Esc fires nothing: the next turn settles
+ * them. A prompt that timed out fires nothing either, but the turn runs on: the call's
+ * result in the transcript settles the root's (see `transcript.ts`).
  */
 export const decode = (report: Report): readonly HarnessEvent[] =>
   withRequestCwd(withMode(decodeHook(report), report.payload), report.payload)
+
+/** What every event of one report shares: the session, its process and when it fired. */
+export type EventBase = {
+  readonly agent: "claude"
+  readonly sessionId: string
+  readonly instance: string | null
+  readonly startedAt: number
+}
 
 /** The tool name an elicitation of `server` goes by: it is no tool call, so it takes this. */
 export const elicitationTool = (server: string): string => `mcp__${server}__elicitation`
@@ -61,7 +71,7 @@ const atPrompt: ReadonlySet<string> = new Set(["startup", "clear", "resume", "fo
 const decodeHook = ({ event, seq, instance, env, payload }: Report): readonly HarnessEvent[] => {
   const id = sessionId(payload.session_id)
   if (!id || payload.cursor_version !== undefined || env.cursor) return []
-  const base = { agent: "claude", sessionId: id, instance, startedAt: seq } as const
+  const base: EventBase = { agent: "claude", sessionId: id, instance, startedAt: seq }
   const tool = text(payload.tool_name) ?? ""
   const actor = text(payload.agent_id) ?? null
   switch (event) {
@@ -83,22 +93,24 @@ const decodeHook = ({ event, seq, instance, env, payload }: Report): readonly Ha
         },
       ]
     }
-    case "UserPromptSubmit":
+    case "UserPromptSubmit": {
       // A subagent's prompt is its own work, not the root's turn; a background task's
       // result starts a turn by itself, as a task notification.
       if (actor) return []
       const prompt = text(payload.prompt) ?? ""
+      const notified = taskNotification.test(prompt)
       return [
         // The tasks it names are done before the turn it starts.
-        ...(notification.test(prompt)
+        ...(notified
           ? finished(prompt).map((task): HarnessEvent => ({
               type: "task-ended",
               ...base,
               id: task,
             }))
           : []),
-        promptStart(base, prompt, notification.test(prompt)),
+        promptStart(base, prompt, notified),
       ]
+    }
     case "Stop":
       return actor
         ? []
@@ -250,8 +262,11 @@ const decodeHook = ({ event, seq, instance, env, payload }: Report): readonly Ha
   }
 }
 
-// The prompt of a turn Claude Code starts by itself once a background task finishes.
-const notification = /^\s*<task-notification>/
+/**
+ * The prompt of a turn Claude Code starts by itself once a background task finishes,
+ * which its transcript records in the person's place.
+ */
+export const taskNotification = /^\s*<task-notification>/
 
 // The ids of the tasks a notification names, as `<task-id>` elements.
 const finished = (prompt: string): string[] =>
@@ -260,7 +275,7 @@ const finished = (prompt: string): string[] =>
 // The most a wake-up may be set out, as ScheduleWakeup clamps it: a minute to an hour.
 const wakeDelayMs = { least: 60_000, most: 3_600_000 } as const
 
-// The longest id, description and reason the protocol takes.
+// The longest id, and the longest description or reason, the protocol takes.
 const maxJobText = 256
 const maxDescription = 512
 
@@ -277,11 +292,7 @@ const firstLine = (value: unknown): string | undefined => {
  * epoch milliseconds, which Claude Code rounds to the minute; its `delaySeconds` from the
  * call's input stands in where a result has none.
  */
-const started = (
-  base: { agent: "claude"; sessionId: string; instance: string | null; startedAt: number },
-  tool: string,
-  payload: Report["payload"],
-): HarnessEvent[] => {
+const started = (base: EventBase, tool: string, payload: Report["payload"]): HarnessEvent[] => {
   const fields = isFields(payload.tool_input) ? payload.tool_input : {}
   const result = isFields(payload.tool_response) ? payload.tool_response : {}
   if (tool === "ScheduleWakeup") {
@@ -363,10 +374,7 @@ const windows = { five_hour: 300, seven_day: 10_080 } as const
  * display name with its reasoning effort level, which it leaves out for a model without
  * one.
  */
-const statusLine = (
-  base: { agent: "claude"; sessionId: string; instance: string | null; startedAt: number },
-  payload: Report["payload"],
-): HarnessEvent[] => {
+const statusLine = (base: EventBase, payload: Report["payload"]): HarnessEvent[] => {
   const window = (payload.context_window ?? {}) as Record<string, unknown>
   const usage = (window.current_usage ?? {}) as Record<string, unknown>
   const held = [
@@ -413,8 +421,8 @@ const statusLine = (
   ]
 }
 
-// Tools that write a file, and what their input names it by.
-const writers = new Set(["Write", "Edit", "MultiEdit"])
+// Tools that write a file their input names by `file_path`; NotebookEdit's is `notebook_path`.
+const writers: ReadonlySet<string> = new Set(["Write", "Edit", "MultiEdit"])
 
 /** A Markdown file named by an absolute path. */
 const markdown = (value: unknown): string | undefined => {
@@ -434,7 +442,7 @@ export const planFile = (value: unknown): string | undefined => {
 
 // A file a writer wrote or edited, by the absolute path its input names.
 const touched = (
-  base: { agent: "claude"; sessionId: string; instance: string | null; startedAt: number },
+  base: EventBase,
   actor: string | null,
   tool: string,
   input: unknown,
@@ -447,7 +455,7 @@ const touched = (
 
 // A plan drafted in plan mode: the file its writer wrote.
 const drafted = (
-  base: { agent: "claude"; sessionId: string; instance: string | null; startedAt: number },
+  base: EventBase,
   actor: string | null,
   tool: string,
   payload: Report["payload"],
@@ -457,40 +465,23 @@ const drafted = (
   return path ? [{ type: "plan-observed", ...base, actor, plan: { kind: "file", path } }] : []
 }
 
-// A plan presented for review: its file, or its text when it names none.
+/** A plan a call presents for review: its file, or its text when it names none. */
+export const presentedPlan = (tool: string, input: unknown): PlanSource | undefined => {
+  if (tool !== "ExitPlanMode") return undefined
+  const { plan, planFilePath } = (input ?? {}) as { plan?: unknown; planFilePath?: unknown }
+  // Claude Code names the file itself, replacing whatever the model passed.
+  const path = markdown(planFilePath)
+  if (path) return { kind: "file", path }
+  if (typeof plan !== "string" || !plan) return undefined
+  return { kind: "text", ...planText(plan) }
+}
+
 const presented = (
-  base: { agent: "claude"; sessionId: string; instance: string | null; startedAt: number },
+  base: EventBase,
   actor: string | null,
   tool: string,
   input: unknown,
 ): HarnessEvent[] => {
-  if (tool !== "ExitPlanMode") return []
-  const { plan, planFilePath } = (input ?? {}) as { plan?: unknown; planFilePath?: unknown }
-  // Claude Code names the file itself, replacing whatever the model passed.
-  const path = markdown(planFilePath)
-  if (path) return [{ type: "plan-observed", ...base, actor, plan: { kind: "file", path } }]
-  if (typeof plan !== "string" || !plan) return []
-  return [{ type: "plan-observed", ...base, actor, plan: { kind: "text", ...planText(plan) } }]
+  const plan = presentedPlan(tool, input)
+  return plan ? [{ type: "plan-observed", ...base, actor, plan }] : []
 }
-
-/**
- * The plans a transcript line presents for review, as its hooks would name them: what
- * reads back a plan presented as text, which no file holds, from its actor's transcript.
- */
-export const transcriptPlans = (line: string): readonly WrittenPlan[] => {
-  if (!line.includes('"ExitPlanMode"')) return []
-  const fields = parseFields(line)
-  if (fields?.type !== "assistant") return []
-  const time = writtenAt(fields.timestamp)
-  const base = { agent: "claude", sessionId: "", instance: null, startedAt: time ?? 0 } as const
-  const content = (fields.message as { content?: unknown } | undefined)?.content
-  return (Array.isArray(content) ? content : []).flatMap((part) => {
-    const { type, name, input } = (part ?? {}) as Record<string, unknown>
-    if (type !== "tool_use" || typeof name !== "string") return []
-    return presented(base, null, name, input).flatMap((event) =>
-      event.type === "plan-observed" ? [{ source: event.plan, at: time }] : [],
-    )
-  })
-}
-
-export { maxPlan } from "@novadeck/harness-core/decode"

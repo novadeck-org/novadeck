@@ -1,28 +1,25 @@
 import { readFile } from "node:fs/promises"
 import { join } from "node:path"
 
-import { followLines } from "@novadeck/harness-core/follow"
-import {
-  efforts,
-  type MessagingProfile,
-  type Harness,
-  type Install,
-} from "@novadeck/harness-core/harness"
+import type { MessagingProfile, Harness, Install } from "@novadeck/harness-core/harness"
 import { hookSeconds, hookCommand, type Dialect } from "@novadeck/harness-core/hook-command"
 import { json, marketplace, manifest } from "@novadeck/harness-core/plugin"
 
 import { box } from "./box.js"
-import { decode, transcriptPlans } from "./decode.js"
+import { decode } from "./decode.js"
 import { dialogs } from "./dialogs.js"
+import { models } from "./models.js"
 import { cmdShim, commands, posixShim } from "./shim.js"
-import { transcriptEvents, type Calls } from "./transcript.js"
+import { followTranscript, transcriptPlans } from "./transcript.js"
 import { transcripts } from "./transcripts.js"
 
-const id = "novadeck@novadeck"
+// Novadeck's plugin, as Claude Code installs it from Novadeck's marketplace.
+const marketplaceName = "novadeck"
+const pluginId = "novadeck@novadeck"
 
 /** Claude Code's configuration folder, which also keeps its plans in `plans`. */
-export const configFolder = ({ env, home: user }: Pick<Install, "env" | "home">): string =>
-  env.CLAUDE_CONFIG_DIR || join(user, ".claude")
+const configFolder = ({ env, home }: Pick<Install, "env" | "home">): string =>
+  env.CLAUDE_CONFIG_DIR || join(home, ".claude")
 
 // The hooks `decode` reads: the session, its turns, and the requests waiting on the person.
 const events = [
@@ -45,11 +42,13 @@ const events = [
 const hookDialect = (platform: NodeJS.Platform, event?: string): Dialect =>
   platform === "win32" && event !== "StatusLine" ? "powershell" : "sh"
 
-// Without Novadeck it needs nothing printed.
+// Outside Novadeck's shells its hooks print nothing: Claude Code needs no fallback answer.
 const hook = (platform: NodeJS.Platform, event: string): string =>
   hookCommand(hookDialect(platform, event), { agent: "claude", event })
 
-const claudeModels = ["opus", "sonnet", "haiku", "fable"].map((alias) => ({ id: alias, efforts }))
+// What a hook prints to hand the model `delivery` as context.
+const context = (event: string, delivery: string): string =>
+  `${JSON.stringify({ hookSpecificOutput: { hookEventName: event, additionalContext: delivery } })}\n`
 
 // A Stop's reason continues the turn, and reaches the model as the Stop hook's feedback;
 // a prompt's context is an attachment beside the prompt, never the prompt itself; a tool
@@ -64,12 +63,8 @@ const messaging: MessagingProfile = {
   },
   silent: { "*": "" },
   stop: (delivery) => `${JSON.stringify({ decision: "block", reason: delivery })}\n`,
-  prompt: (delivery) =>
-    `${JSON.stringify({
-      hookSpecificOutput: { hookEventName: "UserPromptSubmit", additionalContext: delivery },
-    })}\n`,
-  call: (delivery, event) =>
-    `${JSON.stringify({ hookSpecificOutput: { hookEventName: event, additionalContext: delivery } })}\n`,
+  prompt: (delivery) => context("UserPromptSubmit", delivery),
+  call: (delivery, event) => context(event, delivery),
   reinjectPerCall: false,
   root: "binding",
   silentOnFailure: false,
@@ -79,8 +74,7 @@ const messaging: MessagingProfile = {
   // It holds a command-line prompt behind its trust and startup screens.
   initialPrompt: (line) => Promise.resolve(["claude", line]),
   start: ["claude"],
-  // Its aliases, which it resolves to the latest model of each family.
-  models: () => Promise.resolve(claudeModels),
+  models: () => Promise.resolve(models),
   choose: ({ model, effort }) => [
     ...(model !== undefined ? ["--model", model] : []),
     ...(effort !== undefined ? ["--effort", effort] : []),
@@ -93,8 +87,8 @@ const sessionCommands = new Set(["attach", "ultrareview"])
 export const claude = {
   id: "claude",
   plugin: "claude",
-  // Claude Code's local install is an alias in the user's rc file, not on PATH.
-  fallback: (user) => join(user, ".claude", "local", "claude"),
+  // Claude Code's local install is an alias in the person's rc file, not on PATH.
+  fallback: (home) => join(home, ".claude", "local", "claude"),
   home: configFolder,
   connected: async (install) => {
     try {
@@ -103,20 +97,20 @@ export const claude = {
       ) as {
         enabledPlugins?: Record<string, unknown>
       }
-      return settings.enabledPlugins?.[id] === true
+      return settings.enabledPlugins?.[pluginId] === true
     } catch {
       return false
     }
   },
   connect: ({ plugin: directory }) => [
     // A marketplace left from an earlier connection is replaced, not added twice.
-    { argv: ["claude", "plugin", "marketplace", "remove", "novadeck"], optional: true },
+    { argv: ["claude", "plugin", "marketplace", "remove", marketplaceName], optional: true },
     { argv: ["claude", "plugin", "marketplace", "add", directory] },
-    { argv: ["claude", "plugin", "install", id] },
+    { argv: ["claude", "plugin", "install", pluginId] },
   ],
   disconnect: [
-    { argv: ["claude", "plugin", "uninstall", id], optional: true },
-    { argv: ["claude", "plugin", "marketplace", "remove", "novadeck"], optional: true },
+    { argv: ["claude", "plugin", "uninstall", pluginId], optional: true },
+    { argv: ["claude", "plugin", "marketplace", "remove", marketplaceName], optional: true },
   ],
   hookDialect,
   hook,
@@ -160,15 +154,15 @@ export const claude = {
       }),
     },
   ],
-  // The status line Novadeck's shim adds, where its shells run Claude Code.
+  // Novadeck's shim, through which its shells run Claude Code with its status line.
   shims: (platform) =>
     platform === "win32"
       ? [{ path: "claude.cmd", content: cmdShim }]
       : [{ path: "claude", content: posixShim, mode: 0o700 }],
-  // Its commands other than a session, but `attach`, which opens a background session in
-  // the terminal, and `ultrareview`, which submits a cloud review; its print mode runs it
-  // on the caller's text, so it is none. Its options
-  // that take a value, which the words after them are not commands for.
+  // Its commands other than a session: all of them but `attach`, which opens a background
+  // session in the terminal, and `ultrareview`, which submits a cloud review. Its print mode
+  // runs it on the caller's text, so that is a session's use. The options that take a
+  // value, whose next word is no command.
   nonSession: {
     commands: commands.filter((command) => !sessionCommands.has(command)),
     flags: ["-h", "--help", "-v", "--version"],
@@ -232,10 +226,5 @@ export const claude = {
   box,
   // The transcript records what no hook reports: an interrupted turn, and a request a
   // timed-out prompt denied.
-  watch: (run, signal, emit) => {
-    const calls: Calls = new Map()
-    return followLines(run.transcript, signal, (line) => {
-      for (const event of transcriptEvents(line, run, calls)) emit(event)
-    })
-  },
+  watch: followTranscript,
 } satisfies Harness

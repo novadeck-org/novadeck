@@ -9,7 +9,7 @@ import { dialogs } from "./dialogs.js"
 // What Claude Code's dialog tests share: the probe's scenarios, as screens and the
 // requests their hooks told, and the answers and keys a test reads.
 
-export type Scenario = {
+type Scenario = {
   events: { event?: string; payload?: { tool_name: string; tool_input: unknown } }[]
   version?: string
   prompts?: string[]

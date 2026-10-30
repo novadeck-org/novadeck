@@ -83,7 +83,7 @@ export const idle = (rows: readonly string[]): boolean =>
     return before >= 0 && rule.test(rows[before]!) && after >= 0 && rule.test(rows[after]!)
   })
 
-export type Option = { readonly n: number; readonly marker: boolean; readonly label: string }
+type Option = { readonly n: number; readonly marker: boolean; readonly label: string }
 
 /**
  * Numbered option rows from `from` on, each with its wrapped continuation rows, in the
@@ -121,7 +121,7 @@ export const numbered = (
 }
 
 /** A `choices` dialog, read from its numbered options. */
-export type Choices = {
+type Choices = {
   readonly title: string
   readonly detail: string | null
   readonly options: readonly Option[]
