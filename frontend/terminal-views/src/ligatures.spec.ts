@@ -1,8 +1,10 @@
 import "@novadeck/emulator/browser.css"
 import fontUrl from "@fontsource-variable/jetbrains-mono/files/jetbrains-mono-latin-wght-normal.woff2?url"
 import { createRenderers, createView, loadWebgl, type View } from "@novadeck/emulator/browser"
-import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest"
+import { afterAll, afterEach, beforeAll } from "vitest"
 import { page } from "vitest/browser"
+
+import { describe, expect, it } from "./test"
 
 // Ligatures drawn by WebGL, in a real browser: one glyph per run of cells the font joins, held
 // to the grid, and left alone where the cells differ. A screen is read as pixels (a screenshot
@@ -10,7 +12,7 @@ import { page } from "vitest/browser"
 //
 // 13 px JetBrains Mono advances 7.8 px, and a cell is `floor(7.8 * ratio) / ratio`: 7 px at a
 // ratio of 1, where a run drawn at the font's own advance spills past its cells. The spec runs at
-// the runner's ratio of 1: a page in the runner's iframe keeps xterm's WebGL canvas at CSS size
+// Vitest's runner's ratio of 1: a page in its iframe keeps xterm's WebGL canvas at CSS size
 // whatever ratio is set on it, so other ratios are measured outside it (the emulator's README).
 
 const family = "'JetBrains Mono Variable', monospace"
