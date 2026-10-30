@@ -49,7 +49,7 @@ describe("Codex's models", () => {
       expect(await readModels(home)).toHaveLength(2)
       const env = { CODEX_HOME: home }
       expect(
-        await codex.messaging.models({ env, home: "/nowhere", platform: "linux", plugin: "" }),
+        await codex.launch.models({ env, home: "/nowhere", platform: "linux", plugin: "" }),
       ).toHaveLength(2)
     } finally {
       rmSync(home, { recursive: true, force: true })
@@ -57,7 +57,7 @@ describe("Codex's models", () => {
   })
 
   it("start with the model and the effort as config", () => {
-    const { choose } = codex.messaging
+    const { choose } = codex.launch
     expect(choose({})).toEqual([])
     expect(choose({ model: "gpt-5.5", effort: "high" })).toEqual([
       "--model",

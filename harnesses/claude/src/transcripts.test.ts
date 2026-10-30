@@ -39,6 +39,27 @@ const shell = loadProbe(import.meta.dirname, "shell.probe.json") as {
   scenarios: { [name: string]: object[] }
 }
 
+describe("Claude Code's interruption records", () => {
+  const said = (content: unknown) =>
+    items([{ type: "user", timestamp: "2026-09-29T22:13:37.834Z", message: { content } }])
+  const marker = "[Request interrupted by user for tool use]"
+
+  it("read as interrupted, however it wrote them", () => {
+    for (const content of [marker, "  [Request interrupted by user]\n"])
+      expect(said(content)).toMatchObject([{ role: "user", interrupted: true }])
+    expect(said([{ type: "text", text: marker }])).toMatchObject([{ interrupted: true }])
+  })
+
+  it("are nothing else, as text that only starts like one", () => {
+    expect(said(`${marker} and more`)).toMatchObject([{ role: "user", interrupted: false }])
+    expect(
+      items([
+        { type: "assistant", timestamp: "2026-09-29T22:13:37.834Z", message: { content: marker } },
+      ]),
+    ).toMatchObject([{ role: "assistant", interrupted: false }])
+  })
+})
+
 describe("Claude Code's shell-mode commands, as captured", () => {
   const ran = (name: string) => items(shell.scenarios[name]!)
 

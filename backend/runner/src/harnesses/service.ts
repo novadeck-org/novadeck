@@ -258,7 +258,7 @@ export const createHarnesses = (
         const where = (await installs())?.(agent)
         const harness = harnesses[agent]
         if (!where || !(await exists(harness.home(where)))) return []
-        return await harness.messaging.models(where)
+        return await harness.launch.models(where)
       } catch (error) {
         log.warn("harnesses.models-failed", `Novadeck could not list ${agent}'s models`, {
           data: { agent },

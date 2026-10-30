@@ -6,7 +6,7 @@ const install = { env: {}, home: "/home/user", platform: "linux", plugin: "" } a
 
 describe("Antigravity's models", () => {
   it("are its listed ids, each with the one effort its id ends in", async () => {
-    const models = await agy.messaging.models(install)
+    const models = await agy.launch.models(install)
     expect(models).toContainEqual({ id: "gemini-3.8-flash-high", efforts: ["high"] })
     expect(models).toContainEqual({ id: "gemini-3.8-flash-low", efforts: ["low"] })
     expect(models).toContainEqual({ id: "gpt-oss-120b-medium", efforts: ["medium"] })
@@ -14,7 +14,7 @@ describe("Antigravity's models", () => {
   })
 
   it("start with the model and the effort as flags", () => {
-    const { choose } = agy.messaging
+    const { choose } = agy.launch
     expect(choose({})).toEqual([])
     expect(choose({ model: "gemini-3.8-flash-low", effort: "low" })).toEqual([
       "--model",

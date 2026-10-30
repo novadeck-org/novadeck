@@ -1,4 +1,4 @@
-import { posix, win32 } from "node:path"
+import { flavourOf } from "@novadeck/harness-core/paths"
 
 // The lines of a patch that name the files it adds, changes, deletes or moves to.
 const patchFile = /^\*\*\* (?:Add File|Update File|Delete File|Move to): (.+)$/gm
@@ -18,13 +18,6 @@ export const applied = (response: unknown): boolean =>
   typeof response !== "string" || response.trim() === "" || /^Success\b/.test(response.trim())
 
 /**
- * The path rules the given paths are written in, whatever machine this runs on: a drive
- * letter, a backslash or a UNC prefix make them Windows paths, anything else POSIX.
- */
-export const flavourOf = (...paths: (string | undefined)[]): typeof posix =>
-  paths.some((path) => path !== undefined && /^[A-Za-z]:[\\/]|^\\\\|\\/.test(path)) ? win32 : posix
-
-/**
  * The files a tool call's patch wrote, as Codex's apply_patch names them in its input,
  * from the session's directory; none for any other call.
  */
@@ -41,10 +34,3 @@ export const patched = (input: unknown, cwd: string | undefined): readonly strin
           : [],
     )
 }
-
-/** The files a permission request for a Codex patch asks to write, from its directory. */
-export const patchRequested = (
-  tool: string,
-  input: unknown,
-  cwd: string | undefined,
-): readonly string[] => (tool === "apply_patch" ? patched(input, cwd) : [])

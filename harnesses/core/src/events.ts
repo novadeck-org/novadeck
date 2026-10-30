@@ -270,6 +270,12 @@ export type ActivityEvent = EventBase &
         /** The directory the agent's hook said it ran in, where it said one. */
         readonly cwd?: string
         /**
+         * The files a permission asks to write, as absolute paths, where its harness can tell
+         * them from the call, as Codex's patch names them: a write of one of them that lands
+         * settles it where no hook does (see the runner's `harnesses/activity.ts`).
+         */
+        readonly writes?: readonly string[]
+        /**
          * Whether only the screen told it (see `DialogAdapter.screenRequest`): the terminal
          * manager raises it, and it resumes no turn.
          */

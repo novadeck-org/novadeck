@@ -171,14 +171,14 @@ const shimmed = (platform: NodeJS.Platform) =>
 
 describe("the harness registry", () => {
   it("resumes each harness's session by its own command", () => {
-    expect(harnesses.claude.resume?.("s")).toEqual(["claude", "--resume", "s"])
-    expect(harnesses.codex.resume?.("s")).toEqual(["codex", "resume", "s"])
-    expect(harnesses.agy.resume?.("s")).toEqual(["agy", "--conversation", "s"])
+    expect(harnesses.claude.launch.resume?.("s")).toEqual(["claude", "--resume", "s"])
+    expect(harnesses.codex.launch.resume?.("s")).toEqual(["codex", "resume", "s"])
+    expect(harnesses.agy.launch.resume?.("s")).toEqual(["agy", "--conversation", "s"])
   })
 
   it("resumes with the model and effort chosen, where each takes its options", () => {
     const choice = { model: "m", effort: "high" } as const
-    expect(harnesses.claude.resume?.("s", choice)).toEqual([
+    expect(harnesses.claude.launch.resume?.("s", choice)).toEqual([
       "claude",
       "--model",
       "m",
@@ -187,7 +187,7 @@ describe("the harness registry", () => {
       "--resume",
       "s",
     ])
-    expect(harnesses.codex.resume?.("s", choice)).toEqual([
+    expect(harnesses.codex.launch.resume?.("s", choice)).toEqual([
       "codex",
       "resume",
       "--model",
@@ -196,14 +196,14 @@ describe("the harness registry", () => {
       "model_reasoning_effort=high",
       "s",
     ])
-    expect(harnesses.agy.resume?.("s", { effort: "low" })).toEqual([
+    expect(harnesses.agy.launch.resume?.("s", { effort: "low" })).toEqual([
       "agy",
       "--effort",
       "low",
       "--conversation",
       "s",
     ])
-    expect(harnesses.codex.resume?.("s", {})).toEqual(["codex", "resume", "s"])
+    expect(harnesses.codex.launch.resume?.("s", {})).toEqual(["codex", "resume", "s"])
   })
 
   it("gives Claude Code and Codex a shim everywhere", () => {

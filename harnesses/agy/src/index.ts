@@ -1,6 +1,6 @@
 import { join } from "node:path"
 
-import type { MessagingProfile, Harness } from "@novadeck/harness-core/harness"
+import type { Harness, LaunchProfile, MessagingProfile } from "@novadeck/harness-core/harness"
 
 import { box } from "./box.js"
 import { decode } from "./decode.js"
@@ -36,20 +36,24 @@ const messaging: MessagingProfile = {
   // A subagent running, it took a typed prompt (fixture
   // `background-prompt.probe.json`, probed 2026-10-19, 1.2.14).
   promptsInBackground: true,
+  // Its hooks name no prompt, but its transcript tells what was typed (a USER_EXPLICIT
+  // USER_INPUT step) from what woke it: a subagent's message, a Stop hook's continuation
+  // or a notice are SYSTEM_MESSAGE steps, and injected messages EPHEMERAL_MESSAGE ones.
+  typedEntry,
+}
+
+const launch: LaunchProfile = {
+  start: ["agy"],
   // `-i` submits its prompt about 0.9 s after it starts, even while its "Do you trust
   // this folder?" dialog is up, so only in a folder it already trusts.
   initialPrompt: async (line, { install, cwd }) =>
     install && (await trustsFolder(install, cwd)) ? ["agy", "-i", line] : undefined,
-  start: ["agy"],
+  resume: (session, choice = {}) => ["agy", ...launch.choose(choice), "--conversation", session],
   models: () => Promise.resolve(models),
   choose: ({ model, effort }) => [
     ...(model !== undefined ? ["--model", model] : []),
     ...(effort !== undefined ? ["--effort", effort] : []),
   ],
-  // Its hooks name no prompt, but its transcript tells what was typed (a USER_EXPLICIT
-  // USER_INPUT step) from what woke it: a subagent's message, a Stop hook's continuation
-  // or a notice are SYSTEM_MESSAGE steps, and injected messages EPHEMERAL_MESSAGE ones.
-  typedEntry,
 }
 
 export const agy = {
@@ -106,7 +110,6 @@ export const agy = {
       "-v",
     ],
   },
-  resume: (session, choice = {}) => ["agy", ...messaging.choose(choice), "--conversation", session],
   transcripts,
   // Its hooks name no subagents; its status line counts them; see docs/harness-coverage.md.
   // A background subagent's end wakes it with a message saying it went idle.
@@ -126,6 +129,7 @@ export const agy = {
   decode,
   dialogs,
   shown,
+  launch,
   messaging,
   box,
 } satisfies Harness
