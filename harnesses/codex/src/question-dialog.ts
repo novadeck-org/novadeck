@@ -1,8 +1,8 @@
 import type { KeyStep, RequestFacts } from "@novadeck/harness-core/dialogs"
+import { fieldsOf } from "@novadeck/harness-core/fields"
 
 import {
   clean,
-  fieldsOf,
   firstOption,
   labelled,
   optionsAt,

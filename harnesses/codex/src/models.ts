@@ -1,8 +1,8 @@
 import { readFile } from "node:fs/promises"
 import { join } from "node:path"
 
+import { isFields, parseFields } from "@novadeck/harness-core/fields"
 import { efforts, type Model } from "@novadeck/harness-core/harness"
-import { isFields, parseFields } from "@novadeck/harness-core/tools"
 
 /**
  * The models Codex lists in its `models_cache.json` (those with `visibility: "list"`), each

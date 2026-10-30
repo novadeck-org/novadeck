@@ -1,10 +1,10 @@
 import type { RequestFacts } from "@novadeck/harness-core/dialogs"
+import { fieldsOf } from "@novadeck/harness-core/fields"
 
 import {
   type Choice,
   choose,
   collapse,
-  fieldsOf,
   firstOption,
   labelled,
   optionsAt,

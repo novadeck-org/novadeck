@@ -8,7 +8,7 @@ import {
   subjectOf,
   text,
 } from "@novadeck/harness-core/decode"
-import type { HarnessEvent } from "@novadeck/harness-core/events"
+import type { EventBase, HarnessEvent } from "@novadeck/harness-core/events"
 import { promptStart } from "@novadeck/harness-core/prompts"
 import type { Report } from "@novadeck/harness-core/report"
 
@@ -34,18 +34,10 @@ import { kindOf } from "./tools.js"
 export const decode = (report: Report): readonly HarnessEvent[] =>
   withRequestCwd(decodeHook(report), report.payload)
 
-/** What every event Codex tells has: the agent, its session and process, and when. */
-export type EventBase = {
-  readonly agent: "codex"
-  readonly sessionId: string
-  readonly instance: string | null
-  readonly startedAt: number
-}
-
 const decodeHook = ({ event, seq, instance, env, payload }: Report): readonly HarnessEvent[] => {
   const id = sessionId(payload.session_id)
   if (!id || (env.codexThread !== undefined && env.codexThread !== id)) return []
-  const base: EventBase = { agent: "codex", sessionId: id, instance, startedAt: seq }
+  const base: EventBase<"codex"> = { agent: "codex", sessionId: id, instance, startedAt: seq }
   const tool = text(payload.tool_name) ?? ""
   const actor = text(payload.agent_id) ?? null
   const input = payload.tool_input
@@ -197,7 +189,7 @@ export const callOf = (input: unknown): unknown =>
 
 /** A request waiting on the person for a tool call, named by its call unless `own` names it. */
 const asked = (
-  base: EventBase,
+  base: EventBase<"codex">,
   actor: string | null,
   tool: string,
   input: unknown,

@@ -7,15 +7,12 @@ import { json, manifest, marketplace, mcpVariables } from "@novadeck/harness-cor
 
 import { codexHome } from "./home.js"
 
-// The marketplace Novadeck's plugin comes from, as core's `marketplace` names it.
-const marketplaceName = "novadeck"
-
 /** Novadeck's plugin as Codex names it: `<plugin>@<marketplace>`. */
-export const pluginId = `${plugin.name}@${marketplaceName}`
+export const pluginId = `${manifest.name}@${marketplace.name}`
 
 /** Where Codex keeps its copy of Novadeck's plugin, in its home. */
 export const pluginCache = (home: string): string =>
-  join(home, "plugins", "cache", marketplaceName, plugin.name)
+  join(home, "plugins", "cache", marketplace.name, manifest.name)
 
 // The hooks `decode` reads: the session, its turns, and the requests waiting on the person.
 const events = [
@@ -59,7 +56,7 @@ export const connected: Harness["connected"] = async (install) =>
 
 /** Codex's commands that install Novadeck's plugin from its marketplace, afresh. */
 export const connect: Harness["connect"] = ({ plugin: directory }) => [
-  { argv: ["codex", "plugin", "marketplace", "remove", marketplaceName], optional: true },
+  { argv: ["codex", "plugin", "marketplace", "remove", marketplace.name], optional: true },
   { argv: ["codex", "plugin", "marketplace", "add", directory] },
   { argv: ["codex", "plugin", "add", pluginId] },
 ]
@@ -67,7 +64,7 @@ export const connect: Harness["connect"] = ({ plugin: directory }) => [
 /** Codex's commands that remove the plugin and its marketplace. */
 export const disconnect: Harness["disconnect"] = [
   { argv: ["codex", "plugin", "remove", pluginId], optional: true },
-  { argv: ["codex", "plugin", "marketplace", "remove", marketplaceName], optional: true },
+  { argv: ["codex", "plugin", "marketplace", "remove", marketplace.name], optional: true },
 ]
 
 /** The plugin's marketplace, manifest, MCP server and hooks, as Codex reads them. */

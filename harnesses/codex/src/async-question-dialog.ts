@@ -1,11 +1,11 @@
 import type { KeyStep, RequestFacts } from "@novadeck/harness-core/dialogs"
+import { fieldsOf } from "@novadeck/harness-core/fields"
 import type { RequestAnswer } from "@novadeck/protocol"
 
 import { asyncTool } from "./async-question.js"
 import {
   clean,
   composerShown,
-  fieldsOf,
   firstOption,
   labelled,
   optionsAt,

@@ -1,5 +1,4 @@
 import type { AnswerableDialog, KeyStep } from "@novadeck/harness-core/dialogs"
-import { isFields, type Fields } from "@novadeck/harness-core/tools"
 import type { RequestAnswer } from "@novadeck/protocol"
 
 // What Codex's dialogs share: the screen's lines and numbered options, how a wording and a
@@ -87,9 +86,6 @@ export const firstOption = (lines: readonly string[], from: number): number => {
 /** Whether `head` is `label`, alone or followed by its description's column. */
 export const labelled = (head: string, label: string): boolean =>
   head === label || head.startsWith(`${label}  `)
-
-export const fieldsOf = (value: unknown): Fields | undefined =>
-  isFields(value) ? value : undefined
 
 /**
  * What a dialog offers by its own wording: each label Codex has for it, and whether the

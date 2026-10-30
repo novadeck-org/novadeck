@@ -3,12 +3,12 @@ import type { RequestFacts } from "@novadeck/harness-core/dialogs"
 import type { HarnessEvent } from "@novadeck/harness-core/events"
 import type { Report } from "@novadeck/harness-core/report"
 import { loadProbe } from "@novadeck/harness-core/testing/probes"
+import { hookReport } from "@novadeck/harness-core/testing/reports"
 import type { RequestAnswer } from "@novadeck/protocol"
 import { expect } from "vitest"
 
 import { dialogs } from "./dialogs.js"
 import { codex } from "./index.js"
-import { report } from "./report.test-support.js"
 
 // What Codex's dialog tests share: the probes' scenarios, as screens and the requests their
 // hooks told, and the answers and keys a test reads.
@@ -37,7 +37,7 @@ export const hooks = (name: string, source = probe): readonly Hook[] =>
     ({ event, payload }) => ({ event: event!, payload: { ...payload!, session_id: session } }),
   )
 export const decoded = (hook: Hook): readonly HarnessEvent[] =>
-  codex.decode({ ...report(hook.event, hook.payload), seq: 1000, instance: null })
+  codex.decode(hookReport("codex", hook.event, hook.payload, { seq: 1000, instance: null }))
 export const asks = (name: string, source = probe) =>
   hooks(name, source)
     .flatMap((hook) => decoded(hook))
