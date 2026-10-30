@@ -1,5 +1,6 @@
+import { parseFields } from "@novadeck/harness-core/fields"
 import type { Harness, UserEntry } from "@novadeck/harness-core/harness"
-import { at, entry, record, textOf } from "@novadeck/harness-core/items"
+import { at, entry, textOf } from "@novadeck/harness-core/items"
 
 import { describe } from "./tools.js"
 
@@ -15,7 +16,7 @@ const request = /<USER_REQUEST>\n?([\s\S]*?)\n?<\/USER_REQUEST>/
 export const transcripts: NonNullable<Harness["transcripts"]> = {
   locate: (root, _sessionId, subagent) => Promise.resolve(subagent === null ? root : undefined),
   items: (line) => {
-    const fields = record(line)
+    const fields = parseFields(line)
     if (!fields) return []
     const step = typeof fields.step_index === "number" ? fields.step_index : undefined
     const time = at(fields.created_at)
@@ -53,7 +54,7 @@ export const transcripts: NonNullable<Harness["transcripts"]> = {
  * SYSTEM_MESSAGE steps, never this.
  */
 export const typedEntry = (line: string): UserEntry | undefined => {
-  const fields = record(line)
+  const fields = parseFields(line)
   if (fields?.source !== "USER_EXPLICIT" || fields.type !== "USER_INPUT") return undefined
   const content = typeof fields.content === "string" ? fields.content : ""
   return {

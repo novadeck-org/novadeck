@@ -4,7 +4,7 @@ import type { ScreenText } from "@novadeck/emulator/headless"
 import type {
   DialogAdapter,
   DialogRead,
-  ReadDialog,
+  AnswerableDialog,
   RequestFacts,
   ScreenRequest,
 } from "@novadeck/harness-core/dialogs"
@@ -70,7 +70,7 @@ export type DialogsOptions = {
  * included. An answer names it, and is refused where the screen no longer reads the same.
  */
 export const identified = (
-  dialog: ReadDialog,
+  dialog: AnswerableDialog,
 ): Exclude<RequestDialog, { type: "raw" }> | undefined => {
   const shown = clamped(dialog)
   if (!shown) return undefined
@@ -98,7 +98,7 @@ const displayLimits: { readonly [key: string]: number } = {
  * which reads as nothing when past its limit; ids and structure are never cut, so a dialog whose ids or counts exceed the limits fails the protocol's own
  * check, and reads as nothing.
  */
-const clamped = (dialog: ReadDialog): ReadDialog | undefined => {
+const clamped = (dialog: AnswerableDialog): AnswerableDialog | undefined => {
   // What the person approves from is never cut: a detail past its limit reads as nothing.
   if (dialog.type === "choices" && (dialog.detail?.length ?? 0) > displayLimits.detail!)
     return undefined
@@ -116,7 +116,7 @@ const clamped = (dialog: ReadDialog): ReadDialog | undefined => {
       )
     return value
   }
-  return clamp(dialog) as ReadDialog
+  return clamp(dialog) as AnswerableDialog
 }
 
 /**

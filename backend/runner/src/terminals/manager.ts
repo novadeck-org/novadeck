@@ -1,5 +1,6 @@
 import { transcript as transcriptOf } from "@novadeck/emulator/headless"
-import { hookShellSlackMs, type Install, type Model } from "@novadeck/harness-core/harness"
+import type { Install, Model } from "@novadeck/harness-core/harness"
+import { hookShellSlackMs } from "@novadeck/harness-core/hook-command"
 import type { AskAnswer, InboxEntry } from "@novadeck/protocol"
 import type {
   AgentDetail,

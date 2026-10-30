@@ -1,12 +1,7 @@
 import { resolve as resolvePath } from "node:path"
 
-import {
-  doorbellLine,
-  quotedLine,
-  type Effort,
-  type Install,
-  type Model,
-} from "@novadeck/harness-core/harness"
+import type { Effort, Install, Model } from "@novadeck/harness-core/harness"
+import { doorbellLine, quotedLine } from "@novadeck/harness-core/prompts"
 import type { AgentName } from "@novadeck/protocol"
 import { freshNonce } from "@novadeck/tui-input"
 

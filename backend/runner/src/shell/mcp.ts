@@ -28,7 +28,8 @@
  * them, and the runner's answer is told back as text. Only Claude Code reads a server's
  * own instructions, so each tool's description carries its rules.
  */
-import { efforts, plugin } from "@novadeck/harness-core/harness"
+import { efforts } from "@novadeck/harness-core/harness"
+import { manifest } from "@novadeck/harness-core/plugin"
 import { harnessIds, harnesses } from "@novadeck/protocol"
 
 import { maxMessageBytes } from "../messaging/messages.js"
@@ -1253,7 +1254,7 @@ const initialized = (params: unknown, inTerminal: boolean) => {
   return {
     protocolVersion: mcpVersions.find((version) => version === asked) ?? mcpVersions[0],
     capabilities: { tools: {} },
-    serverInfo: { name: "novadeck", version: plugin.version },
+    serverInfo: { name: "novadeck", version: manifest.version },
     ...(inTerminal ? { instructions } : {}),
   }
 }

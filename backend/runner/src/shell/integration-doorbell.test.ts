@@ -1119,12 +1119,60 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))(
         await shell.until(tui.manager, tui.idle.id, "> blue, please")
         tui.type("\r")
         await vi.waitFor(() => expect(tui.received()).toHaveLength(turns + 2), { timeout: 10_000 })
-        expect(asking().filter(({ settled }) => !settled)).toEqual([])
-        expect(asking().map(({ settled }) => settled?.how)).toEqual(["replied"])
+        // Out of the Inbox once the relay acknowledged printing the notice.
+        await expect.poll(() => asking().map(({ settled }) => settled?.how)).toEqual(["replied"])
         const printed = tui.received().at(-1)!.printed
         expect(printed).toContain("took your open ask out of their Inbox")
         expect(printed).toContain("Which colour?")
       })
+
+    for (const agent of ["codex", "claude", "agy"] as const) {
+      // The agent asks, the person writes to it, and the answer to its prompt hook is lost:
+      // the relay never prints it, so it never acknowledges it.
+      const lost = async (shell: Fixture, later: boolean) => {
+        const tui = await ringing(shell, "askinglost", "tui", agent)
+        if (agent === "agy") await agyStarted(tui)
+        else await tui.first()
+        const asking = () =>
+          tui.manager.inboxEntries().filter(({ content }) => content.kind === "ask")
+        await expect.poll(asking, { timeout: 10_000 }).toHaveLength(1)
+        const call = join(shell.home, "raw.jsonl.later")
+        if (!later) writeFileSync(join(shell.home, "raw.jsonl.nolater"), "")
+        tui.type("blue, please")
+        await shell.until(tui.manager, tui.idle.id, "> blue, please")
+        tui.type("\r")
+        await vi.waitFor(() => expect(tui.received()).toHaveLength(2), { timeout: 10_000 })
+        await tui.back(2)
+        expect(tui.received()[1]!.printed).not.toContain("took your open ask")
+        return { tui, asking, call }
+      }
+
+      it(`keeps ${agent}'s ask open when the answer telling it is lost, and withdraws it once a later hook of the turn prints the notice`, async ({
+        shell,
+      }) => {
+        const { asking, call } = await lost(shell, true)
+        await vi.waitFor(() => expect(existsSync(call)).toBe(true), { timeout: 10_000 })
+        const printed = readFileSync(call, "utf8")
+        expect(printed).toContain("took your open ask out of their Inbox")
+        expect(printed).toContain("Which colour?")
+        await expect.poll(() => asking().map(({ settled }) => settled?.how)).toEqual(["replied"])
+      })
+
+      it(`leaves ${agent}'s ask open when its turn ends with the notice never printed`, async ({
+        shell,
+      }) => {
+        const { tui, asking } = await lost(shell, false)
+        expect(asking().filter(({ settled }) => !settled)).toHaveLength(1)
+        // Nor does a later turn the agent's harness starts tell it of the ask the person's
+        // prompt of that turn was to take.
+        const turns = tui.received().length
+        tui.kick()
+        await vi.waitFor(() => expect(tui.received()).toHaveLength(turns + 1), { timeout: 10_000 })
+        await tui.back(3)
+        expect(tui.received().at(-1)!.printed).not.toContain("took your open ask")
+        expect(asking().filter(({ settled }) => !settled)).toHaveLength(1)
+      })
+    }
 
     for (const agent of ["codex", "claude", "agy"] as const)
       it(`shows ${agent}'s standing done in its summary until the person's prompt or a message gives it more`, async ({
@@ -1189,8 +1237,7 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))(
       await shell.until(tui.manager, tui.idle.id, "\u203a blue, please")
       tui.type("\r")
       await vi.waitFor(() => expect(tui.received()).toHaveLength(3), { timeout: 10_000 })
-      expect(asking().filter(({ settled }) => !settled)).toEqual([])
-      expect(asking().map(({ settled }) => settled?.how)).toEqual(["replied"])
+      await expect.poll(() => asking().map(({ settled }) => settled?.how)).toEqual(["replied"])
       expect(tui.received()[2]!.printed).toContain("took your open ask out of their Inbox")
     })
 

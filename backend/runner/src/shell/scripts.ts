@@ -1,7 +1,8 @@
 import { join } from "node:path"
 
-import { plugin, type Launchers, type Machine, type Start } from "@novadeck/harness-core/harness"
+import type { Launchers, Machine, Start } from "@novadeck/harness-core/harness"
 import { header } from "@novadeck/harness-core/header"
+import { manifest } from "@novadeck/harness-core/plugin"
 import type { AgentName } from "@novadeck/protocol"
 import {
   cmdQuote,
@@ -105,7 +106,7 @@ export const relayConfig = {
 const relayArguments = (paths: ShellPaths) =>
   ({
     hook: ["hook", "--config", paths.relayConfig],
-    mcp: ["mcp", plugin.version, ...mcpVersions],
+    mcp: ["mcp", manifest.version, ...mcpVersions],
   }) as const
 
 type Mode = keyof ReturnType<typeof relayArguments>

@@ -1,5 +1,4 @@
-import { hookShellSlackMs } from "@novadeck/harness-core/harness"
-import { dialectPrograms } from "@novadeck/harness-core/hook-command"
+import { hookShellSlackMs, dialectPrograms } from "@novadeck/harness-core/hook-command"
 import type { Report } from "@novadeck/harness-core/report"
 import { agentName } from "@novadeck/protocol"
 
