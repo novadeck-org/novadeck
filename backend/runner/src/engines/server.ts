@@ -5,6 +5,7 @@ import { tmpdir } from "node:os"
 import { join } from "node:path"
 import { setTimeout as sleep } from "node:timers/promises"
 
+import { cut } from "../text.js"
 import { EngineError } from "./unpack.js"
 
 /**
@@ -240,7 +241,7 @@ export class Server<Config extends { readonly folder: string }, Facts> {
     const detail = whatItSaid(running.output)
     const why = cause instanceof Error ? ` (${cause.message})` : ""
     const message = `${this.spec.subject} failed: ${what}${why}. ${detail}`.trim()
-    return message.length > 900 ? `${message.slice(0, 897)}...` : message
+    return message.length > 900 ? `${cut(message, 897)}...` : message
   }
 
   /**

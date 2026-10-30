@@ -19,7 +19,7 @@ import { z } from "zod"
 import { DomainError } from "../errors.js"
 import type { RootChange } from "../harnesses/roots.js"
 import { logs } from "../log.js"
-import { firstFew, shorten } from "../text.js"
+import { cut, firstFew, shorten } from "../text.js"
 import {
   allowSend,
   byteLength,
@@ -234,7 +234,7 @@ const askResumeGraceMs = 120_000
 
 const isTurn = (entry: StoredEntry): boolean => entry.content.kind === "turn"
 const clipped = (value: unknown, max: number): string | null =>
-  typeof value === "string" && value.length > 0 ? value.slice(0, max) : null
+  typeof value === "string" && value.length > 0 ? cut(value, max) : null
 
 /**
  * A stored turn entry as today's rules read it: its text cut to the limits, its files

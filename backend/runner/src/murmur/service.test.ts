@@ -1,5 +1,5 @@
 import { existsSync } from "node:fs"
-import { chmod, readdir, readFile, rm, stat, writeFile } from "node:fs/promises"
+import { chmod, mkdir, readdir, readFile, rm, stat, writeFile } from "node:fs/promises"
 import { join } from "node:path"
 
 import type { MurmurState } from "@novadeck/protocol"
@@ -1752,7 +1752,6 @@ describe("the model file", () => {
     resources,
   }) => {
     const { directory } = await setup(resources)
-    const { mkdir } = await import("node:fs/promises")
     await mkdir(join(directory, "models"), { recursive: true })
     await writeFile(join(directory, "models", "old-model.gguf"), "old")
     await writeFile(join(directory, "models", "stale.gguf.part"), "partial")
@@ -1995,4 +1994,70 @@ describe("a request too big for the context", () => {
       title: expect.any(String),
     })
   })
+})
+
+describe("a failure cut to the limit", () => {
+  // Each text is emoji, so a limit falls inside a pair whether `pad` makes the words before
+  // it an even or an odd number of units long: one of the two pads splits one.
+  const pads = ["", "x"]
+  const emoji = (count: number) => "😀".repeat(count)
+
+  it.for(pads)(
+    "keeps whole characters in an install failure (pad %j)",
+    async (pad, { resources }) => {
+      // A directory of emoji names makes the error of a model that cannot be fetched there
+      // longer than the 1024 units a failure may hold.
+      const long = join(
+        await folder(resources),
+        `${pad}${emoji(60)}`,
+        ...Array.from({ length: 8 }, () => emoji(60)),
+      )
+      await mkdir(long, { recursive: true })
+      await writeFile(join(long, "models"), "not a folder")
+      const { murmur } = await setup(resources, { directory: long })
+
+      await murmur.install()
+      await murmur.settled()
+
+      const failure = murmur.state().failure!
+      expect(failure.length).toBeGreaterThan(1000)
+      expect(failure.length).toBeLessThanOrEqual(1024)
+      expect(Buffer.from(failure).toString()).toBe(failure)
+    },
+  )
+
+  it.for(pads)(
+    "keeps whole characters in the cause of a device's failure (pad %j)",
+    async (pad, { resources }) => {
+      const { murmur } = await installed(resources, {
+        behaviour: `fail:Vulkan0 fail:Vulkan1 said:error:${pad}${emoji(1000)}`,
+      })
+
+      const failure = murmur.state().failure!
+      expect(failure).toContain("did not finish")
+      expect(failure.length).toBeGreaterThan(600)
+      expect(Buffer.from(failure).toString()).toBe(failure)
+    },
+  )
+
+  it.for(pads)(
+    "keeps whole characters in what listing the devices said (pad %j)",
+    async (pad, { resources }) => {
+      const listing = fakeLaunch([arc, nvidia, processor])
+      const { murmur } = await installed(resources, {
+        launch: (program, args) =>
+          args.includes("--list-devices")
+            ? {
+                command: process.execPath,
+                args: ["-e", `console.error("error:${pad}" + "😀".repeat(400)); process.exit(1)`],
+              }
+            : listing(program, args),
+      })
+
+      const said = murmur.state().failure ?? murmur.state().unsupported?.reason
+      expect(said).toContain("could not list graphics devices")
+      expect(said!.length).toBeGreaterThan(300)
+      expect(Buffer.from(said!).toString()).toBe(said!)
+    },
+  )
 })

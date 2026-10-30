@@ -23,6 +23,7 @@ import { EngineError, engineFolder, programFile } from "../engines/unpack.js"
 import { DomainError } from "../errors.js"
 import { exists } from "../files.js"
 import { logs } from "../log.js"
+import { cut } from "../text.js"
 import type { MurmurSettingsChange, MurmurVerdict } from "../workspaces/store.js"
 import type { Description, Describer, Digest } from "./describer.js"
 import { parseDescription } from "./description.js"
@@ -692,7 +693,7 @@ export class Murmur implements Describer {
         await this.giveUp(error.message, hadModel)
       // Cancelling is the person's choice, not a failure.
       else if (!signal.aborted && !aborted(error)) {
-        this.failure = explainInstall(error, "murmur").slice(0, 1024)
+        this.failure = cut(explainInstall(error, "murmur"), 1024)
         this.updateFailedAt = engineOnly ? this.clock() : undefined
         // The card shows it until the next try; the log keeps it after that.
         log.warn("murmur.install-failed", "Murmur's install failed.", {
@@ -716,7 +717,7 @@ export class Murmur implements Describer {
   // engine is not fetched again by itself: the choice is reset as installing does.
   private async giveUp(reason: string, keepModel: boolean): Promise<void> {
     this.settings.saveMurmurUnsupported({
-      reason: reason.slice(0, 1024),
+      reason: cut(reason, 1024),
       engine: this.manifest?.sha256 ?? "",
     })
     this.settings.saveMurmurCheck(null)
@@ -764,9 +765,10 @@ export class Murmur implements Describer {
     const devices = parseDevices(`${run.stdout}\n${run.stderr}`)
     if (devices.length === 0 && (run.failure !== undefined || run.code !== 0)) {
       const last = run.stderr.split(/\r?\n/).findLast((text) => text.trim() !== "")
-      const why = (last?.trim() ?? run.failure ?? `it exited with code ${run.code}`)
-        .slice(0, 300)
-        .replace(/\.+$/, "")
+      const why = cut(
+        last?.trim() ?? run.failure ?? `it exited with code ${run.code}`,
+        300,
+      ).replace(/\.+$/, "")
       // An engine that can't load a library it needs will fail the same way every time: that
       // is this computer's, with the hint. Any other failed start, or a timeout, is retried.
       if (missingLibrary(run, last))
@@ -920,7 +922,7 @@ export class Murmur implements Describer {
         await server.close()
       }
     }
-    const cause = last instanceof Error ? ` ${last.message}`.slice(0, 700) : ""
+    const cause = last instanceof Error ? cut(` ${last.message}`, 700) : ""
     // Every device answered, wrongly: this computer can't run it. Any other end (a timeout,
     // memory, a crash) leaves it a failure to try again.
     if (unusable === devices.length)
@@ -1105,9 +1107,10 @@ export class Murmur implements Describer {
         // Three in a row are shown on the card, though the check stands.
         this.engineStrikes += 1
         if (this.engineStrikes >= 3) {
-          this.runtimeFailure = (
-            error instanceof EngineError ? error.message : "Murmur's engine stopped answering."
-          ).slice(0, 1024)
+          this.runtimeFailure = cut(
+            error instanceof EngineError ? error.message : "Murmur's engine stopped answering.",
+            1024,
+          )
           this.changed()
         }
         // An engine that failed, or stopped answering, starts afresh next time.

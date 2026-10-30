@@ -9,7 +9,7 @@ import type { AgentName, ItemContent, PlanSaveResult, PlanUnwritable } from "@no
 
 import { DomainError } from "../errors.js"
 import { harnesses } from "../harnesses/registry.js"
-import { tail } from "../text.js"
+import { cut, tail } from "../text.js"
 import type { ItemRecord } from "./records.js"
 import { failure, maxUrlChars, type RequestFailure } from "./request.js"
 import { secret } from "./secrets.js"
@@ -206,8 +206,10 @@ const readLines = async (
   let past: number | undefined
   const push = () => {
     count += 1
-    if (keeps(count)) kept.set(count, line)
-    trailing.push([count, line])
+    // One unit past the limit is held, to see whether it falls inside a pair.
+    const recorded = cut(line, maxLineChars)
+    if (keeps(count)) kept.set(count, recorded)
+    trailing.push([count, recorded])
     if (trailing.length > contextLines + 1) trailing.shift()
     if (count === last) past = position
     line = ""
@@ -216,11 +218,11 @@ const readLines = async (
     let at = carriage && text.startsWith("\n") ? 1 : 0
     breaks.lastIndex = at
     for (let found = breaks.exec(text); found; found = breaks.exec(text)) {
-      line = (line + text.slice(at, found.index)).slice(0, maxLineChars)
+      line = (line + text.slice(at, found.index)).slice(0, maxLineChars + 1)
       push()
       at = breaks.lastIndex
     }
-    line = (line + text.slice(at)).slice(0, maxLineChars)
+    line = (line + text.slice(at)).slice(0, maxLineChars + 1)
     if (text.length > 0) carriage = text.endsWith("\r")
   }
   for (;;) {

@@ -26,6 +26,7 @@ import { EngineError, engineFolder } from "../engines/unpack.js"
 import { DomainError } from "../errors.js"
 import { exists } from "../files.js"
 import { logs } from "../log.js"
+import { cut } from "../text.js"
 import type { VoiceSettingsChange } from "../workspaces/store.js"
 import { catalog as pinned, recommend, type Catalog } from "./catalog.js"
 import { Clips } from "./clips.js"
@@ -449,12 +450,12 @@ export class Voice {
       // Closing ends the engine under a clip in flight: that is no failure to log.
       if (!this.closed)
         log.warn("voice.transcribe-failed", "Voice input could not transcribe a clip.", {
-          data: { reason: message.slice(0, 1024) },
+          data: { reason: cut(message, 1024) },
           err: error,
         })
       // The engine may be what went wrong with a first clip; keep the clip for another try.
       // Only the caller hears of it: the shared failure is for the install and the engine.
-      throw new DomainError("VOICE_FAILED", message.slice(0, 1024))
+      throw new DomainError("VOICE_FAILED", cut(message, 1024))
     }
   }
 
@@ -654,7 +655,7 @@ export class Voice {
     } catch (error) {
       // Cancelling is the person's choice, not a failure.
       if (!signal.aborted && !aborted(error)) {
-        this.failure = explainInstall(error, "voice input").slice(0, 1024)
+        this.failure = cut(explainInstall(error, "voice input"), 1024)
         this.updateFailedAt = engineOnly ? this.clock() : undefined
         // The card shows it until the next try; the log keeps it after that.
         log.warn("voice.install-failed", "Voice input's install failed.", {

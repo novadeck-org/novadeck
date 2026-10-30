@@ -962,6 +962,33 @@ describe("transcribing a recording", () => {
   })
 })
 
+describe("a failure cut to the limit", () => {
+  // A directory name of emoji makes the error of a model that cannot be fetched there longer
+  // than 1024 units, with the limit inside a pair whether `pad` makes the words before it
+  // an even or an odd number of units.
+  it.for(["", "x"])(
+    "keeps whole characters in an install failure (pad %j)",
+    async (pad, { resources }) => {
+      const long = join(
+        await folder(resources),
+        `${pad}${"😀".repeat(60)}`,
+        ...Array.from({ length: 8 }, () => "😀".repeat(60)),
+      )
+      await mkdir(long, { recursive: true })
+      await writeFile(join(long, "models"), "not a folder")
+      const { voice } = await setup(resources, { directory: long })
+
+      await voice.install()
+      await voice.settled()
+
+      const failure = voice.state().failure!
+      expect(failure.length).toBeGreaterThan(1000)
+      expect(failure.length).toBeLessThanOrEqual(1024)
+      expect(Buffer.from(failure).toString()).toBe(failure)
+    },
+  )
+})
+
 describe("uninstalling voice input", () => {
   it("removes the engine and models and turns voice input off", async ({ resources }) => {
     const { voice, directory } = await installed(resources)
