@@ -1,0 +1,32 @@
+# rui-async-offered
+tools: request_user_input_async [other] | Call: 1 line: [{"title":"Which color should the button be?","… → 1 line: {"accepted":true}
+
+# rui-async-panel-after-turn
+tools: request_user_input_async [other] | Call: 1 line: [{"title":"Which color should the button be?","… → 1 line: {"accepted":true}
+
+# rui-async-panel-digit-2
+tools: request_user_input_async [other] | Call: 1 line: [{"title":"Which color should the button be?","… → 1 line: {"accepted":true}
+
+# rui-async-panel-down-enter
+tools: request_user_input_async [other] | Call: 1 line: [{"title":"Which color should the button be?","… → 1 line: {"accepted":true}
+
+# rui-async-panel-enter
+tools: request_user_input_async [other] | Call: 1 line: [{"title":"Which color should the button be?","… → 1 line: {"accepted":true}
+
+# rui-async-panel-esc
+tools: request_user_input_async [other] | Call: 1 line: [{"title":"Which color should the button be?","… → 1 line: {"accepted":true}
+
+# rui-async-panel-other-text
+tools: request_user_input_async [other] | Call: 1 line: [{"title":"Which color should the button be?","… → 1 line: {"accepted":true}
+
+# rui-async-panel-skip
+tools: request_user_input_async [other] | Call: 1 line: [{"title":"Which color should the button be?","… → 1 line: {"accepted":true}
+
+# rui-async-panel-two-questions
+tools: request_user_input_async [other] | Call: 1 line: [{"title":"Which color should the button be?","… → 1 line: {"accepted":true}
+
+# rui-async-typed-after
+tools: request_user_input_async [other] | Call: 1 line: [{"title":"Which color should the button be?","… → 1 line: {"accepted":true}; request_user_input_async [other] | Call: 1 line: [{"title":"Which color should the button be?","… → 1 line: {"accepted":true}
+
+# rui-async-while-running
+tools: request_user_input_async [other] | Call: 1 line: [{"title":"Which color should the button be?","… → 1 line: {"accepted":true}
