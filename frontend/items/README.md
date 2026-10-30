@@ -51,7 +51,7 @@ which puts messages on a terminal's bar), how the pane presents beside its termi
   `document/MarkdownDocument.tsx`, which a Markdown file's document view uses, and inside the
   plan's editor (`kinds/plan/plan-editor/PlanEditor.tsx`, from `kinds/plan/PlanTab.tsx`), which
   adds the plan's notes to it as extensions. `store/item-store.ts` loads `@novadeck/viewers/sync` and
-  `./kinds/plan/plan-editor/notes` with `import()`. A change that imports them statically pulls
+  `src/kinds/plan/plan-editor/notes` with `import()`. A change that imports them statically pulls
   the editor into every window and can break the try build's first-load budget; compare the
   builds' chunk lists when touching either. The graph test keeps static imports and re-exports of
   `@codemirror/*`, `@novadeck/viewers/markdown`, `@novadeck/viewers/sync` and either editor inside
@@ -68,8 +68,8 @@ which puts messages on a terminal's bar), how the pane presents beside its termi
 
 Only what the app imports: `./TerminalCompanion` (and `AttachedContainer`, where Canvas hangs
 the attached pane), `./UndockedWindow`, `./ProjectWindow` (the pane in its terminal, an item in
-a window of its own, and a session's project window), `./store` (`createItemStore`, `ItemStore`,
-the plan actions), `./bar` (`barMembers`, `composeBar`), `./messages` (`useHasMessages`, `useMessageBadge`,
+a window of its own, and a session's project window), `./store` (`createItemStore`, `ItemStore` and
+its plan actions), `./bar` (`barMembers`, `composeBar`), `./messages` (`useHasMessages`, `useMessageBadge`,
 `followMessages`),
 `./TabKinds` (the kinds' marks on a terminal's tab), `./registry` (`iconOf`: whoever draws an
 item's icon), `./actions` (`CompanionActions`),

@@ -1,4 +1,4 @@
-/* The peek recipe: the cards above a taskbar icon (`.peek`), one for each thing
+/* The peek recipe: the cards above a taskbar icon (`.peek-cards`), one for each thing
    behind it, each a preview (`.peek-thumb`), an icon and a name
    (`.peek-name`), the taskbar's own mark, and a close button (`.peek-close`,
    an `.icon-button.raised`) that shows on hover; and the previews in miniature. The
@@ -20,7 +20,7 @@
    --peek-thumb-radius (radius-control): the preview.
    --peek-page-bar-bg (paper), --peek-page-bar-border-color (line),
    --peek-page-dot-bg (line-strong): a page's browser frame in miniature. */
-.peek {
+.peek-cards {
   display: grid;
   grid-template-columns: repeat(var(--_peek-columns), 176px);
   gap: 2px;

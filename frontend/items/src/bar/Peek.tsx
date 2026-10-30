@@ -22,7 +22,7 @@ export type PeekEntry = {
 // close button that shows on hover.
 export const Peek = ({ entries }: { entries: readonly PeekEntry[] }): React.JSX.Element => (
   <div
-    className="peek"
+    className="peek-cards"
     // Escape here closes the peek, not whatever the workspace would do with it.
     data-workspace-companion
     style={{ "--_peek-columns": Math.min(entries.length, 3) } as React.CSSProperties}
