@@ -173,7 +173,7 @@ export const InboxToasts = ({
         if (keyboard) focusSheetSoon()
       }}
       onMore={showInbox}
-      fannedLabel={(count) => {
+      spreadLabel={(count) => {
         // What is past the shown few, the Inbox's own counted apart from what agents want to show.
         const { order, entries } = toasts.view.snapshot()
         const inbox = order

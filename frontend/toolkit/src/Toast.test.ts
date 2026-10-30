@@ -242,7 +242,7 @@ describe("the pill that counts the rest", () => {
       for (const key of ["a", "b", "c", "d", "e"]) toasts.show(key, key)
     })
     await later(clickGraceMs + 1)
-    const pill = all('.toast-more[data-fan="rest"]')[0]!
+    const pill = all('.toast-more[data-pose="rest"]')[0]!
     await act(async () => pill.dispatchEvent(new MouseEvent("pointerover", { bubbles: true })))
     await act(async () => pill.click())
     await later(400)
@@ -260,7 +260,7 @@ describe("the pill that counts the rest", () => {
       for (const key of ["a", "b", "c", "d", "e"]) toasts.show(key, key)
     })
     await later(clickGraceMs + 1)
-    const pill = all('.toast-more[data-fan="rest"]')[0]!
+    const pill = all('.toast-more[data-pose="rest"]')[0]!
     await act(async () => {
       pill.dispatchEvent(new MouseEvent("pointerover", { bubbles: true }))
       const move = new MouseEvent("mousemove", { bubbles: true })

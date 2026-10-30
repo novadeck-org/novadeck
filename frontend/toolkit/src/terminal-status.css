@@ -3,7 +3,7 @@
    moment, as when a paste fails), and the bar that says how the shell ended.
 
    Hooks: data-terminal-ending="warning" | "danger" on `.terminal-ending`; aria-disabled
-   on `.terminal-restart`. Parts: `.terminal-lock`, `.terminal-lock-notice`,
+   on `.terminal-restart`. Parts: `.terminal-lock`, `.terminal-notice`,
    `.terminal-ending`, `.terminal-ending-reason`, `.terminal-restart` (with its `kbd`).
 
    Tokens, each optional (its fallback in brackets):
@@ -33,7 +33,7 @@
     opacity: 0;
   }
 }
-.terminal-lock-notice {
+.terminal-notice {
   border: var(--border-width) solid var(--terminal-notice-border-color, var(--color-line));
   border-radius: var(--radius-control);
   background-color: var(--terminal-notice-bg, var(--color-paper));

@@ -6,11 +6,11 @@ import { useRestingPointer } from "./resting-pointer"
 import { useShown } from "./shown"
 
 export type HoverCardProps = {
-  trigger: ReactElement
-  children: ReactNode
-  className?: string
+  readonly trigger: ReactElement
+  readonly children: ReactNode
+  readonly className?: string
   // Told when the peek opens and when it closes.
-  onOpenChange?: (open: boolean) => void
+  readonly onOpenChange?: (open: boolean) => void
 }
 
 // Whether a menu is open anywhere; a peek stays out of its way.
@@ -27,9 +27,10 @@ const restDelay = 250
 const closeDelay = 375
 
 // A peek above its trigger, for the pointer: it opens once the pointer rests on the
-// trigger and stays while the pointer is on either, so what's in it can be clicked. Focus doesn't open it, so give
-// the trigger another way to what the peek offers, such as a menu. Pressing the right
-// button closes it before a context menu opens, and it doesn't open over a menu.
+// trigger and stays while the pointer is on either, so what's in it can be clicked. Focus
+// doesn't open it, so give the trigger another way to what the peek offers, such as a
+// menu. Pressing the right button closes it before a context menu opens, and it doesn't
+// open over a menu.
 export const HoverCard = ({
   trigger,
   children,
