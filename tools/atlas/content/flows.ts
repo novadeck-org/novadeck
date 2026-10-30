@@ -58,7 +58,7 @@ export const flows: (Omit<Flow, "steps"> & { steps: CuratedStep[] })[] = [
         text: "The UI's desktop transport asks the desktop app for a runner port, which the preload sends over IPC.",
         anchor: {
           file: "contract/runner-client/src/desktop.ts",
-          text: "host.requestRunner(id)",
+          text: "app.requestRunner(id)",
         },
       },
       {
@@ -132,8 +132,8 @@ export const flows: (Omit<Flow, "steps"> & { steps: CuratedStep[] })[] = [
         label: "terminals.write",
         text: "The attachment sends the data in a terminals.write call.",
         anchor: {
-          file: "contract/runner-client/src/runner.ts",
-          text: "await link.client.terminals.write({ terminalId: id, data })",
+          file: "contract/runner-client/src/terminal.ts",
+          text: "await session.client.terminals.write({ terminalId: id, data })",
         },
       },
       {
