@@ -28,7 +28,7 @@ export const nav = [
   { to: "/flows", label: "Flows", icon: Workflow },
 ]
 
-// Novadeck's mark: four chevrons firing outward from a block cursor.
+// The Nova mark: four chevrons firing outward from a block cursor.
 const NovaMark = () => (
   <svg aria-hidden="true" viewBox="3 3 58 58" width={28} height={28} className="nova-mark">
     <g fill="none" strokeWidth="7">

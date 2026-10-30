@@ -1,4 +1,4 @@
-import type { SqlVerb } from "../../lens-runner.ts"
+import type { SqlVerb } from "../../runner-lens.ts"
 
 export const verbName: Record<SqlVerb, string> = {
   read: "reads",

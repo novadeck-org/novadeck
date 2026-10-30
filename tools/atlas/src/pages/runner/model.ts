@@ -1,13 +1,12 @@
 import { atlas, groupBy } from "../../atlas-data.ts"
 import type { Procedure } from "../../atlas.ts"
-import type { ProcedureTrace, SqlVerb, StoreMethod } from "../../lens-runner.ts"
+import type { ProcedureTrace, SqlVerb, StoreMethod } from "../../runner-lens.ts"
 
 export const lens = atlas.runner
 
 export const procedures = atlas.api.procedures
-export const traceOf = new Map<string, ProcedureTrace>(lens.procedures.map((t) => [t.id, t]))
-export const methodOf = new Map<string, StoreMethod>(lens.methods.map((m) => [m.name, m]))
-export const procedureOf = new Map<string, Procedure>(procedures.map((p) => [p.id, p]))
+export const traceById = new Map<string, ProcedureTrace>(lens.procedures.map((t) => [t.id, t]))
+export const methodByName = new Map<string, StoreMethod>(lens.methods.map((m) => [m.name, m]))
 
 export const verbs: SqlVerb[] = ["read", "write", "delete"]
 export type Verbs = Set<SqlVerb>
@@ -18,13 +17,13 @@ export const namespaces: [string, Procedure[]][] = groupBy(procedures, (p) => p.
 
 // The store methods with SQL a procedure reaches.
 export const reachedBy = (id: string): StoreMethod[] =>
-  (traceOf.get(id)?.reached ?? []).flatMap((r) => {
-    const method = methodOf.get(r.method)
+  (traceById.get(id)?.reached ?? []).flatMap((r) => {
+    const method = methodByName.get(r.method)
     return method ? [method] : []
   })
 
 // What a set of store methods does to each table.
-export const touchMap = (methods: StoreMethod[]): Map<string, Verbs> => {
+const touchMap = (methods: StoreMethod[]): Map<string, Verbs> => {
   const map = new Map<string, Verbs>()
   for (const method of methods)
     for (const { table, verb } of method.touches) {
@@ -35,9 +34,9 @@ export const touchMap = (methods: StoreMethod[]): Map<string, Verbs> => {
   return map
 }
 
-export const procTouches = new Map(procedures.map((p) => [p.id, touchMap(reachedBy(p.id))]))
+const procTouches = new Map(procedures.map((p) => [p.id, touchMap(reachedBy(p.id))]))
 
-export const isTraced = (id: string): boolean => traceOf.get(id)?.traced ?? false
+export const isTraced = (id: string): boolean => traceById.get(id)?.traced ?? false
 
 // A namespace's reach into each table: the verbs, and how many of its procedures.
 export const namespaceReach = (list: Procedure[]): Map<string, { verbs: Verbs; procs: number }> => {
@@ -85,7 +84,7 @@ export const litBy = (sel: Selection): Lit => {
     }
   }
   if (sel.kind === "method") {
-    const method = methodOf.get(sel.id)
+    const method = methodByName.get(sel.id)
     return {
       procs: new Set(method?.usedBy),
       methods: new Set([sel.id]),

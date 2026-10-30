@@ -117,3 +117,11 @@ export const Badge = ({ children, accent }: { children: ReactNode; accent?: bool
     {children}
   </span>
 )
+
+// A count with its noun, for a page's totals.
+export const Stat = ({ n, children }: { n: number; children: string }) => (
+  <span className="flex items-baseline gap-1">
+    <span className="font-mono text-body font-medium text-fg tabular-nums">{n}</span>
+    {children}
+  </span>
+)

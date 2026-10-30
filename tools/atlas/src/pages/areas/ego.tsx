@@ -3,15 +3,13 @@ import { useNavigate } from "react-router"
 
 import { areaById } from "../../atlas-data.ts"
 import type { AreaLink } from "../../atlas.ts"
-import { hue, kindDash, links, strokeFor } from "../../components/viz.tsx"
+import { clip, hue, kindDash, links, strokeFor } from "../../components/viz.tsx"
 import { areaPath } from "../../links.ts"
 
 const W = 680
 const BOX_W = 190
 const BOX_H = 24
 const ROW = 32
-
-const clip = (s: string, n: number) => (s.length > n ? `${s.slice(0, n - 1)}…` : s)
 
 // This area in the middle, what it depends on to the left, what depends on it to the right.
 export const EgoGraph = ({ id }: { id: string }) => {
