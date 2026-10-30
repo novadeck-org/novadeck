@@ -5,7 +5,7 @@ import { join, relative } from "node:path"
 import type { Install } from "@novadeck/harness-core/harness"
 
 import { codexHome } from "./home.js"
-import { pluginId } from "./plugin.js"
+import { pluginCache, pluginId } from "./plugin.js"
 
 /**
  * The hooks without which nothing reaches a Codex session: SessionStart binds it, the
@@ -138,7 +138,7 @@ const changed = (path: string): Promise<string> =>
  * alone changes it (probed 2026-10-27; 0.163.0 hashed the hook definitions alone).
  */
 const stateOf = async (home: string): Promise<string> => {
-  const cache = join(home, "plugins", "cache", "novadeck", "novadeck")
+  const cache = pluginCache(home)
   const files = await readdir(cache, { recursive: true, withFileTypes: true }).catch(() => [])
   const plugin = await Promise.all(
     files

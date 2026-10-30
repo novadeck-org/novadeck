@@ -11,6 +11,10 @@ import { codexHome } from "./home.js"
 export const pluginId = "novadeck@novadeck"
 const marketplaceName = "novadeck"
 
+/** Where Codex keeps its copy of Novadeck's plugin, in its home. */
+export const pluginCache = (home: string): string =>
+  join(home, "plugins", "cache", marketplaceName, plugin.name)
+
 // The hooks `decode` reads: the session, its turns, and the requests waiting on the person.
 const events = [
   "SessionStart",

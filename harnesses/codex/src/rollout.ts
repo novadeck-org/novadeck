@@ -11,9 +11,10 @@ import {
 import type { HarnessEvent } from "@novadeck/harness-core/events"
 import { followLines } from "@novadeck/harness-core/follow"
 import type { Harness, Run, WrittenPlan } from "@novadeck/harness-core/harness"
+import { record } from "@novadeck/harness-core/items"
 import type { AgentTelemetry } from "@novadeck/protocol"
 
-import { callOf } from "./decode.js"
+import { callOf, type EventBase } from "./decode.js"
 import { mcpTool } from "./tools.js"
 import { transcripts } from "./transcripts.js"
 
@@ -78,19 +79,12 @@ export const rolloutEvents = (
     )
   )
     return []
-  let record: unknown
-  try {
-    record = JSON.parse(line)
-  } catch {
-    return []
-  }
-  if (typeof record !== "object" || record === null) return []
-  const { type, timestamp, payload } = record as Record<string, unknown>
+  const { type, timestamp, payload } = record(line) ?? {}
   if (typeof timestamp !== "string") return []
   const fields = (payload ?? {}) as Record<string, unknown>
   const startedAt = Date.parse(timestamp)
   if (!Number.isFinite(startedAt)) return []
-  const base = { agent: "codex", sessionId, instance, startedAt } as const
+  const base: EventBase = { agent: "codex", sessionId, instance, startedAt }
   if (type === "turn_context") {
     const { model, effort } = fields
     // A turn that names its model names its effort too, none clearing the last model's.
@@ -180,7 +174,7 @@ export const rolloutEvents = (
 
 // The request an MCP tool call's completed item settles, by the tool its hooks name.
 const mcpSettled = (
-  base: { agent: "codex"; sessionId: string; instance: string | null; startedAt: number },
+  base: EventBase,
   { server, tool, arguments: input }: Record<string, unknown>,
 ): HarnessEvent[] => {
   if (typeof server !== "string" || !server || typeof tool !== "string" || !tool) return []
@@ -206,7 +200,7 @@ export const rolloutPlans = (line: string): readonly WrittenPlan[] =>
 
 // A token count's usage and rate-limit windows.
 const telemetry = (
-  base: { agent: "codex"; sessionId: string; instance: string | null; startedAt: number },
+  base: EventBase,
   { info, rate_limits: limits }: Record<string, unknown>,
 ): HarnessEvent => {
   const usage = (info as { last_token_usage?: { total_tokens?: unknown } } | null)?.last_token_usage
@@ -287,14 +281,7 @@ export const subagentEvents = (
   since: number,
 ): readonly HarnessEvent[] => {
   if (!line.includes('"turn_aborted"')) return []
-  let record: unknown
-  try {
-    record = JSON.parse(line)
-  } catch {
-    return []
-  }
-  if (typeof record !== "object" || record === null) return []
-  const { type, timestamp, payload } = record as Record<string, unknown>
+  const { type, timestamp, payload } = record(line) ?? {}
   if (type !== "event_msg" || typeof timestamp !== "string") return []
   if ((payload as { type?: unknown } | null)?.type !== "turn_aborted") return []
   const startedAt = Date.parse(timestamp)
