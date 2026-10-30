@@ -106,7 +106,8 @@ beside the wire's own handshake.
     one's handshake takes over: a client notices a dead link before the server does.
     `closed(session)` tells the app a session ended, to release what it held, and
     `failed(path, error)` tells it, for a log, each failure of a call or a stream before
-    `error` maps it, and each handshake the wire refuses (not one `admit` refuses).
+    `error` maps it, and each handshake refused, whether for its input, by the wire or by
+    `admit`.
   - The gate, in front of every procedure of the app's `router`: a session that hasn't
     authenticated, or has closed, is `UNAUTHORIZED`; one with `maxCalls` calls running is
     `RESOURCE_LIMIT`. A failure is mapped with `error`, the app's codes beside the wire's. A

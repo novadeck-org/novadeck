@@ -59,9 +59,9 @@ export type SessionsOptions = {
   /** Maps an app's failure to the oRPC error its client sees; others pass through as they are. */
   readonly error?: (error: unknown) => unknown
   /**
-   * Told of each failure of a call or a stream, by the procedure's path, before it is mapped,
-   * and of each handshake the wire refuses (`UNAUTHORIZED`, `INCOMPATIBLE_PROTOCOL`), not one
-   * `admit` refuses. For a log; what it throws is ignored.
+   * Told of each failure a client is answered with, by the procedure's path, before it is
+   * mapped: a call's, a stream's, and a handshake refused. For a log; what it throws is
+   * ignored.
    */
   readonly failed?: (path: readonly string[], error: unknown) => void
 }
@@ -187,15 +187,24 @@ export const createSessions = (
     }
   })
 
-  const api = implement(wireContract).$context<SessionContext>()
+  // Tells of every handshake refused, whoever refused it: its input's validation, which runs
+  // after this, the wire, or `admit`.
+  const told = os.$context<SessionContext>().middleware(async ({ next, path }) => {
+    try {
+      return await next()
+    } catch (error) {
+      failed(path, error)
+      throw error
+    }
+  })
+
+  const api = implement(wireContract).$context<SessionContext>().use(told)
   const wire = api.router({
     wire: {
       handshake: api.wire.handshake.handler(({ input, context, errors }) => {
         const session = record(context.session)
-        const path = ["wire", "handshake"]
-        if (session.closed || !session.transport.verify(input.token))
-          refused(path, errors.UNAUTHORIZED())
-        if (input.protocolVersion !== protocolVersion) refused(path, errors.INCOMPATIBLE_PROTOCOL())
+        if (session.closed || !session.transport.verify(input.token)) throw errors.UNAUTHORIZED()
+        if (input.protocolVersion !== protocolVersion) throw errors.INCOMPATIBLE_PROTOCOL()
         admit?.(session)
         session.authenticated = true
         if (input.clientId !== undefined) claim(session, input.clientId)
