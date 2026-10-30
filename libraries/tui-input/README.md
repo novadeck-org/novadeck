@@ -33,7 +33,7 @@ prompt and interrupting its turn.
     only moves or scrolls), but a click the program asked for counts as `content`; and a bracketed
     paste is one key, so its carriage returns never submit.
   - `freshNonce` and `bracketedPaste`, the nonce a pasted line carries and the paste itself.
-  - `InputQueue`, one writer per terminal at a time, in order, over a host that holds the user's
+  - `InputQueue`, one writer per terminal at a time, in order, over a host that holds the person's
     input (`InputQueueHost`, `HoldBudget`, `InputHold`); an entry that fails wedges nothing, and
     the input it held is let go however it ends.
   - `createTypist(target, { profile, boxCheck?, timing?, trace? })`, ringing an idle program over a
@@ -52,13 +52,13 @@ prompt and interrupting its turn.
     `InputQueue`: the text as one bracketed paste with the person's keys held, and Enter only once
     the box shows exactly that text (or its placeholder) on two reads running. It pastes only into
     an empty box, never over a draft or into the box's shell mode, and presses no Enter after a
-    check that failed. A text starting with `!` goes the way a user types a shell command: the `!`
+    check that failed. A text starting with `!` goes the way a person types a shell command: the `!`
     as a key, then, once the box switches, the command. The caller says what text may be given
     with `refuse` (why it can't be, or undefined), asked before the queue; `PromptRefusal`
     carries the reason (`PromptRefusalReason`) of every prompt not given, and whatever the host's
     `admit` throws passes as it is. `PromptHost` is what it needs of the terminal, and
     `collapsible` says whether a TUI may show a paste as a placeholder.
-  - `Interrupts`, stopping a turn as a user's Escape does and leaving the box as it was: it waits
+  - `Interrupts`, stopping a turn as a person's Escape does and leaving the box as it was: it waits
     for the box to settle, writes a second Escape for a turn started from queued messages, clears
     what is not the restored prompt and gives the words back as `{ returned }`, or
     `undefined` where there were none. A box left holding text it could not clear throws

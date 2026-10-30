@@ -53,7 +53,7 @@ export class PromptRefusal extends Error {
 export type PromptHost = {
   /**
    * Throws whatever refuses a prompt now (the terminal is gone, no program is there to take
-   * it, or one waits on the user's answer, whose dialog would take the text), and the
+   * it, or one waits on the person's answer, whose dialog would take the text), and the
    * prompt lets it through as it is. Returns how the input box of the program admitted
    * reads off the screen, which the prompt keeps for all it does: a program that has gone
    * by then leaves a screen that box is not found on.
@@ -69,7 +69,7 @@ export type PromptHost = {
   /** The screen once it has drawn all pending output; undefined once the terminal is gone. */
   readonly screen: (terminalId: string) => Promise<ScreenText | undefined>
   /**
-   * Writes keys to the program as the user's, through the bookkeeping their own keys get,
+   * Writes keys to the program as the person's, through the bookkeeping their own keys get,
    * ahead of anything their held input waits to send; false once the terminal is gone.
    */
   readonly type: (terminalId: string, data: string) => boolean
@@ -127,15 +127,15 @@ const shellCommand = (text: string): string | undefined => {
 }
 
 /**
- * Gives programs prompts as a user would: the text as one bracketed paste with the user's
+ * Gives programs prompts as a person would: the text as one bracketed paste with the person's
  * keys held, then Enter once the box shows exactly that text, or its placeholder for it, on
- * two reads running, both through the same bookkeeping the user's keys get. A profile reads
+ * two reads running, both through the same bookkeeping the person's keys get. A profile reads
  * the box (see `./box`): the paste goes in only where it is empty, so it
  * never merges into a draft, and Enter only where it holds nothing else. It never presses
  * Enter after a failed check: the text stays as a draft. Prompts to one terminal take their
  * turn in the terminal's input queue, with whatever else types there, and wait for a
  * delivery under way to be confirmed, so none of them share a box. A shell command (`!` and
- * a command) goes the way a user types it, which every TUI takes: the `!` as a key, then,
+ * a command) goes the way a person types it, which every TUI takes: the `!` as a key, then,
  * once the box reads empty in its shell mode, the command as the paste, and Enter once the
  * box holds exactly it. A message never goes into a box in its shell mode, where Enter
  * would run it. It fails closed: a screen the box is not found on, whatever the reason,
@@ -230,7 +230,7 @@ export class Prompts {
     // The first prompt of a program shown before its session binds starts that session, as a
     // shell command does only where its TUI starts one for it.
     const starts = !this.host.bound(terminalId) && (!shell || profile.shell.starts)
-    // The user's keys are held from before the box is looked at, so none comes between.
+    // The person's keys are held from before the box is looked at, so none comes between.
     const hold = entry.hold(this.budget)
     if (!hold.holding()) throw this.gone()
     let pressed = false
@@ -296,7 +296,7 @@ export class Prompts {
           pressed = false
         }
       }
-      // The user's keys wait until the Enter is out, so none comes between the paste and it.
+      // The person's keys wait until the Enter is out, so none comes between the paste and it.
       if (pressed) this.host.type(terminalId, "\r")
     } catch (error) {
       hold.settle()
@@ -326,7 +326,7 @@ export class Prompts {
 
   /**
    * The screen once the box reads empty in its prompt mode, within `emptyMs`: a draft the
-   * user left, or a failed paste's, never goes, and is refused then; the TUI still
+   * person left, or a failed paste's, never goes, and is refused then; the TUI still
    * clearing the text of a prompt just sent does, as does a shell mode that a command's
    * Enter is leaving. A box left in its shell mode, even empty, would run a message as a
    * command: refused all the same, to be cleared in the terminal.

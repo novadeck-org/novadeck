@@ -115,8 +115,8 @@ const terminal = (
     interrupt: () => interrupts.interrupt("terminal"),
     typed,
     written,
-    // The user's own typing, which the box shows.
-    userTypes: (text: string) => {
+    // The person's own typing, which the box shows.
+    personTypes: (text: string) => {
       box = text
     },
   }
@@ -266,11 +266,11 @@ describe("interrupts", () => {
     expect(pressed[1]! - pressed[0]!).toBeGreaterThanOrEqual(600)
   }, 10_000)
 
-  it("leaves what the user typed while no queued turn came, pressing no second Escape over it", async () => {
+  it("leaves what the person typed while no queued turn came, pressing no second Escape over it", async () => {
     const t = terminal({ queued: true, prompt: "Hold on", working: () => t.typed.length === 0 })
     const stopping = t.interrupt()
     await new Promise((resolve) => setTimeout(resolve, 300))
-    t.userTypes("mine")
+    t.personTypes("mine")
     expect(await stopping).toEqual({ returned: undefined })
     expect(t.typed).toEqual([ESC])
     expect(t.written).toEqual([])
@@ -293,7 +293,7 @@ describe("interrupts", () => {
     expect(pressed[1]! - pressed[0]!).toBeGreaterThanOrEqual(1_000)
   })
 
-  it("returns the user's text with the queued one where the queued turn came after they typed", async () => {
+  it("returns the person's text with the queued one where the queued turn came after they typed", async () => {
     const pressed: number[] = []
     const t = terminal({
       queued: true,
@@ -308,7 +308,7 @@ describe("interrupts", () => {
     const stopping = t.interrupt()
     // Past the box settling after the first Escape, before the queued turn comes.
     await new Promise((resolve) => setTimeout(resolve, 350))
-    t.userTypes("mine")
+    t.personTypes("mine")
     expect(await stopping).toEqual({ returned: "mine\nQueued beta" })
     expect(t.typed).toEqual([ESC, ESC])
   })

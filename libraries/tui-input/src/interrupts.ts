@@ -28,7 +28,7 @@ export type InterruptOptions = {
 export type InterruptHost = {
   /**
    * Throws whatever refuses keys to the terminal's program now (the terminal is gone, no
-   * program is there to take them, or one waits on the user's answer, whose dialog would
+   * program is there to take them, or one waits on the person's answer, whose dialog would
    * take them), and the interrupt lets it through as it is.
    */
   readonly admit: (terminalId: string) => void
@@ -43,7 +43,7 @@ export type InterruptHost = {
   /** The screen once it has drawn all pending output; undefined once the terminal is gone. */
   readonly screen: (terminalId: string) => Promise<ScreenText | undefined>
   /**
-   * Writes keys to the program as the user's, through the bookkeeping their own keys get;
+   * Writes keys to the program as the person's, through the bookkeeping their own keys get;
    * false once the terminal is gone.
    */
   readonly type: (terminalId: string, data: string) => boolean
@@ -124,7 +124,7 @@ export class Interrupts {
     const profile = host.profile(terminalId)
     // The turn's prompt, as the host knew it, ends with the turn Escape ends.
     const prompt = host.prompt(terminalId)
-    // Only an empty box has text put back alone: text the user has typed there would be
+    // Only an empty box has text put back alone: text the person has typed there would be
     // merged with it, and is theirs.
     const first = profile ? await host.screen(terminalId) : undefined
     const boxBefore = first && profile?.read(first)
@@ -141,7 +141,7 @@ export class Interrupts {
     // settled, as once the stopped turn took a busy machine longer to end (one program on
     // Windows CI: its queued turn began 0.8 s after the first Escape, and a second Escape
     // 0.6 s after it stopped nothing): it is waited for first.
-    // Text the box holds by then, with no such turn, is the user's, typed meanwhile, as
+    // Text the box holds by then, with no such turn, is the person's, typed meanwhile, as
     // nothing was put back yet: it is left as it is, as no second Escape goes over it.
     if (box !== undefined && isEmpty(box) && queued && host.alive(terminalId)) {
       const started = await this.turnStarts(terminalId)
@@ -158,7 +158,7 @@ export class Interrupts {
     if (box === undefined && queued) throw new BoxNotCleared()
     if (box === undefined || isEmpty(box)) return none
     // The prompt put back is the turn's own, which the chat shows already; with messages
-    // queued, what is there is theirs (the host names the queued one the user's latest).
+    // queued, what is there is theirs (the host names the queued one the person's latest).
     // A program puts it back as its text, never as a "[Pasted text]" placeholder, however
     // long (probed 2026-10-07); a prompt taller than its box shows only its tail, the box
     // then as tall as it gets.
@@ -196,7 +196,7 @@ export class Interrupts {
 
   /**
    * Clears the text of the box with the profile's keys, written, not typed (the box is
-   * empty after them, which the user's keys never say), and looks that it reads empty,
+   * empty after them, which the person's keys never say), and looks that it reads empty,
    * writing them again up to twice if not, as the screen then calls for. False where it
    * does not.
    */

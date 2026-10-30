@@ -52,7 +52,7 @@ const terminal = (
     noBox?: boolean
     /** How long the box goes on showing a message after its Enter, as a TUI clears it, in ms. */
     clearMs?: number
-    /** What the box holds already, as the user's draft. */
+    /** What the box holds already, as the person's draft. */
     draft?: string
     /** What the screen shows above the box: earlier turns, or anything else. */
     history?: string[]
@@ -389,7 +389,7 @@ describe("prompts", () => {
     })
   })
 
-  it("holds the user's keys for the whole wait and paste, and the resizes past the Enter", async () => {
+  it("holds the person's keys for the whole wait and paste, and the resizes past the Enter", async () => {
     const { host, budgets } = terminal()
     await new Prompts(host, host.queue, { ...fast, bindMs: 300 }).prompt("t", "Hello")
     // The wait for an empty box, a shell command's switch and the paste's wait, and a
@@ -399,7 +399,7 @@ describe("prompts", () => {
   })
 
   describe("a box that holds text already", () => {
-    it("refuse where it holds the user's draft, writing nothing", async () => {
+    it("refuse where it holds the person's draft, writing nothing", async () => {
       const { host, written, state } = terminal({ draft: "Say hello" })
       expect(await refusal(new Prompts(host, host.queue, fast).prompt("t", "Shall I go on"))).toBe(
         "draft",
@@ -710,7 +710,7 @@ describe("shell commands", () => {
     expect(busy.written).toEqual(["!", `${bang}ls${end}`, "\r"])
   })
 
-  it("press no Enter once a request waits on the user after the paste", async () => {
+  it("press no Enter once a request waits on the person after the paste", async () => {
     const { host, written } = terminal({
       shell: true,
       refusesLater: new Error("unavailable"),
