@@ -7,7 +7,7 @@ import { demoHandle } from "../handles"
 import { demoAgent, demoTerminalId } from "../samples"
 import { createShowcase } from "../showcase/simulation"
 import { orderSummary } from "../showcase/storefront"
-import { directoryOf, itemsOf, terminalOf } from "../workspace"
+import { directoryOf, itemsOf, terminalOf, terminalsOf } from "../workspace"
 
 // What happens on the visitor's desk, one step at a time, and only once the visitor has
 // dealt with what asks for them: nothing new turns up while something waits. Claude Code
@@ -36,12 +36,8 @@ const same = (a: TerminalKey, b: TerminalKey): boolean =>
 
 // Whether any agent on the desk waits on the visitor.
 const asking = (workspace: Workspace): boolean =>
-  workspace.projects.some((project) =>
-    project.history.some((each) =>
-      each.state.roster.terminals.some(
-        (terminal) => terminal.state === "running" && terminal.agent?.attention !== undefined,
-      ),
-    ),
+  terminalsOf(workspace).some(
+    ({ terminal }) => terminal.state === "running" && terminal.agent?.attention !== undefined,
   )
 
 // Claude Code as the desk opened it with its plan still to come: working in plan mode, asking

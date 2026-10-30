@@ -520,7 +520,7 @@ describe("the agents demo's Inbox", () => {
   })
 
   context("when an agent finished while the person looked elsewhere", () => {
-    it("stores its reply as a row that marks its tab, and lists no row", async () => {
+    it("stores its reply as a finished turn that marks its tab, and lists no row", async () => {
       const { inbox, finish } = boot()
       await vi.advanceTimersByTimeAsync(10_000)
       const [row] = await finish("design-system", 1)

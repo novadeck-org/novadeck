@@ -19,7 +19,7 @@ import { span, wrap } from "../screen/vt"
 import { ready, svg, type SampleArtifact } from "../showcase/artifacts"
 import { add, context, file, hunk, remove } from "../showcase/changes"
 import { createShowcase } from "../showcase/simulation"
-import { terminalOf } from "../workspace"
+import { terminalOf, terminalsOf } from "../workspace"
 import {
   agentTerminal,
   answerMessage,
@@ -1219,44 +1219,37 @@ export const createLaunch = (turns: DemoTurns, now: number) => {
   const ripple = (): void => {
     if (!latest || !sink) return
     let count = 0
-    for (const each of latest.projects)
-      for (const history of each.history)
-        for (const found of history.state.roster.terminals) {
-          if (found.state !== "running") continue
-          const key = {
-            projectId: each.id,
-            workspaceSessionId: history.id,
-            terminalId: found.id,
-          }
-          if (rippled.has(found.id) || waitsOnPerson(found)) continue
-          if (opened && found.id === leadKey.terminalId) continue
-          rippled.add(found.id)
-          const number = each.id === shop ? Number(terminalSlot(found.id)) : 0
-          const job = number ? allJobs[number - 1] : undefined
-          const text = job?.done ?? "Done. Everything is in, and the checks pass."
-          turns.finish(key, found, "completed", {
-            after: finishesAfterMs + count * rippleMs,
-            reply: text,
-            done: { subject: `${job?.name ?? found.name} is done`, body: text },
-          })
-          count += 1
-          if (number <= jobs.length) continue
-          reports.add(found.id)
-          const release = (): void => {
-            if (!sink) return
-            reports.delete(found.id)
-            finishLead()
-          }
-          const sent = messages.send(
-            target,
-            demoHandle(number),
-            lead,
-            `Done. ${text}`,
-            release,
-            release,
-          )
-          if (!sent) release()
-        }
+    for (const { key, terminal: found } of terminalsOf(latest)) {
+      if (found.state !== "running") continue
+      if (rippled.has(found.id) || waitsOnPerson(found)) continue
+      if (opened && found.id === leadKey.terminalId) continue
+      rippled.add(found.id)
+      const number = key.projectId === shop ? Number(terminalSlot(found.id)) : 0
+      const job = number ? allJobs[number - 1] : undefined
+      const text = job?.done ?? "Done. Everything is in, and the checks pass."
+      turns.finish(key, found, "completed", {
+        after: finishesAfterMs + count * rippleMs,
+        reply: text,
+        done: { subject: `${job?.name ?? found.name} is done`, body: text },
+      })
+      count += 1
+      if (number <= jobs.length) continue
+      reports.add(found.id)
+      const release = (): void => {
+        if (!sink) return
+        reports.delete(found.id)
+        finishLead()
+      }
+      const sent = messages.send(
+        target,
+        demoHandle(number),
+        lead,
+        `Done. ${text}`,
+        release,
+        release,
+      )
+      if (!sent) release()
+    }
     // With teammates, the lead ends after their reports reach it; alone, it ended in its place.
     if (opened) finishLead()
   }

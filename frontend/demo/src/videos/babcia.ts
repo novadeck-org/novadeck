@@ -13,7 +13,7 @@ import { createDemoMessages } from "../messages"
 import { demoTerminalId, terminalSlot, type ChatAgent } from "../samples"
 import { ready, svg, type SampleArtifact } from "../showcase/artifacts"
 import { createShowcase } from "../showcase/simulation"
-import { terminalOf } from "../workspace"
+import { terminalOf, terminalsOf } from "../workspace"
 import {
   agentTerminal,
   answerMessage,
@@ -700,27 +700,20 @@ export const createBabcia = (turns: DemoTurns, now: number) => {
     finishAll: () => {
       if (!latest) return
       let count = 0
-      for (const each of latest.projects)
-        for (const history of each.history)
-          for (const found of history.state.roster.terminals) {
-            if (found.state !== "running") continue
-            const key = {
-              projectId: each.id,
-              workspaceSessionId: history.id,
-              terminalId: found.id,
-            }
-            if (waitsOnPerson(found)) continue
-            const job = each.id === bar ? allJobs[Number(terminalSlot(found.id)) - 1] : undefined
-            turns.finish(key, found, "completed", {
-              after: finishesAfterMs + count * rippleMs,
-              reply: job?.done ?? "Done. Everything is in, and the checks pass.",
-              done: {
-                subject: `${job?.name ?? found.name} is done`,
-                body: job?.done ?? "Done. Everything is in, and the checks pass.",
-              },
-            })
-            count += 1
-          }
+      for (const { key, terminal: found } of terminalsOf(latest)) {
+        if (found.state !== "running") continue
+        if (waitsOnPerson(found)) continue
+        const job = key.projectId === bar ? allJobs[Number(terminalSlot(found.id)) - 1] : undefined
+        turns.finish(key, found, "completed", {
+          after: finishesAfterMs + count * rippleMs,
+          reply: job?.done ?? "Done. Everything is in, and the checks pass.",
+          done: {
+            subject: `${job?.name ?? found.name} is done`,
+            body: job?.done ?? "Done. Everything is in, and the checks pass.",
+          },
+        })
+        count += 1
+      }
     },
   }
 
@@ -752,7 +745,7 @@ export const createBabcia = (turns: DemoTurns, now: number) => {
   }
 
   // The helper's ask closed with no answer reaching it (the reply was not delivered, or the
-  // item was cleared): it waits for the person's words at its prompt, as an agent told no does,
+  // row was cleared): it waits for the person's words at its prompt, as an agent told no does,
   // and cue 6 no longer holds it or its lead.
   const released = (): void => {
     if (!asked || exchanged) return
@@ -822,7 +815,7 @@ export const createBabcia = (turns: DemoTurns, now: number) => {
     inbox.state.subscribe(() => {
       if (!asked || answered || exchanged) return
       const { items, answering } = inbox.state.getSnapshot()
-      if (answering[helperAskId] || items.some((item) => item.id === helperAskId)) return
+      if (answering[helperAskId] || items.some((row) => row.id === helperAskId)) return
       if (!answerMessage(messages, helperAskId)) released()
     })
   }
@@ -877,7 +870,7 @@ export const createBabcia = (turns: DemoTurns, now: number) => {
       if (manners !== "rude" && manners !== "polite") return
       const { items, answering } = inbox.state.getSnapshot()
       const id = mannersIds[manners]
-      if (answering[id] || items.some((item) => item.id === id)) return
+      if (answering[id] || items.some((row) => row.id === id)) return
       if (!mannersMessage(manners)) abandoned()
     })
   }

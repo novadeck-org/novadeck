@@ -234,9 +234,9 @@ finishes (each teammate reporting to its lead, which finishes after; whoever wai
 stays waiting, and a second press ends whoever is still working), and for the website's /vs pages 8a
 one agent asking another by message to review its change, which it answers, and 8b an agent showing
 its plan in the pane; `frontend/demo/src/videos/launch.ts`,
-sharing the desk's builders with Babcia in `videos/desk.ts`). Every variant's Inbox
+sharing the desk's builders with Babcia and Chirp in `videos/desk.ts`). Every variant's Inbox
 lists what its agents wait on, built as the runner's is. In it each
-agent carries a transcript, and api-service's worker a brief from its lead, so an item's
+agent carries a transcript, and api-service's worker a brief from its lead, so a row's
 sheet shows the context block built from its transcript: the person's last words to the agent
 (never another agent's, so the worker its lead briefed shows none), and under them up to three
 steps since that edited, ran or failed, each with what came of it (`+4 −2`, a command's last
