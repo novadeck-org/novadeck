@@ -205,7 +205,7 @@ export type Runner = {
     release(terminalId: string): Promise<void>
     /**
      * Follows every terminal on the runner, across sessions. Each time the stream opens,
-     * the first and again after a reconnection or a retried refusal, it yields `reset`,
+     * first and again after every reconnection or retried refusal, it yields `reset`,
      * then `changed` for each terminal, then `synced`. On `reset`, clear the set of
      * reported terminals; at `synced`, forget any terminal not reported since, for
      * example one that ended with a restarted runner. Later events report creation,
