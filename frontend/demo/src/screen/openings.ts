@@ -7,7 +7,7 @@ import { box, span, wrap, type Line } from "./vt"
 
 // How far Claude Code's reading has come, where it opens still reading: 0 before it opens
 // the file, 1 with the file open, 2 once read.
-export type ReadingStep = 0 | 1 | 2
+type ReadingStep = 0 | 1 | 2
 
 // When Claude Code, still reading as its terminal opens, has opened the file and has read
 // it, in milliseconds after the terminal opened; the plan follows (see visitor/story.ts).

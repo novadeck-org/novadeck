@@ -1,6 +1,6 @@
+import { demoTurns } from "@novadeck/demo/agents/turns"
 import { createDemoFeedback } from "@novadeck/demo/feedback"
 import { demoTerminalId } from "@novadeck/demo/samples"
-import { demoTurns } from "@novadeck/demo/turns"
 import { vi } from "vitest"
 
 import type { BootRehearsal } from "./boot-rehearsal"

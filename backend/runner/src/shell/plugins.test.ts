@@ -3,7 +3,9 @@ import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 
-import { hookSeconds, plugin, type Start } from "@novadeck/harness-core/harness"
+import type { Start } from "@novadeck/harness-core/harness"
+import { hookSeconds } from "@novadeck/harness-core/hook-command"
+import { manifest as pluginManifest } from "@novadeck/harness-core/plugin"
 import type { AgentName } from "@novadeck/protocol"
 import { beforeAll } from "vitest"
 
@@ -274,7 +276,7 @@ describe("Novadeck's MCP server in each agent's plugin", () => {
     for (const each of [claude, codex, agy])
       if (process.platform === "win32") {
         expect(each.command).toBe(paths.relay)
-        expect(each.args).toEqual(["mcp", plugin.version, ...mcpVersions])
+        expect(each.args).toEqual(["mcp", pluginManifest.version, ...mcpVersions])
       } else expect(each).toMatchObject({ command: "/bin/sh", args: [...sh, paths.mcp] })
     expect(codex.env_vars).toEqual([
       "NOVADECK_MCP",
@@ -305,7 +307,7 @@ describe("Novadeck's MCP server in each agent's plugin", () => {
     for (const each of declared("win32", "C:\\Users\\Jo Doe\\AppData\\Roaming\\novadeck\\shell"))
       expect(each).toEqual({
         command: join("C:\\Users\\Jo Doe\\AppData\\Roaming\\novadeck\\shell", "novadeck-relay.exe"),
-        args: ["mcp", plugin.version, ...mcpVersions],
+        args: ["mcp", pluginManifest.version, ...mcpVersions],
       })
   })
 

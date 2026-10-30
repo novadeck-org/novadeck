@@ -1,13 +1,7 @@
 import type { InboxRow } from "@novadeck/core/inbox"
 import type { BackendAction, TerminalKey } from "@novadeck/core/port"
-import type {
-  AgentStatus,
-  AgentUsage,
-  TerminalMetadata,
-  Workspace,
-  WorkspaceSession,
-} from "@novadeck/core/types"
-import { terminalOf } from "@novadeck/demo/terminals"
+import type { AgentStatus, AgentUsage, TerminalMetadata, Workspace } from "@novadeck/core/types"
+import { sessionOf, terminalOf } from "@novadeck/demo/workspace"
 
 // The actions that put a terminal in a state, as the backend would report it. Pure, so
 // each can be tested: the panel's actions dispatch what they return.
@@ -17,15 +11,6 @@ export const sessionTarget = ({ projectId, workspaceSessionId }: TerminalKey) =>
   projectId,
   workspaceSessionId,
 })
-
-// The session `key`'s terminal belongs to, as the workspace last held it.
-export const sessionOf = (
-  workspace: Workspace | undefined,
-  { projectId, workspaceSessionId }: TerminalKey,
-): WorkspaceSession | undefined =>
-  workspace?.projects
-    .find((project) => project.id === projectId)
-    ?.history.find((session) => session.id === workspaceSessionId)
 
 // Whether a terminal still runs its shell: neither ended nor failed to start.
 export const isLive = (terminal: TerminalMetadata): boolean =>

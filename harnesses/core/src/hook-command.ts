@@ -22,7 +22,7 @@ export const dialectPrograms: Readonly<Record<Dialect, readonly string[]>> = {
 }
 
 /** What a hook command runs: Novadeck's launcher, for `agent`'s `event`. */
-export type HookCall = {
+type HookCall = {
   readonly agent: AgentName
   readonly event: string
   /**
@@ -75,3 +75,21 @@ export const hookCommand = (dialect: Dialect, { agent, event, fallback }: HookCa
     }
   }
 }
+
+/**
+ * How much later than elsewhere a hook may reach the runner on `platform`, for the shell
+ * it runs in, in milliseconds: on Windows the hook starts in PowerShell (Claude Code,
+ * Codex) or cmd (Antigravity), which takes most of 15 s to start cold on a busy CI runner,
+ * where a Codex hook dropped for it carried none of the messages waiting; elsewhere a
+ * shell starts at once. Every wait on a hook's arrival grows by it.
+ */
+export const hookShellSlackMs = (platform: NodeJS.Platform): number =>
+  platform === "win32" ? 20_000 : 0
+
+/**
+ * How long a harness lets one of Novadeck's hooks run, in seconds; one slower is dropped
+ * silently. Well above the hook's own limit, so the hook always ends by itself, and more by
+ * the time its shell may take to start.
+ */
+export const hookSeconds = (platform: NodeJS.Platform): number =>
+  10 + hookShellSlackMs(platform) / 1000

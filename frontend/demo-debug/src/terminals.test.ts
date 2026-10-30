@@ -6,7 +6,7 @@ import { terminalPhase } from "@novadeck/core/terminals/ending"
 import { isAgentProgram } from "@novadeck/core/terminals/process"
 import type { AgentStatus, TerminalMetadata, Workspace } from "@novadeck/core/types"
 import { demoSeed, demoTerminalId } from "@novadeck/demo/samples"
-import { terminalOf } from "@novadeck/demo/terminals"
+import { terminalOf } from "@novadeck/demo/workspace"
 
 import {
   backToPrompt,

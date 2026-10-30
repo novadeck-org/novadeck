@@ -1,4 +1,4 @@
-import { doorbellLine } from "@novadeck/harness-core/harness"
+import { doorbellLine } from "@novadeck/harness-core/prompts"
 import type { DeliveryState, MessageState, TerminalMessages } from "@novadeck/protocol"
 
 import { wrap, type Message } from "../messaging/messages.js"

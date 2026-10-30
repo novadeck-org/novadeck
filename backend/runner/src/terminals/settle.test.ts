@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto"
 
 import type { ScreenText } from "@novadeck/emulator/headless"
-import { hookShellSlackMs } from "@novadeck/harness-core/harness"
+import { hookShellSlackMs } from "@novadeck/harness-core/hook-command"
 import { screen as screenWith } from "@novadeck/harness-core/testing/screens"
 import type { TerminalEvent } from "@novadeck/protocol"
 import { command } from "@novadeck/terminal/testing"

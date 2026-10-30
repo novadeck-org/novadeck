@@ -1,18 +1,16 @@
 import type { ToolKind } from "@novadeck/harness-core/events"
+import { fieldsOf, parseFields, type Fields } from "@novadeck/harness-core/fields"
 import {
   count,
   fileList,
-  isFields,
   novadeckTool,
   oneLine,
   otherRun,
-  parseFields,
   shortPath,
   sleepOnly,
   textField,
-  type Fields,
-  type ToolRun,
 } from "@novadeck/harness-core/tools"
+import type { ToolRun } from "@novadeck/protocol"
 
 // Novadeck's MCP tools as Codex names them: `mcp__novadeck__send` (its rollout gives the
 // namespace `mcp__novadeck` and the tool `send` apart, which the decoder joins) or
@@ -24,7 +22,7 @@ export const isNovadeckTool = (tool: string): boolean => novadeck.some((each) =>
 
 // Codex's shell tools take the command as a list, often wrapped as `bash -lc <script>`.
 // The script is kept whole here (`commandOf` shows its first line), as its newlines join sleeps.
-export const scriptOf = (fields: Fields | null): string => {
+export const scriptOf = (fields: Fields | undefined): string => {
   const text = textField(fields, "cmd", "command", "CommandLine")
   if (text) return text
   const list = fields?.command
@@ -34,7 +32,7 @@ export const scriptOf = (fields: Fields | null): string => {
   return wrapped ? words[2]! : words.join(" ")
 }
 
-const commandOf = (fields: Fields | null): string => {
+const commandOf = (fields: Fields | undefined): string => {
   const text = textField(fields, "cmd", "command", "CommandLine")
   return text || oneLine(scriptOf(fields))
 }
@@ -48,7 +46,7 @@ const patchFiles = (patch: string): readonly string[] => [
   ),
 ]
 
-const known = (name: string, fields: Fields | null, input: string): ToolRun | undefined => {
+const known = (name: string, fields: Fields | undefined, input: string): ToolRun | undefined => {
   const path = (...keys: string[]): string => shortPath(textField(fields, ...keys))
   switch (name) {
     case "exec_command":
@@ -122,7 +120,7 @@ export const kindOf = (tool: string, input: unknown): ToolKind => {
   const name = tool.toLowerCase()
   if (name === "update_plan") return "bookkeeping"
   if (shells.has(name)) {
-    const fields = isFields(input) ? input : null
+    const fields = fieldsOf(input)
     return sleepOnly(scriptOf(fields)) ? "waiting" : "work"
   }
   return "work"

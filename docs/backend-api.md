@@ -690,6 +690,7 @@ work with it, and an option without a value would be read as the agent.
    Novadeck (Antigravity's `{"decision":"ask"}` before a tool, `{}` otherwise). When a
    lease came and printing succeeded, it sends `{"ack":"<leaseId>"}` on the same
    connection.
+   A lease may name only a notice and no messages; it is acknowledged the same way.
 
 A hook gives up two seconds after it starts when it reports, four when it asks, and five
 for Claude Code's status line. For the status line, the relay also runs the person's own

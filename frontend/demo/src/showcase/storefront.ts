@@ -212,6 +212,6 @@ export const storefrontArtifacts: Readonly<Record<string, readonly SampleArtifac
     file("storefront-review", "review-notes.md", reviewLines),
     emptyCart,
   ],
-  // The Inbox's plan approval (see inbox-fixtures.ts)
+  // The Inbox's plan approval (see inbox/fixtures.ts)
   "06": [checkoutPlan],
 }
