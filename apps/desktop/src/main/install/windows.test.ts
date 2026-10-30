@@ -30,7 +30,6 @@ import {
   setupName,
   sha512Of,
   sizeOf,
-  startDetached,
   uuidV5,
   type InstallRecord,
   type SetupHost,
@@ -416,66 +415,6 @@ describe("getting the setup ready", () => {
     ).toMatchObject({
       kind: "failed",
     })
-  })
-})
-
-describe("starting a program in place of this one", () => {
-  const starting = (event: "spawn" | "error" | "throw", present = true, reclaimed = true) => {
-    const calls: string[] = []
-    const spawned: { file: string; args: readonly string[]; options: unknown }[] = []
-    const result = startDetached({
-      file: "C:\\Temp\\setup.exe",
-      args: ["--updated"],
-      spawn: (file, args, options) => {
-        spawned.push({ file, args, options })
-        if (event === "throw") throw new Error("EACCES")
-        const child = new EventEmitter() as EventEmitter & { unref: () => void }
-        child.unref = () => void calls.push("unref")
-        queueMicrotask(() => child.emit(event, new Error("blocked")))
-        return child
-      },
-      exists: () => present,
-      releaseLock: () => void calls.push("release"),
-      reclaimLock: () => (calls.push("reclaim"), reclaimed),
-      exit: () => void calls.push("exit"),
-      log: (message) => void calls.push(`log ${message}`),
-    })
-    return { result, calls, spawned }
-  }
-
-  it("lets go of the lock, spawns detached with the arguments, then exits", async () => {
-    const { result, calls, spawned } = starting("spawn")
-    expect(await result).toBe(true)
-    expect(calls).toEqual(["release", "unref", "exit"])
-    expect(spawned).toEqual([
-      {
-        file: "C:\\Temp\\setup.exe",
-        args: ["--updated"],
-        options: { detached: true, stdio: "ignore" },
-      },
-    ])
-  })
-
-  it("does not exit, and takes the lock back, when the system refuses to start it", async () => {
-    const { result, calls } = starting("error")
-    expect(await result).toBe(false)
-    expect(calls).toEqual(["release", "log The program did not start.", "reclaim"])
-    const thrown = starting("throw")
-    expect(await thrown.result).toBe(false)
-    expect(thrown.calls).toEqual(["release", "log The program did not start.", "reclaim"])
-  })
-
-  it("ends this process when the lock cannot be taken back, as another copy has it", async () => {
-    const { result, calls } = starting("error", true, false)
-    expect(await result).toBe(false)
-    expect(calls).toContain("exit")
-  })
-
-  it("spawns nothing and lets go of nothing for a missing file", async () => {
-    const { result, calls, spawned } = starting("spawn", false)
-    expect(await result).toBe(false)
-    expect(spawned).toEqual([])
-    expect(calls).toEqual(["log There is no program to start."])
   })
 })
 

@@ -17,13 +17,13 @@ export const brewUninstallCommand = "brew uninstall --cask novadeck"
 const caskroomPrefixes = ["/opt/homebrew", "/usr/local", "/home/linuxbrew/.linuxbrew"]
 
 /** Where the AppArmor profile the installer wrote lives, for the user `uid`. */
-export const apparmorProfile = (uid: number): string => `/etc/apparmor.d/novadeck-appimage-${uid}`
+const apparmorProfile = (uid: number): string => `/etc/apparmor.d/novadeck-appimage-${uid}`
 
 /**
  * The one-line command that removes the AppArmor profile (unloading it first, as it can
  * only be unloaded from its file), for the person to run when the app could not.
  */
-export const profileCommand = (profile: string): string =>
+const profileCommand = (profile: string): string =>
   `sudo apparmor_parser -R ${profile}; sudo rm -f ${profile}`
 
 // What the privileged helper runs: unload the profile, then delete its file. The deletion

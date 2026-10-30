@@ -19,7 +19,7 @@ starts the new one in its place.
 What the app says of checks, downloads and installs goes to the app's `host.log` as
 `update.progress` and `update.warning` lines, and electron-updater's own messages as
 `updater.info`, `updater.warning` and `updater.error`, redacted as every line of the log is
-(see `@novadeck/log` and `main/logs.ts`, `updateLogOn`). The logs folder is
+(see `@novadeck/log` and `main/logs/updates.ts`, `updateLogOn`). The logs folder is
 `~/Library/Logs/novadeck` on macOS and `logs` in the data folder elsewhere.
 
 The repository to look in comes from `resources/app-update.yml`, which electron-builder

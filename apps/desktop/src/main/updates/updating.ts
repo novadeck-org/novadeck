@@ -9,7 +9,7 @@ import type { UpdateChannel } from "@novadeck/protocol/bridge"
 import { app, type WebContents } from "electron"
 
 import { bundleOf, bundleVersionOf } from "../install/mac.js"
-import type { updateLogOn } from "../logs.js"
+import type { updateLogOn } from "../logs/updates.js"
 import type { Quitting } from "../quitting.js"
 import { releasePageUrl } from "../releases/repository.js"
 import { isNewerVersion } from "../releases/versions.js"

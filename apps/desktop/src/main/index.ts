@@ -51,17 +51,14 @@ import {
   realpathOrUndefined,
   setupFolder,
 } from "./install/copies.js"
+import { installKind } from "./install/kind.js"
 import { bundleOf } from "./install/mac.js"
 import { installedEnvironment } from "./install/start.js"
 import { registerUninstallIpc } from "./install/uninstall.js"
-import {
-  goneBadly,
-  goneData,
-  installKind,
-  logNewDumps,
-  registerLogIpc,
-  updateLogOn,
-} from "./logs.js"
+import { logNewDumps } from "./logs/crash-dumps.js"
+import { goneBadly, goneData } from "./logs/process-gone.js"
+import { registerLogIpc } from "./logs/ui.js"
+import { updateLogOn } from "./logs/updates.js"
 import { applyBadge, registerBadgeIpc } from "./notices/badge.js"
 import { notificationOptions, registerNoticeIpc, showNotices } from "./notices/notices.js"
 import { ntdllQuery, platformQuiet, registerQuietIpc, windowsProbe } from "./notices/quiet.js"
@@ -249,7 +246,7 @@ const updateState = keepUpdateState(join(app.getPath("userData"), "update.json")
 // builds, which kept no last-run version, made it too. Read here, before the runner starts,
 // so this launch's own database doesn't count; see `whatsNewAtLaunch`.
 const ranBefore = existsSync(join(app.getPath("userData"), "workspace.sqlite"))
-// The log of updating, in the main process's log; see `updateLogOn` in ./logs.ts.
+// The log of updating, in the main process's log; see `updateLogOn` in ./logs/updates.ts.
 const updatesLog = updateLogOn(logger.for("updates"))
 
 const quitting = notQuitting()

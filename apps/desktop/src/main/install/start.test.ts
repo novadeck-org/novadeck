@@ -8,7 +8,7 @@ import { join } from "node:path"
 import { afterEach, beforeEach, vi } from "vitest"
 
 import { describe, expect, it } from "../../test"
-import { closeDescriptors, installedEnvironment, startAppImage } from "./start"
+import { closeDescriptors, installedEnvironment, startAppImage, startDetached } from "./start"
 
 describe("the environment of the installed copy", () => {
   it("lacks the variables the AppImage runtime set for this copy, and keeps the rest", () => {
@@ -227,5 +227,65 @@ describe.skipIf(process.platform !== "linux")("the descriptors of the installed 
 
   it("would hold them all without it", async () => {
     expect(await descriptorsOf(true)).toEqual(expect.arrayContaining(handedOn))
+  })
+})
+
+describe("starting a program in place of this one", () => {
+  const detached = (event: "spawn" | "error" | "throw", present = true, reclaimed = true) => {
+    const calls: string[] = []
+    const spawned: { file: string; args: readonly string[]; options: unknown }[] = []
+    const result = startDetached({
+      file: "C:\\Temp\\setup.exe",
+      args: ["--updated"],
+      spawn: (file, args, options) => {
+        spawned.push({ file, args, options })
+        if (event === "throw") throw new Error("EACCES")
+        const child = new EventEmitter() as EventEmitter & { unref: () => void }
+        child.unref = () => void calls.push("unref")
+        queueMicrotask(() => child.emit(event, new Error("blocked")))
+        return child
+      },
+      exists: () => present,
+      releaseLock: () => void calls.push("release"),
+      reclaimLock: () => (calls.push("reclaim"), reclaimed),
+      exit: () => void calls.push("exit"),
+      log: (message) => void calls.push(`log ${message}`),
+    })
+    return { result, calls, spawned }
+  }
+
+  it("lets go of the lock, spawns detached with the arguments, then exits", async () => {
+    const { result, calls, spawned } = detached("spawn")
+    expect(await result).toBe(true)
+    expect(calls).toEqual(["release", "unref", "exit"])
+    expect(spawned).toEqual([
+      {
+        file: "C:\\Temp\\setup.exe",
+        args: ["--updated"],
+        options: { detached: true, stdio: "ignore" },
+      },
+    ])
+  })
+
+  it("does not exit, and takes the lock back, when the system refuses to start it", async () => {
+    const { result, calls } = detached("error")
+    expect(await result).toBe(false)
+    expect(calls).toEqual(["release", "log The program did not start.", "reclaim"])
+    const thrown = detached("throw")
+    expect(await thrown.result).toBe(false)
+    expect(thrown.calls).toEqual(["release", "log The program did not start.", "reclaim"])
+  })
+
+  it("ends this process when the lock cannot be taken back, as another copy has it", async () => {
+    const { result, calls } = detached("error", true, false)
+    expect(await result).toBe(false)
+    expect(calls).toContain("exit")
+  })
+
+  it("spawns nothing and lets go of nothing for a missing file", async () => {
+    const { result, calls, spawned } = detached("spawn", false)
+    expect(await result).toBe(false)
+    expect(spawned).toEqual([])
+    expect(calls).toEqual(["log There is no program to start."])
   })
 })

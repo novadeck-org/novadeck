@@ -14,7 +14,7 @@ import {
   type RunnerCommand,
   type RunnerReport,
 } from "../bridge.js"
-import { eachLine, logRunnerOutput } from "./logs.js"
+import { eachLine, logRunnerOutput } from "./logs/runner-output.js"
 
 export type RunnerProcess = {
   /**

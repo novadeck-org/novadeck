@@ -5,7 +5,6 @@ import { updateVersionPattern } from "@novadeck/protocol/bridge"
 
 import { isNewerVersion } from "../releases/versions.js"
 import type { InstalledCopy } from "./linux.js"
-import type { StartedProcess } from "./start.js"
 
 /** The setup file a release carries, and the name `latest.yml` lists it under. */
 export const setupName = "novadeck-win-x64-setup.exe"
@@ -482,73 +481,6 @@ export const prepareSetup = async (host: SetupHost): Promise<SetupOutcome> => {
   }
   return { kind: "ready", setup: downloaded.file, version: latestVersionOf(yaml) ?? host.version }
 }
-
-/**
- * Starts the program `file` with `args` as a detached child and ends this process, the way
- * an installed copy or the uninstaller is started. The single-instance lock is let go
- * first so the program started can take it. Should the start fail after that, the lock is
- * taken back with `reclaimLock`; if it is refused, another copy has it and this process
- * ends. Never through the shell, which would run it past SmartScreen and Mark of the Web.
- * Resolves true after `exit`, or false, having logged why, when the file is missing or the
- * system refused to start it, as an application control policy (Smart App Control) does.
- */
-export const startDetached = ({
-  file,
-  args = [],
-  cwd,
-  spawn,
-  exists,
-  releaseLock,
-  reclaimLock,
-  exit,
-  log,
-}: {
-  readonly file: string
-  readonly args?: readonly string[]
-  readonly cwd?: string | undefined
-  readonly spawn: (
-    file: string,
-    args: readonly string[],
-    options: {
-      readonly detached: true
-      readonly stdio: "ignore"
-      readonly cwd?: string
-    },
-  ) => StartedProcess
-  readonly exists: (path: string) => boolean
-  readonly releaseLock: () => void
-  /** Takes the lock back after a failed start; false when another process holds it. */
-  readonly reclaimLock: () => boolean
-  readonly exit: () => void
-  readonly log: (message: string, error: unknown) => void
-}): Promise<boolean> =>
-  new Promise((resolve) => {
-    if (!exists(file)) {
-      log("There is no program to start.", file)
-      return resolve(false)
-    }
-    releaseLock()
-    const failed = (error: unknown): void => {
-      log("The program did not start.", error)
-      if (!reclaimLock()) exit()
-      resolve(false)
-    }
-    try {
-      const child = spawn(file, args, {
-        detached: true,
-        stdio: "ignore",
-        ...(cwd === undefined ? {} : { cwd }),
-      })
-      child.once("error", failed)
-      child.once("spawn", () => {
-        child.unref()
-        exit()
-        resolve(true)
-      })
-    } catch (error) {
-      failed(error)
-    }
-  })
 
 /**
  * The arguments the setup is run with: silently, and not starting the installed app after

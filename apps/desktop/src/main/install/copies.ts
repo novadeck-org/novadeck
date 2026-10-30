@@ -50,7 +50,7 @@ import {
   recoverBundles,
   relaunchIntoCopy,
 } from "./mac.js"
-import { installedEnvironment, startAppImage } from "./start.js"
+import { installedEnvironment, startAppImage, startDetached } from "./start.js"
 import { startRemovalAfterExit, uninstaller, type Uninstaller } from "./uninstall.js"
 import {
   findInstalledWindows,
@@ -66,7 +66,6 @@ import {
   SetupBusyError,
   setupName,
   setupResult,
-  startDetached,
   type InstallRecord,
 } from "./windows.js"
 
