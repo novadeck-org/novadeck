@@ -2,9 +2,9 @@ import { outline } from "@novadeck/viewers/text"
 
 import { titleOf } from "./title"
 
-// A document in miniature: its title over its sections. A plan's, and a markdown file's.
+// A Markdown document in miniature: its title over its sections. A plan's, and a file's.
 export const OutlineThumb = ({ path, text }: { path: string; text: string }): React.JSX.Element => (
-  <span className="peek-plan">
+  <span className="peek-list">
     <b>{titleOf(path, text)}</b>
     {outline(text)
       .slice(0, 4)

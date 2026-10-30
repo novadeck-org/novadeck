@@ -2,6 +2,7 @@ import type { Item, ItemId } from "@novadeck/core/items"
 import { emptyBar, messagesKey, type Bar, type BarKey } from "@novadeck/core/items/companion-bar"
 import { itemFixture } from "@novadeck/core/testing"
 
+import { context, describe, expect, it } from "../test"
 import {
   barMembers,
   behindTab,
@@ -14,7 +15,6 @@ import {
   type BarSlot,
 } from "./bar"
 import type { BarDrag } from "./drag-session"
-import { context, describe, expect, it } from "./test"
 
 const image = (id: string, item: Partial<Item> = {}) =>
   itemFixture(id, "01", { kind: "image", name: `${id}.png`, path: `/p/${id}.png`, ...item })

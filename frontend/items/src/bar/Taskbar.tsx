@@ -29,7 +29,7 @@ const SortableSlot = ({
   children: ReactNode
 }): React.JSX.Element => {
   const [element, setElement] = useState<HTMLSpanElement | null>(null)
-  const handle = element?.querySelector<HTMLElement>(".plan-tb-item") ?? undefined
+  const handle = element?.querySelector<HTMLElement>(".taskbar-item") ?? undefined
   const { isDragSource } = useSortable({
     id,
     index,
@@ -40,7 +40,7 @@ const SortableSlot = ({
   })
   return (
     <span
-      className="plan-tb-sortable"
+      className="taskbar-sortable"
       ref={setElement}
       data-slot={id}
       data-dragging={isDragSource || undefined}
@@ -96,7 +96,7 @@ export const Taskbar = ({
         bar.current = element
         presence.props.ref(element)
       }}
-      className="plan-taskbar nodrag nopan"
+      className="taskbar nodrag nopan"
       data-taskbar=""
       data-drop-target={dropTarget || undefined}
       data-workspace-companion
@@ -113,7 +113,7 @@ export const Taskbar = ({
       }}
     >
       <DragDropProvider {...provider}>
-        <span className="plan-tb-slots">
+        <span className="taskbar-slots">
           {slots.map((slot, index) => (
             <SortableSlot
               key={slot.key}
@@ -134,8 +134,8 @@ export const Taskbar = ({
       </DragDropProvider>
       {Grabbed && (
         <Portal>
-          <div ref={grabbedIconRef} className="plan-tb-grabbed" aria-hidden="true">
-            <span className="plan-tb-item" data-state="seen">
+          <div ref={grabbedIconRef} className="taskbar-grabbed" aria-hidden="true">
+            <span className="taskbar-item" data-state="seen">
               <Grabbed size={20} strokeWidth={1.5} />
             </span>
           </div>

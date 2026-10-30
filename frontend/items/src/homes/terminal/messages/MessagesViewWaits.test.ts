@@ -43,7 +43,7 @@ const messagesOf = (waits: MessageWaits | null, paused = false): MessagesHandle 
     paused,
     pending: false,
     error: null,
-    present: true,
+    hasMessages: true,
     badge: { count: 1, kind: paused ? "paused" : "waiting" },
     pause: () => {},
     seenAt: () => 0,

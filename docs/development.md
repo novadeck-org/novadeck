@@ -738,8 +738,8 @@ folder of `frontend/ui/src/`:
 | `frontend/core/src/roster.ts`                                   | A session's terminals and undocked windows, laid out as tiles, their order and status.                                         |
 | `frontend/core/src/layout/workspace-layout.ts`                  | Where each terminal sits and how big it is in each view.                                                                       |
 | `terminals/`                                                    | Terminal frame, tabs, rename state, and the recent-terminal switcher.                                                          |
-| `frontend/items/src/`                                           | Items: the item store, `bar.ts` rules, `registry.ts`, `kinds/<kind>/` (one folder per kind), `document/` and `homes/`.         |
-| `frontend/items/src/drag-session.ts`                            | What's dragged off a taskbar, the views' drop spaces, and the windows it's over.                                               |
+| `frontend/items/src/`                                           | Items: `store/`, `bar/` (taskbar, peek, drag), `registry.ts`, `kinds/<kind>/` (one folder per kind), `document/` and `homes/`. |
+| `frontend/items/src/bar/drag-session.ts`                        | What's dragged off a taskbar, the views' drop spaces, and the windows it's over.                                               |
 | `frontend/chat/src/`                                            | The agent's chat: its blocks, tool rows, requests and the composer, and the chat's own store (`state.ts`) and commands.        |
 | `layouts/canvas/`, `grid/`, `focus/`                            | View adapters and colocated library styles.                                                                                    |
 | `layouts/` (top level)                                          | Helpers shared by views: view transitions, background gestures, visibility.                                                    |
@@ -837,15 +837,15 @@ It starts over on reload apart from preferences, the collapsed sidebar and the
 project arrangement (the switcher's order and pins, `novadeck.project-arrangement`),
 which store subscriptions persist. Another subscription saves the active session's
 windowed view from the workspace store, and a new App seeds sessions with it. The
-item store in `frontend/items/src/state.ts` holds what it loads for the items,
+item store in `frontend/items/src/store/item-store.ts` holds what it loads for the items,
 by item: each plan as the person edits it, what each item last loaded, and the secret
 files the person chose to see; it follows the backend's companions from an effect, and
 `followMessages` (`frontend/items/src/homes/terminal/messages/messages.ts`) puts messages on their
 terminal's bar from another. What an item loaded stays 30 seconds after nothing shows it, then goes, so a
 large image doesn't stay in memory. What a taskbar shows is derived from it and the workspace in
-`frontend/items/src/bar.ts`, never stored.
+`frontend/items/src/bar/bar.ts`, never stored.
 `WorkspaceProvider` creates the backend, the stores, the drag session
-(`frontend/items/src/drag-session.ts`), the navigator, and the commands once per App, in a pure
+(`frontend/items/src/bar/drag-session.ts`), the navigator, and the commands once per App, in a pure
 initializer, and shares them through context; it receives the page as children, so a URL
 change re-renders only the provider.
 

@@ -162,7 +162,7 @@ type Run =
   | { readonly message: AgentMessage }
   | { readonly fold: readonly AgentMessage[]; readonly rounds: number }
 
-export const foldRounds = (messages: readonly AgentMessage[]): readonly Run[] => {
+const foldRounds = (messages: readonly AgentMessage[]): readonly Run[] => {
   const runs: Run[] = []
   let at = 0
   while (at < messages.length) {

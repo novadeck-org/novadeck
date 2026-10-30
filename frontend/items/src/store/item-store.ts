@@ -1,10 +1,8 @@
 import {
   kindRules,
-  notesIn,
   planVersionOf,
   PlanUnwritableError,
   type Companions,
-  type Item,
   type ItemContent,
   type ItemId,
   type PageTrouble,
@@ -19,7 +17,9 @@ import {
 } from "@novadeck/core/store"
 import type { Workspace, WorkspaceTarget } from "@novadeck/core/types"
 
-import { currentMarks, docOf, eolOf, lf, type Mark, type PlanDoc } from "./kinds/plan/plan-doc"
+import { currentMarks, docOf, lf, type Mark, type PlanDoc } from "../kinds/plan/plan-doc"
+import { rewritten } from "./plan-rewrite"
+import { itemIn, itemsOf, pointedAt, pointedIn } from "./pointing"
 
 // What the items package holds while the app runs, apart from the items themselves and
 // how bars are arranged, which the workspace store keeps: each plan as the person edits
@@ -64,7 +64,7 @@ export type ItemStore = {
   // its gate for: an item pointed elsewhere since stays held.
   readonly reveal: (itemId: ItemId, shown: string | null) => void
   readonly plan: (target: WorkspaceTarget, itemId: ItemId) => PlanActions
-  // Tells what went wrong on a live page that show `shown` of the item loaded.
+  // Tells what went wrong on a live page that shows `shown` of the item loaded.
   readonly trouble: (
     target: WorkspaceTarget,
     itemId: ItemId,
@@ -112,26 +112,6 @@ type Session = {
   readonly backingOff: Set<ItemId>
   // Per plan, texts sent in saves whose answer never came: the file may hold any of them.
   readonly unconfirmed: Map<ItemId, readonly string[]>
-}
-
-// Which file an item shows, for a file or an image, and what kind it is otherwise. The same
-// item shown another file is something else to read, as the project window's is when the
-// person opens another; any other change, as new lines or a new route, replaces content in place.
-const pointedAt = (item: Pick<Item, "kind" | "path">): string =>
-  JSON.stringify([item.kind, item.kind === "file" || item.kind === "image" ? item.path : null])
-
-const itemIn = (workspace: Workspace, id: ItemId): Item | undefined => {
-  for (const project of workspace.projects)
-    for (const each of project.history) {
-      const item = each.state.items.find((candidate) => candidate.id === id)
-      if (item) return item
-    }
-  return undefined
-}
-
-const pointedIn = (workspace: Workspace, id: ItemId): string | undefined => {
-  const item = itemIn(workspace, id)
-  return item && pointedAt(item)
 }
 
 // The file the person's yes to seeing an item was for, if it still holds: it was to the file
@@ -320,8 +300,7 @@ const revise = async (
   id: ItemId,
   version: PlanVersion,
 ): Promise<void> => {
-  const { stamp, plan: incoming } = version
-  const theirs = lf(incoming.text)
+  const theirs = lf(version.plan.text)
   const inFlight = session.saving.get(id)
   // A rewrite that isn't the save under way waits for its answer: it may have been
   // written over that save, which the plan's base doesn't hold yet.
@@ -329,47 +308,10 @@ const revise = async (
     session.pending.set(id, version)
     return
   }
-  const { distance, merge } = await import("@novadeck/viewers/sync")
+  const sync = await import("@novadeck/viewers/sync")
   const unconfirmed = session.unconfirmed.get(id) ?? []
   const echo = inFlight === theirs || unconfirmed.includes(theirs)
-  withPlan(session, id, (plan) => {
-    const facts = {
-      writable: incoming.writable,
-      skill: incoming.skill,
-      truncated: incoming.truncated,
-    }
-    if (
-      stamp === plan.revision &&
-      theirs === plan.base &&
-      incoming.writable === plan.writable &&
-      incoming.skill === plan.skill &&
-      incoming.truncated === plan.truncated
-    )
-      return plan
-    // A backend watching the file reports the person's own save back.
-    if (echo || theirs === plan.text)
-      return { ...plan, ...facts, base: theirs, revision: stamp, eol: eolOf(incoming.text) }
-    // A save whose answer never came may have been written: the rewrite merges over
-    // whichever the file now stands closest to, so a written save's edits aren't
-    // merged in twice and an unwritten one's aren't taken for the agent's.
-    const base = [plan.base, ...unconfirmed].reduce((closest, candidate) =>
-      distance(candidate, theirs) < distance(closest, theirs) ? candidate : closest,
-    )
-    const written = merge(base, plan.text, theirs)
-    return {
-      ...plan,
-      ...facts,
-      base: theirs,
-      revision: stamp,
-      eol: eolOf(incoming.text),
-      text: written.text,
-      marks: written.changed,
-      marked: written.text,
-      changes: written.changes,
-      showChanges: true,
-      resolved: Math.max(0, notesIn(plan.text) - notesIn(written.text)),
-    }
-  })
+  withPlan(session, id, (plan) => rewritten(plan, version, echo, unconfirmed, sync))
   // This version settles what the file holds; saves still unanswered no longer matter.
   session.unconfirmed.delete(id)
   persist(session, target, id)
@@ -508,7 +450,7 @@ const forgetPlan = (session: Session, id: ItemId): void => {
 const keep = <Value>(
   present: ReadonlyMap<ItemId, unknown>,
   record: Readonly<Record<ItemId, Value>>,
-) => {
+): Readonly<Record<ItemId, Value>> => {
   const kept = Object.entries(record).filter(([id]) => present.has(id as ItemId))
   return kept.length === Object.keys(record).length
     ? record
@@ -569,10 +511,6 @@ const reconcile = (session: Session, workspace: Workspace): void => {
       : next
   })
 }
-
-// Each session's items, which change far less often than the workspace.
-const itemsOf = (workspace: Workspace) =>
-  workspace.projects.flatMap((project) => project.history.map((each) => each.state.items))
 
 export const createItemStore = ({
   companions,
@@ -646,7 +584,7 @@ export const createItemStore = ({
     },
     closeEditor: () => {
       // The note code is already loaded: the editor that closed shares it.
-      void import("./kinds/plan/plan-editor/notes").then(({ withoutEmptyNotes }) => {
+      void import("../kinds/plan/plan-editor/notes").then(({ withoutEmptyNotes }) => {
         withPlan(session, id, (current) => {
           if (!current.writable) return current
           const kept = withoutEmptyNotes(current.text, currentMarks(current))

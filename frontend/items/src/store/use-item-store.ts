@@ -2,8 +2,8 @@ import { kindRules, type Item, type ItemContent, type ItemId } from "@novadeck/c
 import type { WorkspaceTarget } from "@novadeck/core/types"
 import { useEffect, useRef, useSyncExternalStore } from "react"
 
-import type { PlanDoc } from "./kinds/plan/plan-doc"
-import type { ItemStore } from "./state"
+import type { PlanDoc } from "../kinds/plan/plan-doc"
+import type { ItemStore } from "./item-store"
 
 // The item store's state as components use it: one part each, so a keystroke in one plan
 // re-renders only what shows that plan.

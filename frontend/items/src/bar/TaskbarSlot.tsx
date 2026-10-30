@@ -5,9 +5,9 @@ import { HoverCard } from "@novadeck/toolkit/HoverCard"
 import type { LucideIcon } from "lucide-react"
 import type { ReactNode, Ref } from "react"
 
+import { stackIcon, stackNames, type Look } from "../registry"
 import { isNew, pick, type BarMember, type BarSlot } from "./bar"
 import { Peek, type Indicator, type PeekEntry } from "./Peek"
-import { stackIcon, stackNames, type Look } from "./registry"
 
 // One icon on a terminal's taskbar: its button, the peek above it with a card for each
 // thing behind it, and its menu. One thing's menu offers all that can be done with it; a
@@ -201,9 +201,9 @@ export const TaskbarSlot = ({
           : [stack.open, ...moving, stack.close]
       }
       trigger={
-        <span className="plan-tb-slot">
+        <span className="taskbar-slot">
           <HoverCard
-            className="plan-tb-peek"
+            className="taskbar-peek"
             // What was new in a peek the person looked at is new no more once it closes.
             onOpenChange={(open) => {
               const newKeys = slot.members.flatMap((member) =>
@@ -214,7 +214,7 @@ export const TaskbarSlot = ({
             trigger={
               <button
                 ref={buttonRef}
-                className="plan-tb-item"
+                className="taskbar-item"
                 data-state={fresh ? "new" : shown ? "open" : behind ? "behind" : "seen"}
                 aria-label={
                   single
@@ -229,7 +229,7 @@ export const TaskbarSlot = ({
                 {badge
                   ? badge.mark
                   : !single && (
-                      <b className="plan-tb-count" aria-hidden="true">
+                      <b className="taskbar-count" aria-hidden="true">
                         {slot.members.length}
                       </b>
                     )}

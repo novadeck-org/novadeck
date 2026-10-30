@@ -69,7 +69,7 @@ const rules: Record<string, readonly string[]> = {
     "terminals/chat/commands.ts",
     // The item store, which commands use by its type, and the actions they
     // implement, which they declare they satisfy.
-    "terminals/companion/state.ts",
+    "terminals/companion/store.ts",
     "terminals/companion/actions.ts",
     "layouts/canvas/types.ts",
     // The dictation contract's types, which keys call.

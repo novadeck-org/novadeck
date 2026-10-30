@@ -54,7 +54,7 @@ export type MessagesHandle = {
   // Why the last pause or resume didn't take.
   readonly error: string | null
   // Whether the terminal has a messages view: it has had messages.
-  readonly present: boolean
+  readonly hasMessages: boolean
   readonly badge: MessageBadge | null
   readonly pause: (paused: boolean) => void
   // When the person last saw a conversation, by its key, and that they saw it up to `at`.
@@ -75,7 +75,7 @@ export const useMessages = (messages: Messages | undefined, key: TerminalKey): M
     paused,
     pending,
     error,
-    present: hasMessages(threads),
+    hasMessages: hasMessages(threads),
     badge: messageBadge(threads, paused),
     pause: (next) => messages?.pause(next),
     seenAt: (conversation) => seenAt(record, seenKey(id, conversation)),
@@ -85,7 +85,7 @@ export const useMessages = (messages: Messages | undefined, key: TerminalKey): M
 }
 
 // What the messages' views know of the session around the terminal: the other terminals
-// by handle, and the ways out of the pane, to another terminal and to the Inbox item an
+// by handle, and the ways out of the pane, to another terminal and to the Inbox row an
 // entry waits in.
 // The peers are a store, which only the views that draw them subscribe to, so a terminal
 // whose pane is shut never renders again as an agent starts or stops working.

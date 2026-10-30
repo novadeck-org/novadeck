@@ -2,7 +2,7 @@ import type { Item } from "@novadeck/core/items"
 import type { WorkspaceTarget } from "@novadeck/core/types"
 
 import { registrationOf } from "../../registry"
-import type { ItemStore } from "../../state"
+import type { ItemStore } from "../../store/item-store"
 
 // The session's project window: the one file the person opened from Source, drawn as its
 // kind draws it, code, a Markdown document, an image or the secrets gate. It is theirs, so

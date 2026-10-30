@@ -204,7 +204,7 @@ export const useBarDrag = ({
     if (start.button !== 0 || start.ctrlKey) return
     const touch = start.pointerType === "touch"
     const from = { x: start.clientX, y: start.clientY }
-    const home = bar.current?.querySelector(`[data-slot="${CSS.escape(slot)}"] .plan-tb-item`)
+    const slotIcon = bar.current?.querySelector(`[data-slot="${CSS.escape(slot)}"] .taskbar-item`)
     let armed = !touch
     let dragging = false
     const press = touch ? setTimeout(() => (armed = true), 250) : undefined
@@ -217,7 +217,7 @@ export const useBarDrag = ({
         if (!armed || (!touch && distance < 6)) return
         dragging = true
         grabbedAt.current = { x: pointer.clientX, y: pointer.clientY }
-        setGrabbed({ icon, from: home?.getBoundingClientRect() })
+        setGrabbed({ icon, from: slotIcon?.getBoundingClientRect() })
         begin(members)
       }
       pointer.preventDefault()

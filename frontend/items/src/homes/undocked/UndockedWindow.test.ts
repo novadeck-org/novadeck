@@ -6,7 +6,7 @@ import { render } from "@novadeck/test-kit/render"
 import { act, createElement } from "react"
 import { afterEach, vi } from "vitest"
 
-import { createItemStore } from "../../state"
+import { createItemStore } from "../../store/item-store"
 import { context, describe, expect, it } from "../../test"
 import { UndockedWindow } from "./UndockedWindow"
 
@@ -52,10 +52,10 @@ describe("an item undocked into a window", () => {
         content: { kind: "plan", text: "# Plan\n", truncated: false, writable: true, skill: true },
       })
       const frame = container.querySelector(
-        "div.artifact-window > section.plan-reader[data-workspace-companion]",
+        "div.artifact-window > section.pane-reader[data-workspace-companion]",
       )
       expect(frame?.getAttribute("aria-label")).toBe("Plan")
-      expect(frame?.querySelector(".plan-editor")).not.toBeNull()
+      expect(frame?.querySelector(".document-editor")).not.toBeNull()
     })
   })
 
@@ -67,7 +67,7 @@ describe("an item undocked into a window", () => {
         reason: "secret",
         size: null,
       })
-      expect(container.querySelector("section.plan-reader")).toBeNull()
+      expect(container.querySelector("section.pane-reader")).toBeNull()
       expect(
         [...container.querySelectorAll("div.artifact-window button")].map(
           (each) => each.textContent,
@@ -85,7 +85,7 @@ describe("an item undocked into a window", () => {
         stamp: "1",
         content: { kind: "page", url, shown: 1, live: false },
       })
-      expect(container.querySelector("section.plan-reader")).toBeNull()
+      expect(container.querySelector("section.pane-reader")).toBeNull()
       expect(container.querySelector(".artifact-window .artifact-url")?.textContent).toBe(url)
     })
   })

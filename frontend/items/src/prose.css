@@ -1,13 +1,14 @@
 /* The prose recipe: the theme's prose tokens mapped onto the markdown viewer's
-   (@novadeck/viewers/markdown.css), which draws plans and markdown documents, and what
+   (@novadeck/viewers/markdown.css), which draws plans and Markdown documents, and what
    only a plan has: its notes (`.cm-plan-note-*`, drawn by plan-editor/plan-notes.ts) and
-   the lines the agent's latest revision wrote (`.cm-plan-changed`). A plan's miniature in a
-   peek reads the prose tokens too. The editor's icon-only actions, the margin's and a
+   the lines the agent's latest revision wrote (`.cm-plan-changed`). A document's miniature in
+   a peek reads the prose tokens too. The editor's icon-only actions, the margin's and a
    row's note buttons, are `.icon-button`s; its checkboxes take the toggle recipe's tokens.
 
    Hooks: data-changes="true" on the plan's scroller while the agent's changes show;
-   data-readonly on the plan editor while the plan can't be written; data-heading="1" | "2"
-   | "3" on the margin's note button beside a heading.
+   data-readonly on the document editor while it can't be written (a plan that can't be
+   saved, and a Markdown file's document view); data-heading="1" | "2" | "3" on the
+   margin's note button beside a heading.
 
    Tokens, each optional (its fallback in brackets):
    --prose-fg (ink), --prose-font (sans): the text, and the editor's caret.
@@ -131,7 +132,7 @@
   color: var(--prose-note-text-fg, var(--color-ink));
   font-weight: 500;
 }
-.plan-editor .cm-plan-note-line {
+.document-editor .cm-plan-note-line {
   --_note-indent: 0px;
   /* Its own stacking context, so the bubble drawn behind the text stays in the line. */
   position: relative;
@@ -142,20 +143,20 @@
   text-indent: 0;
   line-height: 1.6;
 }
-.plan-editor .cm-plan-note-line::before,
-.plan-editor .cm-plan-note-line::after {
+.document-editor .cm-plan-note-line::before,
+.document-editor .cm-plan-note-line::after {
   content: "";
   position: absolute;
   z-index: -1;
   background-color: var(--prose-note-bg, var(--color-note));
   pointer-events: none;
 }
-.plan-editor .cm-plan-note-line::before {
+.document-editor .cm-plan-note-line::before {
   inset: 9px 0 3px var(--_note-indent);
   border-radius: var(--radius-popover);
 }
 /* The tail: a turned square whose top corner points up at the line above. */
-.plan-editor .cm-plan-note-line::after {
+.document-editor .cm-plan-note-line::after {
   top: 5px;
   left: calc(var(--_note-indent) + 14px);
   width: 8px;
@@ -163,10 +164,10 @@
   transform: rotate(45deg);
 }
 /* Under a list item, the rule lines up with the item's text. */
-.plan-editor .cm-md-item.cm-plan-note-line {
+.document-editor .cm-md-item.cm-plan-note-line {
   --_note-indent: 22px;
 }
-.plan-editor .cm-md-item-task.cm-plan-note-line {
+.document-editor .cm-md-item-task.cm-plan-note-line {
   --_note-indent: 44px;
 }
 /* What the agent's latest revision wrote, while changes are shown. */
@@ -185,6 +186,6 @@
 }
 
 /* A plan the backend can't write: no note buttons. */
-.plan-editor[data-readonly] .cm-plan-note-gutter {
+.document-editor[data-readonly] .cm-plan-note-gutter {
   display: none;
 }

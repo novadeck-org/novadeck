@@ -7,7 +7,7 @@ import { createElement } from "react"
 import { afterEach } from "vitest"
 
 import { registry } from "./registry"
-import { createItemStore } from "./state"
+import { createItemStore } from "./store/item-store"
 import { context, describe, expect, it } from "./test"
 
 const unmounts: (() => void)[] = []
