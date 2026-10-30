@@ -1,5 +1,6 @@
 import { page } from "vitest/browser"
 
+import { closePreferences, openPreferences } from "../support/keyboard"
 import { focusView, gridView } from "../support/layouts"
 import {
   chooseView,
@@ -20,16 +21,10 @@ import {
 } from "../support/workspace"
 import { context, describe, expect, it } from "../test"
 
-const openPreferences = async (): Promise<void> => {
-  await page.getByRole("button", { name: "Workspace preferences" }).click()
-  await expect.element(page.getByRole("dialog", { name: "Preferences" })).toBeVisible()
-}
-
 const disableView = async (name: "Focus" | "Grid" | "Canvas"): Promise<void> => {
   await openPreferences()
   await page.getByRole("group", { name: "View modes" }).getByRole("checkbox", { name }).click()
-  await page.getByRole("button", { name: "Close preferences" }).click()
-  await expect.element(page.getByRole("dialog", { name: "Preferences" })).not.toBeInTheDocument()
+  await closePreferences()
 }
 
 describe("workspace views", () => {

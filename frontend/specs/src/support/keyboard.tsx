@@ -89,6 +89,24 @@ export const recentOption = (name: string): Locator =>
 
 export const preferencesDialog = (): Locator => page.getByRole("dialog", { name: "Preferences" })
 
+/** Opens Preferences from the workspace's button, and waits for the focus to move into it. */
+export const openPreferences = async (): Promise<void> => {
+  await page.getByRole("button", { name: "Workspace preferences" }).click()
+  await expectFocusWithin(preferencesDialog())
+}
+
+/** Opens Preferences as `openPreferences` does, then the tab named `tab`. */
+export const openPreferencesOn = async (tab: string): Promise<void> => {
+  await openPreferences()
+  await preferencesDialog().getByRole("tab", { name: tab }).click()
+}
+
+/** Closes Preferences with its close button, and waits for it to go. */
+export const closePreferences = async (): Promise<void> => {
+  await preferencesDialog().getByRole("button", { name: "Close preferences" }).click()
+  await expect.element(preferencesDialog()).not.toBeInTheDocument()
+}
+
 /**
  * What a new plain terminal is called, as the runner names one: "Terminal". The workspace's
  * other terminals have names of their own, so it is the only one by it; a spec that makes

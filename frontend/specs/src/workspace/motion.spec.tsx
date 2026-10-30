@@ -6,6 +6,7 @@ import {
   draftOf,
   expectSelected,
   labelled,
+  nextFrames,
   openWorkspace,
   press,
   terminal,
@@ -106,17 +107,6 @@ describe("workspace motion", () => {
   })
 })
 
-// Waits for the browser to draw this many frames, without reading a style on the way:
-// a read would apply pending styles early and hide whether the page stilled them.
-const frames = (count: number): Promise<void> =>
-  new Promise((resolve) => {
-    const next = (left: number): void => {
-      if (left === 0) resolve()
-      else requestAnimationFrame(() => next(left - 1))
-    }
-    next(count)
-  })
-
 // A surface that fades its ground over two seconds, as a control's hover does.
 const fadingSurface = (): HTMLElement => {
   const surface = document.createElement("div")
@@ -138,7 +128,7 @@ describe("theme motion", () => {
       const light = getComputedStyle(surface).backgroundColor
 
       await systemScheme("dark")
-      await frames(3)
+      await nextFrames(3)
 
       expect(pageScheme()).toBe("dark")
       expect(surface.getAnimations()).toEqual([])
@@ -159,7 +149,7 @@ describe("theme motion", () => {
         ...saved,
         appearance: { theme: "coolant", scheme: "dark" },
       })
-      await frames(3)
+      await nextFrames(3)
 
       expect(pageScheme()).toBe("dark")
       expect(surface.getAnimations()).toEqual([])

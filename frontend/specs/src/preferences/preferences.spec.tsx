@@ -2,7 +2,13 @@ import { afterEach, vi } from "vitest"
 import { page, type Locator } from "vitest/browser"
 
 import { pageScheme, saveFromAnotherWindow, systemScheme } from "../support/appearance"
-import { escapeFrom, expectFocusWithin, preferencesDialog } from "../support/keyboard"
+import {
+  closePreferences,
+  escapeFrom,
+  openPreferences,
+  openPreferencesOn,
+  preferencesDialog,
+} from "../support/keyboard"
 import {
   openWorkspace,
   outputTextElement,
@@ -13,21 +19,10 @@ import {
 } from "../support/workspace"
 import { context, describe, expect, it } from "../test"
 
-const openPreferences = async (): Promise<void> => {
-  await page.getByRole("button", { name: "Workspace preferences" }).click()
-  await expectFocusWithin(preferencesDialog())
-}
-
 /** Opens Preferences on its Appearance tab, which holds the theme, the mode and the sound. */
 const openAppearance = async (): Promise<void> => {
-  await openPreferences()
-  await tab("Appearance").click()
+  await openPreferencesOn("Appearance")
   await expect.element(tab("Appearance")).toHaveAttribute("aria-selected", "true")
-}
-
-const closePreferences = async (): Promise<void> => {
-  await preferencesDialog().getByRole("button", { name: "Close preferences" }).click()
-  await expect.element(preferencesDialog()).not.toBeInTheDocument()
 }
 
 const tab = (name: "General" | "Appearance" | "Addons" | "Shortcuts" | "About"): Locator =>
