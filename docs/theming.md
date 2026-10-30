@@ -523,10 +523,10 @@ app runs: whenever the preference changes, and whenever the system's scheme does
   `apply.ts` removes that once the theme's file sets `color-scheme`.
 - **Windows** stay in step: each listens for the `storage` event and takes up the
   preferences another window saved, theme included.
-- **The desktop host** follows the page. On every change the page reports its scheme
+- **The desktop app** follows the page. On every change the page reports its scheme
   and its `--color-paper`, the ground `body` paints before anything draws on it, as
   `#rrggbb` through the preload bridge, so the window and the first paint are one
-  colour. The host sets `nativeTheme.themeSource` so native menus and
+  colour. The app sets `nativeTheme.themeSource` so native menus and
   `prefers-color-scheme` agree, sets the window's background, and keeps that ground to
   open new windows on, so a dark theme never flashes white. While the page follows the
   system it reports `system`, not the scheme it resolved (a theme with one scheme
@@ -534,6 +534,6 @@ app runs: whenever the preference changes, and whenever the system's scheme does
   system's own scheme from `matchMedia`. For the same reason, a window pinned to a
   scheme that goes back to the system is released first: the page reports `system`,
   keeps what it shows, and shows the system's scheme once `matchMedia` reports it, or
-  after `releaseMs` (200ms) when nothing changes (`app/appearance.ts`). The host
+  after `releaseMs` (200ms) when nothing changes (`app/appearance.ts`). The app
   accepts only `system`, `light` or `dark` and an opaque hex colour. In a browser
-  there is no host, and nothing is reported.
+  there is no desktop app, and nothing is reported.

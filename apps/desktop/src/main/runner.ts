@@ -1,10 +1,11 @@
+import type { Logger } from "@novadeck/log"
 import { utilityProcess, type MessagePortMain, type UtilityProcess } from "electron"
 
 import {
   databaseArgumentPrefix,
   murmurEngineArgumentPrefix,
   graphicsArgumentPrefix,
-  hostBeatMs,
+  mainBeatMs,
   logArgumentPrefix,
   murmurSourceArgumentPrefix,
   relayArgumentPrefix,
@@ -13,9 +14,9 @@ import {
   type RunnerCommand,
   type RunnerReport,
 } from "../bridge.js"
-import { eachLine } from "./logs.js"
+import { eachLine, logRunnerOutput } from "./logs/runner-output.js"
 
-export type RunnerHost = {
+export type RunnerProcess = {
   /**
    * Hands the runner a fresh port to serve, starting the runner again if it stopped; false
    * once it closes, as `brokerPorts` takes it.
@@ -33,14 +34,14 @@ export type RunnerHost = {
 const send = (worker: UtilityProcess, command: RunnerCommand, ports: MessagePortMain[] = []) =>
   worker.postMessage(command, ports)
 
-/** What the host hears of each start of the runner, numbered from 1 within the launch. */
+/** What the app hears of each start of the runner, numbered from 1 within the launch. */
 export type RunnerEvents = {
   /** The runner started, its process forked. */
   readonly spawned?: (run: number) => void
   /** It can serve, `ms` after it was forked. */
   readonly ready?: (run: number, ms: number) => void
   /**
-   * Its process exited with `code`: `expected` when the host was closing it. A crash, a
+   * Its process exited with `code`: `expected` when the app was closing it. A crash, a
    * kill or the system's OOM killer says more through `child-process-gone`.
    */
   readonly exited?: (run: number, code: number, expected: boolean) => void
@@ -48,6 +49,39 @@ export type RunnerEvents = {
   readonly output?: (run: number, stream: "stdout" | "stderr", line: string) => void
   /** Its stdout or stderr ended, as it does once the process is gone. */
   readonly outputEnded?: (run: number, stream: "stdout" | "stderr") => void
+}
+
+/**
+ * What the app logs of the runner's starts, ends and output, in its own log. A development
+ * run, `echo`, also passes the runner's output on to its own.
+ */
+export const logRunnerEvents = (logger: Logger, echo: boolean): RunnerEvents => {
+  const runnerLog = logger.for("runner")
+  const output = logRunnerOutput(runnerLog)
+  return {
+    spawned: (start) =>
+      runnerLog.info("runner.spawn", "The runner was started.", { data: { run: start } }),
+    ready: (start, ms) =>
+      runnerLog.info("runner.ready", "The runner answered.", { data: { run: start, ms } }),
+    exited: (start, code, expected) => {
+      if (expected) {
+        runnerLog.info("runner.exit", "The runner exited.", {
+          data: { run: start, code, expected },
+        })
+        return
+      }
+      runnerLog.error("runner.exit", "The runner exited unexpectedly.", {
+        data: { run: start, code, expected },
+      })
+      // Still said where it always was, as the system's journal keeps a desktop app's output.
+      console.error(`Novadeck runner exited unexpectedly (code ${code})`)
+    },
+    outputEnded: (start, stream) => output.end(start, stream),
+    output: (start, stream, line) => {
+      output.line(start, stream, line)
+      if (echo) (stream === "stderr" ? process.stderr : process.stdout).write(`${line}\n`)
+    },
+  }
 }
 
 /** Starts the runner in a utility process and hands out one MessagePort per connection. */
@@ -61,7 +95,7 @@ export const startRunner = (options: {
   /** The same for murmur's engine. */
   murmurEngine: string
   murmurSource: string
-  /** The host saw only software rendering, so murmur can't run and voice input installs its small model. */
+  /** The app saw only software rendering, so murmur can't run and voice input installs its small model. */
   softwareGraphics?: boolean
   /**
    * The key saved transcripts are encrypted with, base64, or null where none can be kept
@@ -72,7 +106,7 @@ export const startRunner = (options: {
   /** How start `run` writes its log: the argument after `logArgumentPrefix`, if it keeps one. */
   log?: (run: number) => string
   events?: RunnerEvents
-}): RunnerHost => {
+}): RunnerProcess => {
   const { events = {} } = options
   let child: UtilityProcess | undefined
   let closing: Promise<void> | undefined
@@ -94,7 +128,7 @@ export const startRunner = (options: {
         ...(options.log ? [`${logArgumentPrefix}${options.log(run)}`] : []),
       ],
       // Its output is piped, so what only reaches stderr, as V8's out-of-memory report,
-      // lands in the host's log.
+      // lands in the app's log.
       { serviceName: "Novadeck Runner", stdio: "pipe" },
     )
     events.spawned?.(run)
@@ -121,10 +155,10 @@ export const startRunner = (options: {
     return worker
   }
   spawn()
-  // The runner logs the host as stalled when these stop; see ../runner/host-watch.ts.
+  // The runner logs the main process as stalled when these stop; see ../runner/main-watch.ts.
   const beats = setInterval(() => {
     if (child && !closing) send(child, { type: "beat" })
-  }, hostBeatMs)
+  }, mainBeatMs)
   return {
     deliver(port) {
       if (closing) return false

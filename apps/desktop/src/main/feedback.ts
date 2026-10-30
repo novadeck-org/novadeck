@@ -2,7 +2,7 @@ import type { DesktopFeedbackAbout, DesktopFeedbackNote } from "@novadeck/protoc
 import type { IpcMain } from "electron"
 
 import { feedbackAboutChannel, feedbackSendChannel } from "../bridge.js"
-import { localOrigin, novadeckSite } from "./updater.js"
+import { localOrigin, novadeckSite } from "./releases/site.js"
 
 /** How long a note may take to be answered before it counts as not sent. */
 export const feedbackTimeoutMs = 15_000
