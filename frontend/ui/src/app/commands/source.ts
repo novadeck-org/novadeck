@@ -12,7 +12,7 @@ export type SourceCommands = {
   readonly openSourceFile: (path: string) => Promise<void>
 }
 
-export type SourceDependencies = {
+type SourceDependencies = {
   readonly markCreated: (created: { readonly context: string; readonly id: string }) => void
   readonly pulse: () => void
 }

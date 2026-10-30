@@ -102,7 +102,7 @@ export const BackendGate = ({ selection, render, onShown }: GateProps): ReactNod
   const [initial] = useState(selection)
   // A backend ready at once, as in tests, needs no splash.
   const splashed = "connect" in initial
-  // Each retry is a fresh attempt; on desktop it also asks the host for a new runner.
+  // Each retry is a fresh attempt; on desktop it also asks the desktop app for a new runner.
   // `attempt` keys the attempts over the gate's life; `attempts` counts this boot's.
   const [attempt, setAttempt] = useState(1)
   const [attempts, setAttempts] = useState(1)

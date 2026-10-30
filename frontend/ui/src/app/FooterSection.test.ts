@@ -7,8 +7,8 @@ import { afterEach } from "vitest"
 import { describe, expect, it } from "../test"
 import { openCommands } from "../test/commands"
 import { WorkspaceServicesContext } from "./controller/context"
+import { FooterSection } from "./FooterSection"
 import { noLanding } from "./inbox-landing"
-import { WorkspaceFooter } from "./WorkspaceFooter"
 
 const mounted: Rendered[] = []
 afterEach(() => {
@@ -35,7 +35,7 @@ const show = (backend: Partial<Backend>): Rendered => {
           drag: undefined as never,
         },
       },
-      createElement(WorkspaceFooter),
+      createElement(FooterSection),
     ),
   )
   mounted.push(page)

@@ -3,19 +3,17 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import { heldInput, holdInputUntilEngaged } from "./embedded"
 
 // A page and the frame the app runs in: jsdom's window stands for the frame, with a
-// parent that records what the app tells it.
+// parent window that records what the app tells it.
 const framed = () => {
   const frame = document.createElement("iframe")
   document.body.append(frame)
   const app = frame.contentWindow as Window & typeof globalThis
-  const parent = { postMessage: vi.fn<Window["postMessage"]>() } as unknown as Window
+  const outer = document.createElement("iframe")
+  document.body.append(outer)
+  const parent = outer.contentWindow as Window
   Object.defineProperty(app, "parent", { value: parent })
-  return {
-    held: heldInput(),
-    app,
-    parent,
-    posted: parent.postMessage as ReturnType<typeof vi.fn>,
-  }
+  const posted = vi.spyOn(parent, "postMessage").mockImplementation(() => {})
+  return { held: heldInput(), app, parent, posted }
 }
 
 const wheel = (app: Window & typeof globalThis, init: WheelEventInit = {}): WheelEvent => {
@@ -38,7 +36,10 @@ const engage = (app: Window & typeof globalThis, source: Window): void => {
 }
 
 describe("holdInputUntilEngaged", () => {
-  afterEach(() => document.body.replaceChildren())
+  afterEach(() => {
+    document.body.replaceChildren()
+    vi.restoreAllMocks()
+  })
 
   // Whether a wheel at the app's body reaches the app's own handlers, and whether it was
   // cancelled, which would keep the browser from scrolling the page with it.

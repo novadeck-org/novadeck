@@ -80,7 +80,7 @@ const inFirst = (content: ReactNode): ReactNode => createElement(First, null, co
 const inSecond = (content: ReactNode): ReactNode => createElement(Second, null, content)
 const onInputFocused = (): void => {}
 
-const hosted = (mountTerminal: MountTerminal, options: Options = {}) =>
+const mountedTerminal = (mountTerminal: MountTerminal, options: Options = {}) =>
   createElement(MountedTerminal, {
     mountTerminal,
     terminalKey: options.terminalKey ?? key,
@@ -95,9 +95,9 @@ const hosted = (mountTerminal: MountTerminal, options: Options = {}) =>
 const show = (options: Options = {}) => {
   const fake = stub()
   let current = options
-  const page = render(hosted(fake.mountTerminal, current))
+  const page = render(mountedTerminal(fake.mountTerminal, current))
   const change = (next: Options) =>
-    page.rerender(hosted(fake.mountTerminal, (current = { ...current, ...next })))
+    page.rerender(mountedTerminal(fake.mountTerminal, (current = { ...current, ...next })))
   return { ...fake, ...page, change }
 }
 const content = (container: HTMLElement) =>
@@ -131,7 +131,7 @@ describe("a terminal drawn by a backend's mount", () => {
       expect(root.hidden).toBe(false)
       expect(root.hasAttribute("inert")).toBe(false)
       expect(root.hasAttribute("data-locked")).toBe(false)
-      // The mount's input is inside it, and the host adds none.
+      // The mount's input is inside it, and the desktop app adds none.
       expect(root.querySelectorAll("[data-terminal-input]")).toHaveLength(1)
     })
 
@@ -247,14 +247,14 @@ describe("a terminal drawn by a backend's mount", () => {
       const fake = stub()
       fake.landing.value = false
       const page = render(
-        hosted(fake.mountTerminal, { focusInput: true, onInputFocused: onFocused }),
+        mountedTerminal(fake.mountTerminal, { focusInput: true, onInputFocused: onFocused }),
       )
       expect(fake.mounts[0]!.focus).toHaveBeenCalled()
       expect(onFocused).not.toHaveBeenCalled()
       // The next time something it depends on changes, it asks again, and lands.
       fake.landing.value = true
       const next = vi.fn<() => void>()
-      page.rerender(hosted(fake.mountTerminal, { focusInput: true, onInputFocused: next }))
+      page.rerender(mountedTerminal(fake.mountTerminal, { focusInput: true, onInputFocused: next }))
       expect(next).toHaveBeenCalledTimes(1)
       page.unmount()
     })

@@ -39,7 +39,7 @@ import { folderProject, newWorkspaceSession } from "./sessions"
 import { createShellCommands, shellEdits, type ShellCommands } from "./shell"
 import { createSourceCommands, type SourceCommands } from "./source"
 
-export type AddTerminalOptions = { fromKeyboard?: boolean }
+type AddTerminalOptions = { fromKeyboard?: boolean }
 
 // Workspace operations shared by the pointer UI and keyboard shortcuts. Each reads the
 // latest stores when it runs, so several in one event keep one another's changes.
@@ -87,9 +87,9 @@ export type WorkspaceCommands = ShellCommands &
     // Adds the terminal an agent asked for beside its own, in that terminal's session,
     // and answers the request; it comes into view only when the request asks.
     readonly openRequested: (request: TerminalRequest) => void
-    // Brings a terminal into view wherever it is, as a click on a notification about it
-    // asks: its project and session to the front, the terminal selected, and on Canvas the
-    // camera flown in to it.
+    // Brings a terminal into view wherever it is, as a click on an Inbox row or a desktop
+    // notification about it asks: its project and session to the front, the terminal
+    // selected, and on Canvas the camera flown in to it.
     readonly reveal: (terminalId: string) => void
     // Closes the terminal, or asks first while a program runs in it.
     readonly close: (terminalId: string) => void
@@ -228,19 +228,19 @@ export const createWorkspaceCommands = (ctx: CommandContext): WorkspaceCommands 
     ...recent,
     ...createLayoutCommands(ctx),
     ...createChatCommands(ctx),
-    ...createSourceCommands(ctx, { markCreated, pulse: () => pulse() }),
+    ...createSourceCommands(ctx, { markCreated, pulse }),
     ...createCompanionCommands(ctx, {
       select,
       setSelected,
       markCreated,
-      pulse: () => pulse(),
+      pulse,
     }),
     setSelected,
     select,
     switchSession: (id) => {
       const project = activeProject(workspace.getSnapshot())!
       if (id === project.activeSessionId) return
-      if (!project.history.some((item) => item.id === id)) return
+      if (!project.history.some((session) => session.id === id)) return
       navigateWorkspace([
         {
           type: "session/select",
@@ -260,7 +260,7 @@ export const createWorkspaceCommands = (ctx: CommandContext): WorkspaceCommands 
       })
       const { name } = next
       let suffix = 2
-      while (project.history.some((item) => item.name === next.name))
+      while (project.history.some((session) => session.name === next.name))
         next.name = `${name} (${suffix++})`
       set("freshSession", next.id)
       set("sidebarCollapsed", false)

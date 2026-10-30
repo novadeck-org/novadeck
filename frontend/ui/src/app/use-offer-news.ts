@@ -1,8 +1,8 @@
 import type { UpdateOffer, WhatsNew } from "@novadeck/core/desktop/update"
 import { useCallback, useEffect, useRef, useState } from "react"
 
-// How long the card's automatic raise waits for the host's notes: the host's own read gives
-// up after about this long, so a later answer would be none anyway.
+// How long the card's automatic raise waits for the desktop app's notes: the app's own read
+// gives up after about this long, so a later answer would be none anyway.
 export const newsWaitMs = 10_000
 
 type Heard = {
@@ -12,11 +12,11 @@ type Heard = {
   readonly settled: boolean
 }
 
-// What is new in the release a portable copy is offered, asked of the host when an offer
-// shows up and gone with it. `news` is undefined where the host has none to tell, can't, or
+// What is new in the release a portable copy is offered, asked of the desktop app when an offer
+// shows up and gone with it. `news` is undefined where the desktop app has none to tell, can't, or
 // told those of another version. `settled` says the first answer for the offer is in (or
-// none is coming: no host that tells, no offer, the wait over), so the card can hold its
-// first automatic raise for it. A host answers undefined too for a failure that may pass, so
+// none is coming: no desktop app that tells, no offer, the wait over), so the card can hold its
+// first automatic raise for it. A desktop app answers undefined too for a failure that may pass, so
 // `askAgain` asks once more, for the same version, while no notes are held and no ask is
 // out; the card calls it each time it comes up.
 export const useOfferNews = (
