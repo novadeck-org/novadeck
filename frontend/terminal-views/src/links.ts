@@ -1,6 +1,10 @@
 import type { ViewLinks } from "@novadeck/emulator/browser"
 
-import { currentPlatform, type Platform } from "./platform"
+// Apple platforms or the others, which differ in the modifier a link opens on.
+type Platform = "mac" | "other"
+
+const currentPlatform = (): Platform =>
+  /Mac|iPhone|iPad/.test(navigator.platform) ? "mac" : "other"
 
 type Click = Pick<MouseEvent, "button" | "ctrlKey" | "metaKey">
 
@@ -24,7 +28,7 @@ export const webLink = (text: string): string | undefined => {
   }
 }
 
-// The desktop host hands a page the app opens to the system browser; a browser opens a tab.
+// The desktop app hands a page it opens to the system browser; a browser opens a tab.
 const openPage = (url: string): void => void window.open(url, "_blank", "noopener,noreferrer")
 
 // What hovering a link shows: where it goes, since a hyperlink's text can name another
