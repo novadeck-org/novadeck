@@ -1,3 +1,4 @@
+import { maxTurnError, turnError } from "@novadeck/protocol"
 import { describe, expect, it } from "vitest"
 
 import {
@@ -35,7 +36,9 @@ describe("a failed turn's error", () => {
   })
 
   it("is cut to what the protocol takes", () => {
-    expect(errorText("x".repeat(5000))).toHaveLength(2048)
+    const error = errorText("x".repeat(maxTurnError * 2 + 1))
+    expect(error).toHaveLength(maxTurnError)
+    expect(turnError.safeParse(error).success).toBe(true)
   })
 
   it("is nothing when nothing is left, or it isn't text", () => {

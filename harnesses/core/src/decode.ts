@@ -1,7 +1,7 @@
 import { createHash } from "node:crypto"
 import { isAbsolute } from "node:path"
 
-import { agentSessionId, replyPreviewLength } from "@novadeck/protocol"
+import { agentSessionId, maxTurnError, replyPreviewLength } from "@novadeck/protocol"
 
 import type { Continuity, HarnessEvent } from "./events.js"
 import type { Report } from "./report.js"
@@ -139,22 +139,19 @@ export const replied = (value: unknown): { readonly reply?: string } => {
   return reply === undefined ? {} : { reply }
 }
 
-// The longest error a failed turn keeps, as the protocol takes it.
-const maxError = 2048
-
 /**
  * What a harness said of a failed turn, as plain text a person reads: escapes, control
- * characters and reordering marks out (a line break kept), cut to `maxError`. Undefined when
+ * characters and reordering marks out (a line break kept), cut to the protocol's `maxTurnError`. Undefined when
  * nothing is left.
  */
 export const errorText = (value: unknown): string | undefined => {
   if (typeof value !== "string") return undefined
   const plain = value
-    .slice(0, maxError * 2)
+    .slice(0, maxTurnError * 2)
     .replace(escapes, "")
     .replace(inlineControls, " ")
     .trim()
-  return plain === "" ? undefined : plain.slice(0, maxError)
+  return plain === "" ? undefined : plain.slice(0, maxTurnError)
 }
 
 /**

@@ -6,6 +6,9 @@ import {
   hiddenIn,
   inboxEntry,
   maxCommandLines,
+  maxTurnError,
+  maxTurnFilePath,
+  maxTurnFiles,
   replyPreviewLength,
   type AgentAsk,
   type AgentName,
@@ -222,7 +225,6 @@ const maxOpenAsks = 50
 const maxUnreadTells = 50
 /** Unread finished turns kept per terminal: the oldest goes at the 51st. */
 export const maxUnreadTurns = 50
-const maxTurnFiles = 16
 export const maxResolvedEntries = 100
 export const askSweepMs = 60_000
 /**
@@ -246,7 +248,7 @@ const clampedTurn = (content: unknown): TurnContent | undefined => {
   const raw = content as { [key: string]: unknown }
   const files = Array.isArray(raw["files"])
     ? raw["files"].flatMap((file: unknown) => {
-        const path = clipped(file, 1024)
+        const path = clipped(file, maxTurnFilePath)
         return path ? [path] : []
       })
     : []
@@ -254,7 +256,7 @@ const clampedTurn = (content: unknown): TurnContent | undefined => {
     kind: "turn",
     outcome: raw["outcome"] === "completed" ? "completed" : "failed",
     reply: clipped(raw["reply"], replyPreviewLength),
-    error: clipped(raw["error"], 2048),
+    error: clipped(raw["error"], maxTurnError),
     files: files.slice(0, maxTurnFiles),
   })
   return parsed.success && parsed.data.kind === "turn" ? parsed.data : undefined

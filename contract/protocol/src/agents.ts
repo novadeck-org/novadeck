@@ -14,10 +14,16 @@ export const agentSessionId = z.string().regex(/^[A-Za-z0-9][A-Za-z0-9._-]{0,127
 // for one line of a desktop notice or an Inbox row, and never the whole reply.
 export const replyPreviewLength = 120
 
+// How long a failed turn's error runs at most, and how many files a turn names, each a path
+// of at most `maxTurnFilePath`, in UTF-16 code units. Producers cut to these.
+export const maxTurnError = 2048
+export const maxTurnFiles = 16
+export const maxTurnFilePath = 1024
+
 // Fields of an agent's last turn, shared by its summary and by a stored turn entry.
 export const turnReply = z.string().min(1).max(replyPreviewLength)
-export const turnError = z.string().min(1).max(2048)
-export const turnFiles = z.array(z.string().min(1).max(1024)).max(16)
+export const turnError = z.string().min(1).max(maxTurnError)
+export const turnFiles = z.array(z.string().min(1).max(maxTurnFilePath)).max(maxTurnFiles)
 
 // What the agent holding a terminal's foreground is doing, as its own hooks report it:
 // working on a turn, or with its turn over while subagents it started run on, which will

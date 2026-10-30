@@ -1,7 +1,13 @@
 import type { ActivityEvent } from "@novadeck/harness-core/events"
 import type { Report } from "@novadeck/harness-core/report"
 import { loadProbe } from "@novadeck/harness-core/testing/probes"
-import type { AgentName } from "@novadeck/protocol"
+import {
+  agentActivity,
+  maxTurnError,
+  maxTurnFilePath,
+  maxTurnFiles,
+  type AgentName,
+} from "@novadeck/protocol"
 
 import { describe, expect, it } from "../test.js"
 import { adapterFolder } from "../testing/adapters.js"
@@ -1845,9 +1851,9 @@ describe("what a turn wrote and how it failed", () => {
     expect(waiting(activity)).toEqual(["b"])
   })
 
-  it("keeps at most 16 files and ignores a path too long to show", () => {
+  it("keeps as many files as the protocol takes and ignores a path too long to show", () => {
     let activity = turn(started(0), 1)
-    for (let n = 0; n < 20; n++)
+    for (let n = 0; n < maxTurnFiles + 4; n++)
       activity =
         apply(
           activity,
@@ -1866,14 +1872,16 @@ describe("what a turn wrote and how it failed", () => {
         fact({
           type: "file-touched",
           actor: null,
-          path: `/${"x".repeat(1024)}`,
+          path: `/${"x".repeat(maxTurnFilePath)}`,
           startedAt: 30,
         } as Fields),
       ) ?? activity
-    const { files } = summary(stop(activity, 40)).lastTurn!
-    expect(files).toHaveLength(16)
+    const ended = summary(stop(activity, 40))
+    expect(agentActivity.safeParse(ended).success).toBe(true)
+    const { files } = ended.lastTurn!
+    expect(files).toHaveLength(maxTurnFiles)
     expect(files[0]).toBe("/w/0.ts")
-    expect(files.at(-1)).toBe("/w/15.ts")
+    expect(files.at(-1)).toBe(`/w/${maxTurnFiles - 1}.ts`)
   })
 
   it("empties the files when a new turn starts, but not when the turn already ran", () => {
@@ -1938,8 +1946,12 @@ describe("what a turn wrote and how it failed", () => {
   })
 
   it("tells a failed turn's error, trimmed to what the wire holds, and no error of any other", () => {
-    const failed = stop(turn(started(0), 1), 2, { outcome: "failed", error: "x".repeat(3000) })
-    expect(summary(failed).lastTurn?.error).toHaveLength(2048)
+    const failed = stop(turn(started(0), 1), 2, {
+      outcome: "failed",
+      error: "x".repeat(maxTurnError + 1000),
+    })
+    expect(agentActivity.safeParse(summary(failed)).success).toBe(true)
+    expect(summary(failed).lastTurn?.error).toHaveLength(maxTurnError)
     expect(summary(stop(turn(started(0), 1), 2, { error: "ignored" })).lastTurn?.error).toBeNull()
     expect(summary(stop(turn(started(0), 1), 2, { outcome: "failed" })).lastTurn?.error).toBeNull()
   })
@@ -1949,9 +1961,9 @@ describe("what a turn wrote and how it failed", () => {
     // The limit falls inside the emoji: the cut keeps one unit fewer, never half of it.
     const error = stop(turn(started(0), 1), 2, {
       outcome: "failed",
-      error: `${"x".repeat(2047)}${emoji}tail`,
+      error: `${"x".repeat(maxTurnError - 1)}${emoji}tail`,
     })
-    expect(summary(error).lastTurn?.error).toBe("x".repeat(2047))
+    expect(summary(error).lastTurn?.error).toBe("x".repeat(maxTurnError - 1))
 
     const long = `${"x".repeat(255)}${emoji}tail`
     const sub = on(turn(started(0), 1), {

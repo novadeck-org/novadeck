@@ -1,7 +1,7 @@
 import { flavourOf, patchRequested } from "@novadeck/harness-codex/patch"
 import { ref } from "@novadeck/harness-core/decode"
 import type { ActivityEvent, Background, PlanSource } from "@novadeck/harness-core/events"
-import type { AgentActivity } from "@novadeck/protocol"
+import { maxTurnError, maxTurnFilePath, maxTurnFiles, type AgentActivity } from "@novadeck/protocol"
 
 import { cut } from "../text.js"
 import type { Binding } from "./bindings.js"
@@ -464,20 +464,19 @@ export const ordered = (pending: readonly Request[]): readonly Request[] => [
   ...pending.filter(({ detached }) => detached === true),
 ]
 
+/** The files with `path` added, once each and at most `maxTurnFiles`; undefined where unchanged. */
+const withFile = (files: readonly string[], path: string): readonly string[] | undefined =>
+  path.length === 0 ||
+  path.length > maxTurnFilePath ||
+  files.length >= maxTurnFiles ||
+  files.includes(path)
+    ? undefined
+    : [...files, path]
+
 /**
  * The turn's end as the activity takes it, for a root turn still running or one an Escape
  * ended before its harness said more.
  */
-/** How many files a turn names, and how long an error is kept. */
-const maxFiles = 16
-const maxError = 2048
-
-/** The files with `path` added, once each and at most `maxFiles`; undefined where unchanged. */
-const withFile = (files: readonly string[], path: string): readonly string[] | undefined =>
-  path.length === 0 || path.length > 1024 || files.length >= maxFiles || files.includes(path)
-    ? undefined
-    : [...files, path]
-
 const turnEnded = (activity: Activity, event: TurnEnded): Activity | undefined => {
   // Its records end only the turn still running, its own where they name one, and
   // leave its fence where it was, so the hook's own Stop, should it come after all,
@@ -494,7 +493,7 @@ const turnEnded = (activity: Activity, event: TurnEnded): Activity | undefined =
   const before = again && activity.lastTurn!.outcome === event.outcome ? activity.lastTurn : null
   const error =
     event.outcome === "failed"
-      ? (event.error && cut(event.error, maxError)) || before?.error
+      ? (event.error && cut(event.error, maxTurnError)) || before?.error
       : undefined
   const limited = event.outcome === "failed" && (event.limited || before?.limited)
   const turn = {
