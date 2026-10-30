@@ -2,8 +2,8 @@ import type { TerminalSummary } from "@novadeck/protocol"
 import { WireError } from "@novadeck/wire"
 import { vi } from "vitest"
 
-import { id, scripted } from "./scripted"
 import { describe, expect, it } from "./test"
+import { id, scripted } from "./testing/scripted"
 
 const flush = () => new Promise((resolve) => setTimeout(resolve, 20))
 

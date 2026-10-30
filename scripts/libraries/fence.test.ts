@@ -161,7 +161,7 @@ const probes = [
       ["apps/previews/src/probe.ts", "import", true],
       ["apps/desktop/renderer/probe.ts", "import", true],
       // Test support, which runs in Node and stays out of the build.
-      ["frontend/runner-adapter/src/testing.ts", "import", false],
+      ["frontend/runner-adapter/src/testing/runner.ts", "import", false],
       ["frontend/test-kit/src/phases.ts", "import", false],
       ["frontend/test-kit/src/other.ts", "import", true],
       ["apps/try/src/deploy.test.ts", "import", false],

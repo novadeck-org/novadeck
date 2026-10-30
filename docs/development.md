@@ -724,7 +724,7 @@ folder of `frontend/ui/src/`:
 | `frontend/demo/src/showcase/`                                   | The showcase demo the content preview opens: sample agents' plans, artifacts, and their simulated work.                        |
 | `frontend/demo/src/videos/`                                     | One-off demos for videos: Chirp, Babcia and Launch.                                                                            |
 | `frontend/demo/src/visitor/`                                    | The try demo a visitor plays with on the website.                                                                              |
-| `frontend/runner-adapter/src/`                                  | The runner adapter: connection, seed from the runner, saves, and its terminals.                                                |
+| `frontend/runner-adapter/src/`                                  | The runner adapter: connection, terminals, sessions, companions, agents, addons and the desktop app's bridge.                  |
 | `frontend/terminal-views/src/`                                  | The xterm mount both adapters draw terminals with: theme, renderers, links, styles.                                            |
 | `frontend/core/src/`                                            | Pure domain: types, reducer, store, seed and the backend port, then its domain folders (below).                                |
 | `frontend/core/src/items.ts`                                    | Items, their content, the `companions` port, and the plan note format.                                                         |
@@ -996,8 +996,8 @@ are `apps/desktop/src/build.test.ts`.
 
 `frontend/specs/src/counters/` measures what busy agents cost the UI. It isn't a behaviour spec. It
 boots the real app, its runner adapter and the real runner client over a scripted runner
-(`frontend/runner-adapter/src/scripted-server.ts`): the whole contract served by oRPC over an in-memory
-port, so a procedure the contract adds is a type error there. It is the one spec that may
+(`frontend/runner-adapter/src/testing/scripted-server.ts`): the whole contract served by oRPC over an
+in-memory port, so a procedure the contract adds is a type error there. It is the one spec that may
 reach that adapter. A warm-up on the real clock loads the views' code first, then closes
 and waits out the timers that act (a screen parks 5 s after it was last shown). The run
 itself is on a fake clock: timers, animation frames, `Date` and `performance` move only

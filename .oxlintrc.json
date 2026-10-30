@@ -389,7 +389,7 @@
     },
     {
       "files": [
-        "frontend/runner-adapter/src/testing.ts",
+        "frontend/runner-adapter/src/testing/runner.ts",
         "frontend/test-kit/src/phases.ts",
         "frontend/*/src/**/*.{test,spec}.{ts,tsx}",
         "apps/*/src/**/*.{test,spec}.{ts,tsx}",

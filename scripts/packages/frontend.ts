@@ -78,14 +78,13 @@ export const packages: readonly Pkg[] = [
     id: "runner-adapter",
     dir: "frontend/runner-adapter",
     name: "@novadeck/runner-adapter",
-    description: "The UI's backend for a Novadeck runner, over a WebSocket or the desktop host.",
-    // `testing`, `scripted` and `scripted-server` are dev subpaths: they stay out of the build,
-    // so the runner's and the oRPC server's edges stay dev-only.
+    description: "The UI's backend for a Novadeck runner, over a WebSocket or the desktop app.",
+    // `scripted-server` is a dev subpath, for the specs: it stays out of the build, so the
+    // oRPC server's edge stays dev-only.
     exports: {
       ".": "./src/index.ts",
-      "./testing": { node: "./src/testing.ts" },
-      "./scripted": "./src/scripted.ts",
-      "./scripted-server": "./src/scripted-server.ts",
+      "./conversations": "./src/agents/conversations.ts",
+      "./scripted-server": "./src/testing/scripted-server.ts",
     },
     scripts: unitScripts,
     vitest: "unit",
@@ -559,7 +558,7 @@ export const cycleProblem = (edges: readonly Edge[]): string[] => {
 }
 
 const testFile =
-  /\.(?:test|spec)\.[cm]?[jt]sx?$|\/src\/(?:test|testing|scripted|scripted-server)\.ts$|\/src\/test\/|\/setup\.ts$/
+  /\.(?:test|spec)\.[cm]?[jt]sx?$|\/src\/(?:test|testing|scripted|scripted-server)\.ts$|\/src\/(?:test|testing)\/|\/setup\.ts$/
 const configFile = /\/(?:vite|vitest)\.config\.[cm]?ts$|\/scripts\//
 
 /** Whether the file is test, config or tooling: what it imports is a dev dependency. */
