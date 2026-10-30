@@ -564,7 +564,7 @@ poster run first boots the demo alone three times on a CPU four times slower and
 the median is above 8 seconds from the address to Claude Code's terminal drawn (about 2 s
 now, as main's; the website gives up at 15). The build fails over its budgets
 (`tools/build-kit/src/bundle-checks.ts`, with the numbers in `apps/try/vite.config.ts`): what the page loads first, its scripts and styles gzipped and
-every woff2 font they declare, 1,100 kB, and the demo with its terminal emulator, which
+every woff2 font they declare, 1,300 kB, and the demo with its terminal emulator, which
 loads with the connection, 190 kB.
 
 The hero's terminals are real terminal cells, as the desktop app draws them: the theme's
