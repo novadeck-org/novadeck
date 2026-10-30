@@ -1,4 +1,4 @@
-import { readFileSync } from "node:fs"
+import { globSync, readFileSync } from "node:fs"
 import { join } from "node:path"
 
 import { headersFile } from "@novadeck/build-kit/hosting-headers"
@@ -6,30 +6,28 @@ import { describe as context, describe, expect, it } from "vitest"
 
 import { connect, headerRules, hidden } from "./deploy"
 
-const env = (values: Record<string, string> = {}) => values
+const root = join(import.meta.dirname, "../../..")
 
-// Each entry's page, whichever app holds it: the desktop app's two (its own and the browser
-// app's), and the visitor build's and the content preview's.
-const pages = [
-  "apps/desktop/renderer/index.html",
-  "apps/desktop/renderer/web/index.html",
-  "apps/try/index.html",
-  "apps/previews/index.html",
-].map((path) => ({
-  path,
-  html: readFileSync(join(import.meta.dirname, "../../..", path), "utf8"),
-}))
+// Each entry's page, whichever app holds it, found rather than listed so that a new app's is
+// read too. Builds and installed packages hold pages that aren't an app's own.
+const pages = globSync("apps/**/index.html", {
+  cwd: root,
+  exclude: ["**/node_modules", "**/dist*", "**/out", "**/release"],
+})
+  .map((path) => ({
+    path: path.split("\\").join("/"),
+    html: readFileSync(join(root, path), "utf8"),
+  }))
+  .toSorted((a, b) => a.path.localeCompare(b.path))
 
 describe("frontend Content Security Policy", () => {
-  it("checks the page of every entry", () => {
-    expect(pages.map(({ path }) => path.split("\\").join("/"))).toEqual(
-      expect.arrayContaining([
-        "apps/desktop/renderer/index.html",
-        "apps/desktop/renderer/web/index.html",
-        "apps/try/index.html",
-        "apps/previews/index.html",
-      ]),
-    )
+  it("checks the page of every entry: the desktop and browser apps', the visitor build's and the content preview's", () => {
+    expect(pages.map(({ path }) => path)).toEqual([
+      "apps/desktop/renderer/index.html",
+      "apps/desktop/renderer/web/index.html",
+      "apps/previews/index.html",
+      "apps/try/index.html",
+    ])
   })
 
   it.each(pages)(
@@ -48,20 +46,19 @@ describe("frontend Content Security Policy", () => {
     // The theme's boot script, the policy and the SVG filters are every app's.
     const shared = (html: string) =>
       html.replace(/<script type="module" src="[^"]*"><\/script>/, "")
-    expect(pages.length).toBe(4)
     for (const page of pages) expect(shared(page.html)).toBe(shared(pages[0]!.html))
   })
 
-  context("for a standalone production build", () => {
+  context("for a build in another mode", () => {
     it("allows the configured API and runner, named by their variables", () => {
       expect(
         connect({
           mode: "production",
           command: "build",
-          env: env({
+          env: {
             VITE_API_URL: "https://api.example.com/v1",
             VITE_NOVADECK_RUNNER_URL: "wss://runner.example.com/api/rpc",
-          }),
+          },
         }),
       ).toEqual([
         "'self'",
@@ -73,13 +70,13 @@ describe("frontend Content Security Policy", () => {
 
     it("names the variable that's wrong", () => {
       expect(() =>
-        connect({ mode: "production", command: "build", env: env({ VITE_API_URL: "ftp://x" }) }),
+        connect({ mode: "production", command: "build", env: { VITE_API_URL: "ftp://x" } }),
       ).toThrow("VITE_API_URL must be an absolute HTTP(S) URL or a relative path")
       expect(() =>
         connect({
           mode: "production",
           command: "build",
-          env: env({ VITE_NOVADECK_RUNNER_URL: "https://runner.example.com" }),
+          env: { VITE_NOVADECK_RUNNER_URL: "https://runner.example.com" },
         }),
       ).toThrow("VITE_NOVADECK_RUNNER_URL must be an absolute ws: or wss: URL")
     })
@@ -91,16 +88,16 @@ describe("frontend Content Security Policy", () => {
         connect({
           mode: "try",
           command: "build",
-          env: env({
+          env: {
             VITE_API_URL: "https://api.example.com",
             VITE_NOVADECK_RUNNER_URL: "wss://runner.example.com",
-          }),
+          },
         }),
       ).toEqual(["'self'"])
     })
 
     it("still allows the development server's WebSocket while served", () => {
-      expect(connect({ mode: "try", command: "serve", env: env() })).toContain("ws://127.0.0.1:*")
+      expect(connect({ mode: "try", command: "serve", env: {} })).toContain("ws://127.0.0.1:*")
     })
   })
 })
