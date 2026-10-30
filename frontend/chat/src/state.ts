@@ -1,16 +1,10 @@
 import { createStore, type Store } from "@novadeck/core/store"
 import type { TerminalMetadata, Workspace } from "@novadeck/core/types"
 
-import {
-  chatDraftOf,
-  keepChatDrafts,
-  noChatDrafts,
-  noChatSends,
-  setChatDraft,
-  type ChatDrafts,
-  type ChatSends,
-} from "./drafts"
-import { keepChatReplies, noChatReplies, settleChatReplies, type ChatReplies } from "./replies"
+import { keepTerminals } from "./by-terminal"
+import { chatDraftOf, noChatDrafts, setChatDraft, type ChatDrafts } from "./drafts"
+import { noChatReplies, settleChatReplies, type ChatReplies } from "./replies"
+import { noChatSends, type ChatSends } from "./sends"
 import {
   chatKept,
   keepTerminalAnswers,
@@ -21,8 +15,9 @@ import {
 
 // What the app reads of the state, from the package's one door: the selectors, and the
 // pure update its tests set a draft with.
-export { chatDraftOf, chatSendOf, setChatDraft } from "./drafts"
+export { chatDraftOf, setChatDraft } from "./drafts"
 export { chatReplyOf } from "./replies"
+export { chatSendOf } from "./sends"
 export { chatShown } from "./shown"
 
 // What the chat keeps for the app, a store of its own that the app composes. It starts over
@@ -147,12 +142,12 @@ export const watchChat = (chat: Chat, workspace: Store<Workspace>): (() => void)
         state.answering,
         (context, id) => keep(context, id) && !answered(context, id),
       )
-      const drafts = keepChatDrafts(state.drafts, open)
+      const drafts = keepTerminals(state.drafts, open)
       // What a draft replies to, or that it is held, stays as long as the draft: a reply
       // whose question went with its agent comes back held, never as a message, and never
       // replies to a later agent's question.
       const replies = settleChatReplies(
-        keepChatReplies(state.replies, open),
+        keepTerminals(state.replies, open),
         drafts,
         (context, id) => open(context, id) && !keep(context, id),
       )

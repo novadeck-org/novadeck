@@ -1,4 +1,4 @@
-import { chatDraftOf, joinDraft, keepChatDrafts, noChatDrafts, setChatDraft } from "./drafts"
+import { chatDraftOf, joinDraft, noChatDrafts, setChatDraft } from "./drafts"
 import { describe, expect, it } from "./test"
 
 describe("chat drafts", () => {
@@ -8,11 +8,6 @@ describe("chat drafts", () => {
     expect(chatDraftOf(kept, "p/s", "02")).toBe("")
     expect(setChatDraft(kept, "p/s", "01", "")).toEqual({})
     expect(setChatDraft(noChatDrafts, "p/s", "01", "")).toBe(noChatDrafts)
-  })
-
-  it("go with the terminals that no longer show a chat", () => {
-    const kept = setChatDraft(setChatDraft(noChatDrafts, "p/s", "01", "a"), "p/s", "02", "b")
-    expect(keepChatDrafts(kept, (_, id) => id === "02")).toEqual({ "p/s": { "02": "b" } })
   })
 })
 

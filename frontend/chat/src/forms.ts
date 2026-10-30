@@ -5,7 +5,7 @@ import { hasControlCharacters } from "@novadeck/core/conversation/prompt-refusal
 // the values it makes. Pure, so the form's rules read apart from its markup.
 
 // A boolean is `"yes"`, `"no"` or, until the person says, `""`.
-export type Entry = { readonly kind: ChatFormField["kind"]; readonly value: string }
+type Entry = { readonly kind: ChatFormField["kind"]; readonly value: string }
 export type Entries = Readonly<Record<string, Entry>>
 
 const blank = (field: ChatFormField): Entry => ({

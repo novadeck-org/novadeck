@@ -1,5 +1,4 @@
-import { keepTerminals, valueOf, withValue, type ByTerminal } from "./by-terminal"
-import type { ChatReply } from "./replies"
+import { valueOf, withValue, type ByTerminal } from "./by-terminal"
 
 // What the person has typed in a terminal's chat and not sent, by session context and
 // terminal id. An empty draft is not kept.
@@ -28,29 +27,3 @@ export const joinDraft = (earlier: string, later: string): string => {
   if (!later.trimStart().startsWith("!")) return `${later}\n${earlier}`
   return `${earlier}\n${later.trimStart().slice(1).trimStart()}`
 }
-
-// Keeps only the drafts of terminals that `keep` says still show a chat.
-export const keepChatDrafts = (
-  drafts: ChatDrafts,
-  keep: (context: string, id: string) => boolean,
-): ChatDrafts => keepTerminals(drafts, keep)
-
-// Words on their way to a terminal's agent: the draft they were sent from, as typed, which
-// goes back in the box should they not arrive, and the question they answer, for a reply.
-export type ChatSend = { readonly draft: string; readonly to: ChatReply | null }
-
-// The words on their way to each terminal's agent, by session context and terminal id:
-// taken out of the draft as they go. A terminal sends one at a time.
-export type ChatSends = ByTerminal<ChatSend>
-
-export const noChatSends: ChatSends = {}
-
-export const chatSendOf = (sends: ChatSends, context: string, id: string): ChatSend | null =>
-  valueOf(sends, context, id) ?? null
-
-export const setChatSend = (
-  sends: ChatSends,
-  context: string,
-  id: string,
-  send: ChatSend | null,
-): ChatSends => withValue(sends, context, id, send ?? undefined)

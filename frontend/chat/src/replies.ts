@@ -1,7 +1,7 @@
 import type { ChatAnswer } from "@novadeck/core/conversation"
 import { chatAnswer, oneLine } from "@novadeck/core/conversation/picks"
 
-import { keepTerminals, valueOf, withValue, type ByTerminal } from "./by-terminal"
+import { valueOf, withValue, type ByTerminal } from "./by-terminal"
 import { chatDraftOf, type ChatDrafts } from "./drafts"
 
 // The question a terminal's chat box replies to, by session context and terminal id: a
@@ -43,12 +43,6 @@ export const setChatReply = (
   id: string,
   to: ChatReplyTo | null,
 ): ChatReplies => withValue(replies, context, id, to ?? undefined, sameReply)
-
-// Keeps only the replies of terminals that `keep` says still show a chat.
-export const keepChatReplies = (
-  replies: ChatReplies,
-  keep: (context: string, id: string) => boolean,
-): ChatReplies => keepTerminals(replies, keep)
 
 // Settles what a terminal's draft replies to once its agent ended, the terminal still
 // there: a question asked by that agent is gone for good, so words written for it are held

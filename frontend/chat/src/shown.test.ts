@@ -28,6 +28,7 @@ describe("answers in the terminal", () => {
     answers = setAnsweringInTerminal(answers, "p/s", "02", true)
     expect(keepTerminalAnswers(answers, (_, id) => id === "02")).toEqual({ "p/s": { "02": true } })
     expect(keepTerminalAnswers(answers, () => true)).toBe(answers)
+    expect(keepTerminalAnswers(answers, () => false)).toBe(noTerminalAnswers)
   })
 
   context("for a terminal", () => {

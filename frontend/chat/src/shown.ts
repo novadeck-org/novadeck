@@ -1,7 +1,7 @@
 import { isAgentProgram } from "@novadeck/core/terminals/process"
 import type { TerminalMetadata } from "@novadeck/core/types"
 
-import { keepTerminals, withValue, type ByTerminal } from "./by-terminal"
+import { keepTerminals, valueOf, withValue, type ByTerminal } from "./by-terminal"
 
 // Whether a terminal has a conversation to show: an agent runs in it, as its status says
 // or, where Novadeck hears nothing from the agent (Antigravity without hooks), as its
@@ -25,7 +25,7 @@ export const answeringInTerminal = (
   answers: TerminalAnswers,
   context: string,
   id: string,
-): boolean => answers[context]?.[id] === true
+): boolean => valueOf(answers, context, id) === true
 
 // None left is none at all, which spares the watcher its work.
 const settled = (answers: TerminalAnswers): TerminalAnswers =>

@@ -17,9 +17,9 @@ import {
 
 import { Composer } from "./Composer"
 import { composerMode } from "./composer-mode"
-import type { ChatSend } from "./drafts"
 import { sameReply, type ChatReply, type ChatReplyTo } from "./replies"
 import { Requests } from "./Requests"
+import type { ChatSend } from "./sends"
 import { Transcript } from "./Transcript"
 
 // How many blocks of a long conversation show, and how many more "Show earlier" adds.
@@ -60,12 +60,12 @@ export const ChatView = ({
   readonly compact: boolean
   readonly draft: string
   readonly onDraft: (draft: string) => void
-  // The question the draft replies to, or that it is held, kept with the draft by the owner.
+  // The question the draft replies to, or that it is held, kept with the draft by the app.
   readonly replyTo: ChatReplyTo | null
   readonly onReplyTo: (to: ChatReplyTo | null) => void
-  // The words from the box on their way to the agent, if any, which the owner keeps.
+  // The words from the box on their way to the agent, if any, which the app keeps.
   readonly sending: ChatSend | null
-  // Sends the box's words, as a prompt or as the reply `to` names: the owner takes them
+  // Sends the box's words, as a prompt or as the reply `to` names: the app takes them
   // out of the draft as they go, and puts them back should they not arrive.
   readonly onSend: (text: string, to: ChatReply | null) => Promise<void>
   readonly onInterrupt: () => Promise<void>
