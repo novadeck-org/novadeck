@@ -6,14 +6,14 @@ const contexts = [
   "when dragged onto the Grid's free space",
   "when dropped on the Grid's free space by the move that starts the drag",
 ]
-const report = (): GridReport => ({
+const report = (cases = 39): GridReport => ({
   success: true,
-  numTotalTests: 32,
-  numPassedTests: 32,
+  numTotalTests: cases,
+  numPassedTests: cases,
   testResults: [
     {
-      name: "/checkout/application/ui/src/specs/companions.spec.tsx",
-      assertionResults: Array.from({ length: 32 }, (_, index) => ({
+      name: "/checkout/frontend/specs/src/companions/companions.spec.tsx",
+      assertionResults: Array.from({ length: cases }, (_, index) => ({
         title: "opens a window there",
         ancestorTitles: [contexts[index] ?? `preceding case ${index}`],
         status: "passed",
@@ -21,8 +21,8 @@ const report = (): GridReport => ({
     },
   ],
 })
-const captures = (): GridCapture[] =>
-  Array.from({ length: 32 }, (_, index) => ({
+const captures = (cases = 39): GridCapture[] =>
+  Array.from({ length: cases }, (_, index) => ({
     name: contexts[index] ?? `preceding case ${index}`,
     events: [{ type: "pointerup" }, { type: "app-drop" }],
   }))
@@ -32,13 +32,23 @@ describe("Grid capture completeness", () => {
     expect(validateGridCapture(report(), captures())).toBeUndefined()
   })
 
+  it("takes the case count from the file Vitest collected, not a fixed number", () => {
+    expect(validateGridCapture(report(32), captures(32))).toBeUndefined()
+    expect(validateGridCapture(report(45), captures(45))).toBeUndefined()
+  })
+
   it("rejects an empty successful process", () => {
     expect(validateGridCapture({ success: true, numTotalTests: 0 }, [])).toBeDefined()
+    expect(validateGridCapture(report(0), [])).toBeDefined()
   })
 
   it("rejects skipped or missing cases even if the process exits successfully", () => {
-    expect(validateGridCapture({ ...report(), numPassedTests: 31 }, captures())).toBeDefined()
-    expect(validateGridCapture(report(), captures().slice(1))).toBeDefined()
+    expect(validateGridCapture({ ...report(), numPassedTests: 38 }, captures())).toBeDefined()
+    expect(validateGridCapture({ ...report(), numTotalTests: 40 }, captures())).toBeDefined()
+    const skipped = report()
+    skipped.testResults![0]!.assertionResults![5]!.status = "skipped"
+    expect(validateGridCapture(skipped, captures())).toBeDefined()
+    expect(validateGridCapture(report(), captures().slice(1))).toContain("38 of 39")
   })
 
   it("requires each original Grid variant in finalized test results", () => {

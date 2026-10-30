@@ -1,13 +1,6 @@
 import { useSortable } from "@dnd-kit/react/sortable"
 import { subagentMarks, subagentsBadge, subagentsDetail } from "@novadeck/core/agents/subagents"
 import { nextTurnAge, turnAge } from "@novadeck/core/agents/turn-age"
-import {
-  clockTime,
-  nextWaitingChange,
-  waitingOf,
-  wakeFill,
-  wakePassed,
-} from "@novadeck/core/agents/waiting"
 import { messageBadgeLabel, type MessageBadge } from "@novadeck/core/messages"
 import { isWindow } from "@novadeck/core/roster"
 import {
@@ -19,6 +12,13 @@ import {
   type NeedDialog,
 } from "@novadeck/core/terminals/ending"
 import { showsHandle, terminalLabel } from "@novadeck/core/terminals/handle"
+import {
+  clockTime,
+  nextWaitingChange,
+  waitingOf,
+  wakeFill,
+  wakePassed,
+} from "@novadeck/core/terminals/waiting"
 import type { Tile } from "@novadeck/core/types"
 import { ContextMenu } from "@novadeck/toolkit/ContextMenu"
 import { HandleChip } from "@novadeck/toolkit/HandleChip"

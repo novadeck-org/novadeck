@@ -3,7 +3,7 @@ import { WebLinksAddon } from "@xterm/addon-web-links"
 import { Terminal, type IDisposable, type ILinkHandler, type ITheme } from "@xterm/xterm"
 
 import { hasLigatureTable, ligatureRuns, runLimit } from "./ligatures.js"
-import type { Renderers, ScreenRenderer } from "./renderer.js"
+import type { RendererPool, ScreenRenderer } from "./renderer.js"
 import { applyWidths } from "./width.js"
 
 /** What opening a link does, and what hovering one shows; the app decides which links open. */
@@ -23,7 +23,7 @@ export type ViewOptions = {
   readonly minimumContrastRatio?: number
   readonly links?: ViewLinks
   /** The page's pool of WebGL contexts. Without it the view stays on the DOM renderer. */
-  readonly renderers?: Renderers
+  readonly pool?: RendererPool
 }
 
 /** The view's place in the page's pool: whoever shows it says when it is shown and when not. */
@@ -125,7 +125,7 @@ export const createView = (element: HTMLElement, options: ViewOptions): View => 
     terminal.refresh(0, terminal.rows - 1)
   }
   const renderer =
-    options.renderers?.screen(terminal, () => {
+    options.pool?.screen(terminal, () => {
       syncJoiner()
       listeners.forEach((listener) => listener())
     }) ?? noRenderer

@@ -717,7 +717,7 @@ folder of `frontend/ui/src/`:
 | `app/controller/`                                               | React glue: context, selector hook, route sync, keyboard dispatcher, effects.                                                  |
 | `frontend/demo/src/`                                            | The demo adapter for the website, tests and specs: sample projects, the backend and its variants.                              |
 | `frontend/demo/src/agents/`                                     | Its agents: turns, conversations, the requests they make, and their transcripts.                                               |
-| `frontend/demo/src/terminals/`                                  | Its simulated terminals: the engine and the views they draw through.                                                           |
+| `frontend/demo/src/terminals/`                                  | Its simulated terminals: the engine and the screens they draw through.                                                         |
 | `frontend/demo/src/screen/`                                     | What a terminal's screen writes as terminal output, and the keys read back from it.                                            |
 | `frontend/demo/src/inbox/`                                      | The Inbox's hardcoded rows and the transcripts behind the Inbox demo's sheets.                                                 |
 | `frontend/demo/src/addons/`                                     | Pretend voice input and murmur addons.                                                                                         |
@@ -725,7 +725,7 @@ folder of `frontend/ui/src/`:
 | `frontend/demo/src/videos/`                                     | One-off demos for videos: Chirp, Babcia and Launch.                                                                            |
 | `frontend/demo/src/visitor/`                                    | The try demo a visitor plays with on the website.                                                                              |
 | `frontend/runner-adapter/src/`                                  | The runner adapter: connection, terminals, sessions, companions, agents, addons and the desktop app's bridge.                  |
-| `frontend/terminal-views/src/`                                  | The xterm mount both adapters draw terminals with: theme, renderers, links, styles.                                            |
+| `frontend/terminal-views/src/`                                  | The xterm mount both adapters draw terminals with: theme, WebGL pool, links, styles.                                           |
 | `frontend/core/src/`                                            | Pure domain: types, reducer, store, seed and the backend port, then its domain folders (below).                                |
 | `frontend/core/src/items.ts`                                    | Items, their content, the `companions` port, and the plan note format.                                                         |
 | `frontend/core/src/items/companion-bar.ts`                      | A bar as the person arranged it: order, hidden plans and Messages, the open tab.                                               |
@@ -897,7 +897,7 @@ element its frame gives it. A terminal's mount marks the element that takes type
 shortcuts run in capture, ahead of the terminal's emulator, which takes the keys it reads
 before they bubble. The demo adapter draws its terminals as the runner's are drawn, through
 `frontend/terminal-views/` and `@novadeck/terminal/view`: each is a real xterm fed by a
-stream the demo writes as terminal output (`frontend/demo/src/terminals/views.ts`). Its screen
+stream the demo writes as terminal output (`frontend/demo/src/terminals/screens.ts`). Its screen
 (`frontend/demo/src/screen/`) keeps an append-only transcript (the program's sample output or
 the agent's opening, the commands typed and their replies, the agent's conversation) and
 redraws a live tail in place (the dialog an agent waits on, its status, the prompt), as Claude

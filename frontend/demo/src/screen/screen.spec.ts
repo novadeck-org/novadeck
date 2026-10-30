@@ -10,7 +10,7 @@ import {
 } from "./screen"
 import { box, span, widthOf, wrap, type Line } from "./vt"
 
-// The bytes a demo screen writes, read back by the emulator the views draw with, in a real
+// The bytes a demo screen writes, read back by the emulator the terminal screens draw with, in a real
 // browser: every row, scrolled off or not, and the cursor.
 
 const opened: (() => void)[] = []

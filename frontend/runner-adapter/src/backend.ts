@@ -35,7 +35,7 @@ import {
   type TerminalWatchItem,
 } from "@novadeck/runner-client"
 import { createTerminalMount } from "@novadeck/terminal-views/mount"
-import { createTerminalViews } from "@novadeck/terminal/view"
+import { createTerminalScreens } from "@novadeck/terminal/view"
 import type { WireStatus } from "@novadeck/wire/client"
 
 import { createRunnerMurmur } from "./addons/murmur"
@@ -71,7 +71,7 @@ import { createBootProgress } from "./terminals/boot-progress"
 import { failedToCreate, launchFailure, lostStatus } from "./terminals/failures"
 import { crashLoop, restartingTooOften, restartWindowMs } from "./terminals/restarts"
 import { resumableProgram } from "./terminals/resumable"
-import { viewOptions } from "./terminals/view-options"
+import { screensOptions } from "./terminals/screens-options"
 
 /** Resolves after `ms` milliseconds. */
 export const pause = (ms: number): Promise<void> =>
@@ -1421,7 +1421,7 @@ export const runnerBackend = (
     }
   }
 
-  const screens = createTerminalViews(viewOptions(runtime, { theme: options.theme }))
+  const screens = createTerminalScreens(screensOptions(runtime, { theme: options.theme }))
   const backend: Backend = {
     seed,
     newTerminal: ({ directory, launch, title }) => {

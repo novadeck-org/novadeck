@@ -19,7 +19,7 @@ export type Member = { readonly pid: number; readonly startedAt: number }
  * as a child only if it started no earlier than its parent, and ends each only as the
  * process it was read as.
  */
-export type Trees = {
+export type ProcessTrees = {
   /** The process and every one under it, root first; undefined where it can't be read. */
   readonly read: (pid: number) => Promise<readonly Member[] | undefined>
   /** Ends each of them that is still the process read. */
@@ -151,7 +151,7 @@ const taskkillTree = async (pid: number): Promise<void> => {
  */
 export const endTree = async (
   one: { readonly pid: number; readonly start: number },
-  trees: Trees,
+  trees: ProcessTrees,
   kill: (pid: number) => Promise<void> = taskkillTree,
 ): Promise<void> => {
   const tree = await trees.read(one.pid)
@@ -175,7 +175,7 @@ export const endTree = async (
 export const endProcess = async (
   one: { readonly pid: number; readonly start: number },
   forcibly: boolean,
-  trees: Trees | undefined,
+  trees: ProcessTrees | undefined,
   terminate: (pid: number) => void = (pid) => process.kill(pid),
 ): Promise<void> => {
   if (forcibly && trees) return endTree(one, trees)
@@ -187,7 +187,7 @@ export const endProcess = async (
 }
 
 /** Windows, from the lister, ending a forcibly ended process's tree through `trees`. */
-export const windows = (trees: Trees | undefined): Table => ({
+export const windows = (trees: ProcessTrees | undefined): Table => ({
   list,
   // A pid alone, between listings: a process found a moment before isn't replaced by
   // another of the same pid that soon; `current` checks its start before it is ended.
