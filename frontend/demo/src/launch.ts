@@ -56,6 +56,8 @@ const home = `/home/dev/projects/${shop}`
 export const launch = {
   // Asks to run its end-to-end tests.
   permission: 4,
+  // Asks, in Codex's words, to run its search tests.
+  command: 2,
   // Fails its turn.
   failing: 5,
   // Writes up a plan to approve.
@@ -126,6 +128,7 @@ const jobs: readonly Job[] = [
     command: "pnpm test --filter search",
     progress: "",
     done: "Search finds products by name and tag, and the filter tests pass.",
+    ran: " Test Files  3 passed (3)\n      Tests  27 passed (27)\n   Duration  1.86s",
   },
   {
     name: "Product pages",
@@ -404,16 +407,16 @@ export const launchSeed = (now: number): WorkspaceSeed => ({
   ],
 })
 
-// What each conversation holds so far. Three agents also hold what they'll ask when the cues
-// come: the checkout tests a permission, the order emails a plan, the cart drawer a question
-// with its own pick.
+// What each conversation holds so far. Four agents also hold what they'll ask when the cues
+// come: the checkout tests and the search index (in Codex's words) a permission, the order
+// emails a plan, the cart drawer a question with its own pick.
 export const launchTranscripts = (now: number): Readonly<Record<string, DemoTranscript>> =>
   deskTranscripts(
     now,
     allJobs,
     home,
     {
-      permission: launch.permission,
+      permissions: [launch.permission, launch.command],
       plan: {
         number: launch.plan,
         subject: "Order emails plan",
@@ -772,6 +775,8 @@ const teammateAnswersMs = 7200
 // How far apart the agents finish, so the Canvas turns green in a ripple.
 const rippleMs = 60
 const finishesAfterMs = 200
+// How long the search index's tests run once the person allows them, before it reports done.
+const commandRunsMs = 2000
 
 // The video's beats, one cue each, for the debug panel's "Launch" group to fire at the frame a
 // capture wants (see `launchGroups`). Each does nothing twice, nor before it can: a cue
@@ -789,6 +794,12 @@ export type LaunchCues = {
   readonly permission: () => void
   readonly plan: () => void
   readonly question: () => void
+  // A Codex agent asks, in Codex's own words, to run its tests ("Would you like to run the
+  // following command?"): Search index, beside the Claude Code agents' asks above. Its tests
+  // are the last of its task: allowed, they run, pass, and it ends its turn with its done
+  // report (a done mark and an Update row) about 2 s later. It and `askReview` (whose reviewer
+  // it is) each do nothing once the other has run.
+  readonly command: () => void
   // One agent's turn ends in an error: a Trouble row, and its line goes red.
   readonly fail: () => void
   // One agent ends its turn with a report: a done mark and an Update row.
@@ -938,11 +949,11 @@ export const createLaunch = (turns: DemoTurns, now: number) => {
     act(keyOf(number), found)
     return true
   }
-  const asked = new Set<string>()
+  const asked = new Set<number>()
   const ask = (number: number, kind: "permission" | "plan" | "question"): void => {
-    if (asked.has(kind)) return
+    if (asked.has(number)) return
     on(number, (key, found) => {
-      asked.add(kind)
+      asked.add(number)
       frozen.add(number)
       turns.ask(key, found, kind, 1)
     })
@@ -975,6 +986,8 @@ export const createLaunch = (turns: DemoTurns, now: number) => {
     permission: () => !ended && ask(launch.permission, "permission"),
     plan: () => !ended && ask(launch.plan, "plan"),
     question: () => !ended && ask(launch.question, "question"),
+    // Not once the review is asked: its reviewer is the command's agent, and answers it.
+    command: () => !ended && !reviewAsked && ask(launch.command, "permission"),
     asks: () => {
       cues.permission()
       cues.plan()
@@ -1110,7 +1123,14 @@ export const createLaunch = (turns: DemoTurns, now: number) => {
     showChanges: (goThere) => upsert(changes, launch.shows, goThere),
     showVariants: (goThere) => upsert(variants, launch.shows, goThere),
     askReview: () => {
-      if (reviewAsked || ended || !busy(terminal(launch.reviews)) || !terminal(launch.reviewer))
+      // Not to a reviewer that asked the person to run its tests (the command cue's agent).
+      if (
+        reviewAsked ||
+        ended ||
+        asked.has(launch.reviewer) ||
+        !busy(terminal(launch.reviews)) ||
+        !terminal(launch.reviewer)
+      )
         return
       const from = demoHandle(launch.reviews)
       const to = demoHandle(launch.reviewer)
@@ -1321,6 +1341,24 @@ export const createLaunch = (turns: DemoTurns, now: number) => {
         // words, and no cue ends a turn for it.
         if (declined(answer)) {
           resting.add(key.terminalId)
+          return
+        }
+        // The search index's tests were the last of its task: allowed, they run, pass, and it
+        // reports. Told what to do instead, it goes on with the person's words.
+        const found = terminalOf(latest, key)
+        const allowed = answer.type === "choice" && answer.option !== "3"
+        if (
+          allowed &&
+          key.terminalId === keyOf(launch.command).terminalId &&
+          found?.state === "running"
+        ) {
+          const job = jobs[launch.command - 1]!
+          resting.add(key.terminalId)
+          turns.finish(key, found, "completed", {
+            after: commandRunsMs,
+            reply: job.done,
+            done: { subject: `${job.name} is done`, body: job.done },
+          })
           return
         }
         resting.delete(key.terminalId)
