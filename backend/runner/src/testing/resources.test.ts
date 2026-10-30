@@ -56,8 +56,16 @@ describe("a cleanup that never ends", () => {
     resources.defer(() => forever())
     await expect(resources.dispose()).rejects.toMatchObject({
       errors: [
-        { message: "Test cleanup did not end within 50 ms: () => forever()" },
-        { message: "Test cleanup did not end within 50 ms: the server's close" },
+        {
+          message: expect.stringMatching(
+            /^Test cleanup did not end within 50 ms: \(\) => forever\(\), deferred at src\/testing\/resources\.test\.ts:\d+$/,
+          ),
+        },
+        {
+          message: expect.stringMatching(
+            /^Test cleanup did not end within 50 ms: the server's close, deferred at src\/testing\/resources\.test\.ts:\d+$/,
+          ),
+        },
       ],
     })
     expect(closed).toEqual(["directory"])
@@ -69,7 +77,9 @@ describe("a cleanup that never ends", () => {
     vi.useFakeTimers()
     try {
       await expect(resources.dispose()).rejects.toMatchObject({
-        errors: [{ message: "Test cleanup did not end within 50 ms: a timer" }],
+        errors: [
+          { message: expect.stringMatching(/^Test cleanup did not end within 50 ms: a timer, /) },
+        ],
       })
     } finally {
       vi.useRealTimers()

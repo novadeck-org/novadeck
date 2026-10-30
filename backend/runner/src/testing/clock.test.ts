@@ -17,11 +17,33 @@ describe("a fake clock", () => {
     const fired: string[] = []
     setTimeout(() => {
       fired.push("first")
-      setTimeout(() => fired.push("second"), 60_000)
+      setTimeout(() => fired.push("second"), 30_000)
     }, 1_000)
     await clock.restore()
     expect(fired).toEqual(["first", "second"])
     expect(vi.isFakeTimers()).toBe(false)
+  })
+
+  it("is restored, a minute on, past a timer that sets itself again forever", async ({
+    resources,
+  }) => {
+    const clock = fakeClock(resources, ["setTimeout", "clearTimeout"])
+    let runs = 0
+    const again = () => {
+      runs += 1
+      setTimeout(again, 6_000)
+    }
+    setTimeout(again, 6_000)
+    await clock.restore()
+    expect(runs).toBe(10)
+    expect(vi.isFakeTimers()).toBe(false)
+  })
+
+  it("leaves the real clock alone where the test put it back itself", async () => {
+    const resources = new Resources()
+    fakeClock(resources, ["setTimeout", "clearTimeout"])
+    vi.useRealTimers()
+    await expect(resources.dispose()).resolves.toBeUndefined()
   })
 
   it("is restored when the test's resources are disposed, before what was created first", async () => {
