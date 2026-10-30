@@ -10,6 +10,7 @@ import { vi } from "vitest"
 import { agents, harnesses } from "../harnesses/registry.js"
 import { logs, useLogger } from "../log.js"
 import { describe, expect, it } from "../test.js"
+import { fakeClock } from "../testing/clock.js"
 import { storeWith } from "../testing/workspace.js"
 import type { WorkspaceStore } from "../workspaces/store.js"
 import {
@@ -1014,10 +1015,7 @@ describe("bounded Inbox history", () => {
   it("expires old resolved records on its timer without another create, and on startup", async ({
     resources,
   }) => {
-    vi.useFakeTimers()
-    resources.defer(() => {
-      vi.useRealTimers()
-    })
+    fakeClock(resources)
     const clock = inboxClock()
     const records = memoryInbox()
     const run = setup(records, undefined, { ...clock, sweepMs: askSweepMs })
@@ -1400,10 +1398,7 @@ describe("the person's messages and the agent pause", () => {
   it("keeps a person reply deliverable after paused restart and a lost lease", async ({
     resources,
   }) => {
-    vi.useFakeTimers()
-    resources.defer(() => {
-      vi.useRealTimers()
-    })
+    fakeClock(resources)
     const clock = inboxClock()
     const folder = mkdtempSync(join(tmpdir(), "novadeck-paused-person-"))
     resources.defer(() => rmSync(folder, { recursive: true, force: true }))
