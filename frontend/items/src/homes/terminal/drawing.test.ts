@@ -1,5 +1,5 @@
-import { messagesKey } from "@novadeck/core/companion-bar"
-import type { ArtifactKind, Item } from "@novadeck/core/items"
+import type { ShownKind, Item } from "@novadeck/core/items"
+import { messagesKey } from "@novadeck/core/items/companion-bar"
 import { itemFixture } from "@novadeck/core/testing"
 import {
   BookText,
@@ -23,14 +23,14 @@ import { noLinks, type MessagesHandle } from "./messages/messages"
 // What the icons, names and labels were before the registry, as the switches wrote them. A
 // terminal's drawing of its bar, from the registry and its own messages, must give the same
 // for every shape of member.
-const oldKindIcons: Record<ArtifactKind, LucideIcon> = {
+const oldKindIcons: Record<ShownKind, LucideIcon> = {
   image: Image,
   file: FileCode2,
   page: Globe,
   changes: GitCompare,
 }
 const oldIsMarkdown = (path: string): boolean => /\.(md|markdown)$/i.test(path)
-const oldIconOf = (artifact: { kind: ArtifactKind; name: string }): LucideIcon =>
+const oldIconOf = (artifact: { kind: ShownKind; name: string }): LucideIcon =>
   artifact.kind === "file" && oldIsMarkdown(artifact.name) ? BookText : oldKindIcons[artifact.kind]
 const oldMemberIcon = (member: BarMember): LucideIcon =>
   member.kind === "messages"

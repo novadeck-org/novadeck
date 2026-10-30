@@ -2,7 +2,7 @@ import { clsx } from "clsx"
 import type { ReactNode } from "react"
 
 import { Segmented } from "../../components/viz.tsx"
-import type { UiAction, UiProcedure } from "../../lens-ui.ts"
+import type { UiAction, UiProcedure } from "../../ui-lens.ts"
 import {
   groupedActions,
   groupedProcedures,
@@ -10,7 +10,7 @@ import {
   lens,
   nameOf,
   type Selection,
-  streamBy,
+  streamByProcedure,
 } from "./model.ts"
 
 export type Mode = "actions" | "procedures" | "streams"
@@ -31,7 +31,7 @@ const Dot = ({ state, hue, title }: { state: DotState; hue: string; title: strin
 // Three marks for an action: built in the UI, acted on by the runner adapter, sent back
 // from a runner stream. Filled: traced. Faint fill: inferred from a state diff. Dashed:
 // the scan looked and could not tell. Faint ring: nothing found.
-export const PathDots = ({ action }: { action: UiAction }) => {
+const PathDots = ({ action }: { action: UiAction }) => {
   const out: DotState = action.fromUi.length ? "on" : action.untraced ? "gap" : "off"
   const hasAction = action.effects.some((effect) => effect.basis === "action")
   const runner: DotState = hasAction ? "on" : hasEffect(action) ? "soft" : "off"
@@ -124,7 +124,7 @@ const ProcedureRow = ({
   selected: boolean
   onSelect: () => void
 }) => {
-  const stream = streamBy.get(procedure.id)
+  const stream = streamByProcedure.get(procedure.id)
   return (
     <Row selected={selected} onClick={onSelect}>
       <span className="truncate">

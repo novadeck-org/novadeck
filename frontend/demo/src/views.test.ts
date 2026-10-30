@@ -1,7 +1,7 @@
 import type { BackendConnectionState, TerminalKey } from "@novadeck/core/port"
-import { terminalKeyId } from "@novadeck/core/registry"
 import { workspaceFromSeed } from "@novadeck/core/seed"
 import { createStore } from "@novadeck/core/store"
+import { terminalKeyId } from "@novadeck/core/terminals/registry"
 import type { TerminalMetadata, Workspace } from "@novadeck/core/types"
 import type { AttachStream, TerminalEvent } from "@novadeck/terminal"
 

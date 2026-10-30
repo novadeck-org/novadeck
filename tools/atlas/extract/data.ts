@@ -1,10 +1,8 @@
 import { z } from "zod"
 
 import type { Anchor, Column, Data, LocalKey, Setting, Table } from "../src/atlas.ts"
-import type { Anchors } from "./anchors.ts"
+import { lineAt, type Anchors } from "./anchors.ts"
 import { frontendSources, sourceFiles } from "./files.ts"
-
-const lineAt = (source: string, index: number): number => source.slice(0, index).split("\n").length
 
 const splitTop = (body: string): string[] => {
   const parts: string[] = []

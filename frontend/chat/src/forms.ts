@@ -1,5 +1,5 @@
 import type { ChatAnswer, ChatFormField } from "@novadeck/core/conversation"
-import { hasControlCharacters } from "@novadeck/core/prompt-refusal"
+import { hasControlCharacters } from "@novadeck/core/conversation/prompt-refusal"
 
 // What the person has put into a form's fields, as typed (text and numbers as strings), and
 // the values it makes. Pure, so the form's rules read apart from its markup.

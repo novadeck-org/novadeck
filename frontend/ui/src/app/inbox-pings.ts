@@ -1,6 +1,6 @@
-import { handleText } from "@novadeck/core/handle"
 import type { Inbox, InboxRow } from "@novadeck/core/inbox"
 import type { Backend, Notice } from "@novadeck/core/port"
+import { handleText } from "@novadeck/core/terminals/handle"
 
 import { needing } from "../inbox/inbox-state"
 import { fromNovadeck, labelOf, subjectOf } from "../inbox/inbox-text"

@@ -1,6 +1,6 @@
-import { formatSize } from "@novadeck/core/addon-format"
-import { followFinishes } from "@novadeck/core/agent-finish"
-import { murmurDownloadSize, type MurmurState } from "@novadeck/core/murmur"
+import { formatSize } from "@novadeck/core/addons/format"
+import { murmurDownloadSize, type MurmurState } from "@novadeck/core/addons/murmur"
+import { followFinishes } from "@novadeck/core/agents/finish"
 import type { Store } from "@novadeck/core/store"
 import type { TerminalMetadata, Workspace } from "@novadeck/core/types"
 

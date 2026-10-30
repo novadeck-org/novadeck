@@ -1,6 +1,6 @@
-import { matchesGlob } from "node:path"
-
+import { areaOf } from "../extract/areas.ts"
 import type { Anchor, Area, Atlas, JsonSchema, Procedure, Table } from "../src/atlas.ts"
+import type { StoreMethod } from "../src/runner-lens.ts"
 
 // Briefs: the atlas as short Markdown for an agent to read before it works in a part of
 // the code. Each keeps to what fits in a glance (the index under 8000 characters, every
@@ -24,9 +24,6 @@ const list = (items: string[], max = 12) =>
       : items.join(", ")
 
 const compact = (n: number) => (n >= 1000 ? `${(n / 1000).toFixed(n >= 10_000 ? 0 : 1)}k` : `${n}`)
-
-const areaOfFile = (atlas: Atlas, file: string) =>
-  atlas.areas.find((area) => area.globs.some((glob) => matchesGlob(file, glob)))?.id ?? null
 
 const nodeTitle = (atlas: Atlas, id: string) =>
   atlas.runtime.nodes.find((node) => node.id === id)?.title ?? id
@@ -138,7 +135,7 @@ export const renderArea = (atlas: Atlas, area: Area): string => {
     out.push(`Serves procedures (${area.procedures.length}): ${list(area.procedures, 20)}`)
   const touched = (side: "readers" | "writers") =>
     atlas.data.tables
-      .filter((t) => t[side].some((anchor) => areaOfFile(atlas, anchor.file) === area.id))
+      .filter((t) => t[side].some((anchor) => areaOf(atlas.areas, anchor.file) === area.id))
       .map((t) => t.name)
   const reads = touched("readers")
   const writes = touched("writers")
@@ -200,7 +197,7 @@ export const renderProcedure = (atlas: Atlas, procedure: Procedure): string => {
     `${procedure.kind === "stream" ? "Yields" : "Output"}: ${shape(procedure.output)}`,
     `Errors: ${list(procedure.errors)} (from the handler and router only; deeper helpers may raise more)`,
   ]
-  const callers = procedure.callers.map((c) => `${areaOfFile(atlas, c.file) ?? "?"} ${at(c)}`)
+  const callers = procedure.callers.map((c) => `${areaOf(atlas.areas, c.file) ?? "?"} ${at(c)}`)
   out.push(`Called from: ${list(callers, 6)}`)
 
   const ui = atlas.ui.procedures.find((p) => p.id === procedure.id)
@@ -329,20 +326,20 @@ export const renderTable = (atlas: Atlas, table: Table): string => {
     ),
   ]
   const methods = atlas.runner.methods.filter((m) => m.touches.some((t) => t.table === table.name))
+  const verbsOn = (method: StoreMethod) =>
+    method.touches
+      .filter((t) => t.table === table.name)
+      .map((t) => t.verb)
+      .join(", ")
   if (methods.length > 0) {
     out.push("", "Store methods:")
     for (const m of methods)
       out.push(
-        `- ${m.name} (${m.touches
-          .filter((t) => t.table === table.name)
-          .map((t) => t.verb)
-          .join(
-            ", ",
-          )}) ${at(m.anchor)}${m.usedBy.length > 0 ? `; reached by ${list(m.usedBy, 5)}` : ""}`,
+        `- ${m.name} (${verbsOn(m)}) ${at(m.anchor)}${m.usedBy.length > 0 ? `; reached by ${list(m.usedBy, 5)}` : ""}`,
       )
   }
   const areas = (anchors: Anchor[]) => [
-    ...new Set(anchors.map((a) => areaOfFile(atlas, a.file) ?? a.file)),
+    ...new Set(anchors.map((a) => areaOf(atlas.areas, a.file) ?? a.file)),
   ]
   const found = (anchors: Anchor[]) => {
     const names = areas(anchors).map((a) => `\`${a}\``)
@@ -480,9 +477,9 @@ export const renderFlows = (atlas: Atlas): string =>
     "Brief one with `flow:<id>`.",
   ].join("\n")
 
-export const renderAgents = (atlas: Atlas): string =>
+export const renderHarnesses = (atlas: Atlas): string =>
   [
-    "# Agents: what Novadeck offers the agent harnesses",
+    "# Harnesses: what Novadeck offers agents",
     "",
     `MCP tools: ${atlas.agents.tools.map((t) => `\`${t.name}\``).join(", ")}`,
     `Harness contract: ${atlas.agents.contract.length} members (${atlas.agents.contract.filter((m) => !m.optional).length} required).`,

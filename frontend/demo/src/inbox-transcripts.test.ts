@@ -1,6 +1,6 @@
-import { agentContext, answersOf } from "@novadeck/core/agent-steps"
+import { agentContext, answersOf } from "@novadeck/core/agents/steps"
 import type { InboxRow } from "@novadeck/core/inbox"
-import { companionKeyId } from "@novadeck/core/items"
+import { terminalKeyPath } from "@novadeck/core/types"
 
 import { demoInboxIds } from "./inbox-fixtures"
 import { plainDemo } from "./index"
@@ -14,7 +14,7 @@ const contextOf = (item: InboxRow) => {
   const stop = store.subscribe(() => {})
   const conversation = store.getSnapshot()
   stop()
-  const threads = backend.messages!.state.getSnapshot().terminals[companionKeyId(item.source)]
+  const threads = backend.messages!.state.getSnapshot().terminals[terminalKeyPath(item.source)]
   return agentContext(conversation.agent, conversation.items, answersOf(threads))
 }
 

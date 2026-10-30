@@ -1,13 +1,13 @@
-import type { Backend, Notice } from "@novadeck/core/port"
-import { maxFixLength, type SandboxState } from "@novadeck/core/sandbox"
-import { noticeSoundOf } from "@novadeck/core/sounds"
+import { maxFixLength, type SandboxState } from "@novadeck/core/desktop/sandbox"
 import {
   maxUninstallPath,
   maxUninstallReason,
   maxUninstallText,
   type UninstallPlan,
   type UninstallResult,
-} from "@novadeck/core/uninstall"
+} from "@novadeck/core/desktop/uninstall"
+import type { Backend, Notice } from "@novadeck/core/port"
+import { noticeSoundOf } from "@novadeck/core/sounds"
 import {
   desktopBadgeOf,
   noticeBodyLength,

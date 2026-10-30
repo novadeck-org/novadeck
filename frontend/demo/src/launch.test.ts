@@ -1,4 +1,4 @@
-import { agentContext } from "@novadeck/core/agent-steps"
+import { agentContext } from "@novadeck/core/agents/steps"
 import type { InboxRow } from "@novadeck/core/inbox"
 import { orderedTiles } from "@novadeck/core/roster"
 import { workspaceFromSeed } from "@novadeck/core/seed"
@@ -223,6 +223,74 @@ describe("the launch demo", () => {
     expect(items()).toEqual([])
     for (const number of [launch.permission, launch.plan, launch.question])
       expect(agent(number)).toMatchObject({ working: true })
+  })
+
+  it("has a Codex agent ask in Codex's words, and report done once its tests are allowed", async () => {
+    const { cues, inbox, items, agent } = open()
+    cues.command()
+    cues.command()
+    expect(items()).toHaveLength(1)
+    const [row] = items()
+    if (row?.kind !== "request" || row.request.dialog?.type !== "choices")
+      throw new Error("a command to allow")
+    expect(row.source.title).toBe("Search index")
+    expect(row.request).toMatchObject({ kind: "permission", subject: "pnpm test --filter search" })
+    expect(row.request.dialog).toMatchObject({
+      title: "Would you like to run the following command?",
+      options: [
+        { label: "Yes, proceed" },
+        {
+          label:
+            "Yes, and don't ask again for commands that start with `pnpm test --filter search`",
+        },
+        { label: "No, and tell Codex what to do differently", text: "prompt" },
+      ],
+    })
+    inbox.answer(row.id, {
+      kind: "request",
+      answer: { type: "choice", dialog: row.request.dialog.id, option: "1" },
+    })
+    await vi.advanceTimersByTimeAsync(answerMs + answeredMs + 1000)
+    expect(agent(launch.command)).toMatchObject({ working: true })
+    await vi.advanceTimersByTimeAsync(2000)
+    expect(agent(launch.command)).toMatchObject({ working: false, reported: true })
+    expect(items()).toMatchObject([{ kind: "update", source: { title: "Search index" } }])
+  })
+
+  it("leaves the Codex agent waiting when told no, and at work when told what to do instead", async () => {
+    for (const text of [undefined, "Run only the tag filter tests."]) {
+      const { cues, inbox, items, agent } = open()
+      cues.command()
+      const [row] = items()
+      if (row?.kind !== "request" || row.request.dialog?.type !== "choices")
+        throw new Error("a command to allow")
+      inbox.answer(row.id, {
+        kind: "request",
+        answer: {
+          type: "choice",
+          dialog: row.request.dialog.id,
+          option: "3",
+          ...(text ? { text } : {}),
+        },
+      })
+      // eslint-disable-next-line no-await-in-loop -- One answer at a time.
+      await vi.advanceTimersByTimeAsync(answerMs + answeredMs + 5000)
+      expect(agent(launch.command)).toMatchObject({ working: text !== undefined })
+      expect(agent(launch.command)?.reported).toBeUndefined()
+      expect(items().filter((item) => item.kind === "update")).toEqual([])
+    }
+  })
+
+  it("asks the Codex agent for no review once it asked to run its tests, nor the reverse", () => {
+    const first = open()
+    first.cues.command()
+    first.cues.askReview()
+    expect(first.items()).toHaveLength(1)
+    expect(first.agent(launch.reviews)).toMatchObject({ working: true })
+    const second = open()
+    second.cues.askReview()
+    second.cues.command()
+    expect(second.items()).toEqual([])
   })
 
   it("has the lead open three teammates its team wire draws to, and rest", () => {

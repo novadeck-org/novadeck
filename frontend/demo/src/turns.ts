@@ -1,7 +1,7 @@
+import { createTelemetryStore, dropTerminal, setUsage } from "@novadeck/core/agents/telemetry"
 import type { BackendAction, BackendSink, TerminalKey } from "@novadeck/core/port"
-import { isAgentProgram } from "@novadeck/core/process"
-import { terminalKeyId } from "@novadeck/core/registry"
-import { createTelemetryStore, dropTerminal, setUsage } from "@novadeck/core/telemetry"
+import { isAgentProgram } from "@novadeck/core/terminals/process"
+import { terminalKeyId } from "@novadeck/core/terminals/registry"
 import type {
   AgentStatus,
   AgentTurnEnd,

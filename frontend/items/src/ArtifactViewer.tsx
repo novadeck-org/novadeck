@@ -1,6 +1,6 @@
 import {
   pathOf,
-  type ArtifactKind,
+  type ShownKind,
   type Item,
   type PageTrouble,
   type ShownContent,
@@ -22,7 +22,7 @@ import { useContent } from "./use-item-store"
 type Actions = { actions?: ReactNode }
 
 // What an artifact kind's body is given once its content is ready.
-export type ArtifactBodyProps<K extends ArtifactKind> = {
+export type ArtifactBodyProps<K extends ShownKind> = {
   readonly item: Item
   readonly content: Extract<ShownContent, { readonly kind: K }>
   readonly actions: ReactNode
@@ -154,7 +154,7 @@ export const Unavailable = ({
 // The pane's body for an artifact kind, once the kind's `Body` has its content: loads and
 // follows what the item holds while it shows, and draws what hasn't loaded or can't show.
 // `document` marks the content a place shows as a document, which the stylesheet reads.
-export const artifactView = <K extends ArtifactKind>(
+export const artifactView = <K extends ShownKind>(
   kind: K,
   Body: ComponentType<ArtifactBodyProps<K>>,
   document?: (content: Extract<ShownContent, { readonly kind: K }>) => boolean,
@@ -197,11 +197,11 @@ export const artifactView = <K extends ArtifactKind>(
   return View
 }
 
-type ThumbBody<K extends ArtifactKind> = ComponentType<{
+type ThumbBody<K extends ShownKind> = ComponentType<{
   readonly content: Extract<ShownContent, { readonly kind: K }>
 }>
 
-const LoadedThumb = <K extends ArtifactKind>({
+const LoadedThumb = <K extends ShownKind>({
   kind,
   Body,
   item,
@@ -218,7 +218,7 @@ const LoadedThumb = <K extends ArtifactKind>({
   ) : null
 }
 
-const ArtifactThumb = <K extends ArtifactKind>(
+const ArtifactThumb = <K extends ShownKind>(
   props: ItemProps & { kind: K; Body: ThumbBody<K> },
 ): React.JSX.Element | null =>
   // A held one is never loaded for a peek, which a passing pointer opens.
@@ -230,7 +230,7 @@ const ArtifactThumb = <K extends ArtifactKind>(
 
 // A small picture of an artifact, for a peek, from the kind's `Body`: or why it can't show.
 // Blank until it loads.
-export const artifactThumb = <K extends ArtifactKind>(
+export const artifactThumb = <K extends ShownKind>(
   kind: K,
   Body: ThumbBody<K>,
 ): ComponentType<ItemProps> => {

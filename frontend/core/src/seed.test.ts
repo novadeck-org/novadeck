@@ -1,5 +1,5 @@
-import { messagesKey } from "./companion-bar"
 import { itemIdOf } from "./items"
+import { messagesKey } from "./items/companion-bar"
 import { initialGridLayouts } from "./layout/grid-placement"
 import { workspaceFromSeed, WorkspaceSeedError, type WorkspaceSeed, viewOf } from "./seed"
 import { context, describe, expect, it } from "./test"
@@ -208,7 +208,7 @@ describe("workspace from a backend seed", () => {
     })
   })
 
-  context("with companion items and windows", () => {
+  context("with items and windows", () => {
     const older = itemFixture("older", "01", { shownAt: 1 })
     const newer = itemFixture("newer", "01", { shownAt: 2 })
     const undocked = itemFixture("undocked", "02", { holder: { windowId: "w1" } })

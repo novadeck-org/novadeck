@@ -1,4 +1,4 @@
-import type { SandboxState } from "@novadeck/core/sandbox"
+import type { SandboxState } from "@novadeck/core/desktop/sandbox"
 
 // The command the demo's unsandboxed notice offers, as the desktop host's might read.
 export const sampleFix =

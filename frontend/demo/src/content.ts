@@ -1,15 +1,15 @@
-import { companionKeyId } from "@novadeck/core/items"
 import { gridColumns } from "@novadeck/core/layout/grid-placement"
 import type { Backend, BackendSink, TerminalKey } from "@novadeck/core/port"
 import { viewOf } from "@novadeck/core/seed"
 import { createTerminalState } from "@novadeck/core/state"
-import type {
-  AgentStatus,
-  CanvasLayout,
-  GridBreakpoint,
-  GridLayouts,
-  TerminalMetadata,
-  Workspace,
+import {
+  type AgentStatus,
+  type CanvasLayout,
+  type GridBreakpoint,
+  type GridLayouts,
+  type TerminalMetadata,
+  type Workspace,
+  terminalKeyPath,
 } from "@novadeck/core/types"
 
 import { createDemoEngine } from "./engine"
@@ -149,7 +149,7 @@ export const contentDemo = (
   })
   if (planFault) showcase.fault(agents[0]!.key, planFault)
   const agentAt = (key: TerminalKey): SampleAgent | undefined =>
-    agents.find((agent) => companionKeyId(agent.key) === companionKeyId(key))?.sample
+    agents.find((agent) => terminalKeyPath(agent.key) === terminalKeyPath(key))?.sample
   const transcriptOf = (key: TerminalKey) => {
     const sample = agentAt(key)
     return sample && fixedIntro(sample.transcript)

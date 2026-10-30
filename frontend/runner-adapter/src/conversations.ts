@@ -12,7 +12,7 @@ import {
   type Conversation,
   type Conversations,
 } from "@novadeck/core/conversation"
-import { promptRefusal } from "@novadeck/core/prompt-refusal"
+import { promptRefusal } from "@novadeck/core/conversation/prompt-refusal"
 import { createStore, type MutableStore, type Store } from "@novadeck/core/store"
 import {
   conflictReason,

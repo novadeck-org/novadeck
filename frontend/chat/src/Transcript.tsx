@@ -1,4 +1,4 @@
-import { sameBlock, type ChatBlock } from "@novadeck/core/conversation-turns"
+import { sameBlock, type ChatBlock } from "@novadeck/core/conversation/turns"
 import { Markdown } from "@novadeck/toolkit/Markdown"
 import { memo } from "react"
 

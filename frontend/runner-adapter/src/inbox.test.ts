@@ -1,6 +1,6 @@
 import type { ChatDialog } from "@novadeck/core/conversation"
 import type { InboxBinding } from "@novadeck/core/inbox"
-import { dialogMs, type Asked } from "@novadeck/core/inbox-rows"
+import { dialogMs, type Asked } from "@novadeck/core/inbox/rows"
 import {
   noMessages,
   type AgentMessage,

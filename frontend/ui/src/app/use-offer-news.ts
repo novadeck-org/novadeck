@@ -1,4 +1,4 @@
-import type { UpdateOffer, WhatsNew } from "@novadeck/core/update"
+import type { UpdateOffer, WhatsNew } from "@novadeck/core/desktop/update"
 import { useCallback, useEffect, useRef, useState } from "react"
 
 // How long the card's automatic raise waits for the host's notes: the host's own read gives

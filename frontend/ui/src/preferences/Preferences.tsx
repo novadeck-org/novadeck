@@ -1,4 +1,4 @@
-import { MURMUR_NAME } from "@novadeck/core/murmur"
+import { MURMUR_NAME } from "@novadeck/core/addons/murmur"
 import type { NoticeSound } from "@novadeck/core/sounds"
 import { viewModes } from "@novadeck/core/state"
 import type { PreferencesValue } from "@novadeck/core/types"

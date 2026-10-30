@@ -1,5 +1,5 @@
+import { createTelemetryStore } from "@novadeck/core/agents/telemetry"
 import type { Backend } from "@novadeck/core/port"
-import { createTelemetryStore } from "@novadeck/core/telemetry"
 import { render, type Rendered } from "@novadeck/test-kit/render"
 import { createElement } from "react"
 import { afterEach } from "vitest"

@@ -5,11 +5,11 @@ import {
   type Conversation,
   type Conversations,
 } from "@novadeck/core/conversation"
+import { promptRefusal, shellCommand } from "@novadeck/core/conversation/prompt-refusal"
 import type { TerminalKey } from "@novadeck/core/port"
-import { promptRefusal, shellCommand } from "@novadeck/core/prompt-refusal"
-import { terminalKeyId } from "@novadeck/core/registry"
 import type { WorkspaceSeed } from "@novadeck/core/seed"
 import { createStore, type MutableStore } from "@novadeck/core/store"
+import { terminalKeyId } from "@novadeck/core/terminals/registry"
 import type { AgentStatus, TerminalMetadata, Workspace } from "@novadeck/core/types"
 
 import { promptRefused } from "./prompt-refusal"

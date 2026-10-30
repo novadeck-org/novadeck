@@ -5,15 +5,15 @@ import { Link } from "react-router"
 import type { Anchor } from "../../atlas.ts"
 import { AnchorIcon, AnchorLink } from "../../components/anchor.tsx"
 import { Token } from "../../components/viz.tsx"
-import type { Effect, UiAction } from "../../lens-ui.ts"
 import { areaPath, procedurePath } from "../../links.ts"
+import type { BoxId, Effect, UiAction } from "../../ui-lens.ts"
 import {
-  actionBy,
-  boxBy,
+  actionByType,
+  boxById,
   lens,
-  procedureBy,
+  uiProcedureById,
   type Selection,
-  streamBy,
+  streamByProcedure,
   untracedStreams,
 } from "./model.ts"
 
@@ -39,7 +39,7 @@ const Gap = ({ children }: { children: ReactNode }) => <p className="up-gap m-0"
 const where = (anchor: Anchor | null) => (anchor ? <AnchorLink anchor={anchor} /> : null)
 
 // A procedure the page lists: pick it here, and jump to the API tab beside it.
-export const ProcChip = ({ id, onPick }: { id: string; onPick: (id: string) => void }) => (
+const ProcChip = ({ id, onPick }: { id: string; onPick: (id: string) => void }) => (
   <span className="inline-flex items-center overflow-hidden rounded-sm border border-line">
     <button
       type="button"
@@ -82,7 +82,8 @@ const EffectRow = ({ effect, onPick }: { effect: Effect; onPick: (id: string) =>
   </div>
 )
 
-const portCommit = boxBy.get("port")?.items.find((item) => item.label === "commit")?.anchor ?? null
+const portCommit =
+  boxById.get("port")?.items.find((item) => item.label === "commit")?.anchor ?? null
 
 const ActionPath = ({ action, onPick }: { action: UiAction; onPick: (id: string) => void }) => (
   <div>
@@ -155,7 +156,7 @@ const ActionPath = ({ action, onPick }: { action: UiAction; onPick: (id: string)
     </Step>
     <Step hue="--h-codex" title="Comes back">
       {action.returns.map((id) => {
-        const stream = streamBy.get(id)
+        const stream = streamByProcedure.get(id)
         return (
           <div key={id} className="flex flex-wrap items-center gap-x-2 gap-y-1">
             <ProcChip id={id} onPick={onPick} />
@@ -198,8 +199,8 @@ const ProcedureDetail = ({
   onPick: (id: string) => void
   onAction: (type: string) => void
 }) => {
-  const procedure = procedureBy.get(id)
-  const stream = streamBy.get(id)
+  const procedure = uiProcedureById.get(id)
+  const stream = streamByProcedure.get(id)
   if (!procedure) return null
   return (
     <div className="space-y-3">
@@ -276,8 +277,8 @@ const ProcedureDetail = ({
   )
 }
 
-const BoxDetail = ({ id }: { id: string }) => {
-  const box = boxBy.get(id as never)
+const BoxDetail = ({ id }: { id: BoxId }) => {
+  const box = boxById.get(id)
   if (!box) return null
   return (
     <div>
@@ -316,7 +317,7 @@ const BoxDetail = ({ id }: { id: string }) => {
 
 export const detailTitle = (selection: Selection): string => {
   if (!selection) return "Path"
-  if (selection.kind === "box") return boxBy.get(selection.id as never)?.title ?? "Path"
+  if (selection.kind === "box") return boxById.get(selection.id)?.title ?? "Path"
   return selection.id
 }
 
@@ -339,6 +340,6 @@ export const Detail = ({
   if (selection.kind === "box") return <BoxDetail id={selection.id} />
   if (selection.kind === "procedure")
     return <ProcedureDetail id={selection.id} onPick={pickProcedure} onAction={pickAction} />
-  const action = actionBy.get(selection.id)
+  const action = actionByType.get(selection.id)
   return action ? <ActionPath action={action} onPick={pickProcedure} /> : null
 }

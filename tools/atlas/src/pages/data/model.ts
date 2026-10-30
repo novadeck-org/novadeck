@@ -7,7 +7,7 @@ export const NODE_W = 230
 export const HEAD = 34
 export const ROW = 18
 
-export type TableData = { table: Table; selected: boolean; related: boolean }
+type TableData = { table: Table; selected: boolean; related: boolean }
 export type TableNode = Node<TableData, "table">
 
 export const nodeHeight = (t: Table) => HEAD + t.columns.length * ROW + 8
@@ -41,7 +41,7 @@ export const positions = () => {
   return out
 }
 
-export type Rel = {
+type Rel = {
   id: string
   from: string
   fromCol: string

@@ -84,7 +84,7 @@ export const notes: Record<string, Note> = {
   },
   "backend/runner/terminals": {
     purpose:
-      "Owns every terminal: spawns shells, keeps their screen, scrollback and transcripts, tracks the foreground process and its agent, handles prompts, answers, naming and nudges, and performs the calls agents make through the MCP server.",
+      "Owns every terminal: spawns shells, keeps their screen, scrollback and transcripts, tracks the foreground process and its agent, handles prompts, answers, naming and nudges, holds approvals and uploads, and performs the calls agents make through the MCP server.",
     entries: [
       { file: `${runner}/terminals/manager.ts`, text: "export class Terminals" },
       { file: `${runner}/terminals/opens.ts` },
@@ -103,13 +103,13 @@ export const notes: Record<string, Note> = {
   },
   "backend/runner/companions": {
     purpose:
-      "The items an agent shows beside its terminal (files, pages, plans), their records, content and the requests that open them.",
+      "The items an agent shows beside its terminal (files, pages, plans), their records, content, the requests that open them, the looks at a page, and the files it never shows by itself.",
     entries: [{ file: `${runner}/companions/items.ts`, text: "export class CompanionItems" }],
     docs: ["docs/agent-workspace.md"],
   },
   "backend/runner/messaging": {
     purpose:
-      "Lets agents in one project and session message each other: size and rate limits, leads and peers, held threads, and delivery through each harness's hooks and the terminal doorbell.",
+      "Lets agents in one project and session message each other: size and rate limits, leads and peers, held threads, and delivery through each harness's hooks and the terminal doorbell; also the Inbox entries agents leave the person and the feedback drafts they write.",
     entries: [
       { file: `${runner}/messaging/messaging.ts`, text: "export class Messaging" },
       { file: `${runner}/messaging/messages.ts`, text: "export const maxMessageBytes" },
@@ -119,7 +119,7 @@ export const notes: Record<string, Note> = {
   },
   "backend/runner/harnesses": {
     purpose:
-      "The runner's side of the agent harnesses: the registry of adapters, connecting and disconnecting their plugins, binding hook reports to sessions, and deriving activity, replies, plans and typed prompts from what they report.",
+      "The runner's side of the agent harnesses: the registry of harnesses, connecting and disconnecting their plugins, binding hook reports to sessions, and deriving activity, replies, plans and typed prompts from what they report.",
     entries: [
       { file: `${runner}/harnesses/registry.ts`, text: "export const harnesses" },
       { file: `${runner}/harnesses/service.ts`, text: "export const createHarnesses" },
@@ -198,7 +198,7 @@ export const notes: Record<string, Note> = {
   },
   "harnesses/core": {
     purpose:
-      "The contract every harness adapter implements, and what they share: hook commands, events, reports, dialogs and shell quoting, and the `Harness` type whose `box` is a tui-input `BoxProfile`.",
+      "The contract every harness implements, and what they share: hook commands, events, reports, dialogs and shell quoting, and the `Harness` type whose `box` is a tui-input `BoxProfile`.",
     entries: [
       { file: "harnesses/core/src/harness.ts", text: "export type Harness = {" },
       { file: "harnesses/core/src/events.ts" },
@@ -207,26 +207,27 @@ export const notes: Record<string, Note> = {
   },
   "harnesses/claude": {
     purpose:
-      "The Claude Code adapter: its plugin and hooks, hook reports, transcripts, dialogs, input box and sessions.",
+      "The Claude Code harness: its plugin and hooks, hook reports, transcripts, dialogs, input box and sessions.",
     entries: [{ file: "harnesses/claude/src/index.ts", text: "export const claude" }],
     docs: ["docs/harness-coverage.md"],
   },
   "harnesses/codex": {
-    purpose: "The Codex adapter, the same shape as harnesses/claude.",
+    purpose: "The Codex harness, the same shape as harnesses/claude.",
     entries: [{ file: "harnesses/codex/src/index.ts", text: "export const codex" }],
     docs: ["docs/harness-coverage.md"],
   },
   "harnesses/agy": {
-    purpose: "The Antigravity adapter, the same shape as harnesses/claude.",
+    purpose: "The Antigravity harness, the same shape as harnesses/claude.",
     entries: [{ file: "harnesses/agy/src/index.ts", text: "export const agy" }],
     docs: ["docs/harness-coverage.md"],
   },
   "apps/desktop": {
-    purpose: "The desktop package's build, packaging scripts and the bridge types it shares.",
+    purpose:
+      "The desktop package's build and packaging scripts, the page entry that reports uncaught page errors, the launch arguments and channels its processes share, and how each of them writes its log.",
   },
   "apps/desktop/main": {
     purpose:
-      "The desktop app's main process: windows and menus, starting the runner in a utility process, permissions and sandbox choices, installation, auto-update and quitting.",
+      "The desktop app's main process: windows and menus, starting the runner in a utility process, permissions and sandbox choices, installation, auto-update, notices, feedback notes, logs and quitting.",
     entries: [
       { file: "apps/desktop/src/main/index.ts", text: "const createWindow" },
       { file: "apps/desktop/src/main/updater.ts" },
@@ -235,7 +236,7 @@ export const notes: Record<string, Note> = {
   },
   "apps/desktop/preload": {
     purpose:
-      "The narrow, validated API the window gets from the host: the runner's port and the desktop actions it may request.",
+      "The narrow, validated API the window gets from the desktop app's main process: the runner's port and the desktop actions it may request.",
     entries: [{ file: "apps/desktop/src/preload/index.ts" }],
   },
   "apps/desktop/runner": {
@@ -260,7 +261,7 @@ export const notes: Record<string, Note> = {
     entries: [
       { file: `${core}/store.ts`, text: "export const createStore" },
       { file: `${core}/types.ts` },
-      { file: `${core}/registry.ts` },
+      { file: `${core}/terminals/registry.ts` },
       { file: `${core}/port.ts`, text: "export type MountTerminal" },
     ],
   },
@@ -282,6 +283,14 @@ export const notes: Record<string, Note> = {
     purpose: "The demo backend with sample data that tests, specs and the web preview run on.",
     entries: [{ file: `${demo}/index.ts`, text: "export const createDemoBackend" }],
   },
+  "frontend/ui/entries": {
+    purpose: "The start every page entry renders its app with, once the page has its theme.",
+  },
+  "frontend/ui/feedback": {
+    purpose: "The feedback note the person sends, and the card that asks an agent to write one.",
+    entries: [{ file: `${ui}/feedback/FeedbackButton.tsx` }],
+  },
+  "frontend/ui/sounds": { purpose: "The notice sounds Preferences offers and the page plays." },
   "frontend/ui/test": {
     purpose:
       "The command harness for the UI's tests: the real stores, navigator and commands over a workspace fixture.",

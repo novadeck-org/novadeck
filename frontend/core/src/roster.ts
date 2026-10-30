@@ -1,5 +1,5 @@
-import { isShellProcess } from "./process"
-import { sameTitleSource } from "./title-source"
+import { isShellProcess } from "./terminals/process"
+import { sameTitleSource } from "./terminals/title-source"
 import type {
   CompanionWindowMeta,
   TerminalMetadata,
@@ -16,7 +16,7 @@ export const createRoster = (
 export const hasTerminal = (roster: TerminalRoster, terminalId: string): boolean =>
   roster.terminals.some((terminal) => terminal.id === terminalId)
 
-// A window undocked from a terminal's companion, rather than a terminal.
+// A window undocked from a terminal's bar, rather than a terminal.
 export const isWindow = (tile: Tile): tile is CompanionWindowMeta => tile.itemId !== undefined
 
 export const hasWindow = (roster: TerminalRoster, windowId: string): boolean =>
@@ -57,17 +57,6 @@ export const orderedTiles: (roster: TerminalRoster) => readonly Tile[] = remembe
   const orderedIds = new Set(ordered.map((tile) => tile.id))
   return [...ordered, ...all.filter((tile) => !orderedIds.has(tile.id))]
 })
-
-// Terminals in sidebar order; terminals missing from the saved order follow in creation order.
-export const orderedTerminals = (roster: TerminalRoster): TerminalMetadata[] => {
-  const byId = new Map(roster.terminals.map((terminal) => [terminal.id, terminal]))
-  const ordered = roster.order.flatMap((id) => {
-    const terminal = byId.get(id)
-    return terminal ? [terminal] : []
-  })
-  const orderedIds = new Set(ordered.map((terminal) => terminal.id))
-  return [...ordered, ...roster.terminals.filter((terminal) => !orderedIds.has(terminal.id))]
-}
 
 export const addTerminal = (
   roster: TerminalRoster,

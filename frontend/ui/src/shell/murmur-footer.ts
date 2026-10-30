@@ -1,11 +1,11 @@
-import type { Refusal } from "@novadeck/core/addon"
-import { formatSize, stepLabel } from "@novadeck/core/addon-format"
+import type { Refusal } from "@novadeck/core/addons/addon"
+import { formatSize, stepLabel } from "@novadeck/core/addons/format"
 import {
   MURMUR_NAME,
   murmurChecking,
   murmurDownloadSize,
   type MurmurState,
-} from "@novadeck/core/murmur"
+} from "@novadeck/core/addons/murmur"
 
 // What Murmur's footer item shows, as a plain function of the addon's state: an install's
 // progress as it goes, then how it ended. Only an install seen from here (started in this

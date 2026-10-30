@@ -1,3 +1,4 @@
+import type { SandboxState } from "@novadeck/core/desktop/sandbox"
 import type {
   Backend,
   BackendConnectionState,
@@ -6,7 +7,6 @@ import type {
   TerminalKey,
   ThemeSource,
 } from "@novadeck/core/port"
-import type { SandboxState } from "@novadeck/core/sandbox"
 import { createStore, type MutableStore } from "@novadeck/core/store"
 import type { Workspace } from "@novadeck/core/types"
 import { demoTerminalsLife } from "@novadeck/demo"

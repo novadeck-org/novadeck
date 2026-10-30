@@ -1,5 +1,5 @@
-import { companionKeyId } from "@novadeck/core/items"
 import type { Backend, TerminalKey } from "@novadeck/core/port"
+import { terminalKeyPath } from "@novadeck/core/types"
 import { isDemoMessages, type DemoMessages } from "@novadeck/demo/messages"
 
 import type { DemoActionGroup } from "./types"
@@ -12,7 +12,7 @@ const writeTo = (
   from: (handle: string, peers: readonly string[]) => string | undefined,
   text: string,
 ): boolean => {
-  const terminalMessages = key && messages.state.getSnapshot().terminals[companionKeyId(key)]
+  const terminalMessages = key && messages.state.getSnapshot().terminals[terminalKeyPath(key)]
   if (!key || !terminalMessages) return false
   const peers = terminalMessages.threads.flatMap((thread) =>
     thread.peer.kind === "person" ? [] : [thread.peer.handle],

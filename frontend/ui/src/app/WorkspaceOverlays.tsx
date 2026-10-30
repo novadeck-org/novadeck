@@ -1,8 +1,8 @@
+import type { OfferedUninstall } from "@novadeck/core/desktop/uninstall"
 import type { AgentName } from "@novadeck/core/harnesses"
 import type { Backend } from "@novadeck/core/port"
 import { orderedTiles } from "@novadeck/core/roster"
 import { activeProject } from "@novadeck/core/state"
-import type { OfferedUninstall } from "@novadeck/core/uninstall"
 import {
   memo,
   Suspense,

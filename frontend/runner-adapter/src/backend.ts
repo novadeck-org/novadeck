@@ -1,4 +1,4 @@
-import { handleText } from "@novadeck/core/handle"
+import { createTelemetryStore, dropTerminal, setUsage } from "@novadeck/core/agents/telemetry"
 import type {
   AgentConnection,
   Backend,
@@ -9,10 +9,10 @@ import type {
   TerminalKey,
   ThemeSource,
 } from "@novadeck/core/port"
-import { createTerminalRegistry } from "@novadeck/core/registry"
 import { createStore } from "@novadeck/core/store"
-import { createTelemetryStore, dropTerminal, setUsage } from "@novadeck/core/telemetry"
-import { sameTitleSource } from "@novadeck/core/title-source"
+import { handleText } from "@novadeck/core/terminals/handle"
+import { createTerminalRegistry } from "@novadeck/core/terminals/registry"
+import { sameTitleSource } from "@novadeck/core/terminals/title-source"
 import type {
   AgentUsage,
   TerminalMetadata,

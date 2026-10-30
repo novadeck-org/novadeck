@@ -1,6 +1,6 @@
 import { Transcript } from "@novadeck/chat/Transcript"
 import type { ChatItem } from "@novadeck/core/conversation"
-import { groupItems } from "@novadeck/core/conversation-turns"
+import { groupItems } from "@novadeck/core/conversation/turns"
 import type { Harness } from "@novadeck/harness-core/harness"
 import { transcriptItem } from "@novadeck/protocol"
 import { withBatch } from "@novadeck/runner-adapter/conversations"

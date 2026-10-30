@@ -1,4 +1,4 @@
-import type { UpdateChannel, UpdateOffer, WhatsNew } from "@novadeck/core/update"
+import type { UpdateChannel, UpdateOffer, WhatsNew } from "@novadeck/core/desktop/update"
 
 import { updateScenarios } from "./scenarios"
 import type { DemoActionGroup, DemoStates } from "./types"

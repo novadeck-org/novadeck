@@ -1,4 +1,4 @@
-import { askToFixNudge } from "@novadeck/core/agent-steps"
+import { askToFixNudge } from "@novadeck/core/agents/steps"
 import type { ChatAnswer, ChatDialogOption, ChatRequest } from "@novadeck/core/conversation"
 import type { AskOption, InboxAnswer, InboxRow, Trouble } from "@novadeck/core/inbox"
 

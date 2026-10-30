@@ -1,5 +1,4 @@
 import type { AgentAsk, InboxAnswer, InboxRow } from "@novadeck/core/inbox"
-import { companionKeyId } from "@novadeck/core/items"
 import {
   noMessages,
   type AgentMessage,
@@ -12,7 +11,7 @@ import {
   type TerminalThreads,
 } from "@novadeck/core/messages"
 import { createStore } from "@novadeck/core/store"
-import type { WorkspaceTarget } from "@novadeck/core/types"
+import { type WorkspaceTarget, terminalKeyPath } from "@novadeck/core/types"
 
 import { demoTerminalId } from "./samples"
 
@@ -151,7 +150,7 @@ const stateOf = (boxes: readonly DemoSessionMessages[], paused: boolean): Messag
   terminals: Object.fromEntries(
     boxes.flatMap((box) =>
       box.terminals.map(({ terminalId, handle, agent, waits }) => [
-        companionKeyId({ ...box.target, terminalId }),
+        terminalKeyPath({ ...box.target, terminalId }),
         messagesOf(box, handle, agent, paused, waits ?? null),
       ]),
     ),
@@ -518,12 +517,12 @@ export const createDemoMessages = (
       }, pauseMs)
     },
     waits: (key, waits) => {
-      const id = companionKeyId(key)
+      const id = terminalKeyPath(key)
       let found = false
       boxes = boxes.map((box) => ({
         ...box,
         terminals: box.terminals.map((each) => {
-          if (companionKeyId({ ...box.target, terminalId: each.terminalId }) !== id) return each
+          if (terminalKeyPath({ ...box.target, terminalId: each.terminalId }) !== id) return each
           found = true
           return { ...each, waits }
         }),

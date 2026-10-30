@@ -14,7 +14,7 @@ const tone = (label: string) =>
     : label === "number" || label === "integer"
       ? "border-[var(--g-runner)]"
       : label === "boolean"
-        ? "border-[var(--g-host)]"
+        ? "border-[var(--g-desktop)]"
         : "border-line"
 
 const Pill = ({ children, title }: { children: ReactNode; title?: string | undefined }) => {

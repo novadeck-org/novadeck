@@ -1,4 +1,4 @@
-import type { Picks } from "@novadeck/core/answers"
+import type { Picks } from "@novadeck/core/conversation/picks"
 import type { Inbox, InboxAnswer, InboxRow, InboxState } from "@novadeck/core/inbox"
 import {
   createContext,

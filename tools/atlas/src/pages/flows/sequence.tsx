@@ -3,15 +3,13 @@ import { useState } from "react"
 import { nodeTitle } from "../../atlas-data.ts"
 import type { Flow } from "../../atlas.ts"
 import { AnchorIcon, AnchorLink } from "../../components/anchor.tsx"
+import { clip } from "../../components/viz.tsx"
 import { actorsOf } from "./thumb.tsx"
 
 const COL = 190
 const TOP = 60
 const ROW = 46
 const LEFT = 24
-
-const clip = (text: string, max: number) =>
-  text.length > max ? `${text.slice(0, max - 1)}…` : text
 
 export const Sequence = ({ flow }: { flow: Flow }) => {
   const [pinned, setPinned] = useState<number | null>(null)

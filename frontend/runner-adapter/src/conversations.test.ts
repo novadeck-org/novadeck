@@ -1,5 +1,5 @@
 import { SettleInTerminal, WordsLost } from "@novadeck/core/conversation"
-import { promptRefusal } from "@novadeck/core/prompt-refusal"
+import { promptRefusal } from "@novadeck/core/conversation/prompt-refusal"
 import type { AgentDetail, TranscriptChange, TranscriptItem } from "@novadeck/protocol"
 import { WireError } from "@novadeck/wire"
 import { afterEach, beforeEach, vi } from "vitest"

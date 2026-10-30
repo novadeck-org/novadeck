@@ -1,5 +1,5 @@
-import type { Refusal } from "@novadeck/core/addon"
-import type { MurmurState } from "@novadeck/core/murmur"
+import type { Refusal } from "@novadeck/core/addons/addon"
+import type { MurmurState } from "@novadeck/core/addons/murmur"
 
 import { describe, expect, it } from "../test"
 import { footerPhase, footerText, installPercent, stepText } from "./murmur-footer"

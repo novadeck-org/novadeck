@@ -1,5 +1,5 @@
-import { stepLabel } from "@novadeck/core/addon-format"
-import { murmurChecking, type MurmurState } from "@novadeck/core/murmur"
+import { stepLabel } from "@novadeck/core/addons/format"
+import { murmurChecking, type MurmurState } from "@novadeck/core/addons/murmur"
 import { describe, expect, it } from "vitest"
 
 import { deviceText, murmurDownloadNote, murmurInstallSize } from "./murmur-addon"

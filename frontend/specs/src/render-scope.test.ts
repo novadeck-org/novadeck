@@ -1,4 +1,8 @@
-import { createTelemetryStore, setUsage, type TelemetryStore } from "@novadeck/core/telemetry"
+import {
+  createTelemetryStore,
+  setUsage,
+  type TelemetryStore,
+} from "@novadeck/core/agents/telemetry"
 import { itemFixture } from "@novadeck/core/testing"
 import type { AgentUsage } from "@novadeck/core/types"
 import { testPhases } from "@novadeck/test-kit/phases"

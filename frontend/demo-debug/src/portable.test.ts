@@ -1,4 +1,4 @@
-import type { PortableState } from "@novadeck/core/portable"
+import type { PortableState } from "@novadeck/core/desktop/portable"
 import { afterEach, vi } from "vitest"
 
 import { createDemoPortable, portableDataFolder, portableRun, portableVersion } from "./portable"

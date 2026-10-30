@@ -1,5 +1,5 @@
 import type { TerminalKey } from "@novadeck/core/port"
-import { isAgentProgram } from "@novadeck/core/process"
+import { isAgentProgram } from "@novadeck/core/terminals/process"
 import type { Workspace } from "@novadeck/core/types"
 import { sourcePaths, sourceThird, type DemoSource } from "@novadeck/demo/source"
 

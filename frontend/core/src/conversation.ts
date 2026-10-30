@@ -1,5 +1,6 @@
-import type { Refused } from "./prompt-refusal"
+import type { Refused } from "./conversation/prompt-refusal"
 import type { Store } from "./store"
+import type { TerminalKey } from "./types"
 
 // The conversation of the agent a terminal runs, as the agent's own records tell it: its
 // transcript (Claude Code's session JSONL, Codex's rollout, Antigravity's steps), read as
@@ -179,37 +180,29 @@ export const noConversation: Conversation = {
   requests: [],
 }
 
-// A terminal by its full address: a conversation is asked for by where its
-// terminal is, not by the terminal's ID alone.
-export type ConversationKey = {
-  readonly projectId: string
-  readonly workspaceSessionId: string
-  readonly terminalId: string
-}
-
 // Where a backend's conversations come from, and how the chat talks back to the agent.
 export type Conversations = {
   // The conversation of the agent in a terminal, following the terminal from session to
   // session: the same store for the same terminal while anyone subscribes. Reading starts
   // with its first subscriber and stops once its last leaves.
-  readonly conversation: (key: ConversationKey) => Store<Conversation>
+  readonly conversation: (key: TerminalKey) => Store<Conversation>
   // Gives the terminal's agent a prompt as the person would type it into its box, then
   // Enter. Rejects with an Error whose message tells the person why it didn't go.
   // `automatic` marks a fixed line an Inbox button sends, not words the person wrote: the
   // agent's turn on it takes no open ask out of the Inbox.
   readonly send: (
-    key: ConversationKey,
+    key: TerminalKey,
     text: string,
     options?: { readonly automatic?: true },
   ) => Promise<void>
   // Stops the agent's turn, as Escape in its TUI does. Resolves with the words the person
   // had queued behind the turn, which the agent gave back and the chat's box takes again,
   // or null. Rejects as `send` does.
-  readonly interrupt: (key: ConversationKey) => Promise<string | null>
+  readonly interrupt: (key: TerminalKey) => Promise<string | null>
   // Answers a request through its dialog in the agent's TUI, as the person would with its
   // keys, resolving once it took. Rejects as `send` does; a dialog that can't be answered
   // safely turns `raw`, for the person to answer in the terminal.
-  readonly answer: (key: ConversationKey, request: string, answer: ChatAnswer) => Promise<void>
+  readonly answer: (key: TerminalKey, request: string, answer: ChatAnswer) => Promise<void>
   // Whether `send`, or an answer's words that go on as a prompt, would be refused for the
   // text's shape, so the chat warns before it sends. Text that is nothing but white space
   // isn't refused here, though `send` refuses it: the chat sends no empty message, and an

@@ -2,7 +2,7 @@ import { clsx } from "clsx"
 import { useState } from "react"
 import type { CSSProperties, ReactNode } from "react"
 
-import type { SqlVerb, Touch } from "../../lens-runner.ts"
+import type { SqlVerb, Touch } from "../../runner-lens.ts"
 import { Tile, VerbGlyph, verbName } from "./glyphs.tsx"
 import {
   isTraced,

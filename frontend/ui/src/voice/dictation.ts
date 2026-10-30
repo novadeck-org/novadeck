@@ -1,12 +1,12 @@
-import { createStore, type MutableStore, type Store } from "@novadeck/core/store"
-import type { TerminalKey } from "@novadeck/core/types"
 import {
   installFailure,
   maxClipSeconds,
   type Voice,
   type VoiceClip,
   type VoiceState,
-} from "@novadeck/core/voice"
+} from "@novadeck/core/addons/voice"
+import { createStore, type MutableStore, type Store } from "@novadeck/core/store"
+import type { TerminalKey } from "@novadeck/core/types"
 
 import type { Capture, CaptureHandlers } from "./capture"
 import type { Dictation } from "./dictation-control"

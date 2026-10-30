@@ -1,5 +1,5 @@
-import { formatSize } from "@novadeck/core/addon-format"
-import { murmurDownloadSize, type MurmurState } from "@novadeck/core/murmur"
+import { formatSize } from "@novadeck/core/addons/format"
+import { murmurDownloadSize, type MurmurState } from "@novadeck/core/addons/murmur"
 
 // What an installed murmur with no passed check says, beside Try again.
 export const murmurUncheckedText =

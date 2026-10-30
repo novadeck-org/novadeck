@@ -173,7 +173,7 @@ describe("an agent's draft in the feedback card", () => {
       expect(document.activeElement).toBe(view.field())
     })
 
-    it("presets the kind and fills the text with what feedback-scrub struck replaced", async () => {
+    it("presets the kind and fills the text with what feedback/scrub struck replaced", async () => {
       const view = show()
       view.feedback.push([
         draftOf({ kind: "idea", text: "Saw it in ~/Work/app/a.ts and mail me@mail.dev" }),

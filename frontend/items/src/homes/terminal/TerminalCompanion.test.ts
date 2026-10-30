@@ -1,5 +1,5 @@
-import { emptyBar, messagesKey } from "@novadeck/core/companion-bar"
 import { emptyCompanions, isOnBar } from "@novadeck/core/items"
+import { emptyBar, messagesKey } from "@novadeck/core/items/companion-bar"
 import {
   noMessages,
   type AgentMessage,

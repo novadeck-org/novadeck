@@ -1,6 +1,6 @@
-import { doneNotice, finishNotice } from "@novadeck/core/agent-finish"
+import { doneNotice, finishNotice } from "@novadeck/core/agents/finish"
 import { terminalDone, type Inbox, type InboxRow, type InboxTurn } from "@novadeck/core/inbox"
-import { leadHearsOf } from "@novadeck/core/inbox-rows"
+import { leadHearsOf } from "@novadeck/core/inbox/rows"
 import type { Store } from "@novadeck/core/store"
 import type { TerminalMetadata, Workspace } from "@novadeck/core/types"
 
