@@ -36,6 +36,7 @@ import {
   type Entries,
 } from "./forms"
 import { Hint } from "./Hint"
+import { submitOnEnter } from "./submit-on-enter"
 
 // What a request's dialog offers, as controls the person answers with. Each takes `send`,
 // which gives the answer to the backend and says nothing until the card shows the outcome,
@@ -49,22 +50,6 @@ type Controls = {
   // The person edited something: an error shown for the last answer no longer applies.
   readonly edited: () => void
 }
-
-// Enter sends from a text field; Shift+Enter starts a line, a modified Enter belongs to
-// the workspace's shortcuts.
-const submitOnEnter =
-  (submit: () => void, single = false) =>
-  (event: React.KeyboardEvent<HTMLTextAreaElement | HTMLInputElement>): void => {
-    if (event.key !== "Enter" || event.nativeEvent.isComposing) return
-    if (event.shiftKey) {
-      // A field of the agent's own takes one line.
-      if (single) event.preventDefault()
-      return
-    }
-    if (event.ctrlKey || event.metaKey || event.altKey) return
-    event.preventDefault()
-    submit()
-  }
 
 const Sending = ({ sending }: { readonly sending: boolean }): React.JSX.Element | null =>
   sending ? <Loader size={12} aria-hidden className="chat-spinner" /> : null

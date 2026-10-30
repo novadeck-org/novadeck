@@ -13,6 +13,8 @@ import { useEffect, useId, useLayoutEffect, useRef, useState } from "react"
 
 import type { ComposerMode } from "./composer-mode"
 import { Hint } from "./Hint"
+import { submitOnEnter } from "./submit-on-enter"
+import { useMounted } from "./use-mounted"
 
 // The most a reply to the agent's question carries.
 const replyMax = 16_384
@@ -73,13 +75,7 @@ export const Composer = ({
   const input = useRef<HTMLTextAreaElement>(null)
   const [stopping, setStopping] = useState(false)
   const [error, setError] = useState<Failure | null>(null)
-  const mounted = useRef(true)
-  useEffect(() => {
-    mounted.current = true
-    return () => {
-      mounted.current = false
-    }
-  }, [])
+  const mounted = useMounted()
   useEffect(() => {
     if (!focusInput || !input.current) return
     input.current.focus({ preventScroll: true })
@@ -211,18 +207,8 @@ export const Composer = ({
             onDraft(event.target.value)
             if (error) setError(null)
           }}
-          onKeyDown={(event) => {
-            if (event.key !== "Enter" || event.nativeEvent.isComposing) return
-            if (event.shiftKey) {
-              // The agent's field takes one line.
-              if (replying) event.preventDefault()
-              return
-            }
-            // A modified Enter belongs to the workspace's shortcuts.
-            if (event.ctrlKey || event.metaKey || event.altKey) return
-            event.preventDefault()
-            send()
-          }}
+          // The agent's field takes one line.
+          onKeyDown={submitOnEnter(send, replying)}
         />
         <div className="chat-composer-actions">
           {working && (

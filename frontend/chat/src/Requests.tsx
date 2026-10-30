@@ -4,6 +4,7 @@ import { CircleHelp, ClipboardList, Loader, ShieldQuestion, type LucideIcon } fr
 import { useEffect, useRef, useState } from "react"
 
 import { RequestDialog } from "./RequestDialog"
+import { useMounted } from "./use-mounted"
 
 const kinds: Readonly<Record<ChatRequest["kind"], { title: string; Icon: LucideIcon }>> = {
   permission: { title: "Needs your permission", Icon: ShieldQuestion },
@@ -50,13 +51,7 @@ const Card = ({
   const { title, Icon } = kinds[request.kind]
   const [sending, setSending] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const mounted = useRef(true)
-  useEffect(() => {
-    mounted.current = true
-    return () => {
-      mounted.current = false
-    }
-  }, [])
+  const mounted = useMounted()
   // The request as it is now, for what happens a moment after an answer took.
   const latest = useRef(request)
   useEffect(() => {
